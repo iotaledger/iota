@@ -39,7 +39,7 @@ impl PartialEq<str> for FrameLabel {
 }
 
 /// Call graph frame.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Default)]
 pub(super) struct Frame<S> {
     /// Frame identifier.
     pub(super) label: FrameLabel,

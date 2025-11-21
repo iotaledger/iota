@@ -3,8 +3,11 @@
 
 use std::time::Duration;
 
-#[cfg(feature = "flamegraph-alloc")]
-use super::alloc::AllocMetrics;
+use super::{
+    callgraph::{CallGraph, Frame, NodeId},
+    flame::{Flames, FrameLabel, Metadata},
+    metric::{CountMetric, FlameMetric, MergeMetrics, Stopwatch},
+};
 
 #[path = "svg_template.rs"]
 mod svg_template;
@@ -59,19 +62,16 @@ impl Svg {
     }
 }
 
-use super::{
-    callgraph::{CallGraph, Frame, NodeId},
-    flame::{Flames, FrameLabel, Metadata},
-    metric::FlameMetric,
-};
-
 trait FromSpanMetrics<S>:
     for<'a> std::ops::Add<&'a S, Output = Self> + for<'a> std::ops::AddAssign<&'a S>
 {
 }
 
 // Helper trait to abstract over span measure (eg. duration or allocations).
-trait Measure: Clone + Copy + Default + Eq + for<'a> From<&'a RawNode> + Into<f64> + Sized {}
+trait Measure:
+    Clone + Copy + Default + Eq + for<'a> From<&'a Frame<FlameMetric>> + Into<f64> + Sized
+{
+}
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 struct TotalTime(Duration);
@@ -88,9 +88,9 @@ impl std::ops::AddAssign<&FlameMetric> for TotalTime {
     }
 }
 impl FromSpanMetrics<FlameMetric> for TotalTime {}
-impl From<&RawNode> for TotalTime {
-    fn from(raw: &RawNode) -> Self {
-        TotalTime(raw.total)
+impl From<&Frame<FlameMetric>> for TotalTime {
+    fn from(raw: &Frame<FlameMetric>) -> Self {
+        TotalTime(raw.metrics.running.total)
     }
 }
 impl From<TotalTime> for f64 {
@@ -120,9 +120,9 @@ impl std::ops::AddAssign<&FlameMetric> for TotalMem {
 #[cfg(feature = "flamegraph-alloc")]
 impl FromSpanMetrics<FlameMetric> for TotalMem {}
 #[cfg(feature = "flamegraph-alloc")]
-impl From<&RawNode> for TotalMem {
-    fn from(raw: &RawNode) -> Self {
-        TotalMem(raw.alloc.alloc)
+impl From<&Frame<FlameMetric>> for TotalMem {
+    fn from(frame: &Frame<FlameMetric>) -> Self {
+        TotalMem(frame.metrics.alloc_total.alloc)
     }
 }
 #[cfg(feature = "flamegraph-alloc")]
@@ -134,26 +134,7 @@ impl From<TotalMem> for f64 {
 #[cfg(feature = "flamegraph-alloc")]
 impl Measure for TotalMem {}
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-struct RawNode {
-    label: FrameLabel,
-    samples: usize,
-    total: Duration,
-    #[cfg(feature = "flamegraph-alloc")]
-    alloc: AllocMetrics,
-}
-impl From<&Frame<FlameMetric>> for RawNode {
-    fn from(frame: &Frame<FlameMetric>) -> Self {
-        RawNode {
-            label: frame.label,
-            samples: frame.metrics.count.entered,
-            total: frame.metrics.running.total,
-            #[cfg(feature = "flamegraph-alloc")]
-            alloc: frame.metrics.alloc_total,
-        }
-    }
-}
-impl RawNode {
+impl Frame<FlameMetric> {
     fn into_node<M: Measure, R: rand::Rng>(
         self,
         start: M,
@@ -173,12 +154,25 @@ impl RawNode {
         // svg node height is fixed
         let height = 15;
 
-        let RawNode {
+        let Frame {
             label,
-            samples,
-            total,
-            #[cfg(feature = "flamegraph-alloc")]
-            alloc,
+            metrics: FlameMetric {
+                count: CountMetric {
+                    // the number of span samples is the number the span was entered
+                    entered: samples,
+                    ..
+                },
+                running: Stopwatch {
+                    // the total duration span was in active/running state
+                    total,
+                    ..
+                },
+                #[cfg(feature = "flamegraph-alloc")]
+                // allocation metrics are accumulated metrics per all span entries
+                alloc_total: alloc,
+                // we do not need the rest of the metrics
+                ..
+            },
         } = self;
 
         let rgb = random_rgb(rng);
@@ -212,20 +206,17 @@ fn random_rgb<R: rand::Rng>(rng: &mut R) -> (u8, u8, u8) {
     (r, g, b)
 }
 
-#[derive(Clone, Debug, Default, Eq, PartialEq)]
+#[derive(Clone, Debug, Default)]
 struct Raw<M> {
     total: M,
-    running: Vec<Vec<(M, RawNode)>>,
+    running: Vec<Vec<(M, Frame<FlameMetric>)>>,
 }
 impl<M: Measure> Raw<M> {
-    fn add_node<S>(&mut self, frame: &Frame<S>, start: M, level: usize) -> M
-    where
-        for<'a> &'a Frame<S>: Into<RawNode>,
-    {
+    fn add_node(&mut self, frame: Frame<FlameMetric>, start: M, level: usize) -> M {
         if self.running.len() <= level {
             self.running.resize(level + 1, Vec::new());
         }
-        self.running[level].push((start, frame.into()));
+        self.running[level].push((start, frame));
         start
     }
     fn render(self, caption: &str, config: &Config) -> Svg {
@@ -285,7 +276,7 @@ impl CallGraph<FlameMetric> {
                 raw,
                 || start,
                 |svg_raw, start, node_id, level| {
-                    svg_raw.add_node(&self.graph[node_id].value, start, level)
+                    svg_raw.add_node(self.graph[node_id].value, start, level)
                 },
                 |_, start, node_id| {
                     let metrics = &self.graph[node_id].value.metrics;
@@ -351,18 +342,14 @@ impl Flames<FlameMetric> {
             None
         } else {
             // aggregate level 0 nodes into one
-            let mut root = RawNode {
+            let mut root: Frame<FlameMetric> = Frame {
                 label: FrameLabel { name: "all" },
-                samples: 1,
-                total: Duration::default(),
-                #[cfg(feature = "flamegraph-alloc")]
-                alloc: AllocMetrics::new(),
+                ..Default::default()
             };
+            root.metrics.count.entered += 1;
             let level0 = raw.running.first().unwrap();
             for (_, node) in level0 {
-                root.total += node.total;
-                #[cfg(feature = "flamegraph-alloc")]
-                root.alloc.merge(node.alloc);
+                root.metrics.merge(node.metrics);
             }
             // insert the root node at level 0 and shift other nodes 1 level up
             raw.running.insert(0, vec![(Default::default(), root)]);
