@@ -31,6 +31,7 @@ Move.lock
 
 # Flamegraph output
 flamegraph.svg
+flamegraph-mem.svg
 
 # Thumbnails
 ._*

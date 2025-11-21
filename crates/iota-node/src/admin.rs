@@ -460,7 +460,7 @@ struct Flamegraph {
     /// Toggle SVG response, otherwise return nested set model for Grafana.
     #[serde(default)]
     svg: bool,
-    /// SVG width in pixels (3600 by default).
+    /// SVG width in pixels (when missing or set to 0 will default to 3600).
     #[serde(default)]
     width: usize,
     /// Select still running call graphs.
@@ -472,6 +472,10 @@ struct Flamegraph {
     /// Select call graph with the given ID.
     #[serde(default)]
     graph_id: String,
+    /// Use memory allocations as span measure rather than duration.
+    #[cfg(feature = "flamegraph-alloc")]
+    #[serde(default)]
+    mem: bool,
 }
 
 async fn flamegraph(State(state): State<Arc<AppState>>, query: Query<Flamegraph>) -> Response {
@@ -482,6 +486,8 @@ async fn flamegraph(State(state): State<Arc<AppState>>, query: Query<Flamegraph>
             mut running,
             mut completed,
             graph_id,
+            #[cfg(feature = "flamegraph-alloc")]
+            mem,
         }) = query;
         if !running && !completed {
             running = true;
@@ -492,6 +498,8 @@ async fn flamegraph(State(state): State<Arc<AppState>>, query: Query<Flamegraph>
             let width = if width == 0 { Some(3600) } else { Some(width) };
             let config = telemetry_subscribers::flamegraph::SvgConfig {
                 width,
+                #[cfg(feature = "flamegraph-alloc")]
+                measure_mem: mem,
                 ..Default::default()
             };
             let svg = if !graph_id.is_empty() {

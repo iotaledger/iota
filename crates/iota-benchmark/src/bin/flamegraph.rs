@@ -1,8 +1,7 @@
 // Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::fs;
-use std::alloc::System;
+use std::{alloc::System, fs};
 
 use iota_test_transaction_builder::make_transfer_iota_transaction;
 use telemetry_subscribers::flamegraph::CounterAlloc;
@@ -31,26 +30,31 @@ async fn main() {
 
     // follow instructions in telemetry-subscribers README how to setup grafana to
     // visualize the flamegraphs
-    println!(
-        "{}",
-        serde_json::to_string_pretty(&sub.get_nested_sets(
-            "iota-benchmark::flamegraph",
-            true,
-            true
-        ))
-        .unwrap()
-    );
-    println!();
+    let nested_sets = sub.get_nested_sets("iota-benchmark::flamegraph", true, true);
+    println!("{}", serde_json::to_string_pretty(&nested_sets).unwrap());
 
-    let svg = sub
-        .get_combined_svg(
-            "iota-benchmark::flamegraph",
-            true,
-            true,
-            &Default::default(),
-        )
+    use std::io::Write as _;
+    let mut config = Default::default();
+    std::fs::File::create("flamegraph.svg")
         .unwrap()
-        .into_string();
-    fs::write("flamegraph.svg", &svg).expect("Failed to write flamegraph.svg");
-    println!("Flamegraph written to flamegraph.svg");
+        .write_all(
+            sub.get_combined_svg("iota-benchmark::flamegraph", true, true, &config)
+                .unwrap()
+                .into_string()
+                .as_bytes(),
+        )
+        .unwrap();
+    #[cfg(feature = "flamegraph-alloc")]
+    {
+        config.measure_mem = true;
+        std::fs::File::create("flamegraph-mem.svg")
+            .unwrap()
+            .write_all(
+                sub.get_combined_svg("iota-benchmark::flamegraph", true, true, &config)
+                    .unwrap()
+                    .into_string()
+                    .as_bytes(),
+            )
+            .unwrap();
+    }
 }
