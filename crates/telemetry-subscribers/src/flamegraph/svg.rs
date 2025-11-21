@@ -24,7 +24,8 @@ pub struct Config {
     pub width: Option<usize>,
     /// Desired aspect ratio (width, height) of the SVG.
     pub aspect_ratio: Option<(usize, usize)>,
-    /// Seed value for random color generation to ensure reproducible flamegraph colors.
+    /// Seed value for random color generation to ensure reproducible flamegraph
+    /// colors.
     pub seed: u64,
 }
 impl Default for Config {
@@ -145,7 +146,9 @@ impl Raw {
                     })
                     .max(100); // minimum width
                 // 10px margin on each side
-                if total.is_zero() { (1.0, w) } else {
+                if total.is_zero() {
+                    (1.0, w)
+                } else {
                     ((w - 20) as f64 / total.as_nanos() as f64, w)
                 }
             });

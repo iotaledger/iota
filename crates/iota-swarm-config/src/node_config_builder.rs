@@ -55,6 +55,7 @@ pub struct ValidatorConfigBuilder {
     submit_delay_step_override_millis: Option<u64>,
     discovery_config: Option<DiscoveryConfig>,
     chain_override: Option<Chain>,
+    admin_interface_address: Option<SocketAddr>,
 }
 
 impl ValidatorConfigBuilder {
@@ -143,6 +144,14 @@ impl ValidatorConfigBuilder {
         self
     }
 
+    pub fn with_admin_interface_address(
+        mut self,
+        admin_interface_address: impl Into<SocketAddr>,
+    ) -> Self {
+        self.admin_interface_address = Some(admin_interface_address.into());
+        self
+    }
+
     pub fn build_without_genesis(self, validator: ValidatorGenesisConfig) -> NodeConfig {
         let key_path = get_key_path(&validator.authority_key_pair);
         let config_directory = self
@@ -208,9 +217,9 @@ impl ValidatorConfigBuilder {
             db_path,
             network_address,
             metrics_address: validator.metrics_address,
-            admin_interface_address: local_ip_utils::new_tcp_address_for_testing(&localhost)
-                .to_socket_addr()
-                .unwrap(),
+            admin_interface_address: self
+                .admin_interface_address
+                .unwrap_or(local_ip_utils::new_local_tcp_socket_for_testing()),
             json_rpc_address: local_ip_utils::new_tcp_address_for_testing(&localhost)
                 .to_socket_addr()
                 .unwrap(),

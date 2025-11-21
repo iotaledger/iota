@@ -296,6 +296,14 @@ pub enum IotaCommand {
         remote_migration_snapshots: Vec<SnapshotUrl>,
         #[arg(long, help = "Specify the delegator address")]
         delegator: Option<IotaAddress>,
+        /// Set `admin-interface-address` config. This flag
+        /// accepts also a port, a host, or both (e.g., 0.0.0.0:1337).
+        /// When providing a specific value, please use the = sign between the
+        /// flag and value: `--admin-interface-address=1337` or
+        /// `--admin-interface-address=0.0.0.0`, or
+        /// `--admin-interface-address=0.0.0.0:1337`
+        #[arg(long, require_equals = true, value_name = "ADMIN_INTERFACE_HOST_PORT")]
+        admin_interface_address: Option<String>,
     },
     /// Create an IOTA Genesis Ceremony with multiple remote validators.
     GenesisCeremony(Ceremony),
@@ -440,6 +448,7 @@ impl IotaCommand {
                 local_migration_snapshots: with_local_migration_snapshot,
                 remote_migration_snapshots: with_remote_migration_snapshot,
                 delegator,
+                admin_interface_address,
             } => {
                 genesis(
                     from_config,
@@ -454,6 +463,7 @@ impl IotaCommand {
                     with_local_migration_snapshot,
                     with_remote_migration_snapshot,
                     delegator,
+                    admin_interface_address,
                 )
                 .await
             }
@@ -750,6 +760,7 @@ async fn start(
                 local_migration_snapshots,
                 remote_migration_snapshots,
                 delegator,
+                None,
             )
             .await
             .map_err(|e| anyhow!("{e}: {}. \n\n\
@@ -1019,6 +1030,7 @@ async fn genesis(
     local_migration_snapshots: Vec<PathBuf>,
     remote_migration_snapshots: Vec<SnapshotUrl>,
     delegator: Option<IotaAddress>,
+    admin_interface_address: Option<String>,
 ) -> Result<(), anyhow::Error> {
     let iota_config_dir = &match working_dir {
         // if a directory is specified, it must exist (it
@@ -1155,6 +1167,12 @@ async fn genesis(
     } else {
         builder.committee_size(NonZeroUsize::new(committee_size).unwrap())
     };
+    if let Some(input) = admin_interface_address {
+        let default_port = iota_config::node::default_admin_interface_address().port();
+        let admin_interface_address = parse_host_port(input, default_port)
+            .map_err(|_| anyhow!("Invalid admin interface host and port"))?;
+        builder = builder.with_admin_interface_address(admin_interface_address);
+    }
     let network_config = tokio::task::spawn_blocking(move || builder.build()).await?;
     let mut keystore = FileBasedKeystore::new(&keystore_path)?;
     for key in &network_config.account_keys {

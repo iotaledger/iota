@@ -172,7 +172,7 @@ impl ProtocolCommands<IotaBenchmarkType> for IotaProtocol {
             &[&format!("mkdir -p {working_dir}")],
             &[
                 "genesis",
-                &format!("-f --working-dir {working_dir} --benchmark-ips {ips}"),
+                &format!("-f --working-dir {working_dir} --benchmark-ips {ips} --admin-interface-address=localhost:1337"),
                 &epoch_duration_flag,
                 &chain_start_timestamp_flag,
             ],
