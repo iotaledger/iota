@@ -281,9 +281,12 @@ impl<T: BenchmarkType> MeasurementsCollection<T> {
             .unwrap_or_default();
 
         last_measurements
-            .iter()
-            .map(|x| (x.workload.clone(), x.tps(&duration)))
-            .collect()
+            .into_iter()
+            // Sum TPS for each workload across all scrapers
+            .fold(HashMap::new(), |mut acc, measurement| {
+                *acc.entry(measurement.workload.clone()).or_insert(0) += measurement.tps(&duration);
+                acc
+            })
     }
 
     /// Aggregate the tps of multiple data points by taking the sum.
@@ -310,16 +313,22 @@ impl<T: BenchmarkType> MeasurementsCollection<T> {
     }
 
     pub fn workload_latency(&self) -> HashMap<String, Duration> {
-        let last_data_points: Vec<_> = self
-            .scrapers
+        self.scrapers
             .values()
             .flat_map(|workload_map| workload_map.values())
             .filter_map(|measurements| measurements.last())
-            .collect();
-        last_data_points
-            .iter()
-            .map(|x| (x.workload.clone(), x.average_latency()))
-            .collect()
+            // get the maximum latency of each workload across all scrapers
+            .fold(HashMap::new(), |mut acc, measurement| {
+                let latency = measurement.average_latency();
+                acc.entry(measurement.workload.clone())
+                    .and_modify(|max_latency| {
+                        if latency > *max_latency {
+                            *max_latency = latency;
+                        }
+                    })
+                    .or_insert(latency);
+                acc
+            })
     }
 
     /// Aggregate the average latency of multiple data points by taking the
@@ -337,6 +346,25 @@ impl<T: BenchmarkType> MeasurementsCollection<T> {
             .sum::<Duration>()
             .checked_div(last_data_points.len() as u32)
             .unwrap_or_default()
+    }
+
+    pub fn workload_stdev_latency(&self) -> HashMap<String, Duration> {
+        self.scrapers
+            .values()
+            .flat_map(|workload_map| workload_map.values())
+            .filter_map(|measurements| measurements.last())
+            // get the maximum stdev latency of each workload across all scrapers
+            .fold(HashMap::new(), |mut acc, measurement| {
+                let stdev = measurement.stdev_latency();
+                acc.entry(measurement.workload.clone())
+                    .and_modify(|max_stdev| {
+                        if stdev > *max_stdev {
+                            *max_stdev = stdev;
+                        }
+                    })
+                    .or_insert(stdev);
+                acc
+            })
     }
 
     /// Aggregate the stdev latency of multiple data points by taking the max.
@@ -365,6 +393,7 @@ impl<T: BenchmarkType> MeasurementsCollection<T> {
         let total_tps = self.aggregate_tps();
         let workload_latency = self.workload_latency();
         let average_latency = self.aggregate_average_latency();
+        let workload_stdev_latency = self.workload_stdev_latency();
         let stdev_latency = self.aggregate_stdev_latency();
 
         let mut table = Table::new();
@@ -385,6 +414,7 @@ impl<T: BenchmarkType> MeasurementsCollection<T> {
         for (workload, tps) in &workload_tps {
             table.add_row(row![b->format!("  {} TPS:", workload), format!("{tps} tx/s")]);
         }
+        table.add_row(row![bH2->""]);
 
         table.add_row(row![b->"Latency (avg):", format!("{} ms", average_latency.as_millis())]);
         for (workload, latency) in &workload_latency {
@@ -392,7 +422,14 @@ impl<T: BenchmarkType> MeasurementsCollection<T> {
                 row![b->format!("  {} Latency:", workload), format!("{} ms", latency.as_millis())],
             );
         }
+        table.add_row(row![bH2->""]);
+
         table.add_row(row![b->"Latency (stdev):", format!("{} ms", stdev_latency.as_millis())]);
+        for (workload, latency) in &workload_stdev_latency {
+            table.add_row(
+                row![b->format!("  {} Latency:", workload), format!("{} ms", latency.as_millis())],
+            );
+        }
 
         display::newline();
         table.printstd();
