@@ -166,6 +166,10 @@ pub enum Operation {
         /// default: false, aka use starfish in every epoch.
         #[clap(long, action, default_value_t = false, global = true)]
         protocol_switch_each_epoch: bool,
+
+        /// Optional: Epoch duration in milliseconds, default is 1h
+        #[arg(long, value_name = "INT", global = true)]
+        epoch_duration_ms: Option<u64>,
     },
 
     /// Print a summary of the specified measurements collection.
@@ -375,6 +379,7 @@ async fn run<C: ServerProviderClient>(settings: Settings, client: C, opts: Opts)
             number_of_clusters,
             protocol_switch_each_epoch,
             maximum_latency,
+            epoch_duration_ms,
         } => {
             // Create a new orchestrator to instruct the testbed.
             let username = testbed.username();
@@ -445,6 +450,7 @@ async fn run<C: ServerProviderClient>(settings: Settings, client: C, opts: Opts)
                     .with_latency_topology(latency_topology)
                     .with_protocol_switch_each_epoch(protocol_switch_each_epoch)
                     .with_max_latency(maximum_latency)
+                    .with_epoch_duration(epoch_duration_ms)
                     .with_faults(fault_type);
 
             Orchestrator::new(

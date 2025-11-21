@@ -1340,9 +1340,8 @@ fn should_update_provable_metrics(error: &ConsensusError, source: &str) -> bool 
         && (is_from_signed_block_verification(error)
             || matches!(
                 error,
-                ConsensusError::BlockRejected { .. }
-                //| ConsensusError::MalformedAncestorBlock { .. }
-                ))
+                ConsensusError::BlockRejected { .. } //| ConsensusError::MalformedAncestorBlock { .. }
+            ))
     {
         return true;
     }

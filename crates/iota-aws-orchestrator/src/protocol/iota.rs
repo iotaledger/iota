@@ -99,6 +99,11 @@ impl ProtocolCommands<IotaBenchmarkType> for IotaProtocol {
             "cargo run --release --bin iota --",
             "genesis",
             &format!("-f --working-dir {working_dir} --benchmark-ips {ips}"),
+            parameters
+                .epoch_duration_ms
+                .map(|epoch_duration_ms| format!("--epoch-duration-ms {epoch_duration_ms}"))
+                .as_deref()
+                .unwrap_or(""),
         ]
         .join(" ");
 
@@ -266,7 +271,7 @@ impl IotaProtocol {
                 false => x.main_ip.to_string(),
             })
             .collect();
-        let genesis_config = GenesisConfig::new_for_benchmarks(&ips);
+        let genesis_config = GenesisConfig::new_for_benchmarks(&ips, parameters.epoch_duration_ms);
         let mut addresses = Vec::new();
         if let Some(validator_configs) = genesis_config.validator_config_info.as_ref() {
             for (i, validator_info) in validator_configs.iter().enumerate() {
@@ -308,7 +313,7 @@ impl ProtocolMetrics for IotaProtocol {
             })
             .unzip();
 
-        GenesisConfig::new_for_benchmarks(&ips)
+        GenesisConfig::new_for_benchmarks(&ips, parameters.epoch_duration_ms)
             .validator_config_info
             .expect("No validator in genesis")
             .iter()
