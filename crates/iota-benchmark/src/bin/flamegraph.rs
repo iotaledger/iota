@@ -26,13 +26,23 @@ async fn main() {
     // visualize the flamegraphs
     println!(
         "{}",
-        serde_json::to_string_pretty(&sub.get_nested_sets("iota-benchmark::flamegraph")).unwrap()
+        serde_json::to_string_pretty(&sub.get_nested_sets(
+            "iota-benchmark::flamegraph",
+            true,
+            true
+        ))
+        .unwrap()
     );
     println!();
     println!(
         "{}",
-        sub.get_combined_svg("iota-benchmark::flamegraph", &Default::default())
-            .unwrap()
-            .into_string()
+        sub.get_combined_svg(
+            "iota-benchmark::flamegraph",
+            true,
+            true,
+            &Default::default()
+        )
+        .unwrap()
+        .into_string()
     );
 }
