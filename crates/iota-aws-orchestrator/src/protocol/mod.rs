@@ -115,6 +115,7 @@ pub trait ProtocolMetrics {
         &self,
         instances: I,
         _parameters: &BenchmarkParameters<T>,
+        query: &str,
     ) -> Vec<(Instance, String)>
     where
         I: IntoIterator<Item = Instance>,
@@ -124,7 +125,7 @@ pub trait ProtocolMetrics {
             .into_iter()
             .map(|instance| {
                 (instance, {
-                    let cmd = "curl http://localhost:1337/flamegraph?svg=true";
+                    let cmd = format!("curl http://localhost:1337/flamegraph{query}");
                     display::action(format!("\n{cmd}"));
                     cmd.to_string()
                 })

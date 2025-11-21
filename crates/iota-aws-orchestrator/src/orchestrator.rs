@@ -610,29 +610,48 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
         aggregator.save(&path);
 
         if self.settings.enable_flamegraph {
-            let flamegraph_commands = self
-                .protocol_commands
-                .nodes_flamegraph_command(self.node_instances.clone(), parameters);
-            let stdio = self
-                .ssh_manager
-                .execute_per_instance(flamegraph_commands, CommandContext::default())
-                .await?;
-            for (i, (stdout, stderr)) in stdio.into_iter().enumerate() {
-                if !stdout.is_empty() {
-                    let mut file = PathBuf::from(&path);
-                    file.push(format!("flamegraph-{i}.svg"));
-                    fs::write(file, stdout).unwrap();
-                }
-                if !stderr.is_empty() {
-                    let mut file = PathBuf::from(&path);
-                    file.push(format!("flamegraph-{i}.log"));
-                    fs::write(file, stderr).unwrap();
-                }
-            }
+            self.fetch_flamegraphs(
+                parameters,
+                self.node_instances.clone(),
+                &path,
+                "?svg=true",
+                "flamegraph",
+            )
+            .await?;
         }
 
         display::done();
         Ok(aggregator)
+    }
+
+    async fn fetch_flamegraphs(
+        &self,
+        parameters: &BenchmarkParameters<T>,
+        nodes: Vec<Instance>,
+        path: &PathBuf,
+        query: &str,
+        file_prefix: &str,
+    ) -> TestbedResult<()> {
+        let flamegraph_commands = self
+            .protocol_commands
+            .nodes_flamegraph_command(nodes, parameters, query);
+        let stdio = self
+            .ssh_manager
+            .execute_per_instance(flamegraph_commands, CommandContext::default())
+            .await?;
+        for (i, (stdout, stderr)) in stdio.into_iter().enumerate() {
+            if !stdout.is_empty() {
+                let mut file = PathBuf::from(path);
+                file.push(format!("{file_prefix}-{i}.svg"));
+                fs::write(file, stdout).unwrap();
+            }
+            if !stderr.is_empty() {
+                let mut file = PathBuf::from(path);
+                file.push(format!("{file_prefix}-{i}.log"));
+                fs::write(file, stderr).unwrap();
+            }
+        }
+        Ok(())
     }
 
     /// Download the log files from the nodes and clients.
