@@ -534,9 +534,9 @@ impl ConsensusTransaction {
         }
     }
 
-    pub fn new_misbehavior_report_v1(
+    pub fn new_misbehavior_report(
         authority: AuthorityName,
-        report: &MisbehaviorReportV1,
+        report: &VersionedMisbehaviorReport,
         round: CommitRound,
     ) -> Self {
         let serialized_report =
@@ -546,11 +546,7 @@ impl ConsensusTransaction {
         let tracking_id = hasher.finish().to_le_bytes();
         Self {
             tracking_id,
-            kind: ConsensusTransactionKind::MisbehaviorReport(
-                authority,
-                VersionedMisbehaviorReport::V1(report.clone()),
-                round,
-            ),
+            kind: ConsensusTransactionKind::MisbehaviorReport(authority, report.clone(), round),
         }
     }
 
