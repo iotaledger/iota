@@ -382,9 +382,11 @@ async fn basic_flow_with_custom_callback_epoch_limit() {
 // Scenario:
 // A transaction with a known digest is embedded only in checkpoint 10. The
 // callback `shutdown_when` inspects each processed checkpoint and returns
-// `true` if it contains the target transaction digest. Once the condition is
-// met, the Executor initiates graceful shutdown without handing that checkpoint
-// to workers (i.e. 11.chk is skipped and becomes the upper limit).
+// `ShutdownAction::IncludeAndShutdown` enum variant if it contains the target
+// transaction digest. Once the condition is met, the Executor will stop sending
+// new checkpoints and will wait for all previously sent checkpoints to be
+// processed by workers before initiating graceful shutdown process. 11.chk is
+// skipped and becomes the upper limit.
 //
 // This test verifies that:
 // 1. The framework only processes checkpoints with sequence numbers strictly
