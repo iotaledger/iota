@@ -1290,6 +1290,23 @@ impl SharedInputObject {
     pub fn into_id_and_version(self) -> (ObjectID, SequenceNumber) {
         (self.id, self.initial_shared_version)
     }
+
+    /// Merges another SharedInputObject into self.
+    /// If there is a conflict in mutability, the resulting object will be
+    /// mutable. Errors if the id or initial_shared_version do not match.
+    pub fn union(&mut self, other: &SharedInputObject) -> UserInputResult<()> {
+        fp_ensure!(self.id == other.id, UserInputError::SharedObjectIdMismatch);
+        fp_ensure!(
+            self.initial_shared_version == other.initial_shared_version,
+            UserInputError::SharedObjectStartingVersionMismatch
+        );
+
+        if !self.mutable && other.mutable {
+            self.mutable = other.mutable;
+        }
+
+        Ok(())
+    }
 }
 
 impl TransactionKind {
@@ -2502,10 +2519,10 @@ impl SenderSignedData {
     /// Returns all unique input objects including those from the sender
     /// `MoveAuthenticator` if any for reading.
     ///
-    /// Although some shared objects(with a different mutability flag) can be
-    /// duplicated in the transaction and authenticator object lists, we load
-    /// them independently to make it possible to analyze the inputs in the
-    /// transaction checkers.
+    /// Although some shared objects(with a different mutability flag, for
+    /// example) can be duplicated in the transaction and authenticator
+    /// object lists, we load them independently to make it possible to
+    /// analyze the inputs in the transaction checkers.
     pub fn collect_all_inputs_for_reading(&self) -> IotaResult<Vec<InputObjectKind>> {
         let mut input_objects_set = self
             .transaction_data()
@@ -2597,8 +2614,11 @@ impl SenderSignedData {
     /// transaction, including those from the `MoveAuthenticator` if any.
     ///
     /// If a shared object appears both in the transaction and authenticator
-    /// with different mutability, only one instance which is mutable is
-    /// returned.
+    /// with the same version but different mutability, only one instance which
+    /// is mutable is returned.
+    ///
+    /// Shared objects with the same ID but different versions are returned
+    /// separately.
     pub fn shared_input_objects(&self) -> impl Iterator<Item = SharedInputObject> + '_ {
         // Vector is used to preserve the order of input objects.
         let mut input_objects = self.transaction_data().shared_input_objects();
@@ -2606,25 +2626,16 @@ impl SenderSignedData {
         // Add the Move authenticator shared objects if any.
         if let Some(move_authenticator) = self.sender_move_authenticator() {
             for auth_shared_object in move_authenticator.shared_objects() {
-                let entry = input_objects
-                    .iter_mut()
-                    .find(|o| o.id() == auth_shared_object.id());
+                let entry = input_objects.iter_mut().find(|o| {
+                    o.id == auth_shared_object.id
+                        && o.initial_shared_version == auth_shared_object.initial_shared_version
+                });
 
                 match entry {
-                    None => {
-                        input_objects.push(auth_shared_object);
-                    }
-                    Some(existing) => {
-                        assert_eq!(
-                            existing.initial_shared_version,
-                            auth_shared_object.initial_shared_version,
-                            "The `initial_shared_version` field for shared input objects with the same id must be equal"
-                        );
-
-                        if !existing.mutable && auth_shared_object.mutable {
-                            existing.mutable = auth_shared_object.mutable;
-                        }
-                    }
+                    None => input_objects.push(auth_shared_object),
+                    Some(existing) => existing
+                        .union(&auth_shared_object)
+                        .expect("union of shared objects should not fail"),
                 }
             }
         }
@@ -2641,6 +2652,8 @@ impl SenderSignedData {
     /// If a shared object appears both in the transaction and authenticator
     /// with different mutability, only one instance which is mutable is
     /// returned.
+    ///
+    /// Shared objects with the same ID but different versions are not allowed.
     pub fn input_objects(&self) -> IotaResult<impl Iterator<Item = InputObjectKind> + '_> {
         // Can contain duplicates in case of using the same IOTA coin as an input and as
         // a gas coin.
@@ -2648,49 +2661,14 @@ impl SenderSignedData {
 
         // Add the Move authenticator shared objects if any.
         if let Some(move_authenticator) = self.sender_move_authenticator() {
-            for auth_shared_object in move_authenticator.input_objects() {
-                let auth_shared_object_id = auth_shared_object.object_id();
+            for auth_object in move_authenticator.input_objects() {
                 let entry = input_objects
                     .iter_mut()
-                    .find(|o| o.object_id() == auth_shared_object_id);
+                    .find(|o| o.object_id() == auth_object.object_id());
 
                 match entry {
-                    None => {
-                        input_objects.push(auth_shared_object);
-                    }
-                    Some(existing) => match existing {
-                        InputObjectKind::MovePackage(_)
-                        | InputObjectKind::ImmOrOwnedMoveObject(_) => {
-                            assert_eq!(
-                                existing, &auth_shared_object,
-                                "The input object kinds is expected to be equal or the same object id {auth_shared_object_id}",
-                            );
-                        }
-                        InputObjectKind::SharedMoveObject {
-                            id,
-                            initial_shared_version,
-                            mutable,
-                        } => match auth_shared_object {
-                            InputObjectKind::MovePackage(_)
-                            | InputObjectKind::ImmOrOwnedMoveObject(_) => {
-                                panic!("Mismatched input object kinds for the same object id {id}");
-                            }
-                            InputObjectKind::SharedMoveObject {
-                                id: _,
-                                initial_shared_version: auth_initial_shared_version,
-                                mutable: auth_mutable,
-                            } => {
-                                assert_eq!(
-                                    initial_shared_version, &auth_initial_shared_version,
-                                    "The `initial_shared_version` field must be equal for shared input objects with the same id {id}"
-                                );
-
-                                if !*mutable && auth_mutable {
-                                    *mutable = auth_mutable;
-                                }
-                            }
-                        },
-                    },
+                    None => input_objects.push(auth_object),
+                    Some(existing) => existing.union(&auth_object)?,
                 }
             }
         }
@@ -3134,6 +3112,44 @@ impl InputObjectKind {
             Self::ImmOrOwnedMoveObject((_, _, _)) => true,
             Self::SharedMoveObject { mutable, .. } => *mutable,
         }
+    }
+
+    /// Merges another InputObjectKind into self.
+    /// For shared objects, if either is mutable, the result is mutable.
+    /// Fails if either is not a shared object, or if the IDs or initial
+    /// versions do not match.
+    pub fn union(&mut self, other: &InputObjectKind) -> UserInputResult<()> {
+        match self {
+            InputObjectKind::MovePackage(_) | InputObjectKind::ImmOrOwnedMoveObject(_) => {
+                fp_bail!(UserInputError::NotSharedObject)
+            }
+            InputObjectKind::SharedMoveObject {
+                id,
+                initial_shared_version,
+                mutable,
+            } => match other {
+                InputObjectKind::MovePackage(_) | InputObjectKind::ImmOrOwnedMoveObject(_) => {
+                    fp_bail!(UserInputError::NotSharedObject)
+                }
+                InputObjectKind::SharedMoveObject {
+                    id: other_id,
+                    initial_shared_version: other_initial_shared_version,
+                    mutable: other_mutable,
+                } => {
+                    fp_ensure!(id == other_id, UserInputError::SharedObjectIdMismatch);
+                    fp_ensure!(
+                        initial_shared_version == other_initial_shared_version,
+                        UserInputError::SharedObjectStartingVersionMismatch
+                    );
+
+                    if !*mutable && *other_mutable {
+                        *mutable = *other_mutable;
+                    }
+                }
+            },
+        }
+
+        Ok(())
     }
 }
 

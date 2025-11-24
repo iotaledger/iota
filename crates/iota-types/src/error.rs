@@ -219,6 +219,9 @@ pub enum UserInputError {
     #[error("Wrong initial version given for shared object")]
     SharedObjectStartingVersionMismatch,
 
+    #[error("Wrong id given for shared object")]
+    SharedObjectIdMismatch,
+
     #[error(
         "Attempt to transfer object {object_id} that does not have public transfer. Object transfer must be done instead using a distinct Move function call"
     )]
