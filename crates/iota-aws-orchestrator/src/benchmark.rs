@@ -62,8 +62,8 @@ pub struct BenchmarkParameters<T> {
     pub perturbation_spec: PerturbationSpec,
     /// Flag used to switch between mysticety and starfish every epoch.
     pub protocol_switch_each_epoch: bool,
-    /// Flag to skip generation of the latency matrix in private networks.
-    pub keep_latencies: bool,
+    /// Optional: Epoch duration in milliseconds, default is 1h
+    pub epoch_duration_ms: Option<u64>,
 }
 
 impl<T: BenchmarkType> Default for BenchmarkParameters<T> {
@@ -79,7 +79,7 @@ impl<T: BenchmarkType> Default for BenchmarkParameters<T> {
             perturbation_spec: PerturbationSpec::None,
             protocol_switch_each_epoch: false,
             maximum_latency: 400,
-            keep_latencies: false,
+            epoch_duration_ms: None,
         }
     }
 }
@@ -117,7 +117,7 @@ impl<T> BenchmarkParameters<T> {
         perturbation_spec: PerturbationSpec,
         protocol_switch_each_epoch: bool,
         maximum_latency: u16,
-        keep_latencies: bool,
+        epoch_duration_ms: Option<u64>,
     ) -> Self {
         Self {
             benchmark_type,
@@ -130,7 +130,7 @@ impl<T> BenchmarkParameters<T> {
             perturbation_spec,
             protocol_switch_each_epoch,
             maximum_latency,
-            keep_latencies,
+            epoch_duration_ms,
         }
     }
 }
@@ -183,8 +183,8 @@ pub struct BenchmarkParametersGenerator<T> {
     pub perturbation_spec: PerturbationSpec,
     /// Flag used to switch between mysticety and starfish every epoch.
     pub protocol_switch_each_epoch: bool,
-    /// Flag to skip generation of the latency matrix in private networks.
-    pub keep_latencies: bool,
+    /// Optional: Epoch duration in milliseconds, default is 1h
+    epoch_duration_ms: Option<u64>,
 }
 
 impl<T: BenchmarkType> Iterator for BenchmarkParametersGenerator<T> {
@@ -204,7 +204,7 @@ impl<T: BenchmarkType> Iterator for BenchmarkParametersGenerator<T> {
                 self.perturbation_spec.clone(),
                 self.protocol_switch_each_epoch,
                 self.maximum_latency,
-                self.keep_latencies,
+                self.epoch_duration_ms,
             )
         })
     }
@@ -241,7 +241,7 @@ impl<T: BenchmarkType> BenchmarkParametersGenerator<T> {
             latency_topology: Some(TopologyLayout::Geographical),
             protocol_switch_each_epoch: false,
             maximum_latency: 400,
-            keep_latencies: false,
+            epoch_duration_ms: None,
         }
     }
 
@@ -283,8 +283,8 @@ impl<T: BenchmarkType> BenchmarkParametersGenerator<T> {
         self
     }
 
-    pub fn with_keep_latencies(mut self, keep_latencies: bool) -> Self {
-        self.keep_latencies = keep_latencies;
+    pub fn with_epoch_duration(mut self, epoch_duration_ms: Option<u64>) -> Self {
+        self.epoch_duration_ms = epoch_duration_ms;
         self
     }
 
