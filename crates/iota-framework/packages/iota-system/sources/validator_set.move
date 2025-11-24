@@ -12,7 +12,7 @@ use iota::priority_queue as pq;
 use iota::table::{Self, Table};
 use iota::table_vec::{Self, TableVec};
 use iota::vec_map::{Self, VecMap};
-use iota::vec_set::{Self, VecSet};
+use iota::vec_set::{ VecSet};
 use iota_system::staking_pool::{PoolTokenExchangeRate, StakedIota, pool_id};
 use iota_system::validator::{ValidatorV1, staking_pool_id, iota_address};
 use iota_system::validator_cap::{Self, UnverifiedValidatorOperationCap, ValidatorOperationCap};
@@ -88,7 +88,7 @@ public struct ValidatorSetV2 has store {
 #[allow(unused_field)]
 /// Event containing staking and rewards related information of
 /// each validator, emitted during epoch advancement.
-public struct ValidatorEpochInfoEventV1 has copy, drop {
+public struct ValidatorEpochInfoEventV2 has copy, drop {
     epoch: u64,
     validator_address: address,
     reference_gas_survey_quote: u64,
@@ -98,7 +98,7 @@ public struct ValidatorEpochInfoEventV1 has copy, drop {
     pool_staking_reward: u64,
     pool_token_exchange_rate: PoolTokenExchangeRate,
     tallying_rule_reporters: vector<address>,
-    tallying_rule_global_score: u64,
+    score: u64,
 }
 
 /// Event emitted every time a new validator becomes active.
@@ -140,9 +140,11 @@ const ACTIVE_OR_PENDING_VALIDATOR: u8 = 2;
 const ANY_VALIDATOR: u8 = 3;
 
 const BASIS_POINT_DENOMINATOR: u128 = 10000;
+const MAX_SCORE: u128 = 65536;
 const MIN_STAKING_THRESHOLD: u64 = 1_000_000_000; // 1 IOTA
 
 // Errors
+#[allow(unused_const)]
 const ENonValidatorInReportRecords: u64 = 0;
 #[allow(unused_const)]
 const EInvalidStakeAdjustmentAmount: u64 = 1;
@@ -161,6 +163,7 @@ const EValidatorSetEmpty: u64 = 13;
 const ENotACommitteeValidator: u64 = 14;
 const EInvalidStakeAmount: u64 = 15;
 const EInvalidEligibleValidatorIndex: u64 = 16;
+const EInvalidRewardAdjustmentData:u64 = 19;
 
 const EInvalidCap: u64 = 101;
 
@@ -451,18 +454,18 @@ public(package) fun advance_epoch(
     self: &mut ValidatorSetV2,
     total_validator_rewards: &mut Balance<IOTA>,
     validator_report_records: &mut VecMap<address, VecSet<address>>,
-    reward_slashing_rate: u64,
     low_stake_threshold: u64,
     very_low_stake_threshold: u64,
     low_stake_grace_period: u64,
     committee_size: u64,
     eligible_active_validators: vector<u64>,
+    scores: vector<u64>,
     ctx: &mut TxContext,
 ) {
     let new_epoch = ctx.epoch() + 1;
     let total_voting_power = voting_power::total_voting_power();
 
-    // Compute the reward distribution without taking into account the tallying rule slashing.
+    // Compute the reward distribution without taking into account the scores.
     let unadjusted_staking_reward_amounts = compute_unadjusted_reward_distribution(
         &self.active_validators,
         &self.committee_members,
@@ -470,18 +473,13 @@ public(package) fun advance_epoch(
         total_validator_rewards.value(),
     );
 
-    // Use the tallying rule report records for the epoch to compute validators that will be
-    // punished.
-    let slashed_validators = compute_slashed_validators(self, *validator_report_records);
-
-    // Compute the adjusted amounts of stake each committee validator should get according to the tallying rule.
+    // Compute the adjusted amounts of stake each committee validator should get according to the scoring rule.
     // `compute_adjusted_reward_distribution` must be called before `distribute_reward` and `adjust_next_epoch_commission_rate` to
     // make sure we are using the current epoch's stake information to compute reward distribution.
     let adjusted_staking_reward_amounts = compute_adjusted_reward_distribution(
         &self.committee_members,
         unadjusted_staking_reward_amounts,
-        get_validator_indices_set(&self.active_validators, &slashed_validators),
-        reward_slashing_rate,
+        &scores,
     );
 
     // Distribute the rewards before adjusting stake so that we immediately start compounding
@@ -505,7 +503,7 @@ public(package) fun advance_epoch(
         &self.committee_members,
         &adjusted_staking_reward_amounts,
         validator_report_records,
-        &slashed_validators,
+        scores,
     );
 
     // Collect committee validator addresses before modifying the `active_validators`.
@@ -875,21 +873,6 @@ fun find_validator_from_table_vec(
         i = i + 1;
     };
     option::none()
-}
-
-/// Given a vector of validator addresses, return a set of all indices of the validators.
-/// Aborts if any address isn't in the given validator set.
-fun get_validator_indices_set(
-    validators: &vector<ValidatorV1>,
-    validator_addresses: &vector<address>,
-): VecSet<u64> {
-    let mut res = vec_set::empty();
-    validator_addresses.do_ref!(|addr| {
-        let index_opt = find_validator(validators, *addr);
-        assert!(index_opt.is_some(), ENotAValidator);
-        res.insert(index_opt.destroy_some());
-    });
-    res
 }
 
 public(package) fun get_validator_mut(
@@ -1274,29 +1257,6 @@ fun adjust_next_epoch_commission_rate(validators: &mut vector<ValidatorV1>) {
     }
 }
 
-/// Process the validator report records of the epoch and return the addresses of the
-/// non-performant committee validators according to the input threshold.
-fun compute_slashed_validators(
-    self: &ValidatorSetV2,
-    mut validator_report_records: VecMap<address, VecSet<address>>,
-): vector<address> {
-    let mut slashed_validators = vector[];
-    while (!validator_report_records.is_empty()) {
-        let (validator_address, reporters) = validator_report_records.pop();
-        assert!(
-            is_committee_validator_by_iota_address(self, validator_address),
-            ENonValidatorInReportRecords,
-        );
-        // Sum up the voting power of validators that have reported this validator and check if it has
-        // passed the slashing threshold.
-        let reporter_votes = sum_committee_voting_power_by_addresses(self, &reporters.into_keys());
-        if (reporter_votes >= voting_power::quorum_threshold()) {
-            slashed_validators.push_back(validator_address);
-        }
-    };
-    slashed_validators
-}
-
 /// Given the current list of committee validators, the total stake and total reward,
 /// calculate the amount of reward each validator should get, without taking into
 /// account the tallying rule results.
@@ -1324,33 +1284,24 @@ fun compute_unadjusted_reward_distribution(
 fun compute_adjusted_reward_distribution(
     committee_members: &vector<u64>,
     unadjusted_staking_reward_amounts: vector<u64>,
-    slashed_validator_indices_set: VecSet<u64>,
-    reward_slashing_rate: u64,
+    scores: &vector<u64>
 ): vector<u64> {
     let mut adjusted_staking_reward_amounts = vector[];
 
     // Loop through each validator and adjust rewards as necessary
     let length = committee_members.length();
+    assert!(unadjusted_staking_reward_amounts.length() == scores.length(), EInvalidRewardAdjustmentData);
+    assert!(length == unadjusted_staking_reward_amounts.length(), EInvalidRewardAdjustmentData);
+
     let mut i = 0;
     while (i < length) {
+       
         let unadjusted_staking_reward_amount = unadjusted_staking_reward_amounts[i];
 
-        // Check if the validator is slashed
-        let adjusted_staking_reward_amount = if (
-            slashed_validator_indices_set.contains(&committee_members[i])
-        ) {
-            // Use the slashing rate to compute the amount of staking rewards slashed from this punished validator.
-            // Use u128 to avoid multiplication overflow.
-            let staking_reward_adjustment_u128 =
-                ((unadjusted_staking_reward_amount as u128) * (reward_slashing_rate as u128)) / BASIS_POINT_DENOMINATOR;
-            unadjusted_staking_reward_amount - (staking_reward_adjustment_u128 as u64)
-        } else {
-            // Otherwise, unadjusted staking reward amount is assigned to the unslashed validators
-            unadjusted_staking_reward_amount
-        };
-
-        adjusted_staking_reward_amounts.push_back(adjusted_staking_reward_amount);
-
+        // Calculate adjusted staking reward amount
+        let adjusted_staking_reward_amount = scores[i] as u128 * (unadjusted_staking_reward_amount as u128)
+            / (MAX_SCORE as u128);
+        adjusted_staking_reward_amounts.push_back(adjusted_staking_reward_amount as u64);
         // Move to the next validator
         i = i + 1;
     };
@@ -1407,7 +1358,7 @@ fun emit_validator_epoch_events(
     committee_members: &vector<u64>,
     pool_staking_reward_amounts: &vector<u64>,
     report_records: &VecMap<address, VecSet<address>>,
-    slashed_validators: &vector<address>,
+    scores: vector<u64>,
 ) {
     assert!(committee_members.length() == pool_staking_reward_amounts.length());
     let mut i = 0;
@@ -1418,17 +1369,16 @@ fun emit_validator_epoch_events(
         } else {
             vector[]
         };
-        let tallying_rule_global_score = if (slashed_validators.contains(&validator_address)) 0
-        else 1;
         let mut committee_member_index = committee_members.find_index!(|c| c == i);
-        let pool_staking_reward = if (committee_member_index.is_some()) {
+        let (pool_staking_reward, score) = if (committee_member_index.is_some()) {
             // prepare event for a committee validator
-            pool_staking_reward_amounts[committee_member_index.extract()]
+            (pool_staking_reward_amounts[committee_member_index.extract()],
+            scores[committee_member_index.extract()])
         } else {
             // prepare event for an active non-committee validator
-            0
+            (0,0)
         };
-        event::emit(ValidatorEpochInfoEventV1 {
+        event::emit(ValidatorEpochInfoEventV2 {
             epoch: new_epoch,
             validator_address,
             reference_gas_survey_quote: v.gas_price(),
@@ -1438,7 +1388,8 @@ fun emit_validator_epoch_events(
             pool_staking_reward,
             pool_token_exchange_rate: v.pool_token_exchange_rate_at_epoch(new_epoch),
             tallying_rule_reporters,
-            tallying_rule_global_score,
+            score,
+            
         });
         i = i + 1;
     });
