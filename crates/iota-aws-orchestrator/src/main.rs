@@ -285,7 +285,7 @@ pub enum LatencyTopology {
     /// Uses a hardcoded 10x10 matrix with 10 equal-sized regions.
     HardCodedClustered,
     /// Uses mainnet validator region distribution for latencies.
-    MainNet,
+    Mainnet,
 }
 
 fn parse_duration(arg: &str) -> Result<Duration, std::num::ParseIntError> {
@@ -455,7 +455,7 @@ async fn run<C: ServerProviderClient>(settings: Settings, client: C, opts: Opts)
                 Some(LatencyTopology::HardCodedClustered) => {
                     Some(TopologyLayout::HardCodedClustered)
                 }
-                Some(LatencyTopology::MainNet) => Some(TopologyLayout::MainNet),
+                Some(LatencyTopology::Mainnet) => Some(TopologyLayout::Mainnet),
                 None => None,
             };
 

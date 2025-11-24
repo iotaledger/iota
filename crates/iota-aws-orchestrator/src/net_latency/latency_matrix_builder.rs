@@ -66,7 +66,7 @@ impl LatencyMatrixBuilder {
         Self {
             number_of_instances,
             max_latency: 300,
-            topology_layout: TopologyLayout::MainNet,
+            topology_layout: TopologyLayout::Mainnet,
             perturbation_spec: PerturbationSpec::None,
             matrix: vec![vec![0u16; number_of_instances]; number_of_instances],
         }
@@ -219,7 +219,7 @@ impl LatencyMatrixBuilder {
                     .map(|row| row.to_vec())
                     .to_vec();
             }
-            TopologyLayout::MainNet => {
+            TopologyLayout::Mainnet => {
                 self.fill_mainnet();
             }
             _ => self.fill_geographical(),
@@ -303,7 +303,7 @@ mod tests {
     #[ignore]
     fn test_mainnet_10_instances() {
         let matrix = LatencyMatrixBuilder::new(10)
-            .with_topology_layout(TopologyLayout::MainNet)
+            .with_topology_layout(TopologyLayout::Mainnet)
             .with_perturbation_spec(PerturbationSpec::None)
             .with_max_latency(300)
             .build();

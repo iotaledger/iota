@@ -18,7 +18,7 @@ pub enum TopologyLayout {
     /// Uses a hardcoded 10x10 matrix with 10 equal-sized regions
     HardCodedClustered,
     /// Use mainnet validator region distribution with shuffled order
-    MainNet,
+    Mainnet,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
