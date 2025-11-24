@@ -18,7 +18,7 @@ use crate::{
     ingestion::{
         common::{
             orchestration::{ShimIndexerProgressStore, new_executor},
-            persist::Writer,
+            persist::{CommitterWatermark, Writer},
         },
         primary::persist::TransactionObjectChangesToCommit,
         snapshot::{persist::ObjectSnapshotWriter, prepare::ObjectsSnapshotWorker},
@@ -93,7 +93,10 @@ impl SnapshotPipelineBuilder {
         &self,
         executor: &mut IndexerExecutor<ShimIndexerProgressStore>,
     ) -> IndexerResult<
-        iota_metrics::metered_channel::Receiver<(u64, TransactionObjectChangesToCommit)>,
+        iota_metrics::metered_channel::Receiver<(
+            CommitterWatermark,
+            TransactionObjectChangesToCommit,
+        )>,
     > {
         let global_metrics = get_metrics().unwrap();
         let (sender, receiver) = iota_metrics::metered_channel::channel(
@@ -117,14 +120,20 @@ impl SnapshotPipelineBuilder {
 pub(crate) struct SnapshotPipeline {
     executor: Option<IndexerExecutor<ShimIndexerProgressStore>>,
     writer: ObjectSnapshotWriter,
-    receiver: iota_metrics::metered_channel::Receiver<(u64, TransactionObjectChangesToCommit)>,
+    receiver: iota_metrics::metered_channel::Receiver<(
+        CommitterWatermark,
+        TransactionObjectChangesToCommit,
+    )>,
     cancel: CancellationToken,
 }
 
 impl SnapshotPipeline {
     fn spawn_writer_task(
         writer: ObjectSnapshotWriter,
-        receiver: iota_metrics::metered_channel::Receiver<(u64, TransactionObjectChangesToCommit)>,
+        receiver: iota_metrics::metered_channel::Receiver<(
+            CommitterWatermark,
+            TransactionObjectChangesToCommit,
+        )>,
         cancel: CancellationToken,
     ) -> JoinHandle<IndexerResult<()>> {
         spawn_monitored_task!(writer.persist_sequentially(receiver, cancel))

@@ -99,12 +99,18 @@ impl ProtocolCommands<IotaBenchmarkType> for IotaProtocol {
             "cargo run --release --bin iota --",
             "genesis",
             &format!("-f --working-dir {working_dir} --benchmark-ips {ips}"),
+            parameters
+                .epoch_duration_ms
+                .map(|epoch_duration_ms| format!("--epoch-duration-ms {epoch_duration_ms}"))
+                .as_deref()
+                .unwrap_or(""),
         ]
         .join(" ");
 
         [
             &format!("mkdir -p {working_dir}"),
             "source $HOME/.cargo/env",
+            "export RUSTFLAGS='-C target-cpu=native'",
             &genesis,
         ]
         .join(" && ")
@@ -154,7 +160,17 @@ impl ProtocolCommands<IotaBenchmarkType> for IotaProtocol {
                     ),
                 ]
                 .join(" ");
-                let command = ["source $HOME/.cargo/env", &run].join(" && ");
+                let command = [
+                    "source $HOME/.cargo/env",
+                    "export RUSTFLAGS='-C target-cpu=native'",
+                    if parameters.protocol_switch_each_epoch {
+                        "export CONSENSUS_PROTOCOL=swap_each_epoch"
+                    } else {
+                        "export CONSENSUS_PROTOCOL=starfish"
+                    },
+                    &run,
+                ]
+                .join(" && ");
 
                 display::action(format!("\n Command ({i}): {command}"));
 
@@ -216,7 +232,12 @@ impl ProtocolCommands<IotaBenchmarkType> for IotaProtocol {
                     &format!("--client-metric-host 0.0.0.0 --client-metric-port {metrics_port}"),
                 ]
                 .join(" ");
-                let command = ["source $HOME/.cargo/env", &run].join(" && ");
+                let command = [
+                    "source $HOME/.cargo/env",
+                    "export RUSTFLAGS='-C target-cpu=native'",
+                    &run,
+                ]
+                .join(" && ");
 
                 (instance, command)
             })
@@ -250,7 +271,7 @@ impl IotaProtocol {
                 false => x.main_ip.to_string(),
             })
             .collect();
-        let genesis_config = GenesisConfig::new_for_benchmarks(&ips);
+        let genesis_config = GenesisConfig::new_for_benchmarks(&ips, parameters.epoch_duration_ms);
         let mut addresses = Vec::new();
         if let Some(validator_configs) = genesis_config.validator_config_info.as_ref() {
             for (i, validator_info) in validator_configs.iter().enumerate() {
@@ -292,7 +313,7 @@ impl ProtocolMetrics for IotaProtocol {
             })
             .unzip();
 
-        GenesisConfig::new_for_benchmarks(&ips)
+        GenesisConfig::new_for_benchmarks(&ips, parameters.epoch_duration_ms)
             .validator_config_info
             .expect("No validator in genesis")
             .iter()

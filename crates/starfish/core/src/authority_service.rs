@@ -458,6 +458,13 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         encoder: &mut Box<dyn ShardEncoder + Send + Sync>,
     ) -> ConsensusResult<()> {
         fail_point_async!("consensus-rpc-response");
+        let _s = self
+            .context
+            .metrics
+            .node_metrics
+            .scope_processing_time
+            .with_label_values(&["AuthorityService::handle_stream"])
+            .start_timer();
 
         let peer_hostname = &self.context.committee.authority(peer).hostname;
         let mut serialized_block_bundle_parts =
@@ -481,6 +488,14 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             .block_timestamp_drift_ms
             .with_label_values(&[peer_hostname.as_str(), "handle_subscribed_block_bundle"])
             .inc_by(forward_time_drift.as_millis() as u64);
+        let latency_to_process_stream =
+            Duration::from_millis(now.saturating_sub(verified_block.timestamp_ms()));
+        self.context
+            .metrics
+            .node_metrics
+            .latency_to_process_stream
+            .with_label_values(&[peer_hostname.as_str()])
+            .observe(latency_to_process_stream.as_secs_f64());
 
         // 3. Create block headers from bytes from a bundle
 
@@ -625,8 +640,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
                 .await
             {
                 warn!(
-                    "Errored while trying to fetch missing transactions via
-             transactions synchronizer: {err}"
+                    "Errored while trying to fetch missing transactions via transactions synchronizer: {err}"
                 );
             }
         }
@@ -954,8 +968,20 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             return Ok(Vec::new());
         }
 
-        if block_refs.len() > self.context.parameters.max_transactions_per_fetch {
-            block_refs.truncate(self.context.parameters.max_transactions_per_fetch);
+        // Use the maximum of both limits to accommodate both commit sync and regular
+        // sync requests
+        let max_transactions = self
+            .context
+            .parameters
+            .max_transactions_per_regular_sync_fetch
+            .max(
+                self.context
+                    .parameters
+                    .max_transactions_per_commit_sync_fetch,
+            );
+
+        if block_refs.len() > max_transactions {
+            block_refs.truncate(max_transactions);
         }
 
         // Some quick validation of the requested block refs
@@ -3176,7 +3202,8 @@ mod tests {
         let (context, key_pairs) = Context::new_for_test(validators);
         let context = Context {
             parameters: Parameters {
-                max_transactions_per_fetch: 20,
+                max_transactions_per_regular_sync_fetch: 20,
+                max_transactions_per_commit_sync_fetch: 10,
                 ..context.parameters
             },
             ..context
@@ -3299,7 +3326,8 @@ mod tests {
             .await
             .expect("We should expect a correct return of serialized transactions");
 
-        block_refs_to_request_first_batch.truncate(context.parameters.max_transactions_per_fetch);
+        block_refs_to_request_first_batch
+            .truncate(context.parameters.max_transactions_per_regular_sync_fetch);
         // Verify that we received the correct number of requested transactions
         assert_eq!(
             serialized_transactions.len(),
@@ -3332,7 +3360,8 @@ mod tests {
             );
         }
 
-        block_refs_to_request_second_batch.truncate(context.parameters.max_transactions_per_fetch);
+        block_refs_to_request_second_batch
+            .truncate(context.parameters.max_transactions_per_regular_sync_fetch);
 
         let serialized_transactions = authority_service
             .handle_fetch_transactions(peer, block_refs_to_request_second_batch.clone())
