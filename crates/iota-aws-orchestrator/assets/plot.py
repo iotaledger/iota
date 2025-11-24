@@ -478,15 +478,19 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
 
-    for r in args.shared_objects_ratio:
-        parameters = PlotParameters(r, args.committee, args.faults)
+    if args.inspect is not None:
+        parameters = PlotParameters(None, None, None)
         plotter = Plotter(
             args.dir, parameters, args.y_max, args.legend_columns, median=False
         )
-        plotter.plot_latency_throughput()
-        plotter.plot_health()
-        plotter.plot_scalability(args.max_latencies)
-
-    if args.inspect is not None:
         plotter.plot_inspect(args.inspect)
         plotter.plot_duration(args.inspect, args.precision)
+    else:
+        for r in args.shared_objects_ratio:
+            parameters = PlotParameters(r, args.committee, args.faults)
+            plotter = Plotter(
+                args.dir, parameters, args.y_max, args.legend_columns, median=False
+            )
+            plotter.plot_latency_throughput()
+            plotter.plot_health()
+            plotter.plot_scalability(args.max_latencies)
