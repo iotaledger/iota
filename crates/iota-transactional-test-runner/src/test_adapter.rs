@@ -1286,18 +1286,22 @@ impl IotaTestAdapter {
 
         let (effects, _) = self.executor.execute_txn(tx).await?;
 
-        if let ExecutionStatus::Failure { error, .. } = effects.status() {
-            bail!("Internal funding transaction for abstract account failed: {error}");
-        }
-
-        for ((id, version, _digest), owner) in effects.created() {
-            if let iota_types::object::Owner::AddressOwner(addr) = owner {
-                if addr == recipient {
-                    let obj = self.get_object(&id, Some(version))?;
-                    return Ok(obj.compute_object_reference());
+        match effects.status() {
+            ExecutionStatus::Success => {
+                for ((id, version, _digest), owner) in effects.created() {
+                    if let iota_types::object::Owner::AddressOwner(addr) = owner {
+                        if addr == recipient {
+                            let obj = self.get_object(&id, Some(version))?;
+                            return Ok(obj.compute_object_reference());
+                        }
+                    }
                 }
             }
+            ExecutionStatus::Failure { error, .. } => {
+                bail!("Internal funding transaction for abstract account failed: {error}")
+            }
         }
+
         bail!("Internal funding transaction didn't create coin for the recipient {recipient}");
     }
 
