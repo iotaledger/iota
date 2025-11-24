@@ -1381,7 +1381,7 @@ impl CheckpointBuilder {
 
         batch.write()?;
 
-        // Send all checkpoint sigs to consensus. The messages inclusing
+        // Send all checkpoint sigs to consensus. The messages including
         // MisbehaviorReports are also sent in this step.
         for (summary, contents) in &new_checkpoints {
             self.output
