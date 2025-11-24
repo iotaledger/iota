@@ -456,13 +456,40 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
 
         // Get requested blocks from store.
         let blocks = if commit_sync_handle {
-            // For commit sync, we respond with all blocks from the store
-            self.dag_state
-                .read()
-                .get_blocks(&block_refs)
-                .into_iter()
-                .flatten()
-                .collect()
+            // For commit sync, optimize by fetching from store for blocks below GC round
+            let gc_round = self.dag_state.read().gc_round();
+
+            // Partition block_refs into those below and at-or-above GC round
+            let (below_gc, above_gc): (Vec<_>, Vec<_>) = block_refs
+                .iter()
+                .partition(|block_ref| block_ref.round < gc_round);
+
+            let mut blocks = Vec::new();
+
+            // Fetch blocks below GC from store
+            if !below_gc.is_empty() {
+                let store_blocks = self
+                    .store
+                    .read_blocks(&below_gc)?
+                    .into_iter()
+                    .flatten()
+                    .collect::<Vec<_>>();
+                blocks.extend(store_blocks);
+            }
+
+            // Fetch blocks at-or-above GC from dag_state
+            if !above_gc.is_empty() {
+                let dag_blocks = self
+                    .dag_state
+                    .read()
+                    .get_blocks(&above_gc)
+                    .into_iter()
+                    .flatten()
+                    .collect::<Vec<_>>();
+                blocks.extend(dag_blocks);
+            }
+
+            blocks
         } else {
             // For periodic or live synchronizer, we respond with requested blocks from the
             // store and with additional blocks from the cache
