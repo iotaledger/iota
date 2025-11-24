@@ -170,6 +170,11 @@ pub enum Operation {
         /// Optional: Epoch duration in milliseconds, default is 1h
         #[arg(long, value_name = "INT", global = true)]
         epoch_duration_ms: Option<u64>,
+
+        /// Number of blocking connections in the blocking
+        /// latency_perturbation_spec
+        #[arg(long, value_name = "INT", default_value = "1", global = true)]
+        blocking_connections: usize,
     },
 
     /// Print a summary of the specified measurements collection.
@@ -265,6 +270,7 @@ pub enum Load {
 #[derive(ValueEnum, Clone, Debug)]
 pub enum PerturbationSpec {
     BrokenTriangle,
+    Blocking,
     // potentially other options later
 }
 
@@ -380,6 +386,7 @@ async fn run<C: ServerProviderClient>(settings: Settings, client: C, opts: Opts)
             protocol_switch_each_epoch,
             maximum_latency,
             epoch_duration_ms,
+            blocking_connections,
         } => {
             // Create a new orchestrator to instruct the testbed.
             let username = testbed.username();
@@ -430,6 +437,9 @@ async fn run<C: ServerProviderClient>(settings: Settings, client: C, opts: Opts)
                         number_of_triangles,
                     }
                 }
+                Some(PerturbationSpec::Blocking) => net_latency::PerturbationSpec::Blocking {
+                    number_of_blocked_connections: blocking_connections,
+                },
                 None => net_latency::PerturbationSpec::None,
             };
 

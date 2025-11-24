@@ -29,6 +29,24 @@ pub struct LatencyMatrixBuilder {
 
 use rand::{Rng, rng};
 
+pub fn generate_block_matrix(n: usize, k: usize) -> Vec<Vec<bool>> {
+    let k = k / 2;
+
+    // Start with everything "true" (normal)
+    let mut matrix = vec![vec![true; n]; n];
+
+    // For symmetry, we assign blocks in round-robin pairs:
+    // node i blocks nodes (i+1)%n, (i+2)%n, ..., (i+k)%n
+    for i in 0..n {
+        for offset in 1..=k {
+            let j = (i + offset) % n;
+            matrix[i][j] = false;
+            matrix[j][i] = false; // enforce symmetry
+        }
+    }
+
+    matrix
+}
 impl LatencyMatrixBuilder {
     pub fn new(number_of_instances: usize) -> Self {
         Self {
@@ -143,6 +161,27 @@ impl LatencyMatrixBuilder {
         }
     }
 
+    fn apply_blocking(&mut self, number_of_blocking_connections: usize) {
+        if self.matrix.len() < 3 {
+            return;
+        }
+        if number_of_blocking_connections > self.matrix.len() / 2 {
+            return;
+        }
+        let n = self.matrix.len();
+        let blocking_matrix =
+            generate_block_matrix(self.matrix.len(), number_of_blocking_connections);
+        #[allow(clippy::needless_range_loop)]
+        for i in 0..n {
+            for j in 0..n {
+                if !blocking_matrix[i][j] {
+                    // add 10s to latency of blocked connections.
+                    self.matrix[i][j] = self.matrix[i][j].saturating_add(10000);
+                }
+            }
+        }
+    }
+
     pub fn build(mut self) -> Vec<Vec<u16>> {
         match self.topology_layout {
             TopologyLayout::HardCoded => {
@@ -159,6 +198,11 @@ impl LatencyMatrixBuilder {
                 added_latency,
             } => {
                 self.apply_broken_triangle(number_of_triangles, added_latency);
+            }
+            PerturbationSpec::Blocking {
+                number_of_blocked_connections,
+            } => {
+                self.apply_blocking(number_of_blocked_connections);
             }
             PerturbationSpec::None => {}
         };

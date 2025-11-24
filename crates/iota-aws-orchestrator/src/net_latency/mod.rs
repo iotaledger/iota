@@ -29,6 +29,10 @@ pub enum PerturbationSpec {
         number_of_triangles: u16,
         added_latency: u16,
     },
+    /// Blocking connections
+    Blocking {
+        number_of_blocked_connections: usize,
+    },
 }
 
 pub struct NetworkLatencyCommandBuilder<'a> {
