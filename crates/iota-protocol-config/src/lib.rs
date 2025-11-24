@@ -1448,7 +1448,12 @@ impl ProtocolConfig {
     }
 
     pub fn score_based_rewards(&self) -> bool {
-        self.feature_flags.score_based_rewards
+        let res = self.feature_flags.score_based_rewards;
+        assert!(
+            res && self.scorer_version.is_none(),
+            "score_based_rewards requires scorer_version to be set"
+        );
+        res && self.select_committee_from_eligible_validators()
     }
 }
 
