@@ -315,7 +315,7 @@ fn coins(objects: &[Object]) -> impl Iterator<Item = (&Address, Coin)> + '_ {
             Owner::Object(object_id) => object_id.as_address(),
             Owner::Shared { .. } | Owner::Immutable => return None,
         };
-        let coin = Coin::try_from_object(object)?;
+        let coin = Coin::try_from_object(object).ok()?;
         Some((address, coin))
     })
 }

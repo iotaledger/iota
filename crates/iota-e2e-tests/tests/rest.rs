@@ -7,11 +7,11 @@ use iota_macros::sim_test;
 use iota_rest_api::{
     Client, ExecuteTransactionQueryParameters,
     client::{BalanceChange, reqwest::StatusCode},
-    transactions::ResolveTransactionQueryParameters,
+    transactions::{ResolveTransactionQueryParameters, unresolved::{UnresolvedTransaction,UnresolvedObjectReference, UnresolvedProgrammableTransaction,UnresolvedGasPayment,UnresolvedInputArgument}},
 };
 use iota_sdk_types::{
-    Argument, Command, TransactionExpiration, UnresolvedGasPayment, UnresolvedInputArgument,
-    UnresolvedObjectReference, UnresolvedProgrammableTransaction, UnresolvedTransaction,
+    Argument, Command, TransactionExpiration
+    
 };
 use iota_test_transaction_builder::make_transfer_iota_transaction;
 use iota_types::{
