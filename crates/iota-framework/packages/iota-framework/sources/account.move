@@ -18,9 +18,6 @@ const EAuthenticatorInfoV1NotAttached: vector<u8> =
 const EAuthenticatorInfoV1CompatibilityNotProven: vector<u8> =
     b"An `AuthenticatorInfoV1` instance is not verified to be attached to the account.";
 #[error(code = 3)]
-const EAuthenticatorNotFound: vector<u8> =
-    b"The provided package, module and authenticator function combination was not found.";
-#[error(code = 4)]
 const EAuthenticatorInfoNotCompatibileWithAccount: vector<u8> =
     b"The provided `AuthenticatorInfoV1` is not compatible with the account type.";
 
@@ -50,12 +47,11 @@ public fun check_auth_info_v1_compatibility<Account: key>(
     module_name: ascii::String,
     function_name: ascii::String,
 ): AuthenticatorInfoV1CompatibilityProof {
-    let authenticator_metadata_opt = package_metadata.try_get_authenticator_metadata_v1(
-        module_name,
-        function_name,
-    );
-    assert!(authenticator_metadata_opt.is_some(), EAuthenticatorNotFound);
-    let authenticator_metadata = authenticator_metadata_opt.destroy_some();
+    let authenticator_metadata = package_metadata
+        .modules_metadata_v1(
+            &module_name,
+        )
+        .authenticator_metadata_v1(&function_name);
 
     let account_type_name = type_name::get<Account>();
     assert!(

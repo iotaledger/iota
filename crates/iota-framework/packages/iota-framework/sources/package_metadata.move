@@ -10,6 +10,13 @@ use iota::vec_map::VecMap;
 use std::ascii;
 use std::type_name::TypeName;
 
+#[error(code = 0)]
+const EModuleMetadataNotFound: vector<u8> =
+    b"The requested module metadata was not found in the package metadata.";
+#[error(code = 1)]
+const EAuthenticatorMetadataNotFound: vector<u8> =
+    b"The requested authenticator metadata was not found in the module metadata.";
+
 /// Key type for deriving the package metadata object address
 public struct PackageMetadataKey has copy, drop, store {}
 
@@ -59,38 +66,50 @@ public fun package_version(metadata: &PackageMetadataV1): u64 {
     metadata.package_version
 }
 
-/// Return the module metadata list of the package represented by this metadata
-public fun modules_metadata_v1(
+/// Safely get the module metadata list of the package represented by this metadata
+public fun try_get_modules_metadata_v1(
     self: &PackageMetadataV1,
     module_name: &ascii::String,
 ): Option<ModuleMetadataV1> {
     self.modules_metadata.try_get(module_name)
 }
 
-/// Returns the `AuthenticatorMetadataV1` associated with the specified
-/// `module_name` and `function_name`, if any.
-public fun authenticator_metadata_v1(
+/// Borrow the module metadata list of the package represented by this metadata.
+/// Aborts if the module is not found.
+public fun modules_metadata_v1(
+    self: &PackageMetadataV1,
+    module_name: &ascii::String,
+): &ModuleMetadataV1 {
+    assert!(self.modules_metadata.contains(module_name), EModuleMetadataNotFound);
+    self.modules_metadata.get(module_name)
+}
+
+/// Safely get the `AuthenticatorMetadataV1` associated with the specified
+/// `function_name` within the module metadata.
+public fun try_get_authenticator_metadata_v1(
     self: &ModuleMetadataV1,
-    function_name: ascii::String,
+    function_name: &ascii::String,
 ): Option<AuthenticatorMetadataV1> {
-    self.authenticator_metadata.find_index!(|m| m.function_name == function_name).and!(|index| {
+    self.authenticator_metadata.find_index!(|m| m.function_name == *function_name).and!(|index| {
         option::some(self.authenticator_metadata[index])
     })
+}
+
+/// Borrow the `AuthenticatorMetadataV1` associated with the specified
+/// `function_name`.
+/// Aborts if the authenticator metadata is not found for that function.
+public fun authenticator_metadata_v1(
+    self: &ModuleMetadataV1,
+    function_name: &ascii::String,
+): &AuthenticatorMetadataV1 {
+    let mut index = self.authenticator_metadata.find_index!(|m| m.function_name == *function_name);
+    assert!(index.is_some(), EAuthenticatorMetadataNotFound);
+    &self.authenticator_metadata[index.extract()]
 }
 
 /// Return the account type of the authenticator represented by this metadata
 public fun account_type(self: &AuthenticatorMetadataV1): TypeName {
     self.account_type
-}
-
-public fun try_get_authenticator_metadata_v1(
-    self: &PackageMetadataV1,
-    module_name: ascii::String,
-    function_name: ascii::String,
-): Option<AuthenticatorMetadataV1> {
-    self.modules_metadata_v1(&module_name).and!(|modules_metadata| {
-        modules_metadata.authenticator_metadata_v1(function_name)
-    })
 }
 
 /// Creates a `PackageMetadataV1` instance for testing, skipping validation.
