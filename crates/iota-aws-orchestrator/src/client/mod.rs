@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
+    collections::HashMap,
     fmt::Display,
     net::{Ipv4Addr, SocketAddr},
 };
@@ -36,6 +37,18 @@ impl From<&str> for InstanceRole {
         }
     }
 }
+
+#[derive(Debug, Deserialize, Clone, Eq, PartialEq, Hash)]
+pub enum InstanceLifecycle {
+    Spot,
+    OnDemand,
+}
+
+impl Display for InstanceLifecycle {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{self:?}")
+    }
+}
 /// Represents a cloud provider instance.
 #[derive(Debug, Deserialize, Clone, Eq, PartialEq, Hash)]
 pub struct Instance {
@@ -55,6 +68,8 @@ pub struct Instance {
     pub status: String,
     // The role of the instance. "Node" | "Client" | "Metrics"
     pub role: InstanceRole,
+    // The lifecycle of the instance. "Spot" | "OnDemand"
+    pub lifecycle: InstanceLifecycle,
 }
 
 impl Instance {
@@ -95,6 +110,7 @@ impl Instance {
             specs: Default::default(),
             status: Default::default(),
             role: InstanceRole::Node,
+            lifecycle: InstanceLifecycle::OnDemand,
         }
     }
 }
@@ -113,7 +129,7 @@ pub trait ServerProviderClient: Display {
 
     async fn list_instances_by_region_and_ids(
         &self,
-        ids: Vec<(String, String)>,
+        ids_by_region: &HashMap<String, Vec<String>>,
     ) -> CloudProviderResult<Vec<Instance>>;
 
     /// Start the specified instances.
@@ -123,7 +139,7 @@ pub trait ServerProviderClient: Display {
 
     /// Halt/Stop the specified instances. We may still be billed for stopped
     /// instances.
-    async fn stop_instances<'a, I>(&self, instance_ids: I) -> CloudProviderResult<()>
+    async fn stop_instances<'a, I>(&self, instances: I) -> CloudProviderResult<()>
     where
         I: Iterator<Item = &'a Instance> + Send;
 
@@ -132,13 +148,17 @@ pub trait ServerProviderClient: Display {
         &self,
         region: S,
         role: InstanceRole,
-    ) -> CloudProviderResult<Instance>
+        quantity: usize,
+        use_spot_instances: bool,
+    ) -> CloudProviderResult<Vec<Instance>>
     where
         S: Into<String> + Serialize + Send;
 
     /// Delete a specific instance. Calling this function ensures we are no
     /// longer billed for the specified instance.
-    async fn delete_instance(&self, instance: Instance) -> CloudProviderResult<()>;
+    async fn delete_instances<'a, I>(&self, instances: I) -> CloudProviderResult<()>
+    where
+        I: Iterator<Item = &'a Instance> + Send;
 
     /// Authorize the provided ssh public key to access machines.
     async fn register_ssh_public_key(&self, public_key: String) -> CloudProviderResult<()>;
@@ -152,11 +172,11 @@ pub trait ServerProviderClient: Display {
 
 #[cfg(test)]
 pub mod test_client {
-    use std::{fmt::Display, sync::Mutex};
+    use std::{collections::HashMap, fmt::Display, sync::Mutex};
 
     use serde::Serialize;
 
-    use super::{Instance, InstanceRole, ServerProviderClient};
+    use super::{Instance, InstanceLifecycle, InstanceRole, ServerProviderClient};
     use crate::{error::CloudProviderResult, settings::Settings};
 
     pub struct TestClient {
@@ -192,12 +212,18 @@ pub mod test_client {
         }
         async fn list_instances_by_region_and_ids(
             &self,
-            regions_and_ids: Vec<(String, String)>,
+            ids_by_region: &HashMap<String, Vec<String>>,
         ) -> CloudProviderResult<Vec<Instance>> {
             let guard = self.instances.lock().unwrap();
             let instances_by_ids = guard
                 .iter()
-                .filter(|x| regions_and_ids.contains(&(x.region.clone(), x.id.clone())))
+                .filter(|x| {
+                    if let Some(instances) = ids_by_region.get(x.region.as_str()) {
+                        instances.contains(&x.id)
+                    } else {
+                        false
+                    }
+                })
                 .cloned()
                 .collect::<Vec<_>>();
             Ok(instances_by_ids)
@@ -231,29 +257,46 @@ pub mod test_client {
             &self,
             region: S,
             role: InstanceRole,
-        ) -> CloudProviderResult<Instance>
+            quantity: usize,
+            use_spot_instances: bool,
+        ) -> CloudProviderResult<Vec<Instance>>
         where
             S: Into<String> + Serialize + Send,
         {
             let mut guard = self.instances.lock().unwrap();
-            let id = guard.len();
-            let instance = Instance {
-                id: id.to_string(),
-                region: region.into(),
-                main_ip: format!("0.0.0.{id}").parse().unwrap(),
-                private_ip: format!("0.0.0.{id}").parse().unwrap(),
-                tags: Vec::new(),
-                specs: self.settings.node_specs.clone(),
-                status: "running".into(),
-                role,
-            };
-            guard.push(instance.clone());
-            Ok(instance)
+            let mut instances = Vec::new();
+            let region = region.into();
+            for _ in 0..quantity {
+                let id = guard.len();
+                let instance = Instance {
+                    id: id.to_string(),
+                    region: region.clone(),
+                    main_ip: format!("0.0.0.{id}").parse().unwrap(),
+                    private_ip: format!("0.0.0.{id}").parse().unwrap(),
+                    tags: Vec::new(),
+                    specs: self.settings.node_specs.clone(),
+                    status: "running".into(),
+                    role: role.clone(),
+                    lifecycle: if use_spot_instances {
+                        InstanceLifecycle::Spot
+                    } else {
+                        InstanceLifecycle::OnDemand
+                    },
+                };
+                guard.push(instance.clone());
+                instances.push(instance);
+            }
+
+            Ok(instances)
         }
 
-        async fn delete_instance(&self, instance: Instance) -> CloudProviderResult<()> {
+        async fn delete_instances<'a, I>(&self, instances: I) -> CloudProviderResult<()>
+        where
+            I: Iterator<Item = &'a Instance> + Send,
+        {
+            let ids_to_delete = instances.map(|x| x.id.clone()).collect::<Vec<_>>();
             let mut guard = self.instances.lock().unwrap();
-            guard.retain(|x| x.id != instance.id);
+            guard.retain(|x| !ids_to_delete.contains(&x.id));
             Ok(())
         }
 

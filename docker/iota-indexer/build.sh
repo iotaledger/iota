@@ -2,4 +2,10 @@
 # Copyright (c) Mysten Labs, Inc.
 # Modifications Copyright (c) 2024 IOTA Stiftung
 # SPDX-License-Identifier: Apache-2.0
-./../utils/build-script.sh --image-tag "iotaledger/iota-indexer"
+
+# Determine script's location to resolve the relative path correctly
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" >/dev/null && pwd -P)"
+# The name of last directory in script's path is used for tag
+BASE_NAME="$(basename "$SCRIPT_DIR")"
+
+"$SCRIPT_DIR/../utils/build-script.sh" --image-tag "iotaledger/$BASE_NAME"

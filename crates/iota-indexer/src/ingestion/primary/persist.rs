@@ -8,7 +8,10 @@ use tap::tap::TapFallible;
 use tracing::{error, info, instrument};
 
 use crate::{
-    ingestion::common::{persist::CHECKPOINT_COMMIT_BATCH_SIZE, prepare::CheckpointObjectChanges},
+    ingestion::common::{
+        persist::{CHECKPOINT_COMMIT_BATCH_SIZE, CommitterTables, CommitterWatermark},
+        prepare::CheckpointObjectChanges,
+    },
     metrics::IndexerMetrics,
     models::{
         display::StoredDisplay,
@@ -78,6 +81,12 @@ impl PrimaryWriter {
         }
     }
 
+    /// Writes indexed checkpoint data to the database, and then update
+    /// watermark upper bounds and metrics. Expects
+    /// `indexed_checkpoint_batch` to be non-empty, and contain contiguous
+    /// checkpoints. There can be at most one epoch boundary at the end. If
+    /// an epoch boundary is detected, epoch-partitioned tables must be
+    /// advanced.
     // Unwrap: Caller needs to make sure indexed_checkpoint_batch is not empty
     #[instrument(skip_all, fields(
         first = indexed_checkpoint_batch.first().as_ref().unwrap().checkpoint.sequence_number,
@@ -127,7 +136,7 @@ impl PrimaryWriter {
         }
 
         let first_checkpoint_seq = checkpoint_batch.first().as_ref().unwrap().sequence_number;
-        let last_checkpoint_seq = checkpoint_batch.last().as_ref().unwrap().sequence_number;
+        let committer_watermark = CommitterWatermark::from(checkpoint_batch.last().unwrap());
 
         let guard = self.metrics.checkpoint_db_commit_latency.start_timer();
         let tx_batch = tx_batch.into_iter().flatten().collect::<Vec<_>>();
@@ -193,7 +202,8 @@ impl PrimaryWriter {
 
         let is_epoch_end = epoch.is_some();
 
-        // handle partitioning on epoch boundary
+        // On epoch boundary, we need to modify the existing partitions' upper bound,
+        // and introduce a new partition for incoming data for the upcoming epoch.
         if let Some(epoch_data) = epoch {
             self.state
                 .advance_epoch(epoch_data)
@@ -237,27 +247,39 @@ impl PrimaryWriter {
                 .persist_protocol_configs_and_feature_flags(chain_id);
         }
 
+        self.state
+            .update_watermarks_upper_bound::<CommitterTables>(committer_watermark)
+            .await
+            .tap_err(|e| {
+                error!(
+                    "Failed to update watermark upper bound with error: {}",
+                    e.to_string()
+                );
+            })
+            .expect("Updating watermark upper bound in DB should not fail.");
+
         let elapsed = guard.stop_and_record();
 
         info!(
             elapsed,
             "Checkpoint {}-{} committed with {} transactions.",
             first_checkpoint_seq,
-            last_checkpoint_seq,
+            committer_watermark.checkpoint_hi_inclusive,
             tx_count,
         );
         self.metrics
             .latest_tx_checkpoint_sequence_number
-            .set(last_checkpoint_seq as i64);
+            .set(committer_watermark.checkpoint_hi_inclusive as i64);
         self.metrics
             .total_tx_checkpoint_committed
             .inc_by(checkpoint_num as u64);
         self.metrics
             .total_transaction_committed
             .inc_by(tx_count as u64);
-        self.metrics
-            .transaction_per_checkpoint
-            .observe(tx_count as f64 / (last_checkpoint_seq - first_checkpoint_seq + 1) as f64);
+        self.metrics.transaction_per_checkpoint.observe(
+            tx_count as f64
+                / (committer_watermark.checkpoint_hi_inclusive - first_checkpoint_seq + 1) as f64,
+        );
         // 1000.0 is not necessarily the batch size, it's to roughly map average tx
         // commit latency to [0.1, 1] seconds, which is well covered by
         // DB_COMMIT_LATENCY_SEC_BUCKETS.

@@ -21,6 +21,7 @@ fastcrypto.workspace = true
 futures.workspace = true
 http.workspace = true
 itertools.workspace = true
+lru.workspace = true
 nom = "7.1.3"
 parking_lot.workspace = true
 prometheus.workspace = true

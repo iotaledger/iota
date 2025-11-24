@@ -8,7 +8,6 @@
     "sideEffects": false,
     "scripts": {
         "build": "tsup src/index.ts --format cjs,esm --dts",
-        "prepublishOnly": "pnpm run build",
         "clean:src": "rimraf src/**",
         "clean:svgs": "rimraf svgs/**",
         "clean:all": "pnpm clean:src && pnpm clean:svgs",

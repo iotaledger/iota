@@ -435,6 +435,7 @@ pub(crate) struct NodeMetrics {
     pub(crate) block_proposal_leader_wait_count: IntCounterVec,
     pub(crate) block_timestamp_drift_ms: IntCounterVec,
     pub(crate) blocks_per_commit_count: Histogram,
+    pub(crate) latency_to_process_stream: HistogramVec,
     pub(crate) blocks_pruned_on_commit: IntCounterVec,
     pub(crate) broadcaster_rtt_estimate_ms: IntGaugeVec,
     pub(crate) core_add_blocks_batch_size: Histogram,
@@ -453,6 +454,7 @@ pub(crate) struct NodeMetrics {
     pub(crate) fetch_blocks_scheduler_inflight: IntGauge,
     pub(crate) fetch_blocks_scheduler_skipped: IntCounterVec,
     pub(crate) synchronizer_fetched_blocks_by_peer: IntCounterVec,
+    pub(crate) synchronizer_skipped_blocks_by_peer: IntCounterVec,
     pub(crate) synchronizer_requested_blocks_by_peer: IntCounterVec,
     pub(crate) synchronizer_missing_blocks_by_authority: IntCounterVec,
     pub(crate) synchronizer_current_missing_blocks_by_authority: IntGaugeVec,
@@ -575,6 +577,13 @@ impl NodeMetrics {
                 "proposed_block_ancestors_timestamp_drift_ms",
                 "The drift in ms of ancestors' timestamps included in newly proposed blocks",
                 &["authority"],
+                registry,
+            ).unwrap(),
+            latency_to_process_stream: register_histogram_vec_with_registry!(
+                "latency_to_process_stream",
+                "The latency between block creation and processing stream from peer",
+                &["peer"],
+                exponential_buckets(1.0, 2.0, 14).unwrap(),
                 registry,
             ).unwrap(),
             proposed_block_ancestors_depth: register_histogram_vec_with_registry!(
@@ -724,6 +733,12 @@ impl NodeMetrics {
             synchronizer_fetched_blocks_by_peer: register_int_counter_vec_with_registry!(
                 "synchronizer_fetched_blocks_by_peer",
                 "Number of fetched blocks per peer authority via the synchronizer and also by block authority",
+                &["peer", "type"],
+                registry,
+            ).unwrap(),
+            synchronizer_skipped_blocks_by_peer: register_int_counter_vec_with_registry!(
+                "synchronizer_skipped_blocks_by_peer",
+                "Number of skipped blocks per peer authority via the synchronizer due to already being verified",
                 &["peer", "type"],
                 registry,
             ).unwrap(),

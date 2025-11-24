@@ -21,6 +21,7 @@ use crate::{
     logs::LogsAnalyzer,
     measurement::{Measurement, MeasurementsCollection},
     monitor::{Monitor, Prometheus},
+    net_latency::NetworkLatencyCommandBuilder,
     protocol::{ProtocolCommands, ProtocolMetrics},
     settings::Settings,
     ssh::{CommandContext, CommandStatus, SshConnectionManager},
@@ -275,7 +276,19 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
             .run_background("node".into())
             .with_log_file("~/node.log".into())
             .with_execute_from_path(repo.into());
-
+        if parameters.use_internal_ip_address {
+            if let Some(latency_topology) = parameters.latency_topology.clone() {
+                let latency_context = CommandContext::default();
+                let latency_commands = NetworkLatencyCommandBuilder::new(&instances)
+                    .with_perturbation_spec(parameters.perturbation_spec.clone())
+                    .with_topology_layout(latency_topology)
+                    .with_max_latency(parameters.maximum_latency)
+                    .build_network_latency_matrix();
+                self.ssh_manager
+                    .execute_per_instance(latency_commands, latency_context)
+                    .await?;
+            }
+        }
         self.ssh_manager
             .execute_per_instance(targets, context)
             .await?;
@@ -408,6 +421,7 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
         // to avoid keeping alive many ssh connections for too long.
         let build_command = [
             "source \"$HOME/.cargo/env\"".to_string(),
+            "export RUSTFLAGS='-C target-cpu=native'".to_string(),
             "cargo build --release --bin iota --bin iota-node --bin stress".to_string(),
         ]
         .join(" && ");

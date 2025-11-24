@@ -21,7 +21,9 @@ async fn graphiql(
     } else {
         "/graphql".to_string()
     };
-    let gq = async_graphql::http::GraphiQLSource::build().endpoint(&endpoint);
+    let gq = async_graphql::http::GraphiQLSource::build()
+        .endpoint(&endpoint)
+        .subscription_endpoint("/subscriptions");
     if let axum::Extension(Some(title)) = ide_title {
         axum::response::Html(gq.title(&title).finish())
     } else {

@@ -117,6 +117,7 @@ pub(crate) struct NodeMetrics {
     pub(crate) block_proposal_leader_wait_ms: IntCounterVec,
     pub(crate) block_proposal_leader_wait_count: IntCounterVec,
     pub(crate) block_timestamp_drift_ms: IntCounterVec,
+    pub(crate) latency_to_process_stream: HistogramVec,
     pub(crate) blocks_per_commit_count: Histogram,
     pub(crate) core_add_blocks_batch_size: Histogram,
     pub(crate) core_add_block_headers_batch_size: Histogram,
@@ -140,9 +141,8 @@ pub(crate) struct NodeMetrics {
     pub(crate) dag_state_recent_headers: IntGauge,
     pub(crate) dag_state_recent_shards: IntGauge,
     pub(crate) dag_state_recent_refs: IntGauge,
-    pub(crate) cordial_knowledge_buffer_size: IntGauge,
+    pub(crate) cordial_knowledge_message_batch_size: Histogram,
     pub(crate) cordial_knowledge_processed_messages: IntCounterVec,
-    pub(crate) cordial_knowledge_worker_batch_size: Histogram,
     pub(crate) dag_state_store_read_count: IntCounterVec,
     pub(crate) dag_state_store_write_count: IntCounter,
     pub(crate) synchronizer_fetch_block_headers_scheduler_inflight: IntGauge,
@@ -163,6 +163,8 @@ pub(crate) struct NodeMetrics {
     pub(crate) received_unique_headers_from_bundles: IntCounterVec,
     pub(crate) processed_duplicated_headers_in_bundles: IntCounterVec,
     pub(crate) valid_shards_in_bundles: IntCounterVec,
+    pub(crate) missing_ancestors_from_streaming: HistogramVec,
+    pub(crate) missing_ancestors_from_streaming_round_gap: Histogram,
     pub(crate) rejected_blocks: IntCounterVec,
     pub(crate) skipped_empty_transaction_acknowledgments: IntCounterVec,
     pub(crate) subscribed_block_bundles: IntCounterVec,
@@ -215,6 +217,7 @@ pub(crate) struct NodeMetrics {
     pub(crate) commit_sync_fetched_commits: IntCounter,
     pub(crate) commit_sync_fetched_block_headers: IntCounter,
     pub(crate) commit_sync_total_fetched_block_headers_size: IntCounter,
+    pub(crate) commit_sync_total_fetched_transactions_size: IntCounter,
     pub(crate) commit_sync_quorum_index: IntGauge,
     pub(crate) commit_sync_highest_synced_index: IntGauge,
     pub(crate) commit_sync_highest_fetched_index: IntGauge,
@@ -224,6 +227,7 @@ pub(crate) struct NodeMetrics {
     pub(crate) commit_sync_fetch_once_latency: Histogram,
     pub(crate) commit_sync_fetch_once_errors: IntCounterVec,
     pub(crate) commit_sync_fetch_missing_block_headers: IntCounterVec,
+    pub(crate) commit_sync_fetch_missing_transactions: IntCounterVec,
     pub(crate) uptime: Histogram,
 }
 
@@ -301,6 +305,13 @@ impl NodeMetrics {
                 "proposed_block_acknowledgments_depth",
                 "The depth in rounds of acknowledgments included in newly proposed blocks",
                 &["authority"],
+                exponential_buckets(1.0, 2.0, 14).unwrap(),
+                registry,
+            ).unwrap(),
+            latency_to_process_stream: register_histogram_vec_with_registry!(
+                "latency_to_process_stream",
+                "The latency between block creation and processing stream from peer",
+                &["peer"],
                 exponential_buckets(1.0, 2.0, 14).unwrap(),
                 registry,
             ).unwrap(),
@@ -464,15 +475,10 @@ impl NodeMetrics {
                 "Number of recent refs cached in the DagState",
                 registry,
             ).unwrap(),
-            cordial_knowledge_buffer_size: register_int_gauge_with_registry!(
-                "cordial_knowledge_buffer_size",
-                "Size of the cordial knowledge buffer received",
-                registry,
-            ).unwrap(),
-            cordial_knowledge_worker_batch_size: register_histogram_with_registry!(
-                "cordial_knowledge_worker_batch_size",
-                "Number of connection knowledge message batches processed by worker",
-                exponential_buckets(1.0, 1.4, 20).unwrap(),
+            cordial_knowledge_message_batch_size: register_histogram_with_registry!(
+                "cordial_knowledge_message_batch_size",
+                "Size of the batch of messages sent to cordial connections",
+                vec![0.0, 1.0, 2.0, 5.0, 10.0, 20.0, 40.0, 80.0, 100.0, 200.0, 400.0, 800.0, 1000.0],
                 registry,
             ).unwrap(),
             cordial_knowledge_processed_messages: register_int_counter_vec_with_registry!(
@@ -631,6 +637,18 @@ impl NodeMetrics {
                 "valid_shards_in_bundles",
                 "Number of valid shards received from block bundles per sender authority",
                 &["authority", "source"],
+                registry,
+            ).unwrap(),
+            missing_ancestors_from_streaming: register_histogram_vec_with_registry!(
+                "missing_ancestors_from_streaming",
+                "Number of missing ancestors of blocks and headers received through streaming",
+                &["source"],
+                registry,
+            ).unwrap(),
+            missing_ancestors_from_streaming_round_gap: register_histogram_with_registry!(
+                "missing_ancestors_from_streaming_round_gap",
+                "Round gap to missing ancestors of blocks and headers received through streaming",
+                vec![0.0, 1.0, 2.0, 5.0, 10.0, 20.0, 40.0, 80.0, 100.0, 200.0, 400.0, 800.0, 1000.0],
                 registry,
             ).unwrap(),
             rejected_blocks: register_int_counter_vec_with_registry!(
@@ -868,6 +886,11 @@ impl NodeMetrics {
                 "The total size in bytes of block headers fetched via commit syncer",
                 registry,
             ).unwrap(),
+            commit_sync_total_fetched_transactions_size: register_int_counter_with_registry!(
+                "commit_sync_total_fetched_transactions_size",
+                "The total size in bytes of transactions fetched via commit syncer",
+                registry,
+            ).unwrap(),
             commit_sync_quorum_index: register_int_gauge_with_registry!(
                 "commit_sync_quorum_index",
                 "The maximum commit index voted by a quorum of authorities",
@@ -919,6 +942,12 @@ impl NodeMetrics {
             commit_sync_fetch_missing_block_headers: register_int_counter_vec_with_registry!(
                 "commit_sync_fetch_missing_block_headers",
                 "Number of ancestor block headers that are missing when processing headers via commit sync.",
+                &["authority"],
+                registry
+            ).unwrap(),
+            commit_sync_fetch_missing_transactions: register_int_counter_vec_with_registry!(
+                "commit_sync_fetch_missing_transactions",
+                "Number of committed transactions that are missing when processing transactions via commit sync.",
                 &["authority"],
                 registry
             ).unwrap(),
