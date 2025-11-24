@@ -4,7 +4,7 @@
 
 use axum::extract::{Path, Query, State};
 use iota_sdk_types::{
-    CheckpointContents, Digest, CheckpointSequenceNumber, CheckpointSummary,
+    CheckpointContents, CheckpointSequenceNumber, CheckpointSummary, Digest,
     SignedCheckpointSummary, ValidatorAggregatedSignature,
 };
 use iota_types::storage::ReadStore;

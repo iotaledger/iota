@@ -16,8 +16,8 @@ use axum::{
     http::StatusCode,
 };
 use iota_sdk_types::{
-    CheckpointSequenceNumber, Transaction, Digest, TransactionEffects,
-    TransactionEvents, UserSignature,
+    CheckpointSequenceNumber, Digest, Transaction, TransactionEffects, TransactionEvents,
+    UserSignature,
 };
 pub use resolve::{
     ResolveTransaction, ResolveTransactionQueryParameters, ResolveTransactionResponse,

@@ -9,7 +9,7 @@ use axum::{
     extract::{Path, State},
 };
 use iota_protocol_config::{ProtocolConfig, ProtocolConfigValue, ProtocolVersion};
-use iota_sdk_types::{Address, ObjectId,PublicKeyExt};
+use iota_sdk_types::{Address, ObjectId, PublicKeyExt};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -387,10 +387,8 @@ impl From<iota_types::iota_system_state::iota_system_state_summary::IotaValidato
                 authority_pubkey_bytes,
             )
             .unwrap(),
-            network_public_key: iota_sdk_types::Ed25519PublicKey::from_bytes(
-                network_pubkey_bytes,
-            )
-            .unwrap(),
+            network_public_key: iota_sdk_types::Ed25519PublicKey::from_bytes(network_pubkey_bytes)
+                .unwrap(),
             protocol_public_key: iota_sdk_types::Ed25519PublicKey::from_bytes(
                 protocol_pubkey_bytes,
             )

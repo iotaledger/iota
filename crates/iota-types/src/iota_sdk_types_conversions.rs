@@ -12,19 +12,39 @@
 
 use fastcrypto::traits::ToFromBytes;
 use iota_sdk_types::{
-    checkpoint::{CheckpointCommitment,SignedCheckpointSummary,EndOfEpochData,CheckpointTransactionInfo,CheckpointContents,CheckpointSummary,CheckpointData,CheckpointTransaction},
-    digest::Digest,
-    crypto::{JwkId,Jwk,UserSignature,Bls12381PublicKey,Bls12381Signature},
-    events::{Event,TransactionEvents},
-    effects::{IdOperation,ObjectIn,TransactionEffectsV1,ChangedObject,UnchangedSharedKind,UnchangedSharedObject,ObjectOut,TransactionEffects},
-    execution_status::{MoveLocation,TypeArgumentError,ExecutionStatus,PackageUpgradeError,CommandArgumentError,ExecutionError},
     address::Address,
-    object_id::ObjectId,
-    object::{Owner,MovePackage,UpgradeInfo,TypeOrigin,ObjectReference, GenesisObject,MoveStruct,Object,ObjectData},
-    type_tag::{TypeTag,TypeParseError, StructTag,Identifier},
-    transaction::{Transaction,TransactionV1,MoveCall,Publish, MakeMoveVector,TransferObjects,MergeCoins,SplitCoins,Upgrade,SignedTransaction,Command,Argument,RandomnessStateUpdate,ActiveJwk,SystemPackage,AuthenticatorStateExpire,GasPayment,GenesisTransaction,ProgrammableTransaction,AuthenticatorStateUpdateV1,ChangeEpoch,CancelledTransaction,TransactionExpiration,EndOfEpochTransactionKind, VersionAssignment,ChangeEpochV2,ConsensusCommitPrologueV1,TransactionKind, ConsensusDeterminedVersionAssignments,ChangeEpochV3, Input},
-    validator::{ValidatorCommittee,ValidatorCommitteeMember,ValidatorAggregatedSignature},
+    checkpoint::{
+        CheckpointCommitment, CheckpointContents, CheckpointData, CheckpointSummary,
+        CheckpointTransaction, CheckpointTransactionInfo, EndOfEpochData, SignedCheckpointSummary,
+    },
+    crypto::{Bls12381PublicKey, Bls12381Signature, Jwk, JwkId, UserSignature},
+    digest::Digest,
+    effects::{
+        ChangedObject, IdOperation, ObjectIn, ObjectOut, TransactionEffects, TransactionEffectsV1,
+        UnchangedSharedKind, UnchangedSharedObject,
+    },
+    events::{Event, TransactionEvents},
+    execution_status::{
+        CommandArgumentError, ExecutionError, ExecutionStatus, MoveLocation, PackageUpgradeError,
+        TypeArgumentError,
+    },
     gas::GasCostSummary,
+    object::{
+        GenesisObject, MovePackage, MoveStruct, Object, ObjectData, ObjectReference, Owner,
+        TypeOrigin, UpgradeInfo,
+    },
+    object_id::ObjectId,
+    transaction::{
+        ActiveJwk, Argument, AuthenticatorStateExpire, AuthenticatorStateUpdateV1,
+        CancelledTransaction, ChangeEpoch, ChangeEpochV2, ChangeEpochV3, Command,
+        ConsensusCommitPrologueV1, ConsensusDeterminedVersionAssignments,
+        EndOfEpochTransactionKind, GasPayment, GenesisTransaction, Input, MakeMoveVector,
+        MergeCoins, MoveCall, ProgrammableTransaction, Publish, RandomnessStateUpdate,
+        SignedTransaction, SplitCoins, SystemPackage, Transaction, TransactionExpiration,
+        TransactionKind, TransactionV1, TransferObjects, Upgrade, VersionAssignment,
+    },
+    type_tag::{Identifier, StructTag, TypeParseError, TypeTag},
+    validator::{ValidatorAggregatedSignature, ValidatorCommittee, ValidatorCommitteeMember},
 };
 use move_core_types::language_storage::ModuleId;
 use tap::Pipe;
@@ -325,13 +345,11 @@ impl TryFrom<TransactionV1> for crate::transaction::TransactionData {
 }
 
 impl TryFrom<crate::transaction::TransactionData> for Transaction {
-     type Error = SdkTypeConversionError;
+    type Error = SdkTypeConversionError;
 
     fn try_from(value: crate::transaction::TransactionData) -> Result<Self, Self::Error> {
         match value {
-            crate::transaction::TransactionData::V1(txn) => {
-                Ok(Transaction::V1(txn.try_into()?))
-            }
+            crate::transaction::TransactionData::V1(txn) => Ok(Transaction::V1(txn.try_into()?)),
         }
     }
 }
@@ -381,9 +399,9 @@ impl TryFrom<TransactionV1> for crate::transaction::TransactionDataV1 {
 
     fn try_from(value: TransactionV1) -> Result<Self, Self::Error> {
         Self {
-            kind:value.kind.try_into()?,
-            sender:value.sender.into(),
-            gas_data:crate::transaction::GasData {
+            kind: value.kind.try_into()?,
+            sender: value.sender.into(),
+            gas_data: crate::transaction::GasData {
                 payment: value
                     .gas_payment
                     .objects
@@ -397,7 +415,9 @@ impl TryFrom<TransactionV1> for crate::transaction::TransactionDataV1 {
             },
             expiration: match value.expiration {
                 TransactionExpiration::None => crate::transaction::TransactionExpiration::None,
-                TransactionExpiration::Epoch(e) => crate::transaction::TransactionExpiration::Epoch(e),
+                TransactionExpiration::Epoch(e) => {
+                    crate::transaction::TransactionExpiration::Epoch(e)
+                }
             },
         }
         .pipe(Ok)
@@ -863,9 +883,9 @@ impl From<Input> for crate::transaction::CallArg {
         use crate::transaction::ObjectArg;
         match value {
             Input::Pure { value } => Self::Pure(value),
-            Input::ImmutableOrOwned(object_reference) => Self::Object(
-                ObjectArg::ImmOrOwnedObject(sdk_obj_ref_to_core(object_reference)),
-            ),
+            Input::ImmutableOrOwned(object_reference) => Self::Object(ObjectArg::ImmOrOwnedObject(
+                sdk_obj_ref_to_core(object_reference),
+            )),
             Input::Shared {
                 object_id,
                 initial_shared_version,
@@ -916,36 +936,36 @@ impl TryFrom<crate::effects::TransactionEffects> for TransactionEffects {
                         .into_iter()
                         .map(|(id, change)| ChangedObject {
                             object_id: id.into(),
-                                input_state: match change.input_state {
-                                    crate::effects::ObjectIn::NotExist => ObjectIn::Missing,
-                                    crate::effects::ObjectIn::Exist(((version, digest), owner)) => {
-                                        ObjectIn::Data {
-                                            version: version.value(),
-                                            digest: digest.into(),
-                                            owner: owner.into(),
-                                        }
+                            input_state: match change.input_state {
+                                crate::effects::ObjectIn::NotExist => ObjectIn::Missing,
+                                crate::effects::ObjectIn::Exist(((version, digest), owner)) => {
+                                    ObjectIn::Data {
+                                        version: version.value(),
+                                        digest: digest.into(),
+                                        owner: owner.into(),
                                     }
-                                },
-                                output_state: match change.output_state {
-                                    crate::effects::ObjectOut::NotExist => ObjectOut::Missing,
-                                    crate::effects::ObjectOut::ObjectWrite((digest, owner)) => {
-                                        ObjectOut::ObjectWrite {
-                                            digest: digest.into(),
-                                            owner: owner.into(),
-                                        }
+                                }
+                            },
+                            output_state: match change.output_state {
+                                crate::effects::ObjectOut::NotExist => ObjectOut::Missing,
+                                crate::effects::ObjectOut::ObjectWrite((digest, owner)) => {
+                                    ObjectOut::ObjectWrite {
+                                        digest: digest.into(),
+                                        owner: owner.into(),
                                     }
-                                    crate::effects::ObjectOut::PackageWrite((seq, digest)) => {
-                                        ObjectOut::PackageWrite {
-                                            version: seq.value(),
-                                            digest: digest.into(),
-                                        }
+                                }
+                                crate::effects::ObjectOut::PackageWrite((seq, digest)) => {
+                                    ObjectOut::PackageWrite {
+                                        version: seq.value(),
+                                        digest: digest.into(),
                                     }
-                                },
-                                id_operation: match change.id_operation {
-                                    crate::effects::IDOperation::None => IdOperation::None,
-                                    crate::effects::IDOperation::Created => IdOperation::Created,
-                                    crate::effects::IDOperation::Deleted => IdOperation::Deleted,
-                                },
+                                }
+                            },
+                            id_operation: match change.id_operation {
+                                crate::effects::IDOperation::None => IdOperation::None,
+                                crate::effects::IDOperation::Created => IdOperation::Created,
+                                crate::effects::IDOperation::Deleted => IdOperation::Deleted,
+                            },
                         })
                         .collect(),
                     unchanged_shared_objects: effects
@@ -1025,9 +1045,7 @@ impl TryFrom<TransactionEffects> for crate::effects::TransactionEffects {
                                     obj.object_id.into(),
                                     crate::effects::EffectsObjectChange {
                                         input_state: match obj.input_state {
-                                            ObjectIn::Missing => {
-                                                crate::effects::ObjectIn::NotExist
-                                            }
+                                            ObjectIn::Missing => crate::effects::ObjectIn::NotExist,
                                             ObjectIn::Data {
                                                 version,
                                                 digest,

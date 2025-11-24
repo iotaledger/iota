@@ -7,12 +7,15 @@ use iota_macros::sim_test;
 use iota_rest_api::{
     Client, ExecuteTransactionQueryParameters,
     client::{BalanceChange, reqwest::StatusCode},
-    transactions::{ResolveTransactionQueryParameters, unresolved::{UnresolvedTransaction,UnresolvedObjectReference, UnresolvedProgrammableTransaction,UnresolvedGasPayment,UnresolvedInputArgument}},
+    transactions::{
+        ResolveTransactionQueryParameters,
+        unresolved::{
+            UnresolvedGasPayment, UnresolvedInputArgument, UnresolvedObjectReference,
+            UnresolvedProgrammableTransaction, UnresolvedTransaction,
+        },
+    },
 };
-use iota_sdk_types::{
-    Argument, Command, TransactionExpiration
-    
-};
+use iota_sdk_types::{Argument, Command, TransactionExpiration};
 use iota_test_transaction_builder::make_transfer_iota_transaction;
 use iota_types::{
     base_types::IotaAddress, effects::TransactionEffectsAPI, transaction::TransactionDataAPI,
@@ -86,12 +89,10 @@ async fn resolve_transaction_simple_transfer() {
                     value: bcs::to_bytes(&recipient).unwrap(),
                 },
             ],
-            commands: vec![Command::TransferObjects(
-                iota_sdk_types::TransferObjects {
-                    objects: vec![Argument::Input(0)],
-                    address: Argument::Input(1),
-                },
-            )],
+            commands: vec![Command::TransferObjects(iota_sdk_types::TransferObjects {
+                objects: vec![Argument::Input(0)],
+                address: Argument::Input(1),
+            })],
         },
         sender: sender.into(),
         gas_payment: None,
@@ -153,12 +154,10 @@ async fn resolve_transaction_transfer_with_sponsor() {
                     value: bcs::to_bytes(&recipient).unwrap(),
                 },
             ],
-            commands: vec![Command::TransferObjects(
-                iota_sdk_types::TransferObjects {
-                    objects: vec![Argument::Input(0)],
-                    address: Argument::Input(1),
-                },
-            )],
+            commands: vec![Command::TransferObjects(iota_sdk_types::TransferObjects {
+                objects: vec![Argument::Input(0)],
+                address: Argument::Input(1),
+            })],
         },
         sender: sender.into(),
         gas_payment: Some(UnresolvedGasPayment {

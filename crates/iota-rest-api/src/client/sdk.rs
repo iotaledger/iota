@@ -3,9 +3,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use iota_sdk_types::{
-    Address, CheckpointData, Digest, CheckpointSequenceNumber, EpochId, Object, ObjectId,
-    SignedCheckpointSummary, SignedTransaction, StructTag, Transaction,
-     ValidatorCommittee, Version,
+    Address, CheckpointData, CheckpointSequenceNumber, Digest, EpochId, Object, ObjectId,
+    SignedCheckpointSummary, SignedTransaction, StructTag, Transaction, ValidatorCommittee,
+    Version,
 };
 use reqwest::{StatusCode, Url, header::HeaderValue};
 use tap::Pipe;
@@ -23,10 +23,9 @@ use crate::{
         X_IOTA_MIN_SUPPORTED_PROTOCOL_VERSION,
     },
     transactions::{
-        unresolved::UnresolvedTransaction,
         ListTransactionsQueryParameters, ResolveTransactionQueryParameters,
         ResolveTransactionResponse, TransactionExecutionResponse, TransactionResponse,
-        TransactionSimulationResponse,
+        TransactionSimulationResponse, unresolved::UnresolvedTransaction,
     },
     types::{
         X_IOTA_CHAIN, X_IOTA_CHAIN_ID, X_IOTA_CHECKPOINT_HEIGHT, X_IOTA_CURSOR, X_IOTA_EPOCH,
