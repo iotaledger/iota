@@ -2,6 +2,23 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use super::{PerturbationSpec, TopologyLayout};
+
+// RTT table for 10 AWS regions, in milliseconds.
+// Strict triangle inequality: d(i,j) + 1 <= d(i,k) + d(k,j) for all distinct
+// i,j,k.
+const RTT_LATENCY_TABLE: [[u16; 10]; 10] = [
+    [1, 14, 96, 112, 198, 65, 68, 105, 192, 146],
+    [14, 1, 95, 122, 196, 78, 67, 103, 189, 142],
+    [96, 95, 1, 204, 281, 155, 29, 50, 143, 227],
+    [112, 122, 204, 1, 309, 175, 176, 213, 299, 254],
+    [198, 196, 281, 309, 1, 137, 254, 268, 150, 101],
+    [65, 78, 155, 175, 137, 1, 127, 164, 226, 108],
+    [68, 67, 29, 176, 254, 127, 1, 38, 125, 199],
+    [105, 103, 50, 213, 268, 164, 38, 1, 148, 236],
+    [192, 189, 143, 299, 150, 226, 125, 148, 1, 140],
+    [146, 142, 227, 254, 101, 108, 199, 236, 140, 1],
+];
+
 pub struct LatencyMatrixBuilder {
     number_of_instances: usize,
     max_latency: u16,
@@ -127,7 +144,15 @@ impl LatencyMatrixBuilder {
     }
 
     pub fn build(mut self) -> Vec<Vec<u16>> {
-        self.fill_geographical();
+        match self.topology_layout {
+            TopologyLayout::HardCoded => {
+                self.matrix = RTT_LATENCY_TABLE
+                    .map(|row| row.map(|x| x / 2))
+                    .map(|row| row.to_vec())
+                    .to_vec();
+            }
+            _ => self.fill_geographical(),
+        };
         match self.perturbation_spec {
             PerturbationSpec::BrokenTriangle {
                 number_of_triangles,

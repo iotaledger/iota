@@ -300,9 +300,9 @@ impl DagBuilder {
             );
 
             // Update the last committed rounds
-            for block in &to_commit {
-                self.last_committed_rounds[block.author()] =
-                    self.last_committed_rounds[block.author()].max(block.round());
+            for block_header in &to_commit {
+                self.last_committed_rounds[block_header.author()] =
+                    self.last_committed_rounds[block_header.author()].max(block_header.round());
             }
 
             let commit = TrustedCommit::new_for_test(

@@ -89,6 +89,8 @@ pub const MAX_PROTOCOL_VERSION: u64 = 16;
 // Version 16: Enable selecting committee only from active validators that
 //             support the next epoch's version and issued valid
 //             AuthorityCapabilities notification.
+//             Enable committing transactions only for traversed headers in
+//             Starfish.
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
 
@@ -367,6 +369,9 @@ struct FeatureFlags {
     // leader's ancestors, and (3) enforces checkpoint timestamps are non-decreasing.
     #[serde(skip_serializing_if = "is_false")]
     consensus_median_timestamp_with_checkpoint_enforcement: bool,
+    // If true, then transactions are committed only for traversed headers
+    #[serde(skip_serializing_if = "is_false")]
+    consensus_commit_transactions_only_for_traversed_headers: bool,
 }
 
 fn is_true(b: &bool) -> bool {
@@ -1436,6 +1441,10 @@ impl ProtocolConfig {
         );
         res
     }
+    pub fn consensus_commit_transactions_only_for_traversed_headers(&self) -> bool {
+        self.feature_flags
+            .consensus_commit_transactions_only_for_traversed_headers
+    }
 }
 
 #[cfg(not(msim))]
@@ -2302,6 +2311,9 @@ impl ProtocolConfig {
                     // next epoch's version and issued valid AuthorityCapabilities notification.
                     cfg.feature_flags
                         .select_committee_supporting_next_epoch_version = true;
+                    // Enable committing transactions only for traversed headers in Starfish
+                    cfg.feature_flags
+                        .consensus_commit_transactions_only_for_traversed_headers = true;
                 }
                 // Use this template when making changes:
                 //
@@ -2482,6 +2494,13 @@ impl ProtocolConfig {
     ) {
         self.feature_flags
             .consensus_median_timestamp_with_checkpoint_enforcement = val;
+    }
+    pub fn set_consensus_commit_transactions_only_for_traversed_headers_for_testing(
+        &mut self,
+        val: bool,
+    ) {
+        self.feature_flags
+            .consensus_commit_transactions_only_for_traversed_headers = val;
     }
 }
 

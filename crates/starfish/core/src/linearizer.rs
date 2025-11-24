@@ -45,6 +45,7 @@ pub(crate) struct Linearizer {
     dag_state: Arc<RwLock<DagState>>,
     leader_schedule: Arc<LeaderSchedule>,
     transactions_ack_tracker: BTreeMap<BlockRef, StakeAggregator<QuorumThreshold>>,
+    traversed_headers_tracker: BTreeSet<BlockRef>,
 }
 
 impl Linearizer {
@@ -58,6 +59,7 @@ impl Linearizer {
             leader_schedule,
             context,
             transactions_ack_tracker: BTreeMap::new(),
+            traversed_headers_tracker: BTreeSet::new(),
         }
     }
 
@@ -100,6 +102,16 @@ impl Linearizer {
         );
 
         drop(dag_state_guard);
+        if self
+            .context
+            .protocol_config
+            .consensus_commit_transactions_only_for_traversed_headers()
+        {
+            for block_header in &to_commit {
+                self.traversed_headers_tracker
+                    .insert(block_header.reference());
+            }
+        }
 
         // Collect all block references for transactions that reached quorum after
         // adding acknowledgments
@@ -165,8 +177,8 @@ impl Linearizer {
 
         let mut to_commit = Vec::new();
 
-        let mut committed = HashSet::new();
-        assert!(committed.insert(leader_block_ref));
+        let mut traversed_headers = HashSet::new();
+        assert!(traversed_headers.insert(leader_block_ref));
 
         while let Some(x) = buffer.pop() {
             to_commit.push(x.clone());
@@ -180,7 +192,7 @@ impl Linearizer {
                             // We skip the block if we already committed it or
                             // we reached a round that we already committed or
                             // we traverse too far back in the past
-                            !committed.contains(ancestor)
+                            !traversed_headers.contains(ancestor)
                                 && last_committed_rounds[ancestor.author] < ancestor.round
                                 && ancestor.round
                                     >= leader_round.saturating_sub(max_linearizer_depth)
@@ -195,7 +207,7 @@ impl Linearizer {
 
             for ancestor in ancestors {
                 buffer.push(ancestor.clone());
-                assert!(committed.insert(ancestor.reference()));
+                assert!(traversed_headers.insert(ancestor.reference()));
             }
         }
 
@@ -253,10 +265,10 @@ impl Linearizer {
         pending_sub_dags
     }
 
-    /// This function evicts old acknowledgments from the tracker. Should be
-    /// called for solid committed leader round since we rely on the ack
-    /// tracker in transaction synchronizer.
-    pub(crate) fn evict_old_acknowledgments(&mut self, solid_commit_leader_round: Round) {
+    /// This function evicts old acknowledgments and traversed headers from the
+    /// tracker. Should be called for solid committed leader round since we
+    /// rely on the ack tracker in transaction synchronizer.
+    pub(crate) fn evict_linearizer(&mut self, solid_commit_leader_round: Round) {
         let lower_bound_round =
             solid_commit_leader_round.saturating_sub(self.context.protocol_config.gc_depth() * 2);
         let lower_bound = BlockRef::new(
@@ -265,6 +277,13 @@ impl Linearizer {
             BlockHeaderDigest::MIN,
         );
         self.transactions_ack_tracker = self.transactions_ack_tracker.split_off(&lower_bound);
+        if self
+            .context
+            .protocol_config
+            .consensus_commit_transactions_only_for_traversed_headers()
+        {
+            self.traversed_headers_tracker = self.traversed_headers_tracker.split_off(&lower_bound);
+        }
     }
 
     /// This function is called to add the transaction acknowledgments to the
@@ -276,7 +295,7 @@ impl Linearizer {
         authority: AuthorityIndex,
         acknowledgments: Vec<BlockRef>,
     ) -> Vec<BlockRef> {
-        let mut acknowledged_data = Vec::new();
+        let mut transactions_to_commit = Vec::new();
         for block_ref in acknowledgments {
             if block_ref.round < round.saturating_sub(self.context.protocol_config.gc_depth()) {
                 continue; // Ignore acknowledgments for blocks that are too old
@@ -289,10 +308,19 @@ impl Linearizer {
             let was_below_threshold = !votes_collector.reached_threshold(&self.context.committee);
 
             if votes_collector.add(authority, &self.context.committee) && was_below_threshold {
-                acknowledged_data.push(block_ref);
+                // We commit transactions only if at the moment of reaching the quorum the
+                // corresponding header is traversed
+                if !self
+                    .context
+                    .protocol_config
+                    .consensus_commit_transactions_only_for_traversed_headers()
+                    || self.traversed_headers_tracker.contains(&block_ref)
+                {
+                    transactions_to_commit.push(block_ref);
+                }
             }
         }
-        acknowledged_data
+        transactions_to_commit
     }
 
     /// This method accepts a vector of missing transaction references and
@@ -890,7 +918,7 @@ mod tests {
             assert_eq!(ack_authors.len(), 4);
         }
 
-        linearizer.evict_old_acknowledgments(num_rounds);
+        linearizer.evict_linearizer(num_rounds);
         // Check that acknowledgements for the first num_rounds_to_evict rounds are
         // evicted and the rest are still stored
         for round in 1..=num_rounds - 2 {

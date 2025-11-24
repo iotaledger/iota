@@ -138,16 +138,19 @@ pub enum Operation {
         #[clap(long, action, default_value_t = false, global = true)]
         use_internal_ip_addresses: bool,
 
+        /// Optional Latency Topology. if omitted => None -> skips latency
+        /// matrix generation
+        #[arg(long, global = true)]
+        latency_topology: Option<LatencyTopology>,
         /// Optional perturbation spec. If omitted => None
-        #[arg(long = "latency-perturbation-spec")]
+        #[arg(long = "latency-perturbation-spec", global = true)]
         latency_perturbation_spec: Option<PerturbationSpec>,
 
-        /// Optional how many clusters to use in the latency topology, if None
-        /// number of nodes is the number of latency clusters
-        #[arg(long, value_name = "INT")]
-        number_of_clusters: Option<usize>,
+        /// How many clusters to use in the latency topology
+        #[arg(long, value_name = "INT", default_value = "10", global = true)]
+        number_of_clusters: usize,
 
-        /// Optional number-of-triangles parameter for broken-topologies
+        /// Number-of-triangles parameter for broken-topologies
         #[arg(long, value_name = "INT", default_value = "5", global = true)]
         number_of_triangles: u16,
 
@@ -261,6 +264,18 @@ pub enum PerturbationSpec {
     // potentially other options later
 }
 
+#[derive(ValueEnum, Clone, Debug)]
+pub enum LatencyTopology {
+    /// Generates a latency matrix for each node, randomly positioned on a
+    /// cylinder.
+    Geographical,
+    /// Generates a latency matrix by clustering nodes into clusters and
+    /// randomly positioning clusters on a cylinder.
+    Clustered,
+    /// Uses a hardcoded clustered matrix 10x10 in the net_latency module.
+    HardCoded,
+}
+
 fn parse_duration(arg: &str) -> Result<Duration, std::num::ParseIntError> {
     let seconds = arg.parse()?;
     Ok(Duration::from_secs(seconds))
@@ -354,6 +369,7 @@ async fn run<C: ServerProviderClient>(settings: Settings, client: C, opts: Opts)
             load_type,
             use_internal_ip_addresses,
             latency_perturbation_spec,
+            latency_topology,
             added_latency,
             number_of_triangles,
             number_of_clusters,
@@ -412,10 +428,13 @@ async fn run<C: ServerProviderClient>(settings: Settings, client: C, opts: Opts)
                 None => net_latency::PerturbationSpec::None,
             };
 
-            let latency_topology = if let Some(number_of_clusters) = number_of_clusters {
-                TopologyLayout::Clustered { number_of_clusters }
-            } else {
-                TopologyLayout::Geographical
+            let latency_topology = match latency_topology {
+                Some(LatencyTopology::Geographical) => Some(TopologyLayout::Geographical),
+                Some(LatencyTopology::Clustered) => {
+                    Some(TopologyLayout::Clustered { number_of_clusters })
+                }
+                Some(LatencyTopology::HardCoded) => Some(TopologyLayout::HardCoded),
+                None => None,
             };
 
             let generator =

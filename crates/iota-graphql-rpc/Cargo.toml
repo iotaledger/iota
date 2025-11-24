@@ -41,6 +41,7 @@ tap.workspace = true
 tempfile.workspace = true
 thiserror.workspace = true
 tokio = { workspace = true, features = ["rt-multi-thread"] }
+tokio-stream.workspace = true
 tokio-util = { workspace = true, features = ["rt"] }
 toml.workspace = true
 tower.workspace = true
@@ -54,6 +55,7 @@ iota-graphql-config.workspace = true
 iota-graphql-rpc-client.workspace = true
 iota-graphql-rpc-headers.workspace = true
 iota-indexer.workspace = true
+iota-indexer-streaming.workspace = true
 iota-json.workspace = true
 iota-json-rpc.workspace = true
 iota-json-rpc-api.workspace = true

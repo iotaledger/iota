@@ -82,10 +82,10 @@ prettier --write sources/example.move
 
 ## VSCode integration
 
-There is a bundled [Move Formatter](https://marketplace.visualstudio.com/items?itemName=iota.prettier-move) extension for VSCode. It will detect prettier configuration for the workspace and use
+There is a bundled [Move Formatter](https://marketplace.visualstudio.com/items?itemName=mysten.prettier-move) extension for VSCode. It will detect prettier configuration for the workspace and use
 the plugin automatically.
 
-Alternatively, if you follow the per-project installation, [regular Pretter extension](https://marketplace.visualstudio.com/items?itemName=esbenp.prettier-vscode) should work as well.
+Alternatively, if you follow the per-project installation, [regular Prettier extension](https://marketplace.visualstudio.com/items?itemName=esbenp.prettier-vscode) should work as well.
 
 ## Known Integrations
 

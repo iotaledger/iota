@@ -15,6 +15,8 @@ pub enum TopologyLayout {
     Geographical,
     /// Nodes are distributed in number_of_clusters clusters
     Clustered { number_of_clusters: usize },
+    /// Use the hardcoded 10x10 clustered matrix
+    HardCoded,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
