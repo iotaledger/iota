@@ -2607,7 +2607,7 @@ impl SenderSignedData {
     /// Checks if `SenderSignedData` contains at least one shared object.
     /// This function checks shared objects from the `MoveAuthenticator` if any.
     pub fn contains_shared_object(&self) -> bool {
-        self.shared_input_objects().next().is_some()
+        !self.shared_input_objects().is_empty()
     }
 
     /// Returns an iterator over all shared input objects related to this
@@ -2619,7 +2619,7 @@ impl SenderSignedData {
     ///
     /// Shared objects with the same ID but different versions are returned
     /// separately.
-    pub fn shared_input_objects(&self) -> impl Iterator<Item = SharedInputObject> + '_ {
+    pub fn shared_input_objects(&self) -> Vec<SharedInputObject> {
         // Vector is used to preserve the order of input objects.
         let mut input_objects = self.transaction_data().shared_input_objects();
 
@@ -2640,7 +2640,7 @@ impl SenderSignedData {
             }
         }
 
-        input_objects.into_iter()
+        input_objects
     }
 
     /// Returns an iterator over all input objects related to this
@@ -2654,7 +2654,7 @@ impl SenderSignedData {
     /// returned.
     ///
     /// Shared objects with the same ID but different versions are not allowed.
-    pub fn input_objects(&self) -> IotaResult<impl Iterator<Item = InputObjectKind> + '_> {
+    pub fn input_objects(&self) -> IotaResult<Vec<InputObjectKind>> {
         // Can contain duplicates in case of using the same IOTA coin as an input and as
         // a gas coin.
         let mut input_objects = self.transaction_data().input_objects()?;
@@ -2673,7 +2673,7 @@ impl SenderSignedData {
             }
         }
 
-        Ok(input_objects.into_iter())
+        Ok(input_objects)
     }
 
     /// Checks if `SenderSignedData` contains the `Random` object as an
@@ -2681,6 +2681,7 @@ impl SenderSignedData {
     /// This function checks shared objects from the `MoveAuthenticator` if any.
     pub fn uses_randomness(&self) -> bool {
         self.shared_input_objects()
+            .iter()
             .any(|obj| obj.id() == IOTA_RANDOMNESS_STATE_OBJECT_ID)
     }
 

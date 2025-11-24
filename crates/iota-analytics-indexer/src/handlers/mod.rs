@@ -93,6 +93,7 @@ impl InputObjectTracker {
     fn new(txn: &SenderSignedData) -> Self {
         let shared: BTreeSet<ObjectID> = txn
             .shared_input_objects()
+            .into_iter()
             .map(|shared_io| shared_io.id())
             .collect();
         let tx_data = txn.transaction_data();
@@ -102,6 +103,7 @@ impl InputObjectTracker {
         let input: BTreeSet<ObjectID> = txn
             .input_objects()
             .expect("Input objects must be valid")
+            .into_iter()
             .map(|io_kind| io_kind.object_id())
             .collect();
         Self {
