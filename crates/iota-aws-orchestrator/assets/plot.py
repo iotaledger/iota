@@ -130,7 +130,7 @@ class MeasurementId:
 
 
 class Plotter:
-    def __init__(self, data_directory, parameters, y_max=None, legend_columns=2, median=True):
+    def __init__(self, data_directory, parameters, y_max=None, legend_columns=1, median=True):
         self.data_directory = data_directory
         self.parameters = parameters
         self.y_max = y_max
@@ -170,42 +170,49 @@ class Plotter:
         else:
             assert False
 
-    def _plot(self, data, plot_type):
+    def _plot(self, data, plot_type, plot_id=None):
         plt.figure(figsize=(6.4, 2.4))
         markers = cycle(['o', 'v', 's', 'p', 'D', 'P'])
 
-        for id, x_values, y_values, e_values in data:
+        for id_or_label, x_values, y_values, e_values in data:
+            # For inspect plots, id_or_label is already the legend label string
+            # For other plots, it's a MeasurementId object
+            if plot_type in [PlotType.INSPECT_TPS, PlotType.INSPECT_LATENCY]:
+                label = id_or_label
+            else:
+                label = self._legend_entry(plot_type, id_or_label)
+            
             plt.errorbar(
                 x_values, y_values, yerr=e_values,
-                label=self._legend_entry(plot_type, id),
+                label=label,
                 linestyle='dotted', marker=next(markers), capsize=3
             )
 
         if plot_type == PlotType.L_GRAPH:
-            legend_anchor, legend_location = (0, 1), 'upper left'
+            legend_anchor, legend_location = (-0.15, 1), 'upper right'
             plot_name = f'latency-{self.parameters.shared_objects_ratio}'
         elif plot_type == PlotType.HEALTH:
-            legend_anchor, legend_location = (0, 1), 'upper left'
+            legend_anchor, legend_location = (-0.15, 1), 'upper right'
             plot_name = f'health-{self.parameters.shared_objects_ratio}'
         elif plot_type == PlotType.SCALABILITY:
-            legend_anchor, legend_location = (0, 0), 'lower left'
+            legend_anchor, legend_location = (-0.15, 0), 'lower right'
             plot_name = f'scalability-{self.parameters.shared_objects_ratio}'
         elif plot_type == PlotType.INSPECT_TPS:
-            plot_name = f'inspect-tps-{id}'
+            legend_anchor, legend_location = (-0.15, 1), 'upper right'
+            plot_name = f'inspect-tps-{plot_id}'
         elif plot_type == PlotType.INSPECT_LATENCY:
-            plot_name = f'inspect-latency-{id}'
+            legend_anchor, legend_location = (-0.15, 1), 'upper right'
+            plot_name = f'inspect-latency-{plot_id}'
         elif plot_type == PlotType.DURATION_TPS:
-            plot_name = f'inspect-aggregate-tps-{id}'
+            plot_name = f'inspect-aggregate-tps-{plot_id}'
         elif plot_type == PlotType.DURATION_LATENCY:
-            plot_name = f'inspect-aggregate-latency-{id}'
+            plot_name = f'inspect-aggregate-latency-{plot_id}'
         else:
             assert False
 
         x_label, y_label = self._axes_labels(plot_type)
 
         skip_legend = plot_type in [
-            PlotType.INSPECT_TPS,
-            PlotType.INSPECT_LATENCY,
             PlotType.DURATION_TPS,
             PlotType.DURATION_LATENCY,
         ]
@@ -240,6 +247,7 @@ class Plotter:
         measurements = []
         files = glob(os.path.join(self.data_directory, filename))
         for file in files:
+            print(f'Loading file {file}...')
             with open(file, 'r') as f:
                 try:
                     measurements += [json.loads(f.read())]
@@ -345,29 +353,33 @@ class Plotter:
                 raise PlotError(f'Failed to load file {file}: {e}')
 
         plot_tps_data, plot_lat_data = [], []
-        for data in gen_data(measurement):
-            x_values, y_tps_values, y_lat_values, e_values = [], [], [], []
-            for d in data:
-                count = float(d['count'])
-                duration = float(d['timestamp']['secs'])
-                total = float(d['sum']['secs'])
+        for scraper_id, workloads in measurement['scrapers'].items():
+            for workload_name, data in workloads.items():
+                x_values, y_tps_values, y_lat_values, e_values = [], [], [], []
+                for d in data:
+                    count = float(d['count'])
+                    duration = float(d['timestamp']['secs'])
+                    total = float(d['sum']['secs'])
 
-                tps = (count / duration) if duration != 0 else 0
-                avg_latency = total / count if count != 0 else 0
+                    tps = (count / duration) if duration != 0 else 0
+                    avg_latency = total / count if count != 0 else 0
 
-                x_values += [duration]
-                y_tps_values += [tps]
-                y_lat_values += [avg_latency]
-                e_values += [0]
+                    x_values += [duration]
+                    y_tps_values += [tps]
+                    y_lat_values += [avg_latency]
+                    e_values += [0]
 
-            if x_values:
-                basename = os.path.basename(file)
-                id = '-'.join(basename.split('-')[1:]).split('.')[0]
-                plot_tps_data += [(id, x_values, y_tps_values, e_values)]
-                plot_lat_data += [(id, x_values, y_lat_values, e_values)]
+                if x_values:
+                    # Create a legend label with scraper ID and workload type
+                    label = f'client {scraper_id} - {workload_name}'
+                    plot_tps_data += [(label, x_values, y_tps_values, e_values)]
+                    plot_lat_data += [(label, x_values, y_lat_values, e_values)]
 
-        self._plot(plot_tps_data, PlotType.INSPECT_TPS)
-        self._plot(plot_lat_data, PlotType.INSPECT_LATENCY)
+        basename = os.path.basename(file)
+        print(basename)
+        id = '-'.join(basename.split('-')[1:]).split('.')[0]
+        self._plot(plot_tps_data, PlotType.INSPECT_TPS, plot_id=id)
+        self._plot(plot_lat_data, PlotType.INSPECT_LATENCY, plot_id=id)
 
     def plot_duration(self, file, precision):
         with open(file, 'r') as f:
@@ -423,8 +435,8 @@ class Plotter:
 
         plot_tps_data = [(id, x_values, y_tps_values, e_values)]
         plot_lat_data = [(id, x_values, y_lat_values, e_values)]
-        self._plot(plot_tps_data, PlotType.DURATION_TPS)
-        self._plot(plot_lat_data, PlotType.DURATION_LATENCY)
+        self._plot(plot_tps_data, PlotType.DURATION_TPS, plot_id=id)
+        self._plot(plot_lat_data, PlotType.DURATION_LATENCY, plot_id=id)
 
 
 if __name__ == "__main__":
