@@ -595,7 +595,7 @@ mod checked {
             vec![]
         } else {
             // Package metadata creation
-            if context.protocol_config.publish_package_metadata_v1() {
+            if context.protocol_config.publish_package_metadata().is_some() {
                 create_and_freeze_package_metadata_if_present(
                     context,
                     &modules,
@@ -721,7 +721,7 @@ mod checked {
         context.write_package(package);
 
         // Package metadata creation
-        if context.protocol_config.publish_package_metadata_v1() {
+        if context.protocol_config.publish_package_metadata().is_some() {
             create_and_freeze_package_metadata_if_present(
                 context,
                 &modules,
