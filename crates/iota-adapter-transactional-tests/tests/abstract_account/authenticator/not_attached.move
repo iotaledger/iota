@@ -16,7 +16,6 @@ public struct AbstractAccount has key {
 }
 
 public fun create(
-    _public_key: vector<u8>,
     _authenticator: AuthenticatorInfoV1<AbstractAccount>,
     ctx: &mut TxContext,
 ): address {
@@ -28,16 +27,12 @@ public fun create(
 
 public fun authenticate(_account: &AbstractAccount, _auth_ctx: &AuthContext, _ctx: &TxContext) {}
 
-//# programmable --sender A --inputs x"10" @test "abstract_account" "authenticate" 7000000000
-//> 0: iota::account::create_auth_info_v1<test::abstract_account::AbstractAccount>(Input(1), Input(2), Input(3));
-//> 1: test::abstract_account::create(Input(0), Result(0));
-//> 2: SplitCoins(Gas, [Input(4)]);
-//> 3: TransferObjects([Result(2)], Result(1));
-
-//# view-object 2,1
+//# programmable --sender A --inputs @test "abstract_account" "authenticate" 7000000000
+//> 0: iota::account::create_auth_info_v1<test::abstract_account::AbstractAccount>(Input(0), Input(1), Input(2));
+//> 1: test::abstract_account::create(Result(0));
 
 //# view-object 2,0
 
-//# abstract --account immshared(2,1) --gas-payment 2,0 --ptb-inputs 100 @A
+//# abstract --account immshared(2,0) --ptb-inputs 100 @A
 //> 0: SplitCoins(Gas, [Input(0)]);
 //> 1: TransferObjects([Result(0)], Input(1));

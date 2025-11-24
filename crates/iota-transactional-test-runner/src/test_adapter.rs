@@ -1179,8 +1179,9 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
                 // Parse and resolve auth inputs.
                 // Build MoveAuthenticator.
                 // Get Abstract Test Account
-                let (aa_sender, move_authenticator) =
-                    self.prepare_move_authenticator_data(authenticator_inputs, account)?;
+                let (aa_sender, move_authenticator) = self
+                    .prepare_move_authenticator_data(authenticator_inputs, account)
+                    .await?;
 
                 let gas_budget = gas_budget.unwrap_or(DEFAULT_GAS_BUDGET);
                 let gas_price = gas_price.unwrap_or(self.gas_price);
@@ -1250,6 +1251,56 @@ fn merge_output(left: Option<String>, right: Option<String>) -> Option<String> {
 }
 
 impl IotaTestAdapter {
+    async fn fund_address_for_testing(
+        &mut self,
+        recipient: IotaAddress,
+        amount: u64,
+    ) -> anyhow::Result<ObjectRef> {
+        let mut builder = ProgrammableTransactionBuilder::new();
+
+        let amount_arg = builder.pure(amount)?;
+        let new_coin_arg =
+            builder.command(Command::SplitCoins(Argument::GasCoin, vec![amount_arg]));
+
+        let recipient_arg = builder.pure(recipient)?;
+        builder.command(Command::TransferObjects(vec![new_coin_arg], recipient_arg));
+
+        let pt = builder.finish();
+
+        let gas_budget = DEFAULT_GAS_BUDGET;
+        let gas_price: u64 = self.gas_price;
+
+        let sender = &self.default_account;
+        let gas_refs = self.get_payments(sender, vec![]);
+
+        let data =
+            TransactionData::new_programmable(sender.address, gas_refs, pt, gas_budget, gas_price);
+
+        let tx = to_sender_signed_transaction(
+            data,
+            sender
+                .key_pair
+                .as_ref()
+                .expect("Default account must have keypair"),
+        );
+
+        let (effects, _) = self.executor.execute_txn(tx).await?;
+
+        if let ExecutionStatus::Failure { error, .. } = effects.status() {
+            bail!("Internal funding transaction for abstract account failed: {error}");
+        }
+
+        for ((id, version, _digest), owner) in effects.created() {
+            if let iota_types::object::Owner::AddressOwner(addr) = owner {
+                if addr == recipient {
+                    let obj = self.get_object(&id, Some(version))?;
+                    return Ok(obj.compute_object_reference());
+                }
+            }
+        }
+        bail!("Internal funding transaction didn't create coin for the recipient {recipient}");
+    }
+
     pub fn with_offchain_reader(&mut self, offchain_reader: Box<dyn OffchainStateReader>) {
         self.offchain_reader = Some(offchain_reader);
     }
@@ -1314,7 +1365,7 @@ impl IotaTestAdapter {
 
     /// Build a MoveAuthenticator.
     /// Returns the Abstract Test Account and MoveAuthenticator.
-    fn prepare_move_authenticator_data(
+    async fn prepare_move_authenticator_data(
         &mut self,
         authenticator_inputs: Vec<ParsedValue<IotaExtraValueArgs>>,
         account: ParsedValue<IotaExtraValueArgs>,
@@ -1337,10 +1388,13 @@ impl IotaTestAdapter {
         };
         let aa_sender_addr = aa_arg.id().into();
 
+        let gas_ref = self
+            .fund_address_for_testing(aa_sender_addr, 100_000_000_000_000)
+            .await?;
         let account = TestAccount {
             address: aa_sender_addr,
             key_pair: None,
-            gas: aa_sender_addr.into(), // TODO: handle abstract account gas
+            gas: gas_ref.0,
         };
         Ok((
             account,
