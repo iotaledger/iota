@@ -430,7 +430,8 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
 
             // Wait until all fullnodes are reachable (otherwise clients might fail when a
             // fullnode is not listening yet).
-            let commands = self.client_instances
+            let commands = self
+                .client_instances
                 .iter()
                 .cloned()
                 .map(|i| (i, "curl http://127.0.0.1:9000".to_owned())); // fullnodes default json RPC address
