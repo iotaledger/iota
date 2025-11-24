@@ -46,7 +46,7 @@ use move_core_types::{
     account_address::AccountAddress,
     ident_str,
     identifier::{IdentStr, Identifier},
-    language_storage::{ModuleId, StructTag, TypeTag},
+    language_storage::{ModuleId, StructTag},
 };
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -1008,19 +1008,19 @@ pub enum PackageMetadata {
 impl PackageMetadata {
     /// Create a `PackageMetadata` for the newly
     /// published/upgraded package at `package_id`
-    pub fn new(
+    pub fn new_v1(
         uid: ObjectID,
         storage_id: ObjectID,
         runtime_id: ObjectID,
         package_version: u64,
-        modules_metadata: BTreeMap<String, Vec<(String, TypeTag)>>,
+        modules_metadata_map: BTreeMap<String, ModuleMetadataV1>,
     ) -> Self {
         PackageMetadata::V1(PackageMetadataV1::new(
             uid,
             storage_id,
             runtime_id,
             package_version,
-            modules_metadata,
+            modules_metadata_map,
         ))
     }
 
@@ -1078,7 +1078,8 @@ pub struct PackageMetadataV1 {
     /// The object id of the runtime package metadata object is derived from
     /// this value.
     pub storage_id: ID,
-    /// Runtime ID of the package represented by this metadata
+    /// Runtime ID of the package represented by this metadata. Runtime ID is
+    /// the Storage ID of the first version of a package.
     pub runtime_id: ID,
     /// Version of the package represented by this metadata
     pub package_version: u64,
@@ -1092,25 +1093,14 @@ impl PackageMetadataV1 {
         storage_id: ObjectID,
         runtime_id: ObjectID,
         package_version: u64,
-        modules_info: BTreeMap<String, Vec<(String, TypeTag)>>,
+        modules_metadata_map: BTreeMap<String, ModuleMetadataV1>,
     ) -> Self {
         let mut modules_metadata = VecMap { contents: vec![] };
 
-        for (module_name, fns_metadata) in modules_info.into_iter() {
-            let mut value = ModuleMetadataV1 {
-                authenticator_metadata: vec![],
-            };
-
-            for (fn_name, account_type) in fns_metadata {
-                value.authenticator_metadata.push(AuthenticatorMetadataV1 {
-                    function_name: fn_name.clone(),
-                    account_type: TypeName::from(&account_type),
-                });
-            }
-
+        for (module_name, module_metadata) in modules_metadata_map {
             modules_metadata.contents.push(Entry {
-                key: module_name.clone(),
-                value,
+                key: module_name,
+                value: module_metadata,
             });
         }
 
@@ -1140,7 +1130,13 @@ impl PackageMetadataV1 {
 /// V1 of IOTA specific module metadata. Only includes authenticator info.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ModuleMetadataV1 {
-    authenticator_metadata: Vec<AuthenticatorMetadataV1>,
+    pub authenticator_metadata: Vec<AuthenticatorMetadataV1>,
+}
+
+impl ModuleMetadataV1 {
+    pub fn is_empty(&self) -> bool {
+        self.authenticator_metadata.is_empty()
+    }
 }
 
 /// V1 of IOTA specific authenticator info metadata.

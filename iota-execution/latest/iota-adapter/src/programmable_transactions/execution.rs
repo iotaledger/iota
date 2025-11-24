@@ -28,15 +28,15 @@ mod checked {
         id::RESOLVED_IOTA_ID,
         metrics::LimitsMetrics,
         move_package::{
-            IotaAttribute, MovePackage, PackageMetadata, RuntimeModuleMetadata,
-            RuntimeModuleMetadataWrapper, UpgradeCap, UpgradePolicy, UpgradeReceipt, UpgradeTicket,
-            normalize_deserialized_modules,
+            AuthenticatorMetadataV1, IotaAttribute, ModuleMetadataV1, MovePackage, PackageMetadata,
+            RuntimeModuleMetadata, RuntimeModuleMetadataWrapper, UpgradeCap, UpgradePolicy,
+            UpgradeReceipt, UpgradeTicket, normalize_deserialized_modules,
         },
         object::OBJECT_START_VERSION,
         storage::{PackageObject, get_package_objects},
         transaction::{Command, ProgrammableMoveCall, ProgrammableTransaction},
         transfer::RESOLVED_RECEIVING_STRUCT,
-        type_input::TypeInput,
+        type_input::{TypeInput, TypeName},
     };
     use iota_verifier::{
         INIT_FN_NAME,
@@ -900,7 +900,7 @@ mod checked {
         runtime_id: ObjectID,
         package_version: u64,
     ) -> Result<(), ExecutionError> {
-        let mut modules_metadata = BTreeMap::new();
+        let mut modules_metadata_map = BTreeMap::new();
         // Extract metadata for each module
         for module in modules {
             if let Some(md) = module
@@ -929,16 +929,24 @@ mod checked {
                 // - Process functions for each module in order to create function metadata:
                 //    - Authenticator attributes, if present, are extracted to create
                 //      AuthenticatorInfoMetadata to insert into the PackageMetadata
-                let mut fn_metadata = vec![];
+                let mut module_metadata = ModuleMetadataV1 {
+                    authenticator_metadata: vec![],
+                };
                 for (fn_name, fn_attributes) in runtime_module_metadata.fun_attributes_iter() {
                     // Check attributes
                     for attribute in fn_attributes {
                         match attribute {
                             IotaAttribute::Authenticator(attribute) if attribute.version == 1 => {
-                                fn_metadata.push((
-                                    fn_name.to_string(),
-                                    get_authenticator_first_param_type_tag(module, &fn_name)?,
-                                ));
+                                module_metadata.authenticator_metadata.push(
+                                    AuthenticatorMetadataV1 {
+                                        function_name: fn_name.to_string(),
+                                        account_type: TypeName::from(
+                                            &get_authenticator_first_param_type_tag(
+                                                module, &fn_name,
+                                            )?,
+                                        ),
+                                    },
+                                );
                             }
                             _ => { /* Other attributes are ignored for PackageMetadataV1 */ }
                         }
@@ -947,8 +955,8 @@ mod checked {
                 // Fill the package metadata with a module handle (and its related function
                 // metadata) only if there is at least one function with
                 // relevant metadata
-                if !fn_metadata.is_empty() {
-                    modules_metadata.insert(module.name().to_string(), fn_metadata);
+                if !module_metadata.is_empty() {
+                    modules_metadata_map.insert(module.name().to_string(), module_metadata);
                 }
                 // End of PackageMetadataV1 specific
             }
@@ -956,16 +964,16 @@ mod checked {
 
         // Only publish package metadata if there is at least one module with
         // relevant metadata
-        if !modules_metadata.is_empty() {
+        if !modules_metadata_map.is_empty() {
             // Create the package metadata "special" object UID
             let metadata_uid = context.package_derived_metadata_id(storage_id)?;
             // Create the package metadata object content
-            let metadata_wrapper = PackageMetadata::new(
+            let metadata_wrapper = PackageMetadata::new_v1(
                 metadata_uid,
                 storage_id,
                 runtime_id,
                 package_version,
-                modules_metadata,
+                modules_metadata_map,
             );
             // Turn the content into an object
             let package_metadata = context.make_object_value(

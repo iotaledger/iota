@@ -1,4 +1,4 @@
-// Copyright (c) 2024 IOTA Stiftung
+// Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 /// Package metadata management module
@@ -29,7 +29,8 @@ public struct PackageMetadataV1 has key {
     /// The object id of the runtime package metadata object is derived from
     /// this value.
     storage_id: ID,
-    /// Runtime ID of the package represented by this metadata
+    /// Runtime ID of the package represented by this metadata. Runtime ID is
+    /// the Storage ID of the first version of a package.
     runtime_id: ID,
     /// Version of the package represented by this metadata
     package_version: u64,

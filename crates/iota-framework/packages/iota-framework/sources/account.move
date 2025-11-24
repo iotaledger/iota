@@ -68,7 +68,7 @@ public fun check_auth_info_v1_compatibility<Account: key>(
     }
 }
 
-/// Attach the `authenticator` instance to the account.
+/// Attach the `authenticator` instance to the account. It uses a `AuthenticatorInfoV1CompatibilityProof` to obtain that instance.
 /// It will be added as a dynamic field specified by the `AuthenticatorInfoV1Key` name.
 public fun attach_auth_info_v1(account_id: &mut UID, proof: AuthenticatorInfoV1CompatibilityProof) {
     assert!(account_id.as_inner() == proof.account_id, EAuthenticatorInfoV1CompatibilityNotProven);
@@ -79,7 +79,7 @@ public fun attach_auth_info_v1(account_id: &mut UID, proof: AuthenticatorInfoV1C
 
 /// Rotate the account-related authenticator.
 /// The `authenticator` instance will replace the account dynamic field specified by the `AuthenticatorInfoV1Key` name;
-/// the previous value will be returned.
+/// It uses a `AuthenticatorInfoV1CompatibilityProof` to obtain the new instance.
 public fun rotate_auth_info_v1(account_id: &mut UID, proof: AuthenticatorInfoV1CompatibilityProof) {
     assert!(account_id.as_inner() == proof.account_id, EAuthenticatorInfoV1CompatibilityNotProven);
     assert!(has_auth_info_v1(account_id), EAuthenticatorInfoV1NotAttached);

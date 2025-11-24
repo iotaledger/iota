@@ -8,6 +8,8 @@
 //! deserializable and must satisfy any additional checks imposed by the runtime
 //! metadata version.
 
+use std::collections::BTreeSet;
+
 use iota_types::{
     Identifier,
     error::ExecutionError,
@@ -64,8 +66,14 @@ fn verify_runtime_metadata(
     metadata: &RuntimeModuleMetadata,
 ) -> Result<(), ExecutionError> {
     for (fn_name, fn_attributes) in metadata.fun_attributes_iter() {
+        let mut seen = BTreeSet::new();
         // Verify each function attribute
         for attribute in fn_attributes {
+            if !seen.insert(attribute) {
+                return Err(verification_failure(format!(
+                    "Duplicate attribute {attribute:?} found for function {fn_name}"
+                )));
+            }
             match attribute {
                 IotaAttribute::Authenticator(attr) => {
                     // Verify authenticator attribute
