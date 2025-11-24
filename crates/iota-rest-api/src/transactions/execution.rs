@@ -7,7 +7,7 @@ use std::{net::SocketAddr, sync::Arc};
 use axum::extract::{Query, State, rejection::ExtensionRejection};
 use iota_sdk_types::{
     Address, BalanceChange, CheckpointSequenceNumber, Object, Owner, SignedTransaction,
-    Transaction, TransactionEffects, TransactionEvents, ValidatorAggregatedSignature,
+    TransactionV1, TransactionEffects, TransactionEvents, ValidatorAggregatedSignature,
     framework::Coin,
 };
 use iota_types::transaction_executor::{SimulateTransactionResult, TransactionExecutor, VmChecks};
@@ -398,7 +398,7 @@ async fn simulate_transaction(
     Query(parameters): Query<SimulateTransactionQueryParameters>,
     accept: AcceptFormat,
     // TODO allow accepting JSON as well as BCS
-    Bcs(transaction): Bcs<Transaction>,
+    Bcs(transaction): Bcs<TransactionV1>,
 ) -> Result<ResponseContent<TransactionSimulationResponse>> {
     let executor = state.ok_or_else(|| anyhow::anyhow!("No Transaction Executor"))?;
 
@@ -411,7 +411,7 @@ async fn simulate_transaction(
 pub(super) fn simulate_transaction_impl(
     executor: &Arc<dyn TransactionExecutor>,
     parameters: &SimulateTransactionQueryParameters,
-    transaction: Transaction,
+    transaction: TransactionV1,
 ) -> Result<TransactionSimulationResponse> {
     if transaction.gas_payment.objects.is_empty() {
         return Err(RestError::new(

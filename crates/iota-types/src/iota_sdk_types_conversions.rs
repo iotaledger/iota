@@ -270,6 +270,60 @@ fn sdk_upgrade_info_to_move(info: UpgradeInfo) -> crate::move_package::UpgradeIn
     }
 }
 
+impl TryFrom<crate::transaction::TransactionData> for TransactionV1 {
+    type Error = SdkTypeConversionError;
+
+    fn try_from(value: crate::transaction::TransactionData) -> Result<Self, Self::Error> {
+        Self {
+            sender: Address::new(value.sender().to_inner()),
+            gas_payment: GasPayment {
+                objects: value
+                    .gas()
+                    .iter()
+                    .map(|(id, seq, digest)| {
+                        ObjectReference::new((*id).into(), seq.value(), (*digest).into())
+                    })
+                    .collect(),
+                owner: Address::new(value.gas_data().owner.to_inner()),
+                price: value.gas_data().price,
+                budget: value.gas_data().budget,
+            },
+            expiration: match value.expiration() {
+                crate::transaction::TransactionExpiration::None => TransactionExpiration::None,
+                crate::transaction::TransactionExpiration::Epoch(e) => {
+                    TransactionExpiration::Epoch(*e)
+                }
+            },
+            kind: value.into_kind().try_into()?,
+        }
+        .pipe(Ok)
+    }
+}
+
+impl TryFrom<TransactionV1> for crate::transaction::TransactionData {
+    type Error = SdkTypeConversionError;
+
+    fn try_from(value: TransactionV1) -> Result<Self, Self::Error> {
+        Self::new_with_gas_data(
+            value.kind.try_into()?,
+            value.sender.into(),
+            crate::transaction::GasData {
+                payment: value
+                    .gas_payment
+                    .objects
+                    .into_iter()
+                    .map(ObjectReference::into_parts)
+                    .map(|(id, seq, digest)| (id.into(), seq.into(), digest.into()))
+                    .collect(),
+                owner: value.gas_payment.owner.into(),
+                price: value.gas_payment.price,
+                budget: value.gas_payment.budget,
+            },
+        )
+        .pipe(Ok)
+    }
+}
+
 impl TryFrom<crate::transaction::TransactionData> for Transaction {
      type Error = SdkTypeConversionError;
 
