@@ -3946,7 +3946,7 @@ impl AuthorityPerEpochStore {
                     // Since this verification happens after consensus, all authorities already
                     // agreed on the set of messages that would be verified by this method. Then, we
                     // can update scores according to the validation result directly, without the
-                    // need of any aditional step (as propagating opinions about validity).
+                    // need of any additional step (as propagating opinions about validity).
                     self.scorer.update_invalid_reports_count(authority_index);
                     warn!(
                         "Received invalid misbehavior report from {:?}",
