@@ -11,12 +11,14 @@ pub mod latency_matrix_builder;
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub enum TopologyLayout {
-    /// All Nodes are distributed with their own latencies, no clusters
-    Geographical,
-    /// Nodes are distributed in number_of_clusters clusters
-    Clustered { number_of_clusters: usize },
-    /// Use the hardcoded 10x10 clustered matrix
-    HardCoded,
+    /// All nodes are randomly distributed with their own latencies, no clusters
+    RandomGeographical,
+    /// Nodes are randomly distributed in number_of_clusters clusters
+    RandomClustered { number_of_clusters: usize },
+    /// Uses a hardcoded 10x10 matrix with 10 equal-sized regions
+    HardCodedClustered,
+    /// Use mainnet validator region distribution with shuffled order
+    MainNet,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -78,7 +80,7 @@ impl<'a> NetworkLatencyCommandBuilder<'a> {
     pub fn new(instances: &'a [Instance]) -> Self {
         Self {
             instances,
-            topology_layout: TopologyLayout::Geographical,
+            topology_layout: TopologyLayout::RandomGeographical,
             perturbation_spec: PerturbationSpec::None,
             max_latency: 500,
         }
@@ -145,7 +147,7 @@ mod tests {
                 added_latency: 50,
                 number_of_triangles: 2,
             })
-            .with_topology_layout(TopologyLayout::Geographical)
+            .with_topology_layout(TopologyLayout::RandomGeographical)
             .build_network_latency_matrix();
         println!(
             "{:?}",

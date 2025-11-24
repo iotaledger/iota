@@ -278,12 +278,14 @@ pub enum PerturbationSpec {
 pub enum LatencyTopology {
     /// Generates a latency matrix for each node, randomly positioned on a
     /// cylinder.
-    Geographical,
-    /// Generates a latency matrix by clustering nodes into clusters and
-    /// randomly positioning clusters on a cylinder.
-    Clustered,
-    /// Uses a hardcoded clustered matrix 10x10 in the net_latency module.
-    HardCoded,
+    RandomGeographical,
+    /// Generates a latency matrix by randomly clustering nodes into clusters
+    /// and randomly positioning clusters on a cylinder.
+    RandomClustered,
+    /// Uses a hardcoded 10x10 matrix with 10 equal-sized regions.
+    HardCodedClustered,
+    /// Uses mainnet validator region distribution for latencies.
+    MainNet,
 }
 
 fn parse_duration(arg: &str) -> Result<Duration, std::num::ParseIntError> {
@@ -444,11 +446,16 @@ async fn run<C: ServerProviderClient>(settings: Settings, client: C, opts: Opts)
             };
 
             let latency_topology = match latency_topology {
-                Some(LatencyTopology::Geographical) => Some(TopologyLayout::Geographical),
-                Some(LatencyTopology::Clustered) => {
-                    Some(TopologyLayout::Clustered { number_of_clusters })
+                Some(LatencyTopology::RandomGeographical) => {
+                    Some(TopologyLayout::RandomGeographical)
                 }
-                Some(LatencyTopology::HardCoded) => Some(TopologyLayout::HardCoded),
+                Some(LatencyTopology::RandomClustered) => {
+                    Some(TopologyLayout::RandomClustered { number_of_clusters })
+                }
+                Some(LatencyTopology::HardCodedClustered) => {
+                    Some(TopologyLayout::HardCodedClustered)
+                }
+                Some(LatencyTopology::MainNet) => Some(TopologyLayout::MainNet),
                 None => None,
             };
 
