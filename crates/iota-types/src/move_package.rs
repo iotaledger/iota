@@ -33,7 +33,7 @@
 //! with `Runtime ID` and `Storage ID` depending on the context. While `Runtime
 //! ID` is mostly used in name resolution during runtime, when a package with
 //! its modules has been loaded.
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 use derive_more::Display;
 use fastcrypto::hash::HashFunction;
@@ -1013,7 +1013,7 @@ impl PackageMetadata {
         storage_id: ObjectID,
         runtime_id: ObjectID,
         package_version: u64,
-        modules_metadata_map: BTreeMap<String, ModuleMetadataV1>,
+        modules_metadata_map: HashMap<String, HashMap<String, TypeName>>,
     ) -> Self {
         PackageMetadata::V1(PackageMetadataV1::new(
             uid,
@@ -1093,11 +1093,22 @@ impl PackageMetadataV1 {
         storage_id: ObjectID,
         runtime_id: ObjectID,
         package_version: u64,
-        modules_metadata_map: BTreeMap<String, ModuleMetadataV1>,
+        modules_metadata_map: HashMap<String, HashMap<String, TypeName>>,
     ) -> Self {
         let mut modules_metadata = VecMap { contents: vec![] };
 
-        for (module_name, module_metadata) in modules_metadata_map {
+        for (module_name, module_metadata_map) in modules_metadata_map {
+            let mut module_metadata = ModuleMetadataV1 {
+                authenticator_metadata: vec![],
+            };
+            for (function_name, account_type) in module_metadata_map {
+                module_metadata
+                    .authenticator_metadata
+                    .push(AuthenticatorMetadataV1 {
+                        function_name,
+                        account_type,
+                    });
+            }
             modules_metadata.contents.push(Entry {
                 key: module_name,
                 value: module_metadata,

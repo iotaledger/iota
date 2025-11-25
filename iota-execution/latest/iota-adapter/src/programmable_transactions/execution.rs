@@ -7,7 +7,7 @@ pub use checked::*;
 #[iota_macros::with_checked_arithmetic]
 mod checked {
     use std::{
-        collections::{BTreeMap, BTreeSet},
+        collections::{BTreeMap, BTreeSet, HashMap},
         fmt,
         sync::Arc,
     };
@@ -28,9 +28,9 @@ mod checked {
         id::RESOLVED_IOTA_ID,
         metrics::LimitsMetrics,
         move_package::{
-            AuthenticatorMetadataV1, IotaAttribute, ModuleMetadataV1, MovePackage, PackageMetadata,
-            RuntimeModuleMetadata, RuntimeModuleMetadataWrapper, UpgradeCap, UpgradePolicy,
-            UpgradeReceipt, UpgradeTicket, normalize_deserialized_modules,
+            IotaAttribute, MovePackage, PackageMetadata, RuntimeModuleMetadata,
+            RuntimeModuleMetadataWrapper, UpgradeCap, UpgradePolicy, UpgradeReceipt, UpgradeTicket,
+            normalize_deserialized_modules,
         },
         object::OBJECT_START_VERSION,
         storage::{PackageObject, get_package_objects},
@@ -900,7 +900,7 @@ mod checked {
         runtime_id: ObjectID,
         package_version: u64,
     ) -> Result<(), ExecutionError> {
-        let mut modules_metadata_map = BTreeMap::new();
+        let mut modules_metadata_map = HashMap::new();
         // Extract metadata for each module
         for module in modules {
             if let Some(md) = module
@@ -929,23 +929,17 @@ mod checked {
                 // - Process functions for each module in order to create function metadata:
                 //    - Authenticator attributes, if present, are extracted to create
                 //      AuthenticatorInfoMetadata to insert into the PackageMetadata
-                let mut module_metadata = ModuleMetadataV1 {
-                    authenticator_metadata: vec![],
-                };
+                let mut module_metadata_map = HashMap::new();
                 for (fn_name, fn_attributes) in runtime_module_metadata.fun_attributes_iter() {
                     // Check attributes
                     for attribute in fn_attributes {
                         match attribute {
                             IotaAttribute::Authenticator(attribute) if attribute.version == 1 => {
-                                module_metadata.authenticator_metadata.push(
-                                    AuthenticatorMetadataV1 {
-                                        function_name: fn_name.to_string(),
-                                        account_type: TypeName::from(
-                                            &get_authenticator_first_param_type_tag(
-                                                module, &fn_name,
-                                            )?,
-                                        ),
-                                    },
+                                module_metadata_map.insert(
+                                    fn_name.to_string(),
+                                    TypeName::from(&get_authenticator_first_param_type_tag(
+                                        module, &fn_name,
+                                    )?),
                                 );
                             }
                             _ => { /* Other attributes are ignored for PackageMetadataV1 */ }
@@ -955,8 +949,8 @@ mod checked {
                 // Fill the package metadata with a module handle (and its related function
                 // metadata) only if there is at least one function with
                 // relevant metadata
-                if !module_metadata.is_empty() {
-                    modules_metadata_map.insert(module.name().to_string(), module_metadata);
+                if !module_metadata_map.is_empty() {
+                    modules_metadata_map.insert(module.name().to_string(), module_metadata_map);
                 }
                 // End of PackageMetadataV1 specific
             }
