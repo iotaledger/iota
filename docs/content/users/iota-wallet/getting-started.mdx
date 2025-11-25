@@ -32,10 +32,12 @@ Create new addresses to handle coins, tokens, and NFTs.
 
    ![Add Profile](/img/users/iota-wallet/getting-started/add-profile.png)
 
-2. Choose **Create a New Mnemonic Profile**.
+<Tabs groupId='account-type' queryString>
+<TabItem value="mnemonic" label="Mnemonic" default>
 
-   ![Create Mnemonic Profile](/img/users/iota-wallet/how-to/multi-account/select-profile-type.png)
+2. Choose **New Mnemonic Profile**.
 
+   ![New Mnemonic Profile](/img/users/iota-wallet/how-to/multi-account/select-profile-type.png)
 
 3. Enter your desired password.
 
@@ -57,3 +59,34 @@ Create new addresses to handle coins, tokens, and NFTs.
 Your mnemonic recovery phrase is essential for regaining access to your wallet if you forget your password or switch devices. If lost, access to your assets cannot be recovered.
 
 :::
+
+</TabItem>
+<TabItem value="passkey" label="Passkey">
+
+2. Choose **New Passkey Profile**.
+
+   ![New Passkey Profile](/img/users/iota-wallet/how-to/multi-account/select-profile-type.png)
+
+3. Enter your desired nickname and passkey storage and access.
+
+   ![Create Password](/img/users/iota-wallet/getting-started/passkey.png)
+
+4. Enter your desired password.
+
+   ![Create Password](/img/users/iota-wallet/getting-started/create-password.png)
+
+5. Carefully read and accept the Terms of Service, and click `Create Wallet`.
+   
+   ![Create Wallet](/img/users/iota-wallet/getting-started/create-wallet.png)
+
+6. On the pop-up, choose one of the available options to store your passkey and follow the instructions.
+You can either use a Synced Passkey by storing it on your Phone/Tablet and corresponding accounts,
+or use Device Bound Passkey and store it on your security key.
+
+:::danger Irrecoverable
+
+Your passkey is essential for gaining access to your wallet. Depending on your chosen storage method, losing access to your device or account results in the inability to access your wallet and assets.
+:::
+
+</TabItem>
+</Tabs>
