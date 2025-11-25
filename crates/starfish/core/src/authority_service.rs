@@ -769,7 +769,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
 
         // Get requested block headers from store.
         let serialized_headers = if commit_sync_handle {
-            // For commit sync, optimize by fetching from store for blocks below GC round
+            // For commit sync, optimize by fetching from store for headers below GC round
             let gc_round = self.dag_state.read().gc_round_for_last_solid_commit();
 
             // Partition block_refs into those below and at-or-above GC round
@@ -779,7 +779,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
 
             let mut headers = Vec::new();
 
-            // Fetch blocks below GC from store
+            // Read headers below GC from store
             if !below_gc.is_empty() {
                 let store_headers = self
                     .store
@@ -790,7 +790,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
                 headers.extend(store_headers);
             }
 
-            // Fetch blocks at-or-above GC from dag_state
+            // Read headers at-or-above GC from dag_state
             if !above_gc.is_empty() {
                 let dag_headers = self
                     .dag_state
@@ -1018,7 +1018,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             &self.context.committee,
         )?;
 
-        // Optimize by fetching from store for blocks below GC round
+        // Optimize by reading from store for transactions below GC round
         let gc_round = self.dag_state.read().gc_round_for_last_solid_commit();
 
         // Partition block_refs into those below and at-or-above GC round
