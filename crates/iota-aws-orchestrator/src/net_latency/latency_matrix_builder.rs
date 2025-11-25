@@ -312,7 +312,16 @@ mod tests {
 
     #[test]
     fn test_mainnet_region_distribution() {
-        let expected = [(0, 20), (1, 4), (2, 2), (3, 21), (5, 13), (7, 1), (8, 8), (9, 1)];
+        let expected = [
+            (0, 20),
+            (1, 4),
+            (2, 2),
+            (3, 21),
+            (5, 13),
+            (7, 1),
+            (8, 8),
+            (9, 1),
+        ];
         let mut counts = [0usize; 10];
         for &region in &MAINNET_NODE_REGIONS {
             counts[region] += 1;
