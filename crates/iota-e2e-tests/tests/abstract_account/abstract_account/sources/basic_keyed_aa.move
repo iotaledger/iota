@@ -4,13 +4,12 @@
 module abstract_account::basic_keyed_aa;
 
 use abstract_account::abstract_account::{Self, AbstractAccount, ensure_tx_sender_is_account};
+use iota::account::AuthenticatorInfoV1;
 use iota::auth_context::AuthContext;
 use iota::ecdsa_k1;
 use iota::ecdsa_r1;
 use iota::ed25519;
 use iota::hex::decode;
-use iota::package_metadata::PackageMetadataV1;
-use std::ascii;
 
 // === Errors ===
 
@@ -48,12 +47,10 @@ public struct OwnerPublicKey has copy, drop, store {}
 /// - `authenticate_secp256r1`
 public fun create(
     public_key: vector<u8>,
-    authenticator_package: &PackageMetadataV1,
-    module_name: ascii::String,
-    function_name: ascii::String,
+    authenticator: AuthenticatorInfoV1<AbstractAccount>,
     ctx: &mut TxContext,
 ) {
-    let account = abstract_account::builder(authenticator_package, module_name, function_name, ctx)
+    let account = abstract_account::builder(authenticator, ctx)
         .add_dynamic_field(OwnerPublicKey {}, public_key)
         .finish();
     account.share();
@@ -65,20 +62,18 @@ public fun create(
 public fun rotate_public_key(
     account: &mut AbstractAccount,
     public_key: vector<u8>,
-    authenticator_package: &PackageMetadataV1,
-    module_name: ascii::String,
-    function_name: ascii::String,
+    authenticator: AuthenticatorInfoV1<AbstractAccount>,
     ctx: &TxContext,
 ) {
     // Update the account owner public key dynamic field. It is expected that the field already exists.
     account.rotate_field(OwnerPublicKey {}, public_key, ctx);
 
     // Update the account owner public key dynamic field. It is expected that the field already exists.
-    account.rotate_auth_info_v1(authenticator_package, module_name, function_name, ctx);
+    account.rotate_auth_info_v1(authenticator, ctx);
 }
 
-#[authenticator]
 /// Ed25519 signature authenticator.
+#[authenticator]
 public fun authenticate_ed25519(
     account: &AbstractAccount,
     signature: vector<u8>,
@@ -95,8 +90,8 @@ public fun authenticate_ed25519(
     );
 }
 
-#[authenticator]
 /// Secp256k1 signature authenticator.
+#[authenticator]
 public fun authenticate_secp256k1(
     account: &AbstractAccount,
     signature: vector<u8>,
@@ -113,8 +108,8 @@ public fun authenticate_secp256k1(
     );
 }
 
-#[authenticator]
 /// Secp256r1 signature authenticator.
+#[authenticator]
 public fun authenticate_secp256r1(
     account: &AbstractAccount,
     signature: vector<u8>,
@@ -131,8 +126,8 @@ public fun authenticate_secp256r1(
     );
 }
 
-#[authenticator]
 /// Free access, do nothing.
+#[authenticator]
 public fun authenticate_free_access(self: &AbstractAccount, _: &AuthContext, ctx: &TxContext) {
     // Check that the sender of this transaction is the account.
     ensure_tx_sender_is_account(self, ctx);

@@ -4,12 +4,10 @@
 module time_locked::account;
 
 use generic_keyed_authentication::owner_public_key;
-use iota::account;
+use iota::account::{Self, AuthenticatorInfoV1};
 use iota::auth_context::AuthContext;
 use iota::clock::Clock;
-use iota::package_metadata::PackageMetadataV1;
 use iotaccount::iotaccount;
-use std::ascii;
 use time_locked::unlock_time;
 
 // === Errors ===
@@ -39,9 +37,7 @@ public struct TimeLocked has key {
 public fun create(
     public_key: vector<u8>,
     unlock_time: u64,
-    package_metadata: &PackageMetadataV1,
-    module_name: ascii::String,
-    function_name: ascii::String,
+    authenticator: AuthenticatorInfoV1<TimeLocked>,
     ctx: &mut TxContext,
 ) {
     let mut id = object::new(ctx);
@@ -53,9 +49,7 @@ public fun create(
 
     let authenticator_compatibility_proof = account::check_auth_info_v1_compatibility(
         &account,
-        package_metadata,
-        module_name,
-        function_name,
+        authenticator,
     );
     account::attach_auth_info_v1(&mut account.id, authenticator_compatibility_proof);
 

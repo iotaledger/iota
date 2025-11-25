@@ -12,7 +12,7 @@
 //! inspired by the `examples/move/iotaccount` implementation. This is needed in
 //! order to not depend on an external folder and to enable easier changes to
 //! the Move code.
-use std::net::SocketAddr;
+use std::{net::SocketAddr, str::FromStr};
 
 use fastcrypto::{
     ed25519::Ed25519Signature,
@@ -24,7 +24,7 @@ use iota_keys::keystore::AccountKeystore;
 use iota_macros::sim_test;
 use iota_test_transaction_builder::publish_package;
 use iota_types::{
-    TypeTag,
+    IOTA_FRAMEWORK_ADDRESS, TypeTag,
     base_types::{IotaAddress, ObjectID, ObjectRef},
     crypto::{PublicKey, SignatureScheme},
     execution_status::{ExecutionFailureStatus, MoveLocation},
@@ -37,7 +37,7 @@ use iota_types::{
     signature::GenericSignature,
     storage::WriteKind,
     transaction::{
-        CallArg, ObjectArg, ProgrammableTransaction,
+        Argument, CallArg, ObjectArg, ProgrammableTransaction,
         TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE, Transaction, TransactionData,
     },
 };
@@ -48,6 +48,7 @@ use test_cluster::{TestCluster, TestClusterBuilder};
 
 const AA_PACKAGE_PATH: &str = "tests/abstract_account/abstract_account";
 const AA_MODULE_NAME: &str = "abstract_account";
+const AA_ACCOUNT_NAME: &str = "AbstractAccount";
 const AA_CREATE_MODULE_NAME: &str = "basic_keyed_aa";
 const AA_AUTHENTICATE_MODULE_NAME: &str = "basic_keyed_aa";
 const AA_AUTHENTICATE_FN_NAME_ED25519: &str = "authenticate_ed25519";
@@ -366,20 +367,32 @@ impl TestEnvironment {
         let pt = {
             let mut builder = ProgrammableTransactionBuilder::new();
 
-            // Create the abstract account.
+            // create auth info
             let arguments = vec![
-                builder.pure(aa_owner_pk.as_ref())?,
                 builder.obj(ObjectArg::ImmOrOwnedObject(aa_package_metadata_ref))?,
                 builder.pure(AA_AUTHENTICATE_MODULE_NAME)?,
                 builder.pure(authenticate_fn_name)?,
             ];
-            builder.programmable_move_call(
-                aa_package_id,
-                ident_str!(AA_CREATE_MODULE_NAME).to_owned(),
-                ident_str!("create").to_owned(),
-                vec![],
+            if let Argument::Result(authenticator_info_v1) = builder.programmable_move_call(
+                IOTA_FRAMEWORK_ADDRESS.into(),
+                ident_str!("account").to_owned(),
+                ident_str!("create_auth_info_v1").to_owned(),
+                vec![abstract_account_type_tag(&aa_package_id)],
                 arguments,
-            );
+            ) {
+                // Create the abstract account.
+                let arguments = vec![
+                    builder.pure(aa_owner_pk.as_ref())?,
+                    Argument::Result(authenticator_info_v1),
+                ];
+                builder.programmable_move_call(
+                    aa_package_id,
+                    ident_str!(AA_CREATE_MODULE_NAME).to_owned(),
+                    ident_str!("create").to_owned(),
+                    vec![],
+                    arguments,
+                );
+            }
             builder.finish()
         };
 
@@ -514,25 +527,37 @@ impl TestEnvironment {
 
         let mut builder = ProgrammableTransactionBuilder::new();
 
-        // rotate the key in the abstract account.
+        // create auth info
         let arguments = vec![
-            builder.obj(ObjectArg::SharedObject {
-                id: aa_ref.0,
-                initial_shared_version: aa_ref.1,
-                mutable: true,
-            })?,
-            builder.pure(new_aa_owner_pk.as_ref())?,
             builder.obj(ObjectArg::ImmOrOwnedObject(aa_package_metadata_ref))?,
             builder.pure(AA_AUTHENTICATE_MODULE_NAME)?,
             builder.pure(authenticate_fn_name)?,
         ];
-        builder.programmable_move_call(
-            aa_package_id,
-            ident_str!(AA_CREATE_MODULE_NAME).to_owned(),
-            ident_str!("rotate_public_key").to_owned(),
-            vec![],
+        if let Argument::Result(authenticator_info_v1) = builder.programmable_move_call(
+            IOTA_FRAMEWORK_ADDRESS.into(),
+            ident_str!("account").to_owned(),
+            ident_str!("create_auth_info_v1").to_owned(),
+            vec![abstract_account_type_tag(&aa_package_id)],
             arguments,
-        );
+        ) {
+            // rotate the key in the abstract account.
+            let arguments = vec![
+                builder.obj(ObjectArg::SharedObject {
+                    id: aa_ref.0,
+                    initial_shared_version: aa_ref.1,
+                    mutable: true,
+                })?,
+                builder.pure(new_aa_owner_pk.as_ref())?,
+                Argument::Result(authenticator_info_v1),
+            ];
+            builder.programmable_move_call(
+                aa_package_id,
+                ident_str!(AA_CREATE_MODULE_NAME).to_owned(),
+                ident_str!("rotate_public_key").to_owned(),
+                vec![],
+                arguments,
+            );
+        }
         Ok(builder.finish())
     }
 
@@ -573,4 +598,9 @@ impl TestEnvironment {
         assert!(errors.is_empty());
         Ok(())
     }
+}
+
+fn abstract_account_type_tag(aa_package_id: &ObjectID) -> TypeTag {
+    TypeTag::from_str(format!("{aa_package_id}::{AA_MODULE_NAME}::{AA_ACCOUNT_NAME}").as_str())
+        .unwrap()
 }

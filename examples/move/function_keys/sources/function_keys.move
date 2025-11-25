@@ -30,12 +30,11 @@ use function_keys::fk_store::{
     disallow,
     is_allowed
 };
+use iota::account::AuthenticatorInfoV1;
 use iota::auth_context::AuthContext;
 use iota::ed25519;
 use iota::hex::decode;
-use iota::package_metadata::PackageMetadataV1;
 use iotaccount::iotaccount::{builder, ensure_tx_sender_is_account, IOTAccount};
-use std::ascii;
 
 // --------------------
 // Errors
@@ -64,12 +63,10 @@ fun fk_store_key(): FunctionKeysName { FunctionKeysName {} }
 /// Creates a new `IOTAccount` as a shared object with the given authenticator.
 public fun create(
     public_key: vector<u8>,
-    package_metadata: &PackageMetadataV1,
-    module_name: ascii::String,
-    function_name: ascii::String,
+    authenticator: AuthenticatorInfoV1<IOTAccount>,
     ctx: &mut TxContext,
 ) {
-    let account = builder(package_metadata, module_name, function_name, ctx)
+    let account = builder(authenticator, ctx)
         .add_dynamic_field(OwnerPublicKey {}, public_key)
         .add_dynamic_field(fk_store_key(), build_fn_keys_store(ctx))
         .finish();
@@ -180,12 +177,10 @@ public fun borrow_public_key(account: &IOTAccount): &vector<u8> {
 #[test_only]
 public fun create_without_fk_store(
     public_key: vector<u8>,
-    package_metadata: &PackageMetadataV1,
-    module_name: ascii::String,
-    function_name: ascii::String,
+    authenticator: AuthenticatorInfoV1<IOTAccount>,
     ctx: &mut TxContext,
 ) {
-    let account = builder(package_metadata, module_name, function_name, ctx)
+    let account = builder(authenticator, ctx)
         .add_dynamic_field(OwnerPublicKey {}, public_key)
         .finish();
     account.share();

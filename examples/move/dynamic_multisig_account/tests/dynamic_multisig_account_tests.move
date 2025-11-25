@@ -9,11 +9,9 @@ use dynamic_multisig_account::members;
 use dynamic_multisig_account::transactions;
 use iota::account::{Self, AuthenticatorInfoV1};
 use iota::auth_context::{Self, AuthContext};
-use iota::package_metadata;
 use iota::test_scenario::{Self, Scenario};
-use iota::test_utils::{Self, assert_eq, assert_ref_eq};
+use iota::test_utils::{assert_eq, assert_ref_eq};
 use std::ascii;
-use std::type_name::{Self, TypeName};
 
 const TRANSACTION_DIGEST: vector<u8> =
     x"315f5bdb76d078c43b8ac0064e4a0164612b1fce77c869345bfc94c75894edd3";
@@ -122,19 +120,16 @@ fun test_account_creation_with_inconsistent_members() {
     let members_addresses = vector[@0x1, @0x2, @0x3];
     let members_weights = vector[1, 2];
     let threshold = 3;
-    let package_metadata = create_default_package_metadata_for_testing();
+    let authenticator = create_default_authenticator_info_v1_for_testing();
 
     dynamic_multisig_account::create(
         members_addresses,
         members_weights,
         threshold,
-        &package_metadata,
-        default_module_name(),
-        default_function_name(),
+        authenticator,
         ctx,
     );
 
-    test_utils::destroy(package_metadata);
     test_scenario::end(scenario_val);
 }
 
@@ -149,19 +144,15 @@ fun test_account_creation_with_members_duplicate() {
     let members_addresses = vector[@0x1, @0x2, @0x2];
     let members_weights = vector[1, 2, 3];
     let threshold = 3;
-    let package_metadata = create_default_package_metadata_for_testing();
+    let authenticator = create_default_authenticator_info_v1_for_testing();
 
     dynamic_multisig_account::create(
         members_addresses,
         members_weights,
         threshold,
-        &package_metadata,
-        default_module_name(),
-        default_function_name(),
+        authenticator,
         ctx,
     );
-
-    test_utils::destroy(package_metadata);
 
     test_scenario::end(scenario_val);
 }
@@ -177,19 +168,16 @@ fun test_account_creation_with_zero_threshold() {
     let members_weights = vector[1, 2, 3];
     // The threshold can't be zero.
     let threshold = 0;
-    let package_metadata = create_default_package_metadata_for_testing();
+    let authenticator = create_default_authenticator_info_v1_for_testing();
 
     dynamic_multisig_account::create(
         members_addresses,
         members_weights,
         threshold,
-        &package_metadata,
-        default_module_name(),
-        default_function_name(),
+        authenticator,
         ctx,
     );
 
-    test_utils::destroy(package_metadata);
     test_scenario::end(scenario_val);
 }
 
@@ -204,19 +192,16 @@ fun test_account_creation_with_inconsistent_threshold() {
     let members_weights = vector[1, 2, 3];
     // The threshold is too high.
     let threshold = 7;
-    let package_metadata = create_default_package_metadata_for_testing();
+    let authenticator = create_default_authenticator_info_v1_for_testing();
 
     dynamic_multisig_account::create(
         members_addresses,
         members_weights,
         threshold,
-        &package_metadata,
-        default_module_name(),
-        default_function_name(),
+        authenticator,
         ctx,
     );
 
-    test_utils::destroy(package_metadata);
     test_scenario::end(scenario_val);
 }
 
@@ -509,20 +494,12 @@ fun test_account_updating() {
             // The threshold equals to the total weight of all the members; it is the maximum possible value.
             let threshold = 15;
             let authenticator = create_authenticator_info_v1_for_testing(b"function2");
-            let package_metadata = create_package_metadata_for_testing(
-                default_package(),
-                default_module_name(),
-                ascii::string(b"function2"),
-                default_account_type(),
-            );
 
             account.update_account_data(
                 members_addresses,
                 members_weights,
                 threshold,
-                &package_metadata,
-                default_module_name(),
-                ascii::string(b"function2"),
+                authenticator,
                 ctx,
             );
 
@@ -531,7 +508,6 @@ fun test_account_updating() {
             assert_eq(account.threshold(), threshold);
             assert_ref_eq(account.authenticator(), &authenticator);
 
-            test_utils::destroy(package_metadata);
             test_scenario::return_shared(account);
         };
     });
@@ -551,24 +527,16 @@ fun test_account_updating_with_not_account() {
             let members_addresses = vector[@0xA, @0xB, @0xC];
             let members_weights = vector[4, 5, 6];
             let threshold = 10;
-            let package_metadata = create_package_metadata_for_testing(
-                default_package(),
-                default_module_name(),
-                ascii::string(b"function2"),
-                default_account_type(),
-            );
+            let authenticator = create_authenticator_info_v1_for_testing(b"function2");
 
             account.update_account_data(
                 members_addresses,
                 members_weights,
                 threshold,
-                &package_metadata,
-                default_module_name(),
-                ascii::string(b"function2"),
+                authenticator,
                 ctx,
             );
 
-            test_utils::destroy(package_metadata);
             test_scenario::return_shared(account);
         };
     });
@@ -589,24 +557,16 @@ fun test_account_updating_with_inconsistent_members() {
             let members_addresses = vector[@0xA, @0xB];
             let members_weights = vector[4, 5, 6];
             let threshold = 10;
-            let package_metadata = create_package_metadata_for_testing(
-                default_package(),
-                default_module_name(),
-                ascii::string(b"function2"),
-                default_account_type(),
-            );
+            let authenticator = create_authenticator_info_v1_for_testing(b"function2");
 
             account.update_account_data(
                 members_addresses,
                 members_weights,
                 threshold,
-                &package_metadata,
-                default_module_name(),
-                ascii::string(b"function2"),
+                authenticator,
                 ctx,
             );
 
-            test_utils::destroy(package_metadata);
             test_scenario::return_shared(account);
         };
     });
@@ -627,24 +587,16 @@ fun test_account_updating_with_members_duplicate() {
             let members_addresses = vector[@0xA, @0xA, @0xC];
             let members_weights = vector[4, 5, 6];
             let threshold = 10;
-            let package_metadata = create_package_metadata_for_testing(
-                default_package(),
-                default_module_name(),
-                ascii::string(b"function2"),
-                default_account_type(),
-            );
+            let authenticator = create_authenticator_info_v1_for_testing(b"function2");
 
             account.update_account_data(
                 members_addresses,
                 members_weights,
                 threshold,
-                &package_metadata,
-                default_module_name(),
-                ascii::string(b"function2"),
+                authenticator,
                 ctx,
             );
 
-            test_utils::destroy(package_metadata);
             test_scenario::return_shared(account);
         };
     });
@@ -665,24 +617,16 @@ fun test_account_updating_with_zero_threshold() {
             let members_weights = vector[4, 5, 6];
             // The threshold can't be zero.
             let threshold = 0;
-            let package_metadata = create_package_metadata_for_testing(
-                default_package(),
-                default_module_name(),
-                ascii::string(b"function2"),
-                default_account_type(),
-            );
+            let authenticator = create_authenticator_info_v1_for_testing(b"function2");
 
             account.update_account_data(
                 members_addresses,
                 members_weights,
                 threshold,
-                &package_metadata,
-                default_module_name(),
-                ascii::string(b"function2"),
+                authenticator,
                 ctx,
             );
 
-            test_utils::destroy(package_metadata);
             test_scenario::return_shared(account);
         };
     });
@@ -703,24 +647,16 @@ fun test_account_updating_with_inconsistent_threshold() {
             let members_weights = vector[4, 5, 6];
             // The threshold is too high.
             let threshold = 16;
-            let package_metadata = create_package_metadata_for_testing(
-                default_package(),
-                default_module_name(),
-                ascii::string(b"function2"),
-                default_account_type(),
-            );
+            let authenticator = create_authenticator_info_v1_for_testing(b"function2");
 
             account.update_account_data(
                 members_addresses,
                 members_weights,
                 threshold,
-                &package_metadata,
-                default_module_name(),
-                ascii::string(b"function2"),
+                authenticator,
                 ctx,
             );
 
-            test_utils::destroy(package_metadata);
             test_scenario::return_shared(account);
         };
     });
@@ -829,24 +765,16 @@ fun test_authenticate_not_enough_total_weight_after_update() {
             // The @0x3 weight is reduced, so it does not have enough weight to reach the threshold after the update.
             let members_weights = vector[1, 2, 2];
             let threshold = 3;
-            let package_metadata = create_package_metadata_for_testing(
-                default_package(),
-                default_module_name(),
-                ascii::string(b"function2"),
-                default_account_type(),
-            );
+            let authenticator = create_authenticator_info_v1_for_testing(b"function2");
 
             account.update_account_data(
                 members_addresses,
                 members_weights,
                 threshold,
-                &package_metadata,
-                default_module_name(),
-                ascii::string(b"function2"),
+                authenticator,
                 ctx,
             );
 
-            test_utils::destroy(package_metadata);
             test_scenario::return_shared(account);
         };
 
@@ -907,24 +835,16 @@ fun test_authenticate_member_removed_during_update() {
             let members_addresses = vector[@0x2, @0x3];
             let members_weights = vector[2, 3];
             let threshold = 3;
-            let package_metadata = create_package_metadata_for_testing(
-                default_package(),
-                default_module_name(),
-                ascii::string(b"function2"),
-                default_account_type(),
-            );
+            let authenticator = create_authenticator_info_v1_for_testing(b"function2");
 
             account.update_account_data(
                 members_addresses,
                 members_weights,
                 threshold,
-                &package_metadata,
-                default_module_name(),
-                ascii::string(b"function2"),
+                authenticator,
                 ctx,
             );
 
-            test_utils::destroy(package_metadata);
             test_scenario::return_shared(account);
         };
 
@@ -975,24 +895,16 @@ fun test_authenticate_threshold_changed_during_update() {
             let members_weights = vector[1, 2, 3];
             // The threshold is increased, so the transaction does not have enough weight to reach the threshold after the update.
             let threshold = 4;
-            let package_metadata = create_package_metadata_for_testing(
-                default_package(),
-                default_module_name(),
-                ascii::string(b"function2"),
-                default_account_type(),
-            );
+            let authenticator = create_authenticator_info_v1_for_testing(b"function2");
 
             account.update_account_data(
                 members_addresses,
                 members_weights,
                 threshold,
-                &package_metadata,
-                default_module_name(),
-                ascii::string(b"function2"),
+                authenticator,
                 ctx,
             );
 
-            test_utils::destroy(package_metadata);
             test_scenario::return_shared(account);
         };
 
@@ -1012,58 +924,23 @@ fun test_authenticate_threshold_changed_during_update() {
 
 // --------------------------------------- Test Utilities ---------------------------------------
 
-fun default_package(): address {
-    @0x1
-}
-
-fun default_module_name(): ascii::String {
-    ascii::string(b"module")
-}
-
-fun default_function_name(): ascii::String {
-    ascii::string(b"function")
-}
-
-fun default_account_type(): TypeName {
-    type_name::get<DynamicMultisigAccount>()
-}
-
-fun create_default_authenticator_info_v1_for_testing(): AuthenticatorInfoV1 {
+fun create_default_authenticator_info_v1_for_testing(): AuthenticatorInfoV1<
+    DynamicMultisigAccount,
+> {
     account::create_auth_info_v1_for_testing(
-        default_package(),
-        default_module_name(),
-        default_function_name(),
+        @0x1,
+        ascii::string(b"module"),
+        ascii::string(b"function"),
     )
 }
 
-fun create_authenticator_info_v1_for_testing(function: vector<u8>): AuthenticatorInfoV1 {
+fun create_authenticator_info_v1_for_testing(
+    function: vector<u8>,
+): AuthenticatorInfoV1<DynamicMultisigAccount> {
     account::create_auth_info_v1_for_testing(
-        default_package(),
+        @0x1,
         ascii::string(function),
-        default_function_name(),
-    )
-}
-
-fun create_package_metadata_for_testing(
-    package: address,
-    module_name: ascii::String,
-    function_name: ascii::String,
-    type_name: TypeName,
-): package_metadata::PackageMetadataV1 {
-    package_metadata::create_package_metadata_v1_for_testing_one_authenticator(
-        package.to_id(),
-        module_name,
-        function_name,
-        type_name,
-    )
-}
-
-fun create_default_package_metadata_for_testing(): package_metadata::PackageMetadataV1 {
-    create_package_metadata_for_testing(
-        default_package(),
-        default_module_name(),
-        default_function_name(),
-        default_account_type(),
+        ascii::string(b"function"),
     )
 }
 
@@ -1073,15 +950,13 @@ fun create_account_for_testing(scenario: &mut Scenario): address {
     let members_addresses = vector[@0x1, @0x2, @0x3];
     let members_weights = vector[1, 2, 3];
     let threshold = 3;
-    let package_metadata = create_default_package_metadata_for_testing();
+    let authenticator = create_default_authenticator_info_v1_for_testing();
 
     dynamic_multisig_account::create(
         members_addresses,
         members_weights,
         threshold,
-        &package_metadata,
-        default_module_name(),
-        default_function_name(),
+        authenticator,
         ctx,
     );
 
@@ -1091,7 +966,6 @@ fun create_account_for_testing(scenario: &mut Scenario): address {
     let account_address = account.get_address();
 
     test_scenario::return_shared(account);
-    test_utils::destroy(package_metadata);
 
     account_address
 }

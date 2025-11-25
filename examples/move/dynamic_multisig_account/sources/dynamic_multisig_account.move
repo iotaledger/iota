@@ -8,8 +8,6 @@ use dynamic_multisig_account::transactions::{Self, Transactions};
 use iota::account::{Self, AuthenticatorInfoV1};
 use iota::auth_context::AuthContext;
 use iota::dynamic_field;
-use iota::package_metadata::PackageMetadataV1;
-use std::ascii;
 
 // --------------------------------------- Errors ---------------------------------------
 
@@ -49,9 +47,7 @@ public fun create(
     members_addresses: vector<address>,
     members_weights: vector<u64>,
     threshold: u64,
-    package_metadata: &PackageMetadataV1,
-    module_name: ascii::String,
-    function_name: ascii::String,
+    authenticator: AuthenticatorInfoV1<DynamicMultisigAccount>,
     ctx: &mut TxContext,
 ) {
     // Create a `Members` instance.
@@ -72,9 +68,7 @@ public fun create(
 
     let authenticator_compatibility_proof = account::check_auth_info_v1_compatibility(
         &account,
-        package_metadata,
-        module_name,
-        function_name,
+        authenticator,
     );
     account::attach_auth_info_v1(&mut account.id, authenticator_compatibility_proof);
 
@@ -125,7 +119,9 @@ public fun total_approves(self: &DynamicMultisigAccount, transaction_digest: vec
 }
 
 /// Immutably borrows the account authenticator.
-public fun authenticator(self: &DynamicMultisigAccount): &AuthenticatorInfoV1 {
+public fun authenticator(
+    self: &DynamicMultisigAccount,
+): &AuthenticatorInfoV1<DynamicMultisigAccount> {
     account::borrow_auth_info_v1(&self.id)
 }
 
@@ -187,9 +183,7 @@ public fun update_account_data(
     members_addresses: vector<address>,
     members_weights: vector<u64>,
     threshold: u64,
-    package_metadata: &PackageMetadataV1,
-    module_name: ascii::String,
-    function_name: ascii::String,
+    authenticator: AuthenticatorInfoV1<DynamicMultisigAccount>,
     ctx: &TxContext,
 ) {
     // Check that the sender of this transaction is the account.
@@ -203,9 +197,7 @@ public fun update_account_data(
 
     let authenticator_compatibility_proof = account::check_auth_info_v1_compatibility(
         self,
-        package_metadata,
-        module_name,
-        function_name,
+        authenticator,
     );
 
     let account_id = &mut self.id;

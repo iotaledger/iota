@@ -1429,6 +1429,9 @@ AuthenticatorInfoV1
 AuthenticatorInfoV1CompatibilityProof
 	public struct
 	0x2::account
+create_auth_info_v1
+	public fun
+	0x2::account
 check_auth_info_v1_compatibility
 	public fun
 	0x2::account

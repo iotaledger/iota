@@ -5,8 +5,6 @@ module abstract_account::abstract_account;
 
 use iota::account::{Self, AuthenticatorInfoV1};
 use iota::dynamic_field;
-use iota::package_metadata::PackageMetadataV1;
-use std::ascii;
 
 // === Errors ===
 
@@ -47,9 +45,7 @@ public struct AbstractAccount has key {
 ///
 /// The `AuthenticatorInfo` will be attached to the account being built.
 public fun builder(
-    package_metadata: &PackageMetadataV1,
-    module_name: ascii::String,
-    function_name: ascii::String,
+    authenticator: AuthenticatorInfoV1<AbstractAccount>,
     ctx: &mut TxContext,
 ): AbstractAccountBuilder {
     let mut builder = AbstractAccountBuilder {
@@ -58,9 +54,7 @@ public fun builder(
 
     let authenticator_compatibility_proof = account::check_auth_info_v1_compatibility(
         &builder.account,
-        package_metadata,
-        module_name,
-        function_name,
+        authenticator,
     );
     account::attach_auth_info_v1(&mut builder.account.id, authenticator_compatibility_proof);
     builder
@@ -156,20 +150,16 @@ public fun rotate_field<Name: copy + drop + store, Value: store>(
 /// Only the account itself can call this function.
 public fun rotate_auth_info_v1(
     self: &mut AbstractAccount,
-    package_metadata: &PackageMetadataV1,
-    module_name: ascii::String,
-    function_name: ascii::String,
+    authenticator: AuthenticatorInfoV1<AbstractAccount>,
     ctx: &TxContext,
-) {
+): AuthenticatorInfoV1<AbstractAccount> {
     ensure_tx_sender_is_account(self, ctx);
 
     let authenticator_compatibility_proof = account::check_auth_info_v1_compatibility(
         self,
-        package_metadata,
-        module_name,
-        function_name,
+        authenticator,
     );
-    account::rotate_auth_info_v1(&mut self.id, authenticator_compatibility_proof);
+    account::rotate_auth_info_v1(&mut self.id, authenticator_compatibility_proof)
 }
 
 // === Public-View Functions ===
@@ -198,7 +188,7 @@ public fun has_field<Name: copy + drop + store>(self: &AbstractAccount, name: Na
 /// Borrows a reference to the attached `AuthenticatorInfoV1` instance.
 /// This function is not gated to be called only by the account,
 /// anybody can call it to read the attached authenticator.
-public fun borrow_auth_info_v1(self: &AbstractAccount): &AuthenticatorInfoV1 {
+public fun borrow_auth_info_v1(self: &AbstractAccount): &AuthenticatorInfoV1<AbstractAccount> {
     account::borrow_auth_info_v1(&self.id)
 }
 

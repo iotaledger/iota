@@ -5,11 +5,9 @@
 module iota::account_tests;
 
 use iota::account::{Self, AuthenticatorInfoV1};
-use iota::package_metadata;
-use iota::test_scenario;
+use iota::test_scenario::{Self, Scenario};
 use iota::test_utils::{Self, assert_eq, assert_ref_eq};
 use std::ascii;
-use std::type_name::{Self, TypeName};
 
 // This struct is used as an account for testing.
 public struct TestAccount has key {
@@ -26,9 +24,8 @@ fun id_mut(self: &mut TestAccount): &mut UID {
 
 #[test]
 fun authenticator_info_v1_happy_path() {
-    account_test_mut!(|account, _| {
+    account_test_mut!(|_, account| {
         let default_authenticator_info = create_default_authenticator_info_v1_for_testing();
-        let default_package_metadata = create_default_package_metadata_for_testing();
 
         // Check that there is no an attached `AuthenticatorInfoV1` just after creation.
         assert_eq(account::has_auth_info_v1(account.id()), false);
@@ -36,9 +33,7 @@ fun authenticator_info_v1_happy_path() {
         // Attach an `AuthenticatorInfoV1` instance to the account.
         let compatibility_proof = account::check_auth_info_v1_compatibility(
             account,
-            &default_package_metadata,
-            default_module_name(),
-            default_function_name(),
+            default_authenticator_info,
         );
         account::attach_auth_info_v1(account.id_mut(), compatibility_proof);
 
@@ -51,82 +46,61 @@ fun authenticator_info_v1_happy_path() {
             ascii::string(b"module2"),
             ascii::string(b"function2"),
         );
-        let updated_package_metadata = create_package_metadata_for_testing(
-            @0x2,
-            ascii::string(b"module2"),
-            ascii::string(b"function2"),
-            default_account_type(),
-        );
 
         let compatibility_proof = account::check_auth_info_v1_compatibility(
             account,
-            &updated_package_metadata,
-            ascii::string(b"module2"),
-            ascii::string(b"function2"),
+            updated_authenticator_info,
         );
-        account::rotate_auth_info_v1(
+        let previous_authenticator_info = account::rotate_auth_info_v1(
             account.id_mut(),
             compatibility_proof,
         );
 
+        assert_eq(previous_authenticator_info, default_authenticator_info);
+
         assert_eq(account::has_auth_info_v1(account.id()), true);
         assert_ref_eq(account::borrow_auth_info_v1(account.id()), &updated_authenticator_info);
-
-        test_utils::destroy(default_package_metadata);
-        test_utils::destroy(updated_package_metadata);
     });
 }
 
 #[test]
 #[expected_failure(abort_code = account::EAuthenticatorInfoV1AlreadyAttached)]
 fun authenticator_info_v1_double_attach() {
-    account_test_mut!(|account, _| {
-        let package_metadata_1 = create_default_package_metadata_for_testing();
-        let package_metadata_2 = create_package_metadata_for_testing(
+    account_test_mut!(|_, account| {
+        let authenticator_info_1 = create_default_authenticator_info_v1_for_testing();
+        let authenticator_info_2 = account::create_auth_info_v1_for_testing(
             @0x2,
             ascii::string(b"module2"),
             ascii::string(b"function2"),
-            default_account_type(),
         );
 
         let compatibility_proof_1 = account::check_auth_info_v1_compatibility(
             account,
-            &package_metadata_1,
-            default_module_name(),
-            default_function_name(),
+            authenticator_info_1,
         );
         account::attach_auth_info_v1(account.id_mut(), compatibility_proof_1);
         // Attach another `AuthenticatorInfoV1` instance that is forbidden.
         let compatibility_proof_2 = account::check_auth_info_v1_compatibility(
             account,
-            &package_metadata_2,
-            ascii::string(b"module2"),
-            ascii::string(b"function2"),
+            authenticator_info_2,
         );
         account::attach_auth_info_v1(account.id_mut(), compatibility_proof_2);
-
-        test_utils::destroy(package_metadata_1);
-        test_utils::destroy(package_metadata_2);
     });
 }
 
 #[test]
 #[expected_failure(abort_code = account::EAuthenticatorInfoV1CompatibilityNotProven)]
 fun authenticator_info_v1_not_proven_attach() {
-    account_test_mut!(|account, ctx| {
-        let package_metadata = create_default_package_metadata_for_testing();
+    account_test_mut!(|scenario, account| {
+        let authenticator_info = create_default_authenticator_info_v1_for_testing();
 
-        let account_2 = create_test_account(ctx);
+        let account_2 = create_test_account(scenario);
         let compatibility_proof = account::check_auth_info_v1_compatibility(
             &account_2,
-            &package_metadata,
-            default_module_name(),
-            default_function_name(),
+            authenticator_info,
         );
         // Attach a not proven `AuthenticatorInfoV1` instance.
         account::attach_auth_info_v1(account.id_mut(), compatibility_proof);
-
-        test_utils::destroy(package_metadata);
         test_utils::destroy(account_2);
     });
 }
@@ -134,130 +108,79 @@ fun authenticator_info_v1_not_proven_attach() {
 #[test]
 #[expected_failure(abort_code = account::EAuthenticatorInfoV1NotAttached)]
 fun authenticator_info_v1_borrow_non_existent() {
-    account_test!(|account_id, _| {
+    account_test!(|_, account_id| {
         // Borrow a non-existing `AuthenticatorInfoV1` instance.
-        account::borrow_auth_info_v1(account_id);
+        account::borrow_auth_info_v1<TestAccount>(account_id);
     });
 }
 
 #[test]
 #[expected_failure(abort_code = account::EAuthenticatorInfoV1NotAttached)]
 fun authenticator_info_v1_rotate_non_existent() {
-    account_test_mut!(|account, _| {
-        let package_metadata = create_default_package_metadata_for_testing();
+    account_test_mut!(|_, account| {
+        let authenticator_info = create_default_authenticator_info_v1_for_testing();
 
         let compatibility_proof = account::check_auth_info_v1_compatibility(
             account,
-            &package_metadata,
-            default_module_name(),
-            default_function_name(),
+            authenticator_info,
         );
         account::rotate_auth_info_v1(account.id_mut(), compatibility_proof);
-
-        test_utils::destroy(package_metadata);
     });
 }
 
 #[test]
 #[expected_failure(abort_code = account::EAuthenticatorInfoV1CompatibilityNotProven)]
 fun authenticator_info_v1_rotate_not_proven() {
-    account_test_mut!(|account, ctx| {
-        let package_metadata = create_default_package_metadata_for_testing();
+    account_test_mut!(|scenario, account| {
+        let authenticator_info = create_default_authenticator_info_v1_for_testing();
 
         let compatibility_proof = account::check_auth_info_v1_compatibility(
             account,
-            &package_metadata,
-            default_module_name(),
-            default_function_name(),
+            authenticator_info,
         );
         account::attach_auth_info_v1(account.id_mut(), compatibility_proof);
 
-        let account_2 = create_test_account(ctx);
+        let account_2 = create_test_account(scenario);
         let compatibility_proof = account::check_auth_info_v1_compatibility(
             &account_2,
-            &package_metadata,
-            default_module_name(),
-            default_function_name(),
+            authenticator_info,
         );
         // Rotate a not proven `AuthenticatorInfoV1` instance.
         account::rotate_auth_info_v1(account.id_mut(), compatibility_proof);
-
-        test_utils::destroy(package_metadata);
         test_utils::destroy(account_2);
     });
 }
 
-fun create_test_account(ctx: &mut TxContext): TestAccount {
-    TestAccount { id: object::new(ctx) }
+fun create_test_account(scenario: &mut Scenario): TestAccount {
+    TestAccount { id: object::new(test_scenario::ctx(scenario)) }
 }
 
-fun default_package(): address {
-    @0x1
-}
-
-fun default_module_name(): ascii::String {
-    ascii::string(b"module")
-}
-
-fun default_function_name(): ascii::String {
-    ascii::string(b"function")
-}
-
-fun default_account_type(): TypeName {
-    type_name::get<TestAccount>()
-}
-
-fun create_default_authenticator_info_v1_for_testing(): AuthenticatorInfoV1 {
+fun create_default_authenticator_info_v1_for_testing(): AuthenticatorInfoV1<TestAccount> {
     account::create_auth_info_v1_for_testing(
-        default_package(),
-        default_module_name(),
-        default_function_name(),
+        @0x1,
+        ascii::string(b"module"),
+        ascii::string(b"function"),
     )
 }
 
-fun create_package_metadata_for_testing(
-    package: address,
-    module_name: ascii::String,
-    function_name: ascii::String,
-    type_name: TypeName,
-): package_metadata::PackageMetadataV1 {
-    package_metadata::create_package_metadata_v1_for_testing_one_authenticator(
-        package.to_id(),
-        module_name,
-        function_name,
-        type_name,
-    )
-}
-
-fun create_default_package_metadata_for_testing(): package_metadata::PackageMetadataV1 {
-    create_package_metadata_for_testing(
-        default_package(),
-        default_module_name(),
-        default_function_name(),
-        default_account_type(),
-    )
-}
-
-macro fun account_test($f: |&UID, &mut TxContext|) {
+macro fun account_test($f: |&mut Scenario, &UID|) {
     let mut scenario_val = test_scenario::begin(@0x0);
     let scenario = &mut scenario_val;
-    let ctx = scenario.ctx();
-    let account = create_test_account(ctx);
+    let account = create_test_account(scenario);
 
-    $f(&account.id, ctx);
+    $f(scenario, &account.id);
 
     test_utils::destroy(account);
 
     test_scenario::end(scenario_val);
 }
 
-macro fun account_test_mut($f: |&mut TestAccount, &mut TxContext|) {
+macro fun account_test_mut($f: |&mut Scenario, &mut TestAccount|) {
     let mut scenario_val = test_scenario::begin(@0x0);
     let scenario = &mut scenario_val;
-    let ctx = scenario.ctx();
-    let mut account = create_test_account(ctx);
+    let mut account = create_test_account(scenario);
 
-    $f(&mut account, ctx);
+    $f(scenario, &mut account);
 
     test_utils::destroy(account);
 
