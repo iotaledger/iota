@@ -477,18 +477,18 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
         ));
 
         // Regularly scrape the client
-        let mut metrics_commands = self
+        let metrics_commands = self
             .protocol_commands
             .clients_metrics_command(self.client_instances.clone(), parameters);
 
         // TODO: Remove this when consensus client latency metrics are available.
         // We will be getting latency metrics directly from consensus nodes instead from
         // the nw client
-        metrics_commands.append(
-            &mut self
-                .protocol_commands
-                .nodes_metrics_command(self.node_instances.clone(), parameters),
-        );
+        // metrics_commands.append(
+        //     &mut self
+        //         .protocol_commands
+        //         .nodes_metrics_command(self.node_instances.clone(), parameters),
+        // );
 
         let mut aggregator = MeasurementsCollection::new(&self.settings, parameters.clone());
         let mut metrics_interval = time::interval(self.scrape_interval);
