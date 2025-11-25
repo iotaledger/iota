@@ -70,6 +70,9 @@ async fn handle_request(
     info!("{method} {path}");
 
     let response = match (method, path) {
+        // GET /resolve/{commit}
+        (&Method::GET, "/resolve/{commit}") => handle_resolve_request(req, cache).await,
+
         // GET /check/{commit}/{cpu_target}?binaries=bin1,bin2,bin3
         (&Method::GET, path) if path.starts_with("/check/") => {
             handle_check_request(req, cache).await
@@ -103,6 +106,46 @@ async fn handle_request(
     };
 
     response
+}
+
+async fn handle_resolve_request(
+    req: Request<Incoming>,
+    cache: Arc<BuildCache>,
+) -> Result<Response<Full<Bytes>>, Infallible> {
+    let path = req.uri().path();
+    let parts: Vec<&str> = path.split('/').collect();
+
+    if parts.len() < 3 {
+        return Ok(Response::builder()
+            .status(StatusCode::BAD_REQUEST)
+            .header(CONTENT_TYPE, "text/plain")
+            .body(Full::new(Bytes::from("Invalid path format")))
+            .unwrap());
+    }
+
+    let commit_ref = parts[2];
+
+    // Resolve branch/tag/commit to actual commit hash
+    match cache.resolve_commit(commit_ref).await {
+        Ok(resolved_commit) => {
+            let json = serde_json::to_string(&resolved_commit).unwrap();
+            Ok(Response::builder()
+                .status(StatusCode::OK)
+                .header(CONTENT_TYPE, "application/json")
+                .body(Full::new(Bytes::from(json)))
+                .unwrap())
+        }
+        Err(e) => {
+            error!("Failed to resolve commit '{commit_ref}': {e}");
+            Ok(Response::builder()
+                .status(StatusCode::BAD_REQUEST)
+                .header(CONTENT_TYPE, "text/plain")
+                .body(Full::new(Bytes::from(format!(
+                    "Invalid commit/branch/tag: {e}"
+                ))))
+                .unwrap())
+        }
+    }
 }
 
 /// Handle binary availability check requests

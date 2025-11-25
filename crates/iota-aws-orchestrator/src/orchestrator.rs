@@ -442,10 +442,20 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
         let repo_name = self.settings.repository_name();
         let working_dir = self.settings.working_dir.display();
 
+        let resolved_commit = cache_client
+            .resolve_commit(commit)
+            .await
+            .map_err(|e| BuildCacheError::Cache(format!("Failed to resolve commit: {e}")))?;
+        if commit != resolved_commit {
+            display::action(format!(
+                "Requested commit {commit} resolved to actual commit {resolved_commit} by build cache server",
+            ));
+        }
+
         // Process each CPU target group
         for (cpu_target, instances) in &cpu_to_instances {
             display::action(format!(
-                "Processing {} instances for commit {commit} (CPU target: {cpu_target}, instances: {})",
+                "Processing {} instances for commit {resolved_commit} (CPU target: {cpu_target}, instances: {})",
                 instances.len(),
                 instances
                     .iter()
@@ -456,26 +466,26 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
 
             // Check if binaries are available for this CPU target
             let cache_response = cache_client
-                .check_binaries_available(commit, cpu_target, binaries)
+                .check_binaries_available(resolved_commit.as_str(), cpu_target, binaries)
                 .await?;
 
             if !cache_response.available {
                 display::action(format!(
-                    "Binaries not in cache for commit {commit} (CPU target: {cpu_target}), requesting build on build cache server",
+                    "Binaries not in cache for commit {resolved_commit} (CPU target: {cpu_target}), requesting build on build cache server",
                 ));
 
                 // Request build for this CPU target
                 cache_client
-                    .request_build(commit, cpu_target, binaries)
+                    .request_build(resolved_commit.as_str(), cpu_target, binaries)
                     .await?;
 
                 // Wait for build to complete
                 display::action(format!(
-                    "Waiting for build to complete for commit {commit} (CPU target: {cpu_target}) (this may take up to 15 minutes)",
+                    "Waiting for build to complete for commit {resolved_commit} (CPU target: {cpu_target}) (this may take up to 15 minutes)",
                 ));
                 let _response = cache_client
                     .wait_for_binaries(
-                        commit,
+                        resolved_commit.as_str(),
                         cpu_target,
                         binaries,
                         Duration::from_secs(45 * 60),
@@ -486,7 +496,7 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
 
             // Download and distribute binaries to instances with this CPU target
             display::action(format!(
-                "Distributing cached binaries for commit {commit} (CPU target: {cpu_target}) to {} instances",
+                "Distributing cached binaries for commit {resolved_commit} (CPU target: {cpu_target}) to {} instances",
                 instances.len()
             ));
 
@@ -494,7 +504,7 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
                 // Create download command that fetches from build cache
                 let release_folder = format!("{working_dir}/{repo_name}/target/release");
                 let download_command = format!(
-                    "mkdir -p {release_folder} && curl -f -L -o {release_folder}/{binary} http://{}/download/{commit}/{cpu_target}/{binary} && chmod +x {release_folder}/{binary}",
+                    "mkdir -p {release_folder} && curl -f -L -o {release_folder}/{binary} http://{}/download/{resolved_commit}/{cpu_target}/{binary} && chmod +x {release_folder}/{binary}",
                     build_config.address
                 );
 
@@ -510,7 +520,7 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
         }
 
         display::action(format!(
-            "Successfully distributed binaries for commit {commit} to {} different CPU targets",
+            "Successfully distributed binaries for commit {resolved_commit} to {} different CPU targets",
             cpu_to_instances.len()
         ));
         Ok(())

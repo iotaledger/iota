@@ -50,6 +50,26 @@ impl BuildCacheClient {
         })
     }
 
+    pub async fn resolve_commit(&self, commit: &str) -> BuildCacheResult<String> {
+        let url = format!(
+            "http://{}:{}/resolve/{commit}",
+            self.build_instance_ip, self.port
+        );
+
+        let response = self.client.get(&url).send().await?;
+
+        if !response.status().is_success() {
+            return Err(BuildCacheError::Cache(format!(
+                "Failed to resolve commit {commit}: HTTP {}",
+                response.status()
+            )));
+        }
+
+        let resolved_commit: String = response.json().await?;
+
+        Ok(resolved_commit)
+    }
+
     /// Check if binaries for a specific commit are available in the cache.
     pub async fn check_binaries_available(
         &self,
