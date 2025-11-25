@@ -32,12 +32,10 @@ use starfish_config::AuthorityIndex;
 
 use crate::{
     Round, VerifiedBlockHeader,
-    block_header::{BlockRef, VerifiedBlock},
+    block_header::{BlockRef, GenericTransactionRef, TransactionRef, VerifiedBlock},
     commit::{CommitRange, TrustedCommit},
     error::{ConsensusError, ConsensusResult},
 };
-use crate::block_header::TransactionRef;
-use crate::commit::GenericTransactionRef;
 
 // Tonic generated RPC stubs.
 mod tonic_gen {

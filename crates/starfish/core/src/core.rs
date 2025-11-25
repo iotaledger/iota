@@ -35,8 +35,8 @@ use crate::{
     Transaction,
     block_header::{
         BlockHeader, BlockHeaderAPI, BlockHeaderV1, BlockRef, BlockTimestampMs, GENESIS_ROUND,
-        Round, SignedBlockHeader, Slot, TransactionsCommitment, VerifiedBlock, VerifiedBlockHeader,
-        VerifiedOwnShard, VerifiedTransactions,
+        GenericTransactionRef, Round, SignedBlockHeader, Slot, TransactionsCommitment,
+        VerifiedBlock, VerifiedBlockHeader, VerifiedOwnShard, VerifiedTransactions,
     },
     block_manager::BlockManager,
     commit::{CertifiedCommits, PendingSubDag},
@@ -294,7 +294,7 @@ impl Core {
         blocks: Vec<VerifiedBlock>,
     ) -> ConsensusResult<(
         BTreeSet<BlockRef>,
-        BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>,
+        BTreeMap<GenericTransactionRef, BTreeSet<AuthorityIndex>>,
     )> {
         let _scope = monitored_scope("Core::add_blocks");
         let _s = self
@@ -356,7 +356,7 @@ impl Core {
         block_headers: Vec<VerifiedBlockHeader>,
     ) -> ConsensusResult<(
         BTreeSet<BlockRef>,
-        BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>,
+        BTreeMap<GenericTransactionRef, BTreeSet<AuthorityIndex>>,
     )> {
         let _scope = monitored_scope("Core::add_block_headers");
         let _s = self
@@ -476,7 +476,7 @@ impl Core {
         certified_commits: CertifiedCommits,
     ) -> ConsensusResult<(
         BTreeSet<BlockRef>,
-        BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>,
+        BTreeMap<GenericTransactionRef, BTreeSet<AuthorityIndex>>,
     )> {
         let _scope = monitored_scope("Core::add_certified_commits");
 
@@ -540,7 +540,7 @@ impl Core {
         reason: ReasonToCreateBlock,
     ) -> ConsensusResult<(
         Option<VerifiedBlock>,
-        BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>,
+        BTreeMap<GenericTransactionRef, BTreeSet<AuthorityIndex>>,
     )> {
         let _scope = monitored_scope("Core::new_block");
         if self.last_proposed_round() < round {
@@ -560,7 +560,7 @@ impl Core {
         reason: ReasonToCreateBlock,
     ) -> ConsensusResult<(
         Option<VerifiedBlock>,
-        BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>,
+        BTreeMap<GenericTransactionRef, BTreeSet<AuthorityIndex>>,
     )> {
         if !self.should_propose() {
             return Ok((None, BTreeMap::new()));
@@ -811,7 +811,12 @@ impl Core {
         drop(dag_state_guard);
         // Now acknowledge the transactions for their inclusion to block
         let block_ref = verified_block.reference();
-        ack_transactions(block_ref);
+        let gen_transaction_ref = if self.context.protocol_config.consensus_transaction_ref() {
+            GenericTransactionRef::from(verified_block.transaction_ref())
+        } else {
+            GenericTransactionRef::from(block_ref)
+        };
+        ack_transactions(gen_transaction_ref);
 
         info!("Created block {block_ref} for round {clock_round}");
 
@@ -833,7 +838,7 @@ impl Core {
         &mut self,
     ) -> ConsensusResult<(
         Vec<PendingSubDag>,
-        BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>,
+        BTreeMap<GenericTransactionRef, BTreeSet<AuthorityIndex>>,
     )> {
         let _s = self
             .context
@@ -975,7 +980,7 @@ impl Core {
     }
     pub(crate) fn get_missing_transaction_data(
         &self,
-    ) -> BTreeMap<BlockRef, BTreeSet<AuthorityIndex>> {
+    ) -> BTreeMap<GenericTransactionRef, BTreeSet<AuthorityIndex>> {
         let _scope = monitored_scope("Core::get_missing_transaction_data");
         let _s = self
             .context

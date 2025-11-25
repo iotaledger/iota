@@ -19,13 +19,12 @@ use starfish_config::{AuthorityIndex, DIGEST_LENGTH, DefaultHashFunction};
 
 use crate::{
     block_header::{
-        BlockHeaderAPI, BlockRef, BlockTimestampMs, Round, Slot, VerifiedBlockHeader,
-        VerifiedTransactions,
+        BlockHeaderAPI, BlockRef, BlockTimestampMs, GenericTransactionRef, Round, Slot,
+        TransactionRef, VerifiedBlockHeader, VerifiedTransactions,
     },
     leader_scoring::ReputationScores,
     storage::Store,
 };
-use crate::block_header::TransactionRef;
 
 /// Index of a commit among all consensus commits.
 pub type CommitIndex = u32;
@@ -58,48 +57,7 @@ pub(crate) type WaveNumber = u32;
 #[enum_dispatch(CommitAPI)]
 pub(crate) enum Commit {
     V1(CommitV1),
-    V2(CommitV2)
-}
-
-#[derive(Clone, Copy, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Debug)]
-pub(crate) enum GenericTransactionRef {
-    BlockRef(BlockRef),
-    TransactionRef(TransactionRef),
-}
-
-// Converts BlockRef to GenericTransactionsRef
-impl From<BlockRef> for GenericTransactionRef {
-    fn from(b: BlockRef) -> Self {
-        GenericTransactionRef::BlockRef(b)
-    }
-}
-
-// Converts TransactionRef to GenericTransactionsRef
-impl From<TransactionRef> for GenericTransactionRef {
-    fn from(t: TransactionRef) -> Self {
-        GenericTransactionRef::TransactionRef(t)
-    }
-}
-impl GenericTransactionRef {
-    pub(crate) fn author(&self) -> AuthorityIndex {
-        match self {
-            GenericTransactionRef::BlockRef(b) => b.author,
-            GenericTransactionRef::TransactionRef(t) => t.author,
-        }
-    }
-    pub(crate) fn round(&self) -> Round {
-        match self {
-            GenericTransactionRef::BlockRef(b) => b.round,
-            GenericTransactionRef::TransactionRef(t) => t.round,
-        }
-    }
-
-    pub(crate) fn digest(&self) -> Digest<DIGEST_LENGTH> {
-        match self {
-            GenericTransactionRef::BlockRef(b) => b.digest.into(),
-            GenericTransactionRef::TransactionRef(t) => t.transactions_commitment.into(),
-        }
-    }
+    V2(CommitV2),
 }
 
 impl Commit {
@@ -112,7 +70,6 @@ impl Commit {
         blocks: Vec<BlockRef>,
         committed_transactions: Vec<BlockRef>,
     ) -> Self {
-
         Commit::V1(CommitV1 {
             index,
             previous_digest,
@@ -193,10 +150,12 @@ impl CommitAPI for CommitV1 {
     // TODO: https://github.com/iotaledger/iota/issues/8375
     // Does this need to be a vector? block refs are a slice == less cloning?
     fn committed_transactions(&self) -> Vec<GenericTransactionRef> {
-        self.committed_transactions.iter().map(|b| GenericTransactionRef::BlockRef(b.clone())).collect()
+        self.committed_transactions
+            .iter()
+            .map(|b| GenericTransactionRef::BlockRef(b.clone()))
+            .collect()
     }
 }
-
 
 /// Specifies one consensus commit.
 /// It is stored on disk, so it does not contain blocks which are stored
@@ -220,7 +179,6 @@ pub(crate) struct CommitV2 {
     /// Refs to transactions in blocks for which quorum of acknowledgments has
     /// been collected in this and past commits.
     committed_transactions: Vec<TransactionRef>,
-
 }
 
 impl CommitAPI for CommitV2 {
@@ -251,7 +209,10 @@ impl CommitAPI for CommitV2 {
     // TODO: https://github.com/iotaledger/iota/issues/8375
     // Does this need to be a vector? block refs are a slice == less cloning?
     fn committed_transactions(&self) -> Vec<GenericTransactionRef> {
-        self.committed_transactions.iter().map(|t| GenericTransactionRef::TransactionRef(t.clone())).collect()
+        self.committed_transactions
+            .iter()
+            .map(|t| GenericTransactionRef::TransactionRef(t.clone()))
+            .collect()
     }
 }
 

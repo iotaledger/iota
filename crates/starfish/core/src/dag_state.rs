@@ -20,8 +20,9 @@ use tracing::{debug, error, info, trace, warn};
 
 use crate::{
     block_header::{
-        BlockHeaderAPI, BlockHeaderDigest, BlockRef, BlockTimestampMs, GENESIS_ROUND, Round, Slot,
-        VerifiedBlock, VerifiedBlockHeader, VerifiedOwnShard, VerifiedTransactions, genesis_blocks,
+        BlockHeaderAPI, BlockHeaderDigest, BlockRef, BlockTimestampMs, GENESIS_ROUND,
+        GenericTransactionRef, Round, Slot, TransactionRef, TransactionsCommitment, VerifiedBlock,
+        VerifiedBlockHeader, VerifiedOwnShard, VerifiedTransactions, genesis_blocks,
     },
     commit::{
         CommitAPI as _, CommitDigest, CommitIndex, CommitInfo, CommitRef, CommitVote,
@@ -33,8 +34,6 @@ use crate::{
     storage::{Store, WriteBatch},
     threshold_clock::ThresholdClock,
 };
-use crate::block_header::{TransactionRef, TransactionsCommitment};
-use crate::commit::GenericTransactionRef;
 
 /// Represents the source from which transactions were received and added to the
 /// DAG state. This is used for metrics tracking and debugging.
@@ -241,7 +240,7 @@ impl DagState {
         scoring_subdag.add_subdags(mem::take(&mut unscored_committed_subdags));
 
         let mut state = Self {
-            context,
+            context: context.clone(),
             genesis,
             recent_block_headers: BTreeMap::new(),
             recent_transactions_by_authority: vec![BTreeMap::new(); num_authorities],
@@ -277,7 +276,11 @@ impl DagState {
                     .expect("Database error");
                 let transactions_by_author = state
                     .store
-                    .scan_transactions_by_author(authority_index, eviction_round + 1)
+                    .scan_transactions_by_author(
+                        authority_index,
+                        eviction_round + 1,
+                        context.clone(),
+                    )
                     .expect("Database error");
                 (block_headers, transactions_by_author, eviction_round)
             };
@@ -378,7 +381,10 @@ impl DagState {
     ) {
         let transaction_ref = transactions.transaction_ref();
         if self.recent_transactions_by_authority[transaction_ref.author]
-            .insert(GenericTransactionRef::from(transaction_ref), transactions.clone())
+            .insert(
+                GenericTransactionRef::from(transaction_ref),
+                transactions.clone(),
+            )
             .is_none()
         {
             self.context
@@ -497,8 +503,10 @@ impl DagState {
     }
 
     fn update_transaction_metadata(&mut self, transaction: &VerifiedTransactions) {
-        self.recent_transactions_by_authority[transaction.block_ref().author]
-            .insert(GenericTransactionRef::from(transaction.block_ref()), transaction.clone());
+        self.recent_transactions_by_authority[transaction.block_ref().author].insert(
+            GenericTransactionRef::from(transaction.block_ref()),
+            transaction.clone(),
+        );
     }
 
     /// Accepts block headers into DagState and keeps it in memory.
@@ -530,8 +538,8 @@ impl DagState {
                 // There are no transactions in genesis block.
                 continue;
             }
-            if let Some(transaction) =
-                self.recent_transactions_by_authority[block_ref.author()].get(&GenericTransactionRef::from(block_ref.clone()))
+            if let Some(transaction) = self.recent_transactions_by_authority[block_ref.author()]
+                .get(&GenericTransactionRef::from(block_ref.clone()))
             {
                 transactions[index] = Some(transaction.clone());
                 continue;
@@ -928,8 +936,7 @@ impl DagState {
                         transactions_commitment: header.transactions_commitment(),
                         block_digest: block_ref.digest,
                     })
-                }
-                else {
+                } else {
                     GenericTransactionRef::from(block_ref.clone())
                 };
                 let transactions_opt =
@@ -1206,7 +1213,10 @@ impl DagState {
     /// check in store. The method is not caching back the
     /// results, so it's expensive to keep asking for cache missing
     /// transactions.
-    pub(crate) fn contains_transactions(&self, transaction_refs: Vec<GenericTransactionRef>) -> Vec<bool> {
+    pub(crate) fn contains_transactions(
+        &self,
+        transaction_refs: Vec<GenericTransactionRef>,
+    ) -> Vec<bool> {
         let mut exist = vec![false; transaction_refs.len()];
         let mut missing = Vec::new();
 
@@ -1435,8 +1445,7 @@ impl DagState {
                     transactions_commitment: TransactionsCommitment::MIN,
                     block_digest: BlockHeaderDigest::MIN,
                 })
-            }
-            else {
+            } else {
                 GenericTransactionRef::from(BlockRef::new(
                     transaction_eviction_round,
                     authority_index,
@@ -1627,12 +1636,10 @@ impl DagState {
 
         // Write all buffered data to storage
         self.store
-            .write(WriteBatch::new(
-                transactions,
-                block_headers,
-                commits,
-                commit_info,
-            ))
+            .write(
+                WriteBatch::new(transactions, block_headers, commits, commit_info),
+                self.context.clone(),
+            )
             .unwrap_or_else(|e| panic!("Failed to write to storage: {e:?}"));
 
         self.context

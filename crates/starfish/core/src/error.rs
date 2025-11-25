@@ -9,10 +9,9 @@ use thiserror::Error;
 use typed_store::TypedStoreError;
 
 use crate::{
-    block_header::{BlockRef, GENESIS_ROUND, Round},
+    block_header::{BlockRef, GENESIS_ROUND, GenericTransactionRef, Round},
     commit::{Commit, CommitIndex},
 };
-use crate::commit::GenericTransactionRef;
 
 /// Errors that can occur when processing blocks, reading from storage, or
 /// encountering shutdown.
@@ -251,6 +250,11 @@ pub(crate) enum ConsensusError {
         shard_round: Round,
         block_round: Round,
     },
+
+    #[error(
+        "All GenericTransactionRef elements must have the same variant (BlockRef, TransactionRef, etc.) for batch operations."
+    )]
+    InconsistentTransactionRefVariants,
 }
 
 impl ConsensusError {

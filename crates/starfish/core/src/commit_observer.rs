@@ -16,7 +16,7 @@ use tracing::{debug, info, instrument};
 
 use crate::{
     BlockRef, CommitConsumer, CommittedSubDag,
-    block_header::{BlockHeaderAPI, VerifiedBlockHeader},
+    block_header::{BlockHeaderAPI, GenericTransactionRef, VerifiedBlockHeader},
     commit::{CommitAPI, CommitIndex, PendingSubDag, load_pending_subdag_from_store},
     commit_solidifier::CommitSolidifier,
     context::Context,
@@ -105,7 +105,7 @@ impl CommitObserver {
         committed_leaders: Vec<VerifiedBlockHeader>,
     ) -> ConsensusResult<(
         Vec<PendingSubDag>,
-        BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>,
+        BTreeMap<GenericTransactionRef, BTreeSet<AuthorityIndex>>,
     )> {
         let _s = self
             .context
@@ -327,7 +327,7 @@ impl CommitObserver {
     /// who acknowledged them
     pub(crate) fn get_missing_transaction_data(
         &self,
-    ) -> BTreeMap<BlockRef, BTreeSet<AuthorityIndex>> {
+    ) -> BTreeMap<GenericTransactionRef, BTreeSet<AuthorityIndex>> {
         let missing_refs = self.commit_solidifier.get_missing_transaction_data();
         self.linearizer
             .get_transaction_ack_authors(missing_refs.into_iter().collect())

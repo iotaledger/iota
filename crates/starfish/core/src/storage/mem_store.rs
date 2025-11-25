@@ -19,11 +19,10 @@ use crate::{
     },
     commit::{
         CommitAPI as _, CommitDigest, CommitIndex, CommitInfo, CommitRange, CommitRef,
-        TrustedCommit,
+        GenericTransactionRef, TrustedCommit,
     },
     error::ConsensusResult,
 };
-use crate::commit::GenericTransactionRef;
 
 /// In-memory storage for testing.
 pub(crate) struct MemStore {
@@ -277,7 +276,7 @@ impl Store for MemStore {
         Ok(found)
     }
 
-    fn scan_references_by_author(
+    fn scan_block_references_by_author(
         &self,
         author: AuthorityIndex,
         start_round: Round,

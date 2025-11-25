@@ -1449,8 +1449,7 @@ impl ProtocolConfig {
             .consensus_commit_transactions_only_for_traversed_headers
     }
     pub fn consensus_transaction_ref(&self) -> bool {
-        self.feature_flags
-            .consensus_transaction_ref
+        self.feature_flags.consensus_transaction_ref
     }
 }
 
@@ -2510,8 +2509,7 @@ impl ProtocolConfig {
             .consensus_commit_transactions_only_for_traversed_headers = val;
     }
     pub fn set_consensus_transaction_ref(&mut self, val: bool) {
-        self.feature_flags
-            .consensus_transaction_ref = val;
+        self.feature_flags.consensus_transaction_ref = val;
     }
 }
 

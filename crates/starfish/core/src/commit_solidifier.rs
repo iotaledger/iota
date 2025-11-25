@@ -9,7 +9,10 @@ use std::{
 use parking_lot::RwLock;
 use tracing::debug;
 
-use crate::{BlockRef, CommitIndex, CommittedSubDag, commit::PendingSubDag, dag_state::DagState};
+use crate::{
+    BlockRef, CommitIndex, CommittedSubDag, block_header::GenericTransactionRef,
+    commit::PendingSubDag, dag_state::DagState,
+};
 
 /// The `CommitSolidifier` is responsible for managing and handling
 /// the commit process for newly committed pending sub-dags. It ensures that
@@ -55,8 +58,9 @@ impl CommitSolidifier {
     /// Gets all missing transactions from pending subdags.
     ///
     /// # Returns
-    /// A `BTreeSet` of `BlockRef`s for which transactions are missing.
-    pub(crate) fn get_missing_transaction_data(&self) -> BTreeSet<BlockRef> {
+    /// A `BTreeSet` of `GenericTransactionRef`s for which transactions are
+    /// missing.
+    pub(crate) fn get_missing_transaction_data(&self) -> BTreeSet<GenericTransactionRef> {
         let mut missing = BTreeSet::new();
         let dag_state = self.dag_state.read();
 
@@ -87,7 +91,7 @@ impl CommitSolidifier {
     pub(crate) fn try_get_solid_sub_dags(
         &mut self,
         subdags: &[PendingSubDag],
-    ) -> (Vec<CommittedSubDag>, Vec<BlockRef>) {
+    ) -> (Vec<CommittedSubDag>, Vec<GenericTransactionRef>) {
         // Add new subdags to the buffer
         for subdag in subdags {
             self.pending_subdags
@@ -183,7 +187,7 @@ impl CommitSolidifier {
     fn try_get_one_solid_sub_dag_internal(
         &self,
         subdag: &PendingSubDag,
-    ) -> Result<CommittedSubDag, Vec<BlockRef>> {
+    ) -> Result<CommittedSubDag, Vec<GenericTransactionRef>> {
         let dag_state = self.dag_state.read();
         // Get transactions and check if any are missing
         let transaction_results =

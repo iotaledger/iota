@@ -14,7 +14,8 @@ use tracing::instrument;
 use crate::{
     Round,
     block_header::{
-        BlockHeaderAPI, BlockHeaderDigest, BlockRef, BlockTimestampMs, VerifiedBlockHeader,
+        BlockHeaderAPI, BlockHeaderDigest, BlockRef, BlockTimestampMs, GenericTransactionRef,
+        TransactionRef, TransactionsCommitment, VerifiedBlockHeader,
     },
     commit::{Commit, CommitAPI, PendingSubDag, TrustedCommit, sort_sub_dag_blocks},
     context::Context,
@@ -277,18 +278,36 @@ impl Linearizer {
     pub(crate) fn evict_linearizer(&mut self, solid_commit_leader_round: Round) {
         let lower_bound_round =
             solid_commit_leader_round.saturating_sub(self.context.protocol_config.gc_depth() * 2);
-        let lower_bound = BlockRef::new(
+        let lower_bound = if self.context.protocol_config.consensus_transaction_ref() {
+            GenericTransactionRef::from(TransactionRef {
+                round: lower_bound_round + 1,
+                author: AuthorityIndex::ZERO,
+                transactions_commitment: TransactionsCommitment::MIN,
+                block_digest: BlockHeaderDigest::MIN,
+            })
+        } else {
+            GenericTransactionRef::from(BlockRef::new(
+                lower_bound_round + 1,
+                AuthorityIndex::ZERO,
+                BlockHeaderDigest::MIN,
+            ))
+        };
+        let lower_header_bound = BlockRef::new(
             lower_bound_round + 1,
             AuthorityIndex::ZERO,
             BlockHeaderDigest::MIN,
         );
-        self.transactions_ack_tracker = self.transactions_ack_tracker.split_off(&lower_bound);
+
+        self.transactions_ack_tracker =
+            self.transactions_ack_tracker.split_off(&lower_header_bound);
         if self
             .context
             .protocol_config
             .consensus_commit_transactions_only_for_traversed_headers()
         {
-            self.traversed_headers_tracker = self.traversed_headers_tracker.split_off(&lower_bound);
+            self.traversed_headers_tracker = self
+                .traversed_headers_tracker
+                .split_off(&lower_header_bound);
         }
     }
 
@@ -334,12 +353,16 @@ impl Linearizer {
     /// have acknowledged this reference.
     pub fn get_transaction_ack_authors(
         &self,
-        missing_refs: Vec<BlockRef>,
-    ) -> BTreeMap<BlockRef, BTreeSet<AuthorityIndex>> {
+        missing_refs: Vec<GenericTransactionRef>,
+    ) -> BTreeMap<GenericTransactionRef, BTreeSet<AuthorityIndex>> {
         let mut acknowledged_map = BTreeMap::new();
 
         for missing_ref in missing_refs {
-            if let Some(acknowledgments) = self.transactions_ack_tracker.get(&missing_ref) {
+            let block_ref = match missing_ref {
+                GenericTransactionRef::BlockRef(br) => br,
+                GenericTransactionRef::TransactionRef(tr_ref) => BlockRef::from(tr_ref),
+            };
+            if let Some(acknowledgments) = self.transactions_ack_tracker.get(&block_ref) {
                 acknowledged_map.insert(missing_ref, acknowledgments.votes());
             }
         }

@@ -376,7 +376,6 @@ impl Hash for BlockRef {
     }
 }
 
-
 #[derive(Clone, Copy, Serialize, Deserialize, Default, PartialEq, Eq, PartialOrd, Ord)]
 pub struct TransactionRef {
     pub round: Round,
@@ -387,13 +386,82 @@ pub struct TransactionRef {
 
 impl fmt::Display for TransactionRef {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
-        write!(f, "Tr{}({},{})", self.round, self.author, self.transactions_commitment)
+        write!(
+            f,
+            "Tr{}({},{})",
+            self.round, self.author, self.transactions_commitment
+        )
     }
 }
 
 impl fmt::Debug for TransactionRef {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
         fmt::Display::fmt(self, f)
+    }
+}
+
+impl Hash for TransactionRef {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        state.write(&self.transactions_commitment.0[..8]);
+    }
+}
+
+#[derive(Clone, Copy, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Debug)]
+pub enum GenericTransactionRef {
+    BlockRef(BlockRef),
+    TransactionRef(TransactionRef),
+}
+
+// Converts BlockRef to GenericTransactionsRef
+impl From<BlockRef> for GenericTransactionRef {
+    fn from(b: BlockRef) -> Self {
+        GenericTransactionRef::BlockRef(b)
+    }
+}
+
+// Converts TransactionRef to GenericTransactionsRef
+impl From<TransactionRef> for GenericTransactionRef {
+    fn from(t: TransactionRef) -> Self {
+        GenericTransactionRef::TransactionRef(t)
+    }
+}
+
+impl fmt::Display for GenericTransactionRef {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            GenericTransactionRef::BlockRef(b) => write!(f, "{}", b),
+            GenericTransactionRef::TransactionRef(t) => write!(f, "{}", t),
+        }
+    }
+}
+
+impl Hash for GenericTransactionRef {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        match self {
+            GenericTransactionRef::BlockRef(b) => b.hash(state),
+            GenericTransactionRef::TransactionRef(t) => t.hash(state),
+        }
+    }
+}
+impl GenericTransactionRef {
+    pub(crate) fn author(&self) -> AuthorityIndex {
+        match self {
+            GenericTransactionRef::BlockRef(b) => b.author,
+            GenericTransactionRef::TransactionRef(t) => t.author,
+        }
+    }
+    pub(crate) fn round(&self) -> Round {
+        match self {
+            GenericTransactionRef::BlockRef(b) => b.round,
+            GenericTransactionRef::TransactionRef(t) => t.round,
+        }
+    }
+
+    pub(crate) fn digest(&self) -> Digest<DIGEST_LENGTH> {
+        match self {
+            GenericTransactionRef::BlockRef(b) => b.digest.into(),
+            GenericTransactionRef::TransactionRef(t) => t.transactions_commitment.into(),
+        }
     }
 }
 
@@ -845,6 +913,16 @@ impl VerifiedBlockHeader {
             round: self.round(),
             author: self.author(),
             digest: self.digest(),
+        }
+    }
+
+    /// Returns transaction reference to transactions from the block.
+    pub fn transaction_ref(&self) -> TransactionRef {
+        TransactionRef {
+            round: self.round(),
+            author: self.author(),
+            transactions_commitment: self.signed_block_header.inner.transactions_commitment(),
+            block_digest: self.digest(),
         }
     }
 

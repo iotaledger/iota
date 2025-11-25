@@ -37,7 +37,7 @@ use super::{
 };
 use crate::{
     CommitIndex, Round,
-    block_header::BlockRef,
+    block_header::{BlockRef, GenericTransactionRef, TransactionRef},
     commit::CommitRange,
     context::Context,
     error::{ConsensusError, ConsensusResult},
@@ -46,8 +46,6 @@ use crate::{
         tonic_tls::certificate_server_name,
     },
 };
-use crate::block_header::TransactionRef;
-use crate::commit::GenericTransactionRef;
 
 // Maximum bytes size in a single fetch_blocks()response.
 // TODO: put max RPC response size in protocol config.
@@ -718,10 +716,11 @@ impl<S: NetworkService> ConsensusService for TonicServiceProxy<S> {
             .block_refs
             .iter()
             .filter_map(|r| {
-                if self.context.protocol_config
-                    .consensus_transaction_ref() {
+                if self.context.protocol_config.consensus_transaction_ref() {
                     match bcs::from_bytes::<TransactionRef>(r) {
-                        Ok(transaction_ref) => Some(GenericTransactionRef::TransactionRef(transaction_ref)),
+                        Ok(transaction_ref) => {
+                            Some(GenericTransactionRef::TransactionRef(transaction_ref))
+                        }
                         Err(e) => {
                             debug!("Failed to deserialize block ref: {e:?}");
                             None
@@ -735,10 +734,8 @@ impl<S: NetworkService> ConsensusService for TonicServiceProxy<S> {
                             None
                         }
                     }
-
                 }
-
-    })
+            })
             .collect();
 
         let vec_serialized_transactions = self
