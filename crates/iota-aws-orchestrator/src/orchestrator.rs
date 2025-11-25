@@ -3,12 +3,14 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
+    collections::HashMap,
     fs::{self},
     marker::PhantomData,
     path::PathBuf,
     time::Duration,
 };
 
+use iota_build_cache_server::{BuildCacheClient, client::BuildCacheError};
 use tokio::time::{self, Instant};
 
 use crate::{
@@ -320,14 +322,221 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
             .wait_for_command(self.instances(), id, CommandStatus::Terminated)
             .await?;
 
-        // Execute and wait for the cargo build command on all instances except the
-        // metrics one. This requires compiling the codebase in release
-        // (which may take a long time) so we run the command in the background
-        // to avoid keeping alive many ssh connections for too long.
+        // Define the binaries to build/download
+        let binaries = vec![
+            "iota".to_string(),
+            "iota-node".to_string(),
+            "stress".to_string(),
+        ];
+
+        // Check if build cache is enabled
+        if let Some(build_config) = &self.settings.build_cache_server {
+            if build_config.enabled {
+                display::action("Using build cache for binary distribution");
+                self.update_with_build_cache(build_config, commit, &binaries)
+                    .await?;
+            } else {
+                self.update_with_local_build(&binaries).await?;
+            }
+        } else {
+            self.update_with_local_build(&binaries).await?;
+        }
+
+        display::done();
+        Ok(())
+    }
+
+    /// Detect CPU target architecture for all instances that need binaries.
+    /// Returns a HashMap mapping CPU target to list of instances with that
+    /// target
+    async fn detect_cpu_targets_for_instances(
+        &self,
+    ) -> TestbedResult<HashMap<String, Vec<Instance>>> {
+        let instances_needing_binaries = self
+            .instances()
+            .iter()
+            .filter(|i| i.role != InstanceRole::Metrics)
+            .cloned()
+            .collect::<Vec<_>>();
+
+        if instances_needing_binaries.is_empty() {
+            return Ok(HashMap::new());
+        }
+
+        display::action("Detecting CPU targets for all instances");
+
+        let context = CommandContext::new();
+        let command = "rustc --print target-cpus".to_string();
+
+        let results = self
+            .ssh_manager
+            .execute(instances_needing_binaries.clone(), command, context)
+            .await?;
+
+        let mut cpu_to_instances: HashMap<String, Vec<Instance>> = HashMap::new();
+
+        for (i, (stdout, _stderr)) in results.iter().enumerate() {
+            let instance = &instances_needing_binaries[i];
+            let cpu_target = self
+                .parse_cpu_target_from_rustc_output(stdout)
+                .unwrap_or_else(|| "native".to_string());
+
+            cpu_to_instances
+                .entry(cpu_target)
+                .or_default()
+                .push(instance.clone());
+        }
+
+        // Display detected CPU targets
+        for (cpu_target, instances) in &cpu_to_instances {
+            display::config(
+                format!("CPU target: {}", cpu_target),
+                instances
+                    .iter()
+                    .map(|i| i.ssh_address().to_string())
+                    .collect::<Vec<_>>()
+                    .join(", "),
+            );
+        }
+
+        display::done();
+        Ok(cpu_to_instances)
+    }
+
+    /// Parse CPU target from rustc --print target-cpus output
+    fn parse_cpu_target_from_rustc_output(&self, output: &str) -> Option<String> {
+        // Parse the output to extract the native CPU info
+        // Looking for a line like:
+        // " native - Select the CPU of the current host (currently apple-m4)."
+        for line in output.lines() {
+            if line.trim().starts_with("native") && line.contains("(currently") {
+                // Extract the CPU name from "(currently cpu-name)"
+                if let Some(start) = line.find("(currently ") {
+                    let cpu_part = &line[start + 11..]; // Skip "(currently "
+                    if let Some(end) = cpu_part.find(')') {
+                        let cpu_name = cpu_part[..end].trim();
+                        return Some(cpu_name.to_string());
+                    }
+                }
+            }
+        }
+        None
+    }
+
+    /// Update instances using build cache
+    async fn update_with_build_cache(
+        &self,
+        build_config: &crate::settings::BuildCacheServer,
+        commit: &str,
+        binaries: &[String],
+    ) -> TestbedResult<()> {
+        // Detect CPU targets for all instances
+        let cpu_to_instances = self.detect_cpu_targets_for_instances().await?;
+        if cpu_to_instances.is_empty() {
+            display::action("No instances need binaries");
+            return Ok(());
+        }
+
+        let cache_client = BuildCacheClient::new(build_config.address.as_str())
+            .map_err(|e| BuildCacheError::Cache(format!("Invalid server address: {}", e)))?;
+        let repo_name = self.settings.repository_name();
+        let working_dir = self.settings.working_dir.display();
+
+        // Process each CPU target group
+        for (cpu_target, instances) in &cpu_to_instances {
+            display::action(format!(
+                "Processing {} instances with CPU target: {} (instances: {})",
+                instances.len(),
+                cpu_target,
+                instances
+                    .iter()
+                    .map(|i| i.ssh_address().to_string())
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ));
+
+            // Check if binaries are available for this CPU target
+            let cache_response = cache_client
+                .check_binaries_available(commit, cpu_target, binaries)
+                .await?;
+
+            if !cache_response.available {
+                display::action(format!(
+                    "Binaries not in cache for {}, requesting build on build cache server",
+                    cpu_target
+                ));
+
+                // Request build for this CPU target
+                cache_client
+                    .request_build(commit, cpu_target, binaries)
+                    .await?;
+
+                // Wait for build to complete
+                display::action(format!(
+                    "Waiting for build to complete for {} (this may take up to 15 minutes)",
+                    cpu_target
+                ));
+                let _response = cache_client
+                    .wait_for_binaries(
+                        commit,
+                        cpu_target,
+                        binaries,
+                        Duration::from_secs(45 * 60),
+                        Duration::from_secs(30),
+                    )
+                    .await?;
+            }
+
+            // Download and distribute binaries to instances with this CPU target
+            display::action(format!(
+                "Distributing cached binaries for {} to {} instances",
+                cpu_target,
+                instances.len()
+            ));
+
+            for binary in binaries {
+                // Create download command that fetches from build cache
+                let download_command = format!(
+                    "mkdir -p {working_dir}/{repo_name}/target/release && curl -f -L -o {working_dir}/{repo_name}/target/release/{binary} http://{}/download/{commit}/{cpu_target}/{binary} && chmod +x {working_dir}/{repo_name}/target/release/{binary}",
+                    build_config.address
+                );
+
+                display::action(format!(
+                    "Downloading {} ({}) to {} instances",
+                    binary,
+                    cpu_target,
+                    instances.len()
+                ));
+                let context = CommandContext::new();
+                self.ssh_manager
+                    .execute(instances.clone(), download_command, context)
+                    .await?;
+            }
+        }
+
+        display::action(format!(
+            "Successfully distributed binaries for {} different CPU targets",
+            cpu_to_instances.len()
+        ));
+        Ok(())
+    }
+
+    /// Update instances with local build (fallback, if build cache is not used)
+    /// Execute and wait for the cargo build command on all instances except the
+    /// metrics one. This requires compiling the codebase in release
+    /// (which may take a long time) so we run the command in the background
+    /// to avoid keeping alive many ssh connections for too long.
+    async fn update_with_local_build(&self, binaries: &[String]) -> TestbedResult<()> {
+        let bin_flags = binaries
+            .iter()
+            .map(|bin| format!("--bin {}", bin))
+            .collect::<Vec<_>>()
+            .join(" ");
+
         let build_command = [
             "source \"$HOME/.cargo/env\"".to_string(),
             "export RUSTFLAGS='-C target-cpu=native'".to_string(),
-            "cargo build --release --bin iota --bin iota-node --bin stress".to_string(),
+            format!("cargo build --release {bin_flags}"),
         ]
         .join(" && ");
 
@@ -339,6 +548,7 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
             .cloned()
             .collect::<Vec<_>>();
         let id = "cargo build";
+        let repo_name = self.settings.repository_name();
         let context = CommandContext::new()
             .run_background(id.into())
             .with_execute_from_path(repo_name.into());
@@ -350,7 +560,6 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
             .wait_for_command(without_metrics, id, CommandStatus::Terminated)
             .await?;
 
-        display::done();
         Ok(())
     }
 

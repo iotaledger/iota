@@ -30,6 +30,7 @@ thiserror.workspace = true
 tokio = { workspace = true, features = ["full"] }
 
 # internal dependencies
+iota-build-cache-server.workspace = true
 iota-config.workspace = true
 iota-metrics.workspace = true
 iota-swarm-config.workspace = true

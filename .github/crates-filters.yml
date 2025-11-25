@@ -14,6 +14,8 @@ iota-aws-orchestrator:
   - "crates/iota-aws-orchestrator/**"
 iota-benchmark:
   - "crates/iota-benchmark/**"
+iota-build-cache-server:
+  - "crates/iota-build-cache-server/**"
 iota-cluster-test:
   - "crates/iota-cluster-test/**"
 iota-common:

@@ -5675,6 +5675,7 @@ dependencies = [
  "crossterm 0.25.0",
  "eyre",
  "futures",
+ "iota-build-cache-server",
  "iota-config",
  "iota-metrics",
  "iota-swarm-config",
@@ -5754,6 +5755,25 @@ dependencies = [
  "thiserror 2.0.12",
  "tonic 0.13.1",
  "tonic-build 0.13.1",
+]
+
+[[package]]
+name = "iota-build-cache-server"
+version = "1.13.0-alpha"
+dependencies = [
+ "anyhow",
+ "chrono",
+ "clap",
+ "http-body-util",
+ "hyper 1.4.1",
+ "hyper-util",
+ "reqwest 0.12.7",
+ "serde",
+ "serde_json",
+ "thiserror 1.0.64",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
 ]
 
 [[package]]

@@ -44,6 +44,15 @@ pub enum CloudProvider {
     Aws,
 }
 
+/// Configuration for the optional build cache server.
+#[derive(Deserialize, Clone)]
+pub struct BuildCacheServer {
+    /// Whether to enable the build cache.
+    pub enabled: bool,
+    /// The address of the build cache server (e.g., "192.168.1.100:8080").
+    pub address: String,
+}
+
 /// The testbed settings. Those are topically specified in a file.
 #[derive(Deserialize, Clone)]
 pub struct Settings {
@@ -74,6 +83,8 @@ pub struct Settings {
     pub client_specs: String,
     /// Region to deploy the metrics instance.
     pub metrics_specs: String,
+    /// Optional build cache server configuration.
+    pub build_cache_server: Option<BuildCacheServer>,
     /// The details of the git reposit to deploy.
     pub repository: Repository,
     /// The working directory on the remote instance (containing all
@@ -195,6 +206,10 @@ impl Settings {
             node_specs: "small".into(),
             client_specs: "small".into(),
             metrics_specs: "small".into(),
+            build_cache_server: Some(BuildCacheServer {
+                enabled: true,
+                address: "127.0.0.1:8080".into(),
+            }),
             repository: Repository {
                 url: Url::parse("https://example.net/author/repo").unwrap(),
                 commit: "main".into(),
