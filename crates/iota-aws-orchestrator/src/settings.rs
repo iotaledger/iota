@@ -51,6 +51,12 @@ pub struct BuildCacheServer {
     pub enabled: bool,
     /// The address of the build cache server (e.g., "192.168.1.100:8080").
     pub address: String,
+    /// Optional username for basic authentication.
+    #[serde(default)]
+    pub username: Option<String>,
+    /// Optional password for basic authentication.
+    #[serde(default)]
+    pub password: Option<String>,
 }
 
 /// The testbed settings. Those are topically specified in a file.
@@ -209,6 +215,8 @@ impl Settings {
             build_cache_server: Some(BuildCacheServer {
                 enabled: true,
                 address: "127.0.0.1:8080".into(),
+                username: None,
+                password: None,
             }),
             repository: Repository {
                 url: Url::parse("https://example.net/author/repo").unwrap(),

@@ -437,8 +437,12 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
             return Ok(());
         }
 
-        let cache_client = BuildCacheClient::new(build_config.address.as_str())
-            .map_err(|e| BuildCacheError::Cache(format!("Invalid server address: {e}")))?;
+        let cache_client = BuildCacheClient::with_credentials(
+            build_config.address.as_str(),
+            build_config.username.clone(),
+            build_config.password.clone(),
+        )
+        .map_err(|e| BuildCacheError::Cache(format!("Invalid server address: {e}")))?;
         let repo_name = self.settings.repository_name();
         let working_dir = self.settings.working_dir.display();
 

@@ -28,11 +28,15 @@ pub struct BuildCacheClient {
     client: Client,
     build_instance_ip: String,
     port: u16,
+    credentials: Option<(String, String)>, // (username, password)
 }
 
 impl BuildCacheClient {
-    /// Create a new build cache client.
-    pub fn new(server_address: &str) -> Result<Self, std::net::AddrParseError> {
+    /// Create a new build cache client with basic authentication.
+    fn with_auth(
+        server_address: &str,
+        credentials: Option<(String, String)>,
+    ) -> Result<Self, std::net::AddrParseError> {
         let socket_addr: SocketAddr = server_address.parse()?;
 
         let build_instance_ip = socket_addr.ip().to_string();
@@ -47,7 +51,43 @@ impl BuildCacheClient {
             client,
             build_instance_ip,
             port,
+            credentials,
         })
+    }
+
+    /// Create a new build cache client without authentication.
+    pub fn new(server_address: &str) -> Result<Self, std::net::AddrParseError> {
+        Self::with_auth(server_address, None)
+    }
+
+    /// Create a new build cache client with basic authentication using
+    /// username/password.
+    pub fn with_credentials(
+        server_address: &str,
+        username: Option<String>,
+        password: Option<String>,
+    ) -> Result<Self, std::net::AddrParseError> {
+        let credentials = match (username, password) {
+            (Some(u), Some(p)) => Some((u, p)),
+            _ => None,
+        };
+        Self::with_auth(server_address, credentials)
+    }
+
+    /// Set or update the authentication credentials.
+    pub fn set_credentials(&mut self, username: Option<String>, password: Option<String>) {
+        self.credentials = match (username, password) {
+            (Some(u), Some(p)) => Some((u, p)),
+            _ => None,
+        };
+    }
+
+    /// Add authentication to a request builder if credentials are set.
+    fn add_auth(&self, request_builder: reqwest::RequestBuilder) -> reqwest::RequestBuilder {
+        match &self.credentials {
+            Some((username, password)) => request_builder.basic_auth(username, Some(password)),
+            None => request_builder,
+        }
     }
 
     pub async fn resolve_commit(&self, commit: &str) -> BuildCacheResult<String> {
@@ -56,7 +96,7 @@ impl BuildCacheClient {
             self.build_instance_ip, self.port
         );
 
-        let response = self.client.get(&url).send().await?;
+        let response = self.add_auth(self.client.get(&url)).send().await?;
 
         if !response.status().is_success() {
             return Err(BuildCacheError::Cache(format!(
@@ -85,7 +125,10 @@ impl BuildCacheClient {
         let mut params = HashMap::new();
         params.insert("binaries", binaries.join(","));
 
-        let response = self.client.get(&url).query(&params).send().await?;
+        let response = self
+            .add_auth(self.client.get(&url).query(&params))
+            .send()
+            .await?;
 
         if response.status() == StatusCode::NOT_FOUND {
             return Ok(BuildCacheResponse {
@@ -112,7 +155,7 @@ impl BuildCacheClient {
             self.build_instance_ip, self.port
         );
 
-        let response = self.client.get(&url).send().await?;
+        let response = self.add_auth(self.client.get(&url)).send().await?;
 
         if !response.status().is_success() {
             return Err(BuildCacheError::Cache(format!(
@@ -158,7 +201,10 @@ impl BuildCacheClient {
             binaries: binaries.to_vec(),
         };
 
-        let response = self.client.post(&url).json(&build_request).send().await?;
+        let response = self
+            .add_auth(self.client.post(&url).json(&build_request))
+            .send()
+            .await?;
 
         if !response.status().is_success() {
             // Capture status before consuming response

@@ -4,6 +4,10 @@
 # Build cache server configuration
 export BUILD_CACHE_SERVER="localhost:8080"
 
+# Basic authentication (set these if the server requires authentication)
+export BUILD_CACHE_USER="${BUILD_CACHE_USER:-}"
+export BUILD_CACHE_PASSWORD="${BUILD_CACHE_PASSWORD:-}"
+
 # Default build parameters
 export COMMIT="develop"     # Git commit/branch/tag to build
 export CPU_TARGET="native"  # CPU target (native, skylake, etc.)

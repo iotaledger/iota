@@ -29,10 +29,20 @@ log_error() {
     echo -e "${RED}[ERROR]${NC} $1"
 }
 
+# Helper function to get authentication arguments for curl
+get_auth_args() {
+    if [ -n "$BUILD_CACHE_USER" ] && [ -n "$BUILD_CACHE_PASSWORD" ]; then
+        echo "-u $BUILD_CACHE_USER:$BUILD_CACHE_PASSWORD"
+    fi
+}
+
 # Print current configuration
 print_config() {
     log_info "Build Cache Server Configuration:"
     log_info "  Server: $BUILD_CACHE_SERVER"
+    if [ -n "$BUILD_CACHE_USER" ]; then
+        log_info "  User: $BUILD_CACHE_USER"
+    fi
     log_info "  Commit: $COMMIT"
     log_info "  CPU Target: $CPU_TARGET"
     log_info "  Binaries: $BINARIES"
@@ -42,7 +52,7 @@ print_config() {
 # Function to check if binaries are available
 check_availability() {
     # Make check request
-    RESPONSE=$(curl -s -w "\n%{http_code}" \
+    RESPONSE=$(curl -s -w "\n%{http_code}" $(get_auth_args) \
         "http://$BUILD_CACHE_SERVER/check/$COMMIT/$CPU_TARGET?binaries=$BINARIES")
 
     # Parse response
@@ -100,6 +110,7 @@ EOF
     RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
         -H "Content-Type: application/json" \
         -d "$PAYLOAD" \
+        $(get_auth_args) \
         "http://$BUILD_CACHE_SERVER/build")
 
     # Parse response
@@ -131,7 +142,7 @@ EOF
 
 # Function to get build status
 get_build_status() {
-    RESPONSE=$(curl -s -w "\n%{http_code}" \
+    RESPONSE=$(curl -s -w "\n%{http_code}" $(get_auth_args) \
         "http://$BUILD_CACHE_SERVER/status/$COMMIT/$CPU_TARGET?binaries=$BINARIES" 2>/dev/null || echo "\n000")
     
     HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
@@ -235,6 +246,7 @@ download() {
         HEADER_FILE=$(mktemp)
         
         RESPONSE=$(curl -s -w "\n%{http_code}" -L -D "$HEADER_FILE" \
+            $(get_auth_args) \
             "http://$BUILD_CACHE_SERVER/download/$COMMIT/$CPU_TARGET/$BINARY" \
             -o "$OUTPUT_DIR/$BINARY")
         
