@@ -513,6 +513,7 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
                         .execute_per_instance(metrics_commands.clone(), CommandContext::default())
                         .await?;
                     for (i, (stdout, _stderr)) in stdio.iter().enumerate() {
+                        display::action(format!("Processing metrics from client {}\n", i));
                         let measurement = Measurement::from_prometheus::<P>(stdout);
                         aggregator.add(i, measurement);
                     }
