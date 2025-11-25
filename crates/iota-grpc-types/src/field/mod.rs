@@ -77,11 +77,9 @@ impl MessageField {
                     names.push(format!("{}.{}", self.name, nested_name));
                 }
             }
-        } else {
-            if self.is_optional {
-                // No nested fields, just return the field name if it's optional
-                names.push(self.name.to_string());
-            }
+        } else if self.is_optional {
+            // No nested fields, just return the field name if it's optional
+            names.push(self.name.to_string());
         }
 
         names

@@ -1,27 +1,24 @@
 // Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-/// Trait for checking if fields are present in protobuf messages
-///
-/// This lets us check which optional fields have values (Some) vs are empty
-/// (None)
-pub(crate) trait FieldPresenceChecker {
-    /// Returns a list of all possible field names for this type
-    /// Example: For a message with fields "id" and "name", returns ["id",
-    /// "name"]
-    fn all_fields(&self) -> &[&'static str];
+use std::collections::{HashMap, HashSet};
 
-    /// Check if a single field is present
+/// Trait for checking field presence/absence
+pub(crate) trait FieldPresenceChecker {
+    /// Returns a list of all top-level field names for this type.
+    fn top_level_fields(&self) -> &[&'static str];
+
+    /// Check if a specific top-level field is present (no dots allowed).
     ///
-    /// Input: field name like "reference" (no dots allowed)
     /// Returns:
     ///   - None: field name is invalid (doesn't exist on this type)
     ///   - Some((true, Some(checker))): field is present and has nested fields
-    ///     we can check
-    ///   - Some((true, None)): field is present but is a simple value (no
-    ///     nesting)
-    ///   - Some((false, _)): field is absent (None)
-    fn check_field(&self, field: &str) -> Option<(bool, Option<&dyn FieldPresenceChecker>)>;
+    ///   - Some((true, None)): field is present without nested fields
+    ///   - Some((false, _)): field exists but is absent (None)
+    fn check_field_presence(
+        &self,
+        field: &str,
+    ) -> Option<(bool, Option<&dyn FieldPresenceChecker>)>;
 }
 
 /// Macro to automatically implement FieldPresenceChecker for a protobuf message
@@ -37,24 +34,17 @@ pub(crate) trait FieldPresenceChecker {
 ///     nested: NestedType,   // nested message that can be recursed into
 /// });
 /// ```
-///
-/// # What it generates
-/// For each field, it checks if `self.field.is_some()` (protobuf optional
-/// fields are Option<T>) For nested fields with `: Type`, it also provides the
-/// nested checker so you can recurse
 #[macro_export]
 macro_rules! impl_field_presence_checker {
     // Main rule: matches the syntax `Type { field1, field2: NestedType, ... }`
     ($type:ty { $( $field:ident $( : $nested_type:ty )? ),* $(,)? }) => {
         // Generate the trait implementation for the given type
         impl $crate::utils::FieldPresenceChecker for $type {
-            // Return all field names as a static array
-            fn all_fields(&self) -> &[&'static str] {
+            fn top_level_fields(&self) -> &[&'static str] {
                 &[ $( stringify!($field) ),* ]  // stringify! turns `field1` into "field1"
             }
 
-            // Check a single field by name
-            fn check_field(&self, field: &str) -> Option<(bool, Option<&dyn $crate::utils::FieldPresenceChecker>)> {
+            fn check_field_presence(&self, field: &str) -> Option<(bool, Option<&dyn $crate::utils::FieldPresenceChecker>)> {
                 match field {
                     // For each field in the macro input, generate a match arm
                     $(
@@ -72,36 +62,27 @@ macro_rules! impl_field_presence_checker {
     };
 
     // Helper rule for nested fields (when `: Type` is specified)
-    // This rule matches when $nested_type is present
     (@field_check $self:ident, $field:ident, $nested_type:ty) => {{
         // Check if the field is Some (present) or None (absent)
         let present = $self.$field.is_some();
 
-        // If present, provide a reference to it as a FieldPresenceChecker
-        // This allows recursion into nested fields
+        // If nested field is present, provide a reference to it as a FieldPresenceChecker
         let nested = $self.$field.as_ref().map(|f| f as &dyn $crate::utils::FieldPresenceChecker);
 
         Some((present, nested))
     }};
 
     // Helper rule for simple fields (when no `: Type` is specified)
-    // This rule matches when $nested_type is NOT present
     (@field_check $self:ident, $field:ident) => {
         // Just check if the field is present; no nested checker needed
         Some(($self.$field.is_some(), None))
     };
 }
 
-/// Assert nested field masks - validate presence and absence of nested fields
-///
-/// This validates field masks that can include nested paths like
-/// "reference.object_id"
-///
-/// # Arguments
-/// * `object` - The protobuf message to check
-/// * `field_paths` - List of field paths that should be present (can include
-///   dots)
-/// * `scenario` - Test scenario name (for error messages)
+/// Assert field presence/absence for any type implementing
+/// FieldPresenceChecker. This function validates that an object contains
+/// exactly the fields specified (or their absence). It also supports nested
+/// field paths using dot notation (e.g., "reference.object_id").
 ///
 /// # Example
 /// ```ignore
@@ -118,124 +99,82 @@ macro_rules! impl_field_presence_checker {
 /// - `bcs` is present
 /// - All other fields at the top level are absent
 /// - All other fields inside `reference` are absent (like `reference.digest`)
-pub(crate) fn assert_field_presence<T>(object: &T, field_paths: &[&str], scenario: &str)
-where
-    T: iota_grpc_types::field::MessageFields + FieldPresenceChecker,
-{
-    // Start checking from the top level
-    check_level(object, object.all_fields(), field_paths, scenario);
-}
-
-/// Internal recursive function to check field presence at each nesting level
-///
-/// This is called recursively for each level of nesting.
-///
-/// # How it works
-/// 1. Extract field names expected at THIS level (before the first dot)
-/// 2. Check that all fields at this level are present/absent as expected
-/// 3. Group remaining paths by their parent field
-/// 4. Recursively check nested levels
-///
-/// # Example
-/// If field_paths is ["reference.object_id", "reference.version", "bcs"]:
-/// 1. At top level: expects "reference" and "bcs" present, all others absent
-/// 2. Recurses into "reference" with paths ["object_id", "version"]
-/// 3. Inside "reference": expects "object_id" and "version" present, all others
-///    absent
-fn check_level(
+pub(crate) fn assert_field_presence(
     checker: &dyn FieldPresenceChecker,
-    all_fields: &[&'static str],
-    paths: &[&str],
+    expected_field_paths: &[&str],
     scenario: &str,
 ) {
-    use std::collections::{HashMap, HashSet};
+    let mut expected_nested_field_paths: HashMap<&str, Vec<&str>> = HashMap::new();
+    let mut expected_non_nested_field_paths: HashSet<&str> = HashSet::new();
+    let mut expected_top_level_fields: HashSet<&str> = HashSet::new();
 
-    // Extract field names expected at THIS level (before first '.')
-    // Example: ["reference.object_id", "bcs"] -> {"reference", "bcs"}
-    let expected_this_level: HashSet<&str> = paths
-        .iter()
-        .map(|path| path.split('.').next().unwrap())
-        .collect();
+    for expected_field_path in expected_field_paths {
+        if let Some((top_level_field, remaining_path)) = expected_field_path.split_once('.') {
+            expected_nested_field_paths
+                .entry(top_level_field)
+                .or_default()
+                .push(remaining_path);
+            expected_top_level_fields.insert(top_level_field);
+        } else {
+            expected_non_nested_field_paths.insert(expected_field_path);
+            expected_top_level_fields.insert(expected_field_path);
+        }
+    }
 
-    // Validate that all expected fields are valid (exist in all_fields)
-    let valid_fields: HashSet<&str> = all_fields.iter().copied().collect();
-    for expected_field in &expected_this_level {
+    let actual_top_level_fields: HashSet<&str> =
+        checker.top_level_fields().iter().copied().collect();
+
+    // Validate that all expected fields exist on this type
+    for expected_top_level_field in &expected_top_level_fields {
         assert!(
-            valid_fields.contains(expected_field),
+            actual_top_level_fields.contains(expected_top_level_field),
             "Invalid field '{}' in {scenario}: field does not exist on this type",
-            expected_field
+            expected_top_level_field
         );
     }
 
     // Check each field at this level for correct presence/absence
-    for field in all_fields {
-        // Should this field be present?
-        let should_be_present = expected_this_level.contains(field);
+    for top_level_field in actual_top_level_fields.clone() {
+        let should_be_present = expected_top_level_fields.contains(top_level_field);
 
-        // Is this field actually present?
         let (is_present, _) = checker
-            .check_field(field)
-            .unwrap_or_else(|| panic!("Invalid field '{field}' in {scenario}"));
+            .check_field_presence(top_level_field)
+            .unwrap_or_else(|| panic!("Invalid field '{top_level_field}' in {scenario}"));
 
-        // Verify expectation matches reality
         assert_eq!(
             is_present, should_be_present,
-            "Field '{field}' in {scenario}: expected {should_be_present}, got {is_present}"
+            "Field '{top_level_field}' in {scenario}: expected {should_be_present}, got {is_present}"
         );
     }
 
-    // Group nested paths by their parent field
-    // Example: ["reference.object_id", "reference.version"]
-    //       -> {"reference": ["object_id", "version"]}
-    let mut nested: HashMap<&str, Vec<&str>> = HashMap::new();
-    let mut standalone_fields: HashSet<&str> = HashSet::new();
-
-    for path in paths {
-        if let Some((field, rest)) = path.split_once('.') {
-            // This path has nesting - add the remaining part to the group
-            nested.entry(field).or_default().push(rest);
-        } else {
-            // This is a standalone field (no dot) - track it
-            standalone_fields.insert(path);
-        }
-    }
-
-    // Validate no contradictory paths
-    // A field cannot be specified both standalone AND with nested paths
-    // Example: ["reference", "reference.object_id"] is contradictory because:
-    //   - "reference" alone means: all nested fields should be absent
-    //   - "reference.object_id" means: object_id should be present
-    for field in &standalone_fields {
-        if nested.contains_key(field) {
+    // Check that no field is specified both as nested and non-nested
+    for non_nested_field in &expected_non_nested_field_paths {
+        if expected_nested_field_paths.contains_key(non_nested_field) {
             panic!(
-                "Contradictory field paths in {scenario}: '{}' specified both standalone (implying no nested fields) and with nested paths ({})",
-                field,
-                nested[field]
+                "Contradictory field paths in {scenario}: '{non_nested_field}' specified both as non-nested (implying no nested fields) and with nested fields ({})",
+                expected_nested_field_paths[non_nested_field]
                     .iter()
-                    .map(|s| format!("{}.{}", field, s))
+                    .map(|s| format!("{}.{}", non_nested_field, s))
                     .collect::<Vec<_>>()
                     .join(", ")
             );
         }
     }
 
-    // Recursively check nested fields
-    // IMPORTANT: We must recurse into ALL present fields (not just those with
-    // nested paths) to verify their nested children are absent when not
-    // specified
-    for field in &expected_this_level {
-        // Get the nested checker for this field
-        if let Some((_, Some(nested_checker))) = checker.check_field(field) {
-            // Get sub-paths for this field, or empty slice if none specified
-            // Empty slice means ALL nested fields should be absent
-            let sub_paths = nested.get(field).map(|v| v.as_slice()).unwrap_or(&[]);
+    // Recurse into nested fields
+    for top_level_field in &actual_top_level_fields {
+        // Recurse only if there is a nested checker for this field
+        if let Some((_, Some(nested_checker))) = checker.check_field_presence(top_level_field) {
+            let expected_field_paths_nested = expected_nested_field_paths
+                .get(top_level_field)
+                .map(|v| v.as_slice())
+                .unwrap_or(&[]);
 
             // Recurse into this nested field
-            check_level(
+            assert_field_presence(
                 nested_checker,
-                nested_checker.all_fields(),
-                sub_paths,
-                &format!("{scenario}.{field}"), // Update scenario for better error messages
+                expected_field_paths_nested,
+                &format!("{scenario}.{top_level_field}"),
             );
         }
     }
