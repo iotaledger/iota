@@ -225,7 +225,7 @@ impl BuildCache {
     async fn perform_build(&self, request: BuildRequest) -> Result<()> {
         let key = self.cache_key(&request.commit, &request.cpu_target);
         let cache_path = self.get_cache_path(&request.commit, &request.cpu_target);
-        let repo_path = self.workspace_dir.join("repo");
+        let repo_path = &self.workspace_dir;
 
         // Update job status
         {
@@ -276,11 +276,21 @@ impl BuildCache {
 
     /// Setup repository (clone or update to specific commit)
     async fn setup_repository(&self, repo_path: &Path, commit: &str) -> Result<()> {
-        if !repo_path.exists() {
+        if !repo_path.exists() || !repo_path.join(".git").exists() {
             info!("Cloning repository to {repo_path:?}");
+
+            // Create parent directory if it doesn't exist
+            if let Some(parent) = repo_path.parent() {
+                std::fs::create_dir_all(parent)?;
+            }
+
+            // Remove existing directory if it exists but is not a git repo
+            if repo_path.exists() {
+                std::fs::remove_dir_all(repo_path)?;
+            }
+
             let output = Command::new("git")
                 .args(["clone", &self.repository_url, repo_path.to_str().unwrap()])
-                .current_dir(&self.workspace_dir)
                 .output()
                 .await?;
 
@@ -290,7 +300,49 @@ impl BuildCache {
                     String::from_utf8_lossy(&output.stderr)
                 ));
             }
+        } else {
+            info!("Repository already exists at {repo_path:?}, using existing repo");
+
+            // Verify it's actually a git repository
+            let output = Command::new("git")
+                .args(["status", "--porcelain"])
+                .current_dir(repo_path)
+                .output()
+                .await?;
+
+            if !output.status.success() {
+                info!(
+                    "Existing directory is not a valid git repository, removing and cloning fresh"
+                );
+                std::fs::remove_dir_all(repo_path)?;
+
+                let output = Command::new("git")
+                    .args(["clone", &self.repository_url, repo_path.to_str().unwrap()])
+                    .current_dir(&self.workspace_dir)
+                    .output()
+                    .await?;
+
+                if !output.status.success() {
+                    return Err(anyhow::anyhow!(
+                        "Git clone failed: {}",
+                        String::from_utf8_lossy(&output.stderr)
+                    ));
+                }
+            }
         }
+
+        // Clean any uncommitted changes first
+        info!("Cleaning working directory");
+        let _ = Command::new("git")
+            .args(["reset", "--hard", "HEAD"])
+            .current_dir(repo_path)
+            .output()
+            .await;
+        let _ = Command::new("git")
+            .args(["clean", "-fd"])
+            .current_dir(repo_path)
+            .output()
+            .await;
 
         // Fetch latest changes with all references
         info!("Fetching latest changes");
@@ -309,6 +361,11 @@ impl BuildCache {
 
         // Delete any existing build-temp branch
         let _ = Command::new("git")
+            .args(["checkout", "develop"])
+            .current_dir(repo_path)
+            .output()
+            .await;
+        let _ = Command::new("git")
             .args(["branch", "-D", "build-temp"])
             .current_dir(repo_path)
             .output()
@@ -324,7 +381,7 @@ impl BuildCache {
 
         if !output.status.success() {
             // If origin/commit doesn't exist, try direct commit hash
-            info!("origin/{commit} not found, trying direct commit {commit}",);
+            info!("origin/{commit} not found, trying direct commit {commit}");
             let output = Command::new("git")
                 .args(["checkout", "-b", "build-temp", commit])
                 .current_dir(repo_path)
