@@ -27,7 +27,7 @@ public fun create(
 
 public fun authenticate(_account: &AbstractAccount, _auth_ctx: &AuthContext, _ctx: &TxContext) {}
 
-//# programmable --sender A --inputs @test "abstract_account" "authenticate" 7000000000
+//# programmable --sender A --inputs @test "abstract_account" "authenticate"
 //> 0: iota::account::create_auth_info_v1<test::abstract_account::AbstractAccount>(Input(0), Input(1), Input(2));
 //> 1: test::abstract_account::create(Result(0));
 

@@ -13,7 +13,7 @@ mutated: object(0,0)
 gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 7873600,  storage_rebate: 0, non_refundable_storage_fee: 0
 
 task 2, lines 35-37:
-//# programmable --sender A --inputs @test "abstract_account" "authenticate" 7000000000
+//# programmable --sender A --inputs @test "abstract_account" "authenticate"
 //> 0: iota::account::create_auth_info_v1<test::abstract_account::AbstractAccount>(Input(0), Input(1), Input(2));
 //> 1: test::abstract_account::create(Result(0));
 created: object(2,0), object(2,1)

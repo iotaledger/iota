@@ -1433,8 +1433,8 @@ Doesn't support simulator mode.
 
 ```
 --account <ACCOUNT>: the sender of the abstract transaction. Must be an Abstract Account (AA) shared object.
---sponsor <SPONSOR> (optional): account that pays for gas. If omitted, you must provide --gas-payment and that coin must be owned by the Abstract Account (AA).
---gas-payment <OBJECT_ID>: coin object used to pay gas. Required when --sponsor is not provided.
+--sponsor <SPONSOR> (optional): account that pays for gas.
+--gas-payment <OBJECT_ID>: coin object used to pay gas.
 --auth-inputs <AUTH_INPUTS>: arguments to build the MoveAuthenticator(for instance - signature, public key etc).
 --ptb-inputs <PTB_INPUTS>: inputs passed to the PTB (Programmable Transaction Block) body.
 --gas-budget <GAS_BUDGET> (optional): maximum gas units for execution.
@@ -1458,7 +1458,6 @@ public struct AbstractAccount has key {
 }
 
 public fun create(
-    _public_key: vector<u8>,
     authenticator: AuthenticatorInfoV1<AbstractAccount>,
     ctx: &mut TxContext,
 ): address {
@@ -1482,27 +1481,21 @@ public fun authenticate_hello_world(
     assert!(msg == ascii::string(b"HelloWorld"), 0);
 }
 
-//# programmable --sender A --inputs x"10" @test "abstract_account" "authenticate_hello_world" 7000000000
-//> 0: iota::account::create_auth_info_v1<test::abstract_account::AbstractAccount>(Input(1), Input(2), Input(3));
-//> 1: test::abstract_account::create(Input(0), Result(0));
-//> 2: SplitCoins(Gas, [Input(4)]);
-//> 3: TransferObjects([Result(2)], Result(1));
+//# programmable --sender A --inputs @test "abstract_account" "authenticate_hello_world"
+//> 0: iota::account::create_auth_info_v1<test::abstract_account::AbstractAccount>(Input(0), Input(1), Input(2));
+//> 1: test::abstract_account::create(Result(0));
 
-//# view-object 2,0
+//# view-object 2,1
 
-//# view-object 2,2
-
-//# abstract --account immshared(2,2) --gas-payment 2,0 --auth-inputs "HelloWorld" --ptb-inputs 100 @A
+//# abstract --account immshared(2,1) --auth-inputs "HelloWorld" --ptb-inputs 100 @A
 //> 0: SplitCoins(Gas, [Input(0)]);
 //> 1: TransferObjects([Result(0)], Input(1));
 
-//# view-object 5,0
+//# view-object 4,0
 ```
 
 - Account (--account)
   The immutable shared object that represents Abstract Account.
-- Gas Payment (--gas-payment)
-  Coin object that must be owned by the Abstract Account (AA).
 - PTB Inputs (--ptb-inputs)
   These are inputs used inside the transaction body - for example, numeric values, objects, or addresses.
   The PTB commands (//> ...) operate as in the programmable command.
@@ -1513,69 +1506,52 @@ public fun authenticate_hello_world(
 ---
 source: external-crates/move/crates/move-transactional-test-runner/src/framework.rs
 ---
-processed 7 tasks
+processed 6 tasks
 
 init:
 A: object(0,0)
 
-task 1, lines 8-42:
+task 1, lines 8-41:
 //# publish --sender A
 created: object(1,0)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 8816000,  storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 8800800,  storage_rebate: 0, non_refundable_storage_fee: 0
 
-task 2, lines 44-48:
-//# programmable --sender A --inputs x"10" @test "abstract_account" "authenticate_hello_world" 7000000000
-//> 0: iota::account::create_auth_info_v1<test::abstract_account::AbstractAccount>(Input(1), Input(2), Input(3));
-//> 1: test::abstract_account::create(Input(0), Result(0));
-//> 2: SplitCoins(Gas, [Input(4)]);
-//> 3: TransferObjects([Result(2)], Result(1));
-created: object(2,0), object(2,1), object(2,2)
+task 2, lines 43-45:
+//# programmable --sender A --inputs @test "abstract_account" "authenticate_hello_world"
+//> 0: iota::account::create_auth_info_v1<test::abstract_account::AbstractAccount>(Input(0), Input(1), Input(2));
+//> 1: test::abstract_account::create(Result(0));
+created: object(2,0), object(2,1)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 6748800,  storage_rebate: 980400, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 5768400,  storage_rebate: 980400, non_refundable_storage_fee: 0
 
-task 3, line 50:
-//# view-object 2,0
-Owner: Account Address ( fake(2,2) )
-Version: 3
-Contents: iota::coin::Coin<iota::iota::IOTA> {
-    id: iota::object::UID {
-        id: iota::object::ID {
-            bytes: fake(2,0),
-        },
-    },
-    balance: iota::balance::Balance<iota::iota::IOTA> {
-        value: 7000000000u64,
-    },
-}
-
-task 4, line 52:
-//# view-object 2,2
+task 3, line 47:
+//# view-object 2,1
 Owner: Shared( 3 )
 Version: 3
 Contents: test::abstract_account::AbstractAccount {
     id: iota::object::UID {
         id: iota::object::ID {
-            bytes: fake(2,2),
+            bytes: fake(2,1),
         },
     },
 }
 
-task 5, lines 54-56:
-//# abstract --account immshared(2,2) --gas-payment 2,0 --auth-inputs "HelloWorld" --ptb-inputs 100 @A
-created: object(5,0)
-mutated: object(2,0)
-unchanged_shared: object(2,2)
+task 4, lines 49-51:
+//# abstract --account immshared(2,1) --auth-inputs "HelloWorld" --ptb-inputs 100 @A
+created: object(4,0)
+mutated: object(_)
+unchanged_shared: object(2,1)
 gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 1960800,  storage_rebate: 980400, non_refundable_storage_fee: 0
 
-task 6, line 58:
-//# view-object 5,0
+task 5, line 53:
+//# view-object 4,0
 Owner: Account Address ( A )
 Version: 4
 Contents: iota::coin::Coin<iota::iota::IOTA> {
     id: iota::object::UID {
         id: iota::object::ID {
-            bytes: fake(5,0),
+            bytes: fake(4,0),
         },
     },
     balance: iota::balance::Balance<iota::iota::IOTA> {
