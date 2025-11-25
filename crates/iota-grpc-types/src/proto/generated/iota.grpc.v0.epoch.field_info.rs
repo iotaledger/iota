@@ -16,12 +16,14 @@ mod _field_impls {
             name: "public_key",
             json_name: "publicKey",
             number: 1i32,
+            is_optional: true,
             message_fields: None,
         };
         pub const WEIGHT_FIELD: &'static MessageField = &MessageField {
             name: "weight",
             json_name: "weight",
             number: 2i32,
+            is_optional: true,
             message_fields: None,
         };
     }
@@ -65,6 +67,7 @@ mod _field_impls {
             name: "members",
             json_name: "members",
             number: 1i32,
+            is_optional: false,
             message_fields: Some(ValidatorCommitteeMember::FIELDS),
         };
     }
@@ -101,12 +104,14 @@ mod _field_impls {
             name: "epoch",
             json_name: "epoch",
             number: 1i32,
+            is_optional: true,
             message_fields: None,
         };
         pub const MEMBERS_FIELD: &'static MessageField = &MessageField {
             name: "members",
             json_name: "members",
             number: 2i32,
+            is_optional: true,
             message_fields: Some(ValidatorCommitteeMembers::FIELDS),
         };
     }
@@ -150,6 +155,7 @@ mod _field_impls {
             name: "flags",
             json_name: "flags",
             number: 1i32,
+            is_optional: false,
             message_fields: None,
         };
     }
@@ -186,6 +192,7 @@ mod _field_impls {
             name: "attributes",
             json_name: "attributes",
             number: 1i32,
+            is_optional: false,
             message_fields: None,
         };
     }
@@ -222,18 +229,21 @@ mod _field_impls {
             name: "protocol_version",
             json_name: "protocolVersion",
             number: 1i32,
+            is_optional: true,
             message_fields: None,
         };
         pub const FEATURE_FLAGS_FIELD: &'static MessageField = &MessageField {
             name: "feature_flags",
             json_name: "featureFlags",
             number: 2i32,
+            is_optional: true,
             message_fields: Some(ProtocolFeatureFlags::FIELDS),
         };
         pub const ATTRIBUTES_FIELD: &'static MessageField = &MessageField {
             name: "attributes",
             json_name: "attributes",
             number: 3i32,
+            is_optional: true,
             message_fields: Some(ProtocolAttributes::FIELDS),
         };
     }
@@ -282,54 +292,63 @@ mod _field_impls {
             name: "epoch",
             json_name: "epoch",
             number: 1i32,
+            is_optional: true,
             message_fields: None,
         };
         pub const COMMITTEE_FIELD: &'static MessageField = &MessageField {
             name: "committee",
             json_name: "committee",
             number: 2i32,
+            is_optional: true,
             message_fields: Some(ValidatorCommittee::FIELDS),
         };
         pub const BCS_SYSTEM_STATE_FIELD: &'static MessageField = &MessageField {
             name: "bcs_system_state",
             json_name: "bcsSystemState",
             number: 3i32,
+            is_optional: true,
             message_fields: Some(BcsData::FIELDS),
         };
         pub const FIRST_CHECKPOINT_FIELD: &'static MessageField = &MessageField {
             name: "first_checkpoint",
             json_name: "firstCheckpoint",
             number: 4i32,
+            is_optional: true,
             message_fields: None,
         };
         pub const LAST_CHECKPOINT_FIELD: &'static MessageField = &MessageField {
             name: "last_checkpoint",
             json_name: "lastCheckpoint",
             number: 5i32,
+            is_optional: true,
             message_fields: None,
         };
         pub const START_FIELD: &'static MessageField = &MessageField {
             name: "start",
             json_name: "start",
             number: 6i32,
+            is_optional: true,
             message_fields: None,
         };
         pub const END_FIELD: &'static MessageField = &MessageField {
             name: "end",
             json_name: "end",
             number: 7i32,
+            is_optional: true,
             message_fields: None,
         };
         pub const REFERENCE_GAS_PRICE_FIELD: &'static MessageField = &MessageField {
             name: "reference_gas_price",
             json_name: "referenceGasPrice",
             number: 8i32,
+            is_optional: true,
             message_fields: None,
         };
         pub const PROTOCOL_CONFIG_FIELD: &'static MessageField = &MessageField {
             name: "protocol_config",
             json_name: "protocolConfig",
             number: 9i32,
+            is_optional: true,
             message_fields: Some(ProtocolConfig::FIELDS),
         };
     }

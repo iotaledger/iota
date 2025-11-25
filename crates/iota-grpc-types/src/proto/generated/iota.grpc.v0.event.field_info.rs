@@ -20,42 +20,49 @@ mod _field_impls {
             name: "bcs",
             json_name: "bcs",
             number: 1i32,
+            is_optional: true,
             message_fields: Some(BcsData::FIELDS),
         };
         pub const PACKAGE_ID_FIELD: &'static MessageField = &MessageField {
             name: "package_id",
             json_name: "packageId",
             number: 2i32,
+            is_optional: true,
             message_fields: Some(Address::FIELDS),
         };
         pub const MODULE_FIELD: &'static MessageField = &MessageField {
             name: "module",
             json_name: "module",
             number: 3i32,
+            is_optional: true,
             message_fields: None,
         };
         pub const SENDER_FIELD: &'static MessageField = &MessageField {
             name: "sender",
             json_name: "sender",
             number: 4i32,
+            is_optional: true,
             message_fields: Some(Address::FIELDS),
         };
         pub const EVENT_TYPE_FIELD: &'static MessageField = &MessageField {
             name: "event_type",
             json_name: "eventType",
             number: 5i32,
+            is_optional: true,
             message_fields: None,
         };
         pub const BCS_CONTENTS_FIELD: &'static MessageField = &MessageField {
             name: "bcs_contents",
             json_name: "bcsContents",
             number: 6i32,
+            is_optional: true,
             message_fields: Some(BcsData::FIELDS),
         };
         pub const JSON_CONTENTS_FIELD: &'static MessageField = &MessageField {
             name: "json_contents",
             json_name: "jsonContents",
             number: 7i32,
+            is_optional: true,
             message_fields: None,
         };
     }
@@ -124,6 +131,7 @@ mod _field_impls {
             name: "events",
             json_name: "events",
             number: 1i32,
+            is_optional: false,
             message_fields: Some(Event::FIELDS),
         };
     }
