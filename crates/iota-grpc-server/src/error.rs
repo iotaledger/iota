@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use iota_grpc_types::google::rpc::{BadRequest, ErrorInfo, RetryInfo};
+use iota_types::base_types::ObjectID;
 use tonic::{Code, Status};
 
 /// Main RPC error type
@@ -131,5 +132,55 @@ impl ErrorDetails {
             );
         }
         details
+    }
+}
+
+// NOTE: Similar errors exist in iota-rest-api, but are intentionally duplicated
+// here. The REST API will be deprecated soon, so we avoid creating a shared
+// dependency. This keeps the gRPC server independent and allows the REST API to
+// be removed cleanly without impacting gRPC error handling.
+// TODO: Remove the above comments when the REST API is removed.
+#[derive(Debug, Clone)]
+pub struct ObjectNotFoundError {
+    object_id: ObjectID,
+    version: Option<u64>,
+}
+
+impl ObjectNotFoundError {
+    pub fn new(object_id: ObjectID) -> Self {
+        Self {
+            object_id,
+            version: None,
+        }
+    }
+
+    pub fn new_with_version(object_id: ObjectID, version: u64) -> Self {
+        Self {
+            object_id,
+            version: Some(version),
+        }
+    }
+}
+
+impl std::fmt::Display for ObjectNotFoundError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self.version {
+            Some(version) => {
+                write!(
+                    f,
+                    "Object {} at version {} not found",
+                    self.object_id, version
+                )
+            }
+            None => write!(f, "Object {} not found", self.object_id),
+        }
+    }
+}
+
+impl std::error::Error for ObjectNotFoundError {}
+
+impl From<ObjectNotFoundError> for RpcError {
+    fn from(value: ObjectNotFoundError) -> Self {
+        Self::new(tonic::Code::NotFound, value.to_string())
     }
 }

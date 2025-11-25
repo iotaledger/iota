@@ -61,7 +61,29 @@ pub struct MessageField {
     pub name: &'static str,
     pub json_name: &'static str,
     pub number: i32,
+    pub is_optional: bool,
     pub message_fields: Option<&'static [&'static MessageField]>,
+}
+
+impl MessageField {
+    // Returns the field name and all nested field names
+    pub fn get_optional_message_field_names(&self) -> Vec<String> {
+        let mut names = Vec::new();
+
+        // Recursively get nested field names and prefix them with the parent field name
+        if let Some(nested_fields) = self.message_fields {
+            for field in nested_fields {
+                for nested_name in field.get_optional_message_field_names() {
+                    names.push(format!("{}.{}", self.name, nested_name));
+                }
+            }
+        } else if self.is_optional {
+            // No nested fields, just return the field name if it's optional
+            names.push(self.name.to_string());
+        }
+
+        names
+    }
 }
 
 impl AsRef<str> for MessageField {
@@ -77,6 +99,7 @@ impl MessageField {
             name,
             json_name: "",
             number: 0,
+            is_optional: false,
             message_fields: None,
         }
     }
@@ -86,6 +109,11 @@ impl MessageField {
         message_fields: &'static [&'static MessageField],
     ) -> Self {
         self.message_fields = Some(message_fields);
+        self
+    }
+
+    pub const fn with_optional(mut self, is_optional: bool) -> Self {
+        self.is_optional = is_optional;
         self
     }
 }

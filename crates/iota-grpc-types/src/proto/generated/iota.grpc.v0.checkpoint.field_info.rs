@@ -24,12 +24,14 @@ mod _field_impls {
             name: "digest",
             json_name: "digest",
             number: 1i32,
+            is_optional: true,
             message_fields: Some(Digest::FIELDS),
         };
         pub const BCS_FIELD: &'static MessageField = &MessageField {
             name: "bcs",
             json_name: "bcs",
             number: 2i32,
+            is_optional: true,
             message_fields: Some(BcsData::FIELDS),
         };
     }
@@ -73,12 +75,14 @@ mod _field_impls {
             name: "digest",
             json_name: "digest",
             number: 1i32,
+            is_optional: true,
             message_fields: Some(Digest::FIELDS),
         };
         pub const BCS_FIELD: &'static MessageField = &MessageField {
             name: "bcs",
             json_name: "bcs",
             number: 2i32,
+            is_optional: true,
             message_fields: Some(BcsData::FIELDS),
         };
     }
@@ -122,24 +126,28 @@ mod _field_impls {
             name: "sequence_number",
             json_name: "sequenceNumber",
             number: 1i32,
+            is_optional: true,
             message_fields: None,
         };
         pub const SUMMARY_FIELD: &'static MessageField = &MessageField {
             name: "summary",
             json_name: "summary",
             number: 2i32,
+            is_optional: true,
             message_fields: Some(CheckpointSummary::FIELDS),
         };
         pub const CONTENTS_FIELD: &'static MessageField = &MessageField {
             name: "contents",
             json_name: "contents",
             number: 3i32,
+            is_optional: true,
             message_fields: Some(CheckpointContents::FIELDS),
         };
         pub const SIGNATURE_FIELD: &'static MessageField = &MessageField {
             name: "signature",
             json_name: "signature",
             number: 4i32,
+            is_optional: true,
             message_fields: Some(ValidatorAggregatedSignature::FIELDS),
         };
     }
