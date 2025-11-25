@@ -1,7 +1,11 @@
 // Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use move_core_types::{ident_str, identifier::IdentStr, language_storage::StructTag};
+use move_core_types::{
+    ident_str,
+    identifier::IdentStr,
+    language_storage::{StructTag, TypeTag},
+};
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -31,12 +35,12 @@ pub struct AuthenticatorInfoV1Key {
 }
 
 impl AuthenticatorInfoV1 {
-    pub fn type_() -> StructTag {
+    pub fn type_(type_param: StructTag) -> StructTag {
         StructTag {
             address: IOTA_FRAMEWORK_ADDRESS,
             module: ACCOUNT_MODULE_NAME.to_owned(),
             name: AUTHENTICATOR_INFO_V1_STRUCT_NAME.to_owned(),
-            type_params: vec![],
+            type_params: vec![TypeTag::Struct(Box::new(type_param))],
         }
     }
 
