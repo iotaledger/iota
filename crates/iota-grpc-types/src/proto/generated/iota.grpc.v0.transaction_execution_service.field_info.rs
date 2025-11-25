@@ -28,18 +28,21 @@ mod _field_impls {
             name: "transaction",
             json_name: "transaction",
             number: 1i32,
+            is_optional: true,
             message_fields: Some(Transaction::FIELDS),
         };
         pub const SIGNATURES_FIELD: &'static MessageField = &MessageField {
             name: "signatures",
             json_name: "signatures",
             number: 2i32,
+            is_optional: true,
             message_fields: Some(UserSignatures::FIELDS),
         };
         pub const READ_MASK_FIELD: &'static MessageField = &MessageField {
             name: "read_mask",
             json_name: "readMask",
             number: 3i32,
+            is_optional: true,
             message_fields: None,
         };
     }
@@ -88,6 +91,7 @@ mod _field_impls {
             name: "transaction",
             json_name: "transaction",
             number: 1i32,
+            is_optional: true,
             message_fields: Some(ExecutedTransaction::FIELDS),
         };
     }
@@ -124,24 +128,28 @@ mod _field_impls {
             name: "transaction",
             json_name: "transaction",
             number: 1i32,
+            is_optional: true,
             message_fields: Some(Transaction::FIELDS),
         };
         pub const TX_CHECKS_FIELD: &'static MessageField = &MessageField {
             name: "tx_checks",
             json_name: "txChecks",
             number: 2i32,
+            is_optional: false,
             message_fields: None,
         };
         pub const ESTIMATE_GAS_BUDGET_FIELD: &'static MessageField = &MessageField {
             name: "estimate_gas_budget",
             json_name: "estimateGasBudget",
             number: 3i32,
+            is_optional: true,
             message_fields: None,
         };
         pub const READ_MASK_FIELD: &'static MessageField = &MessageField {
             name: "read_mask",
             json_name: "readMask",
             number: 4i32,
+            is_optional: true,
             message_fields: None,
         };
     }
@@ -195,12 +203,14 @@ mod _field_impls {
             name: "transaction",
             json_name: "transaction",
             number: 1i32,
+            is_optional: true,
             message_fields: Some(ExecutedTransaction::FIELDS),
         };
         pub const COMMAND_RESULTS_FIELD: &'static MessageField = &MessageField {
             name: "command_results",
             json_name: "commandResults",
             number: 2i32,
+            is_optional: true,
             message_fields: Some(CommandResults::FIELDS),
         };
     }

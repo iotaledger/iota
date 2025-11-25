@@ -444,6 +444,9 @@ fn generate_field_constant(
     let json_name = field.json_name();
     let number = field.number();
 
+    // Check if the field is optional in the proto definition
+    let is_proto3_optional = field.proto3_optional.unwrap_or(false);
+
     let message_fields =
         if matches!(field.r#type(), Type::Message) && !field.type_name().contains("google") {
             let field_message_name = field.type_name().split('.').next_back().unwrap();
@@ -483,6 +486,7 @@ fn generate_field_constant(
             name: #name,
             json_name: #json_name,
             number: #number,
+            is_optional: #is_proto3_optional,
             message_fields: #message_fields,
         };
     }

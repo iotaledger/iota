@@ -16,6 +16,7 @@ mod _field_impls {
             name: "bcs",
             json_name: "bcs",
             number: 1i32,
+            is_optional: true,
             message_fields: Some(BcsData::FIELDS),
         };
     }
@@ -52,6 +53,7 @@ mod _field_impls {
             name: "signatures",
             json_name: "signatures",
             number: 1i32,
+            is_optional: false,
             message_fields: Some(UserSignature::FIELDS),
         };
     }
@@ -88,6 +90,7 @@ mod _field_impls {
             name: "bcs",
             json_name: "bcs",
             number: 1i32,
+            is_optional: true,
             message_fields: Some(BcsData::FIELDS),
         };
     }

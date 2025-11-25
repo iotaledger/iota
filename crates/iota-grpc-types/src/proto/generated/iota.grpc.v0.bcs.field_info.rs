@@ -12,6 +12,7 @@ mod _field_impls {
             name: "data",
             json_name: "data",
             number: 1i32,
+            is_optional: false,
             message_fields: None,
         };
     }
