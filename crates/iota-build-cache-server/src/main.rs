@@ -52,7 +52,7 @@ async fn main() -> Result<()> {
     let server = BuildCacheServer::new(args.cache_dir, args.workspace_dir, args.repository_url)?;
 
     if let Err(e) = server.run(args.address).await {
-        error!("Server error: {}", e);
+        error!("Server error: {e}");
         return Err(e);
     }
 

@@ -52,12 +52,12 @@ impl BuildCache {
 
     /// Generate cache key from commit and CPU target only
     fn cache_key(&self, commit: &str, cpu_target: &str) -> String {
-        format!("{}:{}", commit, cpu_target)
+        format!("{commit}:{cpu_target}")
     }
 
     /// Get the cache directory for a specific build
     fn get_cache_path(&self, commit: &str, cpu_target: &str) -> PathBuf {
-        self.cache_dir.join(format!("{}_{}", commit, cpu_target))
+        self.cache_dir.join(format!("{commit}_{cpu_target}"))
     }
 
     /// Helper function to check which binaries exist in cache
@@ -114,35 +114,24 @@ impl BuildCache {
 
         // Security: Ensure the resolved path stays within the cache directory
         let canonical_cache_path = cache_path.canonicalize().map_err(|_| {
-            anyhow::anyhow!(
-                "Invalid cache path for commit {} and CPU target {}",
-                commit,
-                cpu_target
-            )
+            anyhow::anyhow!("Invalid cache path for commit {commit} and CPU target {cpu_target}",)
         })?;
 
         let canonical_binary_path = binary_path.canonicalize().map_err(|_| {
             anyhow::anyhow!(
-                "Binary {} not found for commit {} and CPU target {}",
-                binary_name,
-                commit,
-                cpu_target
+                "Binary {binary_name} not found for commit {commit} and CPU target {cpu_target}",
             )
         })?;
 
         if !canonical_binary_path.starts_with(&canonical_cache_path) {
             return Err(anyhow::anyhow!(
-                "Invalid binary path for {}. Path traversal not allowed.",
-                binary_name
+                "Invalid binary path for {binary_name}. Path traversal not allowed.",
             ));
         }
 
         if !binary_path.exists() {
             return Err(anyhow::anyhow!(
-                "Binary {} not found for commit {} and CPU target {}",
-                binary_name,
-                commit,
-                cpu_target
+                "Binary {binary_name} not found for commit {commit} and CPU target {cpu_target}",
             ));
         }
 
@@ -158,14 +147,11 @@ impl BuildCache {
             self.check_existing_binaries(&request.commit, &request.cpu_target, &request.binaries);
 
         if missing_binaries.is_empty() {
-            info!("All requested binaries already available for {}", key);
+            info!("All requested binaries already available for {key}");
             return Ok(());
         }
 
-        info!(
-            "Available binaries: {:?}, Missing binaries: {:?}",
-            available_binaries, missing_binaries
-        );
+        info!("Available binaries: {available_binaries:?}, Missing binaries: {missing_binaries:?}",);
 
         // Try to acquire build lock without blocking - if any build is running, return
         // error
@@ -182,15 +168,15 @@ impl BuildCache {
         if let Some(existing) = builds.get(&key) {
             match existing.status {
                 BuildStatus::Building | BuildStatus::Queued => {
-                    return Err(anyhow::anyhow!("Build already in progress for {}", key));
+                    return Err(anyhow::anyhow!("Build already in progress for {key}"));
                 }
                 BuildStatus::Failed(_) => {
-                    info!("Previous build failed for {}, starting new build", key);
+                    info!("Previous build failed for {key}, starting new build");
                 }
                 BuildStatus::Success => {
                     // This shouldn't happen since we checked binaries above, but handle it
                     // gracefully
-                    info!("Build marked as completed for {}", key);
+                    info!("Build marked as completed for {key}");
                 }
             }
         }
@@ -216,7 +202,7 @@ impl BuildCache {
             // Acquire the build mutex for the duration of the build
             let _build_guard = cache.build_mutex.lock().await;
             if let Err(e) = cache.perform_build(build_request).await {
-                error!("Build failed: {}", e);
+                error!("Build failed: {e}");
             }
             // _build_guard is dropped here, releasing the mutex
         });
@@ -252,7 +238,7 @@ impl BuildCache {
 
         // Clone or update repository
         if let Err(e) = self.setup_repository(&repo_path, &request.commit).await {
-            self.mark_build_failed(&key, &format!("Repository setup failed: {}", e))
+            self.mark_build_failed(&key, &format!("Repository setup failed: {e}"))
                 .await;
             return Err(e);
         }
@@ -267,7 +253,7 @@ impl BuildCache {
             )
             .await
         {
-            self.mark_build_failed(&key, &format!("Build failed: {}", e))
+            self.mark_build_failed(&key, &format!("Build failed: {e}"))
                 .await;
             return Err(e);
         }
@@ -291,7 +277,7 @@ impl BuildCache {
     /// Setup repository (clone or update to specific commit)
     async fn setup_repository(&self, repo_path: &Path, commit: &str) -> Result<()> {
         if !repo_path.exists() {
-            info!("Cloning repository to {:?}", repo_path);
+            info!("Cloning repository to {repo_path:?}");
             let output = Command::new("git")
                 .args(["clone", &self.repository_url, repo_path.to_str().unwrap()])
                 .current_dir(&self.workspace_dir)
@@ -329,24 +315,16 @@ impl BuildCache {
             .await; // Ignore errors if branch doesn't exist
 
         // Create clean build-temp branch from origin reference
-        info!("Creating clean build-temp branch from origin/{}", commit);
+        info!("Creating clean build-temp branch from origin/{commit}");
         let output = Command::new("git")
-            .args([
-                "checkout",
-                "-b",
-                "build-temp",
-                &format!("origin/{}", commit),
-            ])
+            .args(["checkout", "-b", "build-temp", &format!("origin/{commit}")])
             .current_dir(repo_path)
             .output()
             .await?;
 
         if !output.status.success() {
             // If origin/commit doesn't exist, try direct commit hash
-            info!(
-                "origin/{} not found, trying direct commit {}",
-                commit, commit
-            );
+            info!("origin/{commit} not found, trying direct commit {commit}",);
             let output = Command::new("git")
                 .args(["checkout", "-b", "build-temp", commit])
                 .current_dir(repo_path)
@@ -355,9 +333,7 @@ impl BuildCache {
 
             if !output.status.success() {
                 return Err(anyhow::anyhow!(
-                    "Failed to checkout {} - not found as origin/{} or commit hash: {}",
-                    commit,
-                    commit,
+                    "Failed to checkout {commit} - not found as origin/{commit} or commit hash: {}",
                     String::from_utf8_lossy(&output.stderr)
                 ));
             }
@@ -378,13 +354,13 @@ impl BuildCache {
         fs::create_dir_all(output_path)?;
 
         // Set RUSTFLAGS for CPU target optimization
-        let rustflags = format!("-C target-cpu={}", cpu_target);
+        let rustflags = format!("-C target-cpu={cpu_target}");
 
-        info!("Building binaries with RUSTFLAGS: {}", rustflags);
+        info!("Building binaries with RUSTFLAGS: {rustflags}");
 
         // Build each binary
         for binary in binaries {
-            info!("Building binary: {}", binary);
+            info!("Building binary: {binary}");
 
             let mut child = Command::new("cargo")
                 .args(["build", "--release", "--bin", binary])
@@ -400,7 +376,7 @@ impl BuildCache {
                 let mut lines = reader.lines();
 
                 while let Ok(Some(line)) = lines.next_line().await {
-                    info!("Build output: {}", line);
+                    info!("Build output: {line}");
                 }
             }
 
@@ -408,8 +384,7 @@ impl BuildCache {
 
             if !output.status.success() {
                 return Err(anyhow::anyhow!(
-                    "Build failed for {}: {}",
-                    binary,
+                    "Build failed for {binary}: {}",
                     String::from_utf8_lossy(&output.stderr)
                 ));
             }
@@ -420,12 +395,10 @@ impl BuildCache {
 
             if source.exists() {
                 fs::copy(&source, &dest)?;
-                info!("Cached binary {} to {:?}", binary, dest);
+                info!("Cached binary {binary} to {dest:?}");
             } else {
                 return Err(anyhow::anyhow!(
-                    "Built binary {} not found at {:?}",
-                    binary,
-                    source
+                    "Built binary {binary} not found at {source:?}",
                 ));
             }
         }

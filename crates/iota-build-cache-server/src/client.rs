@@ -58,8 +58,8 @@ impl BuildCacheClient {
         binaries: &[String],
     ) -> BuildCacheResult<BuildCacheResponse> {
         let url = format!(
-            "http://{}:{}/check/{}/{}",
-            self.build_instance_ip, self.port, commit, cpu_target
+            "http://{}:{}/check/{commit}/{cpu_target}",
+            self.build_instance_ip, self.port
         );
 
         let mut params = HashMap::new();
@@ -88,8 +88,8 @@ impl BuildCacheClient {
         local_path: &PathBuf,
     ) -> BuildCacheResult<()> {
         let url = format!(
-            "http://{}:{}/download/{}/{}/{}",
-            self.build_instance_ip, self.port, commit, cpu_target, binary_name
+            "http://{}:{}/download/{commit}/{cpu_target}/{binary_name}",
+            self.build_instance_ip, self.port
         );
 
         let response = self.client.get(&url).send().await?;
@@ -147,12 +147,11 @@ impl BuildCacheClient {
             // Try to get the error message from the response body
             let error_message = match response.text().await {
                 Ok(body) => body,
-                Err(_) => format!("HTTP {}", status),
+                Err(_) => format!("HTTP {status}"),
             };
 
             return Err(BuildCacheError::Cache(format!(
-                "Build request failed for commit {} CPU target {}: {}",
-                commit, cpu_target, error_message
+                "Build request failed for commit {commit} CPU target {cpu_target}: {error_message}",
             )));
         }
 

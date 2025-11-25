@@ -35,7 +35,7 @@ impl BuildCacheServer {
     /// Run the HTTP server
     pub async fn run(&self, addr: SocketAddr) -> Result<()> {
         let listener = TcpListener::bind(addr).await?;
-        info!("Build cache server listening on {}", addr);
+        info!("Build cache server listening on {addr}");
 
         loop {
             let (stream, _) = listener.accept().await?;
@@ -52,7 +52,7 @@ impl BuildCacheServer {
                     .serve_connection(io, service)
                     .await
                 {
-                    error!("Error serving connection: {:?}", err);
+                    error!("Error serving connection: {err:?}");
                 }
             });
         }
@@ -67,7 +67,7 @@ async fn handle_request(
     let method = req.method();
     let path = req.uri().path();
 
-    info!("{} {}", method, path);
+    info!("{method} {path}");
 
     let response = match (method, path) {
         // GET /check/{commit}/{cpu_target}?binaries=bin1,bin2,bin3
@@ -165,11 +165,11 @@ async fn handle_download_request(
             .body(Full::new(Bytes::from(data)))
             .unwrap()),
         Err(e) => {
-            warn!("Binary not found: {}", e);
+            warn!("Binary not found: {e}");
             Ok(Response::builder()
                 .status(StatusCode::NOT_FOUND)
                 .header(CONTENT_TYPE, "text/plain")
-                .body(Full::new(Bytes::from(format!("Binary not found: {}", e))))
+                .body(Full::new(Bytes::from(format!("Binary not found: {e}"))))
                 .unwrap())
         }
     }
@@ -190,23 +190,22 @@ async fn handle_build_request(
                 .body(Full::new(Bytes::from("Build started")))
                 .unwrap()),
             Err(e) => {
-                error!("Failed to start build: {}", e);
+                error!("Failed to start build: {e}");
                 Ok(Response::builder()
                     .status(StatusCode::INTERNAL_SERVER_ERROR)
                     .header(CONTENT_TYPE, "text/plain")
                     .body(Full::new(Bytes::from(format!(
-                        "Failed to start build: {}",
-                        e
+                        "Failed to start build: {e}",
                     ))))
                     .unwrap())
             }
         },
         Err(e) => {
-            warn!("Invalid build request: {}", e);
+            warn!("Invalid build request: {e}");
             Ok(Response::builder()
                 .status(StatusCode::BAD_REQUEST)
                 .header(CONTENT_TYPE, "text/plain")
-                .body(Full::new(Bytes::from(format!("Invalid request: {}", e))))
+                .body(Full::new(Bytes::from(format!("Invalid request: {e}"))))
                 .unwrap())
         }
     }
