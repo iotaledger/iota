@@ -15,15 +15,15 @@ use test_cluster::TestClusterBuilder;
 use crate::{impl_field_presence_checker, utils::assert_field_presence};
 
 // Generate the FieldPresenceChecker implementation for GetServiceInfoResponse
-impl_field_presence_checker!(GetServiceInfoResponse, {
-    "chain_id" => chain_id,
-    "chain" => chain,
-    "epoch" => epoch,
-    "executed_checkpoint_height" => executed_checkpoint_height,
-    "executed_checkpoint_timestamp" => executed_checkpoint_timestamp,
-    "lowest_available_checkpoint" => lowest_available_checkpoint,
-    "lowest_available_checkpoint_objects" => lowest_available_checkpoint_objects,
-    "server" => server,
+impl_field_presence_checker!(GetServiceInfoResponse {
+    chain_id,
+    chain,
+    epoch,
+    executed_checkpoint_height,
+    executed_checkpoint_timestamp,
+    lowest_available_checkpoint,
+    lowest_available_checkpoint_objects,
+    server,
 });
 
 async fn assert_service_info_request(

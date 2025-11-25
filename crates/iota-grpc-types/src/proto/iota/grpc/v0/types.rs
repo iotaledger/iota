@@ -29,3 +29,11 @@ impl From<iota_sdk2::types::CheckpointContentsDigest> for Digest {
         }
     }
 }
+
+impl From<iota_sdk2::types::ObjectDigest> for Digest {
+    fn from(value: iota_sdk2::types::ObjectDigest) -> Self {
+        Self {
+            digest: value.into_inner().to_vec().into(),
+        }
+    }
+}

@@ -12,6 +12,7 @@ mod _field_impls {
             name: "address",
             json_name: "address",
             number: 1i32,
+            is_optional: false,
             message_fields: None,
         };
     }
@@ -48,6 +49,7 @@ mod _field_impls {
             name: "digest",
             json_name: "digest",
             number: 1i32,
+            is_optional: false,
             message_fields: None,
         };
     }
@@ -84,18 +86,21 @@ mod _field_impls {
             name: "object_id",
             json_name: "objectId",
             number: 1i32,
+            is_optional: true,
             message_fields: None,
         };
         pub const VERSION_FIELD: &'static MessageField = &MessageField {
             name: "version",
             json_name: "version",
             number: 2i32,
+            is_optional: true,
             message_fields: None,
         };
         pub const DIGEST_FIELD: &'static MessageField = &MessageField {
             name: "digest",
             json_name: "digest",
             number: 3i32,
+            is_optional: true,
             message_fields: Some(Digest::FIELDS),
         };
     }
@@ -144,6 +149,7 @@ mod _field_impls {
             name: "inner_type",
             json_name: "innerType",
             number: 1i32,
+            is_optional: false,
             message_fields: None,
         };
     }
@@ -180,6 +186,7 @@ mod _field_impls {
             name: "struct_tag",
             json_name: "structTag",
             number: 1i32,
+            is_optional: false,
             message_fields: None,
         };
     }
@@ -216,66 +223,77 @@ mod _field_impls {
             name: "bool_tag",
             json_name: "boolTag",
             number: 1i32,
+            is_optional: false,
             message_fields: None,
         };
         pub const U8_TAG_FIELD: &'static MessageField = &MessageField {
             name: "u8_tag",
             json_name: "u8Tag",
             number: 2i32,
+            is_optional: false,
             message_fields: None,
         };
         pub const U16_TAG_FIELD: &'static MessageField = &MessageField {
             name: "u16_tag",
             json_name: "u16Tag",
             number: 3i32,
+            is_optional: false,
             message_fields: None,
         };
         pub const U32_TAG_FIELD: &'static MessageField = &MessageField {
             name: "u32_tag",
             json_name: "u32Tag",
             number: 4i32,
+            is_optional: false,
             message_fields: None,
         };
         pub const U64_TAG_FIELD: &'static MessageField = &MessageField {
             name: "u64_tag",
             json_name: "u64Tag",
             number: 5i32,
+            is_optional: false,
             message_fields: None,
         };
         pub const U128_TAG_FIELD: &'static MessageField = &MessageField {
             name: "u128_tag",
             json_name: "u128Tag",
             number: 6i32,
+            is_optional: false,
             message_fields: None,
         };
         pub const U256_TAG_FIELD: &'static MessageField = &MessageField {
             name: "u256_tag",
             json_name: "u256Tag",
             number: 7i32,
+            is_optional: false,
             message_fields: None,
         };
         pub const ADDRESS_TAG_FIELD: &'static MessageField = &MessageField {
             name: "address_tag",
             json_name: "addressTag",
             number: 8i32,
+            is_optional: false,
             message_fields: None,
         };
         pub const SIGNER_TAG_FIELD: &'static MessageField = &MessageField {
             name: "signer_tag",
             json_name: "signerTag",
             number: 9i32,
+            is_optional: false,
             message_fields: None,
         };
         pub const VECTOR_TAG_FIELD: &'static MessageField = &MessageField {
             name: "vector_tag",
             json_name: "vectorTag",
             number: 10i32,
+            is_optional: false,
             message_fields: Some(TypeTagVector::FIELDS),
         };
         pub const STRUCT_TAG_FIELD: &'static MessageField = &MessageField {
             name: "struct_tag",
             json_name: "structTag",
             number: 11i32,
+            is_optional: false,
             message_fields: Some(TypeTagStruct::FIELDS),
         };
     }
@@ -364,6 +382,7 @@ mod _field_impls {
             name: "type_tags",
             json_name: "typeTags",
             number: 1i32,
+            is_optional: false,
             message_fields: Some(TypeTag::FIELDS),
         };
     }

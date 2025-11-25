@@ -80,6 +80,7 @@ mod _field_impls {
                 name: "index",
                 json_name: "index",
                 number: 1i32,
+                is_optional: true,
                 message_fields: None,
             };
         }
@@ -116,12 +117,14 @@ mod _field_impls {
                 name: "index",
                 json_name: "index",
                 number: 1i32,
+                is_optional: true,
                 message_fields: None,
             };
             pub const NESTED_RESULT_INDEX_FIELD: &'static MessageField = &MessageField {
                 name: "nested_result_index",
                 json_name: "nestedResultIndex",
                 number: 2i32,
+                is_optional: true,
                 message_fields: None,
             };
         }
@@ -166,24 +169,28 @@ mod _field_impls {
             name: "unknown",
             json_name: "unknown",
             number: 1i32,
+            is_optional: false,
             message_fields: Some(Unknown::FIELDS),
         };
         pub const GAS_COIN_FIELD: &'static MessageField = &MessageField {
             name: "gas_coin",
             json_name: "gasCoin",
             number: 2i32,
+            is_optional: false,
             message_fields: Some(GasCoin::FIELDS),
         };
         pub const INPUT_FIELD: &'static MessageField = &MessageField {
             name: "input",
             json_name: "input",
             number: 3i32,
+            is_optional: false,
             message_fields: Some(Input::FIELDS),
         };
         pub const RESULT_FIELD: &'static MessageField = &MessageField {
             name: "result",
             json_name: "result",
             number: 4i32,
+            is_optional: false,
             message_fields: Some(Result::FIELDS),
         };
     }
@@ -237,18 +244,21 @@ mod _field_impls {
             name: "argument",
             json_name: "argument",
             number: 1i32,
+            is_optional: true,
             message_fields: Some(Argument::FIELDS),
         };
         pub const TYPE_TAG_FIELD: &'static MessageField = &MessageField {
             name: "type_tag",
             json_name: "typeTag",
             number: 2i32,
+            is_optional: true,
             message_fields: Some(TypeTag::FIELDS),
         };
         pub const BCS_FIELD: &'static MessageField = &MessageField {
             name: "bcs",
             json_name: "bcs",
             number: 3i32,
+            is_optional: true,
             message_fields: Some(BcsData::FIELDS),
         };
     }
@@ -297,6 +307,7 @@ mod _field_impls {
             name: "outputs",
             json_name: "outputs",
             number: 1i32,
+            is_optional: false,
             message_fields: Some(CommandOutput::FIELDS),
         };
     }
@@ -333,12 +344,14 @@ mod _field_impls {
             name: "return_values",
             json_name: "returnValues",
             number: 1i32,
+            is_optional: true,
             message_fields: Some(CommandOutputs::FIELDS),
         };
         pub const MUTATED_BY_REF_FIELD: &'static MessageField = &MessageField {
             name: "mutated_by_ref",
             json_name: "mutatedByRef",
             number: 2i32,
+            is_optional: true,
             message_fields: Some(CommandOutputs::FIELDS),
         };
     }
@@ -382,6 +395,7 @@ mod _field_impls {
             name: "results",
             json_name: "results",
             number: 1i32,
+            is_optional: false,
             message_fields: Some(CommandResult::FIELDS),
         };
     }

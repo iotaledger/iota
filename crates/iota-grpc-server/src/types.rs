@@ -14,9 +14,11 @@ use iota_grpc_types::v0::{
 };
 use iota_json_rpc_types::{EventFilter, IotaEvent};
 use iota_types::{
+    base_types::{ObjectID, VersionNumber},
     full_checkpoint_content::CheckpointData,
     messages_checkpoint::CertifiedCheckpointSummary,
-    storage::{RestStateReader, error::Kind},
+    object::Object,
+    storage::{ObjectStore, ReadStore, RestStateReader, error::Kind},
 };
 use serde::Serialize;
 use tokio::sync::broadcast::{Receiver, Sender, error::RecvError};
@@ -231,6 +233,12 @@ pub trait GrpcStateReader: Send + Sync + 'static {
     /// Get the lowest available checkpoint for which object data is available
     fn get_lowest_available_checkpoint_objects(&self) -> anyhow::Result<u64>;
 
+    /// Get an object by its ObjectID
+    fn get_object(&self, object_id: &ObjectID) -> Option<Object>;
+
+    /// Get an object by its ObjectID and version
+    fn get_object_by_key(&self, object_id: &ObjectID, version: VersionNumber) -> Option<Object>;
+
     /// Get committee for a specific epoch
     fn get_committee(
         &self,
@@ -297,6 +305,14 @@ impl GrpcStateReader for RestStateReaderAdapter {
         self.inner
             .get_lowest_available_checkpoint_objects()
             .map_err(Into::into)
+    }
+
+    fn get_object(&self, object_id: &ObjectID) -> Option<Object> {
+        self.inner.get_object(object_id)
+    }
+
+    fn get_object_by_key(&self, object_id: &ObjectID, version: VersionNumber) -> Option<Object> {
+        self.inner.get_object_by_key(object_id, version)
     }
 
     fn get_committee(
@@ -380,6 +396,18 @@ impl GrpcReader {
 
     pub fn get_lowest_available_checkpoint_objects(&self) -> anyhow::Result<u64> {
         self.state_reader.get_lowest_available_checkpoint_objects()
+    }
+
+    pub fn get_object(&self, object_id: &ObjectID) -> Option<Object> {
+        self.state_reader.get_object(object_id)
+    }
+
+    pub fn get_object_by_key(
+        &self,
+        object_id: &ObjectID,
+        version: VersionNumber,
+    ) -> Option<Object> {
+        self.state_reader.get_object_by_key(object_id, version)
     }
 
     pub fn get_committee(

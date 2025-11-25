@@ -185,12 +185,14 @@ mod tests {
                     name: "a",
                     json_name: "a",
                     number: 1,
+                    is_optional: false,
                     message_fields: None,
                 },
                 &MessageField {
                     name: "b",
                     json_name: "b",
                     number: 2,
+                    is_optional: false,
                     message_fields: None,
                 },
             ];
