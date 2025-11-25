@@ -9,9 +9,9 @@ use super::{PerturbationSpec, TopologyLayout};
 // Distribution: 18x US-East, 4x US-West, 2x Canada, 21x EU-West,
 // 13x EU-North, 8x AP-Southeast, 1x AP-South, 1x AP-Northeast
 const MAINNET_NODE_REGIONS: [usize; 70] = [
-    5, 3, 0, 3, 3, 3, 8, 3, 0, 5, 3, 5, 3, 3, 8, 5, 0, 1, 3, 1, 0, 5, 3, 5, 0, 5, 0, 0, 5, 5, 3, 5,
-    3, 0, 3, 5, 3, 9, 3, 8, 0, 3, 3, 3, 2, 7, 0, 1, 0, 2, 0, 5, 0, 8, 8, 1, 0, 8, 0, 0, 3, 3, 8, 0,
-    3, 0, 8, 5, 0, 0,
+    8, 8, 9, 7, 3, 3, 5, 3, 0, 5, 3, 5, 3, 3, 5, 5, 0, 1, 3, 1, 0, 5, 3, 5, 0, 5, 0, 0, 5, 5, 3, 5,
+    3, 0, 3, 5, 3, 0, 3, 8, 0, 3, 3, 3, 2, 0, 0, 1, 0, 2, 0, 5, 0, 8, 8, 1, 0, 8, 0, 0, 3, 3, 8, 0,
+    3, 0, 0, 5, 0, 0,
 ];
 
 // RTT table for 10 AWS regions, in milliseconds.
