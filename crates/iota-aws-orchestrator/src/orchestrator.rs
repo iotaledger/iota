@@ -430,11 +430,12 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
 
             // Wait until all fullnodes are reachable (otherwise clients might fail when a
             // fullnode is not listening yet).
+            display::action("Await fullnode ready...");
             let commands = self
                 .client_instances
                 .iter()
                 .cloned()
-                .map(|i| (i, "curl http://127.0.0.1:9000".to_owned())); // fullnodes default json RPC address
+                .map(|i| (i, "curl http://127.0.0.1:9000 -H 'Content-Type: application/json' -d '{\"jsonrpc\":\"2.0\",\"method\":\"iota_getLatestCheckpointSequenceNumber\",\"params\":[],\"id\":1}'".to_owned())); // fullnodes default json RPC address
             self.ssh_manager.wait_for_success(commands).await;
 
             display::done();
