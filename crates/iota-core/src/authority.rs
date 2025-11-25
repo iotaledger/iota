@@ -54,7 +54,7 @@ use iota_storage::{
 use iota_types::committee::CommitteeTrait;
 use iota_types::{
     IOTA_SYSTEM_ADDRESS, TypeTag,
-    account::{self, AuthenticatorInfoV1},
+    account::{self, AuthenticatorInfoV1, AuthenticatorInfoV1Key},
     authenticator_state::get_authenticator_state,
     base_types::*,
     committee::{Committee, EpochId, ProtocolVersion},
@@ -5423,11 +5423,10 @@ impl AuthorityState {
                 .try_as_move()
                 .expect("dynamic field should never be a package object");
 
-            let field: Field<Vec<u8>, AuthenticatorInfoV1> =
-                bcs::from_bytes(field_move_object.contents()).map_err(|_| {
-                    UserInputError::InvalidAuthenticatorInfoField {
-                        account_object_id: auth_account_object_id,
-                    }
+            let field: Field<AuthenticatorInfoV1Key, AuthenticatorInfoV1> = field_move_object
+                .to_rust()
+                .ok_or(UserInputError::InvalidAuthenticatorInfoField {
+                    account_object_id: auth_account_object_id,
                 })?;
 
             Ok(field.value)
