@@ -2617,8 +2617,8 @@ impl SenderSignedData {
     /// with the same version but different mutability, only one instance which
     /// is mutable is returned.
     ///
-    /// Shared objects with the same ID but different versions are returned
-    /// separately.
+    /// Panics if there are shared objects with the same ID but different
+    /// initial versions.
     pub fn shared_input_objects(&self) -> Vec<SharedInputObject> {
         // Vector is used to preserve the order of input objects.
         let mut input_objects = self.transaction_data().shared_input_objects();
@@ -2626,10 +2626,9 @@ impl SenderSignedData {
         // Add the Move authenticator shared objects if any.
         if let Some(move_authenticator) = self.sender_move_authenticator() {
             for auth_shared_object in move_authenticator.shared_objects() {
-                let entry = input_objects.iter_mut().find(|o| {
-                    o.id == auth_shared_object.id
-                        && o.initial_shared_version == auth_shared_object.initial_shared_version
-                });
+                let entry = input_objects
+                    .iter_mut()
+                    .find(|o| o.id == auth_shared_object.id);
 
                 match entry {
                     None => input_objects.push(auth_shared_object),
