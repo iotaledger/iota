@@ -17,7 +17,7 @@ use tokio::{
 };
 use tracing::{error, info};
 
-use crate::types::{BuildCacheResponse, BuildJob, BuildRequest, BuildStatus};
+use crate::types::{BuildCacheResponse, BuildJob, BuildResponse, BuildStatus};
 
 /// The build cache that handles git operations and cargo builds
 pub struct BuildCache {
@@ -138,17 +138,37 @@ impl BuildCache {
         Ok(fs::read(binary_path)?)
     }
 
-    /// Start building binaries for a commit
-    pub async fn start_build(&self, request: BuildRequest) -> Result<()> {
-        let key = self.cache_key(&request.commit, &request.cpu_target);
+    /// Resolve a branch/tag/commit to an actual commit hash
+    pub async fn resolve_commit(&self, commit_ref: &str) -> Result<String> {
+        // First setup the repository to ensure we have the latest refs
+        let resolved_commit = self
+            .setup_repository(&self.workspace_dir, commit_ref)
+            .await?;
+        Ok(resolved_commit)
+    }
+
+    /// Start building binaries for a commit (resolves branches/tags to commit
+    /// hash)
+    pub async fn start_build(
+        &self,
+        commit: &str,
+        cpu_target: &str,
+        binaries: &[String],
+    ) -> Result<BuildResponse> {
+        let key = self.cache_key(commit, cpu_target);
 
         // Check which binaries already exist and which need to be built
         let (available_binaries, missing_binaries) =
-            self.check_existing_binaries(&request.commit, &request.cpu_target, &request.binaries);
+            self.check_existing_binaries(commit, cpu_target, binaries);
 
         if missing_binaries.is_empty() {
             info!("All requested binaries already available for {key}");
-            return Ok(());
+            return Ok(BuildResponse {
+                resolved_commit: commit.to_string(),
+                cpu_target: cpu_target.to_string(),
+                binaries: available_binaries,
+                message: "All binaries already available".to_string(),
+            });
         }
 
         info!("Available binaries: {available_binaries:?}, Missing binaries: {missing_binaries:?}",);
@@ -183,8 +203,8 @@ impl BuildCache {
 
         // Create build job with only the missing binaries
         let job = BuildJob {
-            commit: request.commit.clone(),
-            cpu_target: request.cpu_target.clone(),
+            commit: commit.to_string(),
+            cpu_target: cpu_target.to_string(),
             binaries: missing_binaries.clone(),
             status: BuildStatus::Queued,
             started_at: None,
@@ -196,18 +216,31 @@ impl BuildCache {
 
         // Start build in background while holding the build guard
         let cache = self.clone_for_async();
-        let mut build_request = request.clone();
-        build_request.binaries = missing_binaries; // Only build what's missing
+
+        let commit_clone = commit.to_string();
+        let cpu_target_clone = cpu_target.to_string();
+        let missing_binaries_clone = missing_binaries.clone();
+
         tokio::spawn(async move {
             // Acquire the build mutex for the duration of the build
             let _build_guard = cache.build_mutex.lock().await;
-            if let Err(e) = cache.perform_build(build_request).await {
+
+            // Only build what's missing
+            if let Err(e) = cache
+                .perform_build(&commit_clone, &cpu_target_clone, &missing_binaries_clone)
+                .await
+            {
                 error!("Build failed: {e}");
             }
             // _build_guard is dropped here, releasing the mutex
         });
 
-        Ok(())
+        Ok(BuildResponse {
+            resolved_commit: commit.to_string(),
+            cpu_target: cpu_target.to_string(),
+            binaries: missing_binaries,
+            message: "Build started".to_string(),
+        })
     }
 
     /// Clone self for async operations (we need to implement Clone)
@@ -222,10 +255,22 @@ impl BuildCache {
     }
 
     /// Perform the actual build
-    async fn perform_build(&self, request: BuildRequest) -> Result<()> {
-        let key = self.cache_key(&request.commit, &request.cpu_target);
-        let cache_path = self.get_cache_path(&request.commit, &request.cpu_target);
+    async fn perform_build(
+        &self,
+        commit: &str,
+        cpu_target: &str,
+        binaries: &[String],
+    ) -> Result<()> {
         let repo_path = &self.workspace_dir;
+
+        // First setup repository and resolve commit to actual SHA
+        let resolved_commit = self
+            .setup_repository(repo_path, commit)
+            .await
+            .map_err(|e| anyhow::anyhow!("Repository setup failed: {e}"))?;
+
+        let key = self.cache_key(&resolved_commit, cpu_target);
+        let cache_path = self.get_cache_path(&resolved_commit, cpu_target);
 
         // Update job status
         {
@@ -236,21 +281,11 @@ impl BuildCache {
             }
         }
 
-        // Clone or update repository
-        if let Err(e) = self.setup_repository(&repo_path, &request.commit).await {
-            self.mark_build_failed(&key, &format!("Repository setup failed: {e}"))
-                .await;
-            return Err(e);
-        }
+        // Repository was already set up above and commit SHA was resolved
 
         // Build binaries
         if let Err(e) = self
-            .build_binaries(
-                &repo_path,
-                &request.cpu_target,
-                &request.binaries,
-                &cache_path,
-            )
+            .build_binaries(repo_path, cpu_target, binaries, &cache_path)
             .await
         {
             self.mark_build_failed(&key, &format!("Build failed: {e}"))
@@ -268,14 +303,38 @@ impl BuildCache {
         }
 
         info!(
-            "Build completed successfully for commit {} with CPU target {}",
-            request.commit, request.cpu_target
+            "Build completed successfully for commit {resolved_commit} with CPU target {cpu_target}"
         );
         Ok(())
     }
 
+    /// Resolve commit reference to SHA using local git repository
+    async fn resolve_commit_locally(&self, repo_path: &Path, commit_ref: &str) -> Result<String> {
+        let output = Command::new("git")
+            .args(["rev-parse", commit_ref])
+            .current_dir(repo_path)
+            .output()
+            .await?;
+
+        if output.status.success() {
+            let resolved_commit = String::from_utf8_lossy(&output.stdout).trim().to_string();
+            if resolved_commit.len() >= 7 && resolved_commit.chars().all(|c| c.is_ascii_hexdigit())
+            {
+                if commit_ref != resolved_commit {
+                    info!("Resolved '{}' to commit '{}'", commit_ref, resolved_commit);
+                }
+                return Ok(resolved_commit);
+            }
+        }
+
+        Err(anyhow::anyhow!(
+            "Could not resolve {commit_ref} to commit SHA: {}",
+            String::from_utf8_lossy(&output.stderr)
+        ))
+    }
+
     /// Setup repository (clone or update to specific commit)
-    async fn setup_repository(&self, repo_path: &Path, commit: &str) -> Result<()> {
+    async fn setup_repository(&self, repo_path: &Path, commit: &str) -> Result<String> {
         if !repo_path.exists() || !repo_path.join(".git").exists() {
             info!("Cloning repository to {repo_path:?}");
 
@@ -344,6 +403,12 @@ impl BuildCache {
             .output()
             .await;
 
+        // If we are already at the desired commit, return early
+        let current_commit = self.resolve_commit_locally(repo_path, "HEAD").await?;
+        if current_commit == commit {
+            return Ok(current_commit);
+        }
+
         // Fetch latest changes with all references
         info!("Fetching latest changes");
         let output = Command::new("git")
@@ -396,7 +461,9 @@ impl BuildCache {
             }
         }
 
-        Ok(())
+        // Resolve the final commit SHA after all git operations
+        let resolved_commit = self.resolve_commit_locally(repo_path, "HEAD").await?;
+        Ok(resolved_commit)
     }
 
     /// Build the specified binaries

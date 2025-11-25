@@ -21,6 +21,17 @@ pub struct BuildRequest {
     pub binaries: Vec<String>,
 }
 
+/// Response from the build endpoint with resolved commit hash.
+#[derive(Debug, Serialize, Deserialize)]
+pub struct BuildResponse {
+    /// The resolved commit hash (even if a branch/tag was provided in the
+    /// request)
+    pub resolved_commit: String,
+    pub cpu_target: String,
+    pub binaries: Vec<String>,
+    pub message: String,
+}
+
 /// Status of a build job.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum BuildStatus {

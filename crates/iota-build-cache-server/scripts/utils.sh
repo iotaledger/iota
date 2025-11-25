@@ -108,6 +108,17 @@ EOF
 
     if [ "$HTTP_CODE" = "202" ]; then
         log_success "Build request accepted"
+        
+        # Parse the resolved commit from the response
+        RESOLVED_COMMIT=$(echo "$BODY" | jq -r '.resolved_commit' 2>/dev/null || echo "$COMMIT")
+        if [ "$RESOLVED_COMMIT" != "$COMMIT" ]; then
+            log_info "Resolved '$COMMIT' to commit '$RESOLVED_COMMIT'"
+            # Update the global COMMIT variable to use resolved commit for subsequent operations
+            export COMMIT="$RESOLVED_COMMIT"
+        fi
+        
+        MESSAGE=$(echo "$BODY" | jq -r '.message' 2>/dev/null || echo "Build started")
+        log_info "$MESSAGE"
     else
         log_error "Build request failed (HTTP $HTTP_CODE)"
         if [ -n "$BODY" ]; then
@@ -214,25 +225,34 @@ download() {
     IFS=',' read -ra BINARY_ARRAY <<< "$BINARIES"
 
     # Download each binary
+    ACTUAL_COMMIT=""
     for BINARY in "${BINARY_ARRAY[@]}"; do
         BINARY=$(echo "$BINARY" | xargs)  # Trim whitespace
         
         log_info "Downloading $BINARY..."
         
-        RESPONSE=$(curl -s -w "\n%{http_code}" -L \
+        # Use temporary file for headers
+        HEADER_FILE=$(mktemp)
+        
+        RESPONSE=$(curl -s -w "\n%{http_code}" -L -D "$HEADER_FILE" \
             "http://$BUILD_CACHE_SERVER/download/$COMMIT/$CPU_TARGET/$BINARY" \
             -o "$OUTPUT_DIR/$BINARY")
         
         HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
         
         if [ "$HTTP_CODE" = "200" ]; then
+            # Extract the actual commit hash from headers if present
+            ACTUAL_COMMIT=$(grep -i "x-iota-build-commit-hash:" "$HEADER_FILE" | cut -d' ' -f2 | tr -d '\r\n' || echo "")
             chmod +x "$OUTPUT_DIR/$BINARY"
-            log_success "Downloaded $BINARY to $OUTPUT_DIR/$BINARY"
+            log_success "Downloaded $BINARY to $OUTPUT_DIR/$BINARY (commit: ${ACTUAL_COMMIT:-$COMMIT})"
         else
             log_error "Failed to download $BINARY (HTTP $HTTP_CODE)"
             rm -f "$OUTPUT_DIR/$BINARY"  # Remove partial file
             exit 1
         fi
+        
+        # Clean up temporary header file
+        rm -f "$HEADER_FILE"
     done
 
     log_success "All binaries downloaded successfully to $OUTPUT_DIR"

@@ -121,21 +121,38 @@ async fn handle_check_request(
             .unwrap());
     }
 
-    let commit = parts[2];
+    let commit_ref = parts[2];
     let cpu_target = parts[3];
 
     // Parse query parameters for binaries
     let query = req.uri().query().unwrap_or("");
     let binaries = parse_binaries_from_query(query);
 
-    let response = cache.check_binaries(commit, cpu_target, &binaries).await;
-    let json = serde_json::to_string(&response).unwrap();
+    // Resolve branch/tag/commit to actual commit hash
+    match cache.resolve_commit(commit_ref).await {
+        Ok(resolved_commit) => {
+            let response = cache
+                .check_binaries(&resolved_commit, cpu_target, &binaries)
+                .await;
+            let json = serde_json::to_string(&response).unwrap();
 
-    Ok(Response::builder()
-        .status(StatusCode::OK)
-        .header(CONTENT_TYPE, "application/json")
-        .body(Full::new(Bytes::from(json)))
-        .unwrap())
+            Ok(Response::builder()
+                .status(StatusCode::OK)
+                .header(CONTENT_TYPE, "application/json")
+                .body(Full::new(Bytes::from(json)))
+                .unwrap())
+        }
+        Err(e) => {
+            error!("Failed to resolve commit '{commit_ref}': {e}");
+            Ok(Response::builder()
+                .status(StatusCode::BAD_REQUEST)
+                .header(CONTENT_TYPE, "text/plain")
+                .body(Full::new(Bytes::from(format!(
+                    "Invalid commit/branch/tag: {e}"
+                ))))
+                .unwrap())
+        }
+    }
 }
 
 /// Handle binary download requests
@@ -154,22 +171,41 @@ async fn handle_download_request(
             .unwrap());
     }
 
-    let commit = parts[2];
+    let commit_ref = parts[2];
     let cpu_target = parts[3];
     let binary_name = parts[4];
 
-    match cache.get_binary_data(commit, cpu_target, binary_name).await {
-        Ok(data) => Ok(Response::builder()
-            .status(StatusCode::OK)
-            .header(CONTENT_TYPE, "application/octet-stream")
-            .body(Full::new(Bytes::from(data)))
-            .unwrap()),
+    // Resolve branch/tag/commit to actual commit hash
+    match cache.resolve_commit(commit_ref).await {
+        Ok(resolved_commit) => {
+            match cache
+                .get_binary_data(&resolved_commit, cpu_target, binary_name)
+                .await
+            {
+                Ok(data) => Ok(Response::builder()
+                    .status(StatusCode::OK)
+                    .header(CONTENT_TYPE, "application/octet-stream")
+                    .header("x-iota-build-commit-hash", resolved_commit)
+                    .body(Full::new(Bytes::from(data)))
+                    .unwrap()),
+                Err(e) => {
+                    warn!("Binary not found: {e}");
+                    Ok(Response::builder()
+                        .status(StatusCode::NOT_FOUND)
+                        .header(CONTENT_TYPE, "text/plain")
+                        .body(Full::new(Bytes::from(format!("Binary not found: {e}"))))
+                        .unwrap())
+                }
+            }
+        }
         Err(e) => {
-            warn!("Binary not found: {e}");
+            error!("Failed to resolve commit '{commit_ref}': {e}");
             Ok(Response::builder()
-                .status(StatusCode::NOT_FOUND)
+                .status(StatusCode::BAD_REQUEST)
                 .header(CONTENT_TYPE, "text/plain")
-                .body(Full::new(Bytes::from(format!("Binary not found: {e}"))))
+                .body(Full::new(Bytes::from(format!(
+                    "Invalid commit/branch/tag: {e}"
+                ))))
                 .unwrap())
         }
     }
@@ -182,20 +218,47 @@ async fn handle_build_request(
 ) -> Result<Response<Full<Bytes>>, Infallible> {
     let body = req.collect().await.unwrap().to_bytes();
 
+    // Parse the request body as BuildRequest
     match serde_json::from_slice::<BuildRequest>(&body) {
-        Ok(build_request) => match cache.start_build(build_request).await {
-            Ok(()) => Ok(Response::builder()
-                .status(StatusCode::ACCEPTED)
-                .header(CONTENT_TYPE, "text/plain")
-                .body(Full::new(Bytes::from("Build started")))
-                .unwrap()),
+        // Resolve branch/tag/commit to actual commit hash
+        Ok(build_request) => match cache.resolve_commit(build_request.commit.as_str()).await {
+            Ok(resolved_commit) => {
+                // Start the build
+                match cache
+                    .start_build(
+                        &resolved_commit,
+                        &build_request.cpu_target,
+                        &build_request.binaries,
+                    )
+                    .await
+                {
+                    Ok(build_response) => {
+                        let json = serde_json::to_string(&build_response).unwrap();
+                        Ok(Response::builder()
+                            .status(StatusCode::ACCEPTED)
+                            .header(CONTENT_TYPE, "application/json")
+                            .body(Full::new(Bytes::from(json)))
+                            .unwrap())
+                    }
+                    Err(e) => {
+                        error!("Failed to start build: {e}");
+                        Ok(Response::builder()
+                            .status(StatusCode::INTERNAL_SERVER_ERROR)
+                            .header(CONTENT_TYPE, "text/plain")
+                            .body(Full::new(Bytes::from(format!(
+                                "Failed to start build: {e}",
+                            ))))
+                            .unwrap())
+                    }
+                }
+            }
             Err(e) => {
-                error!("Failed to start build: {e}");
+                error!("Failed to resolve commit '{}': {e}", build_request.commit);
                 Ok(Response::builder()
-                    .status(StatusCode::INTERNAL_SERVER_ERROR)
+                    .status(StatusCode::BAD_REQUEST)
                     .header(CONTENT_TYPE, "text/plain")
                     .body(Full::new(Bytes::from(format!(
-                        "Failed to start build: {e}",
+                        "Invalid commit/branch/tag: {e}"
                     ))))
                     .unwrap())
             }
@@ -227,27 +290,45 @@ async fn handle_status_request(
             .unwrap());
     }
 
-    let commit = parts[2];
+    let commit_ref = parts[2];
     let cpu_target = parts[3];
 
     // Parse query parameters for binaries
     let query = req.uri().query().unwrap_or("");
     let binaries = parse_binaries_from_query(query);
 
-    match cache.get_build_status(commit, cpu_target, &binaries).await {
-        Some(status) => {
-            let json = serde_json::to_string(&status).unwrap();
+    // Resolve branch/tag/commit to actual commit hash
+    match cache.resolve_commit(commit_ref).await {
+        Ok(resolved_commit) => {
+            match cache
+                .get_build_status(&resolved_commit, cpu_target, &binaries)
+                .await
+            {
+                Some(status) => {
+                    let json = serde_json::to_string(&status).unwrap();
+                    Ok(Response::builder()
+                        .status(StatusCode::OK)
+                        .header(CONTENT_TYPE, "application/json")
+                        .body(Full::new(Bytes::from(json)))
+                        .unwrap())
+                }
+                None => Ok(Response::builder()
+                    .status(StatusCode::NOT_FOUND)
+                    .header(CONTENT_TYPE, "text/plain")
+                    .body(Full::new(Bytes::from("Build status not found")))
+                    .unwrap()),
+            }
+        }
+        Err(e) => {
+            error!("Failed to resolve commit '{commit_ref}': {e}");
             Ok(Response::builder()
-                .status(StatusCode::OK)
-                .header(CONTENT_TYPE, "application/json")
-                .body(Full::new(Bytes::from(json)))
+                .status(StatusCode::BAD_REQUEST)
+                .header(CONTENT_TYPE, "text/plain")
+                .body(Full::new(Bytes::from(format!(
+                    "Invalid commit/branch/tag: {e}"
+                ))))
                 .unwrap())
         }
-        None => Ok(Response::builder()
-            .status(StatusCode::NOT_FOUND)
-            .header(CONTENT_TYPE, "text/plain")
-            .body(Full::new(Bytes::from("Build status not found")))
-            .unwrap()),
     }
 }
 
