@@ -4,7 +4,7 @@
 
 use iota_sdk_types::{
     Address, CheckpointData, CheckpointSequenceNumber, Digest, EpochId, Object, ObjectId,
-    SignedCheckpointSummary, SignedTransaction, StructTag, TransactionV1,ValidatorCommittee,
+    SignedCheckpointSummary, SignedTransaction, StructTag, TransactionV1, ValidatorCommittee,
     Version,
 };
 use reqwest::{StatusCode, Url, header::HeaderValue};
