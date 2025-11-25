@@ -6,7 +6,7 @@ use std::{
     collections::{BTreeMap, BTreeSet, VecDeque},
     ops::Bound::Included,
 };
-
+use std::sync::Arc;
 use bytes::Bytes;
 use parking_lot::RwLock;
 use starfish_config::AuthorityIndex;
@@ -19,10 +19,12 @@ use crate::{
     },
     commit::{
         CommitAPI as _, CommitDigest, CommitIndex, CommitInfo, CommitRange, CommitRef,
-        GenericTransactionRef, TrustedCommit,
+        TrustedCommit,
     },
     error::ConsensusResult,
 };
+use crate::block_header::GenericTransactionRef;
+use crate::context::Context;
 
 /// In-memory storage for testing.
 pub(crate) struct MemStore {
@@ -54,7 +56,7 @@ impl MemStore {
 }
 
 impl Store for MemStore {
-    fn write(&self, write_batch: WriteBatch) -> ConsensusResult<()> {
+    fn write(&self, write_batch: WriteBatch, context: Arc<Context>) -> ConsensusResult<()> {
         let mut inner = self.inner.write();
 
         // Store block headers
@@ -102,7 +104,7 @@ impl Store for MemStore {
 
     fn read_verified_transactions(
         &self,
-        refs: &[BlockRef],
+        refs: &[GenericTransactionRef],
     ) -> ConsensusResult<Vec<Option<VerifiedTransactions>>> {
         let inner = self.inner.read();
         let transactions = refs
@@ -119,7 +121,7 @@ impl Store for MemStore {
 
     fn read_serialized_transactions(
         &self,
-        refs: &[BlockRef],
+        refs: &[GenericTransactionRef],
     ) -> ConsensusResult<Vec<Option<Bytes>>> {
         let inner = self.inner.read();
         let transactions = refs

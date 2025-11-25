@@ -664,6 +664,7 @@ mod tests {
         },
         storage::mem_store::MemStore,
     };
+    use crate::block_header::GenericTransactionRef;
 
     #[derive(Default)]
     struct MockCoreThreadDispatcher {
@@ -698,7 +699,7 @@ mod tests {
         ) -> Result<
             (
                 BTreeSet<BlockRef>,
-                BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>,
+                BTreeMap<GenericTransactionRef, BTreeSet<AuthorityIndex>>,
             ),
             CoreError,
         > {
@@ -711,7 +712,7 @@ mod tests {
         ) -> Result<
             (
                 BTreeSet<BlockRef>,
-                BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>,
+                BTreeMap<GenericTransactionRef, BTreeSet<AuthorityIndex>>,
             ),
             CoreError,
         > {
@@ -724,7 +725,7 @@ mod tests {
 
         async fn get_missing_transaction_data(
             &self,
-        ) -> Result<BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>, CoreError> {
+        ) -> Result<BTreeMap<GenericTransactionRef, BTreeSet<AuthorityIndex>>, CoreError> {
             unimplemented!()
         }
 
@@ -734,7 +735,7 @@ mod tests {
         ) -> Result<
             (
                 BTreeSet<BlockRef>,
-                BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>,
+                BTreeMap<GenericTransactionRef, BTreeSet<AuthorityIndex>>,
             ),
             CoreError,
         > {

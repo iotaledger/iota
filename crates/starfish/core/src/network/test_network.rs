@@ -16,6 +16,7 @@ use crate::{
     error::ConsensusResult,
     network::{BlockBundleStream, NetworkService, SerializedBlockBundle},
 };
+use crate::block_header::GenericTransactionRef;
 
 pub(crate) struct TestService {
     pub(crate) handle_subscribed_block_bundle: Vec<(AuthorityIndex, SerializedBlockBundle)>,
@@ -115,7 +116,7 @@ impl NetworkService for Mutex<TestService> {
     async fn handle_fetch_transactions(
         &self,
         _peer: AuthorityIndex,
-        _block_refs: Vec<BlockRef>,
+        _block_refs: Vec<GenericTransactionRef>,
     ) -> ConsensusResult<Vec<Bytes>> {
         unimplemented!("Unimplemented")
     }

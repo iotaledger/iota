@@ -265,6 +265,7 @@ mod test {
         network::{BlockBundleStream, SerializedBlockBundle, test_network::TestService},
         storage::mem_store::MemStore,
     };
+    use crate::block_header::GenericTransactionRef;
 
     struct SubscriberTestClient {}
 
@@ -296,7 +297,7 @@ mod test {
         async fn fetch_transactions(
             &self,
             _peer: AuthorityIndex,
-            _block_refs: Vec<BlockRef>,
+            _block_refs: Vec<GenericTransactionRef>,
             _timeout: Duration,
         ) -> ConsensusResult<Vec<Bytes>> {
             unimplemented!("Unimplemented")

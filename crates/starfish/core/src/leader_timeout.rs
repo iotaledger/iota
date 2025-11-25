@@ -214,6 +214,7 @@ mod tests {
         storage::mem_store::MemStore,
         transactions_synchronizer::TransactionsSynchronizer,
     };
+    use crate::block_header::GenericTransactionRef;
 
     #[derive(Default)]
     struct FakeNetworkClient {}
@@ -232,7 +233,7 @@ mod tests {
         async fn fetch_transactions(
             &self,
             _peer: AuthorityIndex,
-            _block_refs: Vec<BlockRef>,
+            _block_refs: Vec<GenericTransactionRef>,
             _timeout: Duration,
         ) -> ConsensusResult<Vec<Bytes>> {
             unimplemented!("Unimplemented")
