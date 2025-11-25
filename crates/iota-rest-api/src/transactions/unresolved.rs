@@ -6,7 +6,7 @@ use iota_sdk_types::{Address, Command, Digest, ObjectId, TransactionExpiration, 
 pub(crate) type OptionReadableDisplay =
     ::serde_with::As<Option<::serde_with::IfIsHumanReadable<::serde_with::DisplayFromStr>>>;
 
-// A potentially Unresolved user transaction
+// A potentially unresolved user transaction
 #[derive(serde::Serialize, serde::Deserialize)]
 pub struct UnresolvedTransaction {
     #[serde(flatten)]
