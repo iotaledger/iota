@@ -181,17 +181,17 @@ fn verify_entry_function_impl(
 
     let all_non_ctx_params = match params.0.last() {
         Some(last_param) if TxContext::kind(view, last_param) != TxContextKind::None => {
-            let params_without_tx_ctx = &params.0[0..params.0.len() - 1];
-            // Only in the case in which the TxContext is present, we check for AuthContext
-            match params_without_tx_ctx.last() {
-                Some(second_to_last_param_ty)
-                    if AuthContext::kind(view, second_to_last_param_ty)
-                        != AuthContextKind::None =>
-                {
-                    &params_without_tx_ctx[0..params_without_tx_ctx.len() - 1]
-                }
-                _ => params_without_tx_ctx,
+            let mut non_ctx_params = &params.0[0..params.0.len() - 1];
+
+            // Only in the case in which the TxContext is present, we check also for
+            // AuthContext
+            if let Some((second_last, rest)) = non_ctx_params.split_last() {
+                if AuthContext::kind(view, second_last) != AuthContextKind::None {
+                    non_ctx_params = rest;
+                };
             }
+
+            non_ctx_params
         }
         _ => &params.0,
     };

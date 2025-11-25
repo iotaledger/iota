@@ -169,7 +169,7 @@ fn verify_authenticate_param_type(
     // Reject receiving objects even if passed by immutable reference
     if Receiving::is_receiving(module, param) {
         return Err(format!(
-            "Invalid authenticate function parameter type: {}. Valid types are immutable references to anything but receiving objects, or primitive types.",
+            "Invalid authenticate function parameter type: {}. Valid types are immutable references to anything, except receiving objects, or primitive types.",
             format_signature_token(module, param),
         ));
     }
@@ -181,7 +181,7 @@ fn verify_authenticate_param_type(
                 Ok(())
             } else {
                 Err(format!(
-                    "Invalid parameter type for authenticate function: {}. Valid types are immutable references to anything but receiving objects, or primitive types.",
+                    "Invalid parameter type for authenticate function: {}. Valid types are immutable references to anything, except receiving objects, or primitive types.",
                     format_signature_token(module, param)
                 ))
             }
