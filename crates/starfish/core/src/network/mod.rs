@@ -37,7 +37,7 @@ use crate::{
     error::{ConsensusError, ConsensusResult},
 };
 use crate::block_header::TransactionRef;
-use crate::commit::GenericTransactionsRef;
+use crate::commit::GenericTransactionRef;
 
 // Tonic generated RPC stubs.
 mod tonic_gen {
@@ -83,7 +83,7 @@ pub(crate) trait NetworkClient: Send + Sync + Sized + 'static {
     async fn fetch_transactions(
         &self,
         peer: AuthorityIndex,
-        transactions_refs: Vec<GenericTransactionsRef>,
+        transactions_refs: Vec<GenericTransactionRef>,
         timeout: Duration,
     ) -> ConsensusResult<Vec<Bytes>>;
 
@@ -181,7 +181,7 @@ pub(crate) trait NetworkService: Send + Sync + 'static {
     async fn handle_fetch_transactions(
         &self,
         peer: AuthorityIndex,
-        block_refs: Vec<GenericTransactionsRef>,
+        block_refs: Vec<GenericTransactionRef>,
     ) -> ConsensusResult<Vec<Bytes>>;
 }
 

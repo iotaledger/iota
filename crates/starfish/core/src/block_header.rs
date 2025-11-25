@@ -910,11 +910,8 @@ impl fmt::Debug for VerifiedBlockHeader {
 pub struct VerifiedTransactions {
     transactions: Vec<Transaction>,
 
-    /// The block reference of the block that contains the transactions.
-    block_ref: BlockRef,
-
     /// Commitment of transactions in the block
-    transactions_commitment: TransactionsCommitment,
+    transaction_ref: TransactionRef,
 
     /// The serialized bytes of the transactions.
     serialized: Bytes,
@@ -935,18 +932,30 @@ impl VerifiedTransactions {
     ) -> Self {
         Self {
             transactions,
-            block_ref,
-            transactions_commitment,
+            transaction_ref: TransactionRef {
+                round: block_ref.round,
+                author: block_ref.author,
+                transactions_commitment,
+                block_digest: block_ref.digest,
+            },
             serialized,
         }
     }
 
     pub fn transactions_commitment(&self) -> TransactionsCommitment {
-        self.transactions_commitment
+        self.transaction_ref.transactions_commitment
     }
 
     pub fn block_ref(&self) -> BlockRef {
-        self.block_ref
+        BlockRef {
+            round: self.transaction_ref.round,
+            author: self.transaction_ref.author,
+            digest: self.transaction_ref.block_digest,
+        }
+    }
+
+    pub fn transaction_ref(&self) -> TransactionRef {
+        self.transaction_ref
     }
 
     /// Returns the leader round of the sub-dag.
@@ -1068,12 +1077,12 @@ pub(crate) fn genesis_blocks(context: &Context) -> Vec<VerifiedBlock> {
             let verified_block_header = VerifiedBlockHeader::new_verified(signed_block, serialized);
             VerifiedBlock {
                 verified_block_header: verified_block_header.clone(),
-                verified_transactions: VerifiedTransactions {
-                    transactions: vec![],
-                    block_ref: verified_block_header.reference(),
-                    transactions_commitment: verified_block_header.transactions_commitment(),
-                    serialized: Bytes::from(bcs::to_bytes::<Vec<Transaction>>(&vec![]).unwrap()),
-                },
+                verified_transactions: VerifiedTransactions::new(
+                    vec![],
+                    verified_block_header.reference(),
+                    verified_block_header.transactions_commitment(),
+                    Bytes::from(bcs::to_bytes::<Vec<Transaction>>(&vec![]).unwrap()),
+                ),
             }
         })
         .collect::<Vec<VerifiedBlock>>()

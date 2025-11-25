@@ -42,7 +42,7 @@ use crate::{
     network::{NetworkClient, SerializedTransactionsV1},
 };
 use crate::block_header::TransactionRef;
-use crate::commit::GenericTransactionsRef;
+use crate::commit::GenericTransactionRef;
 use crate::commit_syncer::{verify_transactions_with_headers, verify_transactions_with_transactions_refs};
 use crate::network::SerializedTransactionsV2;
 
@@ -176,7 +176,7 @@ impl Drop for ActiveRequestGuard {
 
 struct TransactionsGuard {
     map: Arc<InflightTransactionsMap>,
-    transactions_refs: BTreeSet<GenericTransactionsRef>,
+    transactions_refs: BTreeSet<GenericTransactionRef>,
     peer: AuthorityIndex,
 }
 
@@ -883,7 +883,7 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
                     .transactions_refs
                     .iter()
                     .cloned()
-                    .collect::<Vec<GenericTransactionsRef>>();
+                    .collect::<Vec<GenericTransactionRef>>();
 
 
 
@@ -994,8 +994,8 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
                                                 .transactions_refs
                                                 .iter().map(|ctr| {
                                                 match ctr {
-                                                    GenericTransactionsRef::TransactionRef(tr_ref) => panic!("It should be only BlockRef here"),
-                                                    GenericTransactionsRef::BlockRef(block_ref) => block_ref,
+                                                    GenericTransactionRef::TransactionRef(tr_ref) => panic!("It should be only BlockRef here"),
+                                                    GenericTransactionRef::BlockRef(block_ref) => block_ref,
                                                 }
                                             })
                                                 .cloned()
@@ -1008,12 +1008,12 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
                                                 block_headers_map.insert(block_header.reference(), block_header);
                                             }
 
-                                            let mut serialized_transactions_map: BTreeMap<crate::commit::GenericTransactionsRef, Bytes> = BTreeMap::new();
+                                            let mut serialized_transactions_map: BTreeMap<crate::commit::GenericTransactionRef, Bytes> = BTreeMap::new();
                                             for serialized_transaction_bytes in &serialized_transactions {
                                                 let serialized_transactions: SerializedTransactionsV1 =
                                                     bcs::from_bytes(serialized_transaction_bytes)
                                                         .map_err(ConsensusError::MalformedTransactions)?;
-                                                let committed_transaction_ref = GenericTransactionsRef::BlockRef(serialized_transactions.block_ref);
+                                                let committed_transaction_ref = GenericTransactionRef::BlockRef(serialized_transactions.block_ref);
                                                 serialized_transactions_map.insert(committed_transaction_ref, serialized_transaction_bytes.clone());
                                             }
                                             let context_cloned = context.clone();
@@ -1046,12 +1046,12 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
                 } else {
                     match Handle::current()
                         .spawn_blocking({
-                            let mut serialized_transactions_map: BTreeMap<GenericTransactionsRef, Bytes> = BTreeMap::new();
+                            let mut serialized_transactions_map: BTreeMap<GenericTransactionRef, Bytes> = BTreeMap::new();
                             for serialized_transaction_bytes in &serialized_transactions {
                                 let serialized_transactions: SerializedTransactionsV2 =
                                     bcs::from_bytes(serialized_transaction_bytes)
                                         .map_err(ConsensusError::MalformedTransactions)?;
-                                let committed_transaction_ref = GenericTransactionsRef::TransactionRef(serialized_transactions.transaction_ref);
+                                let committed_transaction_ref = GenericTransactionRef::TransactionRef(serialized_transactions.transaction_ref);
                                 serialized_transactions_map.insert(committed_transaction_ref, serialized_transaction_bytes.clone());
                             }
                             let context_cloned = context.clone();

@@ -62,42 +62,42 @@ pub(crate) enum Commit {
 }
 
 #[derive(Clone, Copy, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Debug)]
-pub(crate) enum GenericTransactionsRef {
+pub(crate) enum GenericTransactionRef {
     BlockRef(BlockRef),
     TransactionRef(TransactionRef),
 }
 
 // Converts BlockRef to GenericTransactionsRef
-impl From<BlockRef> for GenericTransactionsRef {
+impl From<BlockRef> for GenericTransactionRef {
     fn from(b: BlockRef) -> Self {
-        GenericTransactionsRef::BlockRef(b)
+        GenericTransactionRef::BlockRef(b)
     }
 }
 
 // Converts TransactionRef to GenericTransactionsRef
-impl From<TransactionRef> for GenericTransactionsRef {
+impl From<TransactionRef> for GenericTransactionRef {
     fn from(t: TransactionRef) -> Self {
-        GenericTransactionsRef::TransactionRef(t)
+        GenericTransactionRef::TransactionRef(t)
     }
 }
-impl GenericTransactionsRef {
+impl GenericTransactionRef {
     pub(crate) fn author(&self) -> AuthorityIndex {
         match self {
-            GenericTransactionsRef::BlockRef(b) => b.author,
-            GenericTransactionsRef::TransactionRef(t) => t.author,
+            GenericTransactionRef::BlockRef(b) => b.author,
+            GenericTransactionRef::TransactionRef(t) => t.author,
         }
     }
     pub(crate) fn round(&self) -> Round {
         match self {
-            GenericTransactionsRef::BlockRef(b) => b.round,
-            GenericTransactionsRef::TransactionRef(t) => t.round,
+            GenericTransactionRef::BlockRef(b) => b.round,
+            GenericTransactionRef::TransactionRef(t) => t.round,
         }
     }
 
     pub(crate) fn digest(&self) -> Digest<DIGEST_LENGTH> {
         match self {
-            GenericTransactionsRef::BlockRef(b) => b.digest.into(),
-            GenericTransactionsRef::TransactionRef(t) => t.transactions_commitment.into(),
+            GenericTransactionRef::BlockRef(b) => b.digest.into(),
+            GenericTransactionRef::TransactionRef(t) => t.transactions_commitment.into(),
         }
     }
 }
@@ -138,7 +138,7 @@ pub(crate) trait CommitAPI {
     fn timestamp_ms(&self) -> BlockTimestampMs;
     fn leader(&self) -> BlockRef;
     fn blocks(&self) -> &[BlockRef];
-    fn committed_transactions(&self) -> Vec<GenericTransactionsRef>;
+    fn committed_transactions(&self) -> Vec<GenericTransactionRef>;
 }
 
 /// Specifies one consensus commit.
@@ -192,8 +192,8 @@ impl CommitAPI for CommitV1 {
 
     // TODO: https://github.com/iotaledger/iota/issues/8375
     // Does this need to be a vector? block refs are a slice == less cloning?
-    fn committed_transactions(&self) -> Vec<GenericTransactionsRef> {
-        self.committed_transactions.iter().map(|b| GenericTransactionsRef::BlockRef(b.clone())).collect()
+    fn committed_transactions(&self) -> Vec<GenericTransactionRef> {
+        self.committed_transactions.iter().map(|b| GenericTransactionRef::BlockRef(b.clone())).collect()
     }
 }
 
@@ -250,8 +250,8 @@ impl CommitAPI for CommitV2 {
 
     // TODO: https://github.com/iotaledger/iota/issues/8375
     // Does this need to be a vector? block refs are a slice == less cloning?
-    fn committed_transactions(&self) -> Vec<GenericTransactionsRef> {
-        self.committed_transactions.iter().map(|t| GenericTransactionsRef::TransactionRef(t.clone())).collect()
+    fn committed_transactions(&self) -> Vec<GenericTransactionRef> {
+        self.committed_transactions.iter().map(|t| GenericTransactionRef::TransactionRef(t.clone())).collect()
     }
 }
 
@@ -600,7 +600,7 @@ impl CommittedSubDag {
             &self
                 .transactions
                 .iter()
-                .map(|t| t.block_ref())
+                .map(|t| GenericTransactionRef::BlockRef(t.block_ref()))
                 .collect::<Vec<_>>(),
         )
     }
@@ -653,7 +653,7 @@ pub struct PendingSubDag {
     pub base: SubDagBase,
     /// References to blocks whose transactions were committed as part of this
     /// SubDag.
-    pub committed_transaction_refs: Vec<GenericTransactionsRef>,
+    pub committed_transaction_refs: Vec<GenericTransactionRef>,
 }
 
 impl PendingSubDag {
@@ -662,7 +662,7 @@ impl PendingSubDag {
         leader: BlockRef,
         headers: Vec<VerifiedBlockHeader>,
         committed_header_refs: Vec<BlockRef>,
-        committed_transaction_refs: Vec<GenericTransactionsRef>,
+        committed_transaction_refs: Vec<GenericTransactionRef>,
         timestamp_ms: BlockTimestampMs,
         commit_ref: CommitRef,
         reputation_scores_desc: Vec<(AuthorityIndex, u64)>,
@@ -762,7 +762,7 @@ pub fn load_pending_subdag_from_store(
     )
 }
 
-fn format_block_digests(blocks: &[GenericTransactionsRef]) -> String {
+fn format_block_digests(blocks: &[GenericTransactionRef]) -> String {
     let mut result = String::new();
     for (idx, block) in blocks.iter().enumerate() {
         if idx > 0 {

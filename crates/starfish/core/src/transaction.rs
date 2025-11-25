@@ -17,6 +17,7 @@ use crate::{
     block_header::{BlockRef, Transaction},
     context::Context,
 };
+use crate::commit::GenericTransactionRef;
 
 /// The maximum number of transactions pending to the queue to be pulled for
 /// block proposal
@@ -45,18 +46,18 @@ pub(crate) struct TransactionConsumer {
     max_transactions_in_block_bytes: u64,
     max_num_transactions_in_block: u64,
     pending_transactions: Option<TransactionsGuard>,
-    block_status_subscribers: Arc<Mutex<BTreeMap<BlockRef, Vec<oneshot::Sender<BlockStatus>>>>>,
+    block_status_subscribers: Arc<Mutex<BTreeMap<GenericTransactionRef, Vec<oneshot::Sender<BlockStatus>>>>>,
 }
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub enum BlockStatus {
     /// The transaction data associated with this block ref has been sequenced
     /// as part of a committed sub dag.
-    Sequenced(BlockRef),
+    Sequenced(GenericTransactionRef),
     /// The block or transaction data corresponding to this block ref has been
     /// garbage collected and will never be committed. The transaction data
     /// must be attempted to be resent by the client
-    GarbageCollected(BlockRef),
+    GarbageCollected(GenericTransactionRef),
 }
 
 #[derive(Debug, Clone, Eq, PartialEq)]
@@ -167,7 +168,7 @@ impl TransactionConsumer {
     /// all own committed transaction data.
     pub(crate) fn notify_own_transactions_status(
         &self,
-        committed_transaction_refs: Vec<BlockRef>,
+        committed_transaction_refs: Vec<GenericTransactionRef>,
         gc_round: Round,
     ) {
         // Notify for all own committed transaction data first

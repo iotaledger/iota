@@ -47,7 +47,7 @@ use crate::{
     },
 };
 use crate::block_header::TransactionRef;
-use crate::commit::GenericTransactionsRef;
+use crate::commit::GenericTransactionRef;
 
 // Maximum bytes size in a single fetch_blocks()response.
 // TODO: put max RPC response size in protocol config.
@@ -303,7 +303,7 @@ impl NetworkClient for TonicClient {
     async fn fetch_transactions(
         &self,
         peer: AuthorityIndex,
-        transactions_refs: Vec<GenericTransactionsRef>,
+        transactions_refs: Vec<GenericTransactionRef>,
         timeout: Duration,
     ) -> ConsensusResult<Vec<Bytes>> {
         let mut client = self.get_client(peer, timeout).await?;
@@ -311,14 +311,14 @@ impl NetworkClient for TonicClient {
             block_refs: transactions_refs
                 .iter()
                 .filter_map(|r| match r {
-                    GenericTransactionsRef::BlockRef(block_ref) => match bcs::to_bytes(block_ref) {
+                    GenericTransactionRef::BlockRef(block_ref) => match bcs::to_bytes(block_ref) {
                         Ok(serialized) => Some(serialized),
                         Err(e) => {
                             debug!("Failed to serialize BlockRef {:?}: {e:?}", block_ref);
                             None
                         }
                     },
-                    GenericTransactionsRef::TransactionRef(tx_ref) => match bcs::to_bytes(tx_ref) {
+                    GenericTransactionRef::TransactionRef(tx_ref) => match bcs::to_bytes(tx_ref) {
                         Ok(serialized) => Some(serialized),
                         Err(e) => {
                             debug!("Failed to serialize TransactionRef {:?}: {e:?}", tx_ref);
@@ -714,14 +714,14 @@ impl<S: NetworkService> ConsensusService for TonicServiceProxy<S> {
         };
 
         let request = request.into_inner();
-        let committed_transactions_refs: Vec<GenericTransactionsRef> = request
+        let committed_transactions_refs: Vec<GenericTransactionRef> = request
             .block_refs
             .iter()
             .filter_map(|r| {
                 if self.context.protocol_config
                     .consensus_transaction_ref() {
                     match bcs::from_bytes::<TransactionRef>(r) {
-                        Ok(transaction_ref) => Some(GenericTransactionsRef::TransactionRef(transaction_ref)),
+                        Ok(transaction_ref) => Some(GenericTransactionRef::TransactionRef(transaction_ref)),
                         Err(e) => {
                             debug!("Failed to deserialize block ref: {e:?}");
                             None
@@ -729,7 +729,7 @@ impl<S: NetworkService> ConsensusService for TonicServiceProxy<S> {
                     }
                 } else {
                     match bcs::from_bytes::<BlockRef>(r) {
-                        Ok(block_ref) => Some(GenericTransactionsRef::BlockRef(block_ref)),
+                        Ok(block_ref) => Some(GenericTransactionRef::BlockRef(block_ref)),
                         Err(e) => {
                             debug!("Failed to deserialize block ref: {e:?}");
                             None

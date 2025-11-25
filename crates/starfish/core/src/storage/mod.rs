@@ -18,6 +18,7 @@ use crate::{
     commit::{CommitInfo, CommitRange, CommitRef, TrustedCommit},
     error::ConsensusResult,
 };
+use crate::commit::GenericTransactionRef;
 
 /// A common interface for consensus storage.
 pub(crate) trait Store: Send + Sync {
@@ -44,17 +45,17 @@ pub(crate) trait Store: Send + Sync {
     /// Read and get verified transactions for the given refs.
     fn read_verified_transactions(
         &self,
-        refs: &[BlockRef],
+        refs: &[GenericTransactionRef],
     ) -> ConsensusResult<Vec<Option<VerifiedTransactions>>>;
 
     /// Read and get serialized transactions for the given refs.
     fn read_serialized_transactions(
         &self,
-        refs: &[BlockRef],
+        refs: &[GenericTransactionRef],
     ) -> ConsensusResult<Vec<Option<Bytes>>>;
 
     /// Checks if transactions exist in the store.
-    fn contains_transactions(&self, refs: &[BlockRef]) -> ConsensusResult<Vec<bool>>;
+    fn contains_transactions(&self, refs: &[GenericTransactionRef]) -> ConsensusResult<Vec<bool>>;
 
     /// Checks if block headers exist in the store.
     fn contains_block_headers(&self, refs: &[BlockRef]) -> ConsensusResult<Vec<bool>>;

@@ -46,7 +46,7 @@ use crate::{
     storage::Store,
     transactions_synchronizer::TransactionsSynchronizerHandle,
 };
-use crate::commit::GenericTransactionsRef;
+use crate::commit::GenericTransactionRef;
 use crate::network::SerializedTransactionsV2;
 
 pub(crate) const COMMIT_LAG_MULTIPLIER: u32 = 5;
@@ -989,7 +989,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
     async fn handle_fetch_transactions(
         &self,
         peer: AuthorityIndex,
-        mut committed_transactions_refs: Vec<GenericTransactionsRef>,
+        mut committed_transactions_refs: Vec<GenericTransactionRef>,
     ) -> ConsensusResult<Vec<Bytes>> {
         fail_point_async!("consensus-rpc-response");
 
@@ -1065,7 +1065,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             .filter_map(|(opt_serialized_tx, block_ref)| {
                 opt_serialized_tx.map(|serialized_tx| {
                     if !self.context.protocol_config.consensus_transaction_ref() {
-                        if let GenericTransactionsRef::BlockRef(block_ref) = gen_ref {
+                        if let GenericTransactionRef::BlockRef(block_ref) = gen_ref {
                             Bytes::from(
                                 bcs::to_bytes(&SerializedTransactionsV1 {
                                     block_ref,
@@ -1080,7 +1080,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
                         }
                     }
                     else {
-                        if let GenericTransactionsRef::TransactionRef(transaction_ref) = gen_ref {
+                        if let GenericTransactionRef::TransactionRef(transaction_ref) = gen_ref {
                             Bytes::from(
                                 bcs::to_bytes(&SerializedTransactionsV2 {
                                     transaction_ref,

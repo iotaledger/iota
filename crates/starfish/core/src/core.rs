@@ -950,7 +950,7 @@ impl Core {
             .iter()
             .flat_map(|sub_dag| sub_dag.committed_transaction_refs.iter())
             .filter_map(|block_ref| {
-                (block_ref.author == self.context.own_index).then_some(*block_ref)
+                (block_ref.author() == self.context.own_index).then_some(*block_ref)
             })
             .collect::<Vec<_>>();
 

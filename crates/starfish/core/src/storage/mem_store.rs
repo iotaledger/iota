@@ -23,6 +23,7 @@ use crate::{
     },
     error::ConsensusResult,
 };
+use crate::commit::GenericTransactionRef;
 
 /// In-memory storage for testing.
 pub(crate) struct MemStore {
@@ -158,7 +159,7 @@ impl Store for MemStore {
         Ok(blocks)
     }
 
-    fn contains_transactions(&self, refs: &[BlockRef]) -> ConsensusResult<Vec<bool>> {
+    fn contains_transactions(&self, refs: &[GenericTransactionRef]) -> ConsensusResult<Vec<bool>> {
         let inner = self.inner.read();
         let exist = refs
             .iter()

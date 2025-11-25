@@ -33,7 +33,8 @@ use crate::{
     storage::{Store, WriteBatch},
     threshold_clock::ThresholdClock,
 };
-use crate::commit::GenericTransactionsRef;
+use crate::block_header::{TransactionRef, TransactionsCommitment};
+use crate::commit::GenericTransactionRef;
 
 /// Represents the source from which transactions were received and added to the
 /// DAG state. This is used for metrics tracking and debugging.
@@ -109,7 +110,7 @@ pub(crate) struct DagState {
     /// entry with index block_ref.author. Evicted using the minimum between
     /// GC round for the last solid leader round evicted rounds by
     /// authority.
-    recent_transactions_by_authority: Vec<BTreeMap<GenericTransactionsRef, VerifiedTransactions>>,
+    recent_transactions_by_authority: Vec<BTreeMap<GenericTransactionRef, VerifiedTransactions>>,
     /// Contains recent own serialized shards with their Merkle proofs per
     /// authority. To access own shard for a given block_ref, one
     /// needs to read first the entry with index block_ref.author.
@@ -375,9 +376,9 @@ impl DagState {
         transactions: VerifiedTransactions,
         source: TransactionSource,
     ) {
-        let block_ref = transactions.block_ref();
-        if self.recent_transactions_by_authority[block_ref.author]
-            .insert(block_ref, transactions.clone())
+        let transaction_ref = transactions.transaction_ref();
+        if self.recent_transactions_by_authority[transaction_ref.author]
+            .insert(GenericTransactionRef::from(transaction_ref), transactions.clone())
             .is_none()
         {
             self.context
@@ -386,7 +387,7 @@ impl DagState {
                 .accepted_transactions
                 .with_label_values(&[source.as_str()])
                 .inc();
-            tracing::debug!("Adding transactions for block ref: {block_ref}");
+            tracing::debug!("Adding transactions for block ref: {transaction_ref}");
             let has_transactions = transactions.has_transactions();
             self.transactions_to_write.push(transactions);
             // If a block is not very old, add it to pending acknowledgments
@@ -394,15 +395,15 @@ impl DagState {
             let min_round: Round =
                 clock_round.saturating_sub(self.context.protocol_config.gc_depth());
 
-            if block_ref.round >= min_round {
+            if transaction_ref.round >= min_round {
                 if has_transactions {
-                    self.add_pending_acknowledgment(block_ref);
+                    self.add_pending_acknowledgment(BlockRef::from(transaction_ref));
                 } else {
                     // report skipped acknowledgment
                     let hostname = self
                         .context
                         .committee
-                        .authority(block_ref.author)
+                        .authority(transaction_ref.author)
                         .hostname
                         .as_str();
                     self.context
@@ -497,7 +498,7 @@ impl DagState {
 
     fn update_transaction_metadata(&mut self, transaction: &VerifiedTransactions) {
         self.recent_transactions_by_authority[transaction.block_ref().author]
-            .insert(transaction.block_ref(), transaction.clone());
+            .insert(GenericTransactionRef::from(transaction.block_ref()), transaction.clone());
     }
 
     /// Accepts block headers into DagState and keeps it in memory.
@@ -519,25 +520,18 @@ impl DagState {
     /// found.
     pub(crate) fn get_verified_transactions(
         &self,
-        block_refs: &[BlockRef],
+        block_refs: &[GenericTransactionRef],
     ) -> Vec<Option<VerifiedTransactions>> {
         let mut transactions = vec![None; block_refs.len()];
         let mut missing = Vec::new();
 
         for (index, block_ref) in block_refs.iter().enumerate() {
-            if block_ref.round == GENESIS_ROUND {
-                // Allow the caller to handle the invalid genesis ancestor error.
-                if let Some(transaction) = self
-                    .genesis
-                    .get(block_ref)
-                    .map(|block| block.verified_transactions.clone())
-                {
-                    transactions[index] = Some(transaction);
-                }
+            if block_ref.round() == GENESIS_ROUND {
+                // There are no transactions in genesis block.
                 continue;
             }
             if let Some(transaction) =
-                self.recent_transactions_by_authority[block_ref.author].get(block_ref)
+                self.recent_transactions_by_authority[block_ref.author()].get(&GenericTransactionRef::from(block_ref.clone()))
             {
                 transactions[index] = Some(transaction.clone());
                 continue;
@@ -576,7 +570,7 @@ impl DagState {
     /// transaction is not found.
     pub(crate) fn get_serialized_transactions(
         &self,
-        references: &[GenericTransactionsRef],
+        references: &[GenericTransactionRef],
     ) -> Vec<Option<Bytes>> {
         let mut transactions = vec![None; references.len()];
         let mut missing = Vec::new();
@@ -925,11 +919,27 @@ impl DagState {
             Unbounded,
         )) {
             let header_opt = self.recent_block_headers.get(block_ref);
-            let transactions_opt =
-                self.recent_transactions_by_authority[block_ref.author].get(block_ref);
-            if let (Some(header), Some(transactions)) = (header_opt, transactions_opt) {
-                blocks.push(VerifiedBlock::new(header.clone(), transactions.clone()));
-            } else {
+            let mut block_constructed = false;
+            if let Some(header) = header_opt {
+                let transaction_ref = if self.context.protocol_config.consensus_transaction_ref() {
+                    GenericTransactionRef::from(TransactionRef {
+                        round: block_ref.round,
+                        author: block_ref.author,
+                        transactions_commitment: header.transactions_commitment(),
+                        block_digest: block_ref.digest,
+                    })
+                }
+                else {
+                    GenericTransactionRef::from(block_ref.clone())
+                };
+                let transactions_opt =
+                    self.recent_transactions_by_authority[block_ref.author].get(&transaction_ref);
+                if let Some(transactions) = transactions_opt {
+                    blocks.push(VerifiedBlock::new(header.clone(), transactions.clone()));
+                    block_constructed = true;
+                }
+            }
+            if !block_constructed {
                 warn!("Block header or transactions missing for block ref: {block_ref}");
             }
         }
@@ -1196,21 +1206,19 @@ impl DagState {
     /// check in store. The method is not caching back the
     /// results, so it's expensive to keep asking for cache missing
     /// transactions.
-    pub(crate) fn contains_transactions(&self, block_refs: Vec<BlockRef>) -> Vec<bool> {
-        let mut exist = vec![false; block_refs.len()];
+    pub(crate) fn contains_transactions(&self, transaction_refs: Vec<GenericTransactionRef>) -> Vec<bool> {
+        let mut exist = vec![false; transaction_refs.len()];
         let mut missing = Vec::new();
 
-        for (index, block_ref) in block_refs.into_iter().enumerate() {
-            if block_ref.round == GENESIS_ROUND {
-                if self.genesis.contains_key(&block_ref) {
-                    exist[index] = true;
-                }
+        for (index, tr_ref) in transaction_refs.into_iter().enumerate() {
+            if tr_ref.round() == GENESIS_ROUND {
+                // Genesis block doesn't contain transactions.
                 continue;
             }
-            if self.recent_transactions_by_authority[block_ref.author].contains_key(&block_ref) {
+            if self.recent_transactions_by_authority[tr_ref.author()].contains_key(&tr_ref) {
                 exist[index] = true;
             } else {
-                missing.push((index, block_ref));
+                missing.push((index, tr_ref));
             }
         }
 
@@ -1420,11 +1428,21 @@ impl DagState {
             let transaction_eviction_round = min(transaction_gc_round, eviction_round + 1);
 
             // Evict everything below split_key
-            let split_key = BlockRef::new(
-                transaction_eviction_round,
-                authority_index,
-                BlockHeaderDigest::MIN,
-            );
+            let split_key = if self.context.protocol_config.consensus_transaction_ref() {
+                GenericTransactionRef::from(TransactionRef {
+                    round: transaction_eviction_round,
+                    author: authority_index,
+                    transactions_commitment: TransactionsCommitment::MIN,
+                    block_digest: BlockHeaderDigest::MIN,
+                })
+            }
+            else {
+                GenericTransactionRef::from(BlockRef::new(
+                    transaction_eviction_round,
+                    authority_index,
+                    BlockHeaderDigest::MIN,
+                ))
+            };
             self.recent_transactions_by_authority[authority_index] =
                 self.recent_transactions_by_authority[authority_index].split_off(&split_key);
         }
@@ -1475,8 +1493,8 @@ impl DagState {
     }
 
     /// Adds a block reference to pending acknowledgments.
-    pub(crate) fn add_pending_acknowledgment(&mut self, block_ref: BlockRef) {
-        self.pending_acknowledgments.insert(block_ref);
+    pub(crate) fn add_pending_acknowledgment(&mut self, transaction_ref: BlockRef) {
+        self.pending_acknowledgments.insert(transaction_ref);
     }
 
     /// Takes at most `limit` acknowledgments from `pending_acknowledgments`,
@@ -1750,7 +1768,7 @@ impl DagState {
     pub(crate) fn genesis_block_headers(&self) -> Vec<VerifiedBlockHeader> {
         self.genesis
             .values()
-            .map(|b| (**b).clone())
+            .map(|b| b.verified_block_header.clone())
             .collect::<Vec<VerifiedBlockHeader>>()
     }
 
