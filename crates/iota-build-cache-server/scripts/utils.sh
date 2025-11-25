@@ -39,7 +39,7 @@ get_auth_args() {
 # Print current configuration
 print_config() {
     log_info "Build Cache Server Configuration:"
-    log_info "  Server: $BUILD_CACHE_SERVER"
+    log_info "  Server: $BUILD_CACHE_SERVER_URI"
     if [ -n "$BUILD_CACHE_USER" ]; then
         log_info "  User: $BUILD_CACHE_USER"
     fi
@@ -53,7 +53,7 @@ print_config() {
 check_availability() {
     # Make check request
     RESPONSE=$(curl -s -w "\n%{http_code}" $(get_auth_args) \
-        "http://$BUILD_CACHE_SERVER/check/$COMMIT/$CPU_TARGET?binaries=$BINARIES")
+        "$BUILD_CACHE_SERVER_URI/check/$COMMIT/$CPU_TARGET?binaries=$BINARIES")
 
     # Parse response
     HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
@@ -111,7 +111,7 @@ EOF
         -H "Content-Type: application/json" \
         -d "$PAYLOAD" \
         $(get_auth_args) \
-        "http://$BUILD_CACHE_SERVER/build")
+        "$BUILD_CACHE_SERVER_URI/build")
 
     # Parse response
     HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
@@ -143,7 +143,7 @@ EOF
 # Function to get build status
 get_build_status() {
     RESPONSE=$(curl -s -w "\n%{http_code}" $(get_auth_args) \
-        "http://$BUILD_CACHE_SERVER/status/$COMMIT/$CPU_TARGET?binaries=$BINARIES" 2>/dev/null || echo "\n000")
+        "$BUILD_CACHE_SERVER_URI/status/$COMMIT/$CPU_TARGET?binaries=$BINARIES" 2>/dev/null || echo "\n000")
     
     HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
     BODY=$(echo "$RESPONSE" | sed '$d')
@@ -227,7 +227,7 @@ wait() {
 
 # Function to download binaries
 download() {
-    log_info "Downloading binaries from $BUILD_CACHE_SERVER"
+    log_info "Downloading binaries from $BUILD_CACHE_SERVER_URI"
 
     # Create output directory
     mkdir -p "$OUTPUT_DIR"
@@ -247,7 +247,7 @@ download() {
         
         RESPONSE=$(curl -s -w "\n%{http_code}" -L -D "$HEADER_FILE" \
             $(get_auth_args) \
-            "http://$BUILD_CACHE_SERVER/download/$COMMIT/$CPU_TARGET/$BINARY" \
+            "$BUILD_CACHE_SERVER_URI/download/$COMMIT/$CPU_TARGET/$BINARY" \
             -o "$OUTPUT_DIR/$BINARY")
         
         HTTP_CODE=$(echo "$RESPONSE" | tail -n1)

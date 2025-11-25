@@ -2,7 +2,7 @@
 # Configuration file for build cache server scripts
 
 # Build cache server configuration
-export BUILD_CACHE_SERVER="localhost:8080"
+export BUILD_CACHE_SERVER_URI="http://localhost:8080"
 
 # Basic authentication (set these if the server requires authentication)
 export BUILD_CACHE_USER="${BUILD_CACHE_USER:-}"
