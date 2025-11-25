@@ -19,19 +19,19 @@ use iota_types::base_types::ObjectID;
 use prost_types::FieldMask;
 use test_cluster::TestClusterBuilder;
 
-use crate::{impl_field_presence_checker, utils::assert_nested_field_masks};
+use crate::{impl_field_presence_checker, utils::assert_field_presence};
 
 // Generate the FieldPresenceChecker implementation for Object
-impl_field_presence_checker!(Object, {
-    "reference" => reference [nested],
-    "bcs" => bcs,
+impl_field_presence_checker!(Object {
+    reference: ObjectReference,
+    bcs,
 });
 
 // Generate the FieldPresenceChecker implementation for ObjectReference
-impl_field_presence_checker!(ObjectReference, {
-    "object_id" => object_id,
-    "version" => version,
-    "digest" => digest,
+impl_field_presence_checker!(ObjectReference {
+    object_id,
+    version,
+    digest,
 });
 
 async fn assert_get_objects_request(
@@ -61,7 +61,7 @@ async fn assert_get_objects_request(
         // Assert all returned objects have the expected fields
         for (idx, obj_result) in response.objects.iter().enumerate() {
             let object = obj_result.object();
-            assert_nested_field_masks(
+            assert_field_presence(
                 object,
                 expected_field_mask_paths,
                 &format!("{scenario} (response {response_count}, object {idx})"),
@@ -141,9 +141,11 @@ async fn get_objects_readmask_scenarios() {
             ])),
             &[
                 "reference.object_id",
-                "reference.version",
+                "reference.version", // comment out to check absence of nested field
                 "reference.digest",
-                "bcs",
+                "bcs", /* comment out to check absence of bcs field
+                        * "reference", // Remove comment to check existence of reference field
+                        * "reference.id", // Remove comment to check existence of nested field */
             ],
         ),
         (
