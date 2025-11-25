@@ -54,7 +54,8 @@ pub struct BenchmarkParameters<T> {
     /// they should use their internal IPs to avoid paying for data sent between
     /// the nodes.
     pub use_internal_ip_address: bool,
-    /// The topology of private network latencies, Geographical or Clustered
+    /// The topology of private network latencies, RandomGeographical,
+    /// RandomClustered, HardCodedClustered, or Mainnet
     pub latency_topology: Option<TopologyLayout>,
     /// Maximum latency between two nodes in the private network.
     pub maximum_latency: u16,
@@ -75,7 +76,7 @@ impl<T: BenchmarkType> Default for BenchmarkParameters<T> {
             load: 500,
             duration: Duration::from_secs(60),
             use_internal_ip_address: true,
-            latency_topology: Some(TopologyLayout::Geographical),
+            latency_topology: Some(TopologyLayout::Mainnet),
             perturbation_spec: PerturbationSpec::None,
             protocol_switch_each_epoch: false,
             maximum_latency: 400,
@@ -175,7 +176,8 @@ pub struct BenchmarkParametersGenerator<T> {
     /// Flag indicating whether nodes should advertise their internal or public
     /// IP address for inter-node communication.
     use_internal_ip_address: bool,
-    /// The topology of private network latencies, Geographical or Clustered
+    /// The topology of private network latencies, RandomGeographical,
+    /// RandomClustered, HardCodedClustered, or Mainnet
     pub latency_topology: Option<TopologyLayout>,
     /// Maximum latency between two nodes in the private network.
     pub maximum_latency: u16,
@@ -238,7 +240,7 @@ impl<T: BenchmarkType> BenchmarkParametersGenerator<T> {
             iterations: 0,
             use_internal_ip_address,
             perturbation_spec: PerturbationSpec::None,
-            latency_topology: Some(TopologyLayout::Geographical),
+            latency_topology: Some(TopologyLayout::Mainnet),
             protocol_switch_each_epoch: false,
             maximum_latency: 400,
             epoch_duration_ms: None,

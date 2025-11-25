@@ -170,6 +170,11 @@ pub enum Operation {
         /// Optional: Epoch duration in milliseconds, default is 1h
         #[arg(long, value_name = "INT", global = true)]
         epoch_duration_ms: Option<u64>,
+
+        /// Number of blocking connections in the blocking
+        /// latency_perturbation_spec
+        #[arg(long, value_name = "INT", default_value = "1", global = true)]
+        blocking_connections: usize,
     },
 
     /// Print a summary of the specified measurements collection.
@@ -265,6 +270,7 @@ pub enum Load {
 #[derive(ValueEnum, Clone, Debug)]
 pub enum PerturbationSpec {
     BrokenTriangle,
+    Blocking,
     // potentially other options later
 }
 
@@ -272,12 +278,14 @@ pub enum PerturbationSpec {
 pub enum LatencyTopology {
     /// Generates a latency matrix for each node, randomly positioned on a
     /// cylinder.
-    Geographical,
-    /// Generates a latency matrix by clustering nodes into clusters and
-    /// randomly positioning clusters on a cylinder.
-    Clustered,
-    /// Uses a hardcoded clustered matrix 10x10 in the net_latency module.
-    HardCoded,
+    RandomGeographical,
+    /// Generates a latency matrix by randomly clustering nodes into clusters
+    /// and randomly positioning clusters on a cylinder.
+    RandomClustered,
+    /// Uses a hardcoded 10x10 matrix with 10 equal-sized regions.
+    HardCodedClustered,
+    /// Uses mainnet validator region distribution for latencies.
+    Mainnet,
 }
 
 fn parse_duration(arg: &str) -> Result<Duration, std::num::ParseIntError> {
@@ -380,6 +388,7 @@ async fn run<C: ServerProviderClient>(settings: Settings, client: C, opts: Opts)
             protocol_switch_each_epoch,
             maximum_latency,
             epoch_duration_ms,
+            blocking_connections,
         } => {
             // Create a new orchestrator to instruct the testbed.
             let username = testbed.username();
@@ -430,15 +439,23 @@ async fn run<C: ServerProviderClient>(settings: Settings, client: C, opts: Opts)
                         number_of_triangles,
                     }
                 }
+                Some(PerturbationSpec::Blocking) => net_latency::PerturbationSpec::Blocking {
+                    number_of_blocked_connections: blocking_connections,
+                },
                 None => net_latency::PerturbationSpec::None,
             };
 
             let latency_topology = match latency_topology {
-                Some(LatencyTopology::Geographical) => Some(TopologyLayout::Geographical),
-                Some(LatencyTopology::Clustered) => {
-                    Some(TopologyLayout::Clustered { number_of_clusters })
+                Some(LatencyTopology::RandomGeographical) => {
+                    Some(TopologyLayout::RandomGeographical)
                 }
-                Some(LatencyTopology::HardCoded) => Some(TopologyLayout::HardCoded),
+                Some(LatencyTopology::RandomClustered) => {
+                    Some(TopologyLayout::RandomClustered { number_of_clusters })
+                }
+                Some(LatencyTopology::HardCodedClustered) => {
+                    Some(TopologyLayout::HardCodedClustered)
+                }
+                Some(LatencyTopology::Mainnet) => Some(TopologyLayout::Mainnet),
                 None => None,
             };
 
