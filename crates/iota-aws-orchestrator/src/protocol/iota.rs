@@ -54,6 +54,7 @@ impl BenchmarkType for IotaBenchmarkType {}
 /// All configurations information to run an IOTA client or validator.
 pub struct IotaProtocol {
     working_dir: PathBuf,
+    use_fullnode_for_execution: bool,
 }
 
 impl ProtocolCommands<IotaBenchmarkType> for IotaProtocol {
@@ -99,12 +100,18 @@ impl ProtocolCommands<IotaBenchmarkType> for IotaProtocol {
             "cargo run --release --bin iota --",
             "genesis",
             &format!("-f --working-dir {working_dir} --benchmark-ips {ips}"),
+            parameters
+                .epoch_duration_ms
+                .map(|epoch_duration_ms| format!("--epoch-duration-ms {epoch_duration_ms}"))
+                .as_deref()
+                .unwrap_or(""),
         ]
         .join(" ");
 
         [
             &format!("mkdir -p {working_dir}"),
             "source $HOME/.cargo/env",
+            "export RUSTFLAGS='-C target-cpu=native'",
             &genesis,
         ]
         .join(" && ")
@@ -154,7 +161,52 @@ impl ProtocolCommands<IotaBenchmarkType> for IotaProtocol {
                     ),
                 ]
                 .join(" ");
-                let command = ["source $HOME/.cargo/env", &run].join(" && ");
+                let command = [
+                    "source $HOME/.cargo/env",
+                    "export RUSTFLAGS='-C target-cpu=native'",
+                    if parameters.protocol_switch_each_epoch {
+                        "export CONSENSUS_PROTOCOL=swap_each_epoch"
+                    } else {
+                        "export CONSENSUS_PROTOCOL=starfish"
+                    },
+                    &run,
+                ]
+                .join(" && ");
+
+                display::action(format!("\n Command ({i}): {command}"));
+
+                (instance, command)
+            })
+            .collect()
+    }
+
+    fn fullnode_command<I>(
+        &self,
+        instances: I,
+        _parameters: &BenchmarkParameters<IotaBenchmarkType>,
+    ) -> Vec<(Instance, String)>
+    where
+        I: IntoIterator<Item = Instance>,
+    {
+        let working_dir = self.working_dir.clone();
+
+        instances
+            .into_iter()
+            .enumerate()
+            .map(|(i, instance)| {
+                let config_path: PathBuf = working_dir.join(iota_config::IOTA_FULLNODE_CONFIG);
+
+                let run = [
+                    "cargo run --release --bin iota-node --",
+                    &format!("--config-path {}", config_path.display(),),
+                ]
+                .join(" ");
+                let command = [
+                    "source $HOME/.cargo/env",
+                    "export RUSTFLAGS='-C target-cpu=native'",
+                    &run,
+                ]
+                .join(" && ");
 
                 display::action(format!("\n Command ({i}): {command}"));
 
@@ -201,7 +253,7 @@ impl ProtocolCommands<IotaBenchmarkType> for IotaProtocol {
                 let gas_key = &gas_keys[i % committee_size];
                 let gas_address = IotaAddress::from(&gas_key.public());
 
-                let run = [
+                let mut run = [
                     "cargo run --release --bin stress --",
                     "--num-client-threads 24 --num-server-threads 1",
                     "--local false --num-transfer-accounts 2",
@@ -216,7 +268,16 @@ impl ProtocolCommands<IotaBenchmarkType> for IotaProtocol {
                     &format!("--client-metric-host 0.0.0.0 --client-metric-port {metrics_port}"),
                 ]
                 .join(" ");
-                let command = ["source $HOME/.cargo/env", &run].join(" && ");
+                if self.use_fullnode_for_execution {
+                    run.push_str(" --use-fullnode-for-execution true");
+                    run.push_str(" --fullnode-rpc-addresses http://127.0.0.1:9000");
+                }
+                let command = [
+                    "source $HOME/.cargo/env",
+                    "export RUSTFLAGS='-C target-cpu=native'",
+                    &run,
+                ]
+                .join(" && ");
 
                 (instance, command)
             })
@@ -233,6 +294,7 @@ impl IotaProtocol {
             working_dir: [&settings.working_dir, &iota_config::IOTA_CONFIG_DIR.into()]
                 .iter()
                 .collect(),
+            use_fullnode_for_execution: settings.use_fullnode_for_execution,
         }
     }
 
@@ -250,7 +312,7 @@ impl IotaProtocol {
                 false => x.main_ip.to_string(),
             })
             .collect();
-        let genesis_config = GenesisConfig::new_for_benchmarks(&ips);
+        let genesis_config = GenesisConfig::new_for_benchmarks(&ips, parameters.epoch_duration_ms);
         let mut addresses = Vec::new();
         if let Some(validator_configs) = genesis_config.validator_config_info.as_ref() {
             for (i, validator_info) in validator_configs.iter().enumerate() {
@@ -292,7 +354,7 @@ impl ProtocolMetrics for IotaProtocol {
             })
             .unzip();
 
-        GenesisConfig::new_for_benchmarks(&ips)
+        GenesisConfig::new_for_benchmarks(&ips, parameters.epoch_duration_ms)
             .validator_config_info
             .expect("No validator in genesis")
             .iter()

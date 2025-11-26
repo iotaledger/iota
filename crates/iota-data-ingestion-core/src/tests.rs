@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
+    fs,
     path::PathBuf,
     sync::{
         Arc,
@@ -13,15 +14,21 @@ use std::{
 
 use async_trait::async_trait;
 use iota_protocol_config::ProtocolConfig;
+use iota_rest_api::CheckpointTransaction;
 use iota_storage::blob::{Blob, BlobEncoding};
 use iota_types::{
-    crypto::KeypairTraits,
+    base_types::{IotaAddress, ObjectID, SequenceNumber},
+    committee::EpochId,
+    crypto::{KeypairTraits, RandomnessRound},
+    digests::ObjectDigest,
+    effects::TransactionEffects,
     full_checkpoint_content::CheckpointData,
     gas::GasCostSummary,
     messages_checkpoint::{
         CertifiedCheckpointSummary, CheckpointContents, CheckpointSequenceNumber,
         CheckpointSummary, SignedCheckpointSummary,
     },
+    transaction::{RandomnessStateUpdate, Transaction, TransactionData, TransactionKind},
     utils::make_committee_key,
 };
 use prometheus::Registry;
@@ -31,8 +38,9 @@ use tokio::time::timeout;
 use tokio_util::sync::CancellationToken;
 
 use crate::{
-    DataIngestionMetrics, FileProgressStore, IndexerExecutor, IngestionError, IngestionResult,
-    ProgressStore, ReaderOptions, Reducer, Worker, WorkerPool, progress_store::ExecutorProgress,
+    DataIngestionMetrics, FileProgressStore, IndexerExecutor, IngestionError, IngestionLimit,
+    IngestionResult, ProgressStore, ReaderOptions, Reducer, ShutdownAction, Worker, WorkerPool,
+    progress_store::ExecutorProgress,
 };
 
 async fn add_worker_pool<W: Worker + 'static>(
@@ -47,28 +55,33 @@ async fn add_worker_pool<W: Worker + 'static>(
 
 async fn run(
     indexer: IndexerExecutor<FileProgressStore>,
-    path: Option<PathBuf>,
-    duration: Option<Duration>,
+    path: impl Into<Option<PathBuf>>,
+    duration: impl Into<Option<Duration>>,
     token: CancellationToken,
 ) -> IngestionResult<ExecutorProgress> {
-    let options = ReaderOptions {
+    let reader_options = ReaderOptions {
         tick_interval_ms: 10,
         batch_size: 1,
         ..Default::default()
     };
 
-    match duration {
+    match duration.into() {
         None => {
             indexer
-                .run(path.unwrap_or_else(temp_dir), None, vec![], options)
+                .run(
+                    path.into().unwrap_or_else(temp_dir),
+                    None,
+                    vec![],
+                    reader_options,
+                )
                 .await
         }
         Some(duration) => {
             let handle = tokio::task::spawn(indexer.run(
-                path.unwrap_or_else(temp_dir),
+                path.into().unwrap_or_else(temp_dir),
                 None,
                 vec![],
-                options,
+                reader_options,
             ));
             tokio::time::sleep(duration).await;
             token.cancel();
@@ -196,15 +209,255 @@ async fn basic_flow() {
         let bytes = mock_checkpoint_data_bytes(checkpoint_number);
         std::fs::write(path.join(format!("{checkpoint_number}.chk")), bytes).unwrap();
     }
-    let result = run(
-        bundle.executor,
-        Some(path),
-        Some(Duration::from_secs(3)),
-        bundle.token,
-    )
-    .await;
+    let result = run(bundle.executor, path, Duration::from_secs(3), bundle.token).await;
     assert!(result.is_ok());
     assert_eq!(result.unwrap().get("test"), Some(&20));
+}
+
+// Tests the graceful shutdown behavior when a checkpoint upper limit is
+// provided.
+//
+// This test verifies that:
+// 1. The framework process checkpoints not exceeding the upper limit.
+// 2. The Executor handles the upper limit correctly by not sending any more
+//    checkpoints to workers.
+// 3. The graceful shutdown is triggered by the Executor when the Worker reports
+//    the processed checkpoint matching the upper limit one, making sure to not
+//    trigger the shutdown prematurely.
+#[tokio::test]
+async fn basic_flow_with_checkpoint_upper_limit() {
+    let mut bundle = create_executor_bundle().await;
+    add_worker_pool(&mut bundle.executor, TestWorker, 5)
+        .await
+        .unwrap();
+    let path = temp_dir();
+    // range not inclusive actual chk files generated 0.chk .. 24.chk
+    for checkpoint_number in 0..25 {
+        let bytes = mock_checkpoint_data_bytes(checkpoint_number);
+        std::fs::write(path.join(format!("{checkpoint_number}.chk")), bytes).unwrap();
+    }
+    // process until we reach the checkpoint sequence number 19. Subsequent
+    // checkpoints should be skipped.
+    bundle
+        .executor
+        .with_ingestion_limit(IngestionLimit::MaxCheckpoint(19));
+
+    let result = run(bundle.executor, path.clone(), None, bundle.token).await;
+    assert!(result.is_ok());
+    // expect watermark == processed_last_checkpoint + 1 == 20.
+    assert_eq!(result.unwrap().get("test"), Some(&20));
+    // remove leftover checkpoint files.
+    fs::remove_dir_all(path).unwrap();
+}
+
+// Tests the graceful shutdown behavior when a checkpoint upper limit is
+// provided through a custom callback.
+//
+// This test verifies that:
+// 1. The framework process checkpoints not exceeding the upper limit.
+// 2. The Executor handles the upper limit correctly by not sending any more
+//    checkpoints to workers.
+// 3. The graceful shutdown is triggered by the Executor when the Worker reports
+//    the processed checkpoint matching the upper limit one, making sure to not
+//    trigger the shutdown prematurely.
+#[tokio::test]
+async fn basic_flow_with_custom_callback_checkpoint_limit() {
+    let mut bundle = create_executor_bundle().await;
+    add_worker_pool(&mut bundle.executor, TestWorker, 5)
+        .await
+        .unwrap();
+    let path = temp_dir();
+    // range not inclusive actual chk files generated 0.chk .. 24.chk
+    for checkpoint_number in 0..25 {
+        let bytes = mock_checkpoint_data_bytes(checkpoint_number);
+        std::fs::write(path.join(format!("{checkpoint_number}.chk")), bytes).unwrap();
+    }
+
+    // process until we reach the checkpoint sequence number 19 (inclusive).
+    // Subsequent checkpoints should be skipped.
+    bundle.executor.shutdown_when(|chk| {
+        if chk.checkpoint_summary.sequence_number == 19 {
+            return ShutdownAction::IncludeAndShutdown;
+        }
+        ShutdownAction::Continue
+    });
+
+    let result = run(bundle.executor, path.clone(), None, bundle.token).await;
+    assert!(result.is_ok());
+    // expect watermark == processed_last_checkpoint + 1 == 20.
+    assert_eq!(result.unwrap().get("test"), Some(&20));
+    // remove leftover checkpoint files.
+    fs::remove_dir_all(path).unwrap();
+}
+
+// Tests the graceful shutdown behavior when an epoch upper limit is
+// provided.
+//
+// This test verifies that:
+// 1. The framework process checkpoints not exceeding the epoch upper limit.
+// 2. The Executor handles the upper limit correctly by not sending any more
+//    checkpoints to workers.
+// 3. The graceful shutdown is triggered by the Executor when the Worker reports
+//    the processed checkpoint matching the upper limit one, making sure to not
+//    trigger the shutdown prematurely.
+#[tokio::test]
+async fn basic_flow_with_epoch_upper_limit() {
+    let mut bundle = create_executor_bundle().await;
+    add_worker_pool(&mut bundle.executor, TestWorker, 5)
+        .await
+        .unwrap();
+    let path = temp_dir();
+    // range not inclusive actual chk files generated 0.chk .. 14.chk
+    for checkpoint_number in 0..15 {
+        let bytes = mock_checkpoint_data_bytes(checkpoint_number);
+        std::fs::write(path.join(format!("{checkpoint_number}.chk")), bytes).unwrap();
+    }
+    // create a single checkpoint with a new epoch to simulate epoch change
+    // this checkpoint should not be processed
+    let bytes = mock_checkpoint_data_bytes_with_opt(15, 1, vec![]);
+    std::fs::write(path.join("15.chk"), bytes).unwrap();
+
+    // process until we reach the epoch upper limit 0, so it should process up to
+    // checkpoint file 14.chk (inclusive). Subsequent checkpoints (15.chk) should be
+    // skipped.
+    bundle
+        .executor
+        .with_ingestion_limit(IngestionLimit::EndOfEpoch(0));
+
+    let result = run(bundle.executor, path.clone(), None, bundle.token).await;
+    assert!(result.is_ok());
+    // expect watermark == processed_last_checkpoint + 1 == 15.
+    assert_eq!(result.unwrap().get("test"), Some(&15));
+    // remove leftover checkpoint files.
+    fs::remove_dir_all(path).unwrap();
+}
+
+// Tests the graceful shutdown behavior when an epoch upper limit is
+// provided through a custom callback.
+//
+// This test verifies that:
+// 1. The framework process checkpoints not exceeding the epoch upper limit.
+// 2. The Executor handles the upper limit correctly by not sending any more
+//    checkpoints to workers.
+// 3. The graceful shutdown is triggered by the Executor when the Worker reports
+//    the processed checkpoint matching the upper limit one, making sure to not
+//    trigger the shutdown prematurely.
+#[tokio::test]
+async fn basic_flow_with_custom_callback_epoch_limit() {
+    let mut bundle = create_executor_bundle().await;
+    add_worker_pool(&mut bundle.executor, TestWorker, 5)
+        .await
+        .unwrap();
+    let path = temp_dir();
+    // range not inclusive actual chk files generated 0.chk .. 14.chk
+    for checkpoint_number in 0..15 {
+        let bytes = mock_checkpoint_data_bytes(checkpoint_number);
+        std::fs::write(path.join(format!("{checkpoint_number}.chk")), bytes).unwrap();
+    }
+    // create a single checkpoint with a new epoch to simulate epoch change
+    // this checkpoint should not be processed
+    let bytes = mock_checkpoint_data_bytes_with_opt(15, 1, vec![]);
+    std::fs::write(path.join("15.chk"), bytes).unwrap();
+
+    // process until we reach the epoch upper limit 0, so it should process up to
+    // checkpoint file 14.chk (inclusive). Subsequent checkpoints (15.chk) should be
+    // skipped.
+    bundle.executor.shutdown_when(|chk| {
+        if chk.checkpoint_summary.epoch > 0 {
+            return ShutdownAction::ExcludeAndShutdown;
+        }
+        ShutdownAction::Continue
+    });
+
+    let result = run(bundle.executor, path.clone(), None, bundle.token).await;
+    assert!(result.is_ok());
+    // expect watermark == processed_last_checkpoint + 1 == 15.
+    assert_eq!(result.unwrap().get("test"), Some(&15));
+    // remove leftover checkpoint files.
+    fs::remove_dir_all(path).unwrap();
+}
+
+// Test: graceful shutdown via a custom callback.
+//
+// Scenario:
+// A transaction with a known digest is embedded only in checkpoint 10. The
+// callback `shutdown_when` inspects each processed checkpoint and returns
+// `ShutdownAction::IncludeAndShutdown` enum variant if it contains the target
+// transaction digest. Once the condition is met, the Executor will stop sending
+// new checkpoints and will wait for all previously sent checkpoints to be
+// processed by workers before initiating graceful shutdown process. 11.chk is
+// skipped and becomes the upper limit.
+//
+// This test verifies that:
+// 1. The framework only processes checkpoints with sequence numbers strictly
+//    less than the one containing the matching transaction digest (0.chk =>
+//    10.chk).
+// 2. Upon hitting the shutdown condition, the Executor stops dispatching
+//    further checkpoints (11.chk and later are not sent to workers).
+// 3. Graceful shutdown is triggered exactly when the matching digest would be
+//    encountered, never prematurely.
+#[tokio::test]
+async fn basic_flow_with_custom_callback() {
+    let mut bundle = create_executor_bundle().await;
+    add_worker_pool(&mut bundle.executor, TestWorker, 5)
+        .await
+        .unwrap();
+    let path = temp_dir();
+
+    let tx_data = TransactionData::new(
+        TransactionKind::RandomnessStateUpdate(RandomnessStateUpdate {
+            epoch: 0,
+            randomness_round: RandomnessRound::new(0),
+            random_bytes: vec![],
+            randomness_obj_initial_shared_version: SequenceNumber::new(),
+        }),
+        IotaAddress::random_for_testing_only(),
+        (ObjectID::ZERO, SequenceNumber::default(), ObjectDigest::MIN),
+        0,
+        0,
+    );
+
+    let ch_tx = CheckpointTransaction {
+        transaction: Transaction::from_data(tx_data, vec![]),
+        effects: TransactionEffects::default(),
+        events: None,
+        input_objects: vec![],
+        output_objects: vec![],
+    };
+
+    let tx_digest = *ch_tx.transaction.digest();
+
+    // range not inclusive actual chk files generated 0.chk .. 14.chk
+    for checkpoint_number in 0..15 {
+        if checkpoint_number == 10 {
+            let bytes =
+                mock_checkpoint_data_bytes_with_opt(checkpoint_number, 0, vec![ch_tx.clone()]);
+            std::fs::write(path.join(format!("{checkpoint_number}.chk")), bytes).unwrap();
+        } else {
+            let bytes = mock_checkpoint_data_bytes(checkpoint_number);
+            std::fs::write(path.join(format!("{checkpoint_number}.chk")), bytes).unwrap();
+        }
+    }
+
+    // process until we reach the checkpoint number 10 the one that holds the
+    // transaction digest.
+    bundle.executor.shutdown_when(move |chk| {
+        if chk
+            .transactions
+            .iter()
+            .any(|tx| *tx.transaction.digest() == tx_digest)
+        {
+            return ShutdownAction::IncludeAndShutdown;
+        }
+        ShutdownAction::Continue
+    });
+
+    let result = run(bundle.executor, path.clone(), None, bundle.token).await;
+    assert!(result.is_ok());
+    // expect watermark == processed_last_checkpoint + 1 == 11.
+    assert_eq!(result.unwrap().get("test"), Some(&11));
+    // remove leftover checkpoint files.
+    fs::remove_dir_all(path).unwrap();
 }
 
 // Tests the graceful shutdown behavior when workers encounter persistent
@@ -232,13 +485,7 @@ async fn graceful_shutdown_faulty_worker() {
         let bytes = mock_checkpoint_data_bytes(checkpoint_number);
         std::fs::write(path.join(format!("{checkpoint_number}.chk")), bytes).unwrap();
     }
-    let result = run(
-        bundle.executor,
-        Some(path),
-        Some(Duration::from_secs(1)),
-        bundle.token,
-    )
-    .await;
+    let result = run(bundle.executor, path, Duration::from_secs(1), bundle.token).await;
     assert!(result.is_ok());
     assert_eq!(result.unwrap().get("test"), Some(&0));
 }
@@ -271,13 +518,7 @@ async fn worker_pool_with_reducer() {
         let bytes = mock_checkpoint_data_bytes(checkpoint_number);
         std::fs::write(path.join(format!("{checkpoint_number}.chk")), bytes).unwrap();
     }
-    let result = run(
-        bundle.executor,
-        Some(path),
-        Some(Duration::from_secs(3)),
-        bundle.token,
-    )
-    .await;
+    let result = run(bundle.executor, path, Duration::from_secs(3), bundle.token).await;
     // 4 commits (batches of 5 checkpoints)
     assert_eq!(commit_count.load(Ordering::SeqCst), 4);
     assert!(result.is_ok());
@@ -318,13 +559,7 @@ async fn graceful_shutdown_faulty_reducer() {
         let bytes = mock_checkpoint_data_bytes(checkpoint_number);
         std::fs::write(path.join(format!("{checkpoint_number}.chk")), bytes).unwrap();
     }
-    let result = run(
-        bundle.executor,
-        Some(path),
-        Some(Duration::from_secs(1)),
-        bundle.token,
-    )
-    .await;
+    let result = run(bundle.executor, path, Duration::from_secs(1), bundle.token).await;
     assert!(result.is_ok());
     assert_eq!(result.unwrap().get("test"), Some(&0));
 }
@@ -429,12 +664,20 @@ const RNG_SEED: [u8; 32] = [
 ];
 
 fn mock_checkpoint_data_bytes(seq_number: CheckpointSequenceNumber) -> Vec<u8> {
+    mock_checkpoint_data_bytes_with_opt(seq_number, 0, vec![])
+}
+
+fn mock_checkpoint_data_bytes_with_opt(
+    seq_number: CheckpointSequenceNumber,
+    epoch: EpochId,
+    transactions: Vec<CheckpointTransaction>,
+) -> Vec<u8> {
     let mut rng = StdRng::from_seed(RNG_SEED);
     let (keys, committee) = make_committee_key(&mut rng);
     let contents = CheckpointContents::new_with_digests_only_for_tests(vec![]);
     let summary = CheckpointSummary::new(
         &ProtocolConfig::get_for_max_version_UNSAFE(),
-        0,
+        epoch,
         seq_number,
         0,
         &contents,
@@ -457,7 +700,7 @@ fn mock_checkpoint_data_bytes(seq_number: CheckpointSequenceNumber) -> Vec<u8> {
         checkpoint_summary: CertifiedCheckpointSummary::new(summary, sign_infos, &committee)
             .unwrap(),
         checkpoint_contents: contents,
-        transactions: vec![],
+        transactions,
     };
     Blob::encode(&checkpoint_data, BlobEncoding::Bcs)
         .unwrap()
