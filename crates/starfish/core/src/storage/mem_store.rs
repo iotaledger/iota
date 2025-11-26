@@ -23,8 +23,9 @@ use crate::{
     },
     error::ConsensusResult,
 };
-use crate::block_header::GenericTransactionRef;
+use crate::block_header::{GenericTransactionRef, TransactionRef, TransactionsCommitment};
 use crate::context::Context;
+use crate::error::ConsensusError;
 
 /// In-memory storage for testing.
 pub(crate) struct MemStore {
@@ -33,8 +34,10 @@ pub(crate) struct MemStore {
 
 struct Inner {
     transactions: BTreeMap<(Round, AuthorityIndex, BlockHeaderDigest), VerifiedTransactions>,
+    transactions_by_tr_refs: BTreeMap<(Round, AuthorityIndex, TransactionsCommitment), VerifiedTransactions>,
     block_headers: BTreeMap<(Round, AuthorityIndex, BlockHeaderDigest), VerifiedBlockHeader>,
     digests_by_authorities: BTreeSet<(AuthorityIndex, Round, BlockHeaderDigest)>,
+    transaction_commitments_by_authorities: BTreeSet<(AuthorityIndex, Round, TransactionsCommitment, BlockHeaderDigest)>,
     commits: BTreeMap<(CommitIndex, CommitDigest), TrustedCommit>,
     commit_votes: BTreeSet<(CommitIndex, CommitDigest, BlockRef)>,
     commit_info: BTreeMap<(CommitIndex, CommitDigest), CommitInfo>,
@@ -45,8 +48,10 @@ impl MemStore {
         MemStore {
             inner: RwLock::new(Inner {
                 transactions: BTreeMap::new(),
+                transactions_by_tr_refs: BTreeMap::new(),
                 block_headers: BTreeMap::new(),
                 digests_by_authorities: BTreeSet::new(),
+                transaction_commitments_by_authorities: BTreeSet::new(),
                 commits: BTreeMap::new(),
                 commit_votes: BTreeSet::new(),
                 commit_info: BTreeMap::new(),
@@ -81,10 +86,32 @@ impl Store for MemStore {
         // Store transactions data separately
         for transaction in write_batch.transactions {
             let block_ref = transaction.block_ref();
-            inner.transactions.insert(
-                (block_ref.round, block_ref.author, block_ref.digest),
-                transaction,
-            );
+            let transaction_ref = transaction.transaction_ref();
+            if context.protocol_config.consensus_transaction_ref() {
+                inner.transactions_by_tr_refs.insert(
+
+                            (
+                                transaction_ref.round,
+                                transaction_ref.author,
+                                transaction_ref.transactions_commitment,
+                            ),
+                            transaction,
+                        );
+
+                inner.transaction_commitments_by_authorities.insert(
+
+                            (
+                                transaction_ref.author,
+                                transaction_ref.round,
+                                transaction_ref.transactions_commitment,
+                                transaction_ref.block_digest,
+                            )
+                    );
+            } else {
+                inner.transactions.insert(
+                    (block_ref.round, block_ref.author, block_ref.digest),
+                    transaction);
+            }
         }
 
         for commit in write_batch.commits {
@@ -106,14 +133,19 @@ impl Store for MemStore {
         &self,
         refs: &[GenericTransactionRef],
     ) -> ConsensusResult<Vec<Option<VerifiedTransactions>>> {
+        if crate::storage::rocksdb_store::check_ref_consistency(refs) == false {
+            return Err(ConsensusError::InconsistentTransactionRefVariants);
+        }
         let inner = self.inner.read();
         let transactions = refs
             .iter()
-            .map(|r| {
-                inner
-                    .transactions
-                    .get(&(r.round, r.author, r.digest))
-                    .cloned()
+            .map(|r| match r {
+                GenericTransactionRef::BlockRef(b) => {
+                    inner.transactions.get(&(b.round, b.author, b.digest)).cloned()
+                }
+                GenericTransactionRef::TransactionRef(t) => {
+                    inner.transactions.get(&(t.round, t.author, t.block_digest)).cloned()
+                }
             })
             .collect();
         Ok(transactions)
@@ -123,14 +155,19 @@ impl Store for MemStore {
         &self,
         refs: &[GenericTransactionRef],
     ) -> ConsensusResult<Vec<Option<Bytes>>> {
+        if crate::storage::rocksdb_store::check_ref_consistency(refs) == false {
+            return Err(ConsensusError::InconsistentTransactionRefVariants);
+        }
         let inner = self.inner.read();
         let transactions = refs
             .iter()
-            .map(|r| {
-                inner
-                    .transactions
-                    .get(&(r.round, r.author, r.digest))
-                    .map(|tx| tx.serialized().clone())
+            .map(|r| match r {
+                GenericTransactionRef::BlockRef(b) => {
+                    inner.transactions.get(&(b.round, b.author, b.digest)).map(|tx| tx.serialized().clone())
+                }
+                GenericTransactionRef::TransactionRef(t) => {
+                    inner.transactions.get(&(t.round, t.author, t.block_digest)).map(|tx| tx.serialized().clone())
+                }
             })
             .collect();
         Ok(transactions)
@@ -161,13 +198,19 @@ impl Store for MemStore {
     }
 
     fn contains_transactions(&self, refs: &[GenericTransactionRef]) -> ConsensusResult<Vec<bool>> {
+        if crate::storage::rocksdb_store::check_ref_consistency(refs) == false {
+            return Err(ConsensusError::InconsistentTransactionRefVariants);
+        }
         let inner = self.inner.read();
         let exist = refs
             .iter()
-            .map(|r| {
-                inner
-                    .transactions
-                    .contains_key(&(r.round, r.author, r.digest))
+            .map(|r| match r {
+                GenericTransactionRef::BlockRef(b) => {
+                    inner.transactions.contains_key(&(b.round, b.author, b.digest))
+                }
+                GenericTransactionRef::TransactionRef(t) => {
+                    inner.transactions.contains_key(&(t.round, t.author, t.block_digest))
+                }
             })
             .collect();
         Ok(exist)
@@ -291,6 +334,28 @@ impl Store for MemStore {
                 Included((author, Round::MAX, BlockHeaderDigest::MAX)),
             ))
             .map(|(author, round, digest)| BlockRef::new(*round, *author, *digest))
+            .collect();
+        Ok(res)
+    }
+
+    fn scan_transaction_references_by_author(
+        &self,
+        author: AuthorityIndex,
+        start_round: Round,
+    ) -> ConsensusResult<Vec<TransactionRef>> {
+        let inner = self.inner.read();
+        let res = inner
+            .transaction_commitments_by_authorities
+            .range((
+                Included((author, start_round, TransactionsCommitment::MIN, BlockHeaderDigest::MIN)),
+                Included((author, Round::MAX, TransactionsCommitment::MAX, BlockHeaderDigest::MAX)),
+            ))
+            .map(|(author, round, commitment, digest)| TransactionRef {
+                round: *round,
+                author: *author,
+                transactions_commitment: *commitment,
+                block_digest: *digest,
+            })
             .collect();
         Ok(res)
     }

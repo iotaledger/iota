@@ -351,6 +351,9 @@ impl Store for RocksDBStore {
         &self,
         refs: &[GenericTransactionRef],
     ) -> ConsensusResult<Vec<Option<VerifiedTransactions>>> {
+        if !check_ref_consistency(refs) {
+            return Err(ConsensusError::InconsistentTransactionRefVariants);
+        }
         let serialized_vec_transactions = self.read_serialized_transactions(refs)?;
         if refs.is_empty() {
             return Ok(vec![]);
@@ -365,7 +368,7 @@ impl Store for RocksDBStore {
                 refs.iter().zip(serialized_vec_transactions)
             {
                 let GenericTransactionRef::TransactionRef(tr_ref) = gen_tr_ref else {
-                    panic!("Should not happen");
+                    return Err(ConsensusError::InconsistentTransactionRefVariants);
                 };
                 let block_ref = BlockRef {
                     author: tr_ref.author,
@@ -393,11 +396,11 @@ impl Store for RocksDBStore {
                 .iter()
                 .map(|gen_tr_ref| {
                     let GenericTransactionRef::BlockRef(block_ref) = gen_tr_ref else {
-                        panic!("Should not happen");
+                        return Err(ConsensusError::InconsistentTransactionRefVariants);
                     };
-                    block_ref.clone()
+                    Ok(block_ref.clone())
                 })
-                .collect::<Vec<_>>();
+                .collect::<Result<Vec<_>, ConsensusError>>()?;
             let serialized_block_headers =
                 self.read_serialized_block_headers(block_refs.as_slice())?;
 
@@ -424,7 +427,6 @@ impl Store for RocksDBStore {
                         signed_block_header.transactions_commitment(),
                         serialized_transactions,
                     );
-
                     result.push(Some(verified_transactions));
                 } else {
                     result.push(None);
@@ -448,30 +450,30 @@ impl Store for RocksDBStore {
         }
         match &refs[0] {
             GenericTransactionRef::BlockRef { .. } => {
-                let keys = refs
+                let keys: Result<Vec<_>, ConsensusError> = refs
                     .iter()
                     .map(|r| {
                         if let GenericTransactionRef::BlockRef(block_ref) = r {
-                            (block_ref.round, block_ref.author, block_ref.digest)
+                            Ok((block_ref.round, block_ref.author, block_ref.digest))
                         } else {
-                            panic!("Should not happen");
+                            Err(ConsensusError::InconsistentTransactionRefVariants)
                         }
                     })
-                    .collect::<Vec<_>>();
-                Ok(self.transactions.multi_get(keys)?)
+                    .collect();
+                Ok(self.transactions.multi_get(keys?)?)
             }
             GenericTransactionRef::TransactionRef { .. } => {
-                let keys = refs
+                let keys: Result<Vec<_>, ConsensusError> = refs
                     .iter()
                     .map(|r| {
                         if let GenericTransactionRef::TransactionRef(tr_ref) = r {
-                            (tr_ref.round, tr_ref.author, tr_ref.transactions_commitment)
+                            Ok((tr_ref.round, tr_ref.author, tr_ref.transactions_commitment))
                         } else {
-                            panic!("Should not happen");
+                            Err(ConsensusError::InconsistentTransactionRefVariants)
                         }
                     })
-                    .collect::<Vec<_>>();
-                Ok(self.transactions_by_tr_refs.multi_get(keys)?)
+                    .collect();
+                Ok(self.transactions_by_tr_refs.multi_get(keys?)?)
             }
         }
     }
@@ -485,30 +487,30 @@ impl Store for RocksDBStore {
         }
         match &refs[0] {
             GenericTransactionRef::BlockRef { .. } => {
-                let keys = refs
+                let keys: Result<Vec<_>, ConsensusError> = refs
                     .iter()
                     .map(|r| {
                         if let GenericTransactionRef::BlockRef(block_ref) = r {
-                            (block_ref.round, block_ref.author, block_ref.digest)
+                            Ok((block_ref.round, block_ref.author, block_ref.digest))
                         } else {
-                            panic!("Should not happen");
+                            Err(ConsensusError::InconsistentTransactionRefVariants)
                         }
                     })
-                    .collect::<Vec<_>>();
-                Ok(self.transactions.multi_contains_keys(keys)?)
+                    .collect();
+                Ok(self.transactions.multi_contains_keys(keys?)?)
             }
             GenericTransactionRef::TransactionRef { .. } => {
-                let keys = refs
+                let keys: Result<Vec<_>, ConsensusError> = refs
                     .iter()
                     .map(|r| {
                         if let GenericTransactionRef::TransactionRef(tr_ref) = r {
-                            (tr_ref.round, tr_ref.author, tr_ref.transactions_commitment)
+                            Ok((tr_ref.round, tr_ref.author, tr_ref.transactions_commitment))
                         } else {
-                            panic!("Should not happen");
+                            Err(ConsensusError::InconsistentTransactionRefVariants)
                         }
                     })
-                    .collect::<Vec<_>>();
-                Ok(self.transactions_by_tr_refs.multi_contains_keys(keys)?)
+                    .collect();
+                Ok(self.transactions_by_tr_refs.multi_contains_keys(keys?)?)
             }
         }
     }
