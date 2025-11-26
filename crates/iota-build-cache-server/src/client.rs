@@ -91,12 +91,15 @@ impl BuildCacheClient {
     }
 
     pub async fn resolve_commit(&self, commit: &str) -> BuildCacheResult<String> {
-        let url = format!(
-            "http://{}:{}/resolve/{commit}",
-            self.build_instance_ip, self.port
-        );
+        let url = format!("http://{}:{}/resolve", self.build_instance_ip, self.port);
 
-        let response = self.add_auth(self.client.get(&url)).send().await?;
+        let mut params = HashMap::new();
+        params.insert("commit", commit);
+
+        let response = self
+            .add_auth(self.client.get(&url).query(&params))
+            .send()
+            .await?;
 
         if !response.status().is_success() {
             return Err(BuildCacheError::Cache(format!(
@@ -117,13 +120,13 @@ impl BuildCacheClient {
         cpu_target: &str,
         binaries: &[String],
     ) -> BuildCacheResult<BuildCacheResponse> {
-        let url = format!(
-            "http://{}:{}/check/{commit}/{cpu_target}",
-            self.build_instance_ip, self.port
-        );
+        let url = format!("http://{}:{}/check", self.build_instance_ip, self.port);
 
+        let binaries_str = binaries.join(",");
         let mut params = HashMap::new();
-        params.insert("binaries", binaries.join(","));
+        params.insert("commit", commit);
+        params.insert("cpu_target", cpu_target);
+        params.insert("binaries", &binaries_str);
 
         let response = self
             .add_auth(self.client.get(&url).query(&params))
@@ -150,12 +153,17 @@ impl BuildCacheClient {
         binary_name: &str,
         local_path: &PathBuf,
     ) -> BuildCacheResult<()> {
-        let url = format!(
-            "http://{}:{}/download/{commit}/{cpu_target}/{binary_name}",
-            self.build_instance_ip, self.port
-        );
+        let url = format!("http://{}:{}/download", self.build_instance_ip, self.port);
 
-        let response = self.add_auth(self.client.get(&url)).send().await?;
+        let mut params = HashMap::new();
+        params.insert("commit", commit);
+        params.insert("cpu_target", cpu_target);
+        params.insert("binary", binary_name);
+
+        let response = self
+            .add_auth(self.client.get(&url).query(&params))
+            .send()
+            .await?;
 
         if !response.status().is_success() {
             return Err(BuildCacheError::Cache(format!(

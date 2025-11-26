@@ -53,7 +53,7 @@ print_config() {
 check_availability() {
     # Make check request
     RESPONSE=$(curl -s -w "\n%{http_code}" $(get_auth_args) \
-        "$BUILD_CACHE_SERVER_URI/check/$COMMIT/$CPU_TARGET?binaries=$BINARIES")
+        "$BUILD_CACHE_SERVER_URI/check?commit=$COMMIT&cpu_target=$CPU_TARGET&binaries=$BINARIES")
 
     # Parse response
     HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
@@ -143,7 +143,7 @@ EOF
 # Function to get build status
 get_build_status() {
     RESPONSE=$(curl -s -w "\n%{http_code}" $(get_auth_args) \
-        "$BUILD_CACHE_SERVER_URI/status/$COMMIT/$CPU_TARGET?binaries=$BINARIES" 2>/dev/null || echo "\n000")
+        "$BUILD_CACHE_SERVER_URI/status?commit=$COMMIT&cpu_target=$CPU_TARGET&binaries=$BINARIES" 2>/dev/null || echo "\n000")
     
     HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
     BODY=$(echo "$RESPONSE" | sed '$d')
@@ -247,7 +247,7 @@ download() {
         
         RESPONSE=$(curl -s -w "\n%{http_code}" -L -D "$HEADER_FILE" \
             $(get_auth_args) \
-            "$BUILD_CACHE_SERVER_URI/download/$COMMIT/$CPU_TARGET/$BINARY" \
+            "$BUILD_CACHE_SERVER_URI/download?commit=$COMMIT&cpu_target=$CPU_TARGET&binary=$BINARY" \
             -o "$OUTPUT_DIR/$BINARY")
         
         HTTP_CODE=$(echo "$RESPONSE" | tail -n1)

@@ -502,7 +502,7 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
                 // Create download command that fetches from build cache
                 let release_folder = format!("{working_dir}/{repo_name}/target/release");
                 let download_command = format!(
-                    "mkdir -p {release_folder} && curl -f -L -o {release_folder}/{binary} http://{}/download/{resolved_commit}/{cpu_target}/{binary} && chmod +x {release_folder}/{binary}",
+                    "mkdir -p {release_folder} && curl -f -L -o {release_folder}/{binary} 'http://{}/download?commit={resolved_commit}&cpu_target={cpu_target}&binary={binary}' && chmod +x {release_folder}/{binary}",
                     build_config.address
                 );
 

@@ -14,6 +14,7 @@ use hyper::{
 use hyper_util::rt::TokioIo;
 use tokio::net::TcpListener;
 use tracing::{error, info, warn};
+use url::Url;
 
 use crate::{cache::BuildCache, types::BuildRequest};
 
@@ -109,26 +110,20 @@ async fn handle_request(
     info!("{method} {path}");
 
     let response = match (method, path) {
-        // GET /resolve/{commit}
-        (&Method::GET, "/resolve/{commit}") => handle_resolve_request(req, cache).await,
+        // GET /resolve?commit=<commit>
+        (&Method::GET, "/resolve") => handle_resolve_request(req, cache).await,
 
-        // GET /check/{commit}/{cpu_target}?binaries=bin1,bin2,bin3
-        (&Method::GET, path) if path.starts_with("/check/") => {
-            handle_check_request(req, cache).await
-        }
+        // GET /check?commit=<commit>&cpu_target=<target>&binaries=bin1,bin2,bin3
+        (&Method::GET, "/check") => handle_check_request(req, cache).await,
 
-        // GET /download/{commit}/{cpu_target}/{binary_name}
-        (&Method::GET, path) if path.starts_with("/download/") => {
-            handle_download_request(req, cache).await
-        }
+        // GET /download?commit=<commit>&cpu_target=<target>&binary=<name>
+        (&Method::GET, "/download") => handle_download_request(req, cache).await,
 
         // POST /build
         (&Method::POST, "/build") => handle_build_request(req, cache).await,
 
-        // GET /status/{commit}/{cpu_target}?binaries=bin1,bin2,bin3
-        (&Method::GET, path) if path.starts_with("/status/") => {
-            handle_status_request(req, cache).await
-        }
+        // GET /status?commit=<commit>&cpu_target=<target>&binaries=bin1,bin2,bin3
+        (&Method::GET, "/status") => handle_status_request(req, cache).await,
 
         // Health check
         (&Method::GET, "/health") => Ok(Response::builder()
@@ -147,17 +142,14 @@ async fn handle_resolve_request(
     req: Request<Incoming>,
     cache: Arc<BuildCache>,
 ) -> Result<Response<Full<Bytes>>, Infallible> {
-    let path = req.uri().path();
-    let parts: Vec<&str> = path.split('/').collect();
-
-    if parts.len() < 3 {
-        return Ok(bad_request("Invalid path format"));
-    }
-
-    let commit_ref = parts[2];
+    let query_params = parse_query_params(req.uri());
+    let commit_ref = match get_commit_param(&query_params) {
+        Ok(commit) => commit,
+        Err(response) => return Ok(response),
+    };
 
     // Resolve branch/tag/commit to actual commit hash
-    match cache.resolve_commit(commit_ref).await {
+    match cache.resolve_commit(&commit_ref).await {
         Ok(resolved_commit) => Ok(json_response(resolved_commit, StatusCode::OK)),
         Err(e) => {
             error!("Failed to resolve commit '{commit_ref}': {e}");
@@ -171,25 +163,26 @@ async fn handle_check_request(
     req: Request<Incoming>,
     cache: Arc<BuildCache>,
 ) -> Result<Response<Full<Bytes>>, Infallible> {
-    let path = req.uri().path();
-    let parts: Vec<&str> = path.split('/').collect();
-
-    if parts.len() < 4 {
-        return Ok(bad_request("Invalid path format"));
-    }
-
-    let commit_ref = parts[2];
-    let cpu_target = parts[3];
-
-    // Parse query parameters for binaries
-    let query = req.uri().query().unwrap_or("");
-    let binaries = parse_binaries_from_query(query);
+    // Parse query parameters
+    let query_params = parse_query_params(req.uri());
+    let commit_ref = match get_commit_param(&query_params) {
+        Ok(commit) => commit,
+        Err(response) => return Ok(response),
+    };
+    let cpu_target = match get_cpu_target_param(&query_params) {
+        Ok(target) => target,
+        Err(response) => return Ok(response),
+    };
+    let binaries = match get_binaries_param(&query_params) {
+        Ok(binaries) => binaries,
+        Err(response) => return Ok(response),
+    };
 
     // Resolve branch/tag/commit to actual commit hash
-    match cache.resolve_commit(commit_ref).await {
+    match cache.resolve_commit(&commit_ref).await {
         Ok(resolved_commit) => {
             let response = cache
-                .check_binaries(&resolved_commit, cpu_target, &binaries)
+                .check_binaries(&resolved_commit, &cpu_target, &binaries)
                 .await;
             Ok(json_response(response, StatusCode::OK))
         }
@@ -205,22 +198,26 @@ async fn handle_download_request(
     req: Request<Incoming>,
     cache: Arc<BuildCache>,
 ) -> Result<Response<Full<Bytes>>, Infallible> {
-    let path = req.uri().path();
-    let parts: Vec<&str> = path.split('/').collect();
-
-    if parts.len() < 5 {
-        return Ok(bad_request("Invalid path format"));
-    }
-
-    let commit_ref = parts[2];
-    let cpu_target = parts[3];
-    let binary_name = parts[4];
+    // Parse query parameters
+    let query_params = parse_query_params(req.uri());
+    let commit_ref = match get_commit_param(&query_params) {
+        Ok(commit) => commit,
+        Err(response) => return Ok(response),
+    };
+    let cpu_target = match get_cpu_target_param(&query_params) {
+        Ok(target) => target,
+        Err(response) => return Ok(response),
+    };
+    let binary_name = match get_binary_param(&query_params) {
+        Ok(name) => name,
+        Err(response) => return Ok(response),
+    };
 
     // Resolve branch/tag/commit to actual commit hash
-    match cache.resolve_commit(commit_ref).await {
+    match cache.resolve_commit(&commit_ref).await {
         Ok(resolved_commit) => {
             match cache
-                .get_binary_data(&resolved_commit, cpu_target, binary_name)
+                .get_binary_data(&resolved_commit, &cpu_target, &binary_name)
                 .await
             {
                 Ok(data) => Ok(Response::builder()
@@ -284,25 +281,26 @@ async fn handle_status_request(
     req: Request<Incoming>,
     cache: Arc<BuildCache>,
 ) -> Result<Response<Full<Bytes>>, Infallible> {
-    let path = req.uri().path();
-    let parts: Vec<&str> = path.split('/').collect();
-
-    if parts.len() < 4 {
-        return Ok(bad_request("Invalid path format"));
-    }
-
-    let commit_ref = parts[2];
-    let cpu_target = parts[3];
-
-    // Parse query parameters for binaries
-    let query = req.uri().query().unwrap_or("");
-    let binaries = parse_binaries_from_query(query);
+    // Parse query parameters
+    let query_params = parse_query_params(req.uri());
+    let commit_ref = match get_commit_param(&query_params) {
+        Ok(commit) => commit,
+        Err(response) => return Ok(response),
+    };
+    let cpu_target = match get_cpu_target_param(&query_params) {
+        Ok(target) => target,
+        Err(response) => return Ok(response),
+    };
+    let binaries = match get_binaries_param(&query_params) {
+        Ok(binaries) => binaries,
+        Err(response) => return Ok(response),
+    };
 
     // Resolve branch/tag/commit to actual commit hash
-    match cache.resolve_commit(commit_ref).await {
+    match cache.resolve_commit(&commit_ref).await {
         Ok(resolved_commit) => {
             match cache
-                .get_build_status(&resolved_commit, cpu_target, &binaries)
+                .get_build_status(&resolved_commit, &cpu_target, &binaries)
                 .await
             {
                 Some(status) => Ok(json_response(status, StatusCode::OK)),
@@ -316,14 +314,70 @@ async fn handle_status_request(
     }
 }
 
-/// Parse binaries from query string
-fn parse_binaries_from_query(query: &str) -> Vec<String> {
-    for part in query.split('&') {
-        if let Some((key, value)) = part.split_once('=') {
-            if key == "binaries" {
-                return value.split(',').map(|s| s.to_string()).collect();
-            }
+/// Parse query parameters using url crate for proper URL decoding
+fn parse_query_params(uri: &http::Uri) -> std::collections::HashMap<String, String> {
+    let mut params = std::collections::HashMap::new();
+
+    // Convert http::Uri to url::Url for query parsing
+    if let Ok(url) = Url::parse(uri.to_string().as_str()) {
+        for (key, value) in url.query_pairs() {
+            params.insert(key.to_string(), value.to_string());
         }
     }
-    vec![]
+
+    params
+}
+
+/// Extract commit reference from query parameters
+fn get_commit_param(
+    query_params: &std::collections::HashMap<String, String>,
+) -> Result<String, Response<Full<Bytes>>> {
+    match query_params.get("commit") {
+        Some(commit) => Ok(commit.clone()),
+        None => Err(bad_request("Missing 'commit' query parameter")),
+    }
+}
+
+/// Extract CPU target from query parameters
+fn get_cpu_target_param(
+    query_params: &std::collections::HashMap<String, String>,
+) -> Result<String, Response<Full<Bytes>>> {
+    match query_params.get("cpu_target") {
+        Some(target) => Ok(target.clone()),
+        None => Err(bad_request("Missing 'cpu_target' query parameter")),
+    }
+}
+
+/// Extract binaries list from query parameters (required, returns error if
+/// missing or empty)
+fn get_binaries_param(
+    query_params: &std::collections::HashMap<String, String>,
+) -> Result<Vec<String>, Response<Full<Bytes>>> {
+    match query_params.get("binaries") {
+        Some(binaries_str) if !binaries_str.is_empty() => {
+            let binaries: Vec<String> = binaries_str
+                .split(',')
+                .map(|s| s.trim().to_string())
+                .collect();
+            if binaries.is_empty() || binaries.iter().any(|b| b.is_empty()) {
+                Err(bad_request(
+                    "'binaries' parameter cannot be empty or contain empty binary names",
+                ))
+            } else {
+                Ok(binaries)
+            }
+        }
+        Some(_) => Err(bad_request("'binaries' parameter cannot be empty")),
+        None => Err(bad_request("Missing 'binaries' query parameter")),
+    }
+}
+
+/// Extract single binary name from query parameters
+fn get_binary_param(
+    query_params: &std::collections::HashMap<String, String>,
+) -> Result<String, Response<Full<Bytes>>> {
+    match query_params.get("binary") {
+        Some(name) => Ok(name.clone()),
+        None => Err(bad_request("Missing 'binary' query parameter")),
+    }
 }

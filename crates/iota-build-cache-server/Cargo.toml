@@ -13,6 +13,7 @@ workspace = true
 anyhow.workspace = true
 chrono.workspace = true
 clap.workspace = true
+http.workspace = true
 http-body-util = "0.1"
 hyper.workspace = true
 hyper-util.workspace = true
@@ -23,3 +24,4 @@ thiserror.workspace = true
 tokio = { workspace = true, features = ["full"] }
 tracing.workspace = true
 tracing-subscriber.workspace = true
+url.workspace = true
