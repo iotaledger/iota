@@ -572,6 +572,17 @@ impl MovePackage {
         Some(type_origins)
     }
 
+    /// BCS representation of the package itself, as a MovePackage.
+    async fn package_bcs(&self) -> Result<Option<Base64>> {
+        let bcs = bcs::to_bytes(&self.native)
+            .map_err(|_| {
+                Error::Internal(format!("Failed to serialize package {}", self.native.id()))
+            })
+            .extend()?;
+
+        Ok(Some(bcs.into()))
+    }
+
     /// BCS representation of the package's modules.  Modules appear as a
     /// sequence of pairs (module name, followed by module bytes), in
     /// alphabetic order by module name.
