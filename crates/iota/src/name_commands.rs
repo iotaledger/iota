@@ -2143,7 +2143,7 @@ async fn fetch_renewal_config(context: &mut WalletContext) -> anyhow::Result<Ren
     Ok(entry.value)
 }
 
-async fn handle_transaction_result<Fun, F>(
+pub(crate) async fn handle_transaction_result<Fun, F>(
     res: IotaClientCommandResult,
     verbose: bool,
     fun: Fun,

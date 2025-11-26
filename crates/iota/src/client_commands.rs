@@ -102,6 +102,7 @@ use crate::{
     displays::Pretty,
     key_identity::{KeyIdentity, get_identity_address},
     keytool::Key,
+    account::Account,
     signing::sign_transaction,
     upgrade_compatibility::check_compatibility,
     verifier_meter::{AccumulatingMeter, Accumulator},
@@ -118,6 +119,8 @@ pub const GAS_SAFE_OVERHEAD: u64 = 1000;
 
 #[derive(Parser)]
 pub enum IotaClientCommands {
+    /// Account commands
+    Account(Account),
     /// Default address used for commands when none specified
     ActiveAddress,
     /// Default environment used for commands when none specified
@@ -772,6 +775,10 @@ impl IotaClientCommands {
         context: &mut WalletContext,
     ) -> Result<IotaClientCommandResult, anyhow::Error> {
         let ret = match self {
+            IotaClientCommands::Account(account) => {
+                account.execute(context).await?;
+                IotaClientCommandResult::NoOutput
+            }
             IotaClientCommands::ProfileTransaction {
                 tx_digest,
                 profile_output,
@@ -3217,9 +3224,9 @@ pub async fn execute_dry_run(
     let response = client
         .read_api()
         .dry_run_transaction_block(tx_data)
-        .await
-        .context("Dry run failed")?;
-    debug!("Finished executing dry run");
+        .await?;
+        // .context("Dry run failed")?;
+    println!("Finished executing dry run {response:?}");
     let resp = IotaClientCommandResult::DryRun(response)
         .prerender_clever_errors(context)
         .await;
@@ -3247,6 +3254,7 @@ pub async fn estimate_gas_budget(
     let client = context.get_client().await?;
     let dry_run =
         execute_dry_run(context, signer, kind, None, gas_price, gas_payment, sponsor).await;
+
     if let Ok(IotaClientCommandResult::DryRun(dry_run)) = dry_run {
         let rgp = client.read_api().get_reference_gas_price().await?;
         Ok(estimate_gas_budget_from_gas_cost(

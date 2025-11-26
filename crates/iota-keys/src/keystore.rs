@@ -206,9 +206,12 @@ pub struct Alias {
     content = "value",       // name the payload field "value"
     rename_all = "snake_case"
 )]
+// TODO non_exhaustive?
 pub enum StoredKey {
     #[serde(with = "serde_iota_keypair")]
     KeyPair(IotaKeyPair),
+    // TODO default/optional/skip
+    Account(IotaAddress),
     External {
         source: String,
         #[serde_as(as = "Option<DisplayFromStr>")]
@@ -227,12 +230,17 @@ impl From<IotaKeyPair> for StoredKey {
 
 impl StoredKey {
     pub fn address(&self) -> IotaAddress {
-        IotaAddress::from(&self.public())
+        match self {
+            StoredKey::KeyPair(key) => (&key.public()).into(),
+            StoredKey::Account(address)=> *address,
+            StoredKey::External { public_key, .. } => public_key.into(),
+        }
     }
 
     pub fn public(&self) -> PublicKey {
         match self {
             StoredKey::KeyPair(keypair) => keypair.public(),
+            StoredKey::Account(_) => panic!("Account type does not have a public key."),
             StoredKey::External { public_key, .. } => public_key.clone(),
         }
     }
@@ -240,6 +248,7 @@ impl StoredKey {
     pub fn derivation_path(&self) -> Option<DerivationPath> {
         match self {
             StoredKey::KeyPair(_) => None,
+            StoredKey::Account(_) => None,
             StoredKey::External {
                 derivation_path, ..
             } => derivation_path.clone(),
@@ -249,6 +258,7 @@ impl StoredKey {
     pub fn external_source(&self) -> Option<String> {
         match self {
             StoredKey::KeyPair(_) => None,
+            StoredKey::Account(_) => None,
             StoredKey::External { source, .. } => Some(source.clone()),
         }
     }
@@ -256,6 +266,7 @@ impl StoredKey {
     pub fn as_keypair(&self) -> Result<&IotaKeyPair, anyhow::Error> {
         match self {
             StoredKey::KeyPair(keypair) => Ok(keypair),
+            StoredKey::Account(_) => bail!("Cannot get key pair for Account keys."),
             StoredKey::External { .. } => bail!("Cannot get key pair for External keys."),
         }
     }
@@ -312,6 +323,9 @@ impl AccountKeystore for FileBasedKeystore {
 
         match stored_key {
             StoredKey::KeyPair(keypair) => Ok(Signature::new_hashed(msg, keypair)),
+            StoredKey::Account(_) => Err(signature::Error::from_source(format!(
+                "sign_hashed is not supported for account type"
+            ))),
             StoredKey::External { source, .. } => Err(signature::Error::from_source(format!(
                 "sign_hashed is not supported for external type: {source} [{address}]"
             ))),
@@ -333,6 +347,9 @@ impl AccountKeystore for FileBasedKeystore {
         let intent_msg = &IntentMessage::new(intent, msg);
         match stored_key {
             StoredKey::KeyPair(keypair) => Ok(Signature::new_secure(intent_msg, keypair)),
+            StoredKey::Account(_) => Err(signature::Error::from_source(format!(
+                "sign_secure is not supported for account type",
+            ))),
             StoredKey::External { source, .. } => Err(signature::Error::from_source(format!(
                 "sign_secure is not supported for external type: {source} [{address}]",
             ))),
@@ -345,13 +362,15 @@ impl AccountKeystore for FileBasedKeystore {
         key: impl Into<StoredKey>,
     ) -> Result<(), anyhow::Error> {
         let key = key.into();
-        let address: IotaAddress = (&key.public()).into();
+        let address= key.address();
+        
         let alias = self.create_alias(alias)?;
         self.aliases.insert(
             address,
             Alias {
                 alias,
-                public_key_base64: key.public().encode_base64(),
+                public_key_base64: "".to_string(),
+                // public_key_base64: key.public().encode_base64(),
             },
         );
         self.keys.insert(address, key);
@@ -620,21 +639,21 @@ impl FileBasedKeystore {
                 })?);
 
             let file: FileBasedKeystoreFile = serde_json::from_reader(reader)
-                .with_context(|| {
-                    format!("Cannot deserialize the keystore file: {}", path.display(),)
-                })
-                .map_err(|e| anyhow!("Invalid keystore file: {}. {}", path.display(), e))?;
+                // .with_context(|| {
+                //     format!("Cannot deserialize the keystore file: {}", path.display(),)
+                // })
+                .map_err(|e| anyhow!("Cannot deserialize the keystore file: {}. {}", path.display(), e))?;
 
             let aliases = file
                 .keys
                 .iter()
                 .map(|aliased| {
-                    let public_key = aliased.key.public();
                     (
-                        IotaAddress::from(&public_key),
+                        aliased.key.address(),
                         Alias {
                             alias: aliased.alias.clone(),
-                            public_key_base64: public_key.encode_base64(),
+                            // TODO
+                            public_key_base64: "".to_string(),
                         },
                     )
                 })
@@ -643,7 +662,7 @@ impl FileBasedKeystore {
             let keys = file
                 .keys
                 .into_iter()
-                .map(|aliased| (IotaAddress::from(&aliased.key.public()), aliased.key))
+                .map(|aliased| (aliased.key.address(), aliased.key))
                 .collect::<BTreeMap<_, _>>();
 
             (keys, aliases)
@@ -706,6 +725,9 @@ impl AccountKeystore for InMemKeystore {
 
         match stored_key {
             StoredKey::KeyPair(keypair) => Ok(Signature::new_hashed(msg, keypair)),
+            StoredKey::Account(_) => Err(signature::Error::from_source(format!(
+                "sign_hashed is not supported for account type",
+            ))),
             StoredKey::External { source, .. } => Err(signature::Error::from_source(format!(
                 "sign_hashed is not supported for external type: {source} [{address}]"
             ))),
@@ -727,6 +749,9 @@ impl AccountKeystore for InMemKeystore {
         let intent_msg = &IntentMessage::new(intent, msg);
         match stored_key {
             StoredKey::KeyPair(keypair) => Ok(Signature::new_secure(intent_msg, keypair)),
+            StoredKey::Account(_) => Err(signature::Error::from_source(format!(
+                "sign_secure is not supported for account type",
+            ))),
             StoredKey::External { source, .. } => Err(signature::Error::from_source(format!(
                 "sign_secure is not supported for external type: {source} [{address}]",
             ))),

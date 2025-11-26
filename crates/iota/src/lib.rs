@@ -15,6 +15,7 @@ pub mod genesis_ceremony;
 pub mod genesis_inspector;
 pub mod iota_commands;
 pub mod key_identity;
+pub mod account;
 pub mod keytool;
 #[cfg(feature = "iota-names")]
 pub mod name_commands;

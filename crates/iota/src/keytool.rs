@@ -585,6 +585,9 @@ impl KeyToolCommand {
 
                         CommandOutput::Export(key)
                     }
+                    StoredKey::Account(_) => {
+                        bail!("Cannot export account keys");
+                    }
                     StoredKey::External { source, .. } => {
                         bail!("Cannot export external keys from {source}");
                     }
