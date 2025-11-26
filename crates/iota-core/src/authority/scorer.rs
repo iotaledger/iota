@@ -143,6 +143,52 @@ impl Scorer {
             }
         }
     }
+
+    fn update_experimental_scores_v1(&self) {
+        let k = 1;
+        // Vector with the highest received reports from each authority and their voting
+        // power. Authorities that did not send reports are filtered out.
+        let highest_received_reports_from_authority = self
+            .received_metrics
+            .iter()
+            .zip(self.voting_power.iter())
+            .zip(self.has_not_sent_report.iter())
+            .filter(|((_, _), is_missing)| !is_missing.load(Ordering::Relaxed))
+            .map(|((metrics, voting_power), _)| (metrics.to_report(), *voting_power))
+            .collect::<Vec<(VersionedMisbehaviorReport, VotingPower)>>();
+        // Ensure that we have at least one report to calculate the scores, otherwise we
+        // do nothing.
+        if highest_received_reports_from_authority.is_empty() {
+        } else {
+            let malicious_validators = detect_malicious_validators(
+                &highest_received_reports_from_authority,
+                &self.voting_power,
+                k,
+                2,
+            );
+            let modified_reports = highest_received_reports_from_authority
+                .iter()
+                .enumerate()
+                .map(|(i, (report, vp))| {
+                    if malicious_validators.contains(&i) {
+                        (report.clone(), 0_u64)
+                    } else {
+                        (report.clone(), *vp)
+                    }
+                })
+                .collect::<Vec<(VersionedMisbehaviorReport, VotingPower)>>();
+
+            let median_report = calculate_median_report(&modified_reports);
+            let scores = calculate_scores_v1(median_report, self.get_parameters_v1());
+            for (i, &score) in scores.iter().enumerate() {
+                if malicious_validators.contains(&i) {
+                    self.current_scores[i].store(0, Ordering::Relaxed);
+                } else {
+                    self.current_scores[i].store(score, Ordering::Relaxed);
+                }
+            }
+        }
+    }
 }
 
 /// Given a vector of pairs (VersionedMisbehaviorReport, VotingPower), calculate
@@ -200,6 +246,7 @@ fn calculate_median_report(
         .iter_mut()
         .map(|vec| calculate_weighted_median(vec.as_mut_slice()))
         .collect::<Vec<MetricVec>>();
+
     median_report
 }
 
@@ -237,6 +284,149 @@ fn calculate_weighted_median(reports: &mut [(MetricVec, VotingPower)]) -> Median
     }
 
     median_per_validator_being_scored
+}
+
+/// Detects malicious validators based on the given rules.
+///
+/// # Arguments
+/// - `reports_and_voting_power`: A vector of tuples containing
+///   `VersionedMisbehaviorReport` and the corresponding `VotingPower` for each
+///   validator.
+/// - `k`: The k-th order statistic to calculate.
+/// - `epsilon`: The threshold value for inconsistency. WE ACTUALLY NEED A
+///   VECTOR OF EPSILONS (1 PER METRIC)
+///
+/// # Returns
+/// - A vector of indices of malicious validators.
+fn detect_malicious_validators(
+    reports_and_voting_power: &[(VersionedMisbehaviorReport, VotingPower)],
+    voting_power: &[u64],
+    k: usize,
+    epsilon: u64,
+) -> Vec<usize> {
+    // Calculate the k-th order statistic report.
+    let kth_order_statistic_report =
+        calculate_kth_order_statistic_report(reports_and_voting_power, k);
+
+    let total_voting_power: u64 = reports_and_voting_power.iter().map(|(_, vp)| *vp).sum();
+    let f = (total_voting_power - 1) / 3;
+
+    let mut malicious_validators = Vec::new();
+
+    // Rule 1: Flag validators `i` as malicious based on the reports they have sent
+    // Rule 2: Flag validators `j` as malicious based on how they were reported
+    let mut inconsistencies_on_reports_about_j: Vec<Vec<usize>> = vec![vec![]; voting_power.len()];
+    for (i, (versioned_report, _)) in reports_and_voting_power.iter().enumerate() {
+        let mut inconsistencies_on_i_reports: Vec<usize> = vec![];
+
+        for (m, metric_value) in versioned_report.iterate_over_metrics().enumerate() {
+            let kth_oe_about_metric = kth_order_statistic_report[m].clone(); // 
+            let mut inconsistencies_for_metric = metric_value
+                .iter()
+                .zip(kth_oe_about_metric.iter())
+                .enumerate()
+                .filter(|(_, (&metric_value, &kth_j))| {
+                    metric_value > epsilon + kth_j || metric_value + epsilon < kth_j
+                })
+                .map(|(index, _)| index)
+                .collect::<Vec<usize>>();
+            inconsistencies_on_i_reports.append(&mut inconsistencies_for_metric);
+        }
+
+        inconsistencies_on_i_reports.sort_unstable();
+        inconsistencies_on_i_reports.dedup();
+        for &validator in inconsistencies_on_i_reports.iter() {
+            inconsistencies_on_reports_about_j[validator].push(i);
+        }
+
+        let inconsistent_voting_power_on_i_reports = inconsistencies_on_i_reports
+            .iter()
+            .map(|&j| voting_power[j])
+            .sum::<u64>();
+
+        if inconsistent_voting_power_on_i_reports > 2 * f + 1 {
+            malicious_validators.push(i);
+        }
+    }
+
+    inconsistencies_on_reports_about_j.iter_mut().for_each(|v| {
+        v.sort_unstable();
+        v.dedup();
+    });
+
+    let inconsistent_voting_power_on_reports_about_j = inconsistencies_on_reports_about_j
+        .iter()
+        .map(|vec| vec.iter().map(|&i| voting_power[i]).sum::<u64>())
+        .collect::<Vec<u64>>();
+
+    for (j, &inconsistent_voting_power) in inconsistent_voting_power_on_reports_about_j
+        .iter()
+        .enumerate()
+    {
+        if inconsistent_voting_power > f + 1 {
+            malicious_validators.push(j);
+        }
+    }
+
+    malicious_validators.sort_unstable();
+    malicious_validators.dedup();
+    malicious_validators
+}
+
+/// Calculates the k-th order statistic for all metrics in the reports.
+fn calculate_kth_order_statistic_report(
+    reports_and_voting_power: &[(VersionedMisbehaviorReport, VotingPower)],
+    k: usize,
+) -> Vec<MetricVec> {
+    // Ensure there is at least one report to process.
+    assert!(!reports_and_voting_power.is_empty());
+
+    let number_of_metrics = reports_and_voting_power[0].0.iterate_over_metrics().len();
+
+    // Prepare a vector to store metrics and their voting power for each metric.
+    let mut reports_and_voting_power_per_metric: Vec<Vec<(MetricVec, VotingPower)>> =
+        vec![vec![]; number_of_metrics];
+
+    // Group metrics by their index across all reports.
+    for (versioned_report, voting_power) in reports_and_voting_power.iter() {
+        for (i, metric) in versioned_report.iterate_over_metrics().enumerate() {
+            reports_and_voting_power_per_metric[i].push((metric.clone(), *voting_power));
+        }
+    }
+
+    // Calculate and return the k-th order statistic for each metric.
+    let kth_order_statistic_report = reports_and_voting_power_per_metric
+        .iter_mut()
+        .map(|vec| calculate_kth_order_statistic(vec.as_mut_slice(), k))
+        .collect::<Vec<MetricVec>>();
+
+    kth_order_statistic_report
+}
+
+/// Calculates the k-th order statistic for a single metric.
+fn calculate_kth_order_statistic(reports: &mut [(MetricVec, VotingPower)], k: usize) -> MetricVec {
+    // Ensure there is at least one pair (MetricVec, VotingPower) to process.
+    assert!(!reports.is_empty());
+
+    // Ensure k is within bounds.
+    assert!(k < reports.len(), "k is out of bounds");
+
+    // The caller should guarantee that the MetricVec in all reports have the
+    // same length (committee_size). This is naturally guaranteed when these data
+    // come from MisbehaviorReports, since they would have been considered invalid
+    // otherwise.
+    let committee_size = reports[0].0.len();
+    let mut kth_per_validator_being_scored = Vec::new();
+
+    for validator_being_scored in 0..committee_size {
+        // Sort the reports by the metric value for the current validator.
+        reports.sort_by_key(|(reported_counts, _)| reported_counts[validator_being_scored]);
+
+        // Select the k-th smallest value for the current validator.
+        kth_per_validator_being_scored.push(reports[k].0[validator_being_scored]);
+    }
+
+    kth_per_validator_being_scored
 }
 
 // Scorer version. Currently, only V1 is implemented, relative to both
@@ -388,7 +578,7 @@ mod tests {
     use iota_types::messages_consensus::{MisbehaviorReportV1, VersionedMisbehaviorReport};
 
     use crate::authority::authority_per_epoch_store::scorer::{
-        ParametersV1, Scorer, calculate_median_report, calculate_scores_v1,
+        MetricVec, ParametersV1, Scorer, calculate_median_report, calculate_scores_v1,
     };
 
     fn mock_protocol_config(consensus_choice: ConsensusChoice) -> ProtocolConfig {
@@ -658,5 +848,109 @@ mod tests {
 
         // Check that scores are calculated correctly
         assert_eq!(scores, vec![40142, 0, 0]);
+    }
+
+    fn mock_received_metrics() -> Vec<MetricVec> {
+        vec![
+            vec![3, 3, 3, 3],
+            vec![1, 1, 1, 1],
+            vec![2, 2, 2, 2],
+            vec![0, 0, 0, 0],
+        ]
+    }
+
+    fn mock_received_mal_metrics() -> Vec<MetricVec> {
+        vec![
+            vec![1000, 1000, 1000, 1000],
+            vec![1000, 1000, 1000, 1000],
+            vec![1000, 1000, 1000, 1000],
+            vec![1000, 1000, 1000, 1000],
+        ]
+    }
+
+    fn mock_report() -> VersionedMisbehaviorReport {
+        let metrics = mock_received_metrics();
+        VersionedMisbehaviorReport::V1(MisbehaviorReportV1 {
+            faulty_blocks_provable: metrics[0].clone(),
+            faulty_blocks_unprovable: metrics[1].clone(),
+            missing_proposals: metrics[2].clone(),
+            equivocations: metrics[3].clone(),
+        })
+    }
+
+    fn mock_mal_report() -> VersionedMisbehaviorReport {
+        let metrics = mock_received_mal_metrics();
+        VersionedMisbehaviorReport::V1(MisbehaviorReportV1 {
+            faulty_blocks_provable: metrics[0].clone(),
+            faulty_blocks_unprovable: metrics[1].clone(),
+            missing_proposals: metrics[2].clone(),
+            equivocations: metrics[3].clone(),
+        })
+    }
+    #[test]
+    fn test_update_experimental_scores_v1_no_reports() {
+        let scorer = Scorer::new(
+            vec![10, 20, 30, 40],
+            &mock_protocol_config(ConsensusChoice::Mysticeti),
+        );
+        // Set all validators to "not sent reports"
+        for has_not_sent in scorer.has_not_sent_report.iter() {
+            has_not_sent.store(true, Ordering::Relaxed);
+        }
+
+        // Call the function
+        scorer.update_experimental_scores_v1();
+
+        // Verify that scores remain unchanged
+        for score in scorer.current_scores.iter() {
+            assert_eq!(
+                score.load(Ordering::Relaxed),
+                scorer.get_parameters_v1().max_score
+            );
+        }
+    }
+
+    #[test]
+    fn test_update_experimental_scores_v1_all_honest() {
+        let scorer = Scorer::new(
+            vec![10, 20, 30, 40],
+            &mock_protocol_config(ConsensusChoice::Mysticeti),
+        );
+
+        let received_report = mock_report();
+        // Set received metrics and mark all validators as having sent reports
+        for validator in 0..4 {
+            scorer.update_received_reports(validator, &received_report);
+        }
+        // Call the function
+        scorer.update_experimental_scores_v1();
+
+        // Verify that scores are updated and non zeroed for all validators
+        for score in scorer.current_scores.iter() {
+            assert!(score.load(Ordering::Relaxed) > 0);
+        }
+    }
+
+    #[test]
+    fn test_update_experimental_scores_v1_with_malicious_validators() {
+        let scorer = Scorer::new(
+            vec![10, 20, 30, 40],
+            &mock_protocol_config(ConsensusChoice::Mysticeti),
+        ); // Modify received metrics to simulate malicious behavior
+        scorer.update_received_reports(0, &mock_mal_report()); // Malicious validator
+        for validator in 1..4 {
+            scorer.update_received_reports(validator, &mock_report()); // Honest validators
+        }
+
+        // Call the function
+        scorer.update_experimental_scores_v1();
+
+        // Verify that the malicious validator's score is set to 0
+        assert_eq!(scorer.current_scores[0].load(Ordering::Relaxed), 0);
+
+        // Verify that honest validators have non-zero scores
+        for i in 1..scorer.current_scores.len() {
+            assert!(scorer.current_scores[i].load(Ordering::Relaxed) > 0);
+        }
     }
 }
