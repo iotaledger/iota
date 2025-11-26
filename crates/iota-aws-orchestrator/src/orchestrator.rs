@@ -15,7 +15,7 @@ use tokio::time::{self, Instant};
 
 use crate::{
     benchmark::{BenchmarkParameters, BenchmarkParametersGenerator, BenchmarkType},
-    client::{Instance, InstanceRole},
+    client::Instance,
     display,
     error::TestbedResult,
     faults::CrashRecoverySchedule,
@@ -352,13 +352,7 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
     async fn detect_cpu_targets_for_instances(
         &self,
     ) -> TestbedResult<HashMap<String, Vec<Instance>>> {
-        let instances_needing_binaries = self
-            .instances()
-            .iter()
-            .filter(|i| i.role != InstanceRole::Metrics)
-            .cloned()
-            .collect::<Vec<_>>();
-
+        let instances_needing_binaries = self.instances_without_metrics();
         if instances_needing_binaries.is_empty() {
             return Ok(HashMap::new());
         }
@@ -550,12 +544,7 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
         .join(" && ");
 
         display::action(format!("build command: {build_command}"));
-        let without_metrics = self
-            .instances()
-            .iter()
-            .filter(|i| i.role != InstanceRole::Metrics)
-            .cloned()
-            .collect::<Vec<_>>();
+        let without_metrics = self.instances_without_metrics();
         let id = "cargo build";
         let repo_name = self.settings.repository_name();
         let context = CommandContext::new()
