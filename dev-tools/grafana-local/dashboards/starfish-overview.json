@@ -9905,7 +9905,7 @@
                         "sortBy": [
                             {
                                 "desc": true,
-                                "displayName": "Average latency for receiption"
+                                "displayName": "Average latency for reception"
                             }
                         ]
                     },
