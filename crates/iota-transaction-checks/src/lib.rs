@@ -211,17 +211,11 @@ mod checked {
     /// object.
     #[instrument(level = "trace", skip_all)]
     pub fn check_move_authenticator_input_for_signing(
-        account_object: CheckedInputObjects,
         authenticator_input_objects: InputObjects,
     ) -> IotaResult<CheckedInputObjects> {
         check_move_authenticator_objects(&authenticator_input_objects)?;
 
-        let auth_input_objects_union = checked_input_objects_union(
-            authenticator_input_objects.into_checked(),
-            &account_object,
-        )?;
-
-        Ok(auth_input_objects_union)
+        Ok(authenticator_input_objects.into_checked())
     }
 
     /// A function to check the `MoveAuthenticator` inputs for execution and
@@ -239,7 +233,6 @@ mod checked {
     pub fn check_certificate_and_move_authenticator_input(
         cert: &VerifiedExecutableTransaction,
         tx_input_objects: InputObjects,
-        account_object: CheckedInputObjects,
         authenticator_input_objects: InputObjects,
         authenticator_gas_budget: u64,
         protocol_config: &ProtocolConfig,
@@ -265,8 +258,6 @@ mod checked {
             tx_input_objects.into_checked(),
             &authenticator_input_objects,
         )?;
-        let input_objects_union =
-            checked_input_objects_union(input_objects_union, &account_object)?;
 
         Ok((gas_status, authenticator_input_objects, input_objects_union))
     }
@@ -797,54 +788,9 @@ mod checked {
                 // In the case of an alive object, check that the object kind matches exactly,
                 // or that, if it is a shared object, only the mutability changes
                 if let ObjectReadResultKind::Object(_) = &other_object.object {
-                    match base_object.input_object_kind {
-                        // If immutable or owned object or package, the kinds must match exactly
-                        InputObjectKind::ImmOrOwnedMoveObject(_)
-                        | InputObjectKind::MovePackage(_) => {
-                            // This is an invariant
-                            assert_eq!(
-                                base_object.input_object_kind, other_object.input_object_kind,
-                                "The object kind for input objects with the same id must be equal"
-                            );
-                        }
-                        // else, if shared object, only mutability can differ
-                        InputObjectKind::SharedMoveObject {
-                            id: input_id,
-                            initial_shared_version: base_initial_shared_version,
-                            mutable: base_is_mutable,
-                            ..
-                        } => {
-                            match other_object.input_object_kind {
-                                InputObjectKind::ImmOrOwnedMoveObject(_)
-                                | InputObjectKind::MovePackage(_) => {
-                                    // The object owner for objects with the same id must be equal
-                                    fp_bail!(UserInputError::NotSharedObject.into())
-                                }
-                                InputObjectKind::SharedMoveObject {
-                                    id: additional_id,
-                                    initial_shared_version: other_initial_shared_version,
-                                    mutable: other_is_mutable,
-                                } => {
-                                    fp_ensure!(
-                                        input_id == additional_id
-                                            && base_initial_shared_version
-                                                == other_initial_shared_version,
-                                        UserInputError::SharedObjectStartingVersionMismatch.into()
-                                    );
-                                    // if other_is_mutable is true and base_is_mutable is false,
-                                    // then swap
-                                    if other_is_mutable && !base_is_mutable {
-                                        base_object.input_object_kind =
-                                            InputObjectKind::SharedMoveObject {
-                                                id: input_id,
-                                                initial_shared_version: base_initial_shared_version,
-                                                mutable: true,
-                                            };
-                                    }
-                                }
-                            }
-                        }
-                    };
+                    base_object
+                        .input_object_kind
+                        .left_union_with_checks(&other_object.input_object_kind)?;
                 }
             } else {
                 base_set.push(other_object.clone());
