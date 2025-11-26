@@ -1333,6 +1333,7 @@
                 "normalize_ptb_arguments": false,
                 "passkey_auth": true,
                 "protocol_defined_base_fee": true,
+                "publish_package_metadata": false,
                 "relocate_event_module": true,
                 "rethrow_serialization_type_layout_errors": true,
                 "select_committee_from_eligible_validators": false,
@@ -1441,7 +1442,6 @@
                 "buffer_stake_for_protocol_upgrade_bps": {
                   "u64": "5000"
                 },
-                "check_auth_info_v1_cost_base": null,
                 "check_zklogin_id_cost_base": {
                   "u64": "200"
                 },

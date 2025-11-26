@@ -1,16 +1,14 @@
 // Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-/// Account `authenticate` function verifier
+/// Account authenticator verifier
 ///
-/// The account `authenticate` verifier module is special in the sense
-/// that it isn't called on a module during publication/execution, but on a
-/// specific `authenticate` function only during execution.
-/// This is because an `authenticate` function only exists as a concept. There
-/// is no compiler support for identifying/validating them. Furthermore they are
-/// resolved dynamically during execution.
+/// This module contains the verifier for the `authenticate` function used
+/// by account objects to verify access to the account. The verifier checks
+/// that the function signature matches the expected signature for an
+/// `authenticate` function.
 use iota_types::{
-    Identifier, TypeTag,
+    Identifier,
     auth_context::{AuthContext, AuthContextKind},
     base_types::{
         RESOLVED_ASCII_STR, RESOLVED_STD_OPTION, RESOLVED_UTF8_STR, TxContext, TxContextKind,
@@ -22,7 +20,6 @@ use iota_types::{
 use move_binary_format::{
     CompiledModule,
     file_format::{AbilitySet, SignatureToken, Visibility},
-    normalized::Type,
 };
 use move_bytecode_utils::resolve_struct;
 
@@ -34,13 +31,14 @@ use crate::verification_failure;
 /// - only has read-only inputs (immutable owned/shared references or pure
 ///   types)
 /// - has no return type
+/// - must be a public non-entry function
+/// - the first argument is a reference to the account object type (a Datatype)
 /// - the last two arguments in order are AuthContext and TxContext
 /// - AuthContext has to be an immutable reference
 /// - TxContext has to be an immutable reference
 pub fn verify_authenticate_func_v1(
     module: &CompiledModule,
     function_identifier: Identifier,
-    account_type: &TypeTag,
 ) -> Result<(), ExecutionError> {
     let module_name = module.name();
 
@@ -52,20 +50,15 @@ pub fn verify_authenticate_func_v1(
         )));
     };
 
-    if function_definition.is_entry {
-        return Err(verification_failure(format!(
-            "Authenticator function '{function_identifier}' cannot be marked as `entry`"
-        )));
-    }
-
-    // Consider alleviating these restrictions in the future by considering:
-    // - we can execute private functions from the rust side
-    // - a dev, setting this function as private, means that this is declared as not
-    //   taking part to composability with other authenticate() (same logic as using
-    //   just entry for normal functions)
     if function_definition.visibility != Visibility::Public {
         return Err(verification_failure(format!(
             "Authenticator function '{function_identifier}' must be public"
+        )));
+    }
+
+    if function_definition.is_entry {
+        return Err(verification_failure(format!(
+            "Authenticator function '{function_identifier}' cannot be marked as `entry`"
         )));
     }
 
@@ -75,18 +68,22 @@ pub fn verify_authenticate_func_v1(
     // at least three arguments
     if function_signature.0.len() < 3 {
         return Err(verification_failure(format!(
-            "Authenticator function '{function_identifier}' must require at least: an account reference, &AuthContext and &TxContext arguments."
+            "Authenticator function '{function_identifier}' must require at least: a reference to an account object type, &AuthContext and &TxContext arguments."
         )));
     }
+
+    // Check param 1st ///////////////////////////////////////
 
     // The first parameter must match the authenticated account type.
     // Additional restrictions on the first argument type are enforced in the
     // following check.
-    verify_account_type(module, &function_signature.0[0], account_type)
-        .map_err(verification_failure)?;
+    let account_parameter = &function_signature.0[0];
+    verify_authenticate_account_type(module, account_parameter).map_err(verification_failure)?;
+
+    // Check params 2nd to N-2th /////////////////////////////
 
     // Apart from AuthContext and TxContext we only require that the arguments are
-    // not mutable references. They can be mutable values, as their mutability
+    // not mutable references. They can be mutable pure values, as their mutability
     // cannot affect outside state.
     for param in function_signature
         .0
@@ -96,6 +93,8 @@ pub fn verify_authenticate_func_v1(
         verify_authenticate_param_type(module, &function_handle.type_parameters, param)
             .map_err(verification_failure)?;
     }
+
+    // Check params N-1th and Nth ////////////////////////////
 
     // Check type of AuthContext and TxContext, they both must be structs with the
     // appropriate names, addresses and access
@@ -128,6 +127,8 @@ pub fn verify_authenticate_func_v1(
         )));
     }
 
+    // Check return type (empty) /////////////////////////////
+
     let return_signature = module.signature_at(function_handle.return_);
     if !return_signature.is_empty() {
         return Err(verification_failure(format!(
@@ -136,6 +137,93 @@ pub fn verify_authenticate_func_v1(
     }
 
     Ok(())
+}
+
+/// Verify that the first parameter type of the authenticate function is an
+/// immutable reference to an Object type, i.e., a Datatype with `key` ability.
+fn verify_authenticate_account_type(
+    module: &CompiledModule,
+    param: &SignatureToken,
+) -> Result<(), String> {
+    use SignatureToken::*;
+
+    match param {
+        Reference(ref_param) => match &**ref_param {
+            Datatype(i) => {
+                if module.datatype_handle_at(*i).abilities.has_key() {
+                    Ok(())
+                } else {
+                    Err(format!(
+                        "Invalid account type. Account must be a Datatype with key ability, offending argument: {param:?}"
+                    ))
+                }
+            }
+            _ => Err(format!(
+                "Invalid account type. Account can only be a Datatype, offending argument: {param:?}"
+            )),
+        },
+        _ => Err(format!(
+            "Invalid account type. Account can only be a reference type, offending argument: {param:?}"
+        )),
+    }
+}
+
+/// Verify that the parameter type when it is an immutable reference.
+/// An immutable reference is valid for an authenticate function in any case
+/// except for the `iota::transfer::Receiving` struct
+fn verify_immutable_reference(
+    module: &CompiledModule,
+    param: &SignatureToken,
+) -> Result<(), String> {
+    use SignatureToken::*;
+
+    match param {
+        U8 | U16 | U32 | U64 | U128 | U256 | Bool | Address | Datatype(_) | TypeParameter(_) => {
+            Ok(())
+        }
+        Vector(inner) => verify_immutable_reference(module, inner),
+        DatatypeInstantiation(datatype_instance) => {
+            let (idx, type_args) = &**datatype_instance;
+            let resolved_struct = resolve_struct(module, *idx);
+            if resolved_struct == RESOLVED_RECEIVING_STRUCT {
+                Err(format!(
+                    "Invalid immutable reference. A datatype instantiation must NOT be a receiving struct, offending argument: {param:?}"
+                ))
+            } else {
+                for type_arg in type_args.iter() {
+                    verify_immutable_reference(module, type_arg)?
+                }
+                Ok(())
+            }
+        }
+        Signer => Err(format!(
+            "Invalid immutable reference. Signer cannot be immutably referenced, offending argument: {param:?}"
+        )),
+        Reference(_) => Err(format!(
+            "Invalid immutable reference. Reference cannot be immutably referenced, offending argument: {param:?}"
+        )),
+        MutableReference(_) => Err(format!(
+            "Invalid immutable reference. MutableReference cannot be immutably referenced, offending argument: {param:?}"
+        )),
+    }
+}
+
+/// Verify that the parameter type is a valid type for an `authenticate`
+/// function The parameter type can be:
+/// - an immutable reference to anything but a receiving object (see
+///   [verify_immutable_reference])
+/// - a pure input type (see [verify_pure_input_type])
+fn verify_authenticate_param_type(
+    module: &CompiledModule,
+    function_type_args: &[AbilitySet],
+    param: &SignatureToken,
+) -> Result<(), String> {
+    use SignatureToken::*;
+
+    match param {
+        Reference(ref_param) => verify_immutable_reference(module, ref_param),
+        _ => verify_pure_input_type(module, function_type_args, param),
+    }
 }
 
 /// Evaluate that signature type is of [pure input](https://docs.iota.org/developer/iota-101/transactions/ptb/programmable-transaction-blocks#inputs)
@@ -239,92 +327,6 @@ fn verify_pure_input_type(
         )),
         MutableReference(_) => Err(format!(
             "Invalid pure type. MutableReference is not a pure type, offending argument: {param:?}"
-        )),
-    }
-}
-
-/// Verify that the parameter type when it is an immutable reference.
-/// An immutable reference is valid for an authenticate function in any case
-/// except for the `iota::transfer::Receiving` struct
-fn verify_immutable_reference(
-    module: &CompiledModule,
-    param: &SignatureToken,
-) -> Result<(), String> {
-    use SignatureToken::*;
-
-    match param {
-        U8 | U16 | U32 | U64 | U128 | U256 | Bool | Address | Datatype(_) | TypeParameter(_) => {
-            Ok(())
-        }
-        Vector(inner) => verify_immutable_reference(module, inner),
-        DatatypeInstantiation(datatype_instance) => {
-            let (idx, type_args) = &**datatype_instance;
-            let resolved_struct = resolve_struct(module, *idx);
-            if resolved_struct == RESOLVED_RECEIVING_STRUCT {
-                Err(format!(
-                    "Invalid immutable reference. A datatype instantiation must NOT be a receiving struct, offending argument: {param:?}"
-                ))
-            } else {
-                for type_arg in type_args.iter() {
-                    verify_immutable_reference(module, type_arg)?
-                }
-                Ok(())
-            }
-        }
-        Signer => Err(format!(
-            "Invalid immutable reference. Signer cannot be immutably referenced, offending argument: {param:?}"
-        )),
-        Reference(_) => Err(format!(
-            "Invalid immutable reference. Reference cannot be immutably referenced, offending argument: {param:?}"
-        )),
-        MutableReference(_) => Err(format!(
-            "Invalid immutable reference. MutableReference cannot be immutably referenced, offending argument: {param:?}"
-        )),
-    }
-}
-
-/// Verify that the parameter type is a valid type for an `authenticate`
-/// function The parameter type can be:
-/// - an immutable reference to anything but a receiving object (see
-///   [verify_immutable_reference])
-/// - a pure input type (see [verify_pure_input_type])
-fn verify_authenticate_param_type(
-    module: &CompiledModule,
-    function_type_args: &[AbilitySet],
-    param: &SignatureToken,
-) -> Result<(), String> {
-    use SignatureToken::*;
-
-    match param {
-        Reference(ref_param) => verify_immutable_reference(module, ref_param),
-        _ => verify_pure_input_type(module, function_type_args, param),
-    }
-}
-
-/// Verify that the first parameter type of the authenticate function matches
-/// the account type.
-fn verify_account_type(
-    module: &CompiledModule,
-    param: &SignatureToken,
-    account_type: &TypeTag,
-) -> Result<(), String> {
-    use SignatureToken::*;
-
-    match param {
-        Reference(ref_param) => {
-            let type_tag = Type::new(module, ref_param).into_type_tag();
-            if let Some(type_tag) = type_tag {
-                if account_type == &type_tag {
-                    return Ok(());
-                }
-            }
-
-            Err(format!(
-                "Invalid account type. Account argument type {ref_param:?} does not match the expected account type {account_type:?}"
-            ))
-        }
-        _ => Err(format!(
-            "Invalid account type. Account can only be a reference type, offending argument: {param:?}"
         )),
     }
 }

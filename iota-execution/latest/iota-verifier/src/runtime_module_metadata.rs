@@ -8,6 +8,8 @@
 //! deserializable and must satisfy any additional checks imposed by the runtime
 //! metadata version.
 
+use std::collections::BTreeSet;
+
 use iota_types::{
     Identifier,
     error::ExecutionError,
@@ -15,7 +17,7 @@ use iota_types::{
 };
 use move_binary_format::{file_format::CompiledModule, file_format_common::IOTA_METADATA_KEY};
 
-use crate::{account_auth_verifier::verify_authenticate_func_v1, verification_failure};
+use crate::{authenticator_verifier::verify_authenticate_func_v1, verification_failure};
 
 /// Verifies the runtime module metadata of the given module.
 /// If the module does not contain any runtime metadata, just pass.
@@ -64,26 +66,14 @@ fn verify_runtime_metadata(
     metadata: &RuntimeModuleMetadata,
 ) -> Result<(), ExecutionError> {
     for (fn_name, fn_attributes) in metadata.fun_attributes_iter() {
-        // Temporary code to get the function signature and pass it to
-        // verify_authenticate_func_v1
-        let type_tag = {
-            let (_, fn_def) = module.find_function_def_by_name(fn_name.as_str()).unwrap();
-            let fn_handle = module.function_handle_at(fn_def.function);
-            let fn_sig = module.signature_at(fn_handle.parameters);
-            let sig_token = &fn_sig.0[0];
-            let move_binary_format::file_format::SignatureToken::Reference(ref_param) = sig_token
-            else {
-                return Err(verification_failure(format!(
-                    "The first parameter of authenticator function {fn_name} must be a reference type"
-                )));
-            };
-            move_binary_format::normalized::Type::new(module, ref_param)
-                .into_type_tag()
-                .unwrap()
-        };
-        // end of temporary code
+        let mut seen = BTreeSet::new();
         // Verify each function attribute
         for attribute in fn_attributes {
+            if !seen.insert(attribute) {
+                return Err(verification_failure(format!(
+                    "Duplicate attribute {attribute:?} found for function {fn_name}"
+                )));
+            }
             match attribute {
                 IotaAttribute::Authenticator(attr) => {
                     // Verify authenticator attribute
@@ -97,7 +87,6 @@ fn verify_runtime_metadata(
                                         "Failed to read function name: {err}",
                                     ))
                                 })?,
-                                &type_tag,
                             )?;
                         }
                         _ => {

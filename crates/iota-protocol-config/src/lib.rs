@@ -77,8 +77,6 @@ pub const MAX_PROTOCOL_VERSION: u64 = 14;
 //             of eligible active validators.
 //             Enable processing and tracking AuthorityCapabilitiesV1 from
 //             non-committee validators in the devnet.
-// Version 14: Max authentication gas budget property.
-//             Introduce gas cost for 'check_auth_info_v1_cost_base'.
 
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
@@ -356,6 +354,10 @@ struct FeatureFlags {
     // If true, enables the authentication of account using Move code.
     #[serde(skip_serializing_if = "is_false")]
     move_auth: bool,
+
+    // If true, enables publishing package metadata v1 along with the package.
+    #[serde(skip_serializing_if = "is_false")]
+    publish_package_metadata: bool,
 
     // If true, it allows metadata bytes indexed with the iota key in a compiled module
     // This flag is used to provide the correct MoveVM configuration for clients.
@@ -816,11 +818,6 @@ pub struct ProtocolConfig {
 
     // === Native Function Costs ===
 
-    // `account` module
-    // Cost params for the Move native function `check_auth_info_v1(package: address, module:
-    // String, function: String): AuthenticatorInfoV1`
-    check_auth_info_v1_cost_base: Option<u64>,
-
     // `address` module
     // Cost params for the Move native function `address::from_bytes(bytes: vector<u8>)`
     address_from_bytes_cost_base: Option<u64>,
@@ -1245,6 +1242,10 @@ impl ProtocolConfig {
         self.feature_flags.move_auth
     }
 
+    pub fn publish_package_metadata(&self) -> bool {
+        self.feature_flags.publish_package_metadata
+    }
+
     pub fn iota_metadata_module_bytes(&self) -> bool {
         self.feature_flags.iota_metadata_module_bytes
     }
@@ -1657,8 +1658,6 @@ impl ProtocolConfig {
             buffer_stake_for_protocol_upgrade_bps: Some(5000),
 
             // === Native Function Costs ===
-            // `account` module
-            check_auth_info_v1_cost_base: None,
             // `address` module
             // Cost params for the Move native function `address::from_bytes(bytes: vector<u8>)`
             address_from_bytes_cost_base: Some(52),
@@ -2251,9 +2250,7 @@ impl ProtocolConfig {
                         // max auth gas budget is in NANOS and an absolute value 1IOTA
                         cfg.max_auth_gas = Some(1_000_000_000);
                         cfg.feature_flags.move_auth = true;
-                        // === Native Function Costs ===
-                        // `account` module
-                        cfg.check_auth_info_v1_cost_base = Some(1000);
+                        cfg.feature_flags.publish_package_metadata = true;
                         cfg.feature_flags.iota_metadata_module_bytes = true;
                     }
                 }
@@ -2432,6 +2429,10 @@ impl ProtocolConfig {
 
     pub fn set_move_auth_for_testing(&mut self, val: bool) {
         self.feature_flags.move_auth = val;
+    }
+
+    pub fn set_publish_package_metadata_for_testing(&mut self, val: bool) {
+        self.feature_flags.publish_package_metadata = val;
     }
 }
 

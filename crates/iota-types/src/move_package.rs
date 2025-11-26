@@ -55,17 +55,24 @@ use serde_with::{Bytes, serde_as};
 use crate::{
     IOTA_FRAMEWORK_ADDRESS,
     base_types::{ObjectID, SequenceNumber},
+    collection_types::{Entry, VecMap},
     crypto::DefaultHash,
+    derived_object,
     error::{ExecutionError, ExecutionErrorKind, IotaError, IotaResult},
     execution_status::PackageUpgradeError,
     id::{ID, UID},
     object::OBJECT_START_VERSION,
+    type_input::TypeName,
 };
 
 pub const PACKAGE_MODULE_NAME: &IdentStr = ident_str!("package");
 pub const UPGRADECAP_STRUCT_NAME: &IdentStr = ident_str!("UpgradeCap");
 pub const UPGRADETICKET_STRUCT_NAME: &IdentStr = ident_str!("UpgradeTicket");
 pub const UPGRADERECEIPT_STRUCT_NAME: &IdentStr = ident_str!("UpgradeReceipt");
+
+pub const PACKAGE_METADATA_MODULE_NAME: &IdentStr = ident_str!("package_metadata");
+pub const PACKAGE_METADATA_V1_STRUCT_NAME: &IdentStr = ident_str!("PackageMetadataV1");
+pub const PACKAGE_METADATA_KEY_STRUCT_NAME: &IdentStr = ident_str!("PackageMetadataKey");
 
 #[derive(Clone, Debug)]
 /// Additional information about a function
@@ -868,11 +875,12 @@ fn build_upgraded_type_origin_table(
 pub struct RuntimeModuleMetadataWrapper {
     pub version: u64,
     #[serde_as(as = "Bytes")]
-    pub contents: Vec<u8>,
+    pub inner: Vec<u8>,
 }
 
 impl RuntimeModuleMetadataWrapper {
     pub fn to_bcs_bytes(&self) -> Vec<u8> {
+        // Safe unwrap as the RuntimeModuleMetadataWrapper struct is always serializable
         bcs::to_bytes(&self).unwrap()
     }
 }
@@ -880,9 +888,9 @@ impl RuntimeModuleMetadataWrapper {
 impl From<RuntimeModuleMetadata> for RuntimeModuleMetadataWrapper {
     fn from(metadata: RuntimeModuleMetadata) -> Self {
         match metadata {
-            RuntimeModuleMetadata::V1(contents) => RuntimeModuleMetadataWrapper {
+            RuntimeModuleMetadata::V1(inner) => RuntimeModuleMetadataWrapper {
                 version: 1,
-                contents: contents.to_bcs_bytes(),
+                inner: inner.to_bcs_bytes(),
             },
         }
     }
@@ -930,11 +938,13 @@ impl TryFrom<RuntimeModuleMetadataWrapper> for RuntimeModuleMetadata {
     fn try_from(wrapper: RuntimeModuleMetadataWrapper) -> Result<Self, Self::Error> {
         match wrapper.version {
             1 => {
-                let contents: RuntimeModuleMetadataV1 = bcs::from_bytes(&wrapper.contents)
-                    .map_err(|e| IotaError::RuntimeModuleMetadataDeserialization {
-                        error: e.to_string(),
+                let inner: RuntimeModuleMetadataV1 =
+                    bcs::from_bytes(&wrapper.inner).map_err(|e| {
+                        IotaError::RuntimeModuleMetadataDeserialization {
+                            error: e.to_string(),
+                        }
                     })?;
-                Ok(RuntimeModuleMetadata::V1(contents))
+                Ok(RuntimeModuleMetadata::V1(inner))
             }
             _ => Err(IotaError::RuntimeModuleMetadataDeserialization {
                 error: format!(
@@ -983,6 +993,170 @@ impl RuntimeModuleMetadataV1 {
     }
 
     pub fn to_bcs_bytes(&self) -> Vec<u8> {
+        // Safe unwrap as the RuntimeModuleMetadataV1 struct is always serializable
         bcs::to_bytes(&self).unwrap()
     }
+}
+
+/// Enum for handling the PackageMetadata framework type. The PackageMetadata is
+/// IOTA specific metadata derived from a package and readable on-chain. This
+/// enums helps with the versioning, which is actually used as the object
+/// content, i.e., PackageMetadataV1 is the type used on-chain.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum PackageMetadata {
+    V1(PackageMetadataV1),
+}
+
+impl PackageMetadata {
+    /// Create a `PackageMetadata` for the newly
+    /// published/upgraded package at `package_id`
+    pub fn new_v1(
+        uid: ObjectID,
+        storage_id: ObjectID,
+        runtime_id: ObjectID,
+        package_version: u64,
+        modules_metadata_map: BTreeMap<String, BTreeMap<String, TypeName>>,
+    ) -> Self {
+        PackageMetadata::V1(PackageMetadataV1::new(
+            uid,
+            storage_id,
+            runtime_id,
+            package_version,
+            modules_metadata_map,
+        ))
+    }
+
+    pub fn type_(&self) -> StructTag {
+        match self {
+            PackageMetadata::V1(_) => PackageMetadataV1::type_(),
+        }
+    }
+
+    pub fn to_bcs_bytes(&self) -> Vec<u8> {
+        match self {
+            PackageMetadata::V1(inner) => inner.to_bcs_bytes(),
+        }
+    }
+}
+
+#[derive(Debug, Default, Serialize, Deserialize, Clone, Eq, PartialEq)]
+pub struct PackageMetadataKey {
+    // This field is required to make a Rust struct compatible with an empty Move one.
+    // An empty Move struct contains a 1-byte dummy bool field because empty fields are not
+    // allowed in the bytecode.
+    dummy_field: bool,
+}
+
+impl PackageMetadataKey {
+    pub fn tag() -> StructTag {
+        StructTag {
+            address: IOTA_FRAMEWORK_ADDRESS,
+            module: PACKAGE_METADATA_MODULE_NAME.to_owned(),
+            name: PACKAGE_METADATA_KEY_STRUCT_NAME.to_owned(),
+            type_params: Vec::new(),
+        }
+    }
+
+    pub fn to_bcs_bytes(&self) -> Vec<u8> {
+        // Safe unwrap as the PackageMetadataKey struct is always serializable
+        bcs::to_bytes(&self).unwrap()
+    }
+}
+
+pub fn derive_package_metadata_id(package_storage_id: ObjectID) -> ObjectID {
+    derived_object::derive_object_id(
+        package_storage_id,
+        &PackageMetadataKey::tag().into(),
+        &PackageMetadataKey::default().to_bcs_bytes(),
+    )
+    .unwrap() // safe because type tag is known
+}
+
+/// V1 of IOTA specific package metadata.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PackageMetadataV1 {
+    // The package metadata object UID
+    pub uid: UID,
+    /// Storage ID of the package represented by this metadata
+    /// The object id of the runtime package metadata object is derived from
+    /// this value.
+    pub storage_id: ID,
+    /// Runtime ID of the package represented by this metadata. Runtime ID is
+    /// the Storage ID of the first version of a package.
+    pub runtime_id: ID,
+    /// Version of the package represented by this metadata
+    pub package_version: u64,
+    // Handles to internal package modules
+    pub modules_metadata: VecMap<String, ModuleMetadataV1>,
+}
+
+impl PackageMetadataV1 {
+    fn new(
+        uid: ObjectID,
+        storage_id: ObjectID,
+        runtime_id: ObjectID,
+        package_version: u64,
+        modules_metadata_map: BTreeMap<String, BTreeMap<String, TypeName>>,
+    ) -> Self {
+        let mut modules_metadata = VecMap { contents: vec![] };
+
+        for (module_name, module_metadata_map) in modules_metadata_map {
+            let mut module_metadata = ModuleMetadataV1 {
+                authenticator_metadata: vec![],
+            };
+            for (function_name, account_type) in module_metadata_map {
+                module_metadata
+                    .authenticator_metadata
+                    .push(AuthenticatorMetadataV1 {
+                        function_name,
+                        account_type,
+                    });
+            }
+            modules_metadata.contents.push(Entry {
+                key: module_name,
+                value: module_metadata,
+            });
+        }
+
+        Self {
+            uid: UID::new(uid),
+            storage_id: ID::new(storage_id),
+            runtime_id: ID::new(runtime_id),
+            package_version,
+            modules_metadata,
+        }
+    }
+
+    pub fn type_() -> StructTag {
+        StructTag {
+            address: IOTA_FRAMEWORK_ADDRESS,
+            module: PACKAGE_METADATA_MODULE_NAME.to_owned(),
+            name: PACKAGE_METADATA_V1_STRUCT_NAME.to_owned(),
+            type_params: vec![],
+        }
+    }
+
+    pub fn to_bcs_bytes(&self) -> Vec<u8> {
+        // Safe unwrap as the PackageMetadataV1 struct is always serializable
+        bcs::to_bytes(&self).unwrap()
+    }
+}
+
+/// V1 of IOTA specific module metadata. Only includes authenticator info.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ModuleMetadataV1 {
+    pub authenticator_metadata: Vec<AuthenticatorMetadataV1>,
+}
+
+impl ModuleMetadataV1 {
+    pub fn is_empty(&self) -> bool {
+        self.authenticator_metadata.is_empty()
+    }
+}
+
+/// V1 of IOTA specific authenticator info metadata.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AuthenticatorMetadataV1 {
+    pub function_name: String,
+    pub account_type: TypeName,
 }
