@@ -716,6 +716,151 @@ async fn test_ptb_publish() -> Result<(), anyhow::Error> {
 }
 
 #[sim_test]
+async fn test_ptb_publish_upgrade() -> Result<(), anyhow::Error> {
+    move_package::package_hooks::register_package_hooks(Box::new(IotaPackageHooks));
+    let mut test_cluster = TestClusterBuilder::new()
+        .with_num_validators(2)
+        .build()
+        .await;
+    let context = &mut test_cluster.wallet;
+    let mut package_path = PathBuf::from(TEST_DATA_DIR);
+    package_path.push("ptb_complex_args_test_functions");
+    let mut package_path_2 = PathBuf::from(TEST_DATA_DIR);
+    package_path_2.push("clever_errors");
+
+    let publish_ptb_string = format!(
+        r#"
+        --move-call iota::tx_context::sender
+        --assign sender
+        --publish {}
+        --assign upgrade_cap
+        --publish {}
+        --assign upgrade_cap_2
+        --transfer-objects "[upgrade_cap, upgrade_cap_2]" sender
+        "#,
+        package_path.display(),
+        package_path_2.display()
+    );
+    let args = shlex::split(&publish_ptb_string).unwrap();
+    let PTBCommandResult::CommandResult(res) = iota::client_ptb::ptb::PTB {
+        args: args.clone(),
+        display: HashSet::new(),
+    }
+    .execute(context)
+    .await?
+    else {
+        panic!("unexpected PTB result");
+    };
+    let IotaClientCommandResult::TransactionBlock(transaction_response) = *res else {
+        panic!("unexpected PTB result");
+    };
+
+    let object_changes = transaction_response.object_changes.unwrap();
+
+    let upgrade_capabilities: Vec<ObjectID> = object_changes
+        .iter()
+        .filter_map(|c| {
+            if let iota_json_rpc_types::ObjectChange::Created { object_type, .. } = c {
+                if object_type == &iota_types::move_package::UpgradeCap::type_() {
+                    Some(c.object_id())
+                } else {
+                    None
+                }
+            } else {
+                None
+            }
+        })
+        .collect();
+
+    let client = context.get_client().await?;
+    let mut packages_with_upgrade_cap = Vec::new();
+    for cap_id in upgrade_capabilities {
+        let cap_object = client
+            .read_api()
+            .get_object_with_options(cap_id, IotaObjectDataOptions::default().with_content())
+            .await?
+            .into_object()
+            .unwrap();
+
+        let move_obj = cap_object.content.unwrap();
+        if let iota_json_rpc_types::IotaParsedData::MoveObject(parsed) = move_obj {
+            let fields_map = match parsed.fields {
+                iota_json_rpc_types::IotaMoveStruct::WithFields(f) => f,
+                _ => panic!("Unexpected struct type"),
+            };
+            let package_value = &fields_map["package"];
+            let package_addr =
+                IotaAddress::from_str(package_value.clone().to_json_value().as_str().unwrap())
+                    .unwrap();
+
+            let package_object = client
+                .read_api()
+                .get_object_with_options(
+                    package_addr.into(),
+                    IotaObjectDataOptions::default().with_content(),
+                )
+                .await?
+                .into_object()
+                .unwrap();
+
+            let is_clever_errors = if let Some(iota_json_rpc_types::IotaParsedData::Package(pkg)) =
+                &package_object.content
+            {
+                pkg.disassembled.contains_key("clever_errors")
+            } else {
+                false
+            };
+            let pkg_path = if is_clever_errors {
+                package_path_2.clone()
+            } else {
+                package_path.clone()
+            };
+
+            packages_with_upgrade_cap.push((pkg_path, package_addr, cap_id));
+        } else {
+            panic!("Expected MoveObject");
+        }
+    }
+
+    // Update lock file for both packages
+    for (pkg_path, package_id, _) in &packages_with_upgrade_cap {
+        let mut build_config = BuildConfig::new_for_testing().config;
+        build_config.lock_file = Some(pkg_path.join("Move.lock"));
+        iota_package_management::update_lock_file_with_package_id(
+            context,
+            iota_package_management::LockCommand::Publish,
+            build_config.install_dir,
+            build_config.lock_file,
+            (*package_id).into(),
+            1,
+        )
+        .await?;
+    }
+
+    let publish_ptb_string = format!(
+        r#"
+        --move-call iota::tx_context::sender
+        --assign sender
+        --upgrade {} @{}
+        --upgrade {} @{}
+        "#,
+        packages_with_upgrade_cap[0].0.display(),
+        packages_with_upgrade_cap[0].2,
+        packages_with_upgrade_cap[1].0.display(),
+        packages_with_upgrade_cap[1].2,
+    );
+    let args = shlex::split(&publish_ptb_string).unwrap();
+    iota::client_ptb::ptb::PTB {
+        args: args.clone(),
+        display: HashSet::new(),
+    }
+    .execute(context)
+    .await?;
+
+    Ok(())
+}
+
+#[sim_test]
 async fn test_custom_genesis() -> Result<(), anyhow::Error> {
     // Create and save genesis config file
     // Create 4 authorities, 1 account with 1 gas object with custom id

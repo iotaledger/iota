@@ -569,7 +569,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
     /// no error is returned then the verified blocks are immediately sent
     /// to Core for processing.
     async fn process_fetched_headers_from_authority(
-        serialized_headers: Vec<Bytes>,
+        mut serialized_headers: Vec<Bytes>,
         peer_index: AuthorityIndex,
         requested_blocks_guard: BlocksGuard,
         core_dispatcher: Arc<D>,
@@ -583,8 +583,18 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
         if serialized_headers.is_empty() {
             return Ok(());
         }
+        let _s = context
+            .metrics
+            .node_metrics
+            .scope_processing_time
+            .with_label_values(&["Synchronizer::process_fetched_blocks"])
+            .start_timer();
         if serialized_headers.len() > context.parameters.max_headers_per_regular_sync_fetch {
-            return Err(ConsensusError::TooManyFetchedHeadersReturned(peer_index));
+            debug!(
+                "Truncating fetched headers from peer {} to max allowed {} blocks",
+                peer_index, context.parameters.max_headers_per_regular_sync_fetch
+            );
+            serialized_headers.truncate(context.parameters.max_headers_per_regular_sync_fetch);
         }
 
         // Verify all the fetched block headers
@@ -670,8 +680,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
                 .await
             {
                 warn!(
-                    "Error while trying to fetch missing transactions via
-             transactions synchronizer: {err}"
+                    "Error while trying to fetch missing transactions via transactions synchronizer: {err}"
                 );
             }
         }
@@ -1668,7 +1677,6 @@ mod tests {
             network_client.clone(),
             context.clone(),
             core_dispatcher.clone(),
-            block_verifier.clone(),
             dag_state.clone(),
         );
 
@@ -1737,7 +1745,6 @@ mod tests {
             network_client.clone(),
             context.clone(),
             core_dispatcher.clone(),
-            block_verifier.clone(),
             dag_state.clone(),
         );
 
@@ -1820,7 +1827,6 @@ mod tests {
             network_client.clone(),
             context.clone(),
             core_dispatcher.clone(),
-            block_verifier.clone(),
             dag_state.clone(),
         );
         // Create some test block headers
@@ -1932,7 +1938,6 @@ mod tests {
             network_client.clone(),
             context.clone(),
             core_dispatcher.clone(),
-            block_verifier.clone(),
             dag_state.clone(),
         );
         // AND stub some missing blocks. The highest accepted round is 0.
@@ -2068,7 +2073,6 @@ mod tests {
             network_client.clone(),
             context.clone(),
             core_dispatcher.clone(),
-            block_verifier.clone(),
             dag_state.clone(),
         );
         // AND stub some missing blocks. The highest accepted round is 0. Create blocks
@@ -2219,7 +2223,6 @@ mod tests {
             network_client.clone(),
             context.clone(),
             core_dispatcher.clone(),
-            block_verifier.clone(),
             dag_state.clone(),
         );
         // Create some test block headers
@@ -2722,7 +2725,6 @@ mod tests {
             network_client.clone(),
             context.clone(),
             core_dispatcher.clone(),
-            block_verifier.clone(),
             dag_state.clone(),
         );
 

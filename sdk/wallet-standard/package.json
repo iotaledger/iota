@@ -2,6 +2,7 @@
     "name": "@iota/wallet-standard",
     "version": "0.2.16",
     "description": "A suite of standard utilities for implementing wallets based on the Wallet Standard.",
+    "repository": "https://github.com/iotaledger/iota",
     "license": "Apache-2.0",
     "author": "IOTA Foundation <info@iota.org>",
     "type": "commonjs",
@@ -23,7 +24,6 @@
     "scripts": {
         "clean": "rm -rf tsconfig.tsbuildinfo ./dist",
         "build": "build-package",
-        "prepublishOnly": "pnpm build",
         "prettier:check": "prettier -c --ignore-unknown --ignore-path=../../.prettierignore --ignore-path=.prettierignore .",
         "prettier:fix": "prettier -w --ignore-unknown --ignore-path=../../.prettierignore --ignore-path=.prettierignore .",
         "eslint:check": "eslint --max-warnings=0 .",
