@@ -18,7 +18,7 @@
     "editable": true,
     "fiscalYearStartMonth": 0,
     "graphTooltip": 0,
-    "id": 5,
+    "id": 3,
     "links": [],
     "liveNow": false,
     "panels": [
@@ -1957,7 +1957,6 @@
             "panels": [
                 {
                     "datasource": {
-                        "default": false,
                         "type": "prometheus",
                         "uid": "prometheus"
                     },
@@ -2011,7 +2010,8 @@
                                         "value": 80
                                     }
                                 ]
-                            }
+                            },
+                            "unit": "s"
                         },
                         "overrides": []
                     },
@@ -2019,7 +2019,7 @@
                         "h": 8,
                         "w": 12,
                         "x": 0,
-                        "y": 71
+                        "y": 63
                     },
                     "id": 114,
                     "options": {
@@ -2027,7 +2027,7 @@
                             "calcs": [],
                             "displayMode": "list",
                             "placement": "bottom",
-                            "showLegend": false
+                            "showLegend": true
                         },
                         "tooltip": {
                             "mode": "single",
@@ -2045,6 +2045,7 @@
                             "expr": "rate(consensus_block_proposal_interval_sum[5m])/rate(consensus_block_proposal_interval_count[5m])",
                             "fullMetaSearch": false,
                             "includeNullMetadata": false,
+                            "legendFormat": "{{host}}",
                             "range": true,
                             "refId": "A",
                             "useBackend": false
@@ -2117,7 +2118,7 @@
                         "h": 8,
                         "w": 12,
                         "x": 12,
-                        "y": 71
+                        "y": 63
                     },
                     "id": 108,
                     "options": {
@@ -2125,7 +2126,7 @@
                             "calcs": [],
                             "displayMode": "list",
                             "placement": "bottom",
-                            "showLegend": false
+                            "showLegend": true
                         },
                         "tooltip": {
                             "mode": "single",
@@ -2209,7 +2210,8 @@
                                         "value": 80
                                     }
                                 ]
-                            }
+                            },
+                            "unit": "bytes"
                         },
                         "overrides": []
                     },
@@ -2217,7 +2219,7 @@
                         "h": 8,
                         "w": 12,
                         "x": 0,
-                        "y": 79
+                        "y": 71
                     },
                     "id": 207,
                     "options": {
@@ -2225,7 +2227,7 @@
                             "calcs": [],
                             "displayMode": "list",
                             "placement": "bottom",
-                            "showLegend": false
+                            "showLegend": true
                         },
                         "tooltip": {
                             "mode": "single",
@@ -2243,6 +2245,7 @@
                             "expr": "rate(consensus_proposed_block_header_size_sum[2m])/rate(consensus_proposed_block_header_size_count[2m])",
                             "fullMetaSearch": false,
                             "includeNullMetadata": false,
+                            "legendFormat": "{{host}}",
                             "range": true,
                             "refId": "A",
                             "useBackend": false
@@ -2306,7 +2309,8 @@
                                         "value": 80
                                     }
                                 ]
-                            }
+                            },
+                            "unit": "bytes"
                         },
                         "overrides": []
                     },
@@ -2314,7 +2318,7 @@
                         "h": 8,
                         "w": 12,
                         "x": 12,
-                        "y": 79
+                        "y": 71
                     },
                     "id": 227,
                     "options": {
@@ -2322,7 +2326,7 @@
                             "calcs": [],
                             "displayMode": "list",
                             "placement": "bottom",
-                            "showLegend": false
+                            "showLegend": true
                         },
                         "tooltip": {
                             "mode": "single",
@@ -2340,6 +2344,7 @@
                             "expr": "rate(consensus_proposed_block_size_sum[2m])/rate(consensus_proposed_block_size_count[2m])",
                             "fullMetaSearch": false,
                             "includeNullMetadata": false,
+                            "legendFormat": "{{host}}",
                             "range": true,
                             "refId": "A",
                             "useBackend": false
@@ -2412,7 +2417,7 @@
                         "h": 8,
                         "w": 12,
                         "x": 0,
-                        "y": 87
+                        "y": 79
                     },
                     "id": 215,
                     "options": {
@@ -2420,7 +2425,7 @@
                             "calcs": [],
                             "displayMode": "list",
                             "placement": "bottom",
-                            "showLegend": false
+                            "showLegend": true
                         },
                         "tooltip": {
                             "mode": "single",
@@ -2513,7 +2518,7 @@
                         "h": 8,
                         "w": 12,
                         "x": 12,
-                        "y": 87
+                        "y": 79
                     },
                     "id": 209,
                     "options": {
@@ -2521,7 +2526,7 @@
                             "calcs": [],
                             "displayMode": "list",
                             "placement": "bottom",
-                            "showLegend": false
+                            "showLegend": true
                         },
                         "tooltip": {
                             "mode": "single",
@@ -2614,7 +2619,7 @@
                         "h": 8,
                         "w": 12,
                         "x": 0,
-                        "y": 95
+                        "y": 87
                     },
                     "id": 219,
                     "interval": "1",
@@ -2715,7 +2720,7 @@
                         "h": 8,
                         "w": 12,
                         "x": 12,
-                        "y": 95
+                        "y": 87
                     },
                     "id": 116,
                     "options": {
@@ -2813,7 +2818,7 @@
                         "h": 8,
                         "w": 12,
                         "x": 0,
-                        "y": 103
+                        "y": 95
                     },
                     "id": 135,
                     "options": {
@@ -2840,7 +2845,7 @@
                             "fullMetaSearch": false,
                             "includeNullMetadata": true,
                             "instant": false,
-                            "legendFormat": "{{host}}/{{source}}",
+                            "legendFormat": "{{host}}",
                             "range": true,
                             "refId": "A",
                             "useBackend": false
@@ -2912,7 +2917,7 @@
                         "h": 8,
                         "w": 12,
                         "x": 12,
-                        "y": 103
+                        "y": 95
                     },
                     "id": 233,
                     "options": {
@@ -2939,7 +2944,7 @@
                             "fullMetaSearch": false,
                             "includeNullMetadata": true,
                             "instant": false,
-                            "legendFormat": "{{host}}/{{source}}",
+                            "legendFormat": "{{host}}",
                             "range": true,
                             "refId": "A",
                             "useBackend": false
@@ -3012,7 +3017,7 @@
                         "h": 8,
                         "w": 12,
                         "x": 12,
-                        "y": 111
+                        "y": 103
                     },
                     "id": 115,
                     "options": {
@@ -3126,7 +3131,7 @@
                         "h": 8,
                         "w": 12,
                         "x": 0,
-                        "y": 120
+                        "y": 112
                     },
                     "id": 210,
                     "options": {
@@ -3188,7 +3193,7 @@
                         "h": 8,
                         "w": 12,
                         "x": 12,
-                        "y": 120
+                        "y": 112
                     },
                     "id": 216,
                     "options": {
@@ -3298,7 +3303,7 @@
                         "h": 11,
                         "w": 24,
                         "x": 0,
-                        "y": 128
+                        "y": 120
                     },
                     "id": 225,
                     "options": {
@@ -3401,7 +3406,7 @@
                         "h": 11,
                         "w": 24,
                         "x": 0,
-                        "y": 139
+                        "y": 131
                     },
                     "id": 241,
                     "options": {
@@ -3513,8 +3518,7 @@
                                 "mode": "absolute",
                                 "steps": [
                                     {
-                                        "color": "green",
-                                        "value": null
+                                        "color": "green"
                                     },
                                     {
                                         "color": "red",
@@ -3530,7 +3534,7 @@
                         "h": 8,
                         "w": 12,
                         "x": 0,
-                        "y": 150
+                        "y": 142
                     },
                     "id": 226,
                     "options": {
@@ -3614,8 +3618,7 @@
                                 "mode": "absolute",
                                 "steps": [
                                     {
-                                        "color": "green",
-                                        "value": null
+                                        "color": "green"
                                     },
                                     {
                                         "color": "red",
@@ -3631,7 +3634,7 @@
                         "h": 8,
                         "w": 12,
                         "x": 12,
-                        "y": 150
+                        "y": 142
                     },
                     "id": 218,
                     "options": {
@@ -3747,7 +3750,7 @@
                         "h": 8,
                         "w": 12,
                         "x": 0,
-                        "y": 121
+                        "y": 113
                     },
                     "id": 158,
                     "options": {
@@ -3843,7 +3846,7 @@
                         "h": 8,
                         "w": 12,
                         "x": 12,
-                        "y": 121
+                        "y": 113
                     },
                     "id": 232,
                     "options": {
@@ -3910,11 +3913,11 @@
                                     },
                                     {
                                         "color": "yellow",
-                                        "value": 2
+                                        "value": 4
                                     },
                                     {
                                         "color": "red",
-                                        "value": 4
+                                        "value": 5
                                     }
                                 ]
                             },
@@ -3926,7 +3929,7 @@
                         "h": 8,
                         "w": 12,
                         "x": 0,
-                        "y": 129
+                        "y": 121
                     },
                     "id": 237,
                     "options": {
@@ -3965,7 +3968,7 @@
                             "refId": "A"
                         }
                     ],
-                    "title": "Consensus CPU usage",
+                    "title": "Consensus spent vCPUs",
                     "transformations": [
                         {
                             "id": "organize",
@@ -4057,7 +4060,7 @@
                         "h": 8,
                         "w": 12,
                         "x": 12,
-                        "y": 129
+                        "y": 121
                     },
                     "id": 238,
                     "options": {
@@ -4153,7 +4156,7 @@
                         "h": 8,
                         "w": 12,
                         "x": 0,
-                        "y": 137
+                        "y": 129
                     },
                     "id": 236,
                     "options": {
@@ -4248,7 +4251,7 @@
                         "h": 8,
                         "w": 12,
                         "x": 12,
-                        "y": 137
+                        "y": 129
                     },
                     "id": 120,
                     "options": {
@@ -4356,7 +4359,7 @@
                         "h": 8,
                         "w": 12,
                         "x": 0,
-                        "y": 74
+                        "y": 114
                     },
                     "id": 183,
                     "options": {
@@ -4450,7 +4453,7 @@
                         "h": 8,
                         "w": 12,
                         "x": 12,
-                        "y": 74
+                        "y": 114
                     },
                     "id": 184,
                     "options": {
@@ -4548,7 +4551,7 @@
                         "h": 8,
                         "w": 12,
                         "x": 0,
-                        "y": 82
+                        "y": 122
                     },
                     "id": 180,
                     "options": {
@@ -4643,7 +4646,7 @@
                         "h": 8,
                         "w": 12,
                         "x": 12,
-                        "y": 82
+                        "y": 122
                     },
                     "id": 181,
                     "options": {
@@ -4737,7 +4740,7 @@
                         "h": 8,
                         "w": 12,
                         "x": 0,
-                        "y": 90
+                        "y": 130
                     },
                     "id": 211,
                     "options": {
@@ -4835,7 +4838,7 @@
                         "h": 8,
                         "w": 12,
                         "x": 12,
-                        "y": 90
+                        "y": 130
                     },
                     "id": 185,
                     "options": {
@@ -4912,7 +4915,7 @@
                         "h": 12,
                         "w": 24,
                         "x": 0,
-                        "y": 98
+                        "y": 138
                     },
                     "id": 231,
                     "options": {
@@ -4988,7 +4991,7 @@
                     "type": "table"
                 }
             ],
-            "title": "Streaming",
+            "title": "Block Streaming",
             "type": "row"
         },
         {
@@ -5064,7 +5067,7 @@
                         "h": 8,
                         "w": 11,
                         "x": 0,
-                        "y": 111
+                        "y": 115
                     },
                     "id": 201,
                     "options": {
@@ -5159,7 +5162,7 @@
                         "h": 8,
                         "w": 11,
                         "x": 11,
-                        "y": 111
+                        "y": 115
                     },
                     "id": 202,
                     "options": {
@@ -5254,7 +5257,7 @@
                         "h": 8,
                         "w": 11,
                         "x": 0,
-                        "y": 119
+                        "y": 123
                     },
                     "id": 203,
                     "options": {
@@ -5349,7 +5352,7 @@
                         "h": 8,
                         "w": 11,
                         "x": 11,
-                        "y": 119
+                        "y": 123
                     },
                     "id": 204,
                     "options": {
@@ -5448,7 +5451,7 @@
                         "h": 8,
                         "w": 11,
                         "x": 0,
-                        "y": 127
+                        "y": 131
                     },
                     "id": 205,
                     "options": {
@@ -5547,7 +5550,7 @@
                         "h": 8,
                         "w": 11,
                         "x": 11,
-                        "y": 127
+                        "y": 131
                     },
                     "id": 206,
                     "options": {
@@ -5584,7 +5587,7 @@
                     "type": "timeseries"
                 }
             ],
-            "title": "Transaction reconstruction",
+            "title": "Transaction Reconstruction",
             "type": "row"
         },
         {
@@ -5644,8 +5647,7 @@
                                 "mode": "absolute",
                                 "steps": [
                                     {
-                                        "color": "green",
-                                        "value": null
+                                        "color": "green"
                                     },
                                     {
                                         "color": "red",
@@ -5769,8 +5771,7 @@
                                 "mode": "absolute",
                                 "steps": [
                                     {
-                                        "color": "green",
-                                        "value": null
+                                        "color": "green"
                                     },
                                     {
                                         "color": "red",
@@ -5893,8 +5894,7 @@
                                 "mode": "absolute",
                                 "steps": [
                                     {
-                                        "color": "green",
-                                        "value": null
+                                        "color": "green"
                                     },
                                     {
                                         "color": "red",
@@ -5992,8 +5992,7 @@
                                 "mode": "absolute",
                                 "steps": [
                                     {
-                                        "color": "green",
-                                        "value": null
+                                        "color": "green"
                                     },
                                     {
                                         "color": "red",
@@ -6091,8 +6090,7 @@
                                 "mode": "absolute",
                                 "steps": [
                                     {
-                                        "color": "green",
-                                        "value": null
+                                        "color": "green"
                                     },
                                     {
                                         "color": "red",
@@ -6190,8 +6188,7 @@
                                 "mode": "absolute",
                                 "steps": [
                                     {
-                                        "color": "green",
-                                        "value": null
+                                        "color": "green"
                                     },
                                     {
                                         "color": "red",
@@ -7120,7 +7117,7 @@
                         "h": 8,
                         "w": 12,
                         "x": 0,
-                        "y": 145
+                        "y": 117
                     },
                     "id": 138,
                     "options": {
@@ -7220,7 +7217,7 @@
                         "h": 8,
                         "w": 12,
                         "x": 12,
-                        "y": 145
+                        "y": 117
                     },
                     "id": 171,
                     "options": {
@@ -7319,7 +7316,7 @@
                         "h": 8,
                         "w": 12,
                         "x": 0,
-                        "y": 153
+                        "y": 125
                     },
                     "id": 140,
                     "options": {
@@ -7419,7 +7416,7 @@
                         "h": 8,
                         "w": 12,
                         "x": 12,
-                        "y": 153
+                        "y": 125
                     },
                     "id": 160,
                     "options": {
@@ -7503,8 +7500,7 @@
                                 "mode": "absolute",
                                 "steps": [
                                     {
-                                        "color": "green",
-                                        "value": null
+                                        "color": "green"
                                     },
                                     {
                                         "color": "#EAB839",
@@ -7524,7 +7520,7 @@
                         "h": 8,
                         "w": 12,
                         "x": 0,
-                        "y": 161
+                        "y": 133
                     },
                     "id": 118,
                     "options": {
@@ -7604,8 +7600,7 @@
                                 "mode": "absolute",
                                 "steps": [
                                     {
-                                        "color": "green",
-                                        "value": null
+                                        "color": "green"
                                     },
                                     {
                                         "color": "red",
@@ -7620,7 +7615,7 @@
                         "h": 8,
                         "w": 12,
                         "x": 12,
-                        "y": 161
+                        "y": 133
                     },
                     "id": 161,
                     "options": {
@@ -7721,7 +7716,7 @@
                         "h": 8,
                         "w": 12,
                         "x": 0,
-                        "y": 169
+                        "y": 141
                     },
                     "id": 139,
                     "options": {
@@ -7822,7 +7817,7 @@
                         "h": 8,
                         "w": 12,
                         "x": 12,
-                        "y": 169
+                        "y": 141
                     },
                     "id": 106,
                     "options": {
@@ -7923,7 +7918,7 @@
                         "h": 8,
                         "w": 12,
                         "x": 0,
-                        "y": 177
+                        "y": 149
                     },
                     "id": 163,
                     "options": {
@@ -8024,7 +8019,7 @@
                         "h": 8,
                         "w": 12,
                         "x": 12,
-                        "y": 177
+                        "y": 149
                     },
                     "id": 162,
                     "options": {
@@ -8125,7 +8120,7 @@
                         "h": 8,
                         "w": 12,
                         "x": 0,
-                        "y": 185
+                        "y": 157
                     },
                     "id": 105,
                     "options": {
@@ -8226,7 +8221,7 @@
                         "h": 8,
                         "w": 12,
                         "x": 12,
-                        "y": 185
+                        "y": 157
                     },
                     "id": 141,
                     "options": {
@@ -8288,7 +8283,7 @@
                         "h": 8,
                         "w": 12,
                         "x": 0,
-                        "y": 193
+                        "y": 165
                     },
                     "id": 229,
                     "options": {
@@ -8413,7 +8408,7 @@
                         "h": 8,
                         "w": 12,
                         "x": 12,
-                        "y": 193
+                        "y": 165
                     },
                     "id": 230,
                     "options": {
@@ -8452,7 +8447,7 @@
                     "type": "timeseries"
                 }
             ],
-            "title": "Header synchronizer",
+            "title": "Header Synchronizer",
             "type": "row"
         },
         {
@@ -9079,13 +9074,11 @@
                                 "mode": "palette-classic"
                             },
                             "custom": {
-                                "axisBorderShow": false,
                                 "axisCenteredZero": false,
                                 "axisColorMode": "text",
                                 "axisLabel": "",
                                 "axisPlacement": "auto",
                                 "barAlignment": 0,
-                                "barWidthFactor": 0.6,
                                 "drawStyle": "line",
                                 "fillOpacity": 31,
                                 "gradientMode": "none",
@@ -9116,7 +9109,8 @@
                                 "mode": "absolute",
                                 "steps": [
                                     {
-                                        "color": "green"
+                                        "color": "green",
+                                        "value": null
                                     },
                                     {
                                         "color": "red",
@@ -9131,7 +9125,7 @@
                         "h": 8,
                         "w": 12,
                         "x": 0,
-                        "y": 63
+                        "y": 71
                     },
                     "id": 128,
                     "options": {
@@ -9176,13 +9170,11 @@
                                 "mode": "palette-classic"
                             },
                             "custom": {
-                                "axisBorderShow": false,
                                 "axisCenteredZero": false,
                                 "axisColorMode": "text",
                                 "axisLabel": "",
                                 "axisPlacement": "auto",
                                 "barAlignment": 0,
-                                "barWidthFactor": 0.6,
                                 "drawStyle": "line",
                                 "fillOpacity": 31,
                                 "gradientMode": "none",
@@ -9213,7 +9205,8 @@
                                 "mode": "absolute",
                                 "steps": [
                                     {
-                                        "color": "green"
+                                        "color": "green",
+                                        "value": null
                                     },
                                     {
                                         "color": "red",
@@ -9228,7 +9221,7 @@
                         "h": 8,
                         "w": 12,
                         "x": 12,
-                        "y": 63
+                        "y": 71
                     },
                     "id": 129,
                     "options": {
@@ -9273,13 +9266,11 @@
                                 "mode": "palette-classic"
                             },
                             "custom": {
-                                "axisBorderShow": false,
                                 "axisCenteredZero": false,
                                 "axisColorMode": "text",
                                 "axisLabel": "",
                                 "axisPlacement": "auto",
                                 "barAlignment": 0,
-                                "barWidthFactor": 0.6,
                                 "drawStyle": "line",
                                 "fillOpacity": 31,
                                 "gradientMode": "none",
@@ -9310,7 +9301,8 @@
                                 "mode": "absolute",
                                 "steps": [
                                     {
-                                        "color": "green"
+                                        "color": "green",
+                                        "value": null
                                     },
                                     {
                                         "color": "red",
@@ -9325,7 +9317,7 @@
                         "h": 8,
                         "w": 12,
                         "x": 0,
-                        "y": 71
+                        "y": 79
                     },
                     "id": 130,
                     "options": {
@@ -9370,13 +9362,11 @@
                                 "mode": "palette-classic"
                             },
                             "custom": {
-                                "axisBorderShow": false,
                                 "axisCenteredZero": false,
                                 "axisColorMode": "text",
                                 "axisLabel": "",
                                 "axisPlacement": "auto",
                                 "barAlignment": 0,
-                                "barWidthFactor": 0.6,
                                 "drawStyle": "line",
                                 "fillOpacity": 0,
                                 "gradientMode": "none",
@@ -9407,7 +9397,8 @@
                                 "mode": "absolute",
                                 "steps": [
                                     {
-                                        "color": "green"
+                                        "color": "green",
+                                        "value": null
                                     },
                                     {
                                         "color": "red",
@@ -9422,7 +9413,7 @@
                         "h": 8,
                         "w": 12,
                         "x": 12,
-                        "y": 71
+                        "y": 79
                     },
                     "id": 133,
                     "options": {
@@ -9519,7 +9510,7 @@
                         "h": 8,
                         "w": 12,
                         "x": 0,
-                        "y": 79
+                        "y": 87
                     },
                     "id": 131,
                     "options": {
@@ -9616,7 +9607,7 @@
                         "h": 8,
                         "w": 12,
                         "x": 12,
-                        "y": 79
+                        "y": 87
                     },
                     "id": 134,
                     "options": {
@@ -9660,11 +9651,10 @@
                 "x": 0,
                 "y": 71
             },
-            "id": 194,
+            "id": 67,
             "panels": [
                 {
                     "datasource": {
-                        "default": false,
                         "type": "prometheus",
                         "uid": "prometheus"
                     },
@@ -9674,13 +9664,11 @@
                                 "mode": "palette-classic"
                             },
                             "custom": {
-                                "axisBorderShow": false,
                                 "axisCenteredZero": false,
                                 "axisColorMode": "text",
                                 "axisLabel": "",
                                 "axisPlacement": "auto",
                                 "barAlignment": 0,
-                                "barWidthFactor": 0.6,
                                 "drawStyle": "line",
                                 "fillOpacity": 0,
                                 "gradientMode": "none",
@@ -9711,7 +9699,8 @@
                                 "mode": "absolute",
                                 "steps": [
                                     {
-                                        "color": "green"
+                                        "color": "green",
+                                        "value": null
                                     },
                                     {
                                         "color": "red",
@@ -9726,7 +9715,7 @@
                         "h": 8,
                         "w": 12,
                         "x": 0,
-                        "y": 64
+                        "y": 72
                     },
                     "id": 157,
                     "options": {
@@ -9734,7 +9723,7 @@
                             "calcs": [],
                             "displayMode": "list",
                             "placement": "bottom",
-                            "showLegend": true
+                            "showLegend": false
                         },
                         "tooltip": {
                             "mode": "multi",
@@ -9748,7 +9737,7 @@
                                 "uid": "prometheus"
                             },
                             "editorMode": "code",
-                            "expr": "consensus_num_of_bad_nodes",
+                            "expr": "quantile(0.5, consensus_num_of_bad_nodes) ",
                             "instant": false,
                             "legendFormat": "__auto",
                             "range": true,
@@ -9766,16 +9755,219 @@
                     "fieldConfig": {
                         "defaults": {
                             "color": {
+                                "mode": "thresholds"
+                            },
+                            "custom": {
+                                "align": "auto",
+                                "cellOptions": {
+                                    "type": "auto"
+                                },
+                                "inspect": false
+                            },
+                            "mappings": [],
+                            "thresholds": {
+                                "mode": "absolute",
+                                "steps": [
+                                    {
+                                        "color": "green",
+                                        "value": null
+                                    },
+                                    {
+                                        "color": "red",
+                                        "value": 80
+                                    }
+                                ]
+                            }
+                        },
+                        "overrides": []
+                    },
+                    "gridPos": {
+                        "h": 8,
+                        "w": 12,
+                        "x": 12,
+                        "y": 72
+                    },
+                    "id": 242,
+                    "options": {
+                        "cellHeight": "sm",
+                        "footer": {
+                            "countRows": false,
+                            "fields": "",
+                            "reducer": [
+                                "sum"
+                            ],
+                            "show": false
+                        },
+                        "showHeader": true,
+                        "sortBy": [
+                            {
+                                "desc": false,
+                                "displayName": "Leader Score"
+                            }
+                        ]
+                    },
+                    "pluginVersion": "10.1.1",
+                    "targets": [
+                        {
+                            "datasource": {
+                                "type": "prometheus",
+                                "uid": "prometheus"
+                            },
+                            "disableTextWrap": false,
+                            "editorMode": "code",
+                            "exemplar": false,
+                            "expr": "quantile(0.5, consensus_reputation_scores) by (authority)",
+                            "format": "table",
+                            "fullMetaSearch": false,
+                            "includeNullMetadata": true,
+                            "instant": true,
+                            "legendFormat": "__auto",
+                            "range": false,
+                            "refId": "A",
+                            "useBackend": false
+                        }
+                    ],
+                    "title": "Median Leader Score",
+                    "transformations": [
+                        {
+                            "id": "organize",
+                            "options": {
+                                "excludeByName": {
+                                    "Time": true
+                                },
+                                "indexByName": {},
+                                "renameByName": {
+                                    "Value": "Leader Score",
+                                    "authority": "Validator"
+                                }
+                            }
+                        }
+                    ],
+                    "type": "table"
+                },
+                {
+                    "datasource": {
+                        "type": "prometheus",
+                        "uid": "prometheus"
+                    },
+                    "fieldConfig": {
+                        "defaults": {
+                            "color": {
+                                "mode": "thresholds"
+                            },
+                            "custom": {
+                                "align": "auto",
+                                "cellOptions": {
+                                    "type": "color-background"
+                                },
+                                "inspect": false
+                            },
+                            "mappings": [],
+                            "thresholds": {
+                                "mode": "absolute",
+                                "steps": [
+                                    {
+                                        "color": "green",
+                                        "value": null
+                                    },
+                                    {
+                                        "color": "orange",
+                                        "value": 0.04
+                                    },
+                                    {
+                                        "color": "red",
+                                        "value": 0.09
+                                    }
+                                ]
+                            },
+                            "unit": "s"
+                        },
+                        "overrides": []
+                    },
+                    "gridPos": {
+                        "h": 8,
+                        "w": 12,
+                        "x": 0,
+                        "y": 80
+                    },
+                    "id": 243,
+                    "options": {
+                        "cellHeight": "sm",
+                        "footer": {
+                            "countRows": false,
+                            "fields": "",
+                            "reducer": [
+                                "sum"
+                            ],
+                            "show": false
+                        },
+                        "showHeader": true,
+                        "sortBy": [
+                            {
+                                "desc": true,
+                                "displayName": "Average latency for receiption"
+                            }
+                        ]
+                    },
+                    "pluginVersion": "10.1.1",
+                    "targets": [
+                        {
+                            "datasource": {
+                                "type": "prometheus",
+                                "uid": "prometheus"
+                            },
+                            "disableTextWrap": false,
+                            "editorMode": "code",
+                            "exemplar": false,
+                            "expr": "    (\n      sum(rate(consensus_latency_to_process_stream_sum[2m])) by (host, instance)\n      /\n      sum(rate(consensus_latency_to_process_stream_count[2m])) by (host, instance)\n    )",
+                            "format": "table",
+                            "fullMetaSearch": false,
+                            "includeNullMetadata": true,
+                            "instant": true,
+                            "legendFormat": "__auto",
+                            "range": false,
+                            "refId": "A",
+                            "useBackend": false
+                        }
+                    ],
+                    "title": "Average latency by host",
+                    "transformations": [
+                        {
+                            "id": "organize",
+                            "options": {
+                                "excludeByName": {
+                                    "Time": true
+                                },
+                                "indexByName": {},
+                                "renameByName": {
+                                    "Value": "Average latency for receiption",
+                                    "authority": "Validator",
+                                    "host": "",
+                                    "instance": "IPs"
+                                }
+                            }
+                        }
+                    ],
+                    "type": "table"
+                },
+                {
+                    "datasource": {
+                        "default": false,
+                        "type": "prometheus",
+                        "uid": "prometheus"
+                    },
+                    "description": "Rate of total number of committed consensus messages",
+                    "fieldConfig": {
+                        "defaults": {
+                            "color": {
                                 "mode": "palette-classic"
                             },
                             "custom": {
-                                "axisBorderShow": false,
                                 "axisCenteredZero": false,
                                 "axisColorMode": "text",
                                 "axisLabel": "",
                                 "axisPlacement": "auto",
                                 "barAlignment": 0,
-                                "barWidthFactor": 0.6,
                                 "drawStyle": "line",
                                 "fillOpacity": 0,
                                 "gradientMode": "none",
@@ -9806,7 +9998,8 @@
                                 "mode": "absolute",
                                 "steps": [
                                     {
-                                        "color": "green"
+                                        "color": "green",
+                                        "value": null
                                     },
                                     {
                                         "color": "red",
@@ -9821,57 +10014,39 @@
                         "h": 8,
                         "w": 12,
                         "x": 12,
-                        "y": 64
+                        "y": 80
                     },
-                    "id": 153,
+                    "id": 68,
                     "options": {
                         "legend": {
-                            "calcs": [],
+                            "calcs": [
+                                "last"
+                            ],
                             "displayMode": "list",
-                            "placement": "bottom",
-                            "showLegend": true
+                            "placement": "right",
+                            "showLegend": false
                         },
                         "tooltip": {
                             "mode": "multi",
                             "sort": "asc"
                         }
                     },
-                    "pluginVersion": "11.2.1",
                     "targets": [
                         {
                             "datasource": {
                                 "type": "prometheus",
                                 "uid": "prometheus"
                             },
-                            "disableTextWrap": false,
                             "editorMode": "code",
-                            "expr": "consensus_reputation_scores{host=\"IOTA Foundation 1\"}",
-                            "fullMetaSearch": false,
-                            "includeNullMetadata": true,
-                            "instant": false,
-                            "legendFormat": "{{authority}}",
+                            "expr": "avg(irate(consensus_committed_messages[2m])) by (authority)",
+                            "legendFormat": "__auto",
                             "range": true,
-                            "refId": "A",
-                            "useBackend": false
+                            "refId": "A"
                         }
                     ],
-                    "title": "Reputation Score seen from IOTA 1",
+                    "title": "Committed Messages Rate",
                     "type": "timeseries"
-                }
-            ],
-            "title": "Reputation score",
-            "type": "row"
-        },
-        {
-            "collapsed": true,
-            "gridPos": {
-                "h": 1,
-                "w": 24,
-                "x": 0,
-                "y": 72
-            },
-            "id": 67,
-            "panels": [
+                },
                 {
                     "datasource": {
                         "default": false,
@@ -9885,13 +10060,11 @@
                                 "mode": "palette-classic"
                             },
                             "custom": {
-                                "axisBorderShow": false,
                                 "axisCenteredZero": false,
                                 "axisColorMode": "text",
                                 "axisLabel": "",
                                 "axisPlacement": "auto",
                                 "barAlignment": 0,
-                                "barWidthFactor": 0.6,
                                 "drawStyle": "line",
                                 "fillOpacity": 0,
                                 "gradientMode": "none",
@@ -9922,7 +10095,8 @@
                                 "mode": "percentage",
                                 "steps": [
                                     {
-                                        "color": "red"
+                                        "color": "red",
+                                        "value": null
                                     },
                                     {
                                         "color": "orange",
@@ -9939,10 +10113,10 @@
                         "overrides": []
                     },
                     "gridPos": {
-                        "h": 8,
-                        "w": 12,
+                        "h": 7,
+                        "w": 24,
                         "x": 0,
-                        "y": 65
+                        "y": 88
                     },
                     "id": 96,
                     "options": {
@@ -9987,104 +10161,6 @@
                         "type": "prometheus",
                         "uid": "prometheus"
                     },
-                    "description": "Rate of total number of committed consensus messages",
-                    "fieldConfig": {
-                        "defaults": {
-                            "color": {
-                                "mode": "palette-classic"
-                            },
-                            "custom": {
-                                "axisBorderShow": false,
-                                "axisCenteredZero": false,
-                                "axisColorMode": "text",
-                                "axisLabel": "",
-                                "axisPlacement": "auto",
-                                "barAlignment": 0,
-                                "barWidthFactor": 0.6,
-                                "drawStyle": "line",
-                                "fillOpacity": 0,
-                                "gradientMode": "none",
-                                "hideFrom": {
-                                    "legend": false,
-                                    "tooltip": false,
-                                    "viz": false
-                                },
-                                "insertNulls": false,
-                                "lineInterpolation": "linear",
-                                "lineWidth": 1,
-                                "pointSize": 5,
-                                "scaleDistribution": {
-                                    "type": "linear"
-                                },
-                                "showPoints": "auto",
-                                "spanNulls": false,
-                                "stacking": {
-                                    "group": "A",
-                                    "mode": "none"
-                                },
-                                "thresholdsStyle": {
-                                    "mode": "off"
-                                }
-                            },
-                            "mappings": [],
-                            "thresholds": {
-                                "mode": "absolute",
-                                "steps": [
-                                    {
-                                        "color": "green"
-                                    },
-                                    {
-                                        "color": "red",
-                                        "value": 80
-                                    }
-                                ]
-                            }
-                        },
-                        "overrides": []
-                    },
-                    "gridPos": {
-                        "h": 8,
-                        "w": 12,
-                        "x": 12,
-                        "y": 65
-                    },
-                    "id": 68,
-                    "options": {
-                        "legend": {
-                            "calcs": [
-                                "last"
-                            ],
-                            "displayMode": "list",
-                            "placement": "right",
-                            "showLegend": false
-                        },
-                        "tooltip": {
-                            "mode": "multi",
-                            "sort": "asc"
-                        }
-                    },
-                    "targets": [
-                        {
-                            "datasource": {
-                                "type": "prometheus",
-                                "uid": "prometheus"
-                            },
-                            "editorMode": "code",
-                            "expr": "avg(irate(consensus_committed_messages[2m])) by (authority)",
-                            "legendFormat": "__auto",
-                            "range": true,
-                            "refId": "A"
-                        }
-                    ],
-                    "title": "Committed Messages Rate",
-                    "type": "timeseries"
-                },
-                {
-                    "datasource": {
-                        "default": false,
-                        "type": "prometheus",
-                        "uid": "prometheus"
-                    },
                     "fieldConfig": {
                         "defaults": {
                             "color": {
@@ -10106,7 +10182,8 @@
                                 "mode": "absolute",
                                 "steps": [
                                     {
-                                        "color": "red"
+                                        "color": "red",
+                                        "value": null
                                     },
                                     {
                                         "color": "dark-orange",
@@ -10133,7 +10210,7 @@
                         "h": 19,
                         "w": 24,
                         "x": 0,
-                        "y": 73
+                        "y": 95
                     },
                     "id": 74,
                     "options": {
@@ -10168,7 +10245,7 @@
                     "type": "state-timeline"
                 }
             ],
-            "title": "Committee",
+            "title": "Committee and Reputation",
             "type": "row"
         },
         {
@@ -10177,7 +10254,7 @@
                 "h": 1,
                 "w": 24,
                 "x": 0,
-                "y": 73
+                "y": 72
             },
             "id": 7,
             "panels": [
@@ -10193,13 +10270,11 @@
                                 "mode": "palette-classic"
                             },
                             "custom": {
-                                "axisBorderShow": false,
                                 "axisCenteredZero": false,
                                 "axisColorMode": "text",
                                 "axisLabel": "Warning / min",
                                 "axisPlacement": "auto",
                                 "barAlignment": 0,
-                                "barWidthFactor": 0.6,
                                 "drawStyle": "line",
                                 "fillOpacity": 0,
                                 "gradientMode": "none",
@@ -10230,7 +10305,8 @@
                                 "mode": "absolute",
                                 "steps": [
                                     {
-                                        "color": "red"
+                                        "color": "red",
+                                        "value": null
                                     }
                                 ]
                             }
@@ -10241,7 +10317,7 @@
                         "h": 8,
                         "w": 8,
                         "x": 0,
-                        "y": 66
+                        "y": 115
                     },
                     "id": 51,
                     "options": {
@@ -10333,13 +10409,11 @@
                                 "mode": "palette-classic"
                             },
                             "custom": {
-                                "axisBorderShow": false,
                                 "axisCenteredZero": false,
                                 "axisColorMode": "text",
                                 "axisLabel": "Warning / min",
                                 "axisPlacement": "auto",
                                 "barAlignment": 0,
-                                "barWidthFactor": 0.6,
                                 "drawStyle": "line",
                                 "fillOpacity": 0,
                                 "gradientMode": "none",
@@ -10370,7 +10444,8 @@
                                 "mode": "absolute",
                                 "steps": [
                                     {
-                                        "color": "red"
+                                        "color": "red",
+                                        "value": null
                                     }
                                 ]
                             }
@@ -10381,7 +10456,7 @@
                         "h": 8,
                         "w": 8,
                         "x": 8,
-                        "y": 66
+                        "y": 115
                     },
                     "id": 61,
                     "options": {
@@ -10473,13 +10548,11 @@
                                 "mode": "palette-classic"
                             },
                             "custom": {
-                                "axisBorderShow": false,
                                 "axisCenteredZero": false,
                                 "axisColorMode": "text",
                                 "axisLabel": "",
                                 "axisPlacement": "auto",
                                 "barAlignment": 0,
-                                "barWidthFactor": 0.6,
                                 "drawStyle": "line",
                                 "fillOpacity": 0,
                                 "gradientMode": "none",
@@ -10510,7 +10583,8 @@
                                 "mode": "absolute",
                                 "steps": [
                                     {
-                                        "color": "green"
+                                        "color": "green",
+                                        "value": null
                                     },
                                     {
                                         "color": "red",
@@ -10525,7 +10599,7 @@
                         "h": 8,
                         "w": 8,
                         "x": 16,
-                        "y": 66
+                        "y": 115
                     },
                     "id": 64,
                     "options": {
@@ -10568,13 +10642,11 @@
                                 "mode": "palette-classic"
                             },
                             "custom": {
-                                "axisBorderShow": false,
                                 "axisCenteredZero": false,
                                 "axisColorMode": "text",
                                 "axisLabel": "",
                                 "axisPlacement": "auto",
                                 "barAlignment": 0,
-                                "barWidthFactor": 0.6,
                                 "drawStyle": "line",
                                 "fillOpacity": 0,
                                 "gradientMode": "none",
@@ -10605,7 +10677,8 @@
                                 "mode": "absolute",
                                 "steps": [
                                     {
-                                        "color": "green"
+                                        "color": "green",
+                                        "value": null
                                     },
                                     {
                                         "color": "red",
@@ -10620,7 +10693,7 @@
                         "h": 8,
                         "w": 8,
                         "x": 0,
-                        "y": 74
+                        "y": 123
                     },
                     "id": 1,
                     "options": {
@@ -10628,7 +10701,7 @@
                             "calcs": [],
                             "displayMode": "list",
                             "placement": "bottom",
-                            "showLegend": false
+                            "showLegend": true
                         },
                         "tooltip": {
                             "mode": "single",
@@ -10663,13 +10736,11 @@
                                 "mode": "palette-classic"
                             },
                             "custom": {
-                                "axisBorderShow": false,
                                 "axisCenteredZero": false,
                                 "axisColorMode": "text",
                                 "axisLabel": "",
                                 "axisPlacement": "auto",
                                 "barAlignment": 0,
-                                "barWidthFactor": 0.6,
                                 "drawStyle": "line",
                                 "fillOpacity": 0,
                                 "gradientMode": "none",
@@ -10700,7 +10771,8 @@
                                 "mode": "absolute",
                                 "steps": [
                                     {
-                                        "color": "green"
+                                        "color": "green",
+                                        "value": null
                                     },
                                     {
                                         "color": "red",
@@ -10715,7 +10787,7 @@
                         "h": 8,
                         "w": 8,
                         "x": 8,
-                        "y": 74
+                        "y": 123
                     },
                     "id": 28,
                     "options": {
@@ -10723,7 +10795,7 @@
                             "calcs": [],
                             "displayMode": "list",
                             "placement": "bottom",
-                            "showLegend": false
+                            "showLegend": true
                         },
                         "tooltip": {
                             "mode": "single",
@@ -10757,13 +10829,11 @@
                                 "mode": "palette-classic"
                             },
                             "custom": {
-                                "axisBorderShow": false,
                                 "axisCenteredZero": false,
                                 "axisColorMode": "text",
                                 "axisLabel": "",
                                 "axisPlacement": "auto",
                                 "barAlignment": 0,
-                                "barWidthFactor": 0.6,
                                 "drawStyle": "line",
                                 "fillOpacity": 0,
                                 "gradientMode": "none",
@@ -10795,7 +10865,8 @@
                                 "mode": "absolute",
                                 "steps": [
                                     {
-                                        "color": "green"
+                                        "color": "green",
+                                        "value": null
                                     },
                                     {
                                         "color": "red",
@@ -10810,7 +10881,7 @@
                         "h": 8,
                         "w": 8,
                         "x": 16,
-                        "y": 74
+                        "y": 123
                     },
                     "id": 11,
                     "options": {
@@ -10852,13 +10923,11 @@
                                 "mode": "palette-classic"
                             },
                             "custom": {
-                                "axisBorderShow": false,
                                 "axisCenteredZero": false,
                                 "axisColorMode": "text",
                                 "axisLabel": "",
                                 "axisPlacement": "auto",
                                 "barAlignment": 0,
-                                "barWidthFactor": 0.6,
                                 "drawStyle": "line",
                                 "fillOpacity": 0,
                                 "gradientMode": "none",
@@ -10889,7 +10958,8 @@
                                 "mode": "absolute",
                                 "steps": [
                                     {
-                                        "color": "green"
+                                        "color": "green",
+                                        "value": null
                                     },
                                     {
                                         "color": "red",
@@ -10904,7 +10974,7 @@
                         "h": 8,
                         "w": 8,
                         "x": 0,
-                        "y": 82
+                        "y": 131
                     },
                     "id": 6,
                     "options": {
@@ -10912,7 +10982,7 @@
                             "calcs": [],
                             "displayMode": "list",
                             "placement": "bottom",
-                            "showLegend": false
+                            "showLegend": true
                         },
                         "tooltip": {
                             "mode": "single",
@@ -10947,13 +11017,11 @@
                                 "mode": "palette-classic"
                             },
                             "custom": {
-                                "axisBorderShow": false,
                                 "axisCenteredZero": false,
                                 "axisColorMode": "text",
                                 "axisLabel": "",
                                 "axisPlacement": "auto",
                                 "barAlignment": 0,
-                                "barWidthFactor": 0.6,
                                 "drawStyle": "line",
                                 "fillOpacity": 0,
                                 "gradientMode": "none",
@@ -10984,7 +11052,8 @@
                                 "mode": "absolute",
                                 "steps": [
                                     {
-                                        "color": "green"
+                                        "color": "green",
+                                        "value": null
                                     },
                                     {
                                         "color": "red",
@@ -10999,7 +11068,7 @@
                         "h": 8,
                         "w": 8,
                         "x": 8,
-                        "y": 82
+                        "y": 131
                     },
                     "id": 60,
                     "options": {
@@ -11007,7 +11076,7 @@
                             "calcs": [],
                             "displayMode": "list",
                             "placement": "bottom",
-                            "showLegend": false
+                            "showLegend": true
                         },
                         "tooltip": {
                             "mode": "single",
@@ -11043,13 +11112,11 @@
                                 "mode": "palette-classic"
                             },
                             "custom": {
-                                "axisBorderShow": false,
                                 "axisCenteredZero": false,
                                 "axisColorMode": "text",
                                 "axisLabel": "",
                                 "axisPlacement": "auto",
                                 "barAlignment": 0,
-                                "barWidthFactor": 0.6,
                                 "drawStyle": "line",
                                 "fillOpacity": 0,
                                 "gradientMode": "none",
@@ -11080,7 +11147,8 @@
                                 "mode": "absolute",
                                 "steps": [
                                     {
-                                        "color": "green"
+                                        "color": "green",
+                                        "value": null
                                     },
                                     {
                                         "color": "red",
@@ -11095,7 +11163,7 @@
                         "h": 8,
                         "w": 8,
                         "x": 16,
-                        "y": 82
+                        "y": 131
                     },
                     "id": 58,
                     "options": {
@@ -11139,13 +11207,11 @@
                                 "mode": "palette-classic"
                             },
                             "custom": {
-                                "axisBorderShow": false,
                                 "axisCenteredZero": false,
                                 "axisColorMode": "text",
                                 "axisLabel": "",
                                 "axisPlacement": "auto",
                                 "barAlignment": 0,
-                                "barWidthFactor": 0.6,
                                 "drawStyle": "line",
                                 "fillOpacity": 0,
                                 "gradientMode": "none",
@@ -11176,7 +11242,8 @@
                                 "mode": "absolute",
                                 "steps": [
                                     {
-                                        "color": "green"
+                                        "color": "green",
+                                        "value": null
                                     },
                                     {
                                         "color": "red",
@@ -11192,7 +11259,7 @@
                         "h": 8,
                         "w": 8,
                         "x": 0,
-                        "y": 90
+                        "y": 139
                     },
                     "id": 29,
                     "options": {
@@ -11235,13 +11302,11 @@
                                 "mode": "palette-classic"
                             },
                             "custom": {
-                                "axisBorderShow": false,
                                 "axisCenteredZero": false,
                                 "axisColorMode": "text",
                                 "axisLabel": "",
                                 "axisPlacement": "auto",
                                 "barAlignment": 0,
-                                "barWidthFactor": 0.6,
                                 "drawStyle": "line",
                                 "fillOpacity": 0,
                                 "gradientMode": "none",
@@ -11272,7 +11337,8 @@
                                 "mode": "absolute",
                                 "steps": [
                                     {
-                                        "color": "green"
+                                        "color": "green",
+                                        "value": null
                                     },
                                     {
                                         "color": "red",
@@ -11288,7 +11354,7 @@
                         "h": 8,
                         "w": 8,
                         "x": 8,
-                        "y": 90
+                        "y": 139
                     },
                     "id": 31,
                     "options": {
@@ -11330,7 +11396,7 @@
                 "h": 1,
                 "w": 24,
                 "x": 0,
-                "y": 74
+                "y": 73
             },
             "id": 15,
             "panels": [
@@ -11345,13 +11411,11 @@
                                 "mode": "palette-classic"
                             },
                             "custom": {
-                                "axisBorderShow": false,
                                 "axisCenteredZero": false,
                                 "axisColorMode": "text",
                                 "axisLabel": "",
                                 "axisPlacement": "auto",
                                 "barAlignment": 0,
-                                "barWidthFactor": 0.6,
                                 "drawStyle": "line",
                                 "fillOpacity": 0,
                                 "gradientMode": "none",
@@ -11382,7 +11446,8 @@
                                 "mode": "absolute",
                                 "steps": [
                                     {
-                                        "color": "green"
+                                        "color": "green",
+                                        "value": null
                                     },
                                     {
                                         "color": "red",
@@ -11398,7 +11463,7 @@
                         "h": 8,
                         "w": 8,
                         "x": 0,
-                        "y": 67
+                        "y": 148
                     },
                     "id": 18,
                     "options": {
@@ -11441,13 +11506,11 @@
                                 "mode": "palette-classic"
                             },
                             "custom": {
-                                "axisBorderShow": false,
                                 "axisCenteredZero": false,
                                 "axisColorMode": "text",
                                 "axisLabel": "",
                                 "axisPlacement": "auto",
                                 "barAlignment": 0,
-                                "barWidthFactor": 0.6,
                                 "drawStyle": "line",
                                 "fillOpacity": 0,
                                 "gradientMode": "none",
@@ -11478,7 +11541,8 @@
                                 "mode": "absolute",
                                 "steps": [
                                     {
-                                        "color": "green"
+                                        "color": "green",
+                                        "value": null
                                     },
                                     {
                                         "color": "red",
@@ -11494,7 +11558,7 @@
                         "h": 8,
                         "w": 8,
                         "x": 8,
-                        "y": 67
+                        "y": 148
                     },
                     "id": 13,
                     "options": {
@@ -11542,13 +11606,11 @@
                                 "mode": "palette-classic"
                             },
                             "custom": {
-                                "axisBorderShow": false,
                                 "axisCenteredZero": false,
                                 "axisColorMode": "text",
                                 "axisLabel": "",
                                 "axisPlacement": "auto",
                                 "barAlignment": 0,
-                                "barWidthFactor": 0.6,
                                 "drawStyle": "line",
                                 "fillOpacity": 0,
                                 "gradientMode": "none",
@@ -11579,7 +11641,8 @@
                                 "mode": "absolute",
                                 "steps": [
                                     {
-                                        "color": "green"
+                                        "color": "green",
+                                        "value": null
                                     },
                                     {
                                         "color": "red",
@@ -11595,7 +11658,7 @@
                         "h": 8,
                         "w": 8,
                         "x": 16,
-                        "y": 67
+                        "y": 148
                     },
                     "id": 16,
                     "options": {
@@ -11643,13 +11706,11 @@
                                 "mode": "palette-classic"
                             },
                             "custom": {
-                                "axisBorderShow": false,
                                 "axisCenteredZero": false,
                                 "axisColorMode": "text",
                                 "axisLabel": "",
                                 "axisPlacement": "auto",
                                 "barAlignment": 0,
-                                "barWidthFactor": 0.6,
                                 "drawStyle": "line",
                                 "fillOpacity": 0,
                                 "gradientMode": "none",
@@ -11680,7 +11741,8 @@
                                 "mode": "absolute",
                                 "steps": [
                                     {
-                                        "color": "green"
+                                        "color": "green",
+                                        "value": null
                                     },
                                     {
                                         "color": "red",
@@ -11696,7 +11758,7 @@
                         "h": 8,
                         "w": 8,
                         "x": 0,
-                        "y": 75
+                        "y": 156
                     },
                     "id": 19,
                     "options": {
@@ -11739,13 +11801,11 @@
                                 "mode": "palette-classic"
                             },
                             "custom": {
-                                "axisBorderShow": false,
                                 "axisCenteredZero": false,
                                 "axisColorMode": "text",
                                 "axisLabel": "",
                                 "axisPlacement": "auto",
                                 "barAlignment": 0,
-                                "barWidthFactor": 0.6,
                                 "drawStyle": "line",
                                 "fillOpacity": 0,
                                 "gradientMode": "none",
@@ -11776,7 +11836,8 @@
                                 "mode": "absolute",
                                 "steps": [
                                     {
-                                        "color": "green"
+                                        "color": "green",
+                                        "value": null
                                     },
                                     {
                                         "color": "red",
@@ -11792,7 +11853,7 @@
                         "h": 8,
                         "w": 8,
                         "x": 8,
-                        "y": 75
+                        "y": 156
                     },
                     "id": 14,
                     "options": {
@@ -11840,13 +11901,11 @@
                                 "mode": "palette-classic"
                             },
                             "custom": {
-                                "axisBorderShow": false,
                                 "axisCenteredZero": false,
                                 "axisColorMode": "text",
                                 "axisLabel": "",
                                 "axisPlacement": "auto",
                                 "barAlignment": 0,
-                                "barWidthFactor": 0.6,
                                 "drawStyle": "line",
                                 "fillOpacity": 0,
                                 "gradientMode": "none",
@@ -11877,7 +11936,8 @@
                                 "mode": "absolute",
                                 "steps": [
                                     {
-                                        "color": "green"
+                                        "color": "green",
+                                        "value": null
                                     },
                                     {
                                         "color": "red",
@@ -11893,7 +11953,7 @@
                         "h": 8,
                         "w": 8,
                         "x": 16,
-                        "y": 75
+                        "y": 156
                     },
                     "id": 17,
                     "options": {
@@ -11941,13 +12001,11 @@
                                 "mode": "palette-classic"
                             },
                             "custom": {
-                                "axisBorderShow": false,
                                 "axisCenteredZero": false,
                                 "axisColorMode": "text",
                                 "axisLabel": "",
                                 "axisPlacement": "auto",
                                 "barAlignment": 0,
-                                "barWidthFactor": 0.6,
                                 "drawStyle": "line",
                                 "fillOpacity": 0,
                                 "gradientMode": "none",
@@ -11978,7 +12036,8 @@
                                 "mode": "absolute",
                                 "steps": [
                                     {
-                                        "color": "green"
+                                        "color": "green",
+                                        "value": null
                                     },
                                     {
                                         "color": "red",
@@ -11994,7 +12053,7 @@
                         "h": 8,
                         "w": 8,
                         "x": 0,
-                        "y": 83
+                        "y": 164
                     },
                     "id": 42,
                     "options": {
@@ -12037,13 +12096,11 @@
                                 "mode": "palette-classic"
                             },
                             "custom": {
-                                "axisBorderShow": false,
                                 "axisCenteredZero": false,
                                 "axisColorMode": "text",
                                 "axisLabel": "",
                                 "axisPlacement": "auto",
                                 "barAlignment": 0,
-                                "barWidthFactor": 0.6,
                                 "drawStyle": "line",
                                 "fillOpacity": 0,
                                 "gradientMode": "none",
@@ -12074,7 +12131,8 @@
                                 "mode": "absolute",
                                 "steps": [
                                     {
-                                        "color": "green"
+                                        "color": "green",
+                                        "value": null
                                     },
                                     {
                                         "color": "red",
@@ -12090,7 +12148,7 @@
                         "h": 8,
                         "w": 8,
                         "x": 8,
-                        "y": 83
+                        "y": 164
                     },
                     "id": 59,
                     "options": {
@@ -12133,13 +12191,11 @@
                                 "mode": "palette-classic"
                             },
                             "custom": {
-                                "axisBorderShow": false,
                                 "axisCenteredZero": false,
                                 "axisColorMode": "text",
                                 "axisLabel": "",
                                 "axisPlacement": "auto",
                                 "barAlignment": 0,
-                                "barWidthFactor": 0.6,
                                 "drawStyle": "line",
                                 "fillOpacity": 0,
                                 "gradientMode": "none",
@@ -12170,7 +12226,8 @@
                                 "mode": "absolute",
                                 "steps": [
                                     {
-                                        "color": "green"
+                                        "color": "green",
+                                        "value": null
                                     },
                                     {
                                         "color": "red",
@@ -12186,7 +12243,7 @@
                         "h": 8,
                         "w": 8,
                         "x": 16,
-                        "y": 83
+                        "y": 164
                     },
                     "id": 50,
                     "options": {
@@ -12227,7 +12284,7 @@
                 "h": 1,
                 "w": 24,
                 "x": 0,
-                "y": 75
+                "y": 74
             },
             "id": 44,
             "panels": [
@@ -12243,13 +12300,11 @@
                                 "mode": "palette-classic"
                             },
                             "custom": {
-                                "axisBorderShow": false,
                                 "axisCenteredZero": false,
                                 "axisColorMode": "text",
                                 "axisLabel": "",
                                 "axisPlacement": "auto",
                                 "barAlignment": 0,
-                                "barWidthFactor": 0.6,
                                 "drawStyle": "line",
                                 "fillOpacity": 0,
                                 "gradientMode": "none",
@@ -12280,7 +12335,8 @@
                                 "mode": "absolute",
                                 "steps": [
                                     {
-                                        "color": "green"
+                                        "color": "green",
+                                        "value": null
                                     }
                                 ]
                             },
@@ -12292,7 +12348,7 @@
                         "h": 11,
                         "w": 24,
                         "x": 0,
-                        "y": 312
+                        "y": 117
                     },
                     "id": 222,
                     "options": {
@@ -12335,13 +12391,11 @@
                                 "mode": "palette-classic"
                             },
                             "custom": {
-                                "axisBorderShow": false,
                                 "axisCenteredZero": false,
                                 "axisColorMode": "text",
                                 "axisLabel": "",
                                 "axisPlacement": "auto",
                                 "barAlignment": 0,
-                                "barWidthFactor": 0.6,
                                 "drawStyle": "line",
                                 "fillOpacity": 0,
                                 "gradientMode": "none",
@@ -12372,7 +12426,8 @@
                                 "mode": "absolute",
                                 "steps": [
                                     {
-                                        "color": "green"
+                                        "color": "green",
+                                        "value": null
                                     },
                                     {
                                         "color": "red",
@@ -12387,7 +12442,7 @@
                         "h": 8,
                         "w": 8,
                         "x": 0,
-                        "y": 323
+                        "y": 128
                     },
                     "id": 47,
                     "options": {
@@ -12430,13 +12485,11 @@
                                 "mode": "palette-classic"
                             },
                             "custom": {
-                                "axisBorderShow": false,
                                 "axisCenteredZero": false,
                                 "axisColorMode": "text",
                                 "axisLabel": "",
                                 "axisPlacement": "auto",
                                 "barAlignment": 0,
-                                "barWidthFactor": 0.6,
                                 "drawStyle": "line",
                                 "fillOpacity": 0,
                                 "gradientMode": "none",
@@ -12467,7 +12520,8 @@
                                 "mode": "absolute",
                                 "steps": [
                                     {
-                                        "color": "green"
+                                        "color": "green",
+                                        "value": null
                                     },
                                     {
                                         "color": "red",
@@ -12483,7 +12537,7 @@
                         "h": 8,
                         "w": 8,
                         "x": 8,
-                        "y": 323
+                        "y": 128
                     },
                     "id": 46,
                     "options": {
@@ -12564,13 +12618,11 @@
                                 "mode": "palette-classic"
                             },
                             "custom": {
-                                "axisBorderShow": false,
                                 "axisCenteredZero": false,
                                 "axisColorMode": "text",
                                 "axisLabel": "",
                                 "axisPlacement": "auto",
                                 "barAlignment": 0,
-                                "barWidthFactor": 0.6,
                                 "drawStyle": "line",
                                 "fillOpacity": 0,
                                 "gradientMode": "none",
@@ -12601,7 +12653,8 @@
                                 "mode": "absolute",
                                 "steps": [
                                     {
-                                        "color": "green"
+                                        "color": "green",
+                                        "value": null
                                     }
                                 ]
                             },
@@ -12613,7 +12666,7 @@
                         "h": 8,
                         "w": 8,
                         "x": 16,
-                        "y": 323
+                        "y": 128
                     },
                     "id": 220,
                     "options": {
@@ -12656,13 +12709,11 @@
                                 "mode": "palette-classic"
                             },
                             "custom": {
-                                "axisBorderShow": false,
                                 "axisCenteredZero": false,
                                 "axisColorMode": "text",
                                 "axisLabel": "",
                                 "axisPlacement": "auto",
                                 "barAlignment": 0,
-                                "barWidthFactor": 0.6,
                                 "drawStyle": "line",
                                 "fillOpacity": 0,
                                 "gradientMode": "none",
@@ -12693,7 +12744,8 @@
                                 "mode": "absolute",
                                 "steps": [
                                     {
-                                        "color": "green"
+                                        "color": "green",
+                                        "value": null
                                     },
                                     {
                                         "color": "red",
@@ -12708,7 +12760,7 @@
                         "h": 8,
                         "w": 8,
                         "x": 0,
-                        "y": 331
+                        "y": 136
                     },
                     "id": 45,
                     "options": {
@@ -12751,13 +12803,11 @@
                                 "mode": "palette-classic"
                             },
                             "custom": {
-                                "axisBorderShow": false,
                                 "axisCenteredZero": false,
                                 "axisColorMode": "text",
                                 "axisLabel": "",
                                 "axisPlacement": "auto",
                                 "barAlignment": 0,
-                                "barWidthFactor": 0.6,
                                 "drawStyle": "line",
                                 "fillOpacity": 0,
                                 "gradientMode": "none",
@@ -12788,7 +12838,8 @@
                                 "mode": "absolute",
                                 "steps": [
                                     {
-                                        "color": "green"
+                                        "color": "green",
+                                        "value": null
                                     },
                                     {
                                         "color": "red",
@@ -12798,38 +12849,13 @@
                             },
                             "unit": "s"
                         },
-                        "overrides": [
-                            {
-                                "__systemRef": "hideSeriesFrom",
-                                "matcher": {
-                                    "id": "byNames",
-                                    "options": {
-                                        "mode": "exclude",
-                                        "names": [
-                                            "p50 - FetchBlockHeaders"
-                                        ],
-                                        "prefix": "All except:",
-                                        "readOnly": true
-                                    }
-                                },
-                                "properties": [
-                                    {
-                                        "id": "custom.hideFrom",
-                                        "value": {
-                                            "legend": false,
-                                            "tooltip": false,
-                                            "viz": true
-                                        }
-                                    }
-                                ]
-                            }
-                        ]
+                        "overrides": []
                     },
                     "gridPos": {
                         "h": 8,
                         "w": 8,
                         "x": 8,
-                        "y": 331
+                        "y": 136
                     },
                     "id": 48,
                     "options": {
@@ -12911,13 +12937,11 @@
                                 "mode": "palette-classic"
                             },
                             "custom": {
-                                "axisBorderShow": false,
                                 "axisCenteredZero": false,
                                 "axisColorMode": "text",
                                 "axisLabel": "",
                                 "axisPlacement": "auto",
                                 "barAlignment": 0,
-                                "barWidthFactor": 0.6,
                                 "drawStyle": "line",
                                 "fillOpacity": 0,
                                 "gradientMode": "none",
@@ -12948,7 +12972,8 @@
                                 "mode": "absolute",
                                 "steps": [
                                     {
-                                        "color": "green"
+                                        "color": "green",
+                                        "value": null
                                     }
                                 ]
                             },
@@ -12960,7 +12985,7 @@
                         "h": 8,
                         "w": 8,
                         "x": 16,
-                        "y": 331
+                        "y": 136
                     },
                     "id": 221,
                     "options": {
@@ -13004,13 +13029,11 @@
                                 "mode": "palette-classic"
                             },
                             "custom": {
-                                "axisBorderShow": false,
                                 "axisCenteredZero": false,
                                 "axisColorMode": "text",
                                 "axisLabel": "",
                                 "axisPlacement": "auto",
                                 "barAlignment": 0,
-                                "barWidthFactor": 0.6,
                                 "drawStyle": "line",
                                 "fillOpacity": 0,
                                 "gradientMode": "none",
@@ -13041,7 +13064,8 @@
                                 "mode": "absolute",
                                 "steps": [
                                     {
-                                        "color": "green"
+                                        "color": "green",
+                                        "value": null
                                     }
                                 ]
                             },
@@ -13053,7 +13077,7 @@
                         "h": 8,
                         "w": 8,
                         "x": 0,
-                        "y": 339
+                        "y": 144
                     },
                     "id": 234,
                     "options": {
@@ -13125,13 +13149,11 @@
                                 "mode": "palette-classic"
                             },
                             "custom": {
-                                "axisBorderShow": false,
                                 "axisCenteredZero": false,
                                 "axisColorMode": "text",
                                 "axisLabel": "",
                                 "axisPlacement": "auto",
                                 "barAlignment": 0,
-                                "barWidthFactor": 0.6,
                                 "drawStyle": "line",
                                 "fillOpacity": 0,
                                 "gradientMode": "none",
@@ -13162,7 +13184,8 @@
                                 "mode": "absolute",
                                 "steps": [
                                     {
-                                        "color": "green"
+                                        "color": "green",
+                                        "value": null
                                     }
                                 ]
                             },
@@ -13174,7 +13197,7 @@
                         "h": 8,
                         "w": 8,
                         "x": 8,
-                        "y": 339
+                        "y": 144
                     },
                     "id": 235,
                     "options": {
@@ -13258,13 +13281,13 @@
         ]
     },
     "time": {
-        "from": "now-15m",
+        "from": "now-30m",
         "to": "now"
     },
     "timepicker": {},
     "timezone": "Europe/Berlin",
     "title": "IOTA Starfish Overview",
     "uid": "StarfishOverview",
-    "version": 14,
+    "version": 9,
     "weekStart": ""
 }
