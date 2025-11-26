@@ -91,7 +91,7 @@ impl Scorer {
                 };
                 // Assert that the allowance for major misbehaviors is 0,
                 // maximum is 1 and weight is 1. This is because major misbehaviors should
-                // reduce the score to 0 is there are any occurences.
+                // reduce the score to 0 is there are any occurrences.
                 // Only equivocation is considered a major misbehavior in this version.
                 assert!(
                     parameters
@@ -373,7 +373,7 @@ fn metrics_scores_to_final_scores(
 ) -> Vec<u64> {
     // Initialise the final scores with the baseline score whose value is between 0
     // and max_score * scale_factor.
-    let committee_size = minor_metric_scores.iter().next().unwrap().len();
+    let committee_size = minor_metric_scores.first().unwrap().len();
     let mut final_scores = vec![baseline_score * max_score; committee_size];
     // First, calculate the weights sum of minor misbehavior scores vector. The
     // values in final_scores will still be between 0 and max_score * scale_factor
@@ -394,7 +394,7 @@ fn metrics_scores_to_final_scores(
     });
     // Finally, divide by the scale factor and scale to max_score
     for score in final_scores.iter_mut() {
-        *score = *score / scale_factor;
+        *score /= scale_factor;
     }
     final_scores
 }
@@ -704,7 +704,7 @@ mod tests {
         };
 
         let median_reports = MisbehaviorsV1 {
-            faulty_blocks_provable: vec![4, 5, 6],
+            faulty_blocks_provable: vec![6, 7, 8],
             faulty_blocks_unprovable: vec![9, 10, 11],
             missing_proposals: vec![3, 4, 5],
             equivocations: vec![0, 1, 2],
