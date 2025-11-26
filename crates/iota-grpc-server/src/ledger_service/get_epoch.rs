@@ -19,7 +19,15 @@ use tonic::Status;
 
 use crate::ledger_service::LedgerGrpcService;
 
-pub const READ_MASK_DEFAULT: &str = "epoch,first_checkpoint,last_checkpoint,start,end,reference_gas_price,protocol_config.protocol_version";
+pub const READ_MASK_DEFAULT: &str = crate::field_mask!(
+    "epoch",
+    "first_checkpoint",
+    "last_checkpoint",
+    "start",
+    "end",
+    "reference_gas_price",
+    "protocol_config.protocol_version",
+);
 
 #[tracing::instrument(skip(service))]
 pub fn get_epoch(

@@ -23,10 +23,9 @@ impl TryFrom<&ValidatorAggregatedSignature> for iota_sdk_types::ValidatorAggrega
     type Error = TryFromProtoError;
 
     fn try_from(value: &ValidatorAggregatedSignature) -> Result<Self, Self::Error> {
-        let bcs = value
-            .bcs
-            .as_ref()
-            .ok_or_else(|| TryFromProtoError::missing("bcs"))?;
+        let bcs = value.bcs.as_ref().ok_or_else(|| {
+            TryFromProtoError::missing(ValidatorAggregatedSignature::BCS_FIELD.name)
+        })?;
         BcsData::deserialize(bcs)
             .map_err(|e| TryFromProtoError::invalid(ValidatorAggregatedSignature::BCS_FIELD, e))
     }
@@ -66,7 +65,7 @@ impl TryFrom<&UserSignature> for iota_sdk_types::UserSignature {
         let bcs = value
             .bcs
             .as_ref()
-            .ok_or_else(|| TryFromProtoError::missing("bcs"))?;
+            .ok_or_else(|| TryFromProtoError::missing(UserSignature::BCS_FIELD.name))?;
         BcsData::deserialize(bcs)
             .map_err(|e| TryFromProtoError::invalid(UserSignature::BCS_FIELD, e))
     }

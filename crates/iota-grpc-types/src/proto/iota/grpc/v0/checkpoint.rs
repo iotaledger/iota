@@ -51,7 +51,7 @@ impl TryFrom<&CheckpointSummary> for iota_sdk_types::CheckpointSummary {
     ) -> Result<Self, Self::Error> {
         let bcs = bcs
             .as_ref()
-            .ok_or_else(|| TryFromProtoError::missing("bcs"))?;
+            .ok_or_else(|| TryFromProtoError::missing(CheckpointSummary::BCS_FIELD.name))?;
         BcsData::deserialize(bcs)
             .map_err(|e| TryFromProtoError::invalid(CheckpointSummary::BCS_FIELD, e))
     }
@@ -99,7 +99,7 @@ impl TryFrom<&CheckpointContents> for iota_sdk_types::CheckpointContents {
         let bcs = value
             .bcs
             .as_ref()
-            .ok_or_else(|| TryFromProtoError::missing("bcs"))?;
+            .ok_or_else(|| TryFromProtoError::missing(CheckpointContents::BCS_FIELD.name))?;
         BcsData::deserialize(bcs)
             .map_err(|e| TryFromProtoError::invalid(CheckpointContents::BCS_FIELD, e))
     }

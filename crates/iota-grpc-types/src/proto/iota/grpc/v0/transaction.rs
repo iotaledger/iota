@@ -13,8 +13,18 @@ use crate::{
     v0::{bcs::BcsData, types::Digest},
 };
 
-/// Source data for transaction read operations
-/// Uses iota_sdk_types types for compatibility with external applications
+/// Bundles all transaction-related data needed for gRPC response merging.
+///
+/// This struct serves as a read context that groups related transaction data
+/// together, avoiding the need to pass 6 separate parameters to merge
+/// operations. Different merge targets use different subsets of fields:
+/// - `ExecutedTransaction`: uses all fields
+/// - `Transaction`: uses digest + transaction
+/// - `UserSignatures`: uses transaction only
+///
+/// Note: The digest must be provided separately because
+/// `iota_sdk2::SignedTransaction` doesn't expose a digest() method - it's
+/// computed from `iota_types::TransactionData`.
 pub struct TransactionReadSource<'a> {
     pub digest: iota_sdk_types::Digest,
     pub transaction: &'a iota_sdk_types::SignedTransaction,
@@ -74,14 +84,14 @@ impl Merge<&TransactionReadSource<'_>> for ExecutedTransaction {
 impl Merge<&TransactionReadSource<'_>> for Transaction {
     fn merge(&mut self, source: &TransactionReadSource, mask: &FieldMaskTree) {
         // Set digest if requested
-        if mask.contains("digest") {
+        if mask.contains(Self::DIGEST_FIELD.name) {
             self.digest = Some(Digest {
                 digest: source.digest.into_inner().to_vec().into(),
             });
         }
 
         // Set BCS if requested
-        if mask.contains("bcs") {
+        if mask.contains(Self::BCS_FIELD.name) {
             if let Ok(bcs_bytes) = bcs::to_bytes(&source.transaction.transaction) {
                 self.bcs = Some(BcsData {
                     data: bcs_bytes.into(),
@@ -95,7 +105,7 @@ impl Merge<&TransactionReadSource<'_>> for Transaction {
 impl Merge<&iota_sdk_types::TransactionEffects> for TransactionEffects {
     fn merge(&mut self, source: &iota_sdk_types::TransactionEffects, mask: &FieldMaskTree) {
         // Set digest if requested
-        if mask.contains("digest") {
+        if mask.contains(Self::DIGEST_FIELD.name) {
             let transaction_digest = match source {
                 iota_sdk_types::TransactionEffects::V1(effects) => &effects.transaction_digest,
             };
@@ -105,7 +115,7 @@ impl Merge<&iota_sdk_types::TransactionEffects> for TransactionEffects {
         }
 
         // Set BCS if requested
-        if mask.contains("bcs") {
+        if mask.contains(Self::BCS_FIELD.name) {
             if let Ok(bcs_bytes) = bcs::to_bytes(source) {
                 self.bcs = Some(BcsData {
                     data: bcs_bytes.into(),
@@ -123,7 +133,7 @@ impl Merge<&iota_sdk_types::TransactionEvents> for TransactionEvents {
         // computed here
 
         // Set events if requested
-        if let Some(events_mask) = mask.subtree("events") {
+        if let Some(events_mask) = mask.subtree(Self::EVENTS_FIELD.name) {
             let mut proto_events = super::event::Events::default();
             proto_events.merge(source, &events_mask);
             self.events = Some(proto_events);

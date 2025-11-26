@@ -23,7 +23,11 @@ use crate::{
     types::{GrpcReader, ObjectsStreamResult},
 };
 
-pub const READ_MASK_DEFAULT: &str = "reference.object_id,reference.version,reference.digest";
+pub const READ_MASK_DEFAULT: &str = crate::field_mask!(
+    "reference.object_id",
+    "reference.version",
+    "reference.digest",
+);
 
 type ValidationResult = Result<(Vec<(ObjectID, Option<u64>)>, FieldMaskTree), RpcError>;
 

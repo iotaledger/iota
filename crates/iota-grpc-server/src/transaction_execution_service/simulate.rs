@@ -15,10 +15,9 @@ use iota_grpc_types::{
             CommandResults, argument,
         },
         error_reason::ErrorReason,
+        event::Event,
         transaction::{
-            ExecutedTransaction, Transaction as ProtoTransaction,
-            TransactionEffects as ProtoTransactionEffects,
-            TransactionEvents as ProtoTransactionEvents, TransactionReadSource,
+            ExecutedTransaction, TransactionEvents as ProtoTransactionEvents, TransactionReadSource,
         },
         transaction_execution_service::{
             SimulateTransactionRequest, SimulateTransactionResponse,
@@ -39,8 +38,12 @@ use move_core_types::{annotated_value::MoveDatatypeLayout, language_storage::Str
 
 use crate::{error::RpcError, types::GrpcReader};
 
-pub const SIMULATE_TRANSACTION_READ_MASK_DEFAULT: &str =
-    "transaction.digest,transaction.transaction,transaction.effects,command_results";
+pub const SIMULATE_TRANSACTION_READ_MASK_DEFAULT: &str = crate::field_mask!(
+    "transaction.digest",
+    "transaction.transaction",
+    "transaction.effects",
+    "command_results"
+);
 
 pub async fn simulate_transaction(
     reader: &Arc<GrpcReader>,
@@ -94,8 +97,7 @@ pub async fn simulate_transaction(
                 iota_types::digests::TransactionDigest::new(provided_digest_bytes);
             return Err(FieldViolation::new("transaction.digest")
                 .with_description(format!(
-                    "provided digest does not match computed digest: provided={}, computed={}",
-                    provided_digest_typed, computed_digest
+                    "provided digest does not match computed digest: provided={provided_digest_typed}, computed={computed_digest}"
                 ))
                 .with_reason(ErrorReason::FieldInvalid)
                 .into());
@@ -214,58 +216,36 @@ pub async fn simulate_transaction(
     let mut response = SimulateTransactionResponse::default();
 
     // Build executed transaction if requested
-    if let Some(tx_mask) = read_mask.subtree("transaction") {
+    if let Some(tx_mask) = read_mask.subtree(SimulateTransactionResponse::TRANSACTION_FIELD.name) {
+        // Convert transaction_data to sdk2 types for merge
+        // This includes the updated gas budget if estimation was requested
+        let sdk_transaction: iota_sdk_types::SignedTransaction =
+            iota_types::transaction::Transaction::from_data(transaction_data.clone(), vec![])
+                .try_into()
+                .map_err(|e| {
+                    RpcError::new(
+                        tonic::Code::Internal,
+                        format!("failed to convert transaction to SDK type: {e}"),
+                    )
+                })?;
+
+        let digest = transaction_data.digest();
+        let sdk_digest: iota_sdk_types::Digest = digest.into();
+
+        // Create a source for the merge
+        let source = TransactionReadSource {
+            digest: sdk_digest,
+            transaction: &sdk_transaction,
+            effects: &sdk_effects,
+            events: sdk_events.as_ref(),
+            checkpoint: None,
+            timestamp_ms: None,
+        };
+
         let mut executed_transaction = ExecutedTransaction::default();
+        executed_transaction.merge(&source, &tx_mask);
 
-        // Set digest
-        if tx_mask.contains(ExecutedTransaction::DIGEST_FIELD.name) {
-            // Calculate transaction digest using the transaction data's digest method
-            let digest = transaction_data.digest();
-            executed_transaction.digest = Some(iota_grpc_types::v0::types::Digest {
-                digest: digest.into_inner().to_vec().into(),
-            });
-        }
-
-        // Set transaction BCS (includes updated gas budget if estimation was requested)
-        if let Some(transaction_mask) = tx_mask.subtree(ExecutedTransaction::TRANSACTION_FIELD.name)
-        {
-            // Convert transaction_data to sdk2 types for merge
-            let sdk_transaction: iota_sdk_types::SignedTransaction =
-                iota_types::transaction::Transaction::from_data(transaction_data.clone(), vec![])
-                    .try_into()
-                    .map_err(|e| {
-                        RpcError::new(
-                            tonic::Code::Internal,
-                            format!("failed to convert transaction to SDK type: {e}"),
-                        )
-                    })?;
-
-            let digest = transaction_data.digest();
-            let sdk_digest: iota_sdk_types::Digest = digest.into();
-
-            // Create a temporary source for the transaction merge
-            let temp_source = TransactionReadSource {
-                digest: sdk_digest,
-                transaction: &sdk_transaction,
-                effects: &sdk_effects,
-                events: sdk_events.as_ref(),
-                checkpoint: None,
-                timestamp_ms: None,
-            };
-
-            let mut proto_transaction = ProtoTransaction::default();
-            proto_transaction.merge(&temp_source, &transaction_mask);
-            executed_transaction.transaction = Some(proto_transaction);
-        }
-
-        // Set effects
-        if let Some(effects_mask) = tx_mask.subtree(ExecutedTransaction::EFFECTS_FIELD.name) {
-            let mut proto_effects = ProtoTransactionEffects::default();
-            proto_effects.merge(&sdk_effects, &effects_mask);
-            executed_transaction.effects = Some(proto_effects);
-        }
-
-        // Set events
+        // Handle events separately since they need special rendering for json_contents
         if let Some(events_mask) = tx_mask.subtree(ExecutedTransaction::EVENTS_FIELD.name) {
             if let Some(sdk_events) = &sdk_events {
                 let mut proto_events = ProtoTransactionEvents::default();
@@ -273,8 +253,8 @@ pub async fn simulate_transaction(
 
                 // Populate json_contents for events if requested in the mask
                 if events_mask
-                    .subtree("events")
-                    .is_some_and(|mask| mask.contains("json_contents"))
+                    .subtree(ProtoTransactionEvents::EVENTS_FIELD.name)
+                    .is_some_and(|mask| mask.contains(Event::JSON_CONTENTS_FIELD.name))
                 {
                     // Create a package resolver with LRU cache for better performance
                     let package_store = PackageStoreWithLruCache::new(reader.as_ref().clone());
@@ -349,7 +329,7 @@ pub async fn simulate_transaction(
     }
 
     // Build command results if requested
-    if read_mask.contains("command_results") {
+    if read_mask.contains(SimulateTransactionResponse::COMMAND_RESULTS_FIELD.name) {
         let command_results = build_command_results(reader, execution_result)?;
         response.command_results = Some(command_results);
     }
@@ -358,7 +338,7 @@ pub async fn simulate_transaction(
 }
 
 fn build_command_results(
-    _reader: &Arc<GrpcReader>,
+    _reader: &Arc<GrpcReader>, // reader is unused for now but may be needed in the future
     execution_result: std::result::Result<Vec<ExecutionResult>, iota_types::error::ExecutionError>,
 ) -> Result<CommandResults, RpcError> {
     let mut results = CommandResults::default();

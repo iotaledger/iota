@@ -12,6 +12,8 @@ use iota_grpc_types::{
     merge::Merge,
     v0::{
         error_reason::ErrorReason,
+        event::Event,
+        signatures::{UserSignature, UserSignatures},
         transaction::{
             ExecutedTransaction, TransactionEvents as ProtoTransactionEvents, TransactionReadSource,
         },
@@ -30,8 +32,6 @@ use move_core_types::{annotated_value::MoveDatatypeLayout, language_storage::Str
 use tonic::{Request, Response};
 
 use crate::{error::RpcError, types::GrpcReader};
-
-pub const EXECUTE_TRANSACTION_READ_MASK_DEFAULT: &str = "transaction.effects";
 
 pub struct TransactionExecutionGrpcService {
     pub reader: Arc<GrpcReader>,
@@ -68,6 +68,8 @@ impl grpc_tx_service::transaction_execution_service_server::TransactionExecution
             .map_err(Into::into)
     }
 }
+
+pub const EXECUTE_TRANSACTION_READ_MASK_DEFAULT: &str = "transaction.effects";
 
 #[tracing::instrument(skip(reader, executor))]
 pub async fn execute_transaction(
@@ -110,8 +112,7 @@ pub async fn execute_transaction(
                 iota_types::digests::TransactionDigest::new(provided_digest_bytes);
             return Err(FieldViolation::new("transaction.digest")
                 .with_description(format!(
-                    "provided digest does not match computed digest: provided={}, computed={}",
-                    provided_digest_typed, computed_digest
+                    "provided digest does not match computed digest: provided={provided_digest_typed}, computed={computed_digest}"
                 ))
                 .with_reason(ErrorReason::FieldInvalid)
                 .into());
@@ -162,7 +163,7 @@ pub async fn execute_transaction(
     // Determine what to include in the request based on read mask
     // The mask is at the response level, so we need to check the "transaction"
     // subtree
-    let tx_mask = read_mask.subtree("transaction");
+    let tx_mask = read_mask.subtree(ExecuteTransactionResponse::TRANSACTION_FIELD.name);
     let include_events = tx_mask
         .as_ref()
         .map(|m| m.contains(ExecutedTransaction::EVENTS_FIELD.name))
@@ -288,7 +289,7 @@ pub async fn execute_transaction(
     let mut response = ExecuteTransactionResponse::default();
 
     // Only include transaction in response if requested by the mask
-    if let Some(tx_mask) = read_mask.subtree("transaction") {
+    if let Some(tx_mask) = read_mask.subtree(ExecuteTransactionResponse::TRANSACTION_FIELD.name) {
         executed_transaction.merge(&source, &tx_mask);
 
         // Handle events separately since they need special rendering
@@ -299,8 +300,8 @@ pub async fn execute_transaction(
 
                 // Populate json_contents for events if requested in the mask
                 if events_mask
-                    .subtree("events")
-                    .is_some_and(|mask| mask.contains("json_contents"))
+                    .subtree(ProtoTransactionEvents::EVENTS_FIELD.name)
+                    .is_some_and(|mask| mask.contains(Event::JSON_CONTENTS_FIELD.name))
                 {
                     // Create a package resolver
                     let package_store = PackageStoreWithLruCache::new(reader.as_ref().clone());
@@ -345,8 +346,6 @@ pub async fn execute_transaction(
 
         // Handle signatures if requested
         if tx_mask.contains(ExecutedTransaction::SIGNATURES_FIELD.name) {
-            use iota_grpc_types::v0::signatures::{UserSignature, UserSignatures};
-
             // Convert signatures to proto format
             let proto_signatures: Vec<UserSignature> = signatures_for_response
                 .iter()
@@ -362,9 +361,9 @@ pub async fn execute_transaction(
             });
         }
 
-        // Handle input_objects if explicitly requested
-        // input_objects must be explicitly requested - not included via wildcard masks
         if !tx_mask.is_wildcard() {
+            // Handle input_objects if explicitly requested
+            // input_objects must be explicitly requested - not included via wildcard masks
             if let Some(input_objects_mask) =
                 tx_mask.subtree(ExecutedTransaction::INPUT_OBJECTS_FIELD.name)
             {
@@ -374,11 +373,9 @@ pub async fn execute_transaction(
                     executed_transaction.input_objects = Some(proto_objects);
                 }
             }
-        }
 
-        // Handle output_objects if explicitly requested
-        // output_objects must be explicitly requested - not included via wildcard masks
-        if !tx_mask.is_wildcard() {
+            // Handle output_objects if explicitly requested
+            // output_objects must be explicitly requested - not included via wildcard masks
             if let Some(output_objects_mask) =
                 tx_mask.subtree(ExecutedTransaction::OUTPUT_OBJECTS_FIELD.name)
             {
