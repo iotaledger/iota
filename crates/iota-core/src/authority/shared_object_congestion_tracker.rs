@@ -391,7 +391,7 @@ impl SharedObjectCongestionTracker {
             return SequencingResult::Schedule(0);
         }
 
-        let shared_input_objects = cert.shared_input_objects().collect::<Vec<_>>();
+        let shared_input_objects = cert.shared_input_objects();
         if shared_input_objects.is_empty() {
             // This is an owned object only transaction. No need to defer.
             return SequencingResult::Schedule(0);
@@ -468,7 +468,11 @@ impl SharedObjectCongestionTracker {
         }
         let end_time = start_time.saturating_add(tx_duration);
         let occupied_slot = ExecutionSlot::new(start_time, end_time);
-        for obj in cert.shared_input_objects().filter(|obj| obj.mutable) {
+        for obj in cert
+            .shared_input_objects()
+            .into_iter()
+            .filter(|obj| obj.mutable)
+        {
             self.object_execution_slots
                 .get_mut(&obj.id)
                 .expect("object execution slot should have been initialized before.")
@@ -679,7 +683,7 @@ pub mod shared_object_test_utils {
         previously_deferred_tx_digests: &PreviouslyDeferredTransactions,
         commit_round: CommitRound,
     ) -> SequencingResult {
-        let shared_input_objects = cert.shared_input_objects().collect::<Vec<_>>();
+        let shared_input_objects = cert.shared_input_objects();
         shared_object_congestion_tracker.initialize_object_execution_slots(&shared_input_objects);
         shared_object_congestion_tracker.try_schedule(
             cert,
@@ -703,8 +707,7 @@ pub mod shared_object_test_utils {
                 PerObjectCongestionControlMode::TotalGasBudget => {
                     let transaction =
                         build_transaction(&[(*object_id, true)], *duration, TEST_ONLY_GAS_PRICE);
-                    let shared_input_objects =
-                        transaction.shared_input_objects().collect::<Vec<_>>();
+                    let shared_input_objects = transaction.shared_input_objects();
                     let start_time = initialize_tracker_and_compute_tx_start_time(
                         &mut shared_object_congestion_tracker,
                         &shared_input_objects,
@@ -721,8 +724,7 @@ pub mod shared_object_test_utils {
                     for _ in 0..*duration {
                         let transaction =
                             build_transaction(&[(*object_id, true)], 1, TEST_ONLY_GAS_PRICE);
-                        let shared_input_objects =
-                            transaction.shared_input_objects().collect::<Vec<_>>();
+                        let shared_input_objects = transaction.shared_input_objects();
                         let start_time = initialize_tracker_and_compute_tx_start_time(
                             &mut shared_object_congestion_tracker,
                             &shared_input_objects,
@@ -1232,7 +1234,7 @@ mod object_cost_tests {
         );
         let cert_duration =
             shared_object_congestion_tracker.get_estimated_execution_duration(&cert);
-        let shared_input_objects = cert.shared_input_objects().collect::<Vec<_>>();
+        let shared_input_objects = cert.shared_input_objects();
         let start_time = initialize_tracker_and_compute_tx_start_time(
             &mut shared_object_congestion_tracker,
             &shared_input_objects,
@@ -1263,7 +1265,7 @@ mod object_cost_tests {
         );
         let cert_duration =
             shared_object_congestion_tracker.get_estimated_execution_duration(&cert);
-        let shared_input_objects = cert.shared_input_objects().collect::<Vec<_>>();
+        let shared_input_objects = cert.shared_input_objects();
         let start_time = initialize_tracker_and_compute_tx_start_time(
             &mut shared_object_congestion_tracker,
             &shared_input_objects,
@@ -1315,7 +1317,7 @@ mod object_cost_tests {
         };
         let cert_duration =
             shared_object_congestion_tracker.get_estimated_execution_duration(&cert);
-        let shared_input_objects = cert.shared_input_objects().collect::<Vec<_>>();
+        let shared_input_objects = cert.shared_input_objects();
         let start_time = initialize_tracker_and_compute_tx_start_time(
             &mut shared_object_congestion_tracker,
             &shared_input_objects,
@@ -1439,7 +1441,7 @@ mod object_cost_tests {
         }
 
         let cert_duration = shared_object_congestion_tracker.get_estimated_execution_duration(&tx);
-        let shared_input_objects = tx.shared_input_objects().collect::<Vec<_>>();
+        let shared_input_objects = tx.shared_input_objects();
         assert!(
             initialize_tracker_and_compute_tx_start_time(
                 &mut shared_object_congestion_tracker,
@@ -1494,7 +1496,7 @@ mod object_cost_tests {
         }
 
         let cert_duration = shared_object_congestion_tracker.get_estimated_execution_duration(&tx);
-        let shared_input_objects = tx.shared_input_objects().collect::<Vec<_>>();
+        let shared_input_objects = tx.shared_input_objects();
         assert!(
             initialize_tracker_and_compute_tx_start_time(
                 &mut shared_object_congestion_tracker,
@@ -1533,7 +1535,7 @@ mod object_cost_tests {
         }
 
         let cert_duration = shared_object_congestion_tracker.get_estimated_execution_duration(&tx);
-        let shared_input_objects = tx.shared_input_objects().collect::<Vec<_>>();
+        let shared_input_objects = tx.shared_input_objects();
         assert!(
             initialize_tracker_and_compute_tx_start_time(
                 &mut shared_object_congestion_tracker,

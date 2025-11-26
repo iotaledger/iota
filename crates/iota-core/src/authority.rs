@@ -1178,12 +1178,15 @@ impl AuthorityState {
         let observed_effects_digest = observed_effects.digest();
         if &observed_effects_digest != expected_effects_digest {
             panic!(
-                "Locally executed effects do not match canonical effects! expected_effects_digest={:?} observed_effects_digest={:?} expected_effects={:?} observed_effects={:?} input_objects={:?}",
+                "Locally executed effects do not match canonical effects! expected_effects_digest={:?} observed_effects_digest={:?} expected_effects={:?} observed_effects={:?} transaction_input_objects={:?} authenticator_input_objects={:?}",
                 expected_effects_digest,
                 observed_effects_digest,
                 effects.data(),
                 observed_effects,
-                transaction.data().transaction_data().input_objects()
+                transaction.data().transaction_data().input_objects(),
+                transaction
+                    .sender_move_authenticator()
+                    .map(|a| a.input_objects())
             );
         }
         Ok(())
@@ -1310,7 +1313,7 @@ impl AuthorityState {
             .execution_load_input_objects_latency
             .start_timer();
 
-        let input_objects = certificate.collect_all_inputs()?;
+        let input_objects = certificate.collect_all_input_object_kind_for_reading()?;
 
         let input_objects = self.input_loader.read_objects_for_execution(
             epoch_store,
@@ -1320,7 +1323,7 @@ impl AuthorityState {
             epoch_store.epoch(),
         )?;
 
-        certificate.split_inputs_into_groups(input_objects)
+        certificate.split_input_objects_into_groups_for_reading(input_objects)
     }
 
     /// Test only wrapper for `try_execute_immediately()` above, useful for
@@ -5453,21 +5456,21 @@ impl AuthorityState {
     )> {
         let (input_objects, tx_receiving_objects) = self.input_loader.read_objects_for_signing(
             Some(transaction.digest()),
-            &transaction.collect_all_inputs()?,
+            &transaction.collect_all_input_object_kind_for_reading()?,
             &transaction.data().transaction_data().receiving_objects(),
             epoch,
         )?;
 
-        transaction.split_inputs_into_groups(input_objects).map(
-            |(tx_input_objects, auth_input_objects, account_object)| {
+        transaction
+            .split_input_objects_into_groups_for_reading(input_objects)
+            .map(|(tx_input_objects, auth_input_objects, account_object)| {
                 (
                     tx_input_objects,
                     tx_receiving_objects,
                     auth_input_objects,
                     account_object,
                 )
-            },
-        )
+            })
     }
 
     fn check_transaction_inputs_for_signing(

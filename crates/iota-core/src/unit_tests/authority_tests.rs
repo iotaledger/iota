@@ -6330,6 +6330,7 @@ async fn test_consensus_handler_per_object_congestion_control(
             cert.data().transaction_data().gas_price() >= 4000
                 || cert
                     .shared_input_objects()
+                    .into_iter()
                     .any(|obj| { obj.id() == shared_objects[1].id() })
         );
     }
@@ -6387,6 +6388,7 @@ async fn test_consensus_handler_per_object_congestion_control(
             cert.data().transaction_data().gas_price() >= 2000
                 || cert
                     .shared_input_objects()
+                    .into_iter()
                     .any(|obj| { obj.id() == shared_objects[1].id() })
         );
     }

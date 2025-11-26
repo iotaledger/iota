@@ -15,7 +15,7 @@ use anyhow::bail;
 use enum_dispatch::enum_dispatch;
 use fastcrypto::{encoding::Base64, hash::HashFunction};
 use iota_protocol_config::ProtocolConfig;
-use itertools::{Either, Itertools};
+use itertools::Either;
 use move_core_types::{
     ident_str,
     identifier::{self, Identifier},
@@ -1290,6 +1290,23 @@ impl SharedInputObject {
     pub fn into_id_and_version(self) -> (ObjectID, SequenceNumber) {
         (self.id, self.initial_shared_version)
     }
+
+    /// Merges another SharedInputObject into self.
+    /// If there is a conflict in mutability, the resulting object will be
+    /// mutable. Errors if the id or initial_shared_version do not match.
+    pub fn left_union(&mut self, other: &SharedInputObject) -> UserInputResult<()> {
+        fp_ensure!(self.id == other.id, UserInputError::SharedObjectIdMismatch);
+        fp_ensure!(
+            self.initial_shared_version == other.initial_shared_version,
+            UserInputError::SharedObjectStartingVersionMismatch
+        );
+
+        if !self.mutable && other.mutable {
+            self.mutable = other.mutable;
+        }
+
+        Ok(())
+    }
 }
 
 impl TransactionKind {
@@ -2499,115 +2516,163 @@ impl SenderSignedData {
             })
     }
 
-    /// Returns all input objects including those from the sender
-    /// `MoveAuthenticator` if any.
-    pub fn collect_all_inputs(&self) -> IotaResult<Vec<InputObjectKind>> {
+    /// Returns all unique input objects including those from the sender
+    /// `MoveAuthenticator` if any for reading.
+    ///
+    /// Although some shared objects(with a different mutability flag, for
+    /// example) can be duplicated in the transaction and authenticator
+    /// object lists, we load them independently to make it possible to
+    /// analyze the inputs in the transaction checkers.
+    pub fn collect_all_input_object_kind_for_reading(&self) -> IotaResult<Vec<InputObjectKind>> {
+        let mut input_objects_set = self
+            .transaction_data()
+            .input_objects()?
+            .into_iter()
+            .collect::<HashSet<_>>();
+
         if let Some(move_authenticator) = self.sender_move_authenticator() {
-            let mut input_objects_set = self
-                .transaction_data()
-                .input_objects()?
-                .into_iter()
-                .collect::<HashSet<_>>();
-
             input_objects_set.extend(move_authenticator.input_objects());
-
-            Ok(input_objects_set.into_iter().collect::<Vec<_>>())
-        } else {
-            Ok(self.transaction_data().input_objects()?)
         }
+
+        Ok(input_objects_set.into_iter().collect::<Vec<_>>())
     }
 
     /// Splits the provided input objects into three groups:
-    /// 1. Input objects required by the transaction itself.
+    /// 1. Input objects required by the transaction itself; may contain
+    ///    duplicates if an IOTA coin is used both as an input and a gas coin.
     /// 2. Input objects required by the sender `MoveAuthenticator`, including
     ///    the object to authenticate.
     /// 3. The object to authenticate from the sender `MoveAuthenticator`.
-    pub fn split_inputs_into_groups(
+    pub fn split_input_objects_into_groups_for_reading(
         &self,
         input_objects: InputObjects,
     ) -> IotaResult<(InputObjects, Option<InputObjects>, Option<ObjectReadResult>)> {
-        if let Some(move_authenticator) = self.sender_move_authenticator() {
-            let input_objects_map = input_objects
-                .iter()
-                .map(|o| (&o.input_object_kind, o))
-                .collect::<HashMap<_, _>>();
+        let input_objects_map = input_objects
+            .iter()
+            .map(|o| (&o.input_object_kind, o))
+            .collect::<HashMap<_, _>>();
 
-            let tx_input_objects = self
-                .transaction_data()
-                .input_objects()?
-                .iter()
-                .map(|k| {
-                    input_objects_map
-                        .get(k)
-                        .map(|&r| r.clone())
-                        .expect("All transaction input objects are expected to be present")
-                })
-                .collect::<Vec<_>>()
-                .into();
+        let tx_input_objects = self
+            .transaction_data()
+            .input_objects()?
+            .iter()
+            .map(|k| {
+                input_objects_map
+                    .get(k)
+                    .map(|&r| r.clone())
+                    .expect("All transaction input objects are expected to be present")
+            })
+            .collect::<Vec<_>>()
+            .into();
 
-            let auth_input_objects = move_authenticator
-                .input_objects()
-                .iter()
-                .map(|k| {
-                    input_objects_map
-                        .get(k)
-                        .map(|&r| r.clone())
-                        .expect("All authenticator input objects are expected to be present")
-                })
-                .collect::<Vec<_>>()
-                .into();
+        let (auth_input_objects, account_object) =
+            if let Some(move_authenticator) = self.sender_move_authenticator() {
+                let auth_input_objects = move_authenticator
+                    .input_objects()
+                    .iter()
+                    .map(|k| {
+                        input_objects_map
+                            .get(k)
+                            .map(|&r| r.clone())
+                            .expect("All authenticator input objects are expected to be present")
+                    })
+                    .collect::<Vec<_>>()
+                    .into();
 
-            let account_objects = move_authenticator
-                .object_to_authenticate()
-                .input_objects()
-                .iter()
-                .map(|k| {
-                    input_objects_map
-                        .get(k)
-                        .map(|&r| r.clone())
-                        .expect("Account object is expected to be present")
-                })
-                .collect::<Vec<_>>();
+                let account_objects = move_authenticator
+                    .object_to_authenticate()
+                    .input_objects()
+                    .iter()
+                    .map(|k| {
+                        input_objects_map
+                            .get(k)
+                            .map(|&r| r.clone())
+                            .expect("Account object is expected to be present")
+                    })
+                    .collect::<Vec<_>>();
 
-            debug_assert!(
-                account_objects.len() == 1,
-                "Only one account object must be loaded"
-            );
+                debug_assert!(
+                    account_objects.len() == 1,
+                    "Only one account object must be loaded"
+                );
 
-            Ok((
-                tx_input_objects,
-                Some(auth_input_objects),
-                account_objects.into_iter().next(),
-            ))
-        } else {
-            Ok((input_objects, None, None))
-        }
+                (Some(auth_input_objects), account_objects.into_iter().next())
+            } else {
+                (None, None)
+            };
+
+        Ok((tx_input_objects, auth_input_objects, account_object))
     }
 
     /// Checks if `SenderSignedData` contains at least one shared object.
     /// This function checks shared objects from the `MoveAuthenticator` if any.
     pub fn contains_shared_object(&self) -> bool {
-        self.shared_input_objects().next().is_some()
+        !self.shared_input_objects().is_empty()
     }
 
     /// Returns an iterator over all shared input objects related to this
     /// transaction, including those from the `MoveAuthenticator` if any.
-    pub fn shared_input_objects(&self) -> impl Iterator<Item = SharedInputObject> + '_ {
-        // Add the Move authenticator shared objects if any.
-        let authenticator_shared_objects =
-            if let Some(move_authenticator) = self.sender_move_authenticator() {
-                move_authenticator.shared_objects().into_iter()
-            } else {
-                Vec::new().into_iter()
-            };
+    ///
+    /// If a shared object appears both in the transaction and authenticator
+    /// with the same version but different mutability, only one instance which
+    /// is mutable is returned.
+    ///
+    /// Panics if there are shared objects with the same ID but different
+    /// initial versions.
+    pub fn shared_input_objects(&self) -> Vec<SharedInputObject> {
+        // Vector is used to preserve the order of input objects.
+        let mut input_objects = self.transaction_data().shared_input_objects();
 
-        self.inner()
-            .intent_message
-            .value
-            .shared_input_objects()
-            .into_iter()
-            .chain(authenticator_shared_objects)
-            .unique()
+        // Add the Move authenticator shared objects if any.
+        if let Some(move_authenticator) = self.sender_move_authenticator() {
+            for auth_shared_object in move_authenticator.shared_objects() {
+                let entry = input_objects
+                    .iter_mut()
+                    .find(|o| o.id == auth_shared_object.id);
+
+                match entry {
+                    None => input_objects.push(auth_shared_object),
+                    Some(existing) => existing
+                        .left_union(&auth_shared_object)
+                        .expect("union of shared objects should not fail"),
+                }
+            }
+        }
+
+        input_objects
+    }
+
+    /// Returns an iterator over all input objects related to this
+    /// transaction, including those from the `MoveAuthenticator` if any.
+    ///
+    /// If an IOTA coin is used both as an input and as a gas coin, it will
+    /// appear two times in the returned iterator.
+    ///
+    /// If a shared object appears both in the transaction and authenticator
+    /// with different mutability, only one instance which is mutable is
+    /// returned.
+    ///
+    /// Shared objects with the same ID but different versions are not allowed.
+    pub fn input_objects(&self) -> IotaResult<Vec<InputObjectKind>> {
+        // Can contain duplicates in case of using the same IOTA coin as an input and as
+        // a gas coin.
+        let mut input_objects = self.transaction_data().input_objects()?;
+
+        // Add the Move authenticator shared objects if any.
+        if let Some(move_authenticator) = self.sender_move_authenticator() {
+            for auth_object in move_authenticator.input_objects() {
+                let entry = input_objects
+                    .iter_mut()
+                    .find(|o| o.object_id() == auth_object.object_id());
+
+                match entry {
+                    None => input_objects.push(auth_object),
+                    Some(existing) => existing.left_union_with_checks(&auth_object)?,
+                }
+            }
+        }
+
+        Ok(input_objects)
     }
 
     /// Checks if `SenderSignedData` contains the `Random` object as an
@@ -2615,6 +2680,7 @@ impl SenderSignedData {
     /// This function checks shared objects from the `MoveAuthenticator` if any.
     pub fn uses_randomness(&self) -> bool {
         self.shared_input_objects()
+            .iter()
             .any(|obj| obj.id() == IOTA_RANDOMNESS_STATE_OBJECT_ID)
     }
 
@@ -3046,6 +3112,44 @@ impl InputObjectKind {
             Self::ImmOrOwnedMoveObject((_, _, _)) => true,
             Self::SharedMoveObject { mutable, .. } => *mutable,
         }
+    }
+
+    /// Merges another InputObjectKind into self.
+    /// For shared objects, if either is mutable, the result is mutable.
+    /// Fails if either is not a shared object, or if the IDs or initial
+    /// versions do not match.
+    pub fn left_union_with_checks(&mut self, other: &InputObjectKind) -> UserInputResult<()> {
+        match self {
+            InputObjectKind::MovePackage(_) | InputObjectKind::ImmOrOwnedMoveObject(_) => {
+                fp_bail!(UserInputError::NotSharedObject)
+            }
+            InputObjectKind::SharedMoveObject {
+                id,
+                initial_shared_version,
+                mutable,
+            } => match other {
+                InputObjectKind::MovePackage(_) | InputObjectKind::ImmOrOwnedMoveObject(_) => {
+                    fp_bail!(UserInputError::NotSharedObject)
+                }
+                InputObjectKind::SharedMoveObject {
+                    id: other_id,
+                    initial_shared_version: other_initial_shared_version,
+                    mutable: other_mutable,
+                } => {
+                    fp_ensure!(id == other_id, UserInputError::SharedObjectIdMismatch);
+                    fp_ensure!(
+                        initial_shared_version == other_initial_shared_version,
+                        UserInputError::SharedObjectStartingVersionMismatch
+                    );
+
+                    if !*mutable && *other_mutable {
+                        *mutable = *other_mutable;
+                    }
+                }
+            },
+        }
+
+        Ok(())
     }
 }
 
