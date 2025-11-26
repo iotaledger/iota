@@ -1215,7 +1215,7 @@ mod tests {
 
     use crate::{
         CommitConsumerMonitor, CommitDigest, CommitRef, Round,
-        block_header::{BlockRef, TestBlockHeader, VerifiedBlockHeader},
+        block_header::{BlockRef, GenericTransactionRef, TestBlockHeader, VerifiedBlockHeader},
         block_verifier::NoopBlockVerifier,
         commit::CommitRange,
         commit_syncer::CommitSyncer,
@@ -1227,7 +1227,6 @@ mod tests {
         network::{BlockBundleStream, NetworkClient},
         storage::mem_store::MemStore,
     };
-    use crate::block_header::GenericTransactionRef;
 
     #[derive(Default)]
     struct FakeNetworkClient {}

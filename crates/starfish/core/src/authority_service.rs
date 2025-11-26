@@ -1340,9 +1340,9 @@ mod tests {
             AuthorityService, BroadcastedBlockStream, MAX_FILTER_SIZE, SubscriptionCounter,
         },
         block_header::{
-            BlockHeaderAPI, BlockRef, GENESIS_ROUND, SignedBlockHeader, TestBlockHeader,
-            TransactionsCommitment, VerifiedBlock, VerifiedBlockHeader, VerifiedOwnShard,
-            VerifiedTransactions,
+            BlockHeaderAPI, BlockRef, GENESIS_ROUND, GenericTransactionRef, SignedBlockHeader,
+            TestBlockHeader, TransactionsCommitment, VerifiedBlock, VerifiedBlockHeader,
+            VerifiedOwnShard, VerifiedTransactions,
         },
         block_manager::BlockManager,
         block_verifier::SignedBlockVerifier,
@@ -1368,7 +1368,6 @@ mod tests {
         transaction::TransactionConsumer,
         transactions_synchronizer::TransactionsSynchronizer,
     };
-    use crate::block_header::GenericTransactionRef;
 
     #[derive(Default)]
     struct FakeNetworkClient {}

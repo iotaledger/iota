@@ -651,7 +651,8 @@ mod tests {
     use crate::{
         BlockRef, Round, TestBlockHeader, Transaction, VerifiedBlockHeader,
         block_header::{
-            Shard, TransactionsCommitment, VerifiedBlock, VerifiedOwnShard, VerifiedTransactions,
+            GenericTransactionRef, Shard, TransactionsCommitment, VerifiedBlock, VerifiedOwnShard,
+            VerifiedTransactions,
         },
         commit::CertifiedCommits,
         context::Context,
@@ -664,7 +665,6 @@ mod tests {
         },
         storage::mem_store::MemStore,
     };
-    use crate::block_header::GenericTransactionRef;
 
     #[derive(Default)]
     struct MockCoreThreadDispatcher {

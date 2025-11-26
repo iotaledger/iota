@@ -1423,8 +1423,8 @@ mod tests {
         CommitDigest, CommitIndex,
         authority_service::COMMIT_LAG_MULTIPLIER,
         block_header::{
-            BlockHeaderDigest, BlockRef, Round, TestBlockHeader, VerifiedBlock,
-            VerifiedBlockHeader, VerifiedOwnShard, VerifiedTransactions,
+            BlockHeaderDigest, BlockRef, GenericTransactionRef, Round, TestBlockHeader,
+            VerifiedBlock, VerifiedBlockHeader, VerifiedOwnShard, VerifiedTransactions,
         },
         block_verifier::NoopBlockVerifier,
         commit::{CertifiedCommits, CommitRange, CommitVote, TrustedCommit},
@@ -1442,7 +1442,6 @@ mod tests {
         storage::mem_store::MemStore,
         transactions_synchronizer::TransactionsSynchronizer,
     };
-    use crate::block_header::GenericTransactionRef;
 
     type FetchRequestKey = (Vec<BlockRef>, AuthorityIndex);
     type FetchRequestHeadersResponse = (Vec<VerifiedBlockHeader>, Option<Duration>);

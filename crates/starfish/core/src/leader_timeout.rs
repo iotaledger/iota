@@ -201,7 +201,7 @@ mod tests {
 
     use crate::{
         BlockRef, Round, TestBlockHeader,
-        block_header::VerifiedBlock,
+        block_header::{GenericTransactionRef, VerifiedBlock},
         commit::CommitRange,
         context::Context,
         core::{CoreSignals, ReasonToCreateBlock},
@@ -214,7 +214,6 @@ mod tests {
         storage::mem_store::MemStore,
         transactions_synchronizer::TransactionsSynchronizer,
     };
-    use crate::block_header::GenericTransactionRef;
 
     #[derive(Default)]
     struct FakeNetworkClient {}

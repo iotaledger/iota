@@ -259,13 +259,12 @@ mod test {
 
     use super::*;
     use crate::{
-        block_header::BlockRef,
+        block_header::{BlockRef, GenericTransactionRef},
         commit::CommitRange,
         error::ConsensusResult,
         network::{BlockBundleStream, SerializedBlockBundle, test_network::TestService},
         storage::mem_store::MemStore,
     };
-    use crate::block_header::GenericTransactionRef;
 
     struct SubscriberTestClient {}
 

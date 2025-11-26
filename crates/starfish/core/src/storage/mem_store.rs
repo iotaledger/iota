@@ -5,8 +5,9 @@
 use std::{
     collections::{BTreeMap, BTreeSet, VecDeque},
     ops::Bound::Included,
+    sync::Arc,
 };
-use std::sync::Arc;
+
 use bytes::Bytes;
 use parking_lot::RwLock;
 use starfish_config::AuthorityIndex;
@@ -14,18 +15,17 @@ use starfish_config::AuthorityIndex;
 use super::{Store, WriteBatch};
 use crate::{
     block_header::{
-        BlockHeaderAPI as _, BlockHeaderDigest, BlockRef, Round, Slot, VerifiedBlock,
-        VerifiedBlockHeader, VerifiedTransactions,
+        BlockHeaderAPI as _, BlockHeaderDigest, BlockRef, GenericTransactionRef, Round, Slot,
+        TransactionRef, TransactionsCommitment, VerifiedBlock, VerifiedBlockHeader,
+        VerifiedTransactions,
     },
     commit::{
         CommitAPI as _, CommitDigest, CommitIndex, CommitInfo, CommitRange, CommitRef,
         TrustedCommit,
     },
-    error::ConsensusResult,
+    context::Context,
+    error::{ConsensusError, ConsensusResult},
 };
-use crate::block_header::{GenericTransactionRef, TransactionRef, TransactionsCommitment};
-use crate::context::Context;
-use crate::error::ConsensusError;
 
 /// In-memory storage for testing.
 pub(crate) struct MemStore {
@@ -34,10 +34,16 @@ pub(crate) struct MemStore {
 
 struct Inner {
     transactions: BTreeMap<(Round, AuthorityIndex, BlockHeaderDigest), VerifiedTransactions>,
-    transactions_by_tr_refs: BTreeMap<(Round, AuthorityIndex, TransactionsCommitment), VerifiedTransactions>,
+    transactions_by_tr_refs:
+        BTreeMap<(Round, AuthorityIndex, TransactionsCommitment), VerifiedTransactions>,
     block_headers: BTreeMap<(Round, AuthorityIndex, BlockHeaderDigest), VerifiedBlockHeader>,
     digests_by_authorities: BTreeSet<(AuthorityIndex, Round, BlockHeaderDigest)>,
-    transaction_commitments_by_authorities: BTreeSet<(AuthorityIndex, Round, TransactionsCommitment, BlockHeaderDigest)>,
+    transaction_commitments_by_authorities: BTreeSet<(
+        AuthorityIndex,
+        Round,
+        TransactionsCommitment,
+        BlockHeaderDigest,
+    )>,
     commits: BTreeMap<(CommitIndex, CommitDigest), TrustedCommit>,
     commit_votes: BTreeSet<(CommitIndex, CommitDigest, BlockRef)>,
     commit_info: BTreeMap<(CommitIndex, CommitDigest), CommitInfo>,
@@ -89,28 +95,25 @@ impl Store for MemStore {
             let transaction_ref = transaction.transaction_ref();
             if context.protocol_config.consensus_transaction_ref() {
                 inner.transactions_by_tr_refs.insert(
+                    (
+                        transaction_ref.round,
+                        transaction_ref.author,
+                        transaction_ref.transactions_commitment,
+                    ),
+                    transaction,
+                );
 
-                            (
-                                transaction_ref.round,
-                                transaction_ref.author,
-                                transaction_ref.transactions_commitment,
-                            ),
-                            transaction,
-                        );
-
-                inner.transaction_commitments_by_authorities.insert(
-
-                            (
-                                transaction_ref.author,
-                                transaction_ref.round,
-                                transaction_ref.transactions_commitment,
-                                transaction_ref.block_digest,
-                            )
-                    );
+                inner.transaction_commitments_by_authorities.insert((
+                    transaction_ref.author,
+                    transaction_ref.round,
+                    transaction_ref.transactions_commitment,
+                    transaction_ref.block_digest,
+                ));
             } else {
                 inner.transactions.insert(
                     (block_ref.round, block_ref.author, block_ref.digest),
-                    transaction);
+                    transaction,
+                );
             }
         }
 
@@ -140,12 +143,14 @@ impl Store for MemStore {
         let transactions = refs
             .iter()
             .map(|r| match r {
-                GenericTransactionRef::BlockRef(b) => {
-                    inner.transactions.get(&(b.round, b.author, b.digest)).cloned()
-                }
-                GenericTransactionRef::TransactionRef(t) => {
-                    inner.transactions.get(&(t.round, t.author, t.block_digest)).cloned()
-                }
+                GenericTransactionRef::BlockRef(b) => inner
+                    .transactions
+                    .get(&(b.round, b.author, b.digest))
+                    .cloned(),
+                GenericTransactionRef::TransactionRef(t) => inner
+                    .transactions
+                    .get(&(t.round, t.author, t.block_digest))
+                    .cloned(),
             })
             .collect();
         Ok(transactions)
@@ -162,12 +167,14 @@ impl Store for MemStore {
         let transactions = refs
             .iter()
             .map(|r| match r {
-                GenericTransactionRef::BlockRef(b) => {
-                    inner.transactions.get(&(b.round, b.author, b.digest)).map(|tx| tx.serialized().clone())
-                }
-                GenericTransactionRef::TransactionRef(t) => {
-                    inner.transactions.get(&(t.round, t.author, t.block_digest)).map(|tx| tx.serialized().clone())
-                }
+                GenericTransactionRef::BlockRef(b) => inner
+                    .transactions
+                    .get(&(b.round, b.author, b.digest))
+                    .map(|tx| tx.serialized().clone()),
+                GenericTransactionRef::TransactionRef(t) => inner
+                    .transactions
+                    .get(&(t.round, t.author, t.block_digest))
+                    .map(|tx| tx.serialized().clone()),
             })
             .collect();
         Ok(transactions)
@@ -205,11 +212,13 @@ impl Store for MemStore {
         let exist = refs
             .iter()
             .map(|r| match r {
-                GenericTransactionRef::BlockRef(b) => {
-                    inner.transactions.contains_key(&(b.round, b.author, b.digest))
-                }
+                GenericTransactionRef::BlockRef(b) => inner
+                    .transactions
+                    .contains_key(&(b.round, b.author, b.digest)),
                 GenericTransactionRef::TransactionRef(t) => {
-                    inner.transactions.contains_key(&(t.round, t.author, t.block_digest))
+                    inner
+                        .transactions
+                        .contains_key(&(t.round, t.author, t.block_digest))
                 }
             })
             .collect();
@@ -347,8 +356,18 @@ impl Store for MemStore {
         let res = inner
             .transaction_commitments_by_authorities
             .range((
-                Included((author, start_round, TransactionsCommitment::MIN, BlockHeaderDigest::MIN)),
-                Included((author, Round::MAX, TransactionsCommitment::MAX, BlockHeaderDigest::MAX)),
+                Included((
+                    author,
+                    start_round,
+                    TransactionsCommitment::MIN,
+                    BlockHeaderDigest::MIN,
+                )),
+                Included((
+                    author,
+                    Round::MAX,
+                    TransactionsCommitment::MAX,
+                    BlockHeaderDigest::MAX,
+                )),
             ))
             .map(|(author, round, commitment, digest)| TransactionRef {
                 round: *round,
