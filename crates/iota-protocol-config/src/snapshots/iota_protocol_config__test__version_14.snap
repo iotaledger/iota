@@ -36,7 +36,7 @@ feature_flags:
   track_non_committee_eligible_validators: true
   select_committee_supporting_next_epoch_version: true
   move_auth: true
-  publish_package_metadata: 1
+  publish_package_metadata: true
   iota_metadata_module_bytes: true
 max_tx_size_bytes: 131072
 max_input_objects: 2048

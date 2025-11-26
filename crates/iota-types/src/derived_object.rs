@@ -3,7 +3,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use move_core_types::{
-    identifier::Identifier,
+    ident_str,
+    identifier::IdentStr,
     language_storage::{StructTag, TypeTag},
 };
 
@@ -12,6 +13,9 @@ use crate::{
     base_types::{IotaAddress, ObjectID},
     dynamic_field,
 };
+
+pub const DERIVED_OBJECT_MODULE_NAME: &IdentStr = ident_str!("derived_object");
+pub const DERIVED_OBJECT_STRUCT_NAME: &IdentStr = ident_str!("DerivedObjectKey");
 
 /// Using a parent object, a type tag and the bcs bytes of the key,
 /// compute the derived object address.
@@ -30,8 +34,8 @@ where
     // Wrap `T` into `DerivedObjectKey<T>` type (to preserve on-chain namespacing)
     let wrapper_type_tag = TypeTag::Struct(Box::new(StructTag {
         address: IOTA_FRAMEWORK_ADDRESS,
-        module: Identifier::new("derived_object").unwrap(),
-        name: Identifier::new("DerivedObjectKey").unwrap(),
+        module: DERIVED_OBJECT_MODULE_NAME.into(),
+        name: DERIVED_OBJECT_STRUCT_NAME.into(),
         type_params: vec![key_type_tag.clone()],
     }));
 

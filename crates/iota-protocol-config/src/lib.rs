@@ -356,8 +356,8 @@ struct FeatureFlags {
     move_auth: bool,
 
     // If true, enables publishing package metadata v1 along with the package.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    publish_package_metadata: Option<u64>,
+    #[serde(skip_serializing_if = "is_false")]
+    publish_package_metadata: bool,
 
     // If true, it allows metadata bytes indexed with the iota key in a compiled module
     // This flag is used to provide the correct MoveVM configuration for clients.
@@ -1242,7 +1242,7 @@ impl ProtocolConfig {
         self.feature_flags.move_auth
     }
 
-    pub fn publish_package_metadata(&self) -> Option<u64> {
+    pub fn publish_package_metadata(&self) -> bool {
         self.feature_flags.publish_package_metadata
     }
 
@@ -2250,7 +2250,7 @@ impl ProtocolConfig {
                         // max auth gas budget is in NANOS and an absolute value 1IOTA
                         cfg.max_auth_gas = Some(1_000_000_000);
                         cfg.feature_flags.move_auth = true;
-                        cfg.feature_flags.publish_package_metadata = Some(1);
+                        cfg.feature_flags.publish_package_metadata = true;
                         cfg.feature_flags.iota_metadata_module_bytes = true;
                     }
                 }
@@ -2431,7 +2431,7 @@ impl ProtocolConfig {
         self.feature_flags.move_auth = val;
     }
 
-    pub fn set_publish_package_metadata_for_testing(&mut self, val: Option<u64>) {
+    pub fn set_publish_package_metadata_for_testing(&mut self, val: bool) {
         self.feature_flags.publish_package_metadata = val;
     }
 }

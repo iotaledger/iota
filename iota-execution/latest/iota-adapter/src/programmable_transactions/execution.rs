@@ -595,7 +595,7 @@ mod checked {
             vec![]
         } else {
             // Package metadata creation
-            if context.protocol_config.publish_package_metadata().is_some() {
+            if context.protocol_config.publish_package_metadata() {
                 create_and_freeze_package_metadata_if_present(
                     context,
                     &modules,
@@ -721,7 +721,7 @@ mod checked {
         context.write_package(package);
 
         // Package metadata creation
-        if context.protocol_config.publish_package_metadata().is_some() {
+        if context.protocol_config.publish_package_metadata() {
             create_and_freeze_package_metadata_if_present(
                 context,
                 &modules,
@@ -962,7 +962,7 @@ mod checked {
             // Create the package metadata "special" object UID
             let metadata_uid = context.package_derived_metadata_id(storage_id)?;
             // Create the package metadata object content
-            let metadata_wrapper = PackageMetadata::new_v1(
+            let metadata = PackageMetadata::new_v1(
                 metadata_uid,
                 storage_id,
                 runtime_id,
@@ -971,10 +971,10 @@ mod checked {
             );
             // Turn the content into an object
             let package_metadata = context.make_object_value(
-                metadata_wrapper.type_().into(),
+                metadata.type_().into(),
                 // used_in_non_entry_move_call
                 false,
-                &metadata_wrapper.to_bcs_bytes(),
+                &metadata.to_bcs_bytes(),
             )?;
             // Freeze the package metadata object
             context.freeze_object(package_metadata)?

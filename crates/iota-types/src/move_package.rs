@@ -880,6 +880,7 @@ pub struct RuntimeModuleMetadataWrapper {
 
 impl RuntimeModuleMetadataWrapper {
     pub fn to_bcs_bytes(&self) -> Vec<u8> {
+        // Safe unwrap as the RuntimeModuleMetadataWrapper struct is always serializable
         bcs::to_bytes(&self).unwrap()
     }
 }
@@ -992,6 +993,7 @@ impl RuntimeModuleMetadataV1 {
     }
 
     pub fn to_bcs_bytes(&self) -> Vec<u8> {
+        // Safe unwrap as the RuntimeModuleMetadataV1 struct is always serializable
         bcs::to_bytes(&self).unwrap()
     }
 }
@@ -1056,6 +1058,7 @@ impl PackageMetadataKey {
     }
 
     pub fn to_bcs_bytes(&self) -> Vec<u8> {
+        // Safe unwrap as the PackageMetadataKey struct is always serializable
         bcs::to_bytes(&self).unwrap()
     }
 }
@@ -1134,6 +1137,7 @@ impl PackageMetadataV1 {
     }
 
     pub fn to_bcs_bytes(&self) -> Vec<u8> {
+        // Safe unwrap as the PackageMetadataV1 struct is always serializable
         bcs::to_bytes(&self).unwrap()
     }
 }
