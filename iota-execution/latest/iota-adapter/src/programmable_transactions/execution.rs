@@ -7,7 +7,7 @@ pub use checked::*;
 #[iota_macros::with_checked_arithmetic]
 mod checked {
     use std::{
-        collections::{BTreeMap, BTreeSet, HashMap},
+        collections::{BTreeMap, BTreeSet},
         fmt,
         sync::Arc,
     };
@@ -900,7 +900,7 @@ mod checked {
         runtime_id: ObjectID,
         package_version: u64,
     ) -> Result<(), ExecutionError> {
-        let mut modules_metadata_map = HashMap::new();
+        let mut modules_metadata_map = BTreeMap::new();
         // Extract metadata for each module
         for module in modules {
             if let Some(md) = module
@@ -929,17 +929,21 @@ mod checked {
                 // - Process functions for each module in order to create function metadata:
                 //    - Authenticator attributes, if present, are extracted to create
                 //      AuthenticatorInfoMetadata to insert into the PackageMetadata
-                let mut module_metadata_map = HashMap::new();
+                let mut module_metadata_map = BTreeMap::new();
                 for (fn_name, fn_attributes) in runtime_module_metadata.fun_attributes_iter() {
                     // Check attributes
                     for attribute in fn_attributes {
                         match attribute {
                             IotaAttribute::Authenticator(attribute) if attribute.version == 1 => {
-                                module_metadata_map.insert(
+                                let contains = module_metadata_map.insert(
                                     fn_name.to_string(),
                                     TypeName::from(&get_authenticator_first_param_type_tag(
                                         module, &fn_name,
                                     )?),
+                                );
+                                debug_assert!(
+                                    contains.is_none(),
+                                    "Duplicate function metadata for authenticator"
                                 );
                             }
                             _ => { /* Other attributes are ignored for PackageMetadataV1 */ }
