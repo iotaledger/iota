@@ -46,6 +46,7 @@ where
 mod tests {
     use std::str::FromStr;
 
+    use move_core_types::identifier::Identifier;
     use serde::Serialize;
 
     use super::*;
