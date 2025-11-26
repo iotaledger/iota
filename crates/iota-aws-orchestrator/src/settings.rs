@@ -49,8 +49,8 @@ pub enum CloudProvider {
 pub struct BuildCacheServer {
     /// Whether to enable the build cache.
     pub enabled: bool,
-    /// The address of the build cache server (e.g., "192.168.1.100:8080").
-    pub address: String,
+    /// The base URL of the build cache server (e.g., "http://192.168.1.100:8080").
+    pub url: String,
     /// Optional username for basic authentication.
     #[serde(default)]
     pub username: Option<String>,
@@ -213,8 +213,8 @@ impl Settings {
             client_specs: "small".into(),
             metrics_specs: "small".into(),
             build_cache_server: Some(BuildCacheServer {
-                enabled: true,
-                address: "127.0.0.1:8080".into(),
+                enabled: false,
+                url: "http://127.0.0.1:8080".into(),
                 username: None,
                 password: None,
             }),

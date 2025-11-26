@@ -1,7 +1,7 @@
 // Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{collections::HashMap, net::SocketAddr, path::PathBuf, time::Duration};
+use std::{collections::HashMap, path::PathBuf, time::Duration};
 
 use reqwest::{Client, StatusCode};
 use tokio::{fs, io::AsyncWriteExt};
@@ -26,21 +26,28 @@ pub type BuildCacheResult<T> = Result<T, BuildCacheError>;
 /// The build cache client that communicates with the build cache server.
 pub struct BuildCacheClient {
     client: Client,
-    build_instance_ip: String,
-    port: u16,
+    base_url: String,
     credentials: Option<(String, String)>, // (username, password)
 }
 
 impl BuildCacheClient {
     /// Create a new build cache client with basic authentication.
     fn with_auth(
-        server_address: &str,
+        base_url: &str,
         credentials: Option<(String, String)>,
-    ) -> Result<Self, std::net::AddrParseError> {
-        let socket_addr: SocketAddr = server_address.parse()?;
+    ) -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
+        // Validate the URL by parsing it
+        let url = url::Url::parse(base_url)
+            .map_err(|e| format!("Invalid base URL '{}': {}", base_url, e))?;
 
-        let build_instance_ip = socket_addr.ip().to_string();
-        let port = socket_addr.port();
+        // Ensure we have a valid scheme
+        if url.scheme() != "http" && url.scheme() != "https" {
+            return Err(format!(
+                "Unsupported scheme '{}', only 'http' and 'https' are supported",
+                url.scheme()
+            )
+            .into());
+        }
 
         let client = Client::builder()
             .timeout(Duration::from_secs(300))
@@ -49,29 +56,28 @@ impl BuildCacheClient {
 
         Ok(Self {
             client,
-            build_instance_ip,
-            port,
+            base_url: base_url.trim_end_matches('/').to_string(),
             credentials,
         })
     }
 
     /// Create a new build cache client without authentication.
-    pub fn new(server_address: &str) -> Result<Self, std::net::AddrParseError> {
-        Self::with_auth(server_address, None)
+    pub fn new(base_url: &str) -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
+        Self::with_auth(base_url, None)
     }
 
     /// Create a new build cache client with basic authentication using
     /// username/password.
     pub fn with_credentials(
-        server_address: &str,
+        base_url: &str,
         username: Option<String>,
         password: Option<String>,
-    ) -> Result<Self, std::net::AddrParseError> {
+    ) -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
         let credentials = match (username, password) {
             (Some(u), Some(p)) => Some((u, p)),
             _ => None,
         };
-        Self::with_auth(server_address, credentials)
+        Self::with_auth(base_url, credentials)
     }
 
     /// Set or update the authentication credentials.
@@ -91,7 +97,7 @@ impl BuildCacheClient {
     }
 
     pub async fn resolve_commit(&self, commit: &str) -> BuildCacheResult<String> {
-        let url = format!("http://{}:{}/resolve", self.build_instance_ip, self.port);
+        let url = format!("{}/resolve", self.base_url);
 
         let mut params = HashMap::new();
         params.insert("commit", commit);
@@ -120,7 +126,7 @@ impl BuildCacheClient {
         cpu_target: &str,
         binaries: &[String],
     ) -> BuildCacheResult<BuildCacheResponse> {
-        let url = format!("http://{}:{}/check", self.build_instance_ip, self.port);
+        let url = format!("{}/check", self.base_url);
 
         let binaries_str = binaries.join(",");
         let mut params = HashMap::new();
@@ -153,7 +159,7 @@ impl BuildCacheClient {
         binary_name: &str,
         local_path: &PathBuf,
     ) -> BuildCacheResult<()> {
-        let url = format!("http://{}:{}/download", self.build_instance_ip, self.port);
+        let url = format!("{}/download", self.base_url);
 
         let mut params = HashMap::new();
         params.insert("commit", commit);
@@ -201,7 +207,7 @@ impl BuildCacheClient {
         cpu_target: &str,
         binaries: &[String],
     ) -> BuildCacheResult<()> {
-        let url = format!("http://{}:{}/build", self.build_instance_ip, self.port);
+        let url = format!("{}/build", self.base_url);
 
         let build_request = BuildRequest {
             commit: commit.to_string(),

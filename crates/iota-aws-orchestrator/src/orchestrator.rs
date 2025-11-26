@@ -432,11 +432,11 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
         }
 
         let cache_client = BuildCacheClient::with_credentials(
-            build_config.address.as_str(),
+            build_config.url.as_str(),
             build_config.username.clone(),
             build_config.password.clone(),
         )
-        .map_err(|e| BuildCacheError::Cache(format!("Invalid server address: {e}")))?;
+        .map_err(|e| BuildCacheError::Cache(format!("Invalid server URL: {e}")))?;
         let repo_name = self.settings.repository_name();
         let working_dir = self.settings.working_dir.display();
 
@@ -502,8 +502,8 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
                 // Create download command that fetches from build cache
                 let release_folder = format!("{working_dir}/{repo_name}/target/release");
                 let download_command = format!(
-                    "mkdir -p {release_folder} && curl -f -L -o {release_folder}/{binary} 'http://{}/download?commit={resolved_commit}&cpu_target={cpu_target}&binary={binary}' && chmod +x {release_folder}/{binary}",
-                    build_config.address
+                    "mkdir -p {release_folder} && curl -f -L -o {release_folder}/{binary} '{}/download?commit={resolved_commit}&cpu_target={cpu_target}&binary={binary}' && chmod +x {release_folder}/{binary}",
+                    build_config.url
                 );
 
                 display::action(format!(

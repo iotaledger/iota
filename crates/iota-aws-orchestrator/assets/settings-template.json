@@ -9,7 +9,7 @@
     "metrics_specs": "m5d.8xlarge",
     "build_cache_server": {
         "enabled": true,
-        "address": "localhost:8080",
+        "url": "http://localhost:8080",
         "username": "",
         "password": ""
     },
