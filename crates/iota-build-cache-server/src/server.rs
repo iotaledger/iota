@@ -4,57 +4,66 @@
 use std::{convert::Infallible, net::SocketAddr, sync::Arc};
 
 use anyhow::Result;
-use http_body_util::{BodyExt, Full};
+use futures::StreamExt;
+use http_body_util::{BodyExt, Full, StreamBody};
 use hyper::{
     Method, Request, Response, StatusCode,
-    body::{Bytes, Incoming},
-    header::CONTENT_TYPE,
+    body::{Bytes, Frame, Incoming},
+    header::{CONTENT_LENGTH, CONTENT_TYPE, ETAG, IF_NONE_MATCH},
     service::service_fn,
 };
 use hyper_util::rt::TokioIo;
 use tokio::net::TcpListener;
+use tokio_util::io::ReaderStream;
 use tracing::{error, info, warn};
 use url::Url;
 
+// Type alias for response body - either Full for small responses or streaming
+// for large files
+type ResponseBody = http_body_util::combinators::BoxBody<Bytes, std::io::Error>;
+
 use crate::{cache::BuildCache, types::BuildRequest};
 
-/// Helper function to create a bad request response
-fn bad_request(msg: impl Into<String>) -> Response<Full<Bytes>> {
+fn full_body_response(
+    data: impl Into<String>,
+    content_type: &str,
+    code: StatusCode,
+) -> Response<ResponseBody> {
+    let bytes = Bytes::from(data.into());
     Response::builder()
-        .status(StatusCode::BAD_REQUEST)
-        .header(CONTENT_TYPE, "text/plain")
-        .body(Full::new(Bytes::from(msg.into())))
+        .status(code)
+        .header(CONTENT_TYPE, content_type)
+        .header(CONTENT_LENGTH, bytes.len().to_string())
+        .body(Full::new(bytes).map_err(|never| match never {}).boxed())
         .unwrap()
+}
+
+/// Helper function to create a text response
+fn text_response(msg: impl Into<String>, code: StatusCode) -> Response<ResponseBody> {
+    full_body_response(msg, "text/plain", code)
+}
+
+/// Helper function to create a bad request response
+fn bad_request(msg: impl Into<String>) -> Response<ResponseBody> {
+    text_response(msg, StatusCode::BAD_REQUEST)
 }
 
 /// Helper function to create an internal server error response
-fn internal_error(msg: impl Into<String>) -> Response<Full<Bytes>> {
+fn internal_error(msg: impl Into<String>) -> Response<ResponseBody> {
     let msg = msg.into();
     error!("{msg}");
-    Response::builder()
-        .status(StatusCode::INTERNAL_SERVER_ERROR)
-        .header(CONTENT_TYPE, "text/plain")
-        .body(Full::new(Bytes::from(msg)))
-        .unwrap()
+    text_response(msg, StatusCode::INTERNAL_SERVER_ERROR)
 }
 
 /// Helper function to create a not found response
-fn not_found(msg: impl Into<String>) -> Response<Full<Bytes>> {
-    Response::builder()
-        .status(StatusCode::NOT_FOUND)
-        .header(CONTENT_TYPE, "text/plain")
-        .body(Full::new(Bytes::from(msg.into())))
-        .unwrap()
+fn not_found(msg: impl Into<String>) -> Response<ResponseBody> {
+    text_response(msg, StatusCode::NOT_FOUND)
 }
 
 /// Helper function to create a JSON success response
-fn json_response(data: impl serde::Serialize, code: StatusCode) -> Response<Full<Bytes>> {
+fn json_response(data: impl serde::Serialize, code: StatusCode) -> Response<ResponseBody> {
     let json = serde_json::to_string(&data).unwrap();
-    Response::builder()
-        .status(code)
-        .header(CONTENT_TYPE, "application/json")
-        .body(Full::new(Bytes::from(json)))
-        .unwrap()
+    full_body_response(json, "application/json", code)
 }
 
 /// HTTP server for the build cache
@@ -103,7 +112,7 @@ impl BuildCacheServer {
 async fn handle_request(
     req: Request<Incoming>,
     cache: Arc<BuildCache>,
-) -> Result<Response<Full<Bytes>>, Infallible> {
+) -> Result<Response<ResponseBody>, Infallible> {
     let method = req.method();
     let path = req.uri().path();
 
@@ -126,11 +135,7 @@ async fn handle_request(
         (&Method::GET, "/status") => handle_status_request(req, cache).await,
 
         // Health check
-        (&Method::GET, "/health") => Ok(Response::builder()
-            .status(StatusCode::OK)
-            .header(CONTENT_TYPE, "text/plain")
-            .body(Full::new(Bytes::from("OK")))
-            .unwrap()),
+        (&Method::GET, "/health") => Ok(text_response("OK", StatusCode::OK)),
 
         _ => Ok(not_found("Not Found")),
     };
@@ -141,7 +146,7 @@ async fn handle_request(
 async fn handle_resolve_request(
     req: Request<Incoming>,
     cache: Arc<BuildCache>,
-) -> Result<Response<Full<Bytes>>, Infallible> {
+) -> Result<Response<ResponseBody>, Infallible> {
     let query_params = parse_query_params(req.uri());
     let commit_ref = match get_commit_param(&query_params) {
         Ok(commit) => commit,
@@ -162,7 +167,7 @@ async fn handle_resolve_request(
 async fn handle_check_request(
     req: Request<Incoming>,
     cache: Arc<BuildCache>,
-) -> Result<Response<Full<Bytes>>, Infallible> {
+) -> Result<Response<ResponseBody>, Infallible> {
     // Parse query parameters
     let query_params = parse_query_params(req.uri());
     let commit_ref = match get_commit_param(&query_params) {
@@ -197,7 +202,7 @@ async fn handle_check_request(
 async fn handle_download_request(
     req: Request<Incoming>,
     cache: Arc<BuildCache>,
-) -> Result<Response<Full<Bytes>>, Infallible> {
+) -> Result<Response<ResponseBody>, Infallible> {
     // Parse query parameters
     let query_params = parse_query_params(req.uri());
     let commit_ref = match get_commit_param(&query_params) {
@@ -217,15 +222,35 @@ async fn handle_download_request(
     match cache.resolve_commit(&commit_ref).await {
         Ok(resolved_commit) => {
             match cache
-                .get_binary_data(&resolved_commit, &cpu_target, &binary_name)
+                .get_binary_info(&resolved_commit, &cpu_target, &binary_name)
                 .await
             {
-                Ok(data) => Ok(Response::builder()
-                    .status(StatusCode::OK)
-                    .header(CONTENT_TYPE, "application/octet-stream")
-                    .header("x-iota-build-commit-hash", resolved_commit)
-                    .body(Full::new(Bytes::from(data)))
-                    .unwrap()),
+                Ok((binary_path, file_size)) => {
+                    // Generate ETag based on commit hash and file size (immutable content)
+                    let etag = format!("\"{}-{}-{file_size}\"", resolved_commit, binary_name);
+
+                    // Check if client has cached version
+                    if let Some(if_none_match) = req.headers().get(IF_NONE_MATCH) {
+                        if let Ok(client_etag) = if_none_match.to_str() {
+                            if client_etag == etag {
+                                return Ok(Response::builder()
+                                    .status(StatusCode::NOT_MODIFIED)
+                                    .header(ETAG, etag)
+                                    .header("cache-control", "public, max-age=31536000")
+                                    .body(
+                                        Full::new(Bytes::new())
+                                            .map_err(|never| match never {})
+                                            .boxed(),
+                                    )
+                                    .unwrap());
+                            }
+                        }
+                    }
+
+                    // Handle full file download with resumable support
+                    handle_full_file_download(&binary_path, file_size, &resolved_commit, &etag)
+                        .await
+                }
                 Err(e) => {
                     warn!("Binary not found: {e}");
                     Ok(not_found(format!("Binary not found: {e}")))
@@ -239,11 +264,37 @@ async fn handle_download_request(
     }
 }
 
+/// Handle full file download with streaming for large files
+async fn handle_full_file_download(
+    binary_path: &std::path::Path,
+    file_size: u64,
+    resolved_commit: &str,
+    etag: &str,
+) -> Result<Response<ResponseBody>, Infallible> {
+    match tokio::fs::File::open(binary_path).await {
+        Ok(file) => {
+            let reader_stream = ReaderStream::new(file);
+            let stream_body = StreamBody::new(reader_stream.map(|result| result.map(Frame::data)));
+
+            Ok(Response::builder()
+                .status(StatusCode::OK)
+                .header(CONTENT_TYPE, "application/octet-stream")
+                .header(CONTENT_LENGTH, file_size.to_string())
+                .header(ETAG, etag)
+                .header("x-iota-build-commit-hash", resolved_commit)
+                .header("cache-control", "public, max-age=31536000") // Cache for 1 year since content is immutable
+                .body(BodyExt::boxed(stream_body))
+                .unwrap())
+        }
+        Err(e) => Ok(internal_error(format!("Failed to open file: {e}"))),
+    }
+}
+
 /// Handle build requests
 async fn handle_build_request(
     req: Request<Incoming>,
     cache: Arc<BuildCache>,
-) -> Result<Response<Full<Bytes>>, Infallible> {
+) -> Result<Response<ResponseBody>, Infallible> {
     let body = req.collect().await.unwrap().to_bytes();
 
     // Parse the request body as BuildRequest
@@ -280,7 +331,7 @@ async fn handle_build_request(
 async fn handle_status_request(
     req: Request<Incoming>,
     cache: Arc<BuildCache>,
-) -> Result<Response<Full<Bytes>>, Infallible> {
+) -> Result<Response<ResponseBody>, Infallible> {
     // Parse query parameters
     let query_params = parse_query_params(req.uri());
     let commit_ref = match get_commit_param(&query_params) {
@@ -331,7 +382,7 @@ fn parse_query_params(uri: &http::Uri) -> std::collections::HashMap<String, Stri
 /// Extract commit reference from query parameters
 fn get_commit_param(
     query_params: &std::collections::HashMap<String, String>,
-) -> Result<String, Response<Full<Bytes>>> {
+) -> Result<String, Response<ResponseBody>> {
     match query_params.get("commit") {
         Some(commit) => Ok(commit.clone()),
         None => Err(bad_request("Missing 'commit' query parameter")),
@@ -341,7 +392,7 @@ fn get_commit_param(
 /// Extract CPU target from query parameters
 fn get_cpu_target_param(
     query_params: &std::collections::HashMap<String, String>,
-) -> Result<String, Response<Full<Bytes>>> {
+) -> Result<String, Response<ResponseBody>> {
     match query_params.get("cpu_target") {
         Some(target) => Ok(target.clone()),
         None => Err(bad_request("Missing 'cpu_target' query parameter")),
@@ -352,7 +403,7 @@ fn get_cpu_target_param(
 /// missing or empty)
 fn get_binaries_param(
     query_params: &std::collections::HashMap<String, String>,
-) -> Result<Vec<String>, Response<Full<Bytes>>> {
+) -> Result<Vec<String>, Response<ResponseBody>> {
     match query_params.get("binaries") {
         Some(binaries_str) if !binaries_str.is_empty() => {
             let binaries: Vec<String> = binaries_str
@@ -375,7 +426,7 @@ fn get_binaries_param(
 /// Extract single binary name from query parameters
 fn get_binary_param(
     query_params: &std::collections::HashMap<String, String>,
-) -> Result<String, Response<Full<Bytes>>> {
+) -> Result<String, Response<ResponseBody>> {
     match query_params.get("binary") {
         Some(name) => Ok(name.clone()),
         None => Err(bad_request("Missing 'binary' query parameter")),

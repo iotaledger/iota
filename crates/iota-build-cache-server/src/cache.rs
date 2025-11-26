@@ -102,13 +102,25 @@ impl BuildCache {
         }
     }
 
-    /// Get binary data for download
-    pub async fn get_binary_data(
+    /// Get binary file metadata (path, size) for streaming downloads
+    pub async fn get_binary_info(
         &self,
         commit: &str,
         cpu_target: &str,
         binary_name: &str,
-    ) -> Result<Vec<u8>> {
+    ) -> Result<(std::path::PathBuf, u64)> {
+        let binary_path = self.get_binary_path(commit, cpu_target, binary_name)?;
+        let metadata = fs::metadata(&binary_path)?;
+        Ok((binary_path, metadata.len()))
+    }
+
+    /// Helper to get and validate binary path
+    fn get_binary_path(
+        &self,
+        commit: &str,
+        cpu_target: &str,
+        binary_name: &str,
+    ) -> Result<std::path::PathBuf> {
         let cache_path = self.get_cache_path(commit, cpu_target);
         let binary_path = cache_path.join(binary_name);
 
@@ -129,13 +141,13 @@ impl BuildCache {
             ));
         }
 
-        if !binary_path.exists() {
+        if !canonical_binary_path.exists() {
             return Err(anyhow::anyhow!(
                 "Binary {binary_name} not found for commit {commit} and CPU target {cpu_target}",
             ));
         }
 
-        Ok(fs::read(binary_path)?)
+        Ok(canonical_binary_path)
     }
 
     /// Resolve a branch/tag/commit to an actual commit hash
