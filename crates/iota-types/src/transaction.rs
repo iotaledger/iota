@@ -1294,7 +1294,7 @@ impl SharedInputObject {
     /// Merges another SharedInputObject into self.
     /// If there is a conflict in mutability, the resulting object will be
     /// mutable. Errors if the id or initial_shared_version do not match.
-    pub fn union(&mut self, other: &SharedInputObject) -> UserInputResult<()> {
+    pub fn left_union(&mut self, other: &SharedInputObject) -> UserInputResult<()> {
         fp_ensure!(self.id == other.id, UserInputError::SharedObjectIdMismatch);
         fp_ensure!(
             self.initial_shared_version == other.initial_shared_version,
@@ -2523,7 +2523,7 @@ impl SenderSignedData {
     /// example) can be duplicated in the transaction and authenticator
     /// object lists, we load them independently to make it possible to
     /// analyze the inputs in the transaction checkers.
-    pub fn collect_all_inputs_for_reading(&self) -> IotaResult<Vec<InputObjectKind>> {
+    pub fn collect_all_input_object_kind_for_reading(&self) -> IotaResult<Vec<InputObjectKind>> {
         let mut input_objects_set = self
             .transaction_data()
             .input_objects()?
@@ -2543,7 +2543,7 @@ impl SenderSignedData {
     /// 2. Input objects required by the sender `MoveAuthenticator`, including
     ///    the object to authenticate.
     /// 3. The object to authenticate from the sender `MoveAuthenticator`.
-    pub fn split_inputs_into_groups_for_reading(
+    pub fn split_input_objects_into_groups_for_reading(
         &self,
         input_objects: InputObjects,
     ) -> IotaResult<(InputObjects, Option<InputObjects>, Option<ObjectReadResult>)> {
@@ -2633,7 +2633,7 @@ impl SenderSignedData {
                 match entry {
                     None => input_objects.push(auth_shared_object),
                     Some(existing) => existing
-                        .union(&auth_shared_object)
+                        .left_union(&auth_shared_object)
                         .expect("union of shared objects should not fail"),
                 }
             }
@@ -2667,7 +2667,7 @@ impl SenderSignedData {
 
                 match entry {
                     None => input_objects.push(auth_object),
-                    Some(existing) => existing.union(&auth_object)?,
+                    Some(existing) => existing.left_union_with_checks(&auth_object)?,
                 }
             }
         }
@@ -3118,7 +3118,7 @@ impl InputObjectKind {
     /// For shared objects, if either is mutable, the result is mutable.
     /// Fails if either is not a shared object, or if the IDs or initial
     /// versions do not match.
-    pub fn union(&mut self, other: &InputObjectKind) -> UserInputResult<()> {
+    pub fn left_union_with_checks(&mut self, other: &InputObjectKind) -> UserInputResult<()> {
         match self {
             InputObjectKind::MovePackage(_) | InputObjectKind::ImmOrOwnedMoveObject(_) => {
                 fp_bail!(UserInputError::NotSharedObject)

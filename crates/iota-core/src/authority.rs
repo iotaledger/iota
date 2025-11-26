@@ -1313,7 +1313,7 @@ impl AuthorityState {
             .execution_load_input_objects_latency
             .start_timer();
 
-        let input_objects = certificate.collect_all_inputs_for_reading()?;
+        let input_objects = certificate.collect_all_input_object_kind_for_reading()?;
 
         let input_objects = self.input_loader.read_objects_for_execution(
             epoch_store,
@@ -1323,7 +1323,7 @@ impl AuthorityState {
             epoch_store.epoch(),
         )?;
 
-        certificate.split_inputs_into_groups_for_reading(input_objects)
+        certificate.split_input_objects_into_groups_for_reading(input_objects)
     }
 
     /// Test only wrapper for `try_execute_immediately()` above, useful for
@@ -5456,13 +5456,13 @@ impl AuthorityState {
     )> {
         let (input_objects, tx_receiving_objects) = self.input_loader.read_objects_for_signing(
             Some(transaction.digest()),
-            &transaction.collect_all_inputs_for_reading()?,
+            &transaction.collect_all_input_object_kind_for_reading()?,
             &transaction.data().transaction_data().receiving_objects(),
             epoch,
         )?;
 
         transaction
-            .split_inputs_into_groups_for_reading(input_objects)
+            .split_input_objects_into_groups_for_reading(input_objects)
             .map(|(tx_input_objects, auth_input_objects, account_object)| {
                 (
                     tx_input_objects,

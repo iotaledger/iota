@@ -790,7 +790,7 @@ mod checked {
                 if let ObjectReadResultKind::Object(_) = &other_object.object {
                     base_object
                         .input_object_kind
-                        .union(&other_object.input_object_kind)?;
+                        .left_union_with_checks(&other_object.input_object_kind)?;
                 }
             } else {
                 base_set.push(other_object.clone());
