@@ -11,7 +11,7 @@ import { useAccounts, useExplorerLink, useBackgroundClient } from '_hooks';
 import { toast, useGetDefaultIotaName } from '@iota/core';
 import { Account, BadgeType, Dropdown, ListItem } from '@iota/apps-ui-kit';
 import { OutsideClickHandler } from '_components/OutsideClickHandler';
-import { IotaLogoMark, Keystone, Ledger } from '@iota/apps-ui-icons';
+import { IotaLogoMark, Keystone, Ledger, Passkey } from '@iota/apps-ui-icons';
 import { RemoveDialog } from './RemoveDialog';
 import { isMainAccount } from '_src/background/accounts/isMainAccount';
 import { Portal } from '_app/shared/Portal';
@@ -83,7 +83,7 @@ export function AccountGroupItem({
         if (!account) return;
 
         await backgroundClient.selectAccount(account.id);
-        navigate('/');
+        navigate('/tokens');
         toast(`Account ${formatAddress(account.address)} selected`);
     }
 
@@ -202,6 +202,8 @@ function AccountAvatar({ account }: { account: SerializedUIAccount }) {
         logo = <Keystone className="h-4 w-4" />;
     } else if (account.type === AccountType.LedgerDerived) {
         logo = <Ledger className="h-4 w-4" />;
+    } else if (account.type === AccountType.PasskeyDerived) {
+        logo = <Passkey className="h-4 w-4" />;
     } else {
         logo = <IotaLogoMark />;
     }

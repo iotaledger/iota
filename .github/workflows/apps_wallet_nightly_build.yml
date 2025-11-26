@@ -42,11 +42,19 @@ jobs:
           key: turbo-${{ runner.os }}-${{ github.sha }}
           restore-keys: |
             turbo-${{ runner.os }}-
-      - name: Build Wallet
+      - name: Build Chrome Wallet
         run: pnpm wallet build:nightly
-      - name: Upload artifacts
+      - name: Upload Chrome artifacts
         uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
         with:
-          name: ${{ env.artifact_name }}
+          name: chrome-${{ env.artifact_name }}
+          path: |
+            ./apps/wallet/dist
+      - name: Build Firefox Wallet
+        run: pnpm wallet build:firefox:nightly
+      - name: Upload Firefox artifacts
+        uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
+        with:
+          name: firefox-${{ env.artifact_name }}
           path: |
             ./apps/wallet/dist

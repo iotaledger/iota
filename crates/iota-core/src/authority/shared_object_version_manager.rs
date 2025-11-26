@@ -327,7 +327,7 @@ mod tests {
             _ => panic!("expected shared object"),
         };
         let authority = TestAuthorityBuilder::new()
-            .with_starting_objects(&[shared_object.clone()])
+            .with_starting_objects(std::slice::from_ref(&shared_object))
             .build()
             .await;
         let certs = vec![
@@ -641,7 +641,7 @@ mod tests {
             _ => panic!("expected shared object"),
         };
         let authority = TestAuthorityBuilder::new()
-            .with_starting_objects(&[shared_object.clone()])
+            .with_starting_objects(std::slice::from_ref(&shared_object))
             .build()
             .await;
         let certs = vec![

@@ -6,8 +6,8 @@
 use std::{convert::TryFrom, fmt, str::FromStr};
 
 use hex::FromHex;
-use rand::{rngs::OsRng, Rng};
-use serde::{de::Error as _, Deserialize, Deserializer, Serialize, Serializer};
+use rand::{Rng, rngs::OsRng};
+use serde::{Deserialize, Deserializer, Serialize, Serializer, de::Error as _};
 
 use crate::gas_algebra::AbstractMemorySize;
 

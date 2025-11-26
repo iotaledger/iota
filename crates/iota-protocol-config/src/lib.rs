@@ -19,7 +19,7 @@ use tracing::{info, warn};
 
 /// The minimum and maximum protocol versions supported by this build.
 const MIN_PROTOCOL_VERSION: u64 = 1;
-pub const MAX_PROTOCOL_VERSION: u64 = 14;
+pub const MAX_PROTOCOL_VERSION: u64 = 16;
 
 // Record history of protocol version allocations here:
 //
@@ -77,7 +77,20 @@ pub const MAX_PROTOCOL_VERSION: u64 = 14;
 //             of eligible active validators.
 //             Enable processing and tracking AuthorityCapabilitiesV1 from
 //             non-committee validators in the devnet.
-
+// Version 14: Switches the consensus protocol to Starfish in devnet.
+//             Enable median-based commit timestamp calculation in consensus,
+//             and enforce checkpoint timestamp monotonicity for testnet.
+//             Enable batched block sync for mainnet.
+//             Enable selecting committee only from active validators that
+//             support the next epoch's version and issued valid
+//             AuthorityCapabilities notification in testnet.
+// Version 15: Enable shared object transaction bursts of 10 times average load
+//             on devnet.
+// Version 16: Enable selecting committee only from active validators that
+//             support the next epoch's version and issued valid
+//             AuthorityCapabilities notification.
+//             Enable committing transactions only for traversed headers in
+//             Starfish.
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
 
@@ -351,6 +364,15 @@ struct FeatureFlags {
     #[serde(skip_serializing_if = "is_false")]
     select_committee_supporting_next_epoch_version: bool,
 
+    // If true, then it (1) will not enforce monotonicity checks for a block's ancestors, (2)
+    // calculates the commit's timestamp based on the weighted by stake median timestamp of the
+    // leader's ancestors, and (3) enforces checkpoint timestamps are non-decreasing.
+    #[serde(skip_serializing_if = "is_false")]
+    consensus_median_timestamp_with_checkpoint_enforcement: bool,
+    // If true, then transactions are committed only for traversed headers
+    #[serde(skip_serializing_if = "is_false")]
+    consensus_commit_transactions_only_for_traversed_headers: bool,
+
     // If true, enables the authentication of account using Move code.
     #[serde(skip_serializing_if = "is_false")]
     move_auth: bool,
@@ -410,11 +432,15 @@ impl PerObjectCongestionControlMode {
 pub enum ConsensusChoice {
     #[default]
     Mysticeti,
+    Starfish,
 }
 
 impl ConsensusChoice {
     pub fn is_mysticeti(&self) -> bool {
         matches!(self, ConsensusChoice::Mysticeti)
+    }
+    pub fn is_starfish(&self) -> bool {
+        matches!(self, ConsensusChoice::Starfish)
     }
 }
 
@@ -1140,7 +1166,9 @@ pub struct ProtocolConfig {
 
     /// The max accumulated txn execution cost per object in a mysticeti commit.
     /// Transactions in a commit will be deferred once their touch shared
-    /// objects hit this limit.
+    /// objects hit this limit. Note that if
+    /// `max_congestion_limit_overshoot_per_commit` is set, this may be overshot
+    /// within a single commit, but the limit will be enforced in the long run.
     max_accumulated_txn_cost_per_object_in_mysticeti_commit: Option<u64>,
 
     /// Maximum number of committee (validators taking part in consensus)
@@ -1151,6 +1179,19 @@ pub struct ProtocolConfig {
     /// Configures the garbage collection depth for consensus. When is unset or
     /// `0` then the garbage collection is disabled.
     consensus_gc_depth: Option<u32>,
+
+    /// Configures the maximum number of acknowledgments to be included in a
+    /// block. It must be reasonably larger than the number of validators
+    /// because not all validators create their blocks at the same pace.
+    /// Default value set to 400. (5 x expected committee size (80)).
+    /// Applicable only to `starfish` consensus.
+    consensus_max_acknowledgments_per_block: Option<u32>,
+
+    /// The maximum amount that is allowed to overshoot the congestion limit
+    /// specified by 'max_accumulated_txn_cost_per_object_in_mysticeti_commit'
+    /// for any single commit. Any overshoot is tracked as a debt that must
+    /// be accounted for in subsequent commits.
+    max_congestion_limit_overshoot_per_commit: Option<u64>,
 }
 
 // feature flags
@@ -1325,6 +1366,10 @@ impl ProtocolConfig {
         res
     }
 
+    pub fn consensus_max_acknowledgments_per_block_or_default(&self) -> u32 {
+        self.consensus_max_acknowledgments_per_block.unwrap_or(400)
+    }
+
     pub fn variant_nodes(&self) -> bool {
         self.feature_flags.variant_nodes
     }
@@ -1412,6 +1457,21 @@ impl ProtocolConfig {
             "select_committee_supporting_next_epoch_version requires select_committee_from_eligible_validators to be set"
         );
         res
+    }
+
+    pub fn consensus_median_timestamp_with_checkpoint_enforcement(&self) -> bool {
+        let res = self
+            .feature_flags
+            .consensus_median_timestamp_with_checkpoint_enforcement;
+        assert!(
+            !res || self.gc_depth() > 0,
+            "The consensus median timestamp with checkpoint enforcement requires GC to be enabled"
+        );
+        res
+    }
+    pub fn consensus_commit_transactions_only_for_traversed_headers(&self) -> bool {
+        self.feature_flags
+            .consensus_commit_transactions_only_for_traversed_headers
     }
 }
 
@@ -1971,6 +2031,10 @@ impl ProtocolConfig {
             max_committee_members_count: None,
 
             consensus_gc_depth: None,
+
+            consensus_max_acknowledgments_per_block: None,
+
+            max_congestion_limit_overshoot_per_commit: None,
             // When adding a new constant, set it to None in the earliest version, like this:
             // new_constant: None,
         };
@@ -2245,6 +2309,41 @@ impl ProtocolConfig {
                     }
                 }
                 14 => {
+                    // Enable batched block sync for mainnet.
+                    cfg.feature_flags.consensus_batched_block_sync = true;
+
+                    if chain != Chain::Mainnet {
+                        // Enable median-based commit timestamp calculation in consensus and
+                        // enforce checkpoint timestamp monotonicity for testnet.
+                        cfg.feature_flags
+                            .consensus_median_timestamp_with_checkpoint_enforcement = true;
+                        // Enable selecting committee only from active validators that support the
+                        // next epoch's version and issued valid AuthorityCapabilities notification
+                        // in testnet.
+                        cfg.feature_flags
+                            .select_committee_supporting_next_epoch_version = true;
+                    }
+                    if chain != Chain::Testnet && chain != Chain::Mainnet {
+                        // Switch consensus protocol to Starfish in devnet
+                        cfg.feature_flags.consensus_choice = ConsensusChoice::Starfish;
+                    }
+                }
+                15 => {
+                    if chain != Chain::Mainnet && chain != Chain::Testnet {
+                        // Enable overshoot of 100 in congestion control. This allows bursts of
+                        // shared object transactions up to 10 times the average allowable
+                        // load set by `max_accumulated_txn_cost_per_object_in_mysticeti_commit`.
+                        cfg.max_congestion_limit_overshoot_per_commit = Some(100);
+                    }
+                }
+                16 => {
+                    // Enable selecting committee only from active validators that support the
+                    // next epoch's version and issued valid AuthorityCapabilities notification.
+                    cfg.feature_flags
+                        .select_committee_supporting_next_epoch_version = true;
+                    // Enable committing transactions only for traversed headers in Starfish
+                    cfg.feature_flags
+                        .consensus_commit_transactions_only_for_traversed_headers = true;
                     // Enable AA in all networks that are not mainnet or testnet.
                     if chain != Chain::Mainnet && chain != Chain::Testnet {
                         // max auth gas budget is in NANOS and an absolute value 1IOTA
@@ -2425,6 +2524,21 @@ impl ProtocolConfig {
     pub fn set_select_committee_supporting_next_epoch_version(&mut self, val: bool) {
         self.feature_flags
             .select_committee_supporting_next_epoch_version = val;
+    }
+
+    pub fn set_consensus_median_timestamp_with_checkpoint_enforcement_for_testing(
+        &mut self,
+        val: bool,
+    ) {
+        self.feature_flags
+            .consensus_median_timestamp_with_checkpoint_enforcement = val;
+    }
+    pub fn set_consensus_commit_transactions_only_for_traversed_headers_for_testing(
+        &mut self,
+        val: bool,
+    ) {
+        self.feature_flags
+            .consensus_commit_transactions_only_for_traversed_headers = val;
     }
 
     pub fn set_move_auth_for_testing(&mut self, val: bool) {

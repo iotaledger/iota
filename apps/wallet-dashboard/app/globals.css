@@ -1,4 +1,5 @@
 @import '@iota/apps-ui-kit/styles';
+@import '../components/disclaimer/CookieDisclaimer.css';
 
 @tailwind base;
 @tailwind components;

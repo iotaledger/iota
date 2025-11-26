@@ -985,10 +985,29 @@ struct PeerInfo {
 
 // Adapt MetricsCallbackMaker and MetricsResponseCallback to http.
 
+/// Calculate approximate size of HTTP headers.
+/// Note: This is an approximation of uncompressed size. Actual wire size will
+/// be smaller due to HTTP/2 HPACK compression.
+fn calculate_header_size(headers: &http::HeaderMap) -> usize {
+    headers
+        .iter()
+        .map(|(name, value)| {
+            // +4 bytes for ": " and "\r\n" separator in HTTP/1.1 format
+            name.as_str().len() + value.len() + 4
+        })
+        .sum()
+}
+
 impl SizedRequest for http::request::Parts {
     fn size(&self) -> usize {
-        // TODO: implement this.
-        0
+        let header_size = calculate_header_size(&self.headers);
+        let body_size = self
+            .headers
+            .get(http::header::CONTENT_LENGTH)
+            .and_then(|v| v.to_str().ok())
+            .and_then(|v| v.parse::<usize>().ok())
+            .unwrap_or(0);
+        header_size + body_size
     }
 
     fn route(&self) -> String {
@@ -1002,8 +1021,9 @@ impl SizedRequest for http::request::Parts {
 
 impl SizedResponse for http::response::Parts {
     fn size(&self) -> usize {
-        // TODO: implement this.
-        0
+        // Return header size only. Body size is tracked separately via
+        // ResponseHandler::on_body_chunk callback to support streaming responses.
+        calculate_header_size(&self.headers)
     }
 
     fn error_type(&self) -> Option<String> {
@@ -1025,11 +1045,19 @@ impl MakeCallbackHandler for MetricsCallbackMaker {
 
 impl ResponseHandler for MetricsResponseCallback {
     fn on_response(&mut self, response: &http::response::Parts) {
-        MetricsResponseCallback::on_response(self, response)
+        MetricsResponseCallback::on_response(self, response, &response.headers)
     }
 
     fn on_error<E>(&mut self, err: &E) {
         MetricsResponseCallback::on_error(self, err)
+    }
+
+    fn on_body_chunk<B>(&mut self, chunk: &B)
+    where
+        B: bytes::Buf,
+    {
+        let chunk_size = chunk.chunk().len();
+        self.on_chunk(chunk_size);
     }
 }
 

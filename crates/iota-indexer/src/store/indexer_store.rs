@@ -6,28 +6,25 @@ use std::{any::Any, collections::BTreeMap};
 
 use async_trait::async_trait;
 use diesel::PgConnection;
+use strum::IntoEnumIterator;
 
 use crate::{
     errors::IndexerError,
-    handlers::{EpochToCommit, TransactionObjectChangesToCommit},
+    ingestion::{
+        common::{persist::CommitterWatermark, prepare::CheckpointObjectChanges},
+        primary::persist::{EpochToCommit, TransactionObjectChangesToCommit},
+    },
     models::{
         display::StoredDisplay,
         obj_indices::StoredObjectVersion,
-        objects::{StoredDeletedObject, StoredObject},
         transactions::{CheckpointTxGlobalOrder, OptimisticTransaction},
+        watermarks::StoredWatermark,
     },
-    rolling::transform::CheckpointObjectChanges,
+    pruning::pruner::PrunableTable,
     types::{
         EventIndex, IndexedCheckpoint, IndexedEvent, IndexedPackage, IndexedTransaction, TxIndex,
-        TxIndexV2,
     },
 };
-
-#[expect(clippy::large_enum_variant)]
-pub enum ObjectsToCommit {
-    MutatedObject(StoredObject),
-    DeletedObject(StoredDeletedObject),
-}
 
 #[async_trait]
 pub trait IndexerStore: Any + Clone + Sync + Send + 'static {
@@ -36,6 +33,10 @@ pub trait IndexerStore: Any + Clone + Sync + Send + 'static {
     async fn get_available_epoch_range(&self) -> Result<(u64, u64), IndexerError>;
 
     async fn get_available_checkpoint_range(&self) -> Result<(u64, u64), IndexerError>;
+
+    async fn get_latest_object_snapshot_watermark(
+        &self,
+    ) -> Result<Option<CommitterWatermark>, IndexerError>;
 
     async fn get_latest_object_snapshot_checkpoint_sequence_number(
         &self,
@@ -46,11 +47,6 @@ pub trait IndexerStore: Any + Clone + Sync + Send + 'static {
     fn persist_protocol_configs_and_feature_flags(
         &self,
         chain_id: Vec<u8>,
-    ) -> Result<(), IndexerError>;
-
-    async fn persist_objects(
-        &self,
-        object_changes: Vec<TransactionObjectChangesToCommit>,
     ) -> Result<(), IndexerError>;
 
     async fn persist_object_history(
@@ -83,8 +79,6 @@ pub trait IndexerStore: Any + Clone + Sync + Send + 'static {
         conn: &mut PgConnection,
         transaction: OptimisticTransaction,
     ) -> Result<(), IndexerError>;
-
-    async fn persist_tx_indices(&self, indices: Vec<TxIndex>) -> Result<(), IndexerError>;
 
     async fn persist_events(&self, events: Vec<IndexedEvent>) -> Result<(), IndexerError>;
 
@@ -126,10 +120,26 @@ pub trait IndexerStore: Any + Clone + Sync + Send + 'static {
         conn: &mut PgConnection,
         object_changes: Vec<TransactionObjectChangesToCommit>,
     ) -> Result<(), IndexerError>;
-}
 
-#[async_trait]
-pub trait IndexerStoreExt: IndexerStore {
+    /// Update the upper bound of the watermarks for the given tables.
+    async fn update_watermarks_upper_bound<E: IntoEnumIterator>(
+        &self,
+        watermark: CommitterWatermark,
+    ) -> Result<(), IndexerError>
+    where
+        E::Iterator: Iterator<Item: AsRef<str>>;
+
+    /// Updates each watermark entry's lower bounds per the list of tables and
+    /// their new epoch lower bounds.
+    async fn update_watermarks_lower_bound(
+        &self,
+        watermarks: Vec<(PrunableTable, u64)>,
+    ) -> Result<(), IndexerError>;
+
+    /// Load all watermark entries from the store, and the latest timestamp from
+    /// the db.
+    async fn get_watermarks(&self) -> Result<(Vec<StoredWatermark>, i64), IndexerError>;
+
     async fn persist_checkpoint_objects(
         &self,
         objects: Vec<CheckpointObjectChanges>,
@@ -145,5 +155,5 @@ pub trait IndexerStoreExt: IndexerStore {
         tx_order: Vec<CheckpointTxGlobalOrder>,
     ) -> Result<(), IndexerError>;
 
-    async fn persist_tx_indices_v2(&self, indices: Vec<TxIndexV2>) -> Result<(), IndexerError>;
+    async fn persist_tx_indices(&self, indices: Vec<TxIndex>) -> Result<(), IndexerError>;
 }

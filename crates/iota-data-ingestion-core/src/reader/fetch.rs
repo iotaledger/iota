@@ -160,12 +160,12 @@ pub(crate) fn init_watcher(
         }
         inotify_sender
             .blocking_send(())
-            .expect("Failed to send inotify update");
+            .expect("failed to send inotify update");
     })
-    .expect("Failed to init inotify");
+    .expect("failed to init inotify");
     watcher
         .watch(path, RecursiveMode::NonRecursive)
-        .expect("Inotify watcher failed");
+        .expect("inotify watcher failed");
     watcher
 }
 
@@ -190,7 +190,7 @@ pub async fn fetch_from_object_store(
     checkpoint_number: CheckpointSequenceNumber,
 ) -> CheckpointResult {
     let path = ObjectStorePath::from(format!("{checkpoint_number}.{CHECKPOINT_FILE_SUFFIX}"));
-    debug!("Fetch {path} from live");
+    debug!("fetch {path} from live");
     let response = store.get(&path).await?;
     let bytes = response.bytes().await?;
     Ok((

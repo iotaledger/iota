@@ -3,10 +3,11 @@
 // Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use std::collections::BTreeMap;
+
 use move_command_line_common::files::FileHash;
 use move_core_types::account_address::AccountAddress;
 use move_ir_types::location::*;
-use std::collections::BTreeMap;
 
 use crate::syntax::ParseError;
 

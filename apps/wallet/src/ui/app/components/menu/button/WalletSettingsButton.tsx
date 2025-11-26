@@ -23,6 +23,7 @@ export function WalletSettingsButton() {
                 type={ButtonType.Ghost}
                 size={ButtonSize.Small}
                 icon={<IconComponent className="h-5 w-5" />}
+                testId="wallet-settings-button"
             />
         </Link>
     );

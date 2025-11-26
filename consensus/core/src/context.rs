@@ -19,6 +19,8 @@ use crate::{block::BlockTimestampMs, metrics::Metrics};
 /// components of this authority.
 #[derive(Clone)]
 pub(crate) struct Context {
+    /// Timestamp of the start of the current epoch.
+    pub epoch_start_timestamp_ms: u64,
     /// Index of this authority in the committee.
     pub own_index: AuthorityIndex,
     /// Committee of the current epoch.
@@ -35,6 +37,7 @@ pub(crate) struct Context {
 
 impl Context {
     pub(crate) fn new(
+        epoch_start_timestamp_ms: u64,
         own_index: AuthorityIndex,
         committee: Committee,
         parameters: Parameters,
@@ -43,6 +46,7 @@ impl Context {
         clock: Arc<Clock>,
     ) -> Self {
         Self {
+            epoch_start_timestamp_ms,
             own_index,
             committee,
             parameters,
@@ -61,9 +65,10 @@ impl Context {
             consensus_config::local_committee_and_keys(0, vec![1; committee_size]);
         let metrics = test_metrics(committee_size);
         let temp_dir = TempDir::new().unwrap();
-        let clock = Arc::new(Clock::new());
+        let clock = Arc::new(Clock::default());
 
         let context = Context::new(
+            0,
             AuthorityIndex::new_for_test(0),
             committee,
             Parameters {
@@ -75,6 +80,12 @@ impl Context {
             clock,
         );
         (context, keypairs)
+    }
+
+    #[cfg(test)]
+    pub(crate) fn with_epoch_start_timestamp_ms(mut self, epoch_start_timestamp_ms: u64) -> Self {
+        self.epoch_start_timestamp_ms = epoch_start_timestamp_ms;
+        self
     }
 
     #[cfg(test)]
@@ -102,16 +113,32 @@ impl Context {
 /// `[Clock]` cloneable to ensure that a single instance is shared behind an
 /// `[Arc]` wherever is needed in order to make sure that consecutive calls to
 /// receive the system timestamp will remain monotonically increasing.
-pub(crate) struct Clock {
+pub struct Clock {
     initial_instant: Instant,
     initial_system_time: SystemTime,
+    // `clock_drift` should be used only for testing
+    #[cfg(any(test, msim))]
+    clock_drift: BlockTimestampMs,
 }
 
-impl Clock {
-    pub fn new() -> Self {
+impl Default for Clock {
+    fn default() -> Self {
         Self {
             initial_instant: Instant::now(),
             initial_system_time: SystemTime::now(),
+            #[cfg(any(test, msim))]
+            clock_drift: 0,
+        }
+    }
+}
+
+impl Clock {
+    #[cfg(any(test, msim))]
+    pub fn new_for_test(clock_drift: BlockTimestampMs) -> Self {
+        Self {
+            initial_instant: Instant::now(),
+            initial_system_time: SystemTime::now(),
+            clock_drift,
         }
     }
 
@@ -132,7 +159,7 @@ impl Clock {
                     }),
             )
             .expect("Computing system time should not overflow");
-        monotonic_system_time
+        let timestamp = monotonic_system_time
             .duration_since(SystemTime::UNIX_EPOCH)
             .unwrap_or_else(|_| {
                 panic!(
@@ -141,6 +168,18 @@ impl Clock {
                     SystemTime::UNIX_EPOCH,
                 )
             })
-            .as_millis() as BlockTimestampMs
+            .as_millis() as BlockTimestampMs;
+
+        // Apply clock drift only in test/msim environments to simulate clock skew
+        // between nodes. In production builds, clock_drift field doesn't exist
+        // and this returns timestamp directly.
+        #[cfg(any(test, msim))]
+        {
+            timestamp + self.clock_drift
+        }
+        #[cfg(not(any(test, msim)))]
+        {
+            timestamp
+        }
     }
 }

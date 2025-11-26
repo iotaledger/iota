@@ -24,7 +24,7 @@ pub enum HardwareMetricsErr {
     ErrRegisterHardwareMetrics(prometheus::Error),
 }
 
-/// Register all hardware matrics: CPU specs, Memory specs/usage, Disk
+/// Register all hardware metrics: CPU specs, Memory specs/usage, Disk
 /// specs/usage
 /// These metrics are all named with a prefix "hw_"
 /// They are both pushed to iota-proxy and exposed on the /metrics endpoint.

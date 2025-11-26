@@ -94,7 +94,7 @@ console.log("sendOFT - send tx on source chain:", sendTxReceipt?.hash);
 
 #### 4. (Optional) Wait for Finalization
 
-The sender can wait for transaction finalization on the destination chain using the library [@layerzerolabs/scan-client](https://www.npmjs.com/package/@layerzerolabs/scan-client#example-usage).
+The sender can wait for transaction finalization on the destination chain using the library [@layerzerolabs/scan-client](https://www.npmjs.com/package/@layerzerolabs/scan-client).
 
 ```typescript
 const deliveredMsg = await waitForMessageReceived(

@@ -8,14 +8,22 @@ import type { IotaTransactionBlockKind, IotaTransactionBlockResponse } from '@io
 import { TableCellBase, TableCellText } from '@iota/apps-ui-kit';
 import type { ColumnDef } from '@tanstack/react-table';
 import { AddressLink, TransactionLink } from '../../../components/ui';
-import { CoinFormat, formatBalance, formatDigest, NANOS_PER_IOTA } from '@iota/iota-sdk/utils';
+import {
+    CoinFormat,
+    formatBalance,
+    formatDigest,
+    IOTA_TYPE_ARG,
+    NANOS_PER_IOTA,
+} from '@iota/iota-sdk/utils';
 import { getElapsedTime } from '~/pages/epochs/utils';
 
 /**
  * Generate table columns renderers for the transactions data.
  */
-export function generateTransactionsTableColumns(): ColumnDef<IotaTransactionBlockResponse>[] {
-    return [
+export function generateTransactionsTableColumns(
+    address?: string,
+): ColumnDef<IotaTransactionBlockResponse>[] {
+    const columns: ColumnDef<IotaTransactionBlockResponse>[] = [
         {
             header: 'Digest',
             accessorKey: 'digest',
@@ -65,6 +73,53 @@ export function generateTransactionsTableColumns(): ColumnDef<IotaTransactionBlo
                 );
             },
         },
+    ];
+
+    if (address) {
+        columns.push({
+            header: 'Balance Change',
+            accessorKey: 'balanceChanges',
+            cell: ({ getValue }) => {
+                const balanceChanges = getValue<IotaTransactionBlockResponse['balanceChanges']>();
+                if (!balanceChanges) {
+                    return (
+                        <TableCellBase>
+                            <TableCellText>--</TableCellText>
+                        </TableCellBase>
+                    );
+                }
+                const balanceChange = balanceChanges.find(
+                    (change) =>
+                        change.owner &&
+                        typeof change.owner === 'object' &&
+                        'AddressOwner' in change.owner &&
+                        change.owner.AddressOwner === address &&
+                        change.coinType === IOTA_TYPE_ARG,
+                );
+                if (!balanceChange) {
+                    return (
+                        <TableCellBase>
+                            <TableCellText>--</TableCellText>
+                        </TableCellBase>
+                    );
+                }
+                const amount = balanceChange.amount;
+                const formatted = formatBalance(
+                    Math.abs(Number(amount)) / Number(NANOS_PER_IOTA),
+                    0,
+                    CoinFormat.Rounded,
+                );
+                const sign = Number(amount) >= 0 ? '+' : '-';
+                return (
+                    <TableCellBase>
+                        <TableCellText supportingLabel="IOTA">{sign + formatted}</TableCellText>
+                    </TableCellBase>
+                );
+            },
+        });
+    }
+
+    columns.push(
         {
             header: 'Gas',
             accessorKey: 'effects',
@@ -102,5 +157,7 @@ export function generateTransactionsTableColumns(): ColumnDef<IotaTransactionBlo
                 );
             },
         },
-    ];
+    );
+
+    return columns;
 }

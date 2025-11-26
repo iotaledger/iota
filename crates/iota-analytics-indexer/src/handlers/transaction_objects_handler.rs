@@ -103,7 +103,7 @@ impl TransactionObjectsHandler {
         // inputs.
         transaction
             .input_objects()
-            .expect("Input objects must be valid")
+            .expect("input objects must be valid")
             .into_iter()
             .map(|object| (object.object_id(), object.version().map(|v| v.value())))
             .for_each(|(object_id, version)| {

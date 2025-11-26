@@ -24,6 +24,7 @@ import { createInMemoryStore } from '../utils/stateStorage.js';
 import { getRegisteredWallets } from '../utils/walletUtils.js';
 import { createWalletStore } from '../walletStore.js';
 import { InjectedThemeStyles } from './styling/InjectedThemeStyles.js';
+import type { ChainType } from '@iota/iota-sdk/client';
 
 export type WalletProviderProps = {
     /** A list of wallets that are sorted to the top of the wallet list, if they are available to connect to. By default, wallets are sorted by the order they are loaded in. */
@@ -47,6 +48,8 @@ export type WalletProviderProps = {
     /** The theme to use for styling UI components. Defaults to using the light theme. */
     theme?: Theme | null;
 
+    chain?: ChainType;
+
     children: ReactNode;
 };
 
@@ -61,6 +64,7 @@ export function WalletProvider({
     autoConnect = false,
     theme = lightTheme,
     children,
+    chain,
 }: WalletProviderProps) {
     const storeRef = useRef(
         createWalletStore({
@@ -68,6 +72,7 @@ export function WalletProvider({
             wallets: getRegisteredWallets(preferredWallets, walletFilter),
             storage: storage || createInMemoryStore(),
             storageKey,
+            chain,
         }),
     );
 

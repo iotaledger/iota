@@ -145,9 +145,9 @@ impl RpcCommandProcessor {
                     .read_api()
                     .get_object_with_options(*object_id, IotaObjectDataOptions::new())
                     .await
-                    .unwrap_or_else(|_| panic!("Unable to fetch object reference {object_id}"));
+                    .unwrap_or_else(|_| panic!("unable to fetch object reference {object_id}"));
                 let object_ref = resp.object_ref_if_exists().unwrap_or_else(|| {
-                    panic!("Unable to extract object reference {object_id} from response {resp:?}")
+                    panic!("unable to extract object reference {object_id} from response {resp:?}")
                 });
                 object_ref_cache.insert(*object_id, object_ref);
                 object_ref
@@ -366,11 +366,11 @@ impl<'a> ProcessPayload<'a, &'a DryRun> for RpcCommandProcessor {
 fn write_data_to_file<T: Serialize>(data: &T, file_path: &str) -> Result<(), anyhow::Error> {
     let mut path_buf = PathBuf::from(&file_path);
     path_buf.pop();
-    fs::create_dir_all(&path_buf).map_err(|e| anyhow!("Error creating directory: {}", e))?;
+    fs::create_dir_all(&path_buf).map_err(|e| anyhow!("error creating directory: {e}"))?;
 
     let file_name = format!("{file_path}.json");
-    let file = File::create(file_name).map_err(|e| anyhow!("Error creating file: {}", e))?;
-    serde_json::to_writer(file, data).map_err(|e| anyhow!("Error writing to file: {}", e))?;
+    let file = File::create(file_name).map_err(|e| anyhow!("error creating file: {e}"))?;
+    serde_json::to_writer(file, data).map_err(|e| anyhow!("error writing to file: {e}"))?;
 
     Ok(())
 }
@@ -395,20 +395,20 @@ impl fmt::Display for CacheType {
 // do checks any time we use generic load_cache_from_file
 pub fn load_addresses_from_file(filepath: String) -> Vec<IotaAddress> {
     let path = format!("{}/{}", filepath, CacheType::IotaAddress);
-    let addresses: Vec<IotaAddress> = read_data_from_file(&path).expect("Failed to read addresses");
+    let addresses: Vec<IotaAddress> = read_data_from_file(&path).expect("failed to read addresses");
     addresses
 }
 
 pub fn load_objects_from_file(filepath: String) -> Vec<ObjectID> {
     let path = format!("{}/{}", filepath, CacheType::ObjectID);
-    let objects: Vec<ObjectID> = read_data_from_file(&path).expect("Failed to read objects");
+    let objects: Vec<ObjectID> = read_data_from_file(&path).expect("failed to read objects");
     objects
 }
 
 pub fn load_digests_from_file(filepath: String) -> Vec<TransactionDigest> {
     let path = format!("{}/{}", filepath, CacheType::TransactionDigest);
     let digests: Vec<TransactionDigest> =
-        read_data_from_file(&path).expect("Failed to read transaction digests");
+        read_data_from_file(&path).expect("failed to read transaction digests");
     digests
 }
 
@@ -423,12 +423,12 @@ fn read_data_from_file<T: DeserializeOwned>(file_path: &str) -> Result<T, anyhow
 
     let path = path_buf.as_path();
     if !path.exists() {
-        bail!("File not found: {}", file_path);
+        bail!("file not found: {file_path}");
     }
 
-    let file = File::open(path).map_err(|e| anyhow!("Error opening file: {}", e))?;
+    let file = File::open(path).map_err(|e| anyhow!("error opening file: {e}"))?;
     let deserialized_data: T =
-        serde_json::from_reader(file).map_err(|e| anyhow!("Deserialization error: {}", e))?;
+        serde_json::from_reader(file).map_err(|e| anyhow!("deserialization error: {e}"))?;
 
     Ok(deserialized_data)
 }
@@ -564,7 +564,7 @@ async fn prepare_new_signer_and_coins(
     );
 
     let primary_keypair = IotaKeyPair::decode_base64(&signer_info.encoded_keypair)
-        .expect("Decoding keypair should not fail");
+        .expect("decoding keypair should not fail");
     let sender = IotaAddress::from(&primary_keypair.public());
     let (coin, balance) = get_coin_with_max_balance(client, sender).await;
     // The balance needs to cover `pay_amount` plus
@@ -573,7 +573,7 @@ async fn prepare_new_signer_and_coins(
     let required_balance = pay_amount + gas_fee_for_split + gas_fee_for_pay_iota;
     if required_balance > balance {
         panic!(
-            "Current balance {balance} is smaller than require amount of NANOS to fund the operation {required_balance}"
+            "current balance {balance} is smaller than require amount of NANOS to fund the operation {required_balance}"
         );
     }
 
@@ -733,7 +733,7 @@ async fn pay_iota(
         .transaction_builder()
         .pay(sender, input_coins, recipients, amounts, None, gas_budget)
         .await
-        .expect("Failed to construct pay iota transaction");
+        .expect("failed to construct pay iota transaction");
     sign_and_execute(
         client,
         keypair,
@@ -761,7 +761,7 @@ async fn split_coins(
             DEFAULT_LARGE_GAS_BUDGET,
         )
         .await
-        .expect("Failed to construct split coin transaction");
+        .expect("failed to construct split coin transaction");
     sign_and_execute(
         client,
         keypair,
@@ -808,14 +808,14 @@ pub(crate) async fn sign_and_execute(
         Some(effects) => {
             if let IotaExecutionStatus::Failure { error } = effects.status() {
                 panic!(
-                    "Transaction {} failed with error: {}. Transaction Response: {:?}",
+                    "transaction {} failed with error: {}. Transaction Response: {:?}",
                     transaction_response.digest, error, &transaction_response
                 );
             }
         }
         None => {
             panic!(
-                "Transaction {} has no effects. Response {:?}",
+                "transaction {} has no effects. Response {:?}",
                 transaction_response.digest, &transaction_response
             );
         }

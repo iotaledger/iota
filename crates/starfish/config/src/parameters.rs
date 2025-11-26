@@ -28,13 +28,13 @@ pub struct Parameters {
     #[serde(default = "Parameters::default_leader_timeout")]
     pub leader_timeout: Duration,
 
-    /// Minimum delay between rounds, to avoid generating too many rounds when
-    /// latency is low. This is especially necessary for tests running
+    /// Minimum delay between own blocks. This avoids generating too many rounds
+    /// when latency is low. This is especially necessary for tests running
     /// locally. If setting a non-default value, it should be set low enough
     /// to avoid reducing round rate and increasing latency in realistic and
     /// distributed configurations.
-    #[serde(default = "Parameters::default_min_round_delay")]
-    pub min_round_delay: Duration,
+    #[serde(default = "Parameters::default_min_block_delay")]
+    pub min_block_delay: Duration,
 
     /// Maximum forward time drift (how far in future) allowed for received
     /// blocks.
@@ -45,13 +45,17 @@ pub struct Parameters {
     #[serde(default = "Parameters::default_max_headers_per_commit_sync_fetch")]
     pub max_headers_per_commit_sync_fetch: usize,
 
+    /// Number of transactions to fetch per commit sync request.
+    #[serde(default = "Parameters::default_max_transactions_per_commit_sync_fetch")]
+    pub max_transactions_per_commit_sync_fetch: usize,
+
     /// Number of block headers to fetch per periodic or live sync request
     #[serde(default = "Parameters::default_max_headers_per_regular_sync_fetch")]
     pub max_headers_per_regular_sync_fetch: usize,
 
     /// Number of transactions to fetch per request.
-    #[serde(default = "Parameters::default_max_transactions_per_fetch")]
-    pub max_transactions_per_fetch: usize,
+    #[serde(default = "Parameters::default_max_transactions_per_regular_sync_fetch")]
+    pub max_transactions_per_regular_sync_fetch: usize,
 
     /// Time to wait during node start up until the node has synced the last
     /// proposed block via the network peers. When set to `0` the sync
@@ -59,21 +63,6 @@ pub struct Parameters {
     /// recovery.
     #[serde(default = "Parameters::default_sync_last_known_own_block_timeout")]
     pub sync_last_known_own_block_timeout: Duration,
-
-    /// Interval in milliseconds to probe highest received rounds of peers.
-    #[serde(default = "Parameters::default_round_prober_interval_ms")]
-    pub round_prober_interval_ms: u64,
-
-    /// Timeout in milliseconds for a round prober request.
-    #[serde(default = "Parameters::default_round_prober_request_timeout_ms")]
-    pub round_prober_request_timeout_ms: u64,
-
-    /// Proposing new block is stopped when the propagation delay is greater
-    /// than this threshold. Propagation delay is the difference between the
-    /// round of the last proposed block and the highest round from this
-    /// authority that is received by all validators in a quorum.
-    #[serde(default = "Parameters::default_propagation_delay_stop_proposal_threshold")]
-    pub propagation_delay_stop_proposal_threshold: u32,
 
     /// The number of rounds of blocks to be kept in the Dag state cache per
     /// authority. The larger the number the more the blocks that will be
@@ -99,6 +88,16 @@ pub struct Parameters {
     #[serde(default = "Parameters::default_commit_sync_batches_ahead")]
     pub commit_sync_batches_ahead: usize,
 
+    /// Maximum number of headers to be included in a bundle. Headers exceeding
+    /// the max allowed limit will be truncated.
+    #[serde(default = "Parameters::default_max_headers_per_bundle")]
+    pub max_headers_per_bundle: usize,
+
+    /// Maximum number of transaction shards to be included in a bundle. Shards
+    /// exceeding the max allowed limit will be truncated.
+    #[serde(default = "Parameters::default_max_shards_per_bundle")]
+    pub max_shards_per_bundle: usize,
+
     /// Tonic network settings.
     #[serde(default = "TonicParameters::default")]
     pub tonic: TonicParameters,
@@ -109,8 +108,8 @@ impl Parameters {
         Duration::from_millis(250)
     }
 
-    pub(crate) fn default_min_round_delay() -> Duration {
-        if cfg!(msim) || std::env::var("__TEST_ONLY_CONSENSUS_USE_LONG_MIN_ROUND_DELAY").is_ok() {
+    pub(crate) fn default_min_block_delay() -> Duration {
+        if cfg!(msim) || std::env::var("__TEST_ONLY_CONSENSUS_USE_LONG_MIN_BLOCK_DELAY").is_ok() {
             // Checkpoint building and execution cannot keep up with high commit rate in
             // simtests, leading to long reconfiguration delays. This is because
             // simtest is single threaded, and spending too much time in
@@ -120,6 +119,8 @@ impl Parameters {
             // Avoid excessive CPU, data and logs in tests.
             Duration::from_millis(250)
         } else {
+            // For production, use min delay between block being set to 50ms, reducing the
+            // block rate to 20 blocks/sec
             Duration::from_millis(50)
         }
     }
@@ -138,6 +139,16 @@ impl Parameters {
         }
     }
 
+    // Maximum number of transactions to fetch per commit sync request.
+    pub(crate) fn default_max_transactions_per_commit_sync_fetch() -> usize {
+        if cfg!(msim) {
+            // Exercise hitting transactions per fetch limit.
+            10
+        } else {
+            1000
+        }
+    }
+
     // Maximum number of block headers to fetch per periodic or live sync request.
     pub(crate) fn default_max_headers_per_regular_sync_fetch() -> usize {
         if cfg!(msim) {
@@ -149,9 +160,9 @@ impl Parameters {
         }
     }
 
-    // Maximum number of block headers to fetch per periodic or live sync request.
-    pub(crate) fn default_max_transactions_per_fetch() -> usize {
-        if cfg!(msim) { 10 } else { 100 }
+    // Maximum number of transactions to fetch per request.
+    pub(crate) fn default_max_transactions_per_regular_sync_fetch() -> usize {
+        if cfg!(msim) { 10 } else { 1000 }
     }
 
     pub(crate) fn default_sync_last_known_own_block_timeout() -> Duration {
@@ -163,19 +174,6 @@ impl Parameters {
             // enough for this given a healthy network.
             Duration::from_secs(5)
         }
-    }
-
-    pub(crate) fn default_round_prober_interval_ms() -> u64 {
-        if cfg!(msim) { 1000 } else { 5000 }
-    }
-
-    pub(crate) fn default_round_prober_request_timeout_ms() -> u64 {
-        if cfg!(msim) { 800 } else { 4000 }
-    }
-
-    pub(crate) fn default_propagation_delay_stop_proposal_threshold() -> u32 {
-        // Propagation delay is usually 0 round in production.
-        if cfg!(msim) { 2 } else { 5 }
     }
 
     pub(crate) fn default_dag_state_cached_rounds() -> u32 {
@@ -206,6 +204,14 @@ impl Parameters {
         // and unprocessed fetched commits limited.
         32
     }
+
+    pub(crate) fn default_max_headers_per_bundle() -> usize {
+        150
+    }
+
+    pub(crate) fn default_max_shards_per_bundle() -> usize {
+        150
+    }
 }
 
 impl Default for Parameters {
@@ -213,23 +219,24 @@ impl Default for Parameters {
         Self {
             db_path: PathBuf::default(),
             leader_timeout: Parameters::default_leader_timeout(),
-            min_round_delay: Parameters::default_min_round_delay(),
+            min_block_delay: Parameters::default_min_block_delay(),
             max_forward_time_drift: Parameters::default_max_forward_time_drift(),
             max_headers_per_commit_sync_fetch:
                 Parameters::default_max_headers_per_commit_sync_fetch(),
+            max_transactions_per_commit_sync_fetch:
+                Parameters::default_max_transactions_per_commit_sync_fetch(),
             max_headers_per_regular_sync_fetch:
                 Parameters::default_max_headers_per_regular_sync_fetch(),
-            max_transactions_per_fetch: Parameters::default_max_transactions_per_fetch(),
+            max_transactions_per_regular_sync_fetch:
+                Parameters::default_max_transactions_per_regular_sync_fetch(),
             sync_last_known_own_block_timeout:
                 Parameters::default_sync_last_known_own_block_timeout(),
-            round_prober_interval_ms: Parameters::default_round_prober_interval_ms(),
-            round_prober_request_timeout_ms: Parameters::default_round_prober_request_timeout_ms(),
-            propagation_delay_stop_proposal_threshold:
-                Parameters::default_propagation_delay_stop_proposal_threshold(),
             dag_state_cached_rounds: Parameters::default_dag_state_cached_rounds(),
             commit_sync_parallel_fetches: Parameters::default_commit_sync_parallel_fetches(),
             commit_sync_batch_size: Parameters::default_commit_sync_batch_size(),
             commit_sync_batches_ahead: Parameters::default_commit_sync_batches_ahead(),
+            max_headers_per_bundle: Parameters::default_max_headers_per_bundle(),
+            max_shards_per_bundle: Parameters::default_max_shards_per_bundle(),
             tonic: TonicParameters::default(),
         }
     }

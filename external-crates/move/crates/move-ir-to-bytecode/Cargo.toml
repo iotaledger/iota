@@ -8,9 +8,13 @@ publish = false
 description = "Move ir to bytecode"
 
 [dependencies]
+# external dependencies
 anyhow.workspace = true
 codespan-reporting.workspace = true
 log.workspace = true
+ouroboros.workspace = true
+
+# internal dependencies
 move-binary-format.workspace = true
 move-bytecode-source-map.workspace = true
 move-command-line-common.workspace = true
@@ -18,7 +22,6 @@ move-core-types.workspace = true
 move-ir-to-bytecode-syntax.workspace = true
 move-ir-types.workspace = true
 move-symbol-pool.workspace = true
-ouroboros.workspace = true
 
 [features]
 default = []

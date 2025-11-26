@@ -204,13 +204,13 @@ impl BuildConfig {
         let resolved_graph = self.resolution_graph_for_package(path, None, writer)?;
         let _mutx = PackageLock::lock(); // held until function returns
         let build_plan = BuildPlan::create(&resolved_graph)?;
-        // TODO: When we are ready to release and enable automatic migration, uncomment this.
-        // if !build_plan.root_crate_edition_defined() {
-        //     // We would also like to call build here, but the edition is already computed and
-        //     // the lock + build config have been used for this build already. The user will
-        //     // have to call build a second time -- this is reasonable...
-        //     migration::migrate(build_plan, writer, _reader)?;
-        // } else {
+        // TODO: When we are ready to release and enable automatic migration, uncomment
+        // this. if !build_plan.root_crate_edition_defined() {
+        //     // We would also like to call build here, but the edition is already
+        // computed and     // the lock + build config have been used for this
+        // build already. The user will     // have to call build a second time
+        // -- this is reasonable...     migration::migrate(build_plan, writer,
+        // _reader)?; } else {
         //     build_plan.compile(writer)
         // }
         build_plan.compile(writer, |compiler| compiler)

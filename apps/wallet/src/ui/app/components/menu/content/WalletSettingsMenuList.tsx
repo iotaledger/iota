@@ -40,6 +40,8 @@ import {
 } from '@iota/apps-ui-kit';
 import { ampli } from '_src/shared/analytics/ampli';
 import { useTheme, getCustomNetwork, FAQ_LINK, ToS_LINK, DISCORD_SUPPORT_LINK } from '@iota/core';
+import { ExtensionViewType } from '_src/ui/app/redux/slices/app/appType';
+import { openInNewTab } from '_src/shared/utils';
 
 export function MenuList() {
     const { themePreference } = useTheme();
@@ -52,7 +54,9 @@ export function MenuList() {
     const networkConfig = network === Network.Custom ? getCustomNetwork() : getNetwork(network);
     const version = Browser.runtime.getManifest().version;
     const autoLockInterval = useAutoLockMinutes();
-    const isAppPopup = useAppSelector((state) => state.app.isAppViewPopup);
+    const isAppPopup = useAppSelector(
+        (state) => state.app.extensionViewType === ExtensionViewType.Popup,
+    );
 
     // Logout
     const [isLogoutDialogOpen, setIsLogoutDialogOpen] = useState(false);
@@ -92,10 +96,12 @@ export function MenuList() {
     }
 
     function onSupportClick() {
+        ampli.openedLink({ url: DISCORD_SUPPORT_LINK });
         window.open(DISCORD_SUPPORT_LINK, '_blank', 'noopener noreferrer');
     }
 
     function onFAQClick() {
+        ampli.openedLink({ url: FAQ_LINK });
         window.open(FAQ_LINK, '_blank', 'noopener noreferrer');
     }
 
@@ -128,8 +134,7 @@ export function MenuList() {
         {
             title: 'Expand View',
             icon: <Expand />,
-            onClick: () =>
-                window.open(window.location.href.split('?')[0], '_blank', 'noopener noreferrer'),
+            onClick: () => openInNewTab('/tokens'),
             hidden: !isAppPopup,
         },
         {
@@ -145,7 +150,7 @@ export function MenuList() {
     ];
 
     return (
-        <Overlay showModal title="Settings" closeOverlay={() => navigate('/')}>
+        <Overlay showModal title="Settings" closeOverlay={() => navigate('/tokens')}>
             <div className="flex h-full w-full flex-col justify-between">
                 <div className="flex flex-col">
                     {MENU_ITEMS.filter((item) => !item.hidden).map((item, index) => (

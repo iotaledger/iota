@@ -8,6 +8,7 @@ feature_flags:
   enable_poseidon: true
   enable_group_ops_native_function_msm: true
   per_object_congestion_control_mode: TotalTxCount
+  consensus_choice: Starfish
   zklogin_max_epoch_upper_bound_delta: 30
   enable_vdf: true
   passkey_auth: true
@@ -35,9 +36,7 @@ feature_flags:
   select_committee_from_eligible_validators: true
   track_non_committee_eligible_validators: true
   select_committee_supporting_next_epoch_version: true
-  move_auth: true
-  publish_package_metadata: true
-  iota_metadata_module_bytes: true
+  consensus_median_timestamp_with_checkpoint_enforcement: true
 max_tx_size_bytes: 131072
 max_input_objects: 2048
 max_size_written_objects: 5000000
@@ -72,7 +71,6 @@ max_move_object_size: 256000
 max_move_package_size: 102400
 max_publish_or_upgrade_per_ptb: 5
 max_tx_gas: 50000000000
-max_auth_gas: 1000000000
 max_gas_price: 100000
 max_gas_computation_bucket: 5000000
 gas_rounding_step: 1000
