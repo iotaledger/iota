@@ -357,26 +357,50 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
             return Ok(HashMap::new());
         }
 
-        display::action("Detecting CPU targets for all instances");
+        display::action("Verifying all instances are x86_64 architecture");
 
         let context = CommandContext::new();
-        let command = "source \"$HOME/.cargo/env\" && rustc --print target-cpus".to_string();
+        let command = "uname -m".to_string();
 
         let results = self
             .ssh_manager
             .execute(instances_needing_binaries.clone(), command, context)
             .await?;
 
-        let mut cpu_to_instances: HashMap<String, Vec<Instance>> = HashMap::new();
-
+        // Verify all instances are x86_64 architecture
         for (i, (stdout, _stderr)) in results.iter().enumerate() {
             let instance = &instances_needing_binaries[i];
-            let cpu_target = self
-                .parse_cpu_target_from_rustc_output(stdout)
-                .unwrap_or_else(|| "native".to_string());
+            let arch = stdout.trim();
+
+            // Ensure only x86_64 architecture is used, because the build cache server
+            // currently only supports x86_64 binaries.
+            if arch != "x86_64" {
+                panic!(
+                    "Instance {} has unsupported architecture '{}'. Only x86_64 is supported.",
+                    instance.ssh_address(),
+                    arch
+                );
+            }
+        }
+
+        display::action("Detecting CPU targets for all instances");
+
+        let context = CommandContext::new();
+        let command = "cat /proc/cpuinfo".to_string();
+
+        let results = self
+            .ssh_manager
+            .execute(instances_needing_binaries.clone(), command, context)
+            .await?;
+
+        // Detect the x86-64 target from /proc/cpuinfo
+        let mut cpu_to_instances: HashMap<String, Vec<Instance>> = HashMap::new();
+        for (i, (stdout, _stderr)) in results.iter().enumerate() {
+            let instance = &instances_needing_binaries[i];
+            let cpu_target = detect_x86_64_tier_from_cpuinfo(stdout.trim());
 
             cpu_to_instances
-                .entry(cpu_target)
+                .entry(cpu_target.to_string())
                 .or_default()
                 .push(instance.clone());
         }
@@ -395,26 +419,6 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
 
         display::done();
         Ok(cpu_to_instances)
-    }
-
-    /// Parse CPU target from rustc --print target-cpus output
-    fn parse_cpu_target_from_rustc_output(&self, output: &str) -> Option<String> {
-        // Parse the output to extract the native CPU info
-        // Looking for a line like:
-        // " native - Select the CPU of the current host (currently apple-m4)."
-        for line in output.lines() {
-            if line.trim().starts_with("native") && line.contains("(currently") {
-                // Extract the CPU name from "(currently cpu-name)"
-                if let Some(start) = line.find("(currently ") {
-                    let cpu_part = &line[start + 11..]; // Skip "(currently "
-                    if let Some(end) = cpu_part.find(')') {
-                        let cpu_name = cpu_part[..end].trim();
-                        return Some(cpu_name.to_string());
-                    }
-                }
-            }
-        }
-        None
     }
 
     /// Update instances using build cache
@@ -877,5 +881,47 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
 
         display::header("Benchmark completed");
         Ok(())
+    }
+}
+
+/// Parse CPU flags from /proc/cpuinfo and determine the x86-64 target tier
+fn detect_x86_64_tier_from_cpuinfo(cpuinfo_content: &str) -> &'static str {
+    // Find the flags line in /proc/cpuinfo
+    let flags_line = cpuinfo_content
+        .lines()
+        .find(|line| line.starts_with("flags"))
+        .unwrap_or("");
+
+    // Extract the flags after the colon
+    let flags = if let Some(colon_pos) = flags_line.find(':') {
+        flags_line[colon_pos + 1..].trim()
+    } else {
+        ""
+    };
+
+    // Convert to lowercase for case-insensitive matching
+    let flags_lower = flags.to_lowercase();
+    let flag_set: std::collections::HashSet<&str> = flags_lower.split_whitespace().collect();
+
+    // Check for x86-64-v3 features: AVX, AVX2, BMI1, BMI2, FMA
+    let has_v3_features = flag_set.contains("avx")
+        && flag_set.contains("avx2")
+        && flag_set.contains("bmi1")
+        && flag_set.contains("bmi2")
+        && flag_set.contains("fma");
+
+    // Check for x86-64-v2 features: SSE3, SSE4.1, SSE4.2, SSSE3
+    let has_v2_features = flag_set.contains("sse3")
+        && flag_set.contains("sse4_1")
+        && flag_set.contains("sse4_2")
+        && flag_set.contains("ssse3");
+
+    if has_v3_features {
+        "x86-64-v3"
+    } else if has_v2_features {
+        "x86-64-v2"
+    } else {
+        // Baseline x86-64 (assume any x86_64 CPU supports this)
+        "x86-64"
     }
 }
