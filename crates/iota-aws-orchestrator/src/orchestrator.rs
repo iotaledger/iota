@@ -360,7 +360,7 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
         display::action("Detecting CPU targets for all instances");
 
         let context = CommandContext::new();
-        let command = "rustc --print target-cpus".to_string();
+        let command = "source \"$HOME/.cargo/env\" && rustc --print target-cpus".to_string();
 
         let results = self
             .ssh_manager
