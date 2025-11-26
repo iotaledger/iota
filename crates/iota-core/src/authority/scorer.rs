@@ -144,6 +144,7 @@ impl Scorer {
         }
     }
 
+    #[cfg(test)]
     fn update_experimental_scores_v1(&self) {
         let k = 1;
         // Vector with the highest received reports from each authority and their voting
@@ -298,6 +299,7 @@ fn calculate_weighted_median(reports: &mut [(MetricVec, VotingPower)]) -> Median
 ///
 /// # Returns
 /// - A vector of indices of malicious validators.
+#[cfg(test)]
 fn detect_malicious_validators(
     reports_and_voting_power: &[(VersionedMisbehaviorReport, VotingPower)],
     voting_power: &[u64],
@@ -374,6 +376,7 @@ fn detect_malicious_validators(
 }
 
 /// Calculates the k-th order statistic for all metrics in the reports.
+#[cfg(test)]
 fn calculate_kth_order_statistic_report(
     reports_and_voting_power: &[(VersionedMisbehaviorReport, VotingPower)],
     k: usize,
@@ -404,6 +407,7 @@ fn calculate_kth_order_statistic_report(
 }
 
 /// Calculates the k-th order statistic for a single metric.
+#[cfg(test)]
 fn calculate_kth_order_statistic(reports: &mut [(MetricVec, VotingPower)], k: usize) -> MetricVec {
     // Ensure there is at least one pair (MetricVec, VotingPower) to process.
     assert!(!reports.is_empty());
