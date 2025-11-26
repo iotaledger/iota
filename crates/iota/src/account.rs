@@ -3,9 +3,11 @@
 
 // TODO sender does not work
 
+use std::str::FromStr;
+
 use clap::Parser;
 use anyhow::Result;
-use iota_types::base_types::IotaAddress;
+use iota_types::{move_package, base_types::ObjectID, base_types::IotaAddress};
 use iota_sdk::wallet_context::WalletContext;
 use iota_keys::keystore::{AccountKeystore, StoredKey};
 use iota_json_rpc_types::IotaObjectDataOptions;
@@ -57,13 +59,14 @@ impl AccountCommands {
                 let sender = processing.sender.unwrap_or(context.active_address().unwrap());
                 // let method = MoveFunctionName::try_from(&method_path)?;
                 let method = method_path.split("::").collect::<Vec<_>>();
+                let package_metadata = move_package::derive_package_metadata_id(ObjectID::from_str(method[0])?);
 
                 let account_type = context.get_client().await?.read_api().get_object_with_options(account_address.into(), IotaObjectDataOptions::full_content()).await?.data.unwrap().type_.unwrap();
 
                 println!("{account_type}" );
 
                 let mut args = vec![
-                    format!("--move-call iota::account::create_auth_info_v1 <{}> @{} '{}' '{}'", account_type.to_string(), method[0], method[1], method[2]),
+                    format!("--move-call iota::account::create_auth_info_v1 <{}> @{} '{}' '{}'", account_type.to_string(), package_metadata, method[1], method[2]),
                     "--assign authenticator".to_string(),
                     format!(
                         "--move-call iota::account::check_auth_info_v1_compatibility <{}> @{account_address} authenticator", account_type.to_string()
