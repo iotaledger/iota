@@ -195,12 +195,10 @@ const ELimitExceeded: u64 = 1;
 const ENotSystemAddress: u64 = 2;
 const ECannotReportOneself: u64 = 3;
 const EReportRecordNotFound: u64 = 4;
-#[allow(unused_const)]
 const EBpsTooLarge: u64 = 5;
 const ESafeModeGasNotProcessed: u64 = 7;
 const EAdvancedToWrongEpoch: u64 = 8;
 
-#[allow(unused_const)]
 const BASIS_POINT_DENOMINATOR: u128 = 10000;
 
 // ==== functions that can only be called by genesis ====
@@ -733,6 +731,7 @@ public(package) fun advance_epoch(
     mut computation_charge_burned: u64,
     mut storage_rebate_amount: u64,
     mut non_refundable_storage_fee_amount: u64,
+    reward_slashing_rate: u64, // how much rewards are slashed to punish a validator, in bps.
     epoch_start_timestamp_ms: u64, // Timestamp of the epoch start
     max_committee_members_count: u64,
     eligible_active_validators: vector<u64>,
@@ -740,6 +739,10 @@ public(package) fun advance_epoch(
     ctx: &mut TxContext,
 ): Balance<IOTA> {
     self.epoch_start_timestamp_ms = epoch_start_timestamp_ms;
+
+    let bps_denominator_u64 = BASIS_POINT_DENOMINATOR as u64;
+    // Rates can't be higher than 100%.
+    assert!(reward_slashing_rate <= bps_denominator_u64, EBpsTooLarge);
 
     // Accumulate the gas summary during safe_mode before processing any rewards:
     let safe_mode_storage_charges = self.safe_mode_storage_charges.withdraw_all();
@@ -784,6 +787,7 @@ public(package) fun advance_epoch(
         .advance_epoch(
             &mut total_validator_rewards,
             &mut self.validator_report_records,
+            reward_slashing_rate,
             self.parameters.validator_low_stake_threshold,
             self.parameters.validator_very_low_stake_threshold,
             self.parameters.validator_low_stake_grace_period,

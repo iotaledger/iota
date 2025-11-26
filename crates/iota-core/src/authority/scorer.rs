@@ -49,7 +49,7 @@ impl Scorer {
                     protocol_config,
                 ));
 
-                let max_score = 2_u64.pow(16);
+                let max_score = 2_u64.pow(16); // Note: must be consistent with MAX_SCORE in validator_set.move in iota-framework.
                 let (received_metrics, has_not_sent_report, current_scores, invalid_reports_count) =
                     (0..committee_size)
                         .map(|_| {

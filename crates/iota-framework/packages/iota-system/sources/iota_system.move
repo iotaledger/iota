@@ -528,6 +528,7 @@ fun advance_epoch(
     next_protocol_version: u64,
     storage_rebate: u64,
     non_refundable_storage_fee: u64,
+    reward_slashing_rate: u64, // how much rewards are slashed to punish a validator, in bps.
     epoch_start_timestamp_ms: u64, // Timestamp of the epoch start
     max_committee_members_count: u64,
     eligible_active_validators: vector<u64>,
@@ -546,6 +547,7 @@ fun advance_epoch(
         computation_charge_burned,
         storage_rebate,
         non_refundable_storage_fee,
+        reward_slashing_rate,
         epoch_start_timestamp_ms,
         max_committee_members_count,
         eligible_active_validators,
@@ -761,7 +763,7 @@ public(package) fun advance_epoch_for_testing(
     computation_charge_burned: u64,
     storage_rebate: u64,
     non_refundable_storage_fee: u64,
-    _reward_slashing_rate: u64,
+    reward_slashing_rate: u64,
     epoch_start_timestamp_ms: u64,
     max_committee_members_count: u64,
     eligible_active_validators: vector<u64>,
@@ -780,6 +782,7 @@ public(package) fun advance_epoch_for_testing(
         next_protocol_version,
         storage_rebate,
         non_refundable_storage_fee,
+        reward_slashing_rate,
         epoch_start_timestamp_ms,
         max_committee_members_count,
         eligible_active_validators,
