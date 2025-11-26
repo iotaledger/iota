@@ -15,7 +15,7 @@ The `client ptb` command allows you to specify the transactions for execution in
 The following list itemizes all the available args for the `iota client ptb` command. Use the `--help` for a long help version that includes some examples on how to use this command.
 
 ```
-Build, preview, and execute programmable transaction blocks. Depending on your shell, you might have to use quotes around arrays or other passed values. Use --help to see examples for how to use the core functionality of this command.
+Build, preview, and execute programmable transaction blocks. Depending on your shell, you might have to use quotes around arrays or other passed values. Use // for comments (with trailing \). Use --help to see examples for how to use the core functionality of this command.
 
 Usage: iota client ptb [OPTIONS]
 
@@ -126,6 +126,29 @@ Here are some examples for `transfer-objects` and `gas-coin`:
 ```bash
 iota client ptb --transfer-objects [ARRAY_OF_OBJECTS] @0x02a212de6a9dfa3a69e22387acfbafbb1a9e591bd9d636e7895dcfc8de05f331 --gas-coin @0x00002819ee07a66e53800495ccf5eeade8a02054a2e0827546c70e4b226f0495
 ```
+
+### Comments
+
+You can add comments to multi-line PTB commands using `//` (with trailing `\`). This is useful for documenting complex transaction blocks:
+
+```bash
+iota client ptb \
+// Get the sender address \
+--move-call iota::tx_context::sender \
+--assign sender \
+// Split 1 NANOS from gas coin \
+--split-coins gas "[1]" \
+--assign coin \
+// Transfer the new coin to the sender \
+--transfer-objects "[coin]" sender \
+--dry-run
+```
+
+:::note
+
+Use `//` for comments instead of `#`. The `#` character is interpreted by bash/zsh as a shell comment, which breaks line continuations. Remember to add `\` at the end of comment lines to continue the command.
+
+:::
 
 ### Assign
 

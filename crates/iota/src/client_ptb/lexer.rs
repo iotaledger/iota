@@ -54,6 +54,31 @@ impl<'l, I: Iterator<Item = &'l str>> Lexer<'l, I> {
         }
     }
 
+    /// Skip the rest of the current shell token (used for comments).
+    fn skip_rest_of_token(&mut self) {
+        let len = self.buf.len();
+        self.offset += len;
+        self.buf = "";
+    }
+
+    /// Skip comment tokens until we hit a command (starts with --) or EOF.
+    /// This handles multi-word comments like "// this is a comment".
+    fn skip_comment(&mut self) {
+        self.skip_rest_of_token();
+        // Skip subsequent tokens until we hit a command or EOF
+        for next in self.tokens.by_ref() {
+            self.offset += next.len() + 1; // +1 for space between tokens
+            if next.starts_with("--") || next.starts_with("//") {
+                // Found next command or another comment, set buffer to this token
+                self.buf = next;
+                return;
+            }
+            // Otherwise skip this token (it's part of the comment)
+        }
+        // Reached EOF
+        self.buf = "";
+    }
+
     /// Checks whether the current shell token starts with the prefix `patt`,
     /// and consumes it if so, returning a spanned slice of the consumed
     /// prefix.
@@ -226,6 +251,13 @@ impl<'l, I: Iterator<Item = &'l str>> Iterator for Lexer<'l, I> {
         }
 
         Some(match c {
+            // Comment: skip all tokens until we hit a command (--) or EOF
+            // Using // style comments as they work with shell line continuations
+            sp!(_, "/") if self.buf.starts_with("//") => {
+                self.skip_comment();
+                return self.next();
+            }
+
             // Single character tokens
             sp!(_, ",") => token!(T::Comma),
             sp!(_, "[") => token!(T::LBracket),
@@ -517,5 +549,26 @@ mod tests {
     fn unexpected_random_chars() {
         let unexpected = vec!["4 * 5"];
         insta::assert_debug_snapshot!(lex(unexpected));
+    }
+
+    #[test]
+    fn slash_comments() {
+        // C-style // comments work with shell line continuations
+        // Each word becomes a separate shell token, so we test multi-word comments
+        let with_slash_comments = vec![
+            "//",
+            "this",
+            "is",
+            "a",
+            "comment",
+            "--split-coins",
+            "gas",
+            "[1000]",
+            "//another",
+            "comment",
+            "--assign",
+            "result",
+        ];
+        insta::assert_debug_snapshot!(lex(with_slash_comments));
     }
 }

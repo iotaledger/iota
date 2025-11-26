@@ -342,6 +342,7 @@ pub fn ptb_description() -> clap::Command {
         .about(
             "Build, preview, and execute programmable transaction blocks. Depending on your \
             shell, you might have to use quotes around arrays or other passed values. \
+            Use // for comments (with trailing \\). \
             Use --help to see examples for how to use the core functionality of this command.")
         .arg(arg!(
                 --"assign" <ASSIGN>

@@ -1,0 +1,87 @@
+---
+source: crates/iota/src/client_ptb/lexer.rs
+assertion_line: 572
+expression: lex(with_slash_comments)
+---
+[
+    Spanned {
+        span: Span {
+            start: 34,
+            end: 47,
+        },
+        value: Lexeme(
+            Command,
+            "split-coins",
+        ),
+    },
+    Spanned {
+        span: Span {
+            start: 48,
+            end: 51,
+        },
+        value: Lexeme(
+            Ident,
+            "gas",
+        ),
+    },
+    Spanned {
+        span: Span {
+            start: 52,
+            end: 53,
+        },
+        value: Lexeme(
+            LBracket,
+            "[",
+        ),
+    },
+    Spanned {
+        span: Span {
+            start: 53,
+            end: 57,
+        },
+        value: Lexeme(
+            Number,
+            "1000",
+        ),
+    },
+    Spanned {
+        span: Span {
+            start: 57,
+            end: 58,
+        },
+        value: Lexeme(
+            RBracket,
+            "]",
+        ),
+    },
+    Spanned {
+        span: Span {
+            start: 85,
+            end: 93,
+        },
+        value: Lexeme(
+            Command,
+            "assign",
+        ),
+    },
+    Spanned {
+        span: Span {
+            start: 94,
+            end: 100,
+        },
+        value: Lexeme(
+            Ident,
+            "result",
+        ),
+    },
+    Spanned {
+        span: Span {
+            start: 100,
+            end: 100,
+        },
+        value: Lexeme(
+            Eof,
+            "",
+        ),
+    },
+]
