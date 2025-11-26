@@ -9940,7 +9940,7 @@
                                 },
                                 "indexByName": {},
                                 "renameByName": {
-                                    "Value": "Average latency for receiption",
+                                    "Value": "Average latency for reception",
                                     "authority": "Validator",
                                     "host": "",
                                     "instance": "IPs"
