@@ -9,6 +9,7 @@ use std::{
     collections::{BTreeMap, BTreeSet},
     fmt::{self, Write},
     path::{Path, PathBuf},
+    str::FromStr,
     sync::Arc,
     time::Duration,
 };
@@ -1211,6 +1212,67 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
                 let output = self.object_summary_output(&summary, /* summarize */ false);
                 Ok(output)
             }
+            IotaSubcommand::InitAbstractAccount(InitAbstractAccountCommand {
+                sender,
+                package,
+                module,
+                authenticate_fn,
+                inputs,
+            }) => {
+                let pkg_addr = self
+                    .compiled_state
+                    .named_address_mapping
+                    .get(&package)
+                    .ok_or_else(|| anyhow::anyhow!("Unknown package named address '{package}'"))?
+                    .into_inner();
+                let package_id: ObjectID = pkg_addr.into();
+
+                let abstract_acc_type = self.type_tag(&package, &module, "AbstractAccount")?; // Now `AbstractAccount` harcoded, but we may remove it as unnecessary type arg later.
+
+                let mut ptb_builder = ProgrammableTransactionBuilder::new();
+
+                let mut create_fn_inputs = self
+                    .compiled_state()
+                    .resolve_args(inputs)?
+                    .into_iter()
+                    .map(|arg| arg.into_argument(&mut ptb_builder, self))
+                    .collect::<anyhow::Result<Vec<Argument>>>()?;
+
+                let pkg_arg = ptb_builder.pure(package_id)?;
+                let mod_arg = ptb_builder.pure(module.clone())?;
+                let fn_arg = ptb_builder.pure(authenticate_fn.clone())?;
+
+                let auth_info_arg = ptb_builder.programmable_move_call(
+                    IOTA_FRAMEWORK_PACKAGE_ID,
+                    ident_str!("account").to_owned(),
+                    ident_str!("create_auth_info_v1").to_owned(),
+                    vec![abstract_acc_type],
+                    vec![pkg_arg, mod_arg, fn_arg],
+                );
+
+                create_fn_inputs.push(auth_info_arg);
+
+                ptb_builder.programmable_move_call(
+                    package_id,
+                    move_core_types::identifier::Identifier::new(module.as_ref())?,
+                    ident_str!("create").to_owned(),
+                    vec![],
+                    create_fn_inputs,
+                );
+
+                let pt = ptb_builder.finish();
+
+                let gas_budget = DEFAULT_GAS_BUDGET;
+                let gas_price = self.gas_price;
+
+                let tx = self.sign_txn(sender, |sender_addr, gas| {
+                    TransactionData::new_programmable(sender_addr, gas, pt, gas_budget, gas_price)
+                });
+
+                let summary = self.execute_txn(tx).await?;
+                let output = self.object_summary_output(&summary, false);
+                Ok(output)
+            }
         }
     }
 
@@ -2198,8 +2260,24 @@ impl IotaTestAdapter {
 
         bail!("Internal funding transaction didn't create coin for the recipient {recipient}");
     }
-}
 
+    fn type_tag(
+        &self,
+        package_name: &str,
+        module_name: &str,
+        struct_name: &str,
+    ) -> anyhow::Result<TypeTag> {
+        let addr = self
+            .compiled_state
+            .named_address_mapping
+            .get(package_name)
+            .ok_or_else(|| anyhow::anyhow!("Unknown package named address '{package_name}'"))?
+            .into_inner();
+
+        let str_tag = format!("0x{}::{}::{}", addr, module_name, struct_name);
+        Ok(TypeTag::from_str(&str_tag)?)
+    }
+}
 impl<'a> GetModule for &'a IotaTestAdapter {
     type Error = anyhow::Error;
 

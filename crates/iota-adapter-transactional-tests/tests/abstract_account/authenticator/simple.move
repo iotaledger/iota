@@ -40,9 +40,7 @@ public fun authenticate_hello_world(
     assert!(msg == ascii::string(b"HelloWorld"), 0);
 }
 
-//# programmable --sender A --inputs @test "abstract_account" "authenticate_hello_world"
-//> 0: iota::account::create_auth_info_v1<test::abstract_account::AbstractAccount>(Input(0), Input(1), Input(2));
-//> 1: test::abstract_account::create(Result(0));
+//# init-abstract-acc --sender A test abstract_account authenticate_hello_world
 
 //# view-object 2,1
 

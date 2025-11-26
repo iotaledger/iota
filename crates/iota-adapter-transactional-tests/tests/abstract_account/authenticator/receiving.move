@@ -23,5 +23,4 @@ public fun authenticate_receive_coin(
     _ctx: &TxContext,
 ) {}
 
-//# programmable --sender A --inputs @test "abstract_account" "authenticate_receive_coin"
-//> 0: iota::account::create_auth_info_v1<test::abstract_account::AbstractAccount>(Input(0), Input(1), Input(2));
+//# init-abstract-acc --sender A test abstract_account authenticate_receive_coin

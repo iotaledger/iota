@@ -12,15 +12,13 @@ created: object(1,0)
 mutated: object(0,0)
 gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 8800800,  storage_rebate: 0, non_refundable_storage_fee: 0
 
-task 2, lines 43-45:
-//# programmable --sender A --inputs @test "abstract_account" "authenticate_hello_world"
-//> 0: iota::account::create_auth_info_v1<test::abstract_account::AbstractAccount>(Input(0), Input(1), Input(2));
-//> 1: test::abstract_account::create(Result(0));
+task 2, line 43:
+//# init-abstract-acc --sender A test abstract_account authenticate_hello_world
 created: object(2,0), object(2,1)
 mutated: object(0,0)
 gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 5768400,  storage_rebate: 980400, non_refundable_storage_fee: 0
 
-task 3, line 47:
+task 3, line 45:
 //# view-object 2,1
 Owner: Shared( 3 )
 Version: 3
@@ -32,14 +30,14 @@ Contents: test::abstract_account::AbstractAccount {
     },
 }
 
-task 4, lines 49-51:
+task 4, lines 47-49:
 //# abstract --account immshared(2,1) --auth-inputs "HelloWorld" --ptb-inputs 100 @A
 created: object(4,0)
 mutated: object(_)
 unchanged_shared: object(2,1)
 gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 1960800,  storage_rebate: 980400, non_refundable_storage_fee: 0
 
-task 5, line 53:
+task 5, line 51:
 //# view-object 4,0
 Owner: Account Address ( A )
 Version: 4

@@ -174,6 +174,28 @@ pub struct AbstractTransactionCommand {
     pub authenticator_inputs: Vec<ParsedValue<IotaExtraValueArgs>>,
 }
 
+// package, module, authenticate_fn don't have arg attribute because they are
+// positional arguments it allows us to write commands like:
+// init-abstract-acc --sender <SENDER> <PACKAGE> <MODULE> <AUTHENTICATE_FN>
+// instead of
+// init-abstract-acc --sender <SENDER> --package <PACKAGE> --module <MODULE>
+// --authenticate-fn <AUTHENTICATE_FN>
+#[derive(Debug, clap::Parser)]
+pub struct InitAbstractAccountCommand {
+    #[arg(long)]
+    pub sender: Option<String>,
+    pub package: String,
+    pub module: String,
+    pub authenticate_fn: String,
+    #[arg(
+        long,
+        value_parser = ParsedValue::<IotaExtraValueArgs>::parse,
+        num_args(1..),
+        action = clap::ArgAction::Append,
+    )]
+    pub inputs: Vec<ParsedValue<IotaExtraValueArgs>>,
+}
+
 #[derive(Debug, clap::Parser)]
 pub struct UpgradePackageCommand {
     #[arg(long)]
@@ -268,6 +290,7 @@ pub enum IotaSubcommand<ExtraValueArgs: ParsableValue, ExtraRunArgs: Parser> {
     RunGraphql(RunGraphqlCommand),
     Bench(RunCommand<ExtraValueArgs>, ExtraRunArgs),
     AbstractTransaction(AbstractTransactionCommand),
+    InitAbstractAccount(InitAbstractAccountCommand),
 }
 
 impl<ExtraValueArgs: ParsableValue, ExtraRunArgs: Parser> clap::FromArgMatches
@@ -321,6 +344,9 @@ impl<ExtraValueArgs: ParsableValue, ExtraRunArgs: Parser> clap::FromArgMatches
                 RunCommand::from_arg_matches(matches)?,
                 ExtraRunArgs::from_arg_matches(matches)?,
             ),
+            Some(("init-abstract-acc", matches)) => IotaSubcommand::InitAbstractAccount(
+                InitAbstractAccountCommand::from_arg_matches(matches)?,
+            ),
             _ => {
                 return Err(clap::Error::raw(
                     clap::error::ErrorKind::InvalidSubcommand,
@@ -358,6 +384,7 @@ impl<ExtraValueArgs: ParsableValue, ExtraRunArgs: Parser> clap::CommandFactory
             .subcommand(
                 RunCommand::<ExtraValueArgs>::augment_args(ExtraRunArgs::command()).name("bench"),
             )
+            .subcommand(InitAbstractAccountCommand::command().name("init-abstract-acc"))
     }
 
     fn command_for_update() -> clap::Command {

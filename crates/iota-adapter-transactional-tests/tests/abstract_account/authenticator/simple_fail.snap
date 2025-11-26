@@ -12,15 +12,13 @@ created: object(1,0)
 mutated: object(0,0)
 gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 8800800,  storage_rebate: 0, non_refundable_storage_fee: 0
 
-task 2, lines 43-45:
-//# programmable --sender A --inputs @test "abstract_account" "authenticate_hello_world"
-//> 0: iota::account::create_auth_info_v1<test::abstract_account::AbstractAccount>(Input(0), Input(1), Input(2));
-//> 1: test::abstract_account::create(Result(0));
+task 2, line 43:
+//# init-abstract-acc --sender A test abstract_account authenticate_hello_world
 created: object(2,0), object(2,1)
 mutated: object(0,0)
 gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 5768400,  storage_rebate: 980400, non_refundable_storage_fee: 0
 
-task 3, line 47:
+task 3, line 45:
 //# view-object 2,1
 Owner: Shared( 3 )
 Version: 3
@@ -32,6 +30,6 @@ Contents: test::abstract_account::AbstractAccount {
     },
 }
 
-task 4, lines 49-50:
+task 4, lines 47-48:
 //# abstract --account immshared(2,1) --auth-inputs "test" --ptb-inputs 100 @A
 Error: Failed to execute the Move authenticator, reason: "ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: MoveAbort(MoveLocation { module: ModuleId { address: object(1,0), name: Identifier(\"abstract_account\") }, function: 1, instruction: 7, function_name: Some(\"authenticate_hello_world\") }, 0), source: Some(VMError { major_status: ABORTED, sub_status: Some(0), message: Some(\"object(1,0)::abstract_account::authenticate_hello_world at offset 7\"), exec_state: None, location: Module(ModuleId { address: object(1,0), name: Identifier(\"abstract_account\") }), indices: [], offsets: [(FunctionDefinitionIndex(1), 7)] }), command: Some(0) } }".
