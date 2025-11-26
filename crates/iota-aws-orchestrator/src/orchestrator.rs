@@ -428,14 +428,14 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
                 .execute_per_instance(targets, context)
                 .await?;
 
-            // Wait until all fullnodes are reachable (otherwise clients might fail when a
-            // fullnode is not listening yet).
+            // Wait until all fullnodes are fully started by querying the latest checkpoint
+            // (otherwise clients might fail when a fullnode is not listening yet).
             display::action("Await fullnode ready...");
             let commands = self
                 .client_instances
                 .iter()
                 .cloned()
-                .map(|i| (i, "curl http://127.0.0.1:9000 -H 'Content-Type: application/json' -d '{\"jsonrpc\":\"2.0\",\"method\":\"iota_getLatestCheckpointSequenceNumber\",\"params\":[],\"id\":1}'".to_owned())); // fullnodes default json RPC address
+                .map(|i| (i, "curl http://127.0.0.1:9000 -H 'Content-Type: application/json' -d '{\"jsonrpc\":\"2.0\",\"method\":\"iota_getLatestCheckpointSequenceNumber\",\"params\":[],\"id\":1}'".to_owned()));
             self.ssh_manager.wait_for_success(commands).await;
 
             display::done();
@@ -481,15 +481,6 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
         let metrics_commands = self
             .protocol_commands
             .clients_metrics_command(self.client_instances.clone(), parameters);
-
-        // TODO: Remove this when consensus client latency metrics are available.
-        // We will be getting latency metrics directly from consensus nodes instead from
-        // the nw client
-        // metrics_commands.append(
-        //     &mut self
-        //         .protocol_commands
-        //         .nodes_metrics_command(self.node_instances.clone(), parameters),
-        // );
 
         let mut aggregator = MeasurementsCollection::new(&self.settings, parameters.clone());
         let mut metrics_interval = time::interval(self.scrape_interval);

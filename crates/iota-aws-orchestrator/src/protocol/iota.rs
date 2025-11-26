@@ -200,7 +200,7 @@ impl ProtocolCommands<IotaBenchmarkType> for IotaProtocol {
                     false => &instance.main_ip,
                 };
 
-                // Update fullnode.yaml to use the correct IP for P2P config using a safer approach
+                // Overwrite listen address and external address with 0.0.0.0 and actual fullnode IP.
                 // Escape quotes for proper handling inside tmux wrapper
                 let update_p2p_config = format!(
                     "sed -i 's|listen-address: \\\"127.0.0.1:|listen-address: \\\"0.0.0.0:|' {0} && sed -i 's|external-address: /ip4/127.0.0.1/|external-address: /ip4/{1}/|' {0}",
