@@ -255,6 +255,15 @@ pub(crate) enum ConsensusError {
         "All GenericTransactionRef elements must have the same variant (BlockRef, TransactionRef, etc.) for batch operations."
     )]
     InconsistentTransactionRefVariants,
+
+    #[error(
+        "Transaction reference variant is inconsistent with protocol flag consensus_transaction_ref={protocol_flag_enabled}. Expected {expected_variant}, but received {received_variant}"
+    )]
+    TransactionRefVariantMismatch {
+        protocol_flag_enabled: bool,
+        expected_variant: &'static str,
+        received_variant: &'static str,
+    },
 }
 
 impl ConsensusError {
