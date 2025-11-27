@@ -53,9 +53,11 @@ use iota_sdk::{
 };
 use iota_source_validation::{BytecodeSourceVerifier, ValidationMode};
 use iota_types::{
+    account,
     base_types::{IotaAddress, ObjectID, ObjectRef, SequenceNumber},
     crypto::{EmptySignInfo, SignatureScheme},
     digests::{ChainIdentifier, TransactionDigest},
+    dynamic_field::{self, Field},
     error::IotaError,
     gas::{GasCostSummary, get_gas_balance},
     gas_coin::GasCoin,
@@ -1644,7 +1646,36 @@ impl IotaClientCommands {
                 IotaClientCommandResult::Objects(objects)
             }
             IotaClientCommands::NewAccount { address, alias } => {
-                // TODO maybe we should at least try to fetch the object to see if it exists?
+                let client = context.get_client().await?;
+
+                let authenticator_info_id = dynamic_field::derive_dynamic_field_id(
+                    address,
+                    &account::AuthenticatorInfoV1Key::tag().into(),
+                    &account::AuthenticatorInfoV1Key::default().to_bcs_bytes(),
+                )?;
+
+                let response = client
+                    .read_api()
+                    .get_object_with_options(
+                        authenticator_info_id,
+                        IotaObjectDataOptions::new().with_bcs(),
+                    )
+                    .await?;
+
+                if let Some(error) = response.error {
+                    todo!()
+                }
+
+                response
+                    .into_object()?
+                    .bcs
+                    .ok_or_else(|| anyhow::anyhow!("missing bcs"))?
+                    .try_into_move()
+                    .ok_or_else(|| anyhow::anyhow!("invalid move type"))?
+                    .deserialize::<Field<account::AuthenticatorInfoV1Key, account::AuthenticatorInfoV1>>()?;
+
+                // TODO this is currently untested
+
                 context
                     .config_mut()
                     .keystore_mut()
