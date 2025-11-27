@@ -957,7 +957,7 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
     /// If no error is returned then the verified transactions are
     /// immediately sent to Core for processing.
     async fn process_fetched_transactions(
-        serialized_transactions: Vec<Bytes>,
+        serialized_transactions_vec: Vec<Bytes>,
         peer_index: AuthorityIndex,
         requested_transactions_guard: TransactionsGuard,
         core_dispatcher: Arc<D>,
@@ -973,7 +973,7 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
             .start_timer();
         // Ensure that all the returned transactions do not go over the total max
         // allowed returned transactions
-        if serialized_transactions.len() > requested_transactions_guard.transactions_refs.len() {
+        if serialized_transactions_vec.len() > requested_transactions_guard.transactions_refs.len() {
             return Err(ConsensusError::TooManyFetchedTransactionsReturned(
                 peer_index,
             ));
@@ -1014,7 +1014,7 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
 
                     let mut serialized_transactions_map: BTreeMap<GenericTransactionRef, Bytes> =
                         BTreeMap::new();
-                    for serialized_transaction_bytes in &serialized_transactions {
+                    for serialized_transaction_bytes in &serialized_transactions_vec {
                         let serialized_transactions: SerializedTransactionsV1 =
                             bcs::from_bytes(serialized_transaction_bytes)
                                 .map_err(ConsensusError::MalformedTransactions)?;
@@ -1022,7 +1022,7 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
                             GenericTransactionRef::BlockRef(serialized_transactions.block_ref);
                         serialized_transactions_map.insert(
                             committed_transaction_ref,
-                            serialized_transaction_bytes.clone(),
+                            serialized_transactions.serialized_transactions,
                         );
                     }
                     let context_cloned = context.clone();
@@ -1069,7 +1069,7 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
 
                     let mut serialized_transactions_map: BTreeMap<GenericTransactionRef, Bytes> =
                         BTreeMap::new();
-                    for serialized_transaction_bytes in &serialized_transactions {
+                    for serialized_transaction_bytes in &serialized_transactions_vec {
                         let serialized_transactions: SerializedTransactionsV2 =
                             bcs::from_bytes(serialized_transaction_bytes)
                                 .map_err(ConsensusError::MalformedTransactions)?;
@@ -1078,7 +1078,7 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
                         );
                         serialized_transactions_map.insert(
                             committed_transaction_ref,
-                            serialized_transaction_bytes.clone(),
+                            serialized_transactions.serialized_transactions,
                         );
                     }
                     let context_cloned = context.clone();

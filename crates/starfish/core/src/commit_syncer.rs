@@ -1092,7 +1092,7 @@ pub(crate) fn verify_transactions_with_headers(
     block_headers: BTreeMap<BlockRef, VerifiedBlockHeader>,
 ) -> ConsensusResult<BTreeMap<GenericTransactionRef, VerifiedTransactions>> {
     let mut verified_transactions_map = BTreeMap::new();
-
+    let mut encoder = create_encoder(&context);
     for (committed_transactions_ref, inner_serialized_transactions) in serialized_transactions {
         let block_ref = match committed_transactions_ref {
             GenericTransactionRef::BlockRef(br) => br,
@@ -1111,7 +1111,7 @@ pub(crate) fn verify_transactions_with_headers(
             .get(&block_ref)
             .expect("header for fetched transactions must exist");
 
-        let mut encoder = create_encoder(&context);
+
         if block_header.transactions_commitment()
             != TransactionsCommitment::compute_transactions_commitment(
                 &inner_serialized_transactions,
@@ -1156,7 +1156,7 @@ pub(crate) fn verify_transactions_with_transactions_refs(
     serialized_transactions: BTreeMap<GenericTransactionRef, Bytes>,
 ) -> ConsensusResult<BTreeMap<GenericTransactionRef, VerifiedTransactions>> {
     let mut verified_transactions_map = BTreeMap::new();
-
+    let mut encoder = create_encoder(context);
     for (committed_transactions_ref, inner_serialized_transactions) in serialized_transactions {
         let transaction_ref = match committed_transactions_ref {
             GenericTransactionRef::TransactionRef(tr_ref) => tr_ref,
@@ -1177,7 +1177,7 @@ pub(crate) fn verify_transactions_with_transactions_refs(
         // matches. This ensures the transactions we received are exactly
         // the ones that were included in the block when it was created.
 
-        let mut encoder = create_encoder(context);
+
         if transaction_ref.transactions_commitment
             != TransactionsCommitment::compute_transactions_commitment(
                 &inner_serialized_transactions,
