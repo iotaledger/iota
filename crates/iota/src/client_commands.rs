@@ -3226,7 +3226,7 @@ pub async fn execute_dry_run(
         .dry_run_transaction_block(tx_data)
         .await?;
         // .context("Dry run failed")?;
-    println!("Finished executing dry run {response:?}");
+    // println!("Finished executing dry run {response:?}");
     let resp = IotaClientCommandResult::DryRun(response)
         .prerender_clever_errors(context)
         .await;
