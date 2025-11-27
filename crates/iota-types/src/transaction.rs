@@ -2451,7 +2451,7 @@ impl SenderSignedData {
 
         // CRITICAL!!
         // Users cannot send system transactions.
-        let tx_data = &self.transaction_data();
+        let tx_data = self.transaction_data();
         fp_ensure!(
             !tx_data.is_system_tx(),
             IotaError::UserInput {
@@ -2488,7 +2488,7 @@ impl SenderSignedData {
             .validity_check(config)
             .map_err(Into::<IotaError>::into)?;
 
-        self.move_authenticators_validity_check(tx_data, config)?;
+        self.move_authenticators_validity_check(config)?;
 
         Ok(tx_size)
     }
@@ -2685,19 +2685,19 @@ impl SenderSignedData {
             .any(|obj| obj.id() == IOTA_RANDOMNESS_STATE_OBJECT_ID)
     }
 
-    fn move_authenticators_validity_check(
-        &self,
-        tx_data: &TransactionData,
-        config: &ProtocolConfig,
-    ) -> IotaResult {
+    fn move_authenticators_validity_check(&self, config: &ProtocolConfig) -> IotaResult {
+        let authenticators = self.move_authenticators();
+
         // Check each `MoveAuthenticator` validity.
-        self.move_authenticators()
+        authenticators
             .iter()
             .try_for_each(|authenticator| authenticator.validity_check(config))?;
 
         // Additional checks when `MoveAuthenticators` are present.
-        let authenticators_num = self.move_authenticators().len();
+        let authenticators_num = authenticators.len();
         if authenticators_num > 0 {
+            let tx_data = self.transaction_data();
+
             fp_ensure!(
                 tx_data.kind().is_programmable_transaction(),
                 UserInputError::Unsupported(
@@ -2727,9 +2727,43 @@ impl SenderSignedData {
                 )
                 .into()
             );
+
+            Self::check_move_authenticators_input_consistency(tx_data, &authenticators)?;
         }
 
         Ok(())
+    }
+
+    fn check_move_authenticators_input_consistency(
+        tx_data: &TransactionData,
+        authenticators: &[&MoveAuthenticator],
+    ) -> IotaResult {
+        // Get the input objects from the transaction data kind to skip the gas coins.
+        let mut checked_inputs = tx_data
+            .kind()
+            .input_objects()?
+            .into_iter()
+            .map(|o| (o.object_id(), o))
+            .collect::<HashMap<_, _>>();
+
+        authenticators.iter().try_for_each(|authenticator| {
+            authenticator
+                .input_objects()
+                .iter()
+                .try_for_each(|auth_input_object| {
+                    match checked_inputs.get(&auth_input_object.object_id()) {
+                        Some(existing) => {
+                            auth_input_object.check_consistency_for_authentication(existing)?
+                        }
+                        None => {
+                            checked_inputs
+                                .insert(auth_input_object.object_id(), *auth_input_object);
+                        }
+                    };
+
+                    Ok(())
+                })
+        })
     }
 }
 
@@ -3146,6 +3180,52 @@ impl InputObjectKind {
                     if !*mutable && *other_mutable {
                         *mutable = *other_mutable;
                     }
+                }
+            },
+        }
+
+        Ok(())
+    }
+
+    /// Checks that `self` and `other` are equal for non-shared objects.
+    /// For shared objects, checks that IDs and initial versions match while
+    /// mutability can be different.
+    pub fn check_consistency_for_authentication(
+        &self,
+        other: &InputObjectKind,
+    ) -> UserInputResult<()> {
+        match self {
+            InputObjectKind::MovePackage(_) | InputObjectKind::ImmOrOwnedMoveObject(_) => {
+                fp_ensure!(
+                    self == other,
+                    UserInputError::InconsistentAuthenticatorInput {
+                        object_id: self.object_id()
+                    }
+                );
+            }
+            InputObjectKind::SharedMoveObject {
+                id,
+                initial_shared_version,
+                mutable: _,
+            } => match other {
+                InputObjectKind::MovePackage(_) | InputObjectKind::ImmOrOwnedMoveObject(_) => {
+                    fp_bail!(UserInputError::InconsistentAuthenticatorInput {
+                        object_id: self.object_id()
+                    })
+                }
+                InputObjectKind::SharedMoveObject {
+                    id: other_id,
+                    initial_shared_version: other_initial_shared_version,
+                    mutable: _,
+                } => {
+                    fp_ensure!(
+                        id == other_id,
+                        UserInputError::InconsistentAuthenticatorInput { object_id: *id }
+                    );
+                    fp_ensure!(
+                        initial_shared_version == other_initial_shared_version,
+                        UserInputError::InconsistentAuthenticatorInput { object_id: *id }
+                    );
                 }
             },
         }
