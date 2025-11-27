@@ -262,6 +262,11 @@ impl CommitObserver {
             let pending_sub_dag =
                 load_pending_subdag_from_store(self.store.as_ref(), commit, reputation_scores);
 
+            // Rebuild traversed headers tracker so recovery can honor the
+            // traversed-headers gate when committing transactions.
+            self.linearizer
+                .record_traversed_headers(pending_sub_dag.headers.iter());
+
             // Recover transaction acknowledgments tracker state by adding transaction
             // acknowledgments from all pending sub-dags that still might
             // correctly acknowledge transactions.
