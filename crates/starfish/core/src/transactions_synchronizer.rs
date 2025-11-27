@@ -1236,6 +1236,7 @@ mod tests {
     use async_trait::async_trait;
     use bytes::Bytes;
     use rand::{Rng, thread_rng};
+    use rstest::rstest;
     use tokio::{sync::Mutex, time::sleep};
 
     use super::*;
@@ -1254,11 +1255,15 @@ mod tests {
         storage::mem_store::MemStore,
     };
 
+    #[rstest]
     #[tokio::test]
-    async fn successful_live_syncing() {
+    async fn successful_live_syncing(#[values(true, false)] transaction_ref_enabled: bool) {
         telemetry_subscribers::init_for_testing();
         // GIVEN
-        let (context, _) = Context::new_for_test(4);
+        let (mut context, _) = Context::new_for_test(4);
+        context
+            .protocol_config
+            .set_consensus_transaction_ref_for_testing(transaction_ref_enabled);
         let context = Arc::new(context);
         let core_dispatcher = Arc::new(MockCoreThreadDispatcher::new());
         let network_client = Arc::new(MockNetworkClient::new());
@@ -1313,8 +1318,12 @@ mod tests {
             let mut authorities = BTreeSet::new();
             authorities.insert(AuthorityIndex::new_for_test(1));
             authorities.insert(AuthorityIndex::new_for_test(2));
-            missing_transactions
-                .insert(GenericTransactionRef::from(header.reference()), authorities);
+            let gen_ref = if transaction_ref_enabled {
+                GenericTransactionRef::from(header.transaction_ref())
+            } else {
+                GenericTransactionRef::from(header.reference())
+            };
+            missing_transactions.insert(gen_ref, authorities);
         }
 
         // Stub the transactions in the network client
@@ -1323,7 +1332,7 @@ mod tests {
                 .stub_fetch_transactions(
                     vec![transaction.clone()],
                     AuthorityIndex::new_for_test(1),
-                    context.protocol_config.consensus_transaction_ref(),
+                    transaction_ref_enabled,
                 )
                 .await;
         }
@@ -1475,11 +1484,15 @@ mod tests {
         handle.stop().await.unwrap();
     }
 
+    #[rstest]
     #[tokio::test]
-    async fn live_syncing_with_timeout_peer() {
+    async fn live_syncing_with_timeout_peer(#[values(true, false)] transaction_ref_enabled: bool) {
         telemetry_subscribers::init_for_testing();
         // GIVEN
-        let (context, _) = Context::new_for_test(4);
+        let (mut context, _) = Context::new_for_test(4);
+        context
+            .protocol_config
+            .set_consensus_transaction_ref_for_testing(transaction_ref_enabled);
         let context = Arc::new(context);
         let core_dispatcher = Arc::new(MockCoreThreadDispatcher::new());
         let network_client = Arc::new(MockNetworkClient::new());
@@ -1535,8 +1548,12 @@ mod tests {
             let mut authorities = BTreeSet::new();
             authorities.insert(AuthorityIndex::new_for_test(1)); // This peer will timeout
             authorities.insert(AuthorityIndex::new_for_test(2)); // This peer will succeed
-            missing_transactions
-                .insert(GenericTransactionRef::from(header.reference()), authorities);
+            let gen_ref = if transaction_ref_enabled {
+                GenericTransactionRef::from(header.transaction_ref())
+            } else {
+                GenericTransactionRef::from(header.reference())
+            };
+            missing_transactions.insert(gen_ref, authorities);
         }
 
         // Set peer 1 to timeout
@@ -1550,7 +1567,7 @@ mod tests {
                 .stub_fetch_transactions(
                     vec![transaction.clone()],
                     AuthorityIndex::new_for_test(2),
-                    context.protocol_config.consensus_transaction_ref(),
+                    transaction_ref_enabled,
                 )
                 .await;
         }
@@ -1599,11 +1616,15 @@ mod tests {
         handle.stop().await.unwrap();
     }
 
+    #[rstest]
     #[tokio::test]
-    async fn live_syncing_with_error_peer() {
+    async fn live_syncing_with_error_peer(#[values(true, false)] transaction_ref_enabled: bool) {
         telemetry_subscribers::init_for_testing();
         // GIVEN
-        let (context, _) = Context::new_for_test(4);
+        let (mut context, _) = Context::new_for_test(4);
+        context
+            .protocol_config
+            .set_consensus_transaction_ref_for_testing(transaction_ref_enabled);
         let context = Arc::new(context);
         let core_dispatcher = Arc::new(MockCoreThreadDispatcher::new());
         let network_client = Arc::new(MockNetworkClient::new());
@@ -1659,8 +1680,12 @@ mod tests {
             let mut authorities = BTreeSet::new();
             authorities.insert(AuthorityIndex::new_for_test(1)); // This peer will return an error
             authorities.insert(AuthorityIndex::new_for_test(2)); // This peer will succeed
-            missing_transactions
-                .insert(GenericTransactionRef::from(header.reference()), authorities);
+            let gen_ref = if transaction_ref_enabled {
+                GenericTransactionRef::from(header.transaction_ref())
+            } else {
+                GenericTransactionRef::from(header.reference())
+            };
+            missing_transactions.insert(gen_ref, authorities);
         }
 
         // Set peer 1 to return an error
@@ -1677,7 +1702,7 @@ mod tests {
                 .stub_fetch_transactions(
                     vec![transaction.clone()],
                     AuthorityIndex::new_for_test(2),
-                    context.protocol_config.consensus_transaction_ref(),
+                    transaction_ref_enabled,
                 )
                 .await;
         }
@@ -1712,11 +1737,15 @@ mod tests {
         handle.stop().await.unwrap();
     }
 
+    #[rstest]
     #[tokio::test]
-    async fn live_syncing_with_empty_peer() {
+    async fn live_syncing_with_empty_peer(#[values(true, false)] transaction_ref_enabled: bool) {
         telemetry_subscribers::init_for_testing();
         // GIVEN
-        let (context, _) = Context::new_for_test(4);
+        let (mut context, _) = Context::new_for_test(4);
+        context
+            .protocol_config
+            .set_consensus_transaction_ref_for_testing(transaction_ref_enabled);
         let context = Arc::new(context);
         let core_dispatcher = Arc::new(MockCoreThreadDispatcher::new());
         let network_client = Arc::new(MockNetworkClient::new());
@@ -1772,8 +1801,12 @@ mod tests {
             let mut authorities = BTreeSet::new();
             authorities.insert(AuthorityIndex::new_for_test(1)); // This peer will return empty results
             authorities.insert(AuthorityIndex::new_for_test(2)); // This peer will succeed
-            missing_transactions
-                .insert(GenericTransactionRef::from(header.reference()), authorities);
+            let gen_ref = if transaction_ref_enabled {
+                GenericTransactionRef::from(header.transaction_ref())
+            } else {
+                GenericTransactionRef::from(header.reference())
+            };
+            missing_transactions.insert(gen_ref, authorities);
         }
 
         // Set peer 1 to return empty results
@@ -1787,7 +1820,7 @@ mod tests {
                 .stub_fetch_transactions(
                     vec![transaction.clone()],
                     AuthorityIndex::new_for_test(2),
-                    context.protocol_config.consensus_transaction_ref(),
+                    transaction_ref_enabled,
                 )
                 .await;
         }
@@ -1827,13 +1860,16 @@ mod tests {
         handle.stop().await.unwrap();
     }
 
+    #[rstest]
     #[tokio::test]
-    async fn live_syncing_with_corrupted_peer() {
+    async fn live_syncing_with_corrupted_peer(#[values(true, false)] transaction_ref_enabled: bool) {
         telemetry_subscribers::init_for_testing();
         // GIVEN
-        let (context, _) = Context::new_for_test(4);
+        let (mut context, _) = Context::new_for_test(4);
+        context
+            .protocol_config
+            .set_consensus_transaction_ref_for_testing(transaction_ref_enabled);
         let context = Arc::new(context);
-        let transaction_ref_enabled = context.protocol_config.consensus_transaction_ref();
         let core_dispatcher = Arc::new(MockCoreThreadDispatcher::new());
         let network_client = Arc::new(MockNetworkClient::new());
         let store = Arc::new(MemStore::new(context.clone()));
