@@ -877,7 +877,7 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
             metric: inflight_metric,
         };
 
-        let committed_transactions_refs = transactions_guard
+        let requested_transactions_refs = transactions_guard
             .transactions_refs
             .iter()
             .cloned()
@@ -890,7 +890,7 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
             request_timeout,
             network_client.fetch_transactions(
                 peer,
-                committed_transactions_refs.clone(),
+                requested_transactions_refs.clone(),
                 request_timeout,
             ),
         )
@@ -988,17 +988,21 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
             match Handle::current()
                 .spawn_blocking({
                     // Use the block_refs from the requested_transactions_guard
-                    let block_refs: Vec<BlockRef> = requested_transactions_guard
+                    let block_refs: ConsensusResult<Vec<BlockRef>> = requested_transactions_guard
                         .transactions_refs
                         .iter()
                         .map(|ctr| match ctr {
-                            GenericTransactionRef::TransactionRef(tr_ref) => {
-                                panic!("It should be only BlockRef here")
+                            GenericTransactionRef::TransactionRef(_) => {
+                                Err(ConsensusError::TransactionRefVariantMismatch {
+                                    protocol_flag_enabled: false,
+                                    expected_variant: "BlockRef",
+                                    received_variant: "TransactionRef",
+                                })
                             }
-                            GenericTransactionRef::BlockRef(block_ref) => block_ref,
+                            GenericTransactionRef::BlockRef(block_ref) => Ok(*block_ref),
                         })
-                        .cloned()
                         .collect();
+                    let block_refs = block_refs?;
                     let block_headers_vec =
                         dag_state.read().get_verified_block_headers(&block_refs);
                     let mut block_headers_map = BTreeMap::new();
@@ -1052,6 +1056,17 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
         } else {
             match Handle::current()
                 .spawn_blocking({
+                    // Validate that all refs are TransactionRef as expected when consensus_transaction_ref is true
+                    for gen_tr_ref in requested_transactions_guard.transactions_refs.iter() {
+                        if let GenericTransactionRef::BlockRef(_) = gen_tr_ref {
+                            return Err(ConsensusError::TransactionRefVariantMismatch {
+                                protocol_flag_enabled: true,
+                                expected_variant: "TransactionRef",
+                                received_variant: "BlockRef",
+                            });
+                        }
+                    }
+
                     let mut serialized_transactions_map: BTreeMap<GenericTransactionRef, Bytes> =
                         BTreeMap::new();
                     for serialized_transaction_bytes in &serialized_transactions {
@@ -1305,7 +1320,11 @@ mod tests {
         // Stub the transactions in the network client
         for transaction in &transactions {
             network_client
-                .stub_fetch_transactions(vec![transaction.clone()], AuthorityIndex::new_for_test(1))
+                .stub_fetch_transactions(
+                    vec![transaction.clone()],
+                    AuthorityIndex::new_for_test(1),
+                    context.protocol_config.consensus_transaction_ref(),
+                )
                 .await;
         }
 
@@ -1528,7 +1547,11 @@ mod tests {
         // Stub the transactions for peer 2
         for transaction in &transactions {
             network_client
-                .stub_fetch_transactions(vec![transaction.clone()], AuthorityIndex::new_for_test(2))
+                .stub_fetch_transactions(
+                    vec![transaction.clone()],
+                    AuthorityIndex::new_for_test(2),
+                    context.protocol_config.consensus_transaction_ref(),
+                )
                 .await;
         }
 
@@ -1651,7 +1674,11 @@ mod tests {
         // Stub the transactions for peer 2
         for transaction in &transactions {
             network_client
-                .stub_fetch_transactions(vec![transaction.clone()], AuthorityIndex::new_for_test(2))
+                .stub_fetch_transactions(
+                    vec![transaction.clone()],
+                    AuthorityIndex::new_for_test(2),
+                    context.protocol_config.consensus_transaction_ref(),
+                )
                 .await;
         }
 
@@ -1757,7 +1784,11 @@ mod tests {
         // Stub the transactions for peer 2
         for transaction in &transactions {
             network_client
-                .stub_fetch_transactions(vec![transaction.clone()], AuthorityIndex::new_for_test(2))
+                .stub_fetch_transactions(
+                    vec![transaction.clone()],
+                    AuthorityIndex::new_for_test(2),
+                    context.protocol_config.consensus_transaction_ref(),
+                )
                 .await;
         }
 
@@ -1802,6 +1833,7 @@ mod tests {
         // GIVEN
         let (context, _) = Context::new_for_test(4);
         let context = Arc::new(context);
+        let transaction_ref_enabled = context.protocol_config.consensus_transaction_ref();
         let core_dispatcher = Arc::new(MockCoreThreadDispatcher::new());
         let network_client = Arc::new(MockNetworkClient::new());
         let store = Arc::new(MemStore::new(context.clone()));
@@ -1856,8 +1888,14 @@ mod tests {
             let mut authorities = BTreeSet::new();
             authorities.insert(AuthorityIndex::new_for_test(1)); // This peer will return corrupted data
             authorities.insert(AuthorityIndex::new_for_test(2)); // This peer will succeed
-            missing_transactions
-                .insert(GenericTransactionRef::from(header.reference()), authorities);
+            if transaction_ref_enabled {
+                missing_transactions
+                    .insert(GenericTransactionRef::from(header.transaction_ref()), authorities);
+            }
+            else {
+                missing_transactions
+                    .insert(GenericTransactionRef::from(header.reference()), authorities);
+            }
         }
 
         // Set peer 1 to return corrupted data
@@ -1868,7 +1906,11 @@ mod tests {
         // Stub the transactions for peer 2
         for transaction in &transactions {
             network_client
-                .stub_fetch_transactions(vec![transaction.clone()], AuthorityIndex::new_for_test(2))
+                .stub_fetch_transactions(
+                    vec![transaction.clone()],
+                    AuthorityIndex::new_for_test(2),
+                    transaction_ref_enabled,
+                )
                 .await;
         }
 
@@ -2178,20 +2220,34 @@ mod tests {
             &self,
             transactions: Vec<VerifiedTransactions>,
             peer: AuthorityIndex,
+            transaction_ref_enabled: bool,
         ) {
             let mut transactions_map = self.transactions.lock().await;
             for transaction in transactions {
                 let block_ref = transaction.block_ref();
+                let transaction_ref = transaction.transaction_ref();
 
-                // Create a SerializedTransactions struct
-                let serialized_transactions = SerializedTransactionsV1 {
-                    block_ref,
-                    serialized_transactions: transaction.serialized().clone(),
-                };
-                let gen_tr_ref = GenericTransactionRef::from(block_ref);
-                // Serialize the SerializedTransactions struct
-                let serialized = bcs::to_bytes(&serialized_transactions).unwrap();
-                transactions_map.insert((peer, gen_tr_ref), serialized.into());
+                if transaction_ref_enabled {
+                    // Create a SerializedTransactionsV2 struct with TransactionRef
+                    let serialized_transactions = SerializedTransactionsV2 {
+                        transaction_ref,
+                        serialized_transactions: transaction.serialized().clone(),
+                    };
+                    let gen_tr_ref = GenericTransactionRef::TransactionRef(transaction_ref);
+                    // Serialize the SerializedTransactions struct
+                    let serialized = bcs::to_bytes(&serialized_transactions).unwrap();
+                    transactions_map.insert((peer, gen_tr_ref), serialized.into());
+                } else {
+                    // Create a SerializedTransactionsV1 struct with BlockRef
+                    let serialized_transactions = SerializedTransactionsV1 {
+                        block_ref,
+                        serialized_transactions: transaction.serialized().clone(),
+                    };
+                    let gen_tr_ref = GenericTransactionRef::BlockRef(block_ref);
+                    // Serialize the SerializedTransactions struct
+                    let serialized = bcs::to_bytes(&serialized_transactions).unwrap();
+                    transactions_map.insert((peer, gen_tr_ref), serialized.into());
+                }
             }
         }
 

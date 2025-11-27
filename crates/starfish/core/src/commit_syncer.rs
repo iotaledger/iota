@@ -671,21 +671,26 @@ impl<C: NetworkClient> CommitSyncer<C> {
             // 3b. Identify which committed transaction blocks are NOT in the committed
             // blocks list and add them to block_refs so they get fetched together
             let block_refs_set: BTreeSet<_> = block_refs.iter().cloned().collect();
-            let missing_tx_header_refs: Vec<BlockRef> = committed_tx_refs
+            let missing_tx_header_refs: ConsensusResult<Vec<BlockRef>> = committed_tx_refs
                 .iter()
                 .filter_map(|tx_ref| {
                     match tx_ref {
                         GenericTransactionRef::BlockRef(br) => {
                             if !block_refs_set.contains(br) {
-                                Some(*br)
+                                Some(Ok(*br))
                             } else {
                                 None
                             }
                         }
-                        _ => panic!("if the flag consensus_transaction_ref turned off then all CommittedTransactionRef should be BlockRef"),
+                        _ => Some(Err(ConsensusError::TransactionRefVariantMismatch {
+                            protocol_flag_enabled: false,
+                            expected_variant: "BlockRef",
+                            received_variant: "TransactionRef",
+                        })),
                     }
                 })
                 .collect();
+            let missing_tx_header_refs = missing_tx_header_refs?;
 
             // Merge missing transaction headers into the main block_refs list
             block_refs.extend(missing_tx_header_refs);
@@ -1092,9 +1097,11 @@ pub(crate) fn verify_transactions_with_headers(
         let block_ref = match committed_transactions_ref {
             GenericTransactionRef::BlockRef(br) => br,
             _ => {
-                panic!(
-                    "this function should be called only if the flag consensus_transaction_ref is turned off, and then all CommittedTransactionRef should be BlockRef"
-                )
+                return Err(ConsensusError::TransactionRefVariantMismatch {
+                    protocol_flag_enabled: false,
+                    expected_variant: "BlockRef",
+                    received_variant: "TransactionRef",
+                });
             }
         };
         // Step 1: Get the block header and verify that the transactions commitment
@@ -1154,9 +1161,11 @@ pub(crate) fn verify_transactions_with_transactions_refs(
         let transaction_ref = match committed_transactions_ref {
             GenericTransactionRef::TransactionRef(tr_ref) => tr_ref,
             _ => {
-                panic!(
-                    "this function should be called only if the flag consensus_transaction_ref is turned on, and then all CommittedTransactionRef should be TransactionRef"
-                )
+                return Err(ConsensusError::TransactionRefVariantMismatch {
+                    protocol_flag_enabled: true,
+                    expected_variant: "TransactionRef",
+                    received_variant: "BlockRef",
+                });
             }
         };
         let block_ref = BlockRef {
