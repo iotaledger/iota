@@ -976,7 +976,7 @@ fun advance_epoch_with_dummy_rewards(
     );
 
    let scores = vector::tabulate!(
-        committee_size,
+        validator_set.committee_validator_addresses().length(),
         |_| 65536u64,    
     );
 
@@ -1008,7 +1008,7 @@ fun advance_epoch_with_eligible_validators(
 
 
     let scores = vector::tabulate!(
-        committee_size,
+        validator_set.committee_validator_addresses().length(),
         |_| 65536u64,    
     );
 
@@ -1046,7 +1046,7 @@ fun advance_epoch_with_low_stake_params(
     );
 
    let scores = vector::tabulate!(
-        committee_size,
+        validator_set.committee_validator_addresses().length(),
         |_| 65536u64,    
     );
 

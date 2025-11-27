@@ -1346,7 +1346,7 @@ fun compute_adjusted_reward_distribution(
 
         // Calculate staking reward amount adjusted for the validator's score
         let score_adjusted_staking_reward_amount = scores[i] as u128 * (unadjusted_staking_reward_amount as u128)
-            / (MAX_SCORE as u128);
+            / MAX_SCORE;
 
         // Check if the validator is slashed
         let adjusted_staking_reward_amount = if (
@@ -1432,7 +1432,7 @@ fun emit_validator_epoch_events(
             vector[]
         };
         let mut committee_member_index = committee_members.find_index!(|c| c == i);
-        let tallying_rule_global_score = if (slashed_validators.contains(&validator_address)) 0
+        let tallying_rule_global_score = if (slashed_validators.contains(&validator_address) || !committee_member_index.is_some()) 0
         else scores[committee_member_index.extract()];
         let pool_staking_reward = if (committee_member_index.is_some()) {
             // prepare event for a committee validator

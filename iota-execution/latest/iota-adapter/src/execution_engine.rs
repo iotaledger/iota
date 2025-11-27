@@ -968,7 +968,7 @@ mod checked {
             CallArg::Pure(bcs::to_bytes(&params.epoch_start_timestamp_ms).unwrap()), /* epoch_start_timestamp_ms: u64 */
             CallArg::Pure(bcs::to_bytes(&params.max_committee_members_count).unwrap()), /* max_committee_members_count: u64 */
             CallArg::Pure(bcs::to_bytes(&params.eligible_active_validators).unwrap()), /* eligible_active_validators: Vec<u64> */
-            CallArg::Pure(bcs::to_bytes(&params.scores).unwrap()), /* scores: Vec<u64> */
+            CallArg::Pure(bcs::to_bytes(&params.scores).unwrap()), // scores: Vec<u64>
         ];
         construct_advance_epoch_pt_impl(builder, params, call_arg_vec)
     }
