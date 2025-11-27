@@ -16,7 +16,6 @@ use hyper_util::rt::TokioIo;
 use tokio::net::TcpListener;
 use tokio_util::io::ReaderStream;
 use tracing::{error, info, warn};
-use url::Url;
 
 // Type alias for response body - either Full for small responses or streaming
 // for large files
@@ -369,9 +368,9 @@ async fn handle_status_request(
 fn parse_query_params(uri: &http::Uri) -> std::collections::HashMap<String, String> {
     let mut params = std::collections::HashMap::new();
 
-    // Convert http::Uri to url::Url for query parsing
-    if let Ok(url) = Url::parse(uri.to_string().as_str()) {
-        for (key, value) in url.query_pairs() {
+    // Extract query string directly from URI
+    if let Some(query) = uri.query() {
+        for (key, value) in url::form_urlencoded::parse(query.as_bytes()) {
             params.insert(key.to_string(), value.to_string());
         }
     }
