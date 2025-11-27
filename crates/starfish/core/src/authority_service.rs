@@ -2627,9 +2627,11 @@ mod tests {
 
         // Collect expected blocks from the first batch
         let expected_number = first_batch_end_exclusive - 1 - last_received_round;
-        for _ in 0..expected_number {
-            if let Some(bundle) = stream.next().await {
-                received_bundles.push(bundle);
+        for i in 0..expected_number {
+            match tokio::time::timeout(Duration::from_secs(5), stream.next()).await {
+                Ok(Some(bundle)) => received_bundles.push(bundle),
+                Ok(None) => panic!("Stream ended at bundle {} of {}", i, expected_number),
+                Err(_) => panic!("Timeout at bundle {} of {}", i, expected_number),
             }
         }
 
@@ -2707,8 +2709,10 @@ mod tests {
                 .send(all_blocks[round as usize][0].clone())
                 .expect("We expect that block is sent successfully");
             sleep(Duration::from_millis(50)).await;
-            if let Some(bundle) = stream.next().await {
-                received_bundles.push(bundle);
+            match tokio::time::timeout(Duration::from_secs(5), stream.next()).await {
+                Ok(Some(bundle)) => received_bundles.push(bundle),
+                Ok(None) => panic!("Stream ended at round {}", round),
+                Err(_) => panic!("Timeout at round {}, got {} bundles", round, received_bundles.len()),
             }
         }
 
