@@ -44,5 +44,6 @@ iota client account attach-auth-info $ACCOUNT_ADDRESS $PACKAGE_ID::account::auth
 ## Use the account
 
 ```bash
-iota client account  $ACCOUNT_ADDRESS
+iota client account register $ACCOUNT_ADDRESS
+iota client switch --address $ACCOUNT_ADDRESS
 ```

@@ -1,5 +1,6 @@
 module account::account;
 
+use iota::account::AuthenticatorInfoV1CompatibilityProof;
 use iota::package_metadata::PackageMetadataV1;
 
 public struct Account has key, store {
@@ -10,9 +11,16 @@ public struct ACCOUNT has drop {}
 
 fun init(_otw: ACCOUNT, ctx: &mut TxContext) {
     // Shares the account object, anyone can claim it by calling the link_auth function
-    transfer::public_share_object(Account {
+    transfer::public_transfer(Account {
         id: object::new(ctx),
-    });
+    },
+        ctx.sender()
+    );
+}
+
+/// Wrapper because of &mut UID
+public fun attach_auth_info_v1<AccountType: key>(account: &mut Account, authenticator_proof: AuthenticatorInfoV1CompatibilityProof<AccountType>,) {
+    iota::account::attach_auth_info_v1<AccountType>(&mut account.id, authenticator_proof);
 }
 
 public fun link_auth(account: &mut Account, package: &PackageMetadataV1, module_name: std::ascii::String, function_name: std::ascii::String) {

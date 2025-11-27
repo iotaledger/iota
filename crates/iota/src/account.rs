@@ -72,7 +72,10 @@ impl AccountCommands {
                         "--move-call iota::account::check_auth_info_v1_compatibility <{}> @{account_address} authenticator", account_type.to_string()
                     ),
                     "--assign authenticator_proof".to_string(),
-                    format!("--move-call iota::account::attach_auth_info_v1 <{}> @{account_address} authenticator_proof", account_type.to_string())
+                    // format!("--move-call {}::account::mut_uid @{account_address}", ObjectID::from_str(method[0])?),
+                    // "--assign mut_uid".to_string(),
+                    format!("--move-call {}::account::attach_auth_info_v1 <{}> @{account_address} authenticator_proof", ObjectID::from_str(method[0])?, account_type.to_string())
+                    // format!("--move-call iota::account::attach_auth_info_v1 <{}> @{account_address} authenticator_proof", account_type.to_string())
                 ];
                 let display = core::mem::take(&mut processing.display);
                 args.extend(payment.into_args());
