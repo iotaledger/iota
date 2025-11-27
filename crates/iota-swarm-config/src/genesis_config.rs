@@ -344,7 +344,11 @@ impl GenesisConfig {
     /// predictable to facilitate benchmarks orchestration. Only the main ip
     /// addresses of the validators are specified (as those are often
     /// dictated by the cloud provider hosing the testbed).
-    pub fn new_for_benchmarks(ips: &[String], epoch_duration_ms: Option<u64>) -> Self {
+    pub fn new_for_benchmarks(
+        ips: &[String],
+        epoch_duration_ms: Option<u64>,
+        chain_start_timestamp_ms: Option<u64>,
+    ) -> Self {
         // Set the validator's configs. They should be the same across multiple runs to
         // ensure reproducibility.
         let mut rng = StdRng::seed_from_u64(Self::BENCHMARKS_RNG_SEED);
@@ -385,7 +389,7 @@ impl GenesisConfig {
         // Benchmarks require a deterministic genesis. Every validator locally generates
         // it own genesis; it is thus important they have the same parameters.
         let parameters = GenesisCeremonyParameters {
-            chain_start_timestamp_ms: 0,
+            chain_start_timestamp_ms: chain_start_timestamp_ms.unwrap_or(0),
             epoch_duration_ms: if let Some(duration_ms) = epoch_duration_ms {
                 duration_ms
             } else {

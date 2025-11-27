@@ -175,6 +175,11 @@ pub enum Operation {
         /// latency_perturbation_spec
         #[arg(long, value_name = "INT", default_value = "1", global = true)]
         blocking_connections: usize,
+
+        /// Use current system time as genesis chain start timestamp instead of
+        /// 0
+        #[arg(long, action, default_value_t = false)]
+        use_current_timestamp_for_genesis: bool,
     },
 
     /// Print a summary of the specified measurements collection.
@@ -389,6 +394,7 @@ async fn run<C: ServerProviderClient>(settings: Settings, client: C, opts: Opts)
             maximum_latency,
             epoch_duration_ms,
             blocking_connections,
+            use_current_timestamp_for_genesis,
         } => {
             // Create a new orchestrator to instruct the testbed.
             let username = testbed.username();
@@ -468,6 +474,7 @@ async fn run<C: ServerProviderClient>(settings: Settings, client: C, opts: Opts)
                     .with_protocol_switch_each_epoch(protocol_switch_each_epoch)
                     .with_max_latency(maximum_latency)
                     .with_epoch_duration(epoch_duration_ms)
+                    .with_current_timestamp_for_genesis(use_current_timestamp_for_genesis)
                     .with_faults(fault_type);
 
             Orchestrator::new(
