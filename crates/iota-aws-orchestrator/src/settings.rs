@@ -186,6 +186,14 @@ impl Settings {
         }
     }
 
+    /// Check if the build cache is enabled.
+    pub fn build_cache_enabled(&self) -> bool {
+        self.build_cache_server
+            .as_ref()
+            .map(|b| b.enabled)
+            .unwrap_or(false)
+    }
+
     /// The number of regions specified in the settings.
     #[cfg(test)]
     pub fn number_of_regions(&self) -> usize {

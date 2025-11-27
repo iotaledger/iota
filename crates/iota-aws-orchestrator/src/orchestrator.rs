@@ -170,9 +170,11 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
         parameters: &BenchmarkParameters<T>,
     ) -> TestbedResult<()> {
         // Run one node per instance.
-        let targets = self
-            .protocol_commands
-            .node_command(instances.clone(), parameters);
+        let targets = self.protocol_commands.node_command(
+            instances.clone(),
+            parameters,
+            self.settings.build_cache_enabled(),
+        );
 
         let repo = self.settings.repository_name();
         let context = CommandContext::new()
@@ -330,14 +332,14 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
         ];
 
         // Check if build cache is enabled
-        if let Some(build_config) = &self.settings.build_cache_server {
-            if build_config.enabled {
-                display::action("Using build cache for binary distribution");
-                self.update_with_build_cache(build_config, commit, &binaries)
-                    .await?;
-            } else {
-                self.update_with_local_build(&binaries).await?;
-            }
+        if self.settings.build_cache_enabled() {
+            display::action("Using build cache for binary distribution");
+            self.update_with_build_cache(
+                self.settings.build_cache_server.as_ref().unwrap(),
+                commit,
+                &binaries,
+            )
+            .await?;
         } else {
             self.update_with_local_build(&binaries).await?;
         }
@@ -600,9 +602,11 @@ fi"#,
 
         // Generate the genesis configuration file and the keystore allowing access to
         // gas objects.
-        let command = self
-            .protocol_commands
-            .genesis_command(self.node_instances.iter(), parameters);
+        let command = self.protocol_commands.genesis_command(
+            self.node_instances.iter(),
+            parameters,
+            self.settings.build_cache_enabled(),
+        );
         display::action(format!("Genesis command: {command}"));
         let repo_name = self.settings.repository_name();
         let context = CommandContext::new().with_execute_from_path(repo_name.into());
@@ -655,9 +659,11 @@ fi"#,
             display::action("Setting up full nodes");
 
             // Deploy the fullnodes.
-            let targets = self
-                .protocol_commands
-                .fullnode_command(self.client_instances.clone(), parameters);
+            let targets = self.protocol_commands.fullnode_command(
+                self.client_instances.clone(),
+                parameters,
+                self.settings.build_cache_enabled(),
+            );
 
             let repo = self.settings.repository_name();
             let context = CommandContext::new()
@@ -684,9 +690,11 @@ fi"#,
         display::action("Setting up load generators");
 
         // Deploy the load generators.
-        let targets = self
-            .protocol_commands
-            .client_command(self.client_instances.clone(), parameters);
+        let targets = self.protocol_commands.client_command(
+            self.client_instances.clone(),
+            parameters,
+            self.settings.build_cache_enabled(),
+        );
 
         let repo = self.settings.repository_name();
         let context = CommandContext::new()

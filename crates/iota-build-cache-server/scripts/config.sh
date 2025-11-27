@@ -9,8 +9,8 @@ export BUILD_CACHE_USER="${BUILD_CACHE_USER:-}"
 export BUILD_CACHE_PASSWORD="${BUILD_CACHE_PASSWORD:-}"
 
 # Default build parameters
-export COMMIT="develop"     # Git commit/branch/tag to build
-export CPU_TARGET="native"  # CPU target (native, skylake, etc.)
+export COMMIT="develop"         # Git commit/branch/tag to build
+export CPU_TARGET="x86-64-v3"   # CPU target (x86-64, x86-64-v2, x86-64-v3)
 
 # Default binaries to build/check/download
 export BINARIES="iota,iota-node,stress"

@@ -24,7 +24,12 @@ pub trait ProtocolCommands<T: BenchmarkType> {
 
     /// The command to generate the genesis and all configuration files. This
     /// command is run on each remote machine.
-    fn genesis_command<'a, I>(&self, instances: I, parameters: &BenchmarkParameters<T>) -> String
+    fn genesis_command<'a, I>(
+        &self,
+        instances: I,
+        parameters: &BenchmarkParameters<T>,
+        use_precompiled_binaries: bool,
+    ) -> String
     where
         I: Iterator<Item = &'a Instance>;
 
@@ -34,6 +39,7 @@ pub trait ProtocolCommands<T: BenchmarkType> {
         &self,
         instances: I,
         parameters: &BenchmarkParameters<T>,
+        use_precompiled_binaries: bool,
     ) -> Vec<(Instance, String)>
     where
         I: IntoIterator<Item = Instance>;
@@ -44,6 +50,7 @@ pub trait ProtocolCommands<T: BenchmarkType> {
         &self,
         instances: I,
         parameters: &BenchmarkParameters<T>,
+        use_precompiled_binaries: bool,
     ) -> Vec<(Instance, String)>
     where
         I: IntoIterator<Item = Instance>;
@@ -58,6 +65,7 @@ pub trait ProtocolCommands<T: BenchmarkType> {
         &self,
         instances: I,
         parameters: &BenchmarkParameters<T>,
+        use_precompiled_binaries: bool,
     ) -> Vec<(Instance, String)>
     where
         I: IntoIterator<Item = Instance>;
