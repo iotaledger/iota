@@ -4,7 +4,7 @@
 
 use iota_sdk_types::{
     Address, CheckpointData, CheckpointSequenceNumber, Digest, EpochId, Object, ObjectId,
-    SignedCheckpointSummary, SignedTransaction, StructTag, TransactionV1, ValidatorCommittee,
+    SignedCheckpointSummary, SignedTransaction, StructTag, Transaction, ValidatorCommittee,
     Version,
 };
 use reqwest::{StatusCode, Url, header::HeaderValue};
@@ -413,7 +413,7 @@ impl Client {
 
     pub async fn simulate_transaction(
         &self,
-        transaction: &TransactionV1,
+        transaction: &Transaction,
     ) -> Result<Response<TransactionSimulationResponse>> {
         let url = self.url().join("transactions/simulate")?;
 
