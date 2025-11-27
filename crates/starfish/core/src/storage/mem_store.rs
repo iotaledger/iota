@@ -30,7 +30,7 @@ use crate::{
 /// In-memory storage for testing.
 pub(crate) struct MemStore {
     inner: RwLock<Inner>,
-    context: Arc<Context>
+    context: Arc<Context>,
 }
 
 struct Inner {
@@ -63,7 +63,7 @@ impl MemStore {
                 commit_votes: BTreeSet::new(),
                 commit_info: BTreeMap::new(),
             }),
-            context
+            context,
         }
     }
 }
@@ -190,19 +190,21 @@ impl Store for MemStore {
         let inner = self.inner.read();
         // Get both headers and transactions for the given references
         let headers = self.read_verified_block_headers(refs)?;
-        let tr_refs =
-        if self.context.protocol_config.consensus_transaction_ref() {
-            headers.iter().map(|vh|{
-                if vh.is_none() {
-                    return GenericTransactionRef::TransactionRef(TransactionRef::default());
-                }
-                else {
-                    GenericTransactionRef::TransactionRef(vh.unwrap().transaction_ref())
-                }
-            }).collect::<Vec<GenericTransactionRef>>()
-        }
-        else {
-            refs.iter().map(|r|{GenericTransactionRef::BlockRef(r.clone())}).collect::<Vec<GenericTransactionRef>>()
+        let tr_refs = if self.context.protocol_config.consensus_transaction_ref() {
+            headers
+                .iter()
+                .map(|vh| {
+                    if vh.is_none() {
+                        return GenericTransactionRef::TransactionRef(TransactionRef::default());
+                    } else {
+                        GenericTransactionRef::TransactionRef(vh.unwrap().transaction_ref())
+                    }
+                })
+                .collect::<Vec<GenericTransactionRef>>()
+        } else {
+            refs.iter()
+                .map(|r| GenericTransactionRef::BlockRef(r.clone()))
+                .collect::<Vec<GenericTransactionRef>>()
         };
         let transactions = self.read_verified_transactions(tr_refs.as_slice())?;
         drop(inner); // Explicitly drop the read lock before combining results

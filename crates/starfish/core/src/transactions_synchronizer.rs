@@ -1960,7 +1960,8 @@ mod tests {
             let mut authorities = BTreeSet::new();
             authorities.insert(AuthorityIndex::new_for_test(1)); // This peer will timeout
             authorities.insert(AuthorityIndex::new_for_test(2)); // This peer will return an error
-            missing_transactions.insert(GenericTransactionRef::from(header.reference()), authorities);
+            missing_transactions
+                .insert(GenericTransactionRef::from(header.reference()), authorities);
         }
 
         // Set peer 1 to timeout
@@ -2019,8 +2020,10 @@ mod tests {
         ];
         let context = Context::new_for_test(10).0;
         let missing_block_refs = some_block_refs.iter().cloned().collect::<BTreeSet<_>>();
-        let missing_transations_refs = missing_block_refs.iter().map(|&br|
-            GenericTransactionRef::from(br)).collect::<BTreeSet<_>>();
+        let missing_transations_refs = missing_block_refs
+            .iter()
+            .map(|&br| GenericTransactionRef::from(br))
+            .collect::<BTreeSet<_>>();
         // We keep both guards so that drops happen at the end
         let mut all_guards: Vec<(TransactionsGuard, ActiveRequestGuard)> = Vec::new();
 
@@ -2306,10 +2309,13 @@ mod tests {
             // Lock transactions once, outside the loop
             let transactions = self.transactions.lock().await;
 
-            let mut filtered: BTreeMap<GenericTransactionRef, BTreeSet<AuthorityIndex>> = BTreeMap::new();
+            let mut filtered: BTreeMap<GenericTransactionRef, BTreeSet<AuthorityIndex>> =
+                BTreeMap::new();
 
             for (block_ref, authority_set) in missing.iter() {
-                let exists = transactions.iter().any(|txn| GenericTransactionRef::from(txn.block_ref()) == *block_ref);
+                let exists = transactions
+                    .iter()
+                    .any(|txn| GenericTransactionRef::from(txn.block_ref()) == *block_ref);
 
                 if !exists {
                     filtered.insert(*block_ref, authority_set.clone());

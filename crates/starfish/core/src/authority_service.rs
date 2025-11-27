@@ -3392,7 +3392,8 @@ mod tests {
             })
             .collect();
 
-        let mut block_refs_to_request_second_batch: Vec<GenericTransactionRef> = (rounds + 1..=2 * rounds)
+        let mut block_refs_to_request_second_batch: Vec<GenericTransactionRef> = (rounds + 1
+            ..=2 * rounds)
             .flat_map(|round| {
                 all_block_headers[round as usize]
                     .iter()
@@ -3423,7 +3424,10 @@ mod tests {
                 bcs::from_bytes(serialized_transactions_bytes)
                     .expect("deserialization should succeed");
             let block_ref = deserialized.block_ref;
-            assert_eq!(GenericTransactionRef::from(block_ref), block_refs_to_request_first_batch[i]);
+            assert_eq!(
+                GenericTransactionRef::from(block_ref),
+                block_refs_to_request_first_batch[i]
+            );
             let serialized_transactions = deserialized.serialized_transactions;
             let block_header = all_block_headers[block_ref.round as usize]
                 .iter()

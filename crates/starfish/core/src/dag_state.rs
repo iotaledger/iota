@@ -2114,7 +2114,10 @@ mod test {
         block_headers.clone().into_iter().for_each(|block_header| {
             if block_header.round() <= 4 {
                 store
-                    .write(WriteBatch::default().block_headers(vec![block_header]), context.clone())
+                    .write(
+                        WriteBatch::default().block_headers(vec![block_header]),
+                        context.clone(),
+                    )
                     .unwrap();
             } else {
                 dag_state.accept_block_headers(vec![block_header]);
@@ -2290,7 +2293,10 @@ mod test {
         block_headers.clone().into_iter().for_each(|block_header| {
             if block_header.round() <= 4 {
                 store
-                    .write(WriteBatch::default().block_headers(vec![block_header]), context.clone())
+                    .write(
+                        WriteBatch::default().block_headers(vec![block_header]),
+                        context.clone(),
+                    )
                     .unwrap();
             } else {
                 dag_state.accept_block_headers(vec![block_header]);
@@ -2438,8 +2444,10 @@ mod test {
         all_transactions.extend(dag_builder.transactions(1..=num_rounds));
 
         // All transactions should be found in DagState.
-        let transactions_refs = block_refs.iter().map(|&br|
-            GenericTransactionRef::from(br)).collect::<Vec<_>>();
+        let transactions_refs = block_refs
+            .iter()
+            .map(|&br| GenericTransactionRef::from(br))
+            .collect::<Vec<_>>();
         let result = dag_state
             .get_verified_transactions(transactions_refs.as_slice())
             .into_iter()
@@ -2480,8 +2488,10 @@ mod test {
         assert_eq!(result, block_headers);
         // Transactions from the first 5 rounds should be found in DagState.
         let vec_transactions = dag_builder.transactions(1..=5);
-        let transactions_refs = block_refs.iter().map(|&br|
-            GenericTransactionRef::from(br)).collect::<Vec<_>>();
+        let transactions_refs = block_refs
+            .iter()
+            .map(|&br| GenericTransactionRef::from(br))
+            .collect::<Vec<_>>();
         let result = dag_state
             .get_verified_transactions(&transactions_refs)
             .into_iter()
@@ -2508,8 +2518,10 @@ mod test {
             .flatten()
             .collect::<Vec<_>>();
         assert!(retrieved_block_headers.is_empty());
-        let transactions_refs = block_refs.iter().map(|&br|
-            GenericTransactionRef::from(br)).collect::<Vec<_>>();
+        let transactions_refs = block_refs
+            .iter()
+            .map(|&br| GenericTransactionRef::from(br))
+            .collect::<Vec<_>>();
         let retrieved_transactions = dag_state
             .get_verified_transactions(&transactions_refs)
             .into_iter()
@@ -3003,7 +3015,8 @@ mod test {
                 store
                     .write(
                         WriteBatch::default()
-                            .transactions(vec![block.verified_transactions.clone()]), context.clone()
+                            .transactions(vec![block.verified_transactions.clone()]),
+                        context.clone(),
                     )
                     .unwrap();
             } else {
@@ -3019,8 +3032,10 @@ mod test {
             .iter()
             .map(|block| block.reference())
             .collect::<Vec<_>>();
-        let mut transactions_refs = block_refs.iter().map(|br|
-            GenericTransactionRef::from(*br)).collect::<Vec<_>>();
+        let mut transactions_refs = block_refs
+            .iter()
+            .map(|br| GenericTransactionRef::from(*br))
+            .collect::<Vec<_>>();
         let result = dag_state.contains_transactions(transactions_refs.clone());
 
         // Ensure everything is found
@@ -3030,12 +3045,11 @@ mod test {
         // Now try to ask also for one block ref that is neither in cache nor in store
         transactions_refs.insert(
             3,
-            GenericTransactionRef::from(
-            BlockRef::new(
+            GenericTransactionRef::from(BlockRef::new(
                 11,
                 AuthorityIndex::new_for_test(0),
                 BlockHeaderDigest::default(),
-            ))
+            )),
         );
         let result = dag_state.contains_transactions(transactions_refs);
 
@@ -3053,8 +3067,10 @@ mod test {
             .iter()
             .map(|block| block.reference())
             .collect::<Vec<_>>();
-        let transactions_refs = block_refs.iter().map(|br|
-            GenericTransactionRef::from(*br)).collect::<Vec<_>>();
+        let transactions_refs = block_refs
+            .iter()
+            .map(|br| GenericTransactionRef::from(*br))
+            .collect::<Vec<_>>();
         let result = dag_state.contains_transactions(transactions_refs);
 
         // Only transactions flushed to the store should be found
@@ -3169,7 +3185,10 @@ mod test {
             .filter(|x| x.round > gc_round)
             .cloned()
             .collect();
-        let transaction_refs = block_refs_with_transactions_in_dag.iter().map(|br| GenericTransactionRef::from(*br)).collect::<Vec<_>>();
+        let transaction_refs = block_refs_with_transactions_in_dag
+            .iter()
+            .map(|br| GenericTransactionRef::from(*br))
+            .collect::<Vec<_>>();
         let expected_transactions_in_dag = dag_builder.transactions(gc_round + 1..=num_rounds);
         // All transactions should be found in DagState or store.
         let result = dag_state
@@ -3192,7 +3211,10 @@ mod test {
         );
 
         // All transactions should be found in DagState or store.
-        let transaction_refs = block_refs.iter().map(|br| GenericTransactionRef::from(*br)).collect::<Vec<_>>();
+        let transaction_refs = block_refs
+            .iter()
+            .map(|br| GenericTransactionRef::from(*br))
+            .collect::<Vec<_>>();
 
         let result = dag_state
             .get_verified_transactions(&transaction_refs)

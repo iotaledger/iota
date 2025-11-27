@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::sync::Arc;
+
 use rstest::rstest;
 use starfish_config::AuthorityIndex;
 use tempfile::TempDir;
@@ -10,12 +11,12 @@ use tempfile::TempDir;
 use super::{Store, WriteBatch, mem_store::MemStore, rocksdb_store::RocksDBStore};
 use crate::{
     block_header::{
-        BlockHeaderAPI, BlockHeaderDigest, BlockRef, Slot, TestBlockHeader, VerifiedBlock,
+        BlockHeaderAPI, BlockHeaderDigest, BlockRef, GenericTransactionRef, Slot, TestBlockHeader,
+        VerifiedBlock,
     },
     commit::{CommitDigest, TrustedCommit},
+    context::Context,
 };
-use crate::block_header::GenericTransactionRef;
-use crate::context::Context;
 
 /// Test fixture for store tests. Wraps around various store implementations.
 #[expect(clippy::large_enum_variant)]
@@ -70,7 +71,8 @@ async fn read_and_contain_block_headers(
                     .iter()
                     .map(|b| b.verified_block_header.clone())
                     .collect(),
-            ), Arc::from(context)
+            ),
+            Arc::from(context),
         )
         .unwrap();
 
@@ -189,7 +191,8 @@ async fn scan_block_headers(
                         .iter()
                         .map(|b| b.verified_transactions.clone())
                         .collect(),
-                ), context.clone()
+                ),
+            context.clone(),
         )
         .unwrap();
 
@@ -235,7 +238,8 @@ async fn scan_block_headers(
                         .iter()
                         .map(|b| b.verified_transactions.clone())
                         .collect(),
-                ), context.clone()
+                ),
+            context.clone(),
         )
         .unwrap();
     {
@@ -295,7 +299,10 @@ async fn read_and_contain_transactions(
         .map(|b| b.verified_transactions.clone())
         .collect();
     store
-        .write(WriteBatch::default().transactions(written_transactions), context.clone())
+        .write(
+            WriteBatch::default().transactions(written_transactions),
+            context.clone(),
+        )
         .unwrap();
     // Also write headers since we read transaction commitment from headers now
     let written_headers = written_blocks
@@ -303,11 +310,17 @@ async fn read_and_contain_transactions(
         .map(|b| b.verified_block_header.clone())
         .collect();
     store
-        .write(WriteBatch::default().block_headers(written_headers), context.clone())
+        .write(
+            WriteBatch::default().block_headers(written_headers),
+            context.clone(),
+        )
         .unwrap();
 
     // Test reading all transactions
-    let refs: Vec<_> = written_blocks.iter().map(|b| GenericTransactionRef::from(b.reference())).collect();
+    let refs: Vec<_> = written_blocks
+        .iter()
+        .map(|b| GenericTransactionRef::from(b.reference()))
+        .collect();
     let read_txs = store
         .read_verified_transactions(&refs)
         .expect("Read txs should not fail");
@@ -435,7 +448,10 @@ async fn read_and_scan_commits(
         ),
     ];
     store
-        .write(WriteBatch::default().commits(written_commits.clone()), context)
+        .write(
+            WriteBatch::default().commits(written_commits.clone()),
+            context,
+        )
         .unwrap();
 
     {

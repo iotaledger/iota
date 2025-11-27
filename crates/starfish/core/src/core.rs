@@ -1392,7 +1392,8 @@ mod test {
             .write(
                 WriteBatch::default()
                     .block_headers(dag_builder.block_headers(1..=num_rounds))
-                    .transactions(dag_builder.transactions(1..=num_rounds)), context.clone(),
+                    .transactions(dag_builder.transactions(1..=num_rounds)),
+                context.clone(),
             )
             .expect("We should expect a successful storing of headers");
 
@@ -1520,7 +1521,8 @@ mod test {
             .write(
                 WriteBatch::default()
                     .block_headers(block_headers)
-                    .transactions(block_transactions), context.clone(),
+                    .transactions(block_transactions),
+                context.clone(),
             )
             .expect("Storage error");
 
@@ -2381,7 +2383,9 @@ mod test {
             .0;
         let block_ref_for_first_missing_tx = match first_missing_transaction_from_skipped {
             GenericTransactionRef::BlockRef(ref b) => BlockRef::new(b.round, b.author, b.digest),
-            GenericTransactionRef::TransactionRef(ref t) => BlockRef::new(t.round, t.author, t.block_digest),
+            GenericTransactionRef::TransactionRef(ref t) => {
+                BlockRef::new(t.round, t.author, t.block_digest)
+            }
         };
         if commit_only_for_traversed_headers {
             assert_eq!(
@@ -2415,7 +2419,10 @@ mod test {
         // synchronizer
         let missing_verified_transactions: Vec<_> = all_sequenced_transactions
             .into_iter()
-            .filter(|tx| missing_transactions.contains_key(&GenericTransactionRef::TransactionRef(tx.transaction_ref())))
+            .filter(|tx| {
+                missing_transactions
+                    .contains_key(&GenericTransactionRef::TransactionRef(tx.transaction_ref()))
+            })
             .collect();
         core_catch_up
             .add_transactions(
@@ -2903,12 +2910,18 @@ mod test {
 
         // write headers in store
         store
-            .write(WriteBatch::default().block_headers(dag_builder.block_headers(1..=8)), context.clone())
+            .write(
+                WriteBatch::default().block_headers(dag_builder.block_headers(1..=8)),
+                context.clone(),
+            )
             .expect("We should expect a successful storing of headers");
 
         // write transactions in store
         store
-            .write(WriteBatch::default().transactions(dag_builder.transactions(1..=8)), context.clone())
+            .write(
+                WriteBatch::default().transactions(dag_builder.transactions(1..=8)),
+                context.clone(),
+            )
             .expect("We should expect a successful storing of transactions");
 
         // create dag state after all blocks have been written to store

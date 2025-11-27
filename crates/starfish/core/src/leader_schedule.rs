@@ -542,7 +542,8 @@ mod tests {
                 WriteBatch::default()
                     .commit_info(vec![(commit_ref, commit_info)])
                     .block_headers(block_headers_to_write)
-                    .commits(expected_commits), context.clone()
+                    .commits(expected_commits),
+                context.clone(),
             )
             .unwrap();
 
@@ -642,7 +643,8 @@ mod tests {
             .write(
                 WriteBatch::default()
                     .block_headers(headers_to_write)
-                    .commits(expected_commits), context.clone()
+                    .commits(expected_commits),
+                context.clone(),
             )
             .unwrap();
 
