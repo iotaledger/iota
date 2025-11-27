@@ -242,7 +242,6 @@ pub enum IotaClientCommands {
         processing: TxProcessingArgs,
     },
     NewAccount {
-        #[arg(long)]
         address: IotaAddress,
         /// The alias must start with a letter and can contain only letters,
         /// digits, hyphens (-), or underscores (_).
