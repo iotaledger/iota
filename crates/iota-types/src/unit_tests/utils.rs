@@ -129,7 +129,7 @@ pub fn to_sender_signed_transaction_with_multi_signers(
 
 mod zk_login {
     use fastcrypto_zkp::bn254::zk_login::ZkLoginInputs;
-    use iota_sdk_types::PersonalMessage;
+    use iota_sdk_types::crypto::PersonalMessage;
 
     use super::*;
     use crate::{crypto::PublicKey, zk_login_util::get_zklogin_inputs};
