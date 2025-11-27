@@ -389,7 +389,11 @@ class Plotter:
                 raise PlotError(f'Failed to load file {file}: {e}')
 
         total_duration = float(measurement['parameters']['duration']['secs'])
-        length = int(total_duration / precision)
+        # Add 1 to include the last bucket
+        # The script would panic if the duration and total_duration are really close
+        # e.g., total_duration=200.0, duration=194.0 and precision=30.0, then
+        # int(194.0/30.0) = int(200.0/30.0) = 6, which is out of bounds if we don't add 1
+        length = int(total_duration / precision) + 1
 
         scrapers_tps_data, scrapers_lat_data = [], []
         for data in gen_data(measurement):
@@ -404,10 +408,12 @@ class Plotter:
                 tps = (count / duration) if duration != 0 else 0
                 avg_latency = total / count if count != 0 else 0
 
-                if duration < total_duration:
+                if duration <= total_duration:
                     i = int(duration / precision)
-                    all_y_tps_values[i] += [tps]
-                    all_y_lat_values[i] += [avg_latency]
+                    # Ensure index is within bounds
+                    if i < length:
+                        all_y_tps_values[i] += [tps]
+                        all_y_lat_values[i] += [avg_latency]
 
             aggregate_y_tps_values, aggregate_y_lat_values = [], []
             for x in all_y_tps_values:
