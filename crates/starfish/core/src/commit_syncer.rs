@@ -53,8 +53,8 @@ use tracing::{debug, info, warn};
 use crate::{
     CommitConsumerMonitor, CommitIndex, Transaction, VerifiedBlockHeader,
     block_header::{
-        BlockHeaderAPI, BlockRef, GenericTransactionRef, SignedBlockHeader, TransactionRef,
-        TransactionsCommitment, VerifiedTransactions,
+        BlockHeaderAPI, BlockRef, GenericTransactionRef, SignedBlockHeader, TransactionsCommitment,
+        VerifiedTransactions,
     },
     block_verifier::BlockVerifier,
     commit::{
@@ -677,7 +677,7 @@ impl<C: NetworkClient> CommitSyncer<C> {
                     match tx_ref {
                         GenericTransactionRef::BlockRef(br) => {
                             if !block_refs_set.contains(br) {
-                                Some(br.clone())
+                                Some(*br)
                             } else {
                                 None
                             }
@@ -1172,7 +1172,7 @@ pub(crate) fn verify_transactions_with_transactions_refs(
         if transaction_ref.transactions_commitment
             != TransactionsCommitment::compute_transactions_commitment(
                 &inner_serialized_transactions,
-                &context,
+                context,
                 &mut encoder,
             )
             .expect("correct computation of the transactions commitment should be successful")

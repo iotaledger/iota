@@ -10,8 +10,8 @@ use parking_lot::RwLock;
 use tracing::debug;
 
 use crate::{
-    BlockRef, CommitIndex, CommittedSubDag, block_header::GenericTransactionRef,
-    commit::PendingSubDag, dag_state::DagState,
+    CommitIndex, CommittedSubDag, block_header::GenericTransactionRef, commit::PendingSubDag,
+    dag_state::DagState,
 };
 
 /// The `CommitSolidifier` is responsible for managing and handling

@@ -538,8 +538,8 @@ impl DagState {
                 // There are no transactions in genesis block.
                 continue;
             }
-            if let Some(transaction) = self.recent_transactions_by_authority[block_ref.author()]
-                .get(&GenericTransactionRef::from(block_ref.clone()))
+            if let Some(transaction) =
+                self.recent_transactions_by_authority[block_ref.author()].get(&(*block_ref))
             {
                 transactions[index] = Some(transaction.clone());
                 continue;
@@ -937,7 +937,7 @@ impl DagState {
                         block_digest: block_ref.digest,
                     })
                 } else {
-                    GenericTransactionRef::from(block_ref.clone())
+                    GenericTransactionRef::from(*block_ref)
                 };
                 let transactions_opt =
                     self.recent_transactions_by_authority[block_ref.author].get(&transaction_ref);

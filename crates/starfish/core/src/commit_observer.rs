@@ -15,7 +15,7 @@ use tokio::time::Instant;
 use tracing::{debug, info, instrument};
 
 use crate::{
-    BlockRef, CommitConsumer, CommittedSubDag,
+    CommitConsumer, CommittedSubDag,
     block_header::{BlockHeaderAPI, GenericTransactionRef, VerifiedBlockHeader},
     commit::{CommitAPI, CommitIndex, PendingSubDag, load_pending_subdag_from_store},
     commit_solidifier::CommitSolidifier,

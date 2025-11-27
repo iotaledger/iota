@@ -33,10 +33,7 @@ use tracing::{debug, info, warn};
 
 use crate::{
     Transaction, VerifiedBlockHeader,
-    block_header::{
-        BlockRef, GenericTransactionRef, TransactionRef, TransactionsCommitment,
-        VerifiedTransactions,
-    },
+    block_header::{BlockRef, GenericTransactionRef, TransactionsCommitment, VerifiedTransactions},
     commit_syncer::{verify_transactions_with_headers, verify_transactions_with_transactions_refs},
     context::Context,
     core_thread::CoreThreadDispatcher,

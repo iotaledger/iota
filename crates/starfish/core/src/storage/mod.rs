@@ -9,7 +9,7 @@ pub(crate) mod rocksdb_store;
 #[cfg(test)]
 mod store_tests;
 
-use std::{collections::Bound::Included, sync::Arc};
+use std::sync::Arc;
 
 use bytes::Bytes;
 use starfish_config::AuthorityIndex;
@@ -17,8 +17,8 @@ use starfish_config::AuthorityIndex;
 use crate::{
     CommitIndex,
     block_header::{
-        BlockRef, GenericTransactionRef, Round, TransactionRef, TransactionsCommitment,
-        VerifiedBlock, VerifiedBlockHeader, VerifiedTransactions,
+        BlockRef, GenericTransactionRef, Round, TransactionRef, VerifiedBlock, VerifiedBlockHeader,
+        VerifiedTransactions,
     },
     commit::{CommitInfo, CommitRange, CommitRef, TrustedCommit},
     context::Context,

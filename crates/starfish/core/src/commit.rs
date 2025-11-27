@@ -152,7 +152,7 @@ impl CommitAPI for CommitV1 {
     fn committed_transactions(&self) -> Vec<GenericTransactionRef> {
         self.committed_transactions
             .iter()
-            .map(|b| GenericTransactionRef::BlockRef(b.clone()))
+            .map(|b| GenericTransactionRef::BlockRef(*b))
             .collect()
     }
 }
@@ -211,7 +211,7 @@ impl CommitAPI for CommitV2 {
     fn committed_transactions(&self) -> Vec<GenericTransactionRef> {
         self.committed_transactions
             .iter()
-            .map(|t| GenericTransactionRef::TransactionRef(t.clone()))
+            .map(|t| GenericTransactionRef::TransactionRef(*t))
             .collect()
     }
 }

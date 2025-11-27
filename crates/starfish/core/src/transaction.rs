@@ -13,8 +13,8 @@ use tokio::sync::oneshot;
 use tracing::{error, warn};
 
 use crate::{
-    Round,
-    block_header::{BlockRef, GenericTransactionRef, Transaction},
+    BlockRef, Round,
+    block_header::{GenericTransactionRef, Transaction},
     context::Context,
 };
 

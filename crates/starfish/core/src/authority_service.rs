@@ -1077,19 +1077,17 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
                         } else {
                             panic!("Unexpected transactions ref type");
                         }
+                    } else if let GenericTransactionRef::TransactionRef(transaction_ref) = gen_ref {
+                        Bytes::from(
+                            bcs::to_bytes(&SerializedTransactionsV2 {
+                                transaction_ref,
+                                serialized_transactions: serialized_tx,
+                            })
+                            .map_err(ConsensusError::SerializationFailure)
+                            .expect("serialization should succeed"),
+                        )
                     } else {
-                        if let GenericTransactionRef::TransactionRef(transaction_ref) = gen_ref {
-                            Bytes::from(
-                                bcs::to_bytes(&SerializedTransactionsV2 {
-                                    transaction_ref,
-                                    serialized_transactions: serialized_tx,
-                                })
-                                .map_err(ConsensusError::SerializationFailure)
-                                .expect("serialization should succeed"),
-                            )
-                        } else {
-                            panic!("Unexpected transactions ref type");
-                        }
+                        panic!("Unexpected transactions ref type");
                     }
                 })
             })
