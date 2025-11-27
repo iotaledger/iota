@@ -32,6 +32,8 @@ pub struct BuildCache {
     repository_url: String,
     // Allowed CPU targets for builds
     allowed_cpu_targets: Vec<String>,
+    // Maximum number of commits to keep in cache (for disk space management)
+    max_cached_commits: usize,
 }
 
 impl BuildCache {
@@ -41,6 +43,7 @@ impl BuildCache {
         workspace_dir: String,
         repository_url: String,
         allowed_cpu_targets: Vec<String>,
+        max_cached_commits: usize,
     ) -> Result<Self> {
         let cache_path = PathBuf::from(cache_dir);
         let workspace_path = PathBuf::from(workspace_dir);
@@ -56,6 +59,7 @@ impl BuildCache {
             workspace_dir: workspace_path,
             repository_url,
             allowed_cpu_targets,
+            max_cached_commits,
         })
     }
 
@@ -319,6 +323,7 @@ impl BuildCache {
             repository_url: self.repository_url.clone(),
             workspace_dir: self.workspace_dir.clone(),
             allowed_cpu_targets: self.allowed_cpu_targets.clone(),
+            max_cached_commits: self.max_cached_commits,
         }
     }
 
@@ -374,6 +379,13 @@ impl BuildCache {
         info!(
             "Build completed successfully for commit {resolved_commit} with CPU target {cpu_target}"
         );
+
+        // Perform cache cleanup after successful build
+        if let Err(e) = self.cleanup_old_cache_entries().await {
+            error!("Cache cleanup failed: {e}");
+            // Don't fail the build if cleanup fails
+        }
+
         Ok(())
     }
 
@@ -621,6 +633,51 @@ impl BuildCache {
             job.status = BuildStatus::Failed(error_msg.to_string());
             job.completed_at = Some(chrono::Utc::now().to_rfc3339());
         }
+    }
+
+    /// Clean up old cache entries, keeping only the most recent commits
+    pub async fn cleanup_old_cache_entries(&self) -> Result<()> {
+        let cache_dir = &self.cache_dir;
+
+        // Read all directories in cache_dir
+        let mut commit_dirs = Vec::new();
+        let entries = fs::read_dir(cache_dir)?;
+
+        for entry in entries {
+            let entry = entry?;
+            let path = entry.path();
+
+            if path.is_dir() {
+                if let Ok(metadata) = fs::metadata(&path) {
+                    if let Ok(modified) = metadata.modified() {
+                        commit_dirs.push((path, modified));
+                    }
+                }
+            }
+        }
+
+        // Sort by modification time (newest first)
+        commit_dirs.sort_by(|a, b| b.1.cmp(&a.1));
+
+        // Remove directories beyond the limit
+        if commit_dirs.len() > self.max_cached_commits {
+            let dirs_to_remove = &commit_dirs[self.max_cached_commits..];
+            let count = dirs_to_remove.len();
+
+            for (dir_path, _) in dirs_to_remove {
+                info!("Removing old cache directory: {dir_path:?}");
+                if let Err(e) = fs::remove_dir_all(dir_path) {
+                    error!("Failed to remove cache directory {dir_path:?}: {e}");
+                }
+            }
+
+            info!(
+                "Cache cleanup completed. Kept {} directories, removed {} directories.",
+                self.max_cached_commits, count
+            );
+        };
+
+        Ok(())
     }
 
     /// Get build status

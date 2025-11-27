@@ -36,6 +36,10 @@ struct Args {
     /// Allowed CPU targets for builds (comma-separated)
     #[arg(long, default_value = "x86-64,x86-64-v2,x86-64-v3")]
     allowed_cpu_targets: String,
+
+    /// Maximum number of commits to keep in cache (default: 30)
+    #[arg(long, default_value = "30")]
+    max_cached_commits: usize,
 }
 
 #[tokio::main]
@@ -60,12 +64,14 @@ async fn main() -> Result<()> {
         .map(|s| s.trim().to_string())
         .collect();
     info!("Allowed CPU targets: {}", targets.join(", "));
+    info!("Maximum cached commits: {}", args.max_cached_commits);
 
     let server = BuildCacheServer::new(
         args.cache_dir,
         args.workspace_dir,
         args.repository_url,
         targets,
+        args.max_cached_commits,
     )?;
 
     if let Err(e) = server.run(args.address).await {
