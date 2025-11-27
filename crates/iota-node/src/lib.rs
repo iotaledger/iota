@@ -880,13 +880,16 @@ impl IotaNode {
         let iota_node_metrics =
             Arc::new(IotaNodeMetrics::new(&registry_service.default_registry()));
 
-        let grpc_server_handle = build_grpc_server(
-            &config,
-            state.clone(),
-            state_sync_store.clone(),
-            &transaction_orchestrator,
-        )
-        .await?;
+        // Convert transaction orchestrator to executor trait object for gRPC server
+        // Note that the transaction_orchestrator (so as executor) will be None if it is
+        // a validator node or run_with_range is set
+        let executor: Option<Arc<dyn iota_types::transaction_executor::TransactionExecutor>> =
+            transaction_orchestrator
+                .clone()
+                .map(|o| o as Arc<dyn iota_types::transaction_executor::TransactionExecutor>);
+
+        let grpc_server_handle =
+            build_grpc_server(&config, state.clone(), state_sync_store.clone(), executor).await?;
 
         let validator_components = if state.is_committee_validator(&epoch_store) {
             let (components, _) = futures::join!(
@@ -2432,7 +2435,7 @@ async fn build_grpc_server(
     config: &NodeConfig,
     state: Arc<AuthorityState>,
     state_sync_store: RocksDbStore,
-    transaction_orchestrator: &Option<Arc<TransactionOrchestrator<NetworkAuthorityClient>>>,
+    executor: Option<Arc<dyn iota_types::transaction_executor::TransactionExecutor>>,
 ) -> Result<Option<GrpcServerHandle>> {
     // Validators do not expose gRPC APIs
     if config.consensus_config().is_some() || !config.enable_grpc_api {
@@ -2457,12 +2460,6 @@ async fn build_grpc_server(
     // Get the subscription handler from the state for event streaming
     let event_subscriber =
         state.subscription_handler.clone() as Arc<dyn iota_grpc_server::EventSubscriber>;
-
-    // Convert transaction orchestrator to executor if available
-    let executor: Option<Arc<dyn iota_types::transaction_executor::TransactionExecutor>> =
-        transaction_orchestrator
-            .clone()
-            .map(|o| o as Arc<dyn iota_types::transaction_executor::TransactionExecutor>);
 
     // Pass the same token to both GrpcReader (already done above) and
     // start_grpc_server
