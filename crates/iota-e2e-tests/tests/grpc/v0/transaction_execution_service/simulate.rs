@@ -50,94 +50,6 @@ async fn assert_simulate_transaction_request(
 }
 
 #[sim_test]
-async fn simulate_transaction_service_available() {
-    let test_cluster = TestClusterBuilder::new()
-        .with_fullnode_enable_grpc_api(true)
-        .build()
-        .await;
-
-    // Wait for at least one checkpoint
-    test_cluster.wait_for_checkpoint(1, None).await;
-
-    // Test that we can connect to the TransactionExecutionService
-    let client = TransactionExecutionServiceClient::connect(test_cluster.grpc_url()).await;
-
-    // The service should be available
-    assert!(
-        client.is_ok(),
-        "TransactionExecutionService should be available"
-    );
-}
-
-#[sim_test]
-async fn simulate_transaction_simple_transfer() {
-    let test_cluster = TestClusterBuilder::new()
-        .with_fullnode_enable_grpc_api(true)
-        .build()
-        .await;
-
-    // Wait for at least one checkpoint
-    test_cluster.wait_for_checkpoint(1, None).await;
-
-    let mut client = TransactionExecutionServiceClient::connect(test_cluster.grpc_url())
-        .await
-        .unwrap();
-
-    let recipient = iota_types::base_types::IotaAddress::random_for_testing_only();
-
-    let (sender, mut gas) = test_cluster.wallet.get_one_account().await.unwrap();
-    gas.sort_by_key(|object_ref| object_ref.0);
-    let obj_to_send = gas.first().unwrap();
-    let gas_obj = gas.last().unwrap();
-
-    // Build a simple transfer transaction
-    let tx_data = TransactionData::new_transfer(
-        recipient,
-        *obj_to_send,
-        sender,
-        *gas_obj,
-        1_000_000, // gas budget
-        1000,      // gas price
-    );
-
-    // Create the simulation request with BCS
-    let transaction = ProtoTransaction {
-        bcs: Some(BcsData {
-            data: bcs::to_bytes(&tx_data).unwrap().into(),
-        }),
-        ..Default::default()
-    };
-
-    let request = SimulateTransactionRequest {
-        transaction: Some(transaction),
-        tx_checks: vec![],
-        estimate_gas_budget: None,
-        read_mask: None,
-    };
-
-    // Simulate the transaction
-    let response = client
-        .simulate_transaction(request)
-        .await
-        .unwrap()
-        .into_inner();
-
-    // Verify we got a response with all populated default mask fields
-    assert_field_presence(
-        &response,
-        &[
-            "transaction.digest",
-            "transaction.transaction.digest",
-            "transaction.transaction.bcs",
-            "transaction.effects.digest",
-            "transaction.effects.bcs",
-            "command_results",
-        ],
-        "simulate transfer - verify fields present with default mask",
-    );
-}
-
-#[sim_test]
 async fn simulate_transaction_with_gas_estimation() {
     let test_cluster = TestClusterBuilder::new()
         .with_fullnode_enable_grpc_api(true)
@@ -254,8 +166,18 @@ async fn simulate_transaction_readmask_scenarios() {
     // Tests for readmask scenarios
     type TestCase<'a> = (&'a str, Option<FieldMask>, &'a [&'a str]);
     let test_cases: Vec<TestCase> = vec![
-        // Note: Default mask is already tested in simulate_transaction_simple_transfer()
-        // so we don't duplicate it here
+        (
+            "default readmask",
+            None,
+            &[
+                "transaction.digest",
+                "transaction.transaction.digest",
+                "transaction.transaction.bcs",
+                "transaction.effects.digest",
+                "transaction.effects.bcs",
+                "command_results",
+            ],
+        ),
         (
             "empty readmask",
             Some(FieldMask::from_paths(&[] as &[&str])),

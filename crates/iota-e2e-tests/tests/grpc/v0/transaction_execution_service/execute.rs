@@ -50,69 +50,6 @@ async fn assert_execute_transaction_request(
 }
 
 #[sim_test]
-async fn execute_transaction_transfer() {
-    let test_cluster = TestClusterBuilder::new()
-        .with_fullnode_enable_grpc_api(true)
-        .build()
-        .await;
-
-    let mut client = TransactionExecutionServiceClient::connect(test_cluster.grpc_url())
-        .await
-        .unwrap();
-
-    let recipient = iota_types::base_types::IotaAddress::random_for_testing_only();
-    let amount = 9;
-
-    let txn =
-        make_transfer_iota_transaction(&test_cluster.wallet, Some(recipient), Some(amount)).await;
-
-    let transaction = ProtoTransaction {
-        bcs: Some(BcsData {
-            data: bcs::to_bytes(txn.transaction_data()).unwrap().into(),
-        }),
-        ..Default::default()
-    };
-
-    let signatures = UserSignatures {
-        signatures: txn
-            .tx_signatures()
-            .iter()
-            .map(|s| UserSignature {
-                bcs: Some(BcsData {
-                    data: s.as_ref().to_vec().into(),
-                }),
-            })
-            .collect(),
-    };
-
-    let _ = assert_execute_transaction_request(
-        &mut client,
-        transaction,
-        signatures,
-        Some(FieldMask::from_paths([
-            "transaction.digest",
-            "transaction.transaction",
-            "transaction.signatures",
-            "transaction.effects",
-            "transaction.input_objects",
-            "transaction.output_objects",
-        ])),
-        &[
-            "transaction.digest",
-            "transaction.transaction.digest",
-            "transaction.transaction.bcs",
-            "transaction.signatures",
-            "transaction.effects.digest",
-            "transaction.effects.bcs",
-            "transaction.input_objects",
-            "transaction.output_objects",
-        ],
-        "execute transaction transfer",
-    )
-    .await;
-}
-
-#[sim_test]
 async fn execute_transaction_readmask_scenarios() {
     let test_cluster = TestClusterBuilder::new()
         .with_fullnode_enable_grpc_api(true)
