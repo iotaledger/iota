@@ -561,6 +561,10 @@ impl<C: NetworkClient> CommitSyncer<C> {
         commit_range: CommitRange,
         timeout: Duration,
     ) -> ConsensusResult<CertifiedCommits> {
+        // Maximum delay between consecutive pipelined requests, to avoid
+        // overwhelming the peer while still maintaining reasonable throughput.
+        const MAX_PIPELINE_DELAY: Duration = Duration::from_secs(1);
+
         let hostname = inner
             .context
             .committee
@@ -614,7 +618,8 @@ impl<C: NetworkClient> CommitSyncer<C> {
                 async move {
                     // 4. Send out pipelined fetch requests to avoid overloading the target
                     //    authority.
-                    sleep(timeout * i as u32 / num_chunks).await;
+                    let individual_delay = (timeout / num_chunks).min(MAX_PIPELINE_DELAY);
+                    sleep(individual_delay * i as u32).await;
                     // TODO: add some retries.
                     let serialized_blocks = inner
                         .network_client

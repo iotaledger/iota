@@ -1095,7 +1095,7 @@ async fn genesis(
                 keystore.save()?;
 
                 // Make a new genesis config from the provided ip addresses.
-                GenesisConfig::new_for_benchmarks(&ips)
+                GenesisConfig::new_for_benchmarks(&ips, epoch_duration_ms)
             } else if keystore_path.exists() {
                 let existing_keys = FileBasedKeystore::new(&keystore_path)?.addresses();
                 GenesisConfig::for_local_testing_with_addresses(existing_keys)

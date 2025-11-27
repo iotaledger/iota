@@ -60,12 +60,12 @@ impl<C: ServerProviderClient> Testbed<C> {
 
     /// Return the list of instances of the testbed.
     pub fn instances(&self) -> Vec<Instance> {
-        let mut instances = self.node_instances();
-        if let Some(instance) = self.metrics_instance() {
-            instances.push(instance);
+        let mut instances = self.node_instances.clone();
+        if let Some(instance) = &self.metrics_instance {
+            instances.push(instance.clone());
         }
-        if let Some(client_instances) = self.client_instances() {
-            instances.extend(client_instances);
+        if let Some(client_instances) = &self.client_instances {
+            instances.extend(client_instances.clone());
         }
         instances
     }
@@ -74,8 +74,11 @@ impl<C: ServerProviderClient> Testbed<C> {
         self.node_instances.clone()
     }
     /// Return the list of Client instances of the testbed.
-    pub fn client_instances(&self) -> Option<Vec<Instance>> {
-        self.client_instances.clone()
+    pub fn client_instances(&self) -> Vec<Instance> {
+        match &self.client_instances {
+            Some(instances) => instances.clone(),
+            None => self.node_instances.clone(),
+        }
     }
     /// Return the Metrics Instance of the testbed.
     pub fn metrics_instance(&self) -> Option<Instance> {

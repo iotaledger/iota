@@ -80,6 +80,10 @@ pub struct Settings {
     /// configuration files).
     #[serde(default = "default_working_dir")]
     pub working_dir: PathBuf,
+    /// Pass '--use-fullnode-for-execution' and '--fullnode-rpc-addresses' to
+    /// stress binary.
+    #[serde(default)]
+    pub use_fullnode_for_execution: bool,
     /// The directory (on the local machine) where to save benchmarks
     /// measurements.
     #[serde(default = "default_results_dir")]
@@ -196,6 +200,7 @@ impl Settings {
                 commit: "main".into(),
             },
             working_dir: "/path/to/working_dir".into(),
+            use_fullnode_for_execution: false,
             results_dir: "results".into(),
             logs_dir: "logs".into(),
         }

@@ -183,7 +183,7 @@ impl CommitObserver {
                 .leader
                 .round;
             self.linearizer
-                .evict_old_acknowledgments(max_solid_commit_leader_round);
+                .evict_linearizer(max_solid_commit_leader_round);
         }
         tracing::trace!("Committed & sent {sent_sub_dags:#?}");
 

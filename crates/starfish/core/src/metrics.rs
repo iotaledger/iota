@@ -117,6 +117,7 @@ pub(crate) struct NodeMetrics {
     pub(crate) block_proposal_leader_wait_ms: IntCounterVec,
     pub(crate) block_proposal_leader_wait_count: IntCounterVec,
     pub(crate) block_timestamp_drift_ms: IntCounterVec,
+    pub(crate) latency_to_process_stream: HistogramVec,
     pub(crate) blocks_per_commit_count: Histogram,
     pub(crate) core_add_blocks_batch_size: Histogram,
     pub(crate) core_add_block_headers_batch_size: Histogram,
@@ -307,6 +308,13 @@ impl NodeMetrics {
                 exponential_buckets(1.0, 2.0, 14).unwrap(),
                 registry,
             ).unwrap(),
+            latency_to_process_stream: register_histogram_vec_with_registry!(
+                "latency_to_process_stream",
+                "The latency between block creation and processing stream from peer",
+                &["peer"],
+                exponential_buckets(1.0, 2.0, 14).unwrap(),
+                registry,
+            ).unwrap(),
             highest_verified_authority_round: register_int_gauge_vec_with_registry!(
                 "highest_verified_authority_round",
                 "The highest round of received verified block for the corresponding authority",
@@ -469,7 +477,7 @@ impl NodeMetrics {
             ).unwrap(),
             cordial_knowledge_message_batch_size: register_histogram_with_registry!(
                 "cordial_knowledge_message_batch_size",
-                "Size of the batch of messages sent to cordial connections",
+                "Size of the batch of messages sent to connections in cordial knowledge",
                 vec![0.0, 1.0, 2.0, 5.0, 10.0, 20.0, 40.0, 80.0, 100.0, 200.0, 400.0, 800.0, 1000.0],
                 registry,
             ).unwrap(),
