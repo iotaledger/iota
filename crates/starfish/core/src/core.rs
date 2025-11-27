@@ -2421,8 +2421,16 @@ mod test {
         let missing_verified_transactions: Vec<_> = all_sequenced_transactions
             .into_iter()
             .filter(|tx| {
-                missing_transactions
-                    .contains_key(&GenericTransactionRef::TransactionRef(tx.transaction_ref()))
+                let tx_ref = tx.transaction_ref();
+                let generic_ref = if context
+                    .protocol_config
+                    .consensus_transaction_ref()
+                {
+                    GenericTransactionRef::TransactionRef(tx_ref)
+                } else {
+                    GenericTransactionRef::BlockRef(BlockRef::from(tx_ref))
+                };
+                missing_transactions.contains_key(&generic_ref)
             })
             .collect();
         core_catch_up
