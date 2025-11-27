@@ -11,11 +11,9 @@ public struct ACCOUNT has drop {}
 
 fun init(_otw: ACCOUNT, ctx: &mut TxContext) {
     // Shares the account object, anyone can claim it by calling the link_auth function
-    transfer::public_transfer(Account {
+    transfer::public_share_object(Account {
         id: object::new(ctx),
-    },
-        ctx.sender()
-    );
+    });
 }
 
 /// Wrapper because of &mut UID
