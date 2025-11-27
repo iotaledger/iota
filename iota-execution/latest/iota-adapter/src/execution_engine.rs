@@ -1193,7 +1193,6 @@ mod checked {
         metrics: Arc<LimitsMetrics>,
         trace_builder_opt: &mut Option<MoveTraceBuilder>,
     ) -> Result<(), ExecutionError> {
-        // To do: pass scores
         let params = AdvanceEpochParams {
             epoch: change_epoch_v4.epoch,
             next_protocol_version: change_epoch_v4.protocol_version,
