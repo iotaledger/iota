@@ -3,9 +3,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use fastcrypto::traits::KeyPair;
-use iota_sdk_types::{
-    PersonalMessage,
-    crypto::{Intent, IntentAppId, IntentMessage, IntentScope, IntentVersion},
+use iota_sdk_types::crypto::{
+    Intent, IntentAppId, IntentMessage, IntentScope, IntentVersion, PersonalMessage,
 };
 
 use crate::{

@@ -7,10 +7,7 @@ use std::{fs::File, io::Write, str::FromStr};
 
 use clap::*;
 use fastcrypto_zkp::{bn254::zk_login::OIDCProvider, zk_login_utils::Bn254FrElement};
-use iota_sdk_types::{
-    PersonalMessage,
-    crypto::{Intent, IntentMessage},
-};
+use iota_sdk_types::crypto::{Intent, IntentMessage, PersonalMessage};
 use iota_types::{
     base_types::{
         self, IotaAddress, MoveObjectType, MoveObjectType_, ObjectDigest, ObjectID,

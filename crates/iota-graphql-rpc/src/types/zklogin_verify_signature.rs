@@ -6,9 +6,8 @@ use std::sync::Arc;
 
 use async_graphql::*;
 use im::hashmap::HashMap as ImHashMap;
-use iota_sdk_types::{
-    PersonalMessage,
-    crypto::{Intent, IntentAppId, IntentMessage, IntentScope, IntentVersion},
+use iota_sdk_types::crypto::{
+    Intent, IntentAppId, IntentMessage, IntentScope, IntentVersion, PersonalMessage,
 };
 use iota_types::{
     IOTA_AUTHENTICATOR_STATE_ADDRESS, TypeTag,
