@@ -13,7 +13,7 @@ use tokio::sync::oneshot;
 use tracing::{error, warn};
 
 use crate::{
-    BlockRef, Round,
+    Round,
     block_header::{GenericTransactionRef, Transaction},
     context::Context,
 };
@@ -204,12 +204,12 @@ impl TransactionConsumer {
     #[cfg(test)]
     pub(crate) fn subscribe_for_block_status_testing(
         &self,
-        block_ref: BlockRef,
+        gen_tr_ref: GenericTransactionRef,
     ) -> oneshot::Receiver<BlockStatus> {
         let (tx, rx) = oneshot::channel();
         let mut block_status_subscribers = self.block_status_subscribers.lock();
         block_status_subscribers
-            .entry(GenericTransactionRef::from(block_ref))
+            .entry(gen_tr_ref)
             .or_default()
             .push(tx);
         rx

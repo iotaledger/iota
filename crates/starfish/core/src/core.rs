@@ -1381,8 +1381,9 @@ mod test {
         // able to commit transactions up to round 2.
         for block in dag_builder.block_headers(1..=2) {
             if block.author() == context.own_index {
-                let subscription =
-                    transaction_consumer.subscribe_for_block_status_testing(block.reference());
+                let subscription = transaction_consumer.subscribe_for_block_status_testing(
+                    GenericTransactionRef::from(block.reference()),
+                );
                 block_status_subscriptions.push(subscription);
             }
         }
@@ -2902,8 +2903,9 @@ mod test {
         // able to commit transactions up to round 4.
         for block in dag_builder.block_headers(1..=4) {
             if block.author() == context.own_index {
-                let subscription =
-                    transaction_consumer.subscribe_for_block_status_testing(block.reference());
+                let subscription = transaction_consumer.subscribe_for_block_status_testing(
+                    GenericTransactionRef::from(block.reference()),
+                );
                 block_status_subscriptions.push(subscription);
             }
         }
