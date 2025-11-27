@@ -34,6 +34,8 @@ pub struct BuildCache {
     allowed_cpu_targets: Vec<String>,
     // Maximum number of commits to keep in cache (for disk space management)
     max_cached_commits: usize,
+    // Maximum workspace size in bytes before running cargo clean
+    max_workspace_size_bytes: u64,
 }
 
 impl BuildCache {
@@ -44,6 +46,7 @@ impl BuildCache {
         repository_url: String,
         allowed_cpu_targets: Vec<String>,
         max_cached_commits: usize,
+        max_workspace_size_gb: u64,
     ) -> Result<Self> {
         let cache_path = PathBuf::from(cache_dir);
         let workspace_path = PathBuf::from(workspace_dir);
@@ -51,6 +54,9 @@ impl BuildCache {
         // Create directories
         fs::create_dir_all(&cache_path)?;
         fs::create_dir_all(&workspace_path)?;
+
+        // Convert GB to bytes
+        let max_workspace_size_bytes = max_workspace_size_gb * 1024 * 1024 * 1024;
 
         Ok(Self {
             builds: Arc::new(Mutex::new(HashMap::new())),
@@ -60,6 +66,7 @@ impl BuildCache {
             repository_url,
             allowed_cpu_targets,
             max_cached_commits,
+            max_workspace_size_bytes,
         })
     }
 
@@ -324,6 +331,7 @@ impl BuildCache {
             workspace_dir: self.workspace_dir.clone(),
             allowed_cpu_targets: self.allowed_cpu_targets.clone(),
             max_cached_commits: self.max_cached_commits,
+            max_workspace_size_bytes: self.max_workspace_size_bytes,
         }
     }
 
@@ -384,6 +392,20 @@ impl BuildCache {
         if let Err(e) = self.cleanup_old_cache_entries().await {
             error!("Cache cleanup failed: {e}");
             // Don't fail the build if cleanup fails
+        }
+
+        // Perform workspace target cleanup if needed
+        match self.cleanup_workspace_targets().await {
+            Ok(cleaned) if !cleaned.is_empty() => {
+                info!("Cleaned workspace targets: {}", cleaned.join(", "));
+            }
+            Ok(_) => {
+                info!("No workspace targets needed cleaning");
+            }
+            Err(e) => {
+                error!("Workspace cleanup failed: {e}");
+                // Don't fail the build if cleanup fails
+            }
         }
 
         Ok(())
@@ -633,6 +655,110 @@ impl BuildCache {
             job.status = BuildStatus::Failed(error_msg.to_string());
             job.completed_at = Some(chrono::Utc::now().to_rfc3339());
         }
+    }
+
+    /// Calculate the size of a directory in bytes
+    fn calculate_directory_size(path: &Path) -> Result<u64> {
+        let mut total_size = 0;
+
+        if path.is_dir() {
+            for entry in fs::read_dir(path)? {
+                let entry = entry?;
+                let metadata = entry.metadata()?;
+
+                if metadata.is_file() {
+                    total_size += metadata.len();
+                } else if metadata.is_dir() {
+                    total_size += Self::calculate_directory_size(&entry.path())?;
+                }
+            }
+        }
+
+        Ok(total_size)
+    }
+
+    /// Run cargo clean in the specified workspace (all subdirectories)
+    async fn run_cargo_clean(&self, workspace_path: &Path) -> Result<()> {
+        info!(
+            "Running cargo clean in workspace: {}",
+            workspace_path.display()
+        );
+        let output = Command::new("cargo")
+            .args(["clean"])
+            .current_dir(workspace_path)
+            .output()
+            .await?;
+
+        if output.status.success() {
+            info!(
+                "Successfully ran cargo clean in workspace: {}",
+                workspace_path.display()
+            );
+            Ok(())
+        } else {
+            Err(anyhow::anyhow!(
+                "Failed to run cargo clean in {}: {}",
+                workspace_path.display(),
+                String::from_utf8_lossy(&output.stderr)
+            ))
+        }
+    }
+
+    /// Clean up workspace target directories if they exceed the size limit
+    pub async fn cleanup_workspace_targets(&self) -> Result<Vec<String>> {
+        let mut cleaned_workspaces = Vec::new();
+
+        if !self.workspace_dir.exists() {
+            return Ok(cleaned_workspaces);
+        }
+
+        match Self::calculate_directory_size(&self.workspace_dir) {
+            Ok(size) if size > self.max_workspace_size_bytes => {
+                info!(
+                    "Workspace {} target directory is {} GB, running cargo clean",
+                    self.workspace_dir.display(),
+                    size / (1024 * 1024 * 1024)
+                );
+
+                // Clean each CPU-specific workspace
+                for entry in fs::read_dir(&self.workspace_dir)? {
+                    let entry = entry?;
+                    if !entry.file_type()?.is_dir() {
+                        continue;
+                    }
+
+                    let workspace_path = entry.path();
+
+                    match self.run_cargo_clean(&workspace_path).await {
+                        Ok(()) => {
+                            let workspace_name = workspace_path
+                                .file_name()
+                                .and_then(|n| n.to_str())
+                                .unwrap_or("unknown")
+                                .to_string();
+                            cleaned_workspaces.push(workspace_name);
+                        }
+                        Err(e) => {
+                            error!(
+                                "Failed to clean workspace {}: {}",
+                                workspace_path.display(),
+                                e
+                            );
+                        }
+                    }
+                }
+            }
+            Ok(_size) => {}
+            Err(e) => {
+                error!(
+                    "Failed to calculate size for {}: {}",
+                    self.workspace_dir.display(),
+                    e
+                );
+            }
+        }
+
+        Ok(cleaned_workspaces)
     }
 
     /// Clean up old cache entries, keeping only the most recent commits

@@ -40,6 +40,10 @@ struct Args {
     /// Maximum number of commits to keep in cache (default: 30)
     #[arg(long, default_value = "30")]
     max_cached_commits: usize,
+
+    /// Maximum workspace size in GB before running cargo clean (default: 50)
+    #[arg(long, default_value = "50")]
+    max_workspace_size_gb: u64,
 }
 
 #[tokio::main]
@@ -65,6 +69,7 @@ async fn main() -> Result<()> {
         .collect();
     info!("Allowed CPU targets: {}", targets.join(", "));
     info!("Maximum cached commits: {}", args.max_cached_commits);
+    info!("Maximum workspace size: {} GB", args.max_workspace_size_gb);
 
     let server = BuildCacheServer::new(
         args.cache_dir,
@@ -72,6 +77,7 @@ async fn main() -> Result<()> {
         args.repository_url,
         targets,
         args.max_cached_commits,
+        args.max_workspace_size_gb,
     )?;
 
     if let Err(e) = server.run(args.address).await {

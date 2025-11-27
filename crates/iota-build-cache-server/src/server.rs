@@ -78,6 +78,7 @@ impl BuildCacheServer {
         repository_url: String,
         allowed_cpu_targets: Vec<String>,
         max_cached_commits: usize,
+        max_workspace_size_gb: u64,
     ) -> Result<Self> {
         let cache = BuildCache::new(
             cache_dir,
@@ -85,6 +86,7 @@ impl BuildCacheServer {
             repository_url,
             allowed_cpu_targets,
             max_cached_commits,
+            max_workspace_size_gb,
         )?;
 
         Ok(Self {
