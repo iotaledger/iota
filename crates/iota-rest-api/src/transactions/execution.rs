@@ -7,7 +7,7 @@ use std::{net::SocketAddr, sync::Arc};
 use axum::extract::{Query, State, rejection::ExtensionRejection};
 use iota_sdk_types::{
     Address, BalanceChange, CheckpointSequenceNumber, Object, Owner, SignedTransaction,
-    TransactionEffects, TransactionEvents, Transaction, ValidatorAggregatedSignature,
+    Transaction, TransactionEffects, TransactionEvents, ValidatorAggregatedSignature,
     framework::Coin,
 };
 use iota_types::transaction_executor::{SimulateTransactionResult, TransactionExecutor, VmChecks};
@@ -414,7 +414,7 @@ pub(super) fn simulate_transaction_impl(
     transaction: Transaction,
 ) -> Result<TransactionSimulationResponse> {
     let Transaction::V1(transaction) = transaction;
-    
+
     if transaction.gas_payment.objects.is_empty() {
         return Err(RestError::new(
             axum::http::StatusCode::BAD_REQUEST,
