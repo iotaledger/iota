@@ -539,7 +539,7 @@ impl DagState {
                 continue;
             }
             if let Some(transaction) =
-                self.recent_transactions_by_authority[block_ref.author()].get(&(*block_ref))
+                self.recent_transactions_by_authority[block_ref.author()].get(block_ref)
             {
                 transactions[index] = Some(transaction.clone());
                 continue;
