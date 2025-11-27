@@ -2119,6 +2119,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3e31ea183f6ee62ac8b8a8cf7feddd766317adfb13ff469de57ce033efd6a790"
 
 [[package]]
+name = "bnum"
+version = "0.12.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f781dba93de3a5ef6dc5b17c9958b208f6f3f021623b360fb605ea51ce443f10"
+
+[[package]]
 name = "brotli"
 version = "6.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2633,9 +2639,9 @@ dependencies = [
  "fastcrypto",
  "insta",
  "iota-network-stack",
+ "iota-sdk-types",
  "rand 0.8.5",
  "serde",
- "shared-crypto",
 ]
 
 [[package]]
@@ -2658,6 +2664,7 @@ dependencies = [
  "iota-metrics",
  "iota-network-stack",
  "iota-protocol-config",
+ "iota-sdk-types",
  "iota-tls",
  "itertools 0.13.0",
  "lru",
@@ -2668,7 +2675,6 @@ dependencies = [
  "rand 0.8.5",
  "rstest",
  "serde",
- "shared-crypto",
  "strum_macros 0.26.4",
  "tap",
  "telemetry-subscribers",
@@ -5490,6 +5496,7 @@ dependencies = [
  "iota-protocol-config",
  "iota-replay",
  "iota-sdk 1.13.0-alpha",
+ "iota-sdk-types",
  "iota-simulator",
  "iota-source-validation",
  "iota-swarm",
@@ -5518,7 +5525,6 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_yaml",
- "shared-crypto",
  "shlex",
  "signature 1.6.4",
  "strum 0.26.3",
@@ -5777,6 +5783,7 @@ dependencies = [
  "iota-keys",
  "iota-move-build",
  "iota-sdk 1.13.0-alpha",
+ "iota-sdk-types",
  "iota-swarm",
  "iota-swarm-config",
  "iota-test-transaction-builder",
@@ -5787,7 +5794,6 @@ dependencies = [
  "regex",
  "reqwest 0.12.7",
  "serde_json",
- "shared-crypto",
  "telemetry-subscribers",
  "tempfile",
  "test-cluster",
@@ -5888,6 +5894,7 @@ dependencies = [
  "iota-network",
  "iota-network-stack",
  "iota-protocol-config",
+ "iota-sdk-types",
  "iota-simulator",
  "iota-storage",
  "iota-swarm-config",
@@ -5918,7 +5925,7 @@ dependencies = [
  "rand 0.8.5",
  "rayon",
  "reqwest 0.12.7",
- "roaring",
+ "roaring 0.10.10",
  "rstest",
  "scopeguard",
  "serde",
@@ -5926,7 +5933,6 @@ dependencies = [
  "serde_json",
  "serde_with",
  "serde_yaml",
- "shared-crypto",
  "starfish-config",
  "starfish-core",
  "static_assertions",
@@ -6098,6 +6104,7 @@ dependencies = [
  "iota-rest-api",
  "iota-rust-sdk",
  "iota-sdk 1.13.0-alpha",
+ "iota-sdk-types",
  "iota-simulator",
  "iota-storage",
  "iota-swarm",
@@ -6117,7 +6124,6 @@ dependencies = [
  "rand 0.8.5",
  "serde",
  "serde_json",
- "shared-crypto",
  "telemetry-subscribers",
  "tempfile",
  "test-cluster",
@@ -6184,12 +6190,12 @@ dependencies = [
  "iota-metrics",
  "iota-network-stack",
  "iota-sdk 1.13.0-alpha",
+ "iota-sdk-types",
  "iota-types",
  "parking_lot 0.12.3",
  "prometheus",
  "scopeguard",
  "serde",
- "shared-crypto",
  "tap",
  "telemetry-subscribers",
  "tempfile",
@@ -6286,6 +6292,7 @@ dependencies = [
  "iota-move-natives-latest",
  "iota-protocol-config",
  "iota-sdk 1.1.5",
+ "iota-sdk-types",
  "iota-simulator",
  "iota-swarm-config",
  "iota-types",
@@ -6307,7 +6314,6 @@ dependencies = [
  "serde_json",
  "serde_with",
  "serde_yaml",
- "shared-crypto",
  "tempfile",
  "tokio",
  "tracing",
@@ -6388,6 +6394,7 @@ dependencies = [
  "iota-network-stack",
  "iota-package-resolver",
  "iota-rest-api",
+ "iota-sdk-types",
  "iota-swarm-config",
  "iota-test-transaction-builder",
  "iota-types",
@@ -6403,7 +6410,6 @@ dependencies = [
  "serde",
  "serde_json",
  "serial_test",
- "shared-crypto",
  "simulacrum",
  "tap",
  "telemetry-subscribers",
@@ -6660,6 +6666,7 @@ dependencies = [
  "iota-open-rpc",
  "iota-package-resolver",
  "iota-protocol-config",
+ "iota-sdk-types",
  "iota-storage",
  "iota-transaction-builder",
  "iota-types",
@@ -6673,7 +6680,6 @@ dependencies = [
  "prometheus",
  "serde",
  "serde_json",
- "shared-crypto",
  "signature 1.6.4",
  "statrs",
  "tap",
@@ -6784,13 +6790,13 @@ dependencies = [
  "anyhow",
  "bip32",
  "fastcrypto",
+ "iota-sdk-types",
  "iota-types",
  "rand 0.8.5",
  "regex",
  "serde",
  "serde_json",
  "serde_with",
- "shared-crypto",
  "signature 1.6.4",
  "slip10_ed25519",
  "tempfile",
@@ -6828,11 +6834,11 @@ dependencies = [
  "fastcrypto",
  "hex",
  "hidapi",
+ "iota-sdk-types",
  "iota-types",
  "ledger-transport",
  "ledger-transport-hid",
  "serde",
- "shared-crypto",
  "thiserror 1.0.64",
  "tracing",
 ]
@@ -6848,7 +6854,7 @@ dependencies = [
  "clap",
  "iota-ledger",
  "iota-sdk 1.13.0-alpha",
- "shared-crypto",
+ "iota-sdk-types",
  "thiserror 1.0.64",
  "tokio",
  "tracing",
@@ -6876,7 +6882,7 @@ dependencies = [
  "object_store 0.10.2",
  "prometheus",
  "reqwest 0.12.7",
- "roaring",
+ "roaring 0.10.10",
  "serde",
  "serde_json",
  "serde_yaml",
@@ -7082,13 +7088,13 @@ dependencies = [
  "iota-macros",
  "iota-metrics",
  "iota-network-stack",
+ "iota-sdk-types",
  "iota-storage",
  "iota-swarm-config",
  "iota-types",
  "prometheus",
  "rand 0.8.5",
  "serde",
- "shared-crypto",
  "tap",
  "telemetry-subscribers",
  "tempfile",
@@ -7160,6 +7166,7 @@ dependencies = [
  "iota-network-stack",
  "iota-protocol-config",
  "iota-rest-api",
+ "iota-sdk-types",
  "iota-simulator",
  "iota-snapshot",
  "iota-storage",
@@ -7169,7 +7176,6 @@ dependencies = [
  "prometheus",
  "reqwest 0.12.7",
  "serde",
- "shared-crypto",
  "tap",
  "telemetry-subscribers",
  "tokio",
@@ -7476,6 +7482,7 @@ dependencies = [
  "iota-move-build",
  "iota-node",
  "iota-sdk 1.13.0-alpha",
+ "iota-sdk-types",
  "iota-swarm-config",
  "iota-types",
  "move-core-types",
@@ -7484,7 +7491,6 @@ dependencies = [
  "reqwest 0.12.7",
  "serde",
  "serde_json",
- "shared-crypto",
  "signature 1.6.4",
  "strum 0.26.3",
  "strum_macros 0.26.4",
@@ -7510,11 +7516,11 @@ dependencies = [
  "iota-json-rpc-types",
  "iota-keys",
  "iota-sdk 1.13.0-alpha",
+ "iota-sdk-types",
  "iota-types",
  "itertools 0.13.0",
  "serde",
  "serde_json",
- "shared-crypto",
  "shellexpand",
  "strum 0.26.3",
  "telemetry-subscribers",
@@ -7530,10 +7536,10 @@ dependencies = [
  "base64ct",
  "bcs",
  "blake2",
- "bnum",
+ "bnum 0.11.0",
  "bs58 0.5.1",
  "hex",
- "roaring",
+ "roaring 0.10.10",
  "schemars",
  "serde",
  "serde_derive",
@@ -7602,6 +7608,7 @@ dependencies = [
  "iota-json-rpc-types",
  "iota-keys",
  "iota-move-build",
+ "iota-sdk-types",
  "iota-transaction-builder",
  "iota-types",
  "jsonrpsee",
@@ -7614,11 +7621,33 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_with",
- "shared-crypto",
  "tempfile",
  "thiserror 1.0.64",
  "tokio",
  "tracing",
+]
+
+[[package]]
+name = "iota-sdk-types"
+version = "0.0.1-alpha.1"
+source = "git+https://github.com/iotaledger/iota-rust-sdk?rev=95964e2c1d2f8a196e7a0b9c3da0f915d2603c87#95964e2c1d2f8a196e7a0b9c3da0f915d2603c87"
+dependencies = [
+ "base64ct",
+ "bcs",
+ "bnum 0.12.1",
+ "bs58 0.5.1",
+ "eyre",
+ "hex",
+ "itertools 0.13.0",
+ "paste",
+ "roaring 0.11.2",
+ "serde",
+ "serde_json",
+ "serde_repr",
+ "serde_with",
+ "strum 0.27.2",
+ "thiserror 2.0.12",
+ "winnow 0.7.11",
 ]
 
 [[package]]
@@ -7894,6 +7923,7 @@ dependencies = [
  "iota-names",
  "iota-protocol-config",
  "iota-rest-api",
+ "iota-sdk-types",
  "iota-simulator",
  "iota-types",
  "prometheus",
@@ -7901,7 +7931,6 @@ dependencies = [
  "serde",
  "serde_with",
  "serde_yaml",
- "shared-crypto",
  "tempfile",
  "tracing",
 ]
@@ -7931,9 +7960,9 @@ dependencies = [
  "iota-genesis-builder",
  "iota-move-build",
  "iota-sdk 1.13.0-alpha",
+ "iota-sdk-types",
  "iota-types",
  "move-core-types",
- "shared-crypto",
 ]
 
 [[package]]
@@ -8108,6 +8137,7 @@ dependencies = [
  "iota-protocol-config",
  "iota-rust-sdk",
  "iota-sdk 1.1.5",
+ "iota-sdk-types",
  "itertools 0.13.0",
  "lru",
  "move-binary-format",
@@ -8130,14 +8160,13 @@ dependencies = [
  "proptest",
  "proptest-derive",
  "rand 0.8.5",
- "roaring",
+ "roaring 0.10.10",
  "schemars",
  "serde",
  "serde-name",
  "serde_json",
  "serde_with",
  "serde_yaml",
- "shared-crypto",
  "signature 1.6.4",
  "starfish-config",
  "static_assertions",
@@ -12429,6 +12458,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "roaring"
+version = "0.11.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f08d6a905edb32d74a5d5737a0c9d7e950c312f3c46cb0ca0a2ca09ea11878a0"
+dependencies = [
+ "bytemuck",
+ "byteorder",
+]
+
+[[package]]
 name = "rocksdb"
 version = "0.21.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -13399,17 +13438,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "shared-crypto"
-version = "1.13.0-alpha"
-dependencies = [
- "bcs",
- "eyre",
- "fastcrypto",
- "serde",
- "serde_repr",
-]
-
-[[package]]
 name = "shellexpand"
 version = "3.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -13832,10 +13860,10 @@ dependencies = [
  "fastcrypto",
  "insta",
  "iota-network-stack",
+ "iota-sdk-types",
  "rand 0.8.5",
  "rs_merkle",
  "serde",
- "shared-crypto",
 ]
 
 [[package]]
@@ -13861,6 +13889,7 @@ dependencies = [
  "iota-metrics",
  "iota-network-stack",
  "iota-protocol-config",
+ "iota-sdk-types",
  "iota-tls",
  "itertools 0.13.0",
  "nom",
@@ -13875,7 +13904,6 @@ dependencies = [
  "rustls 0.23.28",
  "serde",
  "serial_test",
- "shared-crypto",
  "starfish-config",
  "strum_macros 0.26.4",
  "tap",

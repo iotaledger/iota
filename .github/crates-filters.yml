@@ -182,8 +182,6 @@ iota-verifier-transactional-tests:
   - "crates/iota-verifier-transactional-tests/**"
 prometheus-closure-metric:
   - "crates/prometheus-closure-metric/**"
-shared-crypto:
-  - "crates/shared-crypto/**"
 simulacrum:
   - "crates/simulacrum/**"
 telemetry-subscribers:

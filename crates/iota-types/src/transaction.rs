@@ -16,6 +16,7 @@ use anyhow::bail;
 use enum_dispatch::enum_dispatch;
 use fastcrypto::{encoding::Base64, hash::HashFunction};
 use iota_protocol_config::ProtocolConfig;
+use iota_sdk_types::crypto::{Intent, IntentMessage, IntentScope};
 use itertools::Either;
 use move_core_types::{
     ident_str,
@@ -24,7 +25,6 @@ use move_core_types::{
 };
 use nonempty::{NonEmpty, nonempty};
 use serde::{Deserialize, Serialize};
-use shared_crypto::intent::{Intent, IntentMessage, IntentScope};
 use strum::IntoStaticStr;
 use tap::Pipe;
 use tracing::{instrument, trace};

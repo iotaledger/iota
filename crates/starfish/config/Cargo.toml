@@ -13,13 +13,13 @@ workspace = true
 # external dependencies
 blake3 = "1.8.2"
 fastcrypto.workspace = true
+iota-sdk-types = { workspace = true, features = ["serde"] }
 rand.workspace = true
 rs_merkle = "1.5.0"
 serde.workspace = true
 
 # internal dependencies
 iota-network-stack.workspace = true
-shared-crypto.workspace = true
 
 [dev-dependencies]
 insta.workspace = true
