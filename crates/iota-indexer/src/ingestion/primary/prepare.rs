@@ -32,7 +32,7 @@ use crate::{
     db::ConnectionPool,
     errors::IndexerError,
     ingestion::{
-        common::prepare::{CheckpointObjectChanges, try_extract_df_kind},
+        common::prepare::{CheckpointObjectChanges, extract_df_kind},
         primary::persist::{
             CheckpointDataToCommit, EpochToCommit, TransactionObjectChangesToCommit,
         },
@@ -539,10 +539,10 @@ impl PrimaryWorker {
         let changed_objects = latest_live_output_objects
             .into_iter()
             .map(|o| {
-                try_extract_df_kind(o)
-                    .map(|df_kind| IndexedObject::from_object(checkpoint_seq, o.clone(), df_kind))
+                let df_kind = extract_df_kind(o);
+                IndexedObject::from_object(checkpoint_seq, o.clone(), df_kind)
             })
-            .collect::<Result<Vec<_>, _>>()?;
+            .collect::<Vec<_>>();
         Ok(TransactionObjectChangesToCommit {
             changed_objects,
             deleted_objects: indexed_eventually_removed_objects,
@@ -578,10 +578,10 @@ impl PrimaryWorker {
         let changed_objects = output_objects
             .into_iter()
             .map(|o| {
-                try_extract_df_kind(o)
-                    .map(|df_kind| IndexedObject::from_object(checkpoint_seq, o.clone(), df_kind))
+                let df_kind = extract_df_kind(o);
+                IndexedObject::from_object(checkpoint_seq, o.clone(), df_kind)
             })
-            .collect::<Result<Vec<_>, _>>()?;
+            .collect::<Vec<_>>();
 
         Ok(TransactionObjectChangesToCommit {
             changed_objects,
