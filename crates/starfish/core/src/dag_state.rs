@@ -533,23 +533,34 @@ impl DagState {
     /// found.
     pub(crate) fn get_verified_transactions(
         &self,
-        block_refs: &[GenericTransactionRef],
+        gen_transactions_refs: &[GenericTransactionRef],
     ) -> Vec<Option<VerifiedTransactions>> {
-        let mut transactions = vec![None; block_refs.len()];
+        let mut transactions = vec![None; gen_transactions_refs.len()];
         let mut missing = Vec::new();
 
-        for (index, block_ref) in block_refs.iter().enumerate() {
-            if block_ref.round() == GENESIS_ROUND {
-                // There are no transactions in genesis block.
+        for (index, gen_transactions_ref) in gen_transactions_refs.iter().enumerate() {
+            if gen_transactions_ref.round() == GENESIS_ROUND {
+                // Extract the BlockRef from GenericTransactionRef
+                let genesis_key = match gen_transactions_ref {
+                    GenericTransactionRef::BlockRef(br) => *br,
+                    GenericTransactionRef::TransactionRef(tr) => BlockRef::new(
+                        tr.round,
+                        tr.author,
+                        tr.block_digest,
+                    ),
+                };
+                if let Some(genesis_block) = self.genesis.get(&genesis_key) {
+                    transactions[index] = Some(genesis_block.verified_transactions.clone());
+                }
                 continue;
             }
             if let Some(transaction) =
-                self.recent_transactions_by_authority[block_ref.author()].get(block_ref)
+                self.recent_transactions_by_authority[gen_transactions_ref.author()].get(gen_transactions_ref)
             {
                 transactions[index] = Some(transaction.clone());
                 continue;
             }
-            missing.push((index, block_ref));
+            missing.push((index, gen_transactions_ref));
         }
 
         if missing.is_empty() {
