@@ -30,11 +30,18 @@ pub struct BuildCache {
     workspace_dir: PathBuf,
     // Git repository URL
     repository_url: String,
+    // Allowed CPU targets for builds
+    allowed_cpu_targets: Vec<String>,
 }
 
 impl BuildCache {
     /// Create a new build cache
-    pub fn new(cache_dir: String, workspace_dir: String, repository_url: String) -> Result<Self> {
+    pub fn new(
+        cache_dir: String,
+        workspace_dir: String,
+        repository_url: String,
+        allowed_cpu_targets: Vec<String>,
+    ) -> Result<Self> {
         let cache_path = PathBuf::from(cache_dir);
         let workspace_path = PathBuf::from(workspace_dir);
 
@@ -48,6 +55,7 @@ impl BuildCache {
             cache_dir: cache_path,
             workspace_dir: workspace_path,
             repository_url,
+            allowed_cpu_targets,
         })
     }
 
@@ -59,6 +67,27 @@ impl BuildCache {
     /// Get the cache directory for a specific build
     fn get_cache_path(&self, commit: &str, cpu_target: &str) -> PathBuf {
         self.cache_dir.join(format!("{commit}_{cpu_target}"))
+    }
+
+    /// Helper to get CPU-specific workspace path
+    /// Each CPU target gets its own workspace to avoid target directory
+    /// conflicts
+    fn get_workspace_path(&self, cpu_target: &str) -> PathBuf {
+        self.workspace_dir.join(cpu_target)
+    }
+
+    /// Validate CPU target against allowed list
+    fn validate_cpu_target(&self, cpu_target: &str) -> Result<()> {
+        // Check against allowed list
+        if !self.allowed_cpu_targets.contains(&cpu_target.to_string()) {
+            return Err(anyhow::anyhow!(
+                "CPU target '{}' not allowed. Allowed targets: {}",
+                cpu_target,
+                self.allowed_cpu_targets.join(", ")
+            ));
+        }
+
+        Ok(())
     }
 
     /// Helper function to check which binaries exist in cache
@@ -90,17 +119,20 @@ impl BuildCache {
         commit: &str,
         cpu_target: &str,
         binaries: &[String],
-    ) -> BuildCacheResponse {
+    ) -> Result<BuildCacheResponse> {
+        // Validate CPU target
+        self.validate_cpu_target(cpu_target)?;
+
         let (available_binaries, missing_binaries) =
             self.check_existing_binaries(commit, cpu_target, binaries);
         let all_available = missing_binaries.is_empty();
 
-        BuildCacheResponse {
+        Ok(BuildCacheResponse {
             commit: commit.to_string(),
             cpu_target: cpu_target.to_string(),
             available: all_available,
             binaries: available_binaries,
-        }
+        })
     }
 
     /// Get binary file metadata (path, size, sha256) for streaming downloads
@@ -110,6 +142,9 @@ impl BuildCache {
         cpu_target: &str,
         binary_name: &str,
     ) -> Result<(std::path::PathBuf, u64, String)> {
+        // Validate CPU target
+        self.validate_cpu_target(cpu_target)?;
+
         let binary_path = self.get_binary_path(commit, cpu_target, binary_name)?;
         let metadata = fs::metadata(&binary_path)?;
 
@@ -167,9 +202,11 @@ impl BuildCache {
 
     /// Resolve a branch/tag/commit to an actual commit hash
     pub async fn resolve_commit(&self, commit_ref: &str) -> Result<String> {
-        // First setup the repository to ensure we have the latest refs
+        // Use a dedicated workspace for commit resolution to avoid conflicts with
+        // builds
+        let resolve_workspace = self.get_workspace_path("resolve");
         let resolved_commit = self
-            .setup_repository(&self.workspace_dir, commit_ref)
+            .setup_repository(&resolve_workspace, commit_ref)
             .await?;
         Ok(resolved_commit)
     }
@@ -182,6 +219,9 @@ impl BuildCache {
         cpu_target: &str,
         binaries: &[String],
     ) -> Result<BuildResponse> {
+        // Validate CPU target
+        self.validate_cpu_target(cpu_target)?;
+
         let key = self.cache_key(commit, cpu_target);
 
         // Check which binaries already exist and which need to be built
@@ -278,6 +318,7 @@ impl BuildCache {
             cache_dir: self.cache_dir.clone(),
             repository_url: self.repository_url.clone(),
             workspace_dir: self.workspace_dir.clone(),
+            allowed_cpu_targets: self.allowed_cpu_targets.clone(),
         }
     }
 
@@ -288,11 +329,12 @@ impl BuildCache {
         cpu_target: &str,
         binaries: &[String],
     ) -> Result<()> {
-        let repo_path = &self.workspace_dir;
+        // Use CPU-specific workspace to avoid target directory conflicts
+        let repo_path = self.get_workspace_path(cpu_target);
 
         // First setup repository and resolve commit to actual SHA
         let resolved_commit = self
-            .setup_repository(repo_path, commit)
+            .setup_repository(&repo_path, commit)
             .await
             .map_err(|e| anyhow::anyhow!("Repository setup failed: {e}"))?;
 
@@ -312,7 +354,7 @@ impl BuildCache {
 
         // Build binaries
         if let Err(e) = self
-            .build_binaries(repo_path, cpu_target, binaries, &cache_path)
+            .build_binaries(&repo_path, cpu_target, binaries, &cache_path)
             .await
         {
             self.mark_build_failed(&key, &format!("Build failed: {e}"))
@@ -587,7 +629,10 @@ impl BuildCache {
         commit: &str,
         cpu_target: &str,
         requested_binaries: &[String],
-    ) -> Option<BuildJob> {
+    ) -> Result<Option<BuildJob>> {
+        // Validate CPU target
+        self.validate_cpu_target(cpu_target)?;
+
         let key = self.cache_key(commit, cpu_target);
         let builds = self.builds.lock().await;
 
@@ -599,9 +644,9 @@ impl BuildCache {
             // Update the job with the actual available binaries
             job.binaries = available_binaries;
 
-            Some(job)
+            Ok(Some(job))
         } else {
-            None
+            Ok(None)
         }
     }
 }

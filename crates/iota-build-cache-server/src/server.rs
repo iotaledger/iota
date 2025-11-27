@@ -72,8 +72,18 @@ pub struct BuildCacheServer {
 
 impl BuildCacheServer {
     /// Create a new build cache server
-    pub fn new(cache_dir: String, workspace_dir: String, repository_url: String) -> Result<Self> {
-        let cache = BuildCache::new(cache_dir, workspace_dir, repository_url)?;
+    pub fn new(
+        cache_dir: String,
+        workspace_dir: String,
+        repository_url: String,
+        allowed_cpu_targets: Vec<String>,
+    ) -> Result<Self> {
+        let cache = BuildCache::new(
+            cache_dir,
+            workspace_dir,
+            repository_url,
+            allowed_cpu_targets,
+        )?;
 
         Ok(Self {
             cache: Arc::new(cache),
@@ -185,10 +195,16 @@ async fn handle_check_request(
     // Resolve branch/tag/commit to actual commit hash
     match cache.resolve_commit(&commit_ref).await {
         Ok(resolved_commit) => {
-            let response = cache
+            match cache
                 .check_binaries(&resolved_commit, &cpu_target, &binaries)
-                .await;
-            Ok(json_response(response, StatusCode::OK))
+                .await
+            {
+                Ok(response) => Ok(json_response(response, StatusCode::OK)),
+                Err(e) => {
+                    error!("Failed to check binaries: {e}");
+                    Ok(bad_request(format!("Failed to check binaries: {e}")))
+                }
+            }
         }
         Err(e) => {
             error!("Failed to resolve commit '{commit_ref}': {e}");
@@ -353,8 +369,12 @@ async fn handle_status_request(
                 .get_build_status(&resolved_commit, &cpu_target, &binaries)
                 .await
             {
-                Some(status) => Ok(json_response(status, StatusCode::OK)),
-                None => Ok(not_found("Build status not found")),
+                Ok(Some(status)) => Ok(json_response(status, StatusCode::OK)),
+                Ok(None) => Ok(not_found("Build status not found")),
+                Err(e) => {
+                    error!("Failed to get build status: {e}");
+                    Ok(bad_request(format!("Failed to get build status: {e}")))
+                }
             }
         }
         Err(e) => {

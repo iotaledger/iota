@@ -32,6 +32,10 @@ struct Args {
     /// Working directory for git operations and builds
     #[arg(short, long, default_value = "./git_workspace")]
     workspace_dir: String,
+
+    /// Allowed CPU targets for builds (comma-separated)
+    #[arg(long, default_value = "x86-64,x86-64-v2,x86-64-v3")]
+    allowed_cpu_targets: String,
 }
 
 #[tokio::main]
@@ -49,7 +53,20 @@ async fn main() -> Result<()> {
     info!("Repository URL: {}", args.repository_url);
     info!("Workspace directory: {}", args.workspace_dir);
 
-    let server = BuildCacheServer::new(args.cache_dir, args.workspace_dir, args.repository_url)?;
+    // Parse allowed CPU targets
+    let targets: Vec<String> = args
+        .allowed_cpu_targets
+        .split(',')
+        .map(|s| s.trim().to_string())
+        .collect();
+    info!("Allowed CPU targets: {}", targets.join(", "));
+
+    let server = BuildCacheServer::new(
+        args.cache_dir,
+        args.workspace_dir,
+        args.repository_url,
+        targets,
+    )?;
 
     if let Err(e) = server.run(args.address).await {
         error!("Server error: {e}");
