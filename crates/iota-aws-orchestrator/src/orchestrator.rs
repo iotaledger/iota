@@ -443,8 +443,6 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
             build_config.password.clone(),
         )
         .map_err(|e| BuildCacheError::Cache(format!("Invalid server URL: {e}")))?;
-        let repo_name = self.settings.repository_name();
-        let working_dir = self.settings.working_dir.display();
 
         let resolved_commit = cache_client
             .resolve_commit(commit)
@@ -456,16 +454,14 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
             ));
         }
 
+        // Command needs to run from the repository working directory
+        let release_folder = "./target/release";
+        let repo_name = self.settings.repository_name();
+
         // Process each CPU target group
         for (cpu_target, instances) in &cpu_to_instances {
             display::action(format!(
-                "Processing {} instances for commit {resolved_commit} (CPU target: {cpu_target}, instances: {})",
-                instances.len(),
-                instances
-                    .iter()
-                    .map(|i| i.ssh_address().to_string())
-                    .collect::<Vec<_>>()
-                    .join(", ")
+                "Updating builds for commit {resolved_commit} (CPU target: {cpu_target})",
             ));
 
             // Check if binaries are available for this CPU target
@@ -485,28 +481,37 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
 
                 // Wait for build to complete
                 display::action(format!(
-                    "Waiting for build to complete for commit {resolved_commit} (CPU target: {cpu_target}) (this may take up to 15 minutes)",
+                    "Waiting for build to complete for commit {resolved_commit} (CPU target: {cpu_target}) (this may take up to 45 minutes)",
                 ));
-                let _response = cache_client
+
+                let _ = cache_client
                     .wait_for_binaries(
                         resolved_commit.as_str(),
                         cpu_target,
                         binaries,
                         Duration::from_secs(45 * 60),
-                        Duration::from_secs(30),
+                        Duration::from_secs(5),
                     )
                     .await?;
             }
 
             // Download and distribute binaries to instances with this CPU target
             display::action(format!(
-                "Distributing cached binaries for commit {resolved_commit} (CPU target: {cpu_target}) to {} instances",
-                instances.len()
+                "Distributing cached binaries for commit {resolved_commit} (CPU target: {cpu_target}) to {} instances (instances: {})",
+                instances.len(),
+                instances
+                    .iter()
+                    .map(|i| i.ssh_address().to_string())
+                    .collect::<Vec<_>>()
+                    .join(", ")
             ));
 
             for binary in binaries {
                 // Create download command that fetches from build cache with ETag support
-                let release_folder = format!("{working_dir}/{repo_name}/target/release");
+                // to avoid re-downloading unchanged binaries. We need to hash the existing
+                // binary on the instance to provide the ETag header.
+                // The server will respond with HTTP 304 Not Modified if the binary is
+                // unchanged. Otherwise, it will download the new binary.
                 let binary_path = format!("{release_folder}/{binary}");
                 let download_command = format!(
                     r#"set -e && \
@@ -545,7 +550,14 @@ fi"#,
                     "Downloading {binary} ({cpu_target}) to {} instances",
                     instances.len()
                 ));
-                let context = CommandContext::new();
+
+                // we don't need to run the command in the background
+                // because all instances of the same CPU will execute
+                // the command in parallel. That is efficient enough, and we
+                // can panic on errors this way.
+                let context =
+                    CommandContext::new().with_execute_from_path(repo_name.clone().into());
+
                 self.ssh_manager
                     .execute(instances.clone(), download_command, context)
                     .await?;
