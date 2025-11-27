@@ -380,9 +380,14 @@ impl DagState {
         source: TransactionSource,
     ) {
         let transaction_ref = transactions.transaction_ref();
+        let generic_ref = if self.context.protocol_config.consensus_transaction_ref() {
+            GenericTransactionRef::from(transaction_ref)
+        } else {
+            GenericTransactionRef::from(BlockRef::from(transaction_ref))
+        };
         if self.recent_transactions_by_authority[transaction_ref.author]
             .insert(
-                GenericTransactionRef::from(transaction_ref),
+                generic_ref,
                 transactions.clone(),
             )
             .is_none()
