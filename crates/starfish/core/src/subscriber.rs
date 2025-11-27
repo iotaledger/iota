@@ -338,7 +338,7 @@ mod test {
         let context = Arc::new(context);
         let authority_service = Arc::new(Mutex::new(TestService::new()));
         let network_client = Arc::new(SubscriberTestClient::new());
-        let store = Arc::new(MemStore::new());
+        let store = Arc::new(MemStore::new(context.clone()));
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
         let subscriber = Subscriber::new(
             context.clone(),

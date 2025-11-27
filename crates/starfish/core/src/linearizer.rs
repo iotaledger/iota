@@ -495,7 +495,7 @@ mod tests {
         let context = Arc::new(Context::new_for_test(num_authorities).0);
         let dag_state = Arc::new(RwLock::new(DagState::new(
             context.clone(),
-            Arc::new(MemStore::new()),
+            Arc::new(MemStore::new(context.clone())),
         )));
         let leader_schedule = Arc::new(LeaderSchedule::new(
             context.clone(),
@@ -559,7 +559,7 @@ mod tests {
             }
 
             for committed_transactions_ref in subdag.committed_transaction_refs.iter() {
-                assert!(committed_transactions_ref.round == leaders[idx].round() - 2);
+                assert!(committed_transactions_ref.round() == leaders[idx].round() - 2);
             }
 
             assert_eq!(subdag.commit_ref.index, idx as CommitIndex + 1);
@@ -573,7 +573,7 @@ mod tests {
         let context = Arc::new(Context::new_for_test(num_authorities).0);
         let dag_state = Arc::new(RwLock::new(DagState::new(
             context.clone(),
-            Arc::new(MemStore::new()),
+            Arc::new(MemStore::new(context.clone())),
         )));
         const NUM_OF_COMMITS_PER_SCHEDULE: u64 = 10;
         let leader_schedule = Arc::new(
@@ -645,7 +645,7 @@ mod tests {
 
         let dag_state = Arc::new(RwLock::new(DagState::new(
             context.clone(),
-            Arc::new(MemStore::new()),
+            Arc::new(MemStore::new(context.clone())),
         )));
         let leader_schedule = Arc::new(LeaderSchedule::new(
             context.clone(),
@@ -775,7 +775,7 @@ mod tests {
         let context = Arc::new(context);
         let dag_state = Arc::new(RwLock::new(DagState::new(
             context.clone(),
-            Arc::new(MemStore::new()),
+            Arc::new(MemStore::new(context.clone())),
         )));
         let leader_schedule = Arc::new(LeaderSchedule::new(
             context.clone(),
@@ -908,7 +908,7 @@ mod tests {
             }
 
             for committed_transactions_ref in subdag.committed_transaction_refs.iter() {
-                assert!(committed_transactions_ref.round < leaders[idx].round());
+                assert!(committed_transactions_ref.round() < leaders[idx].round());
             }
             assert_eq!(subdag.commit_ref.index, idx as CommitIndex + 1);
         }
@@ -921,7 +921,7 @@ mod tests {
         let context = Arc::new(Context::new_for_test(num_authorities).0);
         let dag_state = Arc::new(RwLock::new(DagState::new(
             context.clone(),
-            Arc::new(MemStore::new()),
+            Arc::new(MemStore::new(context.clone())),
         )));
         let leader_schedule = Arc::new(LeaderSchedule::new(
             context.clone(),
@@ -952,8 +952,9 @@ mod tests {
             let round_references: Vec<_> = dag_builder
                 .block_headers(round..=round)
                 .into_iter()
-                .map(|bh| bh.reference())
+                .map(|bh| GenericTransactionRef::from(bh.reference()))
                 .collect();
+
             let ack_authors = linearizer.get_transaction_ack_authors(round_references.clone());
             assert_eq!(ack_authors.len(), 4);
         }
@@ -965,7 +966,7 @@ mod tests {
             let round_references: Vec<_> = dag_builder
                 .block_headers(round..=round)
                 .into_iter()
-                .map(|bh| bh.reference())
+                .map(|bh| GenericTransactionRef::from(bh.reference()))
                 .collect();
             let ack_authors = linearizer.get_transaction_ack_authors(round_references.clone());
             if round <= num_rounds_to_evict {
@@ -985,7 +986,7 @@ mod tests {
         telemetry_subscribers::init_for_testing();
         let num_authorities = 4;
         let context = Arc::new(Context::new_for_test(num_authorities).0);
-        let store = Arc::new(MemStore::new());
+        let store = Arc::new(MemStore::new(context.clone()));
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
         let ancestors = vec![
             VerifiedBlockHeader::new_for_test(

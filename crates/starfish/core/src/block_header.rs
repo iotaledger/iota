@@ -463,6 +463,13 @@ impl GenericTransactionRef {
             GenericTransactionRef::TransactionRef(t) => t.transactions_commitment.into(),
         }
     }
+
+    pub(crate) fn block_digest(&self) -> Digest<DIGEST_LENGTH> {
+        match self {
+            GenericTransactionRef::BlockRef(b) => b.digest.into(),
+            GenericTransactionRef::TransactionRef(t) => t.block_digest.into(),
+        }
+    }
 }
 
 /// Digest of a `VerifiedBlockHeader` or verified `SignedBlockHeader`, which

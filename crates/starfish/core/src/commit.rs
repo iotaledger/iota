@@ -941,8 +941,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_new_committed_subdag_from_commit() {
-        let store = Arc::new(MemStore::new());
         let context = Arc::new(Context::new_for_test(4).0);
+        let store = Arc::new(MemStore::new(context.clone()));
         let mut encoder = create_encoder(&context);
 
         // Populate fully connected test blocks for round 0 ~ 3, authorities 0 ~ 3.
@@ -980,7 +980,7 @@ mod tests {
             .write(
                 WriteBatch::default()
                     .block_headers(first_round_headers)
-                    .transactions(first_round_transactions),
+                    .transactions(first_round_transactions), context.clone()
             )
             .unwrap();
         blocks.append(&mut first_round_references.clone());
@@ -1002,7 +1002,7 @@ mod tests {
                     .write(
                         WriteBatch::default()
                             .block_headers(vec![block.verified_block_header.clone()])
-                            .transactions(vec![block.verified_transactions.clone()]),
+                            .transactions(vec![block.verified_transactions.clone()]), context.clone()
                     )
                     .unwrap();
                 new_ancestors.push(block.reference());
@@ -1038,7 +1038,9 @@ mod tests {
             (num_authorities as u32 * WAVE_LENGTH) as usize + 1
         );
         assert_eq!(subdag.commit_ref, commit.reference());
-        assert_eq!(subdag.committed_transaction_refs, first_round_references);
+        let first_round_transactions_refs = first_round_references.iter().map(|&br|
+            GenericTransactionRef::from(br)).collect::<Vec<_>>();
+        assert_eq!(subdag.committed_transaction_refs, first_round_transactions_refs);
         assert_eq!(subdag.reputation_scores_desc, vec![]);
         let transactions = store
             .read_verified_transactions(&subdag.committed_transaction_refs)
@@ -1051,9 +1053,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_new_pending_subdag_from_commit() {
-        let store = Arc::new(MemStore::new());
         let context = Arc::new(Context::new_for_test(4).0);
-
+        let store = Arc::new(MemStore::new(context.clone()));
         // Populate fully connected test blocks for round 0 ~ 3, authorities 0 ~ 3.
         let first_wave_rounds: u32 = WAVE_LENGTH;
         let num_authorities: u8 = 4;
@@ -1070,7 +1071,7 @@ mod tests {
             .map(|block| (block.reference(), block))
             .unzip();
         store
-            .write(WriteBatch::default().block_headers(first_round_headers))
+            .write(WriteBatch::default().block_headers(first_round_headers), context.clone())
             .unwrap();
         blocks.append(&mut first_round_references.clone());
 
@@ -1088,7 +1089,7 @@ mod tests {
                         .build(),
                 );
                 store
-                    .write(WriteBatch::default().block_headers(vec![block.clone()]))
+                    .write(WriteBatch::default().block_headers(vec![block.clone()]), context.clone())
                     .unwrap();
                 new_ancestors.push(block.reference());
                 blocks.push(block.reference());
@@ -1123,9 +1124,11 @@ mod tests {
             (num_authorities as u32 * WAVE_LENGTH) as usize + 1
         );
         assert_eq!(pending_subdag.commit_ref, commit.reference());
+        let first_round_transactions_refs = first_round_references.iter().map(|&br|
+        GenericTransactionRef::from(br)).collect::<Vec<_>>();
         assert_eq!(
             pending_subdag.committed_transaction_refs,
-            first_round_references
+            first_round_transactions_refs
         );
         assert_eq!(pending_subdag.reputation_scores_desc, vec![]);
     }

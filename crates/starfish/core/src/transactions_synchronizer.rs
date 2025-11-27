@@ -1250,7 +1250,7 @@ mod tests {
         let context = Arc::new(context);
         let core_dispatcher = Arc::new(MockCoreThreadDispatcher::new());
         let network_client = Arc::new(MockNetworkClient::new());
-        let store = Arc::new(MemStore::new());
+        let store = Arc::new(MemStore::new(context.clone()));
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
 
         // Start the transactions synchronizer
@@ -1350,7 +1350,7 @@ mod tests {
         let context = Arc::new(context);
         let core_dispatcher = Arc::new(MockCoreThreadDispatcher::new());
         let network_client = Arc::new(MockNetworkClient::new());
-        let store = Arc::new(MemStore::new());
+        let store = Arc::new(MemStore::new(context.clone()));
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
 
         // Start the transactions synchronizer
@@ -1466,7 +1466,7 @@ mod tests {
         let context = Arc::new(context);
         let core_dispatcher = Arc::new(MockCoreThreadDispatcher::new());
         let network_client = Arc::new(MockNetworkClient::new());
-        let store = Arc::new(MemStore::new());
+        let store = Arc::new(MemStore::new(context.clone()));
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
 
         // Start the transactions synchronizer
@@ -1585,7 +1585,7 @@ mod tests {
         let context = Arc::new(context);
         let core_dispatcher = Arc::new(MockCoreThreadDispatcher::new());
         let network_client = Arc::new(MockNetworkClient::new());
-        let store = Arc::new(MemStore::new());
+        let store = Arc::new(MemStore::new(context.clone()));
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
 
         // Start the transactions synchronizer
@@ -1693,7 +1693,7 @@ mod tests {
         let context = Arc::new(context);
         let core_dispatcher = Arc::new(MockCoreThreadDispatcher::new());
         let network_client = Arc::new(MockNetworkClient::new());
-        let store = Arc::new(MemStore::new());
+        let store = Arc::new(MemStore::new(context.clone()));
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
 
         // Start the transactions synchronizer
@@ -1803,7 +1803,7 @@ mod tests {
         let context = Arc::new(context);
         let core_dispatcher = Arc::new(MockCoreThreadDispatcher::new());
         let network_client = Arc::new(MockNetworkClient::new());
-        let store = Arc::new(MemStore::new());
+        let store = Arc::new(MemStore::new(context.clone()));
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
 
         // Start the transactions synchronizer
@@ -1913,7 +1913,7 @@ mod tests {
         let context = Arc::new(context);
         let core_dispatcher = Arc::new(MockCoreThreadDispatcher::new());
         let network_client = Arc::new(MockNetworkClient::new());
-        let store = Arc::new(MemStore::new());
+        let store = Arc::new(MemStore::new(context.clone()));
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
 
         // Start the transactions synchronizer
@@ -1960,7 +1960,7 @@ mod tests {
             let mut authorities = BTreeSet::new();
             authorities.insert(AuthorityIndex::new_for_test(1)); // This peer will timeout
             authorities.insert(AuthorityIndex::new_for_test(2)); // This peer will return an error
-            missing_transactions.insert(header.reference(), authorities);
+            missing_transactions.insert(GenericTransactionRef::from(header.reference()), authorities);
         }
 
         // Set peer 1 to timeout
@@ -2019,7 +2019,8 @@ mod tests {
         ];
         let context = Context::new_for_test(10).0;
         let missing_block_refs = some_block_refs.iter().cloned().collect::<BTreeSet<_>>();
-
+        let missing_transations_refs = missing_block_refs.iter().map(|&br|
+            GenericTransactionRef::from(br)).collect::<BTreeSet<_>>();
         // We keep both guards so that drops happen at the end
         let mut all_guards: Vec<(TransactionsGuard, ActiveRequestGuard)> = Vec::new();
 
@@ -2029,7 +2030,7 @@ mod tests {
             let authority = AuthorityIndex::new_for_test(i as u8);
 
             let guard = map.lock_transactions_and_active_request(
-                missing_block_refs.clone(),
+                missing_transations_refs.clone(),
                 authority,
                 context.parameters.max_transactions_per_regular_sync_fetch,
                 sync_method,
@@ -2050,8 +2051,9 @@ mod tests {
 
             // trying to acquire any of them again for the *same* authority should not
             // succeed
+
             let guard = map.lock_transactions_and_active_request(
-                missing_block_refs.clone(),
+                missing_transations_refs.clone(),
                 authority,
                 context.parameters.max_transactions_per_regular_sync_fetch,
                 sync_method,
@@ -2066,7 +2068,7 @@ mod tests {
         drop(all_guards.remove(0));
 
         let guard = map.lock_transactions_and_active_request(
-            missing_block_refs.clone(),
+            missing_transations_refs.clone(),
             AuthorityIndex::new_for_test(MAX_AUTHORITIES_TO_FETCH_PER_TRANSACTION as u8),
             context.parameters.max_transactions_per_regular_sync_fetch,
             sync_method,
@@ -2074,7 +2076,7 @@ mod tests {
         );
         let (tx_guard, active_request_guard) =
             guard.expect("Guard should be successfully acquired");
-        assert_eq!(tx_guard.transactions_refs, missing_block_refs);
+        assert_eq!(tx_guard.transactions_refs, missing_transations_refs);
 
         // Dropping all guards should unlock all block refs
         drop(tx_guard);
@@ -2149,7 +2151,7 @@ mod tests {
     }
 
     struct MockNetworkClient {
-        transactions: Arc<Mutex<HashMap<(AuthorityIndex, BlockRef), Bytes>>>,
+        transactions: Arc<Mutex<HashMap<(AuthorityIndex, GenericTransactionRef), Bytes>>>,
         error_peers: Arc<Mutex<HashMap<AuthorityIndex, ConsensusError>>>,
         timeout_peers: Arc<Mutex<BTreeSet<AuthorityIndex>>>,
         empty_peers: Arc<Mutex<BTreeSet<AuthorityIndex>>>,
@@ -2181,10 +2183,10 @@ mod tests {
                     block_ref,
                     serialized_transactions: transaction.serialized().clone(),
                 };
-
+                let gen_tr_ref = GenericTransactionRef::from(block_ref);
                 // Serialize the SerializedTransactions struct
                 let serialized = bcs::to_bytes(&serialized_transactions).unwrap();
-                transactions_map.insert((peer, block_ref), serialized.into());
+                transactions_map.insert((peer, gen_tr_ref), serialized.into());
             }
         }
 
@@ -2218,7 +2220,7 @@ mod tests {
     #[derive(Default)]
     struct MockCoreThreadDispatcher {
         transactions: Mutex<Vec<VerifiedTransactions>>,
-        missing_transactions: Mutex<BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>>,
+        missing_transactions: Mutex<BTreeMap<GenericTransactionRef, BTreeSet<AuthorityIndex>>>,
     }
 
     impl MockCoreThreadDispatcher {
@@ -2236,7 +2238,7 @@ mod tests {
 
         async fn stub_missing_transactions(
             &self,
-            missing_transactions: BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>,
+            missing_transactions: BTreeMap<GenericTransactionRef, BTreeSet<AuthorityIndex>>,
         ) {
             let mut missing = self.missing_transactions.lock().await;
             *missing = missing_transactions;
@@ -2304,10 +2306,10 @@ mod tests {
             // Lock transactions once, outside the loop
             let transactions = self.transactions.lock().await;
 
-            let mut filtered: BTreeMap<BlockRef, BTreeSet<AuthorityIndex>> = BTreeMap::new();
+            let mut filtered: BTreeMap<GenericTransactionRef, BTreeSet<AuthorityIndex>> = BTreeMap::new();
 
             for (block_ref, authority_set) in missing.iter() {
-                let exists = transactions.iter().any(|txn| txn.block_ref() == *block_ref);
+                let exists = transactions.iter().any(|txn| GenericTransactionRef::from(txn.block_ref()) == *block_ref);
 
                 if !exists {
                     filtered.insert(*block_ref, authority_set.clone());

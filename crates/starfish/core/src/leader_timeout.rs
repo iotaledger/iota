@@ -290,7 +290,7 @@ mod tests {
             dispatcher.clone(),
             Arc::new(RwLock::new(DagState::new(
                 context.clone(),
-                Arc::new(MemStore::new()),
+                Arc::new(MemStore::new(context.clone())),
             ))),
         );
 
@@ -384,7 +384,7 @@ mod tests {
             dispatcher.clone(),
             Arc::new(RwLock::new(DagState::new(
                 context.clone(),
-                Arc::new(MemStore::new()),
+                Arc::new(MemStore::new(context.clone())),
             ))),
         );
 

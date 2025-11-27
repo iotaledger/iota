@@ -1433,7 +1433,7 @@ mod tests {
         let (tx_message_sender, _tx_message_receiver) = mpsc::channel(100);
 
         let network_client = Arc::new(FakeNetworkClient::default());
-        let store = Arc::new(MemStore::new());
+        let store = Arc::new(MemStore::new(context.clone()));
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
         let cordial_knowledge = CordialKnowledge::start(context.clone(), dag_state.clone());
 
@@ -1511,7 +1511,7 @@ mod tests {
         let (tx_message_sender, _tx_message_receiver) = mpsc::channel(100);
 
         let network_client = Arc::new(FakeNetworkClient::default());
-        let store = Arc::new(MemStore::new());
+        let store = Arc::new(MemStore::new(context.clone()));
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
         let cordial_knowledge = CordialKnowledge::start(context.clone(), dag_state.clone());
         let transactions_synchronizer = TransactionsSynchronizer::start(
@@ -1598,7 +1598,7 @@ mod tests {
         let (tx_message_sender, _tx_message_receiver) = mpsc::channel(100);
 
         let network_client = Arc::new(FakeNetworkClient::default());
-        let store = Arc::new(MemStore::new());
+        let store = Arc::new(MemStore::new(context.clone()));
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
         let cordial_knowledge = CordialKnowledge::start(context.clone(), dag_state.clone());
 
@@ -1678,7 +1678,7 @@ mod tests {
         let (tx_message_sender, _tx_message_receiver) = mpsc::channel(100);
 
         let network_client = Arc::new(FakeNetworkClient::default());
-        let store = Arc::new(MemStore::new());
+        let store = Arc::new(MemStore::new(context.clone()));
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
         let cordial_knowledge = CordialKnowledge::start(context.clone(), dag_state.clone());
         let transactions_synchronizer = TransactionsSynchronizer::start(
@@ -1815,7 +1815,7 @@ mod tests {
         let (tx_message_sender, _tx_message_receiver) = mpsc::channel(100);
 
         let network_client = Arc::new(FakeNetworkClient::default());
-        let store = Arc::new(MemStore::new());
+        let store = Arc::new(MemStore::new(context.clone()));
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
         let cordial_knowledge = CordialKnowledge::start(context.clone(), dag_state.clone());
         let transactions_synchronizer = TransactionsSynchronizer::start(
@@ -1896,7 +1896,7 @@ mod tests {
             Arc::new(crate::block_verifier::test::TxnSizeVerifier {}),
         ));
         let commit_vote_monitor = Arc::new(CommitVoteMonitor::new(context.clone()));
-        let store = Arc::new(MemStore::new());
+        let store = Arc::new(MemStore::new(context.clone()));
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
         let cordial_knowledge = CordialKnowledge::start(context.clone(), dag_state.clone());
 
@@ -2164,7 +2164,7 @@ mod tests {
             Arc::new(crate::block_verifier::test::TxnSizeVerifier {}),
         ));
         let commit_vote_monitor = Arc::new(CommitVoteMonitor::new(context.clone()));
-        let store = Arc::new(MemStore::new());
+        let store = Arc::new(MemStore::new(context.clone()));
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
         let cordial_knowledge = CordialKnowledge::start(context.clone(), dag_state.clone());
 
@@ -2320,7 +2320,7 @@ mod tests {
             Arc::new(crate::block_verifier::test::TxnSizeVerifier {}),
         ));
         let commit_vote_monitor = Arc::new(CommitVoteMonitor::new(context.clone()));
-        let store = Arc::new(MemStore::new());
+        let store = Arc::new(MemStore::new(context.clone()));
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
         let cordial_knowledge = CordialKnowledge::start(context.clone(), dag_state.clone());
 
@@ -2492,7 +2492,7 @@ mod tests {
             Arc::new(crate::block_verifier::test::TxnSizeVerifier {}),
         ));
         let commit_vote_monitor = Arc::new(CommitVoteMonitor::new(context.clone()));
-        let store = Arc::new(MemStore::new());
+        let store = Arc::new(MemStore::new(context.clone()));
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
         let cordial_knowledge = CordialKnowledge::start(context.clone(), dag_state.clone());
         let block_manager = BlockManager::new(context.clone(), dag_state.clone());
@@ -2806,7 +2806,7 @@ mod tests {
             Arc::new(crate::block_verifier::test::TxnSizeVerifier {}),
         ));
         let commit_vote_monitor = Arc::new(CommitVoteMonitor::new(context.clone()));
-        let store = Arc::new(MemStore::new());
+        let store = Arc::new(MemStore::new(context.clone()));
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
         let cordial_knowledge = CordialKnowledge::start(context.clone(), dag_state.clone());
 
@@ -2947,7 +2947,7 @@ mod tests {
             Arc::new(crate::block_verifier::test::TxnSizeVerifier {}),
         ));
         let commit_vote_monitor = Arc::new(CommitVoteMonitor::new(context.clone()));
-        let store = Arc::new(MemStore::new());
+        let store = Arc::new(MemStore::new(context.clone()));
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
         let cordial_knowledge = CordialKnowledge::start(context.clone(), dag_state.clone());
 
@@ -3105,7 +3105,7 @@ mod tests {
             Arc::new(crate::block_verifier::test::TxnSizeVerifier {}),
         ));
         let commit_vote_monitor = Arc::new(CommitVoteMonitor::new(context.clone()));
-        let store = Arc::new(MemStore::new());
+        let store = Arc::new(MemStore::new(context.clone()));
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
         let cordial_knowledge = CordialKnowledge::start(context.clone(), dag_state.clone());
 
@@ -3294,7 +3294,7 @@ mod tests {
             Arc::new(crate::block_verifier::test::TxnSizeVerifier {}),
         ));
         let commit_vote_monitor = Arc::new(CommitVoteMonitor::new(context.clone()));
-        let store = Arc::new(MemStore::new());
+        let store = Arc::new(MemStore::new(context.clone()));
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
         let cordial_knowledge = CordialKnowledge::start(context.clone(), dag_state.clone());
 
@@ -3384,19 +3384,19 @@ mod tests {
             all_block_headers.push(dag_builder.block_headers(round..=round));
         }
 
-        let mut block_refs_to_request_first_batch: Vec<BlockRef> = (1..=rounds)
+        let mut block_refs_to_request_first_batch: Vec<GenericTransactionRef> = (1..=rounds)
             .flat_map(|round| {
                 all_block_headers[round as usize]
                     .iter()
-                    .map(|bh| bh.reference())
+                    .map(|bh| GenericTransactionRef::from(bh.reference()))
             })
             .collect();
 
-        let mut block_refs_to_request_second_batch: Vec<BlockRef> = (rounds + 1..=2 * rounds)
+        let mut block_refs_to_request_second_batch: Vec<GenericTransactionRef> = (rounds + 1..=2 * rounds)
             .flat_map(|round| {
                 all_block_headers[round as usize]
                     .iter()
-                    .map(|bh| bh.reference())
+                    .map(|bh| GenericTransactionRef::from(bh.reference()))
             })
             .collect();
 
@@ -3423,7 +3423,7 @@ mod tests {
                 bcs::from_bytes(serialized_transactions_bytes)
                     .expect("deserialization should succeed");
             let block_ref = deserialized.block_ref;
-            assert_eq!(block_ref, block_refs_to_request_first_batch[i]);
+            assert_eq!(GenericTransactionRef::from(block_ref), block_refs_to_request_first_batch[i]);
             let serialized_transactions = deserialized.serialized_transactions;
             let block_header = all_block_headers[block_ref.round as usize]
                 .iter()

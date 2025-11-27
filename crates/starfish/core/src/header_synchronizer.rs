@@ -1670,7 +1670,7 @@ mod tests {
         let core_dispatcher = Arc::new(MockCoreThreadDispatcher::default());
         let commit_vote_monitor = Arc::new(CommitVoteMonitor::new(context.clone()));
         let network_client = Arc::new(MockNetworkClient::default());
-        let store = Arc::new(MemStore::new());
+        let store = Arc::new(MemStore::new(context.clone()));
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
 
         let transactions_synchronizer = TransactionsSynchronizer::start(
@@ -1738,7 +1738,7 @@ mod tests {
         let commit_vote_monitor = Arc::new(CommitVoteMonitor::new(context.clone()));
         let core_dispatcher = Arc::new(MockCoreThreadDispatcher::default());
         let network_client = Arc::new(MockNetworkClient::default());
-        let store = Arc::new(MemStore::new());
+        let store = Arc::new(MemStore::new(context.clone()));
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
 
         let transactions_synchronizer = TransactionsSynchronizer::start(
@@ -1821,7 +1821,7 @@ mod tests {
         let commit_vote_monitor = Arc::new(CommitVoteMonitor::new(context.clone()));
         let core_dispatcher = Arc::new(MockCoreThreadDispatcher::default());
         let network_client = Arc::new(MockNetworkClient::default());
-        let store = Arc::new(MemStore::new());
+        let store = Arc::new(MemStore::new(context.clone()));
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
         let transactions_synchronizer = TransactionsSynchronizer::start(
             network_client.clone(),
@@ -1931,7 +1931,7 @@ mod tests {
         let block_verifier = Arc::new(NoopBlockVerifier {});
         let core_dispatcher = Arc::new(MockCoreThreadDispatcher::default());
         let network_client = Arc::new(MockNetworkClient::default());
-        let store = Arc::new(MemStore::new());
+        let store = Arc::new(MemStore::new(context.clone()));
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
         let commit_vote_monitor = Arc::new(CommitVoteMonitor::new(context.clone()));
         let transactions_synchronizer = TransactionsSynchronizer::start(
@@ -2066,7 +2066,7 @@ mod tests {
         let block_verifier = Arc::new(NoopBlockVerifier {});
         let core_dispatcher = Arc::new(MockCoreThreadDispatcher::default());
         let network_client = Arc::new(MockNetworkClient::default());
-        let store = Arc::new(MemStore::new());
+        let store = Arc::new(MemStore::new(context.clone()));
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
         let commit_vote_monitor = Arc::new(CommitVoteMonitor::new(context.clone()));
         let transactions_synchronizer = TransactionsSynchronizer::start(
@@ -2216,7 +2216,7 @@ mod tests {
         let core_dispatcher = Arc::new(MockCoreThreadDispatcher::default());
         let network_client = Arc::new(MockNetworkClient::default());
         let commit_vote_monitor = Arc::new(CommitVoteMonitor::new(context.clone()));
-        let store = Arc::new(MemStore::new());
+        let store = Arc::new(MemStore::new(context.clone()));
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
         let our_index = AuthorityIndex::new_for_test(0);
         let transactions_synchronizer = TransactionsSynchronizer::start(
@@ -2448,7 +2448,7 @@ mod tests {
             // 1) Setup 10‐node context and in‐mem DAG
             let (ctx, _) = Context::new_for_test(10);
             let context = Arc::new(ctx);
-            let store = Arc::new(MemStore::new());
+            let store = Arc::new(MemStore::new(context.clone()));
             let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
             let inflight = InflightBlockHeadersMap::new();
 
@@ -2542,7 +2542,7 @@ mod tests {
         // 1) Setup a 10-node context, in-memory DAG, and inflight map
         let (ctx, _) = Context::new_for_test(10);
         let context = Arc::new(ctx);
-        let store = Arc::new(MemStore::new());
+        let store = Arc::new(MemStore::new(context.clone()));
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
         let inflight = InflightBlockHeadersMap::new();
         let network_client = Arc::new(MockNetworkClient::default());
@@ -2713,7 +2713,7 @@ mod tests {
         let context = Arc::new(context);
         let block_verifier = Arc::new(NoopBlockVerifier {});
         let commit_vote_monitor = Arc::new(CommitVoteMonitor::new(context.clone()));
-        let store = Arc::new(MemStore::new());
+        let store = Arc::new(MemStore::new(context.clone()));
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
 
         let core_dispatcher = Arc::new(MockCoreThreadDispatcher::default());

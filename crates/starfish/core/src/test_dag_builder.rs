@@ -58,7 +58,7 @@ use crate::{
 /// };
 /// let dag_state = Arc::new(RwLock::new(DagState::new(
 ///     dag_builder.context.clone(),
-///     Arc::new(MemStore::new()),
+///     Arc::new(MemStore::new(context.clone())),
 /// )));
 /// let context = Arc::new(Context::new_for_test(4).0);
 /// let dag_builder = DagBuilder::new(context);
@@ -79,7 +79,7 @@ use crate::{
 /// let dag_builder = DagBuilder::new(context);
 /// let dag_state = Arc::new(RwLock::new(DagState::new(
 ///     dag_builder.context.clone(),
-///     Arc::new(MemStore::new()),
+///     Arc::new(MemStore::new(context.clone())),
 /// )));
 ///
 /// dag_builder.layer(1).build();

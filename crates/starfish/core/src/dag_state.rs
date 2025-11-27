@@ -1812,8 +1812,8 @@ mod test {
     async fn test_get_block_header() {
         let (context, _) = Context::new_for_test(4);
         let context = Arc::new(context);
-        let store = Arc::new(MemStore::new());
-        let mut dag_state = DagState::new(context.clone(), store.clone());
+        let store = Arc::new(MemStore::new(context.clone()));
+        let mut dag_state = DagState::new(context.clone(), store);
         let own_index = AuthorityIndex::new_for_test(0);
 
         // Populate test blocks for round 1 ~ 10, authorities 0 ~ 2.
@@ -1930,8 +1930,8 @@ mod test {
         // Initialize DagState.
         let (context, _) = Context::new_for_test(4);
         let context = Arc::new(context);
-        let store = Arc::new(MemStore::new());
-        let mut dag_state = DagState::new(context.clone(), store.clone());
+        let store = Arc::new(MemStore::new(context.clone()));
+        let mut dag_state = DagState::new(context.clone(), store);
 
         // Populate DagState.
 
@@ -2093,7 +2093,7 @@ mod test {
         context.parameters.dag_state_cached_rounds = CACHED_ROUNDS;
 
         let context = Arc::new(context);
-        let store = Arc::new(MemStore::new());
+        let store = Arc::new(MemStore::new(context.clone()));
         let mut dag_state = DagState::new(context.clone(), store.clone());
 
         // Create test block headers for round 1 ~ 10
@@ -2114,7 +2114,7 @@ mod test {
         block_headers.clone().into_iter().for_each(|block_header| {
             if block_header.round() <= 4 {
                 store
-                    .write(WriteBatch::default().block_headers(vec![block_header]))
+                    .write(WriteBatch::default().block_headers(vec![block_header]), context.clone())
                     .unwrap();
             } else {
                 dag_state.accept_block_headers(vec![block_header]);
@@ -2160,8 +2160,8 @@ mod test {
         context.parameters.dag_state_cached_rounds = CACHED_ROUNDS;
 
         let context = Arc::new(context);
-        let store = Arc::new(MemStore::new());
-        let mut dag_state = DagState::new(context.clone(), store.clone());
+        let store = Arc::new(MemStore::new(context.clone()));
+        let mut dag_state = DagState::new(context.clone(), store);
 
         // Create test block headers for round 1 ~ 10
         let num_rounds: u32 = 10;
@@ -2231,8 +2231,8 @@ mod test {
         context.parameters.dag_state_cached_rounds = CACHED_ROUNDS;
 
         let context = Arc::new(context);
-        let store = Arc::new(MemStore::new());
-        let mut dag_state = DagState::new(context.clone(), store.clone());
+        let store = Arc::new(MemStore::new(context.clone()));
+        let mut dag_state = DagState::new(context.clone(), store);
 
         // Create test block headers for round 1 ~ 10 for authority 0
         let mut block_headers = Vec::new();
@@ -2269,7 +2269,7 @@ mod test {
     async fn test_get_block_headers_in_cache_or_store() {
         let (context, _) = Context::new_for_test(4);
         let context = Arc::new(context);
-        let store = Arc::new(MemStore::new());
+        let store = Arc::new(MemStore::new(context.clone()));
         let mut dag_state = DagState::new(context.clone(), store.clone());
 
         // Create test block headers for round 1 ~ 10
@@ -2290,7 +2290,7 @@ mod test {
         block_headers.clone().into_iter().for_each(|block_header| {
             if block_header.round() <= 4 {
                 store
-                    .write(WriteBatch::default().block_headers(vec![block_header]))
+                    .write(WriteBatch::default().block_headers(vec![block_header]), context.clone())
                     .unwrap();
             } else {
                 dag_state.accept_block_headers(vec![block_header]);
@@ -2365,7 +2365,7 @@ mod test {
         let num_authorities: u32 = 4;
         let (context, _) = Context::new_for_test(num_authorities as usize);
         let context = Arc::new(context);
-        let store = Arc::new(MemStore::new());
+        let store = Arc::new(MemStore::new(context.clone()));
         let mut dag_state = DagState::new(context.clone(), store.clone());
 
         // Create test blocks and commits for round 1 ~ 10
@@ -2438,8 +2438,10 @@ mod test {
         all_transactions.extend(dag_builder.transactions(1..=num_rounds));
 
         // All transactions should be found in DagState.
+        let transactions_refs = block_refs.iter().map(|&br|
+            GenericTransactionRef::from(br)).collect::<Vec<_>>();
         let result = dag_state
-            .get_verified_transactions(&block_refs)
+            .get_verified_transactions(transactions_refs.as_slice())
             .into_iter()
             .map(|b| b.unwrap())
             .collect::<Vec<_>>();
@@ -2462,7 +2464,7 @@ mod test {
         drop(dag_state);
 
         // Recover the state from the store
-        let dag_state = DagState::new(context.clone(), store.clone());
+        let dag_state = DagState::new(context.clone(), store);
 
         // Block headers from the first 5 rounds should be found in DagState.
         let block_headers = dag_builder.block_headers(1..=5);
@@ -2478,8 +2480,10 @@ mod test {
         assert_eq!(result, block_headers);
         // Transactions from the first 5 rounds should be found in DagState.
         let vec_transactions = dag_builder.transactions(1..=5);
+        let transactions_refs = block_refs.iter().map(|&br|
+            GenericTransactionRef::from(br)).collect::<Vec<_>>();
         let result = dag_state
-            .get_verified_transactions(&block_refs)
+            .get_verified_transactions(&transactions_refs)
             .into_iter()
             .map(|b| b.unwrap())
             .collect::<Vec<_>>();
@@ -2504,8 +2508,10 @@ mod test {
             .flatten()
             .collect::<Vec<_>>();
         assert!(retrieved_block_headers.is_empty());
+        let transactions_refs = block_refs.iter().map(|&br|
+            GenericTransactionRef::from(br)).collect::<Vec<_>>();
         let retrieved_transactions = dag_state
-            .get_verified_transactions(&block_refs)
+            .get_verified_transactions(&transactions_refs)
             .into_iter()
             .flatten()
             .collect::<Vec<_>>();
@@ -2531,7 +2537,7 @@ mod test {
         context.parameters.dag_state_cached_rounds = 5;
 
         let context = Arc::new(context);
-        let store = Arc::new(MemStore::new());
+        let store = Arc::new(MemStore::new(context.clone()));
         let mut dag_state = DagState::new(context.clone(), store.clone());
 
         // Create no block headers for authority 0
@@ -2673,7 +2679,7 @@ mod test {
         context.parameters.dag_state_cached_rounds = CACHED_ROUNDS;
 
         let context = Arc::new(context);
-        let store = Arc::new(MemStore::new());
+        let store = Arc::new(MemStore::new(context.clone()));
         let mut dag_state = DagState::new(context.clone(), store.clone());
 
         // Create no block headers for authority 0
@@ -2815,8 +2821,8 @@ mod test {
         context.parameters.dag_state_cached_rounds = CACHED_ROUNDS;
 
         let context = Arc::new(context);
-        let store = Arc::new(MemStore::new());
-        let mut dag_state = DagState::new(context.clone(), store.clone());
+        let store = Arc::new(MemStore::new(context.clone()));
+        let mut dag_state = DagState::new(context.clone(), store);
 
         // Create no block headers for authority 0
         // Create one block header (round 1) for authority 1
@@ -2860,7 +2866,7 @@ mod test {
         // GIVEN
         let (context, _) = Context::new_for_test(4);
         let context = Arc::new(context);
-        let store = Arc::new(MemStore::new());
+        let store = Arc::new(MemStore::new(context.clone()));
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
 
         // WHEN no block headers exist, then genesis should be returned
@@ -2915,7 +2921,7 @@ mod test {
         // GIVEN
         let (context, _) = Context::new_for_test(4);
         let context = Arc::new(context);
-        let store = Arc::new(MemStore::new());
+        let store = Arc::new(MemStore::new(context.clone()));
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
 
         // WHEN no block headers exist, then genesis should be returned
@@ -2974,7 +2980,7 @@ mod test {
     async fn test_contains_transactions() {
         let (context, _) = Context::new_for_test(4);
         let context = Arc::new(context);
-        let store = Arc::new(MemStore::new());
+        let store = Arc::new(MemStore::new(context.clone()));
         let mut dag_state = DagState::new(context.clone(), store.clone());
 
         // Create test blocks for round 1 ~ 10
@@ -2997,7 +3003,7 @@ mod test {
                 store
                     .write(
                         WriteBatch::default()
-                            .transactions(vec![block.verified_transactions.clone()]),
+                            .transactions(vec![block.verified_transactions.clone()]), context.clone()
                     )
                     .unwrap();
             } else {
@@ -3009,26 +3015,29 @@ mod test {
         // Now when trying to query whether we have all the transactions, we should
         // receive all transactions. The first 4 retrieved from the store and the rest
         // is from DagState.
-        let mut block_refs = blocks
+        let block_refs = blocks
             .iter()
             .map(|block| block.reference())
             .collect::<Vec<_>>();
-        let result = dag_state.contains_transactions(block_refs.clone());
+        let mut transactions_refs = block_refs.iter().map(|br|
+            GenericTransactionRef::from(*br)).collect::<Vec<_>>();
+        let result = dag_state.contains_transactions(transactions_refs.clone());
 
         // Ensure everything is found
         let mut expected = vec![true; (num_rounds * num_authorities as u32) as usize];
         assert_eq!(result, expected);
 
         // Now try to ask also for one block ref that is neither in cache nor in store
-        block_refs.insert(
+        transactions_refs.insert(
             3,
+            GenericTransactionRef::from(
             BlockRef::new(
                 11,
                 AuthorityIndex::new_for_test(0),
                 BlockHeaderDigest::default(),
-            ),
+            ))
         );
-        let result = dag_state.contains_transactions(block_refs);
+        let result = dag_state.contains_transactions(transactions_refs);
 
         // Ensure everything is found except the one we just added
         expected.insert(3, false);
@@ -3044,7 +3053,9 @@ mod test {
             .iter()
             .map(|block| block.reference())
             .collect::<Vec<_>>();
-        let result = dag_state.contains_transactions(block_refs.clone());
+        let transactions_refs = block_refs.iter().map(|br|
+            GenericTransactionRef::from(*br)).collect::<Vec<_>>();
+        let result = dag_state.contains_transactions(transactions_refs);
 
         // Only transactions flushed to the store should be found
         let expected = (1..=num_rounds)
@@ -3059,7 +3070,7 @@ mod test {
         let (context, _) = Context::new_for_test(4);
 
         let context = Arc::new(context);
-        let store = Arc::new(MemStore::new());
+        let store = Arc::new(MemStore::new(context.clone()));
         let mut dag_state = DagState::new(context.clone(), store.clone());
 
         let future_timestamp = context.clock.timestamp_utc_ms() + 100_000;
@@ -3086,7 +3097,7 @@ mod test {
         const CACHED_ROUNDS: Round = 5;
         context.parameters.dag_state_cached_rounds = CACHED_ROUNDS;
         let context = Arc::new(context);
-        let store = Arc::new(MemStore::new());
+        let store = Arc::new(MemStore::new(context.clone()));
         let mut dag_state = DagState::new(context.clone(), store);
 
         // Create test blocks and commits for round 1 ~ 200
@@ -3158,10 +3169,11 @@ mod test {
             .filter(|x| x.round > gc_round)
             .cloned()
             .collect();
+        let transaction_refs = block_refs_with_transactions_in_dag.iter().map(|br| GenericTransactionRef::from(*br)).collect::<Vec<_>>();
         let expected_transactions_in_dag = dag_builder.transactions(gc_round + 1..=num_rounds);
         // All transactions should be found in DagState or store.
         let result = dag_state
-            .get_verified_transactions(&block_refs_with_transactions_in_dag)
+            .get_verified_transactions(&transaction_refs)
             .into_iter()
             .map(|b| b.unwrap())
             .collect::<Vec<_>>();
@@ -3180,8 +3192,10 @@ mod test {
         );
 
         // All transactions should be found in DagState or store.
+        let transaction_refs = block_refs.iter().map(|br| GenericTransactionRef::from(*br)).collect::<Vec<_>>();
+
         let result = dag_state
-            .get_verified_transactions(&block_refs)
+            .get_verified_transactions(&transaction_refs)
             .into_iter()
             .map(|b| b.unwrap())
             .collect::<Vec<_>>();
@@ -3237,7 +3251,7 @@ mod test {
     async fn test_accept_block_not_panics_when_timestamp_is_ahead() {
         // GIVEN
         let context = Arc::new(Context::new_for_test(4).0);
-        let store = Arc::new(MemStore::new());
+        let store = Arc::new(MemStore::new(context.clone()));
         let mut dag_state = DagState::new(context.clone(), store.clone());
         // Set a timestamp for the block that is ahead of the current time
         let block_timestamp = context.clock.timestamp_utc_ms() + 5_000;
@@ -3254,7 +3268,7 @@ mod test {
     async fn test_skip_acknowledgments_all_empty_transactions() {
         let (context, _) = Context::new_for_test(4);
         let context = Arc::new(context);
-        let store = Arc::new(MemStore::new());
+        let store = Arc::new(MemStore::new(context.clone()));
         let mut dag_state = DagState::new(context.clone(), store.clone());
 
         // Create test blocks for round 1 ~ 10
@@ -3282,7 +3296,7 @@ mod test {
     async fn test_skip_acknowledgments_some_contain_transactions() {
         let (context, _) = Context::new_for_test(4);
         let context = Arc::new(context);
-        let store = Arc::new(MemStore::new());
+        let store = Arc::new(MemStore::new(context.clone()));
         let mut encoder = create_encoder(&context);
         let mut dag_state = DagState::new(context.clone(), store.clone());
 

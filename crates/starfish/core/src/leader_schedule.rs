@@ -504,7 +504,7 @@ mod tests {
             .protocol_config
             .set_consensus_bad_nodes_stake_threshold_for_testing(33);
         let context = Arc::new(context);
-        let store = Arc::new(MemStore::new());
+        let store = Arc::new(MemStore::new(context.clone()));
 
         // Populate fully connected test blocks for round 0 ~ 11, authorities 0 ~ 3.
         let mut dag_builder = DagBuilder::new(context.clone());
@@ -542,7 +542,7 @@ mod tests {
                 WriteBatch::default()
                     .commit_info(vec![(commit_ref, commit_info)])
                     .block_headers(block_headers_to_write)
-                    .commits(expected_commits),
+                    .commits(expected_commits), context.clone()
             )
             .unwrap();
 
@@ -585,7 +585,7 @@ mod tests {
             .protocol_config
             .set_consensus_bad_nodes_stake_threshold_for_testing(33);
         let context = Arc::new(context);
-        let store = Arc::new(MemStore::new());
+        let store = Arc::new(MemStore::new(context.clone()));
 
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
 
@@ -614,7 +614,7 @@ mod tests {
             .protocol_config
             .set_consensus_bad_nodes_stake_threshold_for_testing(33);
         let context = Arc::new(context);
-        let store = Arc::new(MemStore::new());
+        let store = Arc::new(MemStore::new(context.clone()));
 
         // Populate fully connected test blocks for round 0 ~ 2, authorities 0 ~ 3.
         let mut dag_builder = DagBuilder::new(context.clone());
@@ -642,7 +642,7 @@ mod tests {
             .write(
                 WriteBatch::default()
                     .block_headers(headers_to_write)
-                    .commits(expected_commits),
+                    .commits(expected_commits), context.clone()
             )
             .unwrap();
 
@@ -677,7 +677,7 @@ mod tests {
 
         let dag_state = Arc::new(RwLock::new(DagState::new(
             context.clone(),
-            Arc::new(MemStore::new()),
+            Arc::new(MemStore::new(context.clone())),
         )));
         let unscored_subdags = vec![
             CommittedSubDag::new(
@@ -712,7 +712,7 @@ mod tests {
         ));
         let dag_state = Arc::new(RwLock::new(DagState::new(
             context.clone(),
-            Arc::new(MemStore::new()),
+            Arc::new(MemStore::new(context.clone())),
         )));
 
         // Populate fully connected test blocks for round 0 ~ 4, authorities 0 ~ 3.

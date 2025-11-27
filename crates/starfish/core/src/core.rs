@@ -1278,7 +1278,7 @@ impl CoreTextFixture {
 
         let context = Arc::new(context);
         let store: Arc<dyn Store> = if !with_rocksdb {
-            Arc::new(MemStore::new())
+            Arc::new(MemStore::new(context.clone()))
         } else {
             let store_path = context.parameters.db_path.as_path().to_str().unwrap();
             Arc::new(RocksDBStore::new(store_path))
@@ -1366,7 +1366,7 @@ mod test {
         telemetry_subscribers::init_for_testing();
         let (context, mut key_pairs) = Context::new_for_test(4);
         let context = Arc::new(context);
-        let store = Arc::new(MemStore::new());
+        let store = Arc::new(MemStore::new(context.clone()));
         let (_transaction_client, tx_receiver) = TransactionClient::new(context.clone());
         let transaction_consumer = TransactionConsumer::new(tx_receiver, context.clone());
         let mut block_status_subscriptions = FuturesUnordered::new();
@@ -1392,7 +1392,7 @@ mod test {
             .write(
                 WriteBatch::default()
                     .block_headers(dag_builder.block_headers(1..=num_rounds))
-                    .transactions(dag_builder.transactions(1..=num_rounds)),
+                    .transactions(dag_builder.transactions(1..=num_rounds)), context.clone(),
             )
             .expect("We should expect a successful storing of headers");
 
@@ -1482,7 +1482,7 @@ mod test {
 
         let (context, mut key_pairs) = Context::new_for_test(4);
         let context = Arc::new(context);
-        let store = Arc::new(MemStore::new());
+        let store = Arc::new(MemStore::new(context.clone()));
         let (_transaction_client, tx_receiver) = TransactionClient::new(context.clone());
         let transaction_consumer = TransactionConsumer::new(tx_receiver, context.clone());
 
@@ -1520,7 +1520,7 @@ mod test {
             .write(
                 WriteBatch::default()
                     .block_headers(block_headers)
-                    .transactions(block_transactions),
+                    .transactions(block_transactions), context.clone(),
             )
             .expect("Storage error");
 
@@ -1612,7 +1612,7 @@ mod test {
 
         let (context, mut key_pairs) = Context::new_for_test(4);
         let context = Arc::new(context);
-        let store = Arc::new(MemStore::new());
+        let store = Arc::new(MemStore::new(context.clone()));
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
 
         let block_manager = BlockManager::new(context.clone(), dag_state.clone());
@@ -1770,7 +1770,7 @@ mod test {
         let (context, mut key_pairs) = Context::new_for_test(4);
         let context = Arc::new(context);
 
-        let store = Arc::new(MemStore::new());
+        let store = Arc::new(MemStore::new(context.clone()));
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
 
         let block_manager = BlockManager::new(context.clone(), dag_state.clone());
@@ -1860,7 +1860,7 @@ mod test {
             ..Default::default()
         }));
 
-        let store = Arc::new(MemStore::new());
+        let store = Arc::new(MemStore::new(context.clone()));
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
 
         let block_manager = BlockManager::new(context.clone(), dag_state.clone());
@@ -2075,7 +2075,7 @@ mod test {
         telemetry_subscribers::init_for_testing();
         let (context, mut key_pairs) = Context::new_for_test(4);
         let context = Arc::new(context);
-        let store = Arc::new(MemStore::new());
+        let store = Arc::new(MemStore::new(context.clone()));
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
 
         let block_manager = BlockManager::new(context.clone(), dag_state.clone());
@@ -2376,16 +2376,20 @@ mod test {
         assert!(missing_references.is_empty());
         let first_missing_transaction_from_skipped = *missing_transactions
             .iter()
-            .find(|(a, _)| a.author == authority_to_skip)
+            .find(|(a, _)| a.author() == authority_to_skip)
             .unwrap()
             .0;
+        let block_ref_for_first_missing_tx = match first_missing_transaction_from_skipped {
+            GenericTransactionRef::BlockRef(ref b) => BlockRef::new(b.round, b.author, b.digest),
+            GenericTransactionRef::TransactionRef(ref t) => BlockRef::new(t.round, t.author, t.block_digest),
+        };
         if commit_only_for_traversed_headers {
             assert_eq!(
-                first_missing_transaction_from_skipped.round,
+                first_missing_transaction_from_skipped.round(),
                 num_rounds_with_skip_ancestors
             );
         } else {
-            assert_eq!(first_missing_transaction_from_skipped.round, 1);
+            assert_eq!(first_missing_transaction_from_skipped.round(), 1);
         }
         // Ensure that the block header corresponding to the
         // first_missing_transaction_from_skipped is not in dag_state
@@ -2394,7 +2398,7 @@ mod test {
             core_catch_up
                 .dag_state
                 .read()
-                .get_verified_block_headers(&[first_missing_transaction_from_skipped])[0]
+                .get_verified_block_headers(&[block_ref_for_first_missing_tx])[0]
                 .is_some(),
             commit_only_for_traversed_headers
         );
@@ -2411,7 +2415,7 @@ mod test {
         // synchronizer
         let missing_verified_transactions: Vec<_> = all_sequenced_transactions
             .into_iter()
-            .filter(|tx| missing_transactions.contains_key(&tx.block_ref()))
+            .filter(|tx| missing_transactions.contains_key(&GenericTransactionRef::TransactionRef(tx.transaction_ref())))
             .collect();
         core_catch_up
             .add_transactions(
@@ -2877,7 +2881,7 @@ mod test {
 
         let context = Arc::new(context);
 
-        let store = Arc::new(MemStore::new());
+        let store = Arc::new(MemStore::new(context.clone()));
         let (_transaction_client, tx_receiver) = TransactionClient::new(context.clone());
         let transaction_consumer = TransactionConsumer::new(tx_receiver, context.clone());
         let mut block_status_subscriptions = FuturesUnordered::new();
@@ -2899,12 +2903,12 @@ mod test {
 
         // write headers in store
         store
-            .write(WriteBatch::default().block_headers(dag_builder.block_headers(1..=8)))
+            .write(WriteBatch::default().block_headers(dag_builder.block_headers(1..=8)), context.clone())
             .expect("We should expect a successful storing of headers");
 
         // write transactions in store
         store
-            .write(WriteBatch::default().transactions(dag_builder.transactions(1..=8)))
+            .write(WriteBatch::default().transactions(dag_builder.transactions(1..=8)), context.clone())
             .expect("We should expect a successful storing of transactions");
 
         // create dag state after all blocks have been written to store
