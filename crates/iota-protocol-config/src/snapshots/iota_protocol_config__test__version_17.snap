@@ -39,6 +39,7 @@ feature_flags:
   consensus_median_timestamp_with_checkpoint_enforcement: true
   consensus_commit_transactions_only_for_traversed_headers: true
   metadata_in_module_bytes: true
+  publish_package_metadata: true
 max_tx_size_bytes: 131072
 max_input_objects: 2048
 max_size_written_objects: 5000000

@@ -379,6 +379,10 @@ struct FeatureFlags {
     // This flag is used to provide the correct MoveVM configuration for clients.
     #[serde(skip_serializing_if = "is_false")]
     metadata_in_module_bytes: bool,
+
+    // If true, enables publishing package metadata v1 along with the package.
+    #[serde(skip_serializing_if = "is_false")]
+    publish_package_metadata: bool,
 }
 
 fn is_true(b: &bool) -> bool {
@@ -1269,7 +1273,6 @@ impl ProtocolConfig {
     pub fn passkey_auth(&self) -> bool {
         self.feature_flags.passkey_auth
     }
-
     pub fn max_transaction_size_bytes(&self) -> u64 {
         // Provide a default value if protocol config version is too low.
         self.consensus_max_transaction_size_bytes
@@ -1456,6 +1459,10 @@ impl ProtocolConfig {
 
     pub fn metadata_in_module_bytes(&self) -> bool {
         self.feature_flags.metadata_in_module_bytes
+    }
+
+    pub fn publish_package_metadata(&self) -> bool {
+        self.feature_flags.publish_package_metadata
     }
 }
 
@@ -2329,7 +2336,10 @@ impl ProtocolConfig {
                 }
                 17 => {
                     if chain != Chain::Mainnet && chain != Chain::Testnet {
+                        // Enable storing metadata in module bytes and then
+                        // publishing package metadata in devnet
                         cfg.feature_flags.metadata_in_module_bytes = true;
+                        cfg.feature_flags.publish_package_metadata = true;
                     }
                 }
                 // Use this template when making changes:
@@ -2518,6 +2528,10 @@ impl ProtocolConfig {
     ) {
         self.feature_flags
             .consensus_commit_transactions_only_for_traversed_headers = val;
+    }
+
+    pub fn set_publish_package_metadata_for_testing(&mut self, val: bool) {
+        self.feature_flags.publish_package_metadata = val;
     }
 }
 
