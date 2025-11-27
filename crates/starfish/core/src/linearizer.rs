@@ -356,8 +356,7 @@ impl Linearizer {
         }
 
         for header in headers {
-            self.traversed_headers_tracker
-                .insert(header.reference());
+            self.traversed_headers_tracker.insert(header.reference());
         }
     }
 
