@@ -105,38 +105,41 @@ def run():
     log.info("Starting Spammer at 100 TPS...")
     spammer.start_stress_spammer(tps=100)
     
-    log.info(f"Starting 30-minute run with aggressive disruption.")
+    # Desired schedule (matches docstring)
+    start_intra = 100   # ms
+    start_inter = 30    # ms
+    intra_step = 10    # ms per minute
+    inter_step = -5     # ms per minute
+    total_minutes = 5
+    minute_interval = 60  # seconds
+
+    log.info(f"Starting {total_minutes}-minute Non-Triangle run with 1-minute parameter updates.")
 
     try:
-        start_time = time.time()
-        duration_seconds = 360  # 6 minutes
-        iteration = 0
-        
-        while time.time() - start_time < duration_seconds:
-            iteration += 1
-            log.info(f"=== Iteration {iteration} (Time: {int(time.time() - start_time)}s) ===")
-            
-            # Oscillate between 3 modes to prevent protocol stabilization
-            mode = iteration % 3
-            
-            if mode == 1:
-                # Mode 1: Extreme Triangle Violation
-                # Direct: Very slow + Lossy (forces routing via indirect)
-                # Indirect: Fast + High Jitter (unstable preferred path)
-                apply_topology(validators, intra_latency=200, inter_latency=20, intra_loss=10.0, inter_jitter=20)
-            elif mode == 2:
-                # Mode 2: Inverted (Direct is fast, Indirect is slow)
-                # Confuses routing tables built in Mode 1
-                apply_topology(validators, intra_latency=20, inter_latency=200, intra_loss=0.0, inter_jitter=5)
-            else:
-                # Mode 0: High Latency Everywhere (Congestion simulation)
-                apply_topology(validators, intra_latency=150, inter_latency=150, intra_loss=5.0, inter_jitter=10)
-            
-            # Faster updates (20s) to force constant adaptation
-            time.sleep(20)
-            
+        for minute in range(total_minutes):
+            # Compute current latencies
+            intra_latency = max(0, start_intra + minute * intra_step)
+            inter_latency = max(0, start_inter + minute * inter_step)
+
+            log.info(
+                f"Minute {minute+1}/{total_minutes}: "
+                f"intra_latency={intra_latency}ms, inter_latency={inter_latency}ms"
+            )
+
+            # Keep the non-metric flavour: intra = slow+lossy, inter = fast+jittery
+            apply_topology(
+                validators,
+                intra_latency=intra_latency,
+                inter_latency=inter_latency,
+                intra_loss=10.0,   # same as before
+                inter_jitter=20,   # same as before
+            )
+
+            # Topology stays fixed for this whole minute
+            time.sleep(minute_interval)
+
     except KeyboardInterrupt:
-        log.info("Interrupted by user.")
+        log.info("Interrupted by user.")    
 
 def run_safe():
     try:
