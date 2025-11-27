@@ -183,7 +183,7 @@ impl ProtocolCommands<IotaBenchmarkType> for IotaProtocol {
     fn fullnode_command<I>(
         &self,
         instances: I,
-        _parameters: &BenchmarkParameters<IotaBenchmarkType>,
+        parameters: &BenchmarkParameters<IotaBenchmarkType>,
     ) -> Vec<(Instance, String)>
     where
         I: IntoIterator<Item = Instance>,
@@ -195,6 +195,18 @@ impl ProtocolCommands<IotaBenchmarkType> for IotaProtocol {
             .enumerate()
             .map(|(i, instance)| {
                 let config_path: PathBuf = working_dir.join(iota_config::IOTA_FULLNODE_CONFIG);
+                let fullnode_ip = match parameters.use_internal_ip_address {
+                    true => &instance.private_ip,
+                    false => &instance.main_ip,
+                };
+
+                // Overwrite listen address and external address with 0.0.0.0 and actual fullnode IP.
+                // Escape quotes for proper handling inside tmux wrapper
+                let update_p2p_config = format!(
+                    "sed -i 's|listen-address: \\\"127.0.0.1:|listen-address: \\\"0.0.0.0:|' {0} && sed -i 's|external-address: /ip4/127.0.0.1/|external-address: /ip4/{1}/|' {0}",
+                    config_path.display(),
+                    fullnode_ip
+                );
 
                 let run = [
                     "cargo run --release --bin iota-node --",
@@ -204,6 +216,7 @@ impl ProtocolCommands<IotaBenchmarkType> for IotaProtocol {
                 let command = [
                     "source $HOME/.cargo/env",
                     "export RUSTFLAGS='-C target-cpu=native'",
+                    &update_p2p_config,
                     &run,
                 ]
                 .join(" && ");

@@ -1337,6 +1337,10 @@ impl Loader<HistoricalKey> for Db {
         use objects_history::dsl as h;
         use objects_version::dsl as v;
 
+        if keys.is_empty() {
+            return Ok(HashMap::new());
+        }
+
         let id_versions: BTreeSet<_> = keys
             .iter()
             .map(|key| (key.id.into_vec(), key.version as i64))
@@ -1404,6 +1408,10 @@ impl Loader<OptimisticKey> for Db {
 
     async fn load(&self, keys: &[OptimisticKey]) -> Result<HashMap<OptimisticKey, Object>, Error> {
         use objects::dsl as o;
+
+        if keys.is_empty() {
+            return Ok(HashMap::new());
+        }
 
         let id_versions: BTreeSet<_> = keys
             .iter()
