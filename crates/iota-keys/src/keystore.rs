@@ -232,7 +232,7 @@ impl StoredKey {
     pub fn address(&self) -> IotaAddress {
         match self {
             StoredKey::KeyPair(key) => (&key.public()).into(),
-            StoredKey::Account(address)=> *address,
+            StoredKey::Account(address) => *address,
             StoredKey::External { public_key, .. } => public_key.into(),
         }
     }
@@ -362,8 +362,8 @@ impl AccountKeystore for FileBasedKeystore {
         key: impl Into<StoredKey>,
     ) -> Result<(), anyhow::Error> {
         let key = key.into();
-        let address= key.address();
-        
+        let address = key.address();
+
         let alias = self.create_alias(alias)?;
         self.aliases.insert(
             address,
@@ -642,7 +642,13 @@ impl FileBasedKeystore {
                 // .with_context(|| {
                 //     format!("Cannot deserialize the keystore file: {}", path.display(),)
                 // })
-                .map_err(|e| anyhow!("Cannot deserialize the keystore file: {}. {}", path.display(), e))?;
+                .map_err(|e| {
+                    anyhow!(
+                        "Cannot deserialize the keystore file: {}. {}",
+                        path.display(),
+                        e
+                    )
+                })?;
 
             let aliases = file
                 .keys
