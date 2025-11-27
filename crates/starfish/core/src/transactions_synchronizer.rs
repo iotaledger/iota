@@ -1301,7 +1301,7 @@ mod tests {
             let mut authorities = BTreeSet::new();
             authorities.insert(AuthorityIndex::new_for_test(1));
             authorities.insert(AuthorityIndex::new_for_test(2));
-            missing_transactions.insert(header.reference(), authorities);
+            missing_transactions.insert(GenericTransactionRef::from(header.reference()), authorities);
         }
 
         // Stub the transactions in the network client
@@ -1407,7 +1407,7 @@ mod tests {
             authorities.insert(from_whom);
             network_client.set_timeout_peer(from_whom).await;
             let mut missing_txs = BTreeMap::new();
-            missing_txs.insert(header.reference(), authorities);
+            missing_txs.insert(GenericTransactionRef::from(header.reference()), authorities);
             missing_transactions.push(missing_txs)
         }
 
@@ -1518,7 +1518,7 @@ mod tests {
             let mut authorities = BTreeSet::new();
             authorities.insert(AuthorityIndex::new_for_test(1)); // This peer will timeout
             authorities.insert(AuthorityIndex::new_for_test(2)); // This peer will succeed
-            missing_transactions.insert(header.reference(), authorities);
+            missing_transactions.insert(GenericTransactionRef::from(header.reference()), authorities);
         }
 
         // Set peer 1 to timeout
@@ -1637,7 +1637,7 @@ mod tests {
             let mut authorities = BTreeSet::new();
             authorities.insert(AuthorityIndex::new_for_test(1)); // This peer will return an error
             authorities.insert(AuthorityIndex::new_for_test(2)); // This peer will succeed
-            missing_transactions.insert(header.reference(), authorities);
+            missing_transactions.insert(GenericTransactionRef::from(header.reference()), authorities);
         }
 
         // Set peer 1 to return an error
@@ -1745,7 +1745,7 @@ mod tests {
             let mut authorities = BTreeSet::new();
             authorities.insert(AuthorityIndex::new_for_test(1)); // This peer will return empty results
             authorities.insert(AuthorityIndex::new_for_test(2)); // This peer will succeed
-            missing_transactions.insert(header.reference(), authorities);
+            missing_transactions.insert(GenericTransactionRef::from(header.reference()), authorities);
         }
 
         // Set peer 1 to return empty results
@@ -1855,7 +1855,7 @@ mod tests {
             let mut authorities = BTreeSet::new();
             authorities.insert(AuthorityIndex::new_for_test(1)); // This peer will return corrupted data
             authorities.insert(AuthorityIndex::new_for_test(2)); // This peer will succeed
-            missing_transactions.insert(header.reference(), authorities);
+            missing_transactions.insert(GenericTransactionRef::from(header.reference()), authorities);
         }
 
         // Set peer 1 to return corrupted data
