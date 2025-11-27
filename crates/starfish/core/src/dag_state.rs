@@ -386,10 +386,7 @@ impl DagState {
             GenericTransactionRef::from(BlockRef::from(transaction_ref))
         };
         if self.recent_transactions_by_authority[transaction_ref.author]
-            .insert(
-                generic_ref,
-                transactions.clone(),
-            )
+            .insert(generic_ref, transactions.clone())
             .is_none()
         {
             self.context
@@ -543,19 +540,18 @@ impl DagState {
                 // Extract the BlockRef from GenericTransactionRef
                 let genesis_key = match gen_transactions_ref {
                     GenericTransactionRef::BlockRef(br) => *br,
-                    GenericTransactionRef::TransactionRef(tr) => BlockRef::new(
-                        tr.round,
-                        tr.author,
-                        tr.block_digest,
-                    ),
+                    GenericTransactionRef::TransactionRef(tr) => {
+                        BlockRef::new(tr.round, tr.author, tr.block_digest)
+                    }
                 };
                 if let Some(genesis_block) = self.genesis.get(&genesis_key) {
                     transactions[index] = Some(genesis_block.verified_transactions.clone());
                 }
                 continue;
             }
-            if let Some(transaction) =
-                self.recent_transactions_by_authority[gen_transactions_ref.author()].get(gen_transactions_ref)
+            if let Some(transaction) = self.recent_transactions_by_authority
+                [gen_transactions_ref.author()]
+            .get(gen_transactions_ref)
             {
                 transactions[index] = Some(transaction.clone());
                 continue;

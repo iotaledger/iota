@@ -2712,7 +2712,11 @@ mod tests {
             match tokio::time::timeout(Duration::from_secs(5), stream.next()).await {
                 Ok(Some(bundle)) => received_bundles.push(bundle),
                 Ok(None) => panic!("Stream ended at round {}", round),
-                Err(_) => panic!("Timeout at round {}, got {} bundles", round, received_bundles.len()),
+                Err(_) => panic!(
+                    "Timeout at round {}, got {} bundles",
+                    round,
+                    received_bundles.len()
+                ),
             }
         }
 

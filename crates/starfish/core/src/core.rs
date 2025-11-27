@@ -2422,10 +2422,7 @@ mod test {
             .into_iter()
             .filter(|tx| {
                 let tx_ref = tx.transaction_ref();
-                let generic_ref = if context
-                    .protocol_config
-                    .consensus_transaction_ref()
-                {
+                let generic_ref = if context.protocol_config.consensus_transaction_ref() {
                     GenericTransactionRef::TransactionRef(tx_ref)
                 } else {
                     GenericTransactionRef::BlockRef(BlockRef::from(tx_ref))

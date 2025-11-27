@@ -973,7 +973,8 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
             .start_timer();
         // Ensure that all the returned transactions do not go over the total max
         // allowed returned transactions
-        if serialized_transactions_vec.len() > requested_transactions_guard.transactions_refs.len() {
+        if serialized_transactions_vec.len() > requested_transactions_guard.transactions_refs.len()
+        {
             return Err(ConsensusError::TooManyFetchedTransactionsReturned(
                 peer_index,
             ));
@@ -1056,7 +1057,8 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
         } else {
             match Handle::current()
                 .spawn_blocking({
-                    // Validate that all refs are TransactionRef as expected when consensus_transaction_ref is true
+                    // Validate that all refs are TransactionRef as expected when
+                    // consensus_transaction_ref is true
                     for gen_tr_ref in requested_transactions_guard.transactions_refs.iter() {
                         if let GenericTransactionRef::BlockRef(_) = gen_tr_ref {
                             return Err(ConsensusError::TransactionRefVariantMismatch {
@@ -1862,7 +1864,9 @@ mod tests {
 
     #[rstest]
     #[tokio::test]
-    async fn live_syncing_with_corrupted_peer(#[values(true, false)] transaction_ref_enabled: bool) {
+    async fn live_syncing_with_corrupted_peer(
+        #[values(true, false)] transaction_ref_enabled: bool,
+    ) {
         telemetry_subscribers::init_for_testing();
         // GIVEN
         let (mut context, _) = Context::new_for_test(4);
@@ -1925,10 +1929,11 @@ mod tests {
             authorities.insert(AuthorityIndex::new_for_test(1)); // This peer will return corrupted data
             authorities.insert(AuthorityIndex::new_for_test(2)); // This peer will succeed
             if transaction_ref_enabled {
-                missing_transactions
-                    .insert(GenericTransactionRef::from(header.transaction_ref()), authorities);
-            }
-            else {
+                missing_transactions.insert(
+                    GenericTransactionRef::from(header.transaction_ref()),
+                    authorities,
+                );
+            } else {
                 missing_transactions
                     .insert(GenericTransactionRef::from(header.reference()), authorities);
             }

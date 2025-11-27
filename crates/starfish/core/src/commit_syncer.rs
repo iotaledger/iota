@@ -673,21 +673,19 @@ impl<C: NetworkClient> CommitSyncer<C> {
             let block_refs_set: BTreeSet<_> = block_refs.iter().cloned().collect();
             let missing_tx_header_refs: ConsensusResult<Vec<BlockRef>> = committed_tx_refs
                 .iter()
-                .filter_map(|tx_ref| {
-                    match tx_ref {
-                        GenericTransactionRef::BlockRef(br) => {
-                            if !block_refs_set.contains(br) {
-                                Some(Ok(*br))
-                            } else {
-                                None
-                            }
+                .filter_map(|tx_ref| match tx_ref {
+                    GenericTransactionRef::BlockRef(br) => {
+                        if !block_refs_set.contains(br) {
+                            Some(Ok(*br))
+                        } else {
+                            None
                         }
-                        _ => Some(Err(ConsensusError::TransactionRefVariantMismatch {
-                            protocol_flag_enabled: false,
-                            expected_variant: "BlockRef",
-                            received_variant: "TransactionRef",
-                        })),
                     }
+                    _ => Some(Err(ConsensusError::TransactionRefVariantMismatch {
+                        protocol_flag_enabled: false,
+                        expected_variant: "BlockRef",
+                        received_variant: "TransactionRef",
+                    })),
                 })
                 .collect();
             let missing_tx_header_refs = missing_tx_header_refs?;
@@ -1111,7 +1109,6 @@ pub(crate) fn verify_transactions_with_headers(
             .get(&block_ref)
             .expect("header for fetched transactions must exist");
 
-
         if block_header.transactions_commitment()
             != TransactionsCommitment::compute_transactions_commitment(
                 &inner_serialized_transactions,
@@ -1176,7 +1173,6 @@ pub(crate) fn verify_transactions_with_transactions_refs(
         // Step 1: Get the block header and verify that the transactions commitment
         // matches. This ensures the transactions we received are exactly
         // the ones that were included in the block when it was created.
-
 
         if transaction_ref.transactions_commitment
             != TransactionsCommitment::compute_transactions_commitment(
