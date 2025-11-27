@@ -21,8 +21,7 @@ use test_cluster::TestClusterBuilder;
 use crate::{impl_field_presence_checker, utils::assert_field_presence};
 
 // Generate the FieldPresenceChecker implementation for
-// SimulateTransactionResponse (ExecutedTransaction checker is defined in
-// mod.rs)
+// SimulateTransactionResponse
 impl_field_presence_checker!(SimulateTransactionResponse {
     transaction: ExecutedTransaction,
     command_results,
@@ -123,18 +122,16 @@ async fn simulate_transaction_simple_transfer() {
         .unwrap()
         .into_inner();
 
-    // Verify we got a response with effects
-    // With default mask, simulate returns transaction with effects but excludes
-    // input_objects and output_objects (they must be explicitly requested)
-    let executed_transaction = response.transaction.unwrap();
+    // Verify we got a response with all populated default mask fields
     assert_field_presence(
-        &executed_transaction,
+        &response,
         &[
-            "digest",
             "transaction.digest",
-            "transaction.bcs",
-            "effects.digest",
-            "effects.bcs",
+            "transaction.transaction.digest",
+            "transaction.transaction.bcs",
+            "transaction.effects.digest",
+            "transaction.effects.bcs",
+            "command_results",
         ],
         "simulate transfer - verify fields present with default mask",
     );
@@ -193,33 +190,27 @@ async fn simulate_transaction_with_gas_estimation() {
         .unwrap()
         .into_inner();
 
-    // Verify we got a response with effects and transaction
-    // With default mask, simulate returns transaction with effects but excludes
-    // input_objects and output_objects (they must be explicitly requested)
-    let executed_transaction = response.transaction.unwrap();
-    assert_field_presence(
-        &executed_transaction,
-        &[
-            "digest",
-            "transaction.digest",
-            "transaction.bcs",
-            "effects.digest",
-            "effects.bcs",
-        ],
-        "simulate with gas estimation - verify fields present with default mask",
-    );
+    // Verify gas budget estimation worked correctly
+    let bcs_data = response
+        .transaction
+        .unwrap()
+        .transaction
+        .unwrap()
+        .bcs
+        .unwrap();
 
-    // Verify the returned transaction has an estimated budget
-    // (it should be lower than the original 1_000_000_000)
-    if let Some(tx_proto) = executed_transaction.transaction {
-        if let Some(bcs_data) = tx_proto.bcs {
-            let returned_tx: TransactionData = bcs::from_bytes(&bcs_data.data).unwrap();
-            // The estimated budget should be much less than 1 billion
-            assert!(returned_tx.gas_data().budget < 1_000_000_000);
-            // But should be positive
-            assert!(returned_tx.gas_data().budget > 0);
-        }
-    }
+    let returned_tx: TransactionData = bcs::from_bytes(&bcs_data.data).unwrap();
+    // The estimated budget should be much less than 1 billion
+    assert!(
+        returned_tx.gas_data().budget < 1_000_000_000,
+        "estimated budget should be less than original 1_000_000_000, got: {}",
+        returned_tx.gas_data().budget
+    );
+    // The gas data should be positive
+    assert!(
+        returned_tx.gas_data().budget > 0,
+        "estimated budget should be positive"
+    );
 }
 
 #[sim_test]
@@ -261,34 +252,18 @@ async fn simulate_transaction_readmask_scenarios() {
     };
 
     // Tests for readmask scenarios
-    // Default mask for simulate excludes input_objects and output_objects
-    // For SimulateTransactionResponse, fields are "transaction" and
-    // "command_results" Within transaction (ExecutedTransaction), available
-    // fields are: digest, transaction, effects, input_objects, output_objects
-    // (events, checkpoint, timestamp are not available for simulate)
-    // input_objects and output_objects must be explicitly requested
     type TestCase<'a> = (&'a str, Option<FieldMask>, &'a [&'a str]);
     let test_cases: Vec<TestCase> = vec![
-        // Default mask excludes input_objects and output_objects
-        (
-            "default readmask",
-            None,
-            &[
-                "transaction.digest",
-                "transaction.transaction.digest",
-                "transaction.transaction.bcs",
-                "transaction.effects.digest",
-                "transaction.effects.bcs",
-                "command_results",
-            ],
-        ),
+        // Note: Default mask is already tested in simulate_transaction_simple_transfer()
+        // so we don't duplicate it here
         (
             "empty readmask",
             Some(FieldMask::from_paths(&[] as &[&str])),
             &[],
         ),
-        // Full readmask "transaction" excludes input_objects and output_objects
-        // They must be explicitly requested
+        // Full readmask: requesting parent "transaction" returns ALL nested fields
+        // All fields are present even if empty (simple transfers have no events but events field
+        // is present)
         (
             "full readmask",
             Some(FieldMask::from_paths(["transaction", "command_results"])),
@@ -298,6 +273,9 @@ async fn simulate_transaction_readmask_scenarios() {
                 "transaction.transaction.bcs",
                 "transaction.effects.digest",
                 "transaction.effects.bcs",
+                "transaction.events",
+                "transaction.input_objects",
+                "transaction.output_objects",
                 "command_results",
             ],
         ),
@@ -310,6 +288,9 @@ async fn simulate_transaction_readmask_scenarios() {
                 "transaction.transaction.bcs",
                 "transaction.effects.digest",
                 "transaction.effects.bcs",
+                "transaction.events",
+                "transaction.input_objects",
+                "transaction.output_objects",
             ],
         ),
         (
@@ -416,117 +397,4 @@ async fn simulate_transaction_empty_request() {
         result.is_err(),
         "Expected error for missing transaction, but got success"
     );
-}
-
-#[sim_test]
-async fn simulate_transaction_nested_field_masks() {
-    let test_cluster = TestClusterBuilder::new()
-        .with_fullnode_enable_grpc_api(true)
-        .build()
-        .await;
-
-    // Wait for at least one checkpoint
-    test_cluster.wait_for_checkpoint(1, None).await;
-
-    let mut client = TransactionExecutionServiceClient::connect(test_cluster.grpc_url())
-        .await
-        .unwrap();
-
-    let recipient = iota_types::base_types::IotaAddress::random_for_testing_only();
-
-    let (sender, mut gas) = test_cluster.wallet.get_one_account().await.unwrap();
-    gas.sort_by_key(|object_ref| object_ref.0);
-    let obj_to_send = gas.first().unwrap();
-    let gas_obj = gas.last().unwrap();
-
-    // Build a simple transfer transaction
-    let tx_data = TransactionData::new_transfer(
-        recipient,
-        *obj_to_send,
-        sender,
-        *gas_obj,
-        1_000_000, // gas budget
-        1000,      // gas price
-    );
-
-    let create_transaction = || ProtoTransaction {
-        bcs: Some(BcsData {
-            data: bcs::to_bytes(&tx_data).unwrap().into(),
-        }),
-        ..Default::default()
-    };
-
-    // Tests for fine-grained nested field masks in simulate
-    // These test the ability to selectively include specific nested fields
-    type TestCase<'a> = (&'a str, Option<FieldMask>, &'a [&'a str]);
-    let test_cases: Vec<TestCase> = vec![
-        // Test nested field masks within effects
-        (
-            "nested: effects.digest only",
-            Some(FieldMask::from_paths(["transaction.effects.digest"])),
-            &["transaction.effects.digest"],
-        ),
-        (
-            "nested: effects.bcs only",
-            Some(FieldMask::from_paths(["transaction.effects.bcs"])),
-            &["transaction.effects.bcs"],
-        ),
-        (
-            "nested: effects.digest and effects.bcs",
-            Some(FieldMask::from_paths([
-                "transaction.effects.digest",
-                "transaction.effects.bcs",
-            ])),
-            &["transaction.effects.digest", "transaction.effects.bcs"],
-        ),
-        // Test nested field masks within transaction
-        (
-            "nested: transaction.digest only",
-            Some(FieldMask::from_paths(["transaction.transaction.digest"])),
-            &["transaction.transaction.digest"],
-        ),
-        (
-            "nested: transaction.bcs only",
-            Some(FieldMask::from_paths(["transaction.transaction.bcs"])),
-            &["transaction.transaction.bcs"],
-        ),
-        // Test combination of nested fields from different messages
-        (
-            "nested: mixed fields from effects and transaction",
-            Some(FieldMask::from_paths([
-                "transaction.effects.digest",
-                "transaction.transaction.bcs",
-            ])),
-            &["transaction.effects.digest", "transaction.transaction.bcs"],
-        ),
-        // Test deep nesting with top-level fields
-        (
-            "nested: mixed with top-level digest",
-            Some(FieldMask::from_paths([
-                "transaction.digest",
-                "transaction.effects.digest",
-            ])),
-            &["transaction.digest", "transaction.effects.digest"],
-        ),
-        // Test combination with command_results (simulate-specific field)
-        (
-            "nested: effects.digest with command_results",
-            Some(FieldMask::from_paths([
-                "transaction.effects.digest",
-                "command_results",
-            ])),
-            &["transaction.effects.digest", "command_results"],
-        ),
-    ];
-
-    for (scenario, mask, expected_paths) in test_cases {
-        assert_simulate_transaction_request(
-            &mut client,
-            create_transaction(),
-            mask,
-            expected_paths,
-            scenario,
-        )
-        .await;
-    }
 }

@@ -50,11 +50,14 @@ impl Merge<&TransactionReadSource<'_>> for ExecutedTransaction {
             self.transaction = Some(proto_tx);
         }
 
-        // Set signatures if requested
+        // Set signatures if requested and available
         if let Some(signatures_mask) = mask.subtree(Self::SIGNATURES_FIELD.name) {
-            let mut proto_signatures = super::signatures::UserSignatures::default();
-            proto_signatures.merge(source.transaction, &signatures_mask);
-            self.signatures = Some(proto_signatures);
+            // Only set signatures if the transaction actually has signatures
+            if !source.transaction.signatures.is_empty() {
+                let mut proto_signatures = super::signatures::UserSignatures::default();
+                proto_signatures.merge(source.transaction, &signatures_mask);
+                self.signatures = Some(proto_signatures);
+            }
         }
 
         // Set effects if requested

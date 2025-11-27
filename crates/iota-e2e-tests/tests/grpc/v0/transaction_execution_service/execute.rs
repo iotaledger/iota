@@ -127,9 +127,6 @@ async fn execute_transaction_readmask_scenarios() {
     let amount = 9;
 
     // Tests for readmask scenarios
-    // Default mask for execute is "transaction.effects" - only transaction with
-    // effects is returned Empty mask returns nothing
-    // Explicit masks control which fields are included
     type TestCase<'a> = (&'a str, Option<FieldMask>, &'a [&'a str]);
     let test_cases: Vec<TestCase> = vec![
         // Default mask is "transaction.effects", so only transaction.effects with all subfields is
@@ -144,7 +141,8 @@ async fn execute_transaction_readmask_scenarios() {
             Some(FieldMask::from_paths(&[] as &[&str])),
             &[],
         ),
-        // Full readmask "transaction" returns all fields EXCEPT input_objects and output_objects
+        // Full readmask "transaction" returns all nested fields that are available
+        // All requested fields are present even if empty (e.g., events for simple transfers)
         (
             "full readmask",
             Some(FieldMask::from_paths(["transaction"])),
@@ -155,6 +153,9 @@ async fn execute_transaction_readmask_scenarios() {
                 "transaction.signatures",
                 "transaction.effects.digest",
                 "transaction.effects.bcs",
+                "transaction.events",
+                "transaction.input_objects",
+                "transaction.output_objects",
             ],
         ),
         // Specific nested field masks - only the specified nested fields are returned
@@ -226,6 +227,13 @@ async fn execute_transaction_invalid_bcs() {
         .await
         .unwrap();
 
+    let recipient = iota_types::base_types::IotaAddress::random_for_testing_only();
+    let amount = 9;
+
+    // Create a valid transaction to get real signatures
+    let txn =
+        make_transfer_iota_transaction(&test_cluster.wallet, Some(recipient), Some(amount)).await;
+
     // Create transaction with invalid BCS data
     let transaction = ProtoTransaction {
         bcs: Some(BcsData {
@@ -234,12 +242,17 @@ async fn execute_transaction_invalid_bcs() {
         ..Default::default()
     };
 
+    // Use valid signatures from the real transaction
     let signatures = UserSignatures {
-        signatures: vec![UserSignature {
-            bcs: Some(BcsData {
-                data: vec![0x00].into(),
-            }),
-        }],
+        signatures: txn
+            .tx_signatures()
+            .iter()
+            .map(|s| UserSignature {
+                bcs: Some(BcsData {
+                    data: s.as_ref().to_vec().into(),
+                }),
+            })
+            .collect(),
     };
 
     // Request should fail with invalid BCS
@@ -316,11 +329,31 @@ async fn execute_transaction_empty_request() {
         .await
         .unwrap();
 
-    // Test empty/missing transaction
+    let recipient = iota_types::base_types::IotaAddress::random_for_testing_only();
+    let amount = 9;
+
+    // Create a valid transaction to get real signatures
+    let txn =
+        make_transfer_iota_transaction(&test_cluster.wallet, Some(recipient), Some(amount)).await;
+
+    // Use valid signatures from the real transaction
+    let signatures = UserSignatures {
+        signatures: txn
+            .tx_signatures()
+            .iter()
+            .map(|s| UserSignature {
+                bcs: Some(BcsData {
+                    data: s.as_ref().to_vec().into(),
+                }),
+            })
+            .collect(),
+    };
+
+    // Test missing transaction with valid signatures
     let result = client
         .execute_transaction(ExecuteTransactionRequest {
             transaction: None,
-            signatures: Some(UserSignatures { signatures: vec![] }),
+            signatures: Some(signatures),
             read_mask: None,
         })
         .await;
@@ -329,110 +362,4 @@ async fn execute_transaction_empty_request() {
         result.is_err(),
         "Expected error for missing transaction, but got success"
     );
-}
-
-#[sim_test]
-async fn execute_transaction_nested_field_masks() {
-    let test_cluster = TestClusterBuilder::new()
-        .with_fullnode_enable_grpc_api(true)
-        .build()
-        .await;
-
-    let mut client = TransactionExecutionServiceClient::connect(test_cluster.grpc_url())
-        .await
-        .unwrap();
-
-    let recipient = iota_types::base_types::IotaAddress::random_for_testing_only();
-    let amount = 9;
-
-    // Tests for fine-grained nested field masks
-    // These test the ability to selectively include specific nested fields
-    // within a message (e.g., only effects.digest, not effects.bcs)
-    type TestCase<'a> = (&'a str, Option<FieldMask>, &'a [&'a str]);
-    let test_cases: Vec<TestCase> = vec![
-        // Test nested field masks within effects
-        (
-            "nested: effects.digest only",
-            Some(FieldMask::from_paths(["transaction.effects.digest"])),
-            &["transaction.effects.digest"],
-        ),
-        (
-            "nested: effects.bcs only",
-            Some(FieldMask::from_paths(["transaction.effects.bcs"])),
-            &["transaction.effects.bcs"],
-        ),
-        (
-            "nested: effects.digest and effects.bcs",
-            Some(FieldMask::from_paths([
-                "transaction.effects.digest",
-                "transaction.effects.bcs",
-            ])),
-            &["transaction.effects.digest", "transaction.effects.bcs"],
-        ),
-        // Test nested field masks within transaction
-        (
-            "nested: transaction.digest only",
-            Some(FieldMask::from_paths(["transaction.transaction.digest"])),
-            &["transaction.transaction.digest"],
-        ),
-        (
-            "nested: transaction.bcs only",
-            Some(FieldMask::from_paths(["transaction.transaction.bcs"])),
-            &["transaction.transaction.bcs"],
-        ),
-        // Test combination of nested fields from different messages
-        (
-            "nested: mixed fields from effects and transaction",
-            Some(FieldMask::from_paths([
-                "transaction.effects.digest",
-                "transaction.transaction.bcs",
-            ])),
-            &["transaction.effects.digest", "transaction.transaction.bcs"],
-        ),
-        // Test deep nesting with top-level fields
-        (
-            "nested: mixed with top-level digest",
-            Some(FieldMask::from_paths([
-                "transaction.digest",
-                "transaction.effects.digest",
-            ])),
-            &["transaction.digest", "transaction.effects.digest"],
-        ),
-    ];
-
-    for (scenario, mask, expected_paths) in test_cases {
-        // Create a fresh transaction for each test case
-        let txn =
-            make_transfer_iota_transaction(&test_cluster.wallet, Some(recipient), Some(amount))
-                .await;
-
-        let transaction = ProtoTransaction {
-            bcs: Some(BcsData {
-                data: bcs::to_bytes(txn.transaction_data()).unwrap().into(),
-            }),
-            ..Default::default()
-        };
-
-        let signatures = UserSignatures {
-            signatures: txn
-                .tx_signatures()
-                .iter()
-                .map(|s| UserSignature {
-                    bcs: Some(BcsData {
-                        data: s.as_ref().to_vec().into(),
-                    }),
-                })
-                .collect(),
-        };
-
-        assert_execute_transaction_request(
-            &mut client,
-            transaction,
-            signatures,
-            mask,
-            expected_paths,
-            scenario,
-        )
-        .await;
-    }
 }

@@ -294,8 +294,8 @@ pub async fn execute_transaction(
 
         // Handle events separately since they need special rendering
         if let Some(events_mask) = tx_mask.subtree(ExecutedTransaction::EVENTS_FIELD.name) {
+            let mut proto_events = ProtoTransactionEvents::default();
             if let Some(sdk_events) = &sdk_events {
-                let mut proto_events = ProtoTransactionEvents::default();
                 proto_events.merge(sdk_events, &events_mask);
 
                 // Populate json_contents for events if requested in the mask
@@ -339,9 +339,9 @@ pub async fn execute_transaction(
                         }
                     }
                 }
-
-                executed_transaction.events = Some(proto_events);
             }
+            // Always set events if requested in mask, even if empty
+            executed_transaction.events = Some(proto_events);
         }
 
         // Handle signatures if requested
@@ -361,30 +361,26 @@ pub async fn execute_transaction(
             });
         }
 
-        if !tx_mask.is_wildcard() {
-            // Handle input_objects if explicitly requested
-            // input_objects must be explicitly requested - not included via wildcard masks
-            if let Some(input_objects_mask) =
-                tx_mask.subtree(ExecutedTransaction::INPUT_OBJECTS_FIELD.name)
-            {
-                if let Some(sdk_input_objects) = &sdk_input_objects {
-                    let mut proto_objects = iota_grpc_types::v0::object::Objects::default();
-                    proto_objects.merge(sdk_input_objects.as_slice(), &input_objects_mask);
-                    executed_transaction.input_objects = Some(proto_objects);
-                }
+        // Handle input_objects if requested
+        if let Some(input_objects_mask) =
+            tx_mask.subtree(ExecutedTransaction::INPUT_OBJECTS_FIELD.name)
+        {
+            let mut proto_objects = iota_grpc_types::v0::object::Objects::default();
+            if let Some(sdk_input_objects) = &sdk_input_objects {
+                proto_objects.merge(sdk_input_objects.as_slice(), &input_objects_mask);
             }
+            executed_transaction.input_objects = Some(proto_objects);
+        }
 
-            // Handle output_objects if explicitly requested
-            // output_objects must be explicitly requested - not included via wildcard masks
-            if let Some(output_objects_mask) =
-                tx_mask.subtree(ExecutedTransaction::OUTPUT_OBJECTS_FIELD.name)
-            {
-                if let Some(sdk_output_objects) = &sdk_output_objects {
-                    let mut proto_objects = iota_grpc_types::v0::object::Objects::default();
-                    proto_objects.merge(sdk_output_objects.as_slice(), &output_objects_mask);
-                    executed_transaction.output_objects = Some(proto_objects);
-                }
+        // Handle output_objects if requested
+        if let Some(output_objects_mask) =
+            tx_mask.subtree(ExecutedTransaction::OUTPUT_OBJECTS_FIELD.name)
+        {
+            let mut proto_objects = iota_grpc_types::v0::object::Objects::default();
+            if let Some(sdk_output_objects) = &sdk_output_objects {
+                proto_objects.merge(sdk_output_objects.as_slice(), &output_objects_mask);
             }
+            executed_transaction.output_objects = Some(proto_objects);
         }
 
         response.transaction = Some(executed_transaction);
