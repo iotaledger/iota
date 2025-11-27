@@ -197,7 +197,9 @@ impl Store for MemStore {
                     if vh.is_none() {
                         return GenericTransactionRef::TransactionRef(TransactionRef::default());
                     } else {
-                        GenericTransactionRef::TransactionRef(vh.as_ref().unwrap().transaction_ref())
+                        GenericTransactionRef::TransactionRef(
+                            vh.as_ref().unwrap().transaction_ref(),
+                        )
                     }
                 })
                 .collect::<Vec<GenericTransactionRef>>()

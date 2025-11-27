@@ -382,7 +382,7 @@ mod tests {
     use tokio::time::timeout;
 
     use crate::{
-        block_header::{BlockHeaderDigest, BlockRef},
+        block_header::{BlockHeaderDigest, BlockRef, GenericTransactionRef},
         block_verifier::SignedBlockVerifier,
         context::Context,
         transaction::{
@@ -390,7 +390,6 @@ mod tests {
             TransactionConsumer,
         },
     };
-    use crate::block_header::GenericTransactionRef;
 
     #[tokio::test(flavor = "current_thread", start_paused = true)]
     async fn basic_submit_and_consume() {
@@ -493,9 +492,21 @@ mod tests {
         let gc_round = 5;
         consumer.notify_own_transactions_status(
             vec![
-                GenericTransactionRef::from(BlockRef::new(6, AuthorityIndex::new_for_test(0), BlockHeaderDigest::MIN)),
-                GenericTransactionRef::from(BlockRef::new(8, AuthorityIndex::new_for_test(0), BlockHeaderDigest::MIN)),
-                GenericTransactionRef::from(BlockRef::new(10, AuthorityIndex::new_for_test(0), BlockHeaderDigest::MIN)),
+                GenericTransactionRef::from(BlockRef::new(
+                    6,
+                    AuthorityIndex::new_for_test(0),
+                    BlockHeaderDigest::MIN,
+                )),
+                GenericTransactionRef::from(BlockRef::new(
+                    8,
+                    AuthorityIndex::new_for_test(0),
+                    BlockHeaderDigest::MIN,
+                )),
+                GenericTransactionRef::from(BlockRef::new(
+                    10,
+                    AuthorityIndex::new_for_test(0),
+                    BlockHeaderDigest::MIN,
+                )),
             ],
             gc_round,
         );
