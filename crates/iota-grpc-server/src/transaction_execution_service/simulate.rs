@@ -322,7 +322,7 @@ pub async fn simulate_transaction(
 
     // Build command results if requested
     if read_mask.contains(SimulateTransactionResponse::COMMAND_RESULTS_FIELD.name) {
-        let command_results = build_command_results(reader, execution_result)?;
+        let command_results = build_command_results(execution_result)?;
         response.command_results = Some(command_results);
     }
 
@@ -330,7 +330,6 @@ pub async fn simulate_transaction(
 }
 
 fn build_command_results(
-    _reader: &Arc<GrpcReader>, // reader is unused for now but may be needed in the future
     execution_result: std::result::Result<Vec<ExecutionResult>, iota_types::error::ExecutionError>,
 ) -> Result<CommandResults, RpcError> {
     let mut results = CommandResults::default();

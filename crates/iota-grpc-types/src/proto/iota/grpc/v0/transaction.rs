@@ -13,18 +13,23 @@ use crate::{
     v0::{bcs::BcsData, types::Digest},
 };
 
-/// Bundles all transaction-related data needed for gRPC response merging.
+/// Source data bundle for populating gRPC transaction response messages.
 ///
-/// This struct serves as a read context that groups related transaction data
-/// together, avoiding the need to pass 6 separate parameters to merge
-/// operations. Different merge targets use different subsets of fields:
-/// - `ExecutedTransaction`: uses all fields
-/// - `Transaction`: uses digest + transaction
-/// - `UserSignatures`: uses transaction only
+/// Different gRPC endpoints return different message types based on client
+/// needs:
+/// - `GetTransaction`: `Transaction` (digest + BCS)
+/// - `ExecuteTransaction`: `ExecutedTransaction` (effects, events, signatures)
+/// - Other endpoints may return specific subsets like `UserSignatures`
 ///
-/// Note: The digest must be provided separately because
-/// `iota_sdk2::SignedTransaction` doesn't expose a digest() method - it's
-/// computed from `iota_types::TransactionData`.
+/// This struct bundles all transaction-related data in one place, allowing the
+/// `Merge` implementation to populate any response type from a common source.
+/// Each response type's `Merge` impl extracts only the fields it needs.
+//
+/// # Note
+/// The digest is stored separately even though it's derivable from
+/// `transaction.data` because `iota_sdk2::SignedTransaction` doesn't expose a
+/// `digest()` method, and the digest is computed externally from
+/// `iota_types::TransactionData`.
 pub struct TransactionReadSource<'a> {
     pub digest: iota_sdk_types::Digest,
     pub transaction: &'a iota_sdk_types::SignedTransaction,

@@ -11,7 +11,6 @@ pub mod types;
 pub mod utils;
 
 // Re-export commonly used types and traits
-pub use error::{ObjectNotFoundError, RpcError};
 pub use ledger_service::LedgerGrpcService;
 pub use server::{GrpcServerHandle, start_grpc_server};
 pub use transaction_execution_service::TransactionExecutionGrpcService;
