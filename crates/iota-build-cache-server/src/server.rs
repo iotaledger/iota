@@ -224,9 +224,9 @@ async fn handle_download_request(
                 .get_binary_info(&resolved_commit, &cpu_target, &binary_name)
                 .await
             {
-                Ok((binary_path, file_size)) => {
-                    // Generate ETag based on commit hash and file size (immutable content)
-                    let etag = format!("\"{}-{}-{file_size}\"", resolved_commit, binary_name);
+                Ok((binary_path, file_size, sha256_hash)) => {
+                    // Generate ETag based on SHA256 hash
+                    let etag = format!("\"sha256:{sha256_hash}\"");
 
                     // Check if client has cached version
                     if let Some(if_none_match) = req.headers().get(IF_NONE_MATCH) {

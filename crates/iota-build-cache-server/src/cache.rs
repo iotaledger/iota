@@ -10,6 +10,7 @@ use std::{
 };
 
 use anyhow::Result;
+use sha2::{Digest, Sha256};
 use tokio::{
     io::{AsyncBufReadExt, BufReader},
     process::Command,
@@ -102,16 +103,30 @@ impl BuildCache {
         }
     }
 
-    /// Get binary file metadata (path, size) for streaming downloads
+    /// Get binary file metadata (path, size, sha256) for streaming downloads
     pub async fn get_binary_info(
         &self,
         commit: &str,
         cpu_target: &str,
         binary_name: &str,
-    ) -> Result<(std::path::PathBuf, u64)> {
+    ) -> Result<(std::path::PathBuf, u64, String)> {
         let binary_path = self.get_binary_path(commit, cpu_target, binary_name)?;
         let metadata = fs::metadata(&binary_path)?;
-        Ok((binary_path, metadata.len()))
+
+        // Read SHA256 from checksum file
+        let checksum_file = binary_path.with_extension("sha256");
+        let sha256_hash = match fs::read_to_string(&checksum_file) {
+            Ok(hash) => hash.trim().to_string(),
+            Err(_) => {
+                // If checksum file doesn't exist, calculate it on the fly
+                let hash = Self::calculate_sha256(&binary_path)?;
+                // Save it for future use
+                let _ = fs::write(&checksum_file, &hash);
+                hash
+            }
+        };
+
+        Ok((binary_path, metadata.len(), sha256_hash))
     }
 
     /// Helper to get and validate binary path
@@ -478,6 +493,15 @@ impl BuildCache {
         Ok(resolved_commit)
     }
 
+    /// Calculate SHA256 hash of a file
+    fn calculate_sha256(file_path: &Path) -> Result<String> {
+        let mut file = fs::File::open(file_path)?;
+        let mut hasher = Sha256::new();
+        std::io::copy(&mut file, &mut hasher)?;
+        let hash = hasher.finalize();
+        Ok(format!("{:x}", hash))
+    }
+
     /// Build the specified binaries
     async fn build_binaries(
         &self,
@@ -530,6 +554,12 @@ impl BuildCache {
             let dest = output_path.join(binary);
 
             if source.exists() {
+                // Calculate and save SHA256 checksum
+                let sha256_hash = Self::calculate_sha256(&source)?;
+                let checksum_file = dest.with_extension("sha256");
+                fs::write(&checksum_file, sha256_hash)?;
+                info!("Saved SHA256 checksum for {binary} to {checksum_file:?}");
+
                 fs::copy(&source, &dest)?;
                 info!("Cached binary {binary} to {dest:?}");
             } else {

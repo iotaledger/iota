@@ -503,11 +503,40 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
             ));
 
             for binary in binaries {
-                // Create download command that fetches from build cache
+                // Create download command that fetches from build cache with ETag support
                 let release_folder = format!("{working_dir}/{repo_name}/target/release");
+                let binary_path = format!("{release_folder}/{binary}");
                 let download_command = format!(
-                    "mkdir -p {release_folder} && curl -f -L -o {release_folder}/{binary} '{}/download?commit={resolved_commit}&cpu_target={cpu_target}&binary={binary}' && chmod +x {release_folder}/{binary}",
-                    build_config.url
+                    r#"set -e && \
+mkdir -p {release_folder} && \
+if [ -f "{binary_path}" ]; then \
+  existing_sha=$(sha256sum "{binary_path}" | cut -d' ' -f1) && \
+  etag_header="If-None-Match: \"sha256:$existing_sha\"" && \
+  http_code=$(curl -s -w "%{{http_code}}" -H "$etag_header" -L -o "{binary_path}.tmp" '{}/download?commit={resolved_commit}&cpu_target={cpu_target}&binary={binary}') && \
+  if [ "$http_code" = "304" ]; then \
+    echo "Binary {binary} is up to date (SHA256: $existing_sha)" && \
+    rm -f "{binary_path}.tmp"; \
+  elif [ "$http_code" = "200" ]; then \
+    mv "{binary_path}.tmp" "{binary_path}" && \
+    chmod +x "{binary_path}" && \
+    echo "Binary {binary} updated"; \
+  else \
+    echo "ERROR: Download failed for {binary} with HTTP $http_code" >&2 && \
+    rm -f "{binary_path}.tmp" && \
+    exit 1; \
+  fi; \
+else \
+  echo "Downloading {binary}..." && \
+  if curl -f -L -o "{binary_path}" '{}/download?commit={resolved_commit}&cpu_target={cpu_target}&binary={binary}'; then \
+    chmod +x "{binary_path}" && \
+    echo "Binary {binary} downloaded successfully"; \
+  else \
+    echo "ERROR: Failed to download {binary}" >&2 && \
+    rm -f "{binary_path}" && \
+    exit 1; \
+  fi; \
+fi"#,
+                    build_config.url, build_config.url
                 );
 
                 display::action(format!(

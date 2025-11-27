@@ -239,27 +239,49 @@ download() {
     ACTUAL_COMMIT=""
     for BINARY in "${BINARY_ARRAY[@]}"; do
         BINARY=$(echo "$BINARY" | xargs)  # Trim whitespace
+        BINARY_PATH="$OUTPUT_DIR/$BINARY"
         
-        log_info "Downloading $BINARY..."
+        log_info "Checking $BINARY..."
         
         # Use temporary file for headers
         HEADER_FILE=$(mktemp)
         
-        RESPONSE=$(curl -s -w "\n%{http_code}" -L -D "$HEADER_FILE" \
-            $(get_auth_args) \
-            "$BUILD_CACHE_SERVER_URI/download?commit=$COMMIT&cpu_target=$CPU_TARGET&binary=$BINARY" \
-            -o "$OUTPUT_DIR/$BINARY")
+        # Check if binary already exists and get its checksum for ETag
+        if [ -f "$BINARY_PATH" ]; then
+            EXISTING_SHA=$(sha256sum "$BINARY_PATH" | cut -d' ' -f1)
+            log_info "Binary $BINARY exists (SHA256: $EXISTING_SHA), checking if update needed..."
+            
+            # Download with ETag support
+            RESPONSE=$(curl -s -w "\n%{http_code}" -L -D "$HEADER_FILE" \
+                $(get_auth_args) \
+                -H "If-None-Match: \"sha256:$EXISTING_SHA\"" \
+                "$BUILD_CACHE_SERVER_URI/download?commit=$COMMIT&cpu_target=$CPU_TARGET&binary=$BINARY" \
+                -o "$BINARY_PATH.tmp")
+        else
+            log_info "Downloading $BINARY..."
+            
+            # Download without ETag (new file)
+            RESPONSE=$(curl -s -w "\n%{http_code}" -L -D "$HEADER_FILE" \
+                $(get_auth_args) \
+                "$BUILD_CACHE_SERVER_URI/download?commit=$COMMIT&cpu_target=$CPU_TARGET&binary=$BINARY" \
+                -o "$BINARY_PATH.tmp")
+        fi
         
         HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
         
         if [ "$HTTP_CODE" = "200" ]; then
             # Extract the actual commit hash from headers if present
             ACTUAL_COMMIT=$(grep -i "x-iota-build-commit-hash:" "$HEADER_FILE" | cut -d' ' -f2 | tr -d '\r\n' || echo "")
-            chmod +x "$OUTPUT_DIR/$BINARY"
-            log_success "Downloaded $BINARY to $OUTPUT_DIR/$BINARY (commit: ${ACTUAL_COMMIT:-$COMMIT})"
+            mv "$BINARY_PATH.tmp" "$BINARY_PATH"
+            chmod +x "$BINARY_PATH"
+            log_success "Downloaded $BINARY to $BINARY_PATH (commit: ${ACTUAL_COMMIT:-$COMMIT})"
+        elif [ "$HTTP_CODE" = "304" ]; then
+            # Binary is up to date
+            rm -f "$BINARY_PATH.tmp"
+            log_success "$BINARY is up to date (SHA256: $EXISTING_SHA)"
         else
             log_error "Failed to download $BINARY (HTTP $HTTP_CODE)"
-            rm -f "$OUTPUT_DIR/$BINARY"  # Remove partial file
+            rm -f "$BINARY_PATH.tmp"  # Remove partial file
             exit 1
         fi
         
@@ -267,5 +289,5 @@ download() {
         rm -f "$HEADER_FILE"
     done
 
-    log_success "All binaries downloaded successfully to $OUTPUT_DIR"
+    log_success "All binaries processed successfully in $OUTPUT_DIR"
 }
