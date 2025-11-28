@@ -2339,7 +2339,7 @@ impl Display for IotaClientCommandResult {
         match self {
             IotaClientCommandResult::Addresses(addresses) => {
                 let mut builder = TableBuilder::default();
-                builder.set_header(vec!["alias", "address", "source", "active address"]);
+                builder.set_header(vec!["alias", "address", "source", "active"]);
                 for (alias, address, source) in &addresses.addresses {
                     let active_address = if address == &addresses.active_address {
                         "*".to_string()
