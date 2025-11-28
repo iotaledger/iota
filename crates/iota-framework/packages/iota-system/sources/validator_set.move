@@ -162,7 +162,7 @@ const EValidatorSetEmpty: u64 = 13;
 const ENotACommitteeValidator: u64 = 14;
 const EInvalidStakeAmount: u64 = 15;
 const EInvalidEligibleValidatorIndex: u64 = 16;
-const EInvalidRewardAdjustmentData:u64 = 19;
+const EInvalidRewardAdjustmentData: u64 = 19;
 
 const EInvalidCap: u64 = 101;
 
@@ -1355,7 +1355,7 @@ fun compute_adjusted_reward_distribution(
             // Use the slashing rate to compute the amount of staking rewards slashed from this punished validator.
             // Use u128 to avoid multiplication overflow.
             let staking_reward_adjustment_u128 =
-                ((score_adjusted_staking_reward_amount as u128) * (reward_slashing_rate as u128)) / BASIS_POINT_DENOMINATOR;
+                (score_adjusted_staking_reward_amount * (reward_slashing_rate as u128)) / BASIS_POINT_DENOMINATOR;
             score_adjusted_staking_reward_amount - staking_reward_adjustment_u128
         } else {
             // Otherwise, unadjusted staking reward amount is assigned to the unslashed validators

@@ -11,6 +11,9 @@ use iota_types::{
     messages_consensus::VersionedMisbehaviorReport, scoring_metrics::VersionedScoringMetrics,
 };
 
+const MAX_SCORE: u64 = 2_u64.pow(16); // Note: must be consistent with MAX_SCORE in validator_set.move in iota-framework.
+const SCALE_FACTOR: u64 = 2_u64.pow(16);
+
 /// Holds all information related to scoring of authorities in the committee.
 pub struct Scorer {
     // The current metrics counts collected by the authority, i.e., the local view of the node
@@ -48,8 +51,6 @@ impl Scorer {
                     committee_size,
                     protocol_config,
                 ));
-
-                let max_score = 2_u64.pow(16); // Note: must be consistent with MAX_SCORE in validator_set.move in iota-framework.
                 let (received_metrics, has_not_sent_report, current_scores, invalid_reports_count) =
                     (0..committee_size)
                         .map(|_| {
@@ -59,21 +60,21 @@ impl Scorer {
                                 // Initially, none of the authorities had sent any valid report.
                                 AtomicBool::new(true),
                                 // Current scores initialized to max score.
-                                AtomicU64::new(max_score),
+                                AtomicU64::new(MAX_SCORE),
                                 // Invalid reports count initialized to zero.
                                 AtomicU64::new(0),
                             )
                         })
                         .collect();
                 let parameters = ParametersV1 {
-                    max_score,
-                    scale_factor: 2_u64.pow(16),
+                    max_score: MAX_SCORE,
+                    scale_factor: SCALE_FACTOR,
                     allowances: vec![1, 2, 1000, 0],
                     maximums: vec![5, 10, 5000, 1],
                     weights: vec![
-                        2_u64.pow(16) * 30 / 100,
-                        2_u64.pow(16) * 10 / 100,
-                        2_u64.pow(16) * 35 / 100,
+                        SCALE_FACTOR * 30 / 100,
+                        SCALE_FACTOR * 10 / 100,
+                        SCALE_FACTOR * 35 / 100,
                     ],
                 };
 
@@ -636,14 +637,14 @@ mod tests {
     #[test]
     fn test_calculate_scores_v1() {
         let parameters = ParametersV1 {
-            max_score: 2_u64.pow(16),
-            scale_factor: 2_u64.pow(16),
+            max_score: MAX_SCORE,
+            scale_factor: SCALE_FACTOR,
             allowances: vec![1, 2, 1000, 0],
             maximums: vec![5, 10, 5000, 1],
             weights: vec![
-                2_u64.pow(16) * 30 / 100,
-                2_u64.pow(16) * 10 / 100,
-                2_u64.pow(16) * 35 / 100,
+                SCALE_FACTOR * 30 / 100,
+                SCALE_FACTOR * 10 / 100,
+                SCALE_FACTOR * 35 / 100,
             ],
         };
 

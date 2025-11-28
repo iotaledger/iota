@@ -1160,7 +1160,7 @@ mod checked {
             epoch_start_timestamp_ms: change_epoch_v3.epoch_start_timestamp_ms,
             max_committee_members_count: protocol_config.max_committee_members_count(),
             eligible_active_validators: change_epoch_v3.eligible_active_validators,
-            // AdvanceEpochV3 does not use this field, but keeping them to avoid creating a
+            // AdvanceEpochV3 does not use these fields, but keeping them to avoid creating a
             // separate AdvanceEpochParams struct.
             scores: vec![],
         };
