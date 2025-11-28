@@ -35,7 +35,7 @@ use crate::{
     Transaction,
     block_header::{
         BlockHeader, BlockHeaderAPI, BlockHeaderV1, BlockRef, BlockTimestampMs, GENESIS_ROUND,
-        GenericTransactionRef, Round, SignedBlockHeader, Slot, TransactionsCommitment,
+        GenericTransactionRef, Round, SignedBlockHeader, Slot, TransactionRef, TransactionsCommitment,
         VerifiedBlock, VerifiedBlockHeader, VerifiedOwnShard, VerifiedTransactions,
     },
     block_manager::BlockManager,
@@ -1361,10 +1361,16 @@ mod test {
 
     /// Recover Core and continue proposing from the last round which forms a
     /// quorum.
+    #[rstest]
     #[tokio::test]
-    async fn test_core_recover_from_store_for_full_round() {
+    async fn test_core_recover_from_store_for_full_round(
+        #[values(true, false)] consensus_transaction_ref: bool,
+    ) {
         telemetry_subscribers::init_for_testing();
-        let (context, mut key_pairs) = Context::new_for_test(4);
+        let (mut context, mut key_pairs) = Context::new_for_test(4);
+        context
+            .protocol_config
+            .set_consensus_transaction_ref_for_testing(consensus_transaction_ref);
         let context = Arc::new(context);
         let store = Arc::new(MemStore::new(context.clone()));
         let (_transaction_client, tx_receiver) = TransactionClient::new(context.clone());
@@ -1381,9 +1387,19 @@ mod test {
         // able to commit transactions up to round 2.
         for block in dag_builder.block_headers(1..=2) {
             if block.author() == context.own_index {
-                let subscription = transaction_consumer.subscribe_for_block_status_testing(
-                    GenericTransactionRef::from(block.reference()),
-                );
+                let generic_ref = if consensus_transaction_ref {
+                    // When consensus_transaction_ref is enabled, create TransactionRef variant
+                    GenericTransactionRef::TransactionRef(TransactionRef {
+                        round: block.round(),
+                        author: block.author(),
+                        transactions_commitment: block.transactions_commitment(),
+                        block_digest: block.digest(),
+                    })
+                } else {
+                    // When disabled, use BlockRef variant
+                    GenericTransactionRef::from(block.reference())
+                };
+                let subscription = transaction_consumer.subscribe_for_block_status_testing(generic_ref);
                 block_status_subscriptions.push(subscription);
             }
         }
@@ -2270,10 +2286,14 @@ mod test {
     #[serial]
     async fn test_sequenced_transactions_no_headers(
         #[values(true, false)] commit_only_for_traversed_headers: bool,
+        #[values(true, false)] consensus_transaction_ref: bool,
     ) {
         telemetry_subscribers::init_for_testing();
         let committee_size = 10;
         let (mut context, _key_pairs) = Context::new_for_test(committee_size);
+        context
+            .protocol_config
+            .set_consensus_transaction_ref_for_testing(consensus_transaction_ref);
         context
             .protocol_config
             .set_consensus_commit_transactions_only_for_traversed_headers_for_testing(
@@ -2422,7 +2442,7 @@ mod test {
             .into_iter()
             .filter(|tx| {
                 let tx_ref = tx.transaction_ref();
-                let generic_ref = if context.protocol_config.consensus_transaction_ref() {
+                let generic_ref = if consensus_transaction_ref {
                     GenericTransactionRef::TransactionRef(tx_ref)
                 } else {
                     GenericTransactionRef::BlockRef(BlockRef::from(tx_ref))
@@ -2887,10 +2907,16 @@ mod test {
         *receiver.borrow_and_update()
     }
 
+    #[rstest]
     #[tokio::test]
-    async fn test_commit_and_notify_for_block_status() {
+    async fn test_commit_and_notify_for_block_status(
+        #[values(true, false)] consensus_transaction_ref: bool,
+    ) {
         telemetry_subscribers::init_for_testing();
-        let (context, mut key_pairs) = Context::new_for_test(4);
+        let (mut context, mut key_pairs) = Context::new_for_test(4);
+        context
+            .protocol_config
+            .set_consensus_transaction_ref_for_testing(consensus_transaction_ref);
 
         let context = Arc::new(context);
 
@@ -2908,9 +2934,19 @@ mod test {
         // able to commit transactions up to round 4.
         for block in dag_builder.block_headers(1..=4) {
             if block.author() == context.own_index {
-                let subscription = transaction_consumer.subscribe_for_block_status_testing(
-                    GenericTransactionRef::from(block.reference()),
-                );
+                let generic_ref = if consensus_transaction_ref {
+                    // When consensus_transaction_ref is enabled, create TransactionRef variant
+                    GenericTransactionRef::TransactionRef(TransactionRef {
+                        round: block.round(),
+                        author: block.author(),
+                        transactions_commitment: block.transactions_commitment(),
+                        block_digest: block.digest(),
+                    })
+                } else {
+                    // When disabled, use BlockRef variant
+                    GenericTransactionRef::from(block.reference())
+                };
+                let subscription = transaction_consumer.subscribe_for_block_status_testing(generic_ref);
                 block_status_subscriptions.push(subscription);
             }
         }
@@ -2979,11 +3015,41 @@ mod test {
         // The latest committed leader is from round 6 as the DAG is fully connected
         assert_eq!(last_commit.index(), 6);
 
-        while let Some(result) = block_status_subscriptions.next().await {
-            let status = result.unwrap();
+        // Add timeout to prevent infinite waiting
+        let timeout_duration = Duration::from_secs(10);
+        let mut received_notifications = 0;
+        let expected_notifications = block_status_subscriptions.len();
 
-            // otherwise all of them should be committed
-            assert!(matches!(status, BlockStatus::Sequenced(_)));
+        loop {
+            tokio::select! {
+                result = block_status_subscriptions.next() => {
+                    match result {
+                        Some(status_result) => {
+                            let status = status_result.unwrap();
+                            assert!(matches!(status, BlockStatus::Sequenced(_)));
+                            received_notifications += 1;
+
+                            // If we received all expected notifications, break
+                            if received_notifications >= expected_notifications {
+                                break;
+                            }
+                        }
+                        None => {
+                            break;
+                        }
+                    }
+                }
+                _ = tokio::time::sleep(timeout_duration) => {
+                    panic!("Test timed out after {:?}. Received {}/{} notifications. \
+                           This suggests notifications are not being sent properly.",
+                           timeout_duration, received_notifications, expected_notifications);
+                }
+            }
         }
+
+        // Verify we got all expected notifications
+        assert_eq!(received_notifications, expected_notifications,
+                  "Expected {} notifications but only received {}",
+                  expected_notifications, received_notifications);
     }
 }
