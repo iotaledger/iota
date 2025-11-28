@@ -21,7 +21,7 @@ use iota_types::{
 use crate::{
     errors::IndexerError,
     ingestion::{
-        common::prepare::try_extract_df_kind,
+        common::prepare::extract_df_kind,
         primary::{
             persist::TransactionObjectChangesToCommit,
             prepare::{IndexedTransactionComponents, PrimaryWorker},
@@ -446,15 +446,14 @@ impl<'a> TransactionExtractor<'a> {
             .output_objects
             .iter()
             .map(|o| {
-                try_extract_df_kind(o).map(|df_kind| {
-                    IndexedObject::from_object(
-                        0, // checkpoint sequence number, ignored in further processing
-                        o.clone(),
-                        df_kind,
-                    )
-                })
+                let df_kind = extract_df_kind(o);
+                IndexedObject::from_object(
+                    0, // checkpoint sequence number, ignored in further processing
+                    o.clone(),
+                    df_kind,
+                )
             })
-            .collect::<Result<Vec<_>, _>>()?;
+            .collect::<Vec<_>>();
 
         Ok(TransactionObjectChangesToCommit {
             changed_objects,
@@ -467,7 +466,7 @@ impl<'a> TransactionExtractor<'a> {
     ) -> IndexerResult<IndexedTransactionComponents> {
         let handle = tokio::runtime::Handle::current();
         handle.block_on(async move {
-            PrimaryWorker::index_transaction(
+            PrimaryWorker::index_transaction_components(
                 self.full_tx_data,
                 self.optimistic_sequence_number,
                 0, // checkpoint sequence number - unknown

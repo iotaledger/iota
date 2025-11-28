@@ -1470,9 +1470,7 @@ impl IndexerReader {
         let iota_tx_events =
             tx_events_to_iota_tx_events(tx_events, self.package_resolver(), digest, timestamp_ms)
                 .await?;
-        Ok(iota_tx_events.map_or(vec![], |transaction_block_events| {
-            transaction_block_events.data
-        }))
+        Ok(iota_tx_events.data)
     }
 
     pub async fn try_get_checkpointed_transaction_events(
