@@ -235,11 +235,9 @@ impl Store for MemStore {
                 GenericTransactionRef::BlockRef(b) => inner
                     .transactions
                     .contains_key(&(b.round, b.author, b.digest)),
-                GenericTransactionRef::TransactionRef(t) => {
-                    inner
-                        .transactions
-                        .contains_key(&(t.round, t.author, t.block_digest))
-                }
+                GenericTransactionRef::TransactionRef(t) => inner
+                    .transactions_by_tr_refs
+                    .contains_key(&(t.round, t.author, t.transactions_commitment)),
             })
             .collect();
         Ok(exist)
