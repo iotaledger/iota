@@ -9,3 +9,4 @@
 //! for the JSON-RPC API.
 
 pub(crate) mod convert;
+pub(crate) mod types;
