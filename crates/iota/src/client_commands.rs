@@ -881,8 +881,7 @@ impl IotaClientCommands {
                     .addresses_with_alias()
                     .into_iter()
                     .map(|(address, alias)| {
-                        let source = match context.config().keystore().get_key(address).unwrap()
-                        {
+                        let source = match context.config().keystore().get_key(address).unwrap() {
                             StoredKey::KeyPair(_) => "keypair".to_string(),
                             StoredKey::External { source, .. } => source.to_string(),
                         };
