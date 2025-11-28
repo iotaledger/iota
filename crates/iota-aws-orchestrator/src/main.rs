@@ -19,6 +19,7 @@ use testbed::Testbed;
 use crate::net_latency::TopologyLayout;
 
 pub mod benchmark;
+pub mod build_cache;
 pub mod client;
 pub mod display;
 pub mod error;

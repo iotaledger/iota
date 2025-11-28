@@ -7,7 +7,7 @@
     "node_specs": "m5d.8xlarge",
     "client_specs": "m5d.2xlarge",
     "metrics_specs": "m5d.8xlarge",
-    "build_cache_server": {
+    "build_cache": {
         "enabled": true,
         "servers": {
             "x86_server": {
@@ -17,7 +17,7 @@
                 "password": ""
             },
             "arm_server": {
-                "targets": ["aarch64"],
+                "targets": ["generic", "apple-m4"],
                 "url": "http://localhost:8081",
                 "username": "",
                 "password": ""
