@@ -147,13 +147,29 @@ impl<'a> BuildCacheService<'a> {
                 // The server will respond with HTTP 304 Not Modified if the binary is
                 // unchanged. Otherwise, it will download the new binary.
                 let binary_path = format!("{release_folder}/{binary}");
+                let auth_header = cache_server
+                    .username
+                    .as_ref()
+                    .and_then(|username| {
+                        cache_server
+                            .password
+                            .as_ref()
+                            .map(|password| (username, password))
+                    })
+                    .map(|(username, password)| format!("-u \"{}:{}\"", username, password))
+                    .unwrap_or_default();
+                let download_url = format!(
+                    "{}/download?commit={resolved_commit}&cpu_target={cpu_target}&binary={binary}",
+                    cache_server.url,
+                );
+
                 let download_command = format!(
                     r#"set -e && \
 mkdir -p {release_folder} && \
 if [ -f "{binary_path}" ]; then \
   existing_sha=$(sha256sum "{binary_path}" | cut -d' ' -f1) && \
   etag_header="If-None-Match: \"sha256:$existing_sha\"" && \
-  http_code=$(curl -s -w "%{{http_code}}" -H "$etag_header" -L -o "{binary_path}.tmp" '{}/download?commit={resolved_commit}&cpu_target={cpu_target}&binary={binary}') && \
+  http_code=$(curl -s -w "%{{http_code}}" -H "$etag_header" {auth_header} -L -o "{binary_path}.tmp" '{download_url}') && \
   if [ "$http_code" = "304" ]; then \
     echo "Binary {binary} is up to date (SHA256: $existing_sha)" && \
     rm -f "{binary_path}.tmp"; \
@@ -168,7 +184,7 @@ if [ -f "{binary_path}" ]; then \
   fi; \
 else \
   echo "Downloading {binary}..." && \
-  if curl -f -L -o "{binary_path}" '{}/download?commit={resolved_commit}&cpu_target={cpu_target}&binary={binary}'; then \
+  if curl -f -L {auth_header} -o "{binary_path}" '{download_url}'; then \
     chmod +x "{binary_path}" && \
     echo "Binary {binary} downloaded successfully"; \
   else \
@@ -177,7 +193,6 @@ else \
     exit 1; \
   fi; \
 fi"#,
-                    cache_server.url, cache_server.url
                 );
 
                 display::action(format!(
