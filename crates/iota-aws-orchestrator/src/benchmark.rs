@@ -65,6 +65,9 @@ pub struct BenchmarkParameters<T> {
     pub protocol_switch_each_epoch: bool,
     /// Optional: Epoch duration in milliseconds, default is 1h
     pub epoch_duration_ms: Option<u64>,
+    /// Computed chain start timestamp (computed once in next() if
+    /// use_current_timestamp_for_genesis is true)
+    pub chain_start_timestamp_ms: Option<u64>,
 }
 
 impl<T: BenchmarkType> Default for BenchmarkParameters<T> {
@@ -81,6 +84,7 @@ impl<T: BenchmarkType> Default for BenchmarkParameters<T> {
             protocol_switch_each_epoch: false,
             maximum_latency: 400,
             epoch_duration_ms: None,
+            chain_start_timestamp_ms: None,
         }
     }
 }
@@ -89,8 +93,13 @@ impl<T: BenchmarkType> Debug for BenchmarkParameters<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "{:?}-{:?}-{}-{}-{}",
-            self.benchmark_type, self.faults, self.nodes, self.load, self.use_internal_ip_address,
+            "{:?}-{:?}-{}-{}-{}-{:?}",
+            self.benchmark_type,
+            self.faults,
+            self.nodes,
+            self.load,
+            self.use_internal_ip_address,
+            self.chain_start_timestamp_ms,
         )
     }
 }
@@ -99,8 +108,12 @@ impl<T> Display for BenchmarkParameters<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "{} nodes ({}) - {} tx/s (use internal IPs: {})",
-            self.nodes, self.faults, self.load, self.use_internal_ip_address
+            "{} nodes ({}) - {} tx/s (use internal IPs: {}; use current timestamp: {:?})",
+            self.nodes,
+            self.faults,
+            self.load,
+            self.use_internal_ip_address,
+            self.chain_start_timestamp_ms,
         )
     }
 }
@@ -119,6 +132,7 @@ impl<T> BenchmarkParameters<T> {
         protocol_switch_each_epoch: bool,
         maximum_latency: u16,
         epoch_duration_ms: Option<u64>,
+        chain_start_timestamp_ms: Option<u64>,
     ) -> Self {
         Self {
             benchmark_type,
@@ -132,6 +146,7 @@ impl<T> BenchmarkParameters<T> {
             protocol_switch_each_epoch,
             maximum_latency,
             epoch_duration_ms,
+            chain_start_timestamp_ms,
         }
     }
 }
@@ -187,6 +202,8 @@ pub struct BenchmarkParametersGenerator<T> {
     pub protocol_switch_each_epoch: bool,
     /// Optional: Epoch duration in milliseconds, default is 1h
     epoch_duration_ms: Option<u64>,
+    /// Use current system time as genesis chain start timestamp instead of 0
+    use_current_timestamp_for_genesis: bool,
 }
 
 impl<T: BenchmarkType> Iterator for BenchmarkParametersGenerator<T> {
@@ -194,6 +211,17 @@ impl<T: BenchmarkType> Iterator for BenchmarkParametersGenerator<T> {
 
     /// Return the next set of benchmark parameters to run.
     fn next(&mut self) -> Option<Self::Item> {
+        // Compute timestamp once if needed
+        let chain_start_timestamp_ms = if self.use_current_timestamp_for_genesis {
+            Some(
+                std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap()
+                    .as_millis() as u64,
+            )
+        } else {
+            None
+        };
         self.next_load.map(|load| {
             BenchmarkParameters::new(
                 self.benchmark_type.clone(),
@@ -207,6 +235,7 @@ impl<T: BenchmarkType> Iterator for BenchmarkParametersGenerator<T> {
                 self.protocol_switch_each_epoch,
                 self.maximum_latency,
                 self.epoch_duration_ms,
+                chain_start_timestamp_ms,
             )
         })
     }
@@ -244,6 +273,7 @@ impl<T: BenchmarkType> BenchmarkParametersGenerator<T> {
             protocol_switch_each_epoch: false,
             maximum_latency: 400,
             epoch_duration_ms: None,
+            use_current_timestamp_for_genesis: false,
         }
     }
 
@@ -287,6 +317,11 @@ impl<T: BenchmarkType> BenchmarkParametersGenerator<T> {
 
     pub fn with_epoch_duration(mut self, epoch_duration_ms: Option<u64>) -> Self {
         self.epoch_duration_ms = epoch_duration_ms;
+        self
+    }
+
+    pub fn with_current_timestamp_for_genesis(mut self, use_current_timestamp: bool) -> Self {
+        self.use_current_timestamp_for_genesis = use_current_timestamp;
         self
     }
 
