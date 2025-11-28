@@ -368,12 +368,21 @@ impl PrimaryWorker {
         checkpoint_timestamp_ms: u64,
         metrics: &IndexerMetrics,
     ) -> IndexerResult<IndexedTransactionComponents> {
+        let db_txn = try_new_indexed_transaction(
+            tx,
+            tx_sequence_number,
+            checkpoint_seq,
+            checkpoint_timestamp_ms,
+            metrics,
+        )
+        .await?;
+
         let CheckpointTransaction {
             transaction: sender_signed_data,
             effects: fx,
             events,
-            input_objects,
-            output_objects,
+            input_objects: _,
+            output_objects: _,
         } = tx;
 
         let tx_digest = sender_signed_data.digest();
@@ -411,33 +420,6 @@ impl PrimaryWorker {
             .flat_map(StoredDisplay::try_from_event)
             .map(|display| (display.object_type.clone(), display))
             .collect();
-
-        let objects = input_objects
-            .iter()
-            .chain(output_objects.iter())
-            .collect::<Vec<_>>();
-
-        let (balance_change, object_changes) = InMemTxChanges::new(&objects, metrics.clone())
-            .get_changes(tx, fx, tx_digest)
-            .await?;
-
-        let db_txn = IndexedTransaction {
-            tx_sequence_number,
-            tx_digest: *tx_digest,
-            checkpoint_sequence_number: checkpoint_seq,
-            timestamp_ms: checkpoint_timestamp_ms,
-            sender_signed_data: sender_signed_data.data().clone(),
-            effects: fx.clone(),
-            object_changes,
-            balance_change,
-            events,
-            transaction_kind,
-            successful_tx_num: if fx.status().is_ok() {
-                tx.kind().tx_count() as u64
-            } else {
-                0
-            },
-        };
 
         // Input Objects
         let input_objects = tx
@@ -825,4 +807,52 @@ impl iota_types::storage::ObjectStore for EpochEndIndexingObjectStore<'_> {
             .cloned()
             .cloned())
     }
+}
+
+/// Creates a new [`IndexedTransaction`]
+pub(crate) async fn try_new_indexed_transaction(
+    tx: &CheckpointTransaction,
+    tx_sequence_number: u64,
+    checkpoint_seq: CheckpointSequenceNumber,
+    checkpoint_timestamp_ms: u64,
+    metrics: &IndexerMetrics,
+) -> IndexerResult<IndexedTransaction> {
+    let tx_digest = tx.transaction.digest();
+    let tx_data = tx.transaction.transaction_data();
+
+    let events = tx
+        .events
+        .as_ref()
+        .map(|events| events.data.clone())
+        .unwrap_or_default();
+
+    let transaction_kind = IotaTransactionKind::from(tx_data.kind());
+
+    let objects = tx
+        .input_objects
+        .iter()
+        .chain(tx.output_objects.iter())
+        .collect::<Vec<_>>();
+
+    let (balance_change, object_changes) = InMemTxChanges::new(&objects, metrics.clone())
+        .get_changes(tx_data, &tx.effects, tx_digest)
+        .await?;
+
+    Ok(IndexedTransaction {
+        tx_sequence_number,
+        tx_digest: *tx_digest,
+        checkpoint_sequence_number: checkpoint_seq,
+        timestamp_ms: checkpoint_timestamp_ms,
+        sender_signed_data: tx.transaction.data().clone(),
+        successful_tx_num: if tx.effects.status().is_ok() {
+            tx_data.kind().tx_count() as u64
+        } else {
+            0
+        },
+        effects: tx.effects.clone(),
+        object_changes,
+        balance_change,
+        events,
+        transaction_kind,
+    })
 }
