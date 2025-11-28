@@ -50,7 +50,7 @@ pub struct RestApiConfig {
 }
 
 fn default_multiget_max_items() -> NonZeroUsize {
-    NonZeroUsize::new(100).unwrap()
+    NonZeroUsize::new(100).expect("value should be greater than 0")
 }
 
 #[tokio::main]
