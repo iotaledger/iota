@@ -25,7 +25,7 @@ futures.workspace = true
 http-body = "1.0"
 hyper.workspace = true
 indexmap.workspace = true
-iota-sdk-types = { workspace = true, features = ["serde"] }
+iota-sdk-types.workspace = true
 itertools.workspace = true
 jsonrpsee.workspace = true
 prometheus.workspace = true

@@ -19,7 +19,7 @@ clap.workspace = true
 csv = "1.2"
 fastcrypto.workspace = true
 flate2.workspace = true
-iota-sdk-types = { workspace = true, features = ["serde"] }
+iota-sdk-types.workspace = true
 itertools.workspace = true
 packable = { version = "0.8", default-features = false, features = ["io"] }
 prefix-hex = "0.7"

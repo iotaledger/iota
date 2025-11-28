@@ -31,7 +31,7 @@ fastcrypto-tbls.workspace = true
 fastcrypto-zkp.workspace = true
 futures.workspace = true
 im.workspace = true
-iota-sdk-types = { workspace = true, features = ["serde"] }
+iota-sdk-types.workspace = true
 itertools.workspace = true
 lru.workspace = true
 mockall.workspace = true

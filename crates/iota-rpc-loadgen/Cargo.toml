@@ -14,7 +14,7 @@ clap.workspace = true
 dashmap.workspace = true
 dirs.workspace = true
 futures.workspace = true
-iota-sdk-types = { workspace = true, features = ["serde"] }
+iota-sdk-types.workspace = true
 itertools.workspace = true
 serde.workspace = true
 serde_json.workspace = true

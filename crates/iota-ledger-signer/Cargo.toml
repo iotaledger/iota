@@ -12,7 +12,7 @@ workspace = true
 [dependencies]
 # external dependencies
 bip32.workspace = true
-iota-sdk-types = { workspace = true, features = ["serde"] }
+iota-sdk-types.workspace = true
 thiserror.workspace = true
 tracing.workspace = true
 

@@ -11,7 +11,7 @@ publish = false
 anyhow.workspace = true
 bip32.workspace = true
 fastcrypto = { workspace = true, features = ["copy_key"] }
-iota-sdk-types = { workspace = true, features = ["serde"] }
+iota-sdk-types.workspace = true
 rand.workspace = true
 regex.workspace = true
 serde.workspace = true

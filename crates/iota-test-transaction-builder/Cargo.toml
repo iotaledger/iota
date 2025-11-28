@@ -9,7 +9,7 @@ publish = false
 [dependencies]
 # external dependencies
 bcs.workspace = true
-iota-sdk-types = { workspace = true, features = ["serde"] }
+iota-sdk-types.workspace = true
 
 # internal dependencies
 iota-genesis-builder.workspace = true

@@ -15,7 +15,7 @@ anemo.workspace = true
 anyhow.workspace = true
 bcs.workspace = true
 fastcrypto.workspace = true
-iota-sdk-types = { workspace = true, features = ["serde"] }
+iota-sdk-types.workspace = true
 prometheus.workspace = true
 rand.workspace = true
 serde.workspace = true

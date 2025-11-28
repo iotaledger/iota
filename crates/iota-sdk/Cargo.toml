@@ -17,7 +17,7 @@ fastcrypto.workspace = true
 futures.workspace = true
 futures-core = "0.3.21"
 getset.workspace = true
-iota-sdk-types = { workspace = true, features = ["serde"] }
+iota-sdk-types.workspace = true
 jsonrpsee.workspace = true
 reqwest.workspace = true
 rustls.workspace = true

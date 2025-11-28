@@ -32,7 +32,7 @@ fastcrypto-zkp.workspace = true
 futures.workspace = true
 http.workspace = true
 inquire = "0.6.0"
-iota-sdk-types = { workspace = true, features = ["serde"] }
+iota-sdk-types.workspace = true
 json_to_table.workspace = true
 miette = { version = "7", features = ["fancy"] }
 prometheus.workspace = true

@@ -16,7 +16,7 @@ clap.workspace = true
 eyre.workspace = true
 futures.workspace = true
 http.workspace = true
-iota-sdk-types = { workspace = true, features = ["serde"] }
+iota-sdk-types.workspace = true
 parking_lot.workspace = true
 prometheus.workspace = true
 scopeguard.workspace = true

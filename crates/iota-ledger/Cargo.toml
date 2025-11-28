@@ -16,7 +16,7 @@ bip32.workspace = true
 fastcrypto.workspace = true
 hex.workspace = true
 hidapi = { version = "2.6.3", features = ["linux-static-hidraw"], default-features = false }
-iota-sdk-types = { workspace = true, features = ["serde"] }
+iota-sdk-types.workspace = true
 ledger-transport = "0.11.0"
 ledger-transport-hid = "0.11.0"
 serde.workspace = true

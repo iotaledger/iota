@@ -14,7 +14,7 @@ clap.workspace = true
 derive_more = { workspace = true, features = ["debug"] }
 fastcrypto.workspace = true
 futures.workspace = true
-iota-sdk-types = { workspace = true, features = ["serde"] }
+iota-sdk-types.workspace = true
 jsonrpsee.workspace = true
 prometheus.workspace = true
 regex.workspace = true

@@ -23,7 +23,7 @@ fastcrypto.workspace = true
 fastcrypto-zkp.workspace = true
 futures.workspace = true
 humantime.workspace = true
-iota-sdk-types = { workspace = true, features = ["serde"] }
+iota-sdk-types.workspace = true
 prometheus.workspace = true
 reqwest.workspace = true
 serde.workspace = true
