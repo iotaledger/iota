@@ -384,9 +384,8 @@ impl Query {
         digest: Digest,
     ) -> Result<Option<TransactionBlock>> {
         let Watermark { checkpoint, .. } = *ctx.data()?;
-        TransactionBlock::query(ctx, digest, checkpoint)
-            .await
-            .extend()
+        let key = transaction_block::DigestKey::new(digest, checkpoint);
+        TransactionBlock::query(ctx, key.into()).await.extend()
     }
 
     /// The coin objects that exist in the network.

@@ -141,9 +141,53 @@ pub(crate) struct TransactionBlockCursor {
 /// `DataLoader` key for fetching a `TransactionBlock` by its digest, optionally
 /// constrained by a consistency cursor.
 #[derive(Copy, Clone, Hash, Eq, PartialEq, Debug)]
-struct DigestKey {
+pub(crate) struct DigestKey {
     pub digest: Digest,
     pub checkpoint_viewed_at: u64,
+}
+
+impl DigestKey {
+    pub fn new(digest: Digest, checkpoint_viewed_at: u64) -> Self {
+        Self {
+            digest,
+            checkpoint_viewed_at,
+        }
+    }
+}
+
+/// `DataLoader` key for fetching a `TransactionBlock` by its sequence number,
+/// constrained by a consistency cursor.
+#[derive(Copy, Clone, Hash, Eq, PartialEq, Debug)]
+pub(crate) struct SeqKey {
+    pub tx_sequence_number: u64,
+    pub checkpoint_viewed_at: u64,
+}
+
+impl SeqKey {
+    pub fn new(tx_sequence_number: u64, checkpoint_viewed_at: u64) -> Self {
+        Self {
+            tx_sequence_number,
+            checkpoint_viewed_at,
+        }
+    }
+}
+
+/// Filter for a point query of a TransactionBlock.
+pub(crate) enum TransactionBlockLookup {
+    ByDigest(DigestKey),
+    BySeq(SeqKey),
+}
+
+impl From<DigestKey> for TransactionBlockLookup {
+    fn from(key: DigestKey) -> Self {
+        TransactionBlockLookup::ByDigest(key)
+    }
+}
+
+impl From<SeqKey> for TransactionBlockLookup {
+    fn from(key: SeqKey) -> Self {
+        TransactionBlockLookup::BySeq(key)
+    }
 }
 
 #[Object]
@@ -305,16 +349,16 @@ impl TransactionBlock {
     /// checkpoint).
     pub(crate) async fn query(
         ctx: &Context<'_>,
-        digest: Digest,
-        checkpoint_viewed_at: u64,
+        key: TransactionBlockLookup,
     ) -> Result<Option<Self>, Error> {
         let DataLoader(loader) = ctx.data_unchecked();
-        loader
-            .load_one(DigestKey {
-                digest,
-                checkpoint_viewed_at,
-            })
-            .await
+        match key {
+            TransactionBlockLookup::ByDigest(digest_key) => loader.load_one(digest_key).await,
+            TransactionBlockLookup::BySeq(seq_key) => {
+                todo!()
+                // loader.load_one(seq_key).await
+            }
+        }
     }
 
     /// Look up multiple `TransactionBlock`s by their digests. Returns a map
