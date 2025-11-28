@@ -1,8 +1,11 @@
 // Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! Provides helper functions and types for converting historical fallback
-//! types into Indexer-compatible types for the JSON-RPC API.
+//! Conversion utilities for historical fallback data.
+//!
+//! This module provides wrapper types that enable conversion from raw data
+//! fetched from historical fallback storage into the `Stored*` or JSON-RPC
+//! compatible types used by the Indexer's JSON-RPC API layer.
 
 use std::sync::Arc;
 
@@ -32,9 +35,9 @@ use crate::{
     types::{IndexedCheckpoint, IndexedObject, IndexedTransaction},
 };
 
-/// Represents the data needed to fetch from historical fallback storage in
-/// order to convert it into compatible types the indexer can use for JSON RPC
-/// API.
+/// Wrapper for an [`Object`] fetched from historical fallback storage.
+///
+/// Contains all data needed to reconstruct a [`StoredObject`].
 #[derive(Debug, Clone)]
 pub struct HistoricalFallbackObject(Object);
 
@@ -48,8 +51,10 @@ impl HistoricalFallbackObject {
         self.0
     }
 
-    /// Inspect the inner [`Object`] and determine whether it represents a
-    /// Dynamic Field or a Dynamic Object Field based on its type.
+    /// Determines if the inner [`Object`] is a Dynamic Field or Dynamic Object
+    /// Field.
+    ///
+    /// Returns `None` if the object is neither.
     fn df_kind(&self) -> Option<DynamicFieldType> {
         extract_df_kind(&self.0)
     }
@@ -66,9 +71,10 @@ impl From<HistoricalFallbackObject> for StoredObject {
     }
 }
 
-/// Represents the data needed to fetch from historical fallback storage in
-/// order to convert it into compatible types the indexer can use for JSON RPC
-/// API.
+/// Wrapper for [`CertifiedCheckpointSummary`] with its [`CheckpointContents`]
+/// data fetched from historical fallback storage.
+///
+/// Contains all data needed to reconstruct a [`StoredCheckpoint`].
 #[derive(Debug, Clone)]
 pub struct HistoricalFallbackCheckpoint((CertifiedCheckpointSummary, CheckpointContents));
 
@@ -99,11 +105,13 @@ impl From<HistoricalFallbackCheckpoint> for StoredCheckpoint {
     }
 }
 
-/// Represents the data needed to fetch from historical fallback storage in
-/// order to convert it into compatible types the indexer can use for JSON RPC
-/// API.
+/// Wrapper for [`TransactionEvents`] and additional data fetched from
+/// historical fallback storage.
+///
+/// Contains all data needed to reconstruct [`IotaEvent`]s.
 #[derive(Debug, Clone)]
 pub struct HistoricalFallbackEvents {
+    /// Events emitted during transaction execution.
     events: TransactionEvents,
     /// Checkpoint timestamp.
     timestamp: u64,
@@ -118,7 +126,8 @@ impl HistoricalFallbackEvents {
         }
     }
 
-    /// Converts the raw [`Event`]s into JSON RPC compatible [`IotaEvent`]s.
+    /// Converts the raw [`TransactionEvents`] into JSON RPC compatible
+    /// [`IotaEvent`]s.
     #[expect(dead_code)]
     pub(crate) async fn into_iota_events(
         self,
@@ -136,13 +145,16 @@ impl HistoricalFallbackEvents {
     }
 }
 
-/// Represents the data needed to fetch from historical fallback storage in
-/// order to convert it into compatible types the indexer can
-/// use for JSON RPC API.
+/// Wrapper for a complete transaction fetched from historical fallback storage.
+///
+/// Contains all data needed to reconstruct a [`StoredTransaction`].
 #[derive(Debug, Clone)]
 pub struct HistoricalFallbackTransaction {
+    /// The signed transaction.
     transaction: Transaction,
+    /// The effects produced by executing this transaction.
     effects: TransactionEffects,
+    /// Events emitted during transaction execution, if any.
     events: Option<TransactionEvents>,
     /// Objects state before the transaction was executed.
     input_objects: Vec<Object>,
