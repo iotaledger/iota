@@ -40,6 +40,8 @@ tokio-util = { workspace = true, features = ["rt"] }
 toml.workspace = true
 tracing.workspace = true
 url.workspace = true
+bytes.workspace = true
+reqwest.workspace = true
 
 # internal dependencies
 bin-version.workspace = true
@@ -57,6 +59,7 @@ iota-protocol-config.workspace = true
 iota-rest-api.workspace = true
 iota-transaction-builder.workspace = true
 iota-types.workspace = true
+iota-storage.workspace = true
 move-binary-format.workspace = true
 move-core-types.workspace = true
 telemetry-subscribers.workspace = true
