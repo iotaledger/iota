@@ -389,7 +389,7 @@ mod tests {
     use iota_types::messages_consensus::{MisbehaviorReportV1, VersionedMisbehaviorReport};
 
     use crate::authority::authority_per_epoch_store::scorer::{
-        ParametersV1, Scorer, calculate_median_report, calculate_scores_v1,
+        MAX_SCORE, ParametersV1, SCALE_FACTOR, Scorer, calculate_median_report, calculate_scores_v1,
     };
 
     fn mock_protocol_config(consensus_choice: ConsensusChoice) -> ProtocolConfig {
