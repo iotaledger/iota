@@ -1444,6 +1444,11 @@ Doesn't support simulator mode.
 #### Example
 
 ```move
+// Copyright (c) 2025 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
+// simple authentication using abstract account
+
 //# init --addresses test=0x0 --accounts A
 
 //# publish --sender A
@@ -1473,6 +1478,7 @@ public fun create(
     account_address
 }
 
+#[authenticator]
 public fun authenticate_hello_world(
     _account: &AbstractAccount,
     msg: ascii::String,
@@ -1482,7 +1488,7 @@ public fun authenticate_hello_world(
     assert!(msg == ascii::string(b"HelloWorld"), 0);
 }
 
-//# programmable --sender A --inputs x"10" @test "abstract_account" "authenticate_hello_world" 7000000000
+//# programmable --sender A --inputs x"10" object(1,1) "abstract_account" "authenticate_hello_world" 7000000000
 //> 0: iota::account::create_auth_info_v1<test::abstract_account::AbstractAccount>(Input(1), Input(2), Input(3));
 //> 1: test::abstract_account::create(Input(0), Result(0));
 //> 2: SplitCoins(Gas, [Input(4)]);
@@ -1507,6 +1513,9 @@ public fun authenticate_hello_world(
   These are inputs used inside the transaction body - for example, numeric values, objects, or addresses.
   The PTB commands (//> ...) operate as in the programmable command.
 
+- object(1,1) 
+  The `PackageMetadata` object carries information about function annotations, such as attributes
+  
 `.snap` output:
 
 ```
@@ -1518,14 +1527,14 @@ processed 7 tasks
 init:
 A: object(0,0)
 
-task 1, lines 8-42:
+task 1, lines 8-43:
 //# publish --sender A
-created: object(1,0)
+created: object(1,0), object(1,1)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 8816000,  storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 12334800,  storage_rebate: 0, non_refundable_storage_fee: 0
 
-task 2, lines 44-48:
-//# programmable --sender A --inputs x"10" @test "abstract_account" "authenticate_hello_world" 7000000000
+task 2, lines 45-49:
+//# programmable --sender A --inputs x"10" object(1,1) "abstract_account" "authenticate_hello_world" 7000000000
 //> 0: iota::account::create_auth_info_v1<test::abstract_account::AbstractAccount>(Input(1), Input(2), Input(3));
 //> 1: test::abstract_account::create(Input(0), Result(0));
 //> 2: SplitCoins(Gas, [Input(4)]);
@@ -1534,7 +1543,7 @@ created: object(2,0), object(2,1), object(2,2)
 mutated: object(0,0)
 gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 6748800,  storage_rebate: 980400, non_refundable_storage_fee: 0
 
-task 3, line 50:
+task 3, line 51:
 //# view-object 2,0
 Owner: Account Address ( fake(2,2) )
 Version: 3
@@ -1549,7 +1558,7 @@ Contents: iota::coin::Coin<iota::iota::IOTA> {
     },
 }
 
-task 4, line 52:
+task 4, line 53:
 //# view-object 2,2
 Owner: Shared( 3 )
 Version: 3
@@ -1561,14 +1570,14 @@ Contents: test::abstract_account::AbstractAccount {
     },
 }
 
-task 5, lines 54-56:
+task 5, lines 55-57:
 //# abstract --account immshared(2,2) --gas-payment 2,0 --auth-inputs "HelloWorld" --ptb-inputs 100 @A
 created: object(5,0)
 mutated: object(2,0)
 unchanged_shared: object(2,2)
 gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 1960800,  storage_rebate: 980400, non_refundable_storage_fee: 0
 
-task 6, line 58:
+task 6, line 59:
 //# view-object 5,0
 Owner: Account Address ( A )
 Version: 4
