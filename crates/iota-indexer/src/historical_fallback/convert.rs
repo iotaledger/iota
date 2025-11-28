@@ -24,7 +24,7 @@ use prometheus::Registry;
 
 use crate::{
     errors::IndexerResult,
-    ingestion::{common::prepare::extract_df_kind, primary::prepare::try_new_indexed_transaction},
+    ingestion::{common::prepare::extract_df_kind, primary::prepare::PrimaryWorker},
     metrics::IndexerMetrics,
     models::{
         checkpoints::StoredCheckpoint,
@@ -147,7 +147,7 @@ impl HistoricalFallbackTransaction {
         // CheckpointContents::enumerate_transactions method.
         let tx_sequence_number = 0;
 
-        let indexed_tx = try_new_indexed_transaction(
+        let indexed_tx = PrimaryWorker::index_transaction(
             &self.checkpoint_transaction,
             tx_sequence_number,
             self.checkpoint_sequence_number,

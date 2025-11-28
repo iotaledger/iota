@@ -466,7 +466,7 @@ impl<'a> TransactionExtractor<'a> {
     ) -> IndexerResult<IndexedTransactionComponents> {
         let handle = tokio::runtime::Handle::current();
         handle.block_on(async move {
-            PrimaryWorker::index_transaction(
+            PrimaryWorker::index_transaction_components(
                 self.full_tx_data,
                 self.optimistic_sequence_number,
                 0, // checkpoint sequence number - unknown

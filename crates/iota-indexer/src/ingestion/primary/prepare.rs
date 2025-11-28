@@ -338,7 +338,7 @@ impl PrimaryWorker {
             }
 
             let (indexed_tx, tx_indices, indexed_events, events_indices, stored_displays) =
-                Self::index_transaction(
+                Self::index_transaction_components(
                     tx,
                     tx_sequence_number,
                     *checkpoint_seq,
@@ -361,14 +361,14 @@ impl PrimaryWorker {
         ))
     }
 
-    pub(crate) async fn index_transaction(
+    pub(crate) async fn index_transaction_components(
         tx: &CheckpointTransaction,
         tx_sequence_number: u64,
         checkpoint_seq: CheckpointSequenceNumber,
         checkpoint_timestamp_ms: u64,
         metrics: &IndexerMetrics,
     ) -> IndexerResult<IndexedTransactionComponents> {
-        let db_txn = try_new_indexed_transaction(
+        let db_txn = Self::index_transaction(
             tx,
             tx_sequence_number,
             checkpoint_seq,
@@ -488,6 +488,54 @@ impl PrimaryWorker {
             db_event_indices,
             db_displays,
         ))
+    }
+
+    /// Creates a new [`IndexedTransaction`]
+    pub(crate) async fn index_transaction(
+        tx: &CheckpointTransaction,
+        tx_sequence_number: u64,
+        checkpoint_seq: CheckpointSequenceNumber,
+        checkpoint_timestamp_ms: u64,
+        metrics: &IndexerMetrics,
+    ) -> IndexerResult<IndexedTransaction> {
+        let tx_digest = tx.transaction.digest();
+        let tx_data = tx.transaction.transaction_data();
+
+        let events = tx
+            .events
+            .as_ref()
+            .map(|events| events.data.clone())
+            .unwrap_or_default();
+
+        let transaction_kind = IotaTransactionKind::from(tx_data.kind());
+
+        let objects = tx
+            .input_objects
+            .iter()
+            .chain(tx.output_objects.iter())
+            .collect::<Vec<_>>();
+
+        let (balance_change, object_changes) = InMemTxChanges::new(&objects, metrics.clone())
+            .get_changes(tx_data, &tx.effects, tx_digest)
+            .await?;
+
+        Ok(IndexedTransaction {
+            tx_sequence_number,
+            tx_digest: *tx_digest,
+            checkpoint_sequence_number: checkpoint_seq,
+            timestamp_ms: checkpoint_timestamp_ms,
+            sender_signed_data: tx.transaction.data().clone(),
+            successful_tx_num: if tx.effects.status().is_ok() {
+                tx_data.kind().tx_count() as u64
+            } else {
+                0
+            },
+            effects: tx.effects.clone(),
+            object_changes,
+            balance_change,
+            events,
+            transaction_kind,
+        })
     }
 
     pub(crate) async fn index_checkpoint_objects(
@@ -806,52 +854,4 @@ impl iota_types::storage::ObjectStore for EpochEndIndexingObjectStore<'_> {
             .cloned()
             .cloned())
     }
-}
-
-/// Creates a new [`IndexedTransaction`]
-pub(crate) async fn try_new_indexed_transaction(
-    tx: &CheckpointTransaction,
-    tx_sequence_number: u64,
-    checkpoint_seq: CheckpointSequenceNumber,
-    checkpoint_timestamp_ms: u64,
-    metrics: &IndexerMetrics,
-) -> IndexerResult<IndexedTransaction> {
-    let tx_digest = tx.transaction.digest();
-    let tx_data = tx.transaction.transaction_data();
-
-    let events = tx
-        .events
-        .as_ref()
-        .map(|events| events.data.clone())
-        .unwrap_or_default();
-
-    let transaction_kind = IotaTransactionKind::from(tx_data.kind());
-
-    let objects = tx
-        .input_objects
-        .iter()
-        .chain(tx.output_objects.iter())
-        .collect::<Vec<_>>();
-
-    let (balance_change, object_changes) = InMemTxChanges::new(&objects, metrics.clone())
-        .get_changes(tx_data, &tx.effects, tx_digest)
-        .await?;
-
-    Ok(IndexedTransaction {
-        tx_sequence_number,
-        tx_digest: *tx_digest,
-        checkpoint_sequence_number: checkpoint_seq,
-        timestamp_ms: checkpoint_timestamp_ms,
-        sender_signed_data: tx.transaction.data().clone(),
-        successful_tx_num: if tx.effects.status().is_ok() {
-            tx_data.kind().tx_count() as u64
-        } else {
-            0
-        },
-        effects: tx.effects.clone(),
-        object_changes,
-        balance_change,
-        events,
-        transaction_kind,
-    })
 }
