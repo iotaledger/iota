@@ -36,21 +36,51 @@ function L1(props: NetworkProps) {
         </tr>
         <tr>
           <th>JSON RPC URL</th>
-            <td>
-              <CodeBlock>{props.rpc.json.core}</CodeBlock>
-              <CodeBlock>{props.rpc.json.monochain}</CodeBlock>
-              <tr>
-                <th>Websocket</th>
-                <td>
-                  <CodeBlock>{props.rpc.json.websocket}</CodeBlock>
-                </td>
-              </tr>
-              <tr>
-                <th>Indexer</th>
-                <td>
-                  <CodeBlock>{props.rpc.json.indexer}</CodeBlock>
-                </td>
-              </tr>
+          <td>
+            <CodeBlock>{props.rpc.json.official.core}</CodeBlock>
+            <tr>
+              <th>Websocket</th>
+              <td>
+                <CodeBlock>{props.rpc.json.official.websocket}</CodeBlock>
+              </td>
+            </tr>
+            <tr>
+              <th>Indexer</th>
+              <td>
+                <CodeBlock>{props.rpc.json.official.indexer}</CodeBlock>
+              </td>
+            </tr>
+            {props.rpc.json.thirdParty && props.rpc.json.thirdParty.length > 0 && (
+              <>
+                <Admonition type='info' title='Third Party Providers'>
+                  The following is a list of high quality third party RPC providers supporting IOTA
+                </Admonition>
+                {props.rpc.json.thirdParty.map((provider, index) => (
+                  <React.Fragment key={index}>
+                    <strong>{provider.provider}</strong>
+                    {provider.core && (
+                      <CodeBlock>{provider.core}</CodeBlock>
+                    )}
+                    {provider.websocket && (
+                      <tr>
+                        <th>Websocket</th>
+                        <td>
+                          <CodeBlock>{provider.websocket}</CodeBlock>
+                        </td>
+                      </tr>
+                    )}
+                    {provider.indexer && (
+                      <tr>
+                        <th>Indexer</th>
+                        <td>
+                          <CodeBlock>{provider.indexer}</CodeBlock>
+                        </td>
+                      </tr>
+                    )}
+                  </React.Fragment>
+                ))}
+              </>
+            )}
           </td>
         </tr>
         <tr>
