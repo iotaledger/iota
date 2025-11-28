@@ -2285,8 +2285,22 @@ mod test {
     #[tokio::test]
     #[serial]
     async fn test_sequenced_transactions_no_headers(
-        #[values(true, false)] commit_only_for_traversed_headers: bool,
-        #[values(true, false)] consensus_transaction_ref: bool,
+        #[values((true, true), (true, false), (false, false))] params: (bool, bool),
+    ) {
+        let (commit_only_for_traversed_headers, consensus_transaction_ref) = params;
+        test_sequenced_transactions_no_headers_impl(commit_only_for_traversed_headers, consensus_transaction_ref).await;
+    }
+
+    #[tokio::test]
+    #[serial]
+    #[should_panic(expected = "Block header must exist for committed transaction")]
+    async fn test_sequenced_transactions_no_headers_invalid_config() {
+        test_sequenced_transactions_no_headers_impl(false, true).await;
+    }
+
+    async fn test_sequenced_transactions_no_headers_impl(
+        commit_only_for_traversed_headers: bool,
+        consensus_transaction_ref: bool,
     ) {
         telemetry_subscribers::init_for_testing();
         let committee_size = 10;
