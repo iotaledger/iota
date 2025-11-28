@@ -136,8 +136,37 @@ impl Linearizer {
             "Duplicate BlockRef found"
         );
 
+        // Convert BlockRef to GenericTransactionRef based on protocol flag
+        let generic_committed_transactions: Vec<GenericTransactionRef> =
+            if self.context.protocol_config.consensus_transaction_ref() {
+                // Need to re-acquire dag_state lock to get headers for conversion
+                let dag_state_guard = self.dag_state.read();
+                committed_transactions
+                    .iter()
+                    .map(|block_ref| {
+                        // Get the block header to extract the transactions commitment
+                        let headers = dag_state_guard.get_verified_block_headers(&[*block_ref]);
+                        let header = headers[0]
+                            .as_ref()
+                            .expect("Block header must exist for committed transaction");
+                        GenericTransactionRef::TransactionRef(TransactionRef {
+                            round: block_ref.round,
+                            author: block_ref.author,
+                            transactions_commitment: header.transactions_commitment(),
+                            block_digest: block_ref.digest,
+                        })
+                    })
+                    .collect()
+            } else {
+                committed_transactions
+                    .into_iter()
+                    .map(|block_ref| GenericTransactionRef::BlockRef(block_ref))
+                    .collect()
+            };
+
         // Create the Commit.
         let commit = Commit::new(
+            &self.context,
             last_commit_index + 1,
             last_commit_digest,
             timestamp_ms,
@@ -146,7 +175,7 @@ impl Linearizer {
                 .iter()
                 .map(|block| block.reference())
                 .collect::<Vec<BlockRef>>(),
-            committed_transactions,
+            generic_committed_transactions,
         );
         let serialized = commit
             .serialize()
@@ -675,6 +704,7 @@ mod tests {
             .expect("Wave 1 leader round block should exist");
         let mut last_commit_index = 1;
         let first_commit_data = TrustedCommit::new_for_test(
+            &context,
             last_commit_index,
             CommitDigest::MIN,
             0,
@@ -719,6 +749,7 @@ mod tests {
 
         last_commit_index += 1;
         let expected_second_commit = TrustedCommit::new_for_test(
+            &context,
             last_commit_index,
             CommitDigest::MIN,
             0,

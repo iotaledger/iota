@@ -2260,6 +2260,7 @@ mod test {
 
         // Now add a commit and flush to trigger an eviction
         dag_state.add_commit(TrustedCommit::new_for_test(
+            &context,
             1 as CommitIndex,
             CommitDigest::MIN,
             0,
@@ -2741,6 +2742,7 @@ mod test {
         }
 
         dag_state.add_commit(TrustedCommit::new_for_test(
+            &context,
             1 as CommitIndex,
             CommitDigest::MIN,
             context.clock.timestamp_utc_ms(),
@@ -2864,6 +2866,7 @@ mod test {
         }
 
         dag_state.add_commit(TrustedCommit::new_for_test(
+            &context,
             1 as CommitIndex,
             CommitDigest::MIN,
             0,

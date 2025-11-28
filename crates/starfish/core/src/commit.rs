@@ -22,6 +22,7 @@ use crate::{
         BlockHeaderAPI, BlockRef, BlockTimestampMs, GenericTransactionRef, Round, Slot,
         TransactionRef, VerifiedBlockHeader, VerifiedTransactions,
     },
+    context::Context,
     leader_scoring::ReputationScores,
     storage::Store,
 };
@@ -61,23 +62,56 @@ pub(crate) enum Commit {
 }
 
 impl Commit {
-    /// Create a new commit.
+    /// Create a new commit. The variant (V1 or V2) is determined by the
+    /// consensus_transaction_ref protocol flag.
     pub(crate) fn new(
+        context: &Arc<Context>,
         index: CommitIndex,
         previous_digest: CommitDigest,
         timestamp_ms: BlockTimestampMs,
         leader: BlockRef,
         blocks: Vec<BlockRef>,
-        committed_transactions: Vec<BlockRef>,
+        committed_transactions: Vec<GenericTransactionRef>,
     ) -> Self {
-        Commit::V1(CommitV1 {
-            index,
-            previous_digest,
-            timestamp_ms,
-            leader,
-            blocks,
-            committed_transactions,
-        })
+        if context.protocol_config.consensus_transaction_ref() {
+            // Extract TransactionRefs from GenericTransactionRef
+            let transaction_refs: Vec<TransactionRef> = committed_transactions
+                .into_iter()
+                .map(|gen_ref| match gen_ref {
+                    GenericTransactionRef::TransactionRef(tr) => tr,
+                    GenericTransactionRef::BlockRef(_) => {
+                        panic!("Expected TransactionRef when consensus_transaction_ref is enabled")
+                    }
+                })
+                .collect();
+            Commit::V2(CommitV2 {
+                index,
+                previous_digest,
+                timestamp_ms,
+                leader,
+                blocks,
+                committed_transactions: transaction_refs,
+            })
+        } else {
+            // Extract BlockRefs from GenericTransactionRef
+            let block_refs: Vec<BlockRef> = committed_transactions
+                .into_iter()
+                .map(|gen_ref| match gen_ref {
+                    GenericTransactionRef::BlockRef(br) => br,
+                    GenericTransactionRef::TransactionRef(_) => {
+                        panic!("Expected BlockRef when consensus_transaction_ref is disabled")
+                    }
+                })
+                .collect();
+            Commit::V1(CommitV1 {
+                index,
+                previous_digest,
+                timestamp_ms,
+                leader,
+                blocks,
+                committed_transactions: block_refs,
+            })
+        }
     }
 
     pub(crate) fn serialize(&self) -> Result<Bytes, bcs::Error> {
@@ -242,14 +276,16 @@ impl TrustedCommit {
 
     #[cfg(test)]
     pub(crate) fn new_for_test(
+        context: &Arc<crate::context::Context>,
         index: CommitIndex,
         previous_digest: CommitDigest,
         timestamp_ms: BlockTimestampMs,
         leader: BlockRef,
         blocks: Vec<BlockRef>,
-        committed_transactions: Vec<BlockRef>,
+        committed_transactions: Vec<GenericTransactionRef>,
     ) -> Self {
         let commit = Commit::new(
+            context,
             index,
             previous_digest,
             timestamp_ms,
@@ -931,9 +967,9 @@ mod tests {
     use std::sync::Arc;
 
     use crate::{
-        BlockHeaderAPI, BlockTimestampMs, CommitDigest, VerifiedBlockHeader,
-        block_header::{TestBlockHeader, VerifiedBlock},
-        commit::{CommitRange, TrustedCommit, WAVE_LENGTH, load_pending_subdag_from_store},
+        block_header::{
+            TestBlockHeader, VerifiedBlock, convert_block_refs_to_generic_transaction_refs,
+        },
         context::Context,
         encoder::create_encoder,
         storage::{Store, WriteBatch, mem_store::MemStore},
@@ -1023,13 +1059,22 @@ mod tests {
         let leader_block = leader.unwrap();
         let leader_ref = leader_block.reference();
         let commit_index = 1;
+
+        // Convert BlockRefs to GenericTransactionRefs based on protocol flag
+        let generic_committed_transactions = convert_block_refs_to_generic_transaction_refs(
+            &context,
+            store.as_ref(),
+            &first_round_references,
+        );
+
         let commit = TrustedCommit::new_for_test(
+            &context,
             commit_index,
             CommitDigest::MIN,
             leader_block.timestamp_ms(),
             leader_ref,
             blocks.clone(),
-            first_round_references.clone(),
+            generic_committed_transactions.clone(),
         );
 
         let subdag = load_pending_subdag_from_store(store.as_ref(), commit.clone(), vec![]);
@@ -1040,13 +1085,9 @@ mod tests {
             (num_authorities as u32 * WAVE_LENGTH) as usize + 1
         );
         assert_eq!(subdag.commit_ref, commit.reference());
-        let first_round_transactions_refs = first_round_references
-            .iter()
-            .map(|&br| GenericTransactionRef::from(br))
-            .collect::<Vec<_>>();
         assert_eq!(
             subdag.committed_transaction_refs,
-            first_round_transactions_refs
+            generic_committed_transactions
         );
         assert_eq!(subdag.reputation_scores_desc, vec![]);
         let transactions = store
@@ -1120,13 +1161,22 @@ mod tests {
         let leader_block = leader.unwrap();
         let leader_ref = leader_block.reference();
         let commit_index = 1;
+
+        // Convert BlockRefs to GenericTransactionRefs based on protocol flag
+        let generic_committed_transactions = convert_block_refs_to_generic_transaction_refs(
+            &context,
+            store.as_ref(),
+            &first_round_references,
+        );
+
         let commit = TrustedCommit::new_for_test(
+            &context,
             commit_index,
             CommitDigest::MIN,
             leader_block.timestamp_ms(),
             leader_ref,
             blocks.clone(),
-            first_round_references.clone(),
+            generic_committed_transactions.clone(),
         );
 
         let pending_subdag = load_pending_subdag_from_store(store.as_ref(), commit.clone(), vec![]);
@@ -1137,13 +1187,9 @@ mod tests {
             (num_authorities as u32 * WAVE_LENGTH) as usize + 1
         );
         assert_eq!(pending_subdag.commit_ref, commit.reference());
-        let first_round_transactions_refs = first_round_references
-            .iter()
-            .map(|&br| GenericTransactionRef::from(br))
-            .collect::<Vec<_>>();
         assert_eq!(
             pending_subdag.committed_transaction_refs,
-            first_round_transactions_refs
+            generic_committed_transactions
         );
         assert_eq!(pending_subdag.reputation_scores_desc, vec![]);
     }

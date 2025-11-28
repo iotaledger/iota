@@ -2160,6 +2160,7 @@ mod tests {
             let mut d = dag_state.write();
             for index in 1..=commit_index {
                 let commit = TrustedCommit::new_for_test(
+                    &context,
                     index,
                     CommitDigest::MIN,
                     0,

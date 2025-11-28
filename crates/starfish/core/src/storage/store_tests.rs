@@ -399,6 +399,7 @@ async fn read_and_scan_commits(
 
     let written_commits = vec![
         TrustedCommit::new_for_test(
+            &context,
             1,
             CommitDigest::MIN,
             1,
@@ -411,6 +412,7 @@ async fn read_and_scan_commits(
             vec![],
         ),
         TrustedCommit::new_for_test(
+            &context,
             2,
             CommitDigest::MIN,
             2,
@@ -423,6 +425,7 @@ async fn read_and_scan_commits(
             vec![],
         ),
         TrustedCommit::new_for_test(
+            &context,
             3,
             CommitDigest::MIN,
             3,
@@ -435,6 +438,7 @@ async fn read_and_scan_commits(
             vec![],
         ),
         TrustedCommit::new_for_test(
+            &context,
             4,
             CommitDigest::MIN,
             4,

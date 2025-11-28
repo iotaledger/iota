@@ -2320,6 +2320,8 @@ impl ProtocolConfig {
                     // Enable committing transactions only for traversed headers in Starfish
                     cfg.feature_flags
                         .consensus_commit_transactions_only_for_traversed_headers = true;
+                    // Enable TransactionRef in commits instead of BlockRef
+                    cfg.feature_flags.consensus_transaction_ref = true;
                 }
                 // Use this template when making changes:
                 //

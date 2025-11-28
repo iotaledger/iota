@@ -472,6 +472,37 @@ impl GenericTransactionRef {
     }
 }
 
+/// Helper function to convert BlockRefs to GenericTransactionRefs based on
+/// protocol flag.
+pub(crate) fn convert_block_refs_to_generic_transaction_refs(
+    context: &Arc<Context>,
+    store: &dyn crate::storage::Store,
+    block_refs: &[BlockRef],
+) -> Vec<GenericTransactionRef> {
+    if context.protocol_config.consensus_transaction_ref() {
+        // Fetch headers to get transactions_commitment for TransactionRef
+        let headers = store.read_verified_block_headers(block_refs).unwrap();
+        block_refs
+            .iter()
+            .enumerate()
+            .map(|(idx, block_ref)| {
+                let header = headers[idx].as_ref().unwrap();
+                GenericTransactionRef::TransactionRef(TransactionRef {
+                    round: block_ref.round,
+                    author: block_ref.author,
+                    transactions_commitment: header.transactions_commitment(),
+                    block_digest: block_ref.digest,
+                })
+            })
+            .collect()
+    } else {
+        block_refs
+            .iter()
+            .map(|br| GenericTransactionRef::BlockRef(*br))
+            .collect()
+    }
+}
+
 /// Digest of a `VerifiedBlockHeader` or verified `SignedBlockHeader`, which
 /// covers the `BlockHeader` and its signature.
 ///

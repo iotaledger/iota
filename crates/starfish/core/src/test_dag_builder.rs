@@ -306,6 +306,7 @@ impl DagBuilder {
             }
 
             let commit = TrustedCommit::new_for_test(
+                &self.context,
                 last_commit_ref.index + 1,
                 last_commit_ref.digest,
                 last_timestamp_ms,
