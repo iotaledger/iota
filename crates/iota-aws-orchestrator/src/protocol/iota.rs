@@ -333,6 +333,9 @@ impl ProtocolCommands<IotaBenchmarkType> for IotaProtocol {
                 let command = [
                     "source $HOME/.cargo/env",
                     "export RUSTFLAGS='-C target-cpu=native'",
+                    // required for stress binary, otherwise it will use the CARGO_MANIFEST_DIR,
+                    // which is set during compilation time
+                    "export MOVE_EXAMPLES_DIR=$(pwd)/examples/move",
                     &run,
                 ]
                 .join(" && ");
