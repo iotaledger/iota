@@ -52,13 +52,12 @@ fun account_fails_verification() {
 
         let signature: vector<u8> = b"32";
         let auth_context = create_auth_context_for_testing(account_address, 500, scenario.ctx());
-        let proof = spending_limit::authenticate(
+        spending_limit::authenticate(
             &account,
             hex::encode(signature),
             &auth_context,
             scenario.ctx(),
         );
-        spending_limit::destroy_withdraw_proof_for_testing(proof);
         test_scenario::return_shared(account);
     };
 
@@ -89,14 +88,12 @@ fun only_account_can_authenticate() {
 
         let signature: vector<u8> = b"32";
         let auth_context = create_auth_context_for_testing(account_address, 1001, &test_ctx);
-        let proof = spending_limit::authenticate(
+        spending_limit::authenticate(
             &account,
             hex::encode(signature),
             &auth_context,
             scenario.ctx(),
         );
-
-        spending_limit::destroy_withdraw_proof_for_testing(proof);
 
         test_scenario::return_shared(account);
     };
@@ -123,13 +120,12 @@ fun account_spending_limit_exceeded() {
         let auth_context = create_auth_context_for_testing(account_address, 1001, &test_ctx);
 
         // Try to spend 1001, which exceeds limit of 1000
-        let proof = spending_limit::authenticate(
+        spending_limit::authenticate(
             &account,
             hex::encode(signature),
             &auth_context,
             &test_ctx,
         );
-        spending_limit::destroy_withdraw_proof_for_testing(proof);
 
         test_scenario::return_shared(account);
     };
@@ -162,13 +158,15 @@ fun account_within_spending_limit() {
             x"474686f447a998ccc6824bb05e69133de41b59999944e494a3ff5504abd9af86403aa7c240ac51d1d48e0b34a560ca7ee4542e25cfd7b090e4652dfb53941a04";
         let auth_context = create_auth_context_for_testing(account_address, 1000, &test_ctx);
 
-        let proof = spending_limit::authenticate(
+        let amount = spending_limit::authenticate(
             &account,
             hex::encode(signature),
             &auth_context,
             &test_ctx,
         );
-        spending_limit::destroy_withdraw_proof_for_testing(proof);
+
+        //checking that the correct amount was retrieved
+        assert_eq!(amount, 1000);
 
         test_scenario::return_shared(account);
     };
@@ -194,13 +192,12 @@ fun account_zero_spending() {
             x"cce72947906dbae4c166fc01fd096432784032be43db540909bc901dbc057992b4d655ca4f4355cf0868e1266baacf6919902969f063e74162f8f04bc4056105";
         let auth_context = create_auth_context_for_testing(account_address, 0, &test_ctx);
         // Spend 0 (should always pass)
-        let proof = spending_limit::authenticate(
+        spending_limit::authenticate(
             &account,
             hex::encode(signature),
             &auth_context,
             &test_ctx,
         );
-        spending_limit::destroy_withdraw_proof_for_testing(proof);
 
         test_scenario::return_shared(account);
     };
@@ -209,7 +206,6 @@ fun account_zero_spending() {
 }
 
 #[test]
-#[expected_failure(abort_code = spending_limit::EUnauthorizedWithdrawCall)]
 fun test_missing_withdraw_call() {
     let mut scenario_val = test_scenario::begin(@0x0);
     let scenario = &mut scenario_val;
@@ -228,13 +224,14 @@ fun test_missing_withdraw_call() {
         // AuthContext without withdraw_call
         let auth_context = auth_context::new_with_tx_inputs(*test_ctx.digest(), vector[], vector[]);
 
-        let proof = spending_limit::authenticate(
+        let amount = spending_limit::authenticate(
             &account,
             hex::encode(signature),
             &auth_context,
             &test_ctx,
         );
-        spending_limit::destroy_withdraw_proof_for_testing(proof);
+        //checking that no amount was retrieved
+        assert_eq!(amount, 0);
 
         test_scenario::return_shared(account);
     };
@@ -265,13 +262,14 @@ fun test_multiple_withdraw_calls_within_limit() {
             &test_ctx,
         );
 
-        let proof = spending_limit::authenticate(
+        let amount = spending_limit::authenticate(
             &account,
             hex::encode(signature),
             &auth_context,
             &test_ctx,
         );
-        spending_limit::destroy_withdraw_proof_for_testing(proof);
+        //checking that the correct amount was retrieved
+        assert_eq!(amount, 2500);
 
         test_scenario::return_shared(account);
     };
@@ -301,13 +299,15 @@ fun test_multiple_withdraw_calls_at_limit() {
             &test_ctx,
         );
 
-        let proof = spending_limit::authenticate(
+        let amount = spending_limit::authenticate(
             &account,
             hex::encode(signature),
             &auth_context,
             &test_ctx,
         );
-        spending_limit::destroy_withdraw_proof_for_testing(proof);
+
+        //checking that the correct amount was retrieved
+        assert_eq!(amount, 3000);
 
         test_scenario::return_shared(account);
     };
@@ -338,13 +338,12 @@ fun test_multiple_withdraw_calls_over_limit() {
             &test_ctx,
         );
 
-        let proof = spending_limit::authenticate(
+        spending_limit::authenticate(
             &account,
             hex::encode(signature),
             &auth_context,
             &test_ctx,
         );
-        spending_limit::destroy_withdraw_proof_for_testing(proof);
 
         test_scenario::return_shared(account);
     };
@@ -352,7 +351,6 @@ fun test_multiple_withdraw_calls_over_limit() {
 }
 
 #[test]
-#[expected_failure(abort_code = spending_limit::EUnauthorizedWithdrawCall)]
 fun test_withdraw_call_wrong_account() {
     let mut scenario_val = test_scenario::begin(@0x0);
     let scenario = &mut scenario_val;
@@ -372,14 +370,15 @@ fun test_withdraw_call_wrong_account() {
         let wrong_address = @0x9999;
         let auth_context = create_auth_context_for_testing(wrong_address, 500, &test_ctx);
 
-        let proof = spending_limit::authenticate(
+        let amount = spending_limit::authenticate(
             &account,
             hex::encode(signature),
             &auth_context,
             &test_ctx,
         );
-        spending_limit::destroy_withdraw_proof_for_testing(proof);
 
+        //checking that no amount was retrieved
+        assert_eq!(amount, 0);
         test_scenario::return_shared(account);
     };
 
@@ -387,7 +386,6 @@ fun test_withdraw_call_wrong_account() {
 }
 
 #[test]
-#[expected_failure(abort_code = spending_limit::EUnauthorizedWithdrawCall)]
 fun test_withdraw_call_wrong_package_id() {
     let mut scenario_val = test_scenario::begin(@0x0);
     let scenario = &mut scenario_val;
@@ -428,13 +426,14 @@ fun test_withdraw_call_wrong_package_id() {
 
         let auth_context = auth_context::new_with_tx_inputs(*test_ctx.digest(), inputs, commands);
 
-        let proof = spending_limit::authenticate(
+        let amount = spending_limit::authenticate(
             &account,
             hex::encode(signature),
             &auth_context,
             &test_ctx,
         );
-        spending_limit::destroy_withdraw_proof_for_testing(proof);
+        //checking that no amount was retrieved
+        assert_eq!(amount, 0);
 
         test_scenario::return_shared(account);
     };
@@ -442,7 +441,6 @@ fun test_withdraw_call_wrong_package_id() {
 }
 
 #[test]
-#[expected_failure(abort_code = spending_limit::EUnauthorizedWithdrawCall)]
 fun test_withdraw_call_wrong_module() {
     let mut scenario_val = test_scenario::begin(@0x0);
     let scenario = &mut scenario_val;
@@ -483,13 +481,15 @@ fun test_withdraw_call_wrong_module() {
 
         let auth_context = auth_context::new_with_tx_inputs(*test_ctx.digest(), inputs, commands);
 
-        let proof = spending_limit::authenticate(
+        let amount = spending_limit::authenticate(
             &account,
             hex::encode(signature),
             &auth_context,
             &test_ctx,
         );
-        spending_limit::destroy_withdraw_proof_for_testing(proof);
+
+        //checking that no amount was retrieved
+        assert_eq!(amount, 0);
 
         test_scenario::return_shared(account);
     };
@@ -497,7 +497,6 @@ fun test_withdraw_call_wrong_module() {
 }
 
 #[test]
-#[expected_failure(abort_code = spending_limit::EUnauthorizedWithdrawCall)]
 fun test_withdraw_call_wrong_function() {
     let mut scenario_val = test_scenario::begin(@0x0);
     let scenario = &mut scenario_val;
@@ -538,13 +537,15 @@ fun test_withdraw_call_wrong_function() {
 
         let auth_context = auth_context::new_with_tx_inputs(*test_ctx.digest(), inputs, commands);
 
-        let proof = spending_limit::authenticate(
+        let amount = spending_limit::authenticate(
             &account,
             hex::encode(signature),
             &auth_context,
             &test_ctx,
         );
-        spending_limit::destroy_withdraw_proof_for_testing(proof);
+
+        //checking that no amount was retrieved
+        assert_eq!(amount, 0);
 
         test_scenario::return_shared(account);
     };
@@ -591,14 +592,12 @@ fun test_withdraw_invalid_bcs_amount() {
         let commands = vector[command];
 
         let auth_context = auth_context::new_with_tx_inputs(*test_ctx.digest(), inputs, commands);
-
-        let proof = spending_limit::authenticate(
+        spending_limit::authenticate(
             &account,
             hex::encode(signature),
             &auth_context,
             &test_ctx,
         );
-        spending_limit::destroy_withdraw_proof_for_testing(proof);
 
         test_scenario::return_shared(account);
     };

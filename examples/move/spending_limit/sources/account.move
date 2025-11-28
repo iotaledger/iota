@@ -36,12 +36,9 @@ use std::type_name::{get, get_address};
 const EInsufficientBalanceReserve: vector<u8> = b"Insufficient balance reserve.";
 
 #[error(code = 1)]
-const EUnauthorizedWithdrawCall: vector<u8> = b"Unauthorized withdraw_from_balance call.";
-
-#[error(code = 2)]
 const ETransactionSenderIsNotTheAccount: vector<u8> = b"Transaction must be signed by the account.";
 
-#[error(code = 3)]
+#[error(code = 2)]
 const EInvalidAmount: vector<u8> = b"Invalid amount in withdraw command.";
 
 // === Constants ===
@@ -58,12 +55,6 @@ public struct BalanceReserveKey has copy, drop, store {}
 public struct BalanceReserve has store {
     balance: Balance<IOTA>,
 }
-
-public struct WithdrawProof {
-    account_id: ID,
-    amount: u64,
-}
-
 // === Events ===
 
 // === Method Aliases ===
@@ -106,30 +97,22 @@ public fun authenticate(
     signature: vector<u8>,
     auth_ctx: &AuthContext,
     ctx: &TxContext,
-): WithdrawProof {
+): u64 {
     owner_public_key::authenticate_ed25519(&account.id, signature, ctx.digest());
 
     let total_amount = validate_and_calculate_withdrawals(auth_ctx, ctx);
-    assert!(total_amount > 0, EUnauthorizedWithdrawCall);
 
     spending_limit::authenticate_with_amount(&account.id, total_amount);
 
-    WithdrawProof {
-        account_id: object::id(account),
-        amount: total_amount,
-    }
+    total_amount
 }
 
 public fun withdraw_from_balance_reserve(
     self: &mut SpendLimit,
-    proof: WithdrawProof,
+    amount: u64,
     ctx: &mut TxContext,
-): Coin<iota::iota::IOTA> {
-
+): Coin<IOTA> {
     // Consume and validate proof
-    let WithdrawProof { account_id, amount } = proof;
-    assert!(object::id(self) == account_id, EUnauthorizedWithdrawCall);
-
     let reserve: &mut BalanceReserve = borrow_field_mut(
         self,
         BalanceReserveKey {},
@@ -144,7 +127,10 @@ public fun withdraw_from_balance_reserve(
 // Validates withdraw calls and calculates total withdrawal amount.
 // Returns the total amount from all valid withdraw commands.
 // Returns 0 if no valid withdraw commands are found.
-public(package) fun validate_and_calculate_withdrawals(auth_ctx: &AuthContext, ctx: &TxContext): u64 {
+public(package) fun validate_and_calculate_withdrawals(
+    auth_ctx: &AuthContext,
+    ctx: &TxContext,
+): u64 {
     let commands = tx_commands(auth_ctx);
     let inputs = tx_inputs(auth_ctx);
     let mut total_amount = 0u64;
@@ -325,8 +311,3 @@ public fun authenticator_info(account: &SpendLimit): &AuthenticatorInfoV1 {
 // Useless function to test withdrawals in programmable transactions calling this function instead of withdraw_from_balance_reserve.
 #[test_only]
 public fun random_function_that_does_nothing(_number: u16) {}
-
-#[test_only]
-public fun destroy_withdraw_proof_for_testing(proof: WithdrawProof) {
-    let WithdrawProof { account_id: _, amount: _ } = proof;
-}
