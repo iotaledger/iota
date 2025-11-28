@@ -643,6 +643,60 @@ impl Loader<DigestKey> for Db {
     }
 }
 
+impl Loader<SeqKey> for Db {
+    type Value = TransactionBlock;
+    type Error = Error;
+
+    async fn load(&self, keys: &[SeqKey]) -> Result<HashMap<SeqKey, TransactionBlock>, Error> {
+        use transactions::dsl as tx;
+
+        let tx_seqs = keys
+            .iter()
+            .map(|k| k.tx_sequence_number as i64)
+            .collect::<Vec<_>>();
+        let transactions: Vec<StoredTransaction> = self
+            .execute(move |conn| {
+                conn.results(|| {
+                    tx::transactions
+                        .select(StoredTransaction::as_select())
+                        .filter(tx::tx_sequence_number.eq_any(tx_seqs.clone()))
+                })
+            })
+            .await
+            .map_err(|e| Error::Internal(format!("Failed to fetch transactions: {e}")))?;
+
+        let seq_num_to_tx: HashMap<i64, StoredTransaction> = transactions
+            .into_iter()
+            .map(|tx| (tx.tx_sequence_number, tx))
+            .collect();
+
+        let mut results = HashMap::new();
+        for key in keys {
+            let Some(stored) = seq_num_to_tx.get(&(key.tx_sequence_number as i64)) else {
+                continue;
+            };
+
+            let checkpoint_viewed_at =
+                if key.checkpoint_viewed_at < stored.checkpoint_sequence_number as u64 {
+                    // Disable usage as a cursor, as the checkpoint is not in the available range
+                    UNAVAILABLE_CHECKPOINT_SEQUENCE_NUMBER
+                } else {
+                    key.checkpoint_viewed_at
+                };
+
+            results.insert(
+                *key,
+                TransactionBlock {
+                    inner: TransactionBlockInner::try_from(stored.clone())?,
+                    checkpoint_viewed_at,
+                },
+            );
+        }
+
+        Ok(results)
+    }
+}
+
 impl TryFrom<StoredTransaction> for TransactionBlockInner {
     type Error = Error;
 
