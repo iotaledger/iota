@@ -125,14 +125,17 @@ impl ProtocolCommands<IotaBenchmarkType> for IotaProtocol {
         .filter(|s| !s.is_empty())
         .collect::<Vec<_>>()
         .join(" ");
-
-        [
+        let command = [
             &format!("mkdir -p {working_dir}"),
             "source $HOME/.cargo/env",
             "export RUSTFLAGS='-C target-cpu=native'",
             &genesis,
         ]
-        .join(" && ")
+        .join(" && ");
+
+        display::action(format!("\n Genesis Command: {command}"));
+
+        command
     }
 
     fn monitor_command<I>(&self, _instances: I) -> Vec<(Instance, String)>
@@ -199,7 +202,7 @@ impl ProtocolCommands<IotaBenchmarkType> for IotaProtocol {
                 ]
                 .join(" && ");
 
-                display::action(format!("\n Command ({i}): {command}"));
+                display::action(format!("\n Validator-node Command ({i}): {command}"));
 
                 (instance, command)
             })
@@ -255,7 +258,7 @@ impl ProtocolCommands<IotaBenchmarkType> for IotaProtocol {
                 ]
                 .join(" && ");
 
-                display::action(format!("\n Command ({i}): {command}"));
+                display::action(format!("\n Full-node Command ({i}): {command}"));
 
                 (instance, command)
             })
@@ -333,6 +336,8 @@ impl ProtocolCommands<IotaBenchmarkType> for IotaProtocol {
                     &run,
                 ]
                 .join(" && ");
+
+                display::action(format!("\n Stress Command ({i}): {command}"));
 
                 (instance, command)
             })
