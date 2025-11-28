@@ -387,8 +387,10 @@ impl StoredTransaction {
             };
             let tx_events = TransactionEvents { data: events };
 
-            tx_events_to_iota_tx_events(tx_events, package_resolver, tx_digest, timestamp_ms)
-                .await?
+            Some(
+                tx_events_to_iota_tx_events(tx_events, package_resolver, tx_digest, timestamp_ms)
+                    .await?,
+            )
         } else {
             None
         };
@@ -509,7 +511,7 @@ pub async fn tx_events_to_iota_tx_events(
     package_resolver: Arc<Resolver<impl PackageStore>>,
     tx_digest: TransactionDigest,
     timestamp: Option<u64>,
-) -> Result<Option<IotaTransactionBlockEvents>, IndexerError> {
+) -> Result<IotaTransactionBlockEvents, IndexerError> {
     let mut iota_event_futures = vec![];
     let tx_events_data_len = tx_events.data.len();
     for tx_event in tx_events.data.clone() {
@@ -557,5 +559,5 @@ pub async fn tx_events_to_iota_tx_events(
         })
         .collect::<Result<Vec<_>, _>>()?;
     let iota_tx_events = IotaTransactionBlockEvents { data: iota_events };
-    Ok(Some(iota_tx_events))
+    Ok(iota_tx_events)
 }
