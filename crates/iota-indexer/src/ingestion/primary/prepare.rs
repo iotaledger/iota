@@ -381,8 +381,7 @@ impl PrimaryWorker {
             transaction: sender_signed_data,
             effects: fx,
             events,
-            input_objects: _,
-            output_objects: _,
+            ..
         } = tx;
 
         let tx_digest = sender_signed_data.digest();
