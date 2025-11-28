@@ -334,12 +334,7 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
         // Check if build cache is enabled
         if self.settings.build_cache_enabled() {
             display::action("Using build cache for binary distribution");
-            self.update_with_build_cache(
-                self.settings.build_cache_server.as_ref().unwrap(),
-                commit,
-                &binaries,
-            )
-            .await?;
+            self.update_with_build_cache(commit, &binaries).await?;
         } else {
             self.update_with_local_build(&binaries).await?;
         }
@@ -359,52 +354,86 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
             return Ok(HashMap::new());
         }
 
-        display::action("Verifying all instances are x86_64 architecture");
+        display::action("Detecting architecture for all instances");
 
         let context = CommandContext::new();
         let command = "uname -m".to_string();
 
-        let results = self
+        let arch_results = self
             .ssh_manager
             .execute(instances_needing_binaries.clone(), command, context)
             .await?;
 
-        // Verify all instances are x86_64 architecture
-        for (i, (stdout, _stderr)) in results.iter().enumerate() {
+        // Group instances by architecture first
+        let mut x86_instances = Vec::new();
+        let mut aarch64_instances = Vec::new();
+
+        for (i, (stdout, _stderr)) in arch_results.iter().enumerate() {
             let instance = &instances_needing_binaries[i];
             let arch = stdout.trim();
 
-            // Ensure only x86_64 architecture is used, because the build cache server
-            // currently only supports x86_64 binaries.
-            if arch != "x86_64" {
-                panic!(
-                    "Instance {} has unsupported architecture '{}'. Only x86_64 is supported.",
-                    instance.ssh_address(),
-                    arch
-                );
+            match arch {
+                "x86_64" => x86_instances.push(instance.clone()),
+                "aarch64" => aarch64_instances.push(instance.clone()),
+                _ => {
+                    return Err(crate::error::TestbedError::BuildCacheError(
+                        BuildCacheError::Cache(format!(
+                            "Instance {} has unsupported architecture '{}'. Only x86_64 and aarch64 are supported.",
+                            instance.ssh_address(),
+                            arch
+                        )),
+                    ));
+                }
             }
         }
 
-        display::action("Detecting CPU targets for all instances");
-
-        let context = CommandContext::new();
-        let command = "cat /proc/cpuinfo".to_string();
-
-        let results = self
-            .ssh_manager
-            .execute(instances_needing_binaries.clone(), command, context)
-            .await?;
-
-        // Detect the x86-64 target from /proc/cpuinfo
         let mut cpu_to_instances: HashMap<String, Vec<Instance>> = HashMap::new();
-        for (i, (stdout, _stderr)) in results.iter().enumerate() {
-            let instance = &instances_needing_binaries[i];
-            let cpu_target = detect_x86_64_tier_from_cpuinfo(stdout.trim());
 
-            cpu_to_instances
-                .entry(cpu_target.to_string())
-                .or_default()
-                .push(instance.clone());
+        // Handle x86_64 instances - detect CPU tier from /proc/cpuinfo
+        if !x86_instances.is_empty() {
+            display::action("Detecting x86_64 CPU targets");
+
+            let context = CommandContext::new();
+            let command = "cat /proc/cpuinfo".to_string();
+
+            let results = self
+                .ssh_manager
+                .execute(x86_instances.clone(), command, context)
+                .await?;
+
+            for (i, (stdout, _stderr)) in results.iter().enumerate() {
+                let instance = &x86_instances[i];
+                let cpu_target = detect_x86_64_tier_from_cpuinfo(stdout.trim());
+
+                cpu_to_instances
+                    .entry(cpu_target.to_string())
+                    .or_default()
+                    .push(instance.clone());
+            }
+        }
+
+        // Handle aarch64 instances - use rustc to detect native CPU target
+        if !aarch64_instances.is_empty() {
+            display::action("Detecting aarch64 CPU targets using rustc");
+
+            let context = CommandContext::new();
+            let command = "source \"$HOME/.cargo/env\" && rustc --print target-cpus".to_string();
+
+            let results = self
+                .ssh_manager
+                .execute(aarch64_instances.clone(), command, context)
+                .await?;
+
+            for (i, (stdout, _stderr)) in results.iter().enumerate() {
+                let instance = &aarch64_instances[i];
+                let cpu_target = parse_cpu_target_from_rustc_output(stdout.trim())
+                    .unwrap_or_else(|| "generic".to_string()); // fallback to generic
+
+                cpu_to_instances
+                    .entry(cpu_target)
+                    .or_default()
+                    .push(instance.clone());
+            }
         }
 
         // Display detected CPU targets
@@ -426,7 +455,6 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
     /// Update instances using build cache
     async fn update_with_build_cache(
         &self,
-        build_config: &crate::settings::BuildCacheServer,
         commit: &str,
         binaries: &[String],
     ) -> TestbedResult<()> {
@@ -437,10 +465,20 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
             return Ok(());
         }
 
+        // Take the first available build cache server to resolve the commit
+        let cache_server = self
+            .settings
+            .build_cache
+            .as_ref()
+            .and_then(|cache| cache.servers.values().next())
+            .ok_or_else(|| {
+                BuildCacheError::Cache("No build cache servers configured".to_string())
+            })?;
+
         let cache_client = BuildCacheClient::with_credentials(
-            build_config.url.as_str(),
-            build_config.username.clone(),
-            build_config.password.clone(),
+            cache_server.url.as_str(),
+            cache_server.username.clone(),
+            cache_server.password.clone(),
         )
         .map_err(|e| BuildCacheError::Cache(format!("Invalid server URL: {e}")))?;
 
@@ -460,9 +498,27 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
 
         // Process each CPU target group
         for (cpu_target, instances) in &cpu_to_instances {
+            // Get the build cache config for this CPU target
+            let cache_server = self.settings.build_cache_server_for_target(cpu_target)
+                .ok_or_else(|| BuildCacheError::Cache(format!(
+                    "No build cache server configured for CPU target '{cpu_target}' (needed for {} instances). \
+                     Please add a server configuration that includes '{cpu_target}' in its targets list.",
+                    instances.len()
+                )))?;
+
             display::action(format!(
-                "Updating builds for commit {resolved_commit} (CPU target: {cpu_target})",
+                "Updating builds for commit {resolved_commit} (CPU target: {cpu_target}) using server {}",
+                cache_server.url
             ));
+
+            let cache_client = BuildCacheClient::with_credentials(
+                cache_server.url.as_str(),
+                cache_server.username.clone(),
+                cache_server.password.clone(),
+            )
+            .map_err(|e| {
+                BuildCacheError::Cache(format!("Invalid server URL for {cpu_target}: {e}"))
+            })?;
 
             // Check if binaries are available for this CPU target
             let cache_response = cache_client
@@ -543,7 +599,7 @@ else \
     exit 1; \
   fi; \
 fi"#,
-                    build_config.url, build_config.url
+                    cache_server.url, cache_server.url
                 );
 
                 display::action(format!(
@@ -973,4 +1029,24 @@ fn detect_x86_64_tier_from_cpuinfo(cpuinfo_content: &str) -> &'static str {
         // Baseline x86-64 (assume any x86_64 CPU supports this)
         "x86-64"
     }
+}
+
+/// Parse CPU target from rustc --print target-cpus output
+fn parse_cpu_target_from_rustc_output(output: &str) -> Option<String> {
+    // Parse the output to extract the native CPU info
+    // Looking for a line like:
+    // " native - Select the CPU of the current host (currently apple-m4)."
+    for line in output.lines() {
+        if line.trim().starts_with("native") && line.contains("(currently") {
+            // Extract the CPU name from "(currently cpu-name)"
+            if let Some(start) = line.find("(currently ") {
+                let cpu_part = &line[start + 11..]; // Skip "(currently "
+                if let Some(end) = cpu_part.find(')') {
+                    let cpu_name = cpu_part[..end].trim();
+                    return Some(cpu_name.to_string());
+                }
+            }
+        }
+    }
+    None
 }

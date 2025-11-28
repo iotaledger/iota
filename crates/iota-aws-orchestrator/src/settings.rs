@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
+    collections::HashMap,
     env,
     fmt::Display,
     fs::{self},
@@ -44,11 +45,12 @@ pub enum CloudProvider {
     Aws,
 }
 
-/// Configuration for the optional build cache server.
+/// Configuration for a build cache server that supports multiple CPU targets.
 #[derive(Deserialize, Clone)]
 pub struct BuildCacheServer {
-    /// Whether to enable the build cache.
-    pub enabled: bool,
+    /// List of CPU targets this server supports (e.g., ["x86-64", "x86-64-v2",
+    /// "x86-64-v3"]).
+    pub targets: Vec<String>,
     /// The base URL of the build cache server (e.g., "http://192.168.1.100:8080").
     pub url: String,
     /// Optional username for basic authentication.
@@ -57,6 +59,15 @@ pub struct BuildCacheServer {
     /// Optional password for basic authentication.
     #[serde(default)]
     pub password: Option<String>,
+}
+
+/// Configuration for the optional build cache.
+#[derive(Deserialize, Clone)]
+pub struct BuildCache {
+    /// Whether to enable the build cache.
+    pub enabled: bool,
+    /// Named build cache server configurations.
+    pub servers: HashMap<String, BuildCacheServer>,
 }
 
 /// The testbed settings. Those are topically specified in a file.
@@ -89,9 +100,9 @@ pub struct Settings {
     pub client_specs: String,
     /// Region to deploy the metrics instance.
     pub metrics_specs: String,
-    /// Optional build cache server configuration.
-    pub build_cache_server: Option<BuildCacheServer>,
-    /// The details of the git reposit to deploy.
+    /// Optional build cache configuration.
+    pub build_cache: Option<BuildCache>,
+    /// The details of the git repository to deploy.
     pub repository: Repository,
     /// The working directory on the remote instance (containing all
     /// configuration files).
@@ -188,10 +199,25 @@ impl Settings {
 
     /// Check if the build cache is enabled.
     pub fn build_cache_enabled(&self) -> bool {
-        self.build_cache_server
+        self.build_cache
             .as_ref()
             .map(|b| b.enabled)
             .unwrap_or(false)
+    }
+
+    /// Get the build cache server configuration for a specific CPU target.
+    pub fn build_cache_server_for_target(&self, cpu_target: &str) -> Option<&BuildCacheServer> {
+        self.build_cache.as_ref().and_then(|build_cache| {
+            if build_cache.enabled {
+                // Find a server that supports this CPU target
+                build_cache
+                    .servers
+                    .values()
+                    .find(|server| server.targets.contains(&cpu_target.to_string()))
+            } else {
+                None
+            }
+        })
     }
 
     /// The number of regions specified in the settings.
@@ -220,11 +246,21 @@ impl Settings {
             node_specs: "small".into(),
             client_specs: "small".into(),
             metrics_specs: "small".into(),
-            build_cache_server: Some(BuildCacheServer {
+            build_cache: Some(BuildCache {
                 enabled: false,
-                url: "http://127.0.0.1:8080".into(),
-                username: None,
-                password: None,
+                servers: HashMap::from([(
+                    "x86_server".to_string(),
+                    BuildCacheServer {
+                        url: "http://127.0.0.1:8080".into(),
+                        username: None,
+                        password: None,
+                        targets: vec![
+                            "x86-64".to_string(),
+                            "x86-64-v2".to_string(),
+                            "x86-64-v3".to_string(),
+                        ],
+                    },
+                )]),
             }),
             repository: Repository {
                 url: Url::parse("https://example.net/author/repo").unwrap(),

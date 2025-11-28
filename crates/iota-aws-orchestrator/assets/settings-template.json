@@ -9,9 +9,20 @@
     "metrics_specs": "m5d.8xlarge",
     "build_cache_server": {
         "enabled": true,
-        "url": "http://localhost:8080",
-        "username": "",
-        "password": ""
+        "servers": {
+            "x86_server": {
+                "targets": ["x86-64", "x86-64-v2", "x86-64-v3"],
+                "url": "http://localhost:8080",
+                "username": "",
+                "password": ""
+            },
+            "arm_server": {
+                "targets": ["aarch64"],
+                "url": "http://localhost:8081",
+                "username": "",
+                "password": ""
+            }
+        }
     },
     "repository": {
         "url": "https://github.com/iotaledger/iota.git",
