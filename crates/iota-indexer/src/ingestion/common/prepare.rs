@@ -63,29 +63,27 @@ impl<'chk> Extractor<'chk> {
 
 /// If `o` is a dynamic `Field<K, V>`, determine whether it represents a Dynamic
 /// Field or a Dynamic Object Field based on its type.
-pub(crate) fn try_extract_df_kind(o: &Object) -> IndexerResult<Option<DynamicFieldType>> {
+pub(crate) fn extract_df_kind(o: &Object) -> Option<DynamicFieldType> {
     // Skip if not a move object
-    let Some(move_object) = o.data.try_as_move() else {
-        return Ok(None);
-    };
+    let move_object = o.data.try_as_move()?;
 
     if !move_object.type_().is_dynamic_field() {
-        return Ok(None);
+        return None;
     }
 
     let type_: StructTag = move_object.type_().clone().into();
     let [name, _] = type_.type_params.as_slice() else {
-        return Ok(None);
+        return None;
     };
 
-    Ok(Some(
+    Some(
         if matches!(name, TypeTag::Struct(s) if DynamicFieldInfo::is_dynamic_object_field_wrapper(s))
         {
             DynamicFieldType::DynamicObject
         } else {
             DynamicFieldType::DynamicField
         },
-    ))
+    )
 }
 
 /// Represent an object that is live at a certain snapshot
@@ -103,7 +101,7 @@ impl LiveObject {
         transaction_digest: TransactionDigest,
         object: Object,
     ) -> IndexerResult<Self> {
-        let df_kind = try_extract_df_kind(&object)?;
+        let df_kind = extract_df_kind(&object);
         let indexed_object =
             IndexedObject::from_object(checkpoint_sequence_number, object, df_kind);
         Ok(Self {
