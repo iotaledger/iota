@@ -1,7 +1,7 @@
 // Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-// simple authentication using abstract account
+// several authenticators in 1 module
 
 //# init --addresses test=0x0 --accounts A
 
@@ -34,6 +34,16 @@ public fun create(
 
 #[authenticator]
 public fun authenticate_hello_world(
+    _account: &AbstractAccount,
+    msg: ascii::String,
+    _auth_ctx: &AuthContext,
+    _ctx: &TxContext,
+) {
+    assert!(msg == ascii::string(b"HelloWorld"), 0);
+}
+
+#[authenticator]
+public fun authenticate_hello_world2(
     _account: &AbstractAccount,
     msg: ascii::String,
     _auth_ctx: &AuthContext,

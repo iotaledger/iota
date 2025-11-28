@@ -1,7 +1,7 @@
 // Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-// simple authentication using abstract account
+// simple authentication using abstract account without `#[authenticator]` attribute
 
 //# init --addresses test=0x0 --accounts A
 
@@ -32,7 +32,6 @@ public fun create(
     account_address
 }
 
-#[authenticator]
 public fun authenticate_hello_world(
     _account: &AbstractAccount,
     msg: ascii::String,
@@ -47,13 +46,3 @@ public fun authenticate_hello_world(
 //> 1: test::abstract_account::create(Input(0), Result(0));
 //> 2: SplitCoins(Gas, [Input(4)]);
 //> 3: TransferObjects([Result(2)], Result(1));
-
-//# view-object 2,0
-
-//# view-object 2,2
-
-//# abstract --account immshared(2,2) --gas-payment 2,0 --auth-inputs "HelloWorld" --ptb-inputs 100 @A
-//> 0: SplitCoins(Gas, [Input(0)]);
-//> 1: TransferObjects([Result(0)], Input(1));
-
-//# view-object 5,0

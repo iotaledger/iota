@@ -54,7 +54,7 @@ use iota_types::{
         CheckpointContents, CheckpointContentsDigest, CheckpointSequenceNumber, VerifiedCheckpoint,
     },
     move_authenticator::MoveAuthenticator,
-    move_package::MovePackage,
+    move_package::{FnInfoMap, MovePackage, create_fn_info_map, fill_module_with_metadata},
     object::{self, GAS_VALUE_FOR_TESTING, Object, bounded_visitor::BoundedVisitor},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     signature::GenericSignature,
@@ -451,7 +451,7 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
 
     async fn publish_modules(
         &mut self,
-        modules: Vec<MaybeNamedCompiledModule>,
+        mut modules: Vec<MaybeNamedCompiledModule>,
         gas_budget: Option<u64>,
         extra: Self::ExtraPublishArgs,
     ) -> anyhow::Result<(Option<String>, Vec<MaybeNamedCompiledModule>)> {
@@ -462,6 +462,11 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
             dependencies,
             gas_price,
         } = extra;
+
+        let fn_info_map = fn_info_map(&modules);
+
+        fill_metadata(&mut modules, &fn_info_map);
+
         let named_addr_opt = modules.first().unwrap().named_address;
         let first_module_name = modules.first().unwrap().module.self_id().name().to_string();
         let modules_bytes = modules
@@ -547,8 +552,10 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
                 named_address: named_addr_opt,
                 module: CompiledModule::deserialize_with_defaults(published_module_bytes).unwrap(),
                 source_map: None,
+                function_infos: None,
             })
             .collect();
+
         Ok((output, published_modules))
     }
 
@@ -918,7 +925,7 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
                     command_lines_stop,
                     stop_line,
                     data,
-                    |adapter, modules| async {
+                    |adapter, mut modules| async {
                         // Restore the original package addresses for dependencies before performing the upgrade.
                         // This ensures package upgrades are properly linked at their correct addresses
                         // (previously, addresses referred to the dependency's original package for compilation).
@@ -929,6 +936,10 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
                                 .insert(name.to_string(), addr)
                                 .unwrap_or_else(|| panic!("Internal error: expected dependency {name} in map when restoring address."));
                         }
+
+                        let fn_info_map = fn_info_map(&modules);
+
+                        fill_metadata(&mut modules, &fn_info_map);
 
                         let upgraded_name = modules.first().unwrap().named_address.unwrap();
                         let package = &Symbol::from(package.as_str());
@@ -1058,6 +1069,7 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
                                         named_address: Some(*address_sym),
                                         module,
                                         source_map: None,
+                                        function_infos: None,
                                     }
                                 })
                                 .collect()
@@ -2663,5 +2675,25 @@ impl ReadStore for IotaTestAdapter {
         Option<iota_types::messages_checkpoint::FullCheckpointContents>,
     > {
         self.executor.try_get_full_checkpoint_contents(digest)
+    }
+}
+
+/// Create a function info map from the provided compiled modules
+fn fn_info_map(modules: &[MaybeNamedCompiledModule]) -> FnInfoMap {
+    let mut fn_info_map: FnInfoMap = BTreeMap::new();
+    for m in modules {
+        let mod_addr: AccountAddress = *m.module.self_id().address();
+        if let Some(fn_info) = &m.function_infos {
+            fn_info_map.extend(create_fn_info_map(mod_addr, false, &fn_info));
+        }
+    }
+
+    fn_info_map
+}
+
+/// Fill the compiled modules with metadata based on the function info map
+fn fill_metadata(modules: &mut [MaybeNamedCompiledModule], fn_info_map: &FnInfoMap) {
+    for m in modules.iter_mut() {
+        fill_module_with_metadata(&mut m.module, fn_info_map);
     }
 }
