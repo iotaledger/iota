@@ -476,9 +476,8 @@ pub mod test {
 
         // Register a second result (with positive latency). This sets the upper bound.
         let mut collection = MeasurementsCollection::new(&settings, second_parameters);
-        let measurement = Measurement::new_for_test();
-        let mut workload_map = HashMap::new();
-        workload_map.insert("transfer_object".to_string(), vec![measurement]);
+        let measurement = Measurement::new_for_test("transfer_object".to_string());
+        let workload_map = HashMap::from([("transfer_object".to_string(), vec![measurement])]);
         collection.scrapers.insert(1, workload_map);
         generator.register_result(collection);
 

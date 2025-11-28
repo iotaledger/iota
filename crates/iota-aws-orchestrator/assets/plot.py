@@ -376,7 +376,6 @@ class Plotter:
                     plot_lat_data += [(label, x_values, y_lat_values, e_values)]
 
         basename = os.path.basename(file)
-        print(basename)
         id = '-'.join(basename.split('-')[1:]).split('.')[0]
         self._plot(plot_tps_data, PlotType.INSPECT_TPS, plot_id=id)
         self._plot(plot_lat_data, PlotType.INSPECT_LATENCY, plot_id=id)

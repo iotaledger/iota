@@ -67,7 +67,7 @@ Plots the TPS, overall end-to-end latency, and end-to-end latency of different w
 
 ### Basic benchmark visualization
 
-Read and draw plots from file `measurements-30-0-4-*.json` and `measurements-50-0-4-*.json` in the `results/` directory. (The dafult value of `faults` is `0`)
+Read and draw plots from file `measurements-30-0-4-*.json` and `measurements-50-0-4-*.json` in the `results/` directory. (The default value of `faults` is `0`)
 
 ```bash
 ./run_plot.sh --dir results/ --shared-objects-ratio 30 50 --committee 4
@@ -75,7 +75,7 @@ Read and draw plots from file `measurements-30-0-4-*.json` and `measurements-50-
 
 ### Multiple committee sizes with latency constraints
 
-Read and draw plots from file `measurements-30-0-4-*.json`, `measurements-30-0-7-*.json` and `measurements-30-0-10-*.json` in the `results/` directory. (The dafult value of `faults` is `0`)
+Read and draw plots from file `measurements-30-0-4-*.json`, `measurements-30-0-7-*.json` and `measurements-30-0-10-*.json` in the `results/` directory. (The default value of `faults` is `0`)
 
 Set the maximum latency to 2s and 5s for scalability plots, and set the maximum latency to 10s for L-graphs.
 

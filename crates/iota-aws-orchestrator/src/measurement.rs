@@ -27,6 +27,7 @@ type BucketId = String;
 /// A snapshot measurement at a given time.
 #[derive(Serialize, Deserialize, Default, Clone)]
 pub struct Measurement {
+    /// The type of the workload, e.g. "transfer_object", "shared_counter".
     pub workload: String,
     /// Duration since the beginning of the benchmark.
     timestamp: Duration,
@@ -190,9 +191,9 @@ impl Measurement {
     }
 
     #[cfg(test)]
-    pub fn new_for_test() -> Self {
+    pub fn new_for_test(workload: String) -> Self {
         Self {
-            workload: "transfer_object".into(),
+            workload,
             timestamp: Duration::from_secs(30),
             buckets: HashMap::new(),
             sum: Duration::from_secs(1265),
@@ -253,7 +254,6 @@ impl<T: BenchmarkType> MeasurementsCollection<T> {
 
     /// Aggregate the benchmark duration of multiple data points by taking the
     /// max.
-    // FIXME: Not sure if duration comes with workload label or not
     pub fn benchmark_duration(&self) -> Duration {
         self.scrapers
             .values()
@@ -412,14 +412,14 @@ impl<T: BenchmarkType> MeasurementsCollection<T> {
         table.add_row(row![bH2->""]);
         table.add_row(row![b->"TPS:", format!("{total_tps} tx/s")]);
         for (workload, tps) in &workload_tps {
-            table.add_row(row![b->format!("  {} TPS:", workload), format!("{tps} tx/s")]);
+            table.add_row(row![b->format!("  {workload} TPS:"), format!("{tps} tx/s")]);
         }
         table.add_row(row![bH2->""]);
 
         table.add_row(row![b->"Latency (avg):", format!("{} ms", average_latency.as_millis())]);
         for (workload, latency) in &workload_latency {
             table.add_row(
-                row![b->format!("  {} Latency:", workload), format!("{} ms", latency.as_millis())],
+                row![b->format!("  {workload} Latency:" ), format!("{} ms", latency.as_millis())],
             );
         }
         table.add_row(row![bH2->""]);
@@ -427,7 +427,7 @@ impl<T: BenchmarkType> MeasurementsCollection<T> {
         table.add_row(row![b->"Latency (stdev):", format!("{} ms", stdev_latency.as_millis())]);
         for (workload, latency) in &workload_stdev_latency {
             table.add_row(
-                row![b->format!("  {} Latency:", workload), format!("{} ms", latency.as_millis())],
+                row![b->format!("  {workload} Latency:"), format!("{} ms", latency.as_millis())],
             );
         }
 
@@ -630,7 +630,7 @@ mod test {
 
         assert_eq!(aggregator.scrapers.len(), 1);
         let scraper_data = aggregator.scrapers.get(&scraper_id).unwrap();
-        assert_eq!(scraper_data.len(), 2); // Two workload
+        assert_eq!(scraper_data.len(), 2); // Two workloads
 
         let data_points = scraper_data.get("transfer_object").unwrap();
         assert_eq!(data_points.len(), 1);
