@@ -526,8 +526,8 @@ mod tests {
                 // from 2 rounds before the leader round
                 assert_eq!(subdag.committed_transaction_refs.len(), num_authorities);
             }
-            for header in subdag.headers.iter() {
-                assert!(header.round() <= leaders[idx].round());
+            for block_ref in subdag.base.committed_header_refs.iter() {
+                assert!(block_ref.round <= leaders[idx].round());
             }
 
             for committed_transactions_ref in subdag.committed_transaction_refs.iter() {
@@ -738,8 +738,8 @@ mod tests {
                 .collect::<Vec<_>>(),
             block_refs_wave_2
         );
-        for header in subdag.headers.iter() {
-            assert!(header.round() <= expected_second_commit.leader().round);
+        for block_ref in subdag.base.committed_header_refs.iter() {
+            assert!(block_ref.round <= expected_second_commit.leader().round);
         }
     }
 
@@ -883,8 +883,8 @@ mod tests {
                     assert_eq!(authors, (0..=3).map(AuthorityIndex::new_for_test).collect());
                 }
             }
-            for header in subdag.headers.iter() {
-                assert!(header.round() <= leaders[idx].round());
+            for block_ref in subdag.base.committed_header_refs.iter() {
+                assert!(block_ref.round <= leaders[idx].round());
             }
 
             for committed_transactions_ref in subdag.committed_transaction_refs.iter() {

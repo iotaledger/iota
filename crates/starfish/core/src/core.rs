@@ -2330,8 +2330,8 @@ mod test {
             let sub_dag_leader_round = sub_dag.leader.round;
             let CommittedSubDag { base, transactions } = sub_dag;
 
-            for header in &base.headers {
-                existing_headers.insert(header.reference());
+            for block_ref in &base.committed_header_refs {
+                existing_headers.insert(*block_ref);
             }
             all_traversed_headers.extend(base.headers.clone());
             for transaction in &transactions {

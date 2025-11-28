@@ -529,9 +529,9 @@ mod tests {
                 // committed subdag
                 assert_eq!(subdag.headers.len(), num_authorities);
             }
-            for block_header in subdag.headers.iter() {
-                expected_stored_refs.push(block_header.reference());
-                assert!(block_header.round() <= leaders[idx].round());
+            for block_ref in subdag.base.committed_header_refs.iter() {
+                expected_stored_refs.push(*block_ref);
+                assert!(block_ref.round <= leaders[idx].round());
             }
             assert_eq!(subdag.commit_ref.index, idx as CommitIndex + 1);
         }
