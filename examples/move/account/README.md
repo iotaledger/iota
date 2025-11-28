@@ -53,7 +53,8 @@ iota client ptb \
 ```bash
 iota client new-account $ACCOUNT_ADDRESS
 iota client switch --address $ACCOUNT_ADDRESS
-iota client gas
+iota client faucet
 sleep 2 # wait for the gas to be available
+iota client gas
 iota client pay-iota --recipients 0x111111111504e9350e635d65cd38ccd2c029434c6a3a480d8947a9ba6a15b215 --amounts 1 --auth-args "hello"
 ```

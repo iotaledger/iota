@@ -70,14 +70,17 @@ use iota_types::{
     quorum_driver_types::ExecuteTransactionRequestType,
     signature::GenericSignature,
     transaction::{
-        CallArg, InputObjectKind, SenderSignedData, Transaction, TransactionData,
-        TransactionDataAPI, TransactionKind,
+        InputObjectKind, SenderSignedData, Transaction, TransactionData, TransactionDataAPI,
+        TransactionKind,
     },
+    type_input::TypeInput,
 };
 use json_to_table::json_to_table;
 use move_binary_format::CompiledModule;
 use move_bytecode_verifier_meter::Scope;
-use move_core_types::{account_address::AccountAddress, language_storage::TypeTag};
+use move_core_types::{
+    account_address::AccountAddress, identifier::Identifier, language_storage::TypeTag,
+};
 use move_package::{BuildConfig as MoveBuildConfig, source_package::parsed_manifest::Dependencies};
 use move_symbol_pool::Symbol;
 use prometheus::Registry;
@@ -367,12 +370,6 @@ pub enum IotaClientCommands {
         gas_data: GasDataArgs,
         #[command(flatten)]
         processing: TxProcessingArgs,
-        /// Auth input objects or primitive values
-        #[arg(long = "auth-args", num_args = 1..)]
-        auth_call_args: Option<Vec<String>>,
-        /// Auth type arguments for the Move authenticate function
-        #[arg(long = "auth-type-args", num_args = 1..)]
-        auth_type_arguments: Option<Vec<String>>,
     },
     /// Run a PTB from the provided args
     PTB(PTB),
@@ -732,6 +729,12 @@ pub struct TxProcessingArgs {
     /// balance_changes.
     #[arg(long, required = false, num_args = 0.., value_parser = parse_display_option, default_value = "input,effects,events,object_changes,balance_changes")]
     pub display: HashSet<DisplayOption>,
+    /// Auth input objects or primitive values
+    #[arg(long = "auth-args", num_args = 1..)]
+    pub auth_call_args: Option<Vec<String>>,
+    /// Auth type arguments for the Move authenticate function
+    #[arg(long = "auth-type-args", num_args = 1..)]
+    pub auth_type_arguments: Option<Vec<String>>,
 }
 
 impl TxProcessingArgs {
@@ -1125,8 +1128,6 @@ impl IotaClientCommands {
                     gas_payment,
                     gas_data,
                     processing,
-                    None,
-                    None,
                 )
                 .await?;
 
@@ -1247,8 +1248,6 @@ impl IotaClientCommands {
                     gas_payment,
                     gas_data,
                     processing,
-                    None,
-                    None,
                 )
                 .await?;
 
@@ -1443,8 +1442,6 @@ impl IotaClientCommands {
                     gas_payment,
                     gas_data,
                     processing,
-                    None,
-                    None,
                 )
                 .await?
             }
@@ -1475,8 +1472,6 @@ impl IotaClientCommands {
                     gas_payment,
                     gas_data,
                     processing,
-                    None,
-                    None,
                 )
                 .await?
             }
@@ -1532,8 +1527,6 @@ impl IotaClientCommands {
                     gas_payment,
                     gas_data,
                     processing,
-                    None,
-                    None,
                 )
                 .await?
             }
@@ -1543,8 +1536,6 @@ impl IotaClientCommands {
                 amounts,
                 mut gas_data,
                 processing,
-                auth_call_args,
-                auth_type_arguments,
             } => {
                 ensure!(
                     !input_coins.as_ref().is_some_and(|v| v.is_empty()),
@@ -1614,8 +1605,6 @@ impl IotaClientCommands {
                     gas_payment,
                     gas_data,
                     processing,
-                    auth_call_args,
-                    auth_type_arguments,
                 )
                 .await?
             }
@@ -1646,8 +1635,6 @@ impl IotaClientCommands {
                     gas_payment,
                     gas_data,
                     processing,
-                    None,
-                    None,
                 )
                 .await?
             }
@@ -1858,8 +1845,6 @@ impl IotaClientCommands {
                     gas_payment,
                     gas_data,
                     processing,
-                    None,
-                    None,
                 )
                 .await?
             }
@@ -1890,8 +1875,6 @@ impl IotaClientCommands {
                     gas_payment,
                     gas_data,
                     processing,
-                    None,
-                    None,
                 )
                 .await?
             }
@@ -1923,8 +1906,6 @@ impl IotaClientCommands {
                     gas_payment,
                     gas_data,
                     processing,
-                    None,
-                    None,
                 )
                 .await?
             }
@@ -1960,8 +1941,6 @@ impl IotaClientCommands {
                     gas_payment,
                     gas_data,
                     processing,
-                    None,
-                    None,
                 )
                 .await?
             }
@@ -3403,10 +3382,7 @@ pub(crate) async fn dry_run_or_execute_or_serialize(
     gas_payment: Vec<ObjectRef>,
     gas_data: GasDataArgs,
     processing: TxProcessingArgs,
-    auth_call_args: Option<Vec<String>>,
-    auth_type_arguments: Option<Vec<String>>,
 ) -> Result<IotaClientCommandResult, anyhow::Error> {
-    // TODO: should we check if the address is an account?
     let GasDataArgs {
         gas_budget,
         gas_price,
@@ -3421,6 +3397,8 @@ pub(crate) async fn dry_run_or_execute_or_serialize(
         serialize_signed_transaction,
         sender,
         display,
+        auth_call_args,
+        auth_type_arguments,
     } = processing;
     ensure!(
         !serialize_unsigned_transaction || !serialize_signed_transaction,
@@ -3524,34 +3502,102 @@ pub(crate) async fn dry_run_or_execute_or_serialize(
     } else if tx_digest {
         Ok(IotaClientCommandResult::ComputeTransactionDigest(tx_data))
     } else {
-        let auth_call_args = if let Some(args) = auth_call_args {
-            // TODO: support other arg types
-            args.into_iter()
-                .map(|arg| CallArg::Pure(bcs::to_bytes(&arg).unwrap()))
-                .collect()
+        let auth_args = if auth_call_args.is_some() || auth_type_arguments.is_some() {
+            let authenticator_info_id = dynamic_field::derive_dynamic_field_id(
+                signer,
+                &account::AuthenticatorInfoV1Key::tag().into(),
+                &account::AuthenticatorInfoV1Key::default().to_bcs_bytes(),
+            )?;
+
+            let response = client
+                .read_api()
+                .get_object_with_options(
+                    authenticator_info_id,
+                    IotaObjectDataOptions::new().with_bcs(),
+                )
+                .await?;
+
+            if let Some(error) = response.error {
+                bail!("Failed to fetch AuthenticatorInfoV1 object {error}");
+            }
+
+            let auth_info = response
+            .into_object()?
+            .bcs
+            .ok_or_else(|| anyhow::anyhow!("missing bcs"))?
+            .try_into_move()
+            .ok_or_else(|| anyhow::anyhow!("invalid move type"))?
+            .deserialize::<Field<account::AuthenticatorInfoV1Key, account::AuthenticatorInfoV1>>(
+            )?;
+            println!("auth_call_args: {auth_call_args:?}");
+
+            let type_args = auth_type_arguments
+                .as_ref()
+                .map(|args| {
+                    args.iter()
+                        .map(|arg| TypeTag::from_str(arg))
+                        .collect::<Result<Vec<_>, _>>()
+                })
+                .transpose()?
+                .unwrap_or_default();
+            println!("auth_type_arguments: {auth_type_arguments:?}");
+
+            let json_args = auth_call_args
+                .as_ref()
+                .map(|args| {
+                    args.iter()
+                        .map(|arg| IotaJsonValue::new(serde_json::to_value(arg).unwrap()).unwrap())
+                        .collect()
+                })
+                .unwrap_or_default();
+
+            println!("json_args: {json_args:?}");
+            let call_args = client
+                .transaction_builder()
+                .resolve_and_checks_json_args_aa(
+                    auth_info.value.package,
+                    &Identifier::from_str(&auth_info.value.module)?,
+                    &Identifier::from_str(&auth_info.value.function)?,
+                    &type_args,
+                    json_args,
+                )
+                .await?;
+            Some((
+                call_args,
+                type_args.into_iter().map(TypeInput::from).collect(),
+            ))
         } else {
-            vec![]
+            None
         };
-        let type_arguments = if let Some(type_args) = auth_type_arguments {
-            // TODO: parse type args
-            // type_args
-            // .into_iter()
-            // .map(|arg| TypeInput::from_str(&arg))
-            // .collect::<Result<Vec<_>, _>>()?
-            vec![]
-        } else {
-            vec![]
-        };
+        // let auth_call_args = if let Some(args) = auth_call_args {
+        //     // TODO: support other arg types
+        //     args.into_iter()
+        //         .map(|arg| CallArg::Pure(bcs::to_bytes(&arg).unwrap()))
+        //         .collect()
+        // } else {
+        //     vec![]
+        // };
+        // let type_arguments = if let Some(type_args) = auth_type_arguments {
+        //     // TODO: parse type args
+        //     // type_args
+        //     // .into_iter()
+        //     // .map(|arg| TypeInput::from_str(&arg))
+        //     // .collect::<Result<Vec<_>, _>>()?
+        //     vec![]
+        // } else {
+        //     vec![]
+        // };
 
         let signature = sign_transaction(
             context,
             &tx_data,
             &tx_data.sender(),
-            if auth_call_args.is_empty() && type_arguments.is_empty() {
-                None
-            } else {
-                Some((auth_call_args.clone(), type_arguments.clone()))
-            },
+            auth_args.clone(),
+            // if auth_call_args.is_empty() && type_arguments.is_empty() {
+            // None
+            // } else {
+            // Some((auth_call_args.clone(), type_arguments.clone()))
+            // },
         )
         .await?;
 
@@ -3560,17 +3606,8 @@ pub(crate) async fn dry_run_or_execute_or_serialize(
         if let Some(gas_sponsor) = gas_sponsor {
             if gas_sponsor != signer {
                 // TODO: can accounts sponsor txs?
-                let signature = sign_transaction(
-                    context,
-                    &tx_data,
-                    &gas_sponsor,
-                    if auth_call_args.is_empty() && type_arguments.is_empty() {
-                        None
-                    } else {
-                        Some((auth_call_args, type_arguments))
-                    },
-                )
-                .await?;
+                let signature =
+                    sign_transaction(context, &tx_data, &gas_sponsor, auth_args).await?;
 
                 signatures.push(signature.into());
             }

@@ -347,6 +347,97 @@ impl TransactionBuilder {
         Ok(args)
     }
 
+    // TODO: rename
+    /// Convert provided PtbInput's for a move function to their
+    /// [`CallArg`] representation and check their validity.
+    pub async fn resolve_and_check_call_args_aa(
+        &self,
+        package_id: ObjectID,
+        module: &Identifier,
+        function: &Identifier,
+        type_args: &[TypeTag],
+        call_args: Vec<IotaJsonValue>,
+    ) -> Result<Vec<CallArg>, anyhow::Error> {
+        let package = self.load_move_package(package_id).await?;
+
+        let module_compiled = package.deserialize_module(module, &BinaryConfig::standard())?;
+        let function_str = function.as_ident_str();
+        let function_def = module_compiled
+            .function_defs
+            .iter()
+            .find(|function_def| {
+                module_compiled.identifier_at(
+                    module_compiled
+                        .function_handle_at(function_def.function)
+                        .name,
+                ) == function_str
+            })
+            .ok_or_else(|| anyhow!("Could not resolve function {function} in module {module}"))?;
+        let function_signature = module_compiled.function_handle_at(function_def.function);
+        let parameters = &module_compiled
+            .signature_at(function_signature.parameters)
+            .0;
+
+        let expected_len = match parameters.last() {
+            Some(param) if TxContext::kind(&module_compiled, param) != TxContextKind::None => {
+                parameters.len() - 1
+            }
+            _ => parameters.len(),
+        };
+
+        let mut arguments = Vec::with_capacity(expected_len);
+
+        for (idx, (value, param)) in call_args
+            .into_iter()
+            .zip(parameters.iter().take(expected_len))
+            .enumerate()
+        {
+            let call_arg = {
+                let json_slice = [value];
+                let param_slice = [param.clone()];
+                let resolved =
+                    resolve_call_args(&module_compiled, type_args, &json_slice, &param_slice)?;
+                let resolved_arg = resolved
+                    .into_iter()
+                    .next()
+                    .ok_or_else(|| anyhow!("Unable to resolve pure argument at index {idx}"))?;
+
+                match resolved_arg {
+                    ResolvedCallArg::Pure(bytes) => CallArg::Pure(bytes),
+                    ResolvedCallArg::Object(id) => {
+                        let is_mutable = match param {
+                            SignatureToken::MutableReference(_) => true,
+                            _ => !param.is_reference(),
+                        };
+                        let object_arg = self
+                            .get_object_arg(id, is_mutable, &module_compiled, param)
+                            .await?;
+                        CallArg::Object(object_arg)
+                    }
+                    ResolvedCallArg::ObjVec(vec_ids) => {
+                        let mut object_args = Vec::with_capacity(vec_ids.len());
+                        for id in vec_ids {
+                            object_args.push(
+                                self.get_object_arg(id, false, &module_compiled, param)
+                                    .await?,
+                            );
+                        }
+                        // For object vectors, we need to extend the arguments list
+                        // and continue to the next iteration
+                        for obj_arg in object_args {
+                            arguments.push(CallArg::Object(obj_arg));
+                        }
+                        continue;
+                    }
+                }
+            };
+
+            arguments.push(call_arg);
+        }
+
+        Ok(arguments)
+    }
+
     /// Get the latest object ref for an object.
     pub async fn get_object_ref(&self, object_id: ObjectID) -> anyhow::Result<ObjectRef> {
         // TODO: we should add retrial to reduce the transaction building error rate
@@ -372,6 +463,26 @@ impl TransactionBuilder {
 
     /// Helper function to get a Move Package for a provided ObjectID.
     async fn fetch_move_package(&self, package_id: ObjectID) -> Result<MovePackage, anyhow::Error> {
+        let object = self
+            .0
+            .get_object_with_options(package_id, IotaObjectDataOptions::bcs_lossless())
+            .await?
+            .into_object()?;
+        let Some(IotaRawData::Package(package)) = object.bcs else {
+            bail!("Bcs field in object [{package_id}] is missing or not a package.");
+        };
+        Ok(MovePackage::new(
+            package.id,
+            object.version,
+            package.module_map,
+            ProtocolConfig::get_for_min_version().max_move_package_size(),
+            package.type_origin_table,
+            package.linkage_table,
+        )?)
+    }
+
+    // Helper function to load a Move package from an object ID.
+    async fn load_move_package(&self, package_id: ObjectID) -> Result<MovePackage, anyhow::Error> {
         let object = self
             .0
             .get_object_with_options(package_id, IotaObjectDataOptions::bcs_lossless())

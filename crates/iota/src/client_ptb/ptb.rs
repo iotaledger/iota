@@ -209,6 +209,8 @@ impl PTB {
             serialize_signed_transaction: program_metadata.serialize_signed_set,
             sender: program_metadata.sender.map(|x| x.value.into_inner().into()),
             display: self.display,
+            // TODO: add auth args
+            ..Default::default()
         };
 
         let gas_payment = client.transaction_builder().input_refs(&gas).await?;
@@ -220,8 +222,6 @@ impl PTB {
             gas_payment,
             gas_data,
             processing,
-            None,
-            None,
         )
         .await?;
 
