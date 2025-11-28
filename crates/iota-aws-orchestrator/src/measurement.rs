@@ -255,10 +255,7 @@ impl<T: BenchmarkType> MeasurementsCollection<T> {
     /// Aggregate the benchmark duration of multiple data points by taking the
     /// max.
     pub fn benchmark_duration(&self) -> Duration {
-        self.scrapers
-            .values()
-            .flat_map(|workload_map| workload_map.values())
-            .filter_map(|measurements| measurements.last())
+        self.last_measurements_iter()
             .map(|x| x.timestamp)
             .max()
             .unwrap_or_default()
@@ -266,12 +263,7 @@ impl<T: BenchmarkType> MeasurementsCollection<T> {
 
     pub fn workload_tps(&self) -> HashMap<String, u64> {
         // Collect all last measurements
-        let last_measurements: Vec<_> = self
-            .scrapers
-            .values()
-            .flat_map(|workload_map| workload_map.values())
-            .filter_map(|measurements| measurements.last())
-            .collect();
+        let last_measurements: Vec<_> = self.last_measurements_iter().collect();
 
         // Get the maximum timestamp
         let duration = last_measurements
@@ -294,12 +286,7 @@ impl<T: BenchmarkType> MeasurementsCollection<T> {
     /// workloads.
     pub fn aggregate_tps(&self) -> u64 {
         // Collect all last measurements
-        let last_measurements: Vec<_> = self
-            .scrapers
-            .values()
-            .flat_map(|workload_map| workload_map.values())
-            .filter_map(|measurements| measurements.last())
-            .collect();
+        let last_measurements: Vec<_> = self.last_measurements_iter().collect();
 
         // Get the maximum timestamp
         let duration = last_measurements
@@ -312,11 +299,8 @@ impl<T: BenchmarkType> MeasurementsCollection<T> {
         last_measurements.iter().map(|x| x.tps(&duration)).sum()
     }
 
-    pub fn workload_latency(&self) -> HashMap<String, Duration> {
-        self.scrapers
-            .values()
-            .flat_map(|workload_map| workload_map.values())
-            .filter_map(|measurements| measurements.last())
+    pub fn workload_average_latency(&self) -> HashMap<String, Duration> {
+        self.last_measurements_iter()
             // get the maximum latency of each workload across all scrapers
             .fold(HashMap::new(), |mut acc, measurement| {
                 let latency = measurement.average_latency();
@@ -334,25 +318,18 @@ impl<T: BenchmarkType> MeasurementsCollection<T> {
     /// Aggregate the average latency of multiple data points by taking the
     /// average.
     pub fn aggregate_average_latency(&self) -> Duration {
-        let last_data_points: Vec<_> = self
-            .scrapers
-            .values()
-            .flat_map(|workload_map| workload_map.values())
-            .filter_map(|measurements| measurements.last())
-            .collect();
-        last_data_points
+        let last_measurements: Vec<_> = self.last_measurements_iter().collect();
+
+        last_measurements
             .iter()
             .map(|x| x.average_latency())
             .sum::<Duration>()
-            .checked_div(last_data_points.len() as u32)
+            .checked_div(last_measurements.len() as u32)
             .unwrap_or_default()
     }
 
     pub fn workload_stdev_latency(&self) -> HashMap<String, Duration> {
-        self.scrapers
-            .values()
-            .flat_map(|workload_map| workload_map.values())
-            .filter_map(|measurements| measurements.last())
+        self.last_measurements_iter()
             // get the maximum stdev latency of each workload across all scrapers
             .fold(HashMap::new(), |mut acc, measurement| {
                 let stdev = measurement.stdev_latency();
@@ -369,10 +346,7 @@ impl<T: BenchmarkType> MeasurementsCollection<T> {
 
     /// Aggregate the stdev latency of multiple data points by taking the max.
     pub fn aggregate_stdev_latency(&self) -> Duration {
-        self.scrapers
-            .values()
-            .flat_map(|workload_map| workload_map.values())
-            .filter_map(|measurements| measurements.last())
+        self.last_measurements_iter()
             .map(|x| x.stdev_latency())
             .max()
             .unwrap_or_default()
@@ -391,7 +365,7 @@ impl<T: BenchmarkType> MeasurementsCollection<T> {
         let duration = self.benchmark_duration();
         let workload_tps = self.workload_tps();
         let total_tps = self.aggregate_tps();
-        let workload_latency = self.workload_latency();
+        let workload_latency = self.workload_average_latency();
         let average_latency = self.aggregate_average_latency();
         let workload_stdev_latency = self.workload_stdev_latency();
         let stdev_latency = self.aggregate_stdev_latency();
@@ -434,6 +408,15 @@ impl<T: BenchmarkType> MeasurementsCollection<T> {
         display::newline();
         table.printstd();
         display::newline();
+    }
+
+    // Get an iterator over the last measurements of all workloads across all
+    // scrapers
+    fn last_measurements_iter(&self) -> impl Iterator<Item = &Measurement> {
+        self.scrapers
+            .values()
+            .flat_map(|workload_map| workload_map.values())
+            .filter_map(|measurements| measurements.last())
     }
 }
 
