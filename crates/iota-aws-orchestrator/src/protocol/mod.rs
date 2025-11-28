@@ -16,7 +16,7 @@ pub mod iota;
 /// from the orchestrator.
 pub trait ProtocolCommands<T: BenchmarkType> {
     /// The list of dependencies to install (e.g., through apt-get).
-    fn protocol_dependencies(&self) -> Vec<&'static str>;
+    fn protocol_dependencies(&self, use_precompiled_binaries: bool) -> Vec<&'static str>;
 
     /// The directories of all databases (that should be erased before each
     /// run).

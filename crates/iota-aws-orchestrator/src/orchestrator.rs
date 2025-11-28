@@ -212,26 +212,42 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
 
         let working_dir = self.settings.working_dir.display();
         let url = &self.settings.repository.url;
-        let basic_commands = [
+
+        let use_precompiled_binaries = self.settings.build_cache_enabled();
+
+        let working_dir_cmd = format!("mkdir -p {working_dir}");
+        let git_clone_cmd = format!("(git clone {url} || true)");
+
+        let mut basic_commands = vec![
             "sudo apt-get update",
             "sudo apt-get -y upgrade",
             "sudo apt-get -y autoremove",
             // Disable "pending kernel upgrade" message.
             "sudo apt-get -y remove needrestart",
-            // The following dependencies:
-            // * build-essential: prevent the error: [error: linker `cc` not found].
-            // * libssl-dev - Required to compile the orchestrator, todo remove this dependency
-            "sudo apt-get -y install build-essential libssl-dev cmake clang lld protobuf-compiler libudev-dev libpq5 libpq-dev ca-certificates",
-            // Install rust (non-interactive).
-            "curl --proto \"=https\" --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y",
-            "echo \"source $HOME/.cargo/env\" | tee -a ~/.bashrc",
-            "source $HOME/.cargo/env",
-            "rustup default stable",
+            "sudo apt-get -y install curl git ca-certificates",
             // Create the working directory.
-            &format!("mkdir -p {working_dir}"),
+            working_dir_cmd.as_str(),
             // Clone the repo.
-            &format!("(git clone {url} || true)"),
+            git_clone_cmd.as_str(),
         ];
+
+        if !use_precompiled_binaries {
+            // If not using precompiled binaries, install rustup.
+            basic_commands.extend([
+                // The following dependencies:
+                // * build-essential: prevent the error: [error: linker `cc` not found].
+                "sudo apt-get -y install build-essential cmake clang lld protobuf-compiler pkg-config",
+                // Install rust (non-interactive).
+                "curl --proto \"=https\" --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y",
+                "echo \"source $HOME/.cargo/env\" | tee -a ~/.bashrc",
+                "source $HOME/.cargo/env",
+                "rustup default stable",
+            ]);
+        } else {
+            // Create cargo env file if using precompiled binaries, so that the source
+            // commands don't fail.
+            basic_commands.push("mkdir -p $HOME/.cargo/ && touch $HOME/.cargo/env");
+        }
 
         let cloud_provider_specific_dependencies: Vec<_> = self
             .instance_setup_commands
@@ -239,7 +255,9 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
             .map(|x| x.as_str())
             .collect();
 
-        let protocol_dependencies = self.protocol_commands.protocol_dependencies();
+        let protocol_dependencies = self
+            .protocol_commands
+            .protocol_dependencies(use_precompiled_binaries);
 
         let command = [
             &basic_commands[..],

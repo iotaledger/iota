@@ -58,13 +58,12 @@ pub struct IotaProtocol {
 }
 
 impl ProtocolCommands<IotaBenchmarkType> for IotaProtocol {
-    fn protocol_dependencies(&self) -> Vec<&'static str> {
-        vec![
-            // Install typical iota dependencies.
-            "sudo apt-get -y install curl git-all clang cmake gcc libssl-dev pkg-config libclang-dev",
-            // This dependency is missing from the IOTA docs.
-            "sudo apt-get -y install libpq-dev",
-        ]
+    fn protocol_dependencies(&self, use_precompiled_binaries: bool) -> Vec<&'static str> {
+        if !use_precompiled_binaries {
+            return vec!["sudo apt-get -y install libudev-dev libpq5 libpq-dev"];
+        }
+
+        vec![]
     }
 
     fn db_directories(&self) -> Vec<PathBuf> {
