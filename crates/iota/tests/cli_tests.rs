@@ -3871,6 +3871,8 @@ async fn test_serialize_tx() -> Result<(), anyhow::Error> {
         amounts: vec![1],
         gas_data: GasDataArgs::default(),
         processing: TxProcessingArgs::default(),
+        auth_call_args: None,
+        auth_type_arguments: None,
     }
     .execute(context)
     .await?;
@@ -3884,6 +3886,8 @@ async fn test_serialize_tx() -> Result<(), anyhow::Error> {
             ..Default::default()
         },
         processing: TxProcessingArgs::default(),
+        auth_call_args: None,
+        auth_type_arguments: None,
     }
     .execute(context)
     .await?;
@@ -3898,6 +3902,8 @@ async fn test_serialize_tx() -> Result<(), anyhow::Error> {
             ..Default::default()
         },
         processing: TxProcessingArgs::default(),
+        auth_call_args: None,
+        auth_type_arguments: None,
     }
     .execute(context)
     .await?;
@@ -4329,6 +4335,8 @@ async fn test_dry_run() -> Result<(), anyhow::Error> {
             dry_run: true,
             ..Default::default()
         },
+        auth_call_args: None,
+        auth_type_arguments: None,
     }
     .execute(context)
     .await?;
@@ -4534,6 +4542,8 @@ async fn test_pay_iota() -> Result<(), anyhow::Error> {
             ..Default::default()
         },
         processing: TxProcessingArgs::default(),
+        auth_call_args: None,
+        auth_type_arguments: None,
     }
     .execute(context)
     .await?;
@@ -4995,6 +5005,8 @@ async fn test_gas_estimation() -> Result<(), anyhow::Error> {
         amounts: vec![amount],
         gas_data: GasDataArgs::default(),
         processing: TxProcessingArgs::default(),
+        auth_call_args: None,
+        auth_type_arguments: None,
     }
     .execute(context)
     .await
