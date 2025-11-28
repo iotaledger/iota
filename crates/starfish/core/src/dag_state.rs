@@ -1806,12 +1806,13 @@ mod test {
     use std::vec;
 
     use parking_lot::RwLock;
+    use rstest::rstest;
 
     use super::*;
     use crate::{
         Transaction,
         block_header::{
-            BlockHeaderDigest, BlockRef, BlockTimestampMs, TestBlockHeader, TransactionsCommitment,
+            BlockHeaderDigest, BlockRef, BlockTimestampMs, TestBlockHeader, TransactionRef, TransactionsCommitment,
             VerifiedBlockHeader, genesis_block_headers,
         },
         encoder::create_encoder,
@@ -2378,11 +2379,17 @@ mod test {
         assert_eq!(result, expected_headers);
     }
 
+    #[rstest]
     #[tokio::test]
-    async fn test_flush_and_recovery() {
+    async fn test_flush_and_recovery(
+        #[values(true, false)] consensus_transaction_ref: bool,
+    ) {
         telemetry_subscribers::init_for_testing();
         let num_authorities: u32 = 4;
-        let (context, _) = Context::new_for_test(num_authorities as usize);
+        let (mut context, _) = Context::new_for_test(num_authorities as usize);
+        context
+            .protocol_config
+            .set_consensus_transaction_ref_for_testing(consensus_transaction_ref);
         let context = Arc::new(context);
         let store = Arc::new(MemStore::new(context.clone()));
         let mut dag_state = DagState::new(context.clone(), store.clone());
@@ -3003,9 +3010,15 @@ mod test {
         }
     }
 
+    #[rstest]
     #[tokio::test]
-    async fn test_contains_transactions() {
-        let (context, _) = Context::new_for_test(4);
+    async fn test_contains_transactions(
+        #[values(true, false)] consensus_transaction_ref: bool,
+    ) {
+        let (mut context, _) = Context::new_for_test(4);
+        context
+            .protocol_config
+            .set_consensus_transaction_ref_for_testing(consensus_transaction_ref);
         let context = Arc::new(context);
         let store = Arc::new(MemStore::new(context.clone()));
         let mut dag_state = DagState::new(context.clone(), store.clone());
@@ -3047,9 +3060,15 @@ mod test {
             .iter()
             .map(|block| block.reference())
             .collect::<Vec<_>>();
-        let mut transactions_refs = block_refs
+        let mut transactions_refs = blocks
             .iter()
-            .map(|br| GenericTransactionRef::from(*br))
+            .map(|block| {
+                if consensus_transaction_ref {
+                    GenericTransactionRef::from(block.transaction_ref())
+                } else {
+                    GenericTransactionRef::from(block.reference())
+                }
+            })
             .collect::<Vec<_>>();
         let result = dag_state.contains_transactions(transactions_refs.clone());
 
@@ -3058,14 +3077,21 @@ mod test {
         assert_eq!(result, expected);
 
         // Now try to ask also for one block ref that is neither in cache nor in store
-        transactions_refs.insert(
-            3,
+        let non_existent_ref = if consensus_transaction_ref {
+            GenericTransactionRef::from(TransactionRef {
+                round: 11,
+                author: AuthorityIndex::new_for_test(0),
+                transactions_commitment: TransactionsCommitment::default(),
+                block_digest: BlockHeaderDigest::default(),
+            })
+        } else {
             GenericTransactionRef::from(BlockRef::new(
                 11,
                 AuthorityIndex::new_for_test(0),
                 BlockHeaderDigest::default(),
-            )),
-        );
+            ))
+        };
+        transactions_refs.insert(3, non_existent_ref);
         let result = dag_state.contains_transactions(transactions_refs);
 
         // Ensure everything is found except the one we just added
@@ -3078,13 +3104,15 @@ mod test {
         // Recover the state from the store
         let dag_state = DagState::new(context.clone(), store.clone());
 
-        let block_refs = blocks
+        let transactions_refs = blocks
             .iter()
-            .map(|block| block.reference())
-            .collect::<Vec<_>>();
-        let transactions_refs = block_refs
-            .iter()
-            .map(|br| GenericTransactionRef::from(*br))
+            .map(|block| {
+                if consensus_transaction_ref {
+                    GenericTransactionRef::from(block.transaction_ref())
+                } else {
+                    GenericTransactionRef::from(block.reference())
+                }
+            })
             .collect::<Vec<_>>();
         let result = dag_state.contains_transactions(transactions_refs);
 
@@ -3120,11 +3148,17 @@ mod test {
         assert_eq!(accepted_header, &block_header);
     }
 
+    #[rstest]
     #[tokio::test]
-    async fn test_eviction() {
+    async fn test_eviction(
+        #[values(true, false)] consensus_transaction_ref: bool,
+    ) {
         telemetry_subscribers::init_for_testing();
         let num_authorities: u32 = 4;
         let (mut context, _) = Context::new_for_test(num_authorities as usize);
+        context
+            .protocol_config
+            .set_consensus_transaction_ref_for_testing(consensus_transaction_ref);
         const CACHED_ROUNDS: Round = 5;
         context.parameters.dag_state_cached_rounds = CACHED_ROUNDS;
         let context = Arc::new(context);
