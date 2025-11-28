@@ -370,6 +370,8 @@ pub struct SubDagBase {
     pub leader: BlockRef,
     /// All the block headers that are traversed on DAG starting with the leader
     pub headers: Vec<VerifiedBlockHeader>,
+    /// Block references of committed headers
+    pub committed_header_refs: Vec<BlockRef>,
     /// The timestamp of the commit, obtained from the timestamp of the leader
     /// block.
     pub timestamp_ms: BlockTimestampMs,
@@ -467,6 +469,7 @@ impl CommittedSubDag {
     pub fn new(
         leader: BlockRef,
         headers: Vec<VerifiedBlockHeader>,
+        committed_header_refs: Vec<BlockRef>,
         transactions: Vec<VerifiedTransactions>,
         timestamp_ms: BlockTimestampMs,
         commit_ref: CommitRef,
@@ -476,6 +479,7 @@ impl CommittedSubDag {
             base: SubDagBase {
                 leader,
                 headers,
+                committed_header_refs,
                 timestamp_ms,
                 commit_ref,
                 reputation_scores_desc,
@@ -556,6 +560,7 @@ impl PendingSubDag {
     pub fn new(
         leader: BlockRef,
         headers: Vec<VerifiedBlockHeader>,
+        committed_header_refs: Vec<BlockRef>,
         committed_transaction_refs: Vec<BlockRef>,
         timestamp_ms: BlockTimestampMs,
         commit_ref: CommitRef,
@@ -565,6 +570,7 @@ impl PendingSubDag {
             base: SubDagBase {
                 leader,
                 headers,
+                committed_header_refs,
                 timestamp_ms,
                 commit_ref,
                 reputation_scores_desc,
@@ -647,7 +653,8 @@ pub fn load_pending_subdag_from_store(
     PendingSubDag::new(
         leader_block_ref,
         block_headers,
-        commit.committed_transactions().clone(),
+        commit.blocks().to_vec(),
+        commit.committed_transactions(),
         commit.timestamp_ms(),
         commit.reference(),
         reputation_scores_desc,
