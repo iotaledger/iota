@@ -3542,7 +3542,7 @@ pub(crate) async fn dry_run_or_execute_or_serialize(
                 .unwrap_or_default();
             println!("auth_type_arguments: {auth_type_arguments:?}");
 
-            let json_args = auth_call_args
+            let mut json_args: Vec<_> = auth_call_args
                 .as_ref()
                 .map(|args| {
                     args.iter()
@@ -3551,10 +3551,15 @@ pub(crate) async fn dry_run_or_execute_or_serialize(
                 })
                 .unwrap_or_default();
 
+            json_args.insert(
+                0,
+                IotaJsonValue::new(serde_json::to_value(signer).unwrap()).unwrap(),
+            );
+
             println!("json_args: {json_args:?}");
-            let call_args = client
+            let mut call_args = client
                 .transaction_builder()
-                .resolve_and_checks_json_args_aa(
+                .resolve_and_check_call_args_aa(
                     auth_info.value.package,
                     &Identifier::from_str(&auth_info.value.module)?,
                     &Identifier::from_str(&auth_info.value.function)?,
@@ -3562,6 +3567,7 @@ pub(crate) async fn dry_run_or_execute_or_serialize(
                     json_args,
                 )
                 .await?;
+            call_args.remove(0); // remove signer arg as it's added by the VM
             Some((
                 call_args,
                 type_args.into_iter().map(TypeInput::from).collect(),
@@ -3569,37 +3575,9 @@ pub(crate) async fn dry_run_or_execute_or_serialize(
         } else {
             None
         };
-        // let auth_call_args = if let Some(args) = auth_call_args {
-        //     // TODO: support other arg types
-        //     args.into_iter()
-        //         .map(|arg| CallArg::Pure(bcs::to_bytes(&arg).unwrap()))
-        //         .collect()
-        // } else {
-        //     vec![]
-        // };
-        // let type_arguments = if let Some(type_args) = auth_type_arguments {
-        //     // TODO: parse type args
-        //     // type_args
-        //     // .into_iter()
-        //     // .map(|arg| TypeInput::from_str(&arg))
-        //     // .collect::<Result<Vec<_>, _>>()?
-        //     vec![]
-        // } else {
-        //     vec![]
-        // };
 
-        let signature = sign_transaction(
-            context,
-            &tx_data,
-            &tx_data.sender(),
-            auth_args.clone(),
-            // if auth_call_args.is_empty() && type_arguments.is_empty() {
-            // None
-            // } else {
-            // Some((auth_call_args.clone(), type_arguments.clone()))
-            // },
-        )
-        .await?;
+        let signature =
+            sign_transaction(context, &tx_data, &tx_data.sender(), auth_args.clone()).await?;
 
         let mut signatures = vec![signature.into()];
 

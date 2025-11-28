@@ -835,6 +835,45 @@ pub fn resolve_move_function_args(
     Ok(tupled_call_args)
 }
 
+/// Resolve the JSON args of a function into the expected formats to make them
+/// usable by Move call This is because we have special types which we need to
+/// specify in other formats
+pub fn resolve_move_function_args_aa(
+    package: &MovePackage,
+    module_ident: Identifier,
+    function: Identifier,
+    type_args: &[TypeTag],
+    combined_args_json: Vec<IotaJsonValue>,
+) -> Result<Vec<(ResolvedCallArg, SignatureToken)>, anyhow::Error> {
+    // Extract the expected function signature
+    let module = package.deserialize_module(&module_ident, &BinaryConfig::standard())?;
+    let function_str = function.as_ident_str();
+    let fdef = module
+        .function_defs
+        .iter()
+        .find(|fdef| {
+            module.identifier_at(module.function_handle_at(fdef.function).name) == function_str
+        })
+        .ok_or_else(|| {
+            anyhow!(
+                "Could not resolve function {} in module {}",
+                function,
+                module_ident
+            )
+        })?;
+    let function_signature = module.function_handle_at(fdef.function);
+    let parameters = &module.signature_at(function_signature.parameters).0;
+
+    // Check that the args are valid and convert to the correct format
+    let call_args = resolve_call_args(&module, type_args, &combined_args_json, parameters)?;
+    let tupled_call_args = call_args
+        .into_iter()
+        .zip(parameters.iter())
+        .map(|(arg, expected_type)| (arg, expected_type.clone()))
+        .collect::<Vec<_>>();
+    Ok(tupled_call_args)
+}
+
 fn convert_string_to_u256(s: &str) -> Result<U256, anyhow::Error> {
     // Try as normal number
     if let Ok(v) = s.parse::<U256>() {
