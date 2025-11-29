@@ -1,9 +1,9 @@
-# syntax=docker/dockerfile:1
 # Build image (the specific rust version can also be passed, e.g. "1.82-bookworm")
 ARG RUST_IMAGE_VERSION=bookworm
 FROM rust:${RUST_IMAGE_VERSION} AS builder
 
 ARG PROFILE=release
+ARG TARGET_FOLDER=target/release
 ARG CARGO_BUILD_FEATURES
 # The GIT_REVISION environment variable is used during build time inside the rust crates
 ARG GIT_REVISION
@@ -29,19 +29,12 @@ COPY external-crates external-crates
 COPY iota-execution iota-execution
 COPY Cargo.toml Cargo.lock ./
 
-# Build with cache mounts to speed up compilation
-RUN --mount=type=cache,target=/usr/local/cargo/registry \
-    --mount=type=cache,target=/usr/local/cargo/git \
-    --mount=type=cache,target=/iota/target,sharing=locked \
-    cargo build --profile ${PROFILE} --bin iota-rest-kv --features ${CARGO_BUILD_FEATURES:=default} && \
-    if [ -d target/release ]; then \
-      cp target/release/iota-rest-kv ./iota-rest-kv; \
-    elif [ -d target/debug ]; then \
-      cp target/debug/iota-rest-kv ./iota-rest-kv; \
-    else \
-      echo "Error: No build directory found"; \
-      exit 1; \
-    fi
+# Build and copy the built binaries to the working directory
+RUN cargo build --profile ${PROFILE} \
+      --bin iota-rest-kv \
+      --features ${CARGO_BUILD_FEATURES:=default} && \
+    cp $TARGET_FOLDER/iota-rest-kv ./iota-rest-kv
+
 
 # Production image
 FROM debian:bookworm-slim AS runtime

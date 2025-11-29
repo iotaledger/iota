@@ -1,9 +1,9 @@
-# syntax=docker/dockerfile:1
 # Build image (the specific rust version can also be passed, e.g. "1.82-bookworm")
 ARG RUST_IMAGE_VERSION=bookworm
 FROM rust:${RUST_IMAGE_VERSION} AS builder
 
 ARG PROFILE=release
+ARG TARGET_FOLDER=target/release
 ARG CARGO_BUILD_FEATURES
 # The GIT_REVISION environment variable is used during build time inside the rust crates
 ARG GIT_REVISION
@@ -31,11 +31,8 @@ COPY external-crates external-crates
 COPY iota-execution iota-execution
 COPY Cargo.toml Cargo.lock ./
 
-# Build with cache mounts to speed up compilation
-RUN --mount=type=cache,target=/usr/local/cargo/registry \
-    --mount=type=cache,target=/usr/local/cargo/git \
-    --mount=type=cache,target=/iota/target,sharing=locked \
-    cargo build --profile ${PROFILE} \
+# Build and copy the built binaries to the working directory
+RUN cargo build --profile ${PROFILE} \
       --bin iota-node \
       --bin stress \
       --bin iota-analytics-indexer \
@@ -45,28 +42,14 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry \
       --bin iota-tool \
       --bin iota-genesis-builder \
       --features ${CARGO_BUILD_FEATURES:=default} && \
-    if [ -d target/release ]; then \
-      cp target/release/iota-node ./iota-node && \
-      cp target/release/stress ./stress && \
-      cp target/release/iota-analytics-indexer ./iota-analytics-indexer && \
-      cp target/release/iota ./iota && \
-      cp target/release/iota-faucet ./iota-faucet && \
-      cp target/release/iota-cluster-test ./iota-cluster-test && \
-      cp target/release/iota-tool ./iota-tool && \
-      cp target/release/iota-genesis-builder ./iota-genesis-builder; \
-    elif [ -d target/debug ]; then \
-      cp target/debug/iota-node ./iota-node && \
-      cp target/debug/stress ./stress && \
-      cp target/debug/iota-analytics-indexer ./iota-analytics-indexer && \
-      cp target/debug/iota ./iota && \
-      cp target/debug/iota-faucet ./iota-faucet && \
-      cp target/debug/iota-cluster-test ./iota-cluster-test && \
-      cp target/debug/iota-tool ./iota-tool && \
-      cp target/debug/iota-genesis-builder ./iota-genesis-builder; \
-    else \
-      echo "Error: No build directory found"; \
-      exit 1; \
-    fi
+    cp $TARGET_FOLDER/iota-node ./iota-node && \
+    cp $TARGET_FOLDER/stress ./stress && \
+    cp $TARGET_FOLDER/iota-analytics-indexer ./iota-analytics-indexer && \
+    cp $TARGET_FOLDER/iota ./iota && \
+    cp $TARGET_FOLDER/iota-faucet ./iota-faucet && \
+    cp $TARGET_FOLDER/iota-cluster-test ./iota-cluster-test && \
+    cp $TARGET_FOLDER/iota-tool ./iota-tool && \
+    cp $TARGET_FOLDER/iota-genesis-builder ./iota-genesis-builder
 
 # Production image
 FROM debian:bookworm-slim AS runtime
