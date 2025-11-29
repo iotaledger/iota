@@ -34,6 +34,7 @@ pub enum Tid {
     ThreadId(std::thread::ThreadId),
     TaskId(TaskId),
 }
+
 impl Tid {
     /// Get the Tid based on current tokio task or thread.
     pub fn current() -> Tid {
@@ -48,6 +49,7 @@ pub struct Metadata<'a> {
     pub caption: &'a str,
     pub target: &'a str,
 }
+
 impl serde::Serialize for Metadata<'_> {
     fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
         if !self.target.is_empty() {
@@ -57,6 +59,7 @@ impl serde::Serialize for Metadata<'_> {
         }
     }
 }
+
 impl fmt::Display for Metadata<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         if !self.target.is_empty() {
@@ -66,6 +69,7 @@ impl fmt::Display for Metadata<'_> {
         }
     }
 }
+
 impl PartialEq<str> for Metadata<'_> {
     fn eq(&self, other: &str) -> bool {
         if !self.target.is_empty() {
@@ -79,6 +83,7 @@ impl PartialEq<str> for Metadata<'_> {
         }
     }
 }
+
 impl<'a> From<&'a str> for Metadata<'a> {
     fn from(s: &'a str) -> Self {
         s.rsplit_once("::")
@@ -89,6 +94,7 @@ impl<'a> From<&'a str> for Metadata<'a> {
             })
     }
 }
+
 pub type GraphId = Metadata<'static>;
 
 pub(super) struct Graph<S> {
@@ -104,7 +110,7 @@ pub(super) struct Graph<S> {
 ///    current Tid. It means that the call graph must only be accessed either
 ///    from the same tokio task, or from the same thread. Trying to access a
 ///    call graph (entering/exiting frames) from different tasks/threads will
-///    result in UB.
+///    result in undefined behavior.
 ///
 /// 2. Hash map indexed by Tid serves as a mutex guard itself preventing
 ///    different threads from accessing the same call graph making inner Mutex
@@ -117,6 +123,7 @@ pub struct Flames<S> {
     pub(super) graphs: RwLock<HashMap<Tid, Graph<S>>>,
     pub(super) completed: RwLock<HashMap<GraphId, CallGraph<S>>>,
 }
+
 impl<S> Default for Flames<S> {
     fn default() -> Self {
         Self::new()
@@ -132,6 +139,7 @@ impl<S> Flames<S> {
         }
     }
 }
+
 impl<S: Default + MergeMetrics + SpanMetrics> Flames<S> {
     /// Merge just finished call graph into the corresponding completed graph.
     fn finalize_call_graph(&self, tid: Tid, graph_id: GraphId, call_graph: CallGraph<S>) {
@@ -140,6 +148,7 @@ impl<S: Default + MergeMetrics + SpanMetrics> Flames<S> {
                 "failed to finish '{graph_id}' call graph at {tid:?}: not all frames exited, cursor {cursor}"
             );
         }
+
         let mut wlock = self.completed.write();
         match wlock.entry(graph_id) {
             hash_map::Entry::Vacant(entry) => {
@@ -150,6 +159,7 @@ impl<S: Default + MergeMetrics + SpanMetrics> Flames<S> {
             }
         }
     }
+
     /// Enter frame for the call graph associated with the given thread/task id.
     pub fn enter(
         &self,
@@ -168,6 +178,7 @@ impl<S: Default + MergeMetrics + SpanMetrics> Flames<S> {
                 caption: label.name,
                 target,
             };
+
             rlock.with_upgraded(|graphs| {
                 graphs.insert(
                     tid,
@@ -180,6 +191,7 @@ impl<S: Default + MergeMetrics + SpanMetrics> Flames<S> {
             node_id
         }
     }
+
     /// Exit frame for the call graph associated with the given thread/task id.
     pub fn exit(&self, tid: Tid, arg: <S as SpanMetrics>::Arg) {
         let mut rlock = self.graphs.upgradable_read();
@@ -199,6 +211,7 @@ impl<S: Default + MergeMetrics + SpanMetrics> Flames<S> {
             }
         }
     }
+
     #[cfg(debug_assertions)]
     pub fn exit_checked(
         &self,

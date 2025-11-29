@@ -24,6 +24,7 @@ pub struct NestedSetFrame<N = f64> {
     #[serde(rename = "self")]
     pub self_: N,
 }
+
 fn serialize_label<S: serde::Serializer>(label: &FrameLabel, s: S) -> Result<S::Ok, S::Error> {
     s.serialize_str(label.name)
 }
@@ -42,6 +43,7 @@ pub trait Dashboard {
 trait FromDuration: Default + Sized {
     fn from_duration(total: Duration) -> Self;
 }
+
 impl FromDuration for f64 {
     fn from_duration(total: Duration) -> Self {
         // Grafana nested set model mandates the use of ms.
@@ -49,6 +51,7 @@ impl FromDuration for f64 {
         total.as_nanos() as f64 / 1_000_000.0
     }
 }
+
 impl FromDuration for u64 {
     fn from_duration(total: Duration) -> Self {
         total.as_millis() as u64
@@ -59,6 +62,7 @@ impl CallGraph<FlameMetric> {
     fn nested_set_frame<N: FromDuration>(&self, ix: NodeId, level: u32) -> NestedSetFrame<N> {
         let node = &self.graph[ix];
         let value = N::from_duration(node.value.metrics.running.total);
+
         // "self" duration is recomputed: self total duration - sum of children total
         // durations
         let children_total = node
@@ -68,6 +72,7 @@ impl CallGraph<FlameMetric> {
             .map(|ix| self.graph[ix].value.metrics.running.total)
             .sum::<Duration>();
         assert!(node.value.metrics.running.total >= children_total);
+
         let self_ = N::from_duration(node.value.metrics.running.total - children_total);
         NestedSetFrame {
             label: node.value.label,
@@ -77,6 +82,7 @@ impl CallGraph<FlameMetric> {
         }
     }
 }
+
 impl<N: FromDuration> NestedSetCollector<N> for CallGraph<FlameMetric> {
     fn total(&self) -> N {
         N::from_duration(
@@ -85,6 +91,7 @@ impl<N: FromDuration> NestedSetCollector<N> for CallGraph<FlameMetric> {
                 .unwrap_or_default(),
         )
     }
+
     fn collect_nested_set(&self) -> Vec<NestedSetFrame<N>> {
         self.graph.dfs_fold(Vec::new(), |frames, node_id, level| {
             frames.push(self.nested_set_frame(node_id, level as u32))
@@ -104,15 +111,18 @@ where
             .values()
             .map(|Graph { graph_id, mutex }| (*graph_id, mutex.lock().total()))
             .collect();
+
         graph_ids.extend(
             self.completed
                 .read()
                 .iter()
                 .map(|(graph_id, graph)| (*graph_id, graph.total())),
         );
+
         graph_ids.sort_by(|(_, m), (_, n)| n.total_cmp(m));
         graph_ids
     }
+
     fn get_nested_set(&self, graph_id: &str) -> Vec<NestedSetFrame> {
         self.completed
             .read()
@@ -120,6 +130,7 @@ where
             .map(|graph| graph.collect_nested_set())
             .unwrap_or_default()
     }
+
     fn get_nested_sets(&self, label: &'static str) -> Vec<NestedSetFrame> {
         let mut completed = self.completed.read().clone();
         let rlock = self.graphs.read();
@@ -134,6 +145,7 @@ where
                 }
             }
         });
+
         let total = completed.values().map(|graph| graph.total()).sum::<f64>();
 
         std::iter::once(NestedSetFrame {

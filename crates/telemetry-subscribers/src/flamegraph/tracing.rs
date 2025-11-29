@@ -22,6 +22,7 @@ struct FlameSpanInner {
     #[cfg(debug_assertions)]
     entry: Option<(Tid, NodeId)>,
 }
+
 impl Clone for FlameSpanInner {
     fn clone(&self) -> Self {
         Self {
@@ -35,6 +36,7 @@ impl Clone for FlameSpanInner {
 #[derive(Clone, Debug)]
 #[repr(transparent)]
 struct FlameSpan(std::boxed::Box<FlameSpanInner>);
+
 impl FlameSpan {
     fn new(attrs: &tracing::span::Attributes<'_>) -> Self {
         Self(Box::new(FlameSpanInner {
@@ -43,18 +45,21 @@ impl FlameSpan {
             entry: None,
         }))
     }
+
     fn clone_span(id: &tracing::span::Id) -> tracing::span::Id {
         let span: FlameSpanRef<'_> = id.into();
         // Only metadata is cloned, entry is not.
         Self(std::boxed::Box::new(span.clone())).into()
     }
 }
+
 impl From<FlameSpan> for tracing::span::Id {
     fn from(span: FlameSpan) -> tracing::span::Id {
         let raw = std::boxed::Box::into_raw(span.0);
         tracing::span::Id::from_u64(raw as u64)
     }
 }
+
 impl From<tracing::span::Id> for FlameSpan {
     fn from(id: tracing::span::Id) -> Self {
         let raw = id.into_u64() as *mut _;
@@ -68,6 +73,7 @@ impl From<tracing::span::Id> for FlameSpan {
 #[derive(Debug)]
 #[repr(transparent)]
 struct FlameSpanRef<'a>(&'a FlameSpanInner);
+
 impl<'a> From<&'a tracing::span::Id> for FlameSpanRef<'a> {
     fn from(id: &'a tracing::span::Id) -> Self {
         let raw = id.into_u64() as *const FlameSpanInner;
@@ -76,15 +82,19 @@ impl<'a> From<&'a tracing::span::Id> for FlameSpanRef<'a> {
         Self(unsafe { &*raw as &FlameSpanInner })
     }
 }
+
 impl<'a> std::ops::Deref for FlameSpanRef<'a> {
     type Target = FlameSpanInner;
+
     fn deref(&self) -> &FlameSpanInner {
         self.0
     }
 }
+
 #[derive(Debug)]
 #[repr(transparent)]
 struct FlameSpanMut<'a>(&'a mut FlameSpanInner);
+
 impl<'a> From<&'a tracing::span::Id> for FlameSpanMut<'a> {
     fn from(id: &'a tracing::span::Id) -> Self {
         let raw = id.into_u64() as *mut FlameSpanInner;
@@ -94,12 +104,15 @@ impl<'a> From<&'a tracing::span::Id> for FlameSpanMut<'a> {
         Self(unsafe { &mut *raw as &mut FlameSpanInner })
     }
 }
+
 impl<'a> std::ops::Deref for FlameSpanMut<'a> {
     type Target = FlameSpanInner;
+
     fn deref(&self) -> &FlameSpanInner {
         self.0
     }
 }
+
 impl<'a> std::ops::DerefMut for FlameSpanMut<'a> {
     fn deref_mut(&mut self) -> &mut FlameSpanInner {
         self.0
@@ -110,18 +123,21 @@ impl<'a> std::ops::DerefMut for FlameSpanMut<'a> {
 pub struct FlameSub {
     flames: Arc<Flames<FlameMetric>>,
 }
+
 impl FlameSub {
     pub fn new() -> Self {
         Self {
             flames: Arc::new(Flames::new()),
         }
     }
+
     fn enabled_metadata(&self, metadata: &tracing::Metadata<'_>) -> bool {
         // This method is called without any reference to the actual call graph in which
         // the span will be used. Thus we have to enable all spans, we are not
         // interested in events.
         metadata.is_span()
     }
+
     fn enter_metadata(&self, metadata: &tracing::Metadata<'static>) {
         let tid = Tid::current();
         let _ = self.flames.enter(
@@ -133,6 +149,7 @@ impl FlameSub {
             Clock::now(),
         );
     }
+
     fn enter_span(&self, #[allow(unused_mut)] mut span: FlameSpanMut<'_>) {
         let tid = Tid::current();
         #[cfg(debug_assertions)]
@@ -152,10 +169,12 @@ impl FlameSub {
             span.entry = Some((tid, _cursor));
         }
     }
+
     fn exit(&self) {
         let tid = Tid::current();
         self.flames.exit(tid, Clock::now());
     }
+
     #[cfg(debug_assertions)]
     fn exit_checked(&self, mut span: FlameSpanMut<'_>) {
         let tid = Tid::current();
@@ -172,12 +191,15 @@ impl FlameSub {
             panic!("span has not been entered prior to exiting");
         }
     }
+
     pub fn list_nested_sets(&self) -> Vec<(GraphId, f64)> {
         self.flames.list_nested_sets()
     }
+
     pub fn get_nested_sets(&self, label: &'static str) -> Vec<NestedSetFrame> {
         self.flames.get_nested_sets(label)
     }
+
     pub fn get_nested_set(&self, graph_id: &str) -> Vec<NestedSetFrame> {
         self.flames.get_nested_set(graph_id)
     }
@@ -191,16 +213,20 @@ impl tracing::Subscriber for FlameSub {
     fn enabled(&self, metadata: &tracing::Metadata<'_>) -> bool {
         self.enabled_metadata(metadata)
     }
+
     fn new_span(&self, attrs: &tracing::span::Attributes<'_>) -> tracing::span::Id {
         FlameSpan::new(attrs).into()
     }
+
     fn clone_span(&self, id: &tracing::span::Id) -> tracing::span::Id {
         FlameSpan::clone_span(id)
     }
+
     fn enter(&self, id: &tracing::span::Id) {
         let span = FlameSpanMut::from(id);
         self.enter_span(span);
     }
+
     fn exit(&self, _id: &tracing::span::Id) {
         #[cfg(debug_assertions)]
         {
@@ -210,6 +236,7 @@ impl tracing::Subscriber for FlameSub {
         #[cfg(not(debug_assertions))]
         self.exit();
     }
+
     fn try_close(&self, id: tracing::span::Id) -> bool {
         let _span = FlameSpan::from(id);
         true
@@ -227,6 +254,7 @@ where
     ) -> bool {
         self.enabled_metadata(metadata)
     }
+
     fn on_new_span(
         &self,
         _attrs: &tracing::span::Attributes<'_>,
@@ -234,6 +262,7 @@ where
         _ctx: tracing_subscriber::layer::Context<'_, S>,
     ) {
     }
+
     fn on_id_change(
         &self,
         _old: &tracing::span::Id,
@@ -241,12 +270,15 @@ where
         _ctx: tracing_subscriber::layer::Context<'_, S>,
     ) {
     }
+
     fn on_enter(&self, id: &tracing::span::Id, ctx: tracing_subscriber::layer::Context<'_, S>) {
         let metadata = ctx.metadata(id).unwrap();
         self.enter_metadata(metadata);
     }
+
     fn on_exit(&self, _id: &tracing::span::Id, _ctx: tracing_subscriber::layer::Context<'_, S>) {
         self.exit();
     }
+
     fn on_close(&self, _id: tracing::span::Id, _ctx: tracing_subscriber::layer::Context<'_, S>) {}
 }

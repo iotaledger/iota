@@ -26,6 +26,7 @@ pub struct Stopwatch {
     pub clock: Clock,
     pub total: Duration,
 }
+
 impl Default for Stopwatch {
     fn default() -> Self {
         Self {
@@ -34,24 +35,29 @@ impl Default for Stopwatch {
         }
     }
 }
+
 impl Stopwatch {
     pub fn is_stopped(&self) -> bool {
         self.clock == Clock::UNIX_EPOCH
     }
+
     pub fn is_ticking(&self) -> bool {
         !self.is_stopped()
     }
+
     pub fn start(&mut self, now: Clock) {
         debug_assert!(self.is_stopped());
         debug_assert!(now != Clock::UNIX_EPOCH);
         self.clock = now;
     }
+
     pub fn stop(&mut self, now: Clock) {
         debug_assert!(self.is_ticking());
         debug_assert!(self.clock <= now, "{:?} <= {now:?}", self.clock);
         self.total += now.duration_since(self.clock).unwrap();
         self.reset();
     }
+
     pub fn try_stop(&mut self, now: Clock) {
         if self.is_ticking() {
             debug_assert!(self.clock <= now, "{:?} <= {now:?}", self.clock);
@@ -59,10 +65,12 @@ impl Stopwatch {
             self.reset();
         }
     }
+
     pub fn reset(&mut self) {
         self.clock = Clock::UNIX_EPOCH;
     }
 }
+
 impl fmt::Debug for Stopwatch {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let state = if self.clock == Clock::UNIX_EPOCH {
@@ -84,6 +92,7 @@ pub struct FlameMetric {
     #[cfg(debug_assertions)]
     count: CountMetric,
 }
+
 impl fmt::Debug for FlameMetric {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         #[cfg(debug_assertions)]
@@ -100,15 +109,18 @@ impl fmt::Debug for FlameMetric {
         }
     }
 }
+
 impl SpanMetrics for FlameMetric {
     type Arg = Clock;
     const REENTER: bool = true;
+
     fn enter(&mut self, now: Clock) {
         #[cfg(debug_assertions)]
         self.count.enter(());
         self.pending.try_stop(now);
         self.running.start(now);
     }
+
     fn exit(&mut self, now: Clock) {
         #[cfg(debug_assertions)]
         self.count.exit(());
@@ -116,6 +128,7 @@ impl SpanMetrics for FlameMetric {
         self.pending.start(now);
     }
 }
+
 impl MergeMetrics for FlameMetric {
     fn merge(&mut self, other: Self) {
         #[cfg(debug_assertions)]
@@ -132,23 +145,28 @@ pub struct CountMetric {
     pub entered: usize,
     pub exited: usize,
 }
+
 impl fmt::Debug for CountMetric {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "enter={} exit={}", self.entered, self.exited)
     }
 }
+
 impl SpanMetrics for CountMetric {
     type Arg = ();
     const REENTER: bool = true;
+
     fn enter(&mut self, _: ()) {
         debug_assert_eq!(self.entered, self.exited);
         self.entered += 1;
     }
+
     fn exit(&mut self, _: ()) {
         self.exited += 1;
         debug_assert_eq!(self.entered, self.exited);
     }
 }
+
 impl MergeMetrics for CountMetric {
     fn merge(&mut self, other: Self) {
         self.entered += other.entered;
