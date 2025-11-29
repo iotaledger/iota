@@ -276,11 +276,16 @@ impl ProtocolCommands<IotaBenchmarkType> for IotaProtocol {
                     &[
                         // Overwrite listen address and external address with 0.0.0.0 and actual fullnode IP.
                         // Escape quotes for proper handling inside tmux wrapper
-                        &format!(
+                        format!(
                             "sed -i 's|listen-address: \\\"127.0.0.1:|listen-address: \\\"0.0.0.0:|' {0} && sed -i 's|external-address: /ip4/127.0.0.1/|external-address: /ip4/{1}/|' {0}",
                             config_path.display(),
                             fullnode_ip
-                        )
+                        ),
+                        if self.enable_flamegraph {
+                            "export TRACE_FLAMEGRAPH=1".to_string()
+                        } else {
+                            "".to_string()
+                        },
                     ],
                     &[&format!("--config-path {}", config_path.display())],
                 );
