@@ -259,7 +259,7 @@ Currently, the main visualization tool is Grafana Flamegraph panel.
 
 ```rs
 fn function() {
-    let span = tracing::trace_span!("function");
+    let span = tracing::trace_span!("your_id");
     let _entered = span.enter();
     // do some work
     std::thread::sleep(std::time::Duration::from_millis(100));
@@ -269,7 +269,7 @@ async fn run_task() {
     tokio::task::spawn(async {
         // do some work
         std::thread::sleep(std::time::Duration::from_millis(100));
-    }.instrument(tracing::trace_span!("task"))).await;
+    }.instrument(tracing::trace_span!("your_id"))).await;
 }
 ```
 
@@ -284,17 +284,21 @@ let (guards, handle) = TelemetryConfig::new()
 4. Expose flamegraph profiling data via HTTP:
 
 ```rs
-use tokio::net::{TcpListener, ToSocketAddrs};
-use telemetry_subscribers::TracingHandle;
-
-pub async fn run_flamegraph(handle: TracingHandle, addr: impl ToSocketAddrs) {
-    let sub = handle.flamegraph.clone().unwrap();
-    let app = axum::Router::new()
-        .route(
-            "/flamegraph",
-            get(|| axum::Json(sub.collect_nested_set())),
-        );
-    let listener = TcpListener::bind(addr).await.unwrap();
+pub async fn run_flamegraph(handle: telemetry_subscribers::TracingHandle, addr: impl tokio::net::ToSocketAddrs) {
+    let handle = Arc::new(handle);
+    let app = axum::Router::new().route(
+        "/flamegraph",
+        get({
+            let handle = handle.clone();
+            move || async move {
+                match handle.get_flamegraph() {
+                    Some(sub) => Ok(axum::Json(sub.get_nested_sets("your_id"))),
+                    None => Err((StatusCode::NOT_FOUND, "flamegraphs are not enabled\n")),
+                }
+            }
+        }),
+    );
+    let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
     axum::serve(listener, app).await.unwrap();
 }
 ```
