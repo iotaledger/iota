@@ -35,8 +35,9 @@ use crate::{
     Transaction,
     block_header::{
         BlockHeader, BlockHeaderAPI, BlockHeaderV1, BlockRef, BlockTimestampMs, GENESIS_ROUND,
-        GenericTransactionRef, Round, SignedBlockHeader, Slot, TransactionRef, TransactionsCommitment,
-        VerifiedBlock, VerifiedBlockHeader, VerifiedOwnShard, VerifiedTransactions,
+        GenericTransactionRef, Round, SignedBlockHeader, Slot,
+        TransactionsCommitment, VerifiedBlock, VerifiedBlockHeader, VerifiedOwnShard,
+        VerifiedTransactions,
     },
     block_manager::BlockManager,
     commit::{CertifiedCommits, PendingSubDag},
@@ -1399,7 +1400,8 @@ mod test {
                     // When disabled, use BlockRef variant
                     GenericTransactionRef::from(block.reference())
                 };
-                let subscription = transaction_consumer.subscribe_for_block_status_testing(generic_ref);
+                let subscription =
+                    transaction_consumer.subscribe_for_block_status_testing(generic_ref);
                 block_status_subscriptions.push(subscription);
             }
         }
@@ -2288,7 +2290,11 @@ mod test {
         #[values((true, true), (true, false), (false, false))] params: (bool, bool),
     ) {
         let (commit_only_for_traversed_headers, consensus_transaction_ref) = params;
-        test_sequenced_transactions_no_headers_impl(commit_only_for_traversed_headers, consensus_transaction_ref).await;
+        test_sequenced_transactions_no_headers_impl(
+            commit_only_for_traversed_headers,
+            consensus_transaction_ref,
+        )
+        .await;
     }
 
     #[tokio::test]
@@ -2960,7 +2966,8 @@ mod test {
                     // When disabled, use BlockRef variant
                     GenericTransactionRef::from(block.reference())
                 };
-                let subscription = transaction_consumer.subscribe_for_block_status_testing(generic_ref);
+                let subscription =
+                    transaction_consumer.subscribe_for_block_status_testing(generic_ref);
                 block_status_subscriptions.push(subscription);
             }
         }
@@ -3062,8 +3069,10 @@ mod test {
         }
 
         // Verify we got all expected notifications
-        assert_eq!(received_notifications, expected_notifications,
-                  "Expected {} notifications but only received {}",
-                  expected_notifications, received_notifications);
+        assert_eq!(
+            received_notifications, expected_notifications,
+            "Expected {} notifications but only received {}",
+            expected_notifications, received_notifications
+        );
     }
 }

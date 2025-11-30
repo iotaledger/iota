@@ -1812,8 +1812,8 @@ mod test {
     use crate::{
         Transaction,
         block_header::{
-            BlockHeaderDigest, BlockRef, BlockTimestampMs, TestBlockHeader, TransactionRef, TransactionsCommitment,
-            VerifiedBlockHeader, genesis_block_headers,
+            BlockHeaderDigest, BlockRef, BlockTimestampMs, TestBlockHeader, TransactionRef,
+            TransactionsCommitment, VerifiedBlockHeader, genesis_block_headers,
         },
         encoder::create_encoder,
         storage::{WriteBatch, mem_store::MemStore},
@@ -2381,9 +2381,7 @@ mod test {
 
     #[rstest]
     #[tokio::test]
-    async fn test_flush_and_recovery(
-        #[values(true, false)] consensus_transaction_ref: bool,
-    ) {
+    async fn test_flush_and_recovery(#[values(true, false)] consensus_transaction_ref: bool) {
         telemetry_subscribers::init_for_testing();
         let num_authorities: u32 = 4;
         let (mut context, _) = Context::new_for_test(num_authorities as usize);
@@ -3012,9 +3010,7 @@ mod test {
 
     #[rstest]
     #[tokio::test]
-    async fn test_contains_transactions(
-        #[values(true, false)] consensus_transaction_ref: bool,
-    ) {
+    async fn test_contains_transactions(#[values(true, false)] consensus_transaction_ref: bool) {
         let (mut context, _) = Context::new_for_test(4);
         context
             .protocol_config
@@ -3150,9 +3146,7 @@ mod test {
 
     #[rstest]
     #[tokio::test]
-    async fn test_eviction(
-        #[values(true, false)] consensus_transaction_ref: bool,
-    ) {
+    async fn test_eviction(#[values(true, false)] consensus_transaction_ref: bool) {
         telemetry_subscribers::init_for_testing();
         let num_authorities: u32 = 4;
         let (mut context, _) = Context::new_for_test(num_authorities as usize);

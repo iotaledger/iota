@@ -160,7 +160,7 @@ impl Linearizer {
             } else {
                 committed_transactions
                     .into_iter()
-                    .map(|block_ref| GenericTransactionRef::BlockRef(block_ref))
+                    .map(GenericTransactionRef::BlockRef)
                     .collect()
             };
 
