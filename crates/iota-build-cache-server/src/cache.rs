@@ -70,21 +70,66 @@ impl BuildCache {
         })
     }
 
-    /// Generate cache key from commit and CPU target only
-    fn cache_key(&self, commit: &str, cpu_target: &str) -> String {
-        format!("{commit}:{cpu_target}")
+    /// Generate cache key from commit, CPU target, toolchain, and features
+    fn cache_key(
+        &self,
+        commit: &str,
+        cpu_target: &str,
+        toolchain: Option<&str>,
+        features: &[String],
+    ) -> String {
+        let mut key = format!("{commit}:{cpu_target}");
+
+        // Add toolchain if present and not "stable" (stable is the default)
+        if let Some(tc) = toolchain {
+            if tc != "stable" {
+                key.push_str(&format!(":toolchain={tc}"));
+            }
+        }
+
+        // Add sorted features if present
+        if !features.is_empty() {
+            let mut sorted_features = features.to_vec();
+            sorted_features.sort();
+            key.push_str(&format!(":features={}", sorted_features.join(",")));
+        }
+
+        key
     }
 
     /// Get the cache directory for a specific build
-    fn get_cache_path(&self, commit: &str, cpu_target: &str) -> PathBuf {
-        self.cache_dir.join(format!("{commit}_{cpu_target}"))
+    fn get_cache_path(
+        &self,
+        commit: &str,
+        cpu_target: &str,
+        toolchain: Option<&str>,
+        features: &[String],
+    ) -> PathBuf {
+        // Use cache_key to ensure consistency, but replace problematic characters for
+        // filesystem
+        let key = self
+            .cache_key(commit, cpu_target, toolchain, features)
+            .replace(':', "_")
+            .replace('=', "-")
+            .replace(',', "_");
+        self.cache_dir.join(key)
     }
 
     /// Helper to get CPU-specific workspace path
     /// Each CPU target gets its own workspace to avoid target directory
-    /// conflicts
-    fn get_workspace_path(&self, cpu_target: &str) -> PathBuf {
-        self.workspace_dir.join(cpu_target)
+    /// conflicts. Also includes toolchain to avoid conflicts between different
+    /// rust versions.
+    fn get_workspace_path(&self, cpu_target: &str, toolchain: Option<&str>) -> PathBuf {
+        let mut path = cpu_target.to_string();
+
+        // Add toolchain to path if it's not stable (stable is the default)
+        if let Some(tc) = toolchain {
+            if tc != "stable" {
+                path.push_str(&format!("_{tc}"));
+            }
+        }
+
+        self.workspace_dir.join(path)
     }
 
     /// Validate CPU target against allowed list
@@ -106,9 +151,11 @@ impl BuildCache {
         &self,
         commit: &str,
         cpu_target: &str,
+        toolchain: Option<&str>,
+        features: &[String],
         binaries: &[String],
     ) -> (Vec<String>, Vec<String>) {
-        let cache_path = self.get_cache_path(commit, cpu_target);
+        let cache_path = self.get_cache_path(commit, cpu_target, toolchain, features);
         let mut available = Vec::new();
         let mut missing = Vec::new();
 
@@ -129,19 +176,23 @@ impl BuildCache {
         &self,
         commit: &str,
         cpu_target: &str,
+        toolchain: Option<&str>,
+        features: &[String],
         binaries: &[String],
     ) -> Result<BuildCacheResponse> {
         // Validate CPU target
         self.validate_cpu_target(cpu_target)?;
 
         let (available_binaries, missing_binaries) =
-            self.check_existing_binaries(commit, cpu_target, binaries);
+            self.check_existing_binaries(commit, cpu_target, toolchain, features, binaries);
         let all_available = missing_binaries.is_empty();
 
         Ok(BuildCacheResponse {
             commit: commit.to_string(),
             cpu_target: cpu_target.to_string(),
             available: all_available,
+            toolchain: toolchain.map(|s| s.to_string()),
+            features: features.to_vec(),
             binaries: available_binaries,
         })
     }
@@ -151,12 +202,15 @@ impl BuildCache {
         &self,
         commit: &str,
         cpu_target: &str,
+        toolchain: Option<&str>,
+        features: &[String],
         binary_name: &str,
     ) -> Result<(std::path::PathBuf, u64, String)> {
         // Validate CPU target
         self.validate_cpu_target(cpu_target)?;
 
-        let binary_path = self.get_binary_path(commit, cpu_target, binary_name)?;
+        let binary_path =
+            self.get_binary_path(commit, cpu_target, toolchain, features, binary_name)?;
         let metadata = fs::metadata(&binary_path)?;
 
         // Read SHA256 from checksum file
@@ -180,9 +234,11 @@ impl BuildCache {
         &self,
         commit: &str,
         cpu_target: &str,
+        toolchain: Option<&str>,
+        features: &[String],
         binary_name: &str,
     ) -> Result<std::path::PathBuf> {
-        let cache_path = self.get_cache_path(commit, cpu_target);
+        let cache_path = self.get_cache_path(commit, cpu_target, toolchain, features);
         let binary_path = cache_path.join(binary_name);
 
         // Security: Ensure the resolved path stays within the cache directory
@@ -215,7 +271,7 @@ impl BuildCache {
     pub async fn resolve_commit(&self, commit_ref: &str) -> Result<String> {
         // Use a dedicated workspace for commit resolution to avoid conflicts with
         // builds
-        let resolve_workspace = self.get_workspace_path("resolve");
+        let resolve_workspace = self.get_workspace_path("resolve", None);
         let resolved_commit = self
             .setup_repository(&resolve_workspace, commit_ref)
             .await?;
@@ -228,22 +284,26 @@ impl BuildCache {
         &self,
         commit: &str,
         cpu_target: &str,
+        toolchain: Option<&str>,
+        features: &[String],
         binaries: &[String],
     ) -> Result<BuildResponse> {
         // Validate CPU target
         self.validate_cpu_target(cpu_target)?;
 
-        let key = self.cache_key(commit, cpu_target);
+        let key = self.cache_key(commit, cpu_target, toolchain, features);
 
         // Check which binaries already exist and which need to be built
         let (available_binaries, missing_binaries) =
-            self.check_existing_binaries(commit, cpu_target, binaries);
+            self.check_existing_binaries(commit, cpu_target, toolchain, features, binaries);
 
         if missing_binaries.is_empty() {
             info!("All requested binaries already available for {key}");
             return Ok(BuildResponse {
                 resolved_commit: commit.to_string(),
                 cpu_target: cpu_target.to_string(),
+                toolchain: toolchain.map(|s| s.to_string()),
+                features: features.to_vec(),
                 binaries: available_binaries,
                 message: "All binaries already available".to_string(),
             });
@@ -283,6 +343,8 @@ impl BuildCache {
         let job = BuildJob {
             commit: commit.to_string(),
             cpu_target: cpu_target.to_string(),
+            toolchain: toolchain.map(|s| s.to_string()),
+            features: features.to_vec(),
             binaries: missing_binaries.clone(),
             status: BuildStatus::Queued,
             started_at: None,
@@ -297,6 +359,8 @@ impl BuildCache {
 
         let commit_clone = commit.to_string();
         let cpu_target_clone = cpu_target.to_string();
+        let toolchain_clone = toolchain.map(|s| s.to_string());
+        let features_clone = features.to_vec();
         let missing_binaries_clone = missing_binaries.clone();
 
         tokio::spawn(async move {
@@ -305,7 +369,13 @@ impl BuildCache {
 
             // Only build what's missing
             if let Err(e) = cache
-                .perform_build(&commit_clone, &cpu_target_clone, &missing_binaries_clone)
+                .perform_build(
+                    &commit_clone,
+                    &cpu_target_clone,
+                    toolchain_clone.as_deref(),
+                    &features_clone,
+                    &missing_binaries_clone,
+                )
                 .await
             {
                 error!("Build failed: {e}");
@@ -316,6 +386,8 @@ impl BuildCache {
         Ok(BuildResponse {
             resolved_commit: commit.to_string(),
             cpu_target: cpu_target.to_string(),
+            toolchain: toolchain.map(|s| s.to_string()),
+            features: features.to_vec(),
             binaries: missing_binaries,
             message: "Build started".to_string(),
         })
@@ -340,10 +412,13 @@ impl BuildCache {
         &self,
         commit: &str,
         cpu_target: &str,
+        toolchain: Option<&str>,
+        features: &[String],
         binaries: &[String],
     ) -> Result<()> {
         // Use CPU-specific workspace to avoid target directory conflicts
-        let repo_path = self.get_workspace_path(cpu_target);
+        // Also use toolchain-specific workspace to avoid artifact conflicts
+        let repo_path = self.get_workspace_path(cpu_target, toolchain);
 
         // First setup repository and resolve commit to actual SHA
         let resolved_commit = self
@@ -351,8 +426,8 @@ impl BuildCache {
             .await
             .map_err(|e| anyhow::anyhow!("Repository setup failed: {e}"))?;
 
-        let key = self.cache_key(&resolved_commit, cpu_target);
-        let cache_path = self.get_cache_path(&resolved_commit, cpu_target);
+        let key = self.cache_key(&resolved_commit, cpu_target, toolchain, features);
+        let cache_path = self.get_cache_path(&resolved_commit, cpu_target, toolchain, features);
 
         // Update job status
         {
@@ -367,7 +442,14 @@ impl BuildCache {
 
         // Build binaries
         if let Err(e) = self
-            .build_binaries(&repo_path, cpu_target, binaries, &cache_path)
+            .build_binaries(
+                &repo_path,
+                cpu_target,
+                toolchain,
+                features,
+                binaries,
+                &cache_path,
+            )
             .await
         {
             self.mark_build_failed(&key, &format!("Build failed: {e}"))
@@ -583,6 +665,8 @@ impl BuildCache {
         &self,
         repo_path: &Path,
         cpu_target: &str,
+        toolchain: Option<&str>,
+        features: &[String],
         binaries: &[String],
         output_path: &Path,
     ) -> Result<()> {
@@ -594,12 +678,51 @@ impl BuildCache {
 
         info!("Building binaries with RUSTFLAGS: {rustflags}");
 
+        let toolchain_arg = if let Some(tc) = toolchain {
+            if tc != "stable" {
+                info!("Using toolchain: {tc}");
+                Some(format!("+{tc}"))
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+
+        let features_arg = if !features.is_empty() {
+            let features_str = features.join(" ");
+            info!("Building with features: \"{features_str}\"");
+            Some(format!("--features=\"{features_str}\""))
+        } else {
+            None
+        };
+
         // Build each binary
         for binary in binaries {
             info!("Building binary: {binary}");
 
+            // Build arguments
+            let mut args = vec!["build", "--release", "--bin", binary];
+
+            // Add toolchain if specified
+            if let Some(ref t) = toolchain_arg {
+                args.insert(0, t);
+            }
+
+            // Add features if specified
+            if let Some(ref f) = features_arg {
+                args.push(f);
+            }
+
+            // print the full command for logging
+            info!(
+                "Running build command: \"cargo {}\" in \"{}\" with flags: \"{rustflags}\"",
+                args.join(" "),
+                repo_path.display()
+            );
+
             let mut child = Command::new("cargo")
-                .args(["build", "--release", "--bin", binary])
+                .args(&args)
                 .current_dir(repo_path)
                 .env("RUSTFLAGS", &rustflags)
                 .stdout(Stdio::piped())
@@ -811,18 +934,25 @@ impl BuildCache {
         &self,
         commit: &str,
         cpu_target: &str,
+        toolchain: Option<&str>,
+        features: &[String],
         requested_binaries: &[String],
     ) -> Result<Option<BuildJob>> {
         // Validate CPU target
         self.validate_cpu_target(cpu_target)?;
 
-        let key = self.cache_key(commit, cpu_target);
+        let key = self.cache_key(commit, cpu_target, toolchain, features);
         let builds = self.builds.lock().await;
 
         if let Some(mut job) = builds.get(&key).cloned() {
             // Dynamically check which binaries are actually available on disk
-            let (available_binaries, _missing_binaries) =
-                self.check_existing_binaries(commit, cpu_target, requested_binaries);
+            let (available_binaries, _missing_binaries) = self.check_existing_binaries(
+                commit,
+                cpu_target,
+                toolchain,
+                features,
+                requested_binaries,
+            );
 
             // Update the job with the actual available binaries
             job.binaries = available_binaries;

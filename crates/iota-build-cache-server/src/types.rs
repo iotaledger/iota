@@ -9,6 +9,8 @@ pub struct BuildCacheResponse {
     pub commit: String,
     pub cpu_target: String,
     pub available: bool,
+    pub toolchain: Option<String>,
+    pub features: Vec<String>,
     pub binaries: Vec<String>,
 }
 
@@ -18,6 +20,15 @@ pub struct BuildRequest {
     pub commit: String,
     /// CPU target architecture (e.g., "native", "x86-64-v3", "skylake")
     pub cpu_target: String,
+    /// Optional rust toolchain override (e.g., "stable", "nightly", "1.75.0")
+    /// If "stable" is passed, it's treated as default and ignored in cache key
+    #[serde(default)]
+    pub toolchain: Option<String>,
+    /// Optional feature flags to enable during build (will be sorted for cache
+    /// key)
+    #[serde(default)]
+    pub features: Vec<String>,
+    /// List of binary names to build
     pub binaries: Vec<String>,
 }
 
@@ -28,6 +39,8 @@ pub struct BuildResponse {
     /// request)
     pub resolved_commit: String,
     pub cpu_target: String,
+    pub toolchain: Option<String>,
+    pub features: Vec<String>,
     pub binaries: Vec<String>,
     pub message: String,
 }
@@ -46,6 +59,8 @@ pub enum BuildStatus {
 pub struct BuildJob {
     pub commit: String,
     pub cpu_target: String,
+    pub toolchain: Option<String>,
+    pub features: Vec<String>,
     pub binaries: Vec<String>,
     pub status: BuildStatus,
     pub started_at: Option<String>,

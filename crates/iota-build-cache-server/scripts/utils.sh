@@ -49,11 +49,30 @@ print_config() {
     log_info
 }
 
+# Helper function to build query parameters with optional features and toolchain
+build_query_params() {
+    local base_params="commit=$COMMIT&cpu_target=$CPU_TARGET"
+    if [ -n "$TOOLCHAIN" ]; then
+        base_params="${base_params}&toolchain=${TOOLCHAIN}"
+    fi
+    if [ -n "$FEATURES" ]; then
+        base_params="${base_params}&features=${FEATURES}"
+    fi
+    echo "$base_params"
+}
+
+build_query_params_with_binaries() {
+    local base_params=$(build_query_params)
+    base_params="${base_params}&binaries=$BINARIES"
+    echo "$base_params"
+}
+
 # Function to check if binaries are available
 check_availability() {
     # Make check request
+    local query_params=$(build_query_params_with_binaries)
     RESPONSE=$(curl -s -w "\n%{http_code}" $(get_auth_args) \
-        "$BUILD_CACHE_SERVER_URI/check?commit=$COMMIT&cpu_target=$CPU_TARGET&binaries=$BINARIES")
+        "$BUILD_CACHE_SERVER_URI/check?${query_params}")
 
     # Parse response
     HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
@@ -95,11 +114,33 @@ build() {
     done
     BINARY_JSON="$BINARY_JSON]"
 
+    # Add optional toolchain
+    TOOLCHAIN_JSON="null"
+    if [ -n "$TOOLCHAIN" ]; then
+        TOOLCHAIN_JSON="\"$TOOLCHAIN\""
+    fi
+
+    # Add optional features array
+    FEATURES_JSON="[]"
+    if [ -n "$FEATURES" ]; then
+        IFS=',' read -ra FEATURES_ARRAY <<< "$FEATURES"
+        FEATURES_JSON="["
+        for i in "${!FEATURES_ARRAY[@]}"; do
+            if [ $i -gt 0 ]; then
+                FEATURES_JSON="$FEATURES_JSON,"
+            fi
+            FEATURES_JSON="$FEATURES_JSON\"${FEATURES_ARRAY[$i]}\""
+        done
+        FEATURES_JSON="$FEATURES_JSON]"
+    fi
+
     # Create JSON payload
     PAYLOAD=$(cat <<EOF
 {
     "commit": "$COMMIT",
     "cpu_target": "$CPU_TARGET",
+    "toolchain": $TOOLCHAIN_JSON,
+    "features": $FEATURES_JSON,
     "binaries": $BINARY_JSON
 }
 EOF
@@ -142,8 +183,9 @@ EOF
 
 # Function to get build status
 get_build_status() {
+    local query_params=$(build_query_params_with_binaries)
     RESPONSE=$(curl -s -w "\n%{http_code}" $(get_auth_args) \
-        "$BUILD_CACHE_SERVER_URI/status?commit=$COMMIT&cpu_target=$CPU_TARGET&binaries=$BINARIES" 2>/dev/null || echo "\n000")
+        "$BUILD_CACHE_SERVER_URI/status?${query_params}" 2>/dev/null || echo "\n000")
     
     HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
     BODY=$(echo "$RESPONSE" | sed '$d')
@@ -246,6 +288,10 @@ download() {
         # Use temporary file for headers
         HEADER_FILE=$(mktemp)
         
+        # Build download URL with optional params
+        local query_params=$(build_query_params)
+        local download_url="$BUILD_CACHE_SERVER_URI/download?$query_params&binary=$BINARY"
+        
         # Check if binary already exists and get its checksum for ETag
         if [ -f "$BINARY_PATH" ]; then
             EXISTING_SHA=$(sha256sum "$BINARY_PATH" | cut -d' ' -f1)
@@ -255,7 +301,7 @@ download() {
             RESPONSE=$(curl -s -w "\n%{http_code}" -L -D "$HEADER_FILE" \
                 $(get_auth_args) \
                 -H "If-None-Match: \"sha256:$EXISTING_SHA\"" \
-                "$BUILD_CACHE_SERVER_URI/download?commit=$COMMIT&cpu_target=$CPU_TARGET&binary=$BINARY" \
+                "$download_url" \
                 -o "$BINARY_PATH.tmp")
         else
             log_info "Downloading $BINARY..."
@@ -263,7 +309,7 @@ download() {
             # Download without ETag (new file)
             RESPONSE=$(curl -s -w "\n%{http_code}" -L -D "$HEADER_FILE" \
                 $(get_auth_args) \
-                "$BUILD_CACHE_SERVER_URI/download?commit=$COMMIT&cpu_target=$CPU_TARGET&binary=$BINARY" \
+                "$download_url" \
                 -o "$BINARY_PATH.tmp")
         fi
         

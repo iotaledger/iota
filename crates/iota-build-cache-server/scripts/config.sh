@@ -15,6 +15,13 @@ export CPU_TARGET="x86-64-v3"   # CPU target (x86-64, x86-64-v2, x86-64-v3)
 # Default binaries to build/check/download
 export BINARIES="iota,iota-node,stress"
 
+# Optional rust toolchain (e.g., "stable", "nightly", "1.75.0")
+# Note: "stable" is treated as default and won't affect caching
+export TOOLCHAIN=""
+
+# Optional feature flags (comma-separated, will be sorted automatically)
+export FEATURES=""
+
 # Timeout settings (in seconds)
 export BUILD_TIMEOUT=2700  # 45 minutes
 export CHECK_INTERVAL=30   # 30 seconds

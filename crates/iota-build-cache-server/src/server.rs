@@ -191,6 +191,8 @@ async fn handle_check_request(
         Ok(target) => target,
         Err(response) => return Ok(response),
     };
+    let toolchain = get_toolchain_param(&query_params);
+    let features = get_features_param(&query_params);
     let binaries = match get_binaries_param(&query_params) {
         Ok(binaries) => binaries,
         Err(response) => return Ok(response),
@@ -200,7 +202,13 @@ async fn handle_check_request(
     match cache.resolve_commit(&commit_ref).await {
         Ok(resolved_commit) => {
             match cache
-                .check_binaries(&resolved_commit, &cpu_target, &binaries)
+                .check_binaries(
+                    &resolved_commit,
+                    &cpu_target,
+                    toolchain.as_deref(),
+                    &features,
+                    &binaries,
+                )
                 .await
             {
                 Ok(response) => Ok(json_response(response, StatusCode::OK)),
@@ -232,6 +240,8 @@ async fn handle_download_request(
         Ok(target) => target,
         Err(response) => return Ok(response),
     };
+    let toolchain = get_toolchain_param(&query_params);
+    let features = get_features_param(&query_params);
     let binary_name = match get_binary_param(&query_params) {
         Ok(name) => name,
         Err(response) => return Ok(response),
@@ -241,7 +251,13 @@ async fn handle_download_request(
     match cache.resolve_commit(&commit_ref).await {
         Ok(resolved_commit) => {
             match cache
-                .get_binary_info(&resolved_commit, &cpu_target, &binary_name)
+                .get_binary_info(
+                    &resolved_commit,
+                    &cpu_target,
+                    toolchain.as_deref(),
+                    &features,
+                    &binary_name,
+                )
                 .await
             {
                 Ok((binary_path, file_size, sha256_hash)) => {
@@ -326,6 +342,8 @@ async fn handle_build_request(
                     .start_build(
                         &resolved_commit,
                         &build_request.cpu_target,
+                        build_request.toolchain.as_deref(),
+                        &build_request.features,
                         &build_request.binaries,
                     )
                     .await
@@ -361,6 +379,8 @@ async fn handle_status_request(
         Ok(target) => target,
         Err(response) => return Ok(response),
     };
+    let toolchain = get_toolchain_param(&query_params);
+    let features = get_features_param(&query_params);
     let binaries = match get_binaries_param(&query_params) {
         Ok(binaries) => binaries,
         Err(response) => return Ok(response),
@@ -370,7 +390,13 @@ async fn handle_status_request(
     match cache.resolve_commit(&commit_ref).await {
         Ok(resolved_commit) => {
             match cache
-                .get_build_status(&resolved_commit, &cpu_target, &binaries)
+                .get_build_status(
+                    &resolved_commit,
+                    &cpu_target,
+                    toolchain.as_deref(),
+                    &features,
+                    &binaries,
+                )
                 .await
             {
                 Ok(Some(status)) => Ok(json_response(status, StatusCode::OK)),
@@ -419,6 +445,32 @@ fn get_cpu_target_param(
     match query_params.get("cpu_target") {
         Some(target) => Ok(target.clone()),
         None => Err(bad_request("Missing 'cpu_target' query parameter")),
+    }
+}
+
+/// Extract optional rust toolchain from query parameters
+/// Returns None if not specified or if "stable" is passed (treated as default)
+fn get_toolchain_param(query_params: &std::collections::HashMap<String, String>) -> Option<String> {
+    match query_params.get("toolchain") {
+        Some(tc) if !tc.is_empty() && tc != "stable" => Some(tc.clone()),
+        _ => None,
+    }
+}
+
+/// Extract optional features list from query parameters (comma-separated)
+fn get_features_param(query_params: &std::collections::HashMap<String, String>) -> Vec<String> {
+    match query_params.get("features") {
+        Some(features_str) if !features_str.is_empty() => {
+            let mut features: Vec<String> = features_str
+                .split(',')
+                .map(|s| s.trim().to_string())
+                .filter(|s| !s.is_empty())
+                .collect();
+            // Sort features for consistent cache keys
+            features.sort();
+            features
+        }
+        _ => Vec::new(),
     }
 }
 

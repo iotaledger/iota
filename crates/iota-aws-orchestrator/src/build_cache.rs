@@ -100,7 +100,13 @@ impl<'a> BuildCacheService<'a> {
 
             // Check if binaries are available for this CPU target
             let cache_response = cache_client
-                .check_binaries_available(resolved_commit.as_str(), cpu_target, binaries)
+                .check_binaries_available(
+                    resolved_commit.as_str(),
+                    cpu_target,
+                    None,
+                    None,
+                    binaries,
+                )
                 .await?;
 
             if !cache_response.available {
@@ -110,7 +116,7 @@ impl<'a> BuildCacheService<'a> {
 
                 // Request build for this CPU target
                 cache_client
-                    .request_build(resolved_commit.as_str(), cpu_target, binaries)
+                    .request_build(resolved_commit.as_str(), cpu_target, None, None, binaries)
                     .await?;
 
                 // Wait for build to complete
@@ -122,6 +128,8 @@ impl<'a> BuildCacheService<'a> {
                     .wait_for_binaries(
                         resolved_commit.as_str(),
                         cpu_target,
+                        None,
+                        None,
                         binaries,
                         Duration::from_secs(45 * 60),
                         Duration::from_secs(5),

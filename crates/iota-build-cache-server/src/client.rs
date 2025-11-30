@@ -124,14 +124,28 @@ impl BuildCacheClient {
         &self,
         commit: &str,
         cpu_target: &str,
+        toolchain: Option<&str>,
+        features: Option<&[String]>,
         binaries: &[String],
     ) -> BuildCacheResult<BuildCacheResponse> {
         let url = format!("{}/check", self.base_url);
 
-        let binaries_str = binaries.join(",");
         let mut params = HashMap::new();
         params.insert("commit", commit);
         params.insert("cpu_target", cpu_target);
+
+        if let Some(tc) = toolchain {
+            params.insert("toolchain", tc);
+        }
+
+        let features_str = features.map(|f| f.join(","));
+        if let Some(ref feats_str) = features_str {
+            if !feats_str.is_empty() {
+                params.insert("features", feats_str);
+            }
+        }
+
+        let binaries_str = binaries.join(",");
         params.insert("binaries", &binaries_str);
 
         let response = self
@@ -144,6 +158,8 @@ impl BuildCacheClient {
                 commit: commit.to_string(),
                 cpu_target: cpu_target.to_string(),
                 available: false,
+                toolchain: toolchain.map(|s| s.to_string()),
+                features: features.map(|f| f.to_vec()).unwrap_or_default(),
                 binaries: vec![],
             });
         }
@@ -156,6 +172,8 @@ impl BuildCacheClient {
         &self,
         commit: &str,
         cpu_target: &str,
+        toolchain: Option<&str>,
+        features: Option<&[String]>,
         binary_name: &str,
         local_path: &PathBuf,
     ) -> BuildCacheResult<()> {
@@ -164,6 +182,18 @@ impl BuildCacheClient {
         let mut params = HashMap::new();
         params.insert("commit", commit);
         params.insert("cpu_target", cpu_target);
+
+        if let Some(tc) = toolchain {
+            params.insert("toolchain", tc);
+        }
+
+        let features_str = features.map(|f| f.join(","));
+        if let Some(ref feats_str) = features_str {
+            if !feats_str.is_empty() {
+                params.insert("features", feats_str);
+            }
+        }
+
         params.insert("binary", binary_name);
 
         let response = self
@@ -205,6 +235,8 @@ impl BuildCacheClient {
         &self,
         commit: &str,
         cpu_target: &str,
+        toolchain: Option<&str>,
+        features: Option<&[String]>,
         binaries: &[String],
     ) -> BuildCacheResult<()> {
         let url = format!("{}/build", self.base_url);
@@ -212,6 +244,8 @@ impl BuildCacheClient {
         let build_request = BuildRequest {
             commit: commit.to_string(),
             cpu_target: cpu_target.to_string(),
+            toolchain: toolchain.map(|s| s.to_string()),
+            features: features.map(|f| f.to_vec()).unwrap_or_default(),
             binaries: binaries.to_vec(),
         };
 
@@ -243,6 +277,8 @@ impl BuildCacheClient {
         &self,
         commit: &str,
         cpu_target: &str,
+        toolchain: Option<&str>,
+        features: Option<&[String]>,
         binaries: &[String],
         timeout: Duration,
         check_interval: Duration,
@@ -253,7 +289,7 @@ impl BuildCacheClient {
             let request_start = tokio::time::Instant::now();
 
             let response = self
-                .check_binaries_available(commit, cpu_target, binaries)
+                .check_binaries_available(commit, cpu_target, toolchain, features, binaries)
                 .await?;
 
             if response.available {
