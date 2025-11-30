@@ -37,13 +37,13 @@ use crate::{
 /// Alias for an [`Object`] fetched from historical fallback storage.
 ///
 /// Contains all data needed to reconstruct a [`StoredObject`].
-type HistoricalFallbackObject = Object;
+pub(crate) type HistoricalFallbackObject = Object;
 
 /// Alias for [`CertifiedCheckpointSummary`] with its [`CheckpointContents`]
 /// data fetched from historical fallback storage.
 ///
 /// Contains all data needed to reconstruct a [`StoredCheckpoint`].
-type HistoricalFallbackCheckpoint = (CertifiedCheckpointSummary, CheckpointContents);
+pub(crate) type HistoricalFallbackCheckpoint = (CertifiedCheckpointSummary, CheckpointContents);
 
 impl From<HistoricalFallbackObject> for StoredObject {
     fn from(object: HistoricalFallbackObject) -> Self {
@@ -81,7 +81,6 @@ pub struct HistoricalFallbackEvents {
 }
 
 impl HistoricalFallbackEvents {
-    #[expect(dead_code)]
     pub fn new(events: TransactionEvents, checkpoint_summary: CertifiedCheckpointSummary) -> Self {
         Self {
             events,
@@ -91,7 +90,6 @@ impl HistoricalFallbackEvents {
 
     /// Converts the raw [`TransactionEvents`] into JSON RPC compatible
     /// [`IotaEvent`]s.
-    #[expect(dead_code)]
     pub(crate) async fn into_iota_events(
         self,
         package_resolver: Arc<Resolver<impl PackageStore>>,
@@ -122,7 +120,6 @@ pub struct HistoricalFallbackTransaction {
 }
 
 impl HistoricalFallbackTransaction {
-    #[expect(dead_code)]
     pub fn new(
         checkpoint_transaction: CheckpointTransaction,
         checkpoint_summary: CertifiedCheckpointSummary,
@@ -136,8 +133,7 @@ impl HistoricalFallbackTransaction {
 
     /// Converts the historical fallback transaction into a
     /// [`StoredTransaction`].
-    #[expect(dead_code)]
-    async fn into_stored_transaction(self) -> IndexerResult<StoredTransaction> {
+    pub(crate) async fn into_stored_transaction(self) -> IndexerResult<StoredTransaction> {
         // StoredTransaction::try_into_iota_transaction_block_response implementation
         // does not use the `tx_sequence_number`, in this regard it is safe to
         // hardcode to 0.
