@@ -13,7 +13,7 @@ use fastcrypto_zkp::{
     zk_login_utils::Bn254FrElement,
 };
 use im::hashmap::HashMap as ImHashMap;
-use shared_crypto::intent::{Intent, IntentMessage, PersonalMessage};
+use iota_sdk_types::crypto::{Intent, IntentMessage, PersonalMessage};
 
 use crate::{
     base_types::IotaAddress,
@@ -99,9 +99,7 @@ fn test_serde_zklogin_public_identifier() {
 #[test]
 #[ignore = "https://github.com/iotaledger/iota/issues/1777"]
 fn test_zklogin_sign_personal_message() {
-    let data = PersonalMessage {
-        message: b"hello world".to_vec(),
-    };
+    let data = PersonalMessage(b"hello world".to_vec().into());
     let (user_address, authenticator) = sign_zklogin_personal_msg(data.clone());
     let intent_msg = IntentMessage::new(Intent::personal_message(), data);
     let parsed: ImHashMap<JwkId, JWK> = parse_jwks(DEFAULT_JWK_BYTES, &OIDCProvider::Twitch)

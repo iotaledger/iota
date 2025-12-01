@@ -17,6 +17,7 @@ fastcrypto.workspace = true
 futures.workspace = true
 futures-core = "0.3.21"
 getset.workspace = true
+iota-sdk-types.workspace = true
 jsonrpsee.workspace = true
 reqwest.workspace = true
 rustls.workspace = true
@@ -36,7 +37,6 @@ iota-keys.workspace = true
 iota-transaction-builder.workspace = true
 iota-types.workspace = true
 move-core-types.workspace = true
-shared-crypto.workspace = true
 # NOTE: It's important to keep the above dependency list short.
 # This and the iota-json-rpc-api crate are widely used to develop on IOTA and it's valuable
 # to not have to pull in the entire iota repo for it.

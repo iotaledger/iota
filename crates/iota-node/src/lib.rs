@@ -102,6 +102,7 @@ use iota_network::{
 use iota_network_stack::server::{IOTA_TLS_SERVER_NAME, ServerBuilder};
 use iota_protocol_config::ProtocolConfig;
 use iota_rest_api::RestMetrics;
+use iota_sdk_types::crypto::{Intent, IntentMessage, IntentScope};
 use iota_snapshot::uploader::StateSnapshotUploader;
 use iota_storage::{
     FileCompression, StorageFormat,
@@ -133,7 +134,6 @@ use iota_types::{
     transaction::{Transaction, VerifiedCertificate},
 };
 use prometheus::Registry;
-use shared_crypto::intent::{Intent, IntentMessage, IntentScope};
 #[cfg(msim)]
 pub use simulator::set_jwk_injector;
 #[cfg(msim)]

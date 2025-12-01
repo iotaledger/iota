@@ -20,7 +20,6 @@ use iota_test_transaction_builder::make_transfer_iota_transaction;
 use iota_types::{
     base_types::IotaAddress, effects::TransactionEffectsAPI, transaction::TransactionDataAPI,
 };
-use shared_crypto::intent::Intent;
 use test_cluster::TestClusterBuilder;
 
 #[sim_test]

@@ -12,13 +12,13 @@ workspace = true
 [dependencies]
 # external dependencies
 bip32.workspace = true
+iota-sdk-types.workspace = true
 thiserror.workspace = true
 tracing.workspace = true
 
 # internal dependencies
 iota-ledger.workspace = true
 iota-sdk.workspace = true
-shared-crypto.workspace = true
 
 [dev-dependencies]
 anyhow.workspace = true
