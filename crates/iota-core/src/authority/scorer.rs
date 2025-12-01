@@ -67,17 +67,25 @@ impl Scorer {
                             )
                         })
                         .collect();
-                let scale_factor = 2_u64.pow(16);
                 let parameters = ParametersV1 {
-                    max_score: MAX_SCORE,
-                    scale_factor: SCALE_FACTOR,
-                    allowances: vec![1, 2, 1000, 0],
-                    maximums: vec![5, 10, 5000, 1],
-                    weights: vec![
-                        SCALE_FACTOR * 30 / 100,
-                        SCALE_FACTOR * 10 / 100,
-                        SCALE_FACTOR * 35 / 100,
-                    ],
+                    allowances: MisbehaviorsV1 {
+                        faulty_blocks_provable: 1,
+                        faulty_blocks_unprovable: 2,
+                        missing_proposals: 48_000, // roughly 3% of consensus rounds in an epoch
+                        equivocations: 0,
+                    },
+                    maximums: MisbehaviorsV1 {
+                        faulty_blocks_provable: 5,
+                        faulty_blocks_unprovable: 10,
+                        missing_proposals: 160_000, // roughly 10% of consensus rounds in an epoch
+                        equivocations: 1,
+                    },
+                    weights: MisbehaviorsV1 {
+                        faulty_blocks_provable: SCALE_FACTOR * 30 / 100,
+                        faulty_blocks_unprovable: SCALE_FACTOR * 10 / 100,
+                        missing_proposals: SCALE_FACTOR * 35 / 100,
+                        equivocations: 1,
+                    },
                 };
                 // Assert that the allowance for major misbehaviors is 0,
                 // maximum is 1 and weight is 1. This is because major misbehaviors should
@@ -269,8 +277,6 @@ enum ScorerVersion {
 // Parameters for ScorerVersion::V1
 #[derive(Clone)]
 struct ParametersV1 {
-    max_score: u64,
-    scale_factor: u64,
     // Allowed misbehaviors without any punishment
     allowances: MisbehaviorsV1<u64>,
     // Number of misbehaviors that lead to zero score
@@ -302,8 +308,7 @@ fn calculate_scores_v1(
     median_reports: MisbehaviorsV1<MedianMetricVec>,
     parameters: ParametersV1,
 ) -> Vec<u64> {
-    let baseline_score =
-        parameters.scale_factor - parameters.weights.iter_minor_misbehaviors().sum::<u64>();
+    let baseline_score = SCALE_FACTOR - parameters.weights.iter_minor_misbehaviors().sum::<u64>();
 
     let median_minor_reports_and_parameters = median_reports
         .iter_minor_misbehaviors()
@@ -318,7 +323,7 @@ fn calculate_scores_v1(
                     median_report_for_a_single_metric,
                     *metric_allowance,
                     *metric_maximum,
-                    parameters.max_score,
+                    MAX_SCORE,
                 )
             },
         )
@@ -348,8 +353,8 @@ fn calculate_scores_v1(
         major_metric_scores,
         parameters.weights,
         baseline_score,
-        parameters.scale_factor,
-        parameters.max_score,
+        SCALE_FACTOR,
+        MAX_SCORE,
     )
 }
 
@@ -409,7 +414,7 @@ fn metric_to_score(value: u64, allowance: u64, max: u64, max_score: u64) -> u64 
     } else if value >= max {
         0
     } else {
-        // Add overflow checks
+        // TODO: add overflow checks
         (max - value) * max_score / (max - allowance)
     }
 }
@@ -517,10 +522,7 @@ mod tests {
 
         // Before calling update_scores, all scores should be MAX_SCORE
         for score in scorer.current_scores.iter() {
-            assert_eq!(
-                score.load(Ordering::Relaxed),
-                scorer.get_parameters_v1().max_score
-            );
+            assert_eq!(score.load(Ordering::Relaxed), MAX_SCORE,);
         }
 
         // Set some reports for testing
@@ -671,15 +673,24 @@ mod tests {
     #[test]
     fn test_calculate_scores_v1() {
         let parameters = ParametersV1 {
-            max_score: MAX_SCORE,
-            scale_factor: SCALE_FACTOR,
-            allowances: vec![1, 2, 1000, 0],
-            maximums: vec![5, 10, 5000, 1],
-            weights: vec![
-                SCALE_FACTOR * 30 / 100,
-                SCALE_FACTOR * 10 / 100,
-                SCALE_FACTOR * 35 / 100,
-            ],
+            allowances: MisbehaviorsV1 {
+                faulty_blocks_provable: 1,
+                faulty_blocks_unprovable: 2,
+                missing_proposals: 1000,
+                equivocations: 0,
+            },
+            maximums: MisbehaviorsV1 {
+                faulty_blocks_provable: 5,
+                faulty_blocks_unprovable: 10,
+                missing_proposals: 5000,
+                equivocations: 1,
+            },
+            weights: MisbehaviorsV1 {
+                faulty_blocks_provable: SCALE_FACTOR * 30 / 100,
+                faulty_blocks_unprovable: SCALE_FACTOR * 10 / 100,
+                missing_proposals: SCALE_FACTOR * 35 / 100,
+                equivocations: 1,
+            },
         };
 
         let median_reports = MisbehaviorsV1 {
