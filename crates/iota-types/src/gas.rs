@@ -54,7 +54,10 @@ pub fn estimate_gas_budget_from_gas_cost(
     // Round up to the nearest gas rounding step (in gas units)
     let rounded_gas_loading_cost_units =
         if let Some(step) = protocol_config.gas_rounding_step_as_option() {
-            gas_loading_cost_units.next_multiple_of(step)
+            match gas_loading_cost_units.checked_next_multiple_of(step) {
+                Some(rounded) => rounded,
+                None => u64::MAX,
+            }
         } else {
             gas_loading_cost_units
         };
