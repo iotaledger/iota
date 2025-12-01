@@ -31,6 +31,7 @@ http.workspace = true
 http-body-util = "0.1.2"
 hyper.workspace = true
 im.workspace = true
+iota-sdk-types.workspace = true
 jsonrpsee.workspace = true
 once_cell.workspace = true
 prometheus.workspace = true
@@ -71,7 +72,6 @@ move-binary-format.workspace = true
 move-core-types.workspace = true
 move-disassembler.workspace = true
 move-ir-types.workspace = true
-shared-crypto.workspace = true
 telemetry-subscribers.workspace = true
 test-cluster.workspace = true
 

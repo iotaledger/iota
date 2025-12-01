@@ -20,6 +20,7 @@ use iota_json_rpc_types::{
     IotaTransactionBlockResponseOptions,
 };
 use iota_sdk::{IotaClient, IotaClientBuilder};
+use iota_sdk_types::crypto::{Intent, IntentMessage};
 use iota_types::{
     base_types::{IotaAddress, ObjectID, ObjectRef},
     crypto::{AccountKeyPair, EncodeDecodeBase64, IotaKeyPair, Signature, get_key_pair},
@@ -28,7 +29,6 @@ use iota_types::{
     transaction::{Transaction, TransactionData},
 };
 use serde::{Serialize, de::DeserializeOwned};
-use shared_crypto::intent::{Intent, IntentMessage};
 use tokio::{sync::RwLock, time::sleep};
 use tracing::{debug, info};
 

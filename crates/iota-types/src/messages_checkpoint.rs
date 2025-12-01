@@ -11,12 +11,12 @@ use std::{
 use anyhow::Result;
 use fastcrypto::hash::MultisetHash;
 use iota_protocol_config::ProtocolConfig;
+use iota_sdk_types::crypto::{Intent, IntentScope};
 use once_cell::sync::OnceCell;
 use prometheus::Histogram;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
-use shared_crypto::intent::{Intent, IntentScope};
 use tap::TapFallible;
 use tracing::warn;
 

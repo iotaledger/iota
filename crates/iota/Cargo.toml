@@ -32,6 +32,7 @@ fastcrypto-zkp.workspace = true
 futures.workspace = true
 http.workspace = true
 inquire = "0.6.0"
+iota-sdk-types.workspace = true
 json_to_table.workspace = true
 miette = { version = "7", features = ["fancy"] }
 prometheus.workspace = true
@@ -87,7 +88,6 @@ move-ir-types.workspace = true
 move-package.workspace = true
 move-symbol-pool.workspace = true
 move-vm-profiler.workspace = true
-shared-crypto.workspace = true
 telemetry-subscribers.workspace = true
 
 [target.'cfg(not(msim))'.dev-dependencies]

@@ -157,7 +157,6 @@ members = [
   "crates/iota-upgrade-compatibility-transactional-tests",
   "crates/iota-verifier-transactional-tests",
   "crates/prometheus-closure-metric",
-  "crates/shared-crypto",
   "crates/simulacrum",
   "crates/starfish/config",
   "crates/starfish/core",
@@ -298,6 +297,7 @@ indexmap = { version = "2.11.0", features = ["serde"] }
 indicatif = "0.18.3"
 insta = { version = "1.21.1", features = ["redactions", "yaml", "json"] }
 integer-encoding = "3.0.1"
+iota-sdk-types = { git = "https://github.com/iotaledger/iota-rust-sdk", rev = "95964e2c1d2f8a196e7a0b9c3da0f915d2603c87" }
 itertools = "0.13.0"
 json_to_table = { git = "https://github.com/zhiburt/tabled/", rev = "e449317a1c02eb6b29e409ad6617e5d9eb7b3bd4" }
 jsonrpsee = { version = "0.24", features = ["server", "macros", "client", "ws-client", "http-client"] }
@@ -498,7 +498,6 @@ move-vm-config = { path = "external-crates/move/crates/move-vm-config" }
 move-vm-profiler = { path = "external-crates/move/crates/move-vm-profiler" }
 move-vm-test-utils = { path = "external-crates/move/crates/move-vm-test-utils/", features = ["tiered-gas"] }
 prometheus-closure-metric = { path = "crates/prometheus-closure-metric" }
-shared-crypto = { path = "crates/shared-crypto" }
 simulacrum = { path = "crates/simulacrum" }
 starfish-config = { path = "crates/starfish/config" }
 starfish-core = { path = "crates/starfish/core" }
