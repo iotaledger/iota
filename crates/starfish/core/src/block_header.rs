@@ -463,6 +463,14 @@ impl GenericTransactionRef {
             GenericTransactionRef::TransactionRef(t) => t.transactions_commitment.into(),
         }
     }
+
+    /// Returns the variant name as a static string.
+    pub(crate) fn variant_name(&self) -> &'static str {
+        match self {
+            GenericTransactionRef::BlockRef(_) => "BlockRef",
+            GenericTransactionRef::TransactionRef(_) => "TransactionRef",
+        }
+    }
 }
 
 /// Helper function to convert BlockRefs to GenericTransactionRefs based on

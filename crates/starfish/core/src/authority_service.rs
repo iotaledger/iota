@@ -1053,39 +1053,42 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         };
 
         // Combine and serialize the results
-        let result: Vec<_> = store_transactions
+        let mut result = Vec::new();
+        for (opt_serialized_tx, gen_ref) in store_transactions
             .into_iter()
             .chain(dag_transactions.into_iter())
-            .filter_map(|(opt_serialized_tx, gen_ref)| {
-                opt_serialized_tx.map(|serialized_tx| {
-                    if !self.context.protocol_config.consensus_transaction_ref() {
-                        if let GenericTransactionRef::BlockRef(block_ref) = gen_ref {
-                            Bytes::from(
-                                bcs::to_bytes(&SerializedTransactionsV1 {
-                                    block_ref,
-                                    serialized_transactions: serialized_tx,
-                                })
-                                .map_err(ConsensusError::SerializationFailure)
-                                .expect("serialization should succeed"),
-                            )
-                        } else {
-                            panic!("Unexpected transactions ref type");
-                        }
-                    } else if let GenericTransactionRef::TransactionRef(transaction_ref) = gen_ref {
-                        Bytes::from(
-                            bcs::to_bytes(&SerializedTransactionsV2 {
-                                transaction_ref,
-                                serialized_transactions: serialized_tx,
-                            })
-                            .map_err(ConsensusError::SerializationFailure)
-                            .expect("serialization should succeed"),
-                        )
+        {
+            if let Some(serialized_tx) = opt_serialized_tx {
+                let serialized = if !self.context.protocol_config.consensus_transaction_ref() {
+                    if let GenericTransactionRef::BlockRef(block_ref) = gen_ref {
+                        bcs::to_bytes(&SerializedTransactionsV1 {
+                            block_ref,
+                            serialized_transactions: serialized_tx,
+                        })
+                        .map_err(ConsensusError::SerializationFailure)?
                     } else {
-                        panic!("Unexpected transactions ref type");
+                        return Err(ConsensusError::TransactionRefVariantMismatch {
+                            protocol_flag_enabled: false,
+                            expected_variant: "BlockRef",
+                            received_variant: gen_ref.variant_name(),
+                        });
                     }
-                })
-            })
-            .collect();
+                } else if let GenericTransactionRef::TransactionRef(transaction_ref) = gen_ref {
+                    bcs::to_bytes(&SerializedTransactionsV2 {
+                        transaction_ref,
+                        serialized_transactions: serialized_tx,
+                    })
+                    .map_err(ConsensusError::SerializationFailure)?
+                } else {
+                    return Err(ConsensusError::TransactionRefVariantMismatch {
+                        protocol_flag_enabled: true,
+                        expected_variant: "TransactionRef",
+                        received_variant: gen_ref.variant_name(),
+                    });
+                };
+                result.push(Bytes::from(serialized));
+            }
+        }
 
         Ok(result)
     }

@@ -453,22 +453,20 @@ mod tests {
                         .map(|b| GenericTransactionRef::from(b.reference()))
                         .collect()
                 }
+            } else if transaction_ref_enabled {
+                self.setup
+                    .dag_builder
+                    .block_headers(round..=round)
+                    .iter()
+                    .map(|b| GenericTransactionRef::TransactionRef(b.transaction_ref()))
+                    .collect()
             } else {
-                if transaction_ref_enabled {
-                    self.setup
-                        .dag_builder
-                        .block_headers(round..=round)
-                        .iter()
-                        .map(|b| GenericTransactionRef::TransactionRef(b.transaction_ref()))
-                        .collect()
-                } else {
-                    self.setup
-                        .dag_builder
-                        .block_headers(round..=round)
-                        .iter()
-                        .map(|b| GenericTransactionRef::from(b.reference()))
-                        .collect()
-                }
+                self.setup
+                    .dag_builder
+                    .block_headers(round..=round)
+                    .iter()
+                    .map(|b| GenericTransactionRef::from(b.reference()))
+                    .collect()
             };
             self.committed_refs = refs;
             self

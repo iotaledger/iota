@@ -25,8 +25,8 @@ use crate::{
     },
     context::Context,
     error::{ConsensusError, ConsensusResult},
+    storage::rocksdb_store::check_ref_consistency,
 };
-use crate::storage::rocksdb_store::check_ref_consistency;
 
 /// In-memory storage for testing.
 pub(crate) struct MemStore {
