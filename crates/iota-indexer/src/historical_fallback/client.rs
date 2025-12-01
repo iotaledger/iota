@@ -79,7 +79,7 @@ impl HttpRestKVClient {
     pub fn new(base_url: &str) -> IndexerResult<Self> {
         info!("creating HttpRestKVClient with base_url: {}", base_url);
 
-        let client = Client::builder().http2_prior_knowledge().build().unwrap();
+        let client = Client::builder().http2_prior_knowledge().build()?;
 
         let base_url = if base_url.ends_with('/') {
             base_url.to_string()
@@ -112,8 +112,7 @@ impl HttpRestKVClient {
 
         let resp = self.client.get(url.clone()).send().await?;
         trace!(
-            "got response {url} for url: {}, len: {:?}",
-            url,
+            "got response {} for url: {url}, len: {:?}",
             resp.status(),
             resp.headers()
                 .get(CONTENT_LENGTH)
