@@ -2037,7 +2037,7 @@ mod tests {
         ];
         let context = Context::new_for_test(10).0;
         let missing_block_refs = some_block_refs.iter().cloned().collect::<BTreeSet<_>>();
-        let missing_transations_refs = missing_block_refs
+        let missing_transactions_refs = missing_block_refs
             .iter()
             .map(|&br| GenericTransactionRef::from(br))
             .collect::<BTreeSet<_>>();
@@ -2050,7 +2050,7 @@ mod tests {
             let authority = AuthorityIndex::new_for_test(i as u8);
 
             let guard = map.lock_transactions_and_active_request(
-                missing_transations_refs.clone(),
+                missing_transactions_refs.clone(),
                 authority,
                 context.parameters.max_transactions_per_regular_sync_fetch,
                 sync_method,
@@ -2073,7 +2073,7 @@ mod tests {
             // succeed
 
             let guard = map.lock_transactions_and_active_request(
-                missing_transations_refs.clone(),
+                missing_transactions_refs.clone(),
                 authority,
                 context.parameters.max_transactions_per_regular_sync_fetch,
                 sync_method,
@@ -2088,7 +2088,7 @@ mod tests {
         drop(all_guards.remove(0));
 
         let guard = map.lock_transactions_and_active_request(
-            missing_transations_refs.clone(),
+            missing_transactions_refs.clone(),
             AuthorityIndex::new_for_test(MAX_AUTHORITIES_TO_FETCH_PER_TRANSACTION as u8),
             context.parameters.max_transactions_per_regular_sync_fetch,
             sync_method,
@@ -2096,7 +2096,7 @@ mod tests {
         );
         let (tx_guard, active_request_guard) =
             guard.expect("Guard should be successfully acquired");
-        assert_eq!(tx_guard.transactions_refs, missing_transations_refs);
+        assert_eq!(tx_guard.transactions_refs, missing_transactions_refs);
 
         // Dropping all guards should unlock all block refs
         drop(tx_guard);
