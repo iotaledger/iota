@@ -8,4 +8,5 @@
 //! missing data from the Postgres database when the pruning feature is enabled
 //! for the JSON-RPC API.
 
+pub(crate) mod client;
 pub(crate) mod convert;
