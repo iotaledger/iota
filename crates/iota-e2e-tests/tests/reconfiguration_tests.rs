@@ -62,8 +62,9 @@ async fn advance_epoch_tx_test() {
                 .create_and_execute_advance_epoch_tx(
                     &state.epoch_store_for_testing(),
                     &GasCostSummary::new(0, 0, 0, 0, 0),
-                    0, // checkpoint
-                    0, // epoch_start_timestamp_ms
+                    0,      // checkpoint
+                    0,      // epoch_start_timestamp_ms
+                    vec![], // scores
                 )
                 .await
                 .unwrap();
