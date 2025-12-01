@@ -1504,6 +1504,13 @@ impl CheckpointBuilder {
             // too frequent and not needed, since scores are not used during the epoch
             // (except for monitoring purposes, which does not need to be 100% exact)
             self.epoch_store.scorer.update_scores();
+            let scores: Vec<u64> = self
+                .epoch_store
+                .scorer
+                .current_scores
+                .iter()
+                .map(|x| x.load(std::sync::atomic::Ordering::Relaxed))
+                .collect();
 
             let (mut effects, mut signatures): (Vec<_>, Vec<_>) = transactions.into_iter().unzip();
             let epoch_rolling_gas_cost_summary =
@@ -1517,6 +1524,7 @@ impl CheckpointBuilder {
                         &mut effects,
                         &mut signatures,
                         sequence_number,
+                        scores,
                     )
                     .await?;
 
@@ -1662,6 +1670,7 @@ impl CheckpointBuilder {
         checkpoint_effects: &mut Vec<TransactionEffects>,
         signatures: &mut Vec<Vec<GenericSignature>>,
         checkpoint: CheckpointSequenceNumber,
+        scores: Vec<u64>,
     ) -> anyhow::Result<(IotaSystemState, Option<SystemEpochInfoEvent>)> {
         let (system_state, system_epoch_info_event, effects) = self
             .state
@@ -1670,6 +1679,7 @@ impl CheckpointBuilder {
                 epoch_total_gas_cost,
                 checkpoint,
                 epoch_start_timestamp_ms,
+                scores,
             )
             .await?;
         checkpoint_effects.push(effects);
