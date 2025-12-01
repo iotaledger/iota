@@ -1262,7 +1262,8 @@ impl CheckpointBuilder {
 
         batch.write()?;
 
-        // Send all checkpoint sigs to consensus.
+        // Send all checkpoint sigs to consensus. The messages including
+        // MisbehaviorReports are also sent in this step.
         for (summary, contents) in &new_checkpoints {
             self.output
                 .checkpoint_created(summary, contents, &self.epoch_store, &self.store)
