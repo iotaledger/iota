@@ -3941,12 +3941,9 @@ impl AuthorityPerEpochStore {
                     .committee
                     .authority_index(authority)
                     .expect("authority in committee");
-                // Check validity of the report
+                // Check validity of the report and update scores depending on the result. We
+                // already have consensus on inclusion of this report in the DAG.
                 if !report.verify(self.committee.num_members()) {
-                    // Since this verification happens after consensus, all authorities already
-                    // agreed on the set of messages that would be verified by this method. Then, we
-                    // can update scores according to the validation result directly, without the
-                    // need of any additional step (as propagating opinions about validity).
                     self.scorer.update_invalid_reports_count(authority_index);
                     warn!(
                         "Received invalid misbehavior report from {:?}",

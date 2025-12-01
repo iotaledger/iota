@@ -130,6 +130,7 @@ impl Scorer {
         self.invalid_reports_count[authority as usize].fetch_add(1, Ordering::Relaxed);
     }
 
+    #[expect(dead_code)]
     pub(crate) fn update_scores(&self) {
         match self.version {
             ScorerVersion::V1(_) => self.update_scores_v1(),
