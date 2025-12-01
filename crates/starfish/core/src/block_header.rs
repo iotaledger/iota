@@ -467,7 +467,7 @@ impl GenericTransactionRef {
 
 /// Helper function to convert BlockRefs to GenericTransactionRefs based on
 /// protocol flag.
-#[test]
+#[cfg(test)]
 pub(crate) fn convert_block_refs_to_generic_transaction_refs(
     context: &Arc<Context>,
     store: &dyn crate::storage::Store,

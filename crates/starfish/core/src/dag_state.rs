@@ -3091,10 +3091,6 @@ mod test {
         // Now when trying to query whether we have all the transactions, we should
         // receive all transactions. The first 4 retrieved from the store and the rest
         // is from DagState.
-        let block_refs = blocks
-            .iter()
-            .map(|block| block.reference())
-            .collect::<Vec<_>>();
         let mut transactions_refs = blocks
             .iter()
             .map(|block| {

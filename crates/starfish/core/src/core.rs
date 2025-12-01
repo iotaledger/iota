@@ -2298,7 +2298,9 @@ mod test {
 
     #[tokio::test]
     #[serial]
-    #[should_panic(expected = "Block header must exist for committed transaction")]
+    #[should_panic(
+        expected = "The consensus transaction ref requires consensus_commit_transactions_only_for_traversed_headers to be enabled"
+    )]
     async fn test_sequenced_transactions_no_headers_invalid_config() {
         test_sequenced_transactions_no_headers_impl(false, true).await;
     }

@@ -230,7 +230,7 @@ mod tests {
 
     use super::*;
     use crate::{
-        block_header::{BlockRef, genesis_block_headers, genesis_blocks},
+        block_header::{genesis_block_headers, genesis_blocks},
         commit::{CommitRef, PendingSubDag},
         context::Context,
         dag_state::{DagState, TransactionSource},

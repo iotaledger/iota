@@ -1175,7 +1175,7 @@ mod tests {
 
     use super::*;
     use crate::{
-        Round, TestBlockHeader,
+        Round, TestBlockHeader, Transaction,
         block_header::{
             BlockHeaderDigest, BlockRef, TransactionsCommitment, VerifiedBlock,
             VerifiedBlockHeader, VerifiedOwnShard, VerifiedTransactions,
@@ -1185,6 +1185,7 @@ mod tests {
         core::ReasonToCreateBlock,
         core_thread::CoreError,
         dag_state::DagState,
+        encoder::create_encoder,
         network::{BlockBundleStream, NetworkClient, SerializedTransactionsV1},
         storage::mem_store::MemStore,
     };
