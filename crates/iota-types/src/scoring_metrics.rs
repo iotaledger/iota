@@ -5,7 +5,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 
 use iota_protocol_config::ProtocolConfig;
 
-use crate::messages_consensus::{MisbehaviorReportV1, VersionedMisbehaviorReport};
+use crate::messages_consensus::{MisbehaviorsV1, VersionedMisbehaviorReport};
 
 // This struct represents the scoring metrics collected by all authorities. They
 // are stored locally by each authority and then converted to a misbehavior
@@ -21,6 +21,7 @@ pub enum VersionedScoringMetrics {
 // Basic getters, setters and increments for the metrics.
 impl VersionedScoringMetrics {
     pub fn new(committee_size: usize, protocol_config: &ProtocolConfig) -> Self {
+        // Any version of ScoringMetrics created here must be initialized to zero.
         match protocol_config.scorer_version_as_option() {
             None | Some(1) => VersionedScoringMetrics::V1(ScoringMetricsV1::new(committee_size)),
             _ => panic!("Unsupported scorer version"),
@@ -256,11 +257,11 @@ impl VersionedScoringMetrics {
                     .iter()
                     .map(|metric| metric.load(Ordering::Relaxed))
                     .collect();
-                VersionedMisbehaviorReport::V1(MisbehaviorReportV1 {
+                VersionedMisbehaviorReport::V1(MisbehaviorsV1 {
                     faulty_blocks_provable,
                     faulty_blocks_unprovable,
-                    equivocations,
                     missing_proposals,
+                    equivocations,
                 })
             }
         }
@@ -270,8 +271,8 @@ impl VersionedScoringMetrics {
 pub struct ScoringMetricsV1 {
     faulty_blocks_provable: Vec<AtomicU64>,
     faulty_blocks_unprovable: Vec<AtomicU64>,
-    equivocations: Vec<AtomicU64>,
     missing_proposals: Vec<AtomicU64>,
+    equivocations: Vec<AtomicU64>,
 }
 
 impl ScoringMetricsV1 {
@@ -281,11 +282,11 @@ impl ScoringMetricsV1 {
             faulty_blocks_provable: (0..committee_size).map(|_| AtomicU64::new(0)).collect(),
             // Blocks considered faulty before passing the signature check.
             faulty_blocks_unprovable: (0..committee_size).map(|_| AtomicU64::new(0)).collect(),
+            // Number or rounds that the authority did not propose any block
+            missing_proposals: (0..committee_size).map(|_| AtomicU64::new(0)).collect(),
             // Number of additional blocks issued by a validator within rounds where another block
             // was already produced by them.
             equivocations: (0..committee_size).map(|_| AtomicU64::new(0)).collect(),
-            // Number or rounds that the authority did not propose any block
-            missing_proposals: (0..committee_size).map(|_| AtomicU64::new(0)).collect(),
         }
     }
 }

@@ -1496,6 +1496,14 @@ impl CheckpointBuilder {
                 }
             }
 
+            // We update the validator scores based on the information contained in the
+            // Scorer. We choose this point in time to do so because we must guarantee that
+            // scores are up to date right before the epoch changes. It also provides a good
+            // update periodicity: updating scores each time a report is received could be
+            // too frequent and not needed, since scores are not used during the epoch
+            // (except for monitoring purposes, which does not need to be 100% exact)
+            self.epoch_store.scorer.update_scores();
+
             let (mut effects, mut signatures): (Vec<_>, Vec<_>) = transactions.into_iter().unzip();
             let epoch_rolling_gas_cost_summary =
                 self.get_epoch_total_gas_cost(last_checkpoint.as_ref().map(|(_, c)| c), &effects);
