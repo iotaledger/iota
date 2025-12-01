@@ -214,6 +214,9 @@ pub type CheckpointStreamResult = Result<grpc_ledger_service::CheckpointData, St
 
 /// Trait for reading checkpoint data from storage
 pub trait GrpcStateReader: Send + Sync + 'static {
+    /// Get the chain identifier
+    fn get_chain_identifier(&self) -> anyhow::Result<iota_types::digests::ChainIdentifier>;
+
     /// Get the latest checkpoint sequence number
     fn get_latest_checkpoint_sequence_number(&self) -> Option<u64>;
 
@@ -262,6 +265,10 @@ pub struct RestStateReaderAdapter {
 }
 
 impl GrpcStateReader for RestStateReaderAdapter {
+    fn get_chain_identifier(&self) -> anyhow::Result<iota_types::digests::ChainIdentifier> {
+        self.inner.get_chain_identifier().map_err(Into::into)
+    }
+
     fn get_latest_checkpoint_sequence_number(&self) -> Option<u64> {
         match self.inner.try_get_latest_checkpoint() {
             Ok(checkpoint) => Some(*checkpoint.sequence_number()),
@@ -360,6 +367,10 @@ impl GrpcReader {
         }
     }
 
+    pub fn get_chain_identifier(&self) -> anyhow::Result<iota_types::digests::ChainIdentifier> {
+        self.state_reader.get_chain_identifier()
+    }
+
     pub fn get_epoch_last_checkpoint(
         &self,
         epoch: u64,
@@ -424,6 +435,19 @@ impl GrpcReader {
         &self,
     ) -> anyhow::Result<iota_types::iota_system_state::IotaSystemState> {
         self.state_reader.get_system_state()
+    }
+
+    pub fn get_system_state_summary(
+        &self,
+    ) -> anyhow::Result<
+        iota_types::iota_system_state::iota_system_state_summary::IotaSystemStateSummary,
+    > {
+        use iota_types::iota_system_state::IotaSystemStateTrait;
+
+        let system_state = self.get_system_state()?;
+        let summary = system_state.into_iota_system_state_summary();
+
+        Ok(summary)
     }
 
     pub fn get_epoch_info(&self, epoch: u64) -> Option<iota_types::storage::EpochInfo> {

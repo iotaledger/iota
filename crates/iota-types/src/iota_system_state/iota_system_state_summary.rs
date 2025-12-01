@@ -560,6 +560,7 @@ impl IotaSystemStateSummary {
             Self::V2(v2) => v2.get_iota_committee_for_benchmarking(),
         }
     }
+
     pub fn iter_committee_members(&self) -> impl Iterator<Item = &IotaValidatorSummary> {
         match self {
             Self::V1(v1) => Either::Left(v1.active_validators.iter()),

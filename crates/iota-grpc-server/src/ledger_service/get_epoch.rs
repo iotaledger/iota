@@ -26,7 +26,7 @@ pub const READ_MASK_DEFAULT: &str = crate::field_mask!(
     "start",
     "end",
     "reference_gas_price",
-    "protocol_config.protocol_version",
+    "protocol_config.protocol_version"
 );
 
 #[tracing::instrument(skip(service))]

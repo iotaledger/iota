@@ -18,7 +18,7 @@ use tap::Pipe;
 use crate::{error::RpcError, ledger_service::LedgerGrpcService};
 
 pub const READ_MASK_DEFAULT: &str =
-    crate::field_mask!("chain_id", "epoch", "executed_checkpoint_height",);
+    crate::field_mask!("chain_id", "epoch", "executed_checkpoint_height");
 
 #[tracing::instrument(skip(service))]
 pub fn get_service_info(
