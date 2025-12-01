@@ -505,10 +505,14 @@ impl DagState {
     }
 
     fn update_transaction_metadata(&mut self, transaction: &VerifiedTransactions) {
-        self.recent_transactions_by_authority[transaction.block_ref().author].insert(
-            GenericTransactionRef::from(transaction.block_ref()),
-            transaction.clone(),
-        );
+        let transaction_ref = transaction.transaction_ref();
+        let generic_ref = if self.context.protocol_config.consensus_transaction_ref() {
+            GenericTransactionRef::from(transaction_ref)
+        } else {
+            GenericTransactionRef::from(transaction.block_ref())
+        };
+        self.recent_transactions_by_authority[transaction.block_ref().author]
+            .insert(generic_ref, transaction.clone());
     }
 
     /// Accepts block headers into DagState and keeps it in memory.
@@ -2476,10 +2480,17 @@ mod test {
         all_transactions.extend(dag_builder.transactions(1..=num_rounds));
 
         // All transactions should be found in DagState.
-        let transactions_refs = block_refs
-            .iter()
-            .map(|&br| GenericTransactionRef::from(br))
-            .collect::<Vec<_>>();
+        let transactions_refs = if consensus_transaction_ref {
+            all_block_headers
+                .iter()
+                .map(|bh| GenericTransactionRef::TransactionRef(bh.transaction_ref()))
+                .collect::<Vec<_>>()
+        } else {
+            block_refs
+                .iter()
+                .map(|&br| GenericTransactionRef::from(br))
+                .collect::<Vec<_>>()
+        };
         let result = dag_state
             .get_verified_transactions(transactions_refs.as_slice())
             .into_iter()
@@ -2520,10 +2531,17 @@ mod test {
         assert_eq!(result, block_headers);
         // Transactions from the first 5 rounds should be found in DagState.
         let vec_transactions = dag_builder.transactions(1..=5);
-        let transactions_refs = block_refs
-            .iter()
-            .map(|&br| GenericTransactionRef::from(br))
-            .collect::<Vec<_>>();
+        let transactions_refs = if consensus_transaction_ref {
+            block_headers
+                .iter()
+                .map(|bh| GenericTransactionRef::TransactionRef(bh.transaction_ref()))
+                .collect::<Vec<_>>()
+        } else {
+            block_refs
+                .iter()
+                .map(|&br| GenericTransactionRef::from(br))
+                .collect::<Vec<_>>()
+        };
         let result = dag_state
             .get_verified_transactions(&transactions_refs)
             .into_iter()
@@ -2550,10 +2568,17 @@ mod test {
             .flatten()
             .collect::<Vec<_>>();
         assert!(retrieved_block_headers.is_empty());
-        let transactions_refs = block_refs
-            .iter()
-            .map(|&br| GenericTransactionRef::from(br))
-            .collect::<Vec<_>>();
+        let transactions_refs = if consensus_transaction_ref {
+            missing_block_headers
+                .iter()
+                .map(|bh| GenericTransactionRef::TransactionRef(bh.transaction_ref()))
+                .collect::<Vec<_>>()
+        } else {
+            block_refs
+                .iter()
+                .map(|&br| GenericTransactionRef::from(br))
+                .collect::<Vec<_>>()
+        };
         let retrieved_transactions = dag_state
             .get_verified_transactions(&transactions_refs)
             .into_iter()
@@ -3217,11 +3242,12 @@ mod test {
             .flatten()
             .collect::<Vec<_>>();
         let expected_block_headers = all_block_headers
-            .into_iter()
+            .iter()
             .filter(|x| {
                 x.round() > last_committed_round[x.author().value()] - CACHED_ROUNDS
                     || x.round() == GENESIS_ROUND
             })
+            .cloned()
             .collect::<Vec<_>>();
 
         assert_eq!(result, expected_block_headers);
@@ -3242,10 +3268,23 @@ mod test {
             .filter(|x| x.round > gc_round)
             .cloned()
             .collect();
-        let transaction_refs = block_refs_with_transactions_in_dag
-            .iter()
-            .map(|br| GenericTransactionRef::from(*br))
-            .collect::<Vec<_>>();
+
+        // Get block headers above GC round
+        let block_headers_above_gc = dag_builder.block_headers(gc_round + 1..=num_rounds);
+
+        // Create appropriate transaction refs based on the flag
+        let transaction_refs = if consensus_transaction_ref {
+            block_headers_above_gc
+                .iter()
+                .map(|bh| GenericTransactionRef::TransactionRef(bh.transaction_ref()))
+                .collect::<Vec<_>>()
+        } else {
+            block_refs_with_transactions_in_dag
+                .iter()
+                .map(|br| GenericTransactionRef::from(*br))
+                .collect::<Vec<_>>()
+        };
+
         let expected_transactions_in_dag = dag_builder.transactions(gc_round + 1..=num_rounds);
         // All transactions should be found in DagState or store.
         let result = dag_state
@@ -3268,10 +3307,17 @@ mod test {
         );
 
         // All transactions should be found in DagState or store.
-        let transaction_refs = block_refs
-            .iter()
-            .map(|br| GenericTransactionRef::from(*br))
-            .collect::<Vec<_>>();
+        let transaction_refs = if consensus_transaction_ref {
+            all_block_headers
+                .iter()
+                .map(|bh| GenericTransactionRef::TransactionRef(bh.transaction_ref()))
+                .collect::<Vec<_>>()
+        } else {
+            block_refs
+                .iter()
+                .map(|br| GenericTransactionRef::from(*br))
+                .collect::<Vec<_>>()
+        };
 
         let result = dag_state
             .get_verified_transactions(&transaction_refs)
