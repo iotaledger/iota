@@ -184,3 +184,15 @@ impl From<tokio::task::JoinError> for IndexerError {
         IndexerError::Uncategorized(anyhow::Error::from(value))
     }
 }
+
+impl From<reqwest::Error> for IndexerError {
+    fn from(err: reqwest::Error) -> Self {
+        IndexerError::Generic(format!("Reqwest error: {err}"))
+    }
+}
+
+impl From<url::ParseError> for IndexerError {
+    fn from(err: url::ParseError) -> Self {
+        IndexerError::Generic(format!("URL parse error: {}", err))
+    }
+}
