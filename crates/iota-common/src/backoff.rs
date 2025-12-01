@@ -16,7 +16,7 @@ use rand::Rng as _;
 /// ```rust,no_run
 /// use std::time::Duration;
 ///
-/// use mysten_common::backoff::ExponentialBackoff;
+/// use iota_common::backoff::ExponentialBackoff;
 ///
 /// // Basic example:
 /// let mut backoff = ExponentialBackoff::new(Duration::from_millis(100), Duration::from_secs(10));
