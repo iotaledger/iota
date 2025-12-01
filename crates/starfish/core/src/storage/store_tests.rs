@@ -59,7 +59,10 @@ fn new_mem_teststore(transaction_ref_enabled: bool) -> TestStore {
     context
         .protocol_config
         .set_consensus_transaction_ref_for_testing(transaction_ref_enabled);
-    TestStore::Mem(MemStore::new(Arc::from(context.clone())), transaction_ref_enabled)
+    TestStore::Mem(
+        MemStore::new(Arc::from(context.clone())),
+        transaction_ref_enabled,
+    )
 }
 
 #[rstest]
@@ -174,7 +177,13 @@ async fn read_and_contain_block_headers(
 #[rstest]
 #[tokio::test]
 async fn scan_block_headers(
-    #[values(new_rocksdb_teststore(false), new_mem_teststore(false), new_rocksdb_teststore(true), new_mem_teststore(true))] test_store: TestStore,
+    #[values(
+        new_rocksdb_teststore(false),
+        new_mem_teststore(false),
+        new_rocksdb_teststore(true),
+        new_mem_teststore(true)
+    )]
+    test_store: TestStore,
 ) {
     let store = test_store.store();
     let (mut context, _) = crate::context::Context::new_for_test(4);
@@ -299,7 +308,13 @@ async fn scan_block_headers(
 #[rstest]
 #[tokio::test]
 async fn read_and_contain_transactions(
-    #[values(new_rocksdb_teststore(false), new_mem_teststore(false), new_rocksdb_teststore(true), new_mem_teststore(true))] test_store: TestStore,
+    #[values(
+        new_rocksdb_teststore(false),
+        new_mem_teststore(false),
+        new_rocksdb_teststore(true),
+        new_mem_teststore(true)
+    )]
+    test_store: TestStore,
 ) {
     let store = test_store.store();
 

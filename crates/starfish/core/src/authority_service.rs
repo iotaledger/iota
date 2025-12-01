@@ -1022,7 +1022,8 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         // Optimize by reading from store for transactions below GC round
         let gc_round = self.dag_state.read().gc_round_for_last_solid_commit();
 
-        // Partition committed_transactions_refs into those below and at-or-above GC round
+        // Partition committed_transactions_refs into those below and at-or-above GC
+        // round
         let (below_gc, above_gc): (Vec<_>, Vec<_>) = committed_transactions_refs
             .iter()
             .cloned()
@@ -1416,7 +1417,9 @@ mod tests {
 
     #[rstest]
     #[tokio::test(flavor = "current_thread", start_paused = true)]
-    async fn test_handle_subscribed_block_bundle_time_drift(#[values(false, true)] transaction_ref_enabled: bool) {
+    async fn test_handle_subscribed_block_bundle_time_drift(
+        #[values(false, true)] transaction_ref_enabled: bool,
+    ) {
         let (mut context, _keys) = Context::new_for_test(4);
         context
             .protocol_config
@@ -1498,7 +1501,9 @@ mod tests {
 
     #[rstest]
     #[tokio::test(flavor = "current_thread")]
-    async fn test_handle_subscribed_block_bundle_wrong_peer(#[values(false, true)] transaction_ref_enabled: bool) {
+    async fn test_handle_subscribed_block_bundle_wrong_peer(
+        #[values(false, true)] transaction_ref_enabled: bool,
+    ) {
         let (mut context, _keys) = Context::new_for_test(4);
         context
             .protocol_config
@@ -1589,7 +1594,9 @@ mod tests {
 
     #[rstest]
     #[tokio::test(flavor = "current_thread")]
-    async fn test_handle_subscribed_block_bundle_wrong_transaction_commitment(#[values(false, true)] transaction_ref_enabled: bool) {
+    async fn test_handle_subscribed_block_bundle_wrong_transaction_commitment(
+        #[values(false, true)] transaction_ref_enabled: bool,
+    ) {
         let (mut context, _keys) = Context::new_for_test(4);
         context
             .protocol_config
@@ -1672,7 +1679,9 @@ mod tests {
 
     #[rstest]
     #[tokio::test(flavor = "current_thread")]
-    async fn test_handle_subscribed_block_bundle_with_bad_headers(#[values(false, true)] transaction_ref_enabled: bool) {
+    async fn test_handle_subscribed_block_bundle_with_bad_headers(
+        #[values(false, true)] transaction_ref_enabled: bool,
+    ) {
         let committee_size = 4;
         let (mut context, _keys) = Context::new_for_test(committee_size);
         context
@@ -2162,7 +2171,9 @@ mod tests {
     }
     #[rstest]
     #[tokio::test(flavor = "current_thread")]
-    async fn test_handle_subscribed_block_bundle_with_additional_headers(#[values(false, true)] transaction_ref_enabled: bool) {
+    async fn test_handle_subscribed_block_bundle_with_additional_headers(
+        #[values(false, true)] transaction_ref_enabled: bool,
+    ) {
         // GIVEN
         let rounds = 10;
         let validators = 10;
@@ -2322,7 +2333,9 @@ mod tests {
 
     #[rstest]
     #[tokio::test(flavor = "current_thread")]
-    async fn test_handle_subscribe_bundle_without_additional_headers(#[values(false, true)] transaction_ref_enabled: bool) {
+    async fn test_handle_subscribe_bundle_without_additional_headers(
+        #[values(false, true)] transaction_ref_enabled: bool,
+    ) {
         // GIVEN
         let rounds = 10;
         let validators = 10;
@@ -2496,7 +2509,9 @@ mod tests {
 
     #[rstest]
     #[tokio::test]
-    async fn test_handle_subscribe_block_bundles_request(#[values(false, true)] transaction_ref_enabled: bool) {
+    async fn test_handle_subscribe_block_bundles_request(
+        #[values(false, true)] transaction_ref_enabled: bool,
+    ) {
         telemetry_subscribers::init_for_testing();
         // GIVEN
         let rounds = 10;
@@ -3422,30 +3437,26 @@ mod tests {
 
         let mut block_refs_to_request_first_batch: Vec<GenericTransactionRef> = (1..=rounds)
             .flat_map(|round| {
-                all_block_headers[round as usize]
-                    .iter()
-                    .map(|bh| {
-                        if transaction_ref_enabled {
-                            GenericTransactionRef::TransactionRef(bh.transaction_ref())
-                        } else {
-                            GenericTransactionRef::from(bh.reference())
-                        }
-                    })
+                all_block_headers[round as usize].iter().map(|bh| {
+                    if transaction_ref_enabled {
+                        GenericTransactionRef::TransactionRef(bh.transaction_ref())
+                    } else {
+                        GenericTransactionRef::from(bh.reference())
+                    }
+                })
             })
             .collect();
 
         let mut block_refs_to_request_second_batch: Vec<GenericTransactionRef> = (rounds + 1
             ..=2 * rounds)
             .flat_map(|round| {
-                all_block_headers[round as usize]
-                    .iter()
-                    .map(|bh| {
-                        if transaction_ref_enabled {
-                            GenericTransactionRef::TransactionRef(bh.transaction_ref())
-                        } else {
-                            GenericTransactionRef::from(bh.reference())
-                        }
-                    })
+                all_block_headers[round as usize].iter().map(|bh| {
+                    if transaction_ref_enabled {
+                        GenericTransactionRef::TransactionRef(bh.transaction_ref())
+                    } else {
+                        GenericTransactionRef::from(bh.reference())
+                    }
+                })
             })
             .collect();
 

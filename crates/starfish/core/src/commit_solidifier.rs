@@ -625,7 +625,9 @@ mod tests {
 
     #[rstest]
     #[tokio::test]
-    async fn test_commit_after_missing_blocks_arrive(#[values(false, true)] transaction_ref_enabled: bool) {
+    async fn test_commit_after_missing_blocks_arrive(
+        #[values(false, true)] transaction_ref_enabled: bool,
+    ) {
         let setup = Arc::new(TestSetup::new(3, transaction_ref_enabled));
         let (mut commit_solidifier, selective_dag_state) = setup
             .create_selective_commit_solidifier(
@@ -813,7 +815,9 @@ mod tests {
 
     #[rstest]
     #[tokio::test]
-    async fn test_all_missing_refs_are_collected(#[values(false, true)] transaction_ref_enabled: bool) {
+    async fn test_all_missing_refs_are_collected(
+        #[values(false, true)] transaction_ref_enabled: bool,
+    ) {
         telemetry_subscribers::init_for_testing();
 
         let setup = Arc::new(TestSetup::new(4, transaction_ref_enabled));
@@ -895,7 +899,9 @@ mod tests {
     #[rstest]
     #[tokio::test]
     #[should_panic(expected = "Duplicate missing blockref detected")]
-    async fn test_duplicate_missing_refs_panic(#[values(false, true)] transaction_ref_enabled: bool) {
+    async fn test_duplicate_missing_refs_panic(
+        #[values(false, true)] transaction_ref_enabled: bool,
+    ) {
         let setup = Arc::new(TestSetup::new(4, transaction_ref_enabled));
         let (mut commit_solidifier, _selective_dag_state) = setup
             .create_selective_commit_solidifier(
@@ -1052,7 +1058,9 @@ mod tests {
 
     #[rstest]
     #[tokio::test]
-    async fn test_get_missing_transaction_data(#[values(false, true)] transaction_ref_enabled: bool) {
+    async fn test_get_missing_transaction_data(
+        #[values(false, true)] transaction_ref_enabled: bool,
+    ) {
         let setup = Arc::new(TestSetup::new(4, transaction_ref_enabled));
         let (mut commit_solidifier, selective_dag_state) = setup
             .create_selective_commit_solidifier(

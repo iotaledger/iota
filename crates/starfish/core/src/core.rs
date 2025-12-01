@@ -35,9 +35,8 @@ use crate::{
     Transaction,
     block_header::{
         BlockHeader, BlockHeaderAPI, BlockHeaderV1, BlockRef, BlockTimestampMs, GENESIS_ROUND,
-        GenericTransactionRef, Round, SignedBlockHeader, Slot,
-        TransactionsCommitment, VerifiedBlock, VerifiedBlockHeader, VerifiedOwnShard,
-        VerifiedTransactions,
+        GenericTransactionRef, Round, SignedBlockHeader, Slot, TransactionsCommitment,
+        VerifiedBlock, VerifiedBlockHeader, VerifiedOwnShard, VerifiedTransactions,
     },
     block_manager::BlockManager,
     commit::{CertifiedCommits, PendingSubDag},
@@ -1350,8 +1349,8 @@ mod test {
     use crate::{
         CommitConsumer, CommitIndex, Transaction,
         block_header::{
-            BlockHeaderDigest, TestBlockHeader, TransactionsCommitment, genesis_block_headers,
-            genesis_blocks,
+            BlockHeaderDigest, TestBlockHeader, TransactionRef, TransactionsCommitment,
+            genesis_block_headers, genesis_blocks,
         },
         commit::CommitAPI,
         leader_scoring::ReputationScores,
@@ -1359,7 +1358,6 @@ mod test {
         test_dag_builder::DagBuilder,
         transaction::{BlockStatus, TransactionClient},
     };
-    use crate::block_header::TransactionRef;
 
     /// Recover Core and continue proposing from the last round which forms a
     /// quorum.

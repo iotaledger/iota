@@ -274,7 +274,7 @@ impl Store for RocksDBStore {
                 .iter()
                 .map(|vh| {
                     if vh.is_none() {
-                        return GenericTransactionRef::TransactionRef(TransactionRef::default());
+                        GenericTransactionRef::TransactionRef(TransactionRef::default())
                     } else {
                         GenericTransactionRef::TransactionRef(
                             vh.as_ref().unwrap().transaction_ref(),
@@ -284,7 +284,7 @@ impl Store for RocksDBStore {
                 .collect::<Vec<GenericTransactionRef>>()
         } else {
             refs.iter()
-                .map(|r| GenericTransactionRef::BlockRef(r.clone()))
+                .map(|r| GenericTransactionRef::BlockRef(*r))
                 .collect::<Vec<GenericTransactionRef>>()
         };
         let transactions = self.read_verified_transactions(tr_refs.as_slice())?;
