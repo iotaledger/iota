@@ -28,7 +28,6 @@ use crate::{
         object::{self, Object, ObjectFilter, ObjectImpl, ObjectOwner, ObjectStatus},
         owner::OwnerImpl,
         stake::StakedIota,
-        system_state_summary::SystemStateSummaryView,
         transaction_block::{self, TransactionBlock, TransactionBlockFilter},
         type_filter::ExactTypeFilter,
         uint53::UInt53,

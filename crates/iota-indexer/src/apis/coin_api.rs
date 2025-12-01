@@ -24,7 +24,6 @@ use jsonrpsee::{RpcModule, core::RpcResult};
 use crate::{
     errors::IndexerError::{DateTimeParsing, InvalidArgument},
     read::IndexerReader,
-    types::IotaSystemStateSummaryView,
 };
 
 pub(crate) struct CoinReadApi {
