@@ -15,7 +15,7 @@ use iota_rest_api::{
         },
     },
 };
-use iota_sdk_types::{Argument, Command, TransactionExpiration};
+use iota_sdk_types::{Argument, Command, TransactionExpiration, crypto::Intent};
 use iota_test_transaction_builder::make_transfer_iota_transaction;
 use iota_types::{
     base_types::IotaAddress, effects::TransactionEffectsAPI, transaction::TransactionDataAPI,
