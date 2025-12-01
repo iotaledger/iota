@@ -57,7 +57,7 @@ use iota_types::{
     crypto::{EmptySignInfo, SignatureScheme},
     digests::{ChainIdentifier, TransactionDigest},
     error::IotaError,
-    gas::{GasCostSummary, get_gas_balance},
+    gas::{estimate_gas_budget_from_gas_cost, get_gas_balance},
     gas_coin::GasCoin,
     iota_serde,
     message_envelope::Envelope,
@@ -112,9 +112,6 @@ use crate::{
 mod profiler_tests;
 
 static USER_AGENT: &str = concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION"),);
-
-/// Only to be used within CLI
-pub const GAS_SAFE_OVERHEAD: u64 = 1000;
 
 #[derive(Parser)]
 pub enum IotaClientCommands {
@@ -3240,17 +3237,6 @@ pub async fn estimate_gas_budget(
             dry_run.unwrap_err()
         )
     }
-}
-
-pub fn estimate_gas_budget_from_gas_cost(
-    gas_cost_summary: &GasCostSummary,
-    reference_gas_price: u64,
-) -> u64 {
-    let safe_overhead = GAS_SAFE_OVERHEAD * reference_gas_price;
-    let computation_cost_with_overhead = gas_cost_summary.computation_cost + safe_overhead;
-
-    let gas_usage = gas_cost_summary.net_gas_usage() + safe_overhead as i64;
-    computation_cost_with_overhead.max(if gas_usage < 0 { 0 } else { gas_usage as u64 })
 }
 
 /// Queries the protocol config for the maximum gas allowed in a transaction.

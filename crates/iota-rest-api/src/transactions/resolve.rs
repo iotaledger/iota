@@ -16,7 +16,7 @@ use iota_sdk2::types::{
 use iota_types::{
     base_types::{IotaAddress, ObjectID, ObjectRef},
     effects::TransactionEffectsAPI,
-    gas::GasCostSummary,
+    gas::estimate_gas_budget_from_gas_cost,
     gas_coin::GasCoin,
     move_package::MovePackage,
     transaction::{
@@ -542,27 +542,6 @@ fn find_arg_uses(
 
 fn matches_input_arg(arg: Argument, arg_idx: usize) -> bool {
     matches!(arg, Argument::Input(idx) if idx as usize == arg_idx)
-}
-
-/// Estimate the gas budget using the gas_cost_summary from a previous DryRun
-///
-/// The estimated gas budget is computed as following:
-/// * the maximum between A and B, where: A = computation cost +
-///   GAS_SAFE_OVERHEAD * reference gas price B = computation cost + storage
-///   cost - storage rebate + GAS_SAFE_OVERHEAD * reference gas price overhead
-///
-/// This gas estimate is computed similarly as in the TypeScript SDK
-fn estimate_gas_budget_from_gas_cost(
-    gas_cost_summary: &GasCostSummary,
-    reference_gas_price: u64,
-) -> u64 {
-    const GAS_SAFE_OVERHEAD: u64 = 1000;
-
-    let safe_overhead = GAS_SAFE_OVERHEAD * reference_gas_price;
-    let computation_cost_with_overhead = gas_cost_summary.computation_cost + safe_overhead;
-
-    let gas_usage = gas_cost_summary.net_gas_usage() + safe_overhead as i64;
-    computation_cost_with_overhead.max(if gas_usage < 0 { 0 } else { gas_usage as u64 })
 }
 
 fn select_gas(

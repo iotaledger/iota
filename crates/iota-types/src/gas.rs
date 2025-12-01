@@ -5,6 +5,29 @@
 
 pub use checked::*;
 
+// An amount of gas (in gas units) that is added to transactions as an overhead
+// to ensure transactions do not fail.
+pub const GAS_SAFE_OVERHEAD: u64 = 1000;
+
+/// Estimate the gas budget using the gas_cost_summary from a previous DryRun
+///
+/// The estimated gas budget is computed as following:
+/// * the maximum between A and B, where: A = computation cost +
+///   GAS_SAFE_OVERHEAD * reference gas price B = computation cost + storage
+///   cost - storage rebate + GAS_SAFE_OVERHEAD * reference gas price overhead
+///
+/// This gas estimate is computed similarly as in the TypeScript SDK
+pub fn estimate_gas_budget_from_gas_cost(
+    gas_cost_summary: &GasCostSummary,
+    reference_gas_price: u64,
+) -> u64 {
+    let safe_overhead = GAS_SAFE_OVERHEAD * reference_gas_price;
+    let computation_cost_with_overhead = gas_cost_summary.computation_cost + safe_overhead;
+
+    let gas_usage = gas_cost_summary.net_gas_usage() + safe_overhead as i64;
+    computation_cost_with_overhead.max(if gas_usage < 0 { 0 } else { gas_usage as u64 })
+}
+
 #[iota_macros::with_checked_arithmetic]
 pub mod checked {
 
