@@ -96,16 +96,24 @@ impl ProtocolCommands<IotaBenchmarkType> for IotaProtocol {
             })
             .collect::<Vec<_>>()
             .join(" ");
+        let epoch_duration_flag = parameters
+            .epoch_duration_ms
+            .map(|epoch_duration_ms| format!("--epoch-duration-ms {epoch_duration_ms}"))
+            .unwrap_or_default();
+        let chain_start_timestamp_flag = parameters
+            .chain_start_timestamp_ms
+            .map(|timestamp_ms| format!("--chain-start-timestamp-ms {timestamp_ms}"))
+            .unwrap_or_default();
         let genesis = [
             "cargo run --release --bin iota --",
             "genesis",
             &format!("-f --working-dir {working_dir} --benchmark-ips {ips}"),
-            parameters
-                .epoch_duration_ms
-                .map(|epoch_duration_ms| format!("--epoch-duration-ms {epoch_duration_ms}"))
-                .as_deref()
-                .unwrap_or(""),
+            &epoch_duration_flag,
+            &chain_start_timestamp_flag,
         ]
+        .into_iter()
+        .filter(|s| !s.is_empty())
+        .collect::<Vec<_>>()
         .join(" ");
 
         [
@@ -325,7 +333,11 @@ impl IotaProtocol {
                 false => x.main_ip.to_string(),
             })
             .collect();
-        let genesis_config = GenesisConfig::new_for_benchmarks(&ips, parameters.epoch_duration_ms);
+        let genesis_config = GenesisConfig::new_for_benchmarks(
+            &ips,
+            parameters.epoch_duration_ms,
+            parameters.chain_start_timestamp_ms,
+        );
         let mut addresses = Vec::new();
         if let Some(validator_configs) = genesis_config.validator_config_info.as_ref() {
             for (i, validator_info) in validator_configs.iter().enumerate() {
@@ -366,25 +378,28 @@ impl ProtocolMetrics for IotaProtocol {
                 )
             })
             .unzip();
-
-        GenesisConfig::new_for_benchmarks(&ips, parameters.epoch_duration_ms)
-            .validator_config_info
-            .expect("No validator in genesis")
-            .iter()
-            .zip(instances)
-            .map(|(config, instance)| {
-                let path = format!(
-                    "{}:{}{}",
-                    match parameters.use_internal_ip_address {
-                        true => instance.private_ip,
-                        false => instance.main_ip,
-                    },
-                    config.metrics_address.port(),
-                    iota_metrics::METRICS_ROUTE
-                );
-                (instance, path)
-            })
-            .collect()
+        GenesisConfig::new_for_benchmarks(
+            &ips,
+            parameters.epoch_duration_ms,
+            parameters.chain_start_timestamp_ms,
+        )
+        .validator_config_info
+        .expect("No validator in genesis")
+        .iter()
+        .zip(instances)
+        .map(|(config, instance)| {
+            let path = format!(
+                "{}:{}{}",
+                match parameters.use_internal_ip_address {
+                    true => instance.private_ip,
+                    false => instance.main_ip,
+                },
+                config.metrics_address.port(),
+                iota_metrics::METRICS_ROUTE
+            );
+            (instance, path)
+        })
+        .collect()
     }
 
     fn clients_metrics_path<I, T>(
