@@ -12,6 +12,9 @@ use iota_types::{
     scoring_metrics::VersionedScoringMetrics,
 };
 
+const MAX_SCORE: u64 = 2_u64.pow(16); // Note: must be consistent with MAX_SCORE in validator_set.move in iota-framework.
+const SCALE_FACTOR: u64 = 2_u64.pow(16);
+
 /// Holds all information related to scoring of authorities in the committee.
 pub struct Scorer {
     // The current metrics counts collected by the authority, i.e., the local view of the node
@@ -49,8 +52,6 @@ impl Scorer {
                     committee_size,
                     protocol_config,
                 ));
-
-                let max_score = 2_u64.pow(16);
                 let (received_metrics, has_not_sent_report, current_scores, invalid_reports_count) =
                     (0..committee_size)
                         .map(|_| {
@@ -60,7 +61,7 @@ impl Scorer {
                                 // Initially, none of the authorities had sent any valid report.
                                 AtomicBool::new(true),
                                 // Current scores initialized to max score.
-                                AtomicU64::new(max_score),
+                                AtomicU64::new(MAX_SCORE),
                                 // Invalid reports count initialized to zero.
                                 AtomicU64::new(0),
                             )
@@ -427,7 +428,7 @@ mod tests {
     use iota_types::messages_consensus::{MisbehaviorsV1, VersionedMisbehaviorReport};
 
     use crate::authority::authority_per_epoch_store::scorer::{
-        ParametersV1, Scorer, calculate_median_report, calculate_scores_v1,
+        MAX_SCORE, ParametersV1, SCALE_FACTOR, Scorer, calculate_median_report, calculate_scores_v1,
     };
 
     fn mock_protocol_config(consensus_choice: ConsensusChoice) -> ProtocolConfig {

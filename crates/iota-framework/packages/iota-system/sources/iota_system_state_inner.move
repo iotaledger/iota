@@ -735,6 +735,7 @@ public(package) fun advance_epoch(
     epoch_start_timestamp_ms: u64, // Timestamp of the epoch start
     max_committee_members_count: u64,
     eligible_active_validators: vector<u64>,
+    scores: vector<u64>,
     ctx: &mut TxContext,
 ): Balance<IOTA> {
     self.epoch_start_timestamp_ms = epoch_start_timestamp_ms;
@@ -792,6 +793,7 @@ public(package) fun advance_epoch(
             self.parameters.validator_low_stake_grace_period,
             max_committee_members_count,
             eligible_active_validators,
+            scores,
             ctx,
         );
 
