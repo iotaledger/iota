@@ -48,7 +48,7 @@ macro_rules! impl_consensus_output_api {
         // How to get the `&[u8]` txs iterator source (something with `.iter()` over tx buffers)
         txs = |$txs_item:ident| $txs_expr:expr,
         // How to get the number of committed headers in the commit
-        committed_headers = |$committed_headers_item:ident| $committed_headers_expr:expr
+        committed_header_refs = |$committed_header_refs_item:ident| $committed_header_refs_expr:expr
     ) => {
         impl ConsensusOutputAPI for $ty {
             fn reputation_score_sorted_desc(&self) -> Option<Vec<(AuthorityIndex, u64)>> {
@@ -121,10 +121,7 @@ macro_rules! impl_consensus_output_api {
             fn number_of_headers_in_commit_by_authority(&self) -> Vec<(AuthorityIndex, u64)> {
                 let $self_ident = self;
                 let mut num_of_committed_headers = BTreeMap::new();
-                ({
-                    let $committed_headers_item = $self_ident;
-                    $committed_headers_expr
-                })
+                    $committed_header_refs_expr
                 .iter()
                 .for_each(|block_ref| {
                     let author_index = block_ref.author.value() as AuthorityIndex;
@@ -141,7 +138,7 @@ macro_rules! impl_consensus_output_api {
 // consensus_core::CommittedSubDag:
 // - iterate over `self.blocks`
 // - per-item accessors: round()/author().value()/transactions()
-// - committed_headers: map blocks to BlockRef
+// - committed_header_refs: map blocks to BlockRef
 impl_consensus_output_api! {
     type = consensus_core::CommittedSubDag,
     commit_digest = consensus_core::CommitDigest,
@@ -149,14 +146,14 @@ impl_consensus_output_api! {
     round   = |block| block.round(),
     author  = |block| block.author().value(),
     txs     = |block| block.transactions(),
-    committed_headers = |self_| self_.blocks.iter().map(|b| b.reference()).collect::<Vec<_>>()
+    committed_header_refs = |self_| self_.blocks.iter().map(|b| b.reference()).collect::<Vec<_>>()
 }
 
 // starfish_core::CommittedSubDag:
 // - iterate over `self.transactions` (VerifiedTransactions)
 // - per-item accessors via block_ref(): .round / .author.value()
 // - txs via vt.transactions()
-// - committed_headers: use committed_header_refs from SubDagBase
+// - committed_header_refs: use committed_header_refs from SubDagBase
 impl_consensus_output_api! {
     type = starfish_core::CommittedSubDag,
     commit_digest = starfish_core::CommitDigest,
@@ -164,5 +161,5 @@ impl_consensus_output_api! {
     round   = |vt| vt.block_ref().round,
     author  = |vt| vt.block_ref().author.value(),
     txs     = |vt| vt.transactions(),
-    committed_headers = |self_| &self_.base.committed_header_refs
+    committed_header_refs = |self_| &self_.base.committed_header_refs
 }

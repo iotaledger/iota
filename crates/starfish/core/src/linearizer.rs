@@ -729,15 +729,7 @@ mod tests {
         // Using the same sorting as used in CommittedSubDag::sort
         block_refs_wave_2
             .sort_by(|a, b| a.round.cmp(&b.round).then_with(|| a.author.cmp(&b.author)));
-        assert_eq!(
-            subdag
-                .headers
-                .clone()
-                .into_iter()
-                .map(|b| b.reference())
-                .collect::<Vec<_>>(),
-            block_refs_wave_2
-        );
+        assert_eq!(subdag.committed_header_refs, block_refs_wave_2);
         for block_ref in subdag.base.committed_header_refs.iter() {
             assert!(block_ref.round <= expected_second_commit.leader().round);
         }
