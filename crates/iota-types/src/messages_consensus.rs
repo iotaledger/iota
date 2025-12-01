@@ -310,7 +310,7 @@ pub struct MisbehaviorReportV1 {
 impl MisbehaviorReportV1 {
     pub fn verify(&self, committee_size: usize) -> bool {
         // This version of reports are valid as long as they contain the counts for all
-        // authorities.  Future versions may contain proofs that need verification.
+        // authorities. Future versions may contain proofs that need verification.
         // However, since the validity of a proof is deeply coupled with the protocol
         // version and the consensus mechanism being used, we cannot verify it here. In
         // the future, reports should be unwrapped (or translated) to a type verifiable
