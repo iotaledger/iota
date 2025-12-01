@@ -3,6 +3,7 @@ ARG RUST_IMAGE_VERSION=bookworm
 FROM rust:${RUST_IMAGE_VERSION} AS builder
 
 ARG PROFILE=release
+ARG TARGET_FOLDER=target/release
 ARG CARGO_BUILD_FEATURES
 # The GIT_REVISION environment variable is used during build time inside the rust crates
 ARG GIT_REVISION
@@ -30,35 +31,27 @@ COPY external-crates external-crates
 COPY iota-execution iota-execution
 COPY Cargo.toml Cargo.lock ./
 
+# Build the binaries
 RUN cargo build --profile ${PROFILE} \
-  --bin iota-node \
-  --bin stress \
-  --bin iota-analytics-indexer \
-  --bin iota \
-  --bin iota-faucet \
-  --bin iota-cluster-test \
-  --bin iota-tool \
-  --bin iota-genesis-builder \
-  --features ${CARGO_BUILD_FEATURES:=default}
+      --bin iota-node \
+      --bin stress \
+      --bin iota-analytics-indexer \
+      --bin iota \
+      --bin iota-faucet \
+      --bin iota-cluster-test \
+      --bin iota-tool \
+      --bin iota-genesis-builder \
+      --features ${CARGO_BUILD_FEATURES:=default}
 
-# Copy the built binary to the working directory depending on the output folder of the profile,
-# so we can copy it to the runtime image
-RUN if [ -d target/release ]; then \
-  TARGET_DIR="target/release"; \
-elif [ -d target/debug ]; then \
-  TARGET_DIR="target/debug"; \
-else \
-  echo "Error: No build directory found"; \
-  exit 1; \
-fi && \
-mv $TARGET_DIR/iota-node ./ && \
-mv $TARGET_DIR/stress ./ && \
-mv $TARGET_DIR/iota-analytics-indexer ./ && \
-mv $TARGET_DIR/iota ./ && \
-mv $TARGET_DIR/iota-faucet ./ && \
-mv $TARGET_DIR/iota-cluster-test ./ && \
-mv $TARGET_DIR/iota-tool ./ && \
-mv $TARGET_DIR/iota-genesis-builder ./;
+# Copy the built binaries to the working directory
+RUN cp $TARGET_FOLDER/iota-node ./iota-node && \
+    cp $TARGET_FOLDER/stress ./stress && \
+    cp $TARGET_FOLDER/iota-analytics-indexer ./iota-analytics-indexer && \
+    cp $TARGET_FOLDER/iota ./iota && \
+    cp $TARGET_FOLDER/iota-faucet ./iota-faucet && \
+    cp $TARGET_FOLDER/iota-cluster-test ./iota-cluster-test && \
+    cp $TARGET_FOLDER/iota-tool ./iota-tool && \
+    cp $TARGET_FOLDER/iota-genesis-builder ./iota-genesis-builder
 
 # Production image
 FROM debian:bookworm-slim AS runtime

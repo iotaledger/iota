@@ -16,7 +16,7 @@ pub mod iota;
 /// from the orchestrator.
 pub trait ProtocolCommands<T: BenchmarkType> {
     /// The list of dependencies to install (e.g., through apt-get).
-    fn protocol_dependencies(&self) -> Vec<&'static str>;
+    fn protocol_dependencies(&self, use_precompiled_binaries: bool) -> Vec<&'static str>;
 
     /// The directories of all databases (that should be erased before each
     /// run).
@@ -24,7 +24,12 @@ pub trait ProtocolCommands<T: BenchmarkType> {
 
     /// The command to generate the genesis and all configuration files. This
     /// command is run on each remote machine.
-    fn genesis_command<'a, I>(&self, instances: I, parameters: &BenchmarkParameters<T>) -> String
+    fn genesis_command<'a, I>(
+        &self,
+        instances: I,
+        parameters: &BenchmarkParameters<T>,
+        use_precompiled_binaries: bool,
+    ) -> String
     where
         I: Iterator<Item = &'a Instance>;
 
@@ -34,6 +39,7 @@ pub trait ProtocolCommands<T: BenchmarkType> {
         &self,
         instances: I,
         parameters: &BenchmarkParameters<T>,
+        use_precompiled_binaries: bool,
     ) -> Vec<(Instance, String)>
     where
         I: IntoIterator<Item = Instance>;
@@ -44,6 +50,7 @@ pub trait ProtocolCommands<T: BenchmarkType> {
         &self,
         instances: I,
         parameters: &BenchmarkParameters<T>,
+        use_precompiled_binaries: bool,
     ) -> Vec<(Instance, String)>
     where
         I: IntoIterator<Item = Instance>;
@@ -58,6 +65,7 @@ pub trait ProtocolCommands<T: BenchmarkType> {
         &self,
         instances: I,
         parameters: &BenchmarkParameters<T>,
+        use_precompiled_binaries: bool,
     ) -> Vec<(Instance, String)>
     where
         I: IntoIterator<Item = Instance>;
