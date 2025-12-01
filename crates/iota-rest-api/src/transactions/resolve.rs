@@ -129,11 +129,25 @@ async fn resolve_transaction(
     let budget = if let Some(user_provided_budget) = user_provided_budget {
         user_provided_budget
     } else {
+        let mut estimation_transaction = resolved_transaction.clone();
+        estimation_transaction.gas_data_mut().payment = Vec::new();
+        estimation_transaction.gas_data_mut().budget = protocol_config.max_tx_gas();
+
         // Hardcoded dry run simulation
         let dry_run_checks = VmChecks::Enabled;
         let simulation_result = executor
-            .simulate_transaction(resolved_transaction.clone(), dry_run_checks)
+            .simulate_transaction(estimation_transaction, dry_run_checks)
             .map_err(anyhow::Error::from)?;
+
+        if !simulation_result.effects.status().is_ok() {
+            return Err(RestError::new(
+                axum::http::StatusCode::BAD_REQUEST,
+                format!(
+                    "Budget estimation failed with status: {:?}.",
+                    simulation_result.effects.status()
+                ),
+            ));
+        }
 
         let estimate = estimate_gas_budget_from_gas_cost(
             simulation_result.effects.gas_cost_summary(),
@@ -141,7 +155,24 @@ async fn resolve_transaction(
             resolved_transaction.gas_data().payment.len(),
             &protocol_config,
         );
+
+        // If the request specified gas payment, then transaction.gas_data().budget
+        // should have been resolved to the cumulative balance of those coins.
+        // We don't want to return a resolved transaction where the gas payment
+        // can't satisfy the budget, so validate that balance can actually cover the
+        // estimated budget.
+        let gas_balance = resolved_transaction.gas_data().budget;
+        if gas_balance < estimate {
+            return Err(RestError::new(
+                axum::http::StatusCode::BAD_REQUEST,
+                format!(
+                    "Insufficient gas balance to cover estimated transaction cost. \
+                    Available gas balance: {gas_balance} NANOS. Estimated gas budget required: {estimate} NANOS"
+                ),
+            ));
+        }
         resolved_transaction.gas_data_mut().budget = estimate;
+
         estimate
     };
 

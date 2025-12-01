@@ -3205,15 +3205,13 @@ pub async fn execute_dry_run(
 }
 
 /// Call a dry run with the transaction data to estimate the gas budget.
+///
 /// The estimated gas budget is computed as following:
-/// * the maximum between A and B, where:
-///
-/// A = computation cost + GAS_SAFE_OVERHEAD * reference gas price
-/// B = computation cost + storage cost - storage rebate + GAS_SAFE_OVERHEAD *
-/// reference gas price overhead
-///
-/// This gas estimate is computed exactly as in the TypeScript SDK
-/// <https://github.com/iotaledger/iota/blob/3c4369270605f78a243842098b7029daf8d883d9/sdk/typescript/src/transactions/TransactionBlock.ts#L845-L858>
+/// 1. Base cost from transaction simulation (computation + storage)
+/// 2. Cost of loading gas payment objects
+/// 3. Rounding up to the protocol gas rounding step (typically 1000 NANOS)
+/// 4. Adding safe overhead buffer (1000 * reference_gas_price)
+/// 5. Clamping to max_tx_gas protocol limit
 pub async fn estimate_gas_budget(
     context: &mut WalletContext,
     signer: IotaAddress,
@@ -3224,8 +3222,12 @@ pub async fn estimate_gas_budget(
 ) -> Result<u64, anyhow::Error> {
     let client = context.get_client().await?;
     let num_payment_objects_on_request = gas_payment.len();
-    let dry_run =
-        execute_dry_run(context, signer, kind, None, gas_price, gas_payment, sponsor).await;
+
+    // We don't pass the gas payment objects here, so that the dry run uses the
+    // ephemeral gas coin object. This is needed to get an accurate gas cost
+    // estimation via "estimate_gas_budget_from_gas_cost".
+    let dry_run = execute_dry_run(context, signer, kind, None, gas_price, vec![], sponsor).await;
+
     if let Ok(IotaClientCommandResult::DryRun(dry_run)) = dry_run {
         let rgp = client.read_api().get_reference_gas_price().await?;
         let protocol_version = client
