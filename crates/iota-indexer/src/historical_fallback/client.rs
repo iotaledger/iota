@@ -149,7 +149,7 @@ where
         Ok(Some(bytes)) => Some((bytes, key)),
         Ok(None) => None,
         Err(err) => {
-            warn!("Error fetching key: {:?}, error: {:?}", key, err);
+            warn!("Error fetching key: {key:?}, error: {err:?}");
             None
         }
     }
