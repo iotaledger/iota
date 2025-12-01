@@ -1317,6 +1317,7 @@
                 "consensus_round_prober": false,
                 "consensus_round_prober_probe_accepted_rounds": false,
                 "consensus_smart_ancestor_selection": false,
+                "consensus_transaction_ref": false,
                 "consensus_zstd_compression": false,
                 "convert_type_argument_error": true,
                 "dependency_linkage_error": false,
