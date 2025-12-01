@@ -123,6 +123,20 @@ impl<T: SubmitToConsensus + ReconfigurationInitiator> CheckpointOutput
                 .set(checkpoint_seq as i64);
         }
 
+        // We also send misbehavior reports to consensus at this point. Misbehavior
+        // reports containing proofs of misbehaviour can be send whenever the
+        // misbehavior is detected, but we choose to send the ones that include only
+        // unprovable counts at this point, due to periodicity reasons and to ensure a
+        // (approximate) synchronization with the score updates.
+        let misbehavior_report = epoch_store.scorer.current_local_metrics_count.to_report();
+        let transaction = ConsensusTransaction::new_misbehavior_report(
+            epoch_store.name,
+            &misbehavior_report,
+            checkpoint_seq,
+        );
+        self.sender
+            .submit_to_consensus(&vec![transaction], epoch_store)?;
+
         if checkpoint_timestamp >= self.next_reconfiguration_timestamp_ms {
             // close_epoch is ok if called multiple times
             self.sender.close_epoch(epoch_store);
