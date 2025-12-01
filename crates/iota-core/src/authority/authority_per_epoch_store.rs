@@ -4141,10 +4141,25 @@ impl AuthorityPerEpochStore {
                 panic!("process_consensus_transaction called with end-of-publish transaction");
             }
             SequencedConsensusTransactionKind::External(ConsensusTransaction {
-                kind: ConsensusTransactionKind::MisbehaviorReport(_authority, _report, _),
+                kind: ConsensusTransactionKind::MisbehaviorReport(authority, report, _),
                 ..
             }) => {
-                // Validate report
+                let authority_index = self
+                    .committee
+                    .authority_index(authority)
+                    .expect("authority in committee");
+                // Check validity of the report and update scores depending on the result. We
+                // already have consensus on inclusion of this report in the DAG.
+                if !report.verify(self.committee.num_members()) {
+                    self.scorer.update_invalid_reports_count(authority_index);
+                    warn!(
+                        "Received invalid misbehavior report from {:?}",
+                        authority.concise()
+                    );
+                } else {
+                    // Here we update all counts related to the information in the reports.
+                    self.scorer.update_received_reports(authority_index, report);
+                }
                 Ok(ConsensusCertificateResult::ConsensusMessage)
             }
             SequencedConsensusTransactionKind::External(ConsensusTransaction {
