@@ -13,6 +13,7 @@ async-trait.workspace = true
 axum.workspace = true
 backoff.workspace = true
 bcs.workspace = true
+bytes.workspace = true
 cached.workspace = true
 chrono.workspace = true
 clap = { workspace = true, features = ["env"] }
@@ -26,6 +27,7 @@ itertools.workspace = true
 jsonrpsee.workspace = true
 prometheus.workspace = true
 rand = { workspace = true, optional = true }
+reqwest.workspace = true
 secrecy = "0.8.0"
 serde.workspace = true
 serde_with.workspace = true
@@ -55,6 +57,7 @@ iota-open-rpc.workspace = true
 iota-package-resolver.workspace = true
 iota-protocol-config.workspace = true
 iota-rest-api.workspace = true
+iota-storage.workspace = true
 iota-transaction-builder.workspace = true
 iota-types.workspace = true
 move-binary-format.workspace = true
