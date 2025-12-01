@@ -1012,17 +1012,9 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             committed_transactions_refs.truncate(max_transactions);
         }
 
-        // Some quick validation of the requested block refs
-        let block_refs = committed_transactions_refs
-            .iter()
-            .map(|tr_ref| BlockRef {
-                author: tr_ref.author(),
-                round: tr_ref.round(),
-                ..Default::default()
-            })
-            .collect::<Vec<BlockRef>>();
-        ConsensusError::quick_validation_requested_block_refs(
-            &block_refs,
+        // Some quick validation of the requested transactions refs
+        ConsensusError::quick_validation_requested_tr_refs(
+            &committed_transactions_refs,
             peer,
             &self.context.committee,
         )?;
@@ -1030,17 +1022,18 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         // Optimize by reading from store for transactions below GC round
         let gc_round = self.dag_state.read().gc_round_for_last_solid_commit();
 
-        // Partition block_refs into those below and at-or-above GC round
-        let (below_gc, above_gc): (Vec<_>, Vec<_>) = block_refs
+        // Partition committed_transactions_refs into those below and at-or-above GC round
+        let (below_gc, above_gc): (Vec<_>, Vec<_>) = committed_transactions_refs
             .iter()
-            .partition(|block_ref| block_ref.round < gc_round);
+            .cloned()
+            .partition(|gen_tr_ref| gen_tr_ref.round() < gc_round);
 
         // Fetch transactions below GC from store
         let store_transactions = if !below_gc.is_empty() {
             self.store
                 .read_serialized_transactions(&below_gc)?
                 .into_iter()
-                .zip(below_gc.iter())
+                .zip(below_gc.into_iter())
                 .collect::<Vec<_>>()
         } else {
             vec![]
@@ -1052,7 +1045,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
                 .read()
                 .get_serialized_transactions(&above_gc)
                 .into_iter()
-                .zip(above_gc.iter())
+                .zip(above_gc.into_iter())
                 .collect::<Vec<_>>()
         } else {
             vec![]
@@ -1062,7 +1055,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         let result: Vec<_> = store_transactions
             .into_iter()
             .chain(dag_transactions.into_iter())
-            .filter_map(|(opt_serialized_tx, block_ref)| {
+            .filter_map(|(opt_serialized_tx, gen_ref)| {
                 opt_serialized_tx.map(|serialized_tx| {
                     if !self.context.protocol_config.consensus_transaction_ref() {
                         if let GenericTransactionRef::BlockRef(block_ref) = gen_ref {

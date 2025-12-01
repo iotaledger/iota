@@ -293,6 +293,26 @@ impl ConsensusError {
         Ok(())
     }
 
+    pub fn quick_validation_requested_tr_refs(
+        gen_tr_refs: &[GenericTransactionRef],
+        peer: AuthorityIndex,
+        committee: &Committee,
+    ) -> ConsensusResult<()> {
+        for gen_tr_ref in gen_tr_refs {
+            if !committee.is_valid_index(gen_tr_ref.author()) {
+                return Err(ConsensusError::InvalidAuthorityIndexRequested {
+                    index: gen_tr_ref.author(),
+                    max: committee.size(),
+                    peer,
+                });
+            }
+            if gen_tr_ref.round() == GENESIS_ROUND {
+                return Err(ConsensusError::UnexpectedGenesisRequested { peer });
+            }
+        }
+        Ok(())
+    }
+
     pub fn quick_validation_authority_indices(
         authorities: &[AuthorityIndex],
         committee: &Committee,

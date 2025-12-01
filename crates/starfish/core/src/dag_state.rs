@@ -882,14 +882,25 @@ impl DagState {
     pub(crate) fn get_last_own_non_genesis_block(&self) -> Option<VerifiedBlock> {
         if let Some(last) = self.recent_headers_refs_by_authority[self.context.own_index].last() {
             if last.round > GENESIS_ROUND {
-                if let (Some(last_header), Some(last_transactions)) = (
-                    self.recent_block_headers.get(last),
-                    self.recent_transactions_by_authority[last.author].get(last),
-                ) {
-                    return Some(VerifiedBlock::new(
-                        last_header.clone(),
-                        last_transactions.clone(),
-                    ));
+                let last_header_opt = self.recent_block_headers.get(last);
+                if let Some(last_header) = last_header_opt {
+                    let transaction_ref = if self.context.protocol_config.consensus_transaction_ref() {
+                        GenericTransactionRef::from(TransactionRef {
+                            round: last.round,
+                            author: last.author,
+                            transactions_commitment: last_header.transactions_commitment(),
+                            block_digest: last.digest,
+                        })
+                    } else {
+                        GenericTransactionRef::from(*last)
+                    };
+
+                    if let Some(last_transactions) = self.recent_transactions_by_authority[last.author].get(&transaction_ref) {
+                        return Some(VerifiedBlock::new(
+                            last_header.clone(),
+                            last_transactions.clone(),
+                        ));
+                    }
                 }
             }
         }
