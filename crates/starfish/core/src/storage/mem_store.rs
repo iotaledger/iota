@@ -150,8 +150,8 @@ impl Store for MemStore {
                     .get(&(b.round, b.author, b.digest))
                     .cloned(),
                 GenericTransactionRef::TransactionRef(t) => inner
-                    .transactions
-                    .get(&(t.round, t.author, t.block_digest))
+                    .transactions_by_tr_refs
+                    .get(&(t.round, t.author, t.transactions_commitment))
                     .cloned(),
             })
             .collect();
@@ -174,8 +174,8 @@ impl Store for MemStore {
                     .get(&(b.round, b.author, b.digest))
                     .map(|tx| tx.serialized().clone()),
                 GenericTransactionRef::TransactionRef(t) => inner
-                    .transactions
-                    .get(&(t.round, t.author, t.block_digest))
+                    .transactions_by_tr_refs
+                    .get(&(t.round, t.author, t.transactions_commitment))
                     .map(|tx| tx.serialized().clone()),
             })
             .collect();

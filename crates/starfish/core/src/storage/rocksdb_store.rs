@@ -55,6 +55,8 @@ pub(crate) struct RocksDBStore {
     commit_votes: DBMap<(CommitIndex, CommitDigest, BlockRef), ()>,
     /// Stores info related to Commit that helps recovery.
     commit_info: DBMap<(CommitIndex, CommitDigest), CommitInfo>,
+    /// Context to access protocol configuration
+    context: Arc<Context>,
 }
 
 impl RocksDBStore {
@@ -69,7 +71,7 @@ impl RocksDBStore {
     const COMMIT_INFO_CF: &'static str = "commit_info";
 
     /// Creates a new instance of RocksDB storage.
-    pub(crate) fn new(path: &str) -> Self {
+    pub(crate) fn new(path: &str, context: Arc<Context>) -> Self {
         // Consensus data has high write throughput (all transactions) and is rarely
         // read (only during recovery and when helping peers catch up).
         let db_options = default_db_options().optimize_db_for_write_throughput(2);
@@ -147,6 +149,7 @@ impl RocksDBStore {
             commits,
             commit_votes,
             commit_info,
+            context,
         }
     }
 }
@@ -264,47 +267,36 @@ impl Store for RocksDBStore {
     }
 
     fn read_blocks(&self, refs: &[BlockRef]) -> ConsensusResult<Vec<Option<VerifiedBlock>>> {
-        let keys = refs
-            .iter()
-            .map(|r| (r.round, r.author, r.digest))
-            .collect::<Vec<_>>();
+        // Get both headers and transactions for the given references
+        let headers = self.read_verified_block_headers(refs)?;
+        let tr_refs = if self.context.protocol_config.consensus_transaction_ref() {
+            headers
+                .iter()
+                .map(|vh| {
+                    if vh.is_none() {
+                        return GenericTransactionRef::TransactionRef(TransactionRef::default());
+                    } else {
+                        GenericTransactionRef::TransactionRef(
+                            vh.as_ref().unwrap().transaction_ref(),
+                        )
+                    }
+                })
+                .collect::<Vec<GenericTransactionRef>>()
+        } else {
+            refs.iter()
+                .map(|r| GenericTransactionRef::BlockRef(r.clone()))
+                .collect::<Vec<GenericTransactionRef>>()
+        };
+        let transactions = self.read_verified_transactions(tr_refs.as_slice())?;
 
-        // TODO: is consistency guaranteed here? what if there is a write between those
-        //  two reads?
-        let serialized_vec_transactions = self.transactions.multi_get(keys.clone())?;
-        let serialized_block_headers = self.block_headers.multi_get(keys)?;
-        let mut blocks = vec![];
-        for ((key, serialized_block_header), serialized_transactions) in refs
-            .iter()
-            .zip(serialized_block_headers)
-            .zip(serialized_vec_transactions)
-        {
-            if let (Some(serialized_block_header), Some(serialized_transactions)) =
-                (serialized_block_header, serialized_transactions)
-            {
-                let signed_block_header: SignedBlockHeader =
-                    bcs::from_bytes(&serialized_block_header)
-                        .map_err(ConsensusError::MalformedHeader)?;
-                let transactions: Vec<Transaction> = bcs::from_bytes(&serialized_transactions)
-                    .map_err(ConsensusError::MalformedTransactions)?;
-                // We don't check the signature as it's loaded from storage.
-                let verified_block_header =
-                    VerifiedBlockHeader::new_verified(signed_block_header, serialized_block_header);
-                // We don't check the transactions commitment as it's loaded from storage.
-                let verified_transactions = VerifiedTransactions::new(
-                    transactions,
-                    verified_block_header.reference(),
-                    verified_block_header.transactions_commitment(),
-                    serialized_transactions,
-                );
-
-                let block = VerifiedBlock::new(verified_block_header, verified_transactions);
-
-                // Makes sure block data is not corrupted by comparing digests.
-                assert_eq!(*key, block.reference());
-                blocks.push(Some(block));
-            } else {
-                blocks.push(None);
+        // Combine them into blocks if both parts exist
+        let mut blocks = Vec::with_capacity(refs.len());
+        for (header, transactions) in headers.into_iter().zip(transactions) {
+            match (header, transactions) {
+                (Some(hdr), Some(txs)) => {
+                    blocks.push(Some(VerifiedBlock::new(hdr, txs)));
+                }
+                _ => blocks.push(None),
             }
         }
         Ok(blocks)

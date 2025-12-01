@@ -1282,7 +1282,7 @@ impl CoreTextFixture {
             Arc::new(MemStore::new(context.clone()))
         } else {
             let store_path = context.parameters.db_path.as_path().to_str().unwrap();
-            Arc::new(RocksDBStore::new(store_path))
+            Arc::new(RocksDBStore::new(store_path, context.clone()))
         };
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
 
@@ -1359,6 +1359,7 @@ mod test {
         test_dag_builder::DagBuilder,
         transaction::{BlockStatus, TransactionClient},
     };
+    use crate::block_header::TransactionRef;
 
     /// Recover Core and continue proposing from the last round which forms a
     /// quorum.

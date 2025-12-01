@@ -35,9 +35,10 @@ impl TestStore {
 }
 
 fn new_rocksdb_teststore() -> TestStore {
+    let (context, _) = Context::new_for_test(4);
     let temp_dir = TempDir::new().unwrap();
     TestStore::RocksDB((
-        RocksDBStore::new(temp_dir.path().to_str().unwrap()),
+        RocksDBStore::new(temp_dir.path().to_str().unwrap(), Arc::new(context)),
         temp_dir,
     ))
 }
