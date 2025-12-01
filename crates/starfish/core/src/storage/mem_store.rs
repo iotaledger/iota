@@ -26,6 +26,7 @@ use crate::{
     context::Context,
     error::{ConsensusError, ConsensusResult},
 };
+use crate::storage::rocksdb_store::check_ref_consistency;
 
 /// In-memory storage for testing.
 pub(crate) struct MemStore {
@@ -138,7 +139,7 @@ impl Store for MemStore {
         &self,
         refs: &[GenericTransactionRef],
     ) -> ConsensusResult<Vec<Option<VerifiedTransactions>>> {
-        if crate::storage::rocksdb_store::check_ref_consistency(refs) == false {
+        if !check_ref_consistency(refs) {
             return Err(ConsensusError::InconsistentTransactionRefVariants);
         }
         let inner = self.inner.read();
@@ -162,7 +163,7 @@ impl Store for MemStore {
         &self,
         refs: &[GenericTransactionRef],
     ) -> ConsensusResult<Vec<Option<Bytes>>> {
-        if crate::storage::rocksdb_store::check_ref_consistency(refs) == false {
+        if !check_ref_consistency(refs) {
             return Err(ConsensusError::InconsistentTransactionRefVariants);
         }
         let inner = self.inner.read();
@@ -195,7 +196,7 @@ impl Store for MemStore {
                 .iter()
                 .map(|vh| {
                     if vh.is_none() {
-                        return GenericTransactionRef::TransactionRef(TransactionRef::default());
+                        GenericTransactionRef::TransactionRef(TransactionRef::default())
                     } else {
                         GenericTransactionRef::TransactionRef(
                             vh.as_ref().unwrap().transaction_ref(),
@@ -205,7 +206,7 @@ impl Store for MemStore {
                 .collect::<Vec<GenericTransactionRef>>()
         } else {
             refs.iter()
-                .map(|r| GenericTransactionRef::BlockRef(r.clone()))
+                .map(|r| GenericTransactionRef::BlockRef(*r))
                 .collect::<Vec<GenericTransactionRef>>()
         };
         let transactions = self.read_verified_transactions(tr_refs.as_slice())?;
@@ -225,7 +226,7 @@ impl Store for MemStore {
     }
 
     fn contains_transactions(&self, refs: &[GenericTransactionRef]) -> ConsensusResult<Vec<bool>> {
-        if crate::storage::rocksdb_store::check_ref_consistency(refs) == false {
+        if !check_ref_consistency(refs) {
             return Err(ConsensusError::InconsistentTransactionRefVariants);
         }
         let inner = self.inner.read();
