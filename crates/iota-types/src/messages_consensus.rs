@@ -20,8 +20,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     base_types::{
-        AuthorityName, CommitRound, ConciseableName, ObjectID, ObjectRef, SequenceNumber,
-        TransactionDigest,
+        AuthorityName, ConciseableName, ObjectID, ObjectRef, SequenceNumber, TransactionDigest,
     },
     crypto::{AuthoritySignature, DefaultHash},
     digests::{ConsensusCommitDigest, Digest},
@@ -91,10 +90,10 @@ pub enum ConsensusTransactionKey {
     NewJWKFetched(Box<(AuthorityName, JwkId, JWK)>),
     RandomnessDkgMessage(AuthorityName),
     RandomnessDkgConfirmation(AuthorityName),
-    // If a validator submits more than one report for the same round, we update the
-    // scoring metrics using the maximum reported metric, so CommitRound is sufficient to
-    // identify a report from a single AuthorityName.
-    MisbehaviorReport(AuthorityName, CommitRound),
+    // If a validator submits more than one report for the same checkpoint, we update the
+    // scoring metrics using the maximum reported metric, so the checkpoint sequence number is
+    // sufficient to identify a report from a single AuthorityName.
+    MisbehaviorReport(AuthorityName, u64 /* checkpoint_seq */),
     // New entries should be added at the end to preserve serialization compatibility. DO NOT
     // CHANGE THE ORDER OF EXISTING ENTRIES!
 }
@@ -107,8 +106,13 @@ impl Debug for ConsensusTransactionKey {
                 write!(f, "CheckpointSignature({:?}, {:?})", name.concise(), seq)
             }
             Self::EndOfPublish(name) => write!(f, "EndOfPublish({:?})", name.concise()),
-            Self::MisbehaviorReport(name, round) => {
-                write!(f, "MisbehaviorReport({:?},{:?})", name.concise(), round)
+            Self::MisbehaviorReport(name, checkpoint_seq) => {
+                write!(
+                    f,
+                    "MisbehaviorReport({:?},{:?})",
+                    name.concise(),
+                    checkpoint_seq
+                )
             }
             Self::CapabilityNotification(name, generation) => write!(
                 f,
@@ -268,7 +272,11 @@ pub enum ConsensusTransactionKind {
     // of `RandomnessDkgMessages` have been received locally, to complete the key generation
     // process. Contents are a serialized `fastcrypto_tbls::dkg::Confirmation`.
     RandomnessDkgConfirmation(AuthorityName, Vec<u8>),
-    MisbehaviorReport(AuthorityName, VersionedMisbehaviorReport, CommitRound),
+    MisbehaviorReport(
+        AuthorityName,
+        VersionedMisbehaviorReport,
+        u64, // checkpoint_seq
+    ),
     // New entries should be added at the end to preserve serialization compatibility. DO NOT
     // CHANGE THE ORDER OF EXISTING ENTRIES!
 }
@@ -563,10 +571,10 @@ impl ConsensusTransaction {
         }
     }
 
-    pub fn new_misbehavior_report_v1(
+    pub fn new_misbehavior_report(
         authority: AuthorityName,
-        report: &MisbehaviorsV1<Vec<u64>>,
-        round: CommitRound,
+        report: &VersionedMisbehaviorReport,
+        checkpoint_seq: u64,
     ) -> Self {
         let serialized_report =
             bcs::to_bytes(report).expect("report serialization should not fail");
@@ -577,8 +585,8 @@ impl ConsensusTransaction {
             tracking_id,
             kind: ConsensusTransactionKind::MisbehaviorReport(
                 authority,
-                VersionedMisbehaviorReport::V1(report.clone()),
-                round,
+                report.clone(),
+                checkpoint_seq,
             ),
         }
     }
@@ -603,8 +611,8 @@ impl ConsensusTransaction {
             ConsensusTransactionKind::EndOfPublish(authority) => {
                 ConsensusTransactionKey::EndOfPublish(*authority)
             }
-            ConsensusTransactionKind::MisbehaviorReport(authority, _, round) => {
-                ConsensusTransactionKey::MisbehaviorReport(*authority, *round)
+            ConsensusTransactionKind::MisbehaviorReport(authority, _, checkpoint_seq) => {
+                ConsensusTransactionKey::MisbehaviorReport(*authority, *checkpoint_seq)
             }
             ConsensusTransactionKind::CapabilityNotificationV1(cap) => {
                 ConsensusTransactionKey::CapabilityNotification(cap.authority, cap.generation)
