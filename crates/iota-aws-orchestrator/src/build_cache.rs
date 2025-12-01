@@ -9,6 +9,7 @@ use crate::{
     client::Instance,
     display,
     error::TestbedResult,
+    orchestrator::BuildGroups,
     settings::Settings,
     ssh::{CommandContext, SshConnectionManager},
 };
@@ -31,7 +32,7 @@ impl<'a> BuildCacheService<'a> {
     pub async fn update_with_build_cache(
         &self,
         commit: &str,
-        binaries: &[String],
+        build_groups: &BuildGroups,
         instances_without_metrics: Vec<Instance>,
         repo_name: String,
     ) -> TestbedResult<()> {
@@ -98,81 +99,115 @@ impl<'a> BuildCacheService<'a> {
                 BuildCacheError::Cache(format!("Invalid server URL for {cpu_target}: {e}"))
             })?;
 
-            // Check if binaries are available for this CPU target
-            let cache_response = cache_client
-                .check_binaries_available(
-                    resolved_commit.as_str(),
-                    cpu_target,
-                    None,
-                    None,
-                    binaries,
-                )
-                .await?;
+            // Process each build group separately
+            for (group, binary_names) in build_groups {
+                let toolchain = group.toolchain.as_deref();
+                let features = &group.features;
+                let features_opt = if features.is_empty() {
+                    None
+                } else {
+                    Some(features.as_slice())
+                };
 
-            if !cache_response.available {
                 display::action(format!(
-                    "Binaries not in cache for commit {resolved_commit} (CPU target: {cpu_target}), requesting build on build cache server",
+                    "Processing build group for commit {resolved_commit} (CPU target: {cpu_target}, toolchain: {:?}, features: {:?})",
+                    toolchain, features
                 ));
 
-                // Request build for this CPU target
-                cache_client
-                    .request_build(resolved_commit.as_str(), cpu_target, None, None, binaries)
-                    .await?;
-
-                // Wait for build to complete
-                display::action(format!(
-                    "Waiting for build to complete for commit {resolved_commit} (CPU target: {cpu_target}) (this may take up to 45 minutes)",
-                ));
-
-                let _ = cache_client
-                    .wait_for_binaries(
+                // Check if binaries are available for this CPU target and build group
+                let cache_response = cache_client
+                    .check_binaries_available(
                         resolved_commit.as_str(),
                         cpu_target,
-                        None,
-                        None,
-                        binaries,
-                        Duration::from_secs(45 * 60),
-                        Duration::from_secs(5),
+                        toolchain,
+                        features_opt,
+                        binary_names,
                     )
                     .await?;
-            }
 
-            // Download and distribute binaries to instances with this CPU target
-            display::action(format!(
-                "Distributing cached binaries for commit {resolved_commit} (CPU target: {cpu_target}) to {} instances (instances: {})",
-                instances.len(),
-                instances
-                    .iter()
-                    .map(|i| i.ssh_address().to_string())
-                    .collect::<Vec<_>>()
-                    .join(", ")
-            ));
+                if !cache_response.available {
+                    display::action(format!(
+                        "Binaries not in cache for commit {resolved_commit} (CPU target: {cpu_target}, toolchain: {:?}, features: {:?}), requesting build on build cache server",
+                        toolchain, features
+                    ));
 
-            for binary in binaries {
-                // Create download command that fetches from build cache with ETag support
-                // to avoid re-downloading unchanged binaries. We need to hash the existing
-                // binary on the instance to provide the ETag header.
-                // The server will respond with HTTP 304 Not Modified if the binary is
-                // unchanged. Otherwise, it will download the new binary.
-                let binary_path = format!("{release_folder}/{binary}");
-                let auth_header = cache_server
-                    .username
-                    .as_ref()
-                    .and_then(|username| {
-                        cache_server
-                            .password
-                            .as_ref()
-                            .map(|password| (username, password))
-                    })
-                    .map(|(username, password)| format!("-u \"{}:{}\"", username, password))
-                    .unwrap_or_default();
-                let download_url = format!(
-                    "{}/download?commit={resolved_commit}&cpu_target={cpu_target}&binary={binary}",
-                    cache_server.url,
-                );
+                    // Request build for this CPU target and build group
 
-                let download_command = format!(
-                    r#"set -e && \
+                    cache_client
+                        .request_build(
+                            resolved_commit.as_str(),
+                            cpu_target,
+                            toolchain,
+                            features_opt,
+                            binary_names,
+                        )
+                        .await?;
+
+                    // Wait for build to complete
+                    display::action(format!(
+                        "Waiting for build to complete for commit {resolved_commit} (CPU target: {cpu_target}, toolchain: {:?}, features: {:?}) (this may take up to 45 minutes)",
+                        toolchain, features
+                    ));
+
+                    let _ = cache_client
+                        .wait_for_binaries(
+                            resolved_commit.as_str(),
+                            cpu_target,
+                            toolchain,
+                            features_opt,
+                            binary_names,
+                            Duration::from_secs(45 * 60),
+                            Duration::from_secs(5),
+                        )
+                        .await?;
+                }
+
+                // Download and distribute binaries to instances with this CPU target
+                display::action(format!(
+                    "Distributing cached binaries for commit {resolved_commit} (CPU target: {cpu_target}, toolchain: {:?}, features: {:?}) to {} instances (instances: {})",
+                    toolchain,
+                    features,
+                    instances.len(),
+                    instances
+                        .iter()
+                        .map(|i| i.ssh_address().to_string())
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                ));
+
+                for binary in binary_names {
+                    // Create download command that fetches from build cache with ETag support
+                    // to avoid re-downloading unchanged binaries. We need to hash the existing
+                    // binary on the instance to provide the ETag header.
+                    // The server will respond with HTTP 304 Not Modified if the binary is
+                    // unchanged. Otherwise, it will download the new binary.
+                    let binary_path = format!("{release_folder}/{binary}");
+                    let auth_header = cache_server
+                        .username
+                        .as_ref()
+                        .and_then(|username| {
+                            cache_server
+                                .password
+                                .as_ref()
+                                .map(|password| (username, password))
+                        })
+                        .map(|(username, password)| format!("-u \"{}:{}\"", username, password))
+                        .unwrap_or_default();
+
+                    // Build download URL with optional toolchain and features
+                    let mut download_url = format!(
+                        "{}/download?commit={resolved_commit}&cpu_target={cpu_target}&binary={binary}",
+                        cache_server.url,
+                    );
+                    if let Some(tc) = toolchain {
+                        download_url.push_str(&format!("&toolchain={}", tc));
+                    }
+                    if !features.is_empty() {
+                        download_url.push_str(&format!("&features={}", features.join(",")));
+                    }
+
+                    let download_command = format!(
+                        r#"set -e && \
 mkdir -p {release_folder} && \
 if [ -f "{binary_path}" ]; then \
   existing_sha=$(sha256sum "{binary_path}" | cut -d' ' -f1) && \
@@ -201,23 +236,24 @@ else \
     exit 1; \
   fi; \
 fi"#,
-                );
+                    );
 
-                display::action(format!(
-                    "Downloading {binary} ({cpu_target}) to {} instances",
-                    instances.len()
-                ));
+                    display::action(format!(
+                        "Downloading {binary} ({cpu_target}) to {} instances",
+                        instances.len()
+                    ));
 
-                // we don't need to run the command in the background
-                // because all instances of the same CPU will execute
-                // the command in parallel. That is efficient enough, and we
-                // can panic on errors this way.
-                let context =
-                    CommandContext::new().with_execute_from_path(repo_name.clone().into());
+                    // we don't need to run the command in the background
+                    // because all instances of the same CPU will execute
+                    // the command in parallel. That is efficient enough, and we
+                    // can panic on errors this way.
+                    let context =
+                        CommandContext::new().with_execute_from_path(repo_name.clone().into());
 
-                self.ssh_manager
-                    .execute(instances.clone(), download_command, context)
-                    .await?;
+                    self.ssh_manager
+                        .execute(instances.clone(), download_command, context)
+                        .await?;
+                }
             }
         }
 

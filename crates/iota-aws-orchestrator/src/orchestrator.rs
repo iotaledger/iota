@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
+    collections::HashMap,
     fs::{self},
     marker::PhantomData,
     path::PathBuf,
@@ -343,10 +344,24 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
 
         // Define the binaries to build/download
         let binaries = vec![
-            "iota".to_string(),
-            "iota-node".to_string(),
-            "stress".to_string(),
+            BinaryBuildConfig {
+                name: "iota".to_string(),
+                toolchain: None,
+                features: vec![],
+            },
+            BinaryBuildConfig {
+                name: "iota-node".to_string(),
+                toolchain: None,
+                features: vec![],
+            },
+            BinaryBuildConfig {
+                name: "stress".to_string(),
+                toolchain: None,
+                features: vec![],
+            },
         ];
+
+        let build_groups: BuildGroups = build_configs_to_groups(binaries);
 
         // Check if build cache is enabled
         if self.settings.build_cache_enabled() {
@@ -355,13 +370,13 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
             build_cache_service
                 .update_with_build_cache(
                     commit,
-                    &binaries,
+                    &build_groups,
                     self.instances_without_metrics(),
                     repo_name.clone(),
                 )
                 .await?;
         } else {
-            self.update_with_local_build(&binaries).await?;
+            self.update_with_local_build(build_groups).await?;
         }
 
         display::done();
@@ -373,34 +388,71 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
     /// metrics one. This requires compiling the codebase in release
     /// (which may take a long time) so we run the command in the background
     /// to avoid keeping alive many ssh connections for too long.
-    async fn update_with_local_build(&self, binaries: &[String]) -> TestbedResult<()> {
-        let bin_flags = binaries
-            .iter()
-            .map(|bin| format!("--bin {bin}"))
-            .collect::<Vec<_>>()
-            .join(" ");
-
-        let build_command = [
-            "source \"$HOME/.cargo/env\"".to_string(),
-            "export RUSTFLAGS='-C target-cpu=native'".to_string(),
-            format!("cargo build --release {bin_flags}"),
-        ]
-        .join(" && ");
-
-        display::action(format!("build command: {build_command}"));
+    async fn update_with_local_build(&self, build_groups: BuildGroups) -> TestbedResult<()> {
         let without_metrics = self.instances_without_metrics();
-        let id = "cargo build";
         let repo_name = self.settings.repository_name();
-        let context = CommandContext::new()
-            .run_background(id.into())
-            .with_execute_from_path(repo_name.into());
 
-        self.ssh_manager
-            .execute(without_metrics.clone(), build_command, context)
-            .await?;
-        self.ssh_manager
-            .wait_for_command(without_metrics, id, CommandStatus::Terminated)
-            .await?;
+        // Build each group separately
+        for (i, (group, binary_names)) in build_groups.iter().enumerate() {
+            // Build arguments
+            let mut args = vec!["build", "--release"];
+
+            let toolchain_arg = if let Some(tc) = group.toolchain.as_deref() {
+                if tc != "stable" {
+                    Some(format!("+{tc}"))
+                } else {
+                    None
+                }
+            } else {
+                None
+            };
+
+            // Add toolchain if specified
+            if let Some(ref t) = toolchain_arg {
+                args.insert(0, t);
+            }
+
+            let features_arg = if !group.features.is_empty() {
+                let features_str = group.features.join(" ");
+                Some(format!("--features=\"{features_str}\""))
+            } else {
+                None
+            };
+
+            // Add features if specified
+            if let Some(ref f) = features_arg {
+                args.push(f);
+            }
+
+            let bin_flags = binary_names
+                .iter()
+                .map(|name| format!("--bin {name}"))
+                .collect::<Vec<_>>()
+                .join(" ");
+
+            // Add bin flags
+            args.push(bin_flags.as_str());
+
+            let build_command = [
+                "source \"$HOME/.cargo/env\"".to_string(),
+                "export RUSTFLAGS='-C target-cpu=native'".to_string(),
+                format!("cargo {}", args.join(" ")),
+            ]
+            .join(" && ");
+
+            // print the full command for logging
+            display::action(format!(
+                "Running build command {}/{}: \"{build_command}\" in \"{repo_name}\"",
+                i + 1,
+                build_groups.len()
+            ));
+
+            let context = CommandContext::new().with_execute_from_path(repo_name.clone().into());
+
+            self.ssh_manager
+                .execute(without_metrics.clone(), build_command, context)
+                .await?;
+        }
 
         Ok(())
     }
@@ -729,3 +781,36 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
         Ok(())
     }
 }
+
+struct BinaryBuildConfig {
+    name: String,
+    toolchain: Option<String>,
+    features: Vec<String>,
+}
+
+type BinaryBuildConfigs = Vec<BinaryBuildConfig>;
+
+fn build_configs_to_groups(build_configs: BinaryBuildConfigs) -> BuildGroups {
+    // Group binaries by toolchain and features to minimize build steps
+    let mut groups: BuildGroups = HashMap::new();
+
+    for binary in build_configs {
+        let mut features = binary.features.clone();
+        features.sort(); // Sort for consistent grouping
+
+        let group = BuildGroup {
+            toolchain: binary.toolchain.clone(),
+            features,
+        };
+        groups.entry(group).or_default().push(binary.name);
+    }
+    groups
+}
+
+#[derive(Hash, Eq, PartialEq, Clone)]
+pub struct BuildGroup {
+    pub toolchain: Option<String>,
+    pub features: Vec<String>,
+}
+
+pub type BuildGroups = HashMap<BuildGroup, Vec<String>>;
