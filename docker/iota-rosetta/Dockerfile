@@ -29,11 +29,13 @@ COPY external-crates external-crates
 COPY iota-execution iota-execution
 COPY Cargo.toml Cargo.lock ./
 
-# Build and copy the built binaries to the working directory
+# Build the binaries
 RUN cargo build --profile ${PROFILE} \
       --bin iota-rosetta \
-      --features ${CARGO_BUILD_FEATURES:=default} && \
-    cp $TARGET_FOLDER/iota-rosetta ./iota-rosetta
+      --features ${CARGO_BUILD_FEATURES:=default}
+
+# Copy the built binaries to the working directory
+RUN cp $TARGET_FOLDER/iota-rosetta ./iota-rosetta
 
 # Production image
 FROM debian:bookworm-slim AS runtime

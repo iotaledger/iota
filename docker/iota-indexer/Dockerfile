@@ -29,11 +29,13 @@ COPY external-crates external-crates
 COPY iota-execution iota-execution
 COPY Cargo.toml Cargo.lock ./
 
-# Build and copy the built binaries to the working directory
+# Build the binaries
 RUN cargo build --profile ${PROFILE} \
       --bin iota-indexer \
-      --features ${CARGO_BUILD_FEATURES:=default} && \
-    cp $TARGET_FOLDER/iota-indexer ./iota-indexer
+      --features ${CARGO_BUILD_FEATURES:=default}
+
+# Copy the built binaries to the working directory
+RUN cp $TARGET_FOLDER/iota-indexer ./iota-indexer
 
 # Production image
 FROM debian:bookworm-slim AS runtime
