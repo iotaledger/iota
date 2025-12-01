@@ -21,37 +21,51 @@ use crate::{
 /// Test fixture for store tests. Wraps around various store implementations.
 #[expect(clippy::large_enum_variant)]
 enum TestStore {
-    RocksDB((RocksDBStore, TempDir)),
-    Mem(MemStore),
+    RocksDB((RocksDBStore, TempDir, bool)),
+    Mem(MemStore, bool),
 }
 
 impl TestStore {
     fn store(&self) -> &dyn Store {
         match self {
-            TestStore::RocksDB((store, _)) => store,
-            TestStore::Mem(store) => store,
+            TestStore::RocksDB((store, _, _)) => store,
+            TestStore::Mem(store, _) => store,
+        }
+    }
+
+    fn transaction_ref_enabled(&self) -> bool {
+        match self {
+            TestStore::RocksDB((_, _, enabled)) => *enabled,
+            TestStore::Mem(_, enabled) => *enabled,
         }
     }
 }
 
-fn new_rocksdb_teststore() -> TestStore {
-    let (context, _) = Context::new_for_test(4);
+fn new_rocksdb_teststore(transaction_ref_enabled: bool) -> TestStore {
+    let (mut context, _) = Context::new_for_test(4);
+    context
+        .protocol_config
+        .set_consensus_transaction_ref_for_testing(transaction_ref_enabled);
     let temp_dir = TempDir::new().unwrap();
     TestStore::RocksDB((
         RocksDBStore::new(temp_dir.path().to_str().unwrap(), Arc::new(context)),
         temp_dir,
+        transaction_ref_enabled,
     ))
 }
 
-fn new_mem_teststore() -> TestStore {
-    let (context, _) = Context::new_for_test(4);
-    TestStore::Mem(MemStore::new(Arc::from(context.clone())))
+fn new_mem_teststore(transaction_ref_enabled: bool) -> TestStore {
+    let (mut context, _) = Context::new_for_test(4);
+    context
+        .protocol_config
+        .set_consensus_transaction_ref_for_testing(transaction_ref_enabled);
+    TestStore::Mem(MemStore::new(Arc::from(context.clone())), transaction_ref_enabled)
 }
 
 #[rstest]
 #[tokio::test]
 async fn read_and_contain_block_headers(
-    #[values(new_rocksdb_teststore(), new_mem_teststore())] test_store: TestStore,
+    #[values(new_rocksdb_teststore(false), new_mem_teststore(false))] test_store: TestStore,
 ) {
     let store = test_store.store();
 
@@ -160,10 +174,15 @@ async fn read_and_contain_block_headers(
 #[rstest]
 #[tokio::test]
 async fn scan_block_headers(
-    #[values(new_rocksdb_teststore(), new_mem_teststore())] test_store: TestStore,
+    #[values(new_rocksdb_teststore(false), new_mem_teststore(false), new_rocksdb_teststore(true), new_mem_teststore(true))] test_store: TestStore,
 ) {
     let store = test_store.store();
-    let (context, _) = crate::context::Context::new_for_test(4);
+    let (mut context, _) = crate::context::Context::new_for_test(4);
+    // Match the flag used to create the store
+    let transaction_ref_enabled = test_store.transaction_ref_enabled();
+    context
+        .protocol_config
+        .set_consensus_transaction_ref_for_testing(transaction_ref_enabled);
     let context = Arc::new(context);
 
     let written_blocks = vec![
@@ -280,7 +299,7 @@ async fn scan_block_headers(
 #[rstest]
 #[tokio::test]
 async fn read_and_contain_transactions(
-    #[values(new_rocksdb_teststore(), new_mem_teststore())] test_store: TestStore,
+    #[values(new_rocksdb_teststore(false), new_mem_teststore(false), new_rocksdb_teststore(true), new_mem_teststore(true))] test_store: TestStore,
 ) {
     let store = test_store.store();
 
@@ -292,7 +311,12 @@ async fn read_and_contain_transactions(
         VerifiedBlock::new_for_test(TestBlockHeader::new(11, 3).build()),
         VerifiedBlock::new_for_test(TestBlockHeader::new(12, 1).build()),
     ];
-    let (context, _) = Context::new_for_test(4);
+    let (mut context, _) = Context::new_for_test(4);
+    // Match the flag used to create the store
+    let transaction_ref_enabled = test_store.transaction_ref_enabled();
+    context
+        .protocol_config
+        .set_consensus_transaction_ref_for_testing(transaction_ref_enabled);
     let context = Arc::new(context);
     // Write transactions to store
     let written_transactions: Vec<_> = written_blocks
@@ -318,10 +342,21 @@ async fn read_and_contain_transactions(
         .unwrap();
 
     // Test reading all transactions
-    let refs: Vec<_> = written_blocks
-        .iter()
-        .map(|b| GenericTransactionRef::from(b.reference()))
-        .collect();
+    let refs: Vec<_> = if transaction_ref_enabled {
+        // When flag is enabled, use TransactionRef
+        written_blocks
+            .iter()
+            .map(|b| {
+                GenericTransactionRef::TransactionRef(b.verified_block_header.transaction_ref())
+            })
+            .collect()
+    } else {
+        // When flag is disabled, use BlockRef
+        written_blocks
+            .iter()
+            .map(|b| GenericTransactionRef::from(b.reference()))
+            .collect()
+    };
     let read_txs = store
         .read_verified_transactions(&refs)
         .expect("Read txs should not fail");
@@ -385,7 +420,7 @@ async fn read_and_contain_transactions(
 #[rstest]
 #[tokio::test]
 async fn read_and_scan_commits(
-    #[values(new_rocksdb_teststore(), new_mem_teststore())] test_store: TestStore,
+    #[values(new_rocksdb_teststore(false), new_mem_teststore(false))] test_store: TestStore,
 ) {
     let store = test_store.store();
     let (context, _) = Context::new_for_test(4);
