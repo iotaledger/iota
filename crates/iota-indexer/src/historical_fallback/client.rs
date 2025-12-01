@@ -112,7 +112,7 @@ impl HttpRestKVClient {
 
         let resp = self.client.get(url.clone()).send().await?;
         trace!(
-            "got response {} for url: {}, len: {:?}",
+            "got response {url} for url: {}, len: {:?}",
             url,
             resp.status(),
             resp.headers()
