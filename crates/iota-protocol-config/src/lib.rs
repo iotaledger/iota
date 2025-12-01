@@ -1449,7 +1449,12 @@ impl ProtocolConfig {
             .consensus_commit_transactions_only_for_traversed_headers
     }
     pub fn consensus_transaction_ref(&self) -> bool {
-        self.feature_flags.consensus_transaction_ref
+        let res = self.feature_flags.consensus_transaction_ref;
+        assert!(
+            !res || self.consensus_commit_transactions_only_for_traversed_headers(),
+            "The consensus transaction ref requires consensus_commit_transactions_only_for_traversed_headers to be enabled"
+        );
+        res
     }
 }
 
@@ -2320,8 +2325,7 @@ impl ProtocolConfig {
                     // Enable committing transactions only for traversed headers in Starfish
                     cfg.feature_flags
                         .consensus_commit_transactions_only_for_traversed_headers = true;
-                    // Enable TransactionRef in commits instead of BlockRef
-                    cfg.feature_flags.consensus_transaction_ref = true;
+
                 }
                 // Use this template when making changes:
                 //
