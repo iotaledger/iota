@@ -170,10 +170,7 @@ where
         if expected_digest == *digest {
             Some(o)
         } else {
-            error!(
-                "Digest mismatch - expected: {:?}, got: {:?}",
-                digest, expected_digest,
-            );
+            error!("Digest mismatch - expected: {digest:?}, got: {expected_digest:?}");
             None
         }
     })
