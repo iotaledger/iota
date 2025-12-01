@@ -1470,6 +1470,7 @@ async fn test_very_large_certificate() {
         .await;
     assert!(res.is_err());
     let err = res.err().unwrap();
+    println!("ERROR: {err:?}");
     // The resulting error should be a RpcError with a message length too large.
     assert!(
         matches!(err, IotaError::Rpc(..)) && err.to_string().contains("message length too large")
