@@ -376,7 +376,7 @@ struct FeatureFlags {
     // If true, it allows metadata bytes indexed with the iota key in a compiled module
     // This flag is used to provide the correct MoveVM configuration for clients.
     #[serde(skip_serializing_if = "is_false")]
-    iota_metadata_module_bytes: bool,
+    metadata_in_module_bytes: bool,
 }
 
 fn is_true(b: &bool) -> bool {
@@ -1268,10 +1268,6 @@ impl ProtocolConfig {
         self.feature_flags.passkey_auth
     }
 
-    pub fn iota_metadata_module_bytes(&self) -> bool {
-        self.feature_flags.iota_metadata_module_bytes
-    }
-
     pub fn max_transaction_size_bytes(&self) -> u64 {
         // Provide a default value if protocol config version is too low.
         self.consensus_max_transaction_size_bytes
@@ -1450,9 +1446,14 @@ impl ProtocolConfig {
         );
         res
     }
+
     pub fn consensus_commit_transactions_only_for_traversed_headers(&self) -> bool {
         self.feature_flags
             .consensus_commit_transactions_only_for_traversed_headers
+    }
+
+    pub fn metadata_in_module_bytes(&self) -> bool {
+        self.feature_flags.metadata_in_module_bytes
     }
 }
 
@@ -2324,7 +2325,7 @@ impl ProtocolConfig {
                     cfg.feature_flags
                         .consensus_commit_transactions_only_for_traversed_headers = true;
                     if chain != Chain::Mainnet && chain != Chain::Testnet {
-                        cfg.feature_flags.iota_metadata_module_bytes = true;
+                        cfg.feature_flags.metadata_in_module_bytes = true;
                     }
                 }
                 // Use this template when making changes:
