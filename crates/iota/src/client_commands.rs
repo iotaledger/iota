@@ -730,10 +730,10 @@ pub struct TxProcessingArgs {
     #[arg(long, required = false, num_args = 0.., value_parser = parse_display_option, default_value = "input,effects,events,object_changes,balance_changes")]
     pub display: HashSet<DisplayOption>,
     /// Auth input objects or primitive values
-    #[arg(long = "auth-args", num_args = 1..)]
+    #[arg(long, num_args = 1..)]
     pub auth_call_args: Option<Vec<String>>,
     /// Auth type arguments for the Move authenticate function
-    #[arg(long = "auth-type-args", num_args = 1..)]
+    #[arg(long, num_args = 1..)]
     pub auth_type_arguments: Option<Vec<String>>,
 }
 
