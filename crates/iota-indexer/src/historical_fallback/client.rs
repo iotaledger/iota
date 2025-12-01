@@ -100,9 +100,9 @@ impl HttpRestKVClient {
 
     #[expect(dead_code)]
     async fn multi_fetch(&self, uris: Vec<Key>) -> Vec<IndexerResult<Option<Bytes>>> {
-        let uris_vec = uris.to_vec();
-        let fetches = stream::iter(uris_vec.into_iter().map(|url| self.fetch(url)));
-        fetches.buffered(uris.len()).collect::<Vec<_>>().await
+        let len = uris.len();
+        let fetches = stream::iter(uris.into_iter().map(|url| self.fetch(url)));
+        fetches.buffered(len).collect::<Vec<_>>().await
     }
 
     async fn fetch(&self, key: Key) -> IndexerResult<Option<Bytes>> {
