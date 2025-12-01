@@ -108,7 +108,7 @@ impl HttpRestKVClient {
     async fn fetch(&self, key: Key) -> IndexerResult<Option<Bytes>> {
         let url = self.get_url(&key)?;
 
-        trace!("fetching url: {}", url);
+        trace!("fetching url: {url}");
 
         let resp = self.client.get(url.clone()).send().await?;
         trace!(
