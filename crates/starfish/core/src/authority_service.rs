@@ -1326,6 +1326,7 @@ mod tests {
     use futures::StreamExt;
     use iota_metrics::monitored_mpsc::unbounded_channel;
     use parking_lot::{Mutex, RwLock};
+    use rstest::rstest;
     use starfish_config::{AuthorityIndex, Parameters};
     use tokio::{
         sync::{broadcast, mpsc},
@@ -1359,7 +1360,7 @@ mod tests {
         network::{
             BlockBundle, BlockBundleStream, NetworkClient, NetworkService, SerializedBlock,
             SerializedBlockBundle, SerializedBlockBundleParts, SerializedHeaderAndTransactions,
-            SerializedTransactionsV1,
+            SerializedTransactionsV1, SerializedTransactionsV2,
         },
         storage::{Store, mem_store::MemStore},
         test_dag_builder::DagBuilder,
@@ -1420,9 +1421,13 @@ mod tests {
         }
     }
 
+    #[rstest]
     #[tokio::test(flavor = "current_thread", start_paused = true)]
-    async fn test_handle_subscribed_block_bundle_time_drift() {
-        let (context, _keys) = Context::new_for_test(4);
+    async fn test_handle_subscribed_block_bundle_time_drift(#[values(false, true)] transaction_ref_enabled: bool) {
+        let (mut context, _keys) = Context::new_for_test(4);
+        context
+            .protocol_config
+            .set_consensus_transaction_ref_for_testing(transaction_ref_enabled);
         let context = Arc::new(context);
         let block_verifier = Arc::new(crate::block_verifier::NoopBlockVerifier {});
         let commit_vote_monitor = Arc::new(CommitVoteMonitor::new(context.clone()));
@@ -1498,9 +1503,13 @@ mod tests {
         assert_eq!(blocks[0], input_block);
     }
 
+    #[rstest]
     #[tokio::test(flavor = "current_thread")]
-    async fn test_handle_subscribed_block_bundle_wrong_peer() {
-        let (context, _keys) = Context::new_for_test(4);
+    async fn test_handle_subscribed_block_bundle_wrong_peer(#[values(false, true)] transaction_ref_enabled: bool) {
+        let (mut context, _keys) = Context::new_for_test(4);
+        context
+            .protocol_config
+            .set_consensus_transaction_ref_for_testing(transaction_ref_enabled);
         let context = Arc::new(context);
         let block_verifier = Arc::new(crate::block_verifier::NoopBlockVerifier {});
         let commit_vote_monitor = Arc::new(CommitVoteMonitor::new(context.clone()));
@@ -1585,9 +1594,13 @@ mod tests {
         assert_eq!(blocks[0], input_block);
     }
 
+    #[rstest]
     #[tokio::test(flavor = "current_thread")]
-    async fn test_handle_subscribed_block_bundle_wrong_transaction_commitment() {
-        let (context, _keys) = Context::new_for_test(4);
+    async fn test_handle_subscribed_block_bundle_wrong_transaction_commitment(#[values(false, true)] transaction_ref_enabled: bool) {
+        let (mut context, _keys) = Context::new_for_test(4);
+        context
+            .protocol_config
+            .set_consensus_transaction_ref_for_testing(transaction_ref_enabled);
         let context = Arc::new(context);
         let block_verifier = Arc::new(crate::block_verifier::NoopBlockVerifier {});
         let commit_vote_monitor = Arc::new(CommitVoteMonitor::new(context.clone()));
@@ -1664,10 +1677,14 @@ mod tests {
         }
     }
 
+    #[rstest]
     #[tokio::test(flavor = "current_thread")]
-    async fn test_handle_subscribed_block_bundle_with_bad_headers() {
+    async fn test_handle_subscribed_block_bundle_with_bad_headers(#[values(false, true)] transaction_ref_enabled: bool) {
         let committee_size = 4;
-        let (context, _keys) = Context::new_for_test(committee_size);
+        let (mut context, _keys) = Context::new_for_test(committee_size);
+        context
+            .protocol_config
+            .set_consensus_transaction_ref_for_testing(transaction_ref_enabled);
         let context = Arc::new(context);
         let block_verifier = Arc::new(crate::block_verifier::NoopBlockVerifier {});
         let commit_vote_monitor = Arc::new(CommitVoteMonitor::new(context.clone()));
@@ -2150,12 +2167,16 @@ mod tests {
             guard.clone()
         }
     }
+    #[rstest]
     #[tokio::test(flavor = "current_thread")]
-    async fn test_handle_subscribed_block_bundle_with_additional_headers() {
+    async fn test_handle_subscribed_block_bundle_with_additional_headers(#[values(false, true)] transaction_ref_enabled: bool) {
         // GIVEN
         let rounds = 10;
         let validators = 10;
-        let (context, key_pairs) = Context::new_for_test(validators);
+        let (mut context, key_pairs) = Context::new_for_test(validators);
+        context
+            .protocol_config
+            .set_consensus_transaction_ref_for_testing(transaction_ref_enabled);
         let context = Arc::new(context);
         let block_verifier = Arc::new(SignedBlockVerifier::new(
             context.clone(),
@@ -2306,12 +2327,16 @@ mod tests {
         }
     }
 
+    #[rstest]
     #[tokio::test(flavor = "current_thread")]
-    async fn test_handle_subscribe_bundle_without_additional_headers() {
+    async fn test_handle_subscribe_bundle_without_additional_headers(#[values(false, true)] transaction_ref_enabled: bool) {
         // GIVEN
         let rounds = 10;
         let validators = 10;
-        let (context, key_pairs) = Context::new_for_test(validators);
+        let (mut context, key_pairs) = Context::new_for_test(validators);
+        context
+            .protocol_config
+            .set_consensus_transaction_ref_for_testing(transaction_ref_enabled);
         let context = Arc::new(context);
         let block_verifier = Arc::new(SignedBlockVerifier::new(
             context.clone(),
@@ -2476,14 +2501,18 @@ mod tests {
         assert_eq!(received, None);
     }
 
+    #[rstest]
     #[tokio::test]
-    async fn test_handle_subscribe_block_bundles_request() {
+    async fn test_handle_subscribe_block_bundles_request(#[values(false, true)] transaction_ref_enabled: bool) {
         telemetry_subscribers::init_for_testing();
         // GIVEN
         let rounds = 10;
         let validators = 4;
         let to_whom_authority = AuthorityIndex::new_for_test(1);
-        let (context, key_pairs) = Context::new_for_test(validators);
+        let (mut context, key_pairs) = Context::new_for_test(validators);
+        context
+            .protocol_config
+            .set_consensus_transaction_ref_for_testing(transaction_ref_enabled);
         let context = Arc::new(context);
         let block_verifier = Arc::new(SignedBlockVerifier::new(
             context.clone(),
@@ -3099,12 +3128,16 @@ mod tests {
         );
     }
 
+    #[rstest]
     #[tokio::test]
-    async fn test_handle_fetch_commits() {
+    async fn test_handle_fetch_commits(#[values(false, true)] transaction_ref_enabled: bool) {
         // GIVEN
         let rounds = 15;
         let validators = 4;
-        let (context, key_pairs) = Context::new_for_test(validators);
+        let (mut context, key_pairs) = Context::new_for_test(validators);
+        context
+            .protocol_config
+            .set_consensus_transaction_ref_for_testing(transaction_ref_enabled);
         let context = Arc::new(context);
         let block_verifier = Arc::new(SignedBlockVerifier::new(
             context.clone(),
@@ -3280,12 +3313,16 @@ mod tests {
         );
     }
 
+    #[rstest]
     #[tokio::test]
-    async fn test_handle_fetch_transactions() {
+    async fn test_handle_fetch_transactions(#[values(false, true)] transaction_ref_enabled: bool) {
         // GIVEN
         let rounds = 10;
         let validators = 4;
-        let (context, key_pairs) = Context::new_for_test(validators);
+        let (mut context, key_pairs) = Context::new_for_test(validators);
+        context
+            .protocol_config
+            .set_consensus_transaction_ref_for_testing(transaction_ref_enabled);
         let context = Context {
             parameters: Parameters {
                 max_transactions_per_regular_sync_fetch: 20,
@@ -3394,7 +3431,13 @@ mod tests {
             .flat_map(|round| {
                 all_block_headers[round as usize]
                     .iter()
-                    .map(|bh| GenericTransactionRef::from(bh.reference()))
+                    .map(|bh| {
+                        if transaction_ref_enabled {
+                            GenericTransactionRef::TransactionRef(bh.transaction_ref())
+                        } else {
+                            GenericTransactionRef::from(bh.reference())
+                        }
+                    })
             })
             .collect();
 
@@ -3403,7 +3446,13 @@ mod tests {
             .flat_map(|round| {
                 all_block_headers[round as usize]
                     .iter()
-                    .map(|bh| GenericTransactionRef::from(bh.reference()))
+                    .map(|bh| {
+                        if transaction_ref_enabled {
+                            GenericTransactionRef::TransactionRef(bh.transaction_ref())
+                        } else {
+                            GenericTransactionRef::from(bh.reference())
+                        }
+                    })
             })
             .collect();
 
@@ -3425,29 +3474,55 @@ mod tests {
 
         // Check the correctness of the received transactions
         for (i, serialized_transactions_bytes) in serialized_transactions.iter().enumerate() {
-            // Deserialize and check transaction commitment
-            let deserialized: SerializedTransactionsV1 =
-                bcs::from_bytes(serialized_transactions_bytes)
-                    .expect("deserialization should succeed");
-            let block_ref = deserialized.block_ref;
-            assert_eq!(
-                GenericTransactionRef::from(block_ref),
-                block_refs_to_request_first_batch[i]
-            );
-            let serialized_transactions = deserialized.serialized_transactions;
-            let block_header = all_block_headers[block_ref.round as usize]
-                .iter()
-                .find(|header| header.reference() == block_ref)
-                .expect("We expect to find the header with such block_ref");
-            assert_eq!(
-                block_header.transactions_commitment(),
-                TransactionsCommitment::compute_transactions_commitment(
-                    &serialized_transactions,
-                    &context,
-                    &mut encoder
-                )
-                .unwrap()
-            );
+            if transaction_ref_enabled {
+                // Deserialize V2 format with TransactionRef
+                let deserialized: SerializedTransactionsV2 =
+                    bcs::from_bytes(serialized_transactions_bytes)
+                        .expect("deserialization should succeed");
+                let transaction_ref = deserialized.transaction_ref;
+
+                // Verify it matches the expected ref
+                assert_eq!(
+                    GenericTransactionRef::TransactionRef(transaction_ref),
+                    block_refs_to_request_first_batch[i]
+                );
+
+                let serialized_transactions = deserialized.serialized_transactions;
+                // Verify the transaction commitment matches
+                assert_eq!(
+                    transaction_ref.transactions_commitment,
+                    TransactionsCommitment::compute_transactions_commitment(
+                        &serialized_transactions,
+                        &context,
+                        &mut encoder
+                    )
+                    .unwrap()
+                );
+            } else {
+                // Deserialize V1 format with BlockRef
+                let deserialized: SerializedTransactionsV1 =
+                    bcs::from_bytes(serialized_transactions_bytes)
+                        .expect("deserialization should succeed");
+                let block_ref = deserialized.block_ref;
+                assert_eq!(
+                    GenericTransactionRef::from(block_ref),
+                    block_refs_to_request_first_batch[i]
+                );
+                let serialized_transactions = deserialized.serialized_transactions;
+                let block_header = all_block_headers[block_ref.round as usize]
+                    .iter()
+                    .find(|header| header.reference() == block_ref)
+                    .expect("We expect to find the header with such block_ref");
+                assert_eq!(
+                    block_header.transactions_commitment(),
+                    TransactionsCommitment::compute_transactions_commitment(
+                        &serialized_transactions,
+                        &context,
+                        &mut encoder
+                    )
+                    .unwrap()
+                );
+            }
         }
 
         block_refs_to_request_second_batch
