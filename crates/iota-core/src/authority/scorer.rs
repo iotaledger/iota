@@ -12,6 +12,9 @@ use iota_types::{
     scoring_metrics::VersionedScoringMetrics,
 };
 
+const MAX_SCORE: u64 = 2_u64.pow(16); // Note: must be consistent with MAX_SCORE in validator_set.move in iota-framework.
+const SCALE_FACTOR: u64 = 2_u64.pow(16);
+
 /// Holds all information related to scoring of authorities in the committee.
 pub struct Scorer {
     // The current metrics counts collected by the authority, i.e., the local view of the node
@@ -49,8 +52,6 @@ impl Scorer {
                     committee_size,
                     protocol_config,
                 ));
-
-                let max_score = 2_u64.pow(16);
                 let (received_metrics, has_not_sent_report, current_scores, invalid_reports_count) =
                     (0..committee_size)
                         .map(|_| {
@@ -60,7 +61,7 @@ impl Scorer {
                                 // Initially, none of the authorities had sent any valid report.
                                 AtomicBool::new(true),
                                 // Current scores initialized to max score.
-                                AtomicU64::new(max_score),
+                                AtomicU64::new(MAX_SCORE),
                                 // Invalid reports count initialized to zero.
                                 AtomicU64::new(0),
                             )
@@ -68,26 +69,15 @@ impl Scorer {
                         .collect();
                 let scale_factor = 2_u64.pow(16);
                 let parameters = ParametersV1 {
-                    max_score,
-                    scale_factor,
-                    allowances: MisbehaviorsV1 {
-                        faulty_blocks_provable: 2,
-                        faulty_blocks_unprovable: 1,
-                        missing_proposals: 1000,
-                        equivocations: 0,
-                    },
-                    maximums: MisbehaviorsV1 {
-                        faulty_blocks_provable: 10,
-                        faulty_blocks_unprovable: 5,
-                        missing_proposals: 5000,
-                        equivocations: 1,
-                    },
-                    weights: MisbehaviorsV1 {
-                        faulty_blocks_provable: scale_factor * 30 / 100,
-                        faulty_blocks_unprovable: scale_factor * 10 / 100,
-                        missing_proposals: scale_factor * 35 / 100,
-                        equivocations: 1,
-                    },
+                    max_score: MAX_SCORE,
+                    scale_factor: SCALE_FACTOR,
+                    allowances: vec![1, 2, 1000, 0],
+                    maximums: vec![5, 10, 5000, 1],
+                    weights: vec![
+                        SCALE_FACTOR * 30 / 100,
+                        SCALE_FACTOR * 10 / 100,
+                        SCALE_FACTOR * 35 / 100,
+                    ],
                 };
                 // Assert that the allowance for major misbehaviors is 0,
                 // maximum is 1 and weight is 1. This is because major misbehaviors should
@@ -433,7 +423,7 @@ mod tests {
     use iota_types::messages_consensus::{MisbehaviorsV1, VersionedMisbehaviorReport};
 
     use crate::authority::authority_per_epoch_store::scorer::{
-        ParametersV1, Scorer, calculate_median_report, calculate_scores_v1,
+        MAX_SCORE, ParametersV1, SCALE_FACTOR, Scorer, calculate_median_report, calculate_scores_v1,
     };
 
     fn mock_protocol_config(consensus_choice: ConsensusChoice) -> ProtocolConfig {
@@ -681,26 +671,15 @@ mod tests {
     #[test]
     fn test_calculate_scores_v1() {
         let parameters = ParametersV1 {
-            max_score: 2_u64.pow(16),
-            scale_factor: 2_u64.pow(16),
-            allowances: MisbehaviorsV1 {
-                faulty_blocks_provable: 1,
-                faulty_blocks_unprovable: 2,
-                missing_proposals: 1000,
-                equivocations: 0,
-            },
-            maximums: MisbehaviorsV1 {
-                faulty_blocks_provable: 5,
-                faulty_blocks_unprovable: 10,
-                missing_proposals: 5000,
-                equivocations: 1,
-            },
-            weights: MisbehaviorsV1 {
-                faulty_blocks_provable: 2_u64.pow(16) * 30 / 100,
-                faulty_blocks_unprovable: 2_u64.pow(16) * 10 / 100,
-                missing_proposals: 2_u64.pow(16) * 35 / 100,
-                equivocations: 1,
-            },
+            max_score: MAX_SCORE,
+            scale_factor: SCALE_FACTOR,
+            allowances: vec![1, 2, 1000, 0],
+            maximums: vec![5, 10, 5000, 1],
+            weights: vec![
+                SCALE_FACTOR * 30 / 100,
+                SCALE_FACTOR * 10 / 100,
+                SCALE_FACTOR * 35 / 100,
+            ],
         };
 
         let median_reports = MisbehaviorsV1 {
