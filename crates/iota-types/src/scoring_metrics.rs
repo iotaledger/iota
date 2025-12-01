@@ -5,7 +5,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 
 use iota_protocol_config::ProtocolConfig;
 
-use crate::messages_consensus::{MisbehaviorReportV1, VersionedMisbehaviorReport};
+use crate::messages_consensus::{MisbehaviorsV1, VersionedMisbehaviorReport};
 
 // This struct represents the scoring metrics collected by all authorities. They
 // are stored locally by each authority and then converted to a misbehavior
@@ -257,7 +257,7 @@ impl VersionedScoringMetrics {
                     .iter()
                     .map(|metric| metric.load(Ordering::Relaxed))
                     .collect();
-                VersionedMisbehaviorReport::V1(MisbehaviorReportV1 {
+                VersionedMisbehaviorReport::V1(MisbehaviorsV1 {
                     faulty_blocks_provable,
                     faulty_blocks_unprovable,
                     missing_proposals,
