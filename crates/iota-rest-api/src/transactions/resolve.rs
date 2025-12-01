@@ -138,6 +138,8 @@ async fn resolve_transaction(
         let estimate = estimate_gas_budget_from_gas_cost(
             simulation_result.effects.gas_cost_summary(),
             reference_gas_price,
+            resolved_transaction.gas_data().payment.len(),
+            &protocol_config,
         );
         resolved_transaction.gas_data_mut().budget = estimate;
         estimate

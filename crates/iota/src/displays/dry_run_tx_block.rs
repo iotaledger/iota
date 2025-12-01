@@ -8,6 +8,7 @@ use iota_json_rpc_types::{
     DryRunTransactionBlockResponse, IotaTransactionBlockDataAPI, IotaTransactionBlockEffectsAPI,
     ObjectChange,
 };
+use iota_protocol_config::ProtocolConfig;
 use iota_types::gas::estimate_gas_budget_from_gas_cost;
 use tabled::{
     builder::Builder as TableBuilder,
@@ -104,7 +105,9 @@ impl Display for Pretty<'_, DryRunTransactionBlockResponse> {
             "Estimated gas cost (includes a small buffer): {} NANOS",
             estimate_gas_budget_from_gas_cost(
                 response.effects.gas_cost_summary(),
-                response.input.gas_data().price
+                response.input.gas_data().price,
+                response.input.gas_data().payment.len(),
+                &ProtocolConfig::get_for_max_version_UNSAFE()
             )
         )
     }

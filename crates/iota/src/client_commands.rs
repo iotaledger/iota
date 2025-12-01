@@ -3223,13 +3223,30 @@ pub async fn estimate_gas_budget(
     sponsor: Option<IotaAddress>,
 ) -> Result<u64, anyhow::Error> {
     let client = context.get_client().await?;
+    let num_payment_objects_on_request = gas_payment.len();
     let dry_run =
         execute_dry_run(context, signer, kind, None, gas_price, gas_payment, sponsor).await;
     if let Ok(IotaClientCommandResult::DryRun(dry_run)) = dry_run {
         let rgp = client.read_api().get_reference_gas_price().await?;
+        let protocol_version = client
+            .read_api()
+            .get_protocol_config(None)
+            .await?
+            .protocol_version;
+        let chain_id = client.read_api().get_chain_identifier().await?;
+        let protocol_config = ProtocolConfig::get_for_version(
+            protocol_version,
+            match ChainIdentifier::from_chain_short_id(chain_id.as_str()) {
+                Some(chain_id) => chain_id.chain(),
+                None => Chain::Unknown,
+            },
+        );
+
         Ok(estimate_gas_budget_from_gas_cost(
             dry_run.effects.gas_cost_summary(),
             rgp,
+            num_payment_objects_on_request,
+            &protocol_config,
         ))
     } else {
         bail!(
