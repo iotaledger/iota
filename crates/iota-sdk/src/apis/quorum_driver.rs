@@ -80,12 +80,7 @@ impl QuorumDriverApi {
                 // iteration, to leave time for the checkpoint containing the
                 // transaction to be certified, propagate to the full node, and
                 // get executed.
-                tokio::time::sleep(
-                    backoff
-                        .next()
-                        .unwrap_or(WAIT_FOR_LOCAL_EXECUTION_MIN_INTERVAL),
-                )
-                .await;
+                tokio::time::sleep(backoff.next().unwrap()).await;
 
                 if let Ok(poll_response) = self
                     .api
