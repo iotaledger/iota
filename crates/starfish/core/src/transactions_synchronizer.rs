@@ -32,13 +32,11 @@ use tokio::{
 use tracing::{debug, info, warn};
 
 use crate::{
-    Transaction, VerifiedBlockHeader,
-    block_header::{BlockRef, GenericTransactionRef, TransactionsCommitment, VerifiedTransactions},
+    block_header::{BlockRef, GenericTransactionRef},
     commit_syncer::{verify_transactions_with_headers, verify_transactions_with_transactions_refs},
     context::Context,
     core_thread::CoreThreadDispatcher,
     dag_state::{DagState, TransactionSource},
-    encoder::create_encoder,
     error::{ConsensusError, ConsensusResult},
     network::{NetworkClient, SerializedTransactionsV1, SerializedTransactionsV2},
 };
@@ -1152,72 +1150,6 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
         drop(requested_transactions_guard);
 
         Ok(())
-    }
-
-    fn verify_transactions(
-        serialized_transactions_bytes: Vec<Bytes>,
-        peer_index: AuthorityIndex,
-        block_headers_map: BTreeMap<BlockRef, VerifiedBlockHeader>,
-        context: Arc<Context>,
-    ) -> ConsensusResult<Vec<VerifiedTransactions>> {
-        let mut collected_verified_transactions = Vec::new();
-
-        for serialized_transaction_bytes in &serialized_transactions_bytes {
-            // Step 1: Deserialize the outer SerializedTransactions wrapper to get the block
-            // reference and the inner serialized transactions bytes. This
-            // allows us to identify which block these transactions belong to
-            // and access their commitment in the block header.
-            let serialized_transactions: SerializedTransactionsV1 =
-                bcs::from_bytes(serialized_transaction_bytes)
-                    .map_err(ConsensusError::MalformedTransactions)?;
-
-            // Step 2: Get the block header and verify that the transactions commitment
-            // matches. This ensures the transactions we received are exactly
-            // the ones that were included in the block when it was created.
-            let Some(block_header) = block_headers_map.get(&serialized_transactions.block_ref)
-            else {
-                warn!(
-                    "Received transactions for unknown block ref {:?} from peer {}",
-                    serialized_transactions.block_ref, peer_index
-                );
-                continue;
-            };
-
-            let mut encoder = create_encoder(&context);
-            if block_header.transactions_commitment()
-                != TransactionsCommitment::compute_transactions_commitment(
-                    &serialized_transactions.serialized_transactions,
-                    &context,
-                    &mut encoder,
-                )
-                .expect("correct computation of the transactions commitment should be successful")
-            {
-                return Err(ConsensusError::TransactionCommitmentFailure {
-                    round: serialized_transactions.block_ref.round,
-                    author: serialized_transactions.block_ref.author,
-                    peer: peer_index,
-                });
-            }
-
-            // Step 3: Deserialize the actual transactions vector. We are ensure that they
-            // are verified since the quorum already acknowledged and verified
-            let transactions: Vec<Transaction> =
-                bcs::from_bytes(&serialized_transactions.serialized_transactions)
-                    .map_err(ConsensusError::MalformedTransactions)?;
-
-            // Step 4: Create a VerifiedTransactions instance containing both the verified
-            // transactions and their original serialized form for efficient re-sharing
-            let verified_transactions = VerifiedTransactions::new(
-                transactions,
-                serialized_transactions.block_ref,
-                block_header.transactions_commitment(),
-                serialized_transactions.serialized_transactions,
-            );
-
-            collected_verified_transactions.push(verified_transactions);
-        }
-
-        Ok(collected_verified_transactions)
     }
 }
 

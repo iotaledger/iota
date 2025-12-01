@@ -2325,7 +2325,6 @@ impl ProtocolConfig {
                     // Enable committing transactions only for traversed headers in Starfish
                     cfg.feature_flags
                         .consensus_commit_transactions_only_for_traversed_headers = true;
-
                 }
                 // Use this template when making changes:
                 //

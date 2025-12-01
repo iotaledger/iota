@@ -56,6 +56,7 @@ pub(crate) struct RocksDBStore {
     /// Stores info related to Commit that helps recovery.
     commit_info: DBMap<(CommitIndex, CommitDigest), CommitInfo>,
     /// Context to access protocol configuration
+    #[cfg_attr(not(test), allow(dead_code))]
     context: Arc<Context>,
 }
 

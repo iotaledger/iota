@@ -463,17 +463,11 @@ impl GenericTransactionRef {
             GenericTransactionRef::TransactionRef(t) => t.transactions_commitment.into(),
         }
     }
-
-    pub(crate) fn block_digest(&self) -> Digest<DIGEST_LENGTH> {
-        match self {
-            GenericTransactionRef::BlockRef(b) => b.digest.into(),
-            GenericTransactionRef::TransactionRef(t) => t.block_digest.into(),
-        }
-    }
 }
 
 /// Helper function to convert BlockRefs to GenericTransactionRefs based on
 /// protocol flag.
+#[test]
 pub(crate) fn convert_block_refs_to_generic_transaction_refs(
     context: &Arc<Context>,
     store: &dyn crate::storage::Store,
