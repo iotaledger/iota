@@ -82,6 +82,9 @@ pub enum IndexerError {
     #[error("Indexer failed to assign TX global order with error: `{0}`")]
     PostgresUniqueTxGlobalOrderViolation(String),
 
+    #[error("Indexer cannot provide results because of pruned data: `{0}`")]
+    PostgresDataPruned(String),
+
     #[error("Indexer failed to initialize fullnode Http client with error: `{0}`")]
     HttpClientInit(String),
 

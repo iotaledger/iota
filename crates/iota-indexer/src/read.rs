@@ -56,10 +56,11 @@ use tap::TapFallible;
 use crate::{
     apis::GovernanceReadApi,
     db::{ConnectionConfig, ConnectionPool, ConnectionPoolConfig},
-    errors::IndexerError,
+    errors::{Context, IndexerError},
+    historical_fallback::reader::HistoricalFallbackReader,
     models::{
         address_metrics::StoredAddressMetrics,
-        checkpoints::{StoredChainIdentifier, StoredCheckpoint},
+        checkpoints::{StoredChainIdentifier, StoredCheckpoint, StoredCpTx},
         display::StoredDisplay,
         epoch::StoredEpochInfo,
         events::StoredEvent,
@@ -98,6 +99,7 @@ pub struct IndexerReader {
     pool: ConnectionPool,
     package_resolver: PackageResolver,
     obj_type_cache: Arc<Mutex<SizedCache<String, Option<ObjectID>>>>,
+    kv_reader: Option<Arc<HistoricalFallbackReader>>,
 }
 
 pub type PackageResolver = Arc<Resolver<PackageStoreWithLruCache<IndexerStorePackageResolver>>>;
@@ -113,6 +115,7 @@ impl IndexerReader {
             pool,
             package_resolver,
             obj_type_cache,
+            kv_reader: None,
         }
     }
 
@@ -1014,14 +1017,37 @@ impl IndexerReader {
         })
     }
 
-    async fn query_transaction_blocks_by_checkpoint_impl(
+    async fn get_lowest_unpruned_checkpoint(&self) -> IndexerResult<StoredCpTx> {
+        let pool = self.get_pool();
+        // This should be replaced with reading the "watermarks" table once it is used
+        // by the pruner
+        run_query_async!(&pool, |conn| {
+            pruner_cp_watermark::dsl::pruner_cp_watermark
+                .order_by(pruner_cp_watermark::checkpoint_sequence_number.asc())
+                .first::<StoredCpTx>(conn)
+        })
+    }
+
+    async fn query_transaction_blocks_from_db_by_checkpoint_impl(
         &self,
         checkpoint_seq: u64,
-        options: iota_json_rpc_types::IotaTransactionBlockResponseOptions,
-        cursor_tx_seq: Option<i64>,
+        cursor: Option<TransactionDigest>,
         limit: usize,
         is_descending: bool,
-    ) -> IndexerResult<Vec<IotaTransactionBlockResponse>> {
+    ) -> IndexerResult<Vec<StoredTransaction>> {
+        let lowest_unpruned_cp = self.get_lowest_unpruned_checkpoint().await?;
+        if checkpoint_seq < lowest_unpruned_cp.checkpoint_sequence_number as u64 {
+            return Err(IndexerError::PostgresDataPruned(format!(
+                "requesting data from checkpoint {checkpoint_seq}, lowest not pruned checkpoint is {}",
+                lowest_unpruned_cp.checkpoint_sequence_number
+            )));
+        }
+        let cursor_tx_seq = if let Some(cursor) = cursor {
+            Some(self.resolve_cursor_tx_digest_to_seq_num(cursor).await?)
+        } else {
+            None
+        };
+
         let pool = self.get_pool();
         let tx_range: (i64, i64) = run_query_async!(&pool, move |conn| {
             pruner_cp_watermark::dsl::pruner_cp_watermark
@@ -1053,12 +1079,9 @@ impl IndexerReader {
             query = query.order(transactions::dsl::tx_sequence_number.asc());
         }
         let pool = self.get_pool();
-        let stored_txes = run_query_async!(&pool, move |conn| query
+        run_query_async!(&pool, move |conn| query
             .limit(limit as i64)
-            .load::<StoredTransaction>(conn))?;
-
-        self.stored_transaction_to_transaction_block(stored_txes, options)
-            .await
+            .load::<StoredTransaction>(conn))
     }
 
     pub async fn query_transaction_blocks_in_blocking_task(
@@ -1097,6 +1120,58 @@ impl IndexerReader {
         .await
     }
 
+    async fn query_transaction_blocks_from_given_checkpoint(
+        &self,
+        checkpoint_seq: u64,
+        cursor: Option<TransactionDigest>,
+        limit: usize,
+        is_descending: bool,
+        options: iota_json_rpc_types::IotaTransactionBlockResponseOptions,
+    ) -> IndexerResult<Vec<IotaTransactionBlockResponse>> {
+        let db_res = self
+            .query_transaction_blocks_from_db_by_checkpoint_impl(
+                checkpoint_seq,
+                cursor,
+                limit,
+                is_descending,
+            )
+            .await;
+        let stored_txs = if let (Err(IndexerError::PostgresDataPruned(err)), Some(kv_reader)) =
+            (db_res.as_ref(), self.kv_reader.as_ref())
+        {
+            let fallback_reason = format!("fallback triggered by {err}");
+            let txs = kv_reader
+                .checkpoint_transactions(cursor, checkpoint_seq, limit, is_descending)
+                .await
+                .context(&fallback_reason)?;
+            if txs.iter().any(|tx| tx.is_none()) {
+                return Err(IndexerError::Generic(format!(
+                    "Historic Fallback failed, KV doesn't have full data for checkpoint {checkpoint_seq}, {fallback_reason}"
+                )));
+            }
+            txs.into_iter().flatten().collect::<Vec<_>>()
+        } else {
+            db_res?
+        };
+        self.stored_transaction_to_transaction_block(stored_txs, options)
+            .await
+    }
+
+    async fn resolve_cursor_tx_digest_to_seq_num(
+        &self,
+        cursor: TransactionDigest,
+    ) -> IndexerResult<i64> {
+        let pool = self.get_pool();
+        run_query_async!(&pool, move |conn| {
+            tx_digests::table
+                .select(tx_digests::tx_sequence_number)
+                // we filter the tx_digests table because it is indexed by digest,
+                // transactions (and other tables) are not
+                .filter(tx_digests::tx_digest.eq(cursor.into_inner().to_vec()))
+                .first::<i64>(conn)
+        })
+    }
+
     async fn query_transaction_blocks_impl_with_checkpointed_data_only(
         &self,
         filter: Option<TransactionFilterKind>,
@@ -1105,17 +1180,24 @@ impl IndexerReader {
         limit: usize,
         is_descending: bool,
     ) -> IndexerResult<Vec<IotaTransactionBlockResponse>> {
+        match filter {
+            Some(TransactionFilterKind::V1(TransactionFilter::Checkpoint(seq)))
+            | Some(TransactionFilterKind::V2(TransactionFilterV2::Checkpoint(seq))) => {
+                return self
+                    .query_transaction_blocks_from_given_checkpoint(
+                        seq,
+                        cursor,
+                        limit,
+                        is_descending,
+                        options,
+                    )
+                    .await;
+            }
+            _ => {} // remaining cases will be handled below
+        };
+
         let cursor_tx_seq = if let Some(cursor) = cursor {
-            let pool = self.get_pool();
-            let tx_seq = run_query_async!(&pool, move |conn| {
-                tx_digests::table
-                    .select(tx_digests::tx_sequence_number)
-                    // we filter the tx_digests table because it is indexed by digest,
-                    // transactions (and other tables) are not
-                    .filter(tx_digests::tx_digest.eq(cursor.into_inner().to_vec()))
-                    .first::<i64>(conn)
-            })?;
-            Some(tx_seq)
+            Some(self.resolve_cursor_tx_digest_to_seq_num(cursor).await?)
         } else {
             None
         };
@@ -1129,19 +1211,12 @@ impl IndexerReader {
             "".to_string()
         };
         let order_str = if is_descending { "DESC" } else { "ASC" };
+
         let (table_name, main_where_clause) = match filter {
             // Processed above
-            Some(TransactionFilterKind::V1(TransactionFilter::Checkpoint(seq)))
-            | Some(TransactionFilterKind::V2(TransactionFilterV2::Checkpoint(seq))) => {
-                return self
-                    .query_transaction_blocks_by_checkpoint_impl(
-                        seq,
-                        options,
-                        cursor_tx_seq,
-                        limit,
-                        is_descending,
-                    )
-                    .await;
+            Some(TransactionFilterKind::V1(TransactionFilter::Checkpoint(_)))
+            | Some(TransactionFilterKind::V2(TransactionFilterV2::Checkpoint(_))) => {
+                unreachable!("handled in earlier match statement")
             }
             // FIXME: sanitize module & function
             Some(TransactionFilterKind::V1(TransactionFilter::MoveFunction {
@@ -1524,35 +1599,65 @@ impl IndexerReader {
         limit: usize,
         descending_order: bool,
     ) -> IndexerResult<Vec<IotaEvent>> {
-        let ckpt_events = self
-            .query_events_by_tx_digest_checkpointed(tx_digest, cursor, limit, descending_order)
-            .await?;
+        let db_res = self
+            .query_events_from_db_by_tx_digest_checkpointed(
+                tx_digest,
+                cursor,
+                limit,
+                descending_order,
+            )
+            .await;
 
-        let mut iota_event_futures = vec![];
-        for stored_event in ckpt_events {
-            iota_event_futures.push(tokio::task::spawn(
-                stored_event.try_into_iota_event(self.package_resolver.clone()),
-            ));
+        if let (Err(IndexerError::PostgresDataPruned(err)), Some(kv_reader)) =
+            (db_res.as_ref(), self.kv_reader.as_ref())
+        {
+            let fallback_reason = format!("fallback triggered by {err}");
+            kv_reader
+                .transaction_events(tx_digest, cursor, limit, descending_order)
+                .await
+                .context(&fallback_reason)
+        } else {
+            let mut iota_event_futures = vec![];
+            for stored_event in db_res? {
+                iota_event_futures.push(tokio::task::spawn(
+                    stored_event.try_into_iota_event(self.package_resolver.clone()),
+                ));
+            }
+
+            futures::future::join_all(iota_event_futures)
+                .await
+                .into_iter()
+                .collect::<Result<Vec<_>, _>>()
+                .tap_err(|e| tracing::error!("failed to join iota event futures: {e}"))?
+                .into_iter()
+                .collect::<Result<Vec<_>, _>>()
+                .tap_err(|e| tracing::error!("failed to collect iota event futures: {e}"))
         }
-
-        let iota_events = futures::future::join_all(iota_event_futures)
-            .await
-            .into_iter()
-            .collect::<Result<Vec<_>, _>>()
-            .tap_err(|e| tracing::error!("failed to join iota event futures: {e}"))?
-            .into_iter()
-            .collect::<Result<Vec<_>, _>>()
-            .tap_err(|e| tracing::error!("failed to collect iota event futures: {e}"))?;
-        Ok(iota_events)
     }
 
-    async fn query_events_by_tx_digest_checkpointed(
+    async fn query_events_from_db_by_tx_digest_checkpointed(
         &self,
         tx_digest: TransactionDigest,
         cursor: Option<EventID>,
         limit: usize,
         descending_order: bool,
     ) -> IndexerResult<Vec<StoredEvent>> {
+        let tx_seq = self
+            .resolve_cursor_tx_digest_to_seq_num(tx_digest)
+            .await
+            .map_err(|err| {
+                IndexerError::PostgresDataPruned(format!(
+                    "Data for tx {tx_digest} potentially pruned: {err}"
+                ))
+            })?;
+        let lowest_unpruned_cp = self.get_lowest_unpruned_checkpoint().await?;
+        if tx_seq < lowest_unpruned_cp.min_tx_sequence_number {
+            return Err(IndexerError::PostgresDataPruned(format!(
+                "requesting data for tx seq {tx_seq}, lowest not pruned tx seq is {}",
+                lowest_unpruned_cp.min_tx_sequence_number
+            )));
+        }
+
         let mut query = events::table.into_boxed();
 
         if let Some(cursor) = cursor {
@@ -1578,14 +1683,7 @@ impl IndexerReader {
             query = query.order(events::event_sequence_number.asc());
         }
 
-        query = query.filter(
-            events::tx_sequence_number.nullable().eq(tx_digests::table
-                .select(tx_digests::tx_sequence_number)
-                // we filter the tx_digests table because it is indexed by digest,
-                // events table is not
-                .filter(tx_digests::tx_digest.eq(tx_digest.into_inner().to_vec()))
-                .single_value()),
-        );
+        query = query.filter(events::tx_sequence_number.nullable().eq(tx_seq));
 
         let pool = self.get_pool();
         run_query_async!(&pool, move |conn| {
@@ -1600,27 +1698,23 @@ impl IndexerReader {
         limit: usize,
         descending_order: bool,
     ) -> IndexerResult<Vec<IotaEvent>> {
-        let pool = self.get_pool();
+        if let EventFilter::Transaction(tx_digest) = filter {
+            return self
+                .query_events_by_tx_digest_checkpointed_only(
+                    tx_digest,
+                    cursor,
+                    limit,
+                    descending_order,
+                )
+                .await;
+        }
+
         let (tx_seq, event_seq) = if let Some(cursor) = cursor {
             let EventID {
                 tx_digest,
                 event_seq,
             } = cursor;
-            let tx_seq = run_query_async!(&pool, move |conn| {
-                transactions::dsl::transactions
-                    .select(transactions::tx_sequence_number)
-                    .filter(
-                        transactions::tx_sequence_number
-                            .nullable()
-                            .eq(tx_digests::table
-                                .select(tx_digests::tx_sequence_number)
-                                // we filter the tx_digests table because it is indexed by digest,
-                                // transactions table is not
-                                .filter(tx_digests::tx_digest.eq(tx_digest.into_inner().to_vec()))
-                                .single_value()),
-                    )
-                    .first::<i64>(conn)
-            })?;
+            let tx_seq: i64 = self.resolve_cursor_tx_digest_to_seq_num(tx_digest).await?;
             (tx_seq, event_seq as i64)
         } else if descending_order {
             let max_tx_seq = i64::MAX;
@@ -1662,15 +1756,8 @@ impl IndexerReader {
                 order_clause,
                 limit,
             )
-        } else if let EventFilter::Transaction(tx_digest) = filter {
-            return self
-                .query_events_by_tx_digest_checkpointed_only(
-                    tx_digest,
-                    cursor,
-                    limit,
-                    descending_order,
-                )
-                .await;
+        } else if let EventFilter::Transaction(_) = filter {
+            unreachable!("case handled earlier in the function")
         } else {
             let main_where_clause = match filter {
                 EventFilter::Package(package_id) => {
