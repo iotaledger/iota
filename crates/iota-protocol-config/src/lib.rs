@@ -2350,6 +2350,7 @@ impl ProtocolConfig {
                     // Enables score based rewards on Devnet
                     if chain != Chain::Testnet && chain != Chain::Mainnet {
                         cfg.feature_flags.score_based_rewards = true;
+                        cfg.scorer_version = Some(1);
                     }
                 }
                 // Use this template when making changes:
