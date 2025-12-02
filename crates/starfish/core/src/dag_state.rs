@@ -500,11 +500,8 @@ impl DagState {
         if let Some(sender) = &self.cordial_knowledge_sender {
             // Fetch transaction commitments for all acknowledged blocks in batch
             let acknowledgments = block_header.acknowledgments();
-            let ack_transactions_commitments = self
-                .get_transactions_commitments_batch(acknowledgments)
-                .into_iter()
-                .map(|opt| opt.expect("Missing transactions commitment for acknowledged block"))
-                .collect::<Vec<_>>();
+            let ack_transactions_commitments =
+                self.get_transactions_commitments_batch(acknowledgments);
 
             let cordial_message = CordialKnowledgeMessage::NewHeader {
                 header: block_header.clone(),

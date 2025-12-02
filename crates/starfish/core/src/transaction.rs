@@ -390,7 +390,7 @@ mod tests {
             BlockStatus, LimitReached, NoopTransactionVerifier, TransactionClient,
             TransactionConsumer,
         },
-        transaction_ref::GenericTransactionRef,
+        transaction_ref::{GenericTransactionRef, GenericTransactionRefAPI},
     };
 
     #[tokio::test(flavor = "current_thread", start_paused = true)]

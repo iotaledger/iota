@@ -497,8 +497,8 @@ mod tests {
         storage::mem_store::MemStore,
         test_dag_builder::DagBuilder,
         test_dag_parser::parse_dag,
+        transaction_ref::GenericTransactionRefAPI,
     };
-    use crate::transaction_ref::GenericTransactionRefAPI
 
     #[tokio::test]
     async fn test_handle_commit() {

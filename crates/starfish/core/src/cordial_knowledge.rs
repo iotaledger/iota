@@ -113,7 +113,7 @@ pub enum CordialKnowledgeMessage {
     /// header.
     NewHeader {
         header: VerifiedBlockHeader,
-        ack_transactions_commitments: Vec<TransactionsCommitment>,
+        ack_transactions_commitments: Vec<Option<TransactionsCommitment>>,
     },
     /// A new verified own shard to integrate into cordial knowledge.
     NewShard(GenericTransactionRef),
@@ -520,7 +520,7 @@ impl CordialKnowledge {
     fn update_cordial_knowledge(
         &mut self,
         header: &VerifiedBlockHeader,
-        ack_transactions_commitments: &[TransactionsCommitment],
+        ack_transactions_commitments: &[Option<TransactionsCommitment>],
     ) -> Option<Vec<Vec<ConnectionKnowledgeMessage>>> {
         let block_ref = header.reference();
         let block_author = block_ref.author.value();
@@ -568,12 +568,16 @@ impl CordialKnowledge {
             .zip(ack_transactions_commitments.iter())
         {
             let gen_tr_ref = if transaction_ref_enabled {
-                GenericTransactionRef::TransactionRef(crate::transaction_ref::TransactionRef {
-                    round: acknowledgment.round,
-                    author: acknowledgment.author,
-                    transactions_commitment,
-                    block_digest: acknowledgment.digest,
-                })
+                if let Some(transactions_commitment) = transactions_commitment {
+                    GenericTransactionRef::TransactionRef(crate::transaction_ref::TransactionRef {
+                        round: acknowledgment.round,
+                        author: acknowledgment.author,
+                        transactions_commitment,
+                        block_digest: acknowledgment.digest,
+                    })
+                } else {
+                    continue;
+                }
             } else {
                 GenericTransactionRef::BlockRef(*acknowledgment)
             };
