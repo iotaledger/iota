@@ -571,6 +571,11 @@ pub enum IotaError {
     ObjectSerialization { error: String },
     #[error("Failure deserializing object in the requested format: {:?}", error)]
     ObjectDeserialization { error: String },
+    #[error(
+        "Failure deserializing runtime module metadata in the requested format: {:?}",
+        error
+    )]
+    RuntimeModuleMetadataDeserialization { error: String },
     #[error("Event store component is not active on this node")]
     NoEventStore,
 

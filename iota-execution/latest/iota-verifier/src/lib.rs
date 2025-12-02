@@ -10,6 +10,7 @@ pub mod id_leak_verifier;
 pub mod meter;
 pub mod one_time_witness_verifier;
 pub mod private_generics;
+pub mod runtime_module_metadata;
 pub mod struct_with_key_verifier;
 
 use iota_types::error::{ExecutionError, ExecutionErrorKind};
