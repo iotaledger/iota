@@ -498,7 +498,18 @@ impl DagState {
             .with_label_values(&[hostname])
             .set(highest_accepted_round_for_author as i64);
         if let Some(sender) = &self.cordial_knowledge_sender {
-            let cordial_message = CordialKnowledgeMessage::NewHeader(block_header.clone());
+            // Fetch transaction commitments for all acknowledged blocks in batch
+            let acknowledgments = block_header.acknowledgments();
+            let ack_transactions_commitments =
+                self.get_transactions_commitments_batch(acknowledgments)
+                    .into_iter()
+                    .map(|opt| opt.expect("Missing transactions commitment for acknowledged block"))
+                    .collect::<Vec<_>>();
+
+            let cordial_message = CordialKnowledgeMessage::NewHeader {
+                header: block_header.clone(),
+                ack_transactions_commitments,
+            };
             if let Err(e) = sender.send(cordial_message) {
                 warn!("Failed to send cordial knowledge update: {e}");
             }
@@ -700,6 +711,50 @@ impl DagState {
         }
 
         block_headers
+    }
+
+    /// Gets transaction commitments for a batch of block references by checking
+    /// genesis, cached recent block headers in memory, then storage.
+    /// Returns a vector of tuples (BlockRef, TransactionsCommitment) for blocks that were found.
+    /// Skips blocks that are not found.
+    fn get_transactions_commitments_batch(
+        &self,
+        block_refs: &[BlockRef],
+    ) -> Vec<Option<TransactionsCommitment>> {
+        let mut commitments: Vec<Option<TransactionsCommitment>> = vec![None; block_refs.len()];
+        let mut missing_headers = Vec::new();
+
+        for (index, block_ref) in block_refs.iter().enumerate() {
+            if block_ref.round == GENESIS_ROUND {
+                // Genesis blocks don't have meaningful transaction commitments, skip them
+                continue;
+            }
+            if let Some(block_header) = self.recent_block_headers.get(block_ref) {
+                commitments[index] = Some(block_header.transactions_commitment());
+                continue;
+            }
+            missing_headers.push((index, block_ref));
+        }
+
+        if missing_headers.is_empty() {
+            return commitments;
+        }
+
+        let missing_refs = missing_headers
+            .iter()
+            .map(|(_, block_ref)| **block_ref)
+            .collect::<Vec<_>>();
+        let store_results = self
+            .store
+            .read_verified_block_headers(&missing_refs)
+            .unwrap_or_else(|e| panic!("Failed to read from storage: {e:?}"));
+
+        for ((index, _), result) in missing_headers.into_iter().zip(store_results.into_iter()) {
+            if let Some(header) = result {
+                commitments[index] = Some(header.transactions_commitment());
+            }
+        }
+        commitments
     }
 
     /// Gets serialized block headers by checking genesis, cached recent block
@@ -1449,8 +1504,20 @@ impl DagState {
             let eviction_round = self.calculate_authority_eviction_round(authority_index);
 
             // Evict everything below split_key
-            let split_key =
-                BlockRef::new(eviction_round + 1, authority_index, BlockHeaderDigest::MIN);
+            let split_key = if self.context.protocol_config.consensus_transaction_ref() {
+                GenericTransactionRef::from(TransactionRef {
+                    round: eviction_round + 1,
+                    author: authority_index,
+                    transactions_commitment: TransactionsCommitment::MIN,
+                    block_digest: BlockHeaderDigest::MIN,
+                })
+            } else {
+                GenericTransactionRef::from(BlockRef::new(
+                    eviction_round + 1,
+                    authority_index,
+                    BlockHeaderDigest::MIN,
+                ))
+            };
             self.recent_shards_by_authority[authority_index] =
                 self.recent_shards_by_authority[authority_index].split_off(&split_key);
         }

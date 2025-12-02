@@ -22,7 +22,7 @@ use tracing::debug;
 
 use crate::{
     BlockHeaderAPI, BlockRef, Round, VerifiedBlockHeader,
-    block_header::{BlockHeaderDigest, VerifiedBlock},
+    block_header::{BlockHeaderDigest, TransactionsCommitment, VerifiedBlock},
     context::Context,
     dag_state::DagState,
     error::{ConsensusError, ConsensusResult},
@@ -109,7 +109,11 @@ pub(crate) struct CordialKnowledge {
 #[derive(Debug)]
 pub enum CordialKnowledgeMessage {
     /// A new verified block header to integrate into cordial knowledge.
-    NewHeader(VerifiedBlockHeader),
+    /// Includes transaction commitments of all blocks acknowledged by this header.
+    NewHeader {
+        header: VerifiedBlockHeader,
+        ack_transactions_commitments: Vec<TransactionsCommitment>,
+    },
     /// A new verified own shard to integrate into cordial knowledge.
     NewShard(GenericTransactionRef),
     /// Evict old rounds globally.
@@ -123,7 +127,7 @@ impl CordialKnowledgeMessage {
     /// Outputs the type of CordialKnowledgeMessage in a string slice format
     fn type_label(&self) -> &'static str {
         match self {
-            CordialKnowledgeMessage::NewHeader(_) => "New header",
+            CordialKnowledgeMessage::NewHeader {..} => "New header",
             CordialKnowledgeMessage::NewShard(_) => "New shard",
             CordialKnowledgeMessage::EvictBelow(_) => "Eviction",
             CordialKnowledgeMessage::UsefulShardsFromPeers(_) => "Useful authors for shards",
@@ -379,7 +383,9 @@ impl CordialKnowledge {
         // Handle the cordial knowledge message depending on its type
 
         match cordial_knowledge_message {
-            CordialKnowledgeMessage::NewHeader(header) => self.update_cordial_knowledge(&header),
+            CordialKnowledgeMessage::NewHeader { header, ack_transactions_commitments } => {
+                self.update_cordial_knowledge(&header, &ack_transactions_commitments)
+            }
             CordialKnowledgeMessage::NewShard(gen_tr_ref) => self.prepare_new_shard_msgs(gen_tr_ref),
             CordialKnowledgeMessage::EvictBelow(round) => self.handle_evict_below(round),
             CordialKnowledgeMessage::UsefulShardsFromPeers(useful_shards_from_peer) => {
@@ -459,7 +465,7 @@ impl CordialKnowledge {
                 vec_msgs.push(vec![]);
                 continue;
             }
-            let msg = ConnectionKnowledgeMessage::NewShard { gen_tr_ref };
+            let msg = ConnectionKnowledgeMessage::NewShard { gen_tr_ref: gen_transaction_ref };
             vec_msgs.push(vec![msg]);
         }
         Some(vec_msgs)
@@ -506,6 +512,7 @@ impl CordialKnowledge {
     fn update_cordial_knowledge(
         &mut self,
         header: &VerifiedBlockHeader,
+        ack_transactions_commitments: &[TransactionsCommitment],
     ) -> Option<Vec<Vec<ConnectionKnowledgeMessage>>> {
         let block_ref = header.reference();
         let block_author = block_ref.author.value();
@@ -544,9 +551,22 @@ impl CordialKnowledge {
         }
 
         // 3) The block_author now acknowledges previously known transactions
-        for acknowledgment in header.acknowledgments() {
+        // Use the provided transaction commitments to create the proper GenericTransactionRef variant
+        let transaction_ref_enabled = self.context.protocol_config.consensus_transaction_ref();
+        for (acknowledgment, &transactions_commitment) in header.acknowledgments().iter().zip(ack_transactions_commitments.iter()) {
+            let gen_tr_ref = if transaction_ref_enabled {
+                GenericTransactionRef::TransactionRef(crate::transaction_ref::TransactionRef {
+                    round: acknowledgment.round,
+                    author: acknowledgment.author,
+                    transactions_commitment,
+                    block_digest: acknowledgment.digest,
+                })
+            } else {
+                GenericTransactionRef::BlockRef(*acknowledgment)
+            };
+
             vec_knowledge_msgs[block_author].push(ConnectionKnowledgeMessage::RemoveShard {
-                block_ref: *acknowledgment,
+                gen_tr_ref,
             });
         }
 
@@ -669,15 +689,20 @@ impl ConnectionKnowledge {
             self.process_one_message(msg);
         }
     }
-    /// Take useful block refs (headers or shards) for the given authorities
+    /// Take useful refs (headers or shards) for the given authorities
     /// up to the given round (exclusive), up to max_take total.
-    /// Used for both headers and shards.
-    fn take_useful_header_refs_round(
-        maps: &mut [BTreeMap<Round, AHashSet<BlockRef>>],
+    /// Generic function that works with both BlockRef and GenericTransactionRef.
+    fn take_useful_refs_round<T>(
+        maps: &mut [BTreeMap<Round, AHashSet<T>>],
         round_upper_bound_exclusive: Round,
         useful_authorities: &[usize],
         max_take: usize,
-    ) -> Vec<BlockRef> {
+        get_author: impl Fn(&T) -> usize,
+        get_round: impl Fn(&T) -> Round,
+    ) -> Vec<T>
+    where
+        T: Copy + Eq + std::hash::Hash,
+    {
         if useful_authorities.is_empty() || max_take == 0 {
             return Vec::new();
         }
@@ -697,9 +722,9 @@ impl ConnectionKnowledge {
         'outer: while current_round < round_upper_bound_exclusive {
             for &authority in useful_authorities {
                 let map = &maps[authority];
-                if let Some(block_refs_from_authority_in_round) = map.get(&current_round) {
-                    for &block_ref in block_refs_from_authority_in_round {
-                        taken.push(block_ref);
+                if let Some(refs_from_authority_in_round) = map.get(&current_round) {
+                    for &item_ref in refs_from_authority_in_round {
+                        taken.push(item_ref);
                         if taken.len() >= max_take {
                             break 'outer;
                         }
@@ -709,73 +734,14 @@ impl ConnectionKnowledge {
             current_round += 1;
         }
 
-        // Remove the taken blocks from the corresponding authorities
-        for block_ref in &taken {
-            let authority = block_ref.author.value();
-            if let Some(block_refs_from_authority_in_round) =
-                maps[authority].get_mut(&block_ref.round)
-            {
-                block_refs_from_authority_in_round.remove(block_ref);
+        // Remove the taken refs from the corresponding authorities
+        for item_ref in &taken {
+            let authority = get_author(item_ref);
+            let round = get_round(item_ref);
+            if let Some(refs_from_authority_in_round) = maps[authority].get_mut(&round) {
+                refs_from_authority_in_round.remove(item_ref);
                 // Remove empty rounds to keep map small
-                if block_refs_from_authority_in_round.is_empty() {
-                    maps[authority].remove(&block_ref.round);
-                }
-            }
-        }
-
-        taken
-    }
-
-    /// Take useful transaction refs (as GenericTransactionRef) for the given authorities
-    /// up to the given round (exclusive), up to max_take total.
-    /// Works directly with GenericTransactionRef stored in shards_not_known.
-    fn take_useful_tr_refs_round(
-        maps: &mut [BTreeMap<Round, AHashSet<GenericTransactionRef>>],
-        round_upper_bound_exclusive: Round,
-        useful_authorities: &[usize],
-        max_take: usize,
-    ) -> Vec<GenericTransactionRef> {
-        if useful_authorities.is_empty() || max_take == 0 {
-            return Vec::new();
-        }
-
-        // Find the smallest existing round among all useful authorities.
-        let min_round = useful_authorities
-            .iter()
-            .filter_map(|&auth| maps[auth].keys().next().copied())
-            .min();
-
-        let Some(mut current_round) = min_round else {
-            return Vec::new();
-        };
-
-        let mut taken = Vec::with_capacity(max_take);
-
-        'outer: while current_round < round_upper_bound_exclusive {
-            for &authority in useful_authorities {
-                let map = &maps[authority];
-                if let Some(gen_tr_refs_from_authority_in_round) = map.get(&current_round) {
-                    for &gen_tr_ref in gen_tr_refs_from_authority_in_round {
-                        taken.push(gen_tr_ref);
-                        if taken.len() >= max_take {
-                            break 'outer;
-                        }
-                    }
-                }
-            }
-            current_round += 1;
-        }
-
-        // Remove the taken transaction refs from the corresponding authorities
-        for gen_tr_ref in &taken {
-            let authority = gen_tr_ref.author();
-            let round = gen_tr_ref.round();
-            if let Some(gen_tr_refs_from_authority_in_round) =
-                maps[authority].get_mut(&round)
-            {
-                gen_tr_refs_from_authority_in_round.remove(gen_tr_ref);
-                // Remove empty rounds to keep map small
-                if gen_tr_refs_from_authority_in_round.is_empty() {
+                if refs_from_authority_in_round.is_empty() {
                     maps[authority].remove(&round);
                 }
             }
@@ -792,11 +758,13 @@ impl ConnectionKnowledge {
         useful_authorities: &[usize],
     ) -> Vec<BlockRef> {
         let max_take = self.context.parameters.max_headers_per_bundle;
-        Self::take_useful_header_refs_round(
+        Self::take_useful_refs_round(
             &mut self.headers_not_known,
             round_upper_bound_exclusive,
             useful_authorities,
             max_take,
+            |block_ref| block_ref.author.value(),
+            |block_ref| block_ref.round,
         )
     }
 
@@ -808,11 +776,13 @@ impl ConnectionKnowledge {
         useful_authorities: &[usize],
     ) -> Vec<GenericTransactionRef> {
         let max_take = self.context.parameters.max_shards_per_bundle;
-        Self::take_useful_tr_refs_round(
+        Self::take_useful_refs_round(
             &mut self.shards_not_known,
             round_upper_bound_exclusive,
             useful_authorities,
             max_take,
+            |gen_tr_ref| gen_tr_ref.author().value(),
+            |gen_tr_ref| gen_tr_ref.round(),
         )
     }
 
