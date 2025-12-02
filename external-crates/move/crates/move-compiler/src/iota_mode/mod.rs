@@ -9,6 +9,7 @@ use crate::diagnostics::codes::{DiagnosticInfo, Severity, custom};
 
 pub mod id_leak;
 pub mod info;
+pub mod known_attributes;
 pub mod linters;
 pub mod typing;
 

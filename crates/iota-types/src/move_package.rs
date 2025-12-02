@@ -791,3 +791,111 @@ fn build_upgraded_type_origin_table(
         Ok(new_table)
     }
 }
+
+/// IOTA specific metadata attached to the metadata section of file_format.
+#[serde_as]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RuntimeModuleMetadataWrapper {
+    pub version: u64,
+    #[serde_as(as = "Bytes")]
+    pub inner: Vec<u8>,
+}
+
+impl RuntimeModuleMetadataWrapper {
+    pub fn to_bcs_bytes(&self) -> Vec<u8> {
+        bcs::to_bytes(&self).unwrap()
+    }
+}
+
+impl From<RuntimeModuleMetadata> for RuntimeModuleMetadataWrapper {
+    fn from(metadata: RuntimeModuleMetadata) -> Self {
+        match metadata {
+            RuntimeModuleMetadata::V1(inner) => RuntimeModuleMetadataWrapper {
+                version: 1,
+                inner: inner.to_bcs_bytes(),
+            },
+        }
+    }
+}
+
+/// IOTA specific metadata attached to the metadata section of file_format.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum RuntimeModuleMetadata {
+    V1(RuntimeModuleMetadataV1),
+}
+
+impl RuntimeModuleMetadata {
+    pub fn is_empty(&self) -> bool {
+        match self {
+            RuntimeModuleMetadata::V1(metadata) => metadata.is_empty(),
+        }
+    }
+
+    pub fn fun_attributes_iter(
+        &self,
+    ) -> Box<dyn Iterator<Item = (&String, &Vec<IotaAttribute>)> + '_> {
+        match self {
+            RuntimeModuleMetadata::V1(metadata) => Box::new(metadata.fun_attributes.iter()),
+        }
+    }
+}
+
+impl Default for RuntimeModuleMetadata {
+    fn default() -> Self {
+        RuntimeModuleMetadata::V1(RuntimeModuleMetadataV1::default())
+    }
+}
+
+impl TryFrom<RuntimeModuleMetadataWrapper> for RuntimeModuleMetadata {
+    type Error = IotaError;
+
+    fn try_from(wrapper: RuntimeModuleMetadataWrapper) -> Result<Self, Self::Error> {
+        match wrapper.version {
+            1 => {
+                let inner: RuntimeModuleMetadataV1 =
+                    bcs::from_bytes(&wrapper.inner).map_err(|e| {
+                        IotaError::RuntimeModuleMetadataDeserialization {
+                            error: e.to_string(),
+                        }
+                    })?;
+                Ok(RuntimeModuleMetadata::V1(inner))
+            }
+            _ => Err(IotaError::RuntimeModuleMetadataDeserialization {
+                error: format!(
+                    "Unsupported runtime module metadata version: {}",
+                    wrapper.version
+                ),
+            }),
+        }
+    }
+}
+
+/// The list of iota attribute types recognized by the compiler.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+pub enum IotaAttribute {
+    // Attribute(Attribute),
+}
+
+/// V1 of IOTA specific metadata.
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct RuntimeModuleMetadataV1 {
+    /// Attributes attached to functions, by definition index.
+    pub fun_attributes: BTreeMap<String, Vec<IotaAttribute>>,
+}
+
+impl RuntimeModuleMetadataV1 {
+    pub fn add_function_attribute(&mut self, function_name: String, attribute: IotaAttribute) {
+        self.fun_attributes
+            .entry(function_name)
+            .or_default()
+            .push(attribute);
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.fun_attributes.is_empty()
+    }
+
+    pub fn to_bcs_bytes(&self) -> Vec<u8> {
+        bcs::to_bytes(&self).unwrap()
+    }
+}
