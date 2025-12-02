@@ -45,15 +45,9 @@ public fun create(
     owner_public_key::attach(&mut id, public_key);
     unlock_time::attach(&mut id, unlock_time);
 
-    let mut account = TimeLocked { id };
+    let account = TimeLocked { id };
 
-    let authenticator_compatibility_proof = account::check_auth_info_v1_compatibility(
-        &account,
-        authenticator,
-    );
-    account::attach_auth_info_v1(&mut account.id, authenticator_compatibility_proof);
-
-    iota::transfer::share_object(account);
+    account::create_shared_account_v1(account, authenticator);
 }
 
 /// Authenticate access for the `Time locked account`.

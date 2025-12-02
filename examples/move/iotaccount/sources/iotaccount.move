@@ -23,6 +23,7 @@ const ETransactionSenderIsNotTheAccount: vector<u8> = b"Transaction must be sign
 /// add the desired authenticator info and dynamic fields.
 public struct IOTAccountBuilder {
     account: IOTAccount,
+    authenticator: AuthenticatorInfoV1<IOTAccount>,
 }
 
 /// This struct represents an abstract IOTA account.
@@ -48,16 +49,10 @@ public fun builder(
     authenticator: AuthenticatorInfoV1<IOTAccount>,
     ctx: &mut TxContext,
 ): IOTAccountBuilder {
-    let mut builder = IOTAccountBuilder {
+    IOTAccountBuilder {
         account: IOTAccount { id: object::new(ctx) },
-    };
-
-    let authenticator_compatibility_proof = account::check_auth_info_v1_compatibility(
-        &builder.account,
         authenticator,
-    );
-    account::attach_auth_info_v1(&mut builder.account.id, authenticator_compatibility_proof);
-    builder
+    }
 }
 
 /// Attach a `Value` as a dynamic field to the account being built.
@@ -70,15 +65,15 @@ public fun add_dynamic_field<Name: copy + drop + store, Value: store>(
     self
 }
 
-/// Finish building the `IOTAccount` and share the object.
-public fun finish(self: IOTAccountBuilder): IOTAccount {
-    let IOTAccountBuilder { account } = self;
-    account
-}
+/// Finish building a shared `IOTAccount` instance.
+public fun build_shared(self: IOTAccountBuilder): address {
+    let IOTAccountBuilder { account, authenticator } = self;
 
-/// Share IOTAccount.
-public fun share(self: IOTAccount) {
-    iota::transfer::share_object(self);
+    let account_address = account.account_address();
+
+    account::create_shared_account_v1(account, authenticator);
+
+    account_address
 }
 
 /// Adds a new dynamic field to the account.
@@ -155,11 +150,7 @@ public fun rotate_auth_info_v1(
 ): AuthenticatorInfoV1<IOTAccount> {
     ensure_tx_sender_is_account(self, ctx);
 
-    let authenticator_compatibility_proof = account::check_auth_info_v1_compatibility(
-        self,
-        authenticator,
-    );
-    account::rotate_auth_info_v1(&mut self.id, authenticator_compatibility_proof)
+    account::rotate_auth_info_v1(self, authenticator)
 }
 
 // === Public-View Functions ===

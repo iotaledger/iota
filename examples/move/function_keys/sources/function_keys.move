@@ -66,11 +66,10 @@ public fun create(
     authenticator: AuthenticatorInfoV1<IOTAccount>,
     ctx: &mut TxContext,
 ) {
-    let account = builder(authenticator, ctx)
+    builder(authenticator, ctx)
         .add_dynamic_field(OwnerPublicKey {}, public_key)
         .add_dynamic_field(fk_store_key(), build_fn_keys_store(ctx))
-        .finish();
-    account.share();
+        .build_shared();
 }
 
 /// Grants (allows) a `FunctionKey` under a specific `pub_key`.
@@ -180,8 +179,5 @@ public fun create_without_fk_store(
     authenticator: AuthenticatorInfoV1<IOTAccount>,
     ctx: &mut TxContext,
 ) {
-    let account = builder(authenticator, ctx)
-        .add_dynamic_field(OwnerPublicKey {}, public_key)
-        .finish();
-    account.share();
+    builder(authenticator, ctx).add_dynamic_field(OwnerPublicKey {}, public_key).build_shared();
 }

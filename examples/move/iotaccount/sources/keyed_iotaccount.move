@@ -50,10 +50,9 @@ public fun create(
     authenticator: AuthenticatorInfoV1<IOTAccount>,
     ctx: &mut TxContext,
 ) {
-    let account = iotaccount::builder(authenticator, ctx)
+    iotaccount::builder(authenticator, ctx)
         .add_dynamic_field(OwnerPublicKey {}, public_key)
-        .finish();
-    account.share();
+        .build_shared();
 }
 
 /// Ed25519 signature authenticator.
