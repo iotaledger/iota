@@ -6,30 +6,30 @@ processed 5 tasks
 init:
 A: object(0,0)
 
-task 1, lines 8-33:
-//# publish --sender A
+task 1, lines 8-14:
+//# publish --sender A --dependencies aa
 created: object(1,0)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 7873600,  storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 5388400,  storage_rebate: 0, non_refundable_storage_fee: 0
 
-task 2, line 35:
-//# init-abstract-acc --sender A test abstract_account authenticate
+task 2, line 16:
+//# init-abstract-acc --sender A test authenticate authenticate
 created: object(2,0), object(2,1)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 5677200,  storage_rebate: 980400, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 5646800,  storage_rebate: 980400, non_refundable_storage_fee: 0
 
-task 3, line 37:
-//# view-object 2,1
+task 3, line 18:
+//# view-object 2,0
 Owner: Shared( 3 )
 Version: 3
-Contents: test::abstract_account::AbstractAccount {
+Contents: _::abstract_account::AbstractAccount {
     id: iota::object::UID {
         id: iota::object::ID {
-            bytes: fake(2,1),
+            bytes: fake(2,0),
         },
     },
 }
 
-task 4, lines 39-40:
-//# abstract --account object(2,1) --ptb-inputs 100 @A
+task 4, lines 20-21:
+//# abstract --account object(2,0) --ptb-inputs 100 @A
 Error: Error checking transaction input objects: Unsupported("MoveAuthenticator cannot authenticate mutable shared objects")

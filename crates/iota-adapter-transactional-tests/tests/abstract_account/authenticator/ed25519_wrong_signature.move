@@ -6,7 +6,7 @@
 //# init --addresses test=0x0 --accounts A
 
 //# publish --sender A
-module test::abstract_account;
+module test::authenticate;
 
 use iota::account::{Self, AuthenticatorInfoV1};
 use iota::auth_context::AuthContext;
@@ -55,7 +55,7 @@ public fun authenticate_ed25519(
     );
 }
 
-//# init-abstract-acc --sender A test abstract_account authenticate_ed25519 --inputs x"cc62332e34bb2d5cd69f60efbb2a36cb916c7eb458301ea36636c4dbb012bd88"
+//# init-abstract-acc --sender A test authenticate authenticate_ed25519 --inputs x"cc62332e34bb2d5cd69f60efbb2a36cb916c7eb458301ea36636c4dbb012bd88" --custom
 
 //# view-object 2,2
 

@@ -6,7 +6,7 @@
 //# init --addresses test=0x0 --accounts A
 
 //# publish --sender A
-module test::abstract_account;
+module test::authenticate;
 
 use iota::account::AuthenticatorInfoV1;
 use iota::auth_context::AuthContext;
@@ -27,7 +27,7 @@ public fun create(
 
 public fun authenticate(_account: &AbstractAccount, _auth_ctx: &AuthContext, _ctx: &TxContext) {}
 
-//# init-abstract-acc --sender A test abstract_account authenticate
+//# init-abstract-acc --sender A test authenticate authenticate --custom
 
 //# view-object 2,0
 

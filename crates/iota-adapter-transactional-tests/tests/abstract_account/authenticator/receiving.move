@@ -3,10 +3,10 @@
 
 // authenticate test for abstract accounts with receiving argument
 
-//# init --addresses test=0x0 --accounts A
+//# init --addresses test=0x0 --accounts A --default-aa
 
-//# publish --sender A
-module test::abstract_account;
+//# publish --sender A --dependencies aa
+module test::authenticate;
 
 use iota::auth_context::AuthContext;
 use iota::coin::Coin;
@@ -23,4 +23,4 @@ public fun authenticate_receive_coin(
     _ctx: &TxContext,
 ) {}
 
-//# init-abstract-acc --sender A test abstract_account authenticate_receive_coin
+//# init-abstract-acc --sender A test authenticate authenticate_receive_coin

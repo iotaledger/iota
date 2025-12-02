@@ -88,6 +88,9 @@ pub struct IotaInitArgs {
     /// reader.
     #[clap(long)]
     pub rest_api_url: Option<String>,
+    /// Whether to use the default abstract account package.
+    #[arg(long = "default-aa")]
+    pub default_aa: bool,
 }
 
 #[derive(Debug, clap::Parser)]
@@ -194,6 +197,8 @@ pub struct InitAbstractAccountCommand {
         action = clap::ArgAction::Append,
     )]
     pub inputs: Vec<ParsedValue<IotaExtraValueArgs>>,
+    #[arg(long)]
+    pub custom: bool,
 }
 
 #[derive(Debug, clap::Parser)]

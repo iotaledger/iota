@@ -80,7 +80,7 @@ use move_compiler::{
 use move_core_types::{
     account_address::AccountAddress,
     ident_str,
-    identifier::IdentStr,
+    identifier::{IdentStr, Identifier},
     language_storage::{ModuleId, TypeTag},
     parsing::{address::ParsedAddress, values::ParsedValue},
 };
@@ -109,6 +109,10 @@ pub enum FakeID {
 }
 
 const DEFAULT_GAS_PRICE: u64 = 1_000;
+
+const ABSTRACT_ACCOUNT_PACKAGE_NAME: &str = "aa";
+const AA_MODULE_NAME: &str = "abstract_account";
+const AA_TYPE_NAME: &str = "AbstractAccount";
 
 const WELL_KNOWN_OBJECTS: &[ObjectID] = &[
     MOVE_STDLIB_PACKAGE_ID,
@@ -158,6 +162,7 @@ struct AdapterInitConfig {
     /// Configuration for offchain state reader read from the file itself, and
     /// can be passed to the specific indexing and reader flavor.
     offchain_config: Option<OffChainConfig>,
+    is_default_aa: bool,
 }
 
 pub struct IotaTestAdapter {
@@ -166,6 +171,7 @@ pub struct IotaTestAdapter {
     /// name.
     package_upgrade_mapping: BTreeMap<Symbol, Symbol>,
     accounts: BTreeMap<String, TestAccount>,
+    aa_package_id: Option<ObjectID>,
     default_account: TestAccount,
     default_syntax: SyntaxChoice,
     object_enumeration: BiBTreeMap<ObjectID, FakeID>,
@@ -214,6 +220,7 @@ impl AdapterInitConfig {
             epochs_to_keep,
             data_ingestion_path,
             rest_api_url,
+            default_aa,
         } = iota_args;
 
         let map = verify_and_create_named_address_mapping(named_addresses).unwrap();
@@ -266,6 +273,7 @@ impl AdapterInitConfig {
             default_gas_price,
             flavor,
             offchain_config,
+            is_default_aa: default_aa,
         }
     }
 }
@@ -362,6 +370,7 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
             default_gas_price,
             flavor,
             offchain_config,
+            is_default_aa,
         } = match task_opt.map(|t| t.command) {
             Some((init_cmd, iota_args)) => AdapterInitConfig::from_args(init_cmd, iota_args),
             None => AdapterInitConfig::default(),
@@ -417,6 +426,7 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
             ),
             package_upgrade_mapping: BTreeMap::new(),
             accounts,
+            aa_package_id: None,
             default_account,
             default_syntax,
             object_enumeration: BiBTreeMap::new(),
@@ -448,6 +458,10 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
         } else {
             Some(output)
         };
+
+        if is_default_aa {
+            test_adapter.publish_aa_package().await.unwrap();
+        }
         (test_adapter, output)
     }
 
@@ -464,8 +478,12 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
             dependencies,
             gas_price,
         } = extra;
+
         let named_addr_opt = modules.first().unwrap().named_address;
+        let named_addr_str_opt = named_addr_opt.map(|s| s.to_string());
+
         let first_module_name = modules.first().unwrap().module.self_id().name().to_string();
+
         let modules_bytes = modules
             .iter()
             .map(|m| {
@@ -475,9 +493,11 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
                     .unwrap();
                 Ok(module_bytes)
             })
-            .collect::<anyhow::Result<_>>()?;
+            .collect::<anyhow::Result<Vec<_>>>()?;
+
         let gas_budget = gas_budget.unwrap_or(DEFAULT_GAS_BUDGET);
         let mapping = &self.compiled_state.named_address_mapping;
+
         let mut dependencies: Vec<_> = dependencies
             .into_iter()
             .map(|d| {
@@ -488,23 +508,28 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
                 Ok(id)
             })
             .collect::<Result<_, _>>()?;
+
         let gas_price = gas_price.unwrap_or(self.gas_price);
+
         // we are assuming that all packages depend on Move Stdlib and IOTA Framework,
         // so these don't have to be provided explicitly as parameters
         dependencies.extend([MOVE_STDLIB_PACKAGE_ID, IOTA_FRAMEWORK_PACKAGE_ID]);
+
         let data = |sender, gas| {
             let mut builder = ProgrammableTransactionBuilder::new();
             if upgradeable {
-                let cap = builder.publish_upgradeable(modules_bytes, dependencies);
+                let cap = builder.publish_upgradeable(modules_bytes.clone(), dependencies.clone());
                 builder.transfer_arg(sender, cap);
             } else {
-                builder.publish_immutable(modules_bytes, dependencies);
+                builder.publish_immutable(modules_bytes.clone(), dependencies.clone());
             };
             let pt = builder.finish();
             TransactionData::new_programmable(sender, gas, pt, gas_budget, gas_price)
         };
+
         let transaction = self.sign_txn(sender, data);
         let summary = self.execute_txn(transaction).await?;
+
         let created_package = summary
             .created
             .iter()
@@ -522,21 +547,55 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
                 }
             })
             .unwrap();
-        let package_addr = NumericalAddress::new(created_package.into_bytes(), NumberFormat::Hex);
-        if let Some(named_addr) = named_addr_opt {
-            let prev_package = self
+
+        // If the newly published package has a named address, update the compiler's
+        // `named_address_mapping` to point that name to the created package's on-chain
+        // address. For the special abstract-account package name
+        // (`ABSTRACT_ACCOUNT_STD_PACKAGE_NAME`), also cache its ObjectID in
+        // `self.aa_std_package_id` so it can be used as an implicit dependency
+        // To avoid silently reusing the same logical package name for different
+        // deployed packages, we enforce the following invariant:
+        //   * For the abstract-account package: the previous mapping may be either 0x0
+        //     (placeholder before first publish) or equal to the newly created package
+        //     ID. Any other previous non-zero address causes a panic.
+        //   * For all other named packages: the previous mapping may only be 0x0; any
+        //     attempt to overwrite a non-zero previous address causes a panic.
+        if let Some(named_addr_str) = &named_addr_str_opt {
+            let package_addr =
+                NumericalAddress::new(created_package.into_bytes(), NumberFormat::Hex);
+            let prev = self
                 .compiled_state
                 .named_address_mapping
-                .insert(named_addr.to_string(), package_addr);
-            match prev_package.map(|a| a.into_inner()) {
-                Some(addr) if addr != AccountAddress::ZERO => panic!(
-                    "Cannot reuse named address '{named_addr}' for multiple packages. \
-                It should be set to 0 initially"
-                ),
-                _ => (),
+                .insert(named_addr_str.clone(), package_addr);
+
+            if named_addr_str == ABSTRACT_ACCOUNT_PACKAGE_NAME {
+                // remember aa package ID
+                self.aa_package_id = Some(created_package);
+
+                if let Some(prev) = prev {
+                    let prev_addr = prev.into_inner();
+                    // Only allow overwrite if previous address is ZERO or matches the new package
+                    if prev_addr != AccountAddress::ZERO && prev_addr != created_package.into() {
+                        panic!(
+                            "Cannot reuse named address '{named_addr_str}' for multiple packages. \
+                            Previous address: {prev_addr:x}, new package: {created_package}"
+                        );
+                    }
+                }
+            } else if let Some(prev) = prev {
+                let prev_addr = prev.into_inner();
+                // Only allow overwrite if previous address is ZERO
+                if prev_addr != AccountAddress::ZERO {
+                    panic!(
+                        "Cannot reuse named address '{named_addr_str}' for multiple packages. \
+                         It should be set to 0 initially. Previous address: {prev_addr:x}"
+                    );
+                }
             }
         }
+
         let output = self.object_summary_output(&summary, /* summarize */ false);
+
         let published_modules = self
             .get_object(&created_package, None)
             .unwrap()
@@ -551,6 +610,7 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
                 source_map: None,
             })
             .collect();
+
         Ok((output, published_modules))
     }
 
@@ -1218,60 +1278,27 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
                 module,
                 authenticate_fn,
                 inputs,
+                custom,
             }) => {
-                let pkg_addr = self
-                    .compiled_state
-                    .named_address_mapping
-                    .get(&package)
-                    .ok_or_else(|| anyhow::anyhow!("Unknown package named address '{package}'"))?
-                    .into_inner();
-                let package_id: ObjectID = pkg_addr.into();
-
-                let abstract_acc_type = self.type_tag(&package, &module, "AbstractAccount")?; // Now `AbstractAccount` harcoded, but we may remove it as unnecessary type arg later.
-
-                let mut ptb_builder = ProgrammableTransactionBuilder::new();
-
-                let mut create_fn_inputs = self
-                    .compiled_state()
-                    .resolve_args(inputs)?
-                    .into_iter()
-                    .map(|arg| arg.into_argument(&mut ptb_builder, self))
-                    .collect::<anyhow::Result<Vec<Argument>>>()?;
-
-                let pkg_arg = ptb_builder.pure(package_id)?;
-                let mod_arg = ptb_builder.pure(module.clone())?;
-                let fn_arg = ptb_builder.pure(authenticate_fn.clone())?;
-
-                let auth_info_arg = ptb_builder.programmable_move_call(
-                    IOTA_FRAMEWORK_PACKAGE_ID,
-                    ident_str!("account").to_owned(),
-                    ident_str!("create_auth_info_v1").to_owned(),
-                    vec![abstract_acc_type],
-                    vec![pkg_arg, mod_arg, fn_arg],
-                );
-
-                create_fn_inputs.push(auth_info_arg);
-
-                ptb_builder.programmable_move_call(
-                    package_id,
-                    move_core_types::identifier::Identifier::new(module.as_ref())?,
-                    ident_str!("create").to_owned(),
-                    vec![],
-                    create_fn_inputs,
-                );
-
-                let pt = ptb_builder.finish();
-
-                let gas_budget = DEFAULT_GAS_BUDGET;
-                let gas_price = self.gas_price;
-
-                let tx = self.sign_txn(sender, |sender_addr, gas| {
-                    TransactionData::new_programmable(sender_addr, gas, pt, gas_budget, gas_price)
-                });
-
-                let summary = self.execute_txn(tx).await?;
-                let output = self.object_summary_output(&summary, false);
-                Ok(output)
+                if custom {
+                    self.init_custom_abstract_account(
+                        sender,
+                        package,
+                        module,
+                        authenticate_fn,
+                        inputs,
+                    )
+                    .await
+                } else {
+                    self.init_default_abstract_account(
+                        sender,
+                        package,
+                        module,
+                        authenticate_fn,
+                        inputs,
+                    )
+                    .await
+                }
             }
         }
     }
@@ -2162,11 +2189,13 @@ impl IotaTestAdapter {
             format!("0x{hex_str}")
         };
         let parsed = AccountAddress::from_hex_literal(&hex_str).unwrap();
-        if let Some((known, _)) = self
-            .compiled_state
-            .named_address_mapping
-            .iter()
-            .find(|(_name, addr)| addr.into_inner() == parsed)
+        if let Some((known, _)) =
+            self.compiled_state
+                .named_address_mapping
+                .iter()
+                .find(|(name, addr)| {
+                    *name != ABSTRACT_ACCOUNT_PACKAGE_NAME && addr.into_inner() == parsed
+                })
         {
             return known.clone();
         }
@@ -2261,7 +2290,7 @@ impl IotaTestAdapter {
         bail!("Internal funding transaction didn't create coin for the recipient {recipient}");
     }
 
-    fn type_tag(
+    fn make_struct_type_tag(
         &self,
         package_name: &str,
         module_name: &str,
@@ -2274,10 +2303,204 @@ impl IotaTestAdapter {
             .ok_or_else(|| anyhow::anyhow!("Unknown package named address '{package_name}'"))?
             .into_inner();
 
-        let str_tag = format!("0x{}::{}::{}", addr, module_name, struct_name);
-        Ok(TypeTag::from_str(&str_tag)?)
+        let s = format!("0x{addr:x}::{module_name}::{struct_name}");
+        Ok(TypeTag::from_str(&s)?)
+    }
+
+    fn build_abstract_account_transaction(
+        &mut self,
+        test_pkg_id: ObjectID,
+        test_module_name: String,
+        authenticate_fn: String,
+        abstract_account_type: TypeTag,
+        aa_pkg_id: ObjectID,
+        aa_module_name: &str,
+        inputs: Vec<ParsedValue<IotaExtraValueArgs>>,
+    ) -> anyhow::Result<ProgrammableTransaction> {
+        let mut builder = ProgrammableTransactionBuilder::new();
+
+        let mut create_fn_inputs = self
+            .compiled_state()
+            .resolve_args(inputs)?
+            .into_iter()
+            .map(|arg| arg.into_argument(&mut builder, self))
+            .collect::<anyhow::Result<Vec<Argument>>>()?;
+
+        let pkg_arg = builder.pure(test_pkg_id)?;
+        let mod_arg = builder.pure(test_module_name)?;
+        let fn_arg = builder.pure(authenticate_fn)?;
+
+        let auth_info_arg = builder.programmable_move_call(
+            IOTA_FRAMEWORK_PACKAGE_ID,
+            ident_str!("account").to_owned(),
+            ident_str!("create_auth_info_v1").to_owned(),
+            vec![abstract_account_type],
+            vec![pkg_arg, mod_arg, fn_arg],
+        );
+
+        create_fn_inputs.push(auth_info_arg);
+
+        builder.programmable_move_call(
+            aa_pkg_id,
+            Identifier::new(aa_module_name)?,
+            ident_str!("create").to_owned(),
+            vec![],
+            create_fn_inputs,
+        );
+
+        Ok(builder.finish())
+    }
+
+    async fn init_custom_abstract_account(
+        &mut self,
+        sender: Option<String>,
+        package_name: String,
+        module_name: String,
+        authenticate_fn: String,
+        inputs: Vec<ParsedValue<IotaExtraValueArgs>>,
+    ) -> anyhow::Result<Option<String>> {
+        let pkg_addr = self
+            .compiled_state
+            .named_address_mapping
+            .get(&package_name)
+            .with_context(|| format!("Unknown package named address '{package_name}'"))?
+            .into_inner();
+        let package_id: ObjectID = pkg_addr.into();
+
+        let abstract_acc_type =
+            self.make_struct_type_tag(&package_name, &module_name, AA_TYPE_NAME)?;
+
+        let pt = self.build_abstract_account_transaction(
+            package_id,
+            module_name.clone(),
+            authenticate_fn,
+            abstract_acc_type,
+            package_id,
+            &module_name,
+            inputs,
+        )?;
+
+        let gas_budget = DEFAULT_GAS_BUDGET;
+        let gas_price = self.gas_price;
+
+        let tx = self.sign_txn(sender, |sender_addr, gas| {
+            TransactionData::new_programmable(sender_addr, gas, pt, gas_budget, gas_price)
+        });
+
+        let summary = self.execute_txn(tx).await?;
+        let output = self.object_summary_output(&summary, false);
+        Ok(output)
+    }
+
+    async fn init_default_abstract_account(
+        &mut self,
+        sender: Option<String>,
+        package: String,
+        module: String,
+        authenticate_fn: String,
+        inputs: Vec<ParsedValue<IotaExtraValueArgs>>,
+    ) -> anyhow::Result<Option<String>> {
+        let auth_pkg_addr = self
+            .compiled_state
+            .named_address_mapping
+            .get(&package)
+            .with_context(|| format!("Unknown test package named address '{package}'"))?
+            .into_inner();
+        let test_pkg_id = auth_pkg_addr.into();
+
+        let aa_package_id = self
+            .aa_package_id
+            .ok_or_else(|| anyhow::anyhow!("Default AA package was not published"))?;
+
+        let abstract_acc_type =
+            self.make_struct_type_tag(ABSTRACT_ACCOUNT_PACKAGE_NAME, AA_MODULE_NAME, AA_TYPE_NAME)?;
+
+        let pt = self.build_abstract_account_transaction(
+            test_pkg_id,
+            module,
+            authenticate_fn,
+            abstract_acc_type,
+            aa_package_id,
+            AA_MODULE_NAME,
+            inputs,
+        )?;
+
+        let gas_budget = DEFAULT_GAS_BUDGET;
+        let gas_price = self.gas_price;
+
+        let tx = self.sign_txn(sender, |sender_addr, gas| {
+            TransactionData::new_programmable(sender_addr, gas, pt, gas_budget, gas_price)
+        });
+
+        let summary = self.execute_txn(tx).await?;
+        let output = self.object_summary_output(&summary, /* summarize */ false);
+        Ok(output)
+    }
+
+    async fn publish_aa_package(&mut self) -> anyhow::Result<()> {
+        // Already published for this adapter instance
+        if self.aa_package_id.is_some() {
+            return Ok(());
+        }
+
+        // We expect aa to be compiled at 0x0 (placeholder address)
+        let aa_addr_zero = AccountAddress::ZERO;
+
+        let modules: Vec<MaybeNamedCompiledModule> = self
+            .compiled_state
+            .dep_modules()
+            .filter(|m| m.self_id().address() == &aa_addr_zero)
+            .map(|m| MaybeNamedCompiledModule {
+                // Keep the named address so we can recognize this publish inside publish_modules,
+                // but we will not overwrite named_address_mapping for `aa`.
+                named_address: Some(Symbol::from(ABSTRACT_ACCOUNT_PACKAGE_NAME)),
+                module: m.clone(),
+                source_map: None,
+            })
+            .collect();
+
+        if modules.is_empty() {
+            return Err(anyhow!(
+                "No aa modules found in PRE_COMPILED; check data/account_abstraction"
+            ));
+        }
+
+        let gas_budget = DEFAULT_GAS_BUDGET;
+        let extra = IotaPublishArgs {
+            sender: None,
+            upgradeable: false,
+            dependencies: vec![],
+            gas_price: None,
+        };
+
+        // Save current fake ID and enumerations
+        // to restore after publishing AA package.
+        let saved_next_fake = self.next_fake;
+        let saved_digest_enumeration = self.digest_enumeration.clone();
+        let saved_object_enumeration = self.object_enumeration.clone();
+
+        // This will set self.aa_package_id in publish_modules
+        let (_output, published_modules) = self
+            .publish_modules(modules, Some(gas_budget), extra)
+            .await?;
+
+        // Important: restore fake ID and enumerations, since publishing the AA package
+        // in order to keep object enumeration stable must not affect the fake
+        // IDs used in the test itself.
+        self.next_fake = saved_next_fake;
+        self.digest_enumeration = saved_digest_enumeration;
+        self.object_enumeration = saved_object_enumeration;
+
+        let data = NamedTempFile::new()?;
+
+        // Record published modules in compiled state
+        // with source file info.
+        self.compiled_state
+            .add_with_source_file(published_modules, (aa_source_path(), data));
+        Ok(())
     }
 }
+
 impl<'a> GetModule for &'a IotaTestAdapter {
     type Error = anyhow::Error;
 
@@ -2317,6 +2540,7 @@ impl Default for AdapterInitConfig {
             default_gas_price: None,
             flavor: None,
             offchain_config: None,
+            is_default_aa: false,
         }
     }
 }
@@ -2346,6 +2570,10 @@ static NAMED_ADDRESSES: Lazy<BTreeMap<String, NumericalAddress>> = Lazy::new(|| 
             move_compiler::shared::NumberFormat::Hex,
         ),
     );
+    map.insert(
+        ABSTRACT_ACCOUNT_PACKAGE_NAME.to_string(),
+        NumericalAddress::new(AccountAddress::ZERO.into_bytes(), NumberFormat::Hex),
+    );
     map
 });
 
@@ -2369,17 +2597,25 @@ pub static PRE_COMPILED: Lazy<FullyCompiledProgram> = Lazy::new(|| {
         buf.extend(["packages", "move-stdlib", "sources"]);
         buf.to_string_lossy().to_string()
     };
+
     let config = PackageConfig {
         edition: Edition::E2024_BETA,
         flavor: Flavor::Iota,
         ..Default::default()
     };
     let fully_compiled_res = move_compiler::construct_pre_compiled_lib(
-        vec![PackagePaths {
-            name: Some(("iota-framework".into(), config)),
-            paths: vec![iota_system_sources, iota_sources, iota_deps],
-            named_address_map: NAMED_ADDRESSES.clone(),
-        }],
+        vec![
+            PackagePaths {
+                name: Some(("iota-framework".into(), config.clone())),
+                paths: vec![iota_system_sources, iota_sources, iota_deps],
+                named_address_map: NAMED_ADDRESSES.clone(),
+            },
+            PackagePaths {
+                name: Some((ABSTRACT_ACCOUNT_PACKAGE_NAME.into(), config)),
+                paths: vec![aa_source_path()],
+                named_address_map: NAMED_ADDRESSES.clone(),
+            },
+        ],
         None,
         Flags::empty(),
         None,
@@ -2640,6 +2876,16 @@ async fn init_sim_executor(
         },
         Some(Arc::new(read_replica)),
     )
+}
+
+fn aa_source_path() -> String {
+    let aa_sources = {
+        let root: &Path = Path::new(env!("CARGO_MANIFEST_DIR"));
+        let mut buf = root.to_path_buf();
+        buf.extend(["data", "account_abstraction"]);
+        buf.to_string_lossy().to_string()
+    };
+    aa_sources
 }
 
 async fn update_named_address_mapping(

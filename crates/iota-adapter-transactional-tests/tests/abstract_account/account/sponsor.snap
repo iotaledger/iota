@@ -6,38 +6,38 @@ processed 6 tasks
 init:
 A: object(0,0)
 
-task 1, lines 8-28:
-//# publish --sender A
+task 1, lines 8-15:
+//# publish --sender A --dependencies aa
 created: object(1,0)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 7615200,  storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 5388400,  storage_rebate: 0, non_refundable_storage_fee: 0
 
-task 2, line 30:
-//# init-abstract-acc --sender A test abstract_account authenticate
+task 2, line 17:
+//# init-abstract-acc --sender A test authenticate authenticate
 created: object(2,0), object(2,1)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 5677200,  storage_rebate: 980400, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 5646800,  storage_rebate: 980400, non_refundable_storage_fee: 0
 
-task 3, line 32:
-//# view-object 2,1
+task 3, line 19:
+//# view-object 2,0
 Owner: Shared( 3 )
 Version: 3
-Contents: test::abstract_account::AbstractAccount {
+Contents: _::abstract_account::AbstractAccount {
     id: iota::object::UID {
         id: iota::object::ID {
-            bytes: fake(2,1),
+            bytes: fake(2,0),
         },
     },
 }
 
-task 4, lines 34-36:
-//# abstract --account immshared(2,1) --sponsor A --ptb-inputs 100 @A
+task 4, lines 21-23:
+//# abstract --account immshared(2,0) --sponsor A --ptb-inputs 100 @A
 created: object(4,0)
 mutated: object(0,0)
-unchanged_shared: object(2,1)
+unchanged_shared: object(2,0)
 gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 1960800,  storage_rebate: 980400, non_refundable_storage_fee: 0
 
-task 5, line 38:
+task 5, line 25:
 //# view-object 4,0
 Owner: Account Address ( A )
 Version: 4
