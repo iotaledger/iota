@@ -49,8 +49,9 @@ async fn test_profiler() {
     let testnet_url = "https://api.testnet.iota.cafe".to_string();
 
     // HINT: if the test is flaky, update this tx_digest to a more recent one.
-    // Just pick a random transaction from a recent checkpoint, involving shared objects.
-    let tx_digest = "EtH41KcGgyQ2Fxp4Fji61vkGtdiArptjMC5YFDJBeGqj".to_string();
+    // Just pick a random transaction from a recent checkpoint, involving shared
+    // objects, or simply run "update_profiler_tx.sh" script.
+    let tx_digest = "EzUSwaufgxa5ktq6nbDxQST9bVuXLg3VWKk41bBqnoH".to_string();
 
     let cmd = ReplayToolCommand::ProfileTransaction {
         tx_digest,
@@ -63,7 +64,7 @@ async fn test_profiler() {
     let command_result =
         iota_replay::execute_replay_command(Some(testnet_url), false, false, None, None, cmd).await;
 
-    command_result.expect("Failed to execute replay command. HINT: if the test is flaky, update the tx_digest to a more recent one.");
+    command_result.expect("Failed to execute replay command. HINT: if the test is flaky, update the tx_digest to a more recent one by running \"update_profiler_tx.sh\".");
 
     // check that the profile was written
     let mut found = false;
