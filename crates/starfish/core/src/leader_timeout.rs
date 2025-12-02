@@ -201,7 +201,7 @@ mod tests {
 
     use crate::{
         BlockRef, Round, TestBlockHeader,
-        block_header::{GenericTransactionRef, VerifiedBlock},
+        block_header::VerifiedBlock,
         commit::CommitRange,
         context::Context,
         core::{CoreSignals, ReasonToCreateBlock},
@@ -212,6 +212,7 @@ mod tests {
         leader_timeout::LeaderTimeoutTask,
         network::{BlockBundleStream, NetworkClient},
         storage::mem_store::MemStore,
+        transaction_ref::GenericTransactionRef,
         transactions_synchronizer::TransactionsSynchronizer,
     };
 

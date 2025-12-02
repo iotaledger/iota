@@ -23,8 +23,8 @@ use tracing::{debug, info, warn};
 use crate::{
     CommitIndex, Round, Transaction, VerifiedBlockHeader,
     block_header::{
-        BlockHeaderAPI, BlockHeaderDigest, BlockRef, GENESIS_ROUND, GenericTransactionRef,
-        ShardWithProof, SignedBlockHeader, TransactionsCommitment, VerifiedBlock, VerifiedOwnShard,
+        BlockHeaderAPI, BlockHeaderDigest, BlockRef, GENESIS_ROUND, ShardWithProof,
+        SignedBlockHeader, TransactionsCommitment, VerifiedBlock, VerifiedOwnShard,
         VerifiedTransactions,
     },
     block_verifier::BlockVerifier,
@@ -45,6 +45,7 @@ use crate::{
     shard_reconstructor::TransactionMessage,
     stake_aggregator::{QuorumThreshold, StakeAggregator},
     storage::Store,
+    transaction_ref::GenericTransactionRef,
     transactions_synchronizer::TransactionsSynchronizerHandle,
 };
 
@@ -1336,9 +1337,9 @@ mod tests {
             AuthorityService, BroadcastedBlockStream, MAX_FILTER_SIZE, SubscriptionCounter,
         },
         block_header::{
-            BlockHeaderAPI, BlockRef, GENESIS_ROUND, GenericTransactionRef, SignedBlockHeader,
-            TestBlockHeader, TransactionsCommitment, VerifiedBlock, VerifiedBlockHeader,
-            VerifiedOwnShard, VerifiedTransactions,
+            BlockHeaderAPI, BlockRef, GENESIS_ROUND, SignedBlockHeader, TestBlockHeader,
+            TransactionsCommitment, VerifiedBlock, VerifiedBlockHeader, VerifiedOwnShard,
+            VerifiedTransactions,
         },
         block_manager::BlockManager,
         block_verifier::SignedBlockVerifier,
@@ -1362,6 +1363,7 @@ mod tests {
         storage::{Store, mem_store::MemStore},
         test_dag_builder::DagBuilder,
         transaction::TransactionConsumer,
+        transaction_ref::GenericTransactionRef,
         transactions_synchronizer::TransactionsSynchronizer,
     };
 

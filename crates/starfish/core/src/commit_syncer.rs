@@ -53,8 +53,7 @@ use tracing::{debug, info, warn};
 use crate::{
     CommitConsumerMonitor, CommitIndex, Transaction, VerifiedBlockHeader,
     block_header::{
-        BlockHeaderAPI, BlockRef, GenericTransactionRef, SignedBlockHeader, TransactionsCommitment,
-        VerifiedTransactions,
+        BlockHeaderAPI, BlockRef, SignedBlockHeader, TransactionsCommitment, VerifiedTransactions,
     },
     block_verifier::BlockVerifier,
     commit::{
@@ -69,6 +68,7 @@ use crate::{
     error::{ConsensusError, ConsensusResult},
     network::{NetworkClient, SerializedTransactionsV1, SerializedTransactionsV2},
     stake_aggregator::{QuorumThreshold, StakeAggregator},
+    transaction_ref::GenericTransactionRef,
 };
 
 // Handle to stop the CommitSyncer loop.
@@ -1220,7 +1220,7 @@ mod tests {
 
     use crate::{
         CommitConsumerMonitor, CommitDigest, CommitRef, Round,
-        block_header::{BlockRef, GenericTransactionRef, TestBlockHeader, VerifiedBlockHeader},
+        block_header::{BlockRef, TestBlockHeader, VerifiedBlockHeader},
         block_verifier::NoopBlockVerifier,
         commit::CommitRange,
         commit_syncer::CommitSyncer,
@@ -1231,6 +1231,7 @@ mod tests {
         error::ConsensusResult,
         network::{BlockBundleStream, NetworkClient},
         storage::mem_store::MemStore,
+        transaction_ref::GenericTransactionRef,
     };
 
     #[derive(Default)]

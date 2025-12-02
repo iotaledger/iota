@@ -13,9 +13,7 @@ use tokio::sync::oneshot;
 use tracing::{error, warn};
 
 use crate::{
-    Round,
-    block_header::{GenericTransactionRef, Transaction},
-    context::Context,
+    Round, block_header::Transaction, context::Context, transaction_ref::GenericTransactionRef,
 };
 
 /// The maximum number of transactions pending to the queue to be pulled for
@@ -382,13 +380,14 @@ mod tests {
     use tokio::time::timeout;
 
     use crate::{
-        block_header::{BlockHeaderDigest, BlockRef, GenericTransactionRef},
+        block_header::{BlockHeaderDigest, BlockRef},
         block_verifier::SignedBlockVerifier,
         context::Context,
         transaction::{
             BlockStatus, LimitReached, NoopTransactionVerifier, TransactionClient,
             TransactionConsumer,
         },
+        transaction_ref::GenericTransactionRef,
     };
 
     #[tokio::test(flavor = "current_thread", start_paused = true)]

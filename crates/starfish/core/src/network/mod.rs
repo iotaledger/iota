@@ -32,7 +32,7 @@ use starfish_config::AuthorityIndex;
 
 use crate::{
     Round, VerifiedBlockHeader,
-    block_header::{BlockRef, GenericTransactionRef, TransactionRef, VerifiedBlock},
+    block_header::{BlockRef, VerifiedBlock},
     commit::{CommitRange, TrustedCommit},
     error::{ConsensusError, ConsensusResult},
 };
@@ -54,7 +54,10 @@ pub(crate) mod tonic_network;
 pub mod tonic_network;
 mod tonic_tls;
 
-use crate::encoder::ShardEncoder;
+use crate::{
+    encoder::ShardEncoder,
+    transaction_ref::{GenericTransactionRef, TransactionRef},
+};
 
 /// A stream of serialized blocks with additional information such as headers or
 /// shards.

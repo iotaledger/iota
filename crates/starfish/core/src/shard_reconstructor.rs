@@ -651,8 +651,7 @@ mod tests {
     use crate::{
         BlockRef, Round, TestBlockHeader, Transaction, VerifiedBlockHeader,
         block_header::{
-            GenericTransactionRef, Shard, TransactionsCommitment, VerifiedBlock, VerifiedOwnShard,
-            VerifiedTransactions,
+            Shard, TransactionsCommitment, VerifiedBlock, VerifiedOwnShard, VerifiedTransactions,
         },
         commit::CertifiedCommits,
         context::Context,
@@ -664,6 +663,7 @@ mod tests {
             FullTransactionMessage, ShardMessage, ShardReconstructor, TransactionMessage,
         },
         storage::mem_store::MemStore,
+        transaction_ref::GenericTransactionRef,
     };
 
     #[derive(Default)]

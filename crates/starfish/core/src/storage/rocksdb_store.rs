@@ -19,13 +19,13 @@ use super::{CommitInfo, Store, WriteBatch};
 use crate::{
     Transaction,
     block_header::{
-        BlockHeaderAPI as _, BlockHeaderDigest, BlockRef, GenericTransactionRef, Round,
-        SignedBlockHeader, TransactionRef, TransactionsCommitment, VerifiedBlock,
-        VerifiedBlockHeader, VerifiedTransactions,
+        BlockHeaderAPI as _, BlockHeaderDigest, BlockRef, Round, SignedBlockHeader,
+        TransactionsCommitment, VerifiedBlock, VerifiedBlockHeader, VerifiedTransactions,
     },
     commit::{CommitAPI as _, CommitDigest, CommitIndex, CommitRange, CommitRef, TrustedCommit},
     context::Context,
     error::{ConsensusError, ConsensusResult},
+    transaction_ref::{GenericTransactionRef, TransactionRef},
 };
 
 /// Persistent storage with RocksDB.

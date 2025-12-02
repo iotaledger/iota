@@ -14,14 +14,14 @@ use tracing::instrument;
 use crate::{
     Round,
     block_header::{
-        BlockHeaderAPI, BlockHeaderDigest, BlockRef, BlockTimestampMs, GenericTransactionRef,
-        TransactionRef, VerifiedBlockHeader,
+        BlockHeaderAPI, BlockHeaderDigest, BlockRef, BlockTimestampMs, VerifiedBlockHeader,
     },
     commit::{Commit, CommitAPI, PendingSubDag, TrustedCommit, sort_sub_dag_blocks},
     context::Context,
     dag_state::DagState,
     leader_schedule::LeaderSchedule,
     stake_aggregator::{QuorumThreshold, StakeAggregator},
+    transaction_ref::{GenericTransactionRef, TransactionRef},
 };
 
 /// The `StorageAPI` trait provides an interface for the block store and has

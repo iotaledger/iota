@@ -16,7 +16,7 @@ use tracing::{debug, info, instrument};
 
 use crate::{
     CommitConsumer, CommittedSubDag,
-    block_header::{BlockHeaderAPI, GenericTransactionRef, VerifiedBlockHeader},
+    block_header::{BlockHeaderAPI, VerifiedBlockHeader},
     commit::{CommitAPI, CommitIndex, PendingSubDag, load_pending_subdag_from_store},
     commit_solidifier::CommitSolidifier,
     context::Context,
@@ -25,6 +25,7 @@ use crate::{
     leader_schedule::LeaderSchedule,
     linearizer::Linearizer,
     storage::Store,
+    transaction_ref::GenericTransactionRef,
 };
 
 /// Role of CommitObserver

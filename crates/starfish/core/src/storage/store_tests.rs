@@ -11,11 +11,11 @@ use tempfile::TempDir;
 use super::{Store, WriteBatch, mem_store::MemStore, rocksdb_store::RocksDBStore};
 use crate::{
     block_header::{
-        BlockHeaderAPI, BlockHeaderDigest, BlockRef, GenericTransactionRef, Slot, TestBlockHeader,
-        VerifiedBlock,
+        BlockHeaderAPI, BlockHeaderDigest, BlockRef, Slot, TestBlockHeader, VerifiedBlock,
     },
     commit::{CommitDigest, TrustedCommit},
     context::Context,
+    transaction_ref::GenericTransactionRef,
 };
 
 /// Test fixture for store tests. Wraps around various store implementations.

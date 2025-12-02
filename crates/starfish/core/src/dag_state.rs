@@ -20,9 +20,9 @@ use tracing::{debug, error, info, trace, warn};
 
 use crate::{
     block_header::{
-        BlockHeaderAPI, BlockHeaderDigest, BlockRef, BlockTimestampMs, GENESIS_ROUND,
-        GenericTransactionRef, Round, Slot, TransactionRef, TransactionsCommitment, VerifiedBlock,
-        VerifiedBlockHeader, VerifiedOwnShard, VerifiedTransactions, genesis_blocks,
+        BlockHeaderAPI, BlockHeaderDigest, BlockRef, BlockTimestampMs, GENESIS_ROUND, Round, Slot,
+        TransactionsCommitment, VerifiedBlock, VerifiedBlockHeader, VerifiedOwnShard,
+        VerifiedTransactions, genesis_blocks,
     },
     commit::{
         CommitAPI as _, CommitDigest, CommitIndex, CommitInfo, CommitRef, CommitVote,
@@ -33,6 +33,7 @@ use crate::{
     leader_scoring::{ReputationScores, ScoringSubdag},
     storage::{Store, WriteBatch},
     threshold_clock::ThresholdClock,
+    transaction_ref::{GenericTransactionRef, TransactionRef},
 };
 
 /// Represents the source from which transactions were received and added to the
@@ -1830,8 +1831,8 @@ mod test {
     use crate::{
         Transaction,
         block_header::{
-            BlockHeaderDigest, BlockRef, BlockTimestampMs, TestBlockHeader, TransactionRef,
-            TransactionsCommitment, VerifiedBlockHeader, genesis_block_headers,
+            BlockHeaderDigest, BlockRef, BlockTimestampMs, TestBlockHeader, TransactionsCommitment,
+            VerifiedBlockHeader, genesis_block_headers,
         },
         encoder::create_encoder,
         storage::{WriteBatch, mem_store::MemStore},

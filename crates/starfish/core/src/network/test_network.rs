@@ -10,11 +10,12 @@ use starfish_config::AuthorityIndex;
 
 use crate::{
     Round,
-    block_header::{BlockRef, GenericTransactionRef, VerifiedBlockHeader},
+    block_header::{BlockRef, VerifiedBlockHeader},
     commit::{CommitRange, TrustedCommit},
     encoder::ShardEncoder,
     error::ConsensusResult,
     network::{BlockBundleStream, NetworkService, SerializedBlockBundle},
+    transaction_ref::GenericTransactionRef,
 };
 
 pub(crate) struct TestService {

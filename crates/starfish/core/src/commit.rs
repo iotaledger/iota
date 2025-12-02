@@ -20,12 +20,13 @@ use tracing::info;
 
 use crate::{
     block_header::{
-        BlockHeaderAPI, BlockRef, BlockTimestampMs, GenericTransactionRef, Round, Slot,
-        TransactionRef, VerifiedBlockHeader, VerifiedTransactions,
+        BlockHeaderAPI, BlockRef, BlockTimestampMs, Round, Slot, VerifiedBlockHeader,
+        VerifiedTransactions,
     },
     context::Context,
     leader_scoring::ReputationScores,
     storage::Store,
+    transaction_ref::{GenericTransactionRef, TransactionRef},
 };
 
 /// Index of a commit among all consensus commits.
@@ -978,9 +979,7 @@ mod tests {
     use std::sync::Arc;
 
     use crate::{
-        block_header::{
-            TestBlockHeader, VerifiedBlock, convert_block_refs_to_generic_transaction_refs,
-        },
+        block_header::{TestBlockHeader, VerifiedBlock},
         context::Context,
         encoder::create_encoder,
         storage::{Store, WriteBatch, mem_store::MemStore},

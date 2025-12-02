@@ -24,16 +24,14 @@ use tracing::warn;
 
 use crate::{
     BlockHeaderAPI as _, VerifiedBlockHeader,
-    block_header::{
-        BlockRef, GenericTransactionRef, Round, VerifiedBlock, VerifiedOwnShard,
-        VerifiedTransactions,
-    },
+    block_header::{BlockRef, Round, VerifiedBlock, VerifiedOwnShard, VerifiedTransactions},
     commit::CertifiedCommits,
     context::Context,
     core::{Core, ReasonToCreateBlock},
     core_thread::CoreError::Shutdown,
     dag_state::{DagState, TransactionSource},
     error::{ConsensusError, ConsensusResult},
+    transaction_ref::GenericTransactionRef,
 };
 
 const CORE_THREAD_COMMANDS_CHANNEL_SIZE: usize = 2000;

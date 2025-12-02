@@ -35,8 +35,8 @@ use crate::{
     Transaction,
     block_header::{
         BlockHeader, BlockHeaderAPI, BlockHeaderV1, BlockRef, BlockTimestampMs, GENESIS_ROUND,
-        GenericTransactionRef, Round, SignedBlockHeader, Slot, TransactionsCommitment,
-        VerifiedBlock, VerifiedBlockHeader, VerifiedOwnShard, VerifiedTransactions,
+        Round, SignedBlockHeader, Slot, TransactionsCommitment, VerifiedBlock, VerifiedBlockHeader,
+        VerifiedOwnShard, VerifiedTransactions,
     },
     block_manager::BlockManager,
     commit::{CertifiedCommits, PendingSubDag},
@@ -48,6 +48,7 @@ use crate::{
     leader_schedule::LeaderSchedule,
     stake_aggregator::{QuorumThreshold, StakeAggregator},
     transaction::TransactionConsumer,
+    transaction_ref::GenericTransactionRef,
     universal_committer::{
         UniversalCommitter, universal_committer_builder::UniversalCommitterBuilder,
     },
@@ -1349,14 +1350,15 @@ mod test {
     use crate::{
         CommitConsumer, CommitIndex, Transaction,
         block_header::{
-            BlockHeaderDigest, TestBlockHeader, TransactionRef, TransactionsCommitment,
-            genesis_block_headers, genesis_blocks,
+            BlockHeaderDigest, TestBlockHeader, TransactionsCommitment, genesis_block_headers,
+            genesis_blocks,
         },
         commit::CommitAPI,
         leader_scoring::ReputationScores,
         storage::{Store, WriteBatch, mem_store::MemStore},
         test_dag_builder::DagBuilder,
         transaction::{BlockStatus, TransactionClient},
+        transaction_ref::TransactionRef,
     };
 
     /// Recover Core and continue proposing from the last round which forms a

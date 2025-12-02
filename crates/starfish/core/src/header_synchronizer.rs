@@ -1423,8 +1423,8 @@ mod tests {
         CommitDigest, CommitIndex,
         authority_service::COMMIT_LAG_MULTIPLIER,
         block_header::{
-            BlockHeaderDigest, BlockRef, GenericTransactionRef, Round, TestBlockHeader,
-            VerifiedBlock, VerifiedBlockHeader, VerifiedOwnShard, VerifiedTransactions,
+            BlockHeaderDigest, BlockRef, Round, TestBlockHeader, VerifiedBlock,
+            VerifiedBlockHeader, VerifiedOwnShard, VerifiedTransactions,
         },
         block_verifier::NoopBlockVerifier,
         commit::{CertifiedCommits, CommitRange, CommitVote, TrustedCommit},
@@ -1440,6 +1440,7 @@ mod tests {
         },
         network::{BlockBundleStream, NetworkClient},
         storage::mem_store::MemStore,
+        transaction_ref::GenericTransactionRef,
         transactions_synchronizer::TransactionsSynchronizer,
     };
 

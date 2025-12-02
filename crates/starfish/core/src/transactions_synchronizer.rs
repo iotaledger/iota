@@ -32,13 +32,14 @@ use tokio::{
 use tracing::{debug, info, warn};
 
 use crate::{
-    block_header::{BlockRef, GenericTransactionRef},
+    block_header::BlockRef,
     commit_syncer::{verify_transactions_with_headers, verify_transactions_with_transactions_refs},
     context::Context,
     core_thread::CoreThreadDispatcher,
     dag_state::{DagState, TransactionSource},
     error::{ConsensusError, ConsensusResult},
     network::{NetworkClient, SerializedTransactionsV1, SerializedTransactionsV2},
+    transaction_ref::GenericTransactionRef,
 };
 
 /// The number of concurrent live transaction fetch requests

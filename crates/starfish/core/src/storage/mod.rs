@@ -16,13 +16,11 @@ use starfish_config::AuthorityIndex;
 
 use crate::{
     CommitIndex,
-    block_header::{
-        BlockRef, GenericTransactionRef, Round, TransactionRef, VerifiedBlock, VerifiedBlockHeader,
-        VerifiedTransactions,
-    },
+    block_header::{BlockRef, Round, VerifiedBlock, VerifiedBlockHeader, VerifiedTransactions},
     commit::{CommitInfo, CommitRange, CommitRef, TrustedCommit},
     context::Context,
     error::ConsensusResult,
+    transaction_ref::{GenericTransactionRef, TransactionRef},
 };
 
 /// A common interface for consensus storage.

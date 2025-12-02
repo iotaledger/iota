@@ -37,7 +37,7 @@ use super::{
 };
 use crate::{
     CommitIndex, Round,
-    block_header::{BlockRef, GenericTransactionRef, TransactionRef},
+    block_header::BlockRef,
     commit::CommitRange,
     context::Context,
     error::{ConsensusError, ConsensusResult},
@@ -45,6 +45,7 @@ use crate::{
         tonic_gen::consensus_service_server::ConsensusServiceServer,
         tonic_tls::certificate_server_name,
     },
+    transaction_ref::{GenericTransactionRef, TransactionRef},
 };
 
 // Maximum bytes size in a single fetch_blocks()response.

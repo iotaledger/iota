@@ -15,9 +15,8 @@ use starfish_config::AuthorityIndex;
 use super::{Store, WriteBatch};
 use crate::{
     block_header::{
-        BlockHeaderAPI as _, BlockHeaderDigest, BlockRef, GenericTransactionRef, Round, Slot,
-        TransactionRef, TransactionsCommitment, VerifiedBlock, VerifiedBlockHeader,
-        VerifiedTransactions,
+        BlockHeaderAPI as _, BlockHeaderDigest, BlockRef, Round, Slot, TransactionsCommitment,
+        VerifiedBlock, VerifiedBlockHeader, VerifiedTransactions,
     },
     commit::{
         CommitAPI as _, CommitDigest, CommitIndex, CommitInfo, CommitRange, CommitRef,
@@ -26,6 +25,7 @@ use crate::{
     context::Context,
     error::{ConsensusError, ConsensusResult},
     storage::rocksdb_store::check_ref_consistency,
+    transaction_ref::{GenericTransactionRef, TransactionRef},
 };
 
 /// In-memory storage for testing.
