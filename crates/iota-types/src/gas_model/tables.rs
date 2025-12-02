@@ -83,6 +83,7 @@ impl GasStatus {
         assert!(gas_price > 0, "gas price cannot be 0");
         let budget_in_unit = budget / gas_price;
         let gas_left = Self::to_internal_units(budget_in_unit);
+
         let (stack_height_current_tier_mult, stack_height_next_tier_start) =
             cost_table.stack_height_tier(0);
         let (stack_size_current_tier_mult, stack_size_next_tier_start) =

@@ -1479,6 +1479,7 @@ mod bcs_signable {
     impl BcsSignable for crate::effects::TransactionEffects {}
     impl BcsSignable for crate::effects::TransactionEvents {}
     impl BcsSignable for crate::transaction::TransactionData {}
+    impl BcsSignable for crate::move_authenticator::MoveAuthenticator {}
     impl BcsSignable for crate::transaction::SenderSignedData {}
     impl BcsSignable for crate::object::ObjectInner {}
 
@@ -1691,6 +1692,7 @@ pub enum SignatureScheme {
     MultiSig,
     ZkLoginAuthenticator,
     PasskeyAuthenticator,
+    MoveAuthenticator,
 }
 
 impl SignatureScheme {
@@ -1704,6 +1706,7 @@ impl SignatureScheme {
             // Address.
             SignatureScheme::ZkLoginAuthenticator => 0x05,
             SignatureScheme::PasskeyAuthenticator => 0x06,
+            SignatureScheme::MoveAuthenticator => 0x07,
         }
     }
 
@@ -1732,6 +1735,7 @@ impl SignatureScheme {
             0x04 => Ok(SignatureScheme::BLS12381),
             0x05 => Ok(SignatureScheme::ZkLoginAuthenticator),
             0x06 => Ok(SignatureScheme::PasskeyAuthenticator),
+            0x07 => Ok(SignatureScheme::MoveAuthenticator),
             _ => Err(IotaError::KeyConversion("Invalid key scheme".to_string())),
         }
     }
@@ -1745,6 +1749,7 @@ pub enum CompressedSignature {
     Secp256r1(Secp256r1SignatureAsBytes),
     ZkLogin(ZkLoginAuthenticatorAsBytes),
     Passkey(PasskeyAuthenticatorAsBytes),
+    Move(MoveAuthenticatorAsBytes),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, JsonSchema)]
@@ -1752,6 +1757,9 @@ pub struct ZkLoginAuthenticatorAsBytes(#[schemars(with = "Base64")] pub Vec<u8>)
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, JsonSchema)]
 pub struct PasskeyAuthenticatorAsBytes(#[schemars(with = "Base64")] pub Vec<u8>);
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, JsonSchema)]
+pub struct MoveAuthenticatorAsBytes(#[schemars(with = "Base64")] pub Vec<u8>);
 
 impl AsRef<[u8]> for CompressedSignature {
     fn as_ref(&self) -> &[u8] {
@@ -1761,6 +1769,7 @@ impl AsRef<[u8]> for CompressedSignature {
             CompressedSignature::Secp256r1(sig) => &sig.0,
             CompressedSignature::ZkLogin(sig) => &sig.0,
             CompressedSignature::Passkey(sig) => &sig.0,
+            CompressedSignature::Move(sig) => &sig.0,
         }
     }
 }
