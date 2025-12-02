@@ -46,7 +46,7 @@ use iota_types::{
         IotaSystemStateTrait,
         iota_system_state_summary::{IotaSystemStateSummary, IotaValidatorSummary},
     },
-    messages_checkpoint::CheckpointDigest,
+    messages_checkpoint::{CheckpointDigest, CheckpointSequenceNumber},
     object::{Object, ObjectRead, PastObjectRead, bounded_visitor::BoundedVisitor},
 };
 use itertools::Itertools;
@@ -99,7 +99,7 @@ pub struct IndexerReader {
     pool: ConnectionPool,
     package_resolver: PackageResolver,
     obj_type_cache: Arc<Mutex<SizedCache<String, Option<ObjectID>>>>,
-    kv_reader: Option<HistoricalFallbackReader>,
+    fallback: Option<HistoricalFallbackReader>,
 }
 
 /// Encapsulates the logic for reading data from the database.
@@ -123,7 +123,7 @@ impl IndexerReader {
             pool,
             package_resolver,
             obj_type_cache,
-            kv_reader: None,
+            fallback: None,
         }
     }
 
@@ -152,6 +152,20 @@ impl IndexerReader {
             .map_err(|e| anyhow!("failed to initialize connection pool. Error: {:?}. If Error is None, please check whether the configured pool size (currently {}) exceeds the maximum number of connections allowed by the database.", e, config.pool_size))?;
 
         Ok(Self::new(pool))
+    }
+
+    /// Add a historical fallback reader to the indexer.
+    ///
+    /// In case the IndexerReader fails to retrieve data, the fallback reader
+    /// will be used to retrieve the data.
+    #[expect(dead_code)]
+    pub(crate) fn with_fallback_reader(&mut self, fallback: HistoricalFallbackReader) {
+        self.fallback = Some(fallback);
+    }
+
+    /// Access the internal fallback reader.
+    pub(crate) fn fallback_reader(&self) -> Option<&HistoricalFallbackReader> {
+        self.fallback.as_ref()
     }
 
     pub async fn spawn_blocking<F, R, E>(&self, f: F) -> Result<R, E>
@@ -312,7 +326,40 @@ impl IndexerReader {
                     latest_version: SequenceNumber::from(latest as u64),
                 }),
                 Some(_) => Ok(PastObjectRead::VersionNotFound(object_id, object_version)),
-                None => Ok(PastObjectRead::ObjectNotExists(object_id)),
+                None => {
+                    // fallback to historical storage
+                    let Some(fallback) = self.fallback_reader() else {
+                        return Ok(PastObjectRead::ObjectNotExists(object_id));
+                    };
+
+                    let Some(obj) = fallback
+                        .objects(&[(object_id, object_version)], before_version)
+                        .await?
+                        .pop()
+                        .flatten()
+                    else {
+                        return Ok(PastObjectRead::VersionNotFound(object_id, object_version));
+                    };
+
+                    // Note: We use `StoredObject.try_into_object_read` here instead of
+                    // `StoredHistoryObject.try_into_past_object_read` because the fallback
+                    // storage returns `StoredObject`. Both methods share the same logic for
+                    // resolving the MoveStructLayout via `package_resolver.type_layout()`.
+                    // The key difference is that `try_into_past_object_read` also handles
+                    // the `WrappedOrDeleted` status, which for this iteration, we handle explicitly
+                    // as a `VersionNotFound`.
+                    match obj
+                        .try_into_object_read(self.package_resolver.clone())
+                        .await?
+                    {
+                        ObjectRead::NotExists(_) | ObjectRead::Deleted(_) => {
+                            Ok(PastObjectRead::VersionNotFound(object_id, object_version))
+                        }
+                        ObjectRead::Exists(obj_ref, object, layout) => {
+                            Ok(PastObjectRead::VersionFound(obj_ref, object, layout))
+                        }
+                    }
+                }
             };
         };
 
@@ -542,17 +589,28 @@ impl IndexerReader {
         Ok(stored_checkpoint)
     }
 
-    pub fn get_checkpoint(
+    pub async fn get_checkpoint(
         &self,
         checkpoint_id: CheckpointId,
     ) -> Result<Option<iota_json_rpc_types::Checkpoint>, IndexerError> {
-        let stored_checkpoint = match self.get_checkpoint_from_db(checkpoint_id)? {
+        let stored_checkpoint = match self
+            .spawn_blocking(move |this| this.get_checkpoint_from_db(checkpoint_id))
+            .await?
+        {
             Some(stored_checkpoint) => stored_checkpoint,
-            None => return Ok(None),
+            None => {
+                // fallback to historical storage
+                let Some(fallback) = self.fallback_reader() else {
+                    return Ok(None);
+                };
+                match fallback.checkpoint(checkpoint_id).await? {
+                    Some(stored_checkpoint) => stored_checkpoint,
+                    None => return Ok(None),
+                }
+            }
         };
 
-        let checkpoint = iota_json_rpc_types::Checkpoint::try_from(stored_checkpoint)?;
-        Ok(Some(checkpoint))
+        iota_json_rpc_types::Checkpoint::try_from(stored_checkpoint).map(Some)
     }
 
     pub fn get_latest_checkpoint(&self) -> Result<iota_json_rpc_types::Checkpoint, IndexerError> {
@@ -601,14 +659,98 @@ impl IndexerReader {
         })
     }
 
-    pub fn get_checkpoints(
+    /// Determines whether the fallback should be used to fetch more
+    /// checkpoints in case of data being pruned.
+    fn should_fetch_from_fallback(
+        cursor: Option<u64>,
+        descending_order: bool,
+        limit: usize,
+        db_response: &[iota_json_rpc_types::Checkpoint],
+    ) -> bool {
+        match (cursor, descending_order) {
+            // pruning always removes from the lowest checkpoint upwards, so no gaps.
+            // If genesis (checkpoint 0) is present, data is intact.
+            (None, false) => db_response
+                .first()
+                .is_none_or(|chk| chk.sequence_number != 0),
+
+            // for descending, cursor just sets an upper bound. DB returns the highest checkpoint
+            // available. If we got fewer than limit, some data was pruned.
+            (None, true) | (Some(_), true) => {
+                db_response.len() != limit
+                    && db_response.last().is_some_and(|cp| cp.sequence_number != 0)
+            }
+
+            // if first checkpoint matches cursor + 1, data is contiguous from that point.
+            (Some(c), false) => db_response
+                .first()
+                .is_none_or(|chk| chk.sequence_number != c + 1),
+        }
+    }
+
+    pub async fn get_checkpoints(
         &self,
         cursor: Option<u64>,
         limit: usize,
         descending_order: bool,
     ) -> Result<Vec<iota_json_rpc_types::Checkpoint>, IndexerError> {
-        self.get_checkpoints_from_db(cursor, limit, descending_order)?
+        let checkpoints = self
+            .spawn_blocking(move |this| {
+                this.get_checkpoints_from_db(cursor, limit, descending_order)?
+                    .into_iter()
+                    .map(iota_json_rpc_types::Checkpoint::try_from)
+                    .collect::<Result<Vec<_>, IndexerError>>()
+            })
+            .await?;
+
+        if !Self::should_fetch_from_fallback(cursor, descending_order, limit, &checkpoints) {
+            return Ok(checkpoints);
+        }
+
+        // resolve the expected range of checkpoint sequence numbers
+        let checkpoints_keys: Vec<CheckpointSequenceNumber> = match (cursor, descending_order) {
+            // ascending from 0: expect [0, 1, ..., limit-1].
+            (None, false) => (0..limit as u64).collect(),
+
+            // ascending from cursor+1: expect [c+1, ..., c+limit]
+            (Some(c), false) => (c + 1..=c.saturating_add(limit as u64)).collect(),
+
+            // descending from cursor-1: expect [c-1, c-2, ..., c-limit].
+            (Some(c), true) => {
+                // cursor can be greater than the latest checkpoint, need to cap it.
+                let c = checkpoints
+                    .first()
+                    .map(|latest_checkpoint| c.min(latest_checkpoint.sequence_number + 1))
+                    .unwrap_or(c);
+
+                (c.saturating_sub(limit as u64)..c).rev().collect()
+            }
+
+            // descending from DB's latest: expect [latest, ..., latest-limit+1].
+            (None, true) => {
+                let Some(latest_checkpoint) = checkpoints.first() else {
+                    // checkpoints not synced yet.
+                    return Ok(vec![]);
+                };
+                let start = latest_checkpoint
+                    .sequence_number
+                    .saturating_sub(limit as u64 - 1);
+                (start..=latest_checkpoint.sequence_number).rev().collect()
+            }
+        };
+
+        // fallback to historical storage
+        let Some(fallback) = self.fallback_reader() else {
+            return Err(IndexerError::DataPruned(
+                "requested checkpoint range not available".into(),
+            ));
+        };
+
+        fallback
+            .checkpoints(checkpoints_keys)
+            .await?
             .into_iter()
+            .flatten()
             .map(iota_json_rpc_types::Checkpoint::try_from)
             .collect()
     }
@@ -618,11 +760,13 @@ impl IndexerReader {
     ///
     /// It uses both the `tx_global_order` table
     /// and the `checkpoints` table to cover old transactions.
-    fn deep_check_all_transactions_are_indexed(
+    pub(crate) async fn deep_check_all_transactions_are_indexed_in_blocking_task(
         &self,
         digests: &[TransactionDigest],
     ) -> Result<bool, IndexerError> {
-        let stored_transactions = self.multi_get_transactions(digests)?;
+        let stored_transactions = self
+            .multi_get_transactions_in_blocking_task(digests)
+            .await?;
         if stored_transactions.len() != digests.len() {
             return Ok(false);
         }
@@ -648,19 +792,12 @@ impl IndexerReader {
         else {
             return Ok(true);
         };
-        Ok(self
+        let checkpoint = self
             .get_checkpoint(CheckpointId::SequenceNumber(
                 max_transaction_checkpoint as u64,
-            ))?
-            .is_some())
-    }
-
-    pub(crate) async fn deep_check_all_transactions_are_indexed_in_blocking_task(
-        &self,
-        digests: Vec<TransactionDigest>,
-    ) -> Result<bool, IndexerError> {
-        self.spawn_blocking(move |this| this.deep_check_all_transactions_are_indexed(&digests))
-            .await
+            ))
+            .await?;
+        Ok(checkpoint.is_some())
     }
 
     /// Count how many entries in `tx_global_order` correspond
@@ -800,40 +937,83 @@ impl IndexerReader {
         Ok(result)
     }
 
-    fn multi_get_transactions(
+    async fn multi_get_transactions_in_blocking_task(
         &self,
         digests: &[TransactionDigest],
     ) -> Result<Vec<StoredTransaction>, IndexerError> {
+        let check_for_missing_tx_digests =
+            |requested_digests: &[Vec<u8>], fetched_txs: &[StoredTransaction]| -> Vec<Vec<u8>> {
+                let fetched_txs_digests_set = fetched_txs
+                    .iter()
+                    .map(|tx| &tx.transaction_digest)
+                    .collect::<HashSet<&Vec<u8>>>();
+                requested_digests
+                    .iter()
+                    .filter(|digest| !fetched_txs_digests_set.contains(digest))
+                    .cloned()
+                    .collect::<Vec<Vec<u8>>>()
+            };
+
         let digests: Vec<Vec<u8>> = digests.iter().map(|d| d.inner().to_vec()).collect();
-        let checkpointed_txs = self.get_checkpointed_transactions(&digests)?;
+        let digests_clone = digests.clone();
+        let checkpointed_txs = self
+            .spawn_blocking(move |this| this.get_checkpointed_transactions(&digests_clone))
+            .await?;
 
         if checkpointed_txs.len() == digests.len() {
             return Ok(checkpointed_txs);
         }
 
-        let checkpointed_tx_digests_set = checkpointed_txs
-            .iter()
-            .map(|tx| &tx.transaction_digest)
-            .collect::<HashSet<&Vec<u8>>>();
-        let missing_digests = digests
-            .into_iter()
-            .filter(|digest| !checkpointed_tx_digests_set.contains(digest))
-            .collect::<Vec<Vec<u8>>>();
+        let missing_digests = check_for_missing_tx_digests(&digests, &checkpointed_txs);
+        let optimistic_txs = self
+            .spawn_blocking(move |this| this.get_optimistic_transactions(&missing_digests))
+            .await?;
 
-        let optimistic_txs = self.get_optimistic_transactions(&missing_digests)?;
-
-        Ok(checkpointed_txs
+        let db_transactions = checkpointed_txs
             .into_iter()
             .chain(optimistic_txs.into_iter().map(Into::into))
-            .collect())
-    }
+            .collect::<Vec<StoredTransaction>>();
 
-    async fn multi_get_transactions_in_blocking_task(
-        &self,
-        digests: Vec<TransactionDigest>,
-    ) -> Result<Vec<StoredTransaction>, IndexerError> {
-        self.spawn_blocking(move |this| this.multi_get_transactions(&digests))
-            .await
+        if db_transactions.len() == digests.len() {
+            return Ok(db_transactions);
+        }
+
+        let missing_digests = check_for_missing_tx_digests(&digests, &db_transactions)
+            .iter()
+            .map(|digest| {
+                TransactionDigest::try_from(digest.as_slice()).map_err(|e| {
+                    IndexerError::PersistentStorageDataCorruption(format!(
+                        "can't convert {digest:?} as tx_digest. Error: {e}",
+                    ))
+                })
+            })
+            .collect::<IndexerResult<Vec<TransactionDigest>>>()?;
+
+        // fallback to historical storage
+        let Some(fallback) = self.fallback_reader() else {
+            return Err(IndexerError::DataPruned(
+                "requested transaction range is not available".into(),
+            ));
+        };
+
+        let historical_transactions = fallback
+            .transactions(&missing_digests)
+            .await?
+            .into_iter()
+            .flatten();
+
+        let transactions = db_transactions
+            .into_iter()
+            .chain(historical_transactions)
+            .collect::<Vec<StoredTransaction>>();
+
+        if transactions.len() == digests.len() {
+            return Ok(transactions);
+        }
+
+        Err(IndexerError::HistoricalFallbackStorageError(
+            "some transactions are not available".into(),
+        ))
     }
 
     /// This method tries to transform [`StoredTransaction`] values
@@ -1080,7 +1260,7 @@ impl IndexerReader {
             .query_transactions_by_checkpoint_seq(checkpoint_seq, cursor, limit, is_descending)
             .await;
         let stored_txs = if let (Err(IndexerError::DataPruned(err)), Some(kv_reader)) =
-            (db_res.as_ref(), self.kv_reader.as_ref())
+            (db_res.as_ref(), self.fallback_reader())
         {
             kv_reader
                 .checkpoint_transactions(cursor, checkpoint_seq, limit, is_descending)
@@ -1372,7 +1552,7 @@ impl IndexerReader {
         options: iota_json_rpc_types::IotaTransactionBlockResponseOptions,
     ) -> Result<Vec<iota_json_rpc_types::IotaTransactionBlockResponse>, IndexerError> {
         let stored_txes = self
-            .multi_get_transactions_in_blocking_task(digests.to_vec())
+            .multi_get_transactions_in_blocking_task(digests)
             .await?;
         self.stored_transaction_to_transaction_block(stored_txes, options)
             .await
@@ -1383,17 +1563,27 @@ impl IndexerReader {
         digest: TransactionDigest,
         options: iota_json_rpc_types::IotaTransactionBlockResponseOptions,
     ) -> IndexerResult<Option<IotaTransactionBlockResponse>> {
-        let stored_tx = self.get_single_transaction(digest).await?;
-        if let Some(stored_tx) = stored_tx {
-            Ok(Some(
-                self.stored_transaction_to_transaction_block(vec![stored_tx], options)
-                    .await?
-                    .pop()
-                    .expect("there should be exactly one response"),
-            ))
-        } else {
-            Ok(None)
-        }
+        let stored_tx = match self.get_single_transaction(digest).await? {
+            Some(tx) => Some(tx),
+            None => {
+                // fallback to historical storage
+                let Some(fallback) = self.fallback_reader() else {
+                    return Ok(None);
+                };
+                fallback.transactions(&[digest]).await?.pop().flatten()
+            }
+        };
+
+        let Some(stored_tx) = stored_tx else {
+            return Ok(None);
+        };
+
+        Ok(Some(
+            self.stored_transaction_to_transaction_block(vec![stored_tx], options)
+                .await?
+                .pop()
+                .expect("there should be exactly one response"),
+        ))
     }
 
     async fn multi_get_transaction_block_response_by_sequence_numbers_in_blocking_task(
@@ -1451,22 +1641,29 @@ impl IndexerReader {
         &self,
         digest: TransactionDigest,
     ) -> Result<Vec<iota_json_rpc_types::IotaEvent>, IndexerError> {
-        let checkpointed_events = self.try_get_checkpointed_transaction_events(digest).await?;
-
-        let (timestamp_ms, serialized_events) =
-            if let Some((timestamp, events)) = checkpointed_events {
-                (Some(timestamp as u64), events)
-            } else {
-                (None, self.get_optimistic_transaction_events(digest).await?)
-            };
+        // try checkpointed data, then optimistic, then fallback if not found
+        let (timestamp_ms, serialized_events) = if let Some((timestamp_ms, events)) =
+            self.try_get_checkpointed_transaction_events(digest).await?
+        {
+            (Some(timestamp_ms as u64), events)
+        } else if let Some(events) = self.get_optimistic_transaction_events(digest).await? {
+            (None, events)
+        } else if let Some(fallback) = self.fallback_reader() {
+            // fallback to historical storage.
+            return fallback.all_events(digest).await;
+        } else {
+            return Err(IndexerError::DataPruned(
+                "requested events not available".into(),
+            ));
+        };
 
         let events = stored_events_to_events(serialized_events)?;
+
         let tx_events = TransactionEvents { data: events };
 
-        let iota_tx_events =
-            tx_events_to_iota_tx_events(tx_events, self.package_resolver(), digest, timestamp_ms)
-                .await?;
-        Ok(iota_tx_events.data)
+        tx_events_to_iota_tx_events(tx_events, self.package_resolver(), digest, timestamp_ms)
+            .await
+            .map(|iota_tx_event| iota_tx_event.data)
     }
 
     pub async fn try_get_checkpointed_transaction_events(
@@ -1495,7 +1692,7 @@ impl IndexerReader {
     pub async fn get_optimistic_transaction_events(
         &self,
         digest: TransactionDigest,
-    ) -> Result<StoredTransactionEvents, IndexerError> {
+    ) -> Result<Option<StoredTransactionEvents>, IndexerError> {
         let pool = self.get_pool();
         run_query_async!(&pool, move |conn| {
             optimistic_transactions::table
@@ -1512,6 +1709,7 @@ impl IndexerReader {
                 .filter(tx_global_order::tx_digest.eq(digest.into_inner().to_vec()))
                 .select(optimistic_transactions::events)
                 .first::<StoredTransactionEvents>(conn)
+                .optional()
         })
     }
 
@@ -1528,7 +1726,7 @@ impl IndexerReader {
             .await;
 
         if let (Err(IndexerError::DataPruned(err)), Some(kv_reader)) =
-            (db_res.as_ref(), self.kv_reader.as_ref())
+            (db_res.as_ref(), self.fallback_reader())
         {
             kv_reader
                 .events(tx_digest, cursor, limit, descending_order)

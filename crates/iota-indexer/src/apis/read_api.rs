@@ -42,12 +42,8 @@ impl ReadApi {
     }
 
     async fn get_checkpoint(&self, id: CheckpointId) -> Result<Checkpoint, IndexerError> {
-        match self
-            .inner
-            .spawn_blocking(move |this| this.get_checkpoint(id))
-            .await
-        {
-            Ok(Some(epoch_info)) => Ok(epoch_info),
+        match self.inner.get_checkpoint(id).await {
+            Ok(Some(checkpoint)) => Ok(checkpoint),
             Ok(None) => Err(IndexerError::InvalidArgument(format!(
                 "Checkpoint {id:?} not found"
             ))),
@@ -360,7 +356,7 @@ impl ReadApiServer for ReadApi {
 
         let mut checkpoints = self
             .inner
-            .spawn_blocking(move |this| this.get_checkpoints(cursor, limit + 1, descending_order))
+            .get_checkpoints(cursor, limit + 1, descending_order)
             .await?;
 
         let has_next_page = checkpoints.len() > limit;
