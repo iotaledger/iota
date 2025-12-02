@@ -500,11 +500,11 @@ impl DagState {
         if let Some(sender) = &self.cordial_knowledge_sender {
             // Fetch transaction commitments for all acknowledged blocks in batch
             let acknowledgments = block_header.acknowledgments();
-            let ack_transactions_commitments =
-                self.get_transactions_commitments_batch(acknowledgments)
-                    .into_iter()
-                    .map(|opt| opt.expect("Missing transactions commitment for acknowledged block"))
-                    .collect::<Vec<_>>();
+            let ack_transactions_commitments = self
+                .get_transactions_commitments_batch(acknowledgments)
+                .into_iter()
+                .map(|opt| opt.expect("Missing transactions commitment for acknowledged block"))
+                .collect::<Vec<_>>();
 
             let cordial_message = CordialKnowledgeMessage::NewHeader {
                 header: block_header.clone(),
@@ -715,8 +715,8 @@ impl DagState {
 
     /// Gets transaction commitments for a batch of block references by checking
     /// genesis, cached recent block headers in memory, then storage.
-    /// Returns a vector of tuples (BlockRef, TransactionsCommitment) for blocks that were found.
-    /// Skips blocks that are not found.
+    /// Returns a vector of tuples (BlockRef, TransactionsCommitment) for blocks
+    /// that were found. Skips blocks that are not found.
     fn get_transactions_commitments_batch(
         &self,
         block_refs: &[BlockRef],
@@ -833,10 +833,15 @@ impl DagState {
         block_headers
     }
     /// Gets shards by checking cached recent shards in memory.
-    pub(crate) fn get_cached_shards(&self, gen_tran_refs: &[GenericTransactionRef]) -> Vec<Option<Bytes>> {
+    pub(crate) fn get_cached_shards(
+        &self,
+        gen_tran_refs: &[GenericTransactionRef],
+    ) -> Vec<Option<Bytes>> {
         let mut shards: Vec<Option<Bytes>> = vec![None; gen_tran_refs.len()];
         for (index, gen_tran_ref) in gen_tran_refs.iter().enumerate() {
-            if let Some(shard) = self.recent_shards_by_authority[gen_tran_ref.author()].get(gen_tran_ref) {
+            if let Some(shard) =
+                self.recent_shards_by_authority[gen_tran_ref.author()].get(gen_tran_ref)
+            {
                 shards[index] = Some(shard.clone());
             }
         }

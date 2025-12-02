@@ -498,6 +498,7 @@ mod tests {
         test_dag_builder::DagBuilder,
         test_dag_parser::parse_dag,
     };
+    use crate::transaction_ref::GenericTransactionRefAPI
 
     #[tokio::test]
     async fn test_handle_commit() {

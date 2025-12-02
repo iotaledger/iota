@@ -110,7 +110,6 @@ impl GenericTransactionRefAPI for TransactionRef {
     }
 }
 
-
 impl fmt::Display for GenericTransactionRef {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
@@ -128,7 +127,6 @@ impl Hash for GenericTransactionRef {
         }
     }
 }
-
 
 /// Helper function to convert BlockRefs to GenericTransactionRefs based on
 /// protocol flag.

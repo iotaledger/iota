@@ -23,7 +23,7 @@ use tracing::{debug, info, warn};
 use crate::{
     CommitIndex, Round, Transaction, VerifiedBlockHeader,
     block_header::{
-        BlockHeaderAPI, BlockHeaderDigest, BlockRef, GENESIS_ROUND,
+        BlockHeaderAPI, BlockHeaderDigest, BlockRef, GENESIS_ROUND, ShardWithProof,
         SignedBlockHeader, TransactionsCommitment, VerifiedBlock, VerifiedOwnShard,
         VerifiedTransactions,
     },
@@ -48,7 +48,6 @@ use crate::{
     transaction_ref::{GenericTransactionRef, GenericTransactionRefAPI as _},
     transactions_synchronizer::TransactionsSynchronizerHandle,
 };
-use crate::block_header::ShardWithProof;
 
 pub(crate) const COMMIT_LAG_MULTIPLIER: u32 = 5;
 
@@ -484,8 +483,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         let transaction_ref = verified_block.transaction_ref();
         let gen_transaction_ref = if self.context.protocol_config.consensus_transaction_ref() {
             GenericTransactionRef::from(transaction_ref)
-        }
-        else {
+        } else {
             GenericTransactionRef::from(block_ref)
         };
         // 2. Record timestamp drift metric (NEW mode - no waiting or rejection)
@@ -613,7 +611,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
                 .into();
             let shard_for_core = VerifiedOwnShard {
                 serialized_shard: serialized_shard_for_core,
-                gen_transaction_ref: gen_transaction_ref,
+                gen_transaction_ref,
             };
             self.core_dispatcher
                 .add_shards(vec![shard_for_core])

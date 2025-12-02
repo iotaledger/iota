@@ -22,7 +22,7 @@ use tracing::{debug, warn};
 use crate::{
     BlockRef, Round, Transaction,
     block_header::{
-        BlockHeaderDigest, GENESIS_ROUND, Shard, TransactionsCommitment,
+        BlockHeaderDigest, GENESIS_ROUND, Shard, ShardWithProof, TransactionsCommitment,
         VerifiedBlock, VerifiedTransactions,
     },
     context::Context,
@@ -32,7 +32,6 @@ use crate::{
     encoder::{ShardEncoder, create_encoder},
     error::{ConsensusError, ConsensusResult},
 };
-use crate::block_header::ShardWithProof;
 
 const EVICTION_TIMEOUT: Duration = Duration::from_secs(1);
 

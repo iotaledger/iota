@@ -109,7 +109,8 @@ pub(crate) struct CordialKnowledge {
 #[derive(Debug)]
 pub enum CordialKnowledgeMessage {
     /// A new verified block header to integrate into cordial knowledge.
-    /// Includes transaction commitments of all blocks acknowledged by this header.
+    /// Includes transaction commitments of all blocks acknowledged by this
+    /// header.
     NewHeader {
         header: VerifiedBlockHeader,
         ack_transactions_commitments: Vec<TransactionsCommitment>,
@@ -127,7 +128,7 @@ impl CordialKnowledgeMessage {
     /// Outputs the type of CordialKnowledgeMessage in a string slice format
     fn type_label(&self) -> &'static str {
         match self {
-            CordialKnowledgeMessage::NewHeader {..} => "New header",
+            CordialKnowledgeMessage::NewHeader { .. } => "New header",
             CordialKnowledgeMessage::NewShard(_) => "New shard",
             CordialKnowledgeMessage::EvictBelow(_) => "Eviction",
             CordialKnowledgeMessage::UsefulShardsFromPeers(_) => "Useful authors for shards",
@@ -383,10 +384,13 @@ impl CordialKnowledge {
         // Handle the cordial knowledge message depending on its type
 
         match cordial_knowledge_message {
-            CordialKnowledgeMessage::NewHeader { header, ack_transactions_commitments } => {
-                self.update_cordial_knowledge(&header, &ack_transactions_commitments)
+            CordialKnowledgeMessage::NewHeader {
+                header,
+                ack_transactions_commitments,
+            } => self.update_cordial_knowledge(&header, &ack_transactions_commitments),
+            CordialKnowledgeMessage::NewShard(gen_tr_ref) => {
+                self.prepare_new_shard_msgs(gen_tr_ref)
             }
-            CordialKnowledgeMessage::NewShard(gen_tr_ref) => self.prepare_new_shard_msgs(gen_tr_ref),
             CordialKnowledgeMessage::EvictBelow(round) => self.handle_evict_below(round),
             CordialKnowledgeMessage::UsefulShardsFromPeers(useful_shards_from_peer) => {
                 self.handle_useful_shards_from(useful_shards_from_peer)
@@ -461,11 +465,15 @@ impl CordialKnowledge {
             Vec::with_capacity(self.cordial_knowledge.len());
         for index in 0..self.cordial_knowledge.len() {
             // Don't send own shard to the author of the block and local node
-            if index == gen_transaction_ref.author().value() || index == self.context.own_index.value() {
+            if index == gen_transaction_ref.author().value()
+                || index == self.context.own_index.value()
+            {
                 vec_msgs.push(vec![]);
                 continue;
             }
-            let msg = ConnectionKnowledgeMessage::NewShard { gen_tr_ref: gen_transaction_ref };
+            let msg = ConnectionKnowledgeMessage::NewShard {
+                gen_tr_ref: gen_transaction_ref,
+            };
             vec_msgs.push(vec![msg]);
         }
         Some(vec_msgs)
@@ -551,9 +559,14 @@ impl CordialKnowledge {
         }
 
         // 3) The block_author now acknowledges previously known transactions
-        // Use the provided transaction commitments to create the proper GenericTransactionRef variant
+        // Use the provided transaction commitments to create the proper
+        // GenericTransactionRef variant
         let transaction_ref_enabled = self.context.protocol_config.consensus_transaction_ref();
-        for (acknowledgment, &transactions_commitment) in header.acknowledgments().iter().zip(ack_transactions_commitments.iter()) {
+        for (acknowledgment, &transactions_commitment) in header
+            .acknowledgments()
+            .iter()
+            .zip(ack_transactions_commitments.iter())
+        {
             let gen_tr_ref = if transaction_ref_enabled {
                 GenericTransactionRef::TransactionRef(crate::transaction_ref::TransactionRef {
                     round: acknowledgment.round,
@@ -565,9 +578,8 @@ impl CordialKnowledge {
                 GenericTransactionRef::BlockRef(*acknowledgment)
             };
 
-            vec_knowledge_msgs[block_author].push(ConnectionKnowledgeMessage::RemoveShard {
-                gen_tr_ref,
-            });
+            vec_knowledge_msgs[block_author]
+                .push(ConnectionKnowledgeMessage::RemoveShard { gen_tr_ref });
         }
 
         // 4) Traversing back and marking the causal past as known by block_author
@@ -691,7 +703,8 @@ impl ConnectionKnowledge {
     }
     /// Take useful refs (headers or shards) for the given authorities
     /// up to the given round (exclusive), up to max_take total.
-    /// Generic function that works with both BlockRef and GenericTransactionRef.
+    /// Generic function that works with both BlockRef and
+    /// GenericTransactionRef.
     fn take_useful_refs_round<T>(
         maps: &mut [BTreeMap<Round, AHashSet<T>>],
         round_upper_bound_exclusive: Round,
@@ -785,8 +798,6 @@ impl ConnectionKnowledge {
             |gen_tr_ref| gen_tr_ref.round(),
         )
     }
-
-
 
     /// Evict all connection knowledge below the given rounds (exclusive)
     fn evict_below(&mut self, evicted_rounds: Vec<Round>) {
@@ -1212,8 +1223,11 @@ mod tests {
                         verified_transactions,
                     } = block.clone();
                     dag_state.write().accept_block_header(verified_block_header);
-                    let gen_transaction_ref = if context.protocol_config.consensus_transaction_ref() {
-                        GenericTransactionRef::TransactionRef(verified_transactions.transaction_ref())
+                    let gen_transaction_ref = if context.protocol_config.consensus_transaction_ref()
+                    {
+                        GenericTransactionRef::TransactionRef(
+                            verified_transactions.transaction_ref(),
+                        )
                     } else {
                         GenericTransactionRef::BlockRef(verified_transactions.block_ref())
                     };
