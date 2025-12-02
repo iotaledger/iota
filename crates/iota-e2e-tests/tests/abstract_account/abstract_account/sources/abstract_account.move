@@ -25,6 +25,7 @@ const ETransactionSenderIsNotTheAccount: vector<u8> = b"Transaction must be sign
 /// add the desired authenticator info and dynamic fields.
 public struct AbstractAccountBuilder {
     account: AbstractAccount,
+    authenticator: AuthenticatorInfoV1<AbstractAccount>,
 }
 
 /// This struct represents an abstract account.
@@ -50,16 +51,10 @@ public fun builder(
     authenticator: AuthenticatorInfoV1<AbstractAccount>,
     ctx: &mut TxContext,
 ): AbstractAccountBuilder {
-    let mut builder = AbstractAccountBuilder {
+    AbstractAccountBuilder {
         account: AbstractAccount { id: object::new(ctx) },
-    };
-
-    let authenticator_compatibility_proof = account::check_auth_info_v1_compatibility(
-        &builder.account,
         authenticator,
-    );
-    account::attach_auth_info_v1(&mut builder.account.id, authenticator_compatibility_proof);
-    builder
+    }
 }
 
 /// Attach a `Value` as a dynamic field to the account being built.
@@ -73,9 +68,9 @@ public fun add_dynamic_field<Name: copy + drop + store, Value: store>(
 }
 
 /// Finish building the `AbstractAccount` and share the object.
-public fun finish(self: AbstractAccountBuilder): AbstractAccount {
-    let AbstractAccountBuilder { account } = self;
-    account
+public fun build_shared(self: AbstractAccountBuilder) {
+    let AbstractAccountBuilder { account, authenticator } = self;
+    account::create_shared_account_v1(account, authenticator);
 }
 
 /// Share AbstractAccount.
@@ -157,11 +152,7 @@ public fun rotate_auth_info_v1(
 ): AuthenticatorInfoV1<AbstractAccount> {
     ensure_tx_sender_is_account(self, ctx);
 
-    let authenticator_compatibility_proof = account::check_auth_info_v1_compatibility(
-        self,
-        authenticator,
-    );
-    account::rotate_auth_info_v1(&mut self.id, authenticator_compatibility_proof)
+    account::rotate_auth_info_v1(self, authenticator)
 }
 
 // === Public-View Functions ===
