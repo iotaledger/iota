@@ -21,16 +21,20 @@ use iota_types::{
     digests::TransactionDigest,
     effects::{TransactionEffects, TransactionEffectsAPI},
     event::EventID,
-    messages_checkpoint::{CertifiedCheckpointSummary, CheckpointSequenceNumber},
+    messages_checkpoint::{
+        CertifiedCheckpointSummary, CheckpointContents, CheckpointSequenceNumber,
+    },
     object::Object,
 };
-use itertools::{Itertools, izip};
+use itertools::{Either, Itertools, izip};
 
 use crate::{
     errors::{IndexerError, IndexerResult},
     historical_fallback::{
         client::{HttpRestKVClient, KeyValueStoreClient},
-        convert::{HistoricalFallbackEvents, HistoricalFallbackTransaction},
+        convert::{
+            HistoricalFallbackCheckpoint, HistoricalFallbackEvents, HistoricalFallbackTransaction,
+        },
     },
     models::{
         checkpoints::StoredCheckpoint, objects::StoredObject, transactions::StoredTransaction,
@@ -55,14 +59,6 @@ pub(crate) struct HistoricalFallbackReader {
     /// Client responsible for fetching data from the historical fallback
     /// storage through REST API interface.
     client: HttpRestKVClient,
-    // TODO: The package resolver should support fetching an object by ID from fallback storage
-    // in case the objects table is pruned in the indexer.
-    //
-    // Current approach: We use the package resolver to fetch packages by ID from Postgres.
-    //
-    // Future requirements: Once the objects table is pruned, the package resolver will need
-    // to fetch objects by ID from the historical fallback reader. This depends on the range
-    // scan feature being implemented on the KV REST API side.
     package_resolver: PackageResolver,
 }
 
@@ -118,11 +114,12 @@ impl HistoricalFallbackReader {
         Ok((input_objects, output_objects))
     }
 
-    /// Resolves the checkpoint summaries by the provided transaction digests
-    pub(crate) async fn resolve_checkpoint_summaries_by_tx_digests(
+    /// Resolves the checkpoint summaries and contents by the provided
+    /// transaction digests
+    pub(crate) async fn resolve_checkpoints(
         &self,
         tx_digests: &[TransactionDigest],
-    ) -> IndexerResult<HashMap<TransactionDigest, CertifiedCheckpointSummary>> {
+    ) -> IndexerResult<HashMap<TransactionDigest, HistoricalFallbackCheckpoint>> {
         let tx_to_checkpoint_seq_num = self
             .client
             .multi_get_transactions_perpetual_checkpoints(tx_digests)
@@ -137,14 +134,19 @@ impl HistoricalFallbackReader {
             .copied()
             .collect::<Vec<CheckpointSequenceNumber>>();
 
-        let summaries_by_seq = self
-            .client
-            .multi_get_checkpoints_summaries_by_sequence_numbers(&unique_seq_nums)
-            .await?
+        let (summaries, contents) = tokio::try_join!(
+            self.client
+                .multi_get_checkpoints_summaries_by_sequence_numbers(&unique_seq_nums),
+            self.client.multi_get_checkpoints_contents(&unique_seq_nums)
+        )?;
+
+        let checkpoints_map = summaries
             .into_iter()
-            .flatten()
-            .map(|summary| (summary.sequence_number, summary))
-            .collect::<HashMap<CheckpointSequenceNumber, CertifiedCheckpointSummary>>();
+            .zip(contents.into_iter())
+            .filter_map(|(summary, contents)| {
+                summary.and_then(|summary| contents.map(|contents| (summary.sequence_number, (summary, contents))))
+            })
+            .collect::<HashMap<CheckpointSequenceNumber, (CertifiedCheckpointSummary, CheckpointContents)>>();
 
         // map each tx digest to its checkpoint summary
         let summaries = tx_digests
@@ -152,10 +154,10 @@ impl HistoricalFallbackReader {
             .zip(tx_to_checkpoint_seq_num)
             .filter_map(|(digest, seq_num)| {
                 let seq = seq_num?;
-                summaries_by_seq
+                checkpoints_map
                     .get(&seq)
                     .cloned()
-                    .map(|summary| (*digest, summary))
+                    .map(|(summary, contents)| (*digest, (summary, contents)))
             })
             .collect();
 
@@ -224,7 +226,7 @@ impl HistoricalFallbackReader {
     /// | `Some(n)` | `true` | Starts from checkpoint n-1 |
     ///
     /// # NOTE
-    /// `StoredCheckpoint.sequence_number` is hardcoded to 0, due to missing
+    /// `StoredCheckpoint.successful_tx_num` is hardcoded to 0, due to missing
     /// data in the historical fallback. It can be derived but the operations
     /// could be expensive. Can be added in future iterations.
     pub(crate) async fn checkpoints(
@@ -290,36 +292,31 @@ impl HistoricalFallbackReader {
         let tx_digests = &[tx_digest];
         let (events, checkpoint_summaries) = tokio::try_join!(
             self.client.multi_get_events_by_tx_digests(tx_digests),
-            self.resolve_checkpoint_summaries_by_tx_digests(tx_digests)
+            self.resolve_checkpoints(tx_digests)
         )?;
 
-        let Some(historical_event) = events.into_iter().next().and_then(|events| {
-            let summary = checkpoint_summaries.get(&tx_digest).cloned()?;
+        let Some(historical_events) = events.into_iter().next().and_then(|events| {
+            let (summary, _) = checkpoint_summaries.get(&tx_digest).cloned()?;
             Some(HistoricalFallbackEvents::new(events?, summary))
         }) else {
             return Ok(vec![]);
         };
 
-        historical_event
+        historical_events
             .into_iota_events(self.package_resolver.clone(), tx_digest)
             .await
     }
 
     /// Fetches transactions from the provided transaction digests.
-    ///
-    /// # NOTE
-    /// The `StoredTransaction.tx_sequence_number` is hardcoded to 0, due to
-    /// missing data in the historical fallback. It can be derived but the
-    /// operations could be expensive. Can be added in future iterations.
     pub(crate) async fn transactions(
         &self,
         tx_digests: &[TransactionDigest],
     ) -> IndexerResult<Vec<Option<StoredTransaction>>> {
-        let (transactions, effects, events, checkpoint_summaries) = tokio::try_join!(
+        let (transactions, effects, events, checkpoints) = tokio::try_join!(
             self.client.multi_get_transactions(tx_digests),
             self.client.multi_get_effects(tx_digests),
             self.client.multi_get_events_by_tx_digests(tx_digests),
-            self.resolve_checkpoint_summaries_by_tx_digests(tx_digests)
+            self.resolve_checkpoints(tx_digests),
         )?;
 
         let futures =
@@ -328,9 +325,17 @@ impl HistoricalFallbackReader {
                     return Ok(None);
                 };
 
-                let Some(summary) = checkpoint_summaries.get(transaction.digest()).cloned() else {
-                    return Ok(None);
-                };
+                let historical_checkpoint = checkpoints
+                    .get(transaction.digest())
+                    .cloned()
+                    // if transaction exists but summary is not found this indicates a bug in data
+                    // consistency in the KV Store.
+                    .ok_or_else(|| {
+                        IndexerError::HistoricalFallbackStorageError(format!(
+                            "checkpoint summary and contents linked to transaction: {} not found",
+                            transaction.digest()
+                        ))
+                    })?;
 
                 let (input_objects, output_objects) = self
                     .resolve_transaction_input_output_objects(&effects)
@@ -344,7 +349,7 @@ impl HistoricalFallbackReader {
                     output_objects,
                 };
 
-                HistoricalFallbackTransaction::new(checkpoint_transaction, summary)
+                HistoricalFallbackTransaction::new(checkpoint_transaction, historical_checkpoint)
                     .into_stored_transaction()
                     .await
                     .map(Some)
@@ -424,27 +429,27 @@ impl HistoricalFallbackReader {
             return Ok(vec![]);
         };
 
-        let tx_digests: Vec<TransactionDigest> = contents.iter().map(|b| b.transaction).collect();
+        let tx_digests = contents.iter().map(|b| b.transaction);
 
         // apply ordering
-        let tx_digests: Vec<TransactionDigest> = if is_descending {
-            tx_digests.into_iter().rev().collect()
+        let tx_digests = if is_descending {
+            Either::Left(tx_digests.rev())
         } else {
-            tx_digests
+            Either::Right(tx_digests)
         };
 
         // apply cursor: skip transactions until after the cursor.
         //
         // This relies on transactions being ordered within checkpoint contents,
         // so we can skip until we find the cursor, then skip the cursor itself.
-        let tx_digests: Vec<TransactionDigest> = if let Some(cursor) = cursor {
-            tx_digests
-                .into_iter()
-                .skip_while(|digest| *digest != cursor)
-                .skip(1) // skip the cursor itself
-                .collect()
+        let tx_digests = if let Some(cursor) = cursor {
+            Either::Left(
+                tx_digests
+                    .skip_while(move |digest| *digest != cursor)
+                    .skip(1), // skip the cursor itself
+            )
         } else {
-            tx_digests
+            Either::Right(tx_digests)
         };
 
         // apply limit

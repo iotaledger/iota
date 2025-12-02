@@ -159,6 +159,8 @@ pub enum IndexerError {
         object_id: ObjectID,
         version: SequenceNumber,
     },
+    #[error("historical fallback storage error: {0}")]
+    HistoricalFallbackStorageError(String),
 }
 
 pub type IndexerResult<T> = Result<T, IndexerError>;
