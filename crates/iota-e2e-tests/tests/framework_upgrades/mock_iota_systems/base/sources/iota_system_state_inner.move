@@ -105,6 +105,7 @@ module iota_system::iota_system_state_inner {
         epoch_start_timestamp_ms: u64,
         _max_committee_members_count: u64,
         _eligible_active_validators: vector<u64>,
+        _scores: vector<u64>,
         _ctx: &mut TxContext,
     ) : Balance<IOTA> {
         self.epoch_start_timestamp_ms = epoch_start_timestamp_ms;
