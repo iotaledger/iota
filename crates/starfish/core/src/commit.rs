@@ -15,8 +15,8 @@ use bytes::Bytes;
 use enum_dispatch::enum_dispatch;
 use fastcrypto::hash::{Digest, HashFunction as _};
 use serde::{Deserialize, Serialize};
-use tracing::info;
 use starfish_config::{AuthorityIndex, DIGEST_LENGTH, DefaultHashFunction};
+use tracing::info;
 
 use crate::{
     block_header::{
@@ -73,6 +73,7 @@ impl Commit {
         leader: BlockRef,
         blocks: Vec<BlockRef>,
         committed_transactions: Vec<GenericTransactionRef>,
+        reputation_scores_desc: Vec<(AuthorityIndex, u64)>,
     ) -> Self {
         if context.protocol_config.consensus_transaction_ref() {
             info!("Creating CommitV2 as consensus_transaction_ref is enabled");
@@ -86,6 +87,7 @@ impl Commit {
                     }
                 })
                 .collect();
+
             Commit::V2(CommitV2 {
                 index,
                 previous_digest,
@@ -93,6 +95,7 @@ impl Commit {
                 leader,
                 blocks,
                 committed_transactions: transaction_refs,
+                reputation_scores_desc,
             })
         } else {
             info!("Creating CommitV1 as consensus_transaction_ref is disabled");
@@ -216,6 +219,10 @@ pub(crate) struct CommitV2 {
     /// Refs to transactions in blocks for which quorum of acknowledgments has
     /// been collected in this and past commits.
     committed_transactions: Vec<TransactionRef>,
+    /// Optional scores that are provided as part of the consensus output to
+    /// IOTA that can then be used by IOTA for future transaction submission to
+    /// consensus.
+    reputation_scores_desc: Vec<(AuthorityIndex, u64)>,
 }
 
 impl CommitAPI for CommitV2 {
@@ -279,7 +286,7 @@ impl TrustedCommit {
 
     #[cfg(test)]
     pub(crate) fn new_for_test(
-        context: &Arc<crate::context::Context>,
+        context: &Arc<Context>,
         index: CommitIndex,
         previous_digest: CommitDigest,
         timestamp_ms: BlockTimestampMs,
@@ -295,6 +302,7 @@ impl TrustedCommit {
             leader,
             blocks,
             committed_transactions,
+            vec![],
         );
         let serialized = commit.serialize().unwrap();
         Self::new_trusted(commit, serialized)

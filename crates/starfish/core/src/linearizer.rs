@@ -176,6 +176,7 @@ impl Linearizer {
                 .map(|block| block.reference())
                 .collect::<Vec<BlockRef>>(),
             generic_committed_transactions,
+            reputation_scores_desc.clone(),
         );
         let serialized = commit
             .serialize()
