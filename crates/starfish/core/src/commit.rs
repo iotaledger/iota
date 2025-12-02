@@ -26,7 +26,7 @@ use crate::{
     context::Context,
     leader_scoring::ReputationScores,
     storage::Store,
-    transaction_ref::{GenericTransactionRef, TransactionRef},
+    transaction_ref::{GenericTransactionRef, GenericTransactionRefAPI as _, TransactionRef},
 };
 
 /// Index of a commit among all consensus commits.

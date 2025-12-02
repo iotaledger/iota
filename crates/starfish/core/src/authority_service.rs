@@ -45,7 +45,7 @@ use crate::{
     shard_reconstructor::TransactionMessage,
     stake_aggregator::{QuorumThreshold, StakeAggregator},
     storage::Store,
-    transaction_ref::GenericTransactionRef,
+    transaction_ref::{GenericTransactionRef, GenericTransactionRefAPI as _},
     transactions_synchronizer::TransactionsSynchronizerHandle,
 };
 use crate::block_header::ShardWithProof;

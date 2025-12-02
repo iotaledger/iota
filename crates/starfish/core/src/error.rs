@@ -11,7 +11,7 @@ use typed_store::TypedStoreError;
 use crate::{
     block_header::{BlockRef, GENESIS_ROUND, Round},
     commit::{Commit, CommitIndex},
-    transaction_ref::GenericTransactionRef,
+    transaction_ref::{GenericTransactionRef, GenericTransactionRefAPI as _},
 };
 
 /// Errors that can occur when processing blocks, reading from storage, or

@@ -13,7 +13,10 @@ use tokio::sync::oneshot;
 use tracing::{error, warn};
 
 use crate::{
-    Round, block_header::Transaction, context::Context, transaction_ref::GenericTransactionRef,
+    Round,
+    block_header::Transaction,
+    context::Context,
+    transaction_ref::{GenericTransactionRef, GenericTransactionRefAPI as _},
 };
 
 /// The maximum number of transactions pending to the queue to be pulled for

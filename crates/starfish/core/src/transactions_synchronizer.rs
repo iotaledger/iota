@@ -39,7 +39,7 @@ use crate::{
     dag_state::{DagState, TransactionSource},
     error::{ConsensusError, ConsensusResult},
     network::{NetworkClient, SerializedTransactionsV1, SerializedTransactionsV2},
-    transaction_ref::GenericTransactionRef,
+    transaction_ref::{GenericTransactionRef, GenericTransactionRefAPI as _},
 };
 
 /// The number of concurrent live transaction fetch requests

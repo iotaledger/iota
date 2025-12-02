@@ -32,6 +32,7 @@ use crate::{
     encoder::{ShardEncoder, create_encoder},
     error::{ConsensusError, ConsensusResult},
 };
+use crate::block_header::ShardWithProof;
 
 const EVICTION_TIMEOUT: Duration = Duration::from_secs(1);
 

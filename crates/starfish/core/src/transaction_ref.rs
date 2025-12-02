@@ -8,6 +8,7 @@ use std::{
     hash::{Hash, Hasher},
 };
 
+use enum_dispatch::enum_dispatch;
 use fastcrypto::hash::Digest;
 use serde::{Deserialize, Serialize};
 use starfish_config::{AuthorityIndex, DIGEST_LENGTH};
@@ -56,26 +57,59 @@ impl From<TransactionRef> for BlockRef {
     }
 }
 
+/// Accessors to transaction reference info.
+#[enum_dispatch]
+pub(crate) trait GenericTransactionRefAPI {
+    fn author(&self) -> AuthorityIndex;
+    fn round(&self) -> Round;
+    fn digest(&self) -> Digest<DIGEST_LENGTH>;
+    fn variant_name(&self) -> &'static str;
+}
+
 /// A generic reference to either a block or a transaction.
 #[derive(Clone, Copy, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Debug)]
+#[enum_dispatch(GenericTransactionRefAPI)]
 pub enum GenericTransactionRef {
     BlockRef(BlockRef),
     TransactionRef(TransactionRef),
 }
 
-// Converts BlockRef to GenericTransactionsRef
-impl From<BlockRef> for GenericTransactionRef {
-    fn from(b: BlockRef) -> Self {
-        GenericTransactionRef::BlockRef(b)
+impl GenericTransactionRefAPI for BlockRef {
+    fn author(&self) -> AuthorityIndex {
+        self.author
+    }
+
+    fn round(&self) -> Round {
+        self.round
+    }
+
+    fn digest(&self) -> Digest<DIGEST_LENGTH> {
+        self.digest.into()
+    }
+
+    fn variant_name(&self) -> &'static str {
+        "BlockRef"
     }
 }
 
-// Converts TransactionRef to GenericTransactionsRef
-impl From<TransactionRef> for GenericTransactionRef {
-    fn from(t: TransactionRef) -> Self {
-        GenericTransactionRef::TransactionRef(t)
+impl GenericTransactionRefAPI for TransactionRef {
+    fn author(&self) -> AuthorityIndex {
+        self.author
+    }
+
+    fn round(&self) -> Round {
+        self.round
+    }
+
+    fn digest(&self) -> Digest<DIGEST_LENGTH> {
+        self.transactions_commitment.into()
+    }
+
+    fn variant_name(&self) -> &'static str {
+        "TransactionRef"
     }
 }
+
 
 impl fmt::Display for GenericTransactionRef {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -95,36 +129,6 @@ impl Hash for GenericTransactionRef {
     }
 }
 
-impl GenericTransactionRef {
-    pub(crate) fn author(&self) -> AuthorityIndex {
-        match self {
-            GenericTransactionRef::BlockRef(b) => b.author,
-            GenericTransactionRef::TransactionRef(t) => t.author,
-        }
-    }
-
-    pub(crate) fn round(&self) -> Round {
-        match self {
-            GenericTransactionRef::BlockRef(b) => b.round,
-            GenericTransactionRef::TransactionRef(t) => t.round,
-        }
-    }
-
-    pub(crate) fn digest(&self) -> Digest<DIGEST_LENGTH> {
-        match self {
-            GenericTransactionRef::BlockRef(b) => b.digest.into(),
-            GenericTransactionRef::TransactionRef(t) => t.transactions_commitment.into(),
-        }
-    }
-
-    /// Returns the variant name as a static string.
-    pub(crate) fn variant_name(&self) -> &'static str {
-        match self {
-            GenericTransactionRef::BlockRef(_) => "BlockRef",
-            GenericTransactionRef::TransactionRef(_) => "TransactionRef",
-        }
-    }
-}
 
 /// Helper function to convert BlockRefs to GenericTransactionRefs based on
 /// protocol flag.

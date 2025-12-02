@@ -68,7 +68,7 @@ use crate::{
     error::{ConsensusError, ConsensusResult},
     network::{NetworkClient, SerializedTransactionsV1, SerializedTransactionsV2},
     stake_aggregator::{QuorumThreshold, StakeAggregator},
-    transaction_ref::GenericTransactionRef,
+    transaction_ref::{GenericTransactionRef, GenericTransactionRefAPI as _},
 };
 
 // Handle to stop the CommitSyncer loop.
@@ -415,12 +415,12 @@ impl<C: NetworkClient> CommitSyncer<C> {
                                 .map(|b| b.to_string())
                                 .join(","),
                         );
-                        for (block_ref, _ack_authorities) in missing_committed_txns {
+                        for (gen_tran_ref, _ack_authorities) in missing_committed_txns {
                             let hostname = &self
                                 .inner
                                 .context
                                 .committee
-                                .authority(block_ref.author())
+                                .authority(gen_tran_ref.author())
                                 .hostname;
                             metrics
                                 .commit_sync_fetch_missing_transactions

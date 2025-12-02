@@ -33,7 +33,7 @@ use crate::{
     leader_scoring::{ReputationScores, ScoringSubdag},
     storage::{Store, WriteBatch},
     threshold_clock::ThresholdClock,
-    transaction_ref::{GenericTransactionRef, TransactionRef},
+    transaction_ref::{GenericTransactionRef, GenericTransactionRefAPI as _, TransactionRef},
 };
 
 /// Represents the source from which transactions were received and added to the

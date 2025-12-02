@@ -48,7 +48,7 @@ use crate::{
     leader_schedule::LeaderSchedule,
     stake_aggregator::{QuorumThreshold, StakeAggregator},
     transaction::TransactionConsumer,
-    transaction_ref::GenericTransactionRef,
+    transaction_ref::{GenericTransactionRef, GenericTransactionRefAPI as _},
     universal_committer::{
         UniversalCommitter, universal_committer_builder::UniversalCommitterBuilder,
     },
