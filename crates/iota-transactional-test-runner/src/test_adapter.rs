@@ -2304,7 +2304,7 @@ impl IotaTestAdapter {
             .into_inner();
 
         let s = format!("0x{addr:x}::{module_name}::{struct_name}");
-        Ok(TypeTag::from_str(&s)?)
+        TypeTag::from_str(&s)
     }
 
     fn build_abstract_account_transaction(
