@@ -9,7 +9,7 @@ pub use checked::*;
 // to ensure transactions do not fail.
 pub const GAS_SAFE_OVERHEAD: u64 = 1000;
 
-const GAS_COIN_SIZE_BYTES: u64 = 40;
+const GAS_COIN_BCS_BYTES_SIZE: u64 = 40;
 
 /// Estimate the gas budget for a transaction based on simulation results.
 ///
@@ -21,13 +21,11 @@ const GAS_COIN_SIZE_BYTES: u64 = 40;
 /// 4. Adding safe overhead buffer (1000 * reference_gas_price)
 /// 5. Clamping to max_tx_gas protocol limit
 pub fn estimate_gas_budget_from_gas_cost(
-    gas_cost_summary: &crate::gas::GasCostSummary,
+    gas_cost_summary: &GasCostSummary,
     reference_gas_price: u64,
     num_payment_objects_on_request: usize,
     protocol_config: &iota_protocol_config::ProtocolConfig,
 ) -> u64 {
-    const GAS_SAFE_OVERHEAD: u64 = 1000;
-
     // Calculate base estimate from gas cost summary (in NANOS)
     let gas_usage = gas_cost_summary.net_gas_usage();
     let base_estimate_nanos =
@@ -48,7 +46,7 @@ pub fn estimate_gas_budget_from_gas_cost(
 
     // Calculate gas loading cost in gas units
     let gas_loading_cost_units = num_payment_objects_for_estimation
-        .saturating_mul(GAS_COIN_SIZE_BYTES)
+        .saturating_mul(GAS_COIN_BCS_BYTES_SIZE)
         .saturating_mul(protocol_config.obj_access_cost_read_per_byte());
 
     // Round up to the nearest gas rounding step (in gas units)
