@@ -612,7 +612,7 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
         if self.settings.enable_flamegraph {
             let flamegraph_commands = self
                 .protocol_commands
-                .nodes_metrics_command(nodes.clone(), parameters);
+                .nodes_flamegraph_command(self.node_instances.clone(), parameters);
             let stdio = self
                 .ssh_manager
                 .execute_per_instance(flamegraph_commands, CommandContext::default())

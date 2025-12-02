@@ -103,15 +103,14 @@ pub trait ProtocolMetrics {
         self.nodes_metrics_path(instances, parameters)
             .into_iter()
             .map(|(instance, path)| {
-                (instance, {
-                    display::action(format!("\ncurl {path}"));
-                    format!("curl {path}")
-                })
+                let cmd = format!("curl {path}");
+                display::action(format!("\n{cmd}"));
+                (instance, cmd)
             })
             .collect()
     }
 
-    /// The command to retrieve the metrics from the nodes.
+    /// The command to retrieve the flamegraphs from the nodes.
     fn nodes_flamegraph_command<I, T>(
         &self,
         instances: I,
@@ -125,9 +124,9 @@ pub trait ProtocolMetrics {
             .into_iter()
             .map(|instance| {
                 (instance, {
-                    let path = "http://localhost:1337?svg=true";
-                    display::action(format!("\ncurl {path}"));
-                    format!("curl {path}")
+                    let cmd = "curl http://localhost:1337/flamegraph?svg=true";
+                    display::action(format!("\n{cmd}"));
+                    cmd.to_string()
                 })
             })
             .collect()

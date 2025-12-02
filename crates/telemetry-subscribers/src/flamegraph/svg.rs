@@ -212,7 +212,7 @@ where
                 raw
             },
         );
-        if raw.total.is_zero() {
+        if raw.total.is_zero() || raw.running.is_empty() {
             None
         } else {
             raw.running[0].push(RawNode {
@@ -508,7 +508,7 @@ const SVG_SCRIPT: &str = r###"
 				// the rect might be wrapped in an anchor
 				// if nameattr href is being used
 				if (rect = find_child(e, "a")) {
-				    rect = find_child(r, "rect");
+				    rect = find_child(rect, "rect");
 				}
 			}
 			if (func == null || rect == null)
@@ -629,7 +629,11 @@ fn svg_node(
     let text_x = x + 3.0;
     let text_y = y + 12;
     let dur = dur.as_nanos() as f64 / 1_000_000.0;
-    let avg = dur / samples as f64;
+    let avg = if samples > 0 {
+        dur / samples as f64
+    } else {
+        0.0
+    };
     format!(
         r###"<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
 <title>{title} (#{samples}, tot={dur:.2}ms, avg={avg:.2}ms, {percent:.2}%)</title><rect x="{x:.2}" y="{y}" width="{width:.2}" height="{height}" fill="rgb({fill_r},{fill_g},{fill_b})" rx="2" ry="2" />

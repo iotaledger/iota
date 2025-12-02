@@ -250,9 +250,12 @@ impl<T> ArenaTree<T> {
         }
         acc
     }
-    /// Depth-first folding of an accumulator from init value using combining
-    /// function taking as input the accumulator value, node id, its parent
-    /// node id, level, index as a child in its parent's list of children.
+
+    /// Depth-first folding of an accumulator from the initial value using
+    /// combining functions. The `enter_node` closure receives the
+    /// accumulator, a child value, the node id, and the level. The
+    /// `visit_child` closure receives the accumulator, a reference to the
+    /// child value, and the node id.
     pub fn dfs_fold2<U, V, E, F, G>(
         &self,
         acc: &mut U,
