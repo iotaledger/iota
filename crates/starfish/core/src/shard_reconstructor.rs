@@ -22,7 +22,7 @@ use tracing::{debug, warn};
 use crate::{
     BlockRef, Round, Transaction,
     block_header::{
-        BlockHeaderDigest, GENESIS_ROUND, Shard, ShardWithProof, TransactionsCommitment,
+        BlockHeaderDigest, GENESIS_ROUND, Shard, TransactionsCommitment,
         VerifiedBlock, VerifiedTransactions,
     },
     context::Context,

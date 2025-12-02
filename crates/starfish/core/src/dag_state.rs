@@ -115,7 +115,7 @@ pub(crate) struct DagState {
     /// authority. To access own shard for a given block_ref, one
     /// needs to read first the entry with index block_ref.author.
     /// Eviction is aligned with headers
-    recent_shards_by_authority: Vec<BTreeMap<BlockRef, Bytes>>,
+    recent_shards_by_authority: Vec<BTreeMap<GenericTransactionRef, Bytes>>,
     /// Indexes recent block headers refs by their authorities.
     /// Vec position corresponds to the authority index.
     recent_headers_refs_by_authority: Vec<BTreeSet<BlockRef>>,
@@ -427,14 +427,14 @@ impl DagState {
     }
 
     pub(crate) fn add_shard(&mut self, shard: VerifiedOwnShard) {
-        let block_ref = shard.block_ref;
-        if self.recent_shards_by_authority[block_ref.author]
-            .insert(block_ref, shard.serialized_shard)
+        let gen_transaction_ref = shard.gen_transaction_ref;
+        if self.recent_shards_by_authority[gen_transaction_ref.author()]
+            .insert(gen_transaction_ref, shard.serialized_shard)
             .is_none()
         {
-            debug!("Adding shard for block ref: {block_ref}");
+            debug!("Adding shard for transaction ref: {gen_transaction_ref}");
             if let Some(sender) = &self.cordial_knowledge_sender {
-                let cordial_message = CordialKnowledgeMessage::NewShard(block_ref);
+                let cordial_message = CordialKnowledgeMessage::NewShard(gen_transaction_ref);
                 if let Err(e) = sender.send(cordial_message) {
                     warn!("Failed to send cordial knowledge update: {e}");
                 }

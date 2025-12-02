@@ -27,6 +27,7 @@ use crate::{
     dag_state::DagState,
     error::{ConsensusError, ConsensusResult},
     network::{BlockBundle, SerializedBlockBundleParts},
+    transaction_ref::GenericTransactionRef,
 };
 
 /// Maximum round gap to consider a peer's useful shards/headers as still
@@ -110,7 +111,7 @@ pub enum CordialKnowledgeMessage {
     /// A new verified block header to integrate into cordial knowledge.
     NewHeader(VerifiedBlockHeader),
     /// A new verified own shard to integrate into cordial knowledge.
-    NewShard(BlockRef),
+    NewShard(GenericTransactionRef),
     /// Evict old rounds globally.
     EvictBelow(Vec<Round>),
     /// Update internal state about shards from which authorities are useful for
@@ -1181,10 +1182,15 @@ mod tests {
                         verified_transactions,
                     } = block.clone();
                     dag_state.write().accept_block_header(verified_block_header);
+                    let gen_transaction_ref = if context.protocol_config.consensus_transaction_ref() {
+                        GenericTransactionRef::TransactionRef(verified_transactions.transaction_ref())
+                    } else {
+                        GenericTransactionRef::BlockRef(verified_transactions.block_ref())
+                    };
                     let shard_for_core = VerifiedOwnShard {
                         serialized_shard: Bytes::from([0u8; 32].to_vec()), /* put some dummy
                                                                             * shard data */
-                        block_ref: verified_transactions.block_ref(),
+                        gen_transaction_ref: gen_transaction_ref,
                     };
                     dag_state.write().add_shard(shard_for_core);
                 }
@@ -1200,9 +1206,14 @@ mod tests {
                     verified_transactions,
                 } = block.clone();
                 dag_state.write().accept_block_header(verified_block_header);
+                let gen_transaction_ref = if context.protocol_config.consensus_transaction_ref() {
+                    GenericTransactionRef::TransactionRef(verified_transactions.transaction_ref())
+                } else {
+                    GenericTransactionRef::BlockRef(verified_transactions.block_ref())
+                };
                 let shard_for_core = VerifiedOwnShard {
                     serialized_shard: Bytes::from([0u8; 32].to_vec()), // put some dummy shard data
-                    block_ref: verified_transactions.block_ref(),
+                    gen_transaction_ref: gen_transaction_ref,
                 };
                 dag_state.write().add_shard(shard_for_core);
             }
