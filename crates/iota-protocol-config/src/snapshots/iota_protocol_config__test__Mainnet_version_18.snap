@@ -3,19 +3,13 @@ source: crates/iota-protocol-config/src/lib.rs
 expression: "ProtocolConfig::get_for_version(cur, *chain_id)"
 snapshot_kind: text
 ---
-version: 16
+version: 18
 feature_flags:
   consensus_transaction_ordering: ByGasPrice
-  enable_poseidon: true
-  enable_group_ops_native_function_msm: true
   per_object_congestion_control_mode: TotalTxCount
-  consensus_choice: Starfish
   zklogin_max_epoch_upper_bound_delta: 30
-  enable_vdf: true
-  passkey_auth: true
   relocate_event_module: true
   protocol_defined_base_fee: true
-  uncompressed_g1_group_elements: true
   disallow_new_modules_in_deps_only_packages: true
   native_charging_v2: true
   convert_type_argument_error: true
@@ -26,7 +20,6 @@ feature_flags:
   consensus_round_prober_probe_accepted_rounds: true
   consensus_zstd_compression: true
   congestion_control_min_free_execution_slot: true
-  accept_passkey_in_multisig: true
   consensus_batched_block_sync: true
   congestion_control_gas_price_feedback_mechanism: true
   validate_identifier_inputs: true
@@ -37,7 +30,6 @@ feature_flags:
   select_committee_from_eligible_validators: true
   track_non_committee_eligible_validators: true
   select_committee_supporting_next_epoch_version: true
-  consensus_median_timestamp_with_checkpoint_enforcement: true
   consensus_commit_transactions_only_for_traversed_headers: true
 max_tx_size_bytes: 131072
 max_input_objects: 2048
@@ -220,7 +212,6 @@ hash_blake2b256_data_cost_per_block: 2
 hash_keccak256_cost_base: 10
 hash_keccak256_data_cost_per_byte: 2
 hash_keccak256_data_cost_per_block: 2
-poseidon_bn254_cost_base: 260
 poseidon_bn254_cost_per_block: 388
 group_ops_bls12381_decode_scalar_cost: 7
 group_ops_bls12381_decode_g1_cost: 2848
@@ -262,8 +253,6 @@ hmac_hmac_sha3_256_input_cost_per_byte: 2
 hmac_hmac_sha3_256_input_cost_per_block: 2
 check_zklogin_id_cost_base: 200
 check_zklogin_issuer_cost_base: 200
-vdf_verify_vdf_cost: 1500
-vdf_hash_to_input_cost: 100
 bcs_per_byte_serialized_cost: 2
 bcs_legacy_min_output_size_cost: 1
 bcs_failure_cost: 52
@@ -310,6 +299,5 @@ min_checkpoint_interval_ms: 200
 checkpoint_summary_version_specific_data: 1
 max_soft_bundle_size: 5
 max_accumulated_txn_cost_per_object_in_mysticeti_commit: 10
-max_committee_members_count: 80
+max_committee_members_count: 100
 consensus_gc_depth: 60
-max_congestion_limit_overshoot_per_commit: 100
