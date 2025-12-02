@@ -8170,6 +8170,7 @@ dependencies = [
 name = "iota-verifier-latest"
 version = "0.1.0"
 dependencies = [
+ "bcs",
  "iota-types",
  "move-abstract-interpreter",
  "move-abstract-stack",
