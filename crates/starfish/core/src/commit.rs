@@ -93,7 +93,7 @@ impl Commit {
                 previous_digest,
                 timestamp_ms,
                 leader,
-                blocks,
+                block_headers: blocks,
                 committed_transactions: transaction_refs,
                 reputation_scores_desc,
             })
@@ -214,8 +214,8 @@ pub(crate) struct CommitV2 {
     timestamp_ms: BlockTimestampMs,
     /// A reference to the commit leader.
     leader: BlockRef,
-    /// Refs to committed blocks, in the commit order.
-    blocks: Vec<BlockRef>,
+    /// Refs to committed headers, in the commit order.
+    block_headers: Vec<BlockRef>,
     /// Refs to transactions in blocks for which quorum of acknowledgments has
     /// been collected in this and past commits.
     committed_transactions: Vec<TransactionRef>,
@@ -247,7 +247,7 @@ impl CommitAPI for CommitV2 {
     }
 
     fn blocks(&self) -> &[BlockRef] {
-        &self.blocks
+        &self.block_headers
     }
 
     // TODO: https://github.com/iotaledger/iota/issues/8375
