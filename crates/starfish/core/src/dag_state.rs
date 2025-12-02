@@ -778,10 +778,10 @@ impl DagState {
         block_headers
     }
     /// Gets shards by checking cached recent shards in memory.
-    pub(crate) fn get_cached_shards(&self, block_refs: &[BlockRef]) -> Vec<Option<Bytes>> {
-        let mut shards: Vec<Option<Bytes>> = vec![None; block_refs.len()];
-        for (index, block_ref) in block_refs.iter().enumerate() {
-            if let Some(shard) = self.recent_shards_by_authority[block_ref.author].get(block_ref) {
+    pub(crate) fn get_cached_shards(&self, gen_tran_refs: &[GenericTransactionRef]) -> Vec<Option<Bytes>> {
+        let mut shards: Vec<Option<Bytes>> = vec![None; gen_tran_refs.len()];
+        for (index, gen_tran_ref) in gen_tran_refs.iter().enumerate() {
+            if let Some(shard) = self.recent_shards_by_authority[gen_tran_ref.author()].get(gen_tran_ref) {
                 shards[index] = Some(shard.clone());
             }
         }

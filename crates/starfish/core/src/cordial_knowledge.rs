@@ -27,7 +27,7 @@ use crate::{
     dag_state::DagState,
     error::{ConsensusError, ConsensusResult},
     network::{BlockBundle, SerializedBlockBundleParts},
-    transaction_ref::GenericTransactionRef,
+    transaction_ref::{GenericTransactionRef, GenericTransactionRefAPI as _},
 };
 
 /// Maximum round gap to consider a peer's useful shards/headers as still
@@ -380,7 +380,7 @@ impl CordialKnowledge {
 
         match cordial_knowledge_message {
             CordialKnowledgeMessage::NewHeader(header) => self.update_cordial_knowledge(&header),
-            CordialKnowledgeMessage::NewShard(block_ref) => self.prepare_new_shard_msgs(block_ref),
+            CordialKnowledgeMessage::NewShard(gen_tr_ref) => self.prepare_new_shard_msgs(gen_tr_ref),
             CordialKnowledgeMessage::EvictBelow(round) => self.handle_evict_below(round),
             CordialKnowledgeMessage::UsefulShardsFromPeers(useful_shards_from_peer) => {
                 self.handle_useful_shards_from(useful_shards_from_peer)
@@ -449,17 +449,17 @@ impl CordialKnowledge {
     /// Called when a new own shard (created locally) is added to dag state.
     fn prepare_new_shard_msgs(
         &mut self,
-        block_ref: BlockRef,
+        gen_transaction_ref: GenericTransactionRef,
     ) -> Option<Vec<Vec<ConnectionKnowledgeMessage>>> {
         let mut vec_msgs: Vec<Vec<ConnectionKnowledgeMessage>> =
             Vec::with_capacity(self.cordial_knowledge.len());
         for index in 0..self.cordial_knowledge.len() {
             // Don't send own shard to the author of the block and local node
-            if index == block_ref.author.value() || index == self.context.own_index.value() {
+            if index == gen_transaction_ref.author().value() || index == self.context.own_index.value() {
                 vec_msgs.push(vec![]);
                 continue;
             }
-            let msg = ConnectionKnowledgeMessage::NewShard { block_ref };
+            let msg = ConnectionKnowledgeMessage::NewShard { gen_tr_ref };
             vec_msgs.push(vec![msg]);
         }
         Some(vec_msgs)
@@ -604,9 +604,9 @@ pub enum ConnectionKnowledgeMessage {
     /// Remove a block header from the "unknown" set .
     RemoveHeader { block_ref: BlockRef },
     /// A new shard was added globally.
-    NewShard { block_ref: BlockRef },
+    NewShard { gen_tr_ref: GenericTransactionRef },
     /// Remove a header from the "unknown" set.
-    RemoveShard { block_ref: BlockRef },
+    RemoveShard { gen_tr_ref: GenericTransactionRef },
     /// Update useful info about which authorities are useful to/from the peer.
     UsefulAuthors {
         useful_headers_to_peer: BTreeMap<AuthorityIndex, Round>,
@@ -627,7 +627,7 @@ pub struct ConnectionKnowledge {
     /// Keeps track of which headers are not known by the peer yet.
     headers_not_known: Vec<BTreeMap<Round, AHashSet<BlockRef>>>,
     /// Keeps track of which shards are not known by the peer yet.
-    shards_not_known: Vec<BTreeMap<Round, AHashSet<BlockRef>>>,
+    shards_not_known: Vec<BTreeMap<Round, AHashSet<GenericTransactionRef>>>,
     /// Last rounds for (potentially) useful shards that can be sent to this
     /// peer
     last_useful_shards_to_peer_round: Vec<Option<Round>>,
@@ -672,7 +672,7 @@ impl ConnectionKnowledge {
     /// Take useful block refs (headers or shards) for the given authorities
     /// up to the given round (exclusive), up to max_take total.
     /// Used for both headers and shards.
-    fn take_useful_refs_round(
+    fn take_useful_header_refs_round(
         maps: &mut [BTreeMap<Round, AHashSet<BlockRef>>],
         round_upper_bound_exclusive: Round,
         useful_authorities: &[usize],
@@ -726,6 +726,64 @@ impl ConnectionKnowledge {
         taken
     }
 
+    /// Take useful transaction refs (as GenericTransactionRef) for the given authorities
+    /// up to the given round (exclusive), up to max_take total.
+    /// Works directly with GenericTransactionRef stored in shards_not_known.
+    fn take_useful_tr_refs_round(
+        maps: &mut [BTreeMap<Round, AHashSet<GenericTransactionRef>>],
+        round_upper_bound_exclusive: Round,
+        useful_authorities: &[usize],
+        max_take: usize,
+    ) -> Vec<GenericTransactionRef> {
+        if useful_authorities.is_empty() || max_take == 0 {
+            return Vec::new();
+        }
+
+        // Find the smallest existing round among all useful authorities.
+        let min_round = useful_authorities
+            .iter()
+            .filter_map(|&auth| maps[auth].keys().next().copied())
+            .min();
+
+        let Some(mut current_round) = min_round else {
+            return Vec::new();
+        };
+
+        let mut taken = Vec::with_capacity(max_take);
+
+        'outer: while current_round < round_upper_bound_exclusive {
+            for &authority in useful_authorities {
+                let map = &maps[authority];
+                if let Some(gen_tr_refs_from_authority_in_round) = map.get(&current_round) {
+                    for &gen_tr_ref in gen_tr_refs_from_authority_in_round {
+                        taken.push(gen_tr_ref);
+                        if taken.len() >= max_take {
+                            break 'outer;
+                        }
+                    }
+                }
+            }
+            current_round += 1;
+        }
+
+        // Remove the taken transaction refs from the corresponding authorities
+        for gen_tr_ref in &taken {
+            let authority = gen_tr_ref.author();
+            let round = gen_tr_ref.round();
+            if let Some(gen_tr_refs_from_authority_in_round) =
+                maps[authority].get_mut(&round)
+            {
+                gen_tr_refs_from_authority_in_round.remove(gen_tr_ref);
+                // Remove empty rounds to keep map small
+                if gen_tr_refs_from_authority_in_round.is_empty() {
+                    maps[authority].remove(&round);
+                }
+            }
+        }
+
+        taken
+    }
+
     /// Take useful header block refs from the given authorities up to the given
     /// round (exclusive).
     fn take_useful_header_block_refs_round(
@@ -734,7 +792,7 @@ impl ConnectionKnowledge {
         useful_authorities: &[usize],
     ) -> Vec<BlockRef> {
         let max_take = self.context.parameters.max_headers_per_bundle;
-        Self::take_useful_refs_round(
+        Self::take_useful_header_refs_round(
             &mut self.headers_not_known,
             round_upper_bound_exclusive,
             useful_authorities,
@@ -748,15 +806,17 @@ impl ConnectionKnowledge {
         &mut self,
         round_upper_bound_exclusive: Round,
         useful_authorities: &[usize],
-    ) -> Vec<BlockRef> {
+    ) -> Vec<GenericTransactionRef> {
         let max_take = self.context.parameters.max_shards_per_bundle;
-        Self::take_useful_refs_round(
+        Self::take_useful_tr_refs_round(
             &mut self.shards_not_known,
             round_upper_bound_exclusive,
             useful_authorities,
             max_take,
         )
     }
+
+
 
     /// Evict all connection knowledge below the given rounds (exclusive)
     fn evict_below(&mut self, evicted_rounds: Vec<Round>) {
@@ -783,11 +843,11 @@ impl ConnectionKnowledge {
             ConnectionKnowledgeMessage::RemoveHeader { block_ref } => {
                 self.handle_remove_header(block_ref);
             }
-            ConnectionKnowledgeMessage::NewShard { block_ref } => {
-                self.handle_new_shard(block_ref);
+            ConnectionKnowledgeMessage::NewShard { gen_tr_ref } => {
+                self.handle_new_shard(gen_tr_ref);
             }
-            ConnectionKnowledgeMessage::RemoveShard { block_ref } => {
-                self.handle_remove_shard(block_ref);
+            ConnectionKnowledgeMessage::RemoveShard { gen_tr_ref } => {
+                self.handle_remove_shard(gen_tr_ref);
             }
             ConnectionKnowledgeMessage::EvictBelow(rounds) => {
                 self.evict_below(rounds);
@@ -1020,14 +1080,14 @@ impl ConnectionKnowledge {
     }
 
     /// Handles adding a new shard to the set of potentially unknown shards.
-    fn handle_new_shard(&mut self, block_ref: BlockRef) {
-        let round = block_ref.round;
-        let authority = block_ref.author.value();
+    fn handle_new_shard(&mut self, gen_tr_ref: GenericTransactionRef) {
+        let round = gen_tr_ref.round();
+        let authority = gen_tr_ref.author().value();
 
         self.shards_not_known[authority]
             .entry(round)
             .or_default()
-            .insert(block_ref);
+            .insert(gen_tr_ref);
     }
 
     /// Handles removing a header that this peer now knows.
@@ -1045,12 +1105,12 @@ impl ConnectionKnowledge {
     }
 
     /// Handles removing a shard that this peer now knows.
-    fn handle_remove_shard(&mut self, block_ref: BlockRef) {
-        let authority = block_ref.author.value();
-        let round = block_ref.round;
+    fn handle_remove_shard(&mut self, gen_tr_ref: GenericTransactionRef) {
+        let authority = gen_tr_ref.author().value();
+        let round = gen_tr_ref.round();
 
         if let Some(set) = self.shards_not_known[authority].get_mut(&round) {
-            set.remove(&block_ref);
+            set.remove(&gen_tr_ref);
             if set.is_empty() {
                 self.shards_not_known[authority].remove(&round);
             }
