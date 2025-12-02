@@ -10142,7 +10142,10 @@
           },
           "type_arguments": {
             "description": "Type arguments for the Move authenticate function",
-            "type": "string"
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
           }
         }
       },
