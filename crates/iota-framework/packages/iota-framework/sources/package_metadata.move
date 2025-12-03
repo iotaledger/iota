@@ -10,12 +10,16 @@ use iota::vec_map::VecMap;
 use std::ascii;
 use std::type_name::TypeName;
 
+// === Errors ===
+
 #[error(code = 0)]
 const EModuleMetadataNotFound: vector<u8> =
     b"The requested module metadata was not found in the package metadata.";
 #[error(code = 1)]
 const EAuthenticatorMetadataNotFound: vector<u8> =
     b"The requested authenticator metadata was not found in the module metadata.";
+
+// === Structs ===
 
 /// Key type for deriving the package metadata object address
 public struct PackageMetadataKey has copy, drop, store {}
@@ -51,6 +55,8 @@ public struct AuthenticatorMetadataV1 has copy, drop, store {
     function_name: ascii::String,
     account_type: TypeName,
 }
+
+// === Public functions ===
 
 /// Return the storage ID of the package represented by this metadata
 public fun storage_id(metadata: &PackageMetadataV1): ID {
@@ -112,6 +118,8 @@ public fun authenticator_metadata_v1(
 public fun account_type(self: &AuthenticatorMetadataV1): TypeName {
     self.account_type
 }
+
+// === Test-only functions ===
 
 /// Creates a `PackageMetadataV1` instance for testing, skipping validation.
 /// From `storage_id` the package metadata object ID will be derived.

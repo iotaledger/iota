@@ -3,7 +3,8 @@
 
 module iota::auth_context;
 
-use iota::programmable_transaction::{CallArg, Command};
+use iota::ptb_call_arg::CallArg;
+use iota::ptb_command::Command;
 
 // === Structs ===
 
