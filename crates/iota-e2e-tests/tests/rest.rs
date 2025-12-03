@@ -9,6 +9,7 @@ use iota_rest_api::{
     client::{BalanceChange, reqwest::StatusCode},
     transactions::ResolveTransactionQueryParameters,
 };
+use iota_sdk_types::crypto::Intent;
 use iota_sdk2::types::{
     Argument, Command, TransactionExpiration, UnresolvedGasPayment, UnresolvedInputArgument,
     UnresolvedObjectReference, UnresolvedProgrammableTransaction, UnresolvedTransaction,
@@ -17,7 +18,6 @@ use iota_test_transaction_builder::make_transfer_iota_transaction;
 use iota_types::{
     base_types::IotaAddress, effects::TransactionEffectsAPI, transaction::TransactionDataAPI,
 };
-use shared_crypto::intent::Intent;
 use test_cluster::TestClusterBuilder;
 
 #[sim_test]

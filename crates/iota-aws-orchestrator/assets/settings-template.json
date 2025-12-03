@@ -7,6 +7,23 @@
     "node_specs": "m5d.8xlarge",
     "client_specs": "m5d.2xlarge",
     "metrics_specs": "m5d.8xlarge",
+    "build_cache": {
+        "enabled": true,
+        "servers": {
+            "x86_server": {
+                "targets": ["x86-64", "x86-64-v2", "x86-64-v3"],
+                "url": "http://localhost:8080",
+                "username": "",
+                "password": ""
+            },
+            "arm_server": {
+                "targets": ["generic", "apple-m4"],
+                "url": "http://localhost:8081",
+                "username": "",
+                "password": ""
+            }
+        }
+    },
     "repository": {
         "url": "https://github.com/iotaledger/iota.git",
         "commit": "main"

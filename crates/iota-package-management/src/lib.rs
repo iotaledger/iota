@@ -61,6 +61,37 @@ pub async fn update_lock_file(
     lock_file: Option<PathBuf>,
     response: &IotaTransactionBlockResponse,
 ) -> Result<(), anyhow::Error> {
+    let (original_id, version, _) = get_new_package_obj_from_response(response).context(
+        "Expected a valid published package response but didn't see \
+         one when attempting to update the `Move.lock`.",
+    )?;
+    update_lock_file_with_package_id(
+        context,
+        command,
+        install_dir,
+        lock_file,
+        original_id,
+        version.into(),
+    )
+    .await
+}
+
+/// Update the `Move.lock` file with automated address management info.
+/// This variant accepts the package ID and version directly, allowing for
+/// updates when a single transaction publishes multiple packages.
+/// Expects a wallet context, the publish or upgrade command, and the package
+/// details. The `Move.lock` principally file records the published address
+/// (i.e., package ID) of a package under an environment determined by the
+/// wallet context config. See the `ManagedPackage` type in the lock file for a
+/// complete spec.
+pub async fn update_lock_file_with_package_id(
+    context: &WalletContext,
+    command: LockCommand,
+    install_dir: Option<PathBuf>,
+    lock_file: Option<PathBuf>,
+    original_id: ObjectID,
+    version: u64,
+) -> Result<(), anyhow::Error> {
     let chain_identifier = context
         .get_client()
         .await
@@ -70,10 +101,6 @@ pub async fn update_lock_file(
         .await
         .context("Network issue: couldn't determine chain identifier for updating Move.lock")?;
 
-    let (original_id, version, _) = get_new_package_obj_from_response(response).context(
-        "Expected a valid published package response but didn't see \
-         one when attempting to update the `Move.lock`.",
-    )?;
     let Some(lock_file) = lock_file else {
         bail!(
             "Expected a `Move.lock` file to exist after publishing \
@@ -102,7 +129,7 @@ pub async fn update_lock_file(
             env.alias(),
             lock_file::schema::ManagedAddressUpdate::Upgraded {
                 latest_id: original_id.to_string(),
-                version: version.into(),
+                version,
             },
         ),
     }?;

@@ -28,6 +28,7 @@ fastcrypto-zkp.workspace = true
 hex.workspace = true
 im.workspace = true
 indexmap.workspace = true
+iota-sdk-types = { workspace = true, features = ["serde"] }
 iota-sdk2.workspace = true
 itertools.workspace = true
 lru.workspace = true
@@ -70,7 +71,6 @@ move-bytecode-utils.workspace = true
 move-core-types.workspace = true
 move-vm-profiler.workspace = true
 move-vm-test-utils.workspace = true
-shared-crypto.workspace = true
 starfish-config.workspace = true
 typed-store-error.workspace = true
 

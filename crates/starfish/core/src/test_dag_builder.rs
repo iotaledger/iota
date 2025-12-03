@@ -300,9 +300,9 @@ impl DagBuilder {
             );
 
             // Update the last committed rounds
-            for block in &to_commit {
-                self.last_committed_rounds[block.author()] =
-                    self.last_committed_rounds[block.author()].max(block.round());
+            for block_header in &to_commit {
+                self.last_committed_rounds[block_header.author()] =
+                    self.last_committed_rounds[block_header.author()].max(block_header.round());
             }
 
             let commit = TrustedCommit::new_for_test(
@@ -361,12 +361,11 @@ impl DagBuilder {
             .map(|(sub_dag, commit)| {
                 // TODO: we need to request real blocks from sub_dag after we add the
                 // corresponding field and logic in sub_dag
-                let mut block_headers = vec![];
-                for block_header in sub_dag.headers.iter() {
-                    block_headers.push(block_header.clone());
-                }
+                let block_headers = sub_dag.headers.clone();
+                let transactions = sub_dag.transactions.clone();
 
-                let certified_commit = CertifiedCommit::new_certified(commit, block_headers);
+                let certified_commit =
+                    CertifiedCommit::new_certified(commit, block_headers, transactions);
                 (sub_dag, certified_commit)
             })
             .collect()

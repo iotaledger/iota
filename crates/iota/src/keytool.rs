@@ -37,6 +37,7 @@ use iota_keys::{
     keystore::{AccountKeystore, Keystore, StoredKey},
 };
 use iota_ledger::Ledger;
+use iota_sdk_types::crypto::{Intent, IntentMessage};
 use iota_types::{
     base_types::IotaAddress,
     crypto::{
@@ -52,7 +53,6 @@ use iota_types::{
 use json_to_table::{Orientation, json_to_table};
 use serde::Serialize;
 use serde_json::json;
-use shared_crypto::intent::{Intent, IntentMessage};
 use tabled::{
     builder::Builder,
     settings::{Modify, Rotate, Width, object::Rows},
@@ -787,7 +787,6 @@ impl KeyToolCommand {
             } => {
                 let address = get_identity_address_from_keystore(address, keystore)?;
                 let intent = intent.unwrap_or_else(Intent::iota_transaction);
-                let intent_clone = intent.clone();
                 let msg: TransactionData =
                     bcs::from_bytes(&Base64::decode(&data).map_err(|e| {
                         anyhow!("Cannot deserialize data as TransactionData {:?}", e)
@@ -804,7 +803,7 @@ impl KeyToolCommand {
                 CommandOutput::Sign(SignData {
                     iota_address: address,
                     raw_tx_data: data,
-                    intent: intent_clone,
+                    intent,
                     raw_intent_msg,
                     digest: Base64::encode(digest),
                     iota_signature: iota_signature.encode_base64(),
@@ -880,9 +879,7 @@ impl KeyToolCommand {
                 })
             } /* Commented for now: https://github.com/iotaledger/iota/issues/1777
                * KeyToolCommand::ZkLoginInsecureSignPersonalMessage { data, max_epoch } => {
-               *     let msg = PersonalMessage {
-               *         message: data.as_bytes().to_vec(),
-               *     };
+               *     let msg = PersonalMessage(data.as_bytes().to_vec().into());
                *     let sub = "1";
                *     let user_salt = "1";
                *     let intent_msg = IntentMessage::new(Intent::personal_message(),
@@ -1198,11 +1195,9 @@ impl KeyToolCommand {
                *                     (serde_json::to_string(&tx_data)?, res)
                *                 }
                *                 IntentScope::PersonalMessage => {
-               *                     let data = PersonalMessage {
-               *                         message: Base64::decode(&bytes.unwrap()).map_err(|e| {
+               *                     let data = PersonalMessage(Base64::decode(&bytes.unwrap()).map_err(|e| {
                *                             anyhow!("Invalid base64 personal message data:
-               * {:?}", e)                         })?,
-               *                     }; */
+               * {:?}", e)                         })?.into()); */
 
               /*                     let sig =
                * GenericSignature::ZkLoginAuthenticator(zk.clone());

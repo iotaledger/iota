@@ -10,7 +10,7 @@ use iota_sdk2::types::{
     Transaction, TransactionEffects, TransactionEvents, ValidatorAggregatedSignature,
     framework::Coin,
 };
-use iota_types::transaction_executor::{SimulateTransactionResult, TransactionExecutor};
+use iota_types::transaction_executor::{SimulateTransactionResult, TransactionExecutor, VmChecks};
 use schemars::JsonSchema;
 use tap::Pipe;
 
@@ -420,14 +420,17 @@ pub(super) fn simulate_transaction_impl(
         ));
     }
 
+    // Hardcoded dry run simulation
+    let dry_run_checks = VmChecks::Enabled;
     let SimulateTransactionResult {
         input_objects,
         output_objects,
         events,
         effects,
+        execution_result: _,
         mock_gas_id,
     } = executor
-        .simulate_transaction(transaction.try_into()?)
+        .simulate_transaction(transaction.try_into()?, dry_run_checks)
         .map_err(anyhow::Error::from)?;
 
     if mock_gas_id.is_some() {

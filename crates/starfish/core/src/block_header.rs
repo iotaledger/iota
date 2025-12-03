@@ -11,9 +11,9 @@ use std::{
 
 use bytes::Bytes;
 use fastcrypto::hash::{Digest, HashFunction};
+use iota_sdk_types::crypto::{Intent, IntentMessage, IntentScope};
 use rs_merkle::{MerkleProof, MerkleTree};
 use serde::{Deserialize, Serialize};
-use shared_crypto::intent::{Intent, IntentMessage, IntentScope};
 use starfish_config::{
     AuthorityIndex, DIGEST_LENGTH, DefaultHashFunction, DefaultHashFunctionWrapper, Epoch,
     ProtocolKeyPair, ProtocolKeySignature, ProtocolPublicKey,
@@ -430,12 +430,6 @@ impl AsRef<[u8]> for BlockHeaderDigest {
     }
 }
 
-// TODO: https://github.com/iotaledger/iota/issues/8220
-// We might need to join TransactionDigest with BlockDigest since we use
-// the same parameters for both structures. TransactionDigest is used for
-// including a commitment for a transaction data to a block header. This digest
-// is used for BlockDigest computations of BlockHeader does not include
-// explicitly the transaction data.
 #[derive(Clone, Copy, Serialize, Deserialize, Default, PartialEq, Eq, PartialOrd, Ord)]
 pub struct TransactionsCommitment([u8; starfish_config::DIGEST_LENGTH]);
 pub type MerkleProofBytes = Vec<u8>;
