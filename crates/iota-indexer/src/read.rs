@@ -1613,7 +1613,7 @@ impl IndexerReader {
         {
             let fallback_reason = format!("fallback triggered by {err}");
             kv_reader
-                .transaction_events(tx_digest, cursor, limit, descending_order)
+                .events(tx_digest, cursor, limit, descending_order)
                 .await
                 .context(&fallback_reason)
         } else {
