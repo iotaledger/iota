@@ -4,12 +4,12 @@ expression: genesis.iota_system_object().into_genesis_version_for_tooling()
 snapshot_kind: text
 ---
 epoch: 0
-protocol_version: 17
+protocol_version: 18
 system_state_version: 1
 iota_treasury_cap:
   inner:
     id:
-      id: "0xbb3de506b1e4f51822828ce47cce019a15bd8a4615abdfda21c95b4f9ba6e4e6"
+      id: "0x35c5d0a5967befdbe84c231069c7e0461fb2f40d127120821bccf1351ed3e130"
     total_supply:
       value: "751500000000000000"
 validators:
@@ -245,13 +245,13 @@ validators:
         next_epoch_primary_address: ~
         extra_fields:
           id:
-            id: "0x1cc4dbe72ebe82c490bff3a2946ef1601786bb5ffdfafbb8c9e082d3e402d092"
+            id: "0x4fec1636fe53e87a59b03d6c1edb4b8bef48b22c2824e78d8c916e1158e95d57"
           size: 0
       voting_power: 10000
-      operation_cap_id: "0x5bfaa648a263780ecb24139588ac31168f87f43a724751fd39d93bbc844c151d"
+      operation_cap_id: "0x059912351eefc2dcb58dd9722a89c544203baf75be1248df194257e22bc8d35f"
       gas_price: 1000
       staking_pool:
-        id: "0xc5b27d16104265c3c7d639f73f223e0ea6719ef6832c311f2268dda4c9d4c7f2"
+        id: "0x9b6c37056e13d67185d150b30f7f4bb052412b8dfb4756c9db5a4e4dcdf71a37"
         activation_epoch: 0
         deactivation_epoch: ~
         iota_balance: 1500000000000000
@@ -259,14 +259,14 @@ validators:
           value: 0
         pool_token_balance: 1500000000000000
         exchange_rates:
-          id: "0x4c0316f660dcfb16eb099f0ffe786b4157dab3c0fb9002effda205e9cd541460"
+          id: "0xe8483a5acea1b18a9831069c6336bab3dcd68bf8cb8562c73199a3030415f7fe"
           size: 1
         pending_stake: 0
         pending_total_iota_withdraw: 0
         pending_pool_token_withdraw: 0
         extra_fields:
           id:
-            id: "0xce3443ae6202d495eef9fc7849e3c426894fec1f984f0efa7e1428e3342134a4"
+            id: "0xb9ae20e3775a2a1e4d522d504e79a89e3e3b45c9dea0dca4342176ea489ddb33"
           size: 0
       commission_rate: 200
       next_epoch_stake: 1500000000000000
@@ -274,27 +274,27 @@ validators:
       next_epoch_commission_rate: 200
       extra_fields:
         id:
-          id: "0x43c2cf3c43ed1dc7d8b4e8ca538d5fad5a448dc06718a7ea139aa1d63e8ab45d"
+          id: "0x96679e49191e9c4239fc42e419b667907523219f3b06656708270720e487bbd9"
         size: 0
   pending_active_validators:
     contents:
-      id: "0x9f04ca26c3af9f3971ac1b9b82f7b87a4d2044f32d954ddfab1a079a5b4857c1"
+      id: "0xca5b7e2df96018bf8ab6d1ea84854a276a35b4258b87346af127e2502cf176ee"
       size: 0
   pending_removals: []
   staking_pool_mappings:
-    id: "0xd897a9de3a14b1709e0f11b8c1fa137af4c6834fbc4b90089ddc571c1b4c9dbd"
+    id: "0xcc4891f1f08f3247b246f4654bf35bb5aeff85af60b124a32ce8395a0e069941"
     size: 1
   inactive_validators:
-    id: "0xde04c9bb1b130eacdde826868bc77bb86a9b7f09afb770cb6ce61373f1d8149e"
+    id: "0x7168315d193ee7d84f7d372046d749696f3f51528c91e762a307274ffe9f08f2"
     size: 0
   validator_candidates:
-    id: "0x782cb5a1d5daf3663c4958148cc66cf7a773cbe0097578fc91cd804a0a1530bb"
+    id: "0x16a07682570921ab6af896c61d55c9e29ca25138e72a45e15fc0c6b180fde1be"
     size: 0
   at_risk_validators:
     contents: []
   extra_fields:
     id:
-      id: "0xaaf67dcd329633b280f7f0f6574ec015aa48e24deaf6183bacb656d22457ad90"
+      id: "0x3cdf818fad3fd6a41adea40ea09595f9d5e4dcb07b883a9fc084cf7fb63d9c41"
     size: 0
 storage_fund:
   total_object_storage_rebates:
@@ -311,7 +311,7 @@ parameters:
   validator_low_stake_grace_period: 7
   extra_fields:
     id:
-      id: "0x8953761a7d866dbfb97e27aa10a64f6fc61a96821be1bac42a18b2a129abf634"
+      id: "0xccab82990fe9f2d0c535e3b5aca078829afea99265f4fbf89ccbc37cc1318da3"
     size: 0
 iota_system_admin_cap:
   dummy_field: false
@@ -328,5 +328,5 @@ safe_mode_non_refundable_storage_fee: 0
 epoch_start_timestamp_ms: 10
 extra_fields:
   id:
-    id: "0xf53c7d1da4d53ebbf0dab43e2b9735046dc06c077fe53e873e06aaa81d12de85"
+    id: "0x055a743a039f79cc0054040f3ed525c252eceee291c61a44154e77cd8828b7ac"
   size: 0
