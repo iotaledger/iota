@@ -1238,7 +1238,7 @@ mod tests {
                     let shard_for_core = VerifiedOwnShard {
                         serialized_shard: Bytes::from([0u8; 32].to_vec()), /* put some dummy
                                                                             * shard data */
-                        gen_transaction_ref: gen_transaction_ref,
+                        gen_transaction_ref,
                     };
                     dag_state.write().add_shard(shard_for_core);
                 }
@@ -1261,7 +1261,7 @@ mod tests {
                 };
                 let shard_for_core = VerifiedOwnShard {
                     serialized_shard: Bytes::from([0u8; 32].to_vec()), // put some dummy shard data
-                    gen_transaction_ref: gen_transaction_ref,
+                    gen_transaction_ref,
                 };
                 dag_state.write().add_shard(shard_for_core);
             }
