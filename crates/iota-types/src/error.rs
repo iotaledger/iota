@@ -389,6 +389,11 @@ pub enum UserInputError {
         "Receiving objects {receiving_objects:?} are in the `MoveAuthenticator` input that is unsupported"
     )]
     ReceivingObjectsIsInMoveAuthenticatorInput { receiving_objects: Vec<ObjectRef> },
+
+    #[error(
+        "Authenticator input {object_id} is inconsistent with the other transaction input objects"
+    )]
+    InconsistentAuthenticatorInput { object_id: ObjectID },
 }
 
 #[derive(
