@@ -18,7 +18,7 @@ use crate::{
     benchmark::{BenchmarkParameters, BenchmarkType},
     client::Instance,
     display,
-    settings::{BinaryBuildConfig, Settings, build_cargo_command},
+    settings::{BinaryBuildConfig, Settings, build_cargo_command, join_non_empty_strings},
 };
 
 #[derive(Serialize, Deserialize, Clone, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -76,10 +76,29 @@ impl IotaProtocol {
     /// Build the command to run a binary, either using precompiled binary or
     /// cargo run. Returns the command string with proper toolchain and
     /// features configured.
-    fn run_binary_command(&self, binary_name: &str) -> String {
+    fn run_binary_command<S1: AsRef<str>, S2: AsRef<str>>(
+        &self,
+        binary_name: &str,
+        setup_commands: &[S1],
+        additional_args: &[S2],
+    ) -> String {
         if self.use_precompiled_binaries {
             // The precompiled binary is located in the working directory
-            format!("./target/release/{binary_name}")
+            let binary_path = format!("./target/release/{binary_name}");
+            let binary_command = join_non_empty_strings(
+                &std::iter::once(binary_path.as_str())
+                    .chain(additional_args.iter().map(|s| s.as_ref()))
+                    .collect::<Vec<_>>(),
+                " ",
+            );
+
+            let all_commands: Vec<String> = setup_commands
+                .iter()
+                .map(|s| s.as_ref().to_string())
+                .chain(std::iter::once(binary_command))
+                .collect();
+
+            join_non_empty_strings(&all_commands, " && ")
         } else {
             let build_config = self
                 .build_configs
@@ -90,6 +109,8 @@ impl IotaProtocol {
                 build_config.toolchain.clone(),
                 build_config.features.clone(),
                 &[binary_name],
+                setup_commands,
+                additional_args,
             )
         }
     }
@@ -143,26 +164,20 @@ impl ProtocolCommands<IotaBenchmarkType> for IotaProtocol {
             .map(|timestamp_ms| format!("--chain-start-timestamp-ms {timestamp_ms}"))
             .unwrap_or_default();
 
-        let iota_command = self.run_binary_command("iota");
+        let iota_command = self.run_binary_command(
+            "iota",
+            &[&format!("mkdir -p {working_dir}")],
+            &[
+                "genesis",
+                &format!("-f --working-dir {working_dir} --benchmark-ips {ips}"),
+                &epoch_duration_flag,
+                &chain_start_timestamp_flag,
+            ],
+        );
 
-        let genesis = [
-            iota_command.as_str(),
-            "genesis",
-            &format!("-f --working-dir {working_dir} --benchmark-ips {ips}"),
-            &epoch_duration_flag,
-            &chain_start_timestamp_flag,
-        ]
-        .into_iter()
-        .filter(|s| !s.is_empty())
-        .collect::<Vec<_>>()
-        .join(" ");
+        display::action(format!("\n Genesis Command: {iota_command}"));
 
-        let mkdir_cmd = format!("mkdir -p {working_dir}");
-        let command = [mkdir_cmd.as_str(), genesis.as_str()].join(" && ");
-
-        display::action(format!("\n Genesis Command: {command}"));
-
-        command
+        iota_command
     }
 
     fn monitor_command<I>(&self, _instances: I) -> Vec<(Instance, String)>
@@ -200,31 +215,25 @@ impl ProtocolCommands<IotaBenchmarkType> for IotaProtocol {
                     iota_config::validator_config_file(network_address.clone(), i);
                 let config_path: PathBuf = working_dir.join(validator_config);
 
-                let iota_node_command = self.run_binary_command("iota-node");
-
-                let run = [
-                    iota_node_command.as_str(),
-                    &format!(
-                        "--config-path {} --listen-address {}",
-                        config_path.display(),
-                        network_address.with_zero_ip()
-                    ),
-                ]
-                .join(" ");
-
-                let command = [
-                    if parameters.protocol_switch_each_epoch {
+                let iota_node_command = self.run_binary_command(
+                    "iota-node",
+                    &[if parameters.protocol_switch_each_epoch {
                         "export CONSENSUS_PROTOCOL=swap_each_epoch"
                     } else {
                         "export CONSENSUS_PROTOCOL=starfish"
-                    },
-                    &run,
-                ]
-                .join(" && ");
+                    }],
+                    &[&format!(
+                        "--config-path {} --listen-address {}",
+                        config_path.display(),
+                        network_address.with_zero_ip()
+                    )],
+                );
 
-                display::action(format!("\n Validator-node Command ({i}): {command}"));
+                display::action(format!(
+                    "\n Validator-node Command ({i}): {iota_node_command}"
+                ));
 
-                (instance, command)
+                (instance, iota_node_command)
             })
             .collect()
     }
@@ -249,31 +258,23 @@ impl ProtocolCommands<IotaBenchmarkType> for IotaProtocol {
                     false => &instance.main_ip,
                 };
 
-                // Overwrite listen address and external address with 0.0.0.0 and actual fullnode IP.
-                // Escape quotes for proper handling inside tmux wrapper
-                let update_p2p_config = format!(
-                    "sed -i 's|listen-address: \\\"127.0.0.1:|listen-address: \\\"0.0.0.0:|' {0} && sed -i 's|external-address: /ip4/127.0.0.1/|external-address: /ip4/{1}/|' {0}",
-                    config_path.display(),
-                    fullnode_ip
+                let iota_node_command = self.run_binary_command(
+                    "iota-node",
+                    &[
+                        // Overwrite listen address and external address with 0.0.0.0 and actual fullnode IP.
+                        // Escape quotes for proper handling inside tmux wrapper
+                        &format!(
+                            "sed -i 's|listen-address: \\\"127.0.0.1:|listen-address: \\\"0.0.0.0:|' {0} && sed -i 's|external-address: /ip4/127.0.0.1/|external-address: /ip4/{1}/|' {0}",
+                            config_path.display(),
+                            fullnode_ip
+                        )
+                    ],
+                    &[&format!("--config-path {}", config_path.display())],
                 );
 
-                let iota_node_command = self.run_binary_command("iota-node");
+                display::action(format!("\n Full-node Command ({i}): {iota_node_command}"));
 
-                let run = [
-                    iota_node_command.as_str(),
-                    &format!("--config-path {}", config_path.display(),),
-                ]
-                .join(" ");
-
-                let command = [
-                    update_p2p_config.as_str(),
-                    run.as_str(),
-                ]
-                .join(" && ");
-
-                display::action(format!("\n Full-node Command ({i}): {command}"));
-
-                (instance, command)
+                (instance, iota_node_command)
             })
             .collect()
     }
@@ -311,45 +312,41 @@ impl ProtocolCommands<IotaBenchmarkType> for IotaProtocol {
             .into_iter()
             .enumerate()
             .map(|(i, instance)| {
-                let genesis = genesis_path.display();
-                let keystore = keystore_path.display();
+                let genesis = genesis_path.display().to_string();
+                let keystore = keystore_path.display().to_string();
                 let gas_key = &gas_keys[i % committee_size];
                 let gas_address = IotaAddress::from(&gas_key.public());
 
-                let stress_command = self.run_binary_command("stress");
-
-                let mut run = [
-                    stress_command.as_str(),
-                    "--num-client-threads 24 --num-server-threads 1",
-                    "--local false --num-transfer-accounts 2",
-                    &format!("--genesis-blob-path {genesis} --keystore-path {keystore}",),
-                    &format!("--primary-gas-owner-id {gas_address}"),
-                    "bench",
-                    &format!("--in-flight-ratio 30 --num-workers 24 --target-qps {load_share}"),
-                    &format!(
+                let mut stress_args: Vec<String> = vec![
+                    "--num-client-threads 24 --num-server-threads 1".to_string(),
+                    "--local false --num-transfer-accounts 2".to_string(),
+                    format!("--genesis-blob-path {genesis} --keystore-path {keystore}"),
+                    format!("--primary-gas-owner-id {gas_address}"),
+                    "bench".to_string(),
+                    format!("--in-flight-ratio 30 --num-workers 24 --target-qps {load_share}"),
+                    format!(
                         "--shared-counter {shared_counter} --transfer-object {transfer_objects}"
                     ),
-                    "--shared-counter-hotness-factor 50",
-                    &format!("--client-metric-host 0.0.0.0 --client-metric-port {metrics_port}"),
-                ]
-                .join(" ");
+                    "--shared-counter-hotness-factor 50".to_string(),
+                    format!("--client-metric-host 0.0.0.0 --client-metric-port {metrics_port}"),
+                ];
 
                 if self.use_fullnode_for_execution {
-                    run.push_str(" --use-fullnode-for-execution true");
-                    run.push_str(" --fullnode-rpc-addresses http://127.0.0.1:9000");
+                    stress_args.push("--use-fullnode-for-execution true".to_string());
+                    stress_args.push("--fullnode-rpc-addresses http://127.0.0.1:9000".to_string());
                 }
 
-                let command = [
+                let stress_command = self.run_binary_command(
+                    "stress",
                     // required for stress binary, otherwise it will use the CARGO_MANIFEST_DIR,
                     // which is set during compilation time
-                    "export MOVE_EXAMPLES_DIR=$(pwd)/examples/move",
-                    &run,
-                ]
-                .join(" && ");
+                    &["export MOVE_EXAMPLES_DIR=$(pwd)/examples/move"],
+                    &stress_args,
+                );
 
-                display::action(format!("\n Stress Command ({i}): {command}"));
+                display::action(format!("\n Stress Command ({i}): {stress_command}"));
 
-                (instance, command)
+                (instance, stress_command)
             })
             .collect()
     }

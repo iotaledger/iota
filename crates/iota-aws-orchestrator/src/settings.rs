@@ -16,51 +16,74 @@ use serde::{Deserialize, Deserializer, de::Error};
 
 use crate::error::{SettingsError, SettingsResult};
 
-pub fn build_cargo_command(
+/// Helper function to filter out empty strings and join them with a separator.
+pub(crate) fn join_non_empty_strings<S: AsRef<str>>(items: &[S], separator: &str) -> String {
+    items
+        .iter()
+        .map(|s| s.as_ref())
+        .filter(|f| !f.is_empty())
+        .collect::<Vec<_>>()
+        .join(separator)
+}
+
+pub fn build_cargo_command<S1: AsRef<str>, S2: AsRef<str>, S3: AsRef<str>>(
     subcommand: &str,
     toolchain: Option<String>,
     features: Vec<String>,
-    binaries: &[&str],
+    binaries: &[S1],
+    setup_commands: &[S2],
+    additional_args: &[S3],
 ) -> String {
     let toolchain_arg = toolchain
         .as_ref()
         .map(|t| format!("+{t}"))
         .unwrap_or_default();
+
     let target_dir_arg = toolchain
-        .map(|t| format!(" --target-dir target_{t}"))
+        .map(|t| format!("--target-dir target_{t}"))
         .unwrap_or_default();
+
     let features_arg = if features.is_empty() {
         "".to_string()
     } else {
-        format!(" --features \"{}\"", features.join(" "))
+        format!("--features \"{}\"", features.join(" "))
     };
-    let binaries_args = binaries
+
+    let binaries_args: Vec<String> = binaries
         .iter()
-        .map(|name| format!("--bin {}", name))
-        .collect::<Vec<_>>()
-        .join(" ");
+        .map(|name| format!("--bin {}", name.as_ref()))
+        .collect();
+    let binaries_args = join_non_empty_strings(&binaries_args, " ");
 
-    let cargo_command = vec![
-        "cargo",
-        &toolchain_arg,
-        subcommand,
-        &target_dir_arg,
-        "--release",
-        &binaries_args,
-        &features_arg,
-        "--",
-    ]
-    .into_iter()
-    .filter(|f| !f.is_empty())
-    .collect::<Vec<_>>()
-    .join(" ");
+    let additional_args_str = join_non_empty_strings(additional_args, " ");
 
-    [
+    let cargo_command = join_non_empty_strings(
+        &[
+            "cargo",
+            &toolchain_arg,
+            subcommand,
+            &target_dir_arg,
+            "--release",
+            &binaries_args,
+            &features_arg,
+            "--",
+            &additional_args_str,
+        ],
+        " ",
+    );
+
+    let default_setup = [
         "source \"$HOME/.cargo/env\"",
         "export RUSTFLAGS='-C target-cpu=native'",
-        &cargo_command,
-    ]
-    .join(" && ")
+    ];
+
+    let all_commands: Vec<String> = default_setup
+        .iter()
+        .map(|s| s.to_string())
+        .chain(setup_commands.iter().map(|s| s.as_ref().to_string()))
+        .chain(std::iter::once(cargo_command))
+        .collect();
+    join_non_empty_strings(&all_commands, " && ")
 }
 
 /// The git repository holding the codebase.

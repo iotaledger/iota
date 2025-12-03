@@ -397,12 +397,13 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
         // Build each group separately
         for (i, (group, binary_names)) in build_groups.iter().enumerate() {
             // Build arguments
-            let binary_names_refs: Vec<&str> = binary_names.iter().map(|s| s.as_str()).collect();
             let build_command = build_cargo_command(
                 "build",
                 group.toolchain.clone(),
                 group.features.clone(),
-                &binary_names_refs,
+                binary_names,
+                &[] as &[&str],
+                &[] as &[&str],
             );
 
             // print the full command for logging
