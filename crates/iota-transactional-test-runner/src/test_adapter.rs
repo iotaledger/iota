@@ -54,7 +54,10 @@ use iota_types::{
         CheckpointContents, CheckpointContentsDigest, CheckpointSequenceNumber, VerifiedCheckpoint,
     },
     move_authenticator::MoveAuthenticator,
-    move_package::{FnInfoMap, MovePackage, create_fn_info_map, fill_module_with_metadata},
+    move_package::{
+        FnInfo, FnInfoKey, FnInfoMap, IotaAttribute, MovePackage, RuntimeModuleMetadata,
+        RuntimeModuleMetadataWrapper, get_authenticator_version_from_fun,
+    },
     object::{self, GAS_VALUE_FOR_TESTING, Object, bounded_visitor::BoundedVisitor},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     signature::GenericSignature,
@@ -68,7 +71,7 @@ use iota_types::{
         to_sender_signed_transaction_with_optional_sponsor,
     },
 };
-use move_binary_format::CompiledModule;
+use move_binary_format::{CompiledModule, file_format_common::IOTA_METADATA_KEY};
 use move_bytecode_utils::module_cache::GetModule;
 use move_command_line_common::files::verify_and_create_named_address_mapping;
 use move_compiler::{
@@ -81,6 +84,7 @@ use move_core_types::{
     ident_str,
     identifier::IdentStr,
     language_storage::{ModuleId, TypeTag},
+    metadata::Metadata,
     parsing::{address::ParsedAddress, values::ParsedValue},
 };
 use move_symbol_pool::Symbol;
@@ -2684,16 +2688,44 @@ fn fn_info_map(modules: &[MaybeNamedCompiledModule]) -> FnInfoMap {
     for m in modules {
         let mod_addr: AccountAddress = *m.module.self_id().address();
         if let Some(fn_info) = &m.function_infos {
-            fn_info_map.extend(create_fn_info_map(mod_addr, false, &fn_info));
+            for (_, name, info) in fn_info.iter() {
+                let fn_name = name.as_str().to_string();
+                let is_test = info.attributes.is_test_or_test_only();
+                let authenticator_version = info.attributes.get_authenticator();
+                fn_info_map.insert(
+                    FnInfoKey { fn_name, mod_addr },
+                    FnInfo {
+                        is_test,
+                        authenticator_version,
+                    },
+                );
+            }
         }
     }
-
     fn_info_map
 }
 
 /// Fill the compiled modules with metadata based on the function info map
 fn fill_metadata(modules: &mut [MaybeNamedCompiledModule], fn_info_map: &FnInfoMap) {
     for m in modules.iter_mut() {
-        fill_module_with_metadata(&mut m.module, fn_info_map);
+        let module: &mut CompiledModule = &mut m.module;
+        let mut runtime_metadata = RuntimeModuleMetadata::default();
+        for fn_def in &module.function_defs {
+            let fn_handle = module.function_handle_at(fn_def.function);
+            let fn_name = module.identifier_at(fn_handle.name);
+            if let Some(version) = get_authenticator_version_from_fun(fn_name, module, fn_info_map)
+            {
+                runtime_metadata.add_function_attribute(
+                    fn_name.to_string(),
+                    IotaAttribute::authenticator_attribute(version),
+                );
+            }
+        }
+        if !runtime_metadata.is_empty() {
+            module.metadata.push(Metadata {
+                key: IOTA_METADATA_KEY.to_vec(),
+                value: RuntimeModuleMetadataWrapper::from(runtime_metadata).to_bcs_bytes(),
+            });
+        }
     }
 }

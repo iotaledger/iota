@@ -22,11 +22,15 @@ use iota_types::{
     base_types::ObjectID,
     error::{IotaError, IotaResult},
     is_system_package,
-    move_package::{FnInfoMap, MovePackage, create_fn_info_map, fill_module_with_metadata},
+    move_package::{
+        FnInfo, FnInfoKey, FnInfoMap, IotaAttribute, MovePackage, RuntimeModuleMetadata,
+        RuntimeModuleMetadataWrapper, get_authenticator_version_from_fun,
+    },
 };
 use iota_verifier::verifier as iota_bytecode_verifier;
 use move_binary_format::{
     CompiledModule,
+    file_format_common::IOTA_METADATA_KEY,
     normalized::{self, Type},
 };
 use move_bytecode_utils::{Modules, layout::SerdeLayoutBuilder, module_cache::GetModule};
@@ -155,9 +159,19 @@ impl BuildConfig {
         for u in units {
             let mod_addr = u.named_module.address.into_inner();
             let mod_is_test = u.attributes.is_test_or_test_only();
-            fn_info_map.extend(create_fn_info_map(mod_addr, mod_is_test, &u.function_infos));
+            for (_, s, info) in &u.function_infos {
+                let fn_name = s.as_str().to_string();
+                let is_test = mod_is_test || info.attributes.is_test_or_test_only();
+                let authenticator_version = info.attributes.get_authenticator();
+                fn_info_map.insert(
+                    FnInfoKey { fn_name, mod_addr },
+                    FnInfo {
+                        is_test,
+                        authenticator_version,
+                    },
+                );
+            }
         }
-
         fn_info_map
     }
 
@@ -351,7 +365,24 @@ fn fill_metadata(package: &mut MoveCompiledPackage, fn_info_map: &FnInfoMap) -> 
         .iter_mut()
         .map(|unit| &mut unit.unit.module)
     {
-        fill_module_with_metadata(module, fn_info_map);
+        let mut runtime_metadata = RuntimeModuleMetadata::default();
+        for fn_def in &module.function_defs {
+            let fn_handle = module.function_handle_at(fn_def.function);
+            let fn_name = module.identifier_at(fn_handle.name);
+            if let Some(version) = get_authenticator_version_from_fun(fn_name, module, fn_info_map)
+            {
+                runtime_metadata.add_function_attribute(
+                    fn_name.to_string(),
+                    IotaAttribute::authenticator_attribute(version),
+                );
+            };
+        }
+        if !runtime_metadata.is_empty() {
+            module.metadata.push(move_core_types::metadata::Metadata {
+                key: IOTA_METADATA_KEY.to_vec(),
+                value: RuntimeModuleMetadataWrapper::from(runtime_metadata).to_bcs_bytes(),
+            });
+        }
     }
     Ok(())
 }

@@ -42,20 +42,14 @@ use derive_more::Display;
 use fastcrypto::hash::HashFunction;
 use iota_protocol_config::ProtocolConfig;
 use move_binary_format::{
-    binary_config::BinaryConfig,
-    file_format::CompiledModule,
-    file_format_common::{IOTA_METADATA_KEY, VERSION_6},
+    binary_config::BinaryConfig, file_format::CompiledModule, file_format_common::VERSION_6,
     normalized,
-};
-use move_compiler::{
-    compiled_unit::FunctionInfo, parser::ast::FunctionName, shared::unique_map::UniqueMap,
 };
 use move_core_types::{
     account_address::AccountAddress,
     ident_str,
     identifier::{IdentStr, Identifier},
     language_storage::{ModuleId, StructTag},
-    metadata::Metadata,
 };
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -103,56 +97,6 @@ pub struct FnInfoKey {
 
 /// A map from function info keys to function info
 pub type FnInfoMap = BTreeMap<FnInfoKey, FnInfo>;
-
-/// Create a function info map from function infos
-/// functions infos contain information about functions and their attributes in
-/// a module
-pub fn create_fn_info_map(
-    mod_addr: AccountAddress,
-    mod_is_test: bool,
-    fn_infos: &UniqueMap<FunctionName, FunctionInfo>,
-) -> FnInfoMap {
-    let mut fn_info_map: FnInfoMap = BTreeMap::new();
-
-    for (_, name, info) in fn_infos.iter() {
-        let fn_name = name.as_str().to_string();
-        let is_test = mod_is_test || info.attributes.is_test_or_test_only();
-        let authenticator_version = info.attributes.get_authenticator();
-
-        fn_info_map.insert(
-            FnInfoKey { fn_name, mod_addr },
-            FnInfo {
-                is_test,
-                authenticator_version,
-            },
-        );
-    }
-    fn_info_map
-}
-
-/// Fill runtime metadata for a single compiled module.
-pub fn fill_module_with_metadata(module: &mut CompiledModule, fn_info_map: &FnInfoMap) {
-    let mut runtime_metadata = RuntimeModuleMetadata::default();
-
-    for fn_def in &module.function_defs {
-        let fn_handle = module.function_handle_at(fn_def.function);
-        let fn_name = module.identifier_at(fn_handle.name);
-
-        if let Some(version) = get_authenticator_version_from_fun(fn_name, module, fn_info_map) {
-            runtime_metadata.add_function_attribute(
-                fn_name.to_string(),
-                IotaAttribute::authenticator_attribute(version),
-            );
-        }
-    }
-
-    if !runtime_metadata.is_empty() {
-        module.metadata.push(Metadata {
-            key: IOTA_METADATA_KEY.to_vec(),
-            value: RuntimeModuleMetadataWrapper::from(runtime_metadata).to_bcs_bytes(),
-        });
-    }
-}
 
 /// Store the origin of a data type where it first appeared in the version
 /// chain.
