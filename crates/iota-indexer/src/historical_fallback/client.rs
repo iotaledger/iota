@@ -1,6 +1,8 @@
 // Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+//! Module containing the client for interacting with the REST API KV server.
+
 use std::str::FromStr;
 
 use bytes::Bytes;
@@ -26,7 +28,6 @@ use tracing::{error, info, instrument, trace, warn};
 
 use crate::errors::IndexerResult;
 
-#[expect(dead_code)]
 pub(crate) trait KeyValueStoreClient {
     async fn multi_get_transactions(
         &self,
@@ -75,7 +76,6 @@ pub(crate) struct HttpRestKVClient {
 }
 
 impl HttpRestKVClient {
-    #[expect(dead_code)]
     pub fn new(base_url: &str) -> IndexerResult<Self> {
         info!("creating HttpRestKVClient with base_url: {}", base_url);
 
@@ -98,7 +98,6 @@ impl HttpRestKVClient {
         Ok(Url::from_str(joined.as_str())?)
     }
 
-    #[expect(dead_code)]
     async fn multi_fetch(&self, uris: Vec<Key>) -> Vec<IndexerResult<Option<Bytes>>> {
         let len = uris.len();
         let fetches = stream::iter(uris.into_iter().map(|url| self.fetch(url)));
@@ -138,7 +137,6 @@ where
         .ok()
 }
 
-#[expect(dead_code)]
 fn map_fetch<'a, K>(fetch: (&'a IndexerResult<Option<Bytes>>, &'a K)) -> Option<(&'a Bytes, &'a K)>
 where
     K: std::fmt::Debug,
@@ -154,7 +152,6 @@ where
     }
 }
 
-#[expect(dead_code)]
 fn deser_check_digest<T, D>(
     digest: &D,
     bytes: &Bytes,
