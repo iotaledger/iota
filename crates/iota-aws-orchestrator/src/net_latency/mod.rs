@@ -45,31 +45,26 @@ pub struct NetworkLatencyCommandBuilder<'a> {
 }
 
 pub fn latency_command(latency_vector: &Vec<(&Instance, u16)>) -> String {
-    let iface = "ens5"; // adjust if needed
-
     // Clean existing rules
-    let mut cmd = format!("sudo tc qdisc del dev {iface} root 2>/dev/null || true && ");
-    cmd.push_str(&format!(
-        "sudo tc qdisc add dev {iface} root handle 1: htb default 1 && "
-    ));
+    let mut cmd = "export IFACE=$(ip -j route get 172 | jq -r '.[0].dev') && ".to_string();
+    cmd.push_str("sudo tc qdisc del dev $IFACE root 2>/dev/null || true && ");
+    cmd.push_str("sudo tc qdisc add dev $IFACE root handle 1: htb default 1 && ");
     // Root prio qdisc
-    cmd.push_str(&format!(
-        "sudo tc class add dev {iface} parent 1: classid 1:1 htb rate 1gbit && "
-    ));
+    cmd.push_str("sudo tc class add dev $IFACE parent 1: classid 1:1 htb rate 1gbit && ");
 
     // Add one netem band per IP
     for (i, (instance, latency)) in latency_vector.iter().enumerate() {
         let ip = instance.private_ip;
         let handle = i + 10; // avoid conflict with default bands
         cmd.push_str(&format!(
-            "sudo tc class add dev {iface} parent 1:1 classid 1:{handle} htb rate 1gbit && "
+            "sudo tc class add dev $IFACE parent 1:1 classid 1:{handle} htb rate 1gbit && "
         ));
         cmd.push_str(&format!(
-            "sudo tc qdisc add dev {iface} parent 1:{handle} handle {handle}: netem delay {latency}ms && "
+            "sudo tc qdisc add dev $IFACE parent 1:{handle} handle {handle}: netem delay {latency}ms && "
         ));
         // Add filters that map MARKs to the prio bands
         cmd.push_str(&format!(
-            "sudo tc filter add dev {iface} protocol ip parent 1: prio 1 u32 match ip dst {ip}/32 flowid 1:{handle} && "
+            "sudo tc filter add dev $IFACE protocol ip parent 1: prio 1 u32 match ip dst {ip}/32 flowid 1:{handle} && "
         ));
     }
 

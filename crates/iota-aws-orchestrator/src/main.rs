@@ -12,6 +12,7 @@ use faults::FaultsType;
 use measurement::MeasurementsCollection;
 use orchestrator::Orchestrator;
 use protocol::iota::{IotaBenchmarkType, IotaProtocol};
+use serde::{Deserialize, Serialize};
 use settings::{CloudProvider, Settings};
 use ssh::SshConnectionManager;
 use testbed::Testbed;
@@ -165,12 +166,16 @@ pub enum Operation {
 
         /// Switch protocols between mysticeti and starfish every epoch,
         /// default: false, aka use starfish in every epoch.
-        #[clap(long, action, default_value_t = false, global = true)]
-        protocol_switch_each_epoch: bool,
+        #[arg(long, default_value = "starfish", global = true)]
+        consensus_protocol: ConsensusProtocol,
 
         /// Optional: Epoch duration in milliseconds, default is 1h
         #[arg(long, value_name = "INT", global = true)]
         epoch_duration_ms: Option<u64>,
+
+        /// Maximum pipeline delay
+        #[arg(long, value_name = "INT", default_value = "400", global = true)]
+        max_pipeline_delay: u32,
 
         /// Number of blocking connections in the blocking
         /// latency_perturbation_spec
@@ -215,6 +220,11 @@ pub enum TestbedAction {
         /// Note: stop and start commands are not available for spot instances
         #[arg(long, action, default_value = "false", global = true)]
         use_spot_instances: bool,
+
+        /// Id tag added to each deployment, used for cost tracking, should be
+        /// unique for each test run deployment.
+        #[arg(long)]
+        id: String,
     },
 
     /// Start at most the specified number of instances per region on an
@@ -294,6 +304,13 @@ pub enum LatencyTopology {
     Mainnet,
 }
 
+#[derive(ValueEnum, Clone, Debug, Deserialize, Serialize)]
+pub enum ConsensusProtocol {
+    Starfish,
+    Mysticeti,
+    SwapEachEpoch,
+}
+
 fn parse_duration(arg: &str) -> Result<Duration, std::num::ParseIntError> {
     let seconds = arg.parse()?;
     Ok(Duration::from_secs(seconds))
@@ -335,12 +352,14 @@ async fn run<C: ServerProviderClient>(settings: Settings, client: C, opts: Opts)
                 dedicated_clients,
                 skip_monitoring,
                 use_spot_instances,
+                id,
             } => testbed
                 .deploy(
                     instances,
                     skip_monitoring,
                     dedicated_clients,
                     use_spot_instances,
+                    id,
                 )
                 .await
                 .wrap_err("Failed to deploy testbed")?,
@@ -391,11 +410,12 @@ async fn run<C: ServerProviderClient>(settings: Settings, client: C, opts: Opts)
             added_latency,
             number_of_triangles,
             number_of_clusters,
-            protocol_switch_each_epoch,
+            consensus_protocol,
             maximum_latency,
             epoch_duration_ms,
             blocking_connections,
             use_current_timestamp_for_genesis,
+            max_pipeline_delay,
         } => {
             // Create a new orchestrator to instruct the testbed.
             let username = testbed.username();
@@ -472,9 +492,10 @@ async fn run<C: ServerProviderClient>(settings: Settings, client: C, opts: Opts)
                     .with_custom_duration(duration)
                     .with_perturbation_spec(perturbation_spec)
                     .with_latency_topology(latency_topology)
-                    .with_protocol_switch_each_epoch(protocol_switch_each_epoch)
+                    .with_consensus_protocol(consensus_protocol)
                     .with_max_latency(maximum_latency)
                     .with_epoch_duration(epoch_duration_ms)
+                    .with_max_pipeline_delay(max_pipeline_delay)
                     .with_current_timestamp_for_genesis(use_current_timestamp_for_genesis)
                     .with_faults(fault_type);
 

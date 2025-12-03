@@ -80,7 +80,7 @@ if [[ "$WITH_TMUX_RESTART" -eq 1 ]]; then
     #  3) Kill tmux session "node"
     #  4) Run the user command
     #  5) Start a new tmux session "node" with the previous command
-    REMOTE_EFFECTIVE_COMMAND='set -x;PID=$(tmux display-message -p -t node:0.0 "#{pane_pid}") && CMD=$(ps -p "$PID" -o cmd= | cut -d " " -f6-) && tmux kill-session -t node && '"$REMOTE_COMMAND"' && tmux new -d -s node bash -lc "cd iota && $CMD"'
+    REMOTE_EFFECTIVE_COMMAND='set -x;PID=$(tmux display-message -p -t node:0.0 "#{pane_pid}") && CMD=$(ps -p "$PID" -o cmd= | cut -d " " -f6-) && tmux send-keys -t node:0.0 C-c  && sleep 30 && '"$REMOTE_COMMAND"' && tmux new -d -s node bash -lc "cd iota && $CMD"'
 else
     REMOTE_EFFECTIVE_COMMAND="$REMOTE_COMMAND"
 fi
@@ -95,8 +95,7 @@ SSH_COMMANDS=$(
     echo "$ORCHESTRATOR_OUTPUT" \
     | grep "\[Node" \
     | grep -o "ssh -i [^ ]* [^ ]*@[0-9\.]*" \
-    | sed 's/^ssh /ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=\/dev\/null /' \
-    | sort -u
+    | sed 's/^ssh /ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=\/dev\/null /'
 )
 
 # Total machines before limiting

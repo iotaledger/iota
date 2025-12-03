@@ -12,6 +12,7 @@ use std::{
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 
 use crate::{
+    ConsensusProtocol,
     faults::FaultsType,
     measurement::MeasurementsCollection,
     net_latency::{PerturbationSpec, TopologyLayout},
@@ -61,10 +62,12 @@ pub struct BenchmarkParameters<T> {
     pub maximum_latency: u16,
     /// Specification of Perturbation imposed on the private network latencies.
     pub perturbation_spec: PerturbationSpec,
-    /// Flag used to switch between mysticety and starfish every epoch.
-    pub protocol_switch_each_epoch: bool,
+    /// Consensus Protocol used.
+    pub consensus_protocol: ConsensusProtocol,
     /// Optional: Epoch duration in milliseconds, default is 1h
     pub epoch_duration_ms: Option<u64>,
+    /// Max pipeline delay used only by starfish
+    pub max_pipeline_delay: u32,
     /// Computed chain start timestamp (computed once in next() if
     /// use_current_timestamp_for_genesis is true)
     pub chain_start_timestamp_ms: Option<u64>,
@@ -81,9 +84,10 @@ impl<T: BenchmarkType> Default for BenchmarkParameters<T> {
             use_internal_ip_address: true,
             latency_topology: Some(TopologyLayout::Mainnet),
             perturbation_spec: PerturbationSpec::None,
-            protocol_switch_each_epoch: false,
+            consensus_protocol: ConsensusProtocol::Starfish,
             maximum_latency: 400,
             epoch_duration_ms: None,
+            max_pipeline_delay: 400,
             chain_start_timestamp_ms: None,
         }
     }
@@ -129,9 +133,10 @@ impl<T> BenchmarkParameters<T> {
         use_internal_ip_address: bool,
         latency_topology: Option<TopologyLayout>,
         perturbation_spec: PerturbationSpec,
-        protocol_switch_each_epoch: bool,
         maximum_latency: u16,
         epoch_duration_ms: Option<u64>,
+        consensus_protocol: ConsensusProtocol,
+        max_pipeline_delay: u32,
         chain_start_timestamp_ms: Option<u64>,
     ) -> Self {
         Self {
@@ -143,9 +148,10 @@ impl<T> BenchmarkParameters<T> {
             use_internal_ip_address,
             latency_topology,
             perturbation_spec,
-            protocol_switch_each_epoch,
+            consensus_protocol,
             maximum_latency,
             epoch_duration_ms,
+            max_pipeline_delay,
             chain_start_timestamp_ms,
         }
     }
@@ -198,10 +204,12 @@ pub struct BenchmarkParametersGenerator<T> {
     pub maximum_latency: u16,
     /// Specification of Perturbation imposed on the private network latencies.
     pub perturbation_spec: PerturbationSpec,
-    /// Flag used to switch between mysticety and starfish every epoch.
-    pub protocol_switch_each_epoch: bool,
+    /// Consensus Protocol used.
+    pub consensus_protocol: ConsensusProtocol,
     /// Optional: Epoch duration in milliseconds, default is 1h
     epoch_duration_ms: Option<u64>,
+    /// Maximum pipeline delay.
+    pub max_pipeline_delay: u32,
     /// Use current system time as genesis chain start timestamp instead of 0
     use_current_timestamp_for_genesis: bool,
 }
@@ -232,9 +240,10 @@ impl<T: BenchmarkType> Iterator for BenchmarkParametersGenerator<T> {
                 self.use_internal_ip_address,
                 self.latency_topology.clone(),
                 self.perturbation_spec.clone(),
-                self.protocol_switch_each_epoch,
                 self.maximum_latency,
                 self.epoch_duration_ms,
+                self.consensus_protocol.clone(),
+                self.max_pipeline_delay,
                 chain_start_timestamp_ms,
             )
         })
@@ -270,10 +279,11 @@ impl<T: BenchmarkType> BenchmarkParametersGenerator<T> {
             use_internal_ip_address,
             perturbation_spec: PerturbationSpec::None,
             latency_topology: Some(TopologyLayout::Mainnet),
-            protocol_switch_each_epoch: false,
+            consensus_protocol: ConsensusProtocol::Starfish,
             maximum_latency: 400,
             epoch_duration_ms: None,
             use_current_timestamp_for_genesis: false,
+            max_pipeline_delay: 400,
         }
     }
 
@@ -305,8 +315,8 @@ impl<T: BenchmarkType> BenchmarkParametersGenerator<T> {
         self
     }
 
-    pub fn with_protocol_switch_each_epoch(mut self, protocol_switch_each_epoch: bool) -> Self {
-        self.protocol_switch_each_epoch = protocol_switch_each_epoch;
+    pub fn with_consensus_protocol(mut self, consensus_protocol: ConsensusProtocol) -> Self {
+        self.consensus_protocol = consensus_protocol;
         self
     }
 
@@ -317,6 +327,11 @@ impl<T: BenchmarkType> BenchmarkParametersGenerator<T> {
 
     pub fn with_epoch_duration(mut self, epoch_duration_ms: Option<u64>) -> Self {
         self.epoch_duration_ms = epoch_duration_ms;
+        self
+    }
+
+    pub fn with_max_pipeline_delay(mut self, max_pipeline_delay: u32) -> Self {
+        self.max_pipeline_delay = max_pipeline_delay;
         self
     }
 

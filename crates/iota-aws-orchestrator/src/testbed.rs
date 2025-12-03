@@ -116,10 +116,11 @@ impl<C: ServerProviderClient> Testbed<C> {
                 let private_key_file = self.settings.ssh_private_key_file.display();
                 let username = C::USERNAME;
                 let ip = instance.main_ip;
+                let private_ip = instance.private_ip;
                 let role = instance.role.to_string();
                 let lifecycle = instance.lifecycle.to_string();
                 let connect = format!(
-                    "[{role:<7}] [{lifecycle:<8}] ssh -i {private_key_file} {username}@{ip}"
+                    "[{role:<7}] [{lifecycle:<8}] [{private_ip:<15}] ssh -i {private_key_file} {username}@{ip}"
                 );
                 if !instance.is_terminated() {
                     if instance.is_active() {
@@ -153,6 +154,7 @@ impl<C: ServerProviderClient> Testbed<C> {
         skip_monitoring: bool,
         dedicated_clients: usize,
         use_spot_instances: bool,
+        id: String,
     ) -> TestbedResult<()> {
         display::action(format!("Deploying instances ({quantity} per region)"));
 
@@ -167,7 +169,7 @@ impl<C: ServerProviderClient> Testbed<C> {
                 .clone();
             let metrics_instance = self
                 .client
-                .create_instance(metrics_region, InstanceRole::Metrics, 1, false)
+                .create_instance(metrics_region, InstanceRole::Metrics, 1, false, id.clone())
                 .await?;
             instances.extend(metrics_instance);
         }
@@ -180,6 +182,7 @@ impl<C: ServerProviderClient> Testbed<C> {
                     InstanceRole::Node,
                     quantity,
                     use_spot_instances,
+                    id.clone(),
                 )
             });
 
@@ -202,6 +205,7 @@ impl<C: ServerProviderClient> Testbed<C> {
                         InstanceRole::Client,
                         instance_quantity,
                         false,
+                        id.clone(),
                     )
                 });
 
@@ -246,12 +250,39 @@ impl<C: ServerProviderClient> Testbed<C> {
 
     /// Destroy all instances of the testbed.
     pub async fn destroy(&mut self, keep_monitoring: bool) -> TestbedResult<()> {
-        display::action("Destroying testbed");
         let instances_to_destroy = self
             .instances()
             .into_iter()
             .filter(|i| !(keep_monitoring && i.role == InstanceRole::Metrics))
             .collect::<Vec<_>>();
+        let mut number_of_nodes_to_destroy = 0;
+        let mut number_of_clients_to_destroy = 0;
+        let mut number_of_metrics_to_destroy = 0;
+        for instance in instances_to_destroy.iter() {
+            match instance.role {
+                InstanceRole::Node => {
+                    number_of_nodes_to_destroy += 1;
+                }
+                InstanceRole::Client => {
+                    number_of_clients_to_destroy += 1;
+                }
+                InstanceRole::Metrics => {
+                    number_of_metrics_to_destroy += 1;
+                }
+            }
+        }
+        let confirmation_message = format!(
+            "Confirm you want to destroy the following instances:\n\
+            \n\
+            \tMonitoring Instances: {}\n\
+            \tNode Instances: {}\n\
+            \tClient Instances: {}\n",
+            number_of_metrics_to_destroy, number_of_nodes_to_destroy, number_of_clients_to_destroy,
+        );
+        if cfg!(not(test)) && !display::confirm(confirmation_message) {
+            return Ok(());
+        };
+        display::action("Destroying testbed");
         self.client
             .delete_instances(instances_to_destroy.iter())
             .await?;
@@ -468,7 +499,10 @@ mod test {
         let client = TestClient::new(settings.clone());
         let mut testbed = Testbed::new(settings, client).await.unwrap();
 
-        testbed.deploy(5, true, 0, false).await.unwrap();
+        testbed
+            .deploy(5, true, 0, false, "test".to_string())
+            .await
+            .unwrap();
 
         assert_eq!(
             testbed.node_instances.len(),
@@ -495,7 +529,10 @@ mod test {
         let settings = Settings::new_for_test();
         let client = TestClient::new(settings.clone());
         let mut testbed = Testbed::new(settings, client).await.unwrap();
-        testbed.deploy(5, true, 0, false).await.unwrap();
+        testbed
+            .deploy(5, true, 0, false, "test".to_string())
+            .await
+            .unwrap();
         testbed.stop(false).await.unwrap();
 
         let result = testbed.start(2, 0, true).await;
@@ -527,7 +564,10 @@ mod test {
         let settings = Settings::new_for_test();
         let client = TestClient::new(settings.clone());
         let mut testbed = Testbed::new(settings, client).await.unwrap();
-        testbed.deploy(5, true, 0, false).await.unwrap();
+        testbed
+            .deploy(5, true, 0, false, "test".to_string())
+            .await
+            .unwrap();
         testbed.start(2, 0, true).await.unwrap();
 
         testbed.stop(false).await.unwrap();
