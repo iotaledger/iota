@@ -110,6 +110,16 @@ impl GenericTransactionRefAPI for TransactionRef {
     }
 }
 
+impl GenericTransactionRef {
+    /// Convert this GenericTransactionRef to a BlockRef
+    pub(crate) fn to_block_ref(self) -> BlockRef {
+        match self {
+            GenericTransactionRef::BlockRef(block_ref) => block_ref,
+            GenericTransactionRef::TransactionRef(tr_ref) => BlockRef::from(tr_ref),
+        }
+    }
+}
+
 impl fmt::Display for GenericTransactionRef {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {

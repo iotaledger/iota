@@ -106,14 +106,14 @@ pub(crate) struct DagState {
     recent_block_headers: BTreeMap<BlockRef, VerifiedBlockHeader>,
 
     /// Contains recent verified transactions per authority. To access a
-    /// transaction with a given block_ref, one needs to read first the
-    /// entry with index block_ref.author. Evicted using the minimum between
-    /// GC round for the last solid leader round evicted rounds by
+    /// transaction with a given transaction_ref, one needs to read first the
+    /// entry with index transaction_ref.author. Evicted using the minimum
+    /// between GC round for the last solid leader round evicted rounds by
     /// authority.
     recent_transactions_by_authority: Vec<BTreeMap<GenericTransactionRef, VerifiedTransactions>>,
     /// Contains recent own serialized shards with their Merkle proofs per
-    /// authority. To access own shard for a given block_ref, one
-    /// needs to read first the entry with index block_ref.author.
+    /// authority. To access own shard for a given transaction_ref, one
+    /// needs to read first the entry with index transaction_ref.author.
     /// Eviction is aligned with headers
     recent_shards_by_authority: Vec<BTreeMap<GenericTransactionRef, Bytes>>,
     /// Indexes recent block headers refs by their authorities.
@@ -396,7 +396,7 @@ impl DagState {
                 .accepted_transactions
                 .with_label_values(&[source.as_str()])
                 .inc();
-            tracing::debug!("Adding transactions for block ref: {transaction_ref}");
+            tracing::debug!("Adding transactions for transaction ref: {transaction_ref}");
             let has_transactions = transactions.has_transactions();
             self.transactions_to_write.push(transactions);
             // If a block is not very old, add it to pending acknowledgments
@@ -501,7 +501,11 @@ impl DagState {
             // Fetch transaction commitments for all acknowledged blocks in batch
             let acknowledgments = block_header.acknowledgments();
             let ack_transactions_commitments =
-                self.get_transactions_commitments_batch(acknowledgments);
+                if self.context.protocol_config.consensus_transaction_ref() {
+                    self.get_transactions_commitments_batch(acknowledgments)
+                } else {
+                    vec![None; acknowledgments.len()]
+                };
 
             let cordial_message = CordialKnowledgeMessage::NewHeader {
                 header: block_header.clone(),
@@ -551,12 +555,7 @@ impl DagState {
         for (index, gen_transactions_ref) in gen_transactions_refs.iter().enumerate() {
             if gen_transactions_ref.round() == GENESIS_ROUND {
                 // Extract the BlockRef from GenericTransactionRef
-                let genesis_key = match gen_transactions_ref {
-                    GenericTransactionRef::BlockRef(br) => *br,
-                    GenericTransactionRef::TransactionRef(tr) => {
-                        BlockRef::new(tr.round, tr.author, tr.block_digest)
-                    }
-                };
+                let genesis_key = gen_transactions_ref.to_block_ref();
                 if let Some(genesis_block) = self.genesis.get(&genesis_key) {
                     transactions[index] = Some(genesis_block.verified_transactions.clone());
                 }
@@ -603,23 +602,32 @@ impl DagState {
     /// transaction is not found.
     pub(crate) fn get_serialized_transactions(
         &self,
-        references: &[GenericTransactionRef],
+        gen_transactions_refs: &[GenericTransactionRef],
     ) -> Vec<Option<Bytes>> {
-        let mut transactions = vec![None; references.len()];
+        let mut transactions = vec![None; gen_transactions_refs.len()];
         let mut missing = Vec::new();
 
-        for (index, reference) in references.iter().enumerate() {
-            if reference.round() == GENESIS_ROUND {
-                transactions[index] = None;
+        for (index, gen_transactions_ref) in gen_transactions_refs.iter().enumerate() {
+            if gen_transactions_ref.round() == GENESIS_ROUND {
+                // Extract the BlockRef from GenericTransactionRef
+                let genesis_ref = gen_transactions_ref.to_block_ref();
+                if let Some(transaction) = self
+                    .genesis
+                    .get(&genesis_ref)
+                    .map(|block| block.verified_transactions.clone())
+                {
+                    transactions[index] = Some(transaction.serialized().clone());
+                }
                 continue;
             }
-            if let Some(transaction) =
-                self.recent_transactions_by_authority[reference.author()].get(reference)
+            if let Some(transaction) = self.recent_transactions_by_authority
+                [gen_transactions_ref.author()]
+            .get(gen_transactions_ref)
             {
                 transactions[index] = Some(transaction.serialized().clone());
                 continue;
             }
-            missing.push((index, reference));
+            missing.push((index, gen_transactions_ref));
         }
 
         if missing.is_empty() {
@@ -1310,7 +1318,9 @@ impl DagState {
 
         for (index, tr_ref) in transaction_refs.into_iter().enumerate() {
             if tr_ref.round() == GENESIS_ROUND {
-                // Genesis block doesn't contain transactions.
+                // Check if the genesis block exists
+                let genesis_ref = tr_ref.to_block_ref();
+                exist[index] = self.genesis.contains_key(&genesis_ref);
                 continue;
             }
             if self.recent_transactions_by_authority[tr_ref.author()].contains_key(&tr_ref) {
@@ -1602,8 +1612,8 @@ impl DagState {
     }
 
     /// Adds a block reference to pending acknowledgments.
-    pub(crate) fn add_pending_acknowledgment(&mut self, transaction_ref: BlockRef) {
-        self.pending_acknowledgments.insert(transaction_ref);
+    pub(crate) fn add_pending_acknowledgment(&mut self, block_ref: BlockRef) {
+        self.pending_acknowledgments.insert(block_ref);
     }
 
     /// Takes at most `limit` acknowledgments from `pending_acknowledgments`,
