@@ -55,8 +55,8 @@ use iota_types::{
     },
     move_authenticator::MoveAuthenticator,
     move_package::{
-        FnInfo, FnInfoKey, FnInfoMap, IotaAttribute, MovePackage, RuntimeModuleMetadata,
-        RuntimeModuleMetadataWrapper, get_authenticator_version_from_fun,
+        IotaAttribute, MovePackage, RuntimeModuleMetadata,
+        RuntimeModuleMetadataWrapper,
     },
     object::{self, GAS_VALUE_FOR_TESTING, Object, bounded_visitor::BoundedVisitor},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
@@ -467,9 +467,7 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
             gas_price,
         } = extra;
 
-        let fn_info_map = fn_info_map(&modules);
-
-        fill_metadata(&mut modules, &fn_info_map);
+        fill_metadata(&mut modules);
 
         let named_addr_opt = modules.first().unwrap().named_address;
         let first_module_name = modules.first().unwrap().module.self_id().name().to_string();
@@ -941,9 +939,7 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
                                 .unwrap_or_else(|| panic!("Internal error: expected dependency {name} in map when restoring address."));
                         }
 
-                        let fn_info_map = fn_info_map(&modules);
-
-                        fill_metadata(&mut modules, &fn_info_map);
+                        fill_metadata(&mut modules);
 
                         let upgraded_name = modules.first().unwrap().named_address.unwrap();
                         let package = &Symbol::from(package.as_str());
@@ -2682,45 +2678,25 @@ impl ReadStore for IotaTestAdapter {
     }
 }
 
-/// Create a function info map from the provided compiled modules
-fn fn_info_map(modules: &[MaybeNamedCompiledModule]) -> FnInfoMap {
-    let mut fn_info_map: FnInfoMap = BTreeMap::new();
-    for m in modules {
-        let mod_addr: AccountAddress = *m.module.self_id().address();
-        if let Some(fn_info) = &m.function_infos {
-            for (_, name, info) in fn_info.iter() {
-                let fn_name = name.as_str().to_string();
-                let is_test = info.attributes.is_test_or_test_only();
-                let authenticator_version = info.attributes.get_authenticator();
-                fn_info_map.insert(
-                    FnInfoKey { fn_name, mod_addr },
-                    FnInfo {
-                        is_test,
-                        authenticator_version,
-                    },
-                );
-            }
-        }
-    }
-    fn_info_map
-}
-
-/// Fill the compiled modules with metadata based on the function info map
-fn fill_metadata(modules: &mut [MaybeNamedCompiledModule], fn_info_map: &FnInfoMap) {
+/// Fill the compiled modules with authenticator metadata directly from
+/// function_infos
+fn fill_metadata(modules: &mut [MaybeNamedCompiledModule]) {
     for m in modules.iter_mut() {
         let module: &mut CompiledModule = &mut m.module;
         let mut runtime_metadata = RuntimeModuleMetadata::default();
-        for fn_def in &module.function_defs {
-            let fn_handle = module.function_handle_at(fn_def.function);
-            let fn_name = module.identifier_at(fn_handle.name);
-            if let Some(version) = get_authenticator_version_from_fun(fn_name, module, fn_info_map)
-            {
-                runtime_metadata.add_function_attribute(
-                    fn_name.to_string(),
-                    IotaAttribute::authenticator_attribute(version),
-                );
+
+        if let Some(fn_infos) = &m.function_infos {
+            for (_, name, info) in fn_infos.iter() {
+                // We only need authenticator version here
+                if let Some(version) = info.attributes.get_authenticator() {
+                    runtime_metadata.add_function_attribute(
+                        name.as_str().to_owned(),
+                        IotaAttribute::authenticator_attribute(version),
+                    );
+                }
             }
         }
+
         if !runtime_metadata.is_empty() {
             module.metadata.push(Metadata {
                 key: IOTA_METADATA_KEY.to_vec(),
