@@ -350,14 +350,23 @@ impl<C: NetworkClient> CommitSyncer<C> {
 
             for certified_commit in commits.commits() {
                 // Collect committed_transactions from the TrustedCommit
-                for block_ref in certified_commit.committed_transactions() {
-                    expected_transactions.insert(block_ref);
+                for gen_tr_ref in certified_commit.committed_transactions() {
+                    expected_transactions.insert(gen_tr_ref);
                 }
 
                 // Collect available transactions from VerifiedTransactions
                 for verified_txns in certified_commit.transactions() {
-                    available_transactions
-                        .insert(GenericTransactionRef::BlockRef(verified_txns.block_ref()));
+                    let gen_tr_ref = if self
+                        .inner
+                        .context
+                        .protocol_config
+                        .consensus_transaction_ref()
+                    {
+                        GenericTransactionRef::TransactionRef(verified_txns.transaction_ref())
+                    } else {
+                        GenericTransactionRef::BlockRef(verified_txns.block_ref())
+                    };
+                    available_transactions.insert(gen_tr_ref);
                 }
             }
 
@@ -669,7 +678,10 @@ impl<C: NetworkClient> CommitSyncer<C> {
 
         if !transaction_ref_enabled {
             // 3b. Identify which committed transaction blocks are NOT in the committed
-            // blocks list and add them to block_refs so they get fetched together
+            // blocks list and add them to block_refs so they get fetched together.
+            // If transaction_ref_enabled is true, then we fetch these transactions
+            // separately without fetching headers, so in this case we don't need to do
+            // anything here
             let block_refs_set: BTreeSet<_> = block_refs.iter().cloned().collect();
             let missing_tx_header_refs: ConsensusResult<Vec<BlockRef>> = committed_tx_refs
                 .iter()
@@ -1124,7 +1136,7 @@ pub(crate) fn verify_transactions_with_headers(
             });
         }
 
-        // Step 2: Deserialize and verify the actual transactions vector.
+        // Step 2: Deserialize the actual transactions vector.
         let transactions: Vec<Transaction> = bcs::from_bytes(&inner_serialized_transactions)
             .map_err(ConsensusError::MalformedTransactions)?;
 
@@ -1170,10 +1182,7 @@ pub(crate) fn verify_transactions_with_transactions_refs(
             author: transaction_ref.author,
             digest: transaction_ref.block_digest,
         };
-        // Step 1: Get the block header and verify that the transactions commitment
-        // matches. This ensures the transactions we received are exactly
-        // the ones that were included in the block when it was created.
-
+        // Step 1: Verify that the transaction commitment matches.
         if transaction_ref.transactions_commitment
             != TransactionsCommitment::compute_transactions_commitment(
                 &inner_serialized_transactions,
@@ -1189,7 +1198,7 @@ pub(crate) fn verify_transactions_with_transactions_refs(
             });
         }
 
-        // Step 2: Deserialize and verify the actual transactions vector.
+        // Step 2: Deserialize the actual transactions vector.
         let transactions: Vec<Transaction> = bcs::from_bytes(&inner_serialized_transactions)
             .map_err(ConsensusError::MalformedTransactions)?;
 
