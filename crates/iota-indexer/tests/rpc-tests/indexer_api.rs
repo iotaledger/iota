@@ -442,7 +442,7 @@ fn query_events_supported_events() {
         ];
 
         for event_filter in supported_filters {
-            let err_str = format!("query_events should suceed for filter: {event_filter:?}");
+            let err_str = format!("query_events should succeed for filter: {event_filter:?}");
             let result = client.query_events(event_filter, None, None, None).await;
             result.expect(&err_str);
         }
