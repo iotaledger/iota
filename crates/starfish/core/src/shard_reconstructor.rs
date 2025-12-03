@@ -22,8 +22,8 @@ use tracing::{debug, warn};
 use crate::{
     BlockRef, Round, Transaction,
     block_header::{
-        BlockHeaderDigest, GENESIS_ROUND, Shard, ShardWithProof, TransactionsCommitment,
-        VerifiedBlock, VerifiedTransactions,
+        BlockHeaderDigest, GENESIS_ROUND, Shard, ShardWithProof, ShardWithProofAPI,
+        TransactionsCommitment, VerifiedBlock, VerifiedTransactions,
     },
     context::Context,
     core_thread::CoreThreadDispatcher,
@@ -98,9 +98,9 @@ impl TransactionMessage {
         // Shard messages
         for shard_with_proof in shards {
             let shard_msg = ShardMessage {
-                block_ref: shard_with_proof.block_ref,
-                transactions_commitment: shard_with_proof.transaction_commitment,
-                shard: shard_with_proof.shard.clone(),
+                block_ref: shard_with_proof.block_ref(),
+                transactions_commitment: shard_with_proof.transaction_commitment(),
+                shard: shard_with_proof.shard().clone(),
                 shard_index,
             };
             messages.push(TransactionMessage::Shard(shard_msg));

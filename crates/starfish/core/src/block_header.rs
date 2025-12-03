@@ -10,6 +10,7 @@ use std::{
 };
 
 use bytes::Bytes;
+use enum_dispatch::enum_dispatch;
 use fastcrypto::hash::{Digest, HashFunction};
 use rs_merkle::{MerkleProof, MerkleTree};
 use serde::{Deserialize, Serialize};
@@ -435,19 +436,120 @@ impl AsRef<[u8]> for BlockHeaderDigest {
 pub struct TransactionsCommitment(pub(crate) [u8; starfish_config::DIGEST_LENGTH]);
 pub type MerkleProofBytes = Vec<u8>;
 
+/// Used when the protocol flag `consensus_transaction_ref` is disabled.
+/// Contains block reference and separate transaction commitment field.
 #[derive(Clone, Serialize, Deserialize, Debug)]
-pub(crate) struct ShardWithProof {
+pub(crate) struct ShardWithProofV1 {
     pub(crate) shard: Shard,
     pub(crate) transaction_commitment: TransactionsCommitment,
     pub(crate) proof: MerkleProofBytes,
     pub(crate) block_ref: BlockRef,
 }
 
+/// Used when the protocol flag `consensus_transaction_ref` is enabled.
+/// Contains transaction reference which includes the transaction commitment.
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub(crate) struct ShardWithProofV2 {
     pub(crate) shard: Shard,
     pub(crate) proof: MerkleProofBytes,
     pub(crate) transaction_ref: TransactionRef,
+}
+
+/// Accessors to shard with proof info.
+#[enum_dispatch]
+pub(crate) trait ShardWithProofAPI {
+    fn shard(&self) -> &Shard;
+    fn proof(&self) -> &MerkleProofBytes;
+    fn transaction_commitment(&self) -> TransactionsCommitment;
+    fn round(&self) -> Round;
+    fn block_ref(&self) -> BlockRef;
+}
+
+#[derive(Clone, Serialize, Deserialize, Debug)]
+#[enum_dispatch(ShardWithProofAPI)]
+pub(crate) enum ShardWithProof {
+    V1(ShardWithProofV1),
+    V2(ShardWithProofV2),
+}
+
+impl ShardWithProof {
+    /// Creates a new ShardWithProof instance based on the protocol flag.
+    /// If `transaction_ref_enabled` is true, creates V2 variant, otherwise V1.
+    pub(crate) fn new(
+        shard: Shard,
+        proof: MerkleProofBytes,
+        block_ref: BlockRef,
+        transaction_commitment: TransactionsCommitment,
+        transaction_ref_enabled: bool,
+    ) -> Self {
+        if transaction_ref_enabled {
+            ShardWithProof::V2(ShardWithProofV2 {
+                shard,
+                proof,
+                transaction_ref: TransactionRef {
+                    round: block_ref.round,
+                    author: block_ref.author,
+                    transactions_commitment: transaction_commitment,
+                    block_digest: block_ref.digest,
+                },
+            })
+        } else {
+            ShardWithProof::V1(ShardWithProofV1 {
+                shard,
+                transaction_commitment,
+                proof,
+                block_ref,
+            })
+        }
+    }
+}
+
+impl ShardWithProofAPI for ShardWithProofV1 {
+    fn shard(&self) -> &Shard {
+        &self.shard
+    }
+
+    fn proof(&self) -> &MerkleProofBytes {
+        &self.proof
+    }
+
+    fn transaction_commitment(&self) -> TransactionsCommitment {
+        self.transaction_commitment
+    }
+
+    fn round(&self) -> Round {
+        self.block_ref.round
+    }
+
+    fn block_ref(&self) -> BlockRef {
+        self.block_ref
+    }
+}
+
+impl ShardWithProofAPI for ShardWithProofV2 {
+    fn shard(&self) -> &Shard {
+        &self.shard
+    }
+
+    fn proof(&self) -> &MerkleProofBytes {
+        &self.proof
+    }
+
+    fn transaction_commitment(&self) -> TransactionsCommitment {
+        self.transaction_ref.transactions_commitment
+    }
+
+    fn round(&self) -> Round {
+        self.transaction_ref.round
+    }
+
+    fn block_ref(&self) -> BlockRef {
+        BlockRef {
+            round: self.transaction_ref.round,
+            author: self.transaction_ref.author,
+            digest: self.transaction_ref.block_digest,
+        }
+    }
 }
 
 pub(crate) struct VerifiedOwnShard {
@@ -528,11 +630,12 @@ impl TransactionsCommitment {
         leaf_index: usize,
     ) -> bool {
         let mut hasher = DefaultHashFunction::new();
-        hasher.update(shard.shard);
+        hasher.update(shard.shard());
         let leaf = hasher.finalize().into();
-        let proof = MerkleProof::<DefaultHashFunctionWrapper>::try_from(shard.proof).unwrap();
+        let proof =
+            MerkleProof::<DefaultHashFunctionWrapper>::try_from(shard.proof().clone()).unwrap();
         proof.verify(
-            shard.transaction_commitment.0,
+            shard.transaction_commitment().0,
             &[leaf_index],
             &[leaf],
             tree_size,

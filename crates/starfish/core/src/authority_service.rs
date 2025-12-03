@@ -24,8 +24,8 @@ use crate::{
     CommitIndex, Round, Transaction, VerifiedBlockHeader,
     block_header::{
         BlockHeaderAPI, BlockHeaderDigest, BlockRef, GENESIS_ROUND, ShardWithProof,
-        SignedBlockHeader, TransactionsCommitment, VerifiedBlock, VerifiedOwnShard,
-        VerifiedTransactions,
+        ShardWithProofAPI, SignedBlockHeader, TransactionsCommitment, VerifiedBlock,
+        VerifiedOwnShard, VerifiedTransactions,
     },
     block_verifier::BlockVerifier,
     commit::{CommitAPI as _, CommitRange, TrustedCommit},
@@ -227,12 +227,13 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
         let block_ref = verified_block.reference();
         debug!("Received block {} via stream block bundle.", block_ref);
         let shard_for_core = if has_transactions {
-            Some(ShardWithProof {
-                shard: our_shard,
-                transaction_commitment,
-                proof: proof_for_shard,
+            Some(ShardWithProof::new(
+                our_shard,
+                proof_for_shard,
                 block_ref,
-            })
+                transaction_commitment,
+                self.context.protocol_config.consensus_transaction_ref(),
+            ))
         } else {
             None
         };
@@ -333,9 +334,9 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
             let shard: ShardWithProof =
                 bcs::from_bytes(serialized_shard).map_err(ConsensusError::MalformedShard)?;
 
-            if shard.block_ref.round >= block_round {
+            if shard.round() >= block_round {
                 let e = ConsensusError::TooBigShardRoundInABundle {
-                    shard_round: shard.block_ref.round,
+                    shard_round: shard.round(),
                     block_round,
                 };
                 self.context
@@ -358,7 +359,7 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
             } else {
                 let e = ConsensusError::IncorrectShardProof {
                     peer,
-                    round: shard.block_ref.round,
+                    round: shard.round(),
                 };
                 self.context
                     .metrics
