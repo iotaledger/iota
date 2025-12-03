@@ -18,16 +18,16 @@ use std::{
     thread,
 };
 
+use arc_swap::ArcSwap;
 use iota_types::{
     base_types::ObjectID,
     transaction::{TransactionData, TransactionDataAPI},
 };
 use serde::Serialize;
+use tch::nn; // VarStore for inference snapshot
+use tch::{self, IndexOp, Tensor};
 
 use crate::{gas_metrics::GasMetrics, model};
-use tch::{self, IndexOp, Tensor};
-use tch::nn; // VarStore for inference snapshot
-use arc_swap::ArcSwap;
 
 // -------------------------------
 // Types shared with congestion tracker
@@ -613,7 +613,14 @@ impl InNodeModelUpdater {
                 }
             });
         }
-        Self { hist, tx_update, tx_train, inference, store, metrics }
+        Self {
+            hist,
+            tx_update,
+            tx_train,
+            inference,
+            store,
+            metrics,
+        }
     }
 
     pub fn predict_for_objects(
@@ -689,13 +696,14 @@ impl ModelUpdater for InNodeModelUpdater {
         static DROP_UPDATES: AtomicU64 = AtomicU64::new(0);
         if let Err(_e) = self.tx_update.try_send(batch) {
             let c = DROP_UPDATES.fetch_add(1, Ordering::Relaxed) + 1;
-            if c % 1000 == 0 { eprintln!("[in-model] dropped {} update batches (channel full)", c); }
+            if c % 1000 == 0 {
+                eprintln!("[in-model] dropped {} update batches (channel full)", c);
+            }
             self.metrics
                 .batches_total
                 .with_label_values(&["update", "dropped"])
                 .inc();
-        }
-        else {
+        } else {
             self.metrics
                 .batches_total
                 .with_label_values(&["update", "received"])
@@ -706,13 +714,14 @@ impl ModelUpdater for InNodeModelUpdater {
         static DROP_TRAINS: AtomicU64 = AtomicU64::new(0);
         if let Err(_e) = self.tx_train.try_send(batch) {
             let c = DROP_TRAINS.fetch_add(1, Ordering::Relaxed) + 1;
-            if c % 1000 == 0 { eprintln!("[in-model] dropped {} train batches (channel full)", c); }
+            if c % 1000 == 0 {
+                eprintln!("[in-model] dropped {} train batches (channel full)", c);
+            }
             self.metrics
                 .batches_total
                 .with_label_values(&["train", "dropped"])
                 .inc();
-        }
-        else {
+        } else {
             self.metrics
                 .batches_total
                 .with_label_values(&["train", "received"])

@@ -1164,7 +1164,6 @@ pub struct DryRunTransactionBlockResponse {
     /// suggested gas price with nn.
     /// #[serde_as(as = "Option<BigInt<u64>>")]
     pub suggested_gas_price_with_nn: Option<u64>,
-    
 }
 
 #[derive(Eq, PartialEq, Clone, Debug, Default, Serialize, Deserialize, JsonSchema)]
