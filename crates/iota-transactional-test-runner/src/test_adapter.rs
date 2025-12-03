@@ -518,10 +518,10 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
         let data = |sender, gas| {
             let mut builder = ProgrammableTransactionBuilder::new();
             if upgradeable {
-                let cap = builder.publish_upgradeable(modules_bytes.clone(), dependencies.clone());
+                let cap = builder.publish_upgradeable(modules_bytes, dependencies);
                 builder.transfer_arg(sender, cap);
             } else {
-                builder.publish_immutable(modules_bytes.clone(), dependencies.clone());
+                builder.publish_immutable(modules_bytes, dependencies);
             };
             let pt = builder.finish();
             TransactionData::new_programmable(sender, gas, pt, gas_budget, gas_price)
