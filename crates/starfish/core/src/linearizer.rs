@@ -139,20 +139,22 @@ impl Linearizer {
         // Convert BlockRef to GenericTransactionRef based on protocol flag
         let generic_committed_transactions: Vec<GenericTransactionRef> =
             if self.context.protocol_config.consensus_transaction_ref() {
-                // Need to re-acquire dag_state lock to get headers for conversion
+                // Use batch function to get transaction commitments efficiently
                 let dag_state_guard = self.dag_state.read();
+                let transactions_commitments =
+                    dag_state_guard.get_transactions_commitments_batch(&committed_transactions);
+
+                // Zip block_refs with their corresponding transaction commitments
                 committed_transactions
-                    .iter()
-                    .map(|block_ref| {
-                        // Get the block header to extract the transactions commitment
-                        let headers = dag_state_guard.get_verified_block_headers(&[*block_ref]);
-                        let header = headers[0]
-                            .as_ref()
+                    .into_iter()
+                    .zip(transactions_commitments)
+                    .map(|(block_ref, transactions_commitment_opt)| {
+                        let transactions_commitment = transactions_commitment_opt
                             .expect("Block header must exist for committed transaction");
                         GenericTransactionRef::TransactionRef(TransactionRef {
                             round: block_ref.round,
                             author: block_ref.author,
-                            transactions_commitment: header.transactions_commitment(),
+                            transactions_commitment,
                             block_digest: block_ref.digest,
                         })
                     })

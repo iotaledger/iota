@@ -714,7 +714,7 @@ impl DagState {
     /// genesis, cached recent block headers in memory, then storage.
     /// Returns a vector of tuples (BlockRef, TransactionsCommitment) for blocks
     /// that were found. Skips blocks that are not found.
-    fn get_transactions_commitments_batch(
+    pub(crate) fn get_transactions_commitments_batch(
         &self,
         block_refs: &[BlockRef],
     ) -> Vec<Option<TransactionsCommitment>> {
