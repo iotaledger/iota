@@ -554,9 +554,16 @@ impl DataFetcher for RemoteFetcher {
             for kind in kinds {
                 let (epoch_start_timestamp_ms, reference_gas_price) = match kind {
                     EndOfEpochTransactionKind::ChangeEpoch(change) => {
-                        let rgp = if let serde_json::Value::Object(w) = event.parsed_json {
-                            u64::from_str(&w["reference_gas_price"].to_string().replace('\"', ""))
-                                .unwrap()
+                        let rgp = if let serde_json::Value::Object(ref w) = event.parsed_json {
+                            w.get("reference_gas_price")
+                                .and_then(|v| {
+                                    // Handle both JSON number and string representations
+                                    v.as_u64()
+                                        .or_else(|| v.as_str().and_then(|s| s.parse().ok()))
+                                })
+                                .ok_or_else(|| ReplayEngineError::UnexpectedEventFormat {
+                                    event: Box::new(event.clone()),
+                                })?
                         } else {
                             return Err(ReplayEngineError::UnexpectedEventFormat {
                                 event: Box::new(event.clone()),
