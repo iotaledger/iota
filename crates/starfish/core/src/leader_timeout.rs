@@ -97,7 +97,6 @@ impl<D: CoreThreadDispatcher> LeaderTimeoutTask<D> {
         tokio::pin!(max_leader_timeout);
 
         loop {
-            debug!("Loop is running");
             tokio::select! {
                 // When the min block delay timer expires, then we attempt to trigger the creation of a new block.
                 // If we already timed out before then, the branch gets disabled so we don't attempt
@@ -174,7 +173,7 @@ impl<D: CoreThreadDispatcher> LeaderTimeoutTask<D> {
                 },
                  // A new block was created. Set a timer in min_block_delay
                 Ok(block) = new_block.recv() => {
-                    debug!("New block {block:?} was created and seen in leader timeout task");
+                    debug!("New block {:?} was created and seen in leader timeout task", block.verified_block_header);
                     last_own_block_round = Some(block.round());
 
                     min_block_delay_timed_out = false;

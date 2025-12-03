@@ -870,6 +870,20 @@ impl IndexerReader {
         run_query!(&self.pool, |conn| query.load::<StoredTransaction>(conn))
     }
 
+    pub fn multi_get_transactions_by_sequence_numbers_range(
+        &self,
+        min_seq: i64,
+        max_seq: i64,
+    ) -> Result<Vec<StoredTransaction>, IndexerError> {
+        use crate::schema::transactions::dsl as txdsl;
+        let query = txdsl::transactions
+            .filter(txdsl::tx_sequence_number.ge(min_seq))
+            .filter(txdsl::tx_sequence_number.le(max_seq))
+            .order(txdsl::tx_sequence_number.asc())
+            .into_boxed();
+        run_query!(&self.pool, |conn| query.load::<StoredTransaction>(conn))
+    }
+
     pub async fn get_owned_objects_in_blocking_task(
         &self,
         address: IotaAddress,

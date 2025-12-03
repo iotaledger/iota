@@ -3,6 +3,7 @@ ARG RUST_IMAGE_VERSION=bookworm
 FROM rust:${RUST_IMAGE_VERSION} AS builder
 
 ARG PROFILE=release
+ARG TARGET_FOLDER=target/release
 ARG CARGO_BUILD_FEATURES
 # The GIT_REVISION environment variable is used during build time inside the rust crates
 ARG GIT_REVISION
@@ -28,21 +29,13 @@ COPY external-crates external-crates
 COPY iota-execution iota-execution
 COPY Cargo.toml Cargo.lock ./
 
+# Build the binaries
 RUN cargo build --profile ${PROFILE} \
-  --bin iota-rosetta \
-  --features ${CARGO_BUILD_FEATURES:=default}
+      --bin iota-rosetta \
+      --features ${CARGO_BUILD_FEATURES:=default}
 
-# Copy the built binary to the working directory depending on the output folder of the profile,
-# so we can copy it to the runtime image
-RUN if [ -d target/release ]; then \
-  TARGET_DIR="target/release"; \
-elif [ -d target/debug ]; then \
-  TARGET_DIR="target/debug"; \
-else \
-  echo "Error: No build directory found"; \
-  exit 1; \
-fi && \
-mv $TARGET_DIR/iota-rosetta ./;
+# Copy the built binaries to the working directory
+RUN cp $TARGET_FOLDER/iota-rosetta ./iota-rosetta
 
 # Production image
 FROM debian:bookworm-slim AS runtime

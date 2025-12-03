@@ -15,6 +15,7 @@ anemo.workspace = true
 anyhow.workspace = true
 bcs.workspace = true
 fastcrypto.workspace = true
+iota-sdk-types.workspace = true
 prometheus.workspace = true
 rand.workspace = true
 serde.workspace = true
@@ -31,7 +32,6 @@ iota-names.workspace = true
 iota-protocol-config.workspace = true
 iota-rest-api.workspace = true
 iota-types.workspace = true
-shared-crypto.workspace = true
 
 [target.'cfg(msim)'.dependencies]
 iota-simulator.workspace = true

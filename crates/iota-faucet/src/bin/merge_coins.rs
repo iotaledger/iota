@@ -9,11 +9,11 @@ use iota_faucet::FaucetError;
 use iota_json_rpc_types::IotaTransactionBlockResponseOptions;
 use iota_keys::keystore::AccountKeystore;
 use iota_sdk::wallet_context::WalletContext;
+use iota_sdk_types::crypto::Intent;
 use iota_types::{
     base_types::ObjectID, gas_coin::GasCoin, quorum_driver_types::ExecuteTransactionRequestType,
     transaction::Transaction,
 };
-use shared_crypto::intent::Intent;
 use tracing::info;
 
 #[tokio::main]

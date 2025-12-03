@@ -13,6 +13,7 @@ use fastcrypto_zkp::bn254::{
 use futures::pin_mut;
 use im::hashmap::HashMap as ImHashMap;
 use iota_metrics::monitored_scope;
+use iota_sdk_types::crypto::Intent;
 use iota_types::{
     base_types::AuthorityName,
     committee::Committee,
@@ -29,7 +30,6 @@ use iota_types::{
 use itertools::{Itertools as _, izip};
 use parking_lot::{Mutex, MutexGuard, RwLock};
 use prometheus::{IntCounter, Registry, register_int_counter_with_registry};
-use shared_crypto::intent::Intent;
 use tap::TapFallible;
 use tokio::{
     runtime::Handle,

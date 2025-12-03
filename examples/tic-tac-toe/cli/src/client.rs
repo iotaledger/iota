@@ -17,6 +17,7 @@ use iota_sdk::{
     },
     wallet_context::WalletContext,
 };
+use iota_sdk_types::crypto::Intent;
 use iota_types::{
     Identifier,
     base_types::{IotaAddress, ObjectID, ObjectRef},
@@ -31,7 +32,6 @@ use iota_types::{
     },
 };
 use move_core_types::language_storage::StructTag;
-use shared_crypto::intent::Intent;
 
 use crate::{
     crypto::combine_keys,

@@ -15,6 +15,7 @@ use iota_types::{
 use move_core_types::{ident_str, language_storage::TypeTag};
 use rand::random;
 use test_cluster::{TestCluster, TestClusterBuilder};
+use tracing::info;
 
 const DENY_ADDRESS: IotaAddress = IotaAddress::ZERO;
 
@@ -33,13 +34,13 @@ async fn per_epoch_config_stress_test() {
     let handle1 = {
         let test_env = test_env.clone();
         tokio::spawn(async move {
-            run_thread(test_env, target_epoch, gas1.0, create_transfer_tx, true).await
+            run_thread(1, test_env, target_epoch, gas1.0, create_transfer_tx, true).await
         })
     };
     let handle2 = {
         let test_env = test_env.clone();
         tokio::spawn(async move {
-            run_thread(test_env, target_epoch, gas2.0, create_deny_tx, false).await
+            run_thread(2, test_env, target_epoch, gas2.0, create_deny_tx, false).await
         })
     };
     tokio::time::timeout(Duration::from_secs(600), async {
@@ -51,6 +52,7 @@ async fn per_epoch_config_stress_test() {
 }
 
 async fn run_thread<F, Fut>(
+    thread_id: u64,
     test_env: Arc<TestEnv>,
     target_epoch: EpochId,
     gas_id: ObjectID,
@@ -60,12 +62,15 @@ async fn run_thread<F, Fut>(
     F: Fn(Arc<TestEnv>, ObjectRef) -> Fut,
     Fut: Future<Output = TransactionData>,
 {
+    info!(?thread_id, "Thread started");
     let mut num_tx_succeeded = 0;
     let mut num_tx_failed = 0;
     loop {
         let gas = test_env.get_latest_object_ref(&gas_id).await;
         let tx_data = tx_creation_func(test_env.clone(), gas).await;
         let tx = test_env.test_cluster.sign_transaction(&tx_data);
+        let tx_digest = *tx.digest();
+        info!(?thread_id, ?tx_digest, "Sending transaction");
         let Ok(effects) = test_env
             .test_cluster
             .wallet
@@ -78,19 +83,32 @@ async fn run_thread<F, Fut>(
             continue;
         };
         if effects.status().is_ok() {
+            info!(?thread_id, ?tx_digest, "Transaction succeeded");
             num_tx_succeeded += 1;
         } else {
+            info!(?thread_id, ?tx_digest, "Transaction failed");
             num_tx_failed += 1;
         }
         let executed_epoch = effects.executed_epoch();
         if executed_epoch >= target_epoch {
+            info!(
+                ?thread_id,
+                "Reached target epoch {target_epoch}. Current {executed_epoch}."
+            );
             break;
         }
     }
     if !tx_may_fail {
         assert_eq!(num_tx_failed, 0);
     }
-    assert!(num_tx_succeeded + num_tx_failed > 5);
+    assert!(
+        num_tx_succeeded + num_tx_failed > 5,
+        "Thread {thread_id} succeeded {num_tx_succeeded} transactions and failed {num_tx_failed} transactions"
+    );
+    info!(
+        ?thread_id,
+        "Thread {thread_id} finished. Succeeded {num_tx_succeeded} transactions and failed {num_tx_failed} transactions."
+    );
 }
 
 async fn create_deny_tx(test_env: Arc<TestEnv>, gas: ObjectRef) -> TransactionData {

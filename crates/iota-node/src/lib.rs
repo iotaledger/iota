@@ -95,12 +95,14 @@ use iota_metrics::{
     metrics_network::{MetricsMakeCallbackHandler, NetworkConnectionMetrics, NetworkMetrics},
     server_timing_middleware, spawn_monitored_task,
 };
+use iota_names::config::IotaNamesConfig;
 use iota_network::{
     api::ValidatorServer, discovery, discovery::TrustedPeerChangeEvent, randomness, state_sync,
 };
 use iota_network_stack::server::{IOTA_TLS_SERVER_NAME, ServerBuilder};
 use iota_protocol_config::ProtocolConfig;
 use iota_rest_api::RestMetrics;
+use iota_sdk_types::crypto::{Intent, IntentMessage, IntentScope};
 use iota_snapshot::uploader::StateSnapshotUploader;
 use iota_storage::{
     FileCompression, StorageFormat,
@@ -132,7 +134,6 @@ use iota_types::{
     transaction::{Transaction, VerifiedCertificate},
 };
 use prometheus::Registry;
-use shared_crypto::intent::{Intent, IntentMessage, IntentScope};
 #[cfg(msim)]
 pub use simulator::set_jwk_injector;
 #[cfg(msim)]
@@ -2521,9 +2522,10 @@ pub async fn build_http_server(
             ))?;
         }
 
-        // TODO: Init from chain if config is not set once `IotaNamesConfig::from_chain`
-        // is implemented
-        let iota_names_config = config.iota_names_config.clone().unwrap_or_default();
+        let iota_names_config = config
+            .iota_names_config
+            .clone()
+            .unwrap_or_else(|| IotaNamesConfig::from_chain(&state.get_chain_identifier().chain()));
 
         server.register_module(IndexerApi::new(
             state.clone(),

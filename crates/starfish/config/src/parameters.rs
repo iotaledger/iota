@@ -45,13 +45,17 @@ pub struct Parameters {
     #[serde(default = "Parameters::default_max_headers_per_commit_sync_fetch")]
     pub max_headers_per_commit_sync_fetch: usize,
 
+    /// Number of transactions to fetch per commit sync request.
+    #[serde(default = "Parameters::default_max_transactions_per_commit_sync_fetch")]
+    pub max_transactions_per_commit_sync_fetch: usize,
+
     /// Number of block headers to fetch per periodic or live sync request
     #[serde(default = "Parameters::default_max_headers_per_regular_sync_fetch")]
     pub max_headers_per_regular_sync_fetch: usize,
 
     /// Number of transactions to fetch per request.
-    #[serde(default = "Parameters::default_max_transactions_per_fetch")]
-    pub max_transactions_per_fetch: usize,
+    #[serde(default = "Parameters::default_max_transactions_per_regular_sync_fetch")]
+    pub max_transactions_per_regular_sync_fetch: usize,
 
     /// Time to wait during node start up until the node has synced the last
     /// proposed block via the network peers. When set to `0` the sync
@@ -135,6 +139,16 @@ impl Parameters {
         }
     }
 
+    // Maximum number of transactions to fetch per commit sync request.
+    pub(crate) fn default_max_transactions_per_commit_sync_fetch() -> usize {
+        if cfg!(msim) {
+            // Exercise hitting transactions per fetch limit.
+            10
+        } else {
+            1000
+        }
+    }
+
     // Maximum number of block headers to fetch per periodic or live sync request.
     pub(crate) fn default_max_headers_per_regular_sync_fetch() -> usize {
         if cfg!(msim) {
@@ -147,7 +161,7 @@ impl Parameters {
     }
 
     // Maximum number of transactions to fetch per request.
-    pub(crate) fn default_max_transactions_per_fetch() -> usize {
+    pub(crate) fn default_max_transactions_per_regular_sync_fetch() -> usize {
         if cfg!(msim) { 10 } else { 1000 }
     }
 
@@ -209,9 +223,12 @@ impl Default for Parameters {
             max_forward_time_drift: Parameters::default_max_forward_time_drift(),
             max_headers_per_commit_sync_fetch:
                 Parameters::default_max_headers_per_commit_sync_fetch(),
+            max_transactions_per_commit_sync_fetch:
+                Parameters::default_max_transactions_per_commit_sync_fetch(),
             max_headers_per_regular_sync_fetch:
                 Parameters::default_max_headers_per_regular_sync_fetch(),
-            max_transactions_per_fetch: Parameters::default_max_transactions_per_fetch(),
+            max_transactions_per_regular_sync_fetch:
+                Parameters::default_max_transactions_per_regular_sync_fetch(),
             sync_last_known_own_block_timeout:
                 Parameters::default_sync_last_known_own_block_timeout(),
             dag_state_cached_rounds: Parameters::default_dag_state_cached_rounds(),
