@@ -36,10 +36,12 @@ pub fn build_cargo_command<S1: AsRef<str>, S2: AsRef<str>, S3: AsRef<str>>(
 ) -> String {
     let toolchain_arg = toolchain
         .as_ref()
+        .filter(|t| t.as_str() != "stable")
         .map(|t| format!("+{t}"))
         .unwrap_or_default();
 
     let target_dir_arg = toolchain
+        .filter(|t| t != "stable")
         .map(|t| format!("--target-dir target_{t}"))
         .unwrap_or_default();
 
@@ -57,20 +59,21 @@ pub fn build_cargo_command<S1: AsRef<str>, S2: AsRef<str>, S3: AsRef<str>>(
 
     let additional_args_str = join_non_empty_strings(additional_args, " ");
 
-    let cargo_command = join_non_empty_strings(
-        &[
-            "cargo",
-            &toolchain_arg,
-            subcommand,
-            &target_dir_arg,
-            "--release",
-            &binaries_args,
-            &features_arg,
-            "--",
-            &additional_args_str,
-        ],
-        " ",
-    );
+    let mut cargo_args = vec![
+        "cargo",
+        &toolchain_arg,
+        subcommand,
+        &target_dir_arg,
+        "--release",
+        &binaries_args,
+        &features_arg,
+    ];
+
+    if !additional_args_str.is_empty() {
+        cargo_args.extend(&["--", &additional_args_str]);
+    }
+
+    let cargo_command = join_non_empty_strings(&cargo_args, " ");
 
     let default_setup = [
         "source \"$HOME/.cargo/env\"",
