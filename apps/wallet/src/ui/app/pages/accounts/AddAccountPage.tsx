@@ -4,9 +4,10 @@
 
 import { ampli } from '_src/shared/analytics/ampli';
 import { useState } from 'react';
-import { toast } from '@iota/core';
+import { Theme, toast, useTheme } from '@iota/core';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import AddProfileImage from '_assets/images/onboarding/add-profile.png';
+import AddProfileImage from '_assets/images/balance_finder_intro.png';
+import AddProfileImageDark from '_assets/images/balance_finder_intro_darkmode.png';
 import {
     Card,
     CardType,
@@ -65,6 +66,7 @@ async function openTabOnImportKeystone() {
 }
 
 export function AddAccountPage() {
+    const { theme } = useTheme();
     const [searchParams] = useSearchParams();
     const navigate = useNavigate();
     const forceShowLedger =
@@ -79,7 +81,7 @@ export function AddAccountPage() {
         {
             title: 'Create a new wallet',
             icon: Create,
-            subtitle: 'Passphrase or Passkey',
+            subtitle: 'Mnemonic or Passkey',
             href: '/accounts/create-new',
         },
         {
@@ -141,7 +143,7 @@ export function AddAccountPage() {
             <div className="flex h-full w-full flex-col">
                 <div className="flex w-full flex-1 flex-col gap-4 py-md--rs text-center">
                     <img
-                        src={AddProfileImage}
+                        src={theme === Theme.Dark ? AddProfileImageDark : AddProfileImage}
                         alt="Add Profile"
                         height={187}
                         className="mx-auto aspect-[4/3] h-[187px] w-auto object-cover"
