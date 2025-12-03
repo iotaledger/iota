@@ -218,12 +218,10 @@ impl HistoricalFallbackReader {
     ///
     /// # Pagination Behavior
     ///
-    /// | cursor | descending | Result |
-    /// |--------|------------|--------|
-    /// | `None` | `false` | Starts from checkpoint 0 |
-    /// | `None` | `true` | Starts from latest checkpoint |
-    /// | `Some(n)` | `false` | Starts from checkpoint n+1 |
-    /// | `Some(n)` | `true` | Starts from checkpoint n-1 |
+    /// | cursor | descending | Result                      |
+    /// |--------|------------|-----------------------------|
+    /// | `n`    | `false`    | Starts from checkpoint n+1  |
+    /// | `n`    | `true`     | Starts from checkpoint n-1  |
     ///
     /// # NOTE
     /// `StoredCheckpoint.successful_tx_num` is hardcoded to 0, due to missing
@@ -231,13 +229,7 @@ impl HistoricalFallbackReader {
     /// could be expensive. Can be added in future iterations.
     pub(crate) async fn checkpoints(
         &self,
-        // TODO: The `latest_checkpoint` parameter is a temporary workaround. The KV store
-        // doesn't currently have a way to determine the latest available checkpoint.
-        // This can be removed once either:
-        // - Range scan is implemented on the KV REST API, or
-        // - The `get_latest_checkpoint()` method is re-added (removed during upstream pull)
-        latest_available_checkpoint: CheckpointSequenceNumber,
-        cursor: Option<CheckpointSequenceNumber>,
+        cursor: CheckpointSequenceNumber,
         limit: usize,
         descending_order: bool,
     ) -> IndexerResult<Vec<Option<StoredCheckpoint>>> {
@@ -245,29 +237,20 @@ impl HistoricalFallbackReader {
             return Ok(vec![]);
         }
 
-        let seq_nums: Vec<CheckpointSequenceNumber> = match (cursor, descending_order) {
-            // descending with cursor: start from cursor - 1, go down `limit` items.
-            (Some(cursor), true) => {
-                let end = cursor.saturating_sub(limit as u64);
-                (end..cursor).rev().collect()
-            }
-            // ascending with cursor: start from cursor + 1, go up `limit` items.
-            (Some(cursor), false) => {
-                let start = cursor + 1;
-                let end = (start + limit as u64).min(latest_available_checkpoint + 1);
-                (start..end).collect()
-            }
-            // descending without cursor: start from latest, go down `limit` items.
-            (None, true) => {
-                let start = latest_available_checkpoint.saturating_sub(limit as u64 - 1);
-                (start..=latest_available_checkpoint).rev().collect()
-            }
-            // ascending without cursor: start from 0, go up `limit` items.
-            (None, false) => {
-                let end = (latest_available_checkpoint + 1).min(limit as u64);
-                (0..end).collect()
-            }
+        let seq_nums: Vec<CheckpointSequenceNumber> = if descending_order {
+            // descending: start from cursor - 1, go down `limit` items
+            let end = cursor.saturating_sub(limit as u64);
+            (end..cursor).rev().collect()
+        } else {
+            // ascending: start from cursor + 1, go up `limit` items
+            let start = cursor + 1;
+            let end = start + limit as u64;
+            (start..end).collect()
         };
+
+        if seq_nums.is_empty() {
+            return Ok(vec![]);
+        }
 
         let (summaries, contents) = tokio::try_join!(
             self.client
@@ -284,8 +267,8 @@ impl HistoricalFallbackReader {
         Ok(checkpoints)
     }
 
-    /// Fetches events belonging to the provided transaction digest.
-    pub(crate) async fn events(
+    /// Fetches all events belonging to the provided transaction digest.
+    pub(crate) async fn all_events(
         &self,
         tx_digest: TransactionDigest,
     ) -> IndexerResult<Vec<IotaEvent>> {
@@ -401,12 +384,12 @@ impl HistoricalFallbackReader {
     ///
     /// # Pagination Behavior
     ///
-    /// | cursor | descending | Result |
-    /// |--------|------------|--------|
-    /// | `None` | `false` | Starts from first transaction in checkpoint |
-    /// | `None` | `true` | Starts from last transaction in checkpoint |
-    /// | `Some(tx)` | `false` | Starts after `tx`, ascending |
-    /// | `Some(tx)` | `true` | Starts after `tx`, descending |
+    /// | cursor     | descending | Result                                      |
+    /// |------------|------------|---------------------------------------------|
+    /// | `None`     | `false`    | Starts from first transaction in checkpoint |
+    /// | `None`     | `true`     | Starts from last transaction in checkpoint  |
+    /// | `Some(tx)` | `false`    | Starts after `tx`, ascending                |
+    /// | `Some(tx)` | `true`     | Starts after `tx`, descending               |
     pub(crate) async fn checkpoint_transactions(
         &self,
         cursor: Option<TransactionDigest>,
@@ -471,13 +454,13 @@ impl HistoricalFallbackReader {
     /// Events are indexed by their position in the transaction (event_seq = 0,
     /// 1, 2, ...).
     ///
-    /// | cursor | descending | Result |
-    /// |--------|------------|--------|
-    /// | `None` | `false` | Starts from event_seq 0 |
-    /// | `None` | `true` | Starts from last event |
-    /// | `Some(seq)` | `false` | Starts after event_seq |
-    /// | `Some(seq)` | `true` | Starts before event_seq |
-    pub(crate) async fn transaction_events(
+    /// | cursor      | descending | Result                   |
+    /// |-------------|------------|--------------------------|
+    /// | `None`      | `false`    | Starts from event_seq 0  |
+    /// | `None`      | `true`     | Starts from last event   |
+    /// | `Some(seq)` | `false`    | Starts after event_seq   |
+    /// | `Some(seq)` | `true`     | Starts before event_seq  |
+    pub(crate) async fn events(
         &self,
         tx_digest: TransactionDigest,
         cursor: Option<EventID>,
@@ -492,8 +475,8 @@ impl HistoricalFallbackReader {
         let start_seq = if let Some(cursor) = cursor {
             if cursor.tx_digest != tx_digest {
                 return Err(IndexerError::InvalidArgument(format!(
-                    "Cursor tx_digest {} does not match requested tx_digest {}",
-                    cursor.tx_digest, tx_digest
+                    "Cursor tx_digest {} does not match requested tx_digest {tx_digest}",
+                    cursor.tx_digest
                 )));
             }
             Some(cursor.event_seq)
@@ -501,7 +484,7 @@ impl HistoricalFallbackReader {
             None
         };
 
-        let events = self.events(tx_digest).await?;
+        let events = self.all_events(tx_digest).await?;
 
         // apply ordering, cursor, and limit
         let events = if descending_order {
