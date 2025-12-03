@@ -1,3 +1,6 @@
+// Copyright (c) 2025 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 // In‑node model updater and shared types for congestion tracker interactions.
 // Architecture: best‑effort, non‑blocking update + train workers on bounded
 // channels; inference reads current histories, then locks the learner briefly
