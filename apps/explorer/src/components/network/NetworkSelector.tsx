@@ -9,6 +9,7 @@ import { useContext, useEffect, useRef, useState } from 'react';
 import { NetworkContext } from '~/contexts';
 import { CustomRPCInput } from '~/components/ui';
 import { ampli } from '~/lib/utils';
+import { setNetworkGroup, parseNetworkIdentifier } from '~/lib/utils/analytics/amplitude';
 import { type NetworkId, getAllNetworks } from '@iota/iota-sdk/client';
 import { Button, ButtonSize, ButtonType, Dropdown, ListItem } from '@iota/apps-ui-kit';
 import { ArrowDown, CheckmarkFilled } from '@iota/apps-ui-icons';
@@ -34,6 +35,10 @@ export function NetworkSelector(): JSX.Element {
     const handleNetworkSwitch = (networkId: NetworkId) => {
         ampli.switchedNetwork({ toNetwork: networkId });
         setNetwork(networkId);
+
+        // Parse network identifier and set network group for analytics
+        const { network: networkEnum, customRpc } = parseNetworkIdentifier(networkId);
+        setNetworkGroup(networkEnum, customRpc);
     };
 
     const selectedNetwork = networks.find(({ id }) => id === network);

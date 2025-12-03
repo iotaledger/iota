@@ -3,11 +3,12 @@
 
 import * as amplitude from '@amplitude/analytics-browser';
 import { LogLevel, type UserSession } from '@amplitude/analytics-types';
-import { consentBufferPlugin, PersistableStorage } from '@iota/core';
+import { PersistableStorage } from '@iota/core';
 
 import { ampli } from './ampli';
+import { getDefaultNetwork } from '../../config';
 
-const IS_PROD_ENV = import.meta.env.VITE_BUILD_ENV === 'production';
+const IS_ENABLED = import.meta.env.VITE_BUILD_ENV === 'production';
 
 export const persistableStorage = new PersistableStorage<UserSession>();
 
@@ -26,21 +27,27 @@ const ApiKey = {
 };
 
 export async function initAmplitude() {
+    if (ampli.isLoaded) {
+        return;
+    }
+
     await ampli.load({
-        disabled: !IS_PROD_ENV,
+        disabled: !IS_ENABLED,
         client: {
             apiKey: ApiKey.production,
             configuration: {
                 optOut: false,
-                autocapture: true,
-                logLevel: IS_PROD_ENV ? LogLevel.Warn : LogLevel.None,
+                autocapture: {
+                    pageViews: IS_ENABLED,
+                    sessions: IS_ENABLED,
+                },
+                logLevel: IS_ENABLED ? LogLevel.Warn : LogLevel.None,
             },
         },
     }).promise;
 
-    if (ampli.client) {
-        await ampli.client.add(consentBufferPlugin).promise;
-    }
+    // TODO
+    setNetworkGroup(getDefaultNetwork());
 
     window.addEventListener('pagehide', () => {
         amplitude.setTransport('beacon');
@@ -54,6 +61,10 @@ export function getUrlWithDeviceId(url: URL) {
         url.searchParams.set('amplitude_device_id', deviceId);
     }
     return url;
+}
+
+function setNetworkGroup(network: string): void {
+    ampli.client.setGroup('activeNetwork', network);
 }
 
 /**

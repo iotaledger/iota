@@ -18,11 +18,13 @@ import {
     ClipboardPasteSafetyWrapper,
     IotaGraphQLClientProvider,
     IotaNamesClientProvider,
+    Disclaimer,
+    setCookieAccepted,
 } from '@iota/core';
 import { growthbook } from '@/lib/utils';
 import { ThemeProvider } from '@iota/core';
 import { createIotaClient } from '@/lib/utils/defaultRpcClient';
-import { CookieDisclaimer } from '@/components/disclaimer/CookieDisclaimer';
+import { COOKIE_POLICY_ROUTE } from '@/lib/constants/routes.constants';
 
 growthbook.init();
 
@@ -71,7 +73,18 @@ export function AppProviders({ children }: React.PropsWithChildren) {
                                                 <CookieManagerProvider>
                                                     {children}
                                                     <Toaster containerClassName="!right-8" />
-                                                    <CookieDisclaimer />
+                                                    <Disclaimer onClose={setCookieAccepted}>
+                                                        <div>
+                                                            We use cookies and analytics tools to
+                                                            help us improve your experience.{' '}
+                                                            <a
+                                                                href={COOKIE_POLICY_ROUTE.path}
+                                                                className="underline"
+                                                            >
+                                                                Read our Cookie Policy
+                                                            </a>
+                                                        </div>
+                                                    </Disclaimer>
                                                 </CookieManagerProvider>
                                             </ThemeProvider>
                                         </ClipboardPasteSafetyWrapper>

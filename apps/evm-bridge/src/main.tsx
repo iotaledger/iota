@@ -14,7 +14,6 @@ import {
 } from '@rainbow-me/rainbowkit';
 import { darkTheme, IotaClientProvider, lightTheme, WalletProvider } from '@iota/dapp-kit';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { CookieDisclaimer } from './components/disclaimer/CookieDisclaimer';
 import App from './App.tsx';
 import { ThemeProvider } from './providers/ThemeProvider.tsx';
 import { WagmiProvider } from 'wagmi';
@@ -28,19 +27,19 @@ import {
 } from './config/index.ts';
 import { EvmRpcClientProvider } from './providers/EvmRpcClientProvider.tsx';
 import { Toaster } from './components/index.ts';
-import { IotaGraphQLClientProvider } from '@iota/core';
+import { Disclaimer, IotaGraphQLClientProvider, setCookieAccepted } from '@iota/core';
 import { growthbook, interceptProviderAnnouncements } from './lib/utils/index.ts';
 import { GrowthBookProvider } from '@growthbook/growthbook-react';
 import { getNetwork } from '@iota/iota-sdk/client';
 import { metaMaskWallet, walletConnectWallet } from '@rainbow-me/rainbowkit/wallets';
-import { initAmplitude } from './shared/analytics/amplitude.ts';
+import { USE_CONDITIONS_LINKS } from './lib/constants/routes.constants.ts';
+import { Link } from './components/link/Link.tsx';
 
 // We intercept EIP-6963 announcements
 // to only allow certain wallets (metamask) to be discovered
 interceptProviderAnnouncements();
 
 growthbook.init();
-initAmplitude();
 
 const queryClient = new QueryClient();
 
@@ -84,7 +83,30 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
                                             <CookieManagerProvider>
                                                 <App />
                                                 <Toaster />
-                                                <CookieDisclaimer />
+                                                <Disclaimer onClose={setCookieAccepted}>
+                                                    <div>
+                                                        By using this website, you agree with our{' '}
+                                                        {USE_CONDITIONS_LINKS.map(
+                                                            ({ text, url }, index) => {
+                                                                return (
+                                                                    <React.Fragment key={text}>
+                                                                        <Link
+                                                                            href={url}
+                                                                            isSecondary
+                                                                        >
+                                                                            {text}
+                                                                        </Link>
+                                                                        {index <
+                                                                        USE_CONDITIONS_LINKS.length -
+                                                                            1
+                                                                            ? ', '
+                                                                            : ''}
+                                                                    </React.Fragment>
+                                                                );
+                                                            },
+                                                        )}
+                                                    </div>
+                                                </Disclaimer>
                                             </CookieManagerProvider>
                                         </RainbowKit>
                                     </ThemeProvider>

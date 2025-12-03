@@ -1,21 +1,22 @@
 // Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+import { getAmplitudeConsentStatus } from '@iota/core';
 import { Header, Bridge, Footer } from './components';
 import { DirectionalArrowsSvg } from './components/svgs/DirectionalArrows';
 import { FaucetButton } from './components/FaucetButton';
 import { useEffect } from 'react';
-import { initAmplitude, ampli } from './shared/analytics';
+import { initAmplitude } from './shared/analytics';
 import { CookiePolicy } from './components/disclaimer/CookiePolicy';
 
 const TITLE = 'Seamlessly transfer funds between IOTA & IOTA EVM';
 
 export default function App() {
     useEffect(() => {
-        if (ampli.isLoaded) {
-            return;
+        const amplitudeConsentStatus = getAmplitudeConsentStatus();
+        if (amplitudeConsentStatus !== 'declined') {
+            initAmplitude();
         }
-        initAmplitude();
     }, []);
 
     const isCookiePolicyPage =

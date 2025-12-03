@@ -11,12 +11,14 @@ import { RouterProvider } from 'react-router-dom';
 import { CookieManagerProvider } from '@boxfish-studio/react-cookie-manager';
 import { growthbook, initAmplitude, initSentry, queryClient } from './lib/utils';
 import { router } from './pages';
-import { CookieDisclaimer } from './components/disclaimer/CookieDisclaimer';
 
 initSentry();
 
 import '@iota/dapp-kit/dist/index.css';
 import './index.css';
+import { Disclaimer, setCookieAccepted } from '@iota/core';
+import { LEGAL_LINKS } from './lib';
+import { Link } from './components';
 
 // Load Amplitude as early as we can:
 initAmplitude();
@@ -30,7 +32,24 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
             <QueryClientProvider client={queryClient}>
                 <CookieManagerProvider>
                     <RouterProvider router={router} />
-                    <CookieDisclaimer />
+                    <Disclaimer onClose={setCookieAccepted}>
+                        <div>
+                            By using this website, you agree with our{' '}
+                            {LEGAL_LINKS.map((link, index) => (
+                                <React.Fragment key={link.href}>
+                                    <Link
+                                        href={link.href}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="underline hover:text-white"
+                                    >
+                                        {link.title}
+                                    </Link>
+                                    {index < LEGAL_LINKS.length - 1 && ' and '}
+                                </React.Fragment>
+                            ))}
+                        </div>
+                    </Disclaimer>
                 </CookieManagerProvider>
             </QueryClientProvider>
         </GrowthBookProvider>

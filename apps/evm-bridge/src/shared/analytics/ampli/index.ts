@@ -81,6 +81,11 @@ export interface ConnectedL2WalletProperties {
     walletType: string;
 }
 
+export interface OpenedEvmBridgeProperties {
+    activeOrigin?: string;
+    pagePath?: string;
+}
+
 export interface SelectedCoinProperties {
     bridgeDirection: string;
     coinSymbol: string;
@@ -126,6 +131,14 @@ export class ConnectedL2Wallet implements BaseEvent {
     event_type = 'connected l2 wallet';
 
     constructor(public event_properties: ConnectedL2WalletProperties) {
+        this.event_properties = event_properties;
+    }
+}
+
+export class OpenedEvmBridge implements BaseEvent {
+    event_type = 'opened evm bridge';
+
+    constructor(public event_properties?: OpenedEvmBridgeProperties) {
         this.event_properties = event_properties;
     }
 }
@@ -332,6 +345,23 @@ export class Ampli {
     options?: EventOptions,
   ) {
     return this.track(new ConnectedL2Wallet(properties), options);
+  }
+
+  /**
+   * opened evm bridge
+   *
+   * [View in Tracking Plan](https://data.eu.amplitude.com/iota-foundation/IOTA%20EVM%20Bridge/events/main/latest/opened%20evm%20bridge)
+   *
+   * Event has no description in tracking plan.
+   *
+   * @param properties The event's properties (e.g. activeOrigin)
+   * @param options Amplitude event options.
+   */
+  openedEvmBridge(
+    properties?: OpenedEvmBridgeProperties,
+    options?: EventOptions,
+  ) {
+    return this.track(new OpenedEvmBridge(properties), options);
   }
 
   /**

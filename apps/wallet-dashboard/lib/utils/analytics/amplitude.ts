@@ -3,14 +3,11 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import * as amplitude from '@amplitude/analytics-browser';
-import { LogLevel, type UserSession } from '@amplitude/analytics-types';
-import { PersistableStorage, consentBufferPlugin } from '@iota/core';
+import { LogLevel } from '@amplitude/analytics-types';
 
 import { ampli } from './ampli';
 
 const IS_PROD_ENV = process.env.NEXT_PUBLIC_BUILD_ENV == 'production';
-
-export const persistableStorage = new PersistableStorage<UserSession>();
 
 export async function initAmplitude() {
     await ampli.load({
@@ -20,16 +17,14 @@ export async function initAmplitude() {
         client: {
             configuration: {
                 optOut: false,
+                autocapture: {
+                    pageViews: IS_PROD_ENV,
+                    sessions: IS_PROD_ENV,
+                },
                 logLevel: IS_PROD_ENV ? LogLevel.Warn : LogLevel.None,
             },
         },
     }).promise;
-
-    // Add consent buffer plugin to Amplitude
-    // This plugin queues events in localStorage before user consent
-    if (ampli.client) {
-        await ampli.client.add(consentBufferPlugin).promise;
-    }
 
     window.addEventListener('pagehide', () => {
         amplitude.setTransport('beacon');

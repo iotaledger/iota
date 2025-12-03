@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import type { BrowserClient } from '@amplitude/analytics-types';
-import { consentBufferPlugin } from './consentBufferPlugin';
 import { AMP_COOKIES_KEY } from './constants';
 
 export function setCookieAccepted(): void {
@@ -23,9 +22,6 @@ export function setCookieDeclined(): void {
  * @param ampliClient - Optional Amplitude client instance to call setOptOut on
  */
 export function handleConsentAccepted(ampliClient?: BrowserClient): void {
-    // Flush buffered events to Amplitude
-    consentBufferPlugin.flushQueue();
-
     // Enable tracking
     if (ampliClient) {
         ampliClient.setOptOut(false);
@@ -44,13 +40,20 @@ export function handleConsentAccepted(ampliClient?: BrowserClient): void {
  * @param ampliClient - Optional Amplitude client instance to call setOptOut on
  */
 export function handleConsentDeclined(ampliClient?: BrowserClient): void {
-    // Clear buffered events
-    consentBufferPlugin.clearQueue();
-
     // Disable tracking
     if (ampliClient) {
         ampliClient.setOptOut(true);
     }
 
     setCookieDeclined();
+}
+
+/**
+ * Check if user has previously given consent for cookies/tracking.
+ */
+export function getAmplitudeConsentStatus() {
+    if (typeof document === 'undefined') return 'pending';
+    if (document.cookie.includes(`${AMP_COOKIES_KEY}=true`)) return 'accepted';
+    if (document.cookie.includes(`${AMP_COOKIES_KEY}=false`)) return 'declined';
+    return 'pending';
 }
