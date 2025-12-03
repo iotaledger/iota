@@ -83,7 +83,13 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         serialized_block: ExtendedSerializedBlock,
     ) -> ConsensusResult<()> {
         fail_point_async!("consensus-rpc-response");
-
+        let _s = self
+            .context
+            .metrics
+            .node_metrics
+            .scope_processing_time
+            .with_label_values(&["AuthorityService::handle_stream"])
+            .start_timer();
         let peer_hostname = &self.context.committee.authority(peer).hostname;
 
         // TODO: dedup block verifications, here and with fetched blocks.
@@ -130,6 +136,14 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         let now = self.context.clock.timestamp_utc_ms();
         let forward_time_drift =
             Duration::from_millis(verified_block.timestamp_ms().saturating_sub(now));
+        let latency_to_process_stream =
+            Duration::from_millis(now.saturating_sub(verified_block.timestamp_ms()));
+        self.context
+            .metrics
+            .node_metrics
+            .latency_to_process_stream
+            .with_label_values(&[peer_hostname.as_str()])
+            .observe(latency_to_process_stream.as_secs_f64());
 
         if !self
             .context

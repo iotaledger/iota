@@ -28,7 +28,6 @@
     "scripts": {
         "clean": "rm -rf tsconfig.tsbuildinfo ./dist",
         "build": "build-package",
-        "prepublishOnly": "pnpm turbo build",
         "prettier:check": "prettier -c --ignore-unknown .",
         "prettier:fix": "prettier -w --ignore-unknown .",
         "eslint:check": "eslint --max-warnings=0 .",

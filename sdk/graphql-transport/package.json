@@ -27,7 +27,6 @@
         "eslint:fix": "pnpm run eslint:check --fix",
         "lint:fix": "pnpm run eslint:fix && pnpm run prettier:fix",
         "lint": "pnpm run eslint:check && pnpm run prettier:check",
-        "prepublishOnly": "pnpm build",
         "prettier:check": "prettier -c --ignore-unknown --ignore-path=../../.prettierignore --ignore-path=.prettierignore .",
         "prettier:fix": "prettier -w --ignore-unknown --ignore-path=../../.prettierignore --ignore-path=.prettierignore .",
         "test:e2e:nowait": "vitest run e2e",

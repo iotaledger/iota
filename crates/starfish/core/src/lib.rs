@@ -45,8 +45,8 @@ mod universal_committer;
 #[path = "tests/randomized_tests.rs"]
 mod randomized_tests;
 
+mod commit_solidifier;
 mod cordial_knowledge;
-mod data_manager;
 mod decoder;
 mod encoder;
 mod shard_reconstructor;
