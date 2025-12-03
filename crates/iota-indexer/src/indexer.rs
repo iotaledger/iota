@@ -16,6 +16,7 @@ use crate::{
     config::{IngestionConfig, JsonRpcConfig, RetentionConfig, SnapshotLagConfig},
     db::ConnectionPool,
     errors::IndexerError,
+    historical_fallback::reader::HistoricalFallbackReader,
     ingestion::{
         primary::orchestration::PrimaryPipeline, snapshot::orchestration::SnapshotPipelineBuilder,
     },
@@ -168,7 +169,21 @@ impl Indexer {
             "IOTA Indexer Reader (version {:?}) started...",
             env!("CARGO_PKG_VERSION")
         );
-        let read = IndexerReader::new(connection_pool);
+
+        let mut read = IndexerReader::new(connection_pool.clone());
+
+        if let Some(rest_kv_url) = &config.historic_fallback_options.rest_kv_url {
+            let historic_fallback_reader =
+                HistoricalFallbackReader::new(rest_kv_url.as_str(), read.package_resolver())?;
+            info!(
+                "HistoricalFallbackReader initialized with URL: {}",
+                rest_kv_url
+            );
+            read.with_historical_fallback(historic_fallback_reader);
+        } else {
+            info!("No config for HistoricalFallbackReader provided, skipping...");
+        }
+
         let handle = build_json_rpc_server(store, registry, read, config, metrics)
             .await
             .expect("json rpc server should not run into errors upon start.");

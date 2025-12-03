@@ -134,6 +134,13 @@ impl IndexerReader {
         DBReader::new(self)
     }
 
+    /// Sets the historical fallback reader for this IndexerReader.
+    /// This allows the reader to fall back to historical KV storage when data
+    /// is not available in Postgres.
+    pub(crate) fn with_historical_fallback(&mut self, kv_reader: HistoricalFallbackReader) {
+        self.fallback = Some(kv_reader);
+    }
+
     pub fn new_with_config<T: Into<String>>(
         db_url: T,
         config: ConnectionPoolConfig,
