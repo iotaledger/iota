@@ -4,6 +4,7 @@
 import { ampli } from '_src/shared/analytics/ampli';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import SecureYourWallet from '_assets/images/onboarding/secure-your-wallet.png';
+import SecureYourWalletDark from '_assets/images/onboarding/secure-your-wallet-darkmode.png';
 import { Card, CardType, CardBody, CardAction, CardActionType } from '@iota/apps-ui-kit';
 import { AccountsFormType, useAccountsFormContext, PageTemplate } from '_components';
 import { useAppSelector, useCreateAccountsMutation } from '_hooks';
@@ -11,8 +12,10 @@ import { AppType } from '../../redux/slices/app/appType';
 import { ImportPass, Passkey } from '@iota/apps-ui-icons';
 import { openInNewTab } from '_src/shared/utils';
 import { type ActionCardItem, OnboardingCardIcon } from './AddAccountPage';
+import { Theme, useTheme } from '@iota/core';
 
 export function CreateNewWallet() {
+    const { theme } = useTheme();
     const navigate = useNavigate();
     const [, setAccountsFormValues] = useAccountsFormContext();
     const isPopup = useAppSelector((state) => state.app.appType === AppType.Popup);
@@ -22,9 +25,9 @@ export function CreateNewWallet() {
 
     const profileOptions = [
         {
-            title: 'Recovery Phrase',
+            title: 'Mnemonic',
             icon: ImportPass,
-            subtitle: 'Secret Recovery Phrase (12/24 words)',
+            subtitle: 'Recovery Phrase (12/24 words)',
             actionType: AccountsFormType.NewMnemonic,
         },
         {
@@ -71,7 +74,7 @@ export function CreateNewWallet() {
                 <div className="flex w-full flex-1 flex-col justify-center py-md--rs text-center">
                     <div className="flex flex-col items-center gap-y-4">
                         <img
-                            src={SecureYourWallet}
+                            src={theme === Theme.Dark ? SecureYourWalletDark : SecureYourWallet}
                             alt="Secure your wallet"
                             height={178}
                             className="mx-auto aspect-[4/3] h-[178px] w-auto object-cover"

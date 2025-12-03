@@ -8,9 +8,12 @@ import { useFullscreenGuard, useInitializedGuard, useCreateAccountsMutation } fr
 import { Button, ButtonType } from '@iota/apps-ui-kit';
 import { IotaLogoWeb } from '@iota/apps-ui-icons';
 import GetStartedImage from '_assets/images/onboarding/get-started.png';
+import GetStartedImageDark from '_assets/images/onboarding/get-started-darkmode.png';
+import { useTheme, Theme } from '@iota/core';
 
 export function WelcomePage() {
     const createAccountsMutation = useCreateAccountsMutation();
+    const { theme } = useTheme();
     const isFullscreenGuardLoading = useFullscreenGuard(true);
     const isInitializedLoading = useInitializedGuard(
         false,
@@ -29,7 +32,7 @@ export function WelcomePage() {
                 />
                 <div className="flex flex-col items-center gap-8 text-center">
                     <img
-                        src={GetStartedImage}
+                        src={theme === Theme.Dark ? GetStartedImageDark : GetStartedImage}
                         alt="Get Started"
                         height={246}
                         width="auto"

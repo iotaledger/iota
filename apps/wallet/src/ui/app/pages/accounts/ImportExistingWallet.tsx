@@ -4,6 +4,7 @@
 import { ampli } from '_src/shared/analytics/ampli';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import ImportAWallet from '_assets/images/onboarding/import-a-wallet.png';
+import ImportAWalletDark from '_assets/images/onboarding/import-a-wallet-darkmode.png';
 import { Card, CardType, CardBody, CardAction, CardActionType } from '@iota/apps-ui-kit';
 import { AccountsFormType, PageTemplate } from '_components';
 import { useAppSelector, useCreateAccountsMutation } from '_hooks';
@@ -11,8 +12,10 @@ import { AppType } from '../../redux/slices/app/appType';
 import { ImportPass, Key, Passkey, Firefly } from '@iota/apps-ui-icons';
 import { openInNewTab } from '_src/shared/utils';
 import { type ActionCardItem, OnboardingCardIcon } from './AddAccountPage';
+import { Theme, useTheme } from '@iota/core';
 
 export function ImportExistingWallet() {
+    const { theme } = useTheme();
     const [searchParams] = useSearchParams();
     const navigate = useNavigate();
     const isPopup = useAppSelector((state) => state.app.appType === AppType.Popup);
@@ -21,9 +24,9 @@ export function ImportExistingWallet() {
 
     const profileOptions = [
         {
-            title: 'Recovery Phrase',
+            title: 'Mnemonic',
             icon: ImportPass,
-            subtitle: 'Secret Recovery Phrase (12/24 words)',
+            subtitle: 'Recovery Phrase (12/24 words)',
             actionType: AccountsFormType.ImportMnemonic,
         },
         {
@@ -88,9 +91,9 @@ export function ImportExistingWallet() {
             onBack={() => navigate(-1)}
         >
             <div className="flex h-full w-full flex-col">
-                <div className="flex w-full flex-col gap-4 py-md--rs text-center">
+                <div className="flex w-full flex-1 flex-col justify-center gap-4 py-md--rs text-center">
                     <img
-                        src={ImportAWallet}
+                        src={theme === Theme.Dark ? ImportAWalletDark : ImportAWallet}
                         alt="Import a wallet"
                         height={140}
                         width="auto"
