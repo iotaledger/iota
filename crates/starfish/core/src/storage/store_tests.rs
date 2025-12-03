@@ -155,16 +155,14 @@ async fn scan_block_headers(
 ) {
     let store = test_store.store();
 
-    let written_blocks = vec![
-        VerifiedBlock::new_for_test(TestBlockHeader::new(9, 0).build()),
+    let written_blocks = [VerifiedBlock::new_for_test(TestBlockHeader::new(9, 0).build()),
         VerifiedBlock::new_for_test(TestBlockHeader::new(10, 0).build()),
         VerifiedBlock::new_for_test(TestBlockHeader::new(10, 1).build()),
         VerifiedBlock::new_for_test(TestBlockHeader::new(11, 1).build()),
         VerifiedBlock::new_for_test(TestBlockHeader::new(11, 3).build()),
         VerifiedBlock::new_for_test(TestBlockHeader::new(12, 1).build()),
         VerifiedBlock::new_for_test(TestBlockHeader::new(13, 2).build()),
-        VerifiedBlock::new_for_test(TestBlockHeader::new(13, 1).build()),
-    ];
+        VerifiedBlock::new_for_test(TestBlockHeader::new(13, 1).build())];
 
     // Write block headers
     store
@@ -205,12 +203,10 @@ async fn scan_block_headers(
     );
 
     // Add more headers and test scanning
-    let additional_blocks = vec![
-        VerifiedBlock::new_for_test(TestBlockHeader::new(14, 2).build()),
+    let additional_blocks = [VerifiedBlock::new_for_test(TestBlockHeader::new(14, 2).build()),
         VerifiedBlock::new_for_test(TestBlockHeader::new(15, 0).build()),
         VerifiedBlock::new_for_test(TestBlockHeader::new(15, 1).build()),
-        VerifiedBlock::new_for_test(TestBlockHeader::new(16, 3).build()),
-    ];
+        VerifiedBlock::new_for_test(TestBlockHeader::new(16, 3).build())];
 
     // Write additional block headers
     store
@@ -271,14 +267,12 @@ async fn read_and_contain_transactions(
 ) {
     let store = test_store.store();
 
-    let written_blocks = vec![
-        VerifiedBlock::new_for_test(TestBlockHeader::new(9, 0).build()),
+    let written_blocks = [VerifiedBlock::new_for_test(TestBlockHeader::new(9, 0).build()),
         VerifiedBlock::new_for_test(TestBlockHeader::new(10, 0).build()),
         VerifiedBlock::new_for_test(TestBlockHeader::new(10, 1).build()),
         VerifiedBlock::new_for_test(TestBlockHeader::new(11, 1).build()),
         VerifiedBlock::new_for_test(TestBlockHeader::new(11, 3).build()),
-        VerifiedBlock::new_for_test(TestBlockHeader::new(12, 1).build()),
-    ];
+        VerifiedBlock::new_for_test(TestBlockHeader::new(12, 1).build())];
     // Write transactions to store
     let written_transactions: Vec<_> = written_blocks
         .iter()

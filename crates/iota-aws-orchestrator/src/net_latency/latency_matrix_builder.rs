@@ -51,6 +51,7 @@ pub fn generate_block_matrix(n: usize, k: usize) -> Vec<Vec<bool>> {
 
     // For symmetry, we assign blocks in round-robin pairs:
     // node i blocks nodes (i+1)%n, (i+2)%n, ..., (i+k)%n
+    #[allow(clippy::needless_range_loop)]
     for i in 0..n {
         for offset in 1..=k {
             let j = (i + offset) % n;

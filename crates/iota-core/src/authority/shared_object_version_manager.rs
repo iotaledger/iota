@@ -645,14 +645,11 @@ mod tests {
             .with_starting_objects(std::slice::from_ref(&shared_object))
             .build()
             .await;
-        let certs = vec![
-            generate_shared_objs_tx_with_gas_version(&[(id, init_shared_version, true)], 3),
+        let certs = [generate_shared_objs_tx_with_gas_version(&[(id, init_shared_version, true)], 3),
             generate_shared_objs_tx_with_gas_version(&[(id, init_shared_version, false)], 5),
             generate_shared_objs_tx_with_gas_version(&[(id, init_shared_version, true)], 9),
-            generate_shared_objs_tx_with_gas_version(&[(id, init_shared_version, true)], 11),
-        ];
-        let effects = vec![
-            TestEffectsBuilder::new(certs[0].data()).build(),
+            generate_shared_objs_tx_with_gas_version(&[(id, init_shared_version, true)], 11)];
+        let effects = [TestEffectsBuilder::new(certs[0].data()).build(),
             TestEffectsBuilder::new(certs[1].data())
                 .with_shared_input_versions(BTreeMap::from([(id, SequenceNumber::from_u64(4))]))
                 .build(),
@@ -661,8 +658,7 @@ mod tests {
                 .build(),
             TestEffectsBuilder::new(certs[3].data())
                 .with_shared_input_versions(BTreeMap::from([(id, SequenceNumber::from_u64(10))]))
-                .build(),
-        ];
+                .build()];
         let epoch_store = authority.epoch_store_for_testing();
         let assigned_versions = SharedObjVerManager::assign_versions_from_effects(
             certs
