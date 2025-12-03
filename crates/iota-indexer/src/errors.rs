@@ -7,7 +7,7 @@ use iota_data_ingestion_core::IngestionError;
 use iota_json_rpc_api::{error_object_from_rpc, internal_error};
 use iota_names::error::IotaNamesError;
 use iota_types::{
-    base_types::ObjectIDParseError,
+    base_types::{ObjectID, ObjectIDParseError, SequenceNumber},
     error::{IotaError, IotaObjectResponseError, UserInputError},
 };
 use jsonrpsee::{core::ClientError as RpcError, types::ErrorObjectOwned};
@@ -153,6 +153,14 @@ pub enum IndexerError {
 
     #[error("Transaction dependencies have not been indexed")]
     TransactionDependenciesNotIndexed,
+
+    #[error("historical fallback object not found: id {object_id}, version {version}")]
+    HistoricalFallbackObjectNotFound {
+        object_id: ObjectID,
+        version: SequenceNumber,
+    },
+    #[error("historical fallback storage error: {0}")]
+    HistoricalFallbackStorageError(String),
 }
 
 pub type IndexerResult<T> = Result<T, IndexerError>;

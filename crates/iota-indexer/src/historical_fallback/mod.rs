@@ -10,3 +10,4 @@
 
 pub(crate) mod client;
 pub(crate) mod convert;
+pub(crate) mod reader;
