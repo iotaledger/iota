@@ -16,7 +16,7 @@ use enum_dispatch::enum_dispatch;
 use fastcrypto::hash::{Digest, HashFunction as _};
 use serde::{Deserialize, Serialize};
 use starfish_config::{AuthorityIndex, DIGEST_LENGTH, DefaultHashFunction};
-use tracing::info;
+use tracing::debug;
 
 use crate::{
     block_header::{
@@ -77,7 +77,7 @@ impl Commit {
         reputation_scores_desc: Vec<(AuthorityIndex, u64)>,
     ) -> Self {
         if context.protocol_config.consensus_transaction_ref() {
-            info!("Creating CommitV2 as consensus_transaction_ref is enabled");
+            debug!("Creating CommitV2 as consensus_transaction_ref is enabled");
             // Extract TransactionRefs from GenericTransactionRef
             let transaction_refs: Vec<TransactionRef> = committed_transactions
                 .into_iter()
@@ -99,7 +99,7 @@ impl Commit {
                 reputation_scores_desc,
             })
         } else {
-            info!("Creating CommitV1 as consensus_transaction_ref is disabled");
+            debug!("Creating CommitV1 as consensus_transaction_ref is disabled");
             // Extract BlockRefs from GenericTransactionRef
             let block_refs: Vec<BlockRef> = committed_transactions
                 .into_iter()
