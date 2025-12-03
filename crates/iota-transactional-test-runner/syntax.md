@@ -1513,9 +1513,9 @@ public fun authenticate_hello_world(
   These are inputs used inside the transaction body - for example, numeric values, objects, or addresses.
   The PTB commands (//> ...) operate as in the programmable command.
 
-- object(1,1) 
+- object(1,1)
   The `PackageMetadata` object carries information about function annotations, such as attributes
-  
+
 `.snap` output:
 
 ```
