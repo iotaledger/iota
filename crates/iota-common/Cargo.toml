@@ -13,6 +13,7 @@ fastcrypto.workspace = true
 futures.workspace = true
 parking_lot.workspace = true
 prometheus.workspace = true
+rand.workspace = true
 reqwest.workspace = true
 snap.workspace = true
 tokio = { workspace = true, features = ["sync"] }

@@ -29,6 +29,7 @@ tokio.workspace = true
 tracing.workspace = true
 
 # internal dependencies
+iota-common.workspace = true
 iota-config.workspace = true
 iota-json.workspace = true
 iota-json-rpc-api.workspace = true
