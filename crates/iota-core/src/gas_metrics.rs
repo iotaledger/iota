@@ -162,7 +162,7 @@ impl GasMetrics {
                 .observe(cpu_pct as u64);
             self.proc_mem_bytes
                 .with_label_values(&[component])
-                .observe(rss_bytes as u64);
+                .observe(rss_bytes);
         }
     }
 }

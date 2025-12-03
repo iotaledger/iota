@@ -244,7 +244,7 @@ impl GasLearner {
     /// One-time warm-up to avoid first-call stalls (parity with Python
     /// startup).
     pub fn warmup(&self) {
-        let _ = tch::no_grad(|| {
+        tch::no_grad(|| {
             let dummy = Tensor::zeros([1, T, F], (Kind::Float, self.vs.device()));
             let (_pred, _attn) = self
                 .model

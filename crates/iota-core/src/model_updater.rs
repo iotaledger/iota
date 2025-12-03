@@ -407,7 +407,7 @@ impl HistState {
     }
 
     fn synth_not_touched(&mut self, oid: ObjectID, checkpoint_ms: u64) -> Option<[f32; FEAT]> {
-        let last = self.histories.get(&oid)?.back()?.clone();
+        let last = *self.histories.get(&oid)?.back()?;
         let prev_ms = *self.last_ms.get(&oid)?;
         let dt_sec = ((checkpoint_ms.saturating_sub(prev_ms)) as f32) / 1000.0;
         let mut f = last;
@@ -639,10 +639,7 @@ impl InNodeModelUpdater {
             let mut h_anchor: f32 = 0.0;
             let mut min_obj_ms: Option<u64> = None;
             for oid in object_ids {
-                let seq = match st.build_object_seq(oid) {
-                    Some(s) => s,
-                    None => return None,
-                };
+                let seq = st.build_object_seq(oid)?;
                 if let Some(h) = st.latest_hotness_over_ref(oid) {
                     h_anchor = h_anchor.max(h);
                 }
@@ -699,7 +696,7 @@ impl ModelUpdater for InNodeModelUpdater {
         static DROP_UPDATES: AtomicU64 = AtomicU64::new(0);
         if let Err(_e) = self.tx_update.try_send(batch) {
             let c = DROP_UPDATES.fetch_add(1, Ordering::Relaxed) + 1;
-            if c % 1000 == 0 {
+            if c.is_multiple_of(1000) {
                 eprintln!("[in-model] dropped {} update batches (channel full)", c);
             }
             self.metrics
@@ -717,7 +714,7 @@ impl ModelUpdater for InNodeModelUpdater {
         static DROP_TRAINS: AtomicU64 = AtomicU64::new(0);
         if let Err(_e) = self.tx_train.try_send(batch) {
             let c = DROP_TRAINS.fetch_add(1, Ordering::Relaxed) + 1;
-            if c % 1000 == 0 {
+            if c.is_multiple_of(1000) {
                 eprintln!("[in-model] dropped {} train batches (channel full)", c);
             }
             self.metrics
