@@ -15,15 +15,13 @@ use iota_rest_api::CheckpointTransaction;
 use iota_types::{
     digests::TransactionDigest,
     effects::TransactionEvents,
-    messages_checkpoint::{
-        CertifiedCheckpointSummary, CheckpointContents, CheckpointSequenceNumber,
-    },
+    messages_checkpoint::{CertifiedCheckpointSummary, CheckpointContents},
     object::Object,
 };
 use prometheus::Registry;
 
 use crate::{
-    errors::IndexerResult,
+    errors::{IndexerError, IndexerResult},
     ingestion::{common::prepare::extract_df_kind, primary::prepare::PrimaryWorker},
     metrics::IndexerMetrics,
     models::{
@@ -37,13 +35,13 @@ use crate::{
 /// Alias for an [`Object`] fetched from historical fallback storage.
 ///
 /// Contains all data needed to reconstruct a [`StoredObject`].
-type HistoricalFallbackObject = Object;
+pub(crate) type HistoricalFallbackObject = Object;
 
 /// Alias for [`CertifiedCheckpointSummary`] with its [`CheckpointContents`]
 /// data fetched from historical fallback storage.
 ///
 /// Contains all data needed to reconstruct a [`StoredCheckpoint`].
-type HistoricalFallbackCheckpoint = (CertifiedCheckpointSummary, CheckpointContents);
+pub(crate) type HistoricalFallbackCheckpoint = (CertifiedCheckpointSummary, CheckpointContents);
 
 impl From<HistoricalFallbackObject> for StoredObject {
     fn from(object: HistoricalFallbackObject) -> Self {
@@ -81,7 +79,6 @@ pub struct HistoricalFallbackEvents {
 }
 
 impl HistoricalFallbackEvents {
-    #[expect(dead_code)]
     pub fn new(events: TransactionEvents, checkpoint_summary: CertifiedCheckpointSummary) -> Self {
         Self {
             events,
@@ -91,7 +88,6 @@ impl HistoricalFallbackEvents {
 
     /// Converts the raw [`TransactionEvents`] into JSON RPC compatible
     /// [`IotaEvent`]s.
-    #[expect(dead_code)]
     pub(crate) async fn into_iota_events(
         self,
         package_resolver: Arc<Resolver<impl PackageStore>>,
@@ -116,42 +112,41 @@ pub struct HistoricalFallbackTransaction {
     /// Checkpointed transaction data.
     checkpoint_transaction: CheckpointTransaction,
     /// Checkpoint sequence number the transaction is part of.
-    checkpoint_sequence_number: CheckpointSequenceNumber,
-    /// Checkpoint timestamp.
-    timestamp: u64,
+    historical_checkpoint: HistoricalFallbackCheckpoint,
 }
 
 impl HistoricalFallbackTransaction {
-    #[expect(dead_code)]
     pub fn new(
         checkpoint_transaction: CheckpointTransaction,
-        checkpoint_summary: CertifiedCheckpointSummary,
+        historical_checkpoint: HistoricalFallbackCheckpoint,
     ) -> Self {
         Self {
             checkpoint_transaction,
-            checkpoint_sequence_number: checkpoint_summary.sequence_number,
-            timestamp: checkpoint_summary.timestamp_ms,
+            historical_checkpoint,
         }
     }
 
     /// Converts the historical fallback transaction into a
     /// [`StoredTransaction`].
-    #[expect(dead_code)]
-    async fn into_stored_transaction(self) -> IndexerResult<StoredTransaction> {
-        // StoredTransaction::try_into_iota_transaction_block_response implementation
-        // does not use the `tx_sequence_number`, in this regard it is safe to
-        // hardcode to 0.
-        //
-        // If in future iterations, the `tx_sequence_number` will be needed, by
-        // importing the CheckpointContents we'll be able to derive it by using the
-        // CheckpointContents::enumerate_transactions method.
-        let tx_sequence_number = 0;
+    pub(crate) async fn into_stored_transaction(self) -> IndexerResult<StoredTransaction> {
+        let tx_digest = self.checkpoint_transaction.transaction.digest();
+        let (summary, contents) = self.historical_checkpoint;
+
+        let Some(tx_sequence_number) = contents
+            .enumerate_transactions(&summary)
+            .find(|(_seq, execution_digest)| &execution_digest.transaction == tx_digest)
+            .map(|(seq, _execution_digest)| seq)
+        else {
+            return Err(IndexerError::HistoricalFallbackStorageError(format!(
+                "cannot find transaction sequence number to transaction: {tx_digest}"
+            )));
+        };
 
         let indexed_tx = PrimaryWorker::index_transaction(
             &self.checkpoint_transaction,
             tx_sequence_number,
-            self.checkpoint_sequence_number,
-            self.timestamp,
+            summary.sequence_number,
+            summary.timestamp_ms,
             &IndexerMetrics::new(&Registry::new()),
         )
         .await?;
