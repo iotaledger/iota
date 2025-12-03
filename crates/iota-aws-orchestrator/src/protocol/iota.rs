@@ -58,13 +58,12 @@ pub struct IotaProtocol {
 }
 
 impl ProtocolCommands<IotaBenchmarkType> for IotaProtocol {
-    fn protocol_dependencies(&self) -> Vec<&'static str> {
-        vec![
-            // Install typical iota dependencies.
-            "sudo apt-get -y install curl git-all clang cmake gcc libssl-dev pkg-config libclang-dev",
-            // This dependency is missing from the IOTA docs.
-            "sudo apt-get -y install libpq-dev",
-        ]
+    fn protocol_dependencies(&self, use_precompiled_binaries: bool) -> Vec<&'static str> {
+        if !use_precompiled_binaries {
+            return vec!["sudo apt-get -y install libudev-dev libpq5 libpq-dev"];
+        }
+
+        vec![]
     }
 
     fn db_directories(&self) -> Vec<PathBuf> {
@@ -81,6 +80,7 @@ impl ProtocolCommands<IotaBenchmarkType> for IotaProtocol {
         &self,
         instances: I,
         parameters: &BenchmarkParameters<IotaBenchmarkType>,
+        use_precompiled_binaries: bool,
     ) -> String
     where
         I: Iterator<Item = &'a Instance>,
@@ -96,6 +96,7 @@ impl ProtocolCommands<IotaBenchmarkType> for IotaProtocol {
             })
             .collect::<Vec<_>>()
             .join(" ");
+
         let epoch_duration_flag = parameters
             .epoch_duration_ms
             .map(|epoch_duration_ms| format!("--epoch-duration-ms {epoch_duration_ms}"))
@@ -104,8 +105,16 @@ impl ProtocolCommands<IotaBenchmarkType> for IotaProtocol {
             .chain_start_timestamp_ms
             .map(|timestamp_ms| format!("--chain-start-timestamp-ms {timestamp_ms}"))
             .unwrap_or_default();
+
+        let iota_command = if use_precompiled_binaries {
+            // the precompiled binary is located in the working directory
+            "./target/release/iota"
+        } else {
+            "cargo run --release --bin iota --"
+        };
+
         let genesis = [
-            "cargo run --release --bin iota --",
+            iota_command,
             "genesis",
             &format!("-f --working-dir {working_dir} --benchmark-ips {ips}"),
             &epoch_duration_flag,
@@ -115,14 +124,17 @@ impl ProtocolCommands<IotaBenchmarkType> for IotaProtocol {
         .filter(|s| !s.is_empty())
         .collect::<Vec<_>>()
         .join(" ");
-
-        [
+        let command = [
             &format!("mkdir -p {working_dir}"),
             "source $HOME/.cargo/env",
             "export RUSTFLAGS='-C target-cpu=native'",
             &genesis,
         ]
-        .join(" && ")
+        .join(" && ");
+
+        display::action(format!("\n Genesis Command: {command}"));
+
+        command
     }
 
     fn monitor_command<I>(&self, _instances: I) -> Vec<(Instance, String)>
@@ -145,6 +157,7 @@ impl ProtocolCommands<IotaBenchmarkType> for IotaProtocol {
         &self,
         instances: I,
         parameters: &BenchmarkParameters<IotaBenchmarkType>,
+        use_precompiled_binaries: bool,
     ) -> Vec<(Instance, String)>
     where
         I: IntoIterator<Item = Instance>,
@@ -160,8 +173,15 @@ impl ProtocolCommands<IotaBenchmarkType> for IotaProtocol {
                     iota_config::validator_config_file(network_address.clone(), i);
                 let config_path: PathBuf = working_dir.join(validator_config);
 
+                let iota_node_command = if use_precompiled_binaries {
+                    // the precompiled binary is located in the working directory
+                    "./target/release/iota-node"
+                } else {
+                    "cargo run --release --bin iota-node --"
+                };
+
                 let run = [
-                    "cargo run --release --bin iota-node --",
+                    iota_node_command,
                     &format!(
                         "--config-path {} --listen-address {}",
                         config_path.display(),
@@ -181,7 +201,7 @@ impl ProtocolCommands<IotaBenchmarkType> for IotaProtocol {
                 ]
                 .join(" && ");
 
-                display::action(format!("\n Command ({i}): {command}"));
+                display::action(format!("\n Validator-node Command ({i}): {command}"));
 
                 (instance, command)
             })
@@ -192,6 +212,7 @@ impl ProtocolCommands<IotaBenchmarkType> for IotaProtocol {
         &self,
         instances: I,
         parameters: &BenchmarkParameters<IotaBenchmarkType>,
+        use_precompiled_binaries: bool,
     ) -> Vec<(Instance, String)>
     where
         I: IntoIterator<Item = Instance>,
@@ -216,8 +237,15 @@ impl ProtocolCommands<IotaBenchmarkType> for IotaProtocol {
                     fullnode_ip
                 );
 
+                let iota_node_command = if use_precompiled_binaries {
+                    // the precompiled binary is located in the working directory
+                    "./target/release/iota-node"
+                } else {
+                    "cargo run --release --bin iota-node --"
+                };
+
                 let run = [
-                    "cargo run --release --bin iota-node --",
+                    iota_node_command,
                     &format!("--config-path {}", config_path.display(),),
                 ]
                 .join(" ");
@@ -229,7 +257,7 @@ impl ProtocolCommands<IotaBenchmarkType> for IotaProtocol {
                 ]
                 .join(" && ");
 
-                display::action(format!("\n Command ({i}): {command}"));
+                display::action(format!("\n Full-node Command ({i}): {command}"));
 
                 (instance, command)
             })
@@ -240,6 +268,7 @@ impl ProtocolCommands<IotaBenchmarkType> for IotaProtocol {
         &self,
         instances: I,
         parameters: &BenchmarkParameters<IotaBenchmarkType>,
+        use_precompiled_binaries: bool,
     ) -> Vec<(Instance, String)>
     where
         I: IntoIterator<Item = Instance>,
@@ -274,8 +303,15 @@ impl ProtocolCommands<IotaBenchmarkType> for IotaProtocol {
                 let gas_key = &gas_keys[i % committee_size];
                 let gas_address = IotaAddress::from(&gas_key.public());
 
+                let stress_command = if use_precompiled_binaries {
+                    // the precompiled binary is located in the working directory
+                    "./target/release/stress"
+                } else {
+                    "cargo run --release --bin stress --"
+                };
+
                 let mut run = [
-                    "cargo run --release --bin stress --",
+                    stress_command,
                     "--num-client-threads 24 --num-server-threads 1",
                     "--local false --num-transfer-accounts 2",
                     &format!("--genesis-blob-path {genesis} --keystore-path {keystore}",),
@@ -296,9 +332,14 @@ impl ProtocolCommands<IotaBenchmarkType> for IotaProtocol {
                 let command = [
                     "source $HOME/.cargo/env",
                     "export RUSTFLAGS='-C target-cpu=native'",
+                    // required for stress binary, otherwise it will use the CARGO_MANIFEST_DIR,
+                    // which is set during compilation time
+                    "export MOVE_EXAMPLES_DIR=$(pwd)/examples/move",
                     &run,
                 ]
                 .join(" && ");
+
+                display::action(format!("\n Stress Command ({i}): {command}"));
 
                 (instance, command)
             })

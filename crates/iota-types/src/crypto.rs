@@ -39,6 +39,7 @@ use fastcrypto::{
     },
 };
 use fastcrypto_zkp::{bn254::zk_login::ZkLoginInputs, zk_login_utils::Bn254FrElement};
+use iota_sdk_types::crypto::{Intent, IntentMessage, IntentScope};
 use rand::{
     SeedableRng,
     rngs::{OsRng, StdRng},
@@ -47,7 +48,6 @@ use roaring::RoaringBitmap;
 use schemars::JsonSchema;
 use serde::{Deserialize, Deserializer, Serialize, ser::Serializer};
 use serde_with::{Bytes, serde_as};
-use shared_crypto::intent::{Intent, IntentMessage, IntentScope};
 use strum::EnumString;
 use tracing::{instrument, warn};
 
@@ -1657,7 +1657,7 @@ pub mod bcs_signable_test {
     where
         T: super::bcs_signable::BcsSignable,
     {
-        use shared_crypto::intent::{Intent, IntentScope};
+        use iota_sdk_types::crypto::{Intent, IntentScope};
 
         let mut obligation = VerificationObligation::default();
         // Add the obligation of the authority signature verifications.

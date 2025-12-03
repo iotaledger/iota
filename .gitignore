@@ -74,6 +74,7 @@ yarn-error.log*
 checkpoints_dir/*
 light_client.yaml
 **/.cache/
+Dockerfile.cache
 
 lcov.info
 **/venv/
