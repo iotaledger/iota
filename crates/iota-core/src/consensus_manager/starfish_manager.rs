@@ -135,10 +135,11 @@ impl ConsensusManagerTrait for StarfishManager {
         let (commit_sender, commit_receiver) = unbounded_channel("consensus_output");
 
         let consensus_handler = consensus_handler_initializer.new_consensus_handler();
-        let consumer = CommitConsumer::new(
-            commit_sender,
-            consensus_handler.last_processed_subdag_index() as CommitIndex,
-        );
+
+        let num_prior_commits = protocol_config.consensus_num_requested_prior_commits_at_startup();
+        let last_processed_commit = consensus_handler.last_processed_subdag_index() as CommitIndex;
+        let starting_commit = last_processed_commit.saturating_sub(num_prior_commits);
+        let consumer = CommitConsumer::new(commit_sender, starting_commit);
         let monitor = consumer.monitor();
 
         // If there is a previous consumer monitor, it indicates that the consensus
@@ -197,13 +198,20 @@ impl ConsensusManagerTrait for StarfishManager {
         self.client.set(client);
 
         // spin up the new starfish consensus handler to listen for committed sub dags
-        let handler = StarfishConsensusHandler::new(consensus_handler, commit_receiver, monitor);
+        let handler = StarfishConsensusHandler::new(
+            last_processed_commit,
+            consensus_handler,
+            commit_receiver,
+            monitor,
+        );
 
         let mut consensus_handler = self.consensus_handler.lock().await;
         *consensus_handler = Some(handler);
 
         // Wait until all locally available commits have been processed
+        info!("replaying commits at startup");
         registered_authority.0.replay_complete().await;
+        info!("Startup commit replay complete");
     }
 
     async fn shutdown(&self) {
