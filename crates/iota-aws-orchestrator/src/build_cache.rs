@@ -9,8 +9,7 @@ use crate::{
     client::Instance,
     display,
     error::TestbedResult,
-    orchestrator::BuildGroups,
-    settings::Settings,
+    settings::{BuildGroups, Settings},
     ssh::{CommandContext, SshConnectionManager},
 };
 

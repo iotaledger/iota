@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
-    collections::HashMap,
+    collections::HashSet,
     fs::{self},
     marker::PhantomData,
     path::PathBuf,
@@ -24,7 +24,7 @@ use crate::{
     monitor::{Monitor, Prometheus},
     net_latency::NetworkLatencyCommandBuilder,
     protocol::{ProtocolCommands, ProtocolMetrics},
-    settings::Settings,
+    settings::{BuildGroups, Settings, build_cargo_command},
     ssh::{CommandContext, CommandStatus, SshConnectionManager},
 };
 
@@ -170,11 +170,9 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
         parameters: &BenchmarkParameters<T>,
     ) -> TestbedResult<()> {
         // Run one node per instance.
-        let targets = self.protocol_commands.node_command(
-            instances.clone(),
-            parameters,
-            self.settings.build_cache_enabled(),
-        );
+        let targets = self
+            .protocol_commands
+            .node_command(instances.clone(), parameters);
 
         let repo = self.settings.repository_name();
         let context = CommandContext::new()
@@ -219,6 +217,26 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
         let working_dir_cmd = format!("mkdir -p {working_dir}");
         let git_clone_cmd = format!("(git clone {url} || true)");
 
+        // Collect all unique non-"stable" rust toolchains from build configs
+        let toolchain_cmds: Vec<String> = if !use_precompiled_binaries {
+            self.settings
+                .build_configs
+                .values()
+                .filter_map(|config| {
+                    config
+                        .toolchain
+                        .as_ref()
+                        .filter(|t| t.as_str() != "stable")
+                        .cloned()
+                })
+                .collect::<HashSet<String>>()
+                .into_iter()
+                .map(|toolchain| format!("rustup toolchain install {toolchain}"))
+                .collect()
+        } else {
+            vec![]
+        };
+
         let mut basic_commands = vec![
             "sudo apt-get update",
             "sudo apt-get -y upgrade",
@@ -244,6 +262,11 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
                 "source $HOME/.cargo/env",
                 "rustup default stable",
             ]);
+
+            // Add the toolchain install commands to basic_commands
+            for cmd in &toolchain_cmds {
+                basic_commands.push(cmd.as_str());
+            }
         } else {
             // Create cargo env file if using precompiled binaries, so that the source
             // commands don't fail.
@@ -256,9 +279,7 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
             .map(|x| x.as_str())
             .collect();
 
-        let protocol_dependencies = self
-            .protocol_commands
-            .protocol_dependencies(use_precompiled_binaries);
+        let protocol_dependencies = self.protocol_commands.protocol_dependencies();
 
         let command = [
             &basic_commands[..],
@@ -342,26 +363,7 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
             .wait_for_command(self.instances(), id, CommandStatus::Terminated)
             .await?;
 
-        // Define the binaries to build/download
-        let binaries = vec![
-            BinaryBuildConfig {
-                name: "iota".to_string(),
-                toolchain: None,
-                features: vec![],
-            },
-            BinaryBuildConfig {
-                name: "iota-node".to_string(),
-                toolchain: None,
-                features: vec![],
-            },
-            BinaryBuildConfig {
-                name: "stress".to_string(),
-                toolchain: None,
-                features: vec![],
-            },
-        ];
-
-        let build_groups: BuildGroups = build_configs_to_groups(binaries);
+        let build_groups = self.settings.build_groups();
 
         // Check if build cache is enabled
         if self.settings.build_cache_enabled() {
@@ -395,50 +397,14 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
         // Build each group separately
         for (i, (group, binary_names)) in build_groups.iter().enumerate() {
             // Build arguments
-            let mut args = vec!["build", "--release"];
-
-            let toolchain_arg = if let Some(tc) = group.toolchain.as_deref() {
-                if tc != "stable" {
-                    Some(format!("+{tc}"))
-                } else {
-                    None
-                }
-            } else {
-                None
-            };
-
-            // Add toolchain if specified
-            if let Some(ref t) = toolchain_arg {
-                args.insert(0, t);
-            }
-
-            let features_arg = if !group.features.is_empty() {
-                let features_str = group.features.join(" ");
-                Some(format!("--features=\"{features_str}\""))
-            } else {
-                None
-            };
-
-            // Add features if specified
-            if let Some(ref f) = features_arg {
-                args.push(f);
-            }
-
-            let bin_flags = binary_names
-                .iter()
-                .map(|name| format!("--bin {name}"))
-                .collect::<Vec<_>>()
-                .join(" ");
-
-            // Add bin flags
-            args.push(bin_flags.as_str());
-
-            let build_command = [
-                "source \"$HOME/.cargo/env\"".to_string(),
-                "export RUSTFLAGS='-C target-cpu=native'".to_string(),
-                format!("cargo {}", args.join(" ")),
-            ]
-            .join(" && ");
+            let build_command = build_cargo_command(
+                "build",
+                group.toolchain.clone(),
+                group.features.clone(),
+                binary_names,
+                &[] as &[&str],
+                &[] as &[&str],
+            );
 
             // print the full command for logging
             display::action(format!(
@@ -463,11 +429,9 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
 
         // Generate the genesis configuration file and the keystore allowing access to
         // gas objects.
-        let command = self.protocol_commands.genesis_command(
-            self.node_instances.iter(),
-            parameters,
-            self.settings.build_cache_enabled(),
-        );
+        let command = self
+            .protocol_commands
+            .genesis_command(self.node_instances.iter(), parameters);
         display::action(format!("Genesis command: {command}"));
         let repo_name = self.settings.repository_name();
         let context = CommandContext::new().with_execute_from_path(repo_name.into());
@@ -520,11 +484,9 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
             display::action("Setting up full nodes");
 
             // Deploy the fullnodes.
-            let targets = self.protocol_commands.fullnode_command(
-                self.client_instances.clone(),
-                parameters,
-                self.settings.build_cache_enabled(),
-            );
+            let targets = self
+                .protocol_commands
+                .fullnode_command(self.client_instances.clone(), parameters);
 
             let repo = self.settings.repository_name();
             let context = CommandContext::new()
@@ -551,11 +513,9 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
         display::action("Setting up load generators");
 
         // Deploy the load generators.
-        let targets = self.protocol_commands.client_command(
-            self.client_instances.clone(),
-            parameters,
-            self.settings.build_cache_enabled(),
-        );
+        let targets = self
+            .protocol_commands
+            .client_command(self.client_instances.clone(), parameters);
 
         let repo = self.settings.repository_name();
         let context = CommandContext::new()
@@ -781,36 +741,3 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
         Ok(())
     }
 }
-
-struct BinaryBuildConfig {
-    name: String,
-    toolchain: Option<String>,
-    features: Vec<String>,
-}
-
-type BinaryBuildConfigs = Vec<BinaryBuildConfig>;
-
-fn build_configs_to_groups(build_configs: BinaryBuildConfigs) -> BuildGroups {
-    // Group binaries by toolchain and features to minimize build steps
-    let mut groups: BuildGroups = HashMap::new();
-
-    for binary in build_configs {
-        let mut features = binary.features.clone();
-        features.sort(); // Sort for consistent grouping
-
-        let group = BuildGroup {
-            toolchain: binary.toolchain.clone(),
-            features,
-        };
-        groups.entry(group).or_default().push(binary.name);
-    }
-    groups
-}
-
-#[derive(Hash, Eq, PartialEq, Clone)]
-pub struct BuildGroup {
-    pub toolchain: Option<String>,
-    pub features: Vec<String>,
-}
-
-pub type BuildGroups = HashMap<BuildGroup, Vec<String>>;
