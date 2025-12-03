@@ -347,10 +347,11 @@ impl Store for RocksDBStore {
         if !check_ref_consistency(refs) {
             return Err(ConsensusError::InconsistentTransactionRefVariants);
         }
-        let serialized_vec_transactions = self.read_serialized_transactions(refs)?;
         if refs.is_empty() {
             return Ok(vec![]);
         }
+        let serialized_vec_transactions = self.read_serialized_transactions(refs)?;
+
         let transaction_ref_enabled = match &refs[0] {
             GenericTransactionRef::BlockRef { .. } => false,
             GenericTransactionRef::TransactionRef { .. } => true,
@@ -363,11 +364,7 @@ impl Store for RocksDBStore {
                 let GenericTransactionRef::TransactionRef(tr_ref) = gen_tr_ref else {
                     return Err(ConsensusError::InconsistentTransactionRefVariants);
                 };
-                let block_ref = BlockRef {
-                    author: tr_ref.author,
-                    round: tr_ref.round,
-                    digest: tr_ref.block_digest,
-                };
+                let block_ref = BlockRef::from(*tr_ref);
                 if let Some(serialized_transactions) = serialized_transactions {
                     let transactions: Vec<Transaction> = bcs::from_bytes(&serialized_transactions)
                         .map_err(ConsensusError::MalformedTransactions)?;
