@@ -146,14 +146,54 @@ impl Serialize for AuthContext {
                         s.serialize_field("arguments", &m.arguments)?;
                         s.end()
                     }
-                    Command::MakeMoveVec(ty_opt, vals) => {
-                        let mut s =
-                            serializer.serialize_tuple_variant("Command", 5, "MakeMoveVec", 2)?;
-                        s.serialize_field(&ty_opt.as_ref().map(TypeName::from))?;
-                        s.serialize_field(vals)?;
+                    Command::TransferObjects(objects, recipient) => {
+                        let mut s = serializer.serialize_struct_variant(
+                            "Command",
+                            1,
+                            "TransferObjects",
+                            2,
+                        )?;
+                        s.serialize_field("objects", objects)?;
+                        s.serialize_field("recipient", recipient)?;
                         s.end()
                     }
-                    _ => self.0.serialize(serializer),
+                    Command::SplitCoins(coin, amounts) => {
+                        let mut s =
+                            serializer.serialize_struct_variant("Command", 2, "SplitCoins", 2)?;
+                        s.serialize_field("coin", coin)?;
+                        s.serialize_field("amounts", amounts)?;
+                        s.end()
+                    }
+                    Command::MergeCoins(target_coin, source_coins) => {
+                        let mut s =
+                            serializer.serialize_struct_variant("Command", 3, "MergeCoins", 2)?;
+                        s.serialize_field("target_coin", target_coin)?;
+                        s.serialize_field("source_coins", source_coins)?;
+                        s.end()
+                    }
+                    Command::Publish(modules, dependencies) => {
+                        let mut s =
+                            serializer.serialize_struct_variant("Command", 4, "Publish", 2)?;
+                        s.serialize_field("modules", modules)?;
+                        s.serialize_field("dependencies", dependencies)?;
+                        s.end()
+                    }
+                    Command::MakeMoveVec(type_arg, elements) => {
+                        let mut s =
+                            serializer.serialize_tuple_variant("Command", 5, "MakeMoveVec", 2)?;
+                        s.serialize_field(&type_arg.as_ref().map(TypeName::from))?;
+                        s.serialize_field(elements)?;
+                        s.end()
+                    }
+                    Command::Upgrade(modules, dependencies, package, upgrade_ticket) => {
+                        let mut s =
+                            serializer.serialize_struct_variant("Command", 6, "Upgrade", 4)?;
+                        s.serialize_field("modules", modules)?;
+                        s.serialize_field("dependencies", dependencies)?;
+                        s.serialize_field("package", package)?;
+                        s.serialize_field("upgrade_ticket", upgrade_ticket)?;
+                        s.end()
+                    }
                 }
             }
         }
