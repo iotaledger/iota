@@ -498,7 +498,7 @@ const developer = [
             },
             {
                 type: 'doc',
-                id: 'developer/workshops/minting-managing-tokens',
+                id: 'developer/workshops/minting-and-managing-tokens',
                 label: 'Minting and Managing Tokens',
             },
             {
@@ -510,6 +510,11 @@ const developer = [
                 type: 'doc',
                 id: 'developer/workshops/identity-workshop',
                 label: 'IOTA Identity Workshop',
+            },
+            {
+                type: 'doc',
+                id: 'developer/workshops/building-decentralized-applications-with-dapp-kit',
+                label: 'Building Decentralized Applications with dapp-kit Workshop',
             },
         ],
     },

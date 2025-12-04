@@ -183,7 +183,7 @@ impl CommitObserver {
                 .leader
                 .round;
             self.linearizer
-                .evict_old_acknowledgments(max_solid_commit_leader_round);
+                .evict_linearizer(max_solid_commit_leader_round);
         }
         tracing::trace!("Committed & sent {sent_sub_dags:#?}");
 
@@ -261,6 +261,11 @@ impl CommitObserver {
 
             let pending_sub_dag =
                 load_pending_subdag_from_store(self.store.as_ref(), commit, reputation_scores);
+
+            // Rebuild traversed headers tracker so recovery can honor the
+            // traversed-headers gate when committing transactions.
+            self.linearizer
+                .record_traversed_headers(pending_sub_dag.headers.iter());
 
             // Recover transaction acknowledgments tracker state by adding transaction
             // acknowledgments from all pending sub-dags that still might

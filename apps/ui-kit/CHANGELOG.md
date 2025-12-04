@@ -1,5 +1,16 @@
 # @iota/apps-ui-kit
 
+## 0.8.0
+
+### Minor Changes
+
+-   147c97e: Update repository URLs.
+
+### Patch Changes
+
+-   Updated dependencies [147c97e]
+    -   @iota/apps-ui-icons@0.6.0
+
 ## 0.7.4
 
 ### Patch Changes

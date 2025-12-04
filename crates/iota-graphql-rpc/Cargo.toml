@@ -31,6 +31,7 @@ http.workspace = true
 http-body-util = "0.1.2"
 hyper.workspace = true
 im.workspace = true
+iota-sdk-types.workspace = true
 jsonrpsee.workspace = true
 once_cell.workspace = true
 prometheus.workspace = true
@@ -41,6 +42,7 @@ tap.workspace = true
 tempfile.workspace = true
 thiserror.workspace = true
 tokio = { workspace = true, features = ["rt-multi-thread"] }
+tokio-stream.workspace = true
 tokio-util = { workspace = true, features = ["rt"] }
 toml.workspace = true
 tower.workspace = true
@@ -54,6 +56,7 @@ iota-graphql-config.workspace = true
 iota-graphql-rpc-client.workspace = true
 iota-graphql-rpc-headers.workspace = true
 iota-indexer.workspace = true
+iota-indexer-streaming.workspace = true
 iota-json.workspace = true
 iota-json-rpc.workspace = true
 iota-json-rpc-api.workspace = true
@@ -69,7 +72,6 @@ move-binary-format.workspace = true
 move-core-types.workspace = true
 move-disassembler.workspace = true
 move-ir-types.workspace = true
-shared-crypto.workspace = true
 telemetry-subscribers.workspace = true
 test-cluster.workspace = true
 
