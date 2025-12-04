@@ -8,6 +8,7 @@ use std::{
 };
 
 use fastcrypto::{encoding::Base64, hash::HashFunction};
+use iota_sdk_types::crypto::HashingIntentScope;
 use move_core_types::{
     annotated_value::{MoveStruct, MoveValue},
     ident_str,
@@ -18,7 +19,6 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use serde_json::Value;
 use serde_with::{DisplayFromStr, serde_as};
-use shared_crypto::intent::HashingIntentScope;
 
 use crate::{
     IOTA_FRAMEWORK_ADDRESS, MoveTypeTagTrait, ObjectID, SequenceNumber,

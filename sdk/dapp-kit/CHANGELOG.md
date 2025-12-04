@@ -1,5 +1,45 @@
 # @iota/dapp-kit
 
+## 0.7.0
+
+### Minor Changes
+
+-   147c97e: Update repository URLs.
+
+### Patch Changes
+
+-   55fab22: Add onConnected callback to connect button
+-   Updated dependencies [00f4a39]
+-   Updated dependencies [f4cc8e8]
+-   Updated dependencies [933496c]
+-   Updated dependencies [0a4525d]
+-   Updated dependencies [ec99569]
+    -   @iota/iota-sdk@1.8.0
+    -   @iota/wallet-standard@0.2.17
+
+## 0.6.0
+
+### Minor Changes
+
+-   bc97ee5: Add a new `chain` prop for the `WalletProvider` so that you can globally specify which
+    chain do you want to sign with when using the `useSignAndExecuteTransaction` hook so that the
+    wallet can properly dry run the transaction in the UI.
+-   7660167: IOTA Names resolution in the Account Switcher
+
+### Patch Changes
+
+-   Updated dependencies [b152861]
+-   Updated dependencies [c12d044]
+-   Updated dependencies [f3beb1e]
+-   Updated dependencies [a0b225d]
+-   Updated dependencies [fea81ab]
+-   Updated dependencies [4c68076]
+-   Updated dependencies [03e8b9b]
+-   Updated dependencies [92dd15e]
+-   Updated dependencies [2a5f065]
+    -   @iota/iota-sdk@1.7.0
+    -   @iota/wallet-standard@0.2.16
+
 ## 0.5.3
 
 ### Patch Changes

@@ -11,13 +11,13 @@ workspace = true
 
 [dependencies]
 # external dependencies
-fastcrypto.workspace = true
+fastcrypto = { workspace = true, features = ["copy_key"] }
+iota-sdk-types.workspace = true
 rand.workspace = true
 serde.workspace = true
 
 # internal dependencies
 iota-network-stack.workspace = true
-shared-crypto.workspace = true
 
 [dev-dependencies]
 insta.workspace = true

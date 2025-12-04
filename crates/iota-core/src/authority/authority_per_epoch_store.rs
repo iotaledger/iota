@@ -281,7 +281,7 @@ pub trait ConsensusStatsAPI {
     fn is_initialized(&self) -> bool;
 
     fn get_num_messages(&self, authority: usize) -> u64;
-    fn inc_num_messages(&mut self, authority: usize) -> u64;
+    fn inc_num_messages(&mut self, authority: usize, num_of_new_messages: u64) -> u64;
 
     fn get_num_user_transactions(&self, authority: usize) -> u64;
     fn inc_num_user_transactions(&mut self, authority: usize) -> u64;
@@ -323,8 +323,8 @@ impl ConsensusStatsAPI for ConsensusStatsV1 {
         self.num_messages[authority]
     }
 
-    fn inc_num_messages(&mut self, authority: usize) -> u64 {
-        self.num_messages[authority] += 1;
+    fn inc_num_messages(&mut self, authority: usize, num_of_new_messages: u64) -> u64 {
+        self.num_messages[authority] += num_of_new_messages;
         self.num_messages[authority]
     }
 

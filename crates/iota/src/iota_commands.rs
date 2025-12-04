@@ -266,6 +266,8 @@ pub enum IotaCommand {
         force: bool,
         #[arg(long)]
         epoch_duration_ms: Option<u64>,
+        #[arg(long, help = "Set the genesis chain start timestamp in milliseconds")]
+        chain_start_timestamp_ms: Option<u64>,
         #[arg(
             long,
             value_name = "ADDR",
@@ -431,6 +433,7 @@ impl IotaCommand {
                 from_config,
                 write_config,
                 epoch_duration_ms,
+                chain_start_timestamp_ms,
                 benchmark_ips,
                 with_faucet,
                 committee_size,
@@ -444,6 +447,7 @@ impl IotaCommand {
                     working_dir,
                     force,
                     epoch_duration_ms,
+                    chain_start_timestamp_ms,
                     benchmark_ips,
                     with_faucet,
                     committee_size,
@@ -740,6 +744,7 @@ async fn start(
                 false,
                 epoch_duration_ms,
                 None,
+                None,
                 false,
                 committee_size.unwrap_or(DEFAULT_COMMITTEE_SIZE),
                 local_migration_snapshots,
@@ -906,18 +911,17 @@ async fn start(
         let graphql_address = parse_host_port(input, DEFAULT_GRAPHQL_PORT)
             .map_err(|_| anyhow!("Invalid graphql host and port"))?;
         tracing::info!("Starting the GraphQL service at {graphql_address}");
-        let graphql_connection_config = ConnectionConfig::new(
-            Some(graphql_address.port()),
-            Some(graphql_address.ip().to_string()),
-            Some(pg_address),
-            None,
-            None,
-            None,
-        );
+        let graphql_connection_config = ConnectionConfig {
+            port: graphql_address.port(),
+            host: graphql_address.ip().to_string(),
+            db_url: pg_address,
+            ..Default::default()
+        };
         start_graphql_server_with_fn_rpc(
             graphql_connection_config,
             Some(fullnode_url.clone()),
             None, // it will be initialized by default
+            None, // resolves to default service config
         )
         .await;
         info!("GraphQL started");
@@ -1008,6 +1012,7 @@ async fn genesis(
     working_dir: Option<PathBuf>,
     force: bool,
     epoch_duration_ms: Option<u64>,
+    chain_start_timestamp_ms: Option<u64>,
     benchmark_ips: Option<Vec<String>>,
     with_faucet: bool,
     committee_size: usize,
@@ -1095,8 +1100,9 @@ async fn genesis(
                 }
                 keystore.save()?;
 
-                // Make a new genesis config from the provided ip addresses.
-                GenesisConfig::new_for_benchmarks(&ips)
+                // Make a new genesis config from the provided ip addresses with given epoch
+                // duration and timestamp.
+                GenesisConfig::new_for_benchmarks(&ips, epoch_duration_ms, chain_start_timestamp_ms)
             } else if keystore_path.exists() {
                 let existing_keys = FileBasedKeystore::new(&keystore_path)?.addresses();
                 GenesisConfig::for_local_testing_with_addresses(existing_keys)

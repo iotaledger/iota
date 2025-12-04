@@ -3,10 +3,14 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use async_trait::async_trait;
+use iota_types::messages_checkpoint::CheckpointSequenceNumber;
 
 use crate::{
     config::SnapshotLagConfig,
-    ingestion::{common::persist::Writer, primary::persist::TransactionObjectChangesToCommit},
+    ingestion::{
+        common::persist::{CommitterWatermark, ObjectsSnapshotHandlerTables, Writer},
+        primary::persist::TransactionObjectChangesToCommit,
+    },
     metrics::IndexerMetrics,
     store::{IndexerStore, PgIndexerStore},
     types::IndexerResult,
@@ -49,18 +53,19 @@ impl Writer<TransactionObjectChangesToCommit> for ObjectSnapshotWriter {
         Ok(())
     }
 
-    // TODO: read watermark table when it's ready.
-    async fn get_watermark_hi(&self) -> IndexerResult<Option<u64>> {
+    async fn get_watermark_hi(&self) -> IndexerResult<Option<CheckpointSequenceNumber>> {
         self.store
             .get_latest_object_snapshot_checkpoint_sequence_number()
             .await
     }
 
-    // TODO: update watermark table when it's ready.
-    async fn set_watermark_hi(&self, watermark_hi: u64) -> IndexerResult<()> {
+    async fn set_watermark_hi(&self, watermark: CommitterWatermark) -> IndexerResult<()> {
+        self.store
+            .update_watermarks_upper_bound::<ObjectsSnapshotHandlerTables>(watermark)
+            .await?;
         self.metrics
             .latest_object_snapshot_sequence_number
-            .set(watermark_hi as i64);
+            .set(watermark.checkpoint_hi_inclusive as i64);
         Ok(())
     }
 

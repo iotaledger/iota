@@ -3145,7 +3145,7 @@ fn get_mod_outer_defs(
             fun.signature
                 .type_parameters
                 .iter()
-                .map(|t| (sp(t.user_specified_name.loc, Type_::Param(t.clone()))))
+                .map(|t| sp(t.user_specified_name.loc, Type_::Param(t.clone())))
                 .collect(),
             fun.signature
                 .parameters

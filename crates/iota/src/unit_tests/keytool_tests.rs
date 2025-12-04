@@ -11,6 +11,7 @@ use fastcrypto::{
     traits::ToFromBytes,
 };
 use iota_keys::keystore::{AccountKeystore, FileBasedKeystore, InMemKeystore, Keystore, StoredKey};
+use iota_sdk_types::crypto::{Intent, IntentScope};
 use iota_types::{
     base_types::{IotaAddress, ObjectDigest, ObjectID, SequenceNumber},
     crypto::{
@@ -22,7 +23,6 @@ use iota_types::{
     transaction::{TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionData},
 };
 use rand::{SeedableRng, rngs::StdRng};
-use shared_crypto::intent::{Intent, IntentScope};
 use tempfile::TempDir;
 use tokio::test;
 

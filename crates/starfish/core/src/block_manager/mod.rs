@@ -232,7 +232,7 @@ impl BlockManager {
                 self.context
                     .metrics
                     .node_metrics
-                    .block_manager_missing_blocks_by_authority
+                    .block_manager_missing_block_headers_by_authority
                     .with_label_values(&[self.context.authority_hostname(block_ref.author)])
                     .inc();
             }
@@ -240,10 +240,10 @@ impl BlockManager {
 
         let metrics = &self.context.metrics.node_metrics;
         metrics
-            .missing_blocks_total
+            .missing_block_headers_total
             .inc_by(blocks_to_fetch.len() as u64);
         metrics
-            .block_manager_missing_blocks
+            .block_manager_missing_block_headers
             .set(self.block_suspender.blocks_to_fetch_len() as i64);
 
         blocks_to_fetch

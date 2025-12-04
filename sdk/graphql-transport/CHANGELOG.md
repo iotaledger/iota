@@ -1,5 +1,53 @@
 # @iota/graphql-transport
 
+## 0.11.0
+
+### Minor Changes
+
+-   f4cc8e8: Add a `maxTransactionPayloadSize` service-configuration parameter for GraphQL schema
+    introspection.
+-   933496c: Changed type of "iotaTotalSupply" to BigInt in the GraphQL queries
+-   147c97e: Update repository URLs.
+-   ec99569: New subscription API types.
+
+### Patch Changes
+
+-   Updated dependencies [00f4a39]
+-   Updated dependencies [f4cc8e8]
+-   Updated dependencies [933496c]
+-   Updated dependencies [147c97e]
+-   Updated dependencies [0a4525d]
+-   Updated dependencies [ec99569]
+    -   @iota/iota-sdk@1.8.0
+    -   @iota/bcs@1.3.0
+
+## 0.10.0
+
+### Minor Changes
+
+-   b152861: Fix the TS SDK bundling with Bun
+-   a0b225d: Support the new node method `isTransactionIndexedOnNode`
+-   fea81ab: Typo fixes.
+-   4c68076: Sync with Node changes.
+-   03e8b9b: Update move types
+-   92dd15e: Add a new `waitMode` in `waitForTransaction`
+-   2a5f065: Add support for the new `view` method in both JSON RPC and GraphQL transports.
+
+### Patch Changes
+
+-   c12d044: Internal simplification of the codegen
+-   58997cb: map Option correctly in moveDataToRpcContent
+-   Updated dependencies [b152861]
+-   Updated dependencies [c12d044]
+-   Updated dependencies [f3beb1e]
+-   Updated dependencies [a0b225d]
+-   Updated dependencies [fea81ab]
+-   Updated dependencies [4c68076]
+-   Updated dependencies [03e8b9b]
+-   Updated dependencies [92dd15e]
+-   Updated dependencies [2a5f065]
+    -   @iota/iota-sdk@1.7.0
+
 ## 0.9.2
 
 ### Patch Changes
