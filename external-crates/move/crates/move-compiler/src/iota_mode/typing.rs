@@ -11,8 +11,8 @@ use crate::{
     diag,
     diagnostics::{Diagnostic, DiagnosticReporter, Diagnostics, warning_filters::WarningFilters},
     editions::Flavor,
-    expansion::ast::{AbilitySet, Fields, ModuleIdent, Mutability, Visibility},
-    iota_mode::*,
+    expansion::ast::{AbilitySet, Attribute_, Fields, ModuleIdent, Mutability, Visibility},
+    iota_mode::{known_attributes as iota_known_attributes, *},
     naming::ast::{
         self as N, BuiltinTypeName_, FunctionSignature, StructFields, Type, Type_, TypeName_, Var,
     },
@@ -305,6 +305,11 @@ fn function(context: &mut Context, name: FunctionName, fdef: &T::Function) {
     }
     if let Some(entry_loc) = entry {
         entry_signature(context, *entry_loc, name, signature);
+    }
+    if let Some(sp!(authenticator_loc, authenticator_value)) =
+        attributes.get_(&iota_known_attributes::authenticator::AuthenticatorAttribute.into())
+    {
+        authenticator_attribute(context, authenticator_loc, authenticator_value);
     }
     if let sp!(_, T::FunctionBody_::Defined(seq)) = body {
         context.visit_seq(body.loc, seq)
@@ -1107,4 +1112,17 @@ fn check_private_transfer(context: &mut Context, loc: Loc, mcall: &ModuleCall) {
         }
         context.add_diag(diag)
     }
+}
+
+/// Checks the `authenticator` attribute for a valid version field.
+/// Only accepts #[authenticator], #[authenticator = <u8>], or
+/// #[authenticator(version = <u8>)].
+fn authenticator_attribute(
+    context: &mut Context,
+    authenticator_loc: &Loc,
+    authenticator_value: &Attribute_,
+) {
+    let _ = authenticator_value
+        .parse_authenticator_version(authenticator_loc)
+        .map_err(|(loc, err)| context.add_diag(diag!(Attributes::InvalidValue, (loc, err))));
 }

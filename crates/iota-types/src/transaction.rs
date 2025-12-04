@@ -7,8 +7,7 @@ use std::{
     collections::{BTreeMap, BTreeSet, HashSet},
     fmt::{Debug, Display, Formatter, Write},
     hash::Hash,
-    iter,
-    iter::once,
+    iter::{self, once},
     sync::Arc,
 };
 
@@ -24,6 +23,7 @@ use move_core_types::{
     language_storage::TypeTag,
 };
 use nonempty::{NonEmpty, nonempty};
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use strum::IntoStaticStr;
 use tap::Pipe;
@@ -79,7 +79,7 @@ const BLOCKED_MOVE_FUNCTIONS: [(ObjectID, &str, &str); 0] = [];
 #[path = "unit_tests/messages_tests.rs"]
 mod messages_tests;
 
-#[derive(Debug, PartialEq, Eq, Hash, Clone, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Eq, Hash, Clone, Serialize, Deserialize, JsonSchema)]
 pub enum CallArg {
     // contains no structs or objects
     Pure(Vec<u8>),
@@ -106,7 +106,7 @@ impl CallArg {
     });
 }
 
-#[derive(Debug, PartialEq, Eq, Hash, Clone, Copy, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Eq, Hash, Clone, Copy, Serialize, Deserialize, JsonSchema)]
 pub enum ObjectArg {
     // A Move object, either immutable, or owned mutable.
     ImmOrOwnedObject(ObjectRef),
@@ -122,7 +122,7 @@ pub enum ObjectArg {
     Receiving(ObjectRef),
 }
 
-fn type_input_validity_check(
+pub fn type_input_validity_check(
     tag: &TypeInput,
     config: &ProtocolConfig,
     starting_count: &mut usize,
@@ -580,7 +580,7 @@ impl EndOfEpochTransactionKind {
 }
 
 impl CallArg {
-    fn input_objects(&self) -> Vec<InputObjectKind> {
+    pub fn input_objects(&self) -> Vec<InputObjectKind> {
         match self {
             CallArg::Pure(_) => vec![],
             CallArg::Object(ObjectArg::ImmOrOwnedObject(object_ref)) => {
@@ -605,13 +605,31 @@ impl CallArg {
         }
     }
 
-    fn receiving_objects(&self) -> Vec<ObjectRef> {
+    pub fn receiving_objects(&self) -> Vec<ObjectRef> {
         match self {
             CallArg::Pure(_) => vec![],
             CallArg::Object(o) => match o {
                 ObjectArg::ImmOrOwnedObject(_) => vec![],
                 ObjectArg::SharedObject { .. } => vec![],
                 ObjectArg::Receiving(obj_ref) => vec![*obj_ref],
+            },
+        }
+    }
+
+    pub fn shared_objects(&self) -> Vec<SharedInputObject> {
+        match self {
+            CallArg::Pure(_) => vec![],
+            CallArg::Object(o) => match o {
+                ObjectArg::ImmOrOwnedObject(_) | ObjectArg::Receiving(_) => vec![],
+                ObjectArg::SharedObject {
+                    id,
+                    initial_shared_version,
+                    mutable,
+                } => vec![SharedInputObject {
+                    id: *id,
+                    initial_shared_version: *initial_shared_version,
+                    mutable: *mutable,
+                }],
             },
         }
     }
@@ -1250,7 +1268,7 @@ impl Display for ProgrammableTransaction {
     }
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Clone, Hash, Debug, PartialEq, Eq)]
 pub struct SharedInputObject {
     pub id: ObjectID,
     pub initial_shared_version: SequenceNumber,
@@ -2832,7 +2850,7 @@ pub struct ObjectReadResult {
     pub object: ObjectReadResultKind,
 }
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq)]
 pub enum ObjectReadResultKind {
     Object(Object),
     // The version of the object that the transaction intended to read, and the digest of the tx

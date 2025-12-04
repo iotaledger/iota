@@ -11,12 +11,13 @@
 use std::collections::BTreeSet;
 
 use iota_types::{
+    Identifier,
     error::ExecutionError,
-    move_package::{RuntimeModuleMetadata, RuntimeModuleMetadataWrapper},
+    move_package::{IotaAttribute, RuntimeModuleMetadata, RuntimeModuleMetadataWrapper},
 };
 use move_binary_format::{file_format::CompiledModule, file_format_common::IOTA_METADATA_KEY};
 
-use crate::verification_failure;
+use crate::{authenticator_verifier::verify_authenticate_func_v1, verification_failure};
 
 /// Verifies the runtime module metadata of the given module.
 /// If the module does not contain any runtime metadata, just pass.
@@ -61,7 +62,7 @@ pub fn verify_module(module: &CompiledModule) -> Result<(), ExecutionError> {
 }
 
 fn verify_runtime_metadata(
-    _module: &CompiledModule,
+    module: &CompiledModule,
     metadata: &RuntimeModuleMetadata,
 ) -> Result<(), ExecutionError> {
     for (fn_name, fn_attributes) in metadata.fun_attributes_iter() {
@@ -73,10 +74,31 @@ fn verify_runtime_metadata(
                     "Duplicate attribute {attribute:?} found for function {fn_name}"
                 )));
             }
-            // Currently no checks are implemented for the runtime metadata.
-            // Future checks can be added here as needed.
+            match attribute {
+                IotaAttribute::Authenticator(attr) => {
+                    // Verify authenticator attribute
+                    match attr.version {
+                        1 => {
+                            // Version 1: verify that the function is a valid authenticator
+                            verify_authenticate_func_v1(
+                                module,
+                                Identifier::new(fn_name.clone()).map_err(|err| {
+                                    verification_failure(format!(
+                                        "Failed to read function name: {err}",
+                                    ))
+                                })?,
+                            )?;
+                        }
+                        _ => {
+                            return Err(verification_failure(format!(
+                                "Unsupported authenticator attribute version {} for function {}",
+                                attr.version, fn_name
+                            )));
+                        }
+                    }
+                }
+            }
         }
     }
-
     Ok(())
 }

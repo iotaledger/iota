@@ -36,6 +36,7 @@ const _: () = {
 pub static IOTA_METADATA_KEY: &[u8] = "iota::metadata".as_bytes();
 
 /// Encoding of the flavor into the version of the binary format for versions >=
+///
 /// 7.
 pub struct BinaryFlavor;
 impl BinaryFlavor {
