@@ -55,8 +55,7 @@ use iota_types::{
     },
     move_authenticator::MoveAuthenticator,
     move_package::{
-        IotaAttribute, MovePackage, RuntimeModuleMetadata,
-        RuntimeModuleMetadataWrapper,
+        IotaAttribute, MovePackage, RuntimeModuleMetadata, RuntimeModuleMetadataWrapper,
     },
     object::{self, GAS_VALUE_FOR_TESTING, Object, bounded_visitor::BoundedVisitor},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
