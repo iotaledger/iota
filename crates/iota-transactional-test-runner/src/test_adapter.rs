@@ -54,7 +54,9 @@ use iota_types::{
         CheckpointContents, CheckpointContentsDigest, CheckpointSequenceNumber, VerifiedCheckpoint,
     },
     move_authenticator::MoveAuthenticator,
-    move_package::MovePackage,
+    move_package::{
+        IotaAttribute, MovePackage, RuntimeModuleMetadata, RuntimeModuleMetadataWrapper,
+    },
     object::{self, GAS_VALUE_FOR_TESTING, Object, bounded_visitor::BoundedVisitor},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     signature::GenericSignature,
@@ -68,7 +70,7 @@ use iota_types::{
         to_sender_signed_transaction_with_optional_sponsor,
     },
 };
-use move_binary_format::CompiledModule;
+use move_binary_format::{CompiledModule, file_format_common::IOTA_METADATA_KEY};
 use move_bytecode_utils::module_cache::GetModule;
 use move_command_line_common::files::verify_and_create_named_address_mapping;
 use move_compiler::{
@@ -81,6 +83,7 @@ use move_core_types::{
     ident_str,
     identifier::IdentStr,
     language_storage::{ModuleId, TypeTag},
+    metadata::Metadata,
     parsing::{address::ParsedAddress, values::ParsedValue},
 };
 use move_symbol_pool::Symbol;
@@ -451,7 +454,7 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
 
     async fn publish_modules(
         &mut self,
-        modules: Vec<MaybeNamedCompiledModule>,
+        mut modules: Vec<MaybeNamedCompiledModule>,
         gas_budget: Option<u64>,
         extra: Self::ExtraPublishArgs,
     ) -> anyhow::Result<(Option<String>, Vec<MaybeNamedCompiledModule>)> {
@@ -462,6 +465,9 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
             dependencies,
             gas_price,
         } = extra;
+
+        fill_metadata(&mut modules);
+
         let named_addr_opt = modules.first().unwrap().named_address;
         let first_module_name = modules.first().unwrap().module.self_id().name().to_string();
         let modules_bytes = modules
@@ -547,8 +553,10 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
                 named_address: named_addr_opt,
                 module: CompiledModule::deserialize_with_defaults(published_module_bytes).unwrap(),
                 source_map: None,
+                function_infos: None,
             })
             .collect();
+
         Ok((output, published_modules))
     }
 
@@ -918,7 +926,7 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
                     command_lines_stop,
                     stop_line,
                     data,
-                    |adapter, modules| async {
+                    |adapter, mut modules| async {
                         // Restore the original package addresses for dependencies before performing the upgrade.
                         // This ensures package upgrades are properly linked at their correct addresses
                         // (previously, addresses referred to the dependency's original package for compilation).
@@ -929,6 +937,8 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
                                 .insert(name.to_string(), addr)
                                 .unwrap_or_else(|| panic!("Internal error: expected dependency {name} in map when restoring address."));
                         }
+
+                        fill_metadata(&mut modules);
 
                         let upgraded_name = modules.first().unwrap().named_address.unwrap();
                         let package = &Symbol::from(package.as_str());
@@ -1058,6 +1068,7 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
                                         named_address: Some(*address_sym),
                                         module,
                                         source_map: None,
+                                        function_infos: None,
                                     }
                                 })
                                 .collect()
@@ -2663,5 +2674,33 @@ impl ReadStore for IotaTestAdapter {
         Option<iota_types::messages_checkpoint::FullCheckpointContents>,
     > {
         self.executor.try_get_full_checkpoint_contents(digest)
+    }
+}
+
+/// Fill the compiled modules with authenticator metadata directly from
+/// function_infos
+fn fill_metadata(modules: &mut [MaybeNamedCompiledModule]) {
+    for m in modules.iter_mut() {
+        let module: &mut CompiledModule = &mut m.module;
+        let mut runtime_metadata = RuntimeModuleMetadata::default();
+
+        if let Some(fn_infos) = &m.function_infos {
+            for (_, name, info) in fn_infos.iter() {
+                // We only need authenticator version here
+                if let Some(version) = info.attributes.get_authenticator() {
+                    runtime_metadata.add_function_attribute(
+                        name.as_str().to_owned(),
+                        IotaAttribute::authenticator_attribute(version),
+                    );
+                }
+            }
+        }
+
+        if !runtime_metadata.is_empty() {
+            module.metadata.push(Metadata {
+                key: IOTA_METADATA_KEY.to_vec(),
+                value: RuntimeModuleMetadataWrapper::from(runtime_metadata).to_bcs_bytes(),
+            });
+        }
     }
 }
