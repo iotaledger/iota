@@ -63,6 +63,8 @@ import { AccountsFinderIntroPage } from './pages/accounts/manage/accounts-finder
 import { PasskeyAccountPage } from './pages/accounts/PasskeyAccountPage';
 import { ImportKeystone } from './pages/accounts/ImportKeystone';
 import { Feature, useFeatureEnabledByNetwork } from '@iota/core';
+import { CreateNewWallet } from './pages/accounts/CreateNewWallet';
+import { ImportExistingWallet } from './pages/accounts/ImportExistingWallet';
 
 const HIDDEN_MENU_PATHS = [
     '/nft-details',
@@ -193,6 +195,8 @@ export function App() {
             <Route path="accounts/*" element={<AccountsPage />}>
                 <Route path="welcome" element={<WelcomePage />} />
                 <Route path="add-account" element={<AddAccountPage />} />
+                <Route path="create-new" element={<CreateNewWallet />} />
+                <Route path="import-existing" element={<ImportExistingWallet />} />
                 <Route path="import-ledger-accounts" element={<ImportLedgerAccountsPage />} />
                 <Route path="import-passphrase" element={<ImportPassphrasePage />} />
                 <Route path="import-private-key" element={<ImportPrivateKeyPage />} />
