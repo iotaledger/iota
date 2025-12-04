@@ -528,7 +528,7 @@ mod tests {
         // Set some reports for testing
         let reports_and_authorities = vec![
             (
-                VersionedMisbehaviorReport::V1(MisbehaviorsV1 {
+                VersionedMisbehaviorReport::new_v1(MisbehaviorsV1 {
                     faulty_blocks_provable: vec![5, 0, 0],
                     faulty_blocks_unprovable: vec![0, 0, 0],
                     missing_proposals: vec![0, 0, 0],
@@ -537,7 +537,7 @@ mod tests {
                 0_u32,
             ),
             (
-                VersionedMisbehaviorReport::V1(MisbehaviorsV1 {
+                VersionedMisbehaviorReport::new_v1(MisbehaviorsV1 {
                     faulty_blocks_provable: vec![0, 10, 0],
                     faulty_blocks_unprovable: vec![0, 0, 0],
                     missing_proposals: vec![0, 0, 0],
@@ -546,7 +546,7 @@ mod tests {
                 1_u32,
             ),
             (
-                VersionedMisbehaviorReport::V1(MisbehaviorsV1 {
+                VersionedMisbehaviorReport::new_v1(MisbehaviorsV1 {
                     faulty_blocks_provable: vec![0, 0, 15],
                     faulty_blocks_unprovable: vec![0, 0, 0],
                     missing_proposals: vec![0, 0, 0],
@@ -574,7 +574,7 @@ mod tests {
     #[test]
     fn test_calculate_median_report() {
         let reports_and_voting_power = vec![(
-            VersionedMisbehaviorReport::V1(MisbehaviorsV1 {
+            VersionedMisbehaviorReport::new_v1(MisbehaviorsV1 {
                 faulty_blocks_provable: vec![7, 8, 9],
                 faulty_blocks_unprovable: vec![10, 11, 12],
                 missing_proposals: vec![4, 5, 6],
@@ -596,7 +596,7 @@ mod tests {
 
         let reports_and_voting_power = vec![
             (
-                VersionedMisbehaviorReport::V1(MisbehaviorsV1 {
+                VersionedMisbehaviorReport::new_v1(MisbehaviorsV1 {
                     faulty_blocks_provable: vec![7, 8, 9],
                     faulty_blocks_unprovable: vec![10, 11, 12],
                     missing_proposals: vec![4, 5, 6],
@@ -605,7 +605,7 @@ mod tests {
                 20_u64,
             ),
             (
-                VersionedMisbehaviorReport::V1(MisbehaviorsV1 {
+                VersionedMisbehaviorReport::new_v1(MisbehaviorsV1 {
                     faulty_blocks_provable: vec![70, 80, 90],
                     faulty_blocks_unprovable: vec![100, 110, 120],
                     missing_proposals: vec![40, 50, 60],
@@ -629,7 +629,7 @@ mod tests {
 
         let reports_and_voting_power = vec![
             (
-                VersionedMisbehaviorReport::V1(MisbehaviorsV1 {
+                VersionedMisbehaviorReport::new_v1(MisbehaviorsV1 {
                     faulty_blocks_provable: vec![1, 8, 9],
                     faulty_blocks_unprovable: vec![10, 15, 12],
                     missing_proposals: vec![4, 5, 6],
@@ -638,7 +638,7 @@ mod tests {
                 10_u64,
             ),
             (
-                VersionedMisbehaviorReport::V1(MisbehaviorsV1 {
+                VersionedMisbehaviorReport::new_v1(MisbehaviorsV1 {
                     faulty_blocks_provable: vec![7, 8, 9],
                     faulty_blocks_unprovable: vec![10, 11, 12],
                     missing_proposals: vec![4, 5, 6],
@@ -647,7 +647,7 @@ mod tests {
                 10_u64,
             ),
             (
-                VersionedMisbehaviorReport::V1(MisbehaviorsV1 {
+                VersionedMisbehaviorReport::new_v1(MisbehaviorsV1 {
                     faulty_blocks_provable: vec![6, 8, 9],
                     faulty_blocks_unprovable: vec![10, 11, 12],
                     missing_proposals: vec![4, 22, 6],

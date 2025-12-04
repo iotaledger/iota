@@ -2,7 +2,10 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{env, fmt};
+use std::{
+    env,
+    fmt::{self, Debug},
+};
 
 use anyhow::{anyhow, bail};
 use fastcrypto::encoding::{Base58, Encoding, Hex};
@@ -1041,6 +1044,23 @@ impl fmt::Display for ConsensusCommitDigest {
 impl fmt::Debug for ConsensusCommitDigest {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_tuple("ConsensusCommitDigest")
+            .field(&self.0)
+            .finish()
+    }
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, JsonSchema)]
+pub struct MisbehaviorReportDigest(Digest);
+
+impl MisbehaviorReportDigest {
+    pub const fn new(digest: [u8; 32]) -> Self {
+        Self(Digest::new(digest))
+    }
+}
+
+impl fmt::Debug for MisbehaviorReportDigest {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_tuple("MisbehaviorReportDigest")
             .field(&self.0)
             .finish()
     }
