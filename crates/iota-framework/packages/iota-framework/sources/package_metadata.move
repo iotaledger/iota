@@ -10,12 +10,16 @@ use iota::vec_map::VecMap;
 use std::ascii;
 use std::type_name::TypeName;
 
+// === Errors ===
+
 #[error(code = 0)]
 const EModuleMetadataNotFound: vector<u8> =
     b"The requested module metadata was not found in the package metadata.";
 #[error(code = 1)]
 const EAuthenticatorMetadataNotFound: vector<u8> =
     b"The requested authenticator metadata was not found in the module metadata.";
+
+// === Structs ===
 
 /// Key type for deriving the package metadata object address
 public struct PackageMetadataKey has copy, drop, store {}
@@ -51,6 +55,8 @@ public struct AuthenticatorMetadataV1 has copy, drop, store {
     function_name: ascii::String,
     account_type: TypeName,
 }
+
+// === Public functions ===
 
 /// Return the storage ID of the package represented by this metadata
 public fun storage_id(metadata: &PackageMetadataV1): ID {
@@ -113,7 +119,14 @@ public fun account_type(self: &AuthenticatorMetadataV1): TypeName {
     self.account_type
 }
 
+// === Test-only functions ===
+
 /// Creates a `PackageMetadataV1` instance for testing, skipping validation.
+/// From `storage_id` the package metadata object ID will be derived.
+/// The `modules`, `functions`, and `type_names` vectors must have the same
+/// length, each entry representing an authenticator in the package. This
+/// means that the module name in the `modules` vector must be repeated for
+/// each authenticator it contains.
 #[test_only]
 public fun create_package_metadata_v1_for_testing(
     storage_id: ID,
@@ -134,14 +147,18 @@ public fun create_package_metadata_v1_for_testing(
         let module_name = modules[i];
         let function_name = functions[i];
         let account_type = type_names[i];
-        let authenticator_metadata = vector[
-            AuthenticatorMetadataV1 {
-                function_name,
-                account_type,
-            },
-        ];
-        let module_meta = ModuleMetadataV1 { authenticator_metadata };
-        modules_metadata.insert(module_name, module_meta);
+        let authenticator = AuthenticatorMetadataV1 {
+            function_name,
+            account_type,
+        };
+        if (modules_metadata.contains(&module_name)) {
+            modules_metadata.get_mut(&module_name).authenticator_metadata.push_back(authenticator);
+        } else {
+            modules_metadata.insert(
+                module_name,
+                ModuleMetadataV1 { authenticator_metadata: vector[authenticator] },
+            );
+        };
         i = i + 1;
     };
     PackageMetadataV1 {

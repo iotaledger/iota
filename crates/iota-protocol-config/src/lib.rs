@@ -1283,6 +1283,7 @@ impl ProtocolConfig {
     pub fn passkey_auth(&self) -> bool {
         self.feature_flags.passkey_auth
     }
+
     pub fn max_transaction_size_bytes(&self) -> u64 {
         // Provide a default value if protocol config version is too low.
         self.consensus_max_transaction_size_bytes
