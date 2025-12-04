@@ -1162,7 +1162,7 @@ pub struct DryRunTransactionBlockResponse {
     pub suggested_gas_price_with_ogd: Option<u64>,
 
     /// suggested gas price with nn.
-    /// #[serde_as(as = "Option<BigInt<u64>>")]
+    // #[serde_as(as = "Option<BigInt<u64>>")]
     pub suggested_gas_price_with_nn: Option<u64>,
 }
 

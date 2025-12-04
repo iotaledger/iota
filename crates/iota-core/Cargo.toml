@@ -38,7 +38,6 @@ nonempty.workspace = true
 num_cpus.workspace = true
 object_store.workspace = true
 once_cell.workspace = true
-ordered-float = { version = "5.0", features = ["serde"] }
 parking_lot.workspace = true
 prometheus.workspace = true
 quinn-proto.workspace = true

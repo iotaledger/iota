@@ -36,7 +36,6 @@ num-bigint = { version = "0.4", default-features = false, features = ["rand"] }
 num-rational = "0.4"
 num-traits = "0.2.18"
 once_cell.workspace = true
-ordered-float = { version = "5.0", features = ["serde"] }
 packable = { version = "0.8", default-features = false, features = ["io"] }
 parking_lot.workspace = true
 passkey-types.workspace = true
