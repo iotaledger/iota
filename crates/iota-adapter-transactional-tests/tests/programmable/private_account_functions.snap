@@ -1,0 +1,37 @@
+---
+source: external-crates/move/crates/move-transactional-test-runner/src/framework.rs
+---
+processed 5 tasks
+
+init:
+A: object(0,0)
+
+task 1, lines 9-14:
+//# publish
+created: object(1,0)
+mutated: object(0,1)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 4712000,  storage_rebate: 0, non_refundable_storage_fee: 0
+
+task 2, lines 16-19:
+//# programmable --inputs @test "module" "function"
+//> 0: test::m1::account();
+//> 1: iota::account::create_auth_info_v1_for_testing(Input(0), Input(1), Input(2));
+//> iota::account::create_shared_account_v1<test::m1::Account>(Result(0), Result(1));
+Error: Transaction Effects Status: Function Not Found.
+Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: FunctionNotFound, source: Some("Could not resolve function 'create_auth_info_v1_for_testing' in module iota::account"), command: Some(1) } }
+
+task 3, lines 21-24:
+//# programmable --inputs @test "module" "function"
+//> 0: test::m1::account();
+//> 1: iota::account::create_auth_info_v1_for_testing(Input(0), Input(1), Input(2));
+//> iota::account::create_immutable_account_v1<test::m1::Account>(Result(0));
+Error: Transaction Effects Status: Function Not Found.
+Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: FunctionNotFound, source: Some("Could not resolve function 'create_auth_info_v1_for_testing' in module iota::account"), command: Some(1) } }
+
+task 4, lines 26-29:
+//# programmable --inputs @test "module" "function"
+//> 0: test::m1::account();
+//> 1: iota::account::create_auth_info_v1_for_testing(Input(0), Input(1), Input(2));
+//> iota::account::rotate_auth_info_v1<test::m1::Account>(Result(0));
+Error: Transaction Effects Status: Function Not Found.
+Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: FunctionNotFound, source: Some("Could not resolve function 'create_auth_info_v1_for_testing' in module iota::account"), command: Some(1) } }
