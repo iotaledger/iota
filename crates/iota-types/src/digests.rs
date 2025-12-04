@@ -1074,3 +1074,123 @@ mod test {
         assert_eq!(chain_id, None);
     }
 }
+
+/// MoveAuthenticatorDigest is the hash (digest) of the `GenericSignature`
+/// payload when the transaction uses a `MoveAuthenticator` as its signature
+/// scheme. It is evaluated during the authentication phase of a transaction and
+/// is part of the `AuthContext`.
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, JsonSchema)]
+pub struct MoveAuthenticatorDigest(Digest);
+
+impl Default for MoveAuthenticatorDigest {
+    fn default() -> Self {
+        Self::ZERO
+    }
+}
+
+impl MoveAuthenticatorDigest {
+    pub const ZERO: Self = Self(Digest::ZERO);
+
+    pub const fn new(digest: [u8; 32]) -> Self {
+        Self(Digest::new(digest))
+    }
+
+    pub fn generate<R: rand::RngCore + rand::CryptoRng>(rng: R) -> Self {
+        Self(Digest::generate(rng))
+    }
+
+    pub fn random() -> Self {
+        Self(Digest::random())
+    }
+
+    pub fn inner(&self) -> &[u8; 32] {
+        self.0.inner()
+    }
+
+    pub fn into_inner(self) -> [u8; 32] {
+        self.0.into_inner()
+    }
+
+    pub fn base58_encode(&self) -> String {
+        Base58::encode(self.0)
+    }
+
+    pub fn next_lexicographical(&self) -> Option<Self> {
+        self.0.next_lexicographical().map(Self)
+    }
+}
+
+impl AsRef<[u8]> for MoveAuthenticatorDigest {
+    fn as_ref(&self) -> &[u8] {
+        self.0.as_ref()
+    }
+}
+
+impl AsRef<[u8; 32]> for MoveAuthenticatorDigest {
+    fn as_ref(&self) -> &[u8; 32] {
+        self.0.as_ref()
+    }
+}
+
+impl From<MoveAuthenticatorDigest> for [u8; 32] {
+    fn from(digest: MoveAuthenticatorDigest) -> Self {
+        digest.into_inner()
+    }
+}
+
+impl From<[u8; 32]> for MoveAuthenticatorDigest {
+    fn from(digest: [u8; 32]) -> Self {
+        Self::new(digest)
+    }
+}
+
+impl fmt::Display for MoveAuthenticatorDigest {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Display::fmt(&self.0, f)
+    }
+}
+
+impl fmt::Debug for MoveAuthenticatorDigest {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_tuple("MoveAuthenticatorDigest")
+            .field(&self.0)
+            .finish()
+    }
+}
+
+impl fmt::LowerHex for MoveAuthenticatorDigest {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::LowerHex::fmt(&self.0, f)
+    }
+}
+
+impl fmt::UpperHex for MoveAuthenticatorDigest {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::UpperHex::fmt(&self.0, f)
+    }
+}
+
+impl TryFrom<&[u8]> for MoveAuthenticatorDigest {
+    type Error = crate::error::IotaError;
+
+    fn try_from(bytes: &[u8]) -> Result<Self, crate::error::IotaError> {
+        let arr: [u8; 32] = bytes
+            .try_into()
+            .map_err(|_| crate::error::IotaError::InvalidMoveAuthenticatorDigest)?;
+        Ok(Self::new(arr))
+    }
+}
+
+impl std::str::FromStr for MoveAuthenticatorDigest {
+    type Err = anyhow::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let mut result = [0; 32];
+        let buffer = Base58::decode(s).map_err(|e| anyhow!(e))?;
+        if buffer.len() != 32 {
+            bail!("Invalid digest length. Expected 32 bytes");
+        }
+        result.copy_from_slice(&buffer);
+        Ok(MoveAuthenticatorDigest::new(result))
+    }
+}

@@ -71,11 +71,9 @@ use self::{
     validator::ValidatorValidateMetadataBcsCostParams,
 };
 use crate::crypto::{
-    group_ops,
-    group_ops::GroupOpsCostParams,
+    group_ops::{self, GroupOpsCostParams},
     poseidon::PoseidonBN254CostParams,
-    zklogin,
-    zklogin::{CheckZkloginIdCostParams, CheckZkloginIssuerCostParams},
+    zklogin::{self, CheckZkloginIdCostParams, CheckZkloginIssuerCostParams},
 };
 
 mod address;
