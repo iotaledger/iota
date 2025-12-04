@@ -101,6 +101,7 @@ module iota_system::iota_system_state_inner {
         _reward_slashing_rate: u64,
         _max_committee_members_count: u64,
         _eligible_active_validators: vector<u64>,
+        _scores: vector<u64>,
         _ctx: &mut TxContext,
     ) : Balance<IOTA> {
         let storage_charge_value = storage_charge.value();
