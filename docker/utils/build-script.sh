@@ -63,7 +63,7 @@ echo
 echo "Building \"$IMAGE_TAG\" docker image"
 echo "Dockerfile:                 $DOCKERFILE"
 echo "docker context:             $REPO_ROOT"
-echo "profile: 					  $PROFILE"
+echo "profile:                    $PROFILE"
 echo "builder rust image version: $RUST_IMAGE_VERSION"
 echo "cargo build features:       $CARGO_BUILD_FEATURES"
 echo "build date:                 $BUILD_DATE"
