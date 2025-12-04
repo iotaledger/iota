@@ -2,8 +2,13 @@
 // Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! `UnneededReturnVisitor` enforces that users don't write `return <exp>` where `<exp>` is a
-//! value-like thing.
+//! `UnneededReturnVisitor` enforces that users don't write `return <exp>` where
+//! `<exp>` is a value-like thing.
+
+use std::collections::VecDeque;
+
+use move_ir_types::location::Loc;
+use move_proc_macros::growing_stack;
 
 use crate::{
     diag,
@@ -12,11 +17,6 @@ use crate::{
     parser::ast::FunctionName,
     typing::{ast as T, visitor::simple_visitor},
 };
-
-use move_ir_types::location::Loc;
-use move_proc_macros::growing_stack;
-
-use std::collections::VecDeque;
 
 simple_visitor!(
     UnneededReturn,
@@ -33,8 +33,8 @@ simple_visitor!(
     }
 );
 
-/// Recur down the tail (last) position of the sequence, looking for returns that
-/// might occur in the function's taul/return position..
+/// Recur down the tail (last) position of the sequence, looking for returns
+/// that might occur in the function's taul/return position..
 #[growing_stack]
 fn tail_block(context: &mut Context, seq: &VecDeque<T::SequenceItem>) {
     let Some(last) = seq.back() else { return };
@@ -45,8 +45,8 @@ fn tail_block(context: &mut Context, seq: &VecDeque<T::SequenceItem>) {
     }
 }
 
-/// Recur down the tail (last) position of each expression, looking for returns that
-/// might occur in the function's taul/return position.
+/// Recur down the tail (last) position of each expression, looking for returns
+/// that might occur in the function's taul/return position.
 #[growing_stack]
 fn tail(context: &mut Context, exp: &T::Exp) {
     match &exp.exp.value {
@@ -114,9 +114,10 @@ fn tail(context: &mut Context, exp: &T::Exp) {
     }
 }
 
-/// Indicates if the expression is "value"-like, in that it produces a value. This is just to
-/// reduce noise for the lint, because things like `return loop { abort 0 }` is technically an
-/// unnecessary return, but we don't need to complain about weird code like that.
+/// Indicates if the expression is "value"-like, in that it produces a value.
+/// This is just to reduce noise for the lint, because things like `return loop
+/// { abort 0 }` is technically an unnecessary return, but we don't need to
+/// complain about weird code like that.
 #[growing_stack]
 fn returnable_value(context: &mut Context, exp: &T::Exp) -> bool {
     match &exp.exp.value {

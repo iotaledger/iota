@@ -47,6 +47,9 @@ pub enum CloudProviderError {
 
     #[error("SSH key \"{0}\" not found")]
     SshKeyNotFound(String),
+
+    #[error("Spot Instances cannot be stopped: Instance Id: {0}")]
+    FailedToStopSpotInstance(String),
 }
 
 pub type SshResult<T> = Result<T, SshError>;
@@ -105,6 +108,12 @@ pub enum TestbedError {
 
     #[error("Not enough instances: missing {0} instances")]
     InsufficientCapacity(usize),
+
+    #[error("Metrics instance is missing")]
+    MetricsServerMissing(),
+
+    #[error("Not enough dedicated client instances: missing {0} instances")]
+    InsufficientDedicatedClientCapacity(usize),
 
     #[error(transparent)]
     Monitor(#[from] MonitorError),

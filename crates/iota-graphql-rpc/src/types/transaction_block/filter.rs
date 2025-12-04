@@ -12,24 +12,38 @@ use crate::types::{
     transaction_block::TransactionBlockKindInput, type_filter::FqNameFilter, uint53::UInt53,
 };
 
+/// Represents optional available filters for transaction blocks.
 #[derive(InputObject, Debug, Default, Clone)]
 pub(crate) struct TransactionBlockFilter {
+    /// Filter transactions by move function called.
+    ///
+    /// Calls can be filtered by the `package`, `package::module`, or the
+    /// `package::module::name` of their function.
     pub function: Option<FqNameFilter>,
 
     /// An input filter selecting for either system or programmable
     /// transactions.
     pub kind: Option<TransactionBlockKindInput>,
+    /// Limit to transactions that occurred strictly after the given checkpoint.
     pub after_checkpoint: Option<UInt53>,
+    /// Limit to transactions in the given checkpoint.
     pub at_checkpoint: Option<UInt53>,
+    /// Limit to transaction that occurred strictly before the given checkpoint.
     pub before_checkpoint: Option<UInt53>,
 
+    /// Limit to transactions that were signed by the given address.
     pub sign_address: Option<IotaAddress>,
+    /// Limit to transactions that sent an object to the given address.
     pub recv_address: Option<IotaAddress>,
 
+    /// Limit to transactions that accepted the given object as an input.
     pub input_object: Option<IotaAddress>,
+    /// Limit to transactions that output a version of this object.
     pub changed_object: Option<IotaAddress>,
+    /// Limit to transactions that wrapped or deleted the given object.
     pub wrapped_or_deleted_object: Option<IotaAddress>,
 
+    /// Select transactions by their digest.
     pub transaction_ids: Option<Vec<Digest>>,
 }
 

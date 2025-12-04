@@ -14,16 +14,16 @@ use move_symbol_pool::Symbol;
 use crate::{
     diagnostics::warning_filters::{WarningFilters, WarningFiltersTable},
     expansion::ast::{
-        ability_modifiers_ast_debug, AbilitySet, Attributes, Friend, ModuleIdent, Mutability,
+        AbilitySet, Attributes, Friend, ModuleIdent, Mutability, ability_modifiers_ast_debug,
     },
     naming::ast::{BuiltinTypeName, BuiltinTypeName_, DatatypeTypeParameter, TParam},
     parser::ast::{
-        self as P, BinOp, ConstantName, DatatypeName, Field, FunctionName, TargetKind, UnaryOp,
-        VariantName, ENTRY_MODIFIER,
+        self as P, BinOp, ConstantName, DatatypeName, ENTRY_MODIFIER, Field, FunctionName,
+        TargetKind, UnaryOp, VariantName,
     },
     shared::{
-        ast_debug::*, program_info::TypingProgramInfo, unique_map::UniqueMap, Name,
-        NumericalAddress, TName,
+        Name, NumericalAddress, TName, ast_debug::*, program_info::TypingProgramInfo,
+        unique_map::UniqueMap,
     },
 };
 
@@ -36,7 +36,8 @@ use crate::{
 #[derive(Debug, Clone)]
 pub struct Program {
     pub info: Arc<TypingProgramInfo>,
-    /// Safety: This table should not be dropped as long as any `WarningFilters` are alive
+    /// Safety: This table should not be dropped as long as any `WarningFilters`
+    /// are alive
     pub warning_filters_table: Arc<WarningFiltersTable>,
     pub modules: UniqueMap<ModuleIdent, ModuleDefinition>,
 }

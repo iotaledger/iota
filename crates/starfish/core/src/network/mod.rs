@@ -36,6 +36,7 @@ use crate::{
     commit::{CommitRange, TrustedCommit},
     error::{ConsensusError, ConsensusResult},
 };
+
 // Tonic generated RPC stubs.
 mod tonic_gen {
     include!(concat!(env!("OUT_DIR"), "/consensus.ConsensusService.rs"));

@@ -209,9 +209,35 @@ impl SshConnectionManager {
                 let context = context.clone();
 
                 tokio::spawn(async move {
-                    let connection = ssh_manager.connect(instance.ssh_address()).await?;
-                    // SshConnection::execute is a blocking call, needs to go to blocking pool
-                    connection.execute(context.apply(command)).await
+                    let command_str = command.into();
+                    let mut consecutive_errors = 0;
+                    loop {
+                        match ssh_manager.connect(instance.ssh_address()).await {
+                            Ok(connection) => {
+                                // success resets the error streak
+                                consecutive_errors = 0;
+                                match connection.execute(context.apply(command_str.clone())).await {
+                                    Ok(output) => {
+                                        return Ok(output);
+                                    }
+                                    Err(err) => {
+                                        consecutive_errors += 1;
+                                        if consecutive_errors >= 5 {
+                                            return Err(err);
+                                        }
+                                    }
+                                }
+                            }
+                            Err(err) => {
+                                consecutive_errors += 1;
+                                if consecutive_errors >= 5 {
+                                    return Err(err);
+                                }
+                            }
+                        }
+
+                        sleep(Duration::from_secs(5)).await;
+                    }
                 })
             })
             .collect::<Vec<_>>()
@@ -227,21 +253,33 @@ impl SshConnectionManager {
     where
         I: IntoIterator<Item = Instance> + Clone,
     {
+        let mut consecutive_errors = 0;
         loop {
             sleep(Self::RETRY_DELAY).await;
 
-            let result = self
+            match self
                 .execute(
                     instances.clone(),
                     "(tmux ls || true)",
                     CommandContext::default(),
                 )
-                .await?;
-            if result
-                .iter()
-                .all(|(stdout, _)| CommandStatus::status(command_id, stdout) == status)
+                .await
             {
-                break;
+                Ok(result) => {
+                    consecutive_errors = 0;
+                    if result
+                        .iter()
+                        .all(|(stdout, _)| CommandStatus::status(command_id, stdout) == status)
+                    {
+                        break;
+                    }
+                }
+                Err(e) => {
+                    consecutive_errors += 1;
+                    if consecutive_errors >= 5 {
+                        return Err(e);
+                    }
+                }
             }
         }
         Ok(())

@@ -8,8 +8,10 @@ import { QueryClientProvider } from '@tanstack/react-query';
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { RouterProvider } from 'react-router-dom';
+import { CookieManagerProvider } from '@boxfish-studio/react-cookie-manager';
 import { growthbook, initAmplitude, initSentry, queryClient } from './lib/utils';
 import { router } from './pages';
+import { CookieDisclaimer } from './components/disclaimer/CookieDisclaimer';
 
 initSentry();
 
@@ -26,7 +28,10 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
     <React.StrictMode>
         <GrowthBookProvider growthbook={growthbook}>
             <QueryClientProvider client={queryClient}>
-                <RouterProvider router={router} />
+                <CookieManagerProvider>
+                    <RouterProvider router={router} />
+                    <CookieDisclaimer />
+                </CookieManagerProvider>
             </QueryClientProvider>
         </GrowthBookProvider>
     </React.StrictMode>,

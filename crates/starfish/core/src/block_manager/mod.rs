@@ -29,7 +29,7 @@ use crate::{
     },
     block_manager::block_suspender::BlockSuspender,
     context::Context,
-    dag_state::DagState,
+    dag_state::{DagState, TransactionSource},
 };
 
 /// Block manager suspends incoming blocks until they are connected to the
@@ -143,7 +143,7 @@ impl BlockManager {
         let mut write_guard = self.dag_state.write();
         write_guard.accept_block_headers(block_headers);
         for verified_transaction in transactions {
-            write_guard.add_transactions(verified_transaction, "Block streaming");
+            write_guard.add_transactions(verified_transaction, TransactionSource::BlockStreaming);
         }
     }
 
@@ -232,7 +232,7 @@ impl BlockManager {
                 self.context
                     .metrics
                     .node_metrics
-                    .block_manager_missing_blocks_by_authority
+                    .block_manager_missing_block_headers_by_authority
                     .with_label_values(&[self.context.authority_hostname(block_ref.author)])
                     .inc();
             }
@@ -240,10 +240,10 @@ impl BlockManager {
 
         let metrics = &self.context.metrics.node_metrics;
         metrics
-            .missing_blocks_total
+            .missing_block_headers_total
             .inc_by(blocks_to_fetch.len() as u64);
         metrics
-            .block_manager_missing_blocks
+            .block_manager_missing_block_headers
             .set(self.block_suspender.blocks_to_fetch_len() as i64);
 
         blocks_to_fetch

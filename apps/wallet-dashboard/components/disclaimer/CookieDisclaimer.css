@@ -1,0 +1,82 @@
+#skcm-cookie-disclaimer#skcm-cookie-disclaimer {
+    @apply dark:bg-iota-neutral-10;
+    @apply bg-iota-primary-100;
+    @apply border-iota-neutral-4;
+    @apply w-full max-w-none;
+    @apply flex flex-col;
+    @apply px-8 py-6;
+    @apply max-md:space-y-4;
+    @apply bottom-0 right-0;
+    @apply rounded-none;
+    @apply shadow-2xl;
+    @apply max-md:px-0;
+    @apply md:bottom-6 md:right-6 md:max-w-lg md:flex-row md:space-x-4 md:rounded-md md:px-6 md:py-4;
+    border: 1px solid transparent;
+
+    #skcm-policy-link__button {
+        @apply text-iota-primary-40;
+    }
+
+    #skcm-cookie-disclaimer__body {
+        @apply max-md:container;
+        @apply flex flex-col;
+        @apply items-center justify-center md:items-start;
+
+        #skcm-body {
+            @apply m-0;
+            @apply dark:text-iota-neutral-92;
+            @apply text-iota-neutral-10;
+
+            a {
+                @apply text-iota-primary-40;
+            }
+        }
+    }
+
+    #skcm-cookie-disclaimer__buttons {
+        @apply max-md:container;
+        @apply flex flex-col;
+        @apply space-y-0;
+
+        button {
+            @apply rounded-full;
+            @apply bg-iota-primary-30;
+            @apply text-iota-neutral-92;
+            @apply px-[20px] py-3;
+            @apply text-label-lg normal-case;
+            @apply transition-colors;
+            @apply w-full;
+            @apply min-w-[120px];
+        }
+    }
+}
+
+.cookie-policy-page {
+    #skcm-cookie-library {
+        h4,
+        p,
+        td,
+        label {
+            @apply text-iota-neutral-10;
+        }
+    }
+    #skcm-cookie-library__preferences__button {
+        @apply bg-iota-primary-30;
+    }
+}
+
+html.dark {
+    .cookie-policy-page {
+        #skcm-cookie-library {
+            h4,
+            p,
+            td,
+            label {
+                @apply text-iota-neutral-92;
+            }
+        }
+        #skcm-cookie-library__preferences__button {
+            @apply bg-iota-primary-30;
+        }
+    }
+}

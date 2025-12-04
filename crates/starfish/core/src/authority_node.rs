@@ -20,9 +20,11 @@ use crate::{
     commit_syncer::{CommitSyncer, CommitSyncerHandle},
     commit_vote_monitor::CommitVoteMonitor,
     context::{Clock, Context},
+    cordial_knowledge::{CordialKnowledge, CordialKnowledgeHandle},
     core::{Core, CoreSignals},
     core_thread::{ChannelCoreThreadDispatcher, CoreThreadHandle},
     dag_state::DagState,
+    header_synchronizer::{HeaderSynchronizer, HeaderSynchronizerHandle},
     leader_schedule::LeaderSchedule,
     leader_timeout::{LeaderTimeoutTask, LeaderTimeoutTaskHandle},
     metrics::initialise_metrics,
@@ -30,7 +32,6 @@ use crate::{
     shard_reconstructor::{ShardReconstructor, ShardReconstructorHandle},
     storage::rocksdb_store::RocksDBStore,
     subscriber::Subscriber,
-    synchronizer::{Synchronizer, SynchronizerHandle},
     transaction::{TransactionClient, TransactionConsumer, TransactionVerifier},
     transactions_synchronizer::{TransactionsSynchronizer, TransactionsSynchronizerHandle},
 };
@@ -39,10 +40,11 @@ pub struct ConsensusAuthority {
     context: Arc<Context>,
     start_time: Instant,
     transaction_client: Arc<TransactionClient>,
-    synchronizer: Arc<SynchronizerHandle>,
+    header_synchronizer: Arc<HeaderSynchronizerHandle>,
     transactions_synchronizer: Arc<TransactionsSynchronizerHandle>,
     commit_consumer_monitor: Arc<CommitConsumerMonitor>,
     shard_reconstructor: Arc<ShardReconstructorHandle>,
+    cordial_knowledge: Arc<CordialKnowledgeHandle>,
     commit_syncer_handle: CommitSyncerHandle,
     leader_timeout_handle: LeaderTimeoutTaskHandle,
     core_thread_handle: CoreThreadHandle,
@@ -117,6 +119,8 @@ impl ConsensusAuthority {
         let store = Arc::new(RocksDBStore::new(store_path));
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
 
+        let cordial_knowledge = CordialKnowledge::start(context.clone(), dag_state.clone());
+
         let highest_known_commit_at_startup = dag_state.read().last_commit_index();
 
         // Sync last known own block is enabled when:
@@ -177,7 +181,6 @@ impl ConsensusAuthority {
             network_client.clone(),
             context.clone(),
             core_dispatcher.clone(),
-            block_verifier.clone(),
             dag_state.clone(),
         );
 
@@ -193,7 +196,7 @@ impl ConsensusAuthority {
 
         let commit_vote_monitor = Arc::new(CommitVoteMonitor::new(context.clone()));
 
-        let synchronizer = Synchronizer::start(
+        let header_synchronizer = HeaderSynchronizer::start(
             network_client.clone(),
             context.clone(),
             core_dispatcher.clone(),
@@ -208,7 +211,6 @@ impl ConsensusAuthority {
             context.clone(),
             core_dispatcher.clone(),
             commit_vote_monitor.clone(),
-            transactions_synchronizer.clone(),
             commit_consumer_monitor.clone(),
             network_client.clone(),
             block_verifier.clone(),
@@ -220,13 +222,14 @@ impl ConsensusAuthority {
             context.clone(),
             block_verifier,
             commit_vote_monitor,
-            synchronizer.clone(),
+            header_synchronizer.clone(),
             transactions_synchronizer.clone(),
             core_dispatcher,
             signals_receivers.block_broadcast_receiver(),
             dag_state.clone(),
             store,
             shard_reconstructor.transaction_message_sender(),
+            cordial_knowledge.clone(),
         ));
 
         let subscriber = Subscriber::new(
@@ -252,8 +255,9 @@ impl ConsensusAuthority {
             context,
             start_time,
             transaction_client: Arc::new(tx_client),
-            synchronizer,
+            header_synchronizer,
             shard_reconstructor,
+            cordial_knowledge,
             transactions_synchronizer,
             commit_consumer_monitor,
             commit_syncer_handle,
@@ -273,7 +277,7 @@ impl ConsensusAuthority {
         );
 
         // First shutdown components calling into Core.
-        if let Err(e) = self.synchronizer.stop().await {
+        if let Err(e) = self.header_synchronizer.stop().await {
             if e.is_panic() {
                 std::panic::resume_unwind(e.into_panic());
             }
@@ -302,6 +306,16 @@ impl ConsensusAuthority {
                 e
             );
         };
+
+        if let Err(e) = self.cordial_knowledge.stop().await {
+            if e.is_panic() {
+                std::panic::resume_unwind(e.into_panic());
+            }
+            warn!(
+                "Failed to stop cordial knowledge manager when shutting down consensus: {:?}",
+                e
+            );
+        }
 
         self.commit_syncer_handle.stop().await;
         self.leader_timeout_handle.stop().await;
@@ -556,11 +570,11 @@ mod tests {
                     if let Ok(Some(committed_subdag)) =
                         tokio::time::timeout(remaining, receiver.recv()).await
                     {
-                        for block in &committed_subdag.blocks {
-                            if block.round() > GENESIS_ROUND {
-                                let author_index = block.author();
+                        for header in &committed_subdag.headers {
+                            if header.round() > GENESIS_ROUND {
+                                let author_index = header.author();
                                 last_round_committed_blocks[author_index] =
-                                    max(last_round_committed_blocks[author_index], block.round());
+                                    max(last_round_committed_blocks[author_index], header.round());
                             }
                         }
 
@@ -764,8 +778,8 @@ mod tests {
                 .await
                 .expect("Timed out while waiting for at least one committed block from authority 1")
         {
-            for block in &result.blocks {
-                if block.round() > GENESIS_ROUND && block.author() == index_1 {
+            for header in &result.headers {
+                if header.round() > GENESIS_ROUND && header.author() == index_1 {
                     break 'outer;
                 }
             }
@@ -845,8 +859,8 @@ mod tests {
         // authority
         let received_from_authority_1 = timeout(Duration::from_secs(10), async {
             'outer: while let Some(result) = receiver_1.recv().await {
-                for block in &result.blocks {
-                    if block.round() > GENESIS_ROUND && block.author() == index_1 {
+                for header in &result.headers {
+                    if header.round() > GENESIS_ROUND && header.author() == index_1 {
                         break 'outer;
                     }
                 }

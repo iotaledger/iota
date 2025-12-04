@@ -14,7 +14,10 @@ type LedgerAccountKeys = 'address' | 'publicKey' | 'type' | 'derivationPath';
 
 export type DerivedLedgerAccount = Pick<LedgerAccountSerializedUI, LedgerAccountKeys>;
 interface UseDeriveLedgerAccountOptions
-    extends Pick<UseQueryOptions<DerivedLedgerAccount[], unknown>, 'select'> {
+    extends Pick<
+        UseQueryOptions<{ accounts: DerivedLedgerAccount[]; mainPublicKey: string }, unknown>,
+        'select'
+    > {
     numAccountsToDerive: number;
 }
 
@@ -40,14 +43,17 @@ async function deriveAccountsFromLedger(
     iotaLedgerClient: IotaLedgerClient,
     numAccountsToDerive: number,
 ) {
-    const ledgerAccounts: DerivedLedgerAccount[] = [];
+    const accounts: DerivedLedgerAccount[] = [];
     const derivationPaths = getDerivationPathsForLedger(numAccountsToDerive);
+
+    const mainPublicKeyResult = await iotaLedgerClient.getPublicKey(`m/44'/4218'/0'/0'/0'`);
+    const mainPublicKey = new Ed25519PublicKey(mainPublicKeyResult.publicKey);
 
     for (const derivationPath of derivationPaths) {
         const publicKeyResult = await iotaLedgerClient.getPublicKey(derivationPath);
         const publicKey = new Ed25519PublicKey(publicKeyResult.publicKey);
         const iotaAddress = publicKey.toIotaAddress();
-        ledgerAccounts.push({
+        accounts.push({
             type: AccountType.LedgerDerived,
             address: iotaAddress,
             derivationPath,
@@ -55,7 +61,10 @@ async function deriveAccountsFromLedger(
         });
     }
 
-    return ledgerAccounts;
+    return {
+        mainPublicKey: mainPublicKey.toBase64(),
+        accounts,
+    };
 }
 
 function getDerivationPathsForLedger(numDerivations: number) {

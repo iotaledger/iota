@@ -4,7 +4,8 @@
 
 // IDEA: Post trace analysis -- report when values are dropped.
 
-use crate::interface::{NopTracer, Tracer, Writer};
+use std::fmt::Display;
+
 use move_binary_format::{
     file_format::{Bytecode, FunctionDefinitionIndex as BinaryFunctionDefinitionIndex},
     file_format_common::instruction_opcode,
@@ -14,36 +15,39 @@ use move_core_types::{
     language_storage::{ModuleId, TypeTag},
 };
 use serde::Serialize;
-use std::fmt::Display;
 
-/// An index into the trace. This should be used when referring to locations in the trace.
-/// Otherwise, a `usize` should be used when referring to indices that are not in the trace.
+use crate::interface::{NopTracer, Tracer, Writer};
+
+/// An index into the trace. This should be used when referring to locations in
+/// the trace. Otherwise, a `usize` should be used when referring to indices
+/// that are not in the trace.
 pub type TraceIndex = usize;
 pub type TraceVersion = u64;
 
 /// The current version of the trace format.
 const TRACE_VERSION: TraceVersion = 1;
 
-/// A Location is a valid root for a reference. This can either be a local in a frame, a stack
-/// value, or a reference into another location (e.g., vec[0][2]).
+/// A Location is a valid root for a reference. This can either be a local in a
+/// frame, a stack value, or a reference into another location (e.g.,
+/// vec[0][2]).
 ///
-/// Note that we track aliasing through the locations so you can always trace back to the root
-/// value for the reference.
+/// Note that we track aliasing through the locations so you can always trace
+/// back to the root value for the reference.
 #[derive(Debug, Clone, Eq, PartialEq, Serialize)]
 pub enum Location {
-    // Local index in a frame. The frame is identified by the index in the trace where it was created.
-    // The `usize` is the index into the locals of the frame.
+    // Local index in a frame. The frame is identified by the index in the trace where it was
+    // created. The `usize` is the index into the locals of the frame.
     Local(TraceIndex, usize),
-    // An indexed location. This is a reference into another location (e.g., due to a borrow field,
-    // or a reference into a vector).
+    // An indexed location. This is a reference into another location (e.g., due to a borrow
+    // field, or a reference into a vector).
     Indexed(Box<Location>, usize),
     // A global reference.
     // Identified by the location in the trace where it was introduced.
     Global(TraceIndex),
 }
 
-/// A Read event. This represents a read from a location, with the value read and whether the value
-/// was moved or not.
+/// A Read event. This represents a read from a location, with the value read
+/// and whether the value was moved or not.
 #[derive(Clone, Debug, Eq, PartialEq, Serialize)]
 pub struct Read {
     pub location: Location,
@@ -51,9 +55,10 @@ pub struct Read {
     pub moved: bool,
 }
 
-/// A Write event. This represents a write to a location with the value written and a snapshot of
-/// the value that was written. Note that the `root_value_after_write` is a snapshot of the
-/// _entire_ (root) value that was written after the write.
+/// A Write event. This represents a write to a location with the value written
+/// and a snapshot of the value that was written. Note that the
+/// `root_value_after_write` is a snapshot of the _entire_ (root) value that was
+/// written after the write.
 #[derive(Clone, Debug, Eq, PartialEq, Serialize)]
 pub struct Write {
     pub location: Location,
@@ -61,8 +66,8 @@ pub struct Write {
 }
 
 /// A TraceValue is a value in the standard MoveValue domain + references.
-/// References hold their own snapshot of the root value they point to, along with the rooted path to
-/// the value that they reference within that snapshot.
+/// References hold their own snapshot of the root value they point to, along
+/// with the rooted path to the value that they reference within that snapshot.
 #[derive(Clone, Debug, Eq, PartialEq, Serialize)]
 pub enum TraceValue {
     RuntimeValue {
@@ -87,15 +92,16 @@ pub enum RefType {
 }
 
 /// Type tag with references. This is a type tag that also supports references.
-/// if ref_type is None, this is a value type. If ref_type is Some, this is a reference type of the
-/// given reference type.
+/// if ref_type is None, this is a value type. If ref_type is Some, this is a
+/// reference type of the given reference type.
 #[derive(Clone, Debug, Eq, PartialEq, Serialize)]
 pub struct TypeTagWithRefs {
     pub type_: TypeTag,
     pub ref_type: Option<RefType>,
 }
 
-/// A `Frame` represents a stack frame in the Move VM and a given instantiation of a function.
+/// A `Frame` represents a stack frame in the Move VM and a given instantiation
+/// of a function.
 #[derive(Clone, Debug, Eq, PartialEq, Serialize)]
 pub struct Frame {
     // The frame id is the offset in the trace where this frame was opened.
@@ -111,8 +117,8 @@ pub struct Frame {
     pub is_native: bool,
 }
 
-/// An instruction effect is a single effect of an instruction. This can be a push/pop of a value
-/// or a reference to a value, or a read/write of a value.
+/// An instruction effect is a single effect of an instruction. This can be a
+/// push/pop of a value or a reference to a value, or a read/write of a value.
 #[derive(Clone, Debug, Eq, PartialEq, Serialize)]
 pub enum Effect {
     // Pop a value off the stack (pre-effect only)
@@ -132,9 +138,10 @@ pub enum Effect {
     ExecutionError(String),
 }
 
-/// Represent a data load event. This is a load of a value from storage. We only record loads by
-/// reference in the trace, and we snapshot the value at the reference location at the time of load
-/// and record its global reference ID (i.e., the location in the trace at which it was loaded).
+/// Represent a data load event. This is a load of a value from storage. We only
+/// record loads by reference in the trace, and we snapshot the value at the
+/// reference location at the time of load and record its global reference ID
+/// (i.e., the location in the trace at which it was loaded).
 #[derive(Clone, Debug, Eq, PartialEq, Serialize)]
 pub struct DataLoad {
     pub ref_type: RefType,
@@ -142,8 +149,9 @@ pub struct DataLoad {
     pub snapshot: MoveValue,
 }
 
-/// A TraceEvent is a single event in the Move VM, external events can also be interleaved in the
-/// trace. MoveVM events, are well structured, and can be a frame event or an instruction event.
+/// A TraceEvent is a single event in the Move VM, external events can also be
+/// interleaved in the trace. MoveVM events, are well structured, and can be a
+/// frame event or an instruction event.
 #[derive(Debug, Clone, Eq, PartialEq, Serialize)]
 pub enum TraceEvent {
     OpenFrame {
@@ -171,9 +179,9 @@ pub struct MoveTrace {
     pub events: Vec<TraceEvent>,
 }
 
-/// The Move trace format. The custom tracer is not serialized, but the events are.
-/// This is the format that the Move VM will output traces in, and the `tracer` can output
-/// additional events to the trace.
+/// The Move trace format. The custom tracer is not serialized, but the events
+/// are. This is the format that the Move VM will output traces in, and the
+/// `tracer` can output additional events to the trace.
 pub struct MoveTraceBuilder {
     pub tracer: Box<dyn Tracer>,
 
@@ -241,7 +249,8 @@ impl MoveTraceBuilder {
         }
     }
 
-    /// Consume the `MoveTraceBuilder` and return the `MoveTrace` that has been built by it.
+    /// Consume the `MoveTraceBuilder` and return the `MoveTrace` that has been
+    /// built by it.
     pub fn into_trace(self) -> MoveTrace {
         self.trace
     }
@@ -288,7 +297,8 @@ impl MoveTraceBuilder {
         });
     }
 
-    /// Record an `Instruction` event in the trace along with the effects of the instruction.
+    /// Record an `Instruction` event in the trace along with the effects of the
+    /// instruction.
     pub fn instruction(
         &mut self,
         instruction: &Bytecode,
@@ -313,8 +323,8 @@ impl MoveTraceBuilder {
         self.push_event(TraceEvent::Effect(Box::new(effect)));
     }
 
-    // All events pushed to the trace are first pushed, and then the tracer is notified of the
-    // event.
+    // All events pushed to the trace are first pushed, and then the tracer is
+    // notified of the event.
     fn push_event(&mut self, event: TraceEvent) {
         self.trace.events.push(event.clone());
         self.tracer.notify(&event, Writer(&mut self.trace));

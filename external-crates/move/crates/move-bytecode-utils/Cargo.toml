@@ -8,10 +8,13 @@ publish = false
 description = "Libraries for working with sets of Move bytecode modules"
 
 [dependencies]
+# external dependencies
 anyhow.workspace = true
 indexmap.workspace = true
-move-binary-format.workspace = true
-move-core-types.workspace = true
 petgraph.workspace = true
 serde.workspace = true
 serde-reflection.workspace = true
+
+# internal dependencies
+move-binary-format.workspace = true
+move-core-types.workspace = true

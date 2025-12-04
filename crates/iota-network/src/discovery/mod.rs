@@ -205,9 +205,21 @@ impl DiscoveryEventLoop {
             .config
             .external_address
             .clone()
-            .and_then(|addr| addr.to_anemo_address().ok().map(|_| addr))
+            .and_then(|addr| {
+                // Validate that our external address is suitable for public announcement
+                if addr.is_valid_public_anemo_address(self.discovery_config.allow_private_addresses()) {
+                    addr.to_anemo_address().ok().map(|_| addr)
+                } else {
+                    info!(
+                        "External address {} is not suitable for public announcement (invalid/private/unroutable)",
+                        addr
+                    );
+                    None
+                }
+            })
             .into_iter()
             .collect();
+
         let our_info = NodeInfo {
             peer_id: self.network.peer_id(),
             addresses: address,
@@ -855,12 +867,16 @@ fn verify_peer_infos(
             continue;
         }
 
-        // Verify that all addresses provided are valid anemo addresses
-        if !peer_info
-            .addresses
-            .iter()
-            .all(|addr| addr.len() < MAX_ADDRESS_LENGTH && addr.to_anemo_address().is_ok())
-        {
+        // Verify that all addresses provided are valid anemo addresses and not
+        // private/unroutable
+        if !peer_info.addresses.iter().all(|addr| {
+            addr.len() < MAX_ADDRESS_LENGTH
+                && addr.is_valid_public_anemo_address(config.allow_private_addresses())
+        }) {
+            debug!(
+                "Rejecting peer {} due to invalid, private, or unroutable addresses: {:?}",
+                peer_info.peer_id, peer_info.addresses
+            );
             continue;
         }
 
@@ -875,7 +891,7 @@ fn verify_peer_infos(
         };
         let msg = bcs::to_bytes(peer_info.data()).expect("BCS serialization should not fail");
         if let Err(e) = public_key.verify(&msg, peer_info.auth_sig()) {
-            info!(
+            debug!(
                 "Discovery failed to verify signature for NodeInfo for peer {:?}: {e:?}",
                 peer_info.peer_id
             );
@@ -956,7 +972,7 @@ async fn verify_addresses_of_peers(
 
     for (verified_peer_info, verified_addresses) in address_verification_results {
         if verified_addresses.is_empty() {
-            info!(
+            debug!(
                 "Rejecting peer {} ({}) due to failed address verification for all addresses",
                 verified_peer_info.peer_id,
                 verified_peer_info
