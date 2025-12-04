@@ -71,3 +71,18 @@ impl TryFrom<&UserSignature> for iota_sdk_types::UserSignature {
             .map_err(|e| TryFromProtoError::invalid(UserSignature::BCS_FIELD, e))
     }
 }
+
+// UserSignatures
+//
+
+impl Merge<&iota_sdk_types::SignedTransaction> for UserSignatures {
+    fn merge(&mut self, source: &iota_sdk_types::SignedTransaction, mask: &FieldMaskTree) {
+        if let Some(signatures_mask) = mask.subtree(Self::SIGNATURES_FIELD.name) {
+            self.signatures = source
+                .signatures
+                .iter()
+                .map(|sig| UserSignature::merge_from(sig.clone(), &signatures_mask))
+                .collect();
+        }
+    }
+}

@@ -173,6 +173,22 @@ impl FieldMaskTree {
             })
         }
     }
+
+    /// Returns true if this mask represents a field requested without subfields
+    ///
+    /// When true, it means the user requested a field without specifying any
+    /// subfields (e.g., "reference" instead of "reference.version"). According
+    /// to the field mask semantics, this should return only the DEFAULT fields
+    /// of that message type, not all fields.
+    ///
+    /// Example:
+    /// - "reference" -> is_wildcard() = true -> return only default field
+    ///   (e.g., id)
+    /// - "reference.version" -> is_wildcard() = false -> return only the
+    ///   specified field
+    pub fn is_wildcard(&self) -> bool {
+        self.wildcard
+    }
 }
 
 impl From<FieldMask> for FieldMaskTree {

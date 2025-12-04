@@ -50,3 +50,25 @@ impl Merge<&iota_sdk_types::object::Object> for Object {
         }
     }
 }
+
+impl Merge<&[iota_sdk_types::object::Object]> for Objects {
+    fn merge(&mut self, source: &[iota_sdk_types::object::Object], mask: &FieldMaskTree) {
+        // Objects is a wrapper message containing a repeated field `objects`.
+        // When a user requests the wrapper (e.g., "input_objects"), the mask becomes
+        // a wildcard since it's a leaf node. Calling subtree("objects") on a wildcard
+        // returns Some(wildcard), which populates the objects array.
+        // When a user requests specific fields (e.g., "input_objects.objects.bcs"),
+        // subtree("objects") returns the sub-mask with the requested fields.
+        if let Some(objects_mask) = mask.subtree("objects") {
+            // Merge each object in the source list with the appropriate field mask
+            self.objects = source
+                .iter()
+                .map(|obj| {
+                    let mut proto_obj = Object::default();
+                    proto_obj.merge(obj, &objects_mask);
+                    proto_obj
+                })
+                .collect();
+        }
+    }
+}
