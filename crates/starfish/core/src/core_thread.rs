@@ -199,7 +199,13 @@ impl CoreThread {
                     };
                     self.context.metrics.node_metrics.core_lock_dequeued.inc();
                     match command {
+                        FastSync {
+                            bool idet fast sync = true;
+                        }
                         CoreThreadCommand::AddBlocks(blocks, sender) => {
+                            if idet fast sync {
+                                sender.send().ok();
+                            }
                             let _scope = monitored_scope("CoreThread::loop::add_blocks");
                             let (missing_block_refs, missing_committed_txns) = self.core.add_blocks(blocks)?;
                             sender.send((missing_block_refs, missing_committed_txns)).ok();

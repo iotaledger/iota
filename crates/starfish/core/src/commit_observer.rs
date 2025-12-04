@@ -28,6 +28,12 @@ use crate::{
     transaction_ref::GenericTransactionRef,
 };
 
+enum Source {
+    FastCommitSyncer,
+    Consensus,
+    Recover,
+}
+
 /// Role of CommitObserver
 /// - Called by core when try_commit() returns newly committed leaders.
 /// - The newly committed leaders are sent to commit observer and then commit
@@ -189,6 +195,46 @@ impl CommitObserver {
         tracing::trace!("Committed & sent {sent_sub_dags:#?}");
 
         Ok((pending_sub_dags, missing_transaction_acknowledgers))
+    }
+
+    pub(crate) fn handle_committed_sub_dags(
+        &mut self,
+        committed_subdags: Vec<CommittedSubDag>,
+        source: Source
+    ) -> ConsensusResult<()> {
+        for solid_sub_dag in committed_subdags.iter() {
+            // Skip commits that have already been sent
+            if solid_sub_dag.commit_ref.index <= self.last_sent_commit_index {
+                debug!(
+                    "Skipping already sent commit (index: {} <= last sent: {})",
+                    solid_sub_dag.commit_ref.index, self.last_sent_commit_index
+                );
+                continue;
+            }
+
+            // Ensure commits are sent in order - if we're skipping indices, something is
+            // wrong
+            assert_eq!(
+                solid_sub_dag.commit_ref.index,
+                self.last_sent_commit_index + 1,
+            );
+
+            // Failures in sender.send() are assumed to be permanent
+            if let Err(err) = self.sender.send(solid_sub_dag.clone()) {
+                tracing::error!(
+                    "Failed to send committed sub-dag, probably due to shutdown: {err:?}"
+                );
+                return Err(ConsensusError::Shutdown);
+            }
+            info!(
+                "Sending commit to execution (index: {}, leader {})",
+                solid_sub_dag.commit_ref, solid_sub_dag.leader
+            );
+
+            self.last_sent_commit_index = solid_sub_dag.commit_ref.index;
+        }
+        self.report_metrics(&[], &committed_subdags);
+        Ok(())
     }
 
     fn recover_and_send_commits(&mut self, last_processed_commit_index: CommitIndex) {
