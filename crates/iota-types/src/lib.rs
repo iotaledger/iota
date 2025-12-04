@@ -32,6 +32,7 @@ use crate::{
 pub mod error;
 
 pub mod accumulator;
+pub mod auth_context;
 pub mod authenticator_state;
 pub mod balance;
 pub mod base_types;
@@ -43,6 +44,7 @@ pub mod committee;
 pub mod config;
 pub mod crypto;
 pub mod deny_list_v1;
+pub mod derived_object;
 pub mod digests;
 pub mod display;
 pub mod dynamic_field;

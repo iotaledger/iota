@@ -1090,6 +1090,9 @@ allocate_tokens
 activate_validators
 	fun
 	0x3::genesis
+DerivedObjectKey
+	public struct
+	0x2::derived_object
 secp256k1_ecrecover
 	public fun
 	0x2::ecdsa_k1
@@ -1267,6 +1270,222 @@ delete_impl
 record_new_uid
 	fun
 	0x2::object
+ProgrammableMoveCall
+	public struct
+	0x2::ptb_command
+TransferObjectsData
+	public struct
+	0x2::ptb_command
+SplitCoinsData
+	public struct
+	0x2::ptb_command
+MergeCoinsData
+	public struct
+	0x2::ptb_command
+PublishData
+	public struct
+	0x2::ptb_command
+MakeMoveVecData
+	public struct
+	0x2::ptb_command
+UpgradeData
+	public struct
+	0x2::ptb_command
+Command
+	public enum
+	0x2::ptb_command
+Argument
+	public enum
+	0x2::ptb_command
+is_move_call
+	public fun
+	0x2::ptb_command
+is_transfer_objects
+	public fun
+	0x2::ptb_command
+is_split_coins
+	public fun
+	0x2::ptb_command
+is_merge_coins
+	public fun
+	0x2::ptb_command
+is_publish
+	public fun
+	0x2::ptb_command
+is_make_move_vec
+	public fun
+	0x2::ptb_command
+is_upgrade
+	public fun
+	0x2::ptb_command
+as_move_call
+	public fun
+	0x2::ptb_command
+as_transfer_objects
+	public fun
+	0x2::ptb_command
+as_split_coins
+	public fun
+	0x2::ptb_command
+as_merge_coins
+	public fun
+	0x2::ptb_command
+as_publish
+	public fun
+	0x2::ptb_command
+as_make_move_vec
+	public fun
+	0x2::ptb_command
+as_upgrade
+	public fun
+	0x2::ptb_command
+is_gas_coin
+	public fun
+	0x2::ptb_command
+is_input
+	public fun
+	0x2::ptb_command
+is_result
+	public fun
+	0x2::ptb_command
+is_nested_result
+	public fun
+	0x2::ptb_command
+input_index
+	public fun
+	0x2::ptb_command
+result_command_index
+	public fun
+	0x2::ptb_command
+nested_result_command_index
+	public fun
+	0x2::ptb_command
+nested_result_inner_index
+	public fun
+	0x2::ptb_command
+package
+	public fun
+	0x2::ptb_command
+module_name
+	public fun
+	0x2::ptb_command
+function
+	public fun
+	0x2::ptb_command
+type_arguments
+	public fun
+	0x2::ptb_command
+arguments
+	public fun
+	0x2::ptb_command
+objects
+	public fun
+	0x2::ptb_command
+recipient
+	public fun
+	0x2::ptb_command
+coin
+	public fun
+	0x2::ptb_command
+amounts
+	public fun
+	0x2::ptb_command
+target_coin
+	public fun
+	0x2::ptb_command
+source_coins
+	public fun
+	0x2::ptb_command
+modules
+	public fun
+	0x2::ptb_command
+dependencies
+	public fun
+	0x2::ptb_command
+type_arg
+	public fun
+	0x2::ptb_command
+elements
+	public fun
+	0x2::ptb_command
+upgrade_modules
+	public fun
+	0x2::ptb_command
+upgrade_dependencies
+	public fun
+	0x2::ptb_command
+upgrade_package
+	public fun
+	0x2::ptb_command
+upgrade_ticket
+	public fun
+	0x2::ptb_command
+ObjectRef
+	public struct
+	0x2::ptb_call_arg
+CallArg
+	public enum
+	0x2::ptb_call_arg
+ObjectArg
+	public enum
+	0x2::ptb_call_arg
+is_pure_data
+	public fun
+	0x2::ptb_call_arg
+is_object_data
+	public fun
+	0x2::ptb_call_arg
+as_pure_data
+	public fun
+	0x2::ptb_call_arg
+as_object_data
+	public fun
+	0x2::ptb_call_arg
+is_shared_object
+	public fun
+	0x2::ptb_call_arg
+is_imm_or_owned_object
+	public fun
+	0x2::ptb_call_arg
+is_receiving_object
+	public fun
+	0x2::ptb_call_arg
+object_id
+	public fun
+	0x2::ptb_call_arg
+object_version
+	public fun
+	0x2::ptb_call_arg
+object_digest
+	public fun
+	0x2::ptb_call_arg
+object_ref
+	public fun
+	0x2::ptb_call_arg
+is_mutable_shared_object
+	public fun
+	0x2::ptb_call_arg
+id
+	public fun
+	0x2::ptb_call_arg
+sequence_number
+	public fun
+	0x2::ptb_call_arg
+digest
+	public fun
+	0x2::ptb_call_arg
+AuthContext
+	public struct
+	0x2::auth_context
+digest
+	public fun
+	0x2::auth_context
+tx_inputs
+	public fun
+	0x2::auth_context
+tx_commands
+	public fun
+	0x2::auth_context
 Receiving
 	public struct
 	0x2::transfer
@@ -2947,6 +3166,42 @@ destroy_empty
 value_id
 	public fun
 	0x2::object_table
+PackageMetadataKey
+	public struct
+	0x2::package_metadata
+PackageMetadataV1
+	public struct
+	0x2::package_metadata
+ModuleMetadataV1
+	public struct
+	0x2::package_metadata
+AuthenticatorMetadataV1
+	public struct
+	0x2::package_metadata
+storage_id
+	public fun
+	0x2::package_metadata
+runtime_id
+	public fun
+	0x2::package_metadata
+package_version
+	public fun
+	0x2::package_metadata
+try_get_modules_metadata_v1
+	public fun
+	0x2::package_metadata
+modules_metadata_v1
+	public fun
+	0x2::package_metadata
+try_get_authenticator_metadata_v1
+	public fun
+	0x2::package_metadata
+authenticator_metadata_v1
+	public fun
+	0x2::package_metadata
+account_type
+	public fun
+	0x2::package_metadata
 keep
 	public fun
 	0x2::pay
@@ -3004,6 +3259,18 @@ max_heapify_recursive
 priorities
 	public fun
 	0x2::priority_queue
+ProgrammableTransaction
+	public struct
+	0x2::ptb
+inputs
+	public fun
+	0x2::ptb
+commands
+	public fun
+	0x2::ptb
+new_programmable_transaction_for_testing
+	public(package) fun
+	0x2::ptb
 Versioned
 	public struct
 	0x2::versioned

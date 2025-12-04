@@ -2,6 +2,37 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+//! Move package.
+//!
+//! This module contains the [MovePackage] and types necessary for describing
+//! its update behavior and linkage information for module resolution during
+//! execution.
+//!
+//! Upgradeable packages form a version chain. This is simply the conceptual
+//! chain of package versions, with their monotonically increasing version
+//! numbers. Package { version: 1 } => Package { version: 2 } => ...
+//!
+//! The code contains terminology that may be confusing for the uninitiated,
+//! like `Module ID`, `Package ID`, `Storage ID` and `Runtime ID`. For avoidance
+//! of doubt these concepts are defined like so:
+//! - `Package ID` is the [ObjectID] representing the address by which the given
+//!   package may be found in storage.
+//! - `Runtime ID` will always mean the `Package ID`/`Storage ID` of the
+//!   initially published package. For a non upgradeable package this will
+//!   always be equal to `Storage ID`. For an upgradeable package, it will be
+//!   the `Storage ID` of the package's first deployed version.
+//! - `Storage ID` is the `Package ID`, and it is mostly used in to highlight
+//!   that we are talking about the current `Package ID` and not the `Runtime
+//!   ID`
+//! - `Module ID` is the the type
+//!   [ModuleID](move_core_types::language_storage::ModuleId).
+//!
+//! Some of these are redundant and have overlapping meaning, so whenever
+//! reasonable/necessary the possible naming will be listed. From all of these
+//! `Runtime ID` and `Module ID` are the most confusing. `Module ID` may be used
+//! with `Runtime ID` and `Storage ID` depending on the context. While `Runtime
+//! ID` is mostly used in name resolution during runtime, when a package with
+//! its modules has been loaded.
 use std::{
     collections::{BTreeMap, BTreeSet},
     hash::Hash,
@@ -27,22 +58,24 @@ use serde_with::{Bytes, serde_as};
 use crate::{
     IOTA_FRAMEWORK_ADDRESS,
     base_types::{ObjectID, SequenceNumber},
+    collection_types::{Entry, VecMap},
     crypto::DefaultHash,
+    derived_object,
     error::{ExecutionError, ExecutionErrorKind, IotaError, IotaResult},
     execution_status::PackageUpgradeError,
     id::{ID, UID},
     object::OBJECT_START_VERSION,
+    type_input::TypeName,
 };
-
-// TODO: robust MovePackage tests
-// #[cfg(test)]
-// #[path = "unit_tests/move_package.rs"]
-// mod base_types_tests;
 
 pub const PACKAGE_MODULE_NAME: &IdentStr = ident_str!("package");
 pub const UPGRADECAP_STRUCT_NAME: &IdentStr = ident_str!("UpgradeCap");
 pub const UPGRADETICKET_STRUCT_NAME: &IdentStr = ident_str!("UpgradeTicket");
 pub const UPGRADERECEIPT_STRUCT_NAME: &IdentStr = ident_str!("UpgradeReceipt");
+
+pub const PACKAGE_METADATA_MODULE_NAME: &IdentStr = ident_str!("package_metadata");
+pub const PACKAGE_METADATA_V1_STRUCT_NAME: &IdentStr = ident_str!("PackageMetadataV1");
+pub const PACKAGE_METADATA_KEY_STRUCT_NAME: &IdentStr = ident_str!("PackageMetadataKey");
 
 #[derive(Clone, Debug)]
 /// Additional information about a function
@@ -50,6 +83,9 @@ pub struct FnInfo {
     /// If true, it's a function involved in testing (`[test]`, `[test_only]`,
     /// `[expected_failure]`)
     pub is_test: bool,
+    /// If set, function was marked to represent authenticator function of
+    /// given version.
+    pub authenticator_version: Option<u8>,
 }
 
 #[derive(Clone, Debug, Eq, Hash, PartialEq, PartialOrd, Ord)]
@@ -62,24 +98,43 @@ pub struct FnInfoKey {
 /// A map from function info keys to function info
 pub type FnInfoMap = BTreeMap<FnInfoKey, FnInfo>;
 
-/// Identifies a struct and the module it was defined in
+/// Store the origin of a data type where it first appeared in the version
+/// chain.
+///
+/// A data type is identified by the name of the module and the name of the
+/// struct/enum in combination.
+///
+/// # Undefined behavior
+///
+/// Directly modifying any field is undefined behavior. The fields are only
+/// public for read-only access.
 #[derive(
     Debug, Clone, Eq, PartialEq, Ord, PartialOrd, Deserialize, Serialize, Hash, JsonSchema,
 )]
 pub struct TypeOrigin {
+    /// The name of the module the data type resides in.
     pub module_name: String,
+    /// The name of the data type.
+    ///
+    /// Here this either refers to an enum or a struct identifier.
     // `struct_name` alias to support backwards compatibility with the old name
     #[serde(alias = "struct_name")]
     pub datatype_name: String,
+    /// `Storage ID` of the package, where the given type first appeared.
     pub package: ObjectID,
 }
 
-/// Upgraded package info for the linkage table
+/// Value for the [MovePackage]'s linkage_table.
+///
+/// # Undefined behavior
+///
+/// Directly modifying any field is undefined behavior. The fields are only
+/// public for read-only access.
 #[derive(Eq, PartialEq, Debug, Clone, Deserialize, Serialize, Hash, JsonSchema)]
 pub struct UpgradeInfo {
-    /// ID of the upgraded packages
+    /// `Storage ID`/`Package ID` of the referred package.
     pub upgraded_id: ObjectID,
-    /// Version of the upgraded package
+    /// The version of the package at `upgraded_id`.
     pub upgraded_version: SequenceNumber,
 }
 
@@ -88,6 +143,7 @@ pub struct UpgradeInfo {
 #[serde_as]
 #[derive(Eq, PartialEq, Debug, Clone, Deserialize, Serialize, Hash)]
 pub struct MovePackage {
+    /// The `Storage ID` of the package.
     pub(crate) id: ObjectID,
     /// Most move packages are uniquely identified by their ID (i.e. there is
     /// only one version per ID), but the version is still stored because
@@ -101,16 +157,23 @@ pub struct MovePackage {
     /// In all cases, packages are referred to by move calls using just their
     /// ID, and they are always loaded at their latest version.
     pub(crate) version: SequenceNumber,
-    // TODO use session cache
+    /// Map module identifiers to their serialized [CompiledModule].
+    ///
+    /// All modules within a package share the `Storage ID` of their containing
+    /// package.
     #[serde_as(as = "BTreeMap<_, Bytes>")]
     pub(crate) module_map: BTreeMap<String, Vec<u8>>,
 
-    /// Maps struct/module to a package version where it was first defined,
-    /// stored as a vector for simple serialization and deserialization.
+    /// Maps structs and enums in a given module to a package version where they
+    /// were first defined.
+    ///  
+    /// Stored as a vector for simple serialization and
+    /// deserialization.
     pub(crate) type_origin_table: Vec<TypeOrigin>,
 
-    // For each dependency, maps original package ID to the info about the (upgraded) dependency
-    // version that this package is using
+    /// For each dependency, it maps the `Runtime ID` (the first package's
+    /// `Storage ID` in a version chain) of the containing package to the
+    /// `UpgradeInfo` containing the actually used version.
     pub(crate) linkage_table: BTreeMap<ObjectID, UpgradeInfo>,
 }
 
@@ -180,6 +243,9 @@ pub struct UpgradeReceipt {
 impl MovePackage {
     /// Create a package with all required data (including serialized modules,
     /// type origin and linkage tables) already supplied.
+    ///
+    /// It does not perform any type of validation. Ensure that the supplied
+    /// parts are semantically valid.
     pub fn new(
         id: ObjectID,
         version: SequenceNumber,
@@ -206,6 +272,7 @@ impl MovePackage {
         Ok(pkg)
     }
 
+    /// Calculate the digest of the [MovePackage].
     pub fn digest(&self) -> [u8; 32] {
         Self::compute_digest_for_modules_and_deps(
             self.module_map.values(),
@@ -245,6 +312,11 @@ impl MovePackage {
 
     /// Create an initial version of the package along with this version's type
     /// origin and linkage tables.
+    ///
+    /// # Undefined behavior
+    ///
+    /// All passed modules must have the same `Runtime ID` or the behavior is
+    /// undefined.
     pub fn new_initial<'p>(
         modules: &[CompiledModule],
         protocol_config: &ProtocolConfig,
@@ -269,6 +341,11 @@ impl MovePackage {
 
     /// Create an upgraded version of the package along with this version's type
     /// origin and linkage tables.
+    ///
+    /// # Undefined behavior
+    ///
+    /// All passed modules must have the same `Runtime ID` or the behavior is
+    /// undefined.
     pub fn new_upgraded<'p>(
         &self,
         storage_id: ObjectID,
@@ -393,11 +470,11 @@ impl MovePackage {
         )
     }
 
-    // Retrieve the module with `ModuleId` in the given package.
-    // The module must be the `storage_id` or the call will return `None`.
-    // Check if the address of the module is the same of the package
-    // and return `None` if that is not the case.
-    // All modules in a package share the address with the package.
+    /// Retrieve the module from this package with the given [ModuleId].
+    ///
+    /// [ModuleId] is expected to contain the `Storage ID` of this package.
+    /// In case the `Storage ID` doesn't match or the module name is not
+    /// present in this package the function returns None.
     pub fn get_module(&self, storage_id: &ModuleId) -> Option<&Vec<u8>> {
         if self.id != ObjectID::from(*storage_id.address()) {
             None
@@ -435,6 +512,7 @@ impl MovePackage {
         8 /* SequenceNumber */ + module_map_size + type_origin_table_size + linkage_table_size
     }
 
+    /// `Package ID`/`Storage ID` of this package.
     pub fn id(&self) -> ObjectID {
         self.id
     }
@@ -481,9 +559,13 @@ impl MovePackage {
         &self.linkage_table
     }
 
-    /// The ObjectID that this package's modules believe they are from, at
-    /// runtime (can differ from `MovePackage::id()` in the case of package
-    /// upgrades).
+    /// The `Package ID` of the first version of this package.
+    ///
+    /// Also referred to as `Runtime ID`.
+    ///
+    /// Regardless of which version of the package we are working with, this
+    /// function will always return the `Package ID`/`Storage ID` of the first
+    /// package version in the version chain.
     pub fn original_package_id(&self) -> ObjectID {
         if self.version == OBJECT_START_VERSION {
             // for a non-upgraded package, original ID is just the package ID
@@ -491,6 +573,9 @@ impl MovePackage {
         }
 
         let bytes = self.module_map.values().next().expect("Empty module map");
+        // Remember, that all modules will contain the `Package ID` of the first
+        // deployed package. This is why taking any of them will produce the
+        // original package id.
         let module = CompiledModule::deserialize_with_defaults(bytes)
             .expect("A Move package contains a module that cannot be deserialized");
         (*module.address()).into()
@@ -588,6 +673,24 @@ pub fn is_test_fun(name: &IdentStr, module: &CompiledModule, fn_info_map: &FnInf
     match fn_info_map.get(&fn_info_key) {
         Some(fn_info) => fn_info.is_test,
         None => false,
+    }
+}
+
+pub fn get_authenticator_version_from_fun(
+    name: &IdentStr,
+    module: &CompiledModule,
+    fn_info_map: &FnInfoMap,
+) -> Option<u8> {
+    let fn_name = name.to_string();
+    let mod_handle = module.self_handle();
+    let mod_addr = *module.address_identifier_at(mod_handle.address);
+    let fn_info_key = FnInfoKey { fn_name, mod_addr };
+    match fn_info_map.get(&fn_info_key) {
+        Some(FnInfo {
+            is_test: _,
+            authenticator_version: Some(v),
+        }) => Some(*v),
+        _ => None,
     }
 }
 
@@ -803,6 +906,7 @@ pub struct RuntimeModuleMetadataWrapper {
 
 impl RuntimeModuleMetadataWrapper {
     pub fn to_bcs_bytes(&self) -> Vec<u8> {
+        // Safe unwrap as the RuntimeModuleMetadataWrapper struct is always serializable
         bcs::to_bytes(&self).unwrap()
     }
 }
@@ -825,6 +929,14 @@ pub enum RuntimeModuleMetadata {
 }
 
 impl RuntimeModuleMetadata {
+    pub fn add_function_attribute(&mut self, function_name: String, attribute: IotaAttribute) {
+        match self {
+            RuntimeModuleMetadata::V1(metadata) => {
+                metadata.add_function_attribute(function_name, attribute)
+            }
+        }
+    }
+
     pub fn is_empty(&self) -> bool {
         match self {
             RuntimeModuleMetadata::V1(metadata) => metadata.is_empty(),
@@ -873,7 +985,18 @@ impl TryFrom<RuntimeModuleMetadataWrapper> for RuntimeModuleMetadata {
 /// The list of iota attribute types recognized by the compiler.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum IotaAttribute {
-    // Attribute(Attribute),
+    Authenticator(AuthenticatorAttribute),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+pub struct AuthenticatorAttribute {
+    pub version: u8,
+}
+
+impl IotaAttribute {
+    pub fn authenticator_attribute(version: u8) -> Self {
+        IotaAttribute::Authenticator(AuthenticatorAttribute { version })
+    }
 }
 
 /// V1 of IOTA specific metadata.
@@ -896,6 +1019,170 @@ impl RuntimeModuleMetadataV1 {
     }
 
     pub fn to_bcs_bytes(&self) -> Vec<u8> {
+        // Safe unwrap as the RuntimeModuleMetadataV1 struct is always serializable
         bcs::to_bytes(&self).unwrap()
     }
+}
+
+/// Enum for handling the PackageMetadata framework type. The PackageMetadata is
+/// IOTA specific metadata derived from a package and readable on-chain. This
+/// enums helps with the versioning, which is actually used as the object
+/// content, i.e., PackageMetadataV1 is the type used on-chain.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum PackageMetadata {
+    V1(PackageMetadataV1),
+}
+
+impl PackageMetadata {
+    /// Create a `PackageMetadata` for the newly
+    /// published/upgraded package at `package_id`
+    pub fn new_v1(
+        uid: ObjectID,
+        storage_id: ObjectID,
+        runtime_id: ObjectID,
+        package_version: u64,
+        modules_metadata_map: BTreeMap<String, BTreeMap<String, TypeName>>,
+    ) -> Self {
+        PackageMetadata::V1(PackageMetadataV1::new(
+            uid,
+            storage_id,
+            runtime_id,
+            package_version,
+            modules_metadata_map,
+        ))
+    }
+
+    pub fn type_(&self) -> StructTag {
+        match self {
+            PackageMetadata::V1(_) => PackageMetadataV1::type_(),
+        }
+    }
+
+    pub fn to_bcs_bytes(&self) -> Vec<u8> {
+        match self {
+            PackageMetadata::V1(inner) => inner.to_bcs_bytes(),
+        }
+    }
+}
+
+#[derive(Debug, Default, Serialize, Deserialize, Clone, Eq, PartialEq)]
+pub struct PackageMetadataKey {
+    // This field is required to make a Rust struct compatible with an empty Move one.
+    // An empty Move struct contains a 1-byte dummy bool field because empty fields are not
+    // allowed in the bytecode.
+    dummy_field: bool,
+}
+
+impl PackageMetadataKey {
+    pub fn tag() -> StructTag {
+        StructTag {
+            address: IOTA_FRAMEWORK_ADDRESS,
+            module: PACKAGE_METADATA_MODULE_NAME.to_owned(),
+            name: PACKAGE_METADATA_KEY_STRUCT_NAME.to_owned(),
+            type_params: Vec::new(),
+        }
+    }
+
+    pub fn to_bcs_bytes(&self) -> Vec<u8> {
+        // Safe unwrap as the PackageMetadataKey struct is always serializable
+        bcs::to_bytes(&self).unwrap()
+    }
+}
+
+pub fn derive_package_metadata_id(package_storage_id: ObjectID) -> ObjectID {
+    derived_object::derive_object_id(
+        package_storage_id,
+        &PackageMetadataKey::tag().into(),
+        &PackageMetadataKey::default().to_bcs_bytes(),
+    )
+    .unwrap() // safe because type tag is known
+}
+
+/// V1 of IOTA specific package metadata.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PackageMetadataV1 {
+    // The package metadata object UID
+    pub uid: UID,
+    /// Storage ID of the package represented by this metadata
+    /// The object id of the runtime package metadata object is derived from
+    /// this value.
+    pub storage_id: ID,
+    /// Runtime ID of the package represented by this metadata. Runtime ID is
+    /// the Storage ID of the first version of a package.
+    pub runtime_id: ID,
+    /// Version of the package represented by this metadata
+    pub package_version: u64,
+    // Handles to internal package modules
+    pub modules_metadata: VecMap<String, ModuleMetadataV1>,
+}
+
+impl PackageMetadataV1 {
+    fn new(
+        uid: ObjectID,
+        storage_id: ObjectID,
+        runtime_id: ObjectID,
+        package_version: u64,
+        modules_metadata_map: BTreeMap<String, BTreeMap<String, TypeName>>,
+    ) -> Self {
+        let mut modules_metadata = VecMap { contents: vec![] };
+
+        for (module_name, module_metadata_map) in modules_metadata_map {
+            let mut module_metadata = ModuleMetadataV1 {
+                authenticator_metadata: vec![],
+            };
+            for (function_name, account_type) in module_metadata_map {
+                module_metadata
+                    .authenticator_metadata
+                    .push(AuthenticatorMetadataV1 {
+                        function_name,
+                        account_type,
+                    });
+            }
+            modules_metadata.contents.push(Entry {
+                key: module_name,
+                value: module_metadata,
+            });
+        }
+
+        Self {
+            uid: UID::new(uid),
+            storage_id: ID::new(storage_id),
+            runtime_id: ID::new(runtime_id),
+            package_version,
+            modules_metadata,
+        }
+    }
+
+    pub fn type_() -> StructTag {
+        StructTag {
+            address: IOTA_FRAMEWORK_ADDRESS,
+            module: PACKAGE_METADATA_MODULE_NAME.to_owned(),
+            name: PACKAGE_METADATA_V1_STRUCT_NAME.to_owned(),
+            type_params: vec![],
+        }
+    }
+
+    pub fn to_bcs_bytes(&self) -> Vec<u8> {
+        // Safe unwrap as the PackageMetadataV1 struct is always serializable
+        bcs::to_bytes(&self).unwrap()
+    }
+}
+
+/// V1 of IOTA specific module metadata. Only includes authenticator info.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ModuleMetadataV1 {
+    pub authenticator_metadata: Vec<AuthenticatorMetadataV1>,
+}
+
+impl ModuleMetadataV1 {
+    pub fn is_empty(&self) -> bool {
+        self.authenticator_metadata.is_empty()
+    }
+}
+
+/// V1 of IOTA specific authenticator info metadata.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AuthenticatorMetadataV1 {
+    pub function_name: String,
+    pub account_type: TypeName,
 }
