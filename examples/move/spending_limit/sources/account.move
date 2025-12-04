@@ -97,14 +97,12 @@ public fun authenticate(
     signature: vector<u8>,
     auth_ctx: &AuthContext,
     ctx: &TxContext,
-): u64 {
+) {
     owner_public_key::authenticate_ed25519(&account.id, signature, ctx.digest());
 
     let total_amount = validate_and_calculate_withdrawals(auth_ctx, ctx);
 
     spending_limit::authenticate_with_amount(&account.id, total_amount);
-
-    total_amount
 }
 
 public fun withdraw_from_balance_reserve(
@@ -112,7 +110,7 @@ public fun withdraw_from_balance_reserve(
     amount: u64,
     ctx: &mut TxContext,
 ): Coin<IOTA> {
-    // Consume and validate proof
+    // Consume and validate proof.
     let reserve: &mut BalanceReserve = borrow_field_mut(
         self,
         BalanceReserveKey {},
@@ -144,7 +142,7 @@ public(package) fun validate_and_calculate_withdrawals(
             let call = move_call_data(cmd);
 
             if (is_valid_withdraw_call(call, auth_ctx, ctx)) {
-                // Extract amount inline
+                // Extract amount inline.
                 let args = arguments(call);
                 assert!(args.length() > 1, EInvalidAmount);
                 let amount_arg = &args[1];
@@ -168,38 +166,38 @@ public(package) fun validate_and_calculate_withdrawals(
     total_amount
 }
 
-// Helper function to validate if a MoveCall is a valid withdraw call
+// Helper function to validate if a MoveCall is a valid withdraw call.
 fun is_valid_withdraw_call(
     call: &ProgrammableMoveCall,
     auth_ctx: &AuthContext,
     ctx: &TxContext,
 ): bool {
-    // Check first argument equals sender
+    // Check first argument equals sender.
     if (!first_arg_equals_sender(call, auth_ctx, ctx)) {
         return false
     };
 
-    // Check if the function is withdraw_from_balance_reserve
+    // Check if the function is withdraw_from_balance_reserve.
     if (function_name(call) != &ascii::string(b"withdraw_from_balance_reserve")) {
         return false
     };
 
-    // Check if the module is account
+    // Check if the module is account.
     if (module_name(call) != &ascii::string(b"account")) {
         return false
     };
 
-    // Extract the package ID from the call (convert ID -> address)
+    // Extract the package ID from the call (convert ID -> address).
     let call_package_id = package_id(call);
     let call_package_addr = object::id_to_address(call_package_id);
 
     let expected_type = get<SpendLimit>();
     let expected_addr_string = get_address(&expected_type);
 
-    // Convert the ASCII string to an address for comparison
+    // Convert the ASCII string to an address for comparison.
     let expected_package_addr = iota::address::from_ascii_bytes(expected_addr_string.as_bytes());
 
-    // Compare the two addresses
+    // Compare the two addresses.
     call_package_addr == expected_package_addr
 }
 
@@ -208,7 +206,7 @@ fun first_arg_equals_sender(
     auth_ctx: &AuthContext,
     ctx: &tx_context::TxContext,
 ): bool {
-    // Read the MoveCall's argument list and get arg0
+    // Read the MoveCall's argument list and get arg0.
     let args = arguments(call);
     if (args.length() == 0) {
         return false
@@ -216,7 +214,7 @@ fun first_arg_equals_sender(
 
     let arg0 = args.borrow(0);
 
-    // u64 since then borrow and length are u64 as well
+    // u64 since then borrow and length are u64 as well.
     let input_ix = argument_input(arg0) as u64;
 
     let inputs = tx_inputs(auth_ctx);
@@ -226,16 +224,16 @@ fun first_arg_equals_sender(
     };
     let carg = inputs.borrow(input_ix);
 
-    // Pure data argument cannot be equal to sender
+    // Pure data argument cannot be equal to sender.
     if (is_pure_data(carg)) {
         return false
     };
 
-    // Object argument where its ID/address equals sender
+    // Object argument where its ID/address equals sender.
     if (is_object_data(carg)) {
         let obj_data = carg.object_data();
 
-        // Need to check if it's a shared object
+        // Need to check if it's a shared object.
 
         if (is_shared_object(obj_data)) {
             let (shared_id, _, _) = shared_object_data(obj_data);
@@ -243,7 +241,7 @@ fun first_arg_equals_sender(
             return id_addr == tx_context::sender(ctx)
         };
 
-        // It's either an owned or immutable object then
+        // It's either an owned or immutable object then.
 
         let obj_id = obj_data.object_ref().object_id();
         let id_addr = object::id_to_address(obj_id);
@@ -257,11 +255,10 @@ public fun ensure_tx_sender_is_account(self: &SpendLimit, ctx: &TxContext) {
     assert!(self.id.uid_to_address() == ctx.sender(), ETransactionSenderIsNotTheAccount);
 }
 
-public fun deposit_to_reserve(self: &mut SpendLimit, coin: Coin<IOTA>, ctx: &TxContext) {
-    let reserve = borrow_field_mut<BalanceReserveKey, BalanceReserve>(
-        self,
+public fun deposit_to_reserve(self: &mut SpendLimit, coin: Coin<IOTA>) {
+    let reserve = dynamic_field::borrow_mut<BalanceReserveKey, BalanceReserve>(
+        &mut self.id,
         BalanceReserveKey {},
-        ctx,
     );
     balance::join(&mut reserve.balance, coin::into_balance(coin));
 }
@@ -311,3 +308,9 @@ public fun authenticator_info(account: &SpendLimit): &AuthenticatorInfoV1 {
 // Useless function to test withdrawals in programmable transactions calling this function instead of withdraw_from_balance_reserve.
 #[test_only]
 public fun random_function_that_does_nothing(_number: u16) {}
+
+// Helper test function to retrieve the BalanceReserveKey.
+#[test_only]
+public fun get_balance_reserve_key_for_testing(): BalanceReserveKey {
+    BalanceReserveKey {}
+}

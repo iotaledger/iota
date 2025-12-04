@@ -158,7 +158,7 @@ fun account_within_spending_limit() {
             x"474686f447a998ccc6824bb05e69133de41b59999944e494a3ff5504abd9af86403aa7c240ac51d1d48e0b34a560ca7ee4542e25cfd7b090e4652dfb53941a04";
         let auth_context = create_auth_context_for_testing(account_address, 1000, &test_ctx);
 
-        let amount = spending_limit::authenticate(
+        spending_limit::authenticate(
             &account,
             hex::encode(signature),
             &auth_context,
@@ -166,7 +166,7 @@ fun account_within_spending_limit() {
         );
 
         //checking that the correct amount was retrieved
-        assert_eq!(amount, 1000);
+        // assert_eq!(amount, 1000);
 
         test_scenario::return_shared(account);
     };
@@ -206,6 +206,27 @@ fun account_zero_spending() {
 }
 
 #[test]
+fun test_authenticator_info_integrity() {
+    let mut scenario_val = test_scenario::begin(@0x0);
+    let scenario = &mut scenario_val;
+    let account_address = create_spending_limit_for_testing(scenario, 1000, b"42");
+
+    scenario.next_tx(account_address);
+    {
+        let account = scenario.take_shared<spending_limit::SpendLimit>();
+
+        let info = account.authenticator_info();
+
+        let expected_info = create_authenticator_info_v1_for_testing();
+
+        assert!(info == &expected_info, 0);
+
+        test_scenario::return_shared(account);
+    };
+    test_scenario::end(scenario_val);
+}
+
+#[test]
 fun test_missing_withdraw_call() {
     let mut scenario_val = test_scenario::begin(@0x0);
     let scenario = &mut scenario_val;
@@ -224,14 +245,12 @@ fun test_missing_withdraw_call() {
         // AuthContext without withdraw_call
         let auth_context = auth_context::new_with_tx_inputs(*test_ctx.digest(), vector[], vector[]);
 
-        let amount = spending_limit::authenticate(
+        spending_limit::authenticate(
             &account,
             hex::encode(signature),
             &auth_context,
             &test_ctx,
         );
-        //checking that no amount was retrieved
-        assert_eq!(amount, 0);
 
         test_scenario::return_shared(account);
     };
@@ -262,14 +281,12 @@ fun test_multiple_withdraw_calls_within_limit() {
             &test_ctx,
         );
 
-        let amount = spending_limit::authenticate(
+        spending_limit::authenticate(
             &account,
             hex::encode(signature),
             &auth_context,
             &test_ctx,
         );
-        //checking that the correct amount was retrieved
-        assert_eq!(amount, 2500);
 
         test_scenario::return_shared(account);
     };
@@ -299,15 +316,12 @@ fun test_multiple_withdraw_calls_at_limit() {
             &test_ctx,
         );
 
-        let amount = spending_limit::authenticate(
+        spending_limit::authenticate(
             &account,
             hex::encode(signature),
             &auth_context,
             &test_ctx,
         );
-
-        //checking that the correct amount was retrieved
-        assert_eq!(amount, 3000);
 
         test_scenario::return_shared(account);
     };
@@ -370,15 +384,13 @@ fun test_withdraw_call_wrong_account() {
         let wrong_address = @0x9999;
         let auth_context = create_auth_context_for_testing(wrong_address, 500, &test_ctx);
 
-        let amount = spending_limit::authenticate(
+        spending_limit::authenticate(
             &account,
             hex::encode(signature),
             &auth_context,
             &test_ctx,
         );
 
-        //checking that no amount was retrieved
-        assert_eq!(amount, 0);
         test_scenario::return_shared(account);
     };
 
@@ -426,14 +438,12 @@ fun test_withdraw_call_wrong_package_id() {
 
         let auth_context = auth_context::new_with_tx_inputs(*test_ctx.digest(), inputs, commands);
 
-        let amount = spending_limit::authenticate(
+        spending_limit::authenticate(
             &account,
             hex::encode(signature),
             &auth_context,
             &test_ctx,
         );
-        //checking that no amount was retrieved
-        assert_eq!(amount, 0);
 
         test_scenario::return_shared(account);
     };
@@ -481,15 +491,12 @@ fun test_withdraw_call_wrong_module() {
 
         let auth_context = auth_context::new_with_tx_inputs(*test_ctx.digest(), inputs, commands);
 
-        let amount = spending_limit::authenticate(
+        spending_limit::authenticate(
             &account,
             hex::encode(signature),
             &auth_context,
             &test_ctx,
         );
-
-        //checking that no amount was retrieved
-        assert_eq!(amount, 0);
 
         test_scenario::return_shared(account);
     };
@@ -537,15 +544,39 @@ fun test_withdraw_call_wrong_function() {
 
         let auth_context = auth_context::new_with_tx_inputs(*test_ctx.digest(), inputs, commands);
 
-        let amount = spending_limit::authenticate(
+        spending_limit::authenticate(
             &account,
             hex::encode(signature),
             &auth_context,
             &test_ctx,
         );
 
-        //checking that no amount was retrieved
-        assert_eq!(amount, 0);
+        test_scenario::return_shared(account);
+    };
+    test_scenario::end(scenario_val);
+}
+
+#[test]
+fun test_balance_reserve_structure() {
+    let mut scenario_val = test_scenario::begin(@0x0);
+    let scenario = &mut scenario_val;
+    let account_address = create_spending_limit_for_testing(scenario, 1000, b"42");
+
+    // Switch sender to account address because borrow_field_mut checks
+    scenario.next_tx(account_address);
+    {
+        let mut account = scenario.take_shared<spending_limit::SpendLimit>();
+
+        let key = spending_limit::get_balance_reserve_key_for_testing();
+
+        let _reserve = spending_limit::borrow_field_mut<
+            spending_limit::BalanceReserveKey,
+            spending_limit::BalanceReserve,
+        >(
+            &mut account,
+            key,
+            scenario.ctx(),
+        );
 
         test_scenario::return_shared(account);
     };
