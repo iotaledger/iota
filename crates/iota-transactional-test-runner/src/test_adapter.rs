@@ -2466,7 +2466,6 @@ pub static PRE_COMPILED: Lazy<FullyCompiledProgram> = Lazy::new(|| {
         buf.extend(["packages", "move-stdlib", "sources"]);
         buf.to_string_lossy().to_string()
     };
-
     let config = PackageConfig {
         edition: Edition::E2024_BETA,
         flavor: Flavor::Iota,
@@ -2474,7 +2473,7 @@ pub static PRE_COMPILED: Lazy<FullyCompiledProgram> = Lazy::new(|| {
     };
     let fully_compiled_res = move_compiler::construct_pre_compiled_lib(
         vec![PackagePaths {
-            name: Some(("iota-framework".into(), config.clone())),
+            name: Some(("iota-framework".into(), config)),
             paths: vec![iota_system_sources, iota_sources, iota_deps],
             named_address_map: NAMED_ADDRESSES.clone(),
         }],
