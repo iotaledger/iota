@@ -6,7 +6,8 @@
 #![forbid(unsafe_code)]
 
 use crate::tasks::{
-    InitCommand, PrintBytecodeCommand, PublishCommand, RunCommand, SyntaxChoice, TaskCommand, TaskInput, taskify
+    taskify, InitCommand, PrintBytecodeCommand, PublishCommand, RunCommand, SyntaxChoice,
+    TaskCommand, TaskInput,
 };
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
@@ -40,7 +41,12 @@ use move_ir_types::location::Spanned;
 use move_symbol_pool::Symbol;
 use move_vm_runtime::session::SerializedReturnValues;
 use std::{
-    collections::{BTreeMap, BTreeSet, VecDeque}, fmt::{Debug, Write as FmtWrite}, future::Future, io::Write, path::{Path}, sync::Arc
+    collections::{BTreeMap, BTreeSet, VecDeque},
+    fmt::{Debug, Write as FmtWrite},
+    future::Future,
+    io::Write,
+    path::Path,
+    sync::Arc,
 };
 use tempfile::NamedTempFile;
 
