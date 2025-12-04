@@ -60,7 +60,7 @@ use crate::{
     historical_fallback::reader::HistoricalFallbackReader,
     models::{
         address_metrics::StoredAddressMetrics,
-        checkpoints::{StoredChainIdentifier, StoredCheckpoint, StoredCpTx},
+        checkpoints::{StoredChainIdentifier, StoredCheckpoint},
         display::StoredDisplay,
         epoch::StoredEpochInfo,
         events::StoredEvent,
@@ -1017,17 +1017,6 @@ impl IndexerReader {
         })
     }
 
-    async fn get_lowest_unpruned_checkpoint(&self) -> IndexerResult<StoredCpTx> {
-        let pool = self.get_pool();
-        // This should be replaced with reading the "watermarks" table once it is used
-        // by the pruner
-        run_query_async!(&pool, |conn| {
-            pruner_cp_watermark::dsl::pruner_cp_watermark
-                .order_by(pruner_cp_watermark::checkpoint_sequence_number.asc())
-                .first::<StoredCpTx>(conn)
-        })
-    }
-
     async fn query_transaction_blocks_from_db_by_checkpoint_impl(
         &self,
         checkpoint_seq: u64,
@@ -1035,21 +1024,8 @@ impl IndexerReader {
         limit: usize,
         is_descending: bool,
     ) -> IndexerResult<Vec<StoredTransaction>> {
-        let lowest_unpruned_cp = self.get_lowest_unpruned_checkpoint().await?;
-        if checkpoint_seq < lowest_unpruned_cp.checkpoint_sequence_number as u64 {
-            return Err(IndexerError::PostgresDataPruned(format!(
-                "requesting data from checkpoint {checkpoint_seq}, lowest not pruned checkpoint is {}",
-                lowest_unpruned_cp.checkpoint_sequence_number
-            )));
-        }
-        let cursor_tx_seq = if let Some(cursor) = cursor {
-            Some(self.resolve_cursor_tx_digest_to_seq_num(cursor).await?)
-        } else {
-            None
-        };
-
         let pool = self.get_pool();
-        let tx_range: (i64, i64) = run_query_async!(&pool, move |conn| {
+        let Some(tx_range) = run_query_async!(&pool, move |conn| {
             pruner_cp_watermark::dsl::pruner_cp_watermark
                 .select((
                     pruner_cp_watermark::min_tx_sequence_number,
@@ -1059,7 +1035,21 @@ impl IndexerReader {
                 // checkpoint_sequence_number, transactions is not
                 .filter(pruner_cp_watermark::checkpoint_sequence_number.eq(checkpoint_seq as i64))
                 .first::<(i64, i64)>(conn)
-        })?;
+                .optional()
+        })?
+        else {
+            // This check should be replaced with reading the "watermarks" table once it is
+            // used by the pruner
+            return Err(IndexerError::PostgresDataPruned(format!(
+                "requesting data from checkpoint {checkpoint_seq}, which is not available",
+            )));
+        };
+
+        let cursor_tx_seq = if let Some(cursor) = cursor {
+            Some(self.resolve_cursor_tx_digest_to_seq_num(cursor).await?)
+        } else {
+            None
+        };
 
         let mut query = transactions::dsl::transactions
             .filter(transactions::tx_sequence_number.between(tx_range.0, tx_range.1))
@@ -1161,6 +1151,17 @@ impl IndexerReader {
         &self,
         cursor: TransactionDigest,
     ) -> IndexerResult<i64> {
+        self.resolve_cursor_tx_digest_to_seq_num_maybe(cursor)
+            .await?
+            .ok_or_else(|| {
+                IndexerError::PostgresRead(format!("transaction with digest {cursor} not found"))
+            })
+    }
+
+    async fn resolve_cursor_tx_digest_to_seq_num_maybe(
+        &self,
+        cursor: TransactionDigest,
+    ) -> IndexerResult<Option<i64>> {
         let pool = self.get_pool();
         run_query_async!(&pool, move |conn| {
             tx_digests::table
@@ -1169,6 +1170,7 @@ impl IndexerReader {
                 // transactions (and other tables) are not
                 .filter(tx_digests::tx_digest.eq(cursor.into_inner().to_vec()))
                 .first::<i64>(conn)
+                .optional()
         })
     }
 
@@ -1635,6 +1637,13 @@ impl IndexerReader {
         }
     }
 
+    async fn check_tx_pruned(&self, tx_digest: TransactionDigest) -> IndexerResult<bool> {
+        // there is no way to distinguish now between pruned, and not existing txs
+        self.resolve_cursor_tx_digest_to_seq_num_maybe(tx_digest)
+            .await
+            .map(|seq| seq.is_none())
+    }
+
     async fn query_events_from_db_by_tx_digest_checkpointed(
         &self,
         tx_digest: TransactionDigest,
@@ -1642,22 +1651,6 @@ impl IndexerReader {
         limit: usize,
         descending_order: bool,
     ) -> IndexerResult<Vec<StoredEvent>> {
-        let tx_seq = self
-            .resolve_cursor_tx_digest_to_seq_num(tx_digest)
-            .await
-            .map_err(|err| {
-                IndexerError::PostgresDataPruned(format!(
-                    "Data for tx {tx_digest} potentially pruned: {err}"
-                ))
-            })?;
-        let lowest_unpruned_cp = self.get_lowest_unpruned_checkpoint().await?;
-        if tx_seq < lowest_unpruned_cp.min_tx_sequence_number {
-            return Err(IndexerError::PostgresDataPruned(format!(
-                "requesting data for tx seq {tx_seq}, lowest not pruned tx seq is {}",
-                lowest_unpruned_cp.min_tx_sequence_number
-            )));
-        }
-
         let mut query = events::table.into_boxed();
 
         if let Some(cursor) = cursor {
@@ -1683,12 +1676,25 @@ impl IndexerReader {
             query = query.order(events::event_sequence_number.asc());
         }
 
-        query = query.filter(events::tx_sequence_number.nullable().eq(tx_seq));
+        query = query.filter(
+            events::tx_sequence_number.nullable().eq(tx_digests::table
+                .select(tx_digests::tx_sequence_number)
+                // we filter the tx_digests table because it is indexed by digest,
+                // events table is not
+                .filter(tx_digests::tx_digest.eq(tx_digest.into_inner().to_vec()))
+                .single_value()),
+        );
 
         let pool = self.get_pool();
-        run_query_async!(&pool, move |conn| {
-            query.limit(limit as i64).load::<StoredEvent>(conn)
-        })
+        let query = query.limit(limit as i64);
+        let db_events = run_query_async!(&pool, move |conn| { query.load::<StoredEvent>(conn) })?;
+        if db_events.is_empty() && self.check_tx_pruned(tx_digest).await? {
+            return Err(IndexerError::PostgresDataPruned(format!(
+                "data for tx {tx_digest} potentially pruned"
+            )));
+        }
+
+        Ok(db_events)
     }
 
     pub(crate) async fn query_only_checkpointed_events_in_blocking_task(
