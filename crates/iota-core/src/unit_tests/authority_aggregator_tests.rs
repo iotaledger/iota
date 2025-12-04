@@ -2667,7 +2667,7 @@ enum CapabilityNotificationErrorType {
 
 impl CapabilityNotificationErrorType {
     fn create_non_retryable_errors(count: usize) -> Vec<Self> {
-        let base_errors = vec![
+        let base_errors = [
             Self::NonRetryable(IotaError::FullNodeCantHandleAuthorityCapabilities),
             Self::NonRetryable(IotaError::UnsupportedFeature {
                 error: "Test unsupported feature".to_string(),

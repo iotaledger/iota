@@ -2154,8 +2154,7 @@ async fn test_handle_soft_bundle_certificates_errors() {
             let signed = to_sender_signed_transaction(data, &senders[9].1);
             signed_tx_into_certificate(signed).await
         };
-        send_batch_consensus_no_execution(&authority, &vec![cert0.clone(), cert1.clone()], true)
-            .await;
+        send_batch_consensus_no_execution(&authority, &[cert0.clone(), cert1.clone()], true).await;
         let response = client
             .handle_soft_bundle_certificates_v1(
                 HandleSoftBundleCertificatesRequestV1 {
