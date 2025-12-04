@@ -45,6 +45,7 @@ use crate::{
         object::{self, Object, ObjectFilter},
         owner::Owner,
         protocol_config::ProtocolConfigs,
+        subscription::Subscription,
         transaction_block::{self, TransactionBlock, TransactionBlockFilter},
         transaction_metadata::TransactionMetadata,
         type_filter::ExactTypeFilter,
@@ -56,7 +57,7 @@ use crate::{
 };
 
 pub(crate) struct Query;
-pub(crate) type IotaGraphQLSchema = async_graphql::Schema<Query, Mutation, EmptySubscription>;
+pub(crate) type IotaGraphQLSchema = async_graphql::Schema<Query, Mutation, Subscription>;
 
 #[Object]
 impl Query {

@@ -21,8 +21,8 @@ use iota_sdk::{
         transaction::{Argument, ObjectArg, Transaction, TransactionData},
     },
 };
+use iota_sdk_types::crypto::Intent;
 use move_core_types::ident_str;
-use shared_crypto::intent::Intent;
 
 /// Got from iota-genesis-builder/src/stardust/test_outputs/stardust_mix.rs
 const MAIN_ADDRESS_MNEMONIC: &str = "okay pottery arch air egg very cave cash poem gown sorry mind poem crack dawn wet car pink extra crane hen bar boring salt";

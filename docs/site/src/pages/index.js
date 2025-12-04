@@ -131,10 +131,10 @@ const HomeCardCTA = () => {
             </Link>
           </HomeCard>
           <HomeCard title="Resources"> 
-            <Link className={styles.CardLink} to="https://iota.directory/?_project_type=api%2Cdeveloper-tools%2Cinfrastructure%2Csdk"> 
+            <Link className={styles.CardLink} to="https://iotalabs.io/projects"> 
               IOTA ecosystem directory <ArrowIcon /> 
             </Link>
-            <Link className={styles.CardLink} to="https://blog.iota.org//"> 
+            <Link className={styles.CardLink} to="https://blog.iota.org/"> 
               IOTA blog <ArrowIcon /> 
             </Link>
             <Link className={styles.CardLink} to="developer/dev-cheat-sheet"> 

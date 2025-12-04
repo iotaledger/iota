@@ -5,9 +5,9 @@
 use std::collections::BTreeMap;
 
 use fastcrypto::{ed25519::Ed25519KeyPair, hash::HashFunction, traits::KeyPair as KeypairTraits};
+use iota_sdk_types::crypto::{Intent, IntentMessage};
 use rand::{SeedableRng, rngs::StdRng};
 use serde::Deserialize;
-use shared_crypto::intent::{Intent, IntentMessage};
 
 use crate::{
     IotaAddress,
@@ -129,7 +129,7 @@ pub fn to_sender_signed_transaction_with_multi_signers(
 
 mod zk_login {
     use fastcrypto_zkp::bn254::zk_login::ZkLoginInputs;
-    use shared_crypto::intent::PersonalMessage;
+    use iota_sdk_types::crypto::PersonalMessage;
 
     use super::*;
     use crate::{crypto::PublicKey, zk_login_util::get_zklogin_inputs};
@@ -199,9 +199,9 @@ mod zk_login {
         USER_ADDRESS.with(|a| *a)
     }
 
-    pub fn sign_zklogin_personal_msg(data: PersonalMessage) -> (IotaAddress, GenericSignature) {
+    pub fn sign_zklogin_personal_msg(data: PersonalMessage<'_>) -> (IotaAddress, GenericSignature) {
         let inputs = get_zklogin_inputs();
-        let msg = IntentMessage::new(Intent::personal_message(), data);
+        let msg = IntentMessage::new(Intent::personal_message(), data.0);
         let s = Signature::new_secure(&msg, &get_zklogin_user_key());
         let authenticator =
             GenericSignature::ZkLoginAuthenticator(ZkLoginAuthenticator::new(inputs, 10, s));

@@ -22,6 +22,7 @@ use iota_types::{
     transaction::{
         CallArg, GasData, ObjectArg, ProgrammableTransaction, TransactionData, TransactionDataAPI,
     },
+    transaction_executor::VmChecks,
 };
 use itertools::Itertools;
 use move_binary_format::normalized;
@@ -128,8 +129,10 @@ async fn resolve_transaction(
     let budget = if let Some(user_provided_budget) = user_provided_budget {
         user_provided_budget
     } else {
+        // Hardcoded dry run simulation
+        let dry_run_checks = VmChecks::Enabled;
         let simulation_result = executor
-            .simulate_transaction(resolved_transaction.clone())
+            .simulate_transaction(resolved_transaction.clone(), dry_run_checks)
             .map_err(anyhow::Error::from)?;
 
         let estimate = estimate_gas_budget_from_gas_cost(

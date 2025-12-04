@@ -28,12 +28,15 @@ type ConnectWalletResult = StandardConnectOutput;
 type UseConnectWalletMutationOptions = Omit<
     UseMutationOptions<ConnectWalletResult, Error, ConnectWalletArgs, unknown>,
     'mutationFn'
->;
+> & {
+    onConnected?: (params: { wallet: WalletWithRequiredFeatures }) => void;
+};
 
 /**
  * Mutation hook for establishing a connection to a specific wallet.
  */
 export function useConnectWallet({
+    onConnected,
     mutationKey,
     ...mutationOptions
 }: UseConnectWalletMutationOptions = {}): UseMutationResult<
@@ -64,6 +67,8 @@ export function useConnectWallet({
                     selectedAccount,
                     connectResult.supportedIntents,
                 );
+
+                onConnected?.({ wallet });
 
                 return { accounts: connectedIotaAccounts };
             } catch (error) {

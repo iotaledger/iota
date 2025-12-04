@@ -16,6 +16,7 @@
 /crates/iota-authority-aggregation/ @iotaledger/node @iotaledger/consensus
 /crates/iota-aws-orchestrator/ @iotaledger/consensus
 /crates/iota-benchmark/ @iotaledger/node
+/crates/iota-build-cache-server/ @iotaledger/node
 /crates/iota-cluster-test/ @iotaledger/infrastructure
 /crates/iota-common/ @iotaledger/core-protocol
 /crates/iota-config/ @iotaledger/node
@@ -89,7 +90,6 @@
 /crates/iota-upgrade-compatibility-transactional-tests/ @iotaledger/vm-language
 /crates/iota-verifier-transactional-tests/ @iotaledger/vm-language
 /crates/prometheus-closure-metric/ @iotaledger/node
-/crates/shared-crypto/ @iotaledger/core-protocol
 /crates/simulacrum/ @iotaledger/vm-language
 /crates/starfish/ @iotaledger/consensus
 /crates/telemetry-subscribers/ @iotaledger/core-protocol

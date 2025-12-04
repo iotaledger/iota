@@ -7,6 +7,7 @@ use std::net::SocketAddr;
 
 use iota_core::authority_client::AuthorityAPI;
 use iota_macros::sim_test;
+use iota_sdk_types::crypto::{Intent, IntentMessage};
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
     IOTA_AUTHENTICATOR_STATE_OBJECT_ID,
@@ -19,7 +20,6 @@ use iota_types::{
     utils::{get_zklogin_user_address, load_test_vectors, make_zklogin_tx},
     zk_login_authenticator::ZkLoginAuthenticator,
 };
-use shared_crypto::intent::{Intent, IntentMessage};
 use test_cluster::{TestCluster, TestClusterBuilder};
 
 async fn do_zklogin_test(address: IotaAddress, legacy: bool) -> IotaResult {

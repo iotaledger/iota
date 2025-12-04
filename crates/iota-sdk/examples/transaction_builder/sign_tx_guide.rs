@@ -30,8 +30,8 @@ use iota_sdk::{
         transaction::TransactionData,
     },
 };
+use iota_sdk_types::crypto::{Intent, IntentMessage};
 use rand::{SeedableRng, rngs::StdRng};
-use shared_crypto::intent::{Intent, IntentMessage};
 use utils::request_tokens_from_faucet;
 
 #[tokio::main]

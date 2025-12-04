@@ -11,7 +11,7 @@ use iota_types::{
     iota_system_state::iota_system_state_summary::IotaSystemStateSummary as NativeIotaSystemStateSummary,
 };
 
-use crate::{error::Error, types::system_state_summary::SystemStateSummaryView};
+use crate::error::Error;
 
 pub(crate) struct PgManager {
     pub inner: IndexerReader,
