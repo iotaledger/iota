@@ -97,6 +97,7 @@ pub const MAX_PROTOCOL_VERSION: u64 = 19;
 //             mechanism on devnet.
 //             Enable a separate gas price feedback mechanism for transactions
 //             using randomness on devnet.
+//             Enable score based rewards on devnet.
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
 
@@ -2365,10 +2366,6 @@ impl ProtocolConfig {
                     // Enable committing transactions only for traversed headers in Starfish
                     cfg.feature_flags
                         .consensus_commit_transactions_only_for_traversed_headers = true;
-                    // Enables score based rewards on Devnet
-                    if chain != Chain::Testnet && chain != Chain::Mainnet {
-                        cfg.feature_flags.score_based_rewards = true;
-                    }
                 }
                 17 => {
                     // Increase the committee size to 100 on all networks.
@@ -2390,8 +2387,12 @@ impl ProtocolConfig {
                         // randomness on devnet.
                         cfg.feature_flags
                             .separate_gas_price_feedback_mechanism_for_randomness = true;
+                        // Enables score based rewards on Devnet
+                        cfg.feature_flags.score_based_rewards = true;
+                        cfg.scorer_version = Some(1);
                     }
                 }
+
                 // Use this template when making changes:
                 //
                 //     // modify an existing constant.
