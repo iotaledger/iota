@@ -1,5 +1,5 @@
-# Build image (the specific rust version can also be passed, e.g. "1.82-bookworm")
-ARG RUST_IMAGE_VERSION=bookworm
+# Build image (the specific rust version can also be passed, e.g. "1.91-trixie")
+ARG RUST_IMAGE_VERSION=trixie
 FROM rust:${RUST_IMAGE_VERSION} AS builder
 
 ARG PROFILE=release
@@ -52,7 +52,7 @@ RUN cargo build --profile ${PROFILE} \
     cp $TARGET_FOLDER/iota-genesis-builder ./iota-genesis-builder
 
 # Production image
-FROM debian:bookworm-slim AS runtime
+FROM debian:trixie-slim AS runtime
 
 ARG WORKDIR="/iota"
 WORKDIR "$WORKDIR"
