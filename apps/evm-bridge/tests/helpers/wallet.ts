@@ -11,7 +11,7 @@ export async function importL1WalletFromMnemonic(
     await page.goto(l1ExtensionUrl, { waitUntil: 'commit' });
     await page.getByRole('button', { name: /Get Started/ }).click({ timeout: 30_000 });
     await page.getByText('Add existing wallet').click();
-    await page.getByText('Recovery Phrase', { exact: true }).click();
+    await page.getByText('Mnemonic', { exact: true }).click();
 
     const mnemonicArray = typeof mnemonic === 'string' ? mnemonic.split(' ') : mnemonic;
 
