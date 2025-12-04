@@ -11,6 +11,7 @@ publish = false
 anyhow = "1.0"
 fastcrypto = { git = "https://github.com/MystenLabs/fastcrypto", rev = "69d496c71fb37e3d22fe85e5bbfd4256d61422b9" }
 hex = "0.4.3"
+iota-sdk-types = { git = "https://github.com/iotaledger/iota-rust-sdk", rev = "95964e2c1d2f8a196e7a0b9c3da0f915d2603c87" }
 
 # internal dependencies
 iota-keys = { path = "../../../crates/iota-keys" }
@@ -18,7 +19,6 @@ iota-move-build = { path = "../../../crates/iota-move-build" }
 iota-sdk = { path = "../../../crates/iota-sdk" }
 iota-types = { path = "../../../crates/iota-types" }
 move-binary-format = { path = "../../../external-crates/move/crates/move-binary-format", features = ["fuzzing"] }
-shared-crypto = { path = "../../../crates/shared-crypto" }
 
 [dev-dependencies]
 # external dependencies

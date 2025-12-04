@@ -12,6 +12,7 @@ use fastcrypto::{ed25519::Ed25519KeyPair, traits::KeyPair};
 use fastcrypto_zkp::bn254::zk_login::{OIDCProvider, ZkLoginInputs, parse_jwks};
 use iota_macros::sim_test;
 use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
+use iota_sdk_types::crypto::{Intent, IntentMessage};
 use iota_types::{
     IOTA_SYSTEM_PACKAGE_ID,
     authenticator_state::ActiveJwk,
@@ -35,7 +36,6 @@ use iota_types::{
 };
 use move_core_types::ident_str;
 use rand::{SeedableRng, rngs::StdRng};
-use shared_crypto::intent::{Intent, IntentMessage};
 
 use crate::{
     authority::{
@@ -2154,8 +2154,7 @@ async fn test_handle_soft_bundle_certificates_errors() {
             let signed = to_sender_signed_transaction(data, &senders[9].1);
             signed_tx_into_certificate(signed).await
         };
-        send_batch_consensus_no_execution(&authority, &vec![cert0.clone(), cert1.clone()], true)
-            .await;
+        send_batch_consensus_no_execution(&authority, &[cert0.clone(), cert1.clone()], true).await;
         let response = client
             .handle_soft_bundle_certificates_v1(
                 HandleSoftBundleCertificatesRequestV1 {

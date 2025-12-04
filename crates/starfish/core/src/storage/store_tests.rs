@@ -155,7 +155,7 @@ async fn scan_block_headers(
 ) {
     let store = test_store.store();
 
-    let written_blocks = vec![
+    let written_blocks = [
         VerifiedBlock::new_for_test(TestBlockHeader::new(9, 0).build()),
         VerifiedBlock::new_for_test(TestBlockHeader::new(10, 0).build()),
         VerifiedBlock::new_for_test(TestBlockHeader::new(10, 1).build()),
@@ -205,7 +205,7 @@ async fn scan_block_headers(
     );
 
     // Add more headers and test scanning
-    let additional_blocks = vec![
+    let additional_blocks = [
         VerifiedBlock::new_for_test(TestBlockHeader::new(14, 2).build()),
         VerifiedBlock::new_for_test(TestBlockHeader::new(15, 0).build()),
         VerifiedBlock::new_for_test(TestBlockHeader::new(15, 1).build()),
@@ -271,7 +271,7 @@ async fn read_and_contain_transactions(
 ) {
     let store = test_store.store();
 
-    let written_blocks = vec![
+    let written_blocks = [
         VerifiedBlock::new_for_test(TestBlockHeader::new(9, 0).build()),
         VerifiedBlock::new_for_test(TestBlockHeader::new(10, 0).build()),
         VerifiedBlock::new_for_test(TestBlockHeader::new(10, 1).build()),

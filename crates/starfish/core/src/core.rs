@@ -253,26 +253,22 @@ impl Core {
         // refs can be ignored as the missing transactions will be fetched by the
         // periodic transactions' synchronizer.
         self.try_commit().unwrap();
-        let last_proposed_block = match self.try_propose(ReasonToCreateBlock::Recover).unwrap() {
-            (Some(block), _) => Some(block),
-            (None, _) => {
-                let last_proposed_block = self.dag_state.read().recover_last_own_block();
-                if self.should_propose() {
-                    assert!(
-                        last_proposed_block.round() != GENESIS_ROUND,
-                        "At minimum a block of round higher than genesis should have been produced during recovery"
-                    );
+        let last_own_non_genesis_block =
+            match self.try_propose(ReasonToCreateBlock::Recover).unwrap() {
+                (Some(block), _) => Some(block),
+                (None, _) => {
+                    if let Some(last_proposed_block) =
+                        self.dag_state.read().get_last_own_non_genesis_block()
+                    {
+                        // if no new block proposed then just re-broadcast the last proposed one to
+                        // ensure liveness.
+                        self.signals.new_block(last_proposed_block.clone()).unwrap();
+                        Some(last_proposed_block)
+                    } else {
+                        None
+                    }
                 }
-                if last_proposed_block.round() != GENESIS_ROUND {
-                    // if no new block proposed then just re-broadcast the last proposed one to
-                    // ensure liveness.
-                    self.signals.new_block(last_proposed_block.clone()).unwrap();
-                    Some(last_proposed_block)
-                } else {
-                    None
-                }
-            }
-        };
+            };
 
         // Try to set up leader timeout if needed.
         // This needs to be called after try_commit() and try_propose(), which may
@@ -280,8 +276,8 @@ impl Core {
         self.try_signal_new_round();
 
         info!(
-            "Core recovery completed with last proposed block {:?}",
-            last_proposed_block.map(|b| b.verified_block_header)
+            "Core recovery completed with last proposed (non-genesis) block {:?}",
+            last_own_non_genesis_block.map(|b| b.verified_block_header)
         );
 
         self

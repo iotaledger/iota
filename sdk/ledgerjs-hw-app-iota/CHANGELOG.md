@@ -1,5 +1,11 @@
 # @iota/ledgerjs-hw-app-iota
 
+## 0.5.0
+
+### Minor Changes
+
+-   147c97e: Update repository URLs.
+
 ## 0.4.0
 
 ### Minor Changes
