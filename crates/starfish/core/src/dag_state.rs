@@ -221,7 +221,7 @@ impl DagState {
                 .unwrap_or_else(|e| panic!("Failed to read from storage: {e:?}"))
                 .iter()
                 .for_each(|commit| {
-                    for block_ref in commit.blocks() {
+                    for block_ref in commit.block_headers() {
                         last_committed_rounds[block_ref.author] =
                             max(last_committed_rounds[block_ref.author], block_ref.round);
                     }
@@ -1441,7 +1441,7 @@ impl DagState {
         }
         self.last_commit_round_advancement_time = Some(now);
 
-        for block_ref in commit.blocks().iter() {
+        for block_ref in commit.block_headers().iter() {
             self.last_committed_rounds[block_ref.author] = max(
                 self.last_committed_rounds[block_ref.author],
                 block_ref.round,

@@ -38,7 +38,7 @@ pub(crate) struct RocksDBStore {
     transactions_by_tr_refs: DBMap<(Round, AuthorityIndex, TransactionsCommitment), Bytes>,
     /// A secondary index that orders refs first by authors.
     digests_by_authorities: DBMap<(AuthorityIndex, Round, BlockHeaderDigest), ()>,
-    /// A secondary index that orders refs first by authors.
+    /// A secondary index that orders transaction commitments first by authors.
     transaction_commitments_by_authorities: DBMap<
         (
             AuthorityIndex,

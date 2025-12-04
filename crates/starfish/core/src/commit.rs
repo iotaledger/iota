@@ -135,7 +135,7 @@ pub(crate) trait CommitAPI {
     fn previous_digest(&self) -> CommitDigest;
     fn timestamp_ms(&self) -> BlockTimestampMs;
     fn leader(&self) -> BlockRef;
-    fn blocks(&self) -> &[BlockRef];
+    fn block_headers(&self) -> &[BlockRef];
     fn committed_transactions(&self) -> Vec<GenericTransactionRef>;
 }
 
@@ -184,7 +184,7 @@ impl CommitAPI for CommitV1 {
         self.leader
     }
 
-    fn blocks(&self) -> &[BlockRef] {
+    fn block_headers(&self) -> &[BlockRef] {
         &self.blocks
     }
 
@@ -247,7 +247,7 @@ impl CommitAPI for CommitV2 {
         self.leader
     }
 
-    fn blocks(&self) -> &[BlockRef] {
+    fn block_headers(&self) -> &[BlockRef] {
         &self.block_headers
     }
 
@@ -744,7 +744,7 @@ pub fn load_pending_subdag_from_store(
 ) -> PendingSubDag {
     let mut leader_block_idx = None;
     let commit_block_headers = store
-        .read_verified_block_headers(commit.blocks())
+        .read_verified_block_headers(commit.block_headers())
         .expect("We should have the block referenced in the commit data");
     let block_headers = commit_block_headers
         .into_iter()

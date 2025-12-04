@@ -668,7 +668,11 @@ impl<C: NetworkClient> CommitSyncer<C> {
             .expect("Spawn blocking should not fail")?;
 
         // 3. Fetch block headers referenced by the commits, from the same authority.
-        let mut block_refs: Vec<_> = commits.iter().flat_map(|c| c.blocks()).cloned().collect();
+        let mut block_refs: Vec<_> = commits
+            .iter()
+            .flat_map(|c| c.block_headers())
+            .cloned()
+            .collect();
 
         // 3a. Collect all committed transaction block refs from commits
         let committed_tx_refs: Vec<GenericTransactionRef> = commits
@@ -941,7 +945,7 @@ impl<C: NetworkClient> CommitSyncer<C> {
         let mut certified_commits = Vec::new();
         for commit in &commits {
             let block_headers = commit
-                .blocks()
+                .block_headers()
                 .iter()
                 .map(|block_ref| {
                     fetched_block_headers
