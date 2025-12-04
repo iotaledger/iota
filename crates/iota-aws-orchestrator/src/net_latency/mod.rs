@@ -113,6 +113,7 @@ impl<'a> NetworkLatencyCommandBuilder<'a> {
             HashMap::new();
         for (i, instance) in self.instances.iter().enumerate() {
             let entry = instance2instance_latency_map.entry(instance).or_default();
+            #[expect(clippy::needless_range_loop)]
             for j in 0..self.instances.len() {
                 if latency_matrix[i][j] == 0 {
                     // no need to generate latency commands where latency is 0

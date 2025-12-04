@@ -27,5 +27,19 @@
     "repository": {
         "url": "https://github.com/iotaledger/iota.git",
         "commit": "main"
+    },
+    "build_configs": {
+        "iota": {
+            "toolchain": "stable",
+            "features": []
+        },
+        "iota-node": {
+            "toolchain": "stable",
+            "features": []
+        },
+        "stress": {
+            "toolchain": "stable",
+            "features": []
+        }
     }
 }

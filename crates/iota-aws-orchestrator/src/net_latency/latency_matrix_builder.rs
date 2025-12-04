@@ -51,6 +51,7 @@ pub fn generate_block_matrix(n: usize, k: usize) -> Vec<Vec<bool>> {
 
     // For symmetry, we assign blocks in round-robin pairs:
     // node i blocks nodes (i+1)%n, (i+2)%n, ..., (i+k)%n
+    #[expect(clippy::needless_range_loop)]
     for i in 0..n {
         for offset in 1..=k {
             let j = (i + offset) % n;
@@ -132,7 +133,7 @@ impl LatencyMatrixBuilder {
         let cluster_of = |idx: usize| -> usize {
             idx * c / self.number_of_instances // 0..n-1 -> 0..c-1
         };
-        #[allow(clippy::needless_range_loop)]
+        #[expect(clippy::needless_range_loop)]
         for i in 0..self.number_of_instances {
             let ci = cluster_of(i);
 
@@ -200,7 +201,7 @@ impl LatencyMatrixBuilder {
         let n = self.matrix.len();
         let blocking_matrix =
             generate_block_matrix(self.matrix.len(), number_of_blocking_connections);
-        #[allow(clippy::needless_range_loop)]
+        #[expect(clippy::needless_range_loop)]
         for i in 0..n {
             for j in 0..n {
                 if !blocking_matrix[i][j] {
