@@ -88,9 +88,6 @@ pub struct IotaInitArgs {
     /// reader.
     #[clap(long)]
     pub rest_api_url: Option<String>,
-    /// Whether to use the default abstract account package.
-    #[arg(long = "default-aa")]
-    pub default_aa: bool,
 }
 
 #[derive(Debug, clap::Parser)]
@@ -190,6 +187,7 @@ pub struct InitAbstractAccountCommand {
     pub package: String,
     pub module: String,
     pub authenticate_fn: String,
+    pub account_type: String,
     #[arg(
         long,
         value_parser = ParsedValue::<IotaExtraValueArgs>::parse,
@@ -197,8 +195,12 @@ pub struct InitAbstractAccountCommand {
         action = clap::ArgAction::Append,
     )]
     pub inputs: Vec<ParsedValue<IotaExtraValueArgs>>,
-    #[arg(long)]
-    pub custom: bool,
+}
+
+#[derive(Debug, Parser)]
+pub struct PublishDepsCommand {
+    #[arg(long, num_args(1..))]
+    pub paths: Vec<String>
 }
 
 #[derive(Debug, clap::Parser)]
@@ -296,6 +298,7 @@ pub enum IotaSubcommand<ExtraValueArgs: ParsableValue, ExtraRunArgs: Parser> {
     Bench(RunCommand<ExtraValueArgs>, ExtraRunArgs),
     AbstractTransaction(AbstractTransactionCommand),
     InitAbstractAccount(InitAbstractAccountCommand),
+    PublishDeps(PublishDepsCommand),
 }
 
 impl<ExtraValueArgs: ParsableValue, ExtraRunArgs: Parser> clap::FromArgMatches
@@ -352,6 +355,9 @@ impl<ExtraValueArgs: ParsableValue, ExtraRunArgs: Parser> clap::FromArgMatches
             Some(("init-abstract-acc", matches)) => IotaSubcommand::InitAbstractAccount(
                 InitAbstractAccountCommand::from_arg_matches(matches)?,
             ),
+            Some(("publish-deps", matches)) => IotaSubcommand::PublishDeps(
+                PublishDepsCommand::from_arg_matches(matches)?,
+            ),
             _ => {
                 return Err(clap::Error::raw(
                     clap::error::ErrorKind::InvalidSubcommand,
@@ -390,6 +396,7 @@ impl<ExtraValueArgs: ParsableValue, ExtraRunArgs: Parser> clap::CommandFactory
                 RunCommand::<ExtraValueArgs>::augment_args(ExtraRunArgs::command()).name("bench"),
             )
             .subcommand(InitAbstractAccountCommand::command().name("init-abstract-acc"))
+            .subcommand(PublishDepsCommand::command().name("publish-deps"))
     }
 
     fn command_for_update() -> clap::Command {

@@ -13,7 +13,7 @@ mutated: object(0,0)
 gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 6429600,  storage_rebate: 0, non_refundable_storage_fee: 0
 
 task 2, line 30:
-//# init-abstract-acc --sender A test authenticate authenticate --custom
+//# init-abstract-acc --sender A test authenticate authenticate test::authenticate::AbstractAccount
 created: object(2,0)
 mutated: object(0,0)
 gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2371200,  storage_rebate: 980400, non_refundable_storage_fee: 0

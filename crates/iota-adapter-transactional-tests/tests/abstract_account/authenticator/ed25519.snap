@@ -13,7 +13,7 @@ mutated: object(0,0)
 gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 9743200,  storage_rebate: 0, non_refundable_storage_fee: 0
 
 task 2, line 58:
-//# init-abstract-acc --sender A test authenticate authenticate_ed25519 --inputs x"cc62332e34bb2d5cd69f60efbb2a36cb916c7eb458301ea36636c4dbb012bd88" --custom
+//# init-abstract-acc --sender A test authenticate authenticate_ed25519 test::authenticate::AbstractAccount --inputs x"cc62332e34bb2d5cd69f60efbb2a36cb916c7eb458301ea36636c4dbb012bd88"
 created: object(2,0), object(2,1), object(2,2)
 mutated: object(0,0)
 gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 7714000,  storage_rebate: 980400, non_refundable_storage_fee: 0

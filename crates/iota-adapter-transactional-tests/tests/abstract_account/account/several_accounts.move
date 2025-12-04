@@ -3,7 +3,9 @@
 
 // simple authentication using abstract account
 
-//# init --addresses test=0x0 --accounts A --default-aa
+//# init --addresses test=0x0 aa=0x0 --accounts A
+
+//# publish-deps --paths crates/iota-adapter-transactional-tests/data/account_abstraction/abstract_account.move
 
 //# publish --sender A --dependencies aa
 module test::authenticate;
@@ -21,20 +23,20 @@ public fun authenticate_hello_world(
     assert!(msg == ascii::string(b"HelloWorld"), 0);
 }
 
-//# init-abstract-acc --sender A test authenticate authenticate_hello_world
+//# init-abstract-acc --sender A test authenticate authenticate_hello_world aa::abstract_account::AbstractAccount
 
-//# init-abstract-acc --sender A test authenticate authenticate_hello_world
+//# init-abstract-acc --sender A test authenticate authenticate_hello_world aa::abstract_account::AbstractAccount
 
-//# init-abstract-acc --sender A test authenticate authenticate_hello_world
-
-//# view-object 2,0
-
-//# view-object 2,1
-
-//# view-object 3,0
-
-//# view-object 3,1
+//# init-abstract-acc --sender A test authenticate authenticate_hello_world aa::abstract_account::AbstractAccount
 
 //# view-object 4,0
 
 //# view-object 4,1
+
+//# view-object 5,0
+
+//# view-object 5,1
+
+//# view-object 6,0
+
+//# view-object 6,1

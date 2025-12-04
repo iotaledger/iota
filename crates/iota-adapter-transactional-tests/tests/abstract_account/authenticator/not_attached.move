@@ -27,7 +27,7 @@ public fun create(
 
 public fun authenticate(_account: &AbstractAccount, _auth_ctx: &AuthContext, _ctx: &TxContext) {}
 
-//# init-abstract-acc --sender A test authenticate authenticate --custom
+//# init-abstract-acc --sender A test authenticate authenticate test::authenticate::AbstractAccount
 
 //# view-object 2,0
 

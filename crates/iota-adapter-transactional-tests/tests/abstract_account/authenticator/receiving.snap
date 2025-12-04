@@ -1,18 +1,25 @@
 ---
 source: external-crates/move/crates/move-transactional-test-runner/src/framework.rs
 ---
-processed 3 tasks
+processed 4 tasks
 
 init:
 A: object(0,0)
 
-task 1, lines 8-24:
-//# publish --sender A --dependencies aa
-created: object(1,0)
-mutated: object(0,0)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 6406800,  storage_rebate: 0, non_refundable_storage_fee: 0
+task 1, line 8:
+//# publish-deps --paths crates/iota-adapter-transactional-tests/data/account_abstraction/abstract_account.move
+Output for 'crates/iota-adapter-transactional-tests/data/account_abstraction/abstract_account.move':
+created: object(2,0)
+mutated: object(0,1)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 7615200,  storage_rebate: 0, non_refundable_storage_fee: 0
 
-task 2, line 26:
-//# init-abstract-acc --sender A test authenticate authenticate_receive_coin
+task 2, lines 10-24:
+//# publish --sender A --dependencies aa
+created: object(3,0)
+mutated: object(0,0)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 6118000,  storage_rebate: 0, non_refundable_storage_fee: 0
+
+task 3, line 26:
+//# init-abstract-acc --sender A test authenticate authenticate_receive_coin aa::abstract_account::AbstractAccount
 Error: Transaction Effects Status: MOVE VM INVARIANT VIOLATION.
-Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: VMInvariantViolation, source: Some(VMError { major_status: UNKNOWN_INVARIANT_VIOLATION_ERROR, sub_status: None, message: Some("ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: IotaMoveVerificationError, source: Some(\"Invalid account type. Account argument type Struct(DatatypeHandleIndex(0)) does not match the expected account type Struct(StructTag { address: _, module: Identifier(\\\"abstract_account\\\"), name: Identifier(\\\"AbstractAccount\\\"), type_params: [] })\"), command: None } }"), exec_state: None, location: Module(ModuleId { address: iota, name: Identifier("account") }), indices: [], offsets: [(FunctionDefinitionIndex(7), 0)] }), command: Some(0) } }
+Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: VMInvariantViolation, source: Some(VMError { major_status: UNKNOWN_INVARIANT_VIOLATION_ERROR, sub_status: None, message: Some("ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: IotaMoveVerificationError, source: Some(\"Invalid pure type. A datatype instantiation must be an option of pure types, offending argument: StructInstantiation(DatatypeHandleIndex(4), [StructInstantiation(DatatypeHandleIndex(2), [Struct(DatatypeHandleIndex(3))])])\"), command: None } }"), exec_state: None, location: Module(ModuleId { address: iota, name: Identifier("account") }), indices: [], offsets: [(FunctionDefinitionIndex(7), 0)] }), command: Some(0) } }

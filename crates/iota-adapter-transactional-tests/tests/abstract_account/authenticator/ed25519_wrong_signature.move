@@ -55,7 +55,7 @@ public fun authenticate_ed25519(
     );
 }
 
-//# init-abstract-acc --sender A test authenticate authenticate_ed25519 --inputs x"cc62332e34bb2d5cd69f60efbb2a36cb916c7eb458301ea36636c4dbb012bd88" --custom
+//# init-abstract-acc --sender A test authenticate authenticate_ed25519 test::authenticate::AbstractAccount --inputs x"cc62332e34bb2d5cd69f60efbb2a36cb916c7eb458301ea36636c4dbb012bd88"
 
 //# view-object 2,2
 

@@ -1,192 +1,47 @@
 ---
 source: external-crates/move/crates/move-transactional-test-runner/src/framework.rs
 ---
-processed 11 tasks
+processed 12 tasks
 
 init:
 A: object(0,0)
 
-task 1, lines 8-22:
+task 1, line 8:
+//# publish-deps --paths crates/iota-adapter-transactional-tests/data/account_abstraction/abstract_account.move
+Output for 'crates/iota-adapter-transactional-tests/data/account_abstraction/abstract_account.move':
+created: object(2,0)
+mutated: object(0,1)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 7615200,  storage_rebate: 0, non_refundable_storage_fee: 0
+
+task 2, lines 10-24:
 //# publish --sender A --dependencies aa
-created: object(1,0)
+created: object(3,0)
 mutated: object(0,0)
 gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 6429600,  storage_rebate: 0, non_refundable_storage_fee: 0
 
-task 2, line 24:
-//# init-abstract-acc --sender A test authenticate authenticate_hello_world
-created: object(2,0), object(2,1)
-mutated: object(0,0)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 5738000,  storage_rebate: 980400, non_refundable_storage_fee: 0
-
 task 3, line 26:
-//# init-abstract-acc --sender A test authenticate authenticate_hello_world
-created: object(3,0), object(3,1)
-mutated: object(0,0)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 5738000,  storage_rebate: 980400, non_refundable_storage_fee: 0
-
-task 4, line 28:
-//# init-abstract-acc --sender A test authenticate authenticate_hello_world
+//# init-abstract-acc --sender A test authenticate authenticate_hello_world aa::abstract_account::AbstractAccount
 created: object(4,0), object(4,1)
 mutated: object(0,0)
 gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 5738000,  storage_rebate: 980400, non_refundable_storage_fee: 0
 
+task 4, line 28:
+//# init-abstract-acc --sender A test authenticate authenticate_hello_world aa::abstract_account::AbstractAccount
+created: object(5,0), object(5,1)
+mutated: object(0,0)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 5738000,  storage_rebate: 980400, non_refundable_storage_fee: 0
+
 task 5, line 30:
-//# view-object 2,0
-Owner: Shared( 3 )
-Version: 3
-Contents: _::abstract_account::AbstractAccount {
-    id: iota::object::UID {
-        id: iota::object::ID {
-            bytes: fake(2,0),
-        },
-    },
-}
+//# init-abstract-acc --sender A test authenticate authenticate_hello_world aa::abstract_account::AbstractAccount
+created: object(6,0), object(6,1)
+mutated: object(0,0)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 5738000,  storage_rebate: 980400, non_refundable_storage_fee: 0
 
 task 6, line 32:
-//# view-object 2,1
-Owner: Object ID: ( fake(2,0) )
-Version: 3
-Contents: iota::dynamic_field::Field<iota::account::AuthenticatorInfoV1Key, iota::account::AuthenticatorInfoV1<_::abstract_account::AbstractAccount>> {
-    id: iota::object::UID {
-        id: iota::object::ID {
-            bytes: fake(2,1),
-        },
-    },
-    name: iota::account::AuthenticatorInfoV1Key {
-        dummy_field: false,
-    },
-    value: iota::account::AuthenticatorInfoV1<_::abstract_account::AbstractAccount> {
-        package: iota::object::ID {
-            bytes: test,
-        },
-        module_name: std::ascii::String {
-            bytes: vector[
-                97u8,
-                117u8,
-                116u8,
-                104u8,
-                101u8,
-                110u8,
-                116u8,
-                105u8,
-                99u8,
-                97u8,
-                116u8,
-                101u8,
-            ],
-        },
-        function_name: std::ascii::String {
-            bytes: vector[
-                97u8,
-                117u8,
-                116u8,
-                104u8,
-                101u8,
-                110u8,
-                116u8,
-                105u8,
-                99u8,
-                97u8,
-                116u8,
-                101u8,
-                95u8,
-                104u8,
-                101u8,
-                108u8,
-                108u8,
-                111u8,
-                95u8,
-                119u8,
-                111u8,
-                114u8,
-                108u8,
-                100u8,
-            ],
-        },
-    },
-}
-
-task 7, line 34:
-//# view-object 3,0
-Owner: Shared( 4 )
-Version: 4
-Contents: _::abstract_account::AbstractAccount {
-    id: iota::object::UID {
-        id: iota::object::ID {
-            bytes: fake(3,0),
-        },
-    },
-}
-
-task 8, line 36:
-//# view-object 3,1
-Owner: Object ID: ( fake(3,0) )
-Version: 4
-Contents: iota::dynamic_field::Field<iota::account::AuthenticatorInfoV1Key, iota::account::AuthenticatorInfoV1<_::abstract_account::AbstractAccount>> {
-    id: iota::object::UID {
-        id: iota::object::ID {
-            bytes: fake(3,1),
-        },
-    },
-    name: iota::account::AuthenticatorInfoV1Key {
-        dummy_field: false,
-    },
-    value: iota::account::AuthenticatorInfoV1<_::abstract_account::AbstractAccount> {
-        package: iota::object::ID {
-            bytes: test,
-        },
-        module_name: std::ascii::String {
-            bytes: vector[
-                97u8,
-                117u8,
-                116u8,
-                104u8,
-                101u8,
-                110u8,
-                116u8,
-                105u8,
-                99u8,
-                97u8,
-                116u8,
-                101u8,
-            ],
-        },
-        function_name: std::ascii::String {
-            bytes: vector[
-                97u8,
-                117u8,
-                116u8,
-                104u8,
-                101u8,
-                110u8,
-                116u8,
-                105u8,
-                99u8,
-                97u8,
-                116u8,
-                101u8,
-                95u8,
-                104u8,
-                101u8,
-                108u8,
-                108u8,
-                111u8,
-                95u8,
-                119u8,
-                111u8,
-                114u8,
-                108u8,
-                100u8,
-            ],
-        },
-    },
-}
-
-task 9, line 38:
 //# view-object 4,0
-Owner: Shared( 5 )
-Version: 5
-Contents: _::abstract_account::AbstractAccount {
+Owner: Shared( 3 )
+Version: 3
+Contents: aa::abstract_account::AbstractAccount {
     id: iota::object::UID {
         id: iota::object::ID {
             bytes: fake(4,0),
@@ -194,11 +49,11 @@ Contents: _::abstract_account::AbstractAccount {
     },
 }
 
-task 10, line 40:
+task 7, line 34:
 //# view-object 4,1
 Owner: Object ID: ( fake(4,0) )
-Version: 5
-Contents: iota::dynamic_field::Field<iota::account::AuthenticatorInfoV1Key, iota::account::AuthenticatorInfoV1<_::abstract_account::AbstractAccount>> {
+Version: 3
+Contents: iota::dynamic_field::Field<iota::account::AuthenticatorInfoV1Key, iota::account::AuthenticatorInfoV1<aa::abstract_account::AbstractAccount>> {
     id: iota::object::UID {
         id: iota::object::ID {
             bytes: fake(4,1),
@@ -207,7 +62,159 @@ Contents: iota::dynamic_field::Field<iota::account::AuthenticatorInfoV1Key, iota
     name: iota::account::AuthenticatorInfoV1Key {
         dummy_field: false,
     },
-    value: iota::account::AuthenticatorInfoV1<_::abstract_account::AbstractAccount> {
+    value: iota::account::AuthenticatorInfoV1<aa::abstract_account::AbstractAccount> {
+        package: iota::object::ID {
+            bytes: test,
+        },
+        module_name: std::ascii::String {
+            bytes: vector[
+                97u8,
+                117u8,
+                116u8,
+                104u8,
+                101u8,
+                110u8,
+                116u8,
+                105u8,
+                99u8,
+                97u8,
+                116u8,
+                101u8,
+            ],
+        },
+        function_name: std::ascii::String {
+            bytes: vector[
+                97u8,
+                117u8,
+                116u8,
+                104u8,
+                101u8,
+                110u8,
+                116u8,
+                105u8,
+                99u8,
+                97u8,
+                116u8,
+                101u8,
+                95u8,
+                104u8,
+                101u8,
+                108u8,
+                108u8,
+                111u8,
+                95u8,
+                119u8,
+                111u8,
+                114u8,
+                108u8,
+                100u8,
+            ],
+        },
+    },
+}
+
+task 8, line 36:
+//# view-object 5,0
+Owner: Shared( 4 )
+Version: 4
+Contents: aa::abstract_account::AbstractAccount {
+    id: iota::object::UID {
+        id: iota::object::ID {
+            bytes: fake(5,0),
+        },
+    },
+}
+
+task 9, line 38:
+//# view-object 5,1
+Owner: Object ID: ( fake(5,0) )
+Version: 4
+Contents: iota::dynamic_field::Field<iota::account::AuthenticatorInfoV1Key, iota::account::AuthenticatorInfoV1<aa::abstract_account::AbstractAccount>> {
+    id: iota::object::UID {
+        id: iota::object::ID {
+            bytes: fake(5,1),
+        },
+    },
+    name: iota::account::AuthenticatorInfoV1Key {
+        dummy_field: false,
+    },
+    value: iota::account::AuthenticatorInfoV1<aa::abstract_account::AbstractAccount> {
+        package: iota::object::ID {
+            bytes: test,
+        },
+        module_name: std::ascii::String {
+            bytes: vector[
+                97u8,
+                117u8,
+                116u8,
+                104u8,
+                101u8,
+                110u8,
+                116u8,
+                105u8,
+                99u8,
+                97u8,
+                116u8,
+                101u8,
+            ],
+        },
+        function_name: std::ascii::String {
+            bytes: vector[
+                97u8,
+                117u8,
+                116u8,
+                104u8,
+                101u8,
+                110u8,
+                116u8,
+                105u8,
+                99u8,
+                97u8,
+                116u8,
+                101u8,
+                95u8,
+                104u8,
+                101u8,
+                108u8,
+                108u8,
+                111u8,
+                95u8,
+                119u8,
+                111u8,
+                114u8,
+                108u8,
+                100u8,
+            ],
+        },
+    },
+}
+
+task 10, line 40:
+//# view-object 6,0
+Owner: Shared( 5 )
+Version: 5
+Contents: aa::abstract_account::AbstractAccount {
+    id: iota::object::UID {
+        id: iota::object::ID {
+            bytes: fake(6,0),
+        },
+    },
+}
+
+task 11, line 42:
+//# view-object 6,1
+Owner: Object ID: ( fake(6,0) )
+Version: 5
+Contents: iota::dynamic_field::Field<iota::account::AuthenticatorInfoV1Key, iota::account::AuthenticatorInfoV1<aa::abstract_account::AbstractAccount>> {
+    id: iota::object::UID {
+        id: iota::object::ID {
+            bytes: fake(6,1),
+        },
+    },
+    name: iota::account::AuthenticatorInfoV1Key {
+        dummy_field: false,
+    },
+    value: iota::account::AuthenticatorInfoV1<aa::abstract_account::AbstractAccount> {
         package: iota::object::ID {
             bytes: test,
         },
