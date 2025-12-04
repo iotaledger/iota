@@ -1448,7 +1448,12 @@ async fn test_very_large_certificate() {
     // Insert a lot into the bitmap so the cert is very large, while the txn inside
     // is reasonably sized.
     let mut signers_map = roaring::bitmap::RoaringBitmap::new();
-    signers_map.insert_range(0..52108864);
+    // Insert every even number up to 52,108,864 (~52 million).
+    // Avoiding inserting contiguous ranges to skip range compression.
+    for i in (0..52_108_864).step_by(2) {
+        signers_map.insert(i);
+    }
+
     let sigs: Vec<AuthoritySignature> = signatures.into_values().collect();
 
     let quorum_signature = iota_types::crypto::AuthorityQuorumSignInfo {

@@ -7630,7 +7630,7 @@ dependencies = [
 [[package]]
 name = "iota-sdk-types"
 version = "0.0.1-alpha.1"
-source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=4eed74be011b707aa08145f644679cb906f7f17f#4eed74be011b707aa08145f644679cb906f7f17f"
+source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=05608b7e4a5b96d85f84e1970a517f6f174beb8b#05608b7e4a5b96d85f84e1970a517f6f174beb8b"
 dependencies = [
  "base64ct",
  "bcs",
@@ -12450,9 +12450,9 @@ checksum = "3582f63211428f83597b51b2ddb88e2a91a9d52d12831f9d08f5e624e8977422"
 
 [[package]]
 name = "roaring"
-version = "0.10.12"
+version = "0.11.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "19e8d2cfa184d94d0726d650a9f4a1be7f9b76ac9fdb954219878dc00c1c1e7b"
+checksum = "f08d6a905edb32d74a5d5737a0c9d7e950c312f3c46cb0ca0a2ca09ea11878a0"
 dependencies = [
  "bytemuck",
  "byteorder",

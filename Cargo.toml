@@ -298,7 +298,7 @@ indexmap = { version = "2.11.0", features = ["serde"] }
 indicatif = "0.18.3"
 insta = { version = "1.21.1", features = ["redactions", "yaml", "json"] }
 integer-encoding = "3.0.1"
-iota-sdk-types = { package = "iota-sdk-types", git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "4eed74be011b707aa08145f644679cb906f7f17f", features = ["hash", "serde", "schemars"] }
+iota-sdk-types = { package = "iota-sdk-types", git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "05608b7e4a5b96d85f84e1970a517f6f174beb8b", features = ["hash", "serde", "schemars"] }
 itertools = "0.13.0"
 json_to_table = { git = "https://github.com/zhiburt/tabled/", rev = "e449317a1c02eb6b29e409ad6617e5d9eb7b3bd4" }
 jsonrpsee = { version = "0.24", features = ["server", "macros", "client", "ws-client", "http-client"] }
@@ -333,7 +333,7 @@ rand = "0.8.5"
 rayon = "1.5.3"
 regex = "1.7.1"
 reqwest = { version = "0.12", default-features = false, features = ["http2", "json", "rustls-tls"] }
-roaring = "0.10.6"
+roaring = "0.11.2"
 rocksdb = { version = "0.21.0", default-features = false, features = ["snappy", "lz4", "zstd", "zlib", "multi-threaded-cf"] }
 rstest = "0.16.0"
 rustls = { version = "0.23.18", default-features = false, features = ["std", "tls12", "ring"] }
