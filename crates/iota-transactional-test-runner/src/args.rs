@@ -200,7 +200,7 @@ pub struct InitAbstractAccountCommand {
 #[derive(Debug, Parser)]
 pub struct PublishDepsCommand {
     #[arg(long, num_args(1..))]
-    pub paths: Vec<String>
+    pub paths: Vec<String>,
 }
 
 #[derive(Debug, clap::Parser)]
@@ -355,9 +355,9 @@ impl<ExtraValueArgs: ParsableValue, ExtraRunArgs: Parser> clap::FromArgMatches
             Some(("init-abstract-acc", matches)) => IotaSubcommand::InitAbstractAccount(
                 InitAbstractAccountCommand::from_arg_matches(matches)?,
             ),
-            Some(("publish-deps", matches)) => IotaSubcommand::PublishDeps(
-                PublishDepsCommand::from_arg_matches(matches)?,
-            ),
+            Some(("publish-deps", matches)) => {
+                IotaSubcommand::PublishDeps(PublishDepsCommand::from_arg_matches(matches)?)
+            }
             _ => {
                 return Err(clap::Error::raw(
                     clap::error::ErrorKind::InvalidSubcommand,

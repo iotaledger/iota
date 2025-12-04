@@ -8,13 +8,13 @@
 use std::{
     collections::{BTreeMap, BTreeSet},
     fmt::{self, Write},
+    io::Write as IoWrite,
     path::{Path, PathBuf},
     str::FromStr,
     sync::Arc,
     time::Duration,
 };
 
-use std::io::Write as IoWrite;
 use anyhow::{Context, anyhow, bail};
 use async_trait::async_trait;
 use bimap::btree::BiBTreeMap;
@@ -1246,7 +1246,7 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
                 )
                 .await
             }
-            IotaSubcommand::PublishDeps( PublishDepsCommand { paths } ) => {
+            IotaSubcommand::PublishDeps(PublishDepsCommand { paths }) => {
                 let mut outputs = vec![];
                 for file_path in paths {
                     let empty_publish_args = <Self::ExtraPublishArgs as Default>::default();
@@ -1258,21 +1258,27 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
                     data.write_all(file.as_slice())?;
 
                     let (warnings_opt, output, data, modules) = compile_any(
-                                        self,
-                                        "publish",
-                                        SyntaxChoice::Source,
-                                        name.clone(),
-                                        number,
-                                        start_line,
-                                        command_lines_stop,
-                                        stop_line,
-                                        Some(data),
-                                        |adapter, modules| adapter.publish_modules(modules, None, empty_publish_args),
-                                    )
-                                    .await?;
+                        self,
+                        "publish",
+                        SyntaxChoice::Source,
+                        name.clone(),
+                        number,
+                        start_line,
+                        command_lines_stop,
+                        stop_line,
+                        Some(data),
+                        |adapter, modules| {
+                            adapter.publish_modules(modules, None, empty_publish_args)
+                        },
+                    )
+                    .await?;
                     store_modules(self, SyntaxChoice::Source, data, modules);
                     let output = merge_output(output, warnings_opt);
-                    outputs.push(format!("Output for '{}':\n{}", file_path, output.unwrap_or_default()));
+                    outputs.push(format!(
+                        "Output for '{}':\n{}",
+                        file_path,
+                        output.unwrap_or_default()
+                    ));
                 }
                 Ok(Some(outputs.join("\n\n")))
             }
