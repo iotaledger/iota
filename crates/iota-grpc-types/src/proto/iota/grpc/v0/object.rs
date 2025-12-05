@@ -14,7 +14,11 @@ use crate::{
 
 // TODO: Wrap Object into a type with a version
 impl Merge<&iota_sdk_types::object::Object> for Object {
-    fn merge(&mut self, source: &iota_sdk_types::object::Object, mask: &FieldMaskTree) {
+    fn merge(
+        &mut self,
+        source: &iota_sdk_types::object::Object,
+        mask: &FieldMaskTree,
+    ) -> Result<(), Box<dyn std::error::Error>> {
         if mask.contains(Self::BCS_FIELD.name) {
             if let Ok(bcs_bytes) = bcs::to_bytes(source) {
                 self.bcs = Some(BcsData {
@@ -48,11 +52,17 @@ impl Merge<&iota_sdk_types::object::Object> for Object {
 
             self.reference = Some(reference);
         }
+
+        Ok(())
     }
 }
 
 impl Merge<&[iota_sdk_types::object::Object]> for Objects {
-    fn merge(&mut self, source: &[iota_sdk_types::object::Object], mask: &FieldMaskTree) {
+    fn merge(
+        &mut self,
+        source: &[iota_sdk_types::object::Object],
+        mask: &FieldMaskTree,
+    ) -> Result<(), Box<dyn std::error::Error>> {
         // Objects is a wrapper message containing a repeated field `objects`.
         // When a user requests the wrapper (e.g., "input_objects"), the mask becomes
         // a wildcard since it's a leaf node. Calling subtree("objects") on a wildcard
@@ -63,12 +73,14 @@ impl Merge<&[iota_sdk_types::object::Object]> for Objects {
             // Merge each object in the source list with the appropriate field mask
             self.objects = source
                 .iter()
-                .map(|obj| {
+                .map(|obj| -> Result<_, Box<dyn std::error::Error>> {
                     let mut proto_obj = Object::default();
-                    proto_obj.merge(obj, &objects_mask);
-                    proto_obj
+                    proto_obj.merge(obj, &objects_mask)?;
+                    Ok(proto_obj)
                 })
-                .collect();
+                .collect::<Result<Vec<_>, _>>()?;
         }
+
+        Ok(())
     }
 }

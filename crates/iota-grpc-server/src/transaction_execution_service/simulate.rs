@@ -163,11 +163,9 @@ pub async fn simulate_transaction(
             &protocol_config,
         );
 
-        // If the request specified gas payment, then transaction.gas_data().budget
-        // should have been resolved to the cumulative balance of those
-        // coins. We don't want to return a resolved transaction
-        // where the gas payment can't satisfy the budget, so validate that balance can
-        // actually cover the estimated budget.
+        // We don't want to return a resolved transaction where the gas payment can't
+        // satisfy the budget, so validate that balance can actually cover the
+        // estimated budget.
         let gas_balance = transaction_data.gas_data().budget;
         if gas_balance < estimate {
             return Err(RpcError::new(

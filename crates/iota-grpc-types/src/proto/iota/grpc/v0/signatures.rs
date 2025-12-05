@@ -34,27 +34,41 @@ impl TryFrom<&ValidatorAggregatedSignature> for iota_sdk_types::ValidatorAggrega
 // UserSignature
 //
 
-impl From<iota_sdk_types::UserSignature> for UserSignature {
-    fn from(value: iota_sdk_types::UserSignature) -> Self {
+impl TryFrom<iota_sdk_types::UserSignature> for UserSignature {
+    type Error = Box<dyn std::error::Error>;
+
+    fn try_from(value: iota_sdk_types::UserSignature) -> Result<Self, Self::Error> {
         Self::merge_from(value, &FieldMaskTree::new_wildcard())
     }
 }
 
 impl Merge<iota_sdk_types::UserSignature> for UserSignature {
-    fn merge(&mut self, source: iota_sdk_types::UserSignature, mask: &FieldMaskTree) {
+    fn merge(
+        &mut self,
+        source: iota_sdk_types::UserSignature,
+        mask: &FieldMaskTree,
+    ) -> Result<(), Box<dyn std::error::Error>> {
         if mask.contains(Self::BCS_FIELD.name) {
-            self.bcs = Some(BcsData::serialize(&source).unwrap());
+            self.bcs = Some(BcsData::serialize(&source)?);
         }
+
+        Ok(())
     }
 }
 
 impl Merge<&UserSignature> for UserSignature {
-    fn merge(&mut self, source: &UserSignature, mask: &FieldMaskTree) {
+    fn merge(
+        &mut self,
+        source: &UserSignature,
+        mask: &FieldMaskTree,
+    ) -> Result<(), Box<dyn std::error::Error>> {
         let UserSignature { bcs } = source;
 
         if mask.contains(Self::BCS_FIELD.name) {
             self.bcs = bcs.clone();
         }
+
+        Ok(())
     }
 }
 
@@ -75,13 +89,19 @@ impl TryFrom<&UserSignature> for iota_sdk_types::UserSignature {
 //
 
 impl Merge<&iota_sdk_types::SignedTransaction> for UserSignatures {
-    fn merge(&mut self, source: &iota_sdk_types::SignedTransaction, mask: &FieldMaskTree) {
+    fn merge(
+        &mut self,
+        source: &iota_sdk_types::SignedTransaction,
+        mask: &FieldMaskTree,
+    ) -> Result<(), Box<dyn std::error::Error>> {
         if let Some(signatures_mask) = mask.subtree(Self::SIGNATURES_FIELD.name) {
             self.signatures = source
                 .signatures
                 .iter()
                 .map(|sig| UserSignature::merge_from(sig.clone(), &signatures_mask))
-                .collect();
+                .collect::<Result<Vec<_>, _>>()?;
         }
+
+        Ok(())
     }
 }

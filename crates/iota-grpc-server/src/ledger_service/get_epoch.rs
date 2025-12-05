@@ -91,10 +91,13 @@ pub fn get_epoch(
         }
 
         if let Some(submask) = read_mask.subtree(Epoch::PROTOCOL_CONFIG_FIELD.name) {
-            message.protocol_config = Some(ProtocolConfig::merge_from(
-                get_protocol_config(epoch_info.protocol_version, service.chain)?,
-                &submask,
-            ));
+            message.protocol_config = Some(
+                ProtocolConfig::merge_from(
+                    get_protocol_config(epoch_info.protocol_version, service.chain)?,
+                    &submask,
+                )
+                .map_err(|e| Status::internal(format!("Failed to merge protocol config: {e}")))?,
+            );
         }
 
         // If we're not loading the current epoch then grab the indexed snapshot of the

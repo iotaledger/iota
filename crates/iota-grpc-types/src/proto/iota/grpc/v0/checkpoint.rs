@@ -11,26 +11,38 @@ use crate::{field::FieldMaskTree, merge::Merge, proto::TryFromProtoError, v0::bc
 // CheckpointSummary
 //
 
-impl From<iota_sdk_types::CheckpointSummary> for CheckpointSummary {
-    fn from(summary: iota_sdk_types::CheckpointSummary) -> Self {
+impl TryFrom<iota_sdk_types::CheckpointSummary> for CheckpointSummary {
+    type Error = Box<dyn std::error::Error>;
+
+    fn try_from(summary: iota_sdk_types::CheckpointSummary) -> Result<Self, Self::Error> {
         Self::merge_from(summary, &FieldMaskTree::new_wildcard())
     }
 }
 
 impl Merge<iota_sdk_types::CheckpointSummary> for CheckpointSummary {
-    fn merge(&mut self, source: iota_sdk_types::CheckpointSummary, mask: &FieldMaskTree) {
+    fn merge(
+        &mut self,
+        source: iota_sdk_types::CheckpointSummary,
+        mask: &FieldMaskTree,
+    ) -> Result<(), Box<dyn std::error::Error>> {
         if mask.contains(Self::BCS_FIELD.name) {
-            self.bcs = Some(BcsData::serialize(&source).unwrap());
+            self.bcs = Some(BcsData::serialize(&source)?);
         }
 
         if mask.contains(Self::DIGEST_FIELD.name) {
             self.digest = Some(source.digest().into());
         }
+
+        Ok(())
     }
 }
 
 impl Merge<&CheckpointSummary> for CheckpointSummary {
-    fn merge(&mut self, source: &CheckpointSummary, mask: &FieldMaskTree) {
+    fn merge(
+        &mut self,
+        source: &CheckpointSummary,
+        mask: &FieldMaskTree,
+    ) -> Result<(), Box<dyn std::error::Error>> {
         let CheckpointSummary { bcs, digest } = source;
 
         if mask.contains(Self::BCS_FIELD.name) {
@@ -40,6 +52,8 @@ impl Merge<&CheckpointSummary> for CheckpointSummary {
         if mask.contains(Self::DIGEST_FIELD.name) {
             self.digest = digest.clone();
         }
+
+        Ok(())
     }
 }
 
@@ -60,26 +74,38 @@ impl TryFrom<&CheckpointSummary> for iota_sdk_types::CheckpointSummary {
 // CheckpointContents
 //
 
-impl From<iota_sdk_types::CheckpointContents> for CheckpointContents {
-    fn from(value: iota_sdk_types::CheckpointContents) -> Self {
+impl TryFrom<iota_sdk_types::CheckpointContents> for CheckpointContents {
+    type Error = Box<dyn std::error::Error>;
+
+    fn try_from(value: iota_sdk_types::CheckpointContents) -> Result<Self, Self::Error> {
         Self::merge_from(value, &FieldMaskTree::new_wildcard())
     }
 }
 
 impl Merge<iota_sdk_types::CheckpointContents> for CheckpointContents {
-    fn merge(&mut self, source: iota_sdk_types::CheckpointContents, mask: &FieldMaskTree) {
+    fn merge(
+        &mut self,
+        source: iota_sdk_types::CheckpointContents,
+        mask: &FieldMaskTree,
+    ) -> Result<(), Box<dyn std::error::Error>> {
         if mask.contains(Self::BCS_FIELD.name) {
-            self.bcs = Some(BcsData::serialize(&source).unwrap());
+            self.bcs = Some(BcsData::serialize(&source)?);
         }
 
         if mask.contains(Self::DIGEST_FIELD.name) {
             self.digest = Some(source.digest().into());
         }
+
+        Ok(())
     }
 }
 
 impl Merge<&CheckpointContents> for CheckpointContents {
-    fn merge(&mut self, source: &CheckpointContents, mask: &FieldMaskTree) {
+    fn merge(
+        &mut self,
+        source: &CheckpointContents,
+        mask: &FieldMaskTree,
+    ) -> Result<(), Box<dyn std::error::Error>> {
         let CheckpointContents { bcs, digest } = source;
 
         if mask.contains(Self::BCS_FIELD.name) {
@@ -89,6 +115,8 @@ impl Merge<&CheckpointContents> for CheckpointContents {
         if mask.contains(Self::DIGEST_FIELD.name) {
             self.digest = digest.clone();
         }
+
+        Ok(())
     }
 }
 
@@ -109,14 +137,20 @@ impl TryFrom<&CheckpointContents> for iota_sdk_types::CheckpointContents {
 //
 
 impl Merge<&iota_sdk_types::CheckpointSummary> for Checkpoint {
-    fn merge(&mut self, source: &iota_sdk_types::CheckpointSummary, mask: &FieldMaskTree) {
+    fn merge(
+        &mut self,
+        source: &iota_sdk_types::CheckpointSummary,
+        mask: &FieldMaskTree,
+    ) -> Result<(), Box<dyn std::error::Error>> {
         if mask.contains(Self::SEQUENCE_NUMBER_FIELD.name) {
             self.sequence_number = Some(source.sequence_number);
         }
 
         if let Some(submask) = mask.subtree(Self::SUMMARY_FIELD.name) {
-            self.summary = Some(CheckpointSummary::merge_from(source.clone(), &submask));
+            self.summary = Some(CheckpointSummary::merge_from(source.clone(), &submask)?);
         }
+
+        Ok(())
     }
 }
 
@@ -125,23 +159,35 @@ impl Merge<iota_sdk_types::ValidatorAggregatedSignature> for Checkpoint {
         &mut self,
         source: iota_sdk_types::ValidatorAggregatedSignature,
         mask: &FieldMaskTree,
-    ) {
+    ) -> Result<(), Box<dyn std::error::Error>> {
         if mask.contains(Self::SIGNATURE_FIELD.name) {
             self.signature = Some(source.into());
         }
+
+        Ok(())
     }
 }
 
 impl Merge<iota_sdk_types::CheckpointContents> for Checkpoint {
-    fn merge(&mut self, source: iota_sdk_types::CheckpointContents, mask: &FieldMaskTree) {
+    fn merge(
+        &mut self,
+        source: iota_sdk_types::CheckpointContents,
+        mask: &FieldMaskTree,
+    ) -> Result<(), Box<dyn std::error::Error>> {
         if let Some(submask) = mask.subtree(Self::CONTENTS_FIELD.name) {
-            self.contents = Some(CheckpointContents::merge_from(source, &submask));
+            self.contents = Some(CheckpointContents::merge_from(source, &submask)?);
         }
+
+        Ok(())
     }
 }
 
 impl Merge<&Checkpoint> for Checkpoint {
-    fn merge(&mut self, source: &Checkpoint, mask: &FieldMaskTree) {
+    fn merge(
+        &mut self,
+        source: &Checkpoint,
+        mask: &FieldMaskTree,
+    ) -> Result<(), Box<dyn std::error::Error>> {
         let Checkpoint {
             sequence_number,
             summary,
@@ -156,7 +202,8 @@ impl Merge<&Checkpoint> for Checkpoint {
         if let Some(submask) = mask.subtree(Self::SUMMARY_FIELD.name) {
             self.summary = summary
                 .as_ref()
-                .map(|summary| CheckpointSummary::merge_from(summary, &submask));
+                .map(|summary| CheckpointSummary::merge_from(summary, &submask))
+                .transpose()?;
         }
 
         if mask.contains(Self::SIGNATURE_FIELD.name) {
@@ -166,8 +213,11 @@ impl Merge<&Checkpoint> for Checkpoint {
         if let Some(submask) = mask.subtree(Self::CONTENTS_FIELD.name) {
             self.contents = contents
                 .as_ref()
-                .map(|contents| CheckpointContents::merge_from(contents, &submask));
+                .map(|contents| CheckpointContents::merge_from(contents, &submask))
+                .transpose()?;
         }
+
+        Ok(())
     }
 }
 

@@ -147,7 +147,8 @@ fn get_object_impl(
 
     let mut message = Object::default();
 
-    Merge::merge(&mut message, &sdk_object, read_mask);
+    Merge::merge(&mut message, &sdk_object, read_mask)
+        .map_err(|e| anyhow::Error::msg(format!("Failed to merge object: {e}")))?;
 
     Ok(message)
 }

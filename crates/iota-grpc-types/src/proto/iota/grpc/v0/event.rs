@@ -43,25 +43,35 @@ impl From<&IotaEvent> for grpc_event::Event {
 
 // Merge implementation for Events from iota_sdk_types::TransactionEvents
 impl Merge<&iota_sdk_types::TransactionEvents> for grpc_event::Events {
-    fn merge(&mut self, source: &iota_sdk_types::TransactionEvents, mask: &FieldMaskTree) {
+    fn merge(
+        &mut self,
+        source: &iota_sdk_types::TransactionEvents,
+        mask: &FieldMaskTree,
+    ) -> Result<(), Box<dyn std::error::Error>> {
         if let Some(events_mask) = mask.subtree(Self::EVENTS_FIELD.name) {
             // TransactionEvents is a tuple struct with Vec<Event> at index 0
             self.events = source
                 .0
                 .iter()
-                .map(|event| {
+                .map(|event| -> Result<_, Box<dyn std::error::Error>> {
                     let mut proto_event = grpc_event::Event::default();
-                    proto_event.merge(event, &events_mask);
-                    proto_event
+                    proto_event.merge(event, &events_mask)?;
+                    Ok(proto_event)
                 })
-                .collect();
+                .collect::<Result<Vec<_>, _>>()?;
         }
+
+        Ok(())
     }
 }
 
 // Merge implementation for individual Event from iota_sdk_types::Event
 impl Merge<&iota_sdk_types::Event> for grpc_event::Event {
-    fn merge(&mut self, source: &iota_sdk_types::Event, mask: &FieldMaskTree) {
+    fn merge(
+        &mut self,
+        source: &iota_sdk_types::Event,
+        mask: &FieldMaskTree,
+    ) -> Result<(), Box<dyn std::error::Error>> {
         if mask.contains(Self::BCS_FIELD.name) {
             if let Ok(bcs_bytes) = bcs::to_bytes(source) {
                 self.bcs = Some(grpc_bcs::BcsData {
@@ -95,6 +105,8 @@ impl Merge<&iota_sdk_types::Event> for grpc_event::Event {
                 data: source.contents.clone().into(),
             });
         }
+
+        Ok(())
 
         // json_contents is not populated here by default - it requires Move
         // type layout information which is not available at this level.
