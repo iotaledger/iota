@@ -502,7 +502,7 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
             let pt = builder.finish();
             TransactionData::new_programmable(sender, gas, pt, gas_budget, gas_price)
         };
-        let transaction = self.sign_txn(sender, data);
+        let transaction = self.sign_txn(sender, data, false);
         let summary = self.execute_txn(transaction).await?;
         let created_package = summary
             .created
@@ -756,15 +756,19 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
                 };
                 let gas_budget = gas_budget.unwrap_or(DEFAULT_GAS_BUDGET);
                 let gas_price: u64 = gas_price.unwrap_or(self.gas_price);
-                let transaction = self.sign_txn(sender, |sender, gas| {
-                    let rec_arg = builder.pure(recipient).unwrap();
-                    builder.command(iota_types::transaction::Command::TransferObjects(
-                        vec![obj_arg],
-                        rec_arg,
-                    ));
-                    let pt = builder.finish();
-                    TransactionData::new_programmable(sender, gas, pt, gas_budget, gas_price)
-                });
+                let transaction = self.sign_txn(
+                    sender,
+                    |sender, gas| {
+                        let rec_arg = builder.pure(recipient).unwrap();
+                        builder.command(iota_types::transaction::Command::TransferObjects(
+                            vec![obj_arg],
+                            rec_arg,
+                        ));
+                        let pt = builder.finish();
+                        TransactionData::new_programmable(sender, gas, pt, gas_budget, gas_price)
+                    },
+                    false,
+                );
                 let summary = self.execute_txn(transaction).await?;
                 let output = self.object_summary_output(&summary, /* summarize */ false);
                 Ok(output)
@@ -1545,7 +1549,7 @@ impl IotaTestAdapter {
             let data = |sender, gas| {
                 TransactionData::new_programmable(sender, gas, pt, gas_budget, gas_price)
             };
-            let transaction = self.sign_txn(Some(sender), data);
+            let transaction = self.sign_txn(Some(sender), data, false);
             self.execute_txn(transaction).await?
         };
         let created_package = summary
@@ -1584,8 +1588,13 @@ impl IotaTestAdapter {
             // gas
             Vec<ObjectRef>,
         ) -> TransactionData,
+        is_default_acc: bool,
     ) -> Transaction {
-        let sender = self.get_sender(sender);
+        let sender = if is_default_acc {
+            &self.default_account
+        } else {
+            self.get_sender(sender)
+        };
         self.sign_sponsor_txn(sender, None, vec![], None, move |sender, _, gas| {
             txn_data(sender, gas)
         })
@@ -1698,7 +1707,7 @@ impl IotaTestAdapter {
             let pt = builder.finish();
             TransactionData::new_programmable(sender, gas, pt, gas_budget, gas_price)
         };
-        Ok(self.sign_txn(sender, data))
+        Ok(self.sign_txn(sender, data, false))
     }
 
     async fn execute_txn(&mut self, transaction: Transaction) -> anyhow::Result<TxnSummary> {
@@ -2150,35 +2159,23 @@ impl IotaTestAdapter {
         recipient: IotaAddress,
         amount: u64,
     ) -> anyhow::Result<ObjectRef> {
-        let mut builder = ProgrammableTransactionBuilder::new();
+        let data = |sender, gas| {
+            let mut builder = ProgrammableTransactionBuilder::new();
 
-        let amount_arg = builder.pure(amount)?;
-        let new_coin_arg =
-            builder.command(Command::SplitCoins(Argument::GasCoin, vec![amount_arg]));
+            let amount_arg = builder.pure(amount).unwrap();
+            let recipient_arg = builder.pure(recipient).unwrap();
+            let gas_budget = DEFAULT_GAS_BUDGET;
+            let gas_price: u64 = self.gas_price;
+            let new_coin_arg =
+                builder.command(Command::SplitCoins(Argument::GasCoin, vec![amount_arg]));
+            builder.command(Command::TransferObjects(vec![new_coin_arg], recipient_arg));
 
-        let recipient_arg = builder.pure(recipient)?;
-        builder.command(Command::TransferObjects(vec![new_coin_arg], recipient_arg));
+            let pt = builder.finish();
 
-        let pt = builder.finish();
-
-        let gas_budget = DEFAULT_GAS_BUDGET;
-        let gas_price: u64 = self.gas_price;
-
-        let sender = &self.default_account;
-        let gas_refs = self.get_payments(sender, vec![]);
-
-        let data =
-            TransactionData::new_programmable(sender.address, gas_refs, pt, gas_budget, gas_price);
-
-        let tx = to_sender_signed_transaction(
-            data,
-            sender
-                .key_pair
-                .as_ref()
-                .expect("Default account must have keypair"),
-        );
-
-        let (effects, _) = self.executor.execute_txn(tx).await?;
+            TransactionData::new_programmable(sender, gas, pt, gas_budget, gas_price)
+        };
+        let transaction = self.sign_txn(None, data, true);
+        let (effects, _) = self.executor.execute_txn(transaction).await?;
 
         match effects.status() {
             ExecutionStatus::Success => {
