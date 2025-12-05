@@ -70,6 +70,7 @@ pub(crate) trait KeyValueStoreClient {
     ) -> IndexerResult<Vec<Option<Object>>>;
 }
 
+#[derive(Clone)]
 pub(crate) struct HttpRestKVClient {
     base_url: Url,
     client: Client,

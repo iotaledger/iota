@@ -99,31 +99,14 @@ pub struct IndexerReader {
     pool: ConnectionPool,
     package_resolver: PackageResolver,
     obj_type_cache: Arc<Mutex<SizedCache<String, Option<ObjectID>>>>,
-    kv_reader: Option<Arc<HistoricalFallbackReader>>,
+    kv_reader: Option<HistoricalFallbackReader>,
 }
 
-/// Encapsulates the logic for reading checkpointed data from the database.
+/// Encapsulates the logic for reading data from the database.
 ///
-/// This reader only accesses finalized checkpoint data and does not read
-/// optimistic transactions or historical fallback data from the key-value
-/// store.
-///
-/// Note that object queries will include optimistic data,
-/// as it is stored in the same table as checkpointed objects.
-pub struct CheckpointedDBReader<'a> {
-    main_reader: &'a IndexerReader,
-}
-
-/// Encapsulates the logic for reading checkpointed data with historical
-/// fallback.
-///
-/// This reader first attempts to read from the database. If data is not found,
-/// it falls back to the key-value store (when available). It does not read
-/// optimistic transactions.
-///
-/// Note that object queries will include optimistic data,
-/// as it is stored in the same table as checkpointed objects.
-pub struct CheckpointedDBWithHistoricalFallbackReader<'a> {
+/// This reader only reads data from the DB (checkpointed or optimistic data)
+/// and does not read historical fallback data from the key-value store.
+pub struct DBReader<'a> {
     main_reader: &'a IndexerReader,
 }
 
@@ -144,12 +127,8 @@ impl IndexerReader {
         }
     }
 
-    pub fn checkpointed_db(&self) -> CheckpointedDBReader<'_> {
-        CheckpointedDBReader::new(self)
-    }
-
-    pub fn checkpointed_db_with_fallback(&self) -> CheckpointedDBWithHistoricalFallbackReader<'_> {
-        CheckpointedDBWithHistoricalFallbackReader::new(self)
+    pub fn db(&self) -> DBReader<'_> {
+        DBReader::new(self)
     }
 
     pub fn new_with_config<T: Into<String>>(
@@ -1086,6 +1065,33 @@ impl IndexerReader {
         .await
     }
 
+    async fn query_transactions_by_checkpoint_seq_with_fallback(
+        &self,
+        checkpoint_seq: u64,
+        cursor: Option<TransactionDigest>,
+        limit: usize,
+        is_descending: bool,
+        options: iota_json_rpc_types::IotaTransactionBlockResponseOptions,
+    ) -> IndexerResult<Vec<IotaTransactionBlockResponse>> {
+        let db_res = self
+            .db()
+            .query_transactions_by_checkpoint_seq(checkpoint_seq, cursor, limit, is_descending)
+            .await;
+        let stored_txs = if let (Err(IndexerError::PostgresDataPruned(err)), Some(kv_reader)) =
+            (db_res.as_ref(), self.kv_reader.as_ref())
+        {
+            let fallback_reason = format!("fallback triggered by {err}");
+            kv_reader
+                .checkpoint_transactions(cursor, checkpoint_seq, limit, is_descending)
+                .await
+                .context(&fallback_reason)?
+        } else {
+            db_res?
+        };
+        self.stored_transaction_to_transaction_block(stored_txs, options)
+            .await
+    }
+
     async fn query_transaction_blocks_impl_with_checkpointed_data_only(
         &self,
         filter: Option<TransactionFilterKind>,
@@ -1098,8 +1104,7 @@ impl IndexerReader {
             Some(TransactionFilterKind::V1(TransactionFilter::Checkpoint(seq)))
             | Some(TransactionFilterKind::V2(TransactionFilterV2::Checkpoint(seq))) => {
                 return self
-                    .checkpointed_db_with_fallback()
-                    .query_transactions_by_checkpoint_seq(
+                    .query_transactions_by_checkpoint_seq_with_fallback(
                         seq,
                         cursor,
                         limit,
@@ -1113,7 +1118,7 @@ impl IndexerReader {
 
         let cursor_tx_seq = if let Some(cursor) = cursor {
             Some(
-                self.checkpointed_db()
+                self.db()
                     .resolve_cursor_tx_digest_to_seq_num(cursor)
                     .await?,
             )
@@ -1511,6 +1516,45 @@ impl IndexerReader {
         })
     }
 
+    async fn query_events_by_tx_digest_with_fallback(
+        &self,
+        tx_digest: TransactionDigest,
+        cursor: Option<EventID>,
+        limit: usize,
+        descending_order: bool,
+    ) -> IndexerResult<Vec<IotaEvent>> {
+        let db_res = self
+            .db()
+            .query_events_by_tx_digest(tx_digest, cursor, limit, descending_order)
+            .await;
+
+        if let (Err(IndexerError::PostgresDataPruned(err)), Some(kv_reader)) =
+            (db_res.as_ref(), self.kv_reader.as_ref())
+        {
+            let fallback_reason = format!("fallback triggered by {err}");
+            kv_reader
+                .events(tx_digest, cursor, limit, descending_order)
+                .await
+                .context(&fallback_reason)
+        } else {
+            let mut iota_event_futures = vec![];
+            for stored_event in db_res? {
+                iota_event_futures.push(tokio::task::spawn(
+                    stored_event.try_into_iota_event(self.package_resolver.clone()),
+                ));
+            }
+
+            futures::future::join_all(iota_event_futures)
+                .await
+                .into_iter()
+                .collect::<Result<Vec<_>, _>>()
+                .tap_err(|e| tracing::error!("failed to join iota event futures: {e}"))?
+                .into_iter()
+                .collect::<Result<Vec<_>, _>>()
+                .tap_err(|e| tracing::error!("failed to collect iota event futures: {e}"))
+        }
+    }
+
     pub(crate) async fn query_only_checkpointed_events_in_blocking_task(
         &self,
         filter: EventFilter,
@@ -1520,8 +1564,7 @@ impl IndexerReader {
     ) -> IndexerResult<Vec<IotaEvent>> {
         if let EventFilter::Transaction(tx_digest) = filter {
             return self
-                .checkpointed_db_with_fallback()
-                .query_events_by_tx_digest(tx_digest, cursor, limit, descending_order)
+                .query_events_by_tx_digest_with_fallback(tx_digest, cursor, limit, descending_order)
                 .await;
         }
 
@@ -1531,7 +1574,7 @@ impl IndexerReader {
                 event_seq,
             } = cursor;
             let tx_seq: i64 = self
-                .checkpointed_db()
+                .db()
                 .resolve_cursor_tx_digest_to_seq_num(tx_digest)
                 .await?;
             (tx_seq, event_seq as i64)
@@ -2336,7 +2379,7 @@ impl DataReader for IndexerReader {
     }
 }
 
-impl<'a> CheckpointedDBReader<'a> {
+impl<'a> DBReader<'a> {
     pub fn new(reader: &'a IndexerReader) -> Self {
         Self {
             main_reader: reader,
@@ -2485,89 +2528,6 @@ impl<'a> CheckpointedDBReader<'a> {
                 .first::<i64>(conn)
                 .optional()
         })
-    }
-}
-
-impl<'a> CheckpointedDBWithHistoricalFallbackReader<'a> {
-    pub fn new(reader: &'a IndexerReader) -> Self {
-        Self {
-            main_reader: reader,
-        }
-    }
-
-    async fn query_transactions_by_checkpoint_seq(
-        &self,
-        checkpoint_seq: u64,
-        cursor: Option<TransactionDigest>,
-        limit: usize,
-        is_descending: bool,
-        options: iota_json_rpc_types::IotaTransactionBlockResponseOptions,
-    ) -> IndexerResult<Vec<IotaTransactionBlockResponse>> {
-        let db_res = self
-            .main_reader
-            .checkpointed_db()
-            .query_transactions_by_checkpoint_seq(checkpoint_seq, cursor, limit, is_descending)
-            .await;
-        let stored_txs = if let (Err(IndexerError::PostgresDataPruned(err)), Some(kv_reader)) =
-            (db_res.as_ref(), self.main_reader.kv_reader.as_ref())
-        {
-            let fallback_reason = format!("fallback triggered by {err}");
-            let txs = kv_reader
-                .checkpoint_transactions(cursor, checkpoint_seq, limit, is_descending)
-                .await
-                .context(&fallback_reason)?;
-            if txs.iter().any(|tx| tx.is_none()) {
-                return Err(IndexerError::Generic(format!(
-                    "Historic Fallback failed, KV doesn't have full data for checkpoint {checkpoint_seq}, {fallback_reason}"
-                )));
-            }
-            txs.into_iter().flatten().collect::<Vec<_>>()
-        } else {
-            db_res?
-        };
-        self.main_reader
-            .stored_transaction_to_transaction_block(stored_txs, options)
-            .await
-    }
-
-    async fn query_events_by_tx_digest(
-        &self,
-        tx_digest: TransactionDigest,
-        cursor: Option<EventID>,
-        limit: usize,
-        descending_order: bool,
-    ) -> IndexerResult<Vec<IotaEvent>> {
-        let db_res = self
-            .main_reader
-            .checkpointed_db()
-            .query_events_by_tx_digest(tx_digest, cursor, limit, descending_order)
-            .await;
-
-        if let (Err(IndexerError::PostgresDataPruned(err)), Some(kv_reader)) =
-            (db_res.as_ref(), self.main_reader.kv_reader.as_ref())
-        {
-            let fallback_reason = format!("fallback triggered by {err}");
-            kv_reader
-                .events(tx_digest, cursor, limit, descending_order)
-                .await
-                .context(&fallback_reason)
-        } else {
-            let mut iota_event_futures = vec![];
-            for stored_event in db_res? {
-                iota_event_futures.push(tokio::task::spawn(
-                    stored_event.try_into_iota_event(self.main_reader.package_resolver.clone()),
-                ));
-            }
-
-            futures::future::join_all(iota_event_futures)
-                .await
-                .into_iter()
-                .collect::<Result<Vec<_>, _>>()
-                .tap_err(|e| tracing::error!("failed to join iota event futures: {e}"))?
-                .into_iter()
-                .collect::<Result<Vec<_>, _>>()
-                .tap_err(|e| tracing::error!("failed to collect iota event futures: {e}"))
-        }
     }
 }
 
