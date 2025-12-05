@@ -779,7 +779,7 @@ pub fn all_natives(silent: bool, protocol_config: &ProtocolConfig) -> NativeFunc
         ("address", "from_u256", make_native!(address::from_u256)),
         (
             "account",
-            "borrow_account_uid",
+            "borrow_account_uid_mut",
             make_native!(object::borrow_uid),
         ),
         (

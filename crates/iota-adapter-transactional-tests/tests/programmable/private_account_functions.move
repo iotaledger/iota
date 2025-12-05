@@ -15,9 +15,7 @@ public struct Account has key { id: UID }
 public fun create(ctx: &mut TxContext): Account { Account { id: object::new(ctx) } }
 
 #[authenticator]
-public fun authenticate(_: &Account, _auth_ctx: &AuthContext, _ctx: &TxContext) {
-    abort 0
-}
+public fun authenticate(_: &Account, _auth_ctx: &AuthContext, _ctx: &TxContext) {}
 
 //# programmable --inputs object(1,1) "account" "authenticate"
 //> 0: test::account::create();

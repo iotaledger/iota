@@ -1450,7 +1450,7 @@ auth_info_v1_key
 attach_auth_info_v1
 	fun
 	0x2::account
-borrow_account_uid
+borrow_account_uid_mut
 	fun
 	0x2::account
 create_shared_account_v1_impl
