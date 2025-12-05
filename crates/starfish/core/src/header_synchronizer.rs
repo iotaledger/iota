@@ -1500,12 +1500,14 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
 mod tests {
     use std::{
         collections::{BTreeMap, BTreeSet},
+        num::NonZero,
         sync::Arc,
         time::Duration,
     };
 
     use async_trait::async_trait;
     use bytes::Bytes;
+    use iota_metrics::monitored_mpsc;
     use parking_lot::RwLock;
     use starfish_config::{AuthorityIndex, Parameters};
     use tokio::{sync::Mutex, time::sleep};
@@ -2838,16 +2840,13 @@ mod tests {
             )
             .await;
 
-            // 5) Knowledge-based fetches should go to 2 and 3, additional random requests
-            //    go to 1 (only one authority because in additional requests we ask
-            //    different authorities for different headers,
-            // and we have only one header).
-            // For authorities 1 and 3 we will have request timeout. After the request
+            // 5) Knowledge-based fetches should go to 2 and 3.
+            // For authoritiy 3 we will have request timeout. After the request
             // timeout they try to swap locks and request the header from remaining
-            // authorities, first two of them are authorities 4 and 5. Assert we
-            // got exactly three fetches - from 2 (knowledge-based), and from 4 and 5
-            // (request from remaining authorities after timeout)
-            assert_eq!(results.len(), 3);
+            // authorities, first two of them are authorities 4. Assert we
+            // got exactly three fetches - from 2 (knowledge-based), and from 4
+            // (request from remaining authority after timeout)
+            assert_eq!(results.len(), 2);
 
             // 6) The results should come in the following order: 2, 4, 5
             let peers: Vec<_> = results.iter().map(|(_, _, peer)| *peer).collect();
@@ -2856,7 +2855,6 @@ mod tests {
                 vec![
                     AuthorityIndex::new_for_test(2),
                     AuthorityIndex::new_for_test(4),
-                    AuthorityIndex::new_for_test(5)
                 ]
             );
 
@@ -3125,5 +3123,149 @@ mod tests {
                 std::panic::resume_unwind(err.into_panic());
             }
         }
+    }
+
+    #[tokio::test]
+    async fn test_process_fetched_blocks() {
+        // GIVEN
+        let (context, _) = Context::new_for_test(4);
+        let context = Arc::new(context);
+        let block_verifier = Arc::new(NoopBlockVerifier {});
+        let core_dispatcher = Arc::new(MockCoreThreadDispatcher::default());
+        let commit_vote_monitor = Arc::new(CommitVoteMonitor::new(context.clone()));
+        let store = Arc::new(MemStore::new());
+        let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
+        let (commands_sender, _commands_receiver) =
+            monitored_mpsc::channel("consensus_synchronizer_commands", 1000);
+        let network_client = Arc::new(MockNetworkClient::default());
+
+        // Set up synchronizers
+        let transactions_synchronizer = TransactionsSynchronizer::start(
+            network_client.clone(),
+            context.clone(),
+            core_dispatcher.clone(),
+            dag_state.clone(),
+        );
+        // Create input test blocks:
+        // - Authority 0 block at round 60.
+        // - Authority 1 blocks from round 30 to 60.
+        let mut expected_block_headers = vec![VerifiedBlockHeader::new_for_test(
+            TestBlockHeader::new(60, 0).build(),
+        )];
+        expected_block_headers.extend((30..=60).map(|round| {
+            VerifiedBlockHeader::new_for_test(TestBlockHeader::new(round, 1).build())
+        }));
+        assert_eq!(expected_block_headers.len(), 32);
+
+        let expected_serialized_block_headers = expected_block_headers
+            .iter()
+            .map(|b| b.serialized().clone())
+            .collect::<Vec<_>>();
+
+        let expected_block_refs = expected_block_headers
+            .iter()
+            .map(|b| b.reference())
+            .collect::<BTreeSet<_>>();
+
+        // GIVEN peer to fetch blocks from
+        let peer_index = AuthorityIndex::new_for_test(2);
+
+        // Create blocks_guard
+        let inflight_blocks_map = InflightBlockHeadersMap::new();
+        let blocks_guard = inflight_blocks_map
+            .lock_headers(expected_block_refs.clone(), peer_index, SyncMethod::Live)
+            .expect("Failed to lock blocks");
+
+        assert_eq!(
+            inflight_blocks_map.num_of_locked_headers(),
+            expected_block_refs.len()
+        );
+
+        // Create a shared LruCache that will be reused to verify duplicate prevention
+        let verified_cache = Arc::new(parking_lot::Mutex::new(lru::LruCache::new(
+            NonZero::new(1000).unwrap(),
+        )));
+
+        // Create a Synchronizer
+        let result = HeaderSynchronizer::<
+            MockNetworkClient,
+            NoopBlockVerifier,
+            MockCoreThreadDispatcher,
+        >::process_fetched_headers_from_authority(
+            expected_serialized_block_headers.clone(),
+            peer_index,
+            blocks_guard, // The guard is consumed here
+            core_dispatcher.clone(),
+            block_verifier.clone(),
+            verified_cache.clone(),
+            commit_vote_monitor.clone(),
+            transactions_synchronizer.clone(),
+            context.clone(),
+            commands_sender.clone(),
+            "live",
+        )
+        .await;
+
+        // THEN
+        assert!(result.is_ok());
+
+        // Check blocks were sent to core
+        let added_block_headers = core_dispatcher.get_and_drain_block_headers().await;
+        assert_eq!(
+            added_block_headers
+                .iter()
+                .map(|b| b.reference())
+                .collect::<BTreeSet<_>>(),
+            expected_block_refs,
+        );
+
+        // Check blocks were unlocked
+        assert_eq!(inflight_blocks_map.num_of_locked_headers(), 0);
+
+        // PART 2: Verify LruCache prevents duplicate processing
+        // Try to process the same block headers again (simulating duplicate fetch)
+        let blocks_guard_second = inflight_blocks_map
+            .lock_headers(expected_block_refs.clone(), peer_index, SyncMethod::Live)
+            .expect("Failed to lock blocks for second call");
+
+        let result_second = HeaderSynchronizer::<
+            MockNetworkClient,
+            NoopBlockVerifier,
+            MockCoreThreadDispatcher,
+        >::process_fetched_headers_from_authority(
+            expected_serialized_block_headers,
+            peer_index,
+            blocks_guard_second,
+            core_dispatcher.clone(),
+            block_verifier,
+            verified_cache.clone(),
+            commit_vote_monitor,
+            transactions_synchronizer,
+            context.clone(),
+            commands_sender,
+            "live",
+        )
+        .await;
+
+        assert!(result_second.is_ok());
+
+        // Verify NO block headers were sent to core on the second call
+        // because they were already in the LruCache
+        let added_block_headers_second_call = core_dispatcher.get_and_drain_block_headers().await;
+        assert!(
+            added_block_headers_second_call.is_empty(),
+            "Expected no block headers to be added on second call due to LruCache, but got {} headers",
+            added_block_headers_second_call.len()
+        );
+
+        // Verify the cache contains all the block header digests
+        let cache_size = verified_cache.lock().len();
+        assert_eq!(
+            cache_size,
+            expected_block_refs.len(),
+            "Expected {} entries in the LruCache, but got {}",
+            expected_block_refs.len(),
+            cache_size
+        );
     }
 }
