@@ -2281,7 +2281,7 @@ impl IotaTestAdapter {
             .context("abstract account package address not found")?
             .into_inner();
         let aa_module_name = account_type_parts[1].clone();
-        account_type_parts[0] = format!("0x{}", aa_package_addr);
+        account_type_parts[0] = format!("0x{aa_package_addr}");
         let account_type = account_type_parts.join("::");
         Ok((
             aa_package_addr.into(),
