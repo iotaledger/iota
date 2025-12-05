@@ -29,9 +29,8 @@ impl ThresholdClock {
         }
     }
 
-    /// Add a block's author to the aggregator. If quorum (2f+1) is reached,
-    /// advance to the next round and record latency metrics.
-    /// Returns true if quorum was reached.
+    /// If quorum (2f+1) is reached, advance to the next round and record
+    /// latency metrics. Returns true if quorum was reached.
     fn try_advance_round(&mut self, new_round: Round) -> bool {
         if self.aggregator.reached_threshold(&self.context.committee) {
             self.aggregator.clear();

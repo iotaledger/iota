@@ -54,9 +54,9 @@ impl ThresholdClock {
     /// Round advancement rules:
     /// - block.round < current: ignored (stale block)
     /// - block.round > current: jump to block.round, start collecting stake there
-    /// - block.round == current: continue accumulating stake
+    /// - block.round == current: continue accumulating stake until quorum (2f+1) reached
     ///
-    /// When quorum is reached, advance to next round: round + 1.
+    /// When quorum is reached, advance to round + 1.
     pub(crate) fn add_block_header(&mut self, block_header: BlockRef) {
         match block_header.round.cmp(&self.round) {
             Ordering::Less => {}
@@ -162,46 +162,14 @@ mod tests {
         let mut aggregator = ThresholdClock::new(0, context);
 
         let block_refs = vec![
-            BlockRef::new(
-                0,
-                AuthorityIndex::new_for_test(0),
-                BlockHeaderDigest::default(),
-            ),
-            BlockRef::new(
-                0,
-                AuthorityIndex::new_for_test(1),
-                BlockHeaderDigest::default(),
-            ),
-            BlockRef::new(
-                0,
-                AuthorityIndex::new_for_test(2),
-                BlockHeaderDigest::default(),
-            ),
-            BlockRef::new(
-                1,
-                AuthorityIndex::new_for_test(0),
-                BlockHeaderDigest::default(),
-            ),
-            BlockRef::new(
-                1,
-                AuthorityIndex::new_for_test(3),
-                BlockHeaderDigest::default(),
-            ),
-            BlockRef::new(
-                2,
-                AuthorityIndex::new_for_test(1),
-                BlockHeaderDigest::default(),
-            ),
-            BlockRef::new(
-                1,
-                AuthorityIndex::new_for_test(1),
-                BlockHeaderDigest::default(),
-            ),
-            BlockRef::new(
-                5,
-                AuthorityIndex::new_for_test(2),
-                BlockHeaderDigest::default(),
-            ),
+            BlockRef::new(0, AuthorityIndex::new_for_test(0), BlockHeaderDigest::default()),
+            BlockRef::new(0, AuthorityIndex::new_for_test(1), BlockHeaderDigest::default()),
+            BlockRef::new(0, AuthorityIndex::new_for_test(2), BlockHeaderDigest::default()),
+            BlockRef::new(1, AuthorityIndex::new_for_test(0), BlockHeaderDigest::default()),
+            BlockRef::new(1, AuthorityIndex::new_for_test(3), BlockHeaderDigest::default()),
+            BlockRef::new(2, AuthorityIndex::new_for_test(1), BlockHeaderDigest::default()),
+            BlockRef::new(1, AuthorityIndex::new_for_test(1), BlockHeaderDigest::default()),
+            BlockRef::new(5, AuthorityIndex::new_for_test(2), BlockHeaderDigest::default()),
         ];
 
         let result = aggregator.add_blocks(block_refs);
