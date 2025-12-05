@@ -62,20 +62,12 @@ To run the indexer as a standalone service with an existing fullnode, follow the
 - to run the indexer as a writer (Sync worker), which pulls data from a fullnode and writes data to the database
 
 ```sh
-# Old CLI
-cargo run --bin iota-indexer -- --db-url "postgres://postgres:postgrespw@localhost/iota_indexer" --rpc-client-url "http://0.0.0.0:9000" --fullnode-sync-worker --reset-db
-
-# New CLI
 cargo run --bin iota-indexer -- --db-url "postgres://postgres:postgrespw@localhost/iota_indexer" indexer --remote-store-url "http://0.0.0.0:9000/api/v1" --reset-db
 ```
 
 - to run indexer as a reader which exposes a JSON RPC service with following [APIs](https://docs.iota.org/iota-api-ref).
 
 ```sh
-# Old CLI
-cargo run --bin iota-indexer -- --db-url "postgres://postgres:postgrespw@localhost/iota_indexer" --rpc-client-url "http://0.0.0.0:9000" --rpc-server-worker
-
-# New CLI
 cargo run --bin iota-indexer -- --db-url "postgres://postgres:postgrespw@localhost/iota_indexer" json-rpc-service --rpc-client-url "http://0.0.0.0:9000" --rpc-address "0.0.0.0:9124"
 ```
 
