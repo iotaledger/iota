@@ -20,7 +20,7 @@ In traditional blockchains, users must buy tokens, fund wallets, and pay `gas fe
 sequenceDiagram
     participant User as User (Browser)
     participant Frontend as Spark Mini<br/>(React + dApp Kit)
-    participant Wallet as Firefly / Wallet
+    participant Wallet as IOTA Wallet
     participant GasStation as IOTA Gas Station<br/>(localhost:9527)
     participant Node as IOTA Testnet Node
 
@@ -208,7 +208,7 @@ export default function App() {
 <h3>Explanation:</h3>
 
 `useWallets` returns all detected wallets. When a user connects, `accounts.length > 0`. The `ConnectButton` automatically opens the official modal and handles all wallet standards.
-Test it: Click Connect → Choose Firefly → Success! You now see your address.
+Test it: Click Connect → Choose IOTA Wallet → Success! You now see your address.
 
 ## Part 3 – Fund the Gas Station Sponsor
 
@@ -326,7 +326,7 @@ This is the complete sponsored transaction flow:
 - User builds intent
 - Reserves gas from sponsor
 - Attaches sponsor’s gas objects
-- Signs with wallet (Firefly popup)
+- Signs with wallet (IOTA Wallet popup)
 - Gas Station co-signs and submits
 - Success → on-chain forever!
 
@@ -389,7 +389,7 @@ Clean, responsive UI with live feed and explorer links. Every post is permanentl
 ## Final Test
 
 - `npm run dev`
-- Connect Firefly
+- Connect IOTA Wallet
 - Type a message → Post Spark
 - Approve in wallet
 - Success! Your message appears + explorer link works
