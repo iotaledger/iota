@@ -2396,6 +2396,7 @@ mod tests {
 
         added_block_headers.sort_by_key(|block| block.reference());
         expected_blocks.sort_by_key(|block| block.reference());
+        expected_blocks.dedup_by_key(|block| block.reference());
 
         assert_eq!(added_block_headers, expected_blocks);
     }
