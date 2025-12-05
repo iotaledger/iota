@@ -7,6 +7,7 @@ import {
     IotaObjectChangeMutated,
     IotaObjectChangePublished,
     IotaObjectChangeTransferred,
+    IotaObjectChangeUnwrapped,
     IotaObjectChangeWrapped,
 } from '@iota/iota-sdk/client';
 
@@ -38,7 +39,7 @@ export const getObjectChangeSummary = (objectChanges: IotaObjectChangeWithDispla
 
     const unwrapped = objectChanges.filter(
         (change) => change.type === 'unwrapped',
-    ) as IotaObjectChangeWithDisplay[];
+    ) as IotaObjectChangeUnwrapped[];
 
     const deleted = objectChanges.filter(
         (change) => change.type === 'deleted',
