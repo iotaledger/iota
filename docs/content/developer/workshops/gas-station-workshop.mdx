@@ -85,14 +85,42 @@ mkdir spark-mini-workshop && cd spark-mini-workshop
 
 This creates a dedicated folder for the entire workshop. All code and services will live here.
 
-### 1.2 Clone and Launch the Official IOTA Gas Station
+### 1.2 Clone the IOTA Gas Station Repository:
 
 ```Bash
-git clone https://github.com/iotaledger/gas-station.git
-cd gas-station
-../utils/./gas-station-tool.sh generate-sample-config --config-path config.yaml --docker-compose -n testnet
-GAS_STATION_AUTH=supersecret123 docker compose up -d
+git clone https://github.com/iotaledger/gas-station
 ```
+
+### 1.3 Navigate to the Docker Directory and Generate the Config File:
+
+```bash
+cd gas-station/docker
+../utils/./gas-station-tool.sh generate-sample-config --config-path config.yaml --docker-compose -n testnet
+```
+
+### 1.4 Start the Gas Station
+
+```bash
+GAS_STATION_AUTH=supersecret123 docker compose up
+```
+
+:::info
+Set Up Authentication: Define a bearer token for the Gas Station API using the `GAS_STATION_AUTH` environment variable. If set, this token must be provided in all requests to the Gas Station, except for the `/` and `/version` endpoints. It can also be omitted to disable default authentication, e.g. if one wants to add a custom authentication to the server. In this case, requests against the Gas Station can be made without an authentication token.
+:::
+
+<h3>Expected Output:</h3>
+
+When the gas station starts, it will perform the initial coin-splitting procedure. You should see logs similar to the following:
+
+```bash
+2024-12-16T17:12:49.369620Z  INFO iota_gas_station::gas_station_initializer: Number of coins got so far: 392
+2024-12-16T17:12:49.369690Z  INFO iota_gas_station::gas_station_initializer: Splitting finished. Got 392 coins. New total balance: 39615604800. Spent 384395200 gas in total
+2024-12-16T17:12:49.381289Z DEBUG iota_gas_station::storage::redis: After add_new_coins. New total balance: 39615604800, new coin count: 392
+2024-12-16T17:12:49.381378Z DEBUG iota_gas_station::storage::redis: Releasing the init lock.
+2024-12-16T17:12:49.382094Z  INFO iota_gas_station::gas_station_initializer: New coin initialization took 0s
+2024-12-16T17:12:49.383373Z  INFO iota_gas_station::rpc::server: listening on 0.0.0.0:9527
+```
+
 <h3>Explanation:</h3>
 
 We are deploying the official, production-ready Gas Station using Docker. The `generate-sample-config` tool creates a testnet-ready configuration. The environment variable sets the auth token to `supersecret123`.
@@ -114,10 +142,19 @@ A successful response confirms the RPC server is listening on port 9527 and read
 ### 1.4 Create the React Frontend
 
 ```bash
+# 1. Go back to the workshop root folder
 cd ..
+
+# 2. Create the React frontend (Vite + TypeScript template)
 npx create-vite@latest frontend --template react-ts
+
+# 3. Enter the frontend folder
 cd frontend
+
+# 4. Install default dependencies (Vite, React, etc.)
 npm install
+
+# 5. Install IOTA and workshop-specific packages
 npm install @iota/dapp-kit @iota/iota-sdk @tanstack/react-query axios
 ```
 
@@ -245,7 +282,7 @@ import axios from 'axios';
 
 const GAS_STATION_URL = 'http://localhost:9527';
 const GAS_STATION_AUTH = 'supersecret123';
-const PACKAGE_ID = '0x1111111111111111111111111111111111111111111111111111111111111111'; // Official demo package
+const PACKAGE_ID = '0x7777e9f8c6d4b2a0987654321098765432109876543210987654321098765432'; // Official demo package
 ```
 
 <h3>Explanation:</h3>
@@ -370,7 +407,7 @@ return (
             <strong>{p.author}:</strong> {p.content}
             <br />
             <small>
-              <a href={`https://explorer.iota.org/testnet/transaction/${p.txid}`} target="_blank">
+              <a href={`https://explorer.iota.org/txblock/${p.txid}`?network=testnet} target="_blank">
                 View on Explorer
               </a>
             </small>
