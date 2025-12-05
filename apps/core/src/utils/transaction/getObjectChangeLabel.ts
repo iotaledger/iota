@@ -11,6 +11,7 @@ export const ObjectChangeLabels = {
     published: 'Publish',
     deleted: 'Deleted',
     wrapped: 'Wrap',
+    unwrapped: 'Unwrap',
 };
 
 export function getObjectChangeLabel(type: IotaObjectChangeTypes) {

@@ -161,13 +161,15 @@ function mapObjectChanges(
 
     effects?.unwrapped?.forEach((unwrapped) => {
         changes.push({
-            type: 'wrapped',
+            type: 'unwrapped',
+            digest: unwrapped.reference.digest,
             objectId: unwrapped.reference.objectId,
             objectType: toShortTypeString(
                 transactionBlock.effects?.objectChanges?.nodes.find(
                     (change) => change.address === unwrapped.reference.objectId,
                 )?.outputState?.asMoveObject?.contents?.type.repr!,
             ),
+            owner: unwrapped.owner,
             sender: transactionBlock.sender?.address!,
             version: unwrapped.reference.version?.toString(),
         });

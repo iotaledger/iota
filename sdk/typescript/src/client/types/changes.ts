@@ -9,4 +9,5 @@ export type IotaObjectChangeTransferred = Extract<IotaObjectChange, { type: 'tra
 export type IotaObjectChangeMutated = Extract<IotaObjectChange, { type: 'mutated' }>;
 export type IotaObjectChangeDeleted = Extract<IotaObjectChange, { type: 'deleted' }>;
 export type IotaObjectChangeWrapped = Extract<IotaObjectChange, { type: 'wrapped' }>;
+export type IotaObjectChangeUnwrapped = Extract<IotaObjectChange, { type: 'unwrapped' }>;
 export type IotaObjectChangeCreated = Extract<IotaObjectChange, { type: 'created' }>;

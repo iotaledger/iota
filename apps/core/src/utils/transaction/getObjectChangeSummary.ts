@@ -36,6 +36,10 @@ export const getObjectChangeSummary = (objectChanges: IotaObjectChangeWithDispla
         (change) => change.type === 'wrapped',
     ) as IotaObjectChangeWrapped[];
 
+    const unwrapped = objectChanges.filter(
+        (change) => change.type === 'unwrapped',
+    ) as IotaObjectChangeWithDisplay[];
+
     const deleted = objectChanges.filter(
         (change) => change.type === 'deleted',
     ) as IotaObjectChangeDeleted[];
@@ -46,6 +50,7 @@ export const getObjectChangeSummary = (objectChanges: IotaObjectChangeWithDispla
         mutated: groupByOwner(mutated),
         published: groupByOwner(published),
         wrapped: groupByOwner(wrapped),
+        unwrapped: groupByOwner(unwrapped),
         deleted: groupByOwner(deleted),
     };
 };
