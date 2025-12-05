@@ -53,8 +53,10 @@ impl ThresholdClock {
     ///
     /// Round advancement rules:
     /// - block.round < current: ignored (stale block)
-    /// - block.round > current: jump to block.round, start collecting stake there
-    /// - block.round == current: continue accumulating stake until quorum (2f+1) reached
+    /// - block.round > current: jump to block.round, start collecting stake
+    ///   there
+    /// - block.round == current: continue accumulating stake until quorum
+    ///   (2f+1) reached
     ///
     /// When quorum is reached, advance to round + 1.
     pub(crate) fn add_block(&mut self, block: BlockRef) {
@@ -184,14 +186,26 @@ mod tests {
         let mut clock = ThresholdClock::new(0, context);
 
         // Jump from round 0 to round 5 - author should be tracked
-        clock.add_block(BlockRef::new(5, AuthorityIndex::new_for_test(0), BlockDigest::default()));
+        clock.add_block(BlockRef::new(
+            5,
+            AuthorityIndex::new_for_test(0),
+            BlockDigest::default(),
+        ));
         assert_eq!(clock.get_round(), 5);
 
         // Add more blocks at round 5 to reach quorum (need 3 of 4)
-        clock.add_block(BlockRef::new(5, AuthorityIndex::new_for_test(1), BlockDigest::default()));
+        clock.add_block(BlockRef::new(
+            5,
+            AuthorityIndex::new_for_test(1),
+            BlockDigest::default(),
+        ));
         assert_eq!(clock.get_round(), 5);
 
-        clock.add_block(BlockRef::new(5, AuthorityIndex::new_for_test(2), BlockDigest::default()));
+        clock.add_block(BlockRef::new(
+            5,
+            AuthorityIndex::new_for_test(2),
+            BlockDigest::default(),
+        ));
         assert_eq!(clock.get_round(), 6); // Quorum reached
     }
 
@@ -199,9 +213,10 @@ mod tests {
     /// the round when jumping to a higher round.
     #[tokio::test]
     async fn test_threshold_clock_super_majority_round_skip() {
-        use crate::metrics::test_metrics;
         use consensus_config::Parameters;
         use tempfile::TempDir;
+
+        use crate::metrics::test_metrics;
 
         // Authority 0 has 5/7 stake (>2/3 quorum threshold)
         let (committee, _) = consensus_config::local_committee_and_keys(0, vec![5, 1, 1]);
@@ -212,7 +227,10 @@ mod tests {
             0,
             AuthorityIndex::new_for_test(0),
             committee,
-            Parameters { db_path: temp_dir.keep(), ..Default::default() },
+            Parameters {
+                db_path: temp_dir.keep(),
+                ..Default::default()
+            },
             iota_protocol_config::ProtocolConfig::get_for_max_version_UNSAFE(),
             metrics,
             Arc::new(crate::context::Clock::default()),
@@ -220,14 +238,27 @@ mod tests {
 
         let mut clock = ThresholdClock::new(0, context);
 
-        // Single block from super-majority authority at round 5 reaches quorum immediately
-        clock.add_block(BlockRef::new(5, AuthorityIndex::new_for_test(0), BlockDigest::default()));
+        // Single block from super-majority authority at round 5 reaches quorum
+        // immediately
+        clock.add_block(BlockRef::new(
+            5,
+            AuthorityIndex::new_for_test(0),
+            BlockDigest::default(),
+        ));
         assert_eq!(clock.get_round(), 6);
 
         // Stale blocks from round 5 should be ignored
-        clock.add_block(BlockRef::new(5, AuthorityIndex::new_for_test(1), BlockDigest::default()));
+        clock.add_block(BlockRef::new(
+            5,
+            AuthorityIndex::new_for_test(1),
+            BlockDigest::default(),
+        ));
         assert_eq!(clock.get_round(), 6);
-        clock.add_block(BlockRef::new(5, AuthorityIndex::new_for_test(2), BlockDigest::default()));
+        clock.add_block(BlockRef::new(
+            5,
+            AuthorityIndex::new_for_test(2),
+            BlockDigest::default(),
+        ));
         assert_eq!(clock.get_round(), 6);
     }
 }
