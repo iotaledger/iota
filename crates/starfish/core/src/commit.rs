@@ -865,11 +865,15 @@ impl Debug for CommitRange {
 
 #[cfg(test)]
 mod tests {
+    use std::sync::Arc;
+
     use crate::{
+        BlockHeaderAPI, BlockTimestampMs, CommitDigest, VerifiedBlockHeader,
         block_header::{TestBlockHeader, VerifiedBlock},
+        commit::{CommitRange, TrustedCommit, WAVE_LENGTH, load_pending_subdag_from_store},
         context::Context,
         encoder::create_encoder,
-        storage::{WriteBatch, mem_store::MemStore},
+        storage::{Store, WriteBatch, mem_store::MemStore},
     };
 
     #[tokio::test]
