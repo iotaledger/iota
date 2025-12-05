@@ -156,12 +156,12 @@ impl InflightBlockHeadersMap {
         for block_ref in missing_block_refs {
             let authorities = inner.entry(block_ref).or_default();
 
-            // Check if this peer is already fetching this block
+            // Check if this peer is already fetching this header
             if authorities.contains(&peer) {
                 continue;
             }
 
-            // Count total authorities currently fetching this block
+            // Count total authorities currently fetching this header
             let total_count = authorities.len();
 
             // Determine the limit based on the sync method
