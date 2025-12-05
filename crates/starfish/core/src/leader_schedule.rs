@@ -13,10 +13,7 @@ use rand::{SeedableRng, prelude::SliceRandom, rngs::StdRng};
 use starfish_config::{AuthorityIndex, Stake};
 
 use crate::{
-    CommitIndex, Round,
-    commit::CommitRange,
-    context::Context,
-    dag_state::DagState,
+    CommitIndex, Round, commit::CommitRange, context::Context, dag_state::DagState,
     leader_scoring::ReputationScores,
 };
 
