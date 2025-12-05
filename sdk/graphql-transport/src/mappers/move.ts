@@ -223,7 +223,7 @@ export function mapNormalizedMoveModule(
                 name: friend.name,
             })) ?? [],
         structs,
-        enums,
+        ...(Object.keys(enums).length > 0 ? { enums } : {}),
         exposedFunctions,
     };
 }
