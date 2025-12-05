@@ -1223,15 +1223,6 @@ export type IotaObjectChange =
           sender: string;
           type: 'wrapped';
           version: string;
-      } /** Unwrapped object */
-    | {
-          digest: string;
-          objectId: string;
-          objectType: string;
-          owner: ObjectOwner;
-          sender: string;
-          type: 'unwrapped';
-          version: string;
       } /** New object creation */
     | {
           digest: string;
