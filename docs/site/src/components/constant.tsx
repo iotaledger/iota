@@ -4,6 +4,7 @@ export const Networks: Record<string, NetworkProps> = {
     protocol: 'Rebased',
     rpc: {
       json: {
+        ankr: 'https://rpc.ankr.com/iota_mainnet',
         core: 'https://api.mainnet.iota.cafe',
         websocket: 'wss://api.mainnet.iota.cafe',
         indexer: 'https://indexer.mainnet.iota.cafe',
@@ -43,6 +44,7 @@ export const Networks: Record<string, NetworkProps> = {
     protocol: 'Rebased',
     rpc: {
       json: {
+        ankr: 'https://rpc.ankr.com/iota_testnet',
         core: 'https://api.testnet.iota.cafe',
         websocket: 'wss://api.testnet.iota.cafe',
         indexer: 'https://indexer.testnet.iota.cafe',
@@ -155,6 +157,7 @@ export interface NetworkProps {
 
 export interface Rpc {
   json: {
+    ankr: string;
     core: string;
     indexer: string;
     websocket: string;
