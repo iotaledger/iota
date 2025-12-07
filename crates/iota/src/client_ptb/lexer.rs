@@ -61,21 +61,50 @@ impl<'l, I: Iterator<Item = &'l str>> Lexer<'l, I> {
         self.buf = "";
     }
 
-    /// Skip comment tokens until we hit a command (starts with --) or EOF.
-    /// This handles multi-word comments like "// this is a comment".
+    /// Skip tokens until we find the next real command or EOF.
+    ///
+    /// Since shell line continuations (`\`) convert newlines to spaces, we
+    /// cannot detect line boundaries. Instead, we use `//` and `--` as
+    /// delimiters:
+    ///
+    /// - `//` marks the start of a comment
+    /// - `--` marks the start of a command
+    ///
+    /// To comment out a `--command`, place `//` directly
+    /// before it (as the immediately preceding token). Any `--` that follows
+    /// non-`//` tokens is treated as a real command.
+    ///
+    /// # Examples
+    ///
+    /// ```text
+    /// // comment text --cmd       → "--cmd" runs (text before it)
+    /// // --cmd                    → "--cmd" is commented (// directly before)
+    /// // --cmd1 --cmd2            → "--cmd1" commented, "--cmd2" runs
+    /// // // --cmd                 → "--cmd" is commented (// directly before)
+    /// // text // --cmd            → "--cmd" is commented (// directly before)
+    /// ```
     fn skip_comment(&mut self) {
         self.skip_rest_of_token();
-        // Skip subsequent tokens until we hit a command or EOF
+        let mut after_comment_marker = true;
+
         for next in self.tokens.by_ref() {
-            self.offset += next.len() + 1; // +1 for space between tokens
-            if next.starts_with("--") || next.starts_with("//") {
-                // Found next command or another comment, set buffer to this token
-                self.buf = next;
-                return;
+            self.offset += next.len() + 1;
+
+            if next.starts_with("//") {
+                after_comment_marker = true;
+            } else if next.starts_with("--") {
+                if after_comment_marker {
+                    // "--" directly after "//" → commented out, keep skipping
+                    after_comment_marker = false;
+                } else {
+                    // "--" after other tokens → real command
+                    self.buf = next;
+                    return;
+                }
+            } else {
+                after_comment_marker = false;
             }
-            // Otherwise skip this token (it's part of the comment)
         }
-        // Reached EOF
         self.buf = "";
     }
 
@@ -552,10 +581,9 @@ mod tests {
     }
 
     #[test]
-    fn slash_comments() {
-        // C-style // comments work with shell line continuations
-        // Each word becomes a separate shell token, so we test multi-word comments
-        let with_slash_comments = vec![
+    fn slash_comments_basic() {
+        // Basic comment: // text --cmd → "--cmd" runs
+        let tokens = vec![
             "//",
             "this",
             "is",
@@ -564,11 +592,103 @@ mod tests {
             "--split-coins",
             "gas",
             "[1000]",
-            "//another",
-            "comment",
+        ];
+        insta::assert_debug_snapshot!(lex(tokens));
+    }
+
+    #[test]
+    fn slash_comments_command_directly_after() {
+        // Commented command: // --cmd → "--cmd" is skipped
+        let tokens = vec!["//", "--split-coins", "gas", "[1]", "--assign", "result"];
+        insta::assert_debug_snapshot!(lex(tokens));
+    }
+
+    #[test]
+    fn slash_comments_two_commands_after() {
+        // Two commands after //: // --cmd1 --cmd2 → "--cmd1" skipped, "--cmd2" runs
+        let tokens = vec![
+            "//",
+            "--split-coins",
+            "gas",
+            "[1]",
+            "--assign",
+            "result",
+            "--dry-run",
+        ];
+        insta::assert_debug_snapshot!(lex(tokens));
+    }
+
+    #[test]
+    fn slash_comments_chained() {
+        // Chained comments: // // --cmd → "--cmd" is skipped
+        let tokens = vec![
+            "//",
+            "//",
+            "--split-coins",
+            "gas",
+            "[1]",
             "--assign",
             "result",
         ];
-        insta::assert_debug_snapshot!(lex(with_slash_comments));
+        insta::assert_debug_snapshot!(lex(tokens));
+    }
+
+    #[test]
+    fn slash_comments_text_then_comment_then_command() {
+        // Text then comment: // text // --cmd → "--cmd" is skipped
+        let tokens = vec![
+            "//",
+            "some",
+            "text",
+            "//",
+            "--split-coins",
+            "gas",
+            "[1]",
+            "--assign",
+            "result",
+        ];
+        insta::assert_debug_snapshot!(lex(tokens));
+    }
+
+    #[test]
+    fn slash_comments_multiple_comment_lines() {
+        // Multiple comment lines with commands
+        // // comment1
+        // // --commented-cmd
+        // --real-cmd
+        let tokens = vec![
+            "//",
+            "comment1",
+            "//",
+            "--commented-cmd",
+            "arg1",
+            "--real-cmd",
+            "arg2",
+        ];
+        insta::assert_debug_snapshot!(lex(tokens));
+    }
+
+    #[test]
+    fn slash_comments_inline_with_text() {
+        // Inline comment: //comment (no space) also works
+        let tokens = vec!["//comment", "text", "--cmd", "arg"];
+        insta::assert_debug_snapshot!(lex(tokens));
+    }
+
+    #[test]
+    fn slash_comments_only_comments() {
+        // Only comments, no commands
+        let tokens = vec!["//", "just", "a", "comment"];
+        insta::assert_debug_snapshot!(lex(tokens));
+    }
+
+    #[test]
+    fn slash_comments_empty_comment() {
+        // Empty comment followed by commented command
+        // // \
+        // // --cmd \
+        // --real
+        let tokens = vec!["//", "//", "--commented", "--real"];
+        insta::assert_debug_snapshot!(lex(tokens));
     }
 }

@@ -1,0 +1,37 @@
+---
+source: crates/iota/src/client_ptb/lexer.rs
+assertion_line: 646
+expression: lex(tokens)
+---
+[
+    Spanned {
+        span: Span {
+            start: 46,
+            end: 56,
+        },
+        value: Lexeme(
+            Command,
+            "real-cmd",
+        ),
+    },
+    Spanned {
+        span: Span {
+            start: 57,
+            end: 61,
+        },
+        value: Lexeme(
+            Ident,
+            "arg2",
+        ),
+    },
+    Spanned {
+        span: Span {
+            start: 61,
+            end: 61,
+        },
+        value: Lexeme(
+            Eof,
+            "",
+        ),
+    },
+]
