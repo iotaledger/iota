@@ -22,6 +22,7 @@ use iota_types::{
         TransactionKind as NativeTransactionKind,
     },
 };
+use move_core_types::account_address::AccountAddress;
 
 use crate::{
     consistency::ConsistentIndexCursor,
@@ -593,15 +594,23 @@ impl TransactionBlockEffects {
                 .programmable_transaction()?
                 .and_then(|ptb| ptb.commands.into_iter().nth(*command_idx))
             {
-                let module_new = module.clone();
-                // Resolve the runtime module ID in the Move abort to the storage ID of the
-                // package that the abort occurred in. This is important to make
-                // sure that we look at the correct version of the module when
-                // resolving the error.
-                *module = resolver
-                    .resolve_module_id(module_new, ptb_call.package.into())
-                    .await
-                    .map_err(|e| Error::Internal(format!("Error resolving Move location: {e}")))?;
+                let package_address = AccountAddress::from(ptb_call.package);
+
+                if &package_address != module.address() {
+                    // Move abort occurs in one of the dependencies of the package, and we
+                    // need to resolve the runtime module ID to the storage ID. The linkage table of
+                    // the package called in the PTB is used to this end.
+                    //
+                    // This is important to make sure that we look at the correct version of the
+                    // module when resolving the error.
+                    let module_new = module.clone();
+                    *module = resolver
+                        .resolve_module_id(module_new, package_address)
+                        .await
+                        .map_err(|e| {
+                            Error::Internal(format!("Error resolving Move location: {e}"))
+                        })?;
+                }
             }
         }
         Ok(status)
