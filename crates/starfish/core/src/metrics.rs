@@ -211,17 +211,16 @@ pub(crate) struct NodeMetrics {
     pub(crate) subscriber_connection_attempts: IntCounterVec,
     pub(crate) subscribed_to: IntGaugeVec,
     pub(crate) subscribed_by: IntGaugeVec,
-    pub(crate) commit_sync_inflight_fetches: IntGauge,
-    pub(crate) commit_sync_pending_fetches: IntGauge,
+    pub(crate) commit_sync_inflight_fetches: IntGaugeVec,
+    pub(crate) commit_sync_pending_fetches: IntGaugeVec,
     pub(crate) commit_sync_fetch_commits_handler_uncertified_skipped: IntCounter,
     pub(crate) commit_sync_fetched_commits: IntCounterVec,
     pub(crate) commit_sync_fetched_block_headers: IntCounter,
     pub(crate) commit_sync_total_fetched_block_headers_size: IntCounter,
     pub(crate) commit_sync_total_fetched_transactions_size: IntCounterVec,
     pub(crate) commit_sync_quorum_index: IntGauge,
-    pub(crate) commit_sync_highest_synced_index: IntGauge,
-    pub(crate) commit_sync_highest_fetched_index: IntGauge,
-    pub(crate) fast_commit_sync_highest_fetched_index: IntGauge,
+    pub(crate) commit_sync_highest_synced_index: IntGaugeVec,
+    pub(crate) commit_sync_highest_fetched_index: IntGaugeVec,
     pub(crate) commit_sync_local_index: IntGauge,
     pub(crate) commit_sync_gap_on_processing: IntCounterVec,
     pub(crate) commit_sync_fetch_loop_latency: Histogram,
@@ -866,14 +865,16 @@ impl NodeMetrics {
                 &["authority"],
                 registry,
             ).unwrap(),
-            commit_sync_inflight_fetches: register_int_gauge_with_registry!(
+            commit_sync_inflight_fetches: register_int_gauge_vec_with_registry!(
                 "commit_sync_inflight_fetches",
                 "The number of inflight fetches in commit syncer",
+                &["source"],
                 registry,
             ).unwrap(),
-            commit_sync_pending_fetches: register_int_gauge_with_registry!(
+            commit_sync_pending_fetches: register_int_gauge_vec_with_registry!(
                 "commit_sync_pending_fetches",
                 "The number of pending fetches in commit syncer",
+                &["source"],
                 registry,
             ).unwrap(),
             commit_sync_fetched_commits: register_int_counter_vec_with_registry!(
@@ -903,19 +904,16 @@ impl NodeMetrics {
                 "The maximum commit index voted by a quorum of authorities",
                 registry,
             ).unwrap(),
-            commit_sync_highest_synced_index: register_int_gauge_with_registry!(
+            commit_sync_highest_synced_index: register_int_gauge_vec_with_registry!(
                 "commit_sync_fetched_index",
                 "The max commit index among local and fetched commits",
+                &["source"],
                 registry,
             ).unwrap(),
-            commit_sync_highest_fetched_index: register_int_gauge_with_registry!(
+            commit_sync_highest_fetched_index: register_int_gauge_vec_with_registry!(
                 "commit_sync_highest_fetched_index",
                 "The max commit index that has been fetched via network",
-                registry,
-            ).unwrap(),
-            fast_commit_sync_highest_fetched_index: register_int_gauge_with_registry!(
-                "fast_commit_sync_highest_fetched_index",
-                "The max commit index that has been fetched via fast commit sync",
+                &["source"],
                 registry,
             ).unwrap(),
             commit_sync_local_index: register_int_gauge_with_registry!(
@@ -944,7 +942,7 @@ impl NodeMetrics {
             commit_sync_fetch_once_errors: register_int_counter_vec_with_registry!(
                 "commit_sync_fetch_once_errors",
                 "Number of errors when attempting to fetch commits and block headers from single authority during commit sync.",
-                &["authority", "error"],
+                &["authority", "error", "source"],
                 registry
             ).unwrap(),
             commit_sync_fetch_commits_handler_uncertified_skipped: register_int_counter_with_registry!(

@@ -300,6 +300,7 @@ impl<C: NetworkClient> CommitSyncer<C> {
         self.highest_fetched_commit_index = self.highest_fetched_commit_index.max(commit_end);
         metrics
             .commit_sync_highest_fetched_index
+            .with_label_values(&["commit_sync"])
             .set(self.highest_fetched_commit_index as i64);
 
         // Allow returning partial results, and try fetching the rest separately.
@@ -452,12 +453,15 @@ impl<C: NetworkClient> CommitSyncer<C> {
 
         metrics
             .commit_sync_inflight_fetches
+            .with_label_values(&["commit_sync"])
             .set(self.inflight_fetches.len() as i64);
         metrics
             .commit_sync_pending_fetches
+            .with_label_values(&["commit_sync"])
             .set(self.pending_fetches.len() as i64);
         metrics
             .commit_sync_highest_synced_index
+            .with_label_values(&["commit_sync"])
             .set(self.synced_commit_index as i64);
     }
 
@@ -504,12 +508,15 @@ impl<C: NetworkClient> CommitSyncer<C> {
         let metrics = &self.inner.context.metrics.node_metrics;
         metrics
             .commit_sync_inflight_fetches
+            .with_label_values(&["commit_sync"])
             .set(self.inflight_fetches.len() as i64);
         metrics
             .commit_sync_pending_fetches
+            .with_label_values(&["commit_sync"])
             .set(self.pending_fetches.len() as i64);
         metrics
             .commit_sync_highest_synced_index
+            .with_label_values(&["commit_sync"])
             .set(self.synced_commit_index as i64);
     }
 
@@ -597,7 +604,7 @@ impl<C: NetworkClient> CommitSyncer<C> {
                             .metrics
                             .node_metrics
                             .commit_sync_fetch_once_errors
-                            .with_label_values(&[hostname.as_str(), error])
+                            .with_label_values(&[hostname.as_str(), error, "commit_sync"])
                             .inc();
                     }
                     Err(_) => {
@@ -613,7 +620,7 @@ impl<C: NetworkClient> CommitSyncer<C> {
                             .metrics
                             .node_metrics
                             .commit_sync_fetch_once_errors
-                            .with_label_values(&[hostname.as_str(), "FetchTimeout"])
+                            .with_label_values(&[hostname.as_str(), "FetchTimeout", "commit_sync"])
                             .inc();
                     }
                 }

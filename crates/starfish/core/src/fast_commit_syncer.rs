@@ -253,7 +253,8 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
         );
         self.highest_fetched_commit_index = self.highest_fetched_commit_index.max(commit_end);
         metrics
-            .fast_commit_sync_highest_fetched_index
+            .commit_sync_highest_fetched_index
+            .with_label_values(&["fast_commit_sync"])
             .set(self.highest_fetched_commit_index as i64);
 
         // Allow returning partial results, and try fetching the rest separately.
@@ -409,12 +410,15 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
 
         metrics
             .commit_sync_inflight_fetches
+            .with_label_values(&["fast_commit_sync"])
             .set(self.inflight_fetches.len() as i64);
         metrics
             .commit_sync_pending_fetches
+            .with_label_values(&["fast_commit_sync"])
             .set(self.pending_fetches.len() as i64);
         metrics
             .commit_sync_highest_synced_index
+            .with_label_values(&["fast_commit_sync"])
             .set(self.synced_commit_index as i64);
     }
 
@@ -461,12 +465,15 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
         let metrics = &self.inner.context.metrics.node_metrics;
         metrics
             .commit_sync_inflight_fetches
+            .with_label_values(&["fast_commit_sync"])
             .set(self.inflight_fetches.len() as i64);
         metrics
             .commit_sync_pending_fetches
+            .with_label_values(&["fast_commit_sync"])
             .set(self.pending_fetches.len() as i64);
         metrics
             .commit_sync_highest_synced_index
+            .with_label_values(&["fast_commit_sync"])
             .set(self.synced_commit_index as i64);
     }
 
@@ -517,13 +524,14 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
             // Increase timeout multiplier for each loop until MAX_TIMEOUT_MULTIPLIER.
             timeout_multiplier = (timeout_multiplier + 1).min(MAX_TIMEOUT_MULTIPLIER);
             let request_timeout = TIMEOUT * timeout_multiplier;
-            // Give enough overall timeout for fetching commits and block headers.
+            // TODO:review overall timeout
+            // Give enough overall timeout for fetching commits.
             // - Timeout for fetching commits and commit certifying block headers.
             // - Timeout for fetching block headers referenced by the commits.
             // - Time spent on pipelining requests to fetch block headers.
             // - Another headroom to allow fetch_once() to timeout gracefully if possible.
             let fetch_timeout = request_timeout * 4;
-            // Try fetching from selected target authority.
+            // Try fetching from the selected target authority.
             for authority in target_authorities {
                 match tokio::time::timeout(
                     fetch_timeout,
@@ -554,7 +562,7 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
                             .metrics
                             .node_metrics
                             .commit_sync_fetch_once_errors
-                            .with_label_values(&[hostname.as_str(), error])
+                            .with_label_values(&[hostname.as_str(), error, "fast_commit_sync"])
                             .inc();
                     }
                     Err(_) => {
@@ -570,7 +578,7 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
                             .metrics
                             .node_metrics
                             .commit_sync_fetch_once_errors
-                            .with_label_values(&[hostname.as_str(), "FetchTimeout"])
+                            .with_label_values(&[hostname.as_str(), "FetchTimeout", "fast_commit_sync"])
                             .inc();
                     }
                 }
