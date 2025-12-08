@@ -42,6 +42,20 @@ impl TryFrom<iota_sdk_types::UserSignature> for UserSignature {
     }
 }
 
+impl Merge<iota_types::signature::GenericSignature> for UserSignature {
+    fn merge(
+        &mut self,
+        source: iota_types::signature::GenericSignature,
+        mask: &FieldMaskTree,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        let sdk_signature: iota_sdk_types::UserSignature = source
+            .try_into()
+            .map_err(|e| format!("Failed to convert SDK signature: {}", e))?;
+
+        Merge::merge(self, sdk_signature, mask)
+    }
+}
+
 impl Merge<iota_sdk_types::UserSignature> for UserSignature {
     fn merge(
         &mut self,

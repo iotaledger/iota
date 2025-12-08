@@ -143,6 +143,20 @@ impl Merge<&iota_sdk_types::TransactionEffects> for TransactionEffects {
     }
 }
 
+impl Merge<iota_types::effects::TransactionEvents> for TransactionEvents {
+    fn merge(
+        &mut self,
+        source: iota_types::effects::TransactionEvents,
+        mask: &FieldMaskTree,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        let sdk_events: iota_sdk_types::TransactionEvents = source
+            .try_into()
+            .map_err(|e| format!("failed to convert events to SDK type: {e}"))?;
+
+        Merge::merge(self, &sdk_events, mask)
+    }
+}
+
 // TODO: Wrap TransactionEvents into a type with a version
 impl Merge<&iota_sdk_types::TransactionEvents> for TransactionEvents {
     fn merge(

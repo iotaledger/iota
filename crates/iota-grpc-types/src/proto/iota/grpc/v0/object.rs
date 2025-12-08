@@ -12,7 +12,22 @@ use crate::{
     v0::{bcs::BcsData, types::ObjectReference},
 };
 
-// TODO: Wrap Object into a type with a version
+impl Merge<iota_types::object::Object> for Object {
+    fn merge(
+        &mut self,
+        source: iota_types::object::Object,
+        mask: &FieldMaskTree,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        // TODO: wrap Object into a type with a version
+        let sdk_object = source
+            .try_into()
+            .map_err(|e: SdkTypeConversionError| format!("Failed to convert SDK object: {}", e))?;
+
+        Merge::merge(self, &sdk_object, mask)
+    }
+}
+
+// TODO: wrap Object into a type with a version
 impl Merge<&iota_sdk_types::object::Object> for Object {
     fn merge(
         &mut self,
