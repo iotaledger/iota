@@ -14,7 +14,6 @@ use crate::impl_field_presence_checker;
 // we don't implement FieldPresenceChecker for them. Field presence is checked
 // at their parent level.
 impl_field_presence_checker!(ExecutedTransaction {
-    digest,
     transaction: Transaction,
     signatures,
     effects: TransactionEffects,

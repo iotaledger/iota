@@ -45,13 +45,6 @@ impl Merge<&TransactionReadSource<'_>> for ExecutedTransaction {
         source: &TransactionReadSource,
         mask: &FieldMaskTree,
     ) -> Result<(), Box<dyn std::error::Error>> {
-        // Set digest if requested
-        if mask.contains(Self::DIGEST_FIELD.name) {
-            self.digest = Some(Digest {
-                digest: source.digest.into_inner().to_vec().into(),
-            });
-        }
-
         // Set transaction if requested
         if let Some(tx_mask) = mask.subtree(Self::TRANSACTION_FIELD.name) {
             let mut proto_tx = Transaction::default();
