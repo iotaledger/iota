@@ -175,6 +175,20 @@ function mapObjectChanges(
         });
     });
 
+    effects?.wrapped?.forEach((wrapped) => {
+        changes.push({
+            type: 'wrapped',
+            objectId: wrapped.objectId,
+            objectType: toShortTypeString(
+                transactionBlock.effects?.objectChanges?.nodes.find(
+                    (change) => change.address === wrapped.objectId,
+                )?.inputState?.asMoveObject?.contents?.type.repr!,
+            ),
+            sender: transactionBlock.sender?.address!,
+            version: wrapped.version?.toString(),
+        });
+    });
+
     return changes;
 }
 
