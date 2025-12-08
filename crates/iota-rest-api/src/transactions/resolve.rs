@@ -22,6 +22,7 @@ use iota_types::{
     transaction::{
         CallArg, GasData, ObjectArg, ProgrammableTransaction, TransactionData, TransactionDataAPI,
     },
+    transaction_executor::VmChecks,
 };
 use itertools::Itertools;
 use move_binary_format::normalized;
@@ -109,7 +110,7 @@ async fn resolve_transaction(
 
         (system_state.reference_gas_price, protocol_config)
     };
-    let called_packages =
+    let mut called_packages =
         called_packages(&state.reader, &protocol_config, &unresolved_transaction)?;
     let user_provided_budget = unresolved_transaction
         .gas_payment
@@ -117,7 +118,7 @@ async fn resolve_transaction(
         .and_then(|payment| payment.budget);
     let mut resolved_transaction = resolve_unresolved_transaction(
         &state.reader,
-        &called_packages,
+        &mut called_packages,
         reference_gas_price,
         protocol_config.max_tx_gas(),
         unresolved_transaction,
@@ -128,8 +129,10 @@ async fn resolve_transaction(
     let budget = if let Some(user_provided_budget) = user_provided_budget {
         user_provided_budget
     } else {
+        // Hardcoded dry run simulation
+        let dry_run_checks = VmChecks::Enabled;
         let simulation_result = executor
-            .simulate_transaction(resolved_transaction.clone())
+            .simulate_transaction(resolved_transaction.clone(), dry_run_checks)
             .map_err(anyhow::Error::from)?;
 
         let estimate = estimate_gas_budget_from_gas_cost(
@@ -196,18 +199,23 @@ pub struct ResolveTransactionQueryParameters {
     pub simulate_transaction_parameters: SimulateTransactionQueryParameters,
 }
 
+struct NormalizedPackages {
+    packages: HashMap<ObjectId, NormalizedPackage>,
+}
+
 struct NormalizedPackage {
     #[allow(unused)]
     package: MovePackage,
-    normalized_modules: BTreeMap<String, normalized::Module>,
+    normalized_modules: BTreeMap<String, normalized::Module<normalized::RcIdentifier>>,
 }
 
 fn called_packages(
     reader: &StateReader,
     protocol_config: &ProtocolConfig,
     unresolved_transaction: &UnresolvedTransaction,
-) -> Result<HashMap<ObjectId, NormalizedPackage>> {
+) -> Result<NormalizedPackages> {
     let binary_config = iota_types::execution_config_utils::to_binary_config(protocol_config);
+    let mut pool = normalized::RcPool::new();
     let mut packages = HashMap::new();
 
     for move_call in unresolved_transaction
@@ -244,12 +252,14 @@ fn called_packages(
         // Despite the above this is safe given we are only using the signature
         // information (and in particular the reference kind) from the
         // normalized package.
-        let normalized_modules = package.normalize(&binary_config).map_err(|e| {
-            RestError::new(
-                axum::http::StatusCode::INTERNAL_SERVER_ERROR,
-                format!("unable to normalize package {}: {e}", move_call.package),
-            )
-        })?;
+        let normalized_modules = package
+            .normalize(&mut pool, &binary_config, /* include code */ true)
+            .map_err(|e| {
+                RestError::new(
+                    axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+                    format!("unable to normalize package {}: {e}", move_call.package),
+                )
+            })?;
         let package = NormalizedPackage {
             package,
             normalized_modules,
@@ -258,12 +268,12 @@ fn called_packages(
         packages.insert(move_call.package, package);
     }
 
-    Ok(packages)
+    Ok(NormalizedPackages { packages })
 }
 
 fn resolve_unresolved_transaction(
     reader: &StateReader,
-    called_packages: &HashMap<ObjectId, NormalizedPackage>,
+    called_packages: &mut NormalizedPackages,
     reference_gas_price: u64,
     max_gas_budget: u64,
     unresolved_transaction: UnresolvedTransaction,
@@ -345,7 +355,7 @@ fn resolve_object_reference(
 
 fn resolve_ptb(
     reader: &StateReader,
-    called_packages: &HashMap<ObjectId, NormalizedPackage>,
+    called_packages: &mut NormalizedPackages,
     unresolved_ptb: UnresolvedProgrammableTransaction,
 ) -> Result<ProgrammableTransaction> {
     let inputs = unresolved_ptb
@@ -376,7 +386,7 @@ fn resolve_ptb(
 
 fn resolve_arg(
     reader: &StateReader,
-    called_packages: &HashMap<ObjectId, NormalizedPackage>,
+    called_packages: &mut NormalizedPackages,
     commands: &[Command],
     arg: UnresolvedInputArgument,
     arg_idx: usize,
@@ -415,6 +425,7 @@ fn resolve_arg(
                 match (command, idx) {
                     (Command::MoveCall(move_call), Some(idx)) => {
                         let function = called_packages
+                            .packages
                             // Find the package
                             .get(&move_call.package)
                             // Find the module
@@ -443,9 +454,9 @@ fn resolve_arg(
                         })?;
 
                         if matches!(
-                            arg_type,
-                            move_binary_format::normalized::Type::MutableReference(_)
-                                | move_binary_format::normalized::Type::Struct { .. }
+                            &**arg_type,
+                            normalized::Type::Reference(/* mut */ true, _)
+                                | normalized::Type::Datatype(_)
                         ) {
                             mutable = true;
                         }

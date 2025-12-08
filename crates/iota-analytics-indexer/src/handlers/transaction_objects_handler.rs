@@ -10,7 +10,6 @@ use iota_types::{
     base_types::ObjectID,
     effects::TransactionEffects,
     full_checkpoint_content::{CheckpointData, CheckpointTransaction},
-    transaction::TransactionDataAPI,
 };
 use tokio::sync::Mutex;
 
@@ -97,13 +96,15 @@ impl TransactionObjectsHandler {
         let object_status_tracker = ObjectStatusTracker::new(effects);
 
         let transaction_digest = transaction.digest().base58_encode();
-        let txn_data = transaction.transaction_data();
 
         // input
-        txn_data
+        //
+        // Process all objects associated with the transaction, including authenticator
+        // inputs.
+        transaction
             .input_objects()
-            .expect("Input objects must be valid")
-            .iter()
+            .expect("input objects must be valid")
+            .into_iter()
             .map(|object| (object.object_id(), object.version().map(|v| v.value())))
             .for_each(|(object_id, version)| {
                 self.process_transaction_object(

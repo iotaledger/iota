@@ -1,19 +1,12 @@
 ---
 source: external-crates/move/crates/move-transactional-test-runner/src/framework.rs
 ---
-processed 3 tasks
+processed 2 tasks
 
 init:
 A: object(0,0)
 
-task 1, lines 8-24:
+task 1, lines 8-25:
 //# publish --sender A
-created: object(1,0)
-mutated: object(0,0)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 5950800,  storage_rebate: 0, non_refundable_storage_fee: 0
-
-task 2, lines 26-27:
-//# programmable --sender A --inputs @test "abstract_account" "authenticate_receive_coin"
-//> 0: iota::account::create_auth_info_v1<test::abstract_account::AbstractAccount>(Input(0), Input(1), Input(2));
-Error: Transaction Effects Status: MOVE VM INVARIANT VIOLATION.
-Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: VMInvariantViolation, source: Some(VMError { major_status: UNKNOWN_INVARIANT_VIOLATION_ERROR, sub_status: None, message: Some("ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: IotaMoveVerificationError, source: Some(\"Invalid pure type. A datatype instantiation must be an option of pure types, offending argument: StructInstantiation(DatatypeHandleIndex(5), [StructInstantiation(DatatypeHandleIndex(2), [Struct(DatatypeHandleIndex(3))])])\"), command: None } }"), exec_state: None, location: Module(ModuleId { address: iota, name: Identifier("account") }), indices: [], offsets: [(FunctionDefinitionIndex(7), 0)] }), command: Some(0) } }
+Error: Transaction Effects Status: IOTA Move Bytecode Verification Error. Please run the IOTA Move Verifier for more information.
+Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: IotaMoveVerificationError, source: Some("Invalid pure type. A datatype instantiation must be an option of pure types, offending argument: StructInstantiation(DatatypeHandleIndex(5), [StructInstantiation(DatatypeHandleIndex(2), [Struct(DatatypeHandleIndex(3))])])"), command: Some(0) } }

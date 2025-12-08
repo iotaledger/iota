@@ -136,7 +136,7 @@ impl<'env> Context<'env, '_> {
         self.defn_context.env
     }
 
-    fn reporter(&self) -> &DiagnosticReporter {
+    fn reporter(&self) -> &DiagnosticReporter<'_> {
         &self.defn_context.reporter
     }
 
@@ -657,8 +657,7 @@ fn definition(
             let module_addr = module_paddr.map(|addr| {
                 let address = top_level_address(
                     &mut context.defn_context,
-                    // suggest_declaration
-                    true,
+                    true, // suggest_declaration
                     addr,
                 );
                 sp(addr.loc, address)
@@ -668,8 +667,7 @@ fn definition(
         P::Definition::Address(a) => {
             let addr = top_level_address(
                 &mut context.defn_context,
-                // suggest_declaration
-                false,
+                false, // suggest_declaration
                 a.addr,
             );
             for mut m in a.modules {
@@ -823,8 +821,7 @@ fn check_module_address(
             let other_loc = other_paddr.loc;
             let other_addr = top_level_address(
                 &mut context.defn_context,
-                // suggest_declaration
-                true,
+                true, // suggest_declaration
                 other_paddr,
             );
             let msg = if addr == other_addr {
@@ -1452,8 +1449,7 @@ fn all_module_members<'a>(
                     Some(a) => top_level_address_(
                         context,
                         named_addr_map,
-                        // suggest_declaration
-                        true,
+                        true, // suggest_declaration
                         *a,
                     ),
                     // Error will be handled when the module is compiled
@@ -1465,8 +1461,7 @@ fn all_module_members<'a>(
                 let addr = top_level_address_(
                     context,
                     named_addr_map,
-                    // suggest_declaration
-                    false,
+                    false, // suggest_declaration
                     addr_def.addr,
                 );
                 for m in &addr_def.modules {

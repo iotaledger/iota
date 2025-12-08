@@ -3,7 +3,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
-    collections::{HashMap, VecDeque},
     fs::{self},
     marker::PhantomData,
     path::PathBuf,
@@ -14,13 +13,14 @@ use tokio::time::{self, Instant};
 
 use crate::{
     benchmark::{BenchmarkParameters, BenchmarkParametersGenerator, BenchmarkType},
-    client::Instance,
-    display, ensure,
-    error::{TestbedError, TestbedResult},
+    client::{Instance, InstanceRole},
+    display,
+    error::TestbedResult,
     faults::CrashRecoverySchedule,
     logs::LogsAnalyzer,
     measurement::{Measurement, MeasurementsCollection},
-    monitor::Monitor,
+    monitor::{Monitor, Prometheus},
+    net_latency::NetworkLatencyCommandBuilder,
     protocol::{ProtocolCommands, ProtocolMetrics},
     settings::Settings,
     ssh::{CommandContext, CommandStatus, SshConnectionManager},
@@ -30,9 +30,12 @@ use crate::{
 pub struct Orchestrator<P, T> {
     /// The testbed's settings.
     settings: Settings,
-    /// The state of the testbed (reflecting accurately the state of the
-    /// machines).
-    instances: Vec<Instance>,
+    /// Node instances
+    node_instances: Vec<Instance>,
+    // Client (Load Generator) instances
+    client_instances: Vec<Instance>,
+    // Dedicated Metrics instance
+    metrics_instance: Option<Instance>,
     /// The type of the benchmark parameters.
     benchmark_type: PhantomData<T>,
     /// Provider-specific commands to install on the instance.
@@ -70,14 +73,18 @@ impl<P, T> Orchestrator<P, T> {
     /// Make a new orchestrator.
     pub fn new(
         settings: Settings,
-        instances: Vec<Instance>,
+        node_instances: Vec<Instance>,
+        client_instances: Vec<Instance>,
+        metrics_instance: Option<Instance>,
         instance_setup_commands: Vec<String>,
         protocol_commands: P,
         ssh_manager: SshConnectionManager,
     ) -> Self {
         Self {
             settings,
-            instances,
+            node_instances,
+            client_instances,
+            metrics_instance,
             benchmark_type: PhantomData,
             instance_setup_commands,
             protocol_commands,
@@ -134,81 +141,22 @@ impl<P, T> Orchestrator<P, T> {
         self
     }
 
-    /// Select on which instances of the testbed to run the benchmarks. This
-    /// function returns two vector of instances; the first contains the
-    /// instances on which to run the load generators and the second
-    /// contains the instances on which to run the nodes.
-    pub fn select_instances(
-        &self,
-        parameters: &BenchmarkParameters<T>,
-    ) -> TestbedResult<(Vec<Instance>, Vec<Instance>, Option<Instance>)> {
-        // Ensure there are enough active instances.
-        let available_instances: Vec<_> = self.instances.iter().filter(|x| x.is_active()).collect();
-        let minimum_instances = if self.skip_monitoring {
-            parameters.nodes + self.dedicated_clients
-        } else {
-            parameters.nodes + self.dedicated_clients + 1
-        };
-        ensure!(
-            available_instances.len() >= minimum_instances,
-            TestbedError::InsufficientCapacity(minimum_instances - available_instances.len())
-        );
+    pub fn instances_without_metrics(&self) -> Vec<Instance> {
+        let mut instances = self.node_instances.clone();
 
-        // Sort the instances by region.
-        let mut instances_by_regions = HashMap::new();
-        for instance in available_instances {
-            instances_by_regions
-                .entry(&instance.region)
-                .or_insert_with(VecDeque::new)
-                .push_back(instance);
+        if self.dedicated_clients > 0 {
+            instances.extend(self.client_instances.clone());
         }
+        instances
+    }
 
-        // Select the instance to host the monitoring stack.
-        let mut monitoring_instance = None;
-        if !self.skip_monitoring {
-            for region in &self.settings.regions {
-                if let Some(regional_instances) = instances_by_regions.get_mut(region) {
-                    if let Some(instance) = regional_instances.pop_front() {
-                        monitoring_instance = Some(instance.clone());
-                    }
-                    break;
-                }
-            }
+    /// Returns all the instances combined
+    pub fn instances(&self) -> Vec<Instance> {
+        let mut instances = self.instances_without_metrics();
+        if let Some(metrics_instance) = &self.metrics_instance {
+            instances.push(metrics_instance.clone());
         }
-
-        // Select the instances to host exclusively load generators.
-        let mut client_instances = Vec::new();
-        for region in self.settings.regions.iter().cycle() {
-            if client_instances.len() == self.dedicated_clients {
-                break;
-            }
-            if let Some(regional_instances) = instances_by_regions.get_mut(region) {
-                if let Some(instance) = regional_instances.pop_front() {
-                    client_instances.push(instance.clone());
-                }
-            }
-        }
-
-        // Select the instances to host the nodes.
-        let mut nodes_instances = Vec::new();
-        for region in self.settings.regions.iter().cycle() {
-            if nodes_instances.len() == parameters.nodes {
-                break;
-            }
-            if let Some(regional_instances) = instances_by_regions.get_mut(region) {
-                if let Some(instance) = regional_instances.pop_front() {
-                    nodes_instances.push(instance.clone());
-                }
-            }
-        }
-
-        // Spawn a load generate collocated with each node if there are no instances
-        // dedicated to excursively run load generators.
-        if client_instances.is_empty() {
-            client_instances.clone_from(&nodes_instances);
-        }
-
-        Ok((client_instances, nodes_instances, monitoring_instance))
+        instances
     }
 }
 
@@ -229,6 +177,19 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
             .run_background("node".into())
             .with_log_file("~/node.log".into())
             .with_execute_from_path(repo.into());
+        if parameters.use_internal_ip_address {
+            if let Some(latency_topology) = parameters.latency_topology.clone() {
+                let latency_context = CommandContext::default();
+                let latency_commands = NetworkLatencyCommandBuilder::new(&instances)
+                    .with_perturbation_spec(parameters.perturbation_spec.clone())
+                    .with_topology_layout(latency_topology)
+                    .with_max_latency(parameters.maximum_latency)
+                    .build_network_latency_matrix();
+                self.ssh_manager
+                    .execute_per_instance(latency_commands, latency_context)
+                    .await?;
+            }
+        }
         self.ssh_manager
             .execute_per_instance(targets, context)
             .await?;
@@ -236,7 +197,7 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
         // Wait until all nodes are reachable.
         let commands = self
             .protocol_commands
-            .nodes_metrics_command(instances.clone());
+            .nodes_metrics_command(instances.clone(), parameters);
         self.ssh_manager.wait_for_success(commands).await;
 
         Ok(())
@@ -257,7 +218,7 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
             // The following dependencies:
             // * build-essential: prevent the error: [error: linker `cc` not found].
             // * libssl-dev - Required to compile the orchestrator, todo remove this dependency
-            "sudo apt-get -y install build-essential libssl-dev",
+            "sudo apt-get -y install build-essential libssl-dev cmake clang lld protobuf-compiler libudev-dev libpq5 libpq-dev ca-certificates",
             // Install rust (non-interactive).
             "curl --proto \"=https\" --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y",
             "echo \"source $HOME/.cargo/env\" | tee -a ~/.bashrc",
@@ -279,16 +240,27 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
 
         let command = [
             &basic_commands[..],
-            &Monitor::dependencies()[..],
+            &Prometheus::install_commands(),
             &cloud_provider_specific_dependencies[..],
             &protocol_dependencies[..],
         ]
         .concat()
         .join(" && ");
 
-        let active = self.instances.iter().filter(|x| x.is_active()).cloned();
         let context = CommandContext::default();
-        self.ssh_manager.execute(active, command, context).await?;
+        self.ssh_manager
+            .execute(self.instances(), command, context.clone())
+            .await?;
+        if !self.skip_monitoring {
+            let metrics_instance = self
+                .metrics_instance
+                .clone()
+                .expect("No metrics instance available");
+            let monitor_command = Monitor::dependencies().join(" && ");
+            self.ssh_manager
+                .execute(vec![metrics_instance], monitor_command, context)
+                .await?;
+        }
 
         display::done();
         Ok(())
@@ -296,12 +268,18 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
 
     /// Reload prometheus on all instances.
     pub async fn start_monitoring(&self, parameters: &BenchmarkParameters<T>) -> TestbedResult<()> {
-        let (clients, nodes, instance) = self.select_instances(parameters)?;
-        if let Some(instance) = instance {
+        if let Some(instance) = &self.metrics_instance {
             display::action("Configuring monitoring instance");
 
-            let monitor = Monitor::new(instance, clients, nodes, self.ssh_manager.clone());
-            monitor.start_prometheus(&self.protocol_commands).await?;
+            let monitor = Monitor::new(
+                instance.clone(),
+                self.client_instances.clone(),
+                self.node_instances.clone(),
+                self.ssh_manager.clone(),
+            );
+            monitor
+                .start_prometheus(&self.protocol_commands, parameters)
+                .await?;
             monitor.start_grafana().await?;
 
             display::done();
@@ -317,33 +295,59 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
     pub async fn update(&self) -> TestbedResult<()> {
         display::action("Updating all instances");
 
-        // Update all active instances. This requires compiling the codebase in release
-        // (which may take a long time) so we run the command in the background
-        // to avoid keeping alive many ssh connections for too long.
+        // Update all active instances.
         let commit = &self.settings.repository.commit;
-        let command = [
-            "git fetch -f",
-            &format!("(git checkout -b {commit} {commit} || git checkout -f {commit})"),
-            "(git pull -f || true)",
-            "source $HOME/.cargo/env",
-            "cargo build --release",
+        let git_update_command = [
+            &format!("git fetch origin {commit} --force"),
+            &format!("(git reset --hard origin/{commit} || git checkout --force {commit})"),
+            "git clean -fd -e target",
         ]
         .join(" && ");
 
-        let active = self.instances.iter().filter(|x| x.is_active()).cloned();
-
-        let id = "update";
+        let id = "git update";
         let repo_name = self.settings.repository_name();
         let context = CommandContext::new()
             .run_background(id.into())
-            .with_execute_from_path(repo_name.into());
+            .with_execute_from_path(repo_name.clone().into());
+
+        // Execute and wait for the git update command on all instances (including
+        // metrics)
+        display::action(format!("update command: {git_update_command}"));
         self.ssh_manager
-            .execute(active.clone(), command, context)
+            .execute(self.instances(), git_update_command, context)
+            .await?;
+        self.ssh_manager
+            .wait_for_command(self.instances(), id, CommandStatus::Terminated)
             .await?;
 
-        // Wait until the command finished running.
+        // Execute and wait for the cargo build command on all instances except the
+        // metrics one. This requires compiling the codebase in release
+        // (which may take a long time) so we run the command in the background
+        // to avoid keeping alive many ssh connections for too long.
+        let build_command = [
+            "source \"$HOME/.cargo/env\"".to_string(),
+            "export RUSTFLAGS='-C target-cpu=native'".to_string(),
+            "cargo build --release --bin iota --bin iota-node --bin stress".to_string(),
+        ]
+        .join(" && ");
+
+        display::action(format!("build command: {build_command}"));
+        let without_metrics = self
+            .instances()
+            .iter()
+            .filter(|i| i.role != InstanceRole::Metrics)
+            .cloned()
+            .collect::<Vec<_>>();
+        let id = "cargo build";
+        let context = CommandContext::new()
+            .run_background(id.into())
+            .with_execute_from_path(repo_name.into());
+
         self.ssh_manager
-            .wait_for_command(active, id, CommandStatus::Terminated)
+            .execute(without_metrics.clone(), build_command, context)
+            .await?;
+        self.ssh_manager
+            .wait_for_command(without_metrics, id, CommandStatus::Terminated)
             .await?;
 
         display::done();
@@ -354,16 +358,17 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
     pub async fn configure(&self, parameters: &BenchmarkParameters<T>) -> TestbedResult<()> {
         display::action("Configuring instances");
 
-        // Select instances to configure.
-        let (clients, nodes, _) = self.select_instances(parameters)?;
-
         // Generate the genesis configuration file and the keystore allowing access to
         // gas objects.
-        let command = self.protocol_commands.genesis_command(nodes.iter());
+        let command = self
+            .protocol_commands
+            .genesis_command(self.node_instances.iter(), parameters);
+        display::action(format!("Genesis command: {command}"));
         let repo_name = self.settings.repository_name();
         let context = CommandContext::new().with_execute_from_path(repo_name.into());
-        let all = clients.into_iter().chain(nodes);
-        self.ssh_manager.execute(all, command, context).await?;
+        self.ssh_manager
+            .execute(self.instances_without_metrics(), command, context)
+            .await?;
 
         display::done();
         Ok(())
@@ -384,7 +389,7 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
         let command = command.join(" ; ");
 
         // Execute the deletion on all machines.
-        let active = self.instances.iter().filter(|x| x.is_active()).cloned();
+        let active = self.instances().into_iter().filter(|x| x.is_active());
         let context = CommandContext::default();
         self.ssh_manager.execute(active, command, context).await?;
 
@@ -396,11 +401,9 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
     pub async fn run_nodes(&self, parameters: &BenchmarkParameters<T>) -> TestbedResult<()> {
         display::action("Deploying validators");
 
-        // Select the instances to run.
-        let (_, nodes, _) = self.select_instances(parameters)?;
-
         // Boot one node per instance.
-        self.boot_nodes(nodes, parameters).await?;
+        self.boot_nodes(self.node_instances.clone(), parameters)
+            .await?;
 
         display::done();
         Ok(())
@@ -408,15 +411,41 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
 
     /// Deploy the load generators.
     pub async fn run_clients(&self, parameters: &BenchmarkParameters<T>) -> TestbedResult<()> {
-        display::action("Setting up load generators");
+        if self.settings.use_fullnode_for_execution {
+            display::action("Setting up full nodes");
 
-        // Select the instances to run.
-        let (clients, _, _) = self.select_instances(parameters)?;
+            // Deploy the fullnodes.
+            let targets = self
+                .protocol_commands
+                .fullnode_command(self.client_instances.clone(), parameters);
+
+            let repo = self.settings.repository_name();
+            let context = CommandContext::new()
+                .run_background("fullnode".into())
+                .with_log_file("~/fullnode.log".into())
+                .with_execute_from_path(repo.into());
+            self.ssh_manager
+                .execute_per_instance(targets, context)
+                .await?;
+
+            // Wait until all fullnodes are reachable (otherwise clients might fail when a
+            // fullnode is not listening yet).
+            let commands = self
+                .client_instances
+                .iter()
+                .cloned()
+                .map(|i| (i, "curl http://127.0.0.1:9000".to_owned())); // fullnodes default json RPC address
+            self.ssh_manager.wait_for_success(commands).await;
+
+            display::done();
+        }
+
+        display::action("Setting up load generators");
 
         // Deploy the load generators.
         let targets = self
             .protocol_commands
-            .client_command(clients.clone(), parameters);
+            .client_command(self.client_instances.clone(), parameters);
 
         let repo = self.settings.repository_name();
         let context = CommandContext::new()
@@ -428,7 +457,9 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
             .await?;
 
         // Wait until all load generators are reachable.
-        let commands = self.protocol_commands.clients_metrics_command(clients);
+        let commands = self
+            .protocol_commands
+            .clients_metrics_command(self.client_instances.clone(), parameters);
         self.ssh_manager.wait_for_success(commands).await;
 
         display::done();
@@ -445,23 +476,27 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
             parameters.duration.as_secs()
         ));
 
-        // Select the instances to run.
-        let (clients, nodes, _) = self.select_instances(parameters)?;
-
         // Regularly scrape the client
-        let mut metrics_commands = self.protocol_commands.clients_metrics_command(clients);
+        let mut metrics_commands = self
+            .protocol_commands
+            .clients_metrics_command(self.client_instances.clone(), parameters);
 
         // TODO: Remove this when consensus client latency metrics are available.
         // We will be getting latency metrics directly from consensus nodes instead from
         // the nw client
-        metrics_commands.append(&mut self.protocol_commands.nodes_metrics_command(nodes.clone()));
+        metrics_commands.append(
+            &mut self
+                .protocol_commands
+                .nodes_metrics_command(self.node_instances.clone(), parameters),
+        );
 
         let mut aggregator = MeasurementsCollection::new(&self.settings, parameters.clone());
         let mut metrics_interval = time::interval(self.scrape_interval);
         metrics_interval.tick().await; // The first tick returns immediately.
 
         let faults_type = parameters.faults.clone();
-        let mut faults_schedule = CrashRecoverySchedule::new(faults_type, nodes.clone());
+        let mut faults_schedule =
+            CrashRecoverySchedule::new(faults_type, self.node_instances.clone());
         let mut faults_interval = time::interval(self.crash_interval);
         faults_interval.tick().await; // The first tick returns immediately.
 
@@ -521,9 +556,6 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
         &self,
         parameters: &BenchmarkParameters<T>,
     ) -> TestbedResult<LogsAnalyzer> {
-        // Select the instances to run.
-        let (clients, nodes, _) = self.select_instances(parameters)?;
-
         // Create a log sub-directory for this run.
         let commit = &self.settings.repository.commit;
         let path: PathBuf = [
@@ -541,8 +573,8 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
 
         // Download the clients log files.
         display::action("Downloading clients logs");
-        for (i, instance) in clients.iter().enumerate() {
-            display::status(format!("{}/{}", i + 1, clients.len()));
+        for (i, instance) in self.client_instances.iter().enumerate() {
+            display::status(format!("{}/{}", i + 1, self.client_instances.len()));
 
             let connection = self.ssh_manager.connect(instance.ssh_address()).await?;
             let client_log_content = connection.download("client.log").await?;
@@ -560,8 +592,8 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
         display::done();
 
         display::action("Downloading nodes logs");
-        for (i, instance) in nodes.iter().enumerate() {
-            display::status(format!("{}/{}", i + 1, nodes.len()));
+        for (i, instance) in self.node_instances.iter().enumerate() {
+            display::status(format!("{}/{}", i + 1, self.node_instances.len()));
 
             let connection = self.ssh_manager.connect(instance.ssh_address()).await?;
             let node_log_content = connection.download("node.log").await?;

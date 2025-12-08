@@ -16,6 +16,7 @@ use super::{ProtocolCommands, ProtocolMetrics};
 use crate::{
     benchmark::{BenchmarkParameters, BenchmarkType},
     client::Instance,
+    display,
     settings::Settings,
 };
 
@@ -53,6 +54,7 @@ impl BenchmarkType for IotaBenchmarkType {}
 /// All configurations information to run an IOTA client or validator.
 pub struct IotaProtocol {
     working_dir: PathBuf,
+    use_fullnode_for_execution: bool,
 }
 
 impl ProtocolCommands<IotaBenchmarkType> for IotaProtocol {
@@ -75,25 +77,41 @@ impl ProtocolCommands<IotaBenchmarkType> for IotaProtocol {
         vec![authorities_db, consensus_db]
     }
 
-    fn genesis_command<'a, I>(&self, instances: I) -> String
+    fn genesis_command<'a, I>(
+        &self,
+        instances: I,
+        parameters: &BenchmarkParameters<IotaBenchmarkType>,
+    ) -> String
     where
         I: Iterator<Item = &'a Instance>,
     {
         let working_dir = self.working_dir.display();
         let ips = instances
-            .map(|x| x.main_ip.to_string())
+            .map(|x| {
+                match parameters.use_internal_ip_address {
+                    true => x.private_ip,
+                    false => x.main_ip,
+                }
+                .to_string()
+            })
             .collect::<Vec<_>>()
             .join(" ");
         let genesis = [
             "cargo run --release --bin iota --",
             "genesis",
             &format!("-f --working-dir {working_dir} --benchmark-ips {ips}"),
+            parameters
+                .epoch_duration_ms
+                .map(|epoch_duration_ms| format!("--epoch-duration-ms {epoch_duration_ms}"))
+                .as_deref()
+                .unwrap_or(""),
         ]
         .join(" ");
 
         [
             &format!("mkdir -p {working_dir}"),
             "source $HOME/.cargo/env",
+            "export RUSTFLAGS='-C target-cpu=native'",
             &genesis,
         ]
         .join(" && ")
@@ -118,13 +136,13 @@ impl ProtocolCommands<IotaBenchmarkType> for IotaProtocol {
     fn node_command<I>(
         &self,
         instances: I,
-        _parameters: &BenchmarkParameters<IotaBenchmarkType>,
+        parameters: &BenchmarkParameters<IotaBenchmarkType>,
     ) -> Vec<(Instance, String)>
     where
         I: IntoIterator<Item = Instance>,
     {
         let working_dir = self.working_dir.clone();
-        let network_addresses = Self::resolve_network_addresses(instances);
+        let network_addresses = Self::resolve_network_addresses(instances, parameters);
 
         network_addresses
             .into_iter()
@@ -143,7 +161,54 @@ impl ProtocolCommands<IotaBenchmarkType> for IotaProtocol {
                     ),
                 ]
                 .join(" ");
-                let command = ["source $HOME/.cargo/env", &run].join(" && ");
+                let command = [
+                    "source $HOME/.cargo/env",
+                    "export RUSTFLAGS='-C target-cpu=native'",
+                    if parameters.protocol_switch_each_epoch {
+                        "export CONSENSUS_PROTOCOL=swap_each_epoch"
+                    } else {
+                        "export CONSENSUS_PROTOCOL=starfish"
+                    },
+                    &run,
+                ]
+                .join(" && ");
+
+                display::action(format!("\n Command ({i}): {command}"));
+
+                (instance, command)
+            })
+            .collect()
+    }
+
+    fn fullnode_command<I>(
+        &self,
+        instances: I,
+        _parameters: &BenchmarkParameters<IotaBenchmarkType>,
+    ) -> Vec<(Instance, String)>
+    where
+        I: IntoIterator<Item = Instance>,
+    {
+        let working_dir = self.working_dir.clone();
+
+        instances
+            .into_iter()
+            .enumerate()
+            .map(|(i, instance)| {
+                let config_path: PathBuf = working_dir.join(iota_config::IOTA_FULLNODE_CONFIG);
+
+                let run = [
+                    "cargo run --release --bin iota-node --",
+                    &format!("--config-path {}", config_path.display(),),
+                ]
+                .join(" ");
+                let command = [
+                    "source $HOME/.cargo/env",
+                    "export RUSTFLAGS='-C target-cpu=native'",
+                    &run,
+                ]
+                .join(" && ");
+
+                display::action(format!("\n Command ({i}): {command}"));
 
                 (instance, command)
             })
@@ -188,7 +253,7 @@ impl ProtocolCommands<IotaBenchmarkType> for IotaProtocol {
                 let gas_key = &gas_keys[i % committee_size];
                 let gas_address = IotaAddress::from(&gas_key.public());
 
-                let run = [
+                let mut run = [
                     "cargo run --release --bin stress --",
                     "--num-client-threads 24 --num-server-threads 1",
                     "--local false --num-transfer-accounts 2",
@@ -203,7 +268,16 @@ impl ProtocolCommands<IotaBenchmarkType> for IotaProtocol {
                     &format!("--client-metric-host 0.0.0.0 --client-metric-port {metrics_port}"),
                 ]
                 .join(" ");
-                let command = ["source $HOME/.cargo/env", &run].join(" && ");
+                if self.use_fullnode_for_execution {
+                    run.push_str(" --use-fullnode-for-execution true");
+                    run.push_str(" --fullnode-rpc-addresses http://127.0.0.1:9000");
+                }
+                let command = [
+                    "source $HOME/.cargo/env",
+                    "export RUSTFLAGS='-C target-cpu=native'",
+                    &run,
+                ]
+                .join(" && ");
 
                 (instance, command)
             })
@@ -220,6 +294,7 @@ impl IotaProtocol {
             working_dir: [&settings.working_dir, &iota_config::IOTA_CONFIG_DIR.into()]
                 .iter()
                 .collect(),
+            use_fullnode_for_execution: settings.use_fullnode_for_execution,
         }
     }
 
@@ -227,10 +302,17 @@ impl IotaProtocol {
     /// It returns the Instance and the corresponding address.
     pub fn resolve_network_addresses(
         instances: impl IntoIterator<Item = Instance>,
+        parameters: &BenchmarkParameters<IotaBenchmarkType>,
     ) -> Vec<(Instance, Multiaddr)> {
         let instances: Vec<Instance> = instances.into_iter().collect();
-        let ips: Vec<_> = instances.iter().map(|x| x.main_ip.to_string()).collect();
-        let genesis_config = GenesisConfig::new_for_benchmarks(&ips);
+        let ips: Vec<_> = instances
+            .iter()
+            .map(|x| match parameters.use_internal_ip_address {
+                true => x.private_ip.to_string(),
+                false => x.main_ip.to_string(),
+            })
+            .collect();
+        let genesis_config = GenesisConfig::new_for_benchmarks(&ips, parameters.epoch_duration_ms);
         let mut addresses = Vec::new();
         if let Some(validator_configs) = genesis_config.validator_config_info.as_ref() {
             for (i, validator_info) in validator_configs.iter().enumerate() {
@@ -249,16 +331,30 @@ impl ProtocolMetrics for IotaProtocol {
     const LATENCY_SUM: &'static str = "latency_s_sum";
     const LATENCY_SQUARED_SUM: &'static str = "latency_squared_s";
 
-    fn nodes_metrics_path<I>(&self, instances: I) -> Vec<(Instance, String)>
+    fn nodes_metrics_path<I, T>(
+        &self,
+        instances: I,
+        parameters: &BenchmarkParameters<T>,
+    ) -> Vec<(Instance, String)>
     where
         I: IntoIterator<Item = Instance>,
+        T: BenchmarkType,
     {
         let (ips, instances): (Vec<_>, Vec<_>) = instances
             .into_iter()
-            .map(|x| (x.main_ip.to_string(), x))
+            .map(|x| {
+                (
+                    match parameters.use_internal_ip_address {
+                        true => x.private_ip,
+                        false => x.main_ip,
+                    }
+                    .to_string(),
+                    x,
+                )
+            })
             .unzip();
 
-        GenesisConfig::new_for_benchmarks(&ips)
+        GenesisConfig::new_for_benchmarks(&ips, parameters.epoch_duration_ms)
             .validator_config_info
             .expect("No validator in genesis")
             .iter()
@@ -266,7 +362,10 @@ impl ProtocolMetrics for IotaProtocol {
             .map(|(config, instance)| {
                 let path = format!(
                     "{}:{}{}",
-                    instance.main_ip,
+                    match parameters.use_internal_ip_address {
+                        true => instance.private_ip,
+                        false => instance.main_ip,
+                    },
                     config.metrics_address.port(),
                     iota_metrics::METRICS_ROUTE
                 );
@@ -275,16 +374,24 @@ impl ProtocolMetrics for IotaProtocol {
             .collect()
     }
 
-    fn clients_metrics_path<I>(&self, instances: I) -> Vec<(Instance, String)>
+    fn clients_metrics_path<I, T>(
+        &self,
+        instances: I,
+        parameters: &BenchmarkParameters<T>,
+    ) -> Vec<(Instance, String)>
     where
         I: IntoIterator<Item = Instance>,
+        T: BenchmarkType,
     {
         instances
             .into_iter()
             .map(|instance| {
                 let path = format!(
                     "{}:{}{}",
-                    instance.main_ip,
+                    match parameters.use_internal_ip_address {
+                        true => instance.private_ip,
+                        false => instance.main_ip,
+                    },
                     Self::CLIENT_METRICS_PORT,
                     iota_metrics::METRICS_ROUTE
                 );

@@ -6256,10 +6256,14 @@ async fn test_consensus_handler_per_object_congestion_control(
                 .set_max_accumulated_txn_cost_per_object_in_mysticeti_commit_for_testing(
                     200_000_000,
                 );
+            // Set the allowed overshoot to 0 to simplify the test.
+            protocol_config.set_max_congestion_limit_overshoot_per_commit_for_testing(0);
         }
         PerObjectCongestionControlMode::TotalTxCount => {
             protocol_config
                 .set_max_accumulated_txn_cost_per_object_in_mysticeti_commit_for_testing(2);
+            // Set the allowed overshoot to 0 to simplify the test.
+            protocol_config.set_max_congestion_limit_overshoot_per_commit_for_testing(0);
         }
     }
     protocol_config.set_max_deferral_rounds_for_congestion_control_for_testing(1000); // Set to a large number so that we don't hit this limit.
@@ -6321,7 +6325,7 @@ async fn test_consensus_handler_per_object_congestion_control(
 
     // Sends the first batch of transactions. We should expect that 2 transactions
     // operate on the expensive object should go through, and all transactions
-    // oeprate on the cheaper object should go through. We also check that the
+    // operate on the cheaper object should go through. We also check that the
     // scheduled transactions on the expensive object have the highest gas price.
     let scheduled_txns = send_batch_consensus_no_execution(&authority, &certificates, true).await;
     assert_eq!(scheduled_txns.len(), 2 + non_congested_tx_count as usize);
@@ -6330,6 +6334,7 @@ async fn test_consensus_handler_per_object_congestion_control(
             cert.data().transaction_data().gas_price() >= 4000
                 || cert
                     .shared_input_objects()
+                    .into_iter()
                     .any(|obj| { obj.id() == shared_objects[1].id() })
         );
     }
@@ -6377,7 +6382,7 @@ async fn test_consensus_handler_per_object_congestion_control(
 
     // Sends the second batch of transactions. We should expect that another 2
     // transactions operate on the expensive object, which are deferred from the
-    // previous round, should go through, and all the new transactions oeprate on
+    // previous round, should go through, and all the new transactions operate on
     // the cheaper object should go through.
     let scheduled_txns =
         send_batch_consensus_no_execution(&authority, &new_certificates, true).await;
@@ -6387,6 +6392,7 @@ async fn test_consensus_handler_per_object_congestion_control(
             cert.data().transaction_data().gas_price() >= 2000
                 || cert
                     .shared_input_objects()
+                    .into_iter()
                     .any(|obj| { obj.id() == shared_objects[1].id() })
         );
     }

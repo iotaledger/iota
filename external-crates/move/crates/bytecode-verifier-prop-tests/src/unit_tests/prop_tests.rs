@@ -14,9 +14,9 @@ use move_binary_format::{
     proptest_types::CompiledModuleStrategyGen,
 };
 use move_bytecode_verifier::{
+    DuplicationChecker, InstructionConsistency, RecursiveDataDefChecker, SignatureChecker,
     ability_cache::AbilityCache, ability_field_requirements, constants,
-    instantiation_loops::InstantiationLoopChecker, DuplicationChecker, InstructionConsistency,
-    RecursiveDataDefChecker, SignatureChecker,
+    instantiation_loops::InstantiationLoopChecker,
 };
 use move_bytecode_verifier_meter::dummy::DummyMeter;
 use move_core_types::{
@@ -160,10 +160,11 @@ proptest! {
     }
 }
 
-/// Ensure that valid modules that don't have any members (e.g. function args, struct fields) pass
-/// bounds checks.
+/// Ensure that valid modules that don't have any members (e.g. function args,
+/// struct fields) pass bounds checks.
 ///
-/// There are some potentially tricky edge cases around ranges that are captured here.
+/// There are some potentially tricky edge cases around ranges that are captured
+/// here.
 #[test]
 fn valid_bounds_no_members() {
     let mut gen = CompiledModuleStrategyGen::new(20);

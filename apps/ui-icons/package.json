@@ -1,13 +1,13 @@
 {
     "name": "@iota/apps-ui-icons",
-    "version": "0.4.2",
+    "version": "0.5.0",
+    "repository": "https://github.com/iotaledger/iota",
     "main": "dist/index.js",
     "module": "dist/index.mjs",
     "types": "dist/index.d.ts",
     "sideEffects": false,
     "scripts": {
         "build": "tsup src/index.ts --format cjs,esm --dts",
-        "prepublishOnly": "pnpm run build",
         "clean:src": "rimraf src/**",
         "clean:svgs": "rimraf svgs/**",
         "clean:all": "pnpm clean:src && pnpm clean:svgs",

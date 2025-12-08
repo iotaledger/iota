@@ -6,21 +6,21 @@ processed 5 tasks
 init:
 A: object(0,0)
 
-task 1, lines 8-28:
+task 1, lines 8-29:
 //# publish --sender A
-created: object(1,0)
+created: object(1,0), object(1,1)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 6619600,  storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 9956000,  storage_rebate: 0, non_refundable_storage_fee: 0
 
-task 2, lines 30-32:
-//# programmable --sender A --inputs @test "abstract_account" "authenticate"
+task 2, lines 31-33:
+//# programmable --sender A --inputs object(1,1) "abstract_account" "authenticate"
 //> 0: iota::account::create_auth_info_v1<test::abstract_account::AbstractAccount>(Input(0), Input(1), Input(2));
 //> 1: test::abstract_account::create(Result(0));
 created: object(2,0)
 mutated: object(0,0)
 gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2401600,  storage_rebate: 980400, non_refundable_storage_fee: 0
 
-task 3, line 34:
+task 3, line 35:
 //# view-object 2,0
 Owner: Shared( 3 )
 Version: 3
@@ -32,6 +32,6 @@ Contents: test::abstract_account::AbstractAccount {
     },
 }
 
-task 4, lines 36-38:
+task 4, lines 37-39:
 //# abstract --account immshared(2,0) --ptb-inputs 100 @A
-Error: Error checking transaction input objects: MoveAuthenticatorNotFound { authenticator_info_id: 0xd2928ba51683f27b6a722c655ce4b77f47cd9d18f77ef15783b92d7adef8de69, account_object_id: object(2,0), account_object_version: SequenceNumber(3) }
+Error: Error checking transaction input objects: MoveAuthenticatorNotFound { authenticator_info_id: 0xb8165e041bba374a2b4cd262769da831260c6f3091be627e1d89b0c0901e493c, account_object_id: object(2,0), account_object_version: SequenceNumber(3) }

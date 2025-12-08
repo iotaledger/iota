@@ -14,6 +14,7 @@ import { CoinFormat, formatBalance, IOTA_DECIMALS, parseAmount } from '@iota/iot
 import { useCoinMetadata, useGetAllCoins } from '@iota/core';
 import { useGetAllBalancesL2 } from '../../../hooks/useGetAllBalancesL2';
 import { useAccount } from 'wagmi';
+import { ampli } from '../../../shared/analytics';
 
 export function DepositLayer1() {
     const addressL1 = useCurrentAccount()?.address as string;
@@ -70,6 +71,10 @@ export function DepositLayer1() {
                         .then(() => {
                             toast.success('Deposit transaction confirmed!');
                             refetchL2Balance();
+                            ampli.sentFromL1ToL2({
+                                amount: depositAmount,
+                                coinType: selectedCoinType,
+                            });
                         })
                         .catch((err) => {
                             if (import.meta.env.DEV) {

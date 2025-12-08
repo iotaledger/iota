@@ -148,9 +148,8 @@ impl CheckpointReader {
                     Some(duration) => {
                         if !err.to_string().contains("404") {
                             debug!(
-                                "remote reader retry in {} ms. Error is {:?}",
+                                "remote reader retry in {} ms. Error is {err:?}",
                                 duration.as_millis(),
-                                err
                             );
                         }
                         tokio::time::sleep(duration).await
@@ -314,16 +313,16 @@ impl CheckpointReader {
 
         self.data_limiter.gc(self.last_pruned_watermark);
         self.gc_processed_files(self.last_pruned_watermark)
-            .expect("Failed to clean the directory");
+            .expect("failed to clean the directory");
         loop {
             tokio::select! {
                 _ = &mut self.exit_receiver => break,
                 Some(gc_checkpoint_number) = self.processed_receiver.recv() => {
                     self.data_limiter.gc(gc_checkpoint_number);
-                    self.gc_processed_files(gc_checkpoint_number).expect("Failed to clean the directory");
+                    self.gc_processed_files(gc_checkpoint_number).expect("failed to clean the directory");
                 }
                 Ok(Some(_)) | Err(_) = timeout(Duration::from_millis(self.options.tick_interval_ms), inotify_recv.recv())  => {
-                    self.sync().await.expect("Failed to read checkpoint files");
+                    self.sync().await.expect("failed to read checkpoint files");
                 }
             }
         }

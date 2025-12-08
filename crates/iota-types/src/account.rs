@@ -35,7 +35,7 @@ pub struct AuthenticatorInfoV1Key {
 }
 
 impl AuthenticatorInfoV1 {
-    pub fn tag(type_param: StructTag) -> StructTag {
+    pub fn type_(type_param: StructTag) -> StructTag {
         StructTag {
             address: IOTA_FRAMEWORK_ADDRESS,
             module: ACCOUNT_MODULE_NAME.to_owned(),

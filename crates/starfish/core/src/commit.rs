@@ -253,21 +253,28 @@ impl CertifiedCommits {
 pub(crate) struct CertifiedCommit {
     commit: Arc<TrustedCommit>,
     verified_block_headers: Vec<VerifiedBlockHeader>,
+    verified_transactions: Vec<VerifiedTransactions>,
 }
 
 impl CertifiedCommit {
     pub(crate) fn new_certified(
         commit: TrustedCommit,
         verified_block_headers: Vec<VerifiedBlockHeader>,
+        verified_transactions: Vec<VerifiedTransactions>,
     ) -> Self {
         Self {
             commit: Arc::new(commit),
             verified_block_headers,
+            verified_transactions,
         }
     }
 
-    pub fn blocks(&self) -> &[VerifiedBlockHeader] {
+    pub fn block_headers(&self) -> &[VerifiedBlockHeader] {
         &self.verified_block_headers
+    }
+
+    pub fn transactions(&self) -> &[VerifiedTransactions] {
+        &self.verified_transactions
     }
 }
 
@@ -281,12 +288,12 @@ impl Deref for CertifiedCommit {
 
 /// Digest of a consensus commit.
 #[derive(Clone, Copy, Default, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
-pub struct CommitDigest([u8; starfish_config::DIGEST_LENGTH]);
+pub struct CommitDigest([u8; DIGEST_LENGTH]);
 
 impl CommitDigest {
     /// Lexicographic min & max digest.
-    pub const MIN: Self = Self([u8::MIN; starfish_config::DIGEST_LENGTH]);
-    pub const MAX: Self = Self([u8::MAX; starfish_config::DIGEST_LENGTH]);
+    pub const MIN: Self = Self([u8::MIN; DIGEST_LENGTH]);
+    pub const MAX: Self = Self([u8::MAX; DIGEST_LENGTH]);
 
     pub fn into_inner(self) -> [u8; starfish_config::DIGEST_LENGTH] {
         self.0
@@ -361,17 +368,17 @@ pub type CommitVote = CommitRef;
 pub struct SubDagBase {
     /// A reference to the leader of the sub-dag
     pub leader: BlockRef,
-    /// All the committed blocks that are part of this sub-dag
-    pub blocks: Vec<VerifiedBlockHeader>,
+    /// All the block headers that are traversed on DAG starting with the leader
+    pub headers: Vec<VerifiedBlockHeader>,
     /// The timestamp of the commit, obtained from the timestamp of the leader
     /// block.
     pub timestamp_ms: BlockTimestampMs,
     /// The reference of the commit.
     /// First commit after genesis has a index of 1, then every next commit has
-    /// a index incremented by 1.
+    /// an index incremented by 1.
     pub commit_ref: CommitRef,
     /// Optional scores that are provided as part of the consensus output to
-    /// IOTA that can then be used by IOTA for future submission to
+    /// IOTA that can then be used by IOTA for future transaction submission to
     /// consensus.
     pub reputation_scores_desc: Vec<(AuthorityIndex, u64)>,
 }
@@ -382,12 +389,12 @@ impl SubDagBase {
     pub(crate) fn transaction_acknowledgments(
         &self,
     ) -> HashMap<(Round, AuthorityIndex), Vec<BlockRef>> {
-        self.blocks
+        self.headers
             .iter()
-            .map(|block| {
+            .map(|header| {
                 (
-                    (block.round(), block.author()),
-                    block.acknowledgments().to_vec(),
+                    (header.round(), header.author()),
+                    header.acknowledgments().to_vec(),
                 )
             })
             .fold(
@@ -407,7 +414,7 @@ impl SubDagBase {
     fn format_block_refs(&self) -> String {
         format_block_digests(
             &self
-                .blocks
+                .headers
                 .iter()
                 .map(|b| b.reference())
                 .collect::<Vec<_>>(),
@@ -459,7 +466,7 @@ impl CommittedSubDag {
     /// Creates a new committed sub dag.
     pub fn new(
         leader: BlockRef,
-        blocks: Vec<VerifiedBlockHeader>,
+        headers: Vec<VerifiedBlockHeader>,
         transactions: Vec<VerifiedTransactions>,
         timestamp_ms: BlockTimestampMs,
         commit_ref: CommitRef,
@@ -468,7 +475,7 @@ impl CommittedSubDag {
         Self {
             base: SubDagBase {
                 leader,
-                blocks,
+                headers,
                 timestamp_ms,
                 commit_ref,
                 reputation_scores_desc,
@@ -548,7 +555,7 @@ impl PendingSubDag {
     /// Creates a new pending sub dag.
     pub fn new(
         leader: BlockRef,
-        blocks: Vec<VerifiedBlockHeader>,
+        headers: Vec<VerifiedBlockHeader>,
         committed_transaction_refs: Vec<BlockRef>,
         timestamp_ms: BlockTimestampMs,
         commit_ref: CommitRef,
@@ -557,7 +564,7 @@ impl PendingSubDag {
         Self {
             base: SubDagBase {
                 leader,
-                blocks,
+                headers,
                 timestamp_ms,
                 commit_ref,
                 reputation_scores_desc,
@@ -621,7 +628,7 @@ pub fn load_pending_subdag_from_store(
 ) -> PendingSubDag {
     let mut leader_block_idx = None;
     let commit_block_headers = store
-        .read_block_headers(commit.blocks())
+        .read_verified_block_headers(commit.blocks())
         .expect("We should have the block referenced in the commit data");
     let block_headers = commit_block_headers
         .into_iter()
@@ -957,14 +964,14 @@ mod tests {
         assert_eq!(subdag.leader, leader_ref);
         assert_eq!(subdag.timestamp_ms, leader_block.timestamp_ms());
         assert_eq!(
-            subdag.blocks.len(),
+            subdag.headers.len(),
             (num_authorities as u32 * WAVE_LENGTH) as usize + 1
         );
         assert_eq!(subdag.commit_ref, commit.reference());
         assert_eq!(subdag.committed_transaction_refs, first_round_references);
         assert_eq!(subdag.reputation_scores_desc, vec![]);
         let transactions = store
-            .read_transactions(&subdag.committed_transaction_refs)
+            .read_verified_transactions(&subdag.committed_transaction_refs)
             .expect("We should have the transactions referenced in the commit data")
             .into_iter()
             .flatten()
@@ -1042,7 +1049,7 @@ mod tests {
         assert_eq!(pending_subdag.leader, leader_ref);
         assert_eq!(pending_subdag.timestamp_ms, leader_block.timestamp_ms());
         assert_eq!(
-            pending_subdag.blocks.len(),
+            pending_subdag.headers.len(),
             (num_authorities as u32 * WAVE_LENGTH) as usize + 1
         );
         assert_eq!(pending_subdag.commit_ref, commit.reference());

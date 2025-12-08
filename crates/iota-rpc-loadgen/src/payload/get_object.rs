@@ -16,7 +16,7 @@ use crate::payload::{GetObject, ProcessPayload, RpcCommandProcessor, SignerInfo}
 impl<'a> ProcessPayload<'a, &'a GetObject> for RpcCommandProcessor {
     async fn process(&'a self, op: &'a GetObject, _signer_info: &Option<SignerInfo>) -> Result<()> {
         if op.object_ids.is_empty() {
-            panic!("No object ids provided, skipping query");
+            panic!("no object ids provided, skipping query");
         };
         let clients = self.get_clients().await?;
         let chunked = chunk_entities(&op.object_ids, Some(op.chunk_size));

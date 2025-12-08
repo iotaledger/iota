@@ -15,10 +15,9 @@ use anyhow::Result;
 use futures::future::try_join_all;
 use iota_config::{
     ExecutionCacheConfig, ExecutionCacheType, IOTA_GENESIS_FILENAME, NodeConfig,
-    node::{AuthorityOverloadConfig, DBCheckpointConfig, RunWithRange},
+    node::{AuthorityOverloadConfig, DBCheckpointConfig, GrpcApiConfig, RunWithRange},
     p2p::DiscoveryConfig,
 };
-use iota_grpc_api;
 use iota_macros::nondeterministic;
 use iota_names::config::IotaNamesConfig;
 use iota_node::IotaNodeHandle;
@@ -73,7 +72,7 @@ pub struct SwarmBuilder<R = OsRng> {
     state_accumulator_config: StateAccumulatorV1EnabledConfig,
     disable_fullnode_pruning: bool,
     iota_names_config: Option<IotaNamesConfig>,
-    fullnode_grpc_api_config: Option<iota_grpc_api::Config>,
+    fullnode_grpc_api_config: Option<GrpcApiConfig>,
     disable_address_verification_cooldown: bool,
 }
 
@@ -318,7 +317,7 @@ impl<R> SwarmBuilder<R> {
         self
     }
 
-    pub fn with_fullnode_grpc_api_config(mut self, config: iota_grpc_api::Config) -> Self {
+    pub fn with_fullnode_grpc_api_config(mut self, config: GrpcApiConfig) -> Self {
         self.fullnode_grpc_api_config = Some(config);
         self
     }

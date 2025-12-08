@@ -190,7 +190,7 @@ This section contains the core information needed in the lockfile:
 - The version of the lockfile (needed for backwards compatibility checking, and
   versioning lockfile changes in the future).
 - The hash of the `Move.toml` file that was used to generate this lock file.
-- The hash of the `Move.lock` file of all dependencies. If no depencies are
+- The hash of the `Move.lock` file of all dependencies. If no dependencies are
   present, this will be an empty string.
 - The list of dependencies.
 
@@ -198,7 +198,7 @@ This section contains the core information needed in the lockfile:
 [move]
 version = <string> # Lock file version, used for backwards compatibility checking.
 manifest_digest = <hash> # Sha3-256 hash of the Move.toml file that was used to generate this lock file.
-deps_digest = <hash> # Sha3-256 hash of the Move.lock file of all dependencies. If no depencies are present, this will be an empty string.
+deps_digest = <hash> # Sha3-256 hash of the Move.lock file of all dependencies. If no dependencies are present, this will be an empty string.
 dependencies = { (name = <string>)* } # List of dependencies. Not present if there are no dependencies.
 ```
 

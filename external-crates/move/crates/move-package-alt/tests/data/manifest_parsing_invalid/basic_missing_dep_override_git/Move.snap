@@ -1,0 +1,8 @@
+---
+source: crates/move-package-alt/tests/parsing_tests.rs
+---
+error: TOML parse error at line 12, column 41
+   |
+12 | foo = { rename-from = "Foo", override = "true", rev = "releases/v1", git = "https://example.com/foo.git" }
+   |                                         ^^^^^^
+invalid type: string "true", expected a boolean

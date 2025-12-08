@@ -106,6 +106,7 @@ mod checked {
         Ok((gas_status, input_objects.into_checked()))
     }
 
+    #[instrument(level = "trace", skip_all, fields(tx_digest = ?transaction.digest()))]
     pub fn check_transaction_input_with_given_gas(
         protocol_config: &ProtocolConfig,
         reference_gas_price: u64,
@@ -169,6 +170,7 @@ mod checked {
 
     /// WARNING! This should only be used for the dev-inspect transaction. This
     /// transaction type bypasses many of the normal object checks
+    #[instrument(level = "trace", skip_all)]
     pub fn check_dev_inspect_input(
         config: &ProtocolConfig,
         kind: &TransactionKind,
@@ -788,54 +790,9 @@ mod checked {
                 // In the case of an alive object, check that the object kind matches exactly,
                 // or that, if it is a shared object, only the mutability changes
                 if let ObjectReadResultKind::Object(_) = &other_object.object {
-                    match base_object.input_object_kind {
-                        // If immutable or owned object or package, the kinds must match exactly
-                        InputObjectKind::ImmOrOwnedMoveObject(_)
-                        | InputObjectKind::MovePackage(_) => {
-                            // This is an invariant
-                            assert_eq!(
-                                base_object.input_object_kind, other_object.input_object_kind,
-                                "The object kind for input objects with the same id must be equal"
-                            );
-                        }
-                        // else, if shared object, only mutability can differ
-                        InputObjectKind::SharedMoveObject {
-                            id: input_id,
-                            initial_shared_version: base_initial_shared_version,
-                            mutable: base_is_mutable,
-                            ..
-                        } => {
-                            match other_object.input_object_kind {
-                                InputObjectKind::ImmOrOwnedMoveObject(_)
-                                | InputObjectKind::MovePackage(_) => {
-                                    // The object owner for objects with the same id must be equal
-                                    fp_bail!(UserInputError::NotSharedObject.into())
-                                }
-                                InputObjectKind::SharedMoveObject {
-                                    id: additional_id,
-                                    initial_shared_version: other_initial_shared_version,
-                                    mutable: other_is_mutable,
-                                } => {
-                                    fp_ensure!(
-                                        input_id == additional_id
-                                            && base_initial_shared_version
-                                                == other_initial_shared_version,
-                                        UserInputError::SharedObjectStartingVersionMismatch.into()
-                                    );
-                                    // if other_is_mutable is true and base_is_mutable is false,
-                                    // then swap
-                                    if other_is_mutable && !base_is_mutable {
-                                        base_object.input_object_kind =
-                                            InputObjectKind::SharedMoveObject {
-                                                id: input_id,
-                                                initial_shared_version: base_initial_shared_version,
-                                                mutable: true,
-                                            };
-                                    }
-                                }
-                            }
-                        }
-                    };
+                    base_object
+                        .input_object_kind
+                        .left_union_with_checks(&other_object.input_object_kind)?;
                 }
             } else {
                 base_set.push(other_object.clone());

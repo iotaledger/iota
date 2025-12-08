@@ -110,7 +110,7 @@ export function TransactionBlocksForAddress({
         } as TransactionFilter);
 
     const currentPage = currentPageState[filterValue];
-    const tableColumns = generateTransactionsTableColumns();
+    const tableColumns = generateTransactionsTableColumns(address);
 
     return (
         <Panel>

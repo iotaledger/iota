@@ -77,8 +77,3 @@ path = "exchange/derive-address.rs"
 [[example]]
 name = "get-balance"
 path = "exchange/get-balance.rs"
-
-# AA examples
-[[example]]
-name = "iotaccount"
-path = "aa/iotaccount.rs"

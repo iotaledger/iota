@@ -6,15 +6,15 @@ processed 3 tasks
 init:
 A: object(0,0)
 
-task 1, lines 8-33:
+task 1, lines 8-34:
 //# publish --sender A
-created: object(1,0)
+created: object(1,0), object(1,1)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 8306800,  storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 11650800,  storage_rebate: 0, non_refundable_storage_fee: 0
 
-task 2, lines 35-37:
-//# programmable --sender A --inputs @test "abstract_account" "authenticate"
+task 2, lines 36-38:
+//# programmable --sender A --inputs object(1,1) "abstract_account" "authenticate"
 //> 0: iota::account::create_auth_info_v1<test::abstract_account::AbstractAccount>(Input(0), Input(1), Input(2));
 //> 1: test::abstract_account::create(Result(0));
-Error: Transaction Effects Status: MOVE VM INVARIANT VIOLATION.
-Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: VMInvariantViolation, source: Some(VMError { major_status: UNKNOWN_INVARIANT_VIOLATION_ERROR, sub_status: None, message: Some("ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: IotaMoveVerificationError, source: Some(\"Invalid account type. Account argument type Struct(DatatypeHandleIndex(1)) does not match the expected account type Struct(StructTag { address: test, module: Identifier(\\\"abstract_account\\\"), name: Identifier(\\\"AbstractAccount\\\"), type_params: [] })\"), command: None } }"), exec_state: None, location: Module(ModuleId { address: iota, name: Identifier("account") }), indices: [], offsets: [(FunctionDefinitionIndex(7), 0)] }), command: Some(0) } }
+Error: Transaction Effects Status: Move Runtime Abort. Location: iota::account::create_auth_info_v1 (function index 0) at offset 15, Abort Code: 13835902772270465031
+Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: MoveAbort(MoveLocation { module: ModuleId { address: iota, name: Identifier("account") }, function: 0, instruction: 15, function_name: Some("create_auth_info_v1") }, 13835902772270465031), source: Some(VMError { major_status: ABORTED, sub_status: Some(13835902772270465031), message: Some("iota::account::create_auth_info_v1 at offset 15"), exec_state: None, location: Module(ModuleId { address: iota, name: Identifier("account") }), indices: [], offsets: [(FunctionDefinitionIndex(0), 15)] }), command: Some(0) } }

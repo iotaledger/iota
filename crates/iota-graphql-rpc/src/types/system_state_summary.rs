@@ -361,8 +361,8 @@ impl SystemStateSummary {
     }
 
     /// The total IOTA supply.
-    async fn iota_total_supply(&self) -> Option<u64> {
-        Some(self.native.iota_total_supply())
+    async fn iota_total_supply(&self) -> Option<BigInt> {
+        Some(self.native.iota_total_supply().into())
     }
 
     /// The treasury-cap id.

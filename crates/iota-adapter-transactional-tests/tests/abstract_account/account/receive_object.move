@@ -32,6 +32,7 @@ public fun create(
     account_address
 }
 
+#[authenticator]
 public fun authenticate(_account: &AbstractAccount, _auth_ctx: &AuthContext, _ctx: &TxContext) {}
 
 public fun receive_object(
@@ -43,7 +44,7 @@ public fun receive_object(
     transfer::public_transfer(received_coin, self.id.to_address());
 }
 
-//# programmable --sender A --inputs @test "abstract_account" "authenticate"
+//# programmable --sender A --inputs object(1,1) "abstract_account" "authenticate"
 //> 0: iota::account::create_auth_info_v1<test::abstract_account::AbstractAccount>(Input(0), Input(1), Input(2));
 //> 1: test::abstract_account::create(Result(0));
 

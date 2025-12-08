@@ -335,8 +335,8 @@ const config = {
         content:
           'Discover <a target="_blank" rel="noopener noreferrer" href="/developer/iota-notarization">IOTA Notarization Alpha</a> a toolkit for creating and managing tamper-proof records.',
         isCloseable: true,
-        backgroundColor: "#0101ff",
-        textColor: "#FFFFFF",
+        backgroundColor: "var(--ifm-color-primary-head-darkest)",
+        textColor: "var(--iota-white)",
       },
       navbar: {
         title: "",
@@ -400,7 +400,7 @@ const config = {
         // Optional medium-zoom options
         // see: https://www.npmjs.com/package/medium-zoom#options
         options: {
-          background: 'rgba(0, 0, 0, 0.6)',
+          background: "var(--iota-imagezoom-options)",
         },
       }
     }),

@@ -79,7 +79,7 @@ pub mod diesel_macro {
                     .read_write()
                     .run($query)
                     .map_err(|e| {
-                        tracing::error!("Error with persisting data into DB: {:?}, retrying...", e);
+                        tracing::error!("error with persisting data into DB: {e:?}, retrying...");
                         backoff::Error::Transient {
                             err: IndexerError::PostgresWrite(e.to_string()),
                             retry_after: None,
@@ -118,7 +118,7 @@ pub mod diesel_macro {
                     .read_write()
                     .run($query)
                     .map_err(|e| {
-                        tracing::error!("Error with persisting data into DB: {:?}, retrying...", e);
+                        tracing::error!("error with persisting data into DB: {e:?}, retrying...");
                         if $abort_condition(&e) {
                             backoff::Error::Permanent(e)
                         } else {
@@ -176,7 +176,7 @@ pub mod diesel_macro {
                 }
             })
             .await
-            .expect("Blocking call failed")
+            .expect("blocking call failed")
         }};
     }
 
@@ -184,7 +184,7 @@ pub mod diesel_macro {
     macro_rules! insert_or_ignore_into {
         ($table:expr, $values:expr, $conn:expr) => {{
             use diesel::RunQueryDsl;
-            let error_message = concat!("Failed to write to ", stringify!($table), " DB");
+            let error_message = concat!("failed to write to ", stringify!($table), " DB");
 
             diesel::insert_into($table)
                 .values($values)
@@ -241,6 +241,30 @@ pub mod diesel_macro {
     }
 
     #[macro_export]
+    macro_rules! run_query_with_retry {
+        ($pool:expr, $query:expr, $max_elapsed:expr) => {{
+            blocking_call_is_ok_or_panic!();
+            let mut backoff = backoff::ExponentialBackoff::default();
+            backoff.max_elapsed_time = Some($max_elapsed);
+            let result = match backoff::retry(backoff, || {
+                read_only_blocking!($pool, $query).map_err(|e| {
+                    tracing::error!("error with reading data from DB: {e:?}, retrying...");
+                    backoff::Error::Transient {
+                        err: e,
+                        retry_after: None,
+                    }
+                })
+            }) {
+                Ok(v) => Ok(v),
+                Err(backoff::Error::Transient { err, .. }) => Err(err),
+                Err(backoff::Error::Permanent(err)) => Err(err),
+            };
+
+            result
+        }};
+    }
+
+    #[macro_export]
     macro_rules! run_query_async {
         ($pool:expr, $query:expr) => {{ spawn_read_only_blocking!($pool, $query, false) }};
     }
@@ -266,7 +290,7 @@ pub mod diesel_macro {
                 && !CALLED_FROM_BLOCKING_POOL.with(|in_blocking_pool| *in_blocking_pool.borrow())
             {
                 panic!(
-                    "You are calling a blocking DB operation directly on an async thread. \
+                    "you are calling a blocking DB operation directly on an async thread. \
                         Please use IndexerReader::spawn_blocking instead to move the \
                         operation to a blocking thread"
                 );
@@ -344,7 +368,7 @@ pub mod diesel_macro {
                 );
             })
             .tap_err(|e| {
-                tracing::error!("Failed to persist {} with error: {}", stringify!($table), e);
+                tracing::error!("failed to persist {} with error: {e}", stringify!($table));
             })
         }};
     }

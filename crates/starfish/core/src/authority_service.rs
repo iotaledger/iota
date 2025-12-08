@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
-    collections::{BTreeMap, BTreeSet, VecDeque},
+    collections::{BTreeMap, VecDeque},
     pin::Pin,
     sync::Arc,
     time::Duration,
@@ -16,10 +16,7 @@ use futures::{Stream, StreamExt, ready, stream, task};
 use iota_macros::fail_point_async;
 use parking_lot::RwLock;
 use starfish_config::AuthorityIndex;
-use tokio::{
-    sync::{Mutex, broadcast, mpsc::Sender},
-    time::sleep,
-};
+use tokio::sync::{Mutex, broadcast, mpsc::Sender};
 use tokio_util::sync::ReusableBoxFuture;
 use tracing::{debug, info, warn};
 
@@ -34,18 +31,19 @@ use crate::{
     commit::{CommitAPI as _, CommitRange, TrustedCommit},
     commit_vote_monitor::CommitVoteMonitor,
     context::Context,
+    cordial_knowledge::CordialKnowledgeHandle,
     core_thread::CoreThreadDispatcher,
-    dag_state::{DagState, MAX_HEADERS_PER_BUNDLE, MAX_SHARDS_PER_BUNDLE},
+    dag_state::DagState,
     encoder::ShardEncoder,
     error::{ConsensusError, ConsensusResult},
+    header_synchronizer::HeaderSynchronizerHandle,
     network::{
-        BlockBundle, BlockBundleStream, NetworkService, SerializedBlock, SerializedBlockBundle,
+        BlockBundleStream, NetworkService, SerializedBlock, SerializedBlockBundle,
         SerializedBlockBundleParts, SerializedHeaderAndTransactions, SerializedTransactions,
     },
     shard_reconstructor::TransactionMessage,
     stake_aggregator::{QuorumThreshold, StakeAggregator},
     storage::Store,
-    synchronizer::SynchronizerHandle,
     transactions_synchronizer::TransactionsSynchronizerHandle,
 };
 
@@ -100,7 +98,7 @@ pub(crate) struct AuthorityService<C: CoreThreadDispatcher> {
     context: Arc<Context>,
     commit_vote_monitor: Arc<CommitVoteMonitor>,
     block_verifier: Arc<dyn BlockVerifier>,
-    synchronizer: Arc<SynchronizerHandle>,
+    synchronizer: Arc<HeaderSynchronizerHandle>,
     transactions_synchronizer: Arc<TransactionsSynchronizerHandle>,
     core_dispatcher: Arc<C>,
     rx_block_broadcaster: broadcast::Receiver<VerifiedBlock>,
@@ -114,14 +112,11 @@ pub(crate) struct AuthorityService<C: CoreThreadDispatcher> {
     received_block_headers: FilterForHeaders,
     /// Sender to send received transaction messages to the shard reconstructor
     transaction_message_sender: Sender<Vec<TransactionMessage>>,
-    /// For each peer, the set of authorities whose block headers the local node
-    /// considered useful when receiving a block bundle from that peer.
-    /// Keyed by the peer’s AuthorityIndex.
-    useful_authorities_from_peer: Arc<RwLock<BTreeMap<AuthorityIndex, BTreeSet<AuthorityIndex>>>>,
-    /// For each peer, the set of local authorities that the peer reported as
-    /// useful to them (communicated inside their block bundles).
-    /// Keyed by the peer’s AuthorityIndex.
-    useful_authorities_to_peer: Arc<RwLock<BTreeMap<AuthorityIndex, BTreeSet<AuthorityIndex>>>>,
+    /// CordialKnowledge allows to update cordial knowledge about the DAG (which
+    /// blocks are know by which peer). In addition, one can retrieve some
+    /// useful information such as which headers and shards are needed to a
+    /// specific peer
+    cordial_knowledge: Arc<CordialKnowledgeHandle>,
 }
 
 impl<C: CoreThreadDispatcher> AuthorityService<C> {
@@ -129,13 +124,14 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
         context: Arc<Context>,
         block_verifier: Arc<dyn BlockVerifier>,
         commit_vote_monitor: Arc<CommitVoteMonitor>,
-        synchronizer: Arc<SynchronizerHandle>,
+        header_synchronizer: Arc<HeaderSynchronizerHandle>,
         transactions_synchronizer: Arc<TransactionsSynchronizerHandle>,
         core_dispatcher: Arc<C>,
         rx_block_broadcaster: broadcast::Receiver<VerifiedBlock>,
         dag_state: Arc<RwLock<DagState>>,
         store: Arc<dyn Store>,
         transaction_message_sender: Sender<Vec<TransactionMessage>>,
+        cordial_knowledge: Arc<CordialKnowledgeHandle>,
     ) -> Self {
         let subscription_counter = Arc::new(SubscriptionCounter::new(
             context.clone(),
@@ -146,7 +142,7 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
             context,
             block_verifier,
             commit_vote_monitor,
-            synchronizer,
+            synchronizer: header_synchronizer,
             transactions_synchronizer,
             core_dispatcher,
             rx_block_broadcaster,
@@ -154,41 +150,21 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
             dag_state,
             store,
             received_block_headers: FilterForHeaders::new(),
-            useful_authorities_from_peer: Arc::new(RwLock::new(BTreeMap::new())),
-            useful_authorities_to_peer: Arc::new(RwLock::new(BTreeMap::new())),
             transaction_message_sender,
+            cordial_knowledge,
         }
     }
-}
-
-#[async_trait]
-impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
-    async fn handle_subscribed_block_bundle(
+    fn create_verified_block_and_shard(
         &self,
         peer: AuthorityIndex,
-        serialized_block_bundle: SerializedBlockBundle,
+        peer_hostname: &str,
+        serialized_block: Bytes,
         encoder: &mut Box<dyn ShardEncoder + Send + Sync>,
-    ) -> ConsensusResult<()> {
-        fail_point_async!("consensus-rpc-response");
-
-        let peer_hostname = &self.context.committee.authority(peer).hostname;
-        let serialized_block_bundle_parts =
-            SerializedBlockBundleParts::try_from(serialized_block_bundle)?;
-
-        // Cache authorities this peer finds useful for cordial
-        let useful_authorities_to_peer = serialized_block_bundle_parts.useful_authorities();
-        {
-            let mut guard = self.useful_authorities_to_peer.write();
-            guard.insert(peer, useful_authorities_to_peer);
-        }
-
-        // 1. Create a verified block and make some preliminary checks
+    ) -> ConsensusResult<(VerifiedBlock, Option<ShardWithProof>)> {
         let SerializedHeaderAndTransactions {
             serialized_block_header,
             serialized_transactions,
-        } = SerializedHeaderAndTransactions::try_from(SerializedBlock {
-            serialized_block: serialized_block_bundle_parts.serialized_block,
-        })?;
+        } = SerializedHeaderAndTransactions::try_from(SerializedBlock { serialized_block })?;
 
         let signed_block_header: SignedBlockHeader =
             bcs::from_bytes(&serialized_block_header).map_err(ConsensusError::MalformedHeader)?;
@@ -198,32 +174,24 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             self.context
                 .metrics
                 .node_metrics
-                .invalid_block_headers
-                .with_label_values(&[
-                    peer_hostname.as_str(),
-                    "handle_subscribed_block_bundle",
-                    "UnexpectedAuthority",
-                ])
+                .bundles_with_invalid_parts
+                .with_label_values(&[peer_hostname, "header", "UnexpectedAuthority"])
                 .inc();
             let e = ConsensusError::UnexpectedAuthority(signed_block_header.author(), peer);
             info!("Block with wrong authority from {}: {}", peer, e);
             return Err(e);
         }
-
         if let Err(e) = self.block_verifier.verify(&signed_block_header) {
             self.context
                 .metrics
                 .node_metrics
-                .invalid_block_headers
-                .with_label_values(&[
-                    peer_hostname.as_str(),
-                    "handle_subscribed_block_bundle",
-                    e.clone().name(),
-                ])
+                .bundles_with_invalid_parts
+                .with_label_values(&[peer_hostname, "header", e.clone().name()])
                 .inc();
             info!("Invalid block header from {}: {}", peer, e);
             return Err(e);
         }
+
         let (transaction_commitment, our_shard, proof_for_shard) = TransactionsCommitment::compute_merkle_root_shard_and_proof(
             &serialized_transactions,
             &self.context,
@@ -252,74 +220,45 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             verified_block_header.transactions_commitment(),
             serialized_transactions,
         );
+        let has_transactions = verified_transactions.has_transactions();
         let verified_block = VerifiedBlock::new(verified_block_header, verified_transactions);
-
         let block_ref = verified_block.reference();
         debug!("Received block {} via stream block bundle.", block_ref);
-
-        // 2. Reject a block with a timestamp too far in the future.
-        let now = self.context.clock.timestamp_utc_ms();
-        let forward_time_drift =
-            Duration::from_millis(verified_block.timestamp_ms().saturating_sub(now));
-        if forward_time_drift > self.context.parameters.max_forward_time_drift {
-            self.context
-                .metrics
-                .node_metrics
-                .rejected_future_blocks
-                .with_label_values(&[peer_hostname])
-                .inc();
-            debug!(
-                "Block {:?} timestamp ({} > {}) is too far in the future, rejected.",
+        let shard_for_core = if has_transactions {
+            Some(ShardWithProof {
+                shard: our_shard,
+                transaction_commitment,
+                proof: proof_for_shard,
                 block_ref,
-                verified_block.timestamp_ms(),
-                now,
-            );
-            return Err(ConsensusError::BlockRejected {
-                block_ref,
-                reason: format!(
-                    "Block timestamp is too far in the future: {} > {}",
-                    verified_block.timestamp_ms(),
-                    now
-                ),
-            });
-        }
+            })
+        } else {
+            None
+        };
+        Ok((verified_block, shard_for_core))
+    }
 
-        // 3. Wait until the block's timestamp is current.
-        if forward_time_drift > Duration::ZERO {
-            self.context
-                .metrics
-                .node_metrics
-                .block_timestamp_drift_wait_ms
-                .with_label_values(&[peer_hostname.as_str(), "handle_subscribed_block_bundle"])
-                .inc_by(forward_time_drift.as_millis() as u64);
-            debug!(
-                "Block {:?} timestamp ({} > {}) is in the future, waiting for {}ms",
-                block_ref,
-                verified_block.timestamp_ms(),
-                now,
-                forward_time_drift.as_millis(),
-            );
-            sleep(forward_time_drift).await;
-        }
-
-        // 4. Create block headers from bytes from a bundle
-
-        if serialized_block_bundle_parts.serialized_headers.len() > MAX_HEADERS_PER_BUNDLE {
-            return Err(ConsensusError::TooManyHeadersInABundle {
-                count: serialized_block_bundle_parts.serialized_headers.len(),
-                limit: MAX_HEADERS_PER_BUNDLE,
-            });
-        }
+    fn extract_additional_block_headers_from_bundle(
+        &self,
+        peer: AuthorityIndex,
+        peer_hostname: &str,
+        mut serialized_headers: Vec<Bytes>,
+        block_ref: BlockRef,
+    ) -> ConsensusResult<Vec<VerifiedBlockHeader>> {
+        let block_round = block_ref.round;
+        if serialized_headers.len() > self.context.parameters.max_headers_per_bundle {
+            warn!("BlockBundle: {block_ref} exceeds max_headers_per_bundle.");
+            serialized_headers.truncate(self.context.parameters.max_headers_per_bundle);
+        };
 
         let mut additional_block_headers = vec![];
-        for serialized_header in serialized_block_bundle_parts.serialized_headers {
+        for serialized_header in serialized_headers {
             let digest = VerifiedBlockHeader::compute_digest(&serialized_header);
             if self.received_block_headers.contains(&digest) {
                 self.context
                     .metrics
                     .node_metrics
                     .filtered_headers_in_bundles
-                    .with_label_values(&[peer_hostname.as_str(), "handle_subscribed_block_bundle"])
+                    .with_label_values(&[peer_hostname, "handle_subscribed_block_bundle"])
                     .inc();
                 continue;
             }
@@ -328,20 +267,16 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
                 bcs::from_bytes(&serialized_header).map_err(ConsensusError::MalformedHeader)?;
 
             let header_round = signed_block_header.round();
-            if header_round >= verified_block.round() {
+            if header_round >= block_round {
                 let e = Err(ConsensusError::TooBigHeaderRoundInABundle {
                     header_round,
-                    block_round: verified_block.round(),
+                    block_round,
                 });
                 self.context
                     .metrics
                     .node_metrics
-                    .invalid_headers_in_bundles
-                    .with_label_values(&[
-                        peer_hostname.as_str(),
-                        "handle_subscribed_block_bundle",
-                        "invalid round in header",
-                    ])
+                    .bundles_with_invalid_parts
+                    .with_label_values(&[peer_hostname, "header", "invalid round in header"])
                     .inc();
                 info!(
                     "Invalid additional block header from {}: {}",
@@ -355,12 +290,8 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
                 self.context
                     .metrics
                     .node_metrics
-                    .invalid_headers_in_bundles
-                    .with_label_values(&[
-                        peer_hostname.as_str(),
-                        "handle_subscribed_block_bundle",
-                        e.clone().name(),
-                    ])
+                    .bundles_with_invalid_parts
+                    .with_label_values(&[peer_hostname, "header", e.clone().name()])
                     .inc();
                 info!("Invalid additional block header from {}: {}", peer, e);
                 return Err(e);
@@ -378,36 +309,38 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             .metrics
             .node_metrics
             .valid_headers_in_bundles
-            .with_label_values(&[peer_hostname.as_str(), "handle_subscribed_block_bundle"])
+            .with_label_values(&[peer_hostname, "handle_subscribed_block_bundle"])
             .inc_by(additional_block_headers.len() as u64);
-
-        // 5. Collect shards from a bundle and check their proofs.
-        if serialized_block_bundle_parts.serialized_shards.len() > MAX_SHARDS_PER_BUNDLE {
-            return Err(ConsensusError::TooManyShardsInABundle {
-                count: serialized_block_bundle_parts.serialized_shards.len(),
-                limit: MAX_SHARDS_PER_BUNDLE,
-            });
+        Ok(additional_block_headers)
+    }
+    fn extract_shards_from_bundle(
+        &self,
+        peer: AuthorityIndex,
+        peer_hostname: &str,
+        mut serialized_shards: Vec<Bytes>,
+        block_ref: BlockRef,
+    ) -> ConsensusResult<Vec<ShardWithProof>> {
+        let block_round = block_ref.round;
+        if serialized_shards.len() > self.context.parameters.max_shards_per_bundle {
+            warn!("BlockBundle: {block_ref} exceeds max_shards_per_bundle.");
+            serialized_shards.truncate(self.context.parameters.max_shards_per_bundle);
         }
 
         let mut verified_shards: Vec<ShardWithProof> = vec![];
-        for serialized_shard in serialized_block_bundle_parts.serialized_shards.iter() {
+        for serialized_shard in &serialized_shards {
             let shard: ShardWithProof =
                 bcs::from_bytes(serialized_shard).map_err(ConsensusError::MalformedShard)?;
 
-            if shard.block_ref.round >= verified_block.round() {
+            if shard.block_ref.round >= block_round {
                 let e = ConsensusError::TooBigShardRoundInABundle {
                     shard_round: shard.block_ref.round,
-                    block_round: verified_block.round(),
+                    block_round,
                 };
                 self.context
                     .metrics
                     .node_metrics
-                    .invalid_shard_in_bundles
-                    .with_label_values(&[
-                        peer_hostname.as_str(),
-                        "handle_subscribed_block_bundle",
-                        e.clone().name(),
-                    ])
+                    .bundles_with_invalid_parts
+                    .with_label_values(&[peer_hostname, "shard", e.clone().name()])
                     .inc();
                 info!("Invalid shard from {}: {}", peer, e);
                 return Err(e);
@@ -428,12 +361,8 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
                 self.context
                     .metrics
                     .node_metrics
-                    .invalid_shard_in_bundles
-                    .with_label_values(&[
-                        peer_hostname.as_str(),
-                        "handle_subscribed_block_bundle",
-                        e.clone().name(),
-                    ])
+                    .bundles_with_invalid_parts
+                    .with_label_values(&[peer_hostname, "shard", e.clone().name()])
                     .inc();
                 info!("Invalid shard from {}: {}", peer, e);
                 return Err(e);
@@ -443,23 +372,11 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             .metrics
             .node_metrics
             .valid_shards_in_bundles
-            .with_label_values(&[peer_hostname.as_str(), "handle_subscribed_block_bundle"])
+            .with_label_values(&[peer_hostname, "handle_subscribed_block_bundle"])
             .inc_by(verified_shards.len() as u64);
-
-        // 6. Observe headers and the block for the commit votes. When local commit is
-        // lagging too much, commit sync loop will trigger fetching.
-        for block_header in additional_block_headers.iter() {
-            self.commit_vote_monitor.observe_block(block_header);
-        }
-        self.commit_vote_monitor.observe_block(&verified_block);
-
-        // 7. Reject blocks when local commit index is lagging too far from quorum
-        //    commit
-        // index.
-        //
-        // IMPORTANT: this must be done after observing votes from the block, otherwise
-        // observed quorum commit will no longer progress.
-
+        Ok(verified_shards)
+    }
+    fn ensure_commit_lag_within_threshold(&self, block_ref: BlockRef) -> ConsensusResult<()> {
         let last_commit_index = self.dag_state.read().last_commit_index();
         let quorum_commit_index = self.commit_vote_monitor.quorum_commit_index();
         // The threshold to ignore block should be larger than commit_sync_batch_size,
@@ -486,21 +403,19 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
                 ),
             });
         }
-
-        self.context
-            .metrics
-            .node_metrics
-            .verified_blocks
-            .with_label_values(&[peer_hostname])
-            .inc();
-
-        // 8. Add digests to filter. Exclude from the vector those that are already
-        //    inserted
+        Ok(())
+    }
+    async fn add_digests_to_filter(
+        &self,
+        peer_hostname: &str,
+        additional_block_headers: &mut Vec<VerifiedBlockHeader>,
+        block_ref: BlockRef,
+    ) {
         let mut digests_to_add_to_filter = vec![];
         for block_header in additional_block_headers.iter() {
             digests_to_add_to_filter.push(block_header.digest())
         }
-        digests_to_add_to_filter.push(verified_block.digest());
+        digests_to_add_to_filter.push(block_ref.digest);
         let digests_to_exclude = self
             .received_block_headers
             .add_batch(digests_to_add_to_filter)
@@ -523,16 +438,110 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             .metrics
             .node_metrics
             .received_unique_headers_from_bundles
-            .with_label_values(&[peer_hostname.as_str(), "handle_subscribed_block_bundle"])
+            .with_label_values(&[peer_hostname, "handle_subscribed_block_bundle"])
             .inc_by(additional_block_headers.len() as u64);
         self.context
             .metrics
             .node_metrics
             .processed_duplicated_headers_in_bundles
-            .with_label_values(&[peer_hostname.as_str(), "handle_subscribed_block_bundle"])
+            .with_label_values(&[peer_hostname, "handle_subscribed_block_bundle"])
             .inc_by(digests_to_exclude.len() as u64);
+    }
+}
 
-        // 9. Prepare transaction messages for shard reconstructor and send them
+#[async_trait]
+impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
+    async fn handle_subscribed_block_bundle(
+        &self,
+        peer: AuthorityIndex,
+        serialized_block_bundle: SerializedBlockBundle,
+        encoder: &mut Box<dyn ShardEncoder + Send + Sync>,
+    ) -> ConsensusResult<()> {
+        fail_point_async!("consensus-rpc-response");
+        let _s = self
+            .context
+            .metrics
+            .node_metrics
+            .scope_processing_time
+            .with_label_values(&["AuthorityService::handle_stream"])
+            .start_timer();
+
+        let peer_hostname = &self.context.committee.authority(peer).hostname;
+        let mut serialized_block_bundle_parts =
+            SerializedBlockBundleParts::try_from(serialized_block_bundle)?;
+
+        // 1. Create a verified block and make some preliminary checks
+        let (verified_block, shard_for_core) = self.create_verified_block_and_shard(
+            peer,
+            peer_hostname,
+            serialized_block_bundle_parts.serialized_block.clone(),
+            encoder,
+        )?;
+        let block_ref = verified_block.reference();
+        // 2. Record timestamp drift metric (NEW mode - no waiting or rejection)
+        let now = self.context.clock.timestamp_utc_ms();
+        let forward_time_drift =
+            Duration::from_millis(verified_block.timestamp_ms().saturating_sub(now));
+        self.context
+            .metrics
+            .node_metrics
+            .block_timestamp_drift_ms
+            .with_label_values(&[peer_hostname.as_str(), "handle_subscribed_block_bundle"])
+            .inc_by(forward_time_drift.as_millis() as u64);
+        let latency_to_process_stream =
+            Duration::from_millis(now.saturating_sub(verified_block.timestamp_ms()));
+        self.context
+            .metrics
+            .node_metrics
+            .latency_to_process_stream
+            .with_label_values(&[peer_hostname.as_str()])
+            .observe(latency_to_process_stream.as_secs_f64());
+
+        // 3. Create block headers from bytes from a bundle
+
+        let serialized_headers =
+            std::mem::take(&mut serialized_block_bundle_parts.serialized_headers);
+        let mut additional_block_headers = self.extract_additional_block_headers_from_bundle(
+            peer,
+            peer_hostname,
+            serialized_headers,
+            block_ref,
+        )?;
+
+        // 4. Collect shards from a bundle and check their proofs.
+
+        let serialized_shards =
+            std::mem::take(&mut serialized_block_bundle_parts.serialized_shards);
+        let verified_shards =
+            self.extract_shards_from_bundle(peer, peer_hostname, serialized_shards, block_ref)?;
+
+        // 5. Observe headers and the block for the commit votes. When local commit is
+        // lagging too much, commit sync loop will trigger fetching.
+        for block_header in additional_block_headers.iter() {
+            self.commit_vote_monitor.observe_block(block_header);
+        }
+        self.commit_vote_monitor.observe_block(&verified_block);
+
+        // 6. Reject blocks when local commit index is lagging too far from quorum
+        //    commit index.
+        //
+        // IMPORTANT: this must be done after observing votes from the block, otherwise
+        // observed quorum commit will no longer progress.
+        self.ensure_commit_lag_within_threshold(block_ref)?;
+
+        self.context
+            .metrics
+            .node_metrics
+            .verified_blocks
+            .with_label_values(&[peer_hostname])
+            .inc();
+
+        // 7. Add digests to filter. Exclude from the vector those that are already
+        //    inserted
+        self.add_digests_to_filter(peer_hostname, &mut additional_block_headers, block_ref)
+            .await;
+
+        // 8. Prepare transaction messages for shard reconstructor and send them
         let transaction_messages = TransactionMessage::create_transaction_messages(
             &verified_block,
             &verified_shards,
@@ -546,7 +555,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             warn!("Failed to send transaction messages to shard reconstructor: {e}");
         }
 
-        // 10.Add additional headers from bundle to dag, receive missing ancestors for
+        // 9. Add additional headers from bundle to dag, receive missing ancestors for
         // them. Normally, there should be no missing ancestors, as the headers are
         // sent in order of increasing rounds.
         let (mut missing_ancestors, mut missing_committed_txns) = self
@@ -554,51 +563,65 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             .add_block_headers(additional_block_headers.clone())
             .await
             .map_err(|_| ConsensusError::Shutdown)?;
+        self.context
+            .metrics
+            .node_metrics
+            .missing_ancestors_from_streaming
+            .with_label_values(&["headers"])
+            .observe(missing_ancestors.len() as f64);
 
-        // 11. Add the block to dag, add its missing ancestors to the set
+        // 10. Add the block to dag, add its missing ancestors to the set
         let (missing_block_ancestors, missing_block_committed_transactions) = self
             .core_dispatcher
             .add_blocks(vec![verified_block])
             .await
             .map_err(|_| ConsensusError::Shutdown)?;
+        self.context
+            .metrics
+            .node_metrics
+            .missing_ancestors_from_streaming
+            .with_label_values(&["block"])
+            .observe(missing_block_ancestors.len() as f64);
 
         missing_ancestors.extend(missing_block_ancestors);
         missing_committed_txns.extend(missing_block_committed_transactions);
 
-        // 12. Add our shard from the received block and its proof to the dag_state
-        let shard_for_core = ShardWithProof {
-            shard: our_shard,
-            transaction_commitment,
-            proof: proof_for_shard,
-            block_ref,
-        };
-        let serialized_shard_for_core: Bytes = bcs::to_bytes(&shard_for_core)
-            .map_err(ConsensusError::SerializationFailure)?
-            .into();
-        let shard_for_core = VerifiedOwnShard {
-            serialized_shard: serialized_shard_for_core,
-            block_ref,
-        };
-        self.core_dispatcher
-            .add_shards(vec![shard_for_core])
-            .await
-            .map_err(|_| ConsensusError::Shutdown)?;
-
-        // 13. update `useful_authorities_from_peer`
-        // create a set of authority indexes from the `additional_block_headers`
-        // and `missing_ancestors`
-        let useful_authorities = additional_block_headers
-            .iter()
-            .map(|block_header| block_header.author())
-            .chain(missing_ancestors.iter().map(|block_ref| block_ref.author))
-            .collect::<BTreeSet<_>>();
-        {
-            let mut useful_authorities_from_peer_write_guard =
-                self.useful_authorities_from_peer.write();
-            useful_authorities_from_peer_write_guard.insert(peer, useful_authorities);
+        for missing_block_ref in missing_ancestors.iter() {
+            self.context
+                .metrics
+                .node_metrics
+                .missing_ancestors_from_streaming_round_gap
+                .observe(block_ref.round as f64 - missing_block_ref.round as f64);
         }
 
-        // 14. schedule the fetching of missing ancestors (if any) from this peer
+        // 11. Add our shard from the received block and its proof to the dag_state
+        // only if it contains transactions
+        if shard_for_core.is_some() {
+            let shard_for_core = shard_for_core.unwrap();
+            let serialized_shard_for_core: Bytes = bcs::to_bytes(&shard_for_core)
+                .map_err(ConsensusError::SerializationFailure)?
+                .into();
+            let shard_for_core = VerifiedOwnShard {
+                serialized_shard: serialized_shard_for_core,
+                block_ref,
+            };
+            self.core_dispatcher
+                .add_shards(vec![shard_for_core])
+                .await
+                .map_err(|_| ConsensusError::Shutdown)?;
+        }
+
+        // 12. Report useful info for cordial and connection knowledge
+        let block_round = block_ref.round;
+        self.cordial_knowledge.report_useful_authors(
+            peer,
+            &serialized_block_bundle_parts,
+            &additional_block_headers,
+            &missing_ancestors,
+            block_round,
+        )?;
+
+        // 13. schedule the fetching of missing ancestors (if any) from this peer
         if !missing_ancestors.is_empty() {
             if let Err(err) = self
                 .synchronizer
@@ -609,7 +632,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             }
         }
 
-        // 15. schedule the fetching of missing committed transactions (if any)
+        // 14. schedule the fetching of missing committed transactions (if any)
         if !missing_committed_txns.is_empty() {
             if let Err(err) = self
                 .transactions_synchronizer
@@ -617,8 +640,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
                 .await
             {
                 warn!(
-                    "Errored while trying to fetch missing transactions via
-             transactions synchronizer: {err}"
+                    "Errored while trying to fetch missing transactions via transactions synchronizer: {err}"
                 );
             }
         }
@@ -655,54 +677,29 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             self.rx_block_broadcaster.resubscribe(),
             self.subscription_counter.clone(),
         );
-
+        let context = self.context.clone();
+        let connection_knowledge = self.cordial_knowledge.connection_knowledge(peer);
         // Return a stream of blocks that first yields missed blocks as requested, then
         // new blocks.
         Ok(Box::pin(missed_blocks.chain({
-            let dag_state = Arc::clone(&self.dag_state);
-            let useful_authorities_from_peer = Arc::clone(&self.useful_authorities_from_peer);
-            let useful_authorities_to_peer = Arc::clone(&self.useful_authorities_to_peer);
-            let committee = self
-                .context
-                .committee
-                .authorities()
-                .map(|(index, _)| index)
-                .collect::<BTreeSet<_>>();
-
             broadcasted_blocks.filter_map(move |block| {
-                let useful_authorities_to_peer_guard = useful_authorities_to_peer.read();
-                let useful_authorities_to_peer_read = useful_authorities_to_peer_guard
-                    .get(&peer)
-                    .map(|authorities| authorities.iter().cloned().collect::<BTreeSet<_>>());
-                drop(useful_authorities_to_peer_guard);
-                let useful_authorities_from_peer_guard = useful_authorities_from_peer.read();
-                let useful_authorities_from_peer_read =
-                    match useful_authorities_from_peer_guard.get(&peer) {
-                        None => committee.clone(),
-                        Some(useful_authorities) => useful_authorities.clone(),
-                    };
-                drop(useful_authorities_from_peer_guard);
-
-                let mut dag_state_guard = dag_state.write();
-                let block_headers = match useful_authorities_to_peer_read {
-                    None => dag_state_guard.take_unknown_headers_for_authority(peer, block.round()),
-                    Some(authorities) => dag_state_guard.take_useful_headers_for_authority(
-                        peer,
-                        block.round(),
-                        authorities,
-                    ),
-                };
-                let serialized_shards =
-                    dag_state_guard.take_unknown_shards_for_authority(peer, block.round());
-                drop(dag_state_guard);
-
-                let block_bundle = BlockBundle {
-                    verified_block: block,
-                    verified_headers: block_headers,
-                    serialized_shards,
-                    useful_authorities: useful_authorities_from_peer_read,
-                };
+                let context = context.clone();
+                let connection_knowledge = connection_knowledge.clone();
                 async move {
+                    let ts = block.timestamp_ms();
+
+                    let block_bundle = {
+                        let mut conn = connection_knowledge.write();
+                        conn.create_bundle(block)
+                    };
+
+                    let now = context.clock.timestamp_utc_ms();
+                    context
+                        .metrics
+                        .node_metrics
+                        .delay_in_sending_blocks
+                        .observe((now - ts) as f64);
+
                     match SerializedBlockBundle::try_from(block_bundle) {
                         Ok(serialized_block_bundle) => Some(serialized_block_bundle),
                         Err(e) => {
@@ -731,17 +728,11 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         fail_point_async!("consensus-rpc-response");
 
         // Some quick validation of the requested block refs
-        for block in &block_refs {
-            if !self.context.committee.is_valid_index(block.author) {
-                return Err(ConsensusError::InvalidAuthorityIndex {
-                    index: block.author,
-                    max: self.context.committee.size(),
-                });
-            }
-            if block.round == GENESIS_ROUND {
-                return Err(ConsensusError::UnexpectedGenesisHeaderRequested);
-            }
-        }
+        ConsensusError::quick_validation_requested_block_refs(
+            &block_refs,
+            peer,
+            &self.context.committee,
+        )?;
 
         if !highest_accepted_rounds.is_empty()
             && highest_accepted_rounds.len() != self.context.committee.size()
@@ -776,12 +767,12 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             block_refs.truncate(max_fetch_size);
         }
 
-        // Get requested blocks from store.
-        let blocks = if commit_sync_handle {
+        // Get requested block headers from store.
+        let serialized_headers = if commit_sync_handle {
             // For commit sync, we respond with all blocks from the store
             self.dag_state
                 .read()
-                .get_block_headers(&block_refs)
+                .get_serialized_block_headers(&block_refs)
                 .into_iter()
                 .flatten()
                 .collect()
@@ -791,8 +782,8 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             block_refs.sort();
             block_refs.dedup();
             let dag_state = self.dag_state.read();
-            let mut blocks = dag_state
-                .get_block_headers(&block_refs)
+            let mut headers = dag_state
+                .get_serialized_block_headers(&block_refs)
                 .into_iter()
                 .flatten()
                 .collect::<Vec<_>>();
@@ -801,7 +792,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             // available in cache. Compute the lowest missing round per
             // requested authority.
             let mut lowest_missing_rounds = BTreeMap::<AuthorityIndex, Round>::new();
-            for block_ref in blocks.iter().map(|b| b.reference()) {
+            for block_ref in block_refs.iter() {
                 let entry = lowest_missing_rounds
                     .entry(block_ref.author)
                     .or_insert(block_ref.round);
@@ -822,30 +813,29 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
                     continue;
                 }
 
-                let missing_blocks = dag_state.get_cached_block_headers_in_range(
+                let missing_headers = dag_state.get_cached_block_headers_in_range(
                     authority,
                     highest_accepted_round + 1,
                     lowest_missing_round,
                     self.context
                         .parameters
                         .max_headers_per_regular_sync_fetch
-                        .saturating_sub(blocks.len()),
+                        .saturating_sub(headers.len()),
                 );
-                blocks.extend(missing_blocks);
-                if blocks.len() >= self.context.parameters.max_headers_per_regular_sync_fetch {
-                    blocks.truncate(self.context.parameters.max_headers_per_regular_sync_fetch);
+                let serialized_missing_headers: Vec<_> = missing_headers
+                    .into_iter()
+                    .map(|header| header.serialized().clone())
+                    .collect();
+                headers.extend(serialized_missing_headers);
+                if headers.len() >= self.context.parameters.max_headers_per_regular_sync_fetch {
+                    headers.truncate(self.context.parameters.max_headers_per_regular_sync_fetch);
                     break;
                 }
             }
 
-            blocks
+            headers
         };
-        // Return the serialized blocks
-        let bytes = blocks
-            .into_iter()
-            .map(|block| block.serialized().clone())
-            .collect::<Vec<_>>();
-        Ok(bytes)
+        Ok(serialized_headers)
     }
 
     async fn handle_fetch_commits(
@@ -892,7 +882,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         }
         let certifier_block_headers = self
             .store
-            .read_block_headers(&certifier_block_refs)?
+            .read_verified_block_headers(&certifier_block_refs)?
             .into_iter()
             .flatten()
             .collect();
@@ -911,14 +901,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         }
 
         // Ensure that those are valid authorities
-        for authority in &authorities {
-            if !self.context.committee.is_valid_index(*authority) {
-                return Err(ConsensusError::InvalidAuthorityIndex {
-                    index: *authority,
-                    max: self.context.committee.size(),
-                });
-            }
-        }
+        ConsensusError::quick_validation_authority_indices(&authorities, &self.context.committee)?;
 
         // Read from the dag state to find the latest block headers.
         // TODO: at the moment we don't look into the block manager for suspended
@@ -977,7 +960,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
     async fn handle_fetch_transactions(
         &self,
         peer: AuthorityIndex,
-        block_refs: Vec<BlockRef>,
+        mut block_refs: Vec<BlockRef>,
     ) -> ConsensusResult<Vec<Bytes>> {
         fail_point_async!("consensus-rpc-response");
 
@@ -985,41 +968,52 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             return Ok(Vec::new());
         }
 
-        if block_refs.len() > self.context.parameters.max_transactions_per_fetch {
-            return Err(ConsensusError::TooManyFetchTransactionsRequested(peer));
+        // Use the maximum of both limits to accommodate both commit sync and regular
+        // sync requests
+        let max_transactions = self
+            .context
+            .parameters
+            .max_transactions_per_regular_sync_fetch
+            .max(
+                self.context
+                    .parameters
+                    .max_transactions_per_commit_sync_fetch,
+            );
+
+        if block_refs.len() > max_transactions {
+            block_refs.truncate(max_transactions);
         }
 
         // Some quick validation of the requested block refs
-        for block in &block_refs {
-            if !self.context.committee.is_valid_index(block.author) {
-                return Err(ConsensusError::InvalidAuthorityIndex {
-                    index: block.author,
-                    max: self.context.committee.size(),
-                });
-            }
-            if block.round == GENESIS_ROUND {
-                return Err(ConsensusError::UnexpectedGenesisTransactionsRequested);
-            }
-        }
+        ConsensusError::quick_validation_requested_block_refs(
+            &block_refs,
+            peer,
+            &self.context.committee,
+        )?;
 
         // Get the transactions from the dag state
-        let transactions = self.dag_state.read().get_transactions(&block_refs);
+        let transactions = self
+            .dag_state
+            .read()
+            .get_serialized_transactions(&block_refs);
 
         // Return the serialized transactions
-        let result = transactions
+        let result: Vec<_> = transactions
             .into_iter()
-            .flatten()
-            .map(|transaction| {
-                Bytes::from(
-                    bcs::to_bytes(&SerializedTransactions {
-                        block_ref: transaction.block_ref(),
-                        serialized_transactions: transaction.serialized().clone(),
-                    })
-                    .map_err(ConsensusError::SerializationFailure)
-                    .expect("serialization should succeed"),
-                )
+            .zip(block_refs)
+            .filter_map(|(opt_serialized_tx, block_ref)| {
+                opt_serialized_tx.map(|serialized_tx| {
+                    Bytes::from(
+                        bcs::to_bytes(&SerializedTransactions {
+                            block_ref,
+                            serialized_transactions: serialized_tx,
+                        })
+                        .map_err(ConsensusError::SerializationFailure)
+                        .expect("serialization should succeed"),
+                    )
+                })
             })
-            .collect::<Vec<_>>();
+            .collect();
 
         Ok(result)
     }
@@ -1266,8 +1260,9 @@ mod tests {
             AuthorityService, BroadcastedBlockStream, MAX_FILTER_SIZE, SubscriptionCounter,
         },
         block_header::{
-            BlockHeaderAPI, BlockRef, SignedBlockHeader, TestBlockHeader, TransactionsCommitment,
-            VerifiedBlock, VerifiedBlockHeader, VerifiedOwnShard, VerifiedTransactions,
+            BlockHeaderAPI, BlockRef, GENESIS_ROUND, SignedBlockHeader, TestBlockHeader,
+            TransactionsCommitment, VerifiedBlock, VerifiedBlockHeader, VerifiedOwnShard,
+            VerifiedTransactions,
         },
         block_manager::BlockManager,
         block_verifier::SignedBlockVerifier,
@@ -1275,11 +1270,13 @@ mod tests {
         commit_observer::CommitObserver,
         commit_vote_monitor::CommitVoteMonitor,
         context::Context,
-        core::{Core, CoreSignals},
+        cordial_knowledge::{ConnectionKnowledgeMessage, CordialKnowledge},
+        core::{Core, CoreSignals, ReasonToCreateBlock},
         core_thread::{CoreError, CoreThreadDispatcher, tests::MockCoreThreadDispatcher},
-        dag_state::{DagState, MAX_HEADERS_PER_BUNDLE},
+        dag_state::{DagState, TransactionSource},
         encoder::create_encoder,
         error::{ConsensusError, ConsensusResult},
+        header_synchronizer::HeaderSynchronizer,
         leader_schedule::LeaderSchedule,
         network::{
             BlockBundle, BlockBundleStream, NetworkClient, NetworkService, SerializedBlock,
@@ -1287,7 +1284,6 @@ mod tests {
             SerializedTransactions,
         },
         storage::{Store, mem_store::MemStore},
-        synchronizer::Synchronizer,
         test_dag_builder::DagBuilder,
         transaction::TransactionConsumer,
         transactions_synchronizer::TransactionsSynchronizer,
@@ -1359,15 +1355,16 @@ mod tests {
         let network_client = Arc::new(FakeNetworkClient::default());
         let store = Arc::new(MemStore::new());
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
+        let cordial_knowledge = CordialKnowledge::start(context.clone(), dag_state.clone());
+
         let transactions_synchronizer = TransactionsSynchronizer::start(
             network_client.clone(),
             context.clone(),
             core_dispatcher.clone(),
-            block_verifier.clone(),
             dag_state.clone(),
         );
 
-        let synchronizer = Synchronizer::start(
+        let header_synchronizer = HeaderSynchronizer::start(
             network_client.clone(),
             context.clone(),
             core_dispatcher.clone(),
@@ -1382,17 +1379,18 @@ mod tests {
             context.clone(),
             block_verifier,
             commit_vote_monitor,
-            synchronizer,
+            header_synchronizer,
             transactions_synchronizer,
             core_dispatcher.clone(),
             rx_block_broadcast,
             dag_state,
             store,
             tx_message_sender,
+            cordial_knowledge,
         ));
         let mut encoder = create_encoder(&context);
 
-        // Test rejecting block with time drift.
+        // Test that block with timestamp drift to the future is not rejected.
         let now = context.clock.timestamp_utc_ms();
         let max_drift = context.parameters.max_forward_time_drift;
         let input_block = VerifiedBlock::new_for_test(
@@ -1403,24 +1401,6 @@ mod tests {
 
         let serialized_block_bundle = SerializedBlockBundle::try_from(input_block.clone()).unwrap();
 
-        let result = authority_service
-            .handle_subscribed_block_bundle(
-                context.committee.to_authority_index(0).unwrap(),
-                serialized_block_bundle.clone(),
-                &mut encoder,
-            )
-            .await;
-
-        match result {
-            Err(ConsensusError::BlockRejected { reason, .. }) => {
-                assert!(reason.contains("timestamp is too far in the future"));
-            }
-            _ => panic!("Expected BlockRejected error, got {result:?}"),
-        }
-
-        // After this sleep time drift is within the limit, so we would not reject the
-        // block but wait
-        sleep(max_drift / 2).await;
         tokio::spawn(async move {
             authority_service
                 .handle_subscribed_block_bundle(
@@ -1431,10 +1411,10 @@ mod tests {
                 .await
                 .unwrap();
         });
-        assert!(core_dispatcher.get_blocks().is_empty());
 
-        // wait for the max_drift time to pass, so that the block can be processed
-        sleep(max_drift).await;
+        // Give it some time to process
+        sleep(max_drift / 2).await;
+
         let blocks = core_dispatcher.get_blocks();
         assert_eq!(blocks.len(), 1);
         assert_eq!(blocks[0], input_block);
@@ -1453,15 +1433,15 @@ mod tests {
         let network_client = Arc::new(FakeNetworkClient::default());
         let store = Arc::new(MemStore::new());
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
+        let cordial_knowledge = CordialKnowledge::start(context.clone(), dag_state.clone());
         let transactions_synchronizer = TransactionsSynchronizer::start(
             network_client.clone(),
             context.clone(),
             core_dispatcher.clone(),
-            block_verifier.clone(),
             dag_state.clone(),
         );
 
-        let synchronizer = Synchronizer::start(
+        let header_synchronizer = HeaderSynchronizer::start(
             network_client.clone(),
             context.clone(),
             core_dispatcher.clone(),
@@ -1476,13 +1456,14 @@ mod tests {
             context.clone(),
             block_verifier,
             commit_vote_monitor,
-            synchronizer,
+            header_synchronizer,
             transactions_synchronizer,
             core_dispatcher.clone(),
             rx_block_broadcast,
             dag_state,
             store,
             tx_message_sender,
+            cordial_knowledge,
         ));
         let mut encoder = create_encoder(&context);
 
@@ -1539,15 +1520,16 @@ mod tests {
         let network_client = Arc::new(FakeNetworkClient::default());
         let store = Arc::new(MemStore::new());
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
+        let cordial_knowledge = CordialKnowledge::start(context.clone(), dag_state.clone());
+
         let transactions_synchronizer = TransactionsSynchronizer::start(
             network_client.clone(),
             context.clone(),
             core_dispatcher.clone(),
-            block_verifier.clone(),
             dag_state.clone(),
         );
 
-        let synchronizer = Synchronizer::start(
+        let header_synchronizer = HeaderSynchronizer::start(
             network_client.clone(),
             context.clone(),
             core_dispatcher.clone(),
@@ -1562,13 +1544,14 @@ mod tests {
             context.clone(),
             block_verifier,
             commit_vote_monitor,
-            synchronizer,
+            header_synchronizer,
             transactions_synchronizer,
             core_dispatcher.clone(),
             rx_block_broadcast,
             dag_state,
             store,
             tx_message_sender,
+            cordial_knowledge,
         ));
         let mut encoder = create_encoder(&context);
 
@@ -1617,15 +1600,15 @@ mod tests {
         let network_client = Arc::new(FakeNetworkClient::default());
         let store = Arc::new(MemStore::new());
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
+        let cordial_knowledge = CordialKnowledge::start(context.clone(), dag_state.clone());
         let transactions_synchronizer = TransactionsSynchronizer::start(
             network_client.clone(),
             context.clone(),
             core_dispatcher.clone(),
-            block_verifier.clone(),
             dag_state.clone(),
         );
 
-        let synchronizer = Synchronizer::start(
+        let header_synchronizer = HeaderSynchronizer::start(
             network_client.clone(),
             context.clone(),
             core_dispatcher.clone(),
@@ -1640,21 +1623,21 @@ mod tests {
             context.clone(),
             block_verifier,
             commit_vote_monitor,
-            synchronizer,
+            header_synchronizer,
             transactions_synchronizer,
             core_dispatcher.clone(),
             rx_block_broadcast,
             dag_state,
             store,
             tx_message_sender,
+            cordial_knowledge,
         ));
         let mut encoder = create_encoder(&context);
 
         let input_block = VerifiedBlock::new_for_test(
             TestBlockHeader::new_with_commitment(1, 0, &context, &mut encoder).build(),
         );
-        let num_of_block_headers = MAX_HEADERS_PER_BUNDLE + 1;
-        let mut headers = (0..num_of_block_headers)
+        let headers = (0..context.parameters.max_headers_per_bundle)
             .map(|i| {
                 VerifiedBlockHeader::new_for_test(
                     TestBlockHeader::new_with_commitment(
@@ -1667,40 +1650,15 @@ mod tests {
                 )
             })
             .collect::<Vec<_>>();
-        let big_block_bundle = BlockBundle {
-            verified_block: input_block.clone(),
-            verified_headers: headers.clone(),
-            serialized_shards: vec![],
-            useful_authorities: (0u8..(committee_size as u8)).map(Into::into).collect(),
-        };
-        let serialized_big_block_bundle = SerializedBlockBundle::try_from(
-            SerializedBlockBundleParts::try_from(big_block_bundle).unwrap(),
-        )
-        .unwrap();
 
         let service = authority_service.clone();
 
-        // Send a bundle with too many headers
-        let result = authority_service
-            .handle_subscribed_block_bundle(
-                context.committee.to_authority_index(0).unwrap(),
-                serialized_big_block_bundle,
-                &mut encoder,
-            )
-            .await;
-
-        if let Err(ConsensusError::TooManyHeadersInABundle { .. }) = result {
-            // everything is fine
-        } else {
-            panic!("Expected TooManyHeadersInABundle error, got {result:?}");
-        }
-
-        headers.pop();
         let block_bundle_with_big_rounds = BlockBundle {
             verified_block: input_block.clone(),
             verified_headers: headers.clone(),
             serialized_shards: vec![],
-            useful_authorities: (0u8..(committee_size as u8)).map(Into::into).collect(),
+            useful_headers_authors: (0u8..(committee_size as u8)).map(Into::into).collect(),
+            useful_shards_authors: (0u8..(committee_size as u8)).map(Into::into).collect(),
         };
         let serialized_block_bundle_with_big_round = SerializedBlockBundle::try_from(
             SerializedBlockBundleParts::try_from(block_bundle_with_big_rounds).unwrap(),
@@ -1725,7 +1683,7 @@ mod tests {
         // Create a block with a big round
         let input_block = VerifiedBlock::new_for_test(
             TestBlockHeader::new_with_commitment(
-                MAX_HEADERS_PER_BUNDLE as u32 + 1,
+                context.parameters.max_headers_per_bundle as u32 + 1,
                 0,
                 &context,
                 &mut encoder,
@@ -1737,7 +1695,8 @@ mod tests {
             verified_block: input_block.clone(),
             verified_headers: headers.clone(),
             serialized_shards: vec![],
-            useful_authorities: (0u8..(committee_size as u8)).map(Into::into).collect(),
+            useful_headers_authors: (0u8..(committee_size as u8)).map(Into::into).collect(),
+            useful_shards_authors: (0u8..(committee_size as u8)).map(Into::into).collect(),
         };
         let serialized_block_bundle = SerializedBlockBundle::try_from(
             SerializedBlockBundleParts::try_from(block_bundle).unwrap(),
@@ -1778,15 +1737,15 @@ mod tests {
         let network_client = Arc::new(FakeNetworkClient::default());
         let store = Arc::new(MemStore::new());
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
+        let cordial_knowledge = CordialKnowledge::start(context.clone(), dag_state.clone());
         let transactions_synchronizer = TransactionsSynchronizer::start(
             network_client.clone(),
             context.clone(),
             core_dispatcher.clone(),
-            block_verifier.clone(),
             dag_state.clone(),
         );
 
-        let synchronizer = Synchronizer::start(
+        let header_synchronizer = HeaderSynchronizer::start(
             network_client.clone(),
             context.clone(),
             core_dispatcher.clone(),
@@ -1801,13 +1760,14 @@ mod tests {
             context.clone(),
             block_verifier,
             commit_vote_monitor,
-            synchronizer,
+            header_synchronizer,
             transactions_synchronizer,
             core_dispatcher.clone(),
             rx_block_broadcast,
             dag_state.clone(),
             store,
             tx_message_sender,
+            cordial_knowledge,
         ));
 
         // Create some blocks for a few authorities. Create some equivocations as well
@@ -1858,6 +1818,7 @@ mod tests {
         let commit_vote_monitor = Arc::new(CommitVoteMonitor::new(context.clone()));
         let store = Arc::new(MemStore::new());
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
+        let cordial_knowledge = CordialKnowledge::start(context.clone(), dag_state.clone());
 
         let block_manager = BlockManager::new(context.clone(), dag_state.clone());
         let (_transaction_client, tx_receiver) = TransactionClient::new(context.clone());
@@ -1907,11 +1868,10 @@ mod tests {
             network_client.clone(),
             context.clone(),
             core_dispatcher.clone(),
-            block_verifier.clone(),
             dag_state.clone(),
         );
 
-        let synchronizer = Synchronizer::start(
+        let header_synchronizer = HeaderSynchronizer::start(
             network_client,
             context.clone(),
             core_dispatcher.clone(),
@@ -1927,13 +1887,14 @@ mod tests {
             context.clone(),
             block_verifier,
             commit_vote_monitor,
-            synchronizer,
+            header_synchronizer,
             transactions_synchronizer,
             core_dispatcher.clone(),
             rx_block_broadcast,
             dag_state.clone(),
             store.clone(),
             tx_message_sender,
+            cordial_knowledge,
         ));
 
         // Set up DAG with blocks
@@ -2055,7 +2016,7 @@ mod tests {
         async fn add_transactions(
             &self,
             _transactions: Vec<VerifiedTransactions>,
-            _source: &'static str,
+            _source: TransactionSource,
         ) -> Result<(), CoreError> {
             unimplemented!("Unimplemented")
         }
@@ -2086,7 +2047,7 @@ mod tests {
         async fn new_block(
             &self,
             _round: Round,
-            _force: bool,
+            _reason: ReasonToCreateBlock,
         ) -> Result<BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>, CoreError> {
             unimplemented!("Unimplemented")
         }
@@ -2125,6 +2086,7 @@ mod tests {
         let commit_vote_monitor = Arc::new(CommitVoteMonitor::new(context.clone()));
         let store = Arc::new(MemStore::new());
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
+        let cordial_knowledge = CordialKnowledge::start(context.clone(), dag_state.clone());
 
         let block_manager = BlockManager::new(context.clone(), dag_state.clone());
         let (_transaction_client, tx_receiver) = TransactionClient::new(context.clone());
@@ -2172,11 +2134,10 @@ mod tests {
             network_client.clone(),
             context.clone(),
             core_dispatcher.clone(),
-            block_verifier.clone(),
             dag_state.clone(),
         );
 
-        let synchronizer = Synchronizer::start(
+        let header_synchronizer = HeaderSynchronizer::start(
             network_client,
             context.clone(),
             core_dispatcher.clone(),
@@ -2190,13 +2151,14 @@ mod tests {
             context.clone(),
             block_verifier,
             commit_vote_monitor,
-            synchronizer,
+            header_synchronizer,
             transactions_synchronizer,
             core_dispatcher.clone(),
             rx_block_broadcast,
             dag_state.clone(),
             store,
             tx_message_sender,
+            cordial_knowledge,
         ));
         let mut encoder = create_encoder(&context);
 
@@ -2232,7 +2194,10 @@ mod tests {
                     verified_block: block,
                     verified_headers: headers,
                     serialized_shards: vec![],
-                    useful_authorities: (0u8..(context.committee.size() as u8))
+                    useful_headers_authors: (0u8..(context.committee.size() as u8))
+                        .map(Into::into)
+                        .collect(),
+                    useful_shards_authors: (0u8..(context.committee.size() as u8))
                         .map(Into::into)
                         .collect(),
                 };
@@ -2277,6 +2242,7 @@ mod tests {
         let commit_vote_monitor = Arc::new(CommitVoteMonitor::new(context.clone()));
         let store = Arc::new(MemStore::new());
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
+        let cordial_knowledge = CordialKnowledge::start(context.clone(), dag_state.clone());
 
         let block_manager = BlockManager::new(context.clone(), dag_state.clone());
         let (_transaction_client, tx_receiver) = TransactionClient::new(context.clone());
@@ -2323,11 +2289,10 @@ mod tests {
             network_client.clone(),
             context.clone(),
             core_dispatcher.clone(),
-            block_verifier.clone(),
             dag_state.clone(),
         );
 
-        let synchronizer = Synchronizer::start(
+        let header_synchronizer = HeaderSynchronizer::start(
             network_client,
             context.clone(),
             core_dispatcher.clone(),
@@ -2341,13 +2306,14 @@ mod tests {
             context.clone(),
             block_verifier,
             commit_vote_monitor,
-            synchronizer,
+            header_synchronizer,
             transactions_synchronizer,
             core_dispatcher.clone(),
             rx_block_broadcast,
             dag_state.clone(),
             store,
             tx_message_sender,
+            cordial_knowledge,
         ));
         let mut encoder = create_encoder(&context);
 
@@ -2375,7 +2341,10 @@ mod tests {
                     verified_block: block,
                     verified_headers: vec![],
                     serialized_shards: vec![],
-                    useful_authorities: (0u8..(context.committee.size() as u8))
+                    useful_headers_authors: (0u8..(context.committee.size() as u8))
+                        .map(Into::into)
+                        .collect(),
+                    useful_shards_authors: (0u8..(context.committee.size() as u8))
                         .map(Into::into)
                         .collect(),
                 };
@@ -2431,9 +2400,11 @@ mod tests {
 
     #[tokio::test]
     async fn test_handle_subscribe_block_bundles_request() {
+        telemetry_subscribers::init_for_testing();
         // GIVEN
         let rounds = 10;
         let validators = 4;
+        let to_whom_authority = AuthorityIndex::new_for_test(1);
         let (context, key_pairs) = Context::new_for_test(validators);
         let context = Arc::new(context);
         let block_verifier = Arc::new(SignedBlockVerifier::new(
@@ -2443,7 +2414,7 @@ mod tests {
         let commit_vote_monitor = Arc::new(CommitVoteMonitor::new(context.clone()));
         let store = Arc::new(MemStore::new());
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
-
+        let cordial_knowledge = CordialKnowledge::start(context.clone(), dag_state.clone());
         let block_manager = BlockManager::new(context.clone(), dag_state.clone());
         let (_transaction_client, tx_receiver) = TransactionClient::new(context.clone());
         let transaction_consumer = TransactionConsumer::new(tx_receiver, context.clone());
@@ -2489,11 +2460,10 @@ mod tests {
             network_client.clone(),
             context.clone(),
             core_dispatcher.clone(),
-            block_verifier.clone(),
             dag_state.clone(),
         );
 
-        let synchronizer = Synchronizer::start(
+        let header_synchronizer = HeaderSynchronizer::start(
             network_client,
             context.clone(),
             core_dispatcher.clone(),
@@ -2509,13 +2479,14 @@ mod tests {
             context.clone(),
             block_verifier,
             commit_vote_monitor,
-            synchronizer,
+            header_synchronizer,
             transactions_synchronizer,
             core_dispatcher.clone(),
             rx_block_broadcast,
             dag_state.clone(),
             store,
             tx_message_sender,
+            cordial_knowledge.clone(),
         ));
         let mut encoder = create_encoder(&context);
 
@@ -2534,19 +2505,41 @@ mod tests {
         let first_batch_end_exclusive = 5;
         for round in 1..first_batch_end_exclusive {
             core_dispatcher
-                .add_blocks(all_blocks[round as usize].clone())
+                .add_blocks(all_blocks[round as usize - 1].clone())
                 .await
                 .expect("blocks are expected to be added successfully");
+            core_dispatcher
+                .add_blocks(vec![all_blocks[round as usize][0].clone()])
+                .await
+                .expect("blocks are expected to be added successfully");
+            sleep(Duration::from_millis(50)).await;
         }
 
+        // Inject useful info
+        let connection_knowledge = cordial_knowledge.connection_knowledge(to_whom_authority);
+        let msg = ConnectionKnowledgeMessage::UsefulAuthors {
+            useful_headers_to_peer: BTreeMap::from([
+                (AuthorityIndex::new_for_test(2), GENESIS_ROUND),
+                (AuthorityIndex::new_for_test(3), GENESIS_ROUND),
+            ]),
+            useful_shards_to_peer: BTreeMap::from([
+                (AuthorityIndex::new_for_test(2), GENESIS_ROUND),
+                (AuthorityIndex::new_for_test(3), GENESIS_ROUND),
+            ]),
+            useful_headers_from_peer: BTreeMap::from([
+                (AuthorityIndex::new_for_test(1), GENESIS_ROUND),
+                (AuthorityIndex::new_for_test(3), GENESIS_ROUND),
+            ]),
+            useful_shards_from_peer: vec![None, Some(GENESIS_ROUND), None, Some(GENESIS_ROUND)],
+        };
+        {
+            connection_knowledge.write().process_one_message(msg);
+        }
         // WHEN
         // Call handle_subscribe_block_bundles_request with last_received = 2
         let last_received_round = 2;
         let block_bundle_stream = authority_service
-            .handle_subscribe_block_bundles_request(
-                context.committee.to_authority_index(1).unwrap(),
-                last_received_round,
-            )
+            .handle_subscribe_block_bundles_request(to_whom_authority, last_received_round)
             .await
             .expect("Should return a valid stream");
 
@@ -2555,8 +2548,8 @@ mod tests {
         let mut received_bundles = Vec::new();
 
         // Collect expected blocks from the first batch
-        let expected_blocks = first_batch_end_exclusive - 1 - last_received_round;
-        for _ in 0..expected_blocks {
+        let expected_number = first_batch_end_exclusive - 1 - last_received_round;
+        for _ in 0..expected_number {
             if let Some(bundle) = stream.next().await {
                 received_bundles.push(bundle);
             }
@@ -2568,8 +2561,8 @@ mod tests {
 
         assert_eq!(
             received_bundles.len() as u32,
-            expected_blocks,
-            "Should receive {expected_blocks} missed blocks",
+            expected_number,
+            "Should receive {expected_number} missed blocks",
         );
 
         // Check the correctness of the received blocks
@@ -2620,19 +2613,22 @@ mod tests {
                 all_blocks[i + (last_received_round + 1) as usize][0],
             );
         }
+        received_bundles = vec![];
 
         for round in first_batch_end_exclusive..=rounds {
             core_dispatcher
-                .add_blocks(all_blocks[round as usize].clone())
+                .add_blocks(all_blocks[round as usize - 1].clone())
                 .await
                 .expect("blocks are expected to be added successfully");
+            core_dispatcher
+                .add_blocks(vec![all_blocks[round as usize][0].clone()])
+                .await
+                .expect("blocks are expected to be added successfully");
+            sleep(Duration::from_millis(50)).await;
             tx_block_broadcast
                 .send(all_blocks[round as usize][0].clone())
                 .expect("We expect that block is sent successfully");
-        }
-
-        received_bundles = vec![];
-        for _ in first_batch_end_exclusive..rounds {
+            sleep(Duration::from_millis(50)).await;
             if let Some(bundle) = stream.next().await {
                 received_bundles.push(bundle);
             }
@@ -2640,13 +2636,13 @@ mod tests {
 
         // Check blocks from the second batch
         for (i, bundle) in received_bundles.into_iter().enumerate() {
-            let serialized_block_and_headers =
+            let serialized_block_bundle_parts =
                 SerializedBlockBundleParts::try_from(bundle).unwrap();
             let SerializedHeaderAndTransactions {
                 serialized_block_header,
                 serialized_transactions,
             } = SerializedHeaderAndTransactions::try_from(SerializedBlock {
-                serialized_block: serialized_block_and_headers.serialized_block,
+                serialized_block: serialized_block_bundle_parts.serialized_block,
             })
             .unwrap();
 
@@ -2685,6 +2681,29 @@ mod tests {
                 verified_block,
                 all_blocks[i + first_batch_end_exclusive as usize][0],
             );
+
+            let mut authorities = vec![];
+            for serialized_header in serialized_block_bundle_parts.serialized_headers {
+                let signed_header: SignedBlockHeader = bcs::from_bytes(&serialized_header)
+                    .map_err(ConsensusError::MalformedHeader)
+                    .unwrap();
+                assert_eq!(
+                    verified_block.round(),
+                    signed_header.round() + 1,
+                    "Headers should be from the previous round"
+                );
+                authorities.push(signed_header.author());
+            }
+            authorities.sort();
+            assert_eq!(
+                authorities,
+                vec![
+                    AuthorityIndex::new_for_test(2),
+                    AuthorityIndex::new_for_test(3)
+                ],
+                "We should have pushed headers from other authorities in round {:?}",
+                verified_block.round(),
+            );
         }
     }
 
@@ -2709,6 +2728,7 @@ mod tests {
         let commit_vote_monitor = Arc::new(CommitVoteMonitor::new(context.clone()));
         let store = Arc::new(MemStore::new());
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
+        let cordial_knowledge = CordialKnowledge::start(context.clone(), dag_state.clone());
 
         let block_manager = BlockManager::new(context.clone(), dag_state.clone());
         let (_transaction_client, tx_receiver) = TransactionClient::new(context.clone());
@@ -2755,11 +2775,10 @@ mod tests {
             network_client.clone(),
             context.clone(),
             core_dispatcher.clone(),
-            block_verifier.clone(),
             dag_state.clone(),
         );
 
-        let synchronizer = Synchronizer::start(
+        let header_synchronizer = HeaderSynchronizer::start(
             network_client,
             context.clone(),
             core_dispatcher.clone(),
@@ -2775,13 +2794,14 @@ mod tests {
             context.clone(),
             block_verifier,
             commit_vote_monitor,
-            synchronizer,
+            header_synchronizer,
             transactions_synchronizer,
             core_dispatcher.clone(),
             rx_block_broadcast,
             dag_state.clone(),
             store,
             tx_message_sender,
+            cordial_knowledge,
         ));
 
         // Set up DAG with blocks
@@ -2849,6 +2869,7 @@ mod tests {
         let commit_vote_monitor = Arc::new(CommitVoteMonitor::new(context.clone()));
         let store = Arc::new(MemStore::new());
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
+        let cordial_knowledge = CordialKnowledge::start(context.clone(), dag_state.clone());
 
         let block_manager = BlockManager::new(context.clone(), dag_state.clone());
         let (_transaction_client, tx_receiver) = TransactionClient::new(context.clone());
@@ -2895,11 +2916,10 @@ mod tests {
             network_client.clone(),
             context.clone(),
             core_dispatcher.clone(),
-            block_verifier.clone(),
             dag_state.clone(),
         );
 
-        let synchronizer = Synchronizer::start(
+        let header_synchronizer = HeaderSynchronizer::start(
             network_client,
             context.clone(),
             core_dispatcher.clone(),
@@ -2915,13 +2935,14 @@ mod tests {
             context.clone(),
             block_verifier,
             commit_vote_monitor,
-            synchronizer,
+            header_synchronizer,
             transactions_synchronizer,
             core_dispatcher.clone(),
             rx_block_broadcast,
             dag_state.clone(),
             store,
             tx_message_sender,
+            cordial_knowledge,
         ));
 
         // Set up DAG with blocks
@@ -3006,6 +3027,7 @@ mod tests {
         let commit_vote_monitor = Arc::new(CommitVoteMonitor::new(context.clone()));
         let store = Arc::new(MemStore::new());
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
+        let cordial_knowledge = CordialKnowledge::start(context.clone(), dag_state.clone());
 
         let block_manager = BlockManager::new(context.clone(), dag_state.clone());
         let (_transaction_client, tx_receiver) = TransactionClient::new(context.clone());
@@ -3048,6 +3070,7 @@ mod tests {
 
         let (_tx_block_broadcast, rx_block_broadcast) = broadcast::channel(100);
         let (tx_message_sender, _tx_message_receiver) = mpsc::channel(100);
+
         let network_client = Arc::new(FakeNetworkClient::default());
 
         // Set up synchronizers
@@ -3055,11 +3078,10 @@ mod tests {
             network_client.clone(),
             context.clone(),
             core_dispatcher.clone(),
-            block_verifier.clone(),
             dag_state.clone(),
         );
 
-        let synchronizer = Synchronizer::start(
+        let header_synchronizer = HeaderSynchronizer::start(
             network_client,
             context.clone(),
             core_dispatcher.clone(),
@@ -3075,13 +3097,14 @@ mod tests {
             context.clone(),
             block_verifier,
             commit_vote_monitor,
-            synchronizer,
+            header_synchronizer,
             transactions_synchronizer,
             core_dispatcher.clone(),
             rx_block_broadcast,
             dag_state.clone(),
             store.clone(),
             tx_message_sender,
+            cordial_knowledge,
         ));
 
         // Set up DAG with blocks
@@ -3179,7 +3202,8 @@ mod tests {
         let (context, key_pairs) = Context::new_for_test(validators);
         let context = Context {
             parameters: Parameters {
-                max_transactions_per_fetch: 20,
+                max_transactions_per_regular_sync_fetch: 20,
+                max_transactions_per_commit_sync_fetch: 10,
                 ..context.parameters
             },
             ..context
@@ -3192,6 +3216,7 @@ mod tests {
         let commit_vote_monitor = Arc::new(CommitVoteMonitor::new(context.clone()));
         let store = Arc::new(MemStore::new());
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
+        let cordial_knowledge = CordialKnowledge::start(context.clone(), dag_state.clone());
 
         let block_manager = BlockManager::new(context.clone(), dag_state.clone());
         let (_transaction_client, tx_receiver) = TransactionClient::new(context.clone());
@@ -3238,11 +3263,10 @@ mod tests {
             network_client.clone(),
             context.clone(),
             core_dispatcher.clone(),
-            block_verifier.clone(),
             dag_state.clone(),
         );
 
-        let synchronizer = Synchronizer::start(
+        let header_synchronizer = HeaderSynchronizer::start(
             network_client,
             context.clone(),
             core_dispatcher.clone(),
@@ -3258,13 +3282,14 @@ mod tests {
             context.clone(),
             block_verifier,
             commit_vote_monitor,
-            synchronizer,
+            header_synchronizer,
             transactions_synchronizer,
             core_dispatcher.clone(),
             rx_block_broadcast,
             dag_state.clone(),
             store,
             tx_message_sender,
+            cordial_knowledge,
         ));
         let mut encoder = create_encoder(&context);
 
@@ -3296,20 +3321,13 @@ mod tests {
             .collect();
 
         let peer = context.committee.to_authority_index(1).unwrap();
-        let err = authority_service
-            .handle_fetch_transactions(peer, block_refs_to_request_first_batch.clone())
-            .await
-            .expect_err("Expected TooManyFetchTransactionsRequested error");
-
-        assert!(matches!(err, ConsensusError::TooManyFetchTransactionsRequested(p) if p == peer));
-
-        block_refs_to_request_first_batch.truncate(context.parameters.max_transactions_per_fetch);
-
         let serialized_transactions = authority_service
             .handle_fetch_transactions(peer, block_refs_to_request_first_batch.clone())
             .await
-            .expect("Should return a valid vector of serialized transactions");
+            .expect("We should expect a correct return of serialized transactions");
 
+        block_refs_to_request_first_batch
+            .truncate(context.parameters.max_transactions_per_regular_sync_fetch);
         // Verify that we received the correct number of requested transactions
         assert_eq!(
             serialized_transactions.len(),
@@ -3342,7 +3360,8 @@ mod tests {
             );
         }
 
-        block_refs_to_request_second_batch.truncate(context.parameters.max_transactions_per_fetch);
+        block_refs_to_request_second_batch
+            .truncate(context.parameters.max_transactions_per_regular_sync_fetch);
 
         let serialized_transactions = authority_service
             .handle_fetch_transactions(peer, block_refs_to_request_second_batch.clone())

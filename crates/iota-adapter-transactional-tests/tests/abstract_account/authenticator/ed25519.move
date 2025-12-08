@@ -37,6 +37,7 @@ public fun create(
 }
 
 /// Ed25519 signature authenticator.
+#[authenticator]
 public fun authenticate_ed25519(
     account: &AbstractAccount,
     signature: vector<u8>,
@@ -55,7 +56,7 @@ public fun authenticate_ed25519(
     );
 }
 
-//# programmable --sender A --inputs x"cc62332e34bb2d5cd69f60efbb2a36cb916c7eb458301ea36636c4dbb012bd88" @test "abstract_account" "authenticate_ed25519"
+//# programmable --sender A --inputs x"cc62332e34bb2d5cd69f60efbb2a36cb916c7eb458301ea36636c4dbb012bd88" object(1,1) "abstract_account" "authenticate_ed25519"
 //> 0: iota::account::create_auth_info_v1<test::abstract_account::AbstractAccount>(Input(1), Input(2), Input(3));
 //> 1: test::abstract_account::create(Input(0), Result(0));
 

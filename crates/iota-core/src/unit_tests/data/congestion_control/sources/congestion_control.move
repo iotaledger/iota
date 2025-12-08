@@ -20,7 +20,19 @@ module congestion_control::congestion_control {
         transfer::public_share_object(Object { id: object::new(ctx), value: 0 })
     }
 
-    public entry fun increment(o1:  &mut Object, o2:  &mut Object, o3:  &mut Object) {
+    public entry fun increment_one(o1:  &mut Object) {
+        let m = o1.value + 1;
+        o1.value = m;
+    }
+
+    public entry fun increment_two(o1:  &mut Object, o2:  &mut Object) {
+        let m = o1.value + 1;
+        o1.value = m;
+        let m = o2.value + 1;
+        o2.value = m;
+    }
+
+    public entry fun increment_three(o1:  &mut Object, o2:  &mut Object, o3:  &mut Object) {
         let m = o1.value + 1;
         o1.value = m;
         let m = o2.value + 1;

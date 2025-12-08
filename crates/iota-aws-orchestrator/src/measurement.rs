@@ -182,7 +182,7 @@ impl<T: BenchmarkType> MeasurementsCollection<T> {
     /// Create a new (empty) collection of measurements.
     pub fn new(settings: &Settings, parameters: BenchmarkParameters<T>) -> Self {
         Self {
-            machine_specs: settings.specs.clone(),
+            machine_specs: settings.node_specs.clone(),
             commit: settings.repository.commit.clone(),
             parameters,
             scrapers: HashMap::new(),
@@ -280,6 +280,9 @@ impl<T: BenchmarkType> MeasurementsCollection<T> {
         table.add_row(row![b->"Benchmark type:", self.parameters.benchmark_type]);
         table.add_row(row![bH2->""]);
         table.add_row(row![b->"Nodes:", self.parameters.nodes]);
+        table.add_row(
+            row![b->"Use internal IPs:", format!("{}", self.parameters.use_internal_ip_address)],
+        );
         table.add_row(row![b->"Faults:", self.parameters.faults]);
         table.add_row(row![b->"Load:", format!("{} tx/s", self.parameters.load)]);
         table.add_row(row![b->"Duration:", format!("{} s", duration.as_secs())]);

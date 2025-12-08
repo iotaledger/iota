@@ -1444,6 +1444,11 @@ Doesn't support simulator mode.
 #### Example
 
 ```move
+// Copyright (c) 2025 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
+// simple authentication using abstract account
+
 //# init --addresses test=0x0 --accounts A
 
 //# publish --sender A
@@ -1472,6 +1477,7 @@ public fun create(
     account_address
 }
 
+#[authenticator]
 public fun authenticate_hello_world(
     _account: &AbstractAccount,
     msg: ascii::String,
@@ -1481,7 +1487,7 @@ public fun authenticate_hello_world(
     assert!(msg == ascii::string(b"HelloWorld"), 0);
 }
 
-//# programmable --sender A --inputs @test "abstract_account" "authenticate_hello_world"
+//# programmable --sender A --inputs object(1,1) "abstract_account" "authenticate_hello_world"
 //> 0: iota::account::create_auth_info_v1<test::abstract_account::AbstractAccount>(Input(0), Input(1), Input(2));
 //> 1: test::abstract_account::create(Result(0));
 
@@ -1500,6 +1506,9 @@ public fun authenticate_hello_world(
   These are inputs used inside the transaction body - for example, numeric values, objects, or addresses.
   The PTB commands (//> ...) operate as in the programmable command.
 
+- object(1,1)
+  The `PackageMetadata` object carries information about function annotations, such as attributes
+
 `.snap` output:
 
 ```
@@ -1513,7 +1522,7 @@ A: object(0,0)
 
 task 1, lines 8-41:
 //# publish --sender A
-created: object(1,0)
+created: object(1,0), object(1,1)
 mutated: object(0,0)
 gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 8800800,  storage_rebate: 0, non_refundable_storage_fee: 0
 
@@ -1680,7 +1689,7 @@ the snapshot. If needed the `InstaOptions` struct can be used directly by specif
 After running the test, the `.snap` files can be updated in two ways:
 
 1. By using `cargo insta review`, which will open an interactive UI to review the changes.
-2. Running the tests with the environment variable `INSTA_UPDATE=alawys`
+2. Running the tests with the environment variable `INSTA_UPDATE=always`
 
 ### Structure of the `.move` File.
 

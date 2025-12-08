@@ -7,6 +7,8 @@
 # Run from: iota/dev-tools/iota-private-network/experiments/
 
 set -euo pipefail
+PARENT_BASHPID=${BASHPID}
+CLEANING=false
 
 # =================== CONSTANTS ===================
 DEFAULT_NUM_VALIDATORS=4
@@ -20,13 +22,49 @@ DEFAULT_PERCENT_RESTART=0     # percent chance to restart a validator
 DEFAULT_RUN_DURATION=3600  # default sleep at end: 1 hour
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 LOG_DIR="$SCRIPT_DIR/logs" # directory with logs
-LOG_INTERVAL=60           # save logs every 5 minutes
+LOG_INTERVAL=60           # save logs every 60 seconds
 DEFAULT_NETWORK_METRIC=false
+DEFAULT_SPAMMER_ENABLE=false
+DEFAULT_SPAMMER_TPS=10
+DEFAULT_SPAMMER_SIZE="10KiB"
+DEFAULT_SPAMMER_TYPE="stress"
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Set the root directory of the private network (one level up from experiments)
+NETWORK_DIR="$(dirname "$SCRIPT_DIR")"
+CLEANUP_SCRIPT="$NETWORK_DIR/cleanup.sh"
 # ==================================================
 
 # --- Trap termination and normal exit safely ---
 CLEANED_UP=false
 cleanup_and_kill() {
+    # Ensure only the original parent shell runs the EXIT trap (avoid subshell-triggered cleanup)
+    if [ "${BASHPID}" != "${PARENT_BASHPID}" ]; then
+          return
+    fi
+
+    # Re-entrancy guard: run cleanup only once and ignore further signals during teardown
+    if [ "${CLEANING}" = true ]; then
+        log "cleanup already running; returning"
+        return
+    fi
+    CLEANING=true
+
+    # Disable traps for SIGINT/SIGTERM/EXIT to avoid recursive invocations while cleaning
+    trap - SIGINT SIGTERM EXIT
+    # Ignore further SIGINT/SIGTERM from the terminal during teardown
+    trap '' SIGINT SIGTERM
+
+    # Allow cleanup commands to continue even if one fails
+    set +e
+    # Ensure log targets exist even if EXIT happens before normal init
+    : "${SCRIPT_DIR:=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)}"
+    : "${LOG_DIR:=${SCRIPT_DIR}/logs}"
+    : "${LOG_FILE:=${LOG_DIR}/experiment_script_latest.log}"
+    mkdir -p "$LOG_DIR" 2>/dev/null || true
+    touch "$LOG_FILE" 2>/dev/null || true
+    log "BEGIN cleanup_and_kill (pid=$$, user=$(id -un))"
+    kill_spammer_processes || true
     if [ "$CLEANED_UP" = false ]; then
         # --- Print final network statistics to terminal ---
         if [ "$NETWORK_METRIC" = true ]; then
@@ -54,10 +92,55 @@ cleanup_and_kill() {
         fi
 
         CLEANED_UP=true
-        echo "Stopping all background scripts and validators..."
-        kill -- -$$ &> /dev/null   # silently kill all children
-        (cd .. && docker compose down &> /dev/null)  # silent cleanup
+        log "Stopping all background scripts and validators..."
+        # Stop background jobs started by this script without signaling the shell itself
+        if pids=$(pgrep -P $$); then
+          kill $pids &>/dev/null || true
+        fi
+        log "Delegating Docker teardown to external script: $CLEANUP_SCRIPT"
+
+        if [ -f "$CLEANUP_SCRIPT" ]; then
+          if command -v sudo >/dev/null 2>&1; then
+            log "Running teardown with sudo: $CLEANUP_SCRIPT"
+            if ! sudo bash -lc "cd '$NETWORK_DIR' && ./$(basename "$CLEANUP_SCRIPT")"; then
+              rc=$?
+              log "ERROR: cleanup script failed with exit code $rc (sudo)"
+            else
+              log "External cleanup script finished successfully (sudo)."
+            fi
+          else
+            log "sudo not found; running teardown without sudo: $CLEANUP_SCRIPT"
+            if ! (cd "$NETWORK_DIR" && "$CLEANUP_SCRIPT"); then
+              rc=$?
+              log "ERROR: cleanup script failed with exit code $rc (no sudo)"
+            else
+              log "External cleanup script finished successfully (no sudo)."
+            fi
+          fi
+        else
+          log "FATAL: External cleanup script not found at $CLEANUP_SCRIPT. Containers may persist."
+        fi
     fi
+    log "Cleanup complete. Exiting."
+    exit 0
+}
+
+# Kill any lingering spammer processes and remove locks
+kill_spammer_processes() {
+    log "Killing lingering spammer processes (if any) and removing locks..."
+    # Stop the stress benchmark container by name if it exists
+    docker stop stress-benchmark >/dev/null 2>&1 || true
+    # kill common spammer process forms
+    pkill -9 -f 'iota-spammer spammer spam' 2>/dev/null || true
+    pkill -9 -f 'cargo run --release -- spammer spam' 2>/dev/null || true
+    pkill -9 -f 'cargo run --release -- spammer spam' 2>/dev/null || true
+    pkill -9 -f 'cargo run --release --.* stress' 2>/dev/null || true
+    pkill -9 -f 'spamming_fuzz_test.sh' 2>/dev/null || true
+    pkill -9 -f 'network-fuzz-disruption.sh' 2>/dev/null || true
+
+    # also remove per-user and global lock files
+    rm -f /tmp/spammer-*.lock 2>/dev/null || true
+    rm -f /tmp/spammer.lock 2>/dev/null || true
 }
 
 trap cleanup_and_kill SIGINT SIGTERM EXIT
@@ -65,10 +148,10 @@ trap cleanup_and_kill SIGINT SIGTERM EXIT
 # --- Prepare log directory ---
 mkdir -p "$LOG_DIR"
 
-# Initial timestamp for the log file
+# --- Initial timestamp for the log file ---
 LOG_FILE="$LOG_DIR/experiment_script_latest.log"
 
-# Overwrite the log file at the beginning
+# --- Overwrite the log file at the beginning ---
 : > "$LOG_FILE"
 
 # --- Logging helper ---
@@ -81,6 +164,7 @@ usage() {
   echo "Usage: $0 [-n num_validators(4..19)] [-p protocol(mysticeti|starfish)] [-b build_images(true|false)]"
   echo "          [-g geodistributed(true|false)] [-s seed(number)] [-x percent_block_connection(0..100)] [-l percent_loss_packets(0..100)]"
   echo "          [-t run_duration_seconds] [-r percent_restart(0..100)] [-m flag_to_output_network_statistics]"
+  echo "          [-S spammer_enable(true|false)] [-T spammer_tps(number)] [-Z spammer_size_per_tx(KiB)] [-C spammer_type(iota-spammer|stress)]"
 }
 
 # --- Default values ---
@@ -94,9 +178,13 @@ PERCENT_LOSS=$DEFAULT_PERCENT_LOSS
 PERCENT_RESTART=$DEFAULT_PERCENT_RESTART
 RUN_DURATION=$DEFAULT_RUN_DURATION
 NETWORK_METRIC=$DEFAULT_NETWORK_METRIC
+SPAMMER_ENABLE=$DEFAULT_SPAMMER_ENABLE
+SPAMMER_TPS=$DEFAULT_SPAMMER_TPS
+SPAMMER_SIZE_PER_TX=$DEFAULT_SPAMMER_SIZE
+SPAMMER_TYPE=$DEFAULT_SPAMMER_SIZE
 
 # --- Parse command-line arguments ---
-while getopts ":n:p:b:g:s:x:l:t:r:hm" opt; do
+while getopts ":n:p:b:g:s:x:l:t:r:mS:T:Z:C:h" opt; do
   case "$opt" in
     n) NUM_VALIDATORS="$OPTARG" ;;
     p) PROTOCOL="$OPTARG" ;;
@@ -108,6 +196,10 @@ while getopts ":n:p:b:g:s:x:l:t:r:hm" opt; do
     t) RUN_DURATION="$OPTARG" ;;
     r) PERCENT_RESTART="$OPTARG" ;;
     m) NETWORK_METRIC=true ;;
+    S) SPAMMER_ENABLE="$OPTARG" ;;
+    T) SPAMMER_TPS="$OPTARG" ;;
+    Z) SPAMMER_SIZE_PER_TX="$OPTARG" ;;
+    C) SPAMMER_TYPE="$OPTARG";;
     h) usage; exit 0 ;;
     \?) usage; exit 2 ;;
     :)  usage; exit 2 ;;
@@ -130,7 +222,42 @@ log "Percent block connection   : $PERCENT_BLOCK"
 log "Percent netem loss         : $PERCENT_LOSS"
 log "Percent restart validator  : $PERCENT_RESTART"
 log "Run experiments duration   : $RUN_DURATION s"
+log "Network metrics enabled    : $NETWORK_METRIC"
+log "Spammer enabled            : $SPAMMER_ENABLE"
+if [ "$SPAMMER_ENABLE" = true ]; then
+  log "Spammer type               : $SPAMMER_TYPE"
+  log "Spammer TPS                : $SPAMMER_TPS"
+  if [ "$SPAMMER_TYPE" = "iota-spammer"]; then
+    log "Spammer size per tx        : $SPAMMER_SIZE_PER_TX"
+  fi
+fi
 log "==========================="
+
+# --- Pre-clean to ensure a fresh start (explicit, not via trap) ---
+log "Pre-clean: invoking cleanup to ensure a fresh state before starting experiments..."
+if [ -f "$CLEANUP_SCRIPT" ]; then
+  if command -v sudo >/dev/null 2>&1; then
+    log "Pre-clean (sudo): $CLEANUP_SCRIPT"
+    if ! sudo bash -lc "cd '$NETWORK_DIR' && ./$(basename "$CLEANUP_SCRIPT")"; then
+      rc=$?
+      log "ERROR: pre-clean failed with exit code $rc — continuing anyway"
+    else
+      log "Pre-clean completed successfully."
+    fi
+  else
+    log "Pre-clean (no sudo): $CLEANUP_SCRIPT"
+    if ! (cd "$NETWORK_DIR" && "$CLEANUP_SCRIPT"); then
+      rc=$?
+      log "ERROR: pre-clean failed with exit code $rc — continuing anyway"
+    else
+      log "Pre-clean completed successfully."
+    fi
+  fi
+else
+  log "WARNING: cleanup script not found at $CLEANUP_SCRIPT; skipping pre-clean."
+fi
+# --- Ensure no old spammer instances are running before we begin ---
+kill_spammer_processes || true
 
 # --- 1) Build images (optional) ---
 if [ "$BUILD" = true ]; then
@@ -175,6 +302,73 @@ cd - >/dev/null
     -g "$GEODISTRIBUTED" \
     -o "$LOG_FILE" &
 
+# --- 6) Launch spammer if enabled ---
+if [ "$SPAMMER_ENABLE" = true ]; then
+    # Ensure faucet-1 is running (required by spammer)
+    log "Starting faucet-1..."
+    (cd .. && docker compose up -d faucet-1) || log "Warning: could not start faucet-1"
+    log "Sleep 20s after faucet start..."
+    sleep 20
+    SPAMMER_DURATION=$((RUN_DURATION - 60))
+    if [ "$SPAMMER_DURATION" -lt 10 ]; then
+      SPAMMER_DURATION=10
+    fi
+
+    if [ "$SPAMMER_TYPE" = "stress" ]; then
+            log "Starting 'stress' benchmark with TPS=$SPAMMER_TPS, duration=${SPAMMER_DURATION}s..."
+            # This command runs the `stress` binary from the iota-tools image inside the docker network
+            docker run -d --rm --name stress-benchmark \
+              --network iota-private-network_iota-network \
+              -v "$(pwd)/../configs/genesis/genesis.blob:/opt/iota/config/genesis.blob:ro" \
+              -v "$(pwd)/../configs/faucet/iota.keystore:/opt/iota/config/iota.keystore:ro" \
+              iotaledger/iota-tools /usr/local/bin/stress \
+                --local false \
+                --use-fullnode-for-execution true \
+                --fullnode-rpc-addresses http://fullnode-1:9000 \
+                --genesis-blob-path /opt/iota/config/genesis.blob \
+                --keystore-path /opt/iota/config/iota.keystore \
+                --primary-gas-owner-id 0x7cc6ff19b379d305b8363d9549269e388b8c1515772253ed4c868ee80b149ca0 \
+                bench \
+                --target-qps "$SPAMMER_TPS" \
+                --in-flight-ratio 5 \
+                --transfer-object 100
+
+
+            # Follow the logs of the detached container and redirect to the spammer log file
+            docker logs -f stress-benchmark > "$LOG_DIR/spammer.log" 2>&1 &
+
+
+    elif [ "$SPAMMER_TYPE" = "iota-spammer" ]; then
+            USER_HOME=$(getent passwd "${SUDO_USER:-$USER}" | cut -d: -f6)
+            SPAMMER_SCRIPT="${SPAMMER_SCRIPT:-$USER_HOME/iota-spammer/scripts/spamming_fuzz_test.sh}"
+            if [ ! -f "$SPAMMER_SCRIPT" ]; then
+              log "Error: Spammer script not found at $SPAMMER_SCRIPT"
+              exit 1
+            fi
+            log "Starting 'iota-spammer' with TPS=$SPAMMER_TPS, size per tx=$SPAMMER_SIZE_PER_TX, duration=${SPAMMER_DURATION}s..."
+            if [ -n "${SUDO_USER:-}" ]; then
+              log "Detected sudo; running spammer as $SUDO_USER to inherit user Rust toolchain"
+              sudo -u "$SUDO_USER" -H bash "$SPAMMER_SCRIPT" \
+                -T "$SPAMMER_TPS" \
+                -s "$SPAMMER_SIZE_PER_TX" \
+                -d "${SPAMMER_DURATION}s" \
+                > "$LOG_DIR/spammer.log" 2>&1 &
+            else
+              bash "$SPAMMER_SCRIPT" \
+                -T "$SPAMMER_TPS" \
+                -s "$SPAMMER_SIZE_PER_TX" \
+                -d "${SPAMMER_DURATION}s" \
+                > "$LOG_DIR/spammer.log" 2>&1 &
+            fi
+        else
+            log "Error: Unknown SPAMMER_TYPE '$SPAMMER_TYPE'. Must be 'iota-spammer' or 'stress'."
+            exit 1
+        fi
+
+        SPAM_PID=$!
+        log "Spammer started in background (pid=$SPAM_PID); logs: $LOG_DIR/spammer.log"
+    fi
+
 # --- 6) Run for specified duration, periodically saving logs ---
 log "Running experiments for $RUN_DURATION seconds, saving logs every $LOG_INTERVAL seconds..."
 start_time=$(date +%s)
@@ -202,7 +396,7 @@ for ((i=1; i<=NUM_VALIDATORS; i++)); do
   log "Saved final log for $v to $LOG_DIR/experiment-${v}-${TIMESTAMP}.log"
 done
 
-# Copy main experiment log with timestamp
+# --- Copy main experiment log with timestamp ---
 cp "$LOG_FILE" "$LOG_DIR/experiment_script_${TIMESTAMP}.log"
 
 log "All steps completed. Cleanup will run on script exit."

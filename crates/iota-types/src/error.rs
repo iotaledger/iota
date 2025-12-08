@@ -210,6 +210,8 @@ pub enum UserInputError {
     BlockedMoveFunction,
     #[error("Empty input coins for Pay related transaction")]
     EmptyInputCoins,
+    #[error("Invalid Move View Function call: {error:?}")]
+    InvalidMoveViewFunction { error: String },
 
     #[error(
         "IOTA payment transactions use first input coin for gas payment, but found a different gas object"
@@ -218,6 +220,9 @@ pub enum UserInputError {
 
     #[error("Wrong initial version given for shared object")]
     SharedObjectStartingVersionMismatch,
+
+    #[error("Wrong id given for shared object")]
+    SharedObjectIdMismatch,
 
     #[error(
         "Attempt to transfer object {object_id} that does not have public transfer. Object transfer must be done instead using a distinct Move function call"
@@ -384,6 +389,11 @@ pub enum UserInputError {
         "Receiving objects {receiving_objects:?} are in the `MoveAuthenticator` input that is unsupported"
     )]
     ReceivingObjectsIsInMoveAuthenticatorInput { receiving_objects: Vec<ObjectRef> },
+
+    #[error(
+        "Authenticator input {object_id} is inconsistent with the other transaction input objects"
+    )]
+    InconsistentAuthenticatorInput { object_id: ObjectID },
 }
 
 #[derive(
@@ -516,6 +526,7 @@ pub enum IotaError {
     #[error("Signatures in a certificate must form a quorum")]
     CertificateRequiresQuorum,
     #[error("Transaction certificate processing failed: {err}")]
+    // DEPRECATED: "local execution" was removed from fullnodes
     ErrorWhileProcessingCertificate { err: String },
     #[error(
         "Failed to get a quorum of signed effects when processing transaction: {effects_map:?}"
