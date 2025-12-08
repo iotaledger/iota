@@ -397,7 +397,7 @@ iota-authority-aggregation = { path = "crates/iota-authority-aggregation" }
 iota-benchmark = { path = "crates/iota-benchmark" }
 iota-build-cache-server = { path = "crates/iota-build-cache-server" }
 iota-cluster-test = { path = "crates/iota-cluster-test" }
-iota-common = { path = "crates/iota-common" }
+iota-common = { path = "crates/iota-common", default-features = false }
 iota-config = { path = "crates/iota-config" }
 iota-core = { path = "crates/iota-core" }
 iota-cost = { path = "crates/iota-cost" }
