@@ -739,6 +739,7 @@ impl From<crate::transaction::EndOfEpochTransactionKind> for EndOfEpochTransacti
                         .collect(),
                     eligible_active_validators: change_epoch_v4.eligible_active_validators,
                     scores: change_epoch_v4.scores,
+                    adjust_rewards_by_score: change_epoch_v4.adjust_rewards_by_score,
                 })
             }
             crate::transaction::EndOfEpochTransactionKind::AuthenticatorStateCreate => {
@@ -851,6 +852,7 @@ impl From<EndOfEpochTransactionKind> for crate::transaction::EndOfEpochTransacti
                         .collect(),
                     eligible_active_validators: change_epoch_v4.eligible_active_validators,
                     scores: change_epoch_v4.scores,
+                    adjust_rewards_by_score: change_epoch_v4.adjust_rewards_by_score,
                 })
             }
             EndOfEpochTransactionKind::AuthenticatorStateCreate => Self::AuthenticatorStateCreate,

@@ -39,7 +39,8 @@ feature_flags:
   select_committee_supporting_next_epoch_version: true
   consensus_median_timestamp_with_checkpoint_enforcement: true
   consensus_commit_transactions_only_for_traversed_headers: true
-  score_based_rewards: true
+  calculate_validator_scores: true
+  adjust_rewards_by_score: true
 max_tx_size_bytes: 131072
 max_input_objects: 2048
 max_size_written_objects: 5000000
