@@ -13,7 +13,7 @@ dirs = "6.0"
 fastcrypto = "0.1"
 iota-sdk-types = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "05608b7e4a5b96d85f84e1970a517f6f174beb8b" }
 serde = { version = "1.0", features = ["derive"] }
-tokio = { version = "1.40", features = ["time"] }
+tokio = { version = "1.46.1", features = ["time"] }
 
 # internal dependencies
 iota-keys = { path = "../../../crates/iota-keys" }
