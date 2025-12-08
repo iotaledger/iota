@@ -93,6 +93,51 @@ impl std::fmt::Display for PTBCommandResult {
     }
 }
 
+/// Result of extracting auth arguments from the initial PTB args.
+struct ExtractedAuthArgs {
+    /// The remaining args after auth arguments are removed.
+    remaining_args: Vec<String>,
+    /// The auth call arguments (values for `--auth-call-args`).
+    auth_call_args: Option<Vec<String>>,
+    /// The auth type arguments (values for `--auth-type-args`).
+    auth_type_args: Option<Vec<String>>,
+}
+
+/// Extracts `--auth-call-args` and `--auth-type-args` from the given args.
+fn extract_auth_args(args: &[String]) -> ExtractedAuthArgs {
+    let mut auth_call_args = None;
+    let mut auth_type_args = None;
+    let mut remaining_args = Vec::new();
+    let mut iter = args.iter().peekable();
+
+    while let Some(arg) = iter.next() {
+        match arg.as_str() {
+            "--auth-call-args" | "--auth-type-args" => {
+                let mut values = Vec::new();
+                while let Some(next) = iter.peek() {
+                    if next.starts_with("--") {
+                        break;
+                    }
+                    values.push(iter.next().unwrap().clone());
+                }
+
+                if arg == "--auth-call-args" {
+                    auth_call_args = Some(values);
+                } else {
+                    auth_type_args = Some(values);
+                }
+            }
+            _ => remaining_args.push(arg.clone()),
+        }
+    }
+
+    ExtractedAuthArgs {
+        remaining_args,
+        auth_call_args,
+        auth_type_args,
+    }
+}
+
 impl PTB {
     /// Parses and executes the PTB with the sender as the current active
     /// address.
@@ -100,41 +145,15 @@ impl PTB {
         if self.args.is_empty() {
             return Ok(PTBCommandResult::Help { long: false });
         }
-        let mut auth_call_args = None;
-        let mut auth_type_arguments = None;
-        let mut actual_args = Vec::new();
-        let mut next_index = 0;
-        for (index, arg) in self.args.iter().enumerate() {
-            let mut call_arg = false;
-            if index < next_index {
-                continue;
-            }
-            if arg == "--auth-call-args" || arg == "--auth-type-args" {
-                if arg == "--auth-call-args" {
-                    call_arg = true;
-                }
-                let args_slice = &self.args[index + 1..];
-                let mut args_vec = Vec::new();
-                for arg in args_slice {
-                    if arg.starts_with("--") {
-                        break;
-                    }
-                    args_vec.push(arg.clone());
-                }
-                next_index = index + 1 + args_vec.len();
-                if call_arg {
-                    auth_call_args = Some(args_vec);
-                } else {
-                    auth_type_arguments = Some(args_vec);
-                }
-            } else {
-                actual_args.push(arg.to_string());
-            }
-        }
-        if actual_args.is_empty() {
+
+        let extracted = extract_auth_args(&self.args);
+        let auth_call_args = extracted.auth_call_args;
+        let auth_type_arguments = extracted.auth_type_args;
+
+        if extracted.remaining_args.is_empty() {
             return Ok(PTBCommandResult::Help { long: false });
         }
-        self.args = actual_args;
+        self.args = extracted.remaining_args;
 
         let source_string = to_source_string(self.args.clone());
 

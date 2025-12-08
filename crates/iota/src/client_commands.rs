@@ -3576,7 +3576,7 @@ pub(crate) async fn dry_run_or_execute_or_serialize(
         let signature =
             sign_transaction(context, &tx_data, &tx_data.sender(), auth_args.clone()).await?;
 
-        let mut signatures = vec![signature.into()];
+        let mut signatures = vec![signature];
 
         if let Some(gas_sponsor) = gas_sponsor {
             if gas_sponsor != signer {
@@ -3584,7 +3584,7 @@ pub(crate) async fn dry_run_or_execute_or_serialize(
                 let signature =
                     sign_transaction(context, &tx_data, &gas_sponsor, auth_args).await?;
 
-                signatures.push(signature.into());
+                signatures.push(signature);
             }
         }
 

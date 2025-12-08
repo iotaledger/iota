@@ -62,7 +62,7 @@ iota client pay-iota --recipients 0x111111111504e9350e635d65cd38ccd2c029434c6a3a
 ADDRESS=$(iota client active-address)
 iota client ptb \
 --assign to_address @$ADDRESS \
---split-coins gas "[1000000000]" \
+--split-coins gas "[1]" \
 --assign coin \
 --transfer-objects "[coin]" to_address \
 --auth-call-args "hello"
