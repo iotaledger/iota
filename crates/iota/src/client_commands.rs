@@ -3529,7 +3529,6 @@ pub(crate) async fn dry_run_or_execute_or_serialize(
             .ok_or_else(|| anyhow::anyhow!("invalid move type"))?
             .deserialize::<Field<account::AuthenticatorInfoV1Key, account::AuthenticatorInfoV1>>(
             )?;
-            println!("auth_call_args: {auth_call_args:?}");
 
             let type_args = auth_type_arguments
                 .as_ref()
@@ -3540,7 +3539,6 @@ pub(crate) async fn dry_run_or_execute_or_serialize(
                 })
                 .transpose()?
                 .unwrap_or_default();
-            println!("auth_type_arguments: {auth_type_arguments:?}");
 
             let mut json_args: Vec<_> = auth_call_args
                 .as_ref()
@@ -3556,7 +3554,6 @@ pub(crate) async fn dry_run_or_execute_or_serialize(
                 IotaJsonValue::new(serde_json::to_value(signer).unwrap()).unwrap(),
             );
 
-            println!("json_args: {json_args:?}");
             let mut call_args = client
                 .transaction_builder()
                 .resolve_and_check_call_args_aa(

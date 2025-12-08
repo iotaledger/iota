@@ -56,5 +56,15 @@ iota client switch --address $ACCOUNT_ADDRESS
 iota client faucet
 sleep 2 # wait for the gas to be available
 iota client gas
+# client command
 iota client pay-iota --recipients 0x111111111504e9350e635d65cd38ccd2c029434c6a3a480d8947a9ba6a15b215 --amounts 1 --auth-call-args "hello"
+# PTB command
+ADDRESS=$(iota client active-address)
+iota client ptb \
+--assign to_address @$ADDRESS \
+--split-coins gas "[1000000000]" \
+--assign coin \
+--transfer-objects "[coin]" to_address \
+--auth-call-args "hello"
+# --auth-type-args u64
 ```

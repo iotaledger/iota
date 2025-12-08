@@ -96,10 +96,45 @@ impl std::fmt::Display for PTBCommandResult {
 impl PTB {
     /// Parses and executes the PTB with the sender as the current active
     /// address.
-    pub async fn execute(self, context: &mut WalletContext) -> Result<PTBCommandResult, Error> {
+    pub async fn execute(mut self, context: &mut WalletContext) -> Result<PTBCommandResult, Error> {
         if self.args.is_empty() {
             return Ok(PTBCommandResult::Help { long: false });
         }
+        let mut auth_call_args = None;
+        let mut auth_type_arguments = None;
+        let mut actual_args = Vec::new();
+        let mut next_index = 0;
+        for (index, arg) in self.args.iter().enumerate() {
+            let mut call_arg = false;
+            if index < next_index {
+                continue;
+            }
+            if arg == "--auth-call-args" || arg == "--auth-type-args" {
+                if arg == "--auth-call-args" {
+                    call_arg = true;
+                }
+                let args_slice = &self.args[index + 1..];
+                let mut args_vec = Vec::new();
+                for arg in args_slice {
+                    if arg.starts_with("--") {
+                        break;
+                    }
+                    args_vec.push(arg.clone());
+                }
+                next_index = index + 1 + args_vec.len();
+                if call_arg {
+                    auth_call_args = Some(args_vec);
+                } else {
+                    auth_type_arguments = Some(args_vec);
+                }
+            } else {
+                actual_args.push(arg.to_string());
+            }
+        }
+        if actual_args.is_empty() {
+            return Ok(PTBCommandResult::Help { long: false });
+        }
+        self.args = actual_args;
 
         let source_string = to_source_string(self.args.clone());
 
@@ -209,8 +244,8 @@ impl PTB {
             serialize_signed_transaction: program_metadata.serialize_signed_set,
             sender: program_metadata.sender.map(|x| x.value.into_inner().into()),
             display: self.display,
-            // TODO: add auth args
-            ..Default::default()
+            auth_call_args,
+            auth_type_arguments,
         };
 
         let gas_payment = client.transaction_builder().input_refs(&gas).await?;
@@ -511,5 +546,13 @@ pub fn ptb_description() -> clap::Command {
             This option only works if it's passed as first argument to the command: \
             `iota client ptb --display=effects --split-coins gas [1000]`
             "
+        ))
+        .arg(arg!(
+            --"auth-call-args"
+            "Auth input objects or primitive values"
+        ))
+        .arg(arg!(
+            --"auth-type-args"
+            "Auth type arguments for the Move authenticate function"
         ))
 }
