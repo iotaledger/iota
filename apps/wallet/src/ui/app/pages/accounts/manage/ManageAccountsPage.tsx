@@ -23,25 +23,29 @@ export function ManageAccountsPage() {
         <Overlay
             showModal
             title="Manage Accounts"
-            closeOverlay={() => navigate('/home')}
+            closeOverlay={() => navigate('/tokens')}
             titleCentered={false}
         >
             <div className="flex h-full w-full flex-col">
                 <div className="flex flex-1 flex-col overflow-y-auto">
                     <div ref={outerRef} className="relative">
                         {Object.entries(groupedAccounts).map(([type, accountGroups]) =>
-                            Object.entries(accountGroups).map(([key, accounts], index) => {
-                                return (
-                                    <AccountGroup
-                                        outerRef={outerRef}
-                                        key={`${type}-${key}`}
-                                        accounts={accounts}
-                                        accountSourceID={key}
-                                        type={type as AccountType}
-                                        isLast={index === Object.entries(accountGroups).length - 1}
-                                    />
-                                );
-                            }),
+                            Object.entries(accountGroups).map(
+                                ([key, { sourceId, accounts }], index) => {
+                                    return (
+                                        <AccountGroup
+                                            outerRef={outerRef}
+                                            key={`${type}-${key}`}
+                                            accounts={accounts}
+                                            accountSourceID={sourceId}
+                                            type={type as AccountType}
+                                            isLast={
+                                                index === Object.entries(accountGroups).length - 1
+                                            }
+                                        />
+                                    );
+                                },
+                            ),
                         )}
                         <div id="manage-account-item-portal-container"></div>
                     </div>

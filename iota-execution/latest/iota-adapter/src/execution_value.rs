@@ -34,7 +34,6 @@ where
 pub trait ExecutionState: StorageView + IotaResolver {
     fn as_iota_resolver(&self) -> &dyn IotaResolver;
     fn as_child_resolver(&self) -> &dyn ChildObjectResolver;
-    fn as_package_store(&self) -> &dyn BackingPackageStore;
 }
 
 impl<T> ExecutionState for T
@@ -47,10 +46,6 @@ where
     }
 
     fn as_child_resolver(&self) -> &dyn ChildObjectResolver {
-        self
-    }
-
-    fn as_package_store(&self) -> &dyn BackingPackageStore {
         self
     }
 }

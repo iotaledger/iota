@@ -63,7 +63,8 @@ impl IotaNamesConfig {
 
     pub fn from_chain(chain: &Chain) -> Self {
         match chain {
-            Chain::Mainnet => todo!("https://github.com/iotaledger/iota/issues/6532"),
+            // TODO switch to mainnet https://github.com/iotaledger/iota/issues/6532
+            Chain::Mainnet => IotaNamesConfig::testnet(),
             Chain::Testnet => IotaNamesConfig::testnet(),
             Chain::Unknown => IotaNamesConfig::devnet(),
         }

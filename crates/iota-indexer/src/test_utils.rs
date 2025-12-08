@@ -270,7 +270,7 @@ pub fn create_pg_store(db_url: &str, reset_database: bool) -> PgIndexerStore {
 }
 
 fn replace_db_name(db_url: &str, new_db_name: &str) -> (String, String) {
-    let pos = db_url.rfind('/').expect("Unable to find / in db_url");
+    let pos = db_url.rfind('/').expect("unable to find / in db_url");
     let old_db_name = &db_url[pos + 1..];
 
     (

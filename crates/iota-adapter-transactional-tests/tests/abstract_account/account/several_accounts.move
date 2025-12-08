@@ -14,6 +14,7 @@ use aa::abstract_account::AbstractAccount;
 use iota::auth_context::AuthContext;
 use std::ascii;
 
+#[authenticator]
 public fun authenticate_hello_world(
     _account: &AbstractAccount,
     msg: ascii::String,
@@ -23,11 +24,11 @@ public fun authenticate_hello_world(
     assert!(msg == ascii::string(b"HelloWorld"), 0);
 }
 
-//# init-abstract-acc --sender A test authenticate authenticate_hello_world aa::abstract_account::AbstractAccount
+//# init-abstract-acc --sender A --package-metadata object(3,1) authenticate authenticate_hello_world aa::abstract_account::AbstractAccount
 
-//# init-abstract-acc --sender A test authenticate authenticate_hello_world aa::abstract_account::AbstractAccount
+//# init-abstract-acc --sender A --package-metadata object(3,1) authenticate authenticate_hello_world aa::abstract_account::AbstractAccount
 
-//# init-abstract-acc --sender A test authenticate authenticate_hello_world aa::abstract_account::AbstractAccount
+//# init-abstract-acc --sender A --package-metadata object(3,1) authenticate authenticate_hello_world aa::abstract_account::AbstractAccount
 
 //# view-object 4,0
 

@@ -31,6 +31,7 @@ use iota_types::{
     execution_status::{ExecutionFailureStatus, ExecutionStatus, MoveLocation},
     messages_grpc::HandleCertificateRequestV1,
     move_authenticator::MoveAuthenticator,
+    move_package,
     object::Owner,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     quorum_driver_types::QuorumDriverResponse,
@@ -53,7 +54,6 @@ const AA_CREATE_MODULE_NAME: &str = "basic_keyed_aa";
 const AA_AUTHENTICATE_MODULE_NAME: &str = "basic_keyed_aa";
 const AA_AUTHENTICATE_FN_NAME_ED25519: &str = "authenticate_ed25519";
 const AA_AUTHENTICATE_FN_NAME_FREE_ACCESS: &str = "authenticate_free_access";
-const AA_AUTHENTICATE_FN_NAME_RECEIVE_COIN: &str = "authenticate_receive_coin";
 
 /// Test the creation of an Abstract Account and the issuance of a simple
 /// transaction from it using the Move-based Ed25519 signature authenticator.
@@ -145,25 +145,6 @@ async fn test_abstract_account_issues_sponsored_tx() -> Result<(), anyhow::Error
     test_env
         .execute_and_check_tx_correctness(aa_sponsored_tx)
         .await
-}
-
-/// FAIL: try to "receive" in authenticate (by supplying a Receiving<Coin<IOTA>>
-/// to the authenticator).
-#[sim_test]
-async fn test_authenticate_receiving_object_fails() -> Result<(), anyhow::Error> {
-    telemetry_subscribers::init_for_testing();
-
-    // AA with the invalid authenticator
-    let mut test_env = TestEnvironment::new().await;
-    if let Ok(ExecutionStatus::Failure { error, .. }) = test_env
-        .setup_abstract_account_may_fail(AA_AUTHENTICATE_FN_NAME_RECEIVE_COIN)
-        .await
-    {
-        assert_eq!(error, ExecutionFailureStatus::VMInvariantViolation);
-    } else {
-        anyhow::bail!("Expected abstract account setup to fail");
-    }
-    Ok(())
 }
 
 /// SUCCESS: receive in the main PT using
@@ -336,6 +317,7 @@ struct TestEnvironment {
     owner: Option<IotaAddress>,
     authenticate_fn_name: Option<String>,
     aa_package_id: Option<ObjectID>,
+    aa_package_metadata_ref: Option<ObjectRef>,
     aa_ref: Option<ObjectRef>,
 }
 
@@ -348,6 +330,7 @@ impl TestEnvironment {
             owner: None,
             authenticate_fn_name: None,
             aa_package_id: None,
+            aa_package_metadata_ref: None,
             aa_ref: None,
         }
     }
@@ -373,7 +356,10 @@ impl TestEnvironment {
         );
 
         // Publish the Move Account Abstraction package
-        self.aa_package_id = Some(self.publish_account_abstraction_package().await);
+        let (aa_package_id, aa_package_metadata_ref) =
+            self.publish_account_abstraction_package().await;
+        self.aa_package_id = Some(aa_package_id);
+        self.aa_package_metadata_ref = Some(aa_package_metadata_ref);
     }
 
     async fn setup_abstract_account(
@@ -390,7 +376,7 @@ impl TestEnvironment {
         Ok(())
     }
 
-    async fn setup_abstract_account_may_fail(
+    async fn _setup_abstract_account_may_fail(
         &mut self,
         authenticate_fn_name: &str,
     ) -> Result<ExecutionStatus, anyhow::Error> {
@@ -411,16 +397,33 @@ impl TestEnvironment {
         }
     }
 
-    async fn publish_account_abstraction_package(&mut self) -> ObjectID {
+    async fn publish_account_abstraction_package(&mut self) -> (ObjectID, ObjectRef) {
         let path = [env!("CARGO_MANIFEST_DIR"), AA_PACKAGE_PATH]
             .iter()
             .collect();
-        publish_package(self.test_cluster.wallet(), path).await.0
+        let aa_package_id = publish_package(self.test_cluster.wallet(), path).await.0;
+
+        let aa_package_metadata_id = move_package::derive_package_metadata_id(aa_package_id);
+        let aa_package_metadata_ref = self
+            .test_cluster
+            .get_latest_object_ref(&aa_package_metadata_id)
+            .await;
+
+        (aa_package_id, aa_package_metadata_ref)
     }
 
     async fn create_abstract_account(&self) -> anyhow::Result<TransactionEffects> {
-        let (Some(owner), Some(authenticate_fn_name), Some(aa_package_id)) =
-            (self.owner, &self.authenticate_fn_name, self.aa_package_id)
+        let (
+            Some(owner),
+            Some(authenticate_fn_name),
+            Some(aa_package_id),
+            Some(aa_package_metadata_ref),
+        ) = (
+            self.owner,
+            &self.authenticate_fn_name,
+            self.aa_package_id,
+            self.aa_package_metadata_ref,
+        )
         else {
             anyhow::bail!("Owner or authenticate function name or package id not set");
         };
@@ -438,7 +441,7 @@ impl TestEnvironment {
 
             // create auth info
             let arguments = vec![
-                builder.pure(aa_package_id)?,
+                builder.obj(ObjectArg::ImmOrOwnedObject(aa_package_metadata_ref))?,
                 builder.pure(AA_AUTHENTICATE_MODULE_NAME)?,
                 builder.pure(authenticate_fn_name)?,
             ];
@@ -567,8 +570,17 @@ impl TestEnvironment {
         &mut self,
         new_aa_owner_pk: &PublicKey,
     ) -> anyhow::Result<ProgrammableTransaction> {
-        let (Some(aa_ref), Some(aa_package_id), Some(authenticate_fn_name)) =
-            (self.aa_ref, self.aa_package_id, &self.authenticate_fn_name)
+        let (
+            Some(aa_ref),
+            Some(aa_package_id),
+            Some(aa_package_metadata_ref),
+            Some(authenticate_fn_name),
+        ) = (
+            self.aa_ref,
+            self.aa_package_id,
+            self.aa_package_metadata_ref,
+            &self.authenticate_fn_name,
+        )
         else {
             anyhow::bail!("Abstract account not created yet");
         };
@@ -581,7 +593,7 @@ impl TestEnvironment {
 
         // create auth info
         let arguments = vec![
-            builder.pure(aa_package_id)?,
+            builder.obj(ObjectArg::ImmOrOwnedObject(aa_package_metadata_ref))?,
             builder.pure(AA_AUTHENTICATE_MODULE_NAME)?,
             builder.pure(authenticate_fn_name)?,
         ];

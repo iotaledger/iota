@@ -16,6 +16,7 @@ public struct AbstractAccount2 has key {
     id: UID,
 }
 
+#[authenticator]
 public fun authenticate(_account: &AbstractAccount2, _auth_ctx: &AuthContext, _ctx: &TxContext) {}
 
-//# init-abstract-acc --sender A test authenticate authenticate aa::abstract_account::AbstractAccount
+//# init-abstract-acc --sender A --package-metadata object(3,1) authenticate authenticate aa::abstract_account::AbstractAccount

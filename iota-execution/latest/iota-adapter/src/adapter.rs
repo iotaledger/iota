@@ -11,7 +11,6 @@ mod checked {
     use iota_move_natives::{
         NativesCostTable,
         object_runtime::{self, ObjectRuntime},
-        raw_module_loader::RawModuleLoader,
     };
     use iota_protocol_config::ProtocolConfig;
     use iota_types::{
@@ -19,7 +18,7 @@ mod checked {
         error::{ExecutionError, ExecutionErrorKind, IotaError},
         execution_config_utils::to_binary_config,
         metrics::{BytecodeVerifierMetrics, LimitsMetrics},
-        storage::{BackingPackageStore, ChildObjectResolver},
+        storage::ChildObjectResolver,
     };
     use iota_verifier::{
         check_for_verifier_timeout, verifier::iota_verify_module_metered_check_timeout_only,
@@ -94,7 +93,6 @@ mod checked {
     /// They are available and mainly used in native function implementations
     /// via `NativeContext` instance.
     pub fn new_native_extensions<'r>(
-        package_store: &'r dyn BackingPackageStore,
         child_resolver: &'r dyn ChildObjectResolver,
         input_objects: BTreeMap<ObjectID, object_runtime::InputObject>,
         is_metered: bool,
@@ -114,7 +112,6 @@ mod checked {
             current_epoch_id,
         ));
         extensions.add(NativesCostTable::from_protocol_config(protocol_config));
-        extensions.add(RawModuleLoader::new(package_store));
         extensions
     }
 

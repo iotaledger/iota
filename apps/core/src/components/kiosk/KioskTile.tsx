@@ -5,16 +5,11 @@ import {
     getKioskIdFromOwnerCap,
     hasDisplayData,
     NFTMediaRenderer,
+    truncateString,
     useGetKioskContents,
 } from '../..';
 import { type IotaObjectData, type IotaObjectResponse } from '@iota/iota-sdk/client';
-import {
-    ButtonUnstyled,
-    CardImage,
-    ImageType,
-    truncate,
-    LoadingIndicator,
-} from '@iota/apps-ui-kit';
+import { ButtonUnstyled, CardImage, ImageType, LoadingIndicator } from '@iota/apps-ui-kit';
 import { PlaceholderReplace } from '@iota/apps-ui-icons';
 
 interface KioskTileProps {
@@ -67,7 +62,9 @@ export function KioskTile({ object, address, onClick }: KioskTileProps) {
                     <span className="text-iota-neutral-90">{items.length}</span>
                 </ButtonUnstyled>
                 <div className="absolute bottom-0 flex items-center justify-center p-xs opacity-0 transition-opacity duration-300 group-hover:opacity-100">
-                    <span className="text-title-md text-iota-neutral-100">{truncate(kioskId)}</span>
+                    <span className="text-title-md text-iota-neutral-100">
+                        {truncateString(kioskId, 12, 6)}
+                    </span>
                 </div>
             </div>
         </div>

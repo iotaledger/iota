@@ -28,12 +28,17 @@ jobs:
 
       - name: Download ledgernano binary
         run: |
-          curl -L -o nanos.tar.gz https://github.com/iotaledger/ledger-app-iota/releases/download/ledger-app-iota-v0.9.2/nanos.tar.gz
-          tar -xvf nanos.tar.gz
-          mv nanos/iota sdk/ledgerjs-hw-app-iota/tests/iota
+          curl -L -o nanox.tar.gz https://github.com/iotaledger/ledger-app-iota/releases/download/ledger-app-iota-v1.0.0/nanox.tar.gz
+          tar -xvf nanox.tar.gz
+          mv nanox/iota sdk/ledgerjs-hw-app-iota/tests/iota
 
       - name: Start speculos simulator
-        run: docker run --rm -d -p 5000:5000 -v $(pwd)/sdk/ledgerjs-hw-app-iota/tests:/app ghcr.io/ledgerhq/speculos --api-port 5000 --display headless /app/iota
+        run: |
+          # Start the container in detached mode and capture its ID
+          container_id=$(docker run --rm -d -p 5000:5000 -v $(pwd)/sdk/ledgerjs-hw-app-iota/tests:/app ghcr.io/ledgerhq/speculos --api-port 5000 --display headless /app/iota)
+
+          # Print logs for 5 seconds
+          timeout 5 docker logs -f $container_id || true
 
       - name: Run TS SDK ledgernano tests
         run: pnpm --filter @iota/ledgerjs-hw-app-iota test

@@ -449,12 +449,10 @@ impl TransactionManager {
             certs
                 .into_iter()
                 .filter_map(|(cert, fx_digest)| {
-                    let input_object_kinds = cert
-                        .data()
-                        .intent_message()
-                        .value
-                        .input_objects()
-                        .expect("input_objects() cannot fail");
+                    // Check availability of all transaction associated input objects(transaction +
+                    // authenticators).
+                    let input_object_kinds =
+                        cert.input_objects().expect("input_objects() cannot fail");
                     let mut input_object_keys = match epoch_store
                         .get_input_object_keys(&cert.key(), &input_object_kinds)
                     {
@@ -870,6 +868,7 @@ impl TransactionManager {
         for (object_id, queue_len, txn_age) in self.objects_queue_len_and_age(
             tx_data
                 .shared_input_objects()
+                .into_iter()
                 .filter_map(|r| r.mutable.then_some(r.id))
                 .collect(),
         ) {

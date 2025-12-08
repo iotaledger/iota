@@ -18,7 +18,8 @@ use fastcrypto::traits::KeyPair;
 use iota_config::{
     Config, FULL_NODE_DB_PATH, IOTA_BENCHMARK_GENESIS_GAS_KEYSTORE_FILENAME, IOTA_CLIENT_CONFIG,
     IOTA_FULLNODE_CONFIG, IOTA_GENESIS_FILENAME, IOTA_KEYSTORE_FILENAME, IOTA_NETWORK_CONFIG,
-    NodeConfig, PersistedConfig, genesis_blob_exists, iota_config_dir, node::Genesis,
+    NodeConfig, PersistedConfig, genesis_blob_exists, iota_config_dir,
+    node::{Genesis, GrpcApiConfig},
     p2p::SeedPeer,
 };
 use iota_faucet::{AppState, FaucetConfig, SimpleFaucet, create_wallet_context, start_faucet};
@@ -52,6 +53,7 @@ use iota_types::{
     crypto::{IotaKeyPair, SignatureScheme},
 };
 use move_analyzer::analyzer;
+use move_core_types::account_address::AccountAddress;
 use move_package::BuildConfig;
 use rand::rngs::OsRng;
 use serde_json::json;
@@ -548,16 +550,38 @@ impl IotaCommand {
                         let rerooted_path = move_cli::base::reroot_path(package_path.as_deref())?;
                         let mut build_config =
                             resolve_lock_file_path(build_config, Some(&rerooted_path))?;
+
+                        let previous_id = if let Some(ref chain_id) = chain_id {
+                            iota_package_management::set_package_id(
+                                &rerooted_path,
+                                build_config.install_dir.clone(),
+                                chain_id,
+                                AccountAddress::ZERO,
+                            )?
+                        } else {
+                            None
+                        };
+
                         let protocol_config = read_api.get_protocol_config(None).await?;
                         build_config.implicit_dependencies =
                             implicit_deps_for_protocol_version(protocol_config.protocol_version)?;
                         let mut pkg = IotaBuildConfig {
-                            config: build_config,
+                            config: build_config.clone(),
                             run_bytecode_verifier: true,
                             print_diags_to_stderr: true,
-                            chain_id,
+                            chain_id: chain_id.clone(),
                         }
                         .build(&rerooted_path)?;
+
+                        // Restore original ID, then check result.
+                        if let (Some(chain_id), Some(previous_id)) = (chain_id, previous_id) {
+                            let _ = iota_package_management::set_package_id(
+                                &rerooted_path,
+                                build_config.install_dir.clone(),
+                                &chain_id,
+                                previous_id,
+                            )?;
+                        }
 
                         let with_unpublished_deps = build.with_unpublished_dependencies;
 
@@ -791,8 +815,8 @@ async fn start(
                     swarm_builder = swarm_builder.with_fullnode_grpc_api_config(grpc_config);
                 } else {
                     warn!("gRPC API enabled but no grpc-api-config provided, using default");
-                    swarm_builder = swarm_builder
-                        .with_fullnode_grpc_api_config(iota_grpc_api::Config::default());
+                    swarm_builder =
+                        swarm_builder.with_fullnode_grpc_api_config(GrpcApiConfig::default());
                 }
             }
         }
@@ -882,18 +906,17 @@ async fn start(
         let graphql_address = parse_host_port(input, DEFAULT_GRAPHQL_PORT)
             .map_err(|_| anyhow!("Invalid graphql host and port"))?;
         tracing::info!("Starting the GraphQL service at {graphql_address}");
-        let graphql_connection_config = ConnectionConfig::new(
-            Some(graphql_address.port()),
-            Some(graphql_address.ip().to_string()),
-            Some(pg_address),
-            None,
-            None,
-            None,
-        );
+        let graphql_connection_config = ConnectionConfig {
+            port: graphql_address.port(),
+            host: graphql_address.ip().to_string(),
+            db_url: pg_address,
+            ..Default::default()
+        };
         start_graphql_server_with_fn_rpc(
             graphql_connection_config,
             Some(fullnode_url.clone()),
             None, // it will be initialized by default
+            None, // resolves to default service config
         )
         .await;
         info!("GraphQL started");
@@ -1072,7 +1095,7 @@ async fn genesis(
                 keystore.save()?;
 
                 // Make a new genesis config from the provided ip addresses.
-                GenesisConfig::new_for_benchmarks(&ips)
+                GenesisConfig::new_for_benchmarks(&ips, epoch_duration_ms)
             } else if keystore_path.exists() {
                 let existing_keys = FileBasedKeystore::new(&keystore_path)?.addresses();
                 GenesisConfig::for_local_testing_with_addresses(existing_keys)

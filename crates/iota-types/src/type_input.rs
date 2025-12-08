@@ -36,6 +36,14 @@ impl From<&TypeInput> for TypeName {
     }
 }
 
+impl From<&TypeTag> for TypeName {
+    fn from(value: &TypeTag) -> Self {
+        TypeName {
+            name: value.to_canonical_string(false /* with_prefix */),
+        }
+    }
+}
+
 impl TryFrom<TypeName> for TypeInput {
     type Error = anyhow::Error;
 

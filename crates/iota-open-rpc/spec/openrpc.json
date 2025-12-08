@@ -12,7 +12,7 @@
       "name": "Apache-2.0",
       "url": "https://raw.githubusercontent.com/iotaledger/iota/main/LICENSE"
     },
-    "version": "1.9.0-alpha"
+    "version": "1.13.0-alpha"
   },
   "methods": [
     {
@@ -1301,7 +1301,7 @@
             "name": "Result",
             "value": {
               "minSupportedProtocolVersion": "1",
-              "maxSupportedProtocolVersion": "14",
+              "maxSupportedProtocolVersion": "16",
               "protocolVersion": "6",
               "featureFlags": {
                 "accept_passkey_in_multisig": false,
@@ -1310,8 +1310,10 @@
                 "congestion_control_gas_price_feedback_mechanism": false,
                 "congestion_control_min_free_execution_slot": false,
                 "consensus_batched_block_sync": false,
+                "consensus_commit_transactions_only_for_traversed_headers": false,
                 "consensus_distributed_vote_scoring_strategy": false,
                 "consensus_linearize_subdag_v2": false,
+                "consensus_median_timestamp_with_checkpoint_enforcement": false,
                 "consensus_round_prober": false,
                 "consensus_round_prober_probe_accepted_rounds": false,
                 "consensus_smart_ancestor_selection": false,
@@ -1333,6 +1335,7 @@
                 "normalize_ptb_arguments": false,
                 "passkey_auth": true,
                 "protocol_defined_base_fee": true,
+                "publish_package_metadata": false,
                 "relocate_event_module": true,
                 "rethrow_serialization_type_layout_errors": true,
                 "select_committee_from_eligible_validators": false,
@@ -1441,7 +1444,6 @@
                 "buffer_stake_for_protocol_upgrade_bps": {
                   "u64": "5000"
                 },
-                "check_auth_info_v1_cost_base": null,
                 "check_zklogin_id_cost_base": {
                   "u64": "200"
                 },
@@ -1461,6 +1463,7 @@
                   "u64": "20"
                 },
                 "consensus_gc_depth": null,
+                "consensus_max_acknowledgments_per_block": null,
                 "consensus_max_num_transactions_in_block": {
                   "u64": "512"
                 },
@@ -1843,6 +1846,7 @@
                 "max_committee_members_count": {
                   "u64": "50"
                 },
+                "max_congestion_limit_overshoot_per_commit": null,
                 "max_deferral_rounds_for_congestion_control": {
                   "u64": "10"
                 },
@@ -3249,6 +3253,51 @@
           }
         }
       ]
+    },
+    {
+      "name": "iota_view",
+      "tags": [
+        {
+          "name": "Write API"
+        }
+      ],
+      "description": "Calls a move view function.",
+      "params": [
+        {
+          "name": "function_name",
+          "description": "The fully qualified function name `<package_id>::<module_name>::<function_name>`. E.g.  `0x3::iota_system::get_total_iota_supply`.",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "type_args",
+          "schema": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TypeTag"
+            }
+          }
+        },
+        {
+          "name": "call_args",
+          "required": true,
+          "schema": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/IotaJsonValue"
+            }
+          }
+        }
+      ],
+      "result": {
+        "name": "IotaMoveViewCallResults",
+        "required": true,
+        "schema": {
+          "$ref": "#/components/schemas/IotaMoveViewCallResults"
+        }
+      }
     },
     {
       "name": "iotax_getAllBalances",
@@ -8582,6 +8631,39 @@
           }
         }
       },
+      "IotaMoveViewCallResults": {
+        "oneOf": [
+          {
+            "description": "Execution error from executing the move view call",
+            "type": "object",
+            "required": [
+              "executionError"
+            ],
+            "properties": {
+              "executionError": {
+                "type": "string"
+              }
+            },
+            "additionalProperties": false
+          },
+          {
+            "description": "The return values of the move view function",
+            "type": "object",
+            "required": [
+              "functionReturnValues"
+            ],
+            "properties": {
+              "functionReturnValues": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/MoveValue"
+                }
+              }
+            },
+            "additionalProperties": false
+          }
+        ]
+      },
       "IotaMoveVisibility": {
         "type": "string",
         "enum": [
@@ -10140,7 +10222,7 @@
           "arguments": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/IotaJsonValue"
+              "$ref": "#/components/schemas/PtbInput"
             }
           },
           "function": {
@@ -11661,6 +11743,16 @@
       },
       "ProtocolVersion": {
         "$ref": "#/components/schemas/BigInt_for_uint64"
+      },
+      "PtbInput": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/IotaArgument"
+          },
+          {
+            "$ref": "#/components/schemas/IotaJsonValue"
+          }
+        ]
       },
       "PublicKey": {
         "oneOf": [

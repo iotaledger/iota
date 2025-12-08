@@ -11,7 +11,11 @@ use std::{
 
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 
-use crate::{faults::FaultsType, measurement::MeasurementsCollection};
+use crate::{
+    faults::FaultsType,
+    measurement::MeasurementsCollection,
+    net_latency::{PerturbationSpec, TopologyLayout},
+};
 
 pub trait BenchmarkType:
     Serialize
@@ -43,6 +47,24 @@ pub struct BenchmarkParameters<T> {
     pub load: usize,
     /// The duration of the benchmark.
     pub duration: Duration,
+    /// Flag indicating whether nodes should advertise their internal or public
+    /// IP address for inter-node communication. When running the simulation
+    /// in multiple regions, nodes need to use their public IPs to correctly
+    /// communicate, however when a simulation is running in a single VPC,
+    /// they should use their internal IPs to avoid paying for data sent between
+    /// the nodes.
+    pub use_internal_ip_address: bool,
+    /// The topology of private network latencies, RandomGeographical,
+    /// RandomClustered, HardCodedClustered, or Mainnet
+    pub latency_topology: Option<TopologyLayout>,
+    /// Maximum latency between two nodes in the private network.
+    pub maximum_latency: u16,
+    /// Specification of Perturbation imposed on the private network latencies.
+    pub perturbation_spec: PerturbationSpec,
+    /// Flag used to switch between mysticety and starfish every epoch.
+    pub protocol_switch_each_epoch: bool,
+    /// Optional: Epoch duration in milliseconds, default is 1h
+    pub epoch_duration_ms: Option<u64>,
 }
 
 impl<T: BenchmarkType> Default for BenchmarkParameters<T> {
@@ -53,6 +75,12 @@ impl<T: BenchmarkType> Default for BenchmarkParameters<T> {
             faults: FaultsType::default(),
             load: 500,
             duration: Duration::from_secs(60),
+            use_internal_ip_address: true,
+            latency_topology: Some(TopologyLayout::Mainnet),
+            perturbation_spec: PerturbationSpec::None,
+            protocol_switch_each_epoch: false,
+            maximum_latency: 400,
+            epoch_duration_ms: None,
         }
     }
 }
@@ -61,8 +89,8 @@ impl<T: BenchmarkType> Debug for BenchmarkParameters<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "{:?}-{:?}-{}-{}",
-            self.benchmark_type, self.faults, self.nodes, self.load
+            "{:?}-{:?}-{}-{}-{}",
+            self.benchmark_type, self.faults, self.nodes, self.load, self.use_internal_ip_address,
         )
     }
 }
@@ -71,8 +99,8 @@ impl<T> Display for BenchmarkParameters<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "{} nodes ({}) - {} tx/s",
-            self.nodes, self.faults, self.load
+            "{} nodes ({}) - {} tx/s (use internal IPs: {})",
+            self.nodes, self.faults, self.load, self.use_internal_ip_address
         )
     }
 }
@@ -85,6 +113,12 @@ impl<T> BenchmarkParameters<T> {
         faults: FaultsType,
         load: usize,
         duration: Duration,
+        use_internal_ip_address: bool,
+        latency_topology: Option<TopologyLayout>,
+        perturbation_spec: PerturbationSpec,
+        protocol_switch_each_epoch: bool,
+        maximum_latency: u16,
+        epoch_duration_ms: Option<u64>,
     ) -> Self {
         Self {
             benchmark_type,
@@ -92,6 +126,12 @@ impl<T> BenchmarkParameters<T> {
             faults,
             load,
             duration,
+            use_internal_ip_address,
+            latency_topology,
+            perturbation_spec,
+            protocol_switch_each_epoch,
+            maximum_latency,
+            epoch_duration_ms,
         }
     }
 }
@@ -133,6 +173,20 @@ pub struct BenchmarkParametersGenerator<T> {
     upper_bound_result: Option<MeasurementsCollection<T>>,
     /// The current number of iterations.
     iterations: usize,
+    /// Flag indicating whether nodes should advertise their internal or public
+    /// IP address for inter-node communication.
+    use_internal_ip_address: bool,
+    /// The topology of private network latencies, RandomGeographical,
+    /// RandomClustered, HardCodedClustered, or Mainnet
+    pub latency_topology: Option<TopologyLayout>,
+    /// Maximum latency between two nodes in the private network.
+    pub maximum_latency: u16,
+    /// Specification of Perturbation imposed on the private network latencies.
+    pub perturbation_spec: PerturbationSpec,
+    /// Flag used to switch between mysticety and starfish every epoch.
+    pub protocol_switch_each_epoch: bool,
+    /// Optional: Epoch duration in milliseconds, default is 1h
+    epoch_duration_ms: Option<u64>,
 }
 
 impl<T: BenchmarkType> Iterator for BenchmarkParametersGenerator<T> {
@@ -147,6 +201,12 @@ impl<T: BenchmarkType> Iterator for BenchmarkParametersGenerator<T> {
                 self.faults.clone(),
                 load,
                 self.duration,
+                self.use_internal_ip_address,
+                self.latency_topology.clone(),
+                self.perturbation_spec.clone(),
+                self.protocol_switch_each_epoch,
+                self.maximum_latency,
+                self.epoch_duration_ms,
             )
         })
     }
@@ -157,7 +217,7 @@ impl<T: BenchmarkType> BenchmarkParametersGenerator<T> {
     const DEFAULT_DURATION: Duration = Duration::from_secs(180);
 
     /// make a new generator.
-    pub fn new(nodes: usize, mut load_type: LoadType) -> Self {
+    pub fn new(nodes: usize, mut load_type: LoadType, use_internal_ip_address: bool) -> Self {
         let next_load = match &mut load_type {
             LoadType::Fixed(loads) => {
                 if loads.is_empty() {
@@ -178,6 +238,12 @@ impl<T: BenchmarkType> BenchmarkParametersGenerator<T> {
             lower_bound_result: None,
             upper_bound_result: None,
             iterations: 0,
+            use_internal_ip_address,
+            perturbation_spec: PerturbationSpec::None,
+            latency_topology: Some(TopologyLayout::Mainnet),
+            protocol_switch_each_epoch: false,
+            maximum_latency: 400,
+            epoch_duration_ms: None,
         }
     }
 
@@ -196,6 +262,31 @@ impl<T: BenchmarkType> BenchmarkParametersGenerator<T> {
     /// Set a custom benchmark duration.
     pub fn with_custom_duration(mut self, duration: Duration) -> Self {
         self.duration = duration;
+        self
+    }
+
+    pub fn with_perturbation_spec(mut self, perturbation_spec: PerturbationSpec) -> Self {
+        self.perturbation_spec = perturbation_spec;
+        self
+    }
+
+    pub fn with_latency_topology(mut self, latency_topology: Option<TopologyLayout>) -> Self {
+        self.latency_topology = latency_topology;
+        self
+    }
+
+    pub fn with_protocol_switch_each_epoch(mut self, protocol_switch_each_epoch: bool) -> Self {
+        self.protocol_switch_each_epoch = protocol_switch_each_epoch;
+        self
+    }
+
+    pub fn with_max_latency(mut self, max_latency: u16) -> Self {
+        self.maximum_latency = max_latency;
+        self
+    }
+
+    pub fn with_epoch_duration(mut self, epoch_duration_ms: Option<u64>) -> Self {
+        self.epoch_duration_ms = epoch_duration_ms;
         self
     }
 
@@ -312,7 +403,8 @@ pub mod test {
             starting_load: 100,
             max_iterations: 10,
         };
-        let mut generator = BenchmarkParametersGenerator::<TestBenchmarkType>::new(nodes, load);
+        let mut generator =
+            BenchmarkParametersGenerator::<TestBenchmarkType>::new(nodes, load, true);
         let parameters = generator.next().unwrap();
 
         let collection = MeasurementsCollection::new(&settings, parameters);
@@ -338,7 +430,8 @@ pub mod test {
             starting_load: 100,
             max_iterations: 10,
         };
-        let mut generator = BenchmarkParametersGenerator::<TestBenchmarkType>::new(nodes, load);
+        let mut generator =
+            BenchmarkParametersGenerator::<TestBenchmarkType>::new(nodes, load, true);
         let first_parameters = generator.next().unwrap();
 
         // Register a first result (zero latency). This sets the lower bound.
@@ -377,7 +470,8 @@ pub mod test {
             starting_load: 100,
             max_iterations: 0,
         };
-        let mut generator = BenchmarkParametersGenerator::<TestBenchmarkType>::new(nodes, load);
+        let mut generator =
+            BenchmarkParametersGenerator::<TestBenchmarkType>::new(nodes, load, true);
         let parameters = generator.next().unwrap();
 
         let collection = MeasurementsCollection::new(&settings, parameters);

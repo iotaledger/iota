@@ -20,6 +20,7 @@ eyre.workspace = true
 futures.workspace = true
 prettytable-rs = "0.10"
 prometheus-parse = "0.2"
+rand = "0.9.2"
 reqwest.workspace = true
 russh = "0.44"
 russh-keys = "0.44"

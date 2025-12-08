@@ -94,6 +94,7 @@ export interface MigrationProperties {
      * | Type | number |
      */
     basicOutputObjects?: number;
+    isTimelocked?: boolean;
     /**
      * | Rule | Value |
      * |---|---|
@@ -152,10 +153,22 @@ export interface TimelockStakeProperties {
 }
 
 export interface TimelockUnstakeProperties {
+    /**
+     * | Rule | Value |
+     * |---|---|
+     * | Type | number |
+     */
+    stakedAmount?: number;
     validatorAddress?: string;
 }
 
 export interface UnstakedIotaProperties {
+    /**
+     * | Rule | Value |
+     * |---|---|
+     * | Type | number |
+     */
+    stakedAmount?: number;
     validatorAddress?: string;
 }
 
@@ -602,7 +615,7 @@ export class Ampli {
    *
    * Event has no description in tracking plan.
    *
-   * @param properties The event's properties (e.g. validatorAddress)
+   * @param properties The event's properties (e.g. stakedAmount)
    * @param options Amplitude event options.
    */
   unstakedIota(

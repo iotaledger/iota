@@ -70,16 +70,12 @@ use self::{
     types::TypesIsOneTimeWitnessCostParams,
     validator::ValidatorValidateMetadataBcsCostParams,
 };
-use crate::{
-    account::CheckAuthInfoV1ImplCostParams,
-    crypto::{
-        group_ops::{self, GroupOpsCostParams},
-        poseidon::PoseidonBN254CostParams,
-        zklogin::{self, CheckZkloginIdCostParams, CheckZkloginIssuerCostParams},
-    },
+use crate::crypto::{
+    group_ops::{self, GroupOpsCostParams},
+    poseidon::PoseidonBN254CostParams,
+    zklogin::{self, CheckZkloginIdCostParams, CheckZkloginIssuerCostParams},
 };
 
-mod account;
 mod address;
 mod config;
 mod crypto;
@@ -88,7 +84,6 @@ mod event;
 mod object;
 pub mod object_runtime;
 mod random;
-pub mod raw_module_loader;
 pub mod test_scenario;
 mod test_utils;
 mod transfer;
@@ -100,8 +95,6 @@ impl NativeExtensionMarker<'_> for NativesCostTable {}
 
 #[derive(Tid)]
 pub struct NativesCostTable {
-    // Account natives
-    pub account_check_auth_info_v1_params: CheckAuthInfoV1ImplCostParams,
     // Address natives
     pub address_from_bytes_cost_params: AddressFromBytesCostParams,
     pub address_to_u256_cost_params: AddressToU256CostParams,
@@ -194,12 +187,6 @@ pub struct NativesCostTable {
 impl NativesCostTable {
     pub fn from_protocol_config(protocol_config: &ProtocolConfig) -> NativesCostTable {
         Self {
-            // account
-            account_check_auth_info_v1_params: CheckAuthInfoV1ImplCostParams {
-                check_auth_info_v1_cost_base: protocol_config
-                    .check_auth_info_v1_cost_base_as_option()
-                    .map(Into::into),
-            },
             // address
             address_from_bytes_cost_params: AddressFromBytesCostParams {
                 address_from_bytes_cost_base: protocol_config.address_from_bytes_cost_base().into(),
@@ -787,11 +774,6 @@ pub fn make_stdlib_gas_params_for_protocol_config(
 
 pub fn all_natives(silent: bool, protocol_config: &ProtocolConfig) -> NativeFunctionTable {
     let iota_framework_natives: &[(&str, &str, NativeFunction)] = &[
-        (
-            "account",
-            "check_auth_info_v1",
-            make_native!(account::check_auth_info_v1),
-        ),
         ("address", "from_bytes", make_native!(address::from_bytes)),
         ("address", "to_u256", make_native!(address::to_u256)),
         ("address", "from_u256", make_native!(address::from_u256)),

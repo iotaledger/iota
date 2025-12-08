@@ -56,7 +56,9 @@ use iota_types::{
         CheckpointContents, CheckpointContentsDigest, CheckpointSequenceNumber, VerifiedCheckpoint,
     },
     move_authenticator::MoveAuthenticator,
-    move_package::MovePackage,
+    move_package::{
+        IotaAttribute, MovePackage, RuntimeModuleMetadata, RuntimeModuleMetadataWrapper,
+    },
     object::{self, GAS_VALUE_FOR_TESTING, Object, bounded_visitor::BoundedVisitor},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     signature::GenericSignature,
@@ -70,7 +72,7 @@ use iota_types::{
         to_sender_signed_transaction_with_optional_sponsor,
     },
 };
-use move_binary_format::CompiledModule;
+use move_binary_format::{CompiledModule, file_format_common::IOTA_METADATA_KEY};
 use move_bytecode_utils::module_cache::GetModule;
 use move_command_line_common::files::verify_and_create_named_address_mapping;
 use move_compiler::{
@@ -83,6 +85,7 @@ use move_core_types::{
     ident_str,
     identifier::{IdentStr, Identifier},
     language_storage::{ModuleId, TypeTag},
+    metadata::Metadata,
     parsing::{address::ParsedAddress, values::ParsedValue},
 };
 use move_symbol_pool::Symbol;
@@ -455,7 +458,7 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
 
     async fn publish_modules(
         &mut self,
-        modules: Vec<MaybeNamedCompiledModule>,
+        mut modules: Vec<MaybeNamedCompiledModule>,
         gas_budget: Option<u64>,
         extra: Self::ExtraPublishArgs,
     ) -> anyhow::Result<(Option<String>, Vec<MaybeNamedCompiledModule>)> {
@@ -466,6 +469,8 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
             dependencies,
             gas_price,
         } = extra;
+
+        fill_metadata(&mut modules);
 
         let named_addr_opt = modules.first().unwrap().named_address;
 
@@ -513,8 +518,7 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
             let pt = builder.finish();
             TransactionData::new_programmable(sender, gas, pt, gas_budget, gas_price)
         };
-
-        let transaction = self.sign_txn(sender, data);
+        let transaction = self.sign_txn(sender, data, false);
         let summary = self.execute_txn(transaction).await?;
 
         let created_package = summary
@@ -564,6 +568,7 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
                 named_address: named_addr_opt,
                 module: CompiledModule::deserialize_with_defaults(published_module_bytes).unwrap(),
                 source_map: None,
+                function_infos: None,
             })
             .collect();
 
@@ -773,15 +778,19 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
                 };
                 let gas_budget = gas_budget.unwrap_or(DEFAULT_GAS_BUDGET);
                 let gas_price: u64 = gas_price.unwrap_or(self.gas_price);
-                let transaction = self.sign_txn(sender, |sender, gas| {
-                    let rec_arg = builder.pure(recipient).unwrap();
-                    builder.command(iota_types::transaction::Command::TransferObjects(
-                        vec![obj_arg],
-                        rec_arg,
-                    ));
-                    let pt = builder.finish();
-                    TransactionData::new_programmable(sender, gas, pt, gas_budget, gas_price)
-                });
+                let transaction = self.sign_txn(
+                    sender,
+                    |sender, gas| {
+                        let rec_arg = builder.pure(recipient).unwrap();
+                        builder.command(iota_types::transaction::Command::TransferObjects(
+                            vec![obj_arg],
+                            rec_arg,
+                        ));
+                        let pt = builder.finish();
+                        TransactionData::new_programmable(sender, gas, pt, gas_budget, gas_price)
+                    },
+                    false,
+                );
                 let summary = self.execute_txn(transaction).await?;
                 let output = self.object_summary_output(&summary, /* summarize */ false);
                 Ok(output)
@@ -936,7 +945,7 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
                     command_lines_stop,
                     stop_line,
                     data,
-                    |adapter, modules| async {
+                    |adapter, mut modules| async {
                         // Restore the original package addresses for dependencies before performing the upgrade.
                         // This ensures package upgrades are properly linked at their correct addresses
                         // (previously, addresses referred to the dependency's original package for compilation).
@@ -947,6 +956,8 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
                                 .insert(name.to_string(), addr)
                                 .unwrap_or_else(|| panic!("Internal error: expected dependency {name} in map when restoring address."));
                         }
+
+                        fill_metadata(&mut modules);
 
                         let upgraded_name = modules.first().unwrap().named_address.unwrap();
                         let package = &Symbol::from(package.as_str());
@@ -1076,6 +1087,7 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
                                         named_address: Some(*address_sym),
                                         module,
                                         source_map: None,
+                                        function_infos: None,
                                     }
                                 })
                                 .collect()
@@ -1230,7 +1242,7 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
             }
             IotaSubcommand::InitAbstractAccount(InitAbstractAccountCommand {
                 sender,
-                package,
+                package_metadata,
                 module,
                 authenticate_fn,
                 account_type,
@@ -1238,7 +1250,7 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
             }) => {
                 self.init_abstract_account(
                     sender,
-                    package,
+                    package_metadata,
                     module,
                     authenticate_fn,
                     account_type,
@@ -1616,7 +1628,7 @@ impl IotaTestAdapter {
             let data = |sender, gas| {
                 TransactionData::new_programmable(sender, gas, pt, gas_budget, gas_price)
             };
-            let transaction = self.sign_txn(Some(sender), data);
+            let transaction = self.sign_txn(Some(sender), data, false);
             self.execute_txn(transaction).await?
         };
         let created_package = summary
@@ -1655,8 +1667,13 @@ impl IotaTestAdapter {
             // gas
             Vec<ObjectRef>,
         ) -> TransactionData,
+        is_default_acc: bool,
     ) -> Transaction {
-        let sender = self.get_sender(sender);
+        let sender = if is_default_acc {
+            &self.default_account
+        } else {
+            self.get_sender(sender)
+        };
         self.sign_sponsor_txn(sender, None, vec![], None, move |sender, _, gas| {
             txn_data(sender, gas)
         })
@@ -1769,7 +1786,7 @@ impl IotaTestAdapter {
             let pt = builder.finish();
             TransactionData::new_programmable(sender, gas, pt, gas_budget, gas_price)
         };
-        Ok(self.sign_txn(sender, data))
+        Ok(self.sign_txn(sender, data, false))
     }
 
     async fn execute_txn(&mut self, transaction: Transaction) -> anyhow::Result<TxnSummary> {
@@ -2221,35 +2238,23 @@ impl IotaTestAdapter {
         recipient: IotaAddress,
         amount: u64,
     ) -> anyhow::Result<ObjectRef> {
-        let mut builder = ProgrammableTransactionBuilder::new();
+        let data = |sender, gas| {
+            let mut builder = ProgrammableTransactionBuilder::new();
 
-        let amount_arg = builder.pure(amount)?;
-        let new_coin_arg =
-            builder.command(Command::SplitCoins(Argument::GasCoin, vec![amount_arg]));
+            let amount_arg = builder.pure(amount).unwrap();
+            let recipient_arg = builder.pure(recipient).unwrap();
+            let gas_budget = DEFAULT_GAS_BUDGET;
+            let gas_price: u64 = self.gas_price;
+            let new_coin_arg =
+                builder.command(Command::SplitCoins(Argument::GasCoin, vec![amount_arg]));
+            builder.command(Command::TransferObjects(vec![new_coin_arg], recipient_arg));
 
-        let recipient_arg = builder.pure(recipient)?;
-        builder.command(Command::TransferObjects(vec![new_coin_arg], recipient_arg));
+            let pt = builder.finish();
 
-        let pt = builder.finish();
-
-        let gas_budget = DEFAULT_GAS_BUDGET;
-        let gas_price: u64 = self.gas_price;
-
-        let sender = &self.default_account;
-        let gas_refs = self.get_payments(sender, vec![]);
-
-        let data =
-            TransactionData::new_programmable(sender.address, gas_refs, pt, gas_budget, gas_price);
-
-        let tx = to_sender_signed_transaction(
-            data,
-            sender
-                .key_pair
-                .as_ref()
-                .expect("Default account must have keypair"),
-        );
-
-        let (effects, _) = self.executor.execute_txn(tx).await?;
+            TransactionData::new_programmable(sender, gas, pt, gas_budget, gas_price)
+        };
+        let transaction = self.sign_txn(None, data, true);
+        let (effects, _) = self.executor.execute_txn(transaction).await?;
 
         match effects.status() {
             ExecutionStatus::Success => {
@@ -2292,7 +2297,7 @@ impl IotaTestAdapter {
 
     fn build_abstract_account_transaction(
         &mut self,
-        test_pkg_id: ObjectID,
+        package_metadata: ParsedValue<IotaExtraValueArgs>,
         test_module_name: String,
         authenticate_fn: String,
         abstract_account_type: TypeTag,
@@ -2308,8 +2313,11 @@ impl IotaTestAdapter {
             .into_iter()
             .map(|arg| arg.into_argument(&mut builder, self))
             .collect::<anyhow::Result<Vec<Argument>>>()?;
+        let state = self.compiled_state();
+        let pkg_metadata =
+            package_metadata.into_concrete_value(&|s| Some(state.resolve_named_address(s)))?;
+        let pkg_metadata_arg = pkg_metadata.into_argument(&mut builder, self)?;
 
-        let pkg_arg = builder.pure(test_pkg_id)?;
         let mod_arg = builder.pure(test_module_name)?;
         let fn_arg = builder.pure(authenticate_fn)?;
 
@@ -2318,7 +2326,7 @@ impl IotaTestAdapter {
             ident_str!("account").to_owned(),
             ident_str!("create_auth_info_v1").to_owned(),
             vec![abstract_account_type],
-            vec![pkg_arg, mod_arg, fn_arg],
+            vec![pkg_metadata_arg, mod_arg, fn_arg],
         );
 
         create_fn_inputs.push(auth_info_arg);
@@ -2337,23 +2345,23 @@ impl IotaTestAdapter {
     async fn init_abstract_account(
         &mut self,
         sender: Option<String>,
-        package_name: String,
+        package_metadata: ParsedValue<IotaExtraValueArgs>,
         module_name: String,
         authenticate_fn: String,
         aa_type: String,
         inputs: Vec<ParsedValue<IotaExtraValueArgs>>,
     ) -> anyhow::Result<Option<String>> {
-        let pkg_addr = self
-            .compiled_state
-            .named_address_mapping
-            .get(&package_name)
-            .with_context(|| format!("Unknown package named address '{package_name}'"))?
-            .into_inner();
-        let package_id: ObjectID = pkg_addr.into();
+        // let pkg_addr = self
+        //     .compiled_state
+        //     .named_address_mapping
+        //     .get(&package_name)
+        //     .with_context(|| format!("Unknown package named address
+        // '{package_name}'"))?     .into_inner();
+        // let package_id: ObjectID = pkg_addr.into();
 
         let (aa_package_id, aa_module_name, account_type) = self.resolve_aa_params(aa_type)?;
         let pt = self.build_abstract_account_transaction(
-            package_id,
+            package_metadata,
             module_name.clone(),
             authenticate_fn,
             account_type,
@@ -2365,9 +2373,13 @@ impl IotaTestAdapter {
         let gas_budget = DEFAULT_GAS_BUDGET;
         let gas_price = self.gas_price;
 
-        let tx = self.sign_txn(sender, |sender_addr, gas| {
-            TransactionData::new_programmable(sender_addr, gas, pt, gas_budget, gas_price)
-        });
+        let tx = self.sign_txn(
+            sender,
+            |sender_addr, gas| {
+                TransactionData::new_programmable(sender_addr, gas, pt, gas_budget, gas_price)
+            },
+            false,
+        );
 
         let summary = self.execute_txn(tx).await?;
         let output = self.object_summary_output(&summary, false);
@@ -2908,4 +2920,32 @@ fn find_iota_root_dir() -> PathBuf {
         .collect::<PathBuf>();
     let iota_root_dir = root.parent().expect("Failed to get iota root directory");
     iota_root_dir.to_path_buf()
+}
+
+/// Fill the compiled modules with authenticator metadata directly from
+/// function_infos
+fn fill_metadata(modules: &mut [MaybeNamedCompiledModule]) {
+    for m in modules.iter_mut() {
+        let module: &mut CompiledModule = &mut m.module;
+        let mut runtime_metadata = RuntimeModuleMetadata::default();
+
+        if let Some(fn_infos) = &m.function_infos {
+            for (_, name, info) in fn_infos.iter() {
+                // We only need authenticator version here
+                if let Some(version) = info.attributes.get_authenticator() {
+                    runtime_metadata.add_function_attribute(
+                        name.as_str().to_owned(),
+                        IotaAttribute::authenticator_attribute(version),
+                    );
+                }
+            }
+        }
+
+        if !runtime_metadata.is_empty() {
+            module.metadata.push(Metadata {
+                key: IOTA_METADATA_KEY.to_vec(),
+                value: RuntimeModuleMetadataWrapper::from(runtime_metadata).to_bcs_bytes(),
+            });
+        }
+    }
 }

@@ -244,26 +244,30 @@ where
     }
 }
 
+pub(crate) type ConsistentPageCursor = JsonCursor<ConsistentIndexCursor>;
+
+pub(crate) struct ConsistentPage<I: Iterator<Item = ConsistentPageCursor>> {
+    /// Whether there is a previous page available
+    pub has_previous_page: bool,
+    /// Whether there is a next page available
+    pub has_next_page: bool,
+    /// The checkpoint viewed at for consistency
+    pub checkpoint_viewed_at: u64,
+    /// Iterator of cursors within the page
+    pub cursors: I,
+}
+
 impl Page<JsonCursor<ConsistentIndexCursor>> {
     /// Treat the cursors of this Page as indices into a range [0, total).
     /// Validates that the cursors of the page are consistent, and returns
     /// two booleans indicating whether there is a previous or next page in
     /// the range, the `checkpoint_viewed_at` to set for consistency, and an
     /// iterator of cursors within that Page.
-    #[allow(clippy::type_complexity)]
     pub(crate) fn paginate_consistent_indices(
         &self,
         total: usize,
         checkpoint_viewed_at: u64,
-    ) -> Result<
-        Option<(
-            bool,
-            bool,
-            u64,
-            impl Iterator<Item = JsonCursor<ConsistentIndexCursor>>,
-        )>,
-        Error,
-    > {
+    ) -> Result<Option<ConsistentPage<impl Iterator<Item = ConsistentPageCursor>>>, Error> {
         let cursor_viewed_at = self.validate_cursor_consistency()?;
         let checkpoint_viewed_at = cursor_viewed_at.unwrap_or(checkpoint_viewed_at);
 
@@ -280,17 +284,17 @@ impl Page<JsonCursor<ConsistentIndexCursor>> {
             }
         }
 
-        Ok(Some((
-            0 < lo,
-            hi < total,
+        Ok(Some(ConsistentPage {
+            has_previous_page: 0 < lo,
+            has_next_page: hi < total,
             checkpoint_viewed_at,
-            (lo..hi).map(move |ix| {
+            cursors: (lo..hi).map(move |ix| {
                 JsonCursor::new(ConsistentIndexCursor {
                     ix,
                     c: checkpoint_viewed_at,
                 })
             }),
-        )))
+        }))
     }
 }
 

@@ -40,7 +40,7 @@ async fn test_package_override() {
         if let Some(obj) = obj.data {
             obj.object_ref()
         } else {
-            panic!("Original framework package should exist");
+            panic!("original framework package should exist");
         }
     };
 
@@ -83,7 +83,7 @@ async fn test_package_override() {
         if let Some(obj) = obj.data {
             obj.object_ref()
         } else {
-            panic!("Original framework package should exist");
+            panic!("original framework package should exist");
         }
     };
 

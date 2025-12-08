@@ -197,7 +197,7 @@ impl ObjectHandler {
             owner_address: get_owner_address(object),
             object_status: object_status_tracker
                 .get_object_status(&object_id)
-                .expect("Object must be in output objects"),
+                .expect("object must be in output objects"),
             initial_shared_version: initial_shared_version(object),
             previous_transaction: object.previous_transaction.base58_encode(),
             storage_rebate: Some(object.storage_rebate),

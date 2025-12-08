@@ -6,12 +6,10 @@ module abstract_account::basic_keyed_aa;
 use abstract_account::abstract_account::{Self, AbstractAccount, ensure_tx_sender_is_account};
 use iota::account::AuthenticatorInfoV1;
 use iota::auth_context::AuthContext;
-use iota::coin::Coin;
 use iota::ecdsa_k1;
 use iota::ecdsa_r1;
 use iota::ed25519;
 use iota::hex::decode;
-use iota::iota::IOTA;
 
 // === Errors ===
 
@@ -75,6 +73,7 @@ public fun rotate_public_key(
 }
 
 /// Ed25519 signature authenticator.
+#[authenticator]
 public fun authenticate_ed25519(
     account: &AbstractAccount,
     signature: vector<u8>,
@@ -92,6 +91,7 @@ public fun authenticate_ed25519(
 }
 
 /// Secp256k1 signature authenticator.
+#[authenticator]
 public fun authenticate_secp256k1(
     account: &AbstractAccount,
     signature: vector<u8>,
@@ -109,6 +109,7 @@ public fun authenticate_secp256k1(
 }
 
 /// Secp256r1 signature authenticator.
+#[authenticator]
 public fun authenticate_secp256r1(
     account: &AbstractAccount,
     signature: vector<u8>,
@@ -126,22 +127,12 @@ public fun authenticate_secp256r1(
 }
 
 /// Free access, do nothing.
+#[authenticator]
 public fun authenticate_free_access(self: &AbstractAccount, _: &AuthContext, ctx: &TxContext) {
     // Check that the sender of this transaction is the account.
     ensure_tx_sender_is_account(self, ctx);
 }
 
-/// Test-only authenticator: it accepts a `Receiving<Coin<IOTA>>` argument.
-/// Authentication is required to be effect-free; passing a `Receiving<T>` to
-/// the authenticator is disallowed by the AA auth framework and must fail.
-public fun authenticate_receive_coin(
-    account: &AbstractAccount,
-    _coin: transfer::Receiving<Coin<IOTA>>,
-    _: &AuthContext,
-    ctx: &TxContext,
-) {
-    ensure_tx_sender_is_account(account, ctx);
-}
 // === View Functions ===
 
 /// An utility function to borrow the account-related public key.

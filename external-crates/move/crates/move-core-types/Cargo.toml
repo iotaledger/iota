@@ -8,14 +8,13 @@ publish = ["crates-io"]
 description = "Core types for Move"
 
 [dependencies]
+# external dependencies
 anyhow.workspace = true
 arbitrary = { workspace = true, optional = true }
 bcs.workspace = true
-enum-compat-util.workspace = true
 ethnum.workspace = true
 hex.workspace = true
 leb128.workspace = true
-move-proc-macros.workspace = true
 num.workspace = true
 once_cell.workspace = true
 primitive-types.workspace = true
@@ -28,6 +27,10 @@ serde_bytes.workspace = true
 serde_with.workspace = true
 thiserror.workspace = true
 uint.workspace = true
+
+# internal dependencies
+enum-compat-util.workspace = true
+move-proc-macros.workspace = true
 
 [dev-dependencies]
 arbitrary = { workspace = true, features = ["derive_arbitrary"] }

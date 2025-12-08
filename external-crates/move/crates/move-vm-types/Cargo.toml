@@ -8,12 +8,13 @@ publish = false
 description = "Types for Move VM"
 
 [dependencies]
+# external dependencies
+bcs.workspace = true
 proptest = { workspace = true, optional = true }
 serde.workspace = true
 smallvec.workspace = true
 
-bcs.workspace = true
-
+# internal dependencies
 move-binary-format.workspace = true
 move-core-types.workspace = true
 move-vm-profiler.workspace = true

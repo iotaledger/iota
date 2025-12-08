@@ -152,7 +152,7 @@ impl SharedObjVerManager {
         let txn_cancelled = cancellation_info.is_some();
 
         // Make an iterator to update the locks of the transaction's shared objects.
-        let shared_input_objects: Vec<_> = cert.shared_input_objects().collect();
+        let shared_input_objects = cert.shared_input_objects();
 
         let mut input_object_keys = transaction_non_shared_input_object_keys(cert)
             .expect("Transaction input should have been verified");
@@ -267,7 +267,11 @@ fn get_or_init_versions<'a>(
     generate_randomness: bool,
 ) -> IotaResult<HashMap<ObjectID, SequenceNumber>> {
     let mut shared_input_objects: Vec<_> = transactions
-        .flat_map(|tx| tx.shared_input_objects().map(|so| so.into_id_and_version()))
+        .flat_map(|tx| {
+            tx.shared_input_objects()
+                .into_iter()
+                .map(|so| so.into_id_and_version())
+        })
         .collect();
 
     if generate_randomness {
@@ -323,7 +327,7 @@ mod tests {
             _ => panic!("expected shared object"),
         };
         let authority = TestAuthorityBuilder::new()
-            .with_starting_objects(&[shared_object.clone()])
+            .with_starting_objects(std::slice::from_ref(&shared_object))
             .build()
             .await;
         let certs = vec![
@@ -637,7 +641,7 @@ mod tests {
             _ => panic!("expected shared object"),
         };
         let authority = TestAuthorityBuilder::new()
-            .with_starting_objects(&[shared_object.clone()])
+            .with_starting_objects(std::slice::from_ref(&shared_object))
             .build()
             .await;
         let certs = vec![

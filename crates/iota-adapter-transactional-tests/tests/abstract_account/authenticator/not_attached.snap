@@ -6,19 +6,19 @@ processed 5 tasks
 init:
 A: object(0,0)
 
-task 1, lines 8-28:
+task 1, lines 8-29:
 //# publish --sender A
-created: object(1,0)
+created: object(1,0), object(1,1)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 6429600,  storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 9705200,  storage_rebate: 0, non_refundable_storage_fee: 0
 
-task 2, line 30:
-//# init-abstract-acc --sender A test authenticate authenticate test::authenticate::AbstractAccount
+task 2, line 31:
+//# init-abstract-acc --sender A --package-metadata object(1,1) authenticate authenticate test::authenticate::AbstractAccount
 created: object(2,0)
 mutated: object(0,0)
 gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2371200,  storage_rebate: 980400, non_refundable_storage_fee: 0
 
-task 3, line 32:
+task 3, line 33:
 //# view-object 2,0
 Owner: Shared( 3 )
 Version: 3
@@ -30,6 +30,6 @@ Contents: test::authenticate::AbstractAccount {
     },
 }
 
-task 4, lines 34-36:
+task 4, lines 35-37:
 //# abstract --account immshared(2,0) --ptb-inputs 100 @A
-Error: Error checking transaction input objects: MoveAuthenticatorNotFound { authenticator_info_id: 0x5d8c5a61af5988b7cf83e5d084de59644c59f8f8954b670fb3301a9580892cde, account_object_id: object(2,0), account_object_version: SequenceNumber(3) }
+Error: Error checking transaction input objects: MoveAuthenticatorNotFound { authenticator_info_id: 0x73d75a402dd538d7b06319798c6d54cf4bd2e5533026fc1121f6e1c9193ba701, account_object_id: object(2,0), account_object_version: SequenceNumber(3) }

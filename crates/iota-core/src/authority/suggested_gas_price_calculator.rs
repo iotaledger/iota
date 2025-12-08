@@ -131,6 +131,7 @@ impl SuggestedGasPriceCalculator {
 
         certificate
             .shared_input_objects()
+            .into_iter()
             // Only consider shared objects accessed mutably as objects accessed immutably
             // do not change object's execution slots in the sequencer.
             .filter(|object| object.mutable)
@@ -200,6 +201,7 @@ impl SuggestedGasPriceCalculator {
 
         certificate
             .shared_input_objects()
+            .into_iter()
             .filter_map(|object| {
                 self.congestion_info
                     .get(&object.id)
@@ -262,7 +264,8 @@ pub mod suggested_gas_price_calculator_test_utils {
             max_gas_price,
         );
 
-        let mut shared_object_congestion_tracker = SharedObjectCongestionTracker::new(
+        let mut shared_object_congestion_tracker = SharedObjectCongestionTracker::new_for_test(
+            vec![],
             per_object_congestion_control_mode,
             min_free_execution_slot_assigned,
         );
@@ -276,7 +279,7 @@ pub mod suggested_gas_price_calculator_test_utils {
 
                     let execution_start_time = initialize_tracker_and_compute_tx_start_time(
                         &mut shared_object_congestion_tracker,
-                        &certificate.shared_input_objects().collect::<Vec<_>>(),
+                        &certificate.shared_input_objects(),
                         *duration,
                     )
                     .expect(
@@ -299,7 +302,7 @@ pub mod suggested_gas_price_calculator_test_utils {
 
                         let execution_start_time = initialize_tracker_and_compute_tx_start_time(
                             &mut shared_object_congestion_tracker,
-                            &certificate.shared_input_objects().collect::<Vec<_>>(),
+                            &certificate.shared_input_objects(),
                             *duration,
                         )
                         .expect(
@@ -363,13 +366,14 @@ mod tests {
             tx_gas_data.gas_budget,
             tx_gas_data.gas_price,
         );
-        let shared_input_objects: Vec<_> = certificate.shared_input_objects().collect();
+        let shared_input_objects = certificate.shared_input_objects();
         shared_object_congestion_tracker.initialize_object_execution_slots(&shared_input_objects);
 
         let sequencing_result = shared_object_congestion_tracker.try_schedule(
             &certificate,
             max_execution_duration_per_commit,
-            // The next two inputs are not important for testing.
+            // The remaining inputs are not important for this test
+            0,
             &HashMap::new(),
             0,
         );
@@ -593,8 +597,11 @@ mod tests {
 
         let max_gas_price = ProtocolConfig::get_for_max_version_UNSAFE().max_gas_price();
 
-        let mut shared_object_congestion_tracker =
-            SharedObjectCongestionTracker::new(mode, min_free_execution_slot_assigned);
+        let mut shared_object_congestion_tracker = SharedObjectCongestionTracker::new_for_test(
+            vec![],
+            mode,
+            min_free_execution_slot_assigned,
+        );
 
         let mut suggested_gas_price_calculator = SuggestedGasPriceCalculator::new(
             Some(max_execution_duration_per_commit),

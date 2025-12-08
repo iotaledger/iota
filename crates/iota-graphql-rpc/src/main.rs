@@ -7,7 +7,7 @@ use std::{fs, path::PathBuf};
 use clap::{CommandFactory, FromArgMatches};
 use iota_graphql_rpc::{
     commands::Command,
-    config::{ConnectionConfig, Ide, ServerConfig, ServiceConfig, TxExecFullNodeConfig, Version},
+    config::{ServerConfig, ServiceConfig, Version},
     server::{builder::export_schema, graphiql_server::start_graphiql_server},
 };
 use tokio_util::{sync::CancellationToken, task::TaskTracker};
@@ -31,11 +31,11 @@ async fn main() {
     match cmd {
         Command::GenerateConfig { output } => {
             let config = ServiceConfig::default();
-            let toml = toml::to_string_pretty(&config).expect("Failed to serialize configuration");
+            let toml = toml::to_string_pretty(&config).expect("failed to serialize configuration");
 
             if let Some(path) = output {
                 fs::write(&path, toml).unwrap_or_else(|e| {
-                    panic!("Failed to write configuration to {}: {e}", path.display())
+                    panic!("failed to write configuration to {}: {e}", path.display())
                 });
             } else {
                 println!("{toml}");
@@ -51,18 +51,11 @@ async fn main() {
             }
         }
         Command::StartServer {
-            ide_title,
-            db_url,
-            db_pool_size,
-            port,
-            host,
+            ide,
+            connection,
             config,
-            node_rpc_url,
-            prom_host,
-            prom_port,
+            tx_exec_full_node,
         } => {
-            let connection =
-                ConnectionConfig::new(port, host, db_url, db_pool_size, prom_host, prom_port);
             let service_config = service_config(config);
             let _guard = telemetry_subscribers::TelemetryConfig::new()
                 .with_env()
@@ -74,8 +67,8 @@ async fn main() {
             let server_config = ServerConfig {
                 connection,
                 service: service_config,
-                ide: Ide::new(ide_title),
-                tx_exec_full_node: TxExecFullNodeConfig::new(node_rpc_url),
+                ide,
+                tx_exec_full_node,
                 ..ServerConfig::default()
             };
 
@@ -113,6 +106,6 @@ fn service_config(path: Option<PathBuf>) -> ServiceConfig {
         return ServiceConfig::default();
     };
 
-    let contents = fs::read_to_string(path).expect("Reading configuration");
-    ServiceConfig::read(&contents).expect("Deserializing configuration")
+    let contents = fs::read_to_string(path).expect("reading configuration");
+    ServiceConfig::read(&contents).expect("deserializing configuration")
 }

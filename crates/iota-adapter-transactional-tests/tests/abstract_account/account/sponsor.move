@@ -14,9 +14,10 @@ use aa::abstract_account::AbstractAccount;
 
 use iota::auth_context::AuthContext;
 
+#[authenticator]
 public fun authenticate(_account: &AbstractAccount, _auth_ctx: &AuthContext, _ctx: &TxContext) {}
 
-//# init-abstract-acc --sender A test authenticate authenticate aa::abstract_account::AbstractAccount
+//# init-abstract-acc --sender A --package-metadata object(3,1) authenticate authenticate aa::abstract_account::AbstractAccount
 
 //# view-object 4,0
 

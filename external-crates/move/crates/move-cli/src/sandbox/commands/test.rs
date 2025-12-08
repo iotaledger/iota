@@ -3,20 +3,6 @@
 // Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::{DEFAULT_BUILD_DIR, DEFAULT_STORAGE_DIR};
-
-use move_command_line_common::{
-    env::read_bool_env_var,
-    files::{find_filenames, path_to_string},
-};
-use move_compiler::command_line::COLOR_MODE_ENV_VAR;
-use move_coverage::coverage_map::{CoverageMap, ExecCoverageMapWithModules};
-use move_package::{
-    compilation::{compiled_package::OnDiskCompiledPackage, package_layout::CompiledPackageLayout},
-    resolution::resolution_graph::ResolvedGraph,
-    source_package::{layout::SourcePackageLayout, manifest_parser::parse_move_manifest_from_file},
-    BuildConfig,
-};
 use std::{
     collections::{BTreeMap, HashMap},
     env,
@@ -26,13 +12,28 @@ use std::{
     path::{Path, PathBuf},
     process::Command,
 };
+
+use move_command_line_common::{
+    env::read_bool_env_var,
+    files::{find_filenames, path_to_string},
+};
+use move_compiler::command_line::COLOR_MODE_ENV_VAR;
+use move_coverage::coverage_map::{CoverageMap, ExecCoverageMapWithModules};
+use move_package::{
+    BuildConfig,
+    compilation::{compiled_package::OnDiskCompiledPackage, package_layout::CompiledPackageLayout},
+    resolution::resolution_graph::ResolvedGraph,
+    source_package::{layout::SourcePackageLayout, manifest_parser::parse_move_manifest_from_file},
+};
 use tempfile::tempdir;
 
-// Basic datatest testing framework for the CLI. The `run_one` entrypoint expects
-// an `args.txt` file with arguments that the `move` binary understands (one set
-// of arguments per line). The testing framework runs the commands, compares the
-// result to the expected output, and runs `move clean` to discard resources,
-// modules, and event data created by running the test.
+use crate::{DEFAULT_BUILD_DIR, DEFAULT_STORAGE_DIR};
+
+// Basic datatest testing framework for the CLI. The `run_one` entrypoint
+// expects an `args.txt` file with arguments that the `move` binary understands
+// (one set of arguments per line). The testing framework runs the commands,
+// compares the result to the expected output, and runs `move clean` to discard
+// resources, modules, and event data created by running the test.
 
 /// If this env var is set, `move clean` will not be run after each test.
 /// this is useful if you want to look at the `storage` or `move_events`
@@ -53,7 +54,8 @@ const MOVE_VM_TRACING_ENV_VAR_NAME: &str = "MOVE_VM_TRACE";
 /// be produced.
 const DEFAULT_TRACE_FILE: &str = "trace";
 
-/// The prefix for the stack trace that we want to remove from the stderr output if present.
+/// The prefix for the stack trace that we want to remove from the stderr output
+/// if present.
 const STACK_TRACE_PREFIX: &str = "\nStack backtrace:";
 
 fn collect_coverage(
@@ -402,9 +404,9 @@ pub fn run_all(
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
-// The following code is migrated from `move-command-line-common` crate, which switched to `insta`
-// for expected output testing. That is not really desierable for the Move CLI, so it has kept
-// this hand rolled approach.
+// The following code is migrated from `move-command-line-common` crate, which
+// switched to `insta` for expected output testing. That is not really
+// desierable for the Move CLI, so it has kept this hand rolled approach.
 
 /// Extension for expected output files
 const EXP_EXT: &str = "exp";

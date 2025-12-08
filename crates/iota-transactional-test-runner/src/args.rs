@@ -184,7 +184,11 @@ pub struct AbstractTransactionCommand {
 pub struct InitAbstractAccountCommand {
     #[arg(long)]
     pub sender: Option<String>,
-    pub package: String,
+    #[arg(
+        long,
+        value_parser = ParsedValue::<IotaExtraValueArgs>::parse,
+    )]
+    pub package_metadata: ParsedValue<IotaExtraValueArgs>,
     pub module: String,
     pub authenticate_fn: String,
     pub account_type: String,

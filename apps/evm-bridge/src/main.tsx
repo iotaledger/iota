@@ -4,6 +4,7 @@ import './globals.css';
 
 import React from 'react';
 import ReactDOM from 'react-dom/client';
+import { CookieManagerProvider } from '@boxfish-studio/react-cookie-manager';
 import {
     getDefaultConfig,
     darkTheme as rainbowDarkTheme,
@@ -13,6 +14,7 @@ import {
 } from '@rainbow-me/rainbowkit';
 import { darkTheme, IotaClientProvider, lightTheme, WalletProvider } from '@iota/dapp-kit';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { CookieDisclaimer } from './components/disclaimer/CookieDisclaimer';
 import App from './App.tsx';
 import { ThemeProvider } from './providers/ThemeProvider.tsx';
 import { WagmiProvider } from 'wagmi';
@@ -27,21 +29,33 @@ import {
 import { EvmRpcClientProvider } from './providers/EvmRpcClientProvider.tsx';
 import { Toaster } from './components/index.ts';
 import { IotaGraphQLClientProvider } from '@iota/core';
-import { growthbook } from './lib/utils/index.ts';
+import { growthbook, interceptProviderAnnouncements } from './lib/utils/index.ts';
 import { GrowthBookProvider } from '@growthbook/growthbook-react';
+import { getNetwork } from '@iota/iota-sdk/client';
+import { metaMaskWallet, walletConnectWallet } from '@rainbow-me/rainbowkit/wallets';
+
+// We intercept EIP-6963 announcements
+// to only allow certain wallets (metamask) to be discovered
+interceptProviderAnnouncements();
 
 growthbook.init();
 
 const queryClient = new QueryClient();
 
+const wagmiConfig = getDefaultConfig({
+    ...L2_WAGMI_CONFIG,
+    chains: [L2_CHAIN_CONFIG as Chain],
+    wallets: [
+        {
+            groupName: 'Suggested',
+            wallets: [metaMaskWallet, walletConnectWallet],
+        },
+    ],
+});
+
 ReactDOM.createRoot(document.getElementById('root')!).render(
     <React.StrictMode>
-        <WagmiProvider
-            config={getDefaultConfig({
-                ...L2_WAGMI_CONFIG,
-                chains: [L2_CHAIN_CONFIG as Chain],
-            })}
-        >
+        <WagmiProvider config={wagmiConfig}>
             <GrowthBookProvider growthbook={growthbook}>
                 <EvmRpcClientProvider baseUrl={L2_CHAIN_CONFIG.evmRpcUrl}>
                     <QueryClientProvider client={queryClient}>
@@ -61,11 +75,15 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
                                             variables: darkTheme,
                                         },
                                     ]}
+                                    chain={getNetwork(getDefaultNetwork()).chain}
                                 >
                                     <ThemeProvider appId="IOTA-evm-bridge">
                                         <RainbowKit>
-                                            <App />
-                                            <Toaster />
+                                            <CookieManagerProvider>
+                                                <App />
+                                                <Toaster />
+                                                <CookieDisclaimer />
+                                            </CookieManagerProvider>
                                         </RainbowKit>
                                     </ThemeProvider>
                                 </WalletProvider>

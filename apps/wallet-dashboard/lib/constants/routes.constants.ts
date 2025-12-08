@@ -9,6 +9,10 @@ export const CONNECT_ROUTE: PublicRoute = {
     path: '/',
 };
 
+export const COOKIE_POLICY_ROUTE: PublicRoute = {
+    path: '/cookie-policy',
+};
+
 export const HOMEPAGE_ROUTE: ProtectedRoute = {
     title: ProtectedRouteTitle.Home,
     path: '/home',

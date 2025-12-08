@@ -8,16 +8,19 @@ publish = false
 description = "Unit testing framework for Move code"
 
 [dependencies]
+# external dependencies
 anyhow.workspace = true
+bcs.workspace = true
 better_any.workspace = true
 clap.workspace = true
 codespan-reporting.workspace = true
 colored.workspace = true
 once_cell.workspace = true
+rand.workspace = true
 rayon.workspace = true
 regex.workspace = true
 
-bcs.workspace = true
+# internal dependencies
 move-binary-format.workspace = true
 move-bytecode-utils.workspace = true
 move-command-line-common.workspace = true
@@ -31,11 +34,12 @@ move-vm-profiler.workspace = true
 move-vm-runtime = { workspace = true, features = ["testing"] }
 move-vm-test-utils.workspace = true
 move-vm-types.workspace = true
-rand.workspace = true
 
 [dev-dependencies]
+# external dependencies
 datatest-stable.workspace = true
 
+# internal dependencies
 move-stdlib = { workspace = true, features = ["testing"] }
 
 [[bin]]

@@ -344,7 +344,7 @@ impl GenesisConfig {
     /// predictable to facilitate benchmarks orchestration. Only the main ip
     /// addresses of the validators are specified (as those are often
     /// dictated by the cloud provider hosing the testbed).
-    pub fn new_for_benchmarks(ips: &[String]) -> Self {
+    pub fn new_for_benchmarks(ips: &[String], epoch_duration_ms: Option<u64>) -> Self {
         // Set the validator's configs. They should be the same across multiple runs to
         // ensure reproducibility.
         let mut rng = StdRng::seed_from_u64(Self::BENCHMARKS_RNG_SEED);
@@ -371,7 +371,13 @@ impl GenesisConfig {
                     // Generate one genesis gas object per validator (this seems a good rule of
                     // thumb to produce enough gas objects for most types of
                     // benchmarks).
-                    gas_amounts: vec![Self::BENCHMARK_GAS_AMOUNT; 5],
+                    gas_amounts: vec![
+                        u64::min(
+                            Self::BENCHMARK_GAS_AMOUNT,
+                            u64::MAX / (6u64 * validator_config_info.len() as u64),
+                        );
+                        5
+                    ],
                 }
             })
             .collect();
@@ -380,7 +386,11 @@ impl GenesisConfig {
         // it own genesis; it is thus important they have the same parameters.
         let parameters = GenesisCeremonyParameters {
             chain_start_timestamp_ms: 0,
-            epoch_duration_ms: Self::BENCHMARK_EPOCH_DURATION_MS,
+            epoch_duration_ms: if let Some(duration_ms) = epoch_duration_ms {
+                duration_ms
+            } else {
+                Self::BENCHMARK_EPOCH_DURATION_MS
+            },
             ..GenesisCeremonyParameters::new()
         };
 

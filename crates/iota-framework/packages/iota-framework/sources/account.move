@@ -4,7 +4,9 @@
 module iota::account;
 
 use iota::dynamic_field;
+use iota::package_metadata::PackageMetadataV1;
 use std::ascii;
+use std::type_name;
 
 #[error(code = 0)]
 const EAuthenticatorInfoV1AlreadyAttached: vector<u8> =
@@ -15,13 +17,15 @@ const EAuthenticatorInfoV1NotAttached: vector<u8> =
 #[error(code = 2)]
 const EAuthenticatorInfoV1CompatibilityNotProven: vector<u8> =
     b"An `AuthenticatorInfoV1` instance is not verified to be attached to the account.";
+#[error(code = 3)]
+const EAuthenticatorInfoNotCompatibileWithAccount: vector<u8> =
+    b"The provided `AuthenticatorInfoV1` is not compatible with the account type.";
 
 /// Dynamic field key, where the system will look for a potential
 /// authenticate function.
 public struct AuthenticatorInfoV1Key has copy, drop, store {}
 
 /// Represents a validated authenticate function.
-/// `Account` is a phantom type representing the account type which can be authenticated.
 #[allow(unused_field)]
 public struct AuthenticatorInfoV1<phantom Account: key> has copy, drop, store {
     package: ID,
@@ -49,13 +53,22 @@ public struct AuthenticatorInfoV1CompatibilityProof<phantom Account: key> has dr
 ///
 /// This function cannot be used in `move unit tests` as there is no mechanism to refer to the package being tested.
 public fun create_auth_info_v1<Account: key>(
-    package: address,
+    package_metadata: &PackageMetadataV1,
     module_name: ascii::String,
     function_name: ascii::String,
 ): AuthenticatorInfoV1<Account> {
-    check_auth_info_v1<Account>(package, module_name.as_bytes(), function_name.as_bytes());
+    let authenticator_metadata = package_metadata
+        .modules_metadata_v1(
+            &module_name,
+        )
+        .authenticator_metadata_v1(&function_name);
+
+    assert!(
+        type_name::get<Account>() == authenticator_metadata.account_type(),
+        EAuthenticatorInfoNotCompatibileWithAccount,
+    );
     AuthenticatorInfoV1 {
-        package: object::id_from_address(package),
+        package: package_metadata.storage_id(),
         module_name,
         function_name,
     }
@@ -73,7 +86,7 @@ public fun check_auth_info_v1_compatibility<Account: key>(
     }
 }
 
-/// Attach the `authenticator` instance to the account.
+/// Attach the `authenticator` instance to the account. It uses a `AuthenticatorInfoV1CompatibilityProof` to obtain that instance.
 /// It will be added as a dynamic field specified by the `AuthenticatorInfoV1Key` name.
 public fun attach_auth_info_v1<Account: key>(
     account_id: &mut UID,
@@ -87,7 +100,7 @@ public fun attach_auth_info_v1<Account: key>(
 
 /// Rotate the account-related authenticator.
 /// The `authenticator` instance will replace the account dynamic field specified by the `AuthenticatorInfoV1Key` name;
-/// the previous value will be returned.
+/// It uses a `AuthenticatorInfoV1CompatibilityProof` to obtain the new instance.
 public fun rotate_auth_info_v1<Account: key>(
     account_id: &mut UID,
     proof: AuthenticatorInfoV1CompatibilityProof<Account>,
@@ -97,7 +110,10 @@ public fun rotate_auth_info_v1<Account: key>(
 
     let name = auth_info_v1_key();
 
-    let previous_authenticator_info = dynamic_field::remove(account_id, name);
+    let previous_authenticator_info = dynamic_field::remove<_, AuthenticatorInfoV1<Account>>(
+        account_id,
+        name,
+    );
     dynamic_field::add(account_id, name, proof.authenticator);
     previous_authenticator_info
 }
@@ -117,12 +133,6 @@ public fun has_auth_info_v1(account_id: &UID): bool {
 fun auth_info_v1_key(): AuthenticatorInfoV1Key {
     AuthenticatorInfoV1Key {}
 }
-
-native fun check_auth_info_v1<Account: key>(
-    package: address,
-    module_name: &vector<u8>,
-    function_name: &vector<u8>,
-);
 
 /// Creates an `AuthenticatorInfoV1` instance for testing, skipping validation.
 #[test_only]

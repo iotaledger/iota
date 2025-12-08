@@ -16,11 +16,10 @@ use iota::coin::Coin;
 use iota::iota::IOTA;
 
 
+#[authenticator]
 public fun authenticate_receive_coin(
     _account: &AbstractAccount,
     _coin: transfer::Receiving<Coin<IOTA>>,
     _: &AuthContext,
     _ctx: &TxContext,
 ) {}
-
-//# init-abstract-acc --sender A test authenticate authenticate_receive_coin aa::abstract_account::AbstractAccount

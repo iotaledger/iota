@@ -4,6 +4,7 @@
 /* eslint-disable no-empty-pattern */
 
 import path from 'path';
+import os from 'os';
 import { test as base, chromium, Page, type BrowserContext } from '@playwright/test';
 import { createWallet } from './utils';
 
@@ -45,17 +46,26 @@ export const test = base.extend<{
                 return;
             }
 
-            const context = await chromium.launchPersistentContext('', {
+            const userDataDir = path.join(os.tmpdir(), `playwright-${Date.now()}`);
+
+            const launchOptions: Parameters<typeof chromium.launchPersistentContext>[1] = {
                 headless: isCI,
                 viewport: { width: 720, height: 720 },
                 args: [
                     `--disable-extensions-except=${EXTENSION_PATH}`,
                     `--load-extension=${EXTENSION_PATH}`,
-                    '--user-agent=Playwright',
                     '--window-position=0,0',
-                    ...(isCI ? ['--headless=new', '--disable-gpu'] : []),
+                    '--no-sandbox',
+                    '--disable-dev-shm-usage',
                 ],
-            });
+            };
+
+            // Only use chromium channel in CI for headless extension support (Playwright v1.49+)
+            if (isCI) {
+                launchOptions.channel = 'chromium';
+            }
+
+            const context = await chromium.launchPersistentContext(userDataDir, launchOptions);
 
             sharedState.sharedContext = context;
 
@@ -65,9 +75,30 @@ export const test = base.extend<{
     ],
 
     extensionUrl: async ({ context }, use) => {
+        if (sharedState.extension.url) {
+            await use(sharedState.extension.url);
+            return;
+        }
+
         let [background] = context.serviceWorkers();
+
+        // If no service worker is available yet, poll for it instead of waitForEvent
+        // This avoids the issue where waitForEvent gets stuck in headless CI mode
         if (!background) {
-            background = await context.waitForEvent('serviceworker');
+            const maxAttempts = 60;
+            const delayMs = 1000;
+
+            for (let i = 0; i < maxAttempts; i++) {
+                [background] = context.serviceWorkers();
+                if (background) break;
+                await new Promise((resolve) => setTimeout(resolve, delayMs));
+            }
+
+            if (!background) {
+                throw new Error(
+                    'Extension service worker failed to load after 60 seconds. Make sure the wallet extension is built correctly.',
+                );
+            }
         }
 
         const extensionId = background.url().split('/')[2];
@@ -79,6 +110,12 @@ export const test = base.extend<{
     },
 
     extensionName: async ({ context, extensionUrl }, use) => {
+        // Check if we already have the extension name cached
+        if (sharedState.extension.name) {
+            await use(sharedState.extension.name);
+            return;
+        }
+
         const extPage = await context.newPage();
         await extPage.goto(extensionUrl);
 

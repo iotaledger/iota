@@ -27,7 +27,7 @@ use crate::{
     },
     context::Context,
     core_thread::CoreThreadDispatcher,
-    dag_state::DagState,
+    dag_state::{DagState, TransactionSource},
     decoder::{ShardsDecoder, create_decoder},
     encoder::{ShardEncoder, create_encoder},
     error::{ConsensusError, ConsensusResult},
@@ -35,7 +35,7 @@ use crate::{
 
 const EVICTION_TIMEOUT: Duration = Duration::from_secs(1);
 
-const SEND_TO_CORE_RECONSTRUCTED_TXS_TIMEOUT: Duration = Duration::from_millis(100);
+const SEND_TO_CORE_RECONSTRUCTED_TXS_TIMEOUT: Duration = Duration::from_millis(20);
 const NUMBER_OF_RECONSTRUCTION_WORKERS: usize = 5;
 
 /// Using transaction messages we update the state of shard reconstructor
@@ -221,7 +221,7 @@ impl Codec {
 /// One field, transaction_message_sender, can be cloned to send transaction
 /// messages to the internal ShardReconstructor
 pub struct ShardReconstructorHandle {
-    pub transaction_message_sender: Sender<Vec<TransactionMessage>>,
+    transaction_message_sender: Sender<Vec<TransactionMessage>>,
     join_handle: Mutex<Option<JoinHandle<()>>>,
 }
 
@@ -505,7 +505,9 @@ impl<C: CoreThreadDispatcher> ShardReconstructor<C> {
                 let mut to_stay_transactions = BTreeMap::new();
                 let block_headers_opt = {
                     let block_refs: Vec<BlockRef> = transactions_map.keys().copied().collect();
-                    self.dag_state.read().get_block_headers(&block_refs)
+                    self.dag_state
+                        .read()
+                        .get_verified_block_headers(&block_refs)
                 };
                 for (block_header_opt, (block_ref, transactions)) in block_headers_opt
                     .into_iter()
@@ -559,7 +561,7 @@ impl<C: CoreThreadDispatcher> ShardReconstructor<C> {
 
             // Add the transactions to the core
             self.core_dispatcher
-                .add_transactions(transactions, "Shard reconstructor")
+                .add_transactions(transactions, TransactionSource::ShardReconstructor)
                 .await
                 .map_err(|_| ConsensusError::Shutdown)?;
         }
@@ -653,8 +655,9 @@ mod tests {
         },
         commit::CertifiedCommits,
         context::Context,
+        core::ReasonToCreateBlock,
         core_thread::{CoreError, CoreThreadDispatcher},
-        dag_state::DagState,
+        dag_state::{DagState, TransactionSource},
         encoder::create_encoder,
         shard_reconstructor::{
             FullTransactionMessage, ShardMessage, ShardReconstructor, TransactionMessage,
@@ -683,7 +686,7 @@ mod tests {
         async fn add_transactions(
             &self,
             txs: Vec<VerifiedTransactions>,
-            _source: &'static str,
+            _source: TransactionSource,
         ) -> Result<(), CoreError> {
             let mut guard = self.transactions.lock().await;
             guard.extend(txs);
@@ -741,7 +744,7 @@ mod tests {
         async fn new_block(
             &self,
             _round: Round,
-            _force: bool,
+            _reason: ReasonToCreateBlock,
         ) -> Result<BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>, CoreError> {
             unimplemented!()
         }
