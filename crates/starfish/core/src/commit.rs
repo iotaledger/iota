@@ -605,7 +605,7 @@ impl CommittedSubDag {
 
     /// Helper method to format transaction refs in a consistent way
     fn format_transaction_refs(&self) -> String {
-        format_block_digests(
+        format_transaction_ref_digests(
             &self
                 .transactions
                 .iter()
@@ -706,7 +706,7 @@ impl Display for PendingSubDag {
             self.leader,
             self.commit_ref,
             format_block_digests(&self.committed_header_refs),
-            format_block_digests(&self.committed_transaction_refs),
+            format_transaction_ref_digests(&self.committed_transaction_refs),
         )
     }
 }
@@ -719,7 +719,7 @@ impl fmt::Debug for PendingSubDag {
             self.leader,
             self.commit_ref,
             format_block_digests(&self.committed_header_refs),
-            format_block_digests(&self.committed_transaction_refs),
+            format_transaction_ref_digests(&self.committed_transaction_refs),
             self.timestamp_ms,
             self.reputation_scores_desc
         )
@@ -763,7 +763,7 @@ pub fn load_pending_subdag_from_store(
     PendingSubDag::new(
         leader_block_ref,
         block_headers,
-        commit.blocks().to_vec(),
+        commit.block_headers().to_vec(),
         commit.committed_transactions(),
         commit.timestamp_ms(),
         commit.reference(),
@@ -771,15 +771,28 @@ pub fn load_pending_subdag_from_store(
     )
 }
 
-fn format_block_digests(blocks: &[GenericTransactionRef]) -> String {
+fn format_transaction_ref_digests(transaction_refs: &[GenericTransactionRef]) -> String {
     let mut result = String::new();
-    for (idx, block) in blocks.iter().enumerate() {
+    for (idx, block) in transaction_refs.iter().enumerate() {
         if idx > 0 {
             result.push_str(", ");
         }
         result.push_str(&block.digest().to_string());
         result.push('@');
         result.push_str(&block.round().to_string());
+    }
+    result
+}
+
+fn format_block_digests(blocks: &[BlockRef]) -> String {
+    let mut result = String::new();
+    for (idx, block) in blocks.iter().enumerate() {
+        if idx > 0 {
+            result.push_str(", ");
+        }
+        result.push_str(&block.digest.to_string());
+        result.push('@');
+        result.push_str(&block.round.to_string());
     }
     result
 }
@@ -979,10 +992,13 @@ mod tests {
     use std::sync::Arc;
 
     use crate::{
+        BlockHeaderAPI, BlockTimestampMs, CommitDigest, VerifiedBlockHeader,
         block_header::{TestBlockHeader, VerifiedBlock},
+        commit::{CommitRange, TrustedCommit, WAVE_LENGTH, load_pending_subdag_from_store},
         context::Context,
         encoder::create_encoder,
         storage::{Store, WriteBatch, mem_store::MemStore},
+        transaction_ref::convert_block_refs_to_generic_transaction_refs,
     };
 
     #[tokio::test]
