@@ -117,13 +117,15 @@ impl HttpRestKVClient {
                 .get(CONTENT_LENGTH)
                 .unwrap_or(&HeaderValue::from_static("0"))
         );
-        // return None if 400
-        if resp.status().is_success() {
-            let bytes = resp.bytes().await?;
-            Ok(Some(bytes))
-        } else {
-            Ok(None)
+
+        // return None for non-2xx responses.
+        if !resp.status().is_success() {
+            return Ok(None);
         }
+
+        let bytes = resp.bytes().await?;
+        // map the bytes to Some only if non-empty.
+        Ok((!bytes.is_empty()).then_some(bytes))
     }
 }
 
