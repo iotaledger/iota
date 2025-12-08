@@ -39,8 +39,6 @@ pub struct StarfishManager {
     protocol_keypair: ProtocolKeyPair,
     network_keypair: NetworkKeyPair,
     storage_base_path: PathBuf,
-    // TODO: https://github.com/iotaledger/iota/issues/8351
-    // Consider switching to parking_lot::Mutex as it has less overhead.
     running: Mutex<Running>,
     metrics: Arc<ConsensusManagerMetrics>,
     registry_service: RegistryService,
@@ -49,8 +47,6 @@ pub struct StarfishManager {
     // Use a shared lazy starfish client so we can update the internal starfish
     // client that gets created for every new epoch.
     client: Arc<LazyStarfishClient>,
-    // TODO: https://github.com/iotaledger/iota/issues/8351
-    // Consider switching to parking_lot::Mutex as it has less overhead.
     consensus_handler: Mutex<Option<StarfishConsensusHandler>>,
     consumer_monitor: ArcSwapOption<CommitConsumerMonitor>,
 }
