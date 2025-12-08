@@ -2326,7 +2326,6 @@ mod test {
             (core_fixture_own.core, core_fixture_own.commit_receiver);
         let _ = core_own.add_blocks(dag_builder.blocks(1..=total_rounds), DataSource::Test);
         let mut existing_headers = HashSet::new();
-        let mut all_traversed_headers = Vec::new();
         let mut all_sequenced_transactions = Vec::new();
         // Check the commits that are produced after processing blocks.
         // Record traversed headers and sequenced transactions
@@ -2334,10 +2333,9 @@ mod test {
             let sub_dag_leader_round = sub_dag.leader.round;
             let CommittedSubDag { base, transactions } = sub_dag;
 
-            for header in &base.headers {
-                existing_headers.insert(header.reference());
+            for block_ref in &base.committed_header_refs {
+                existing_headers.insert(*block_ref);
             }
-            all_traversed_headers.extend(base.headers.clone());
             for transaction in &transactions {
                 // Transactions from all authors except authority_to_skip should also have a
                 // corresponding block_ref being traversed in the committed sub_dag

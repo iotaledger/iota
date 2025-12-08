@@ -205,6 +205,7 @@ impl CommitSolidifier {
             Ok(CommittedSubDag::new(
                 subdag.leader,
                 subdag.base.headers.clone(),
+                subdag.base.committed_header_refs.clone(),
                 transactions,
                 subdag.timestamp_ms,
                 subdag.commit_ref,
@@ -506,7 +507,11 @@ mod tests {
 
             PendingSubDag::new(
                 leader,
-                all_committed_block_headers,
+                all_committed_block_headers.clone(),
+                all_committed_block_headers
+                    .iter()
+                    .map(|h| h.reference())
+                    .collect(),
                 self.committed_refs,
                 123456,
                 CommitRef {
