@@ -358,7 +358,7 @@ impl TransactionBuilder {
         type_args: &[TypeTag],
         call_args: Vec<IotaJsonValue>,
     ) -> Result<Vec<CallArg>, anyhow::Error> {
-        let package = self.load_move_package(package_id).await?;
+        let package = self.fetch_move_package(package_id).await?;
 
         let module_compiled = package.deserialize_module(module, &BinaryConfig::standard())?;
         let function_str = function.as_ident_str();
@@ -463,26 +463,6 @@ impl TransactionBuilder {
 
     /// Helper function to get a Move Package for a provided ObjectID.
     async fn fetch_move_package(&self, package_id: ObjectID) -> Result<MovePackage, anyhow::Error> {
-        let object = self
-            .0
-            .get_object_with_options(package_id, IotaObjectDataOptions::bcs_lossless())
-            .await?
-            .into_object()?;
-        let Some(IotaRawData::Package(package)) = object.bcs else {
-            bail!("Bcs field in object [{package_id}] is missing or not a package.");
-        };
-        Ok(MovePackage::new(
-            package.id,
-            object.version,
-            package.module_map,
-            ProtocolConfig::get_for_min_version().max_move_package_size(),
-            package.type_origin_table,
-            package.linkage_table,
-        )?)
-    }
-
-    // Helper function to load a Move package from an object ID.
-    async fn load_move_package(&self, package_id: ObjectID) -> Result<MovePackage, anyhow::Error> {
         let object = self
             .0
             .get_object_with_options(package_id, IotaObjectDataOptions::bcs_lossless())
