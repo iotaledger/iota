@@ -460,6 +460,7 @@ public(package) fun advance_epoch(
     committee_size: u64,
     eligible_active_validators: vector<u64>,
     scores: vector<u64>,
+    adjust_rewards_by_score: bool,
     ctx: &mut TxContext,
 ) {
     let new_epoch = ctx.epoch() + 1;
@@ -486,6 +487,7 @@ public(package) fun advance_epoch(
         get_validator_indices_set(&self.active_validators, &slashed_validators),
         reward_slashing_rate,
         scores,
+        adjust_rewards_by_score,
     );
 
     // Distribute the rewards before adjusting stake so that we immediately start compounding
@@ -1332,6 +1334,7 @@ fun compute_adjusted_reward_distribution(
     slashed_validator_indices_set: VecSet<u64>,
     reward_slashing_rate: u64,
     scores: vector<u64>,
+    adjust_rewards_by_score: bool,
 ): vector<u64> {
     let mut adjusted_staking_reward_amounts = vector[];
 
@@ -1345,8 +1348,11 @@ fun compute_adjusted_reward_distribution(
         let unadjusted_staking_reward_amount = unadjusted_staking_reward_amounts[i];
 
         // Calculate staking reward amount adjusted for the validator's score
-        let score_adjusted_staking_reward_amount = scores[i] as u128 * (unadjusted_staking_reward_amount as u128)
-            / MAX_SCORE;
+        let score_adjusted_staking_reward_amount = if (adjust_rewards_by_score) {
+            scores[i] as u128 * (unadjusted_staking_reward_amount as u128) / MAX_SCORE
+        } else {
+            unadjusted_staking_reward_amount as u128
+        };
 
         // Check if the validator is slashed
         let adjusted_staking_reward_amount = if (

@@ -533,6 +533,7 @@ fun advance_epoch(
     max_committee_members_count: u64,
     eligible_active_validators: vector<u64>,
     scores : vector<u64>,
+    adjust_rewards_by_score: bool,
     ctx: &mut TxContext,
 ): Balance<IOTA> {
     let self = load_system_state_mut(wrapper);
@@ -552,6 +553,7 @@ fun advance_epoch(
         max_committee_members_count,
         eligible_active_validators,
         scores,
+        adjust_rewards_by_score,
         ctx,
     );
 
@@ -768,6 +770,7 @@ public(package) fun advance_epoch_for_testing(
     max_committee_members_count: u64,
     eligible_active_validators: vector<u64>,
     scores : vector<u64>,
+    adjust_rewards_by_score: bool,
     ctx: &mut TxContext,
 ): Balance<IOTA> {
     let storage_charge = balance::create_for_testing(storage_charge);
@@ -787,6 +790,7 @@ public(package) fun advance_epoch_for_testing(
         max_committee_members_count,
         eligible_active_validators,
         scores,
+        adjust_rewards_by_score,
         ctx,
     );
     storage_rebate
