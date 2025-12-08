@@ -6,6 +6,8 @@ include!("../../../generated/iota.grpc.v0.object.rs");
 include!("../../../generated/iota.grpc.v0.object.field_info.rs");
 include!("../../../generated/iota.grpc.v0.object.accessors.rs");
 
+use iota_types::iota_sdk_types_conversions::SdkTypeConversionError;
+
 use crate::{
     field::FieldMaskTree,
     merge::Merge,

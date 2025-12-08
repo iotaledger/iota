@@ -23,7 +23,6 @@ impl Merge<iota_types::effects::TransactionEffects> for TransactionEffects {
     }
 }
 
-// TODO: Wrap TransactionEffects into a type with a version
 impl Merge<&iota_sdk_types::TransactionEffects> for TransactionEffects {
     fn merge(
         &mut self,
@@ -32,12 +31,7 @@ impl Merge<&iota_sdk_types::TransactionEffects> for TransactionEffects {
     ) -> Result<(), Box<dyn std::error::Error>> {
         // Set digest if requested
         if mask.contains(Self::DIGEST_FIELD.name) {
-            let transaction_digest = match source {
-                iota_sdk_types::TransactionEffects::V1(effects) => &effects.transaction_digest,
-            };
-            self.digest = Some(Digest {
-                digest: transaction_digest.into_inner().to_vec().into(),
-            });
+            self.digest = Some(source.digest().into());
         }
 
         // Set BCS if requested
@@ -73,15 +67,13 @@ impl Merge<&iota_sdk_types::TransactionEvents> for TransactionEvents {
         source: &iota_sdk_types::TransactionEvents,
         mask: &FieldMaskTree,
     ) -> Result<(), Box<dyn std::error::Error>> {
-        // Note: digest is set from TransactionEffects.events_digest by the caller
-        // The digest should be obtained from the parent TransactionEffects, not
-        // computed here
+        // Set digest if requested
+        if mask.contains(Self::DIGEST_FIELD.name) {
+            self.digest = Some(source.digest().into());
+        }
 
-        // Set events if requested
         if let Some(events_mask) = mask.subtree(Self::EVENTS_FIELD.name) {
-            let mut proto_events = super::event::Events::default();
-            proto_events.merge(source, &events_mask)?;
-            self.events = Some(proto_events);
+            self.events = Some(super::event::Events::merge_from(source, &events_mask)?);
         }
 
         Ok(())
