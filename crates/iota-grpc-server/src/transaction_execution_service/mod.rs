@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 mod simulate;
+mod transaction;
 
 use std::{str::FromStr, sync::Arc};
 
@@ -30,6 +31,7 @@ use iota_types::{
 };
 use move_core_types::{annotated_value::MoveDatatypeLayout, language_storage::StructTag};
 use tonic::{Request, Response};
+pub use transaction::TransactionReadSource;
 
 use crate::{error::RpcError, types::GrpcReader};
 

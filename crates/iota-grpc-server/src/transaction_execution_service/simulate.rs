@@ -35,8 +35,8 @@ use iota_types::{
     transaction::TransactionDataAPI,
     transaction_executor::{TransactionExecutor, VmChecks},
 };
-use move_core_types::{annotated_value::MoveDatatypeLayout, language_storage::StructTag};
 
+use super::TransactionReadSource;
 use crate::{error::RpcError, types::GrpcReader};
 
 pub const SIMULATE_TRANSACTION_READ_MASK_DEFAULT: &str = crate::field_mask!(
