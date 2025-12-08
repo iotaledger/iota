@@ -158,7 +158,7 @@ impl CommitObserver {
     pub(crate) fn handle_committed_sub_dags(
         &mut self,
         committed_subdags: Vec<CommittedSubDag>,
-        source: Source
+        source: Source,
     ) -> ConsensusResult<()> {
         self.handle_committed_sub_dags_internal(&[], committed_subdags, source)
     }
@@ -167,7 +167,7 @@ impl CommitObserver {
         &mut self,
         pending_sub_dags: &[PendingSubDag],
         committed_subdags: Vec<CommittedSubDag>,
-        source: Source
+        source: Source,
     ) -> ConsensusResult<()> {
         let mut sent_sub_dags = Vec::with_capacity(committed_subdags.len());
         for solid_sub_dag in committed_subdags.iter() {
@@ -531,8 +531,9 @@ mod tests {
             .map(Option::unwrap)
             .collect::<Vec<_>>();
 
-        let (commits, _missing_transactions_refs) =
-            observer.handle_committed_leaders(leaders.clone(), Source::Consensus).unwrap();
+        let (commits, _missing_transactions_refs) = observer
+            .handle_committed_leaders(leaders.clone(), Source::Consensus)
+            .unwrap();
 
         // Check commits are returned by CommitObserver::handle_commit is accurate
         let mut expected_stored_refs: Vec<BlockRef> = vec![];
@@ -790,8 +791,9 @@ mod tests {
         // Commit all of the leaders and "receive" the subdags as the consumer of
         // the consensus output channel.
         let expected_last_processed_index: usize = 10;
-        let (created_commits, _missing_transactions_refs) =
-            observer.handle_committed_leaders(leaders.clone(), Source::Consensus).unwrap();
+        let (created_commits, _missing_transactions_refs) = observer
+            .handle_committed_leaders(leaders.clone(), Source::Consensus)
+            .unwrap();
 
         // Check commits sent over consensus output channel is accurate
         let mut processed_subdag_index = 0;

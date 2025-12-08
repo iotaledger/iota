@@ -22,8 +22,18 @@ use thiserror::Error;
 use tokio::sync::{oneshot, watch};
 use tracing::warn;
 
-use crate::{BlockHeaderAPI as _, VerifiedBlockHeader, block_header::{BlockRef, Round, VerifiedBlock, VerifiedOwnShard, VerifiedTransactions}, commit::CertifiedCommits, context::Context, core::{Core, ReasonToCreateBlock}, core_thread::CoreError::Shutdown, dag_state::{DagState, TransactionSource}, error::{ConsensusError, ConsensusResult}, transaction_ref::GenericTransactionRef, CommittedSubDag};
-use crate::commit_observer::Source;
+use crate::{
+    BlockHeaderAPI as _, CommittedSubDag, VerifiedBlockHeader,
+    block_header::{BlockRef, Round, VerifiedBlock, VerifiedOwnShard, VerifiedTransactions},
+    commit::CertifiedCommits,
+    commit_observer::Source,
+    context::Context,
+    core::{Core, ReasonToCreateBlock},
+    core_thread::CoreError::Shutdown,
+    dag_state::{DagState, TransactionSource},
+    error::{ConsensusError, ConsensusResult},
+    transaction_ref::GenericTransactionRef,
+};
 
 const CORE_THREAD_COMMANDS_CHANNEL_SIZE: usize = 2000;
 
@@ -77,9 +87,7 @@ enum CoreThreadCommand {
     GetMissingTransactionData(
         oneshot::Sender<BTreeMap<GenericTransactionRef, BTreeSet<AuthorityIndex>>>,
     ),
-    AddSubdagFromFastSync(
-        Vec<CommittedSubDag>, oneshot::Sender<()>
-    ),
+    AddSubdagFromFastSync(Vec<CommittedSubDag>, oneshot::Sender<()>),
 }
 
 #[derive(Error, Debug)]

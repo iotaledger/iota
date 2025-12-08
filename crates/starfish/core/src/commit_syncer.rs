@@ -327,7 +327,10 @@ impl<C: NetworkClient> CommitSyncer<C> {
                 } else {
                     // Found gap between earliest fetched block and latest synced block,
                     // so not sending additional blocks to Core.
-                    metrics.commit_sync_gap_on_processing.with_label_values(&["commit_sync"]).inc();
+                    metrics
+                        .commit_sync_gap_on_processing
+                        .with_label_values(&["commit_sync"])
+                        .inc();
                     break;
                 };
             // Avoid sending to Core a whole batch of already synced blocks.

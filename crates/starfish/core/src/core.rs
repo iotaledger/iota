@@ -32,8 +32,7 @@ use crate::storage::rocksdb_store::RocksDBStore;
 #[cfg(test)]
 use crate::{CommitConsumer, TransactionClient, storage::mem_store::MemStore};
 use crate::{
-    CommittedSubDag,
-    Transaction,
+    CommittedSubDag, Transaction,
     block_header::{
         BlockHeader, BlockHeaderAPI, BlockHeaderV1, BlockRef, BlockTimestampMs, GENESIS_ROUND,
         Round, SignedBlockHeader, Slot, TransactionsCommitment, VerifiedBlock, VerifiedBlockHeader,
@@ -41,7 +40,7 @@ use crate::{
     },
     block_manager::BlockManager,
     commit::{CertifiedCommits, PendingSubDag},
-    commit_observer::CommitObserver,
+    commit_observer::{CommitObserver, Source},
     context::Context,
     dag_state::{DagState, TransactionSource},
     encoder::{ShardEncoder, create_encoder},
@@ -54,7 +53,6 @@ use crate::{
         UniversalCommitter, universal_committer_builder::UniversalCommitterBuilder,
     },
 };
-use crate::commit_observer::Source;
 
 // Maximum number of commit votes to include in a block.
 // TODO: Move to protocol config, and verify in BlockVerifier.
@@ -440,7 +438,8 @@ impl Core {
         // Commit observer is called with an empty vector of new leaders to check if all
         // transactions are available for any currently pending subdags, without
         // creating any new commits.
-        self.commit_observer.handle_committed_leaders(Vec::new(), Source::Consensus)?;
+        self.commit_observer
+            .handle_committed_leaders(Vec::new(), Source::Consensus)?;
 
         Ok(())
     }
@@ -512,9 +511,10 @@ impl Core {
     pub(crate) fn handle_committed_sub_dags(
         &mut self,
         committed_subdags: Vec<CommittedSubDag>,
-        source: Source
+        source: Source,
     ) -> ConsensusResult<()> {
-        self.commit_observer.handle_committed_sub_dags(committed_subdags, source)
+        self.commit_observer
+            .handle_committed_sub_dags(committed_subdags, source)
     }
 
     /// If needed, signals a new clock round and sets up leader timeout.
