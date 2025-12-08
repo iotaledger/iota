@@ -28,7 +28,8 @@ use crate::{
     transaction_ref::GenericTransactionRef,
 };
 
-enum Source {
+#[derive(Clone, Copy)]
+pub(crate) enum Source {
     FastCommitSyncer,
     Consensus,
     Recover,
@@ -110,6 +111,7 @@ impl CommitObserver {
     pub(crate) fn handle_committed_leaders(
         &mut self,
         committed_leaders: Vec<VerifiedBlockHeader>,
+        source: Source,
     ) -> ConsensusResult<(
         Vec<PendingSubDag>,
         BTreeMap<GenericTransactionRef, BTreeSet<AuthorityIndex>>,
@@ -147,8 +149,28 @@ impl CommitObserver {
             .linearizer
             .get_transaction_ack_authors(missing_transactions);
 
-        let mut sent_sub_dags = Vec::with_capacity(solid_sub_dags.len());
-        for solid_sub_dag in solid_sub_dags.iter() {
+        // Send solid subdags using the common function
+        self.handle_committed_sub_dags_internal(&pending_sub_dags, solid_sub_dags, source)?;
+
+        Ok((pending_sub_dags, missing_transaction_acknowledgers))
+    }
+
+    pub(crate) fn handle_committed_sub_dags(
+        &mut self,
+        committed_subdags: Vec<CommittedSubDag>,
+        source: Source
+    ) -> ConsensusResult<()> {
+        self.handle_committed_sub_dags_internal(&[], committed_subdags, source)
+    }
+
+    fn handle_committed_sub_dags_internal(
+        &mut self,
+        pending_sub_dags: &[PendingSubDag],
+        committed_subdags: Vec<CommittedSubDag>,
+        source: Source
+    ) -> ConsensusResult<()> {
+        let mut sent_sub_dags = Vec::with_capacity(committed_subdags.len());
+        for solid_sub_dag in committed_subdags.iter() {
             // Skip commits that have already been sent
             if solid_sub_dag.commit_ref.index <= self.last_sent_commit_index {
                 debug!(
@@ -180,11 +202,11 @@ impl CommitObserver {
             self.last_sent_commit_index = solid_sub_dag.commit_ref.index;
             sent_sub_dags.push(solid_sub_dag);
         }
-        self.report_metrics(&pending_sub_dags, &solid_sub_dags);
+        self.report_metrics(pending_sub_dags, &committed_subdags, source);
 
         // Evict the ack tracker using the information from the latest solid subdag
-        if !solid_sub_dags.is_empty() {
-            let max_solid_commit_leader_round = solid_sub_dags
+        if !committed_subdags.is_empty() {
+            let max_solid_commit_leader_round = committed_subdags
                 .last()
                 .expect("There should be at least one solid subdag")
                 .leader
@@ -194,46 +216,6 @@ impl CommitObserver {
         }
         tracing::trace!("Committed & sent {sent_sub_dags:#?}");
 
-        Ok((pending_sub_dags, missing_transaction_acknowledgers))
-    }
-
-    pub(crate) fn handle_committed_sub_dags(
-        &mut self,
-        committed_subdags: Vec<CommittedSubDag>,
-        source: Source
-    ) -> ConsensusResult<()> {
-        for solid_sub_dag in committed_subdags.iter() {
-            // Skip commits that have already been sent
-            if solid_sub_dag.commit_ref.index <= self.last_sent_commit_index {
-                debug!(
-                    "Skipping already sent commit (index: {} <= last sent: {})",
-                    solid_sub_dag.commit_ref.index, self.last_sent_commit_index
-                );
-                continue;
-            }
-
-            // Ensure commits are sent in order - if we're skipping indices, something is
-            // wrong
-            assert_eq!(
-                solid_sub_dag.commit_ref.index,
-                self.last_sent_commit_index + 1,
-            );
-
-            // Failures in sender.send() are assumed to be permanent
-            if let Err(err) = self.sender.send(solid_sub_dag.clone()) {
-                tracing::error!(
-                    "Failed to send committed sub-dag, probably due to shutdown: {err:?}"
-                );
-                return Err(ConsensusError::Shutdown);
-            }
-            info!(
-                "Sending commit to execution (index: {}, leader {})",
-                solid_sub_dag.commit_ref, solid_sub_dag.leader
-            );
-
-            self.last_sent_commit_index = solid_sub_dag.commit_ref.index;
-        }
-        self.report_metrics(&[], &committed_subdags);
         Ok(())
     }
 
@@ -384,9 +366,15 @@ impl CommitObserver {
         &self,
         pending_sub_dags: &[PendingSubDag],
         committed_sub_dags: &[CommittedSubDag],
+        source: Source,
     ) {
         let metrics = &self.context.metrics.node_metrics;
         let utc_now = self.context.clock.timestamp_utc_ms();
+        let source_label = match source {
+            Source::FastCommitSyncer => "fast_commit_syncer",
+            Source::Consensus => "consensus",
+            Source::Recover => "recover",
+        };
 
         // First report block_header-related metrics for pending subdags
         for commit in pending_sub_dags {
@@ -405,6 +393,7 @@ impl CommitObserver {
                 .set(commit.commit_ref.index as i64);
             metrics
                 .blocks_per_commit_count
+                .with_label_values(&[source_label])
                 .observe(commit.headers.len() as f64);
 
             for header in &commit.headers {
@@ -422,6 +411,7 @@ impl CommitObserver {
                 .metrics
                 .node_metrics
                 .sub_dags_per_commit_count
+                .with_label_values(&[source_label])
                 .observe(pending_sub_dags.len() as f64);
         }
 
@@ -435,16 +425,20 @@ impl CommitObserver {
             );
 
             // Report the actual number of committed transactions
-            metrics.transactions_per_commit_count.observe(
-                commit
-                    .transactions
-                    .iter()
-                    .map(|x| x.transactions().len())
-                    .sum::<usize>() as f64,
-            );
+            metrics
+                .transactions_per_commit_count
+                .with_label_values(&[source_label])
+                .observe(
+                    commit
+                        .transactions
+                        .iter()
+                        .map(|x| x.transactions().len())
+                        .sum::<usize>() as f64,
+                );
             // Report the number of blocks committed with transactions per commit
             metrics
                 .non_empty_blocks_per_commit_count
+                .with_label_values(&[source_label])
                 .observe(commit.transactions.len() as f64);
             // Report the number of blocks committed with transactions per authority
             for verified_transaction in &commit.transactions {
@@ -538,7 +532,7 @@ mod tests {
             .collect::<Vec<_>>();
 
         let (commits, _missing_transactions_refs) =
-            observer.handle_committed_leaders(leaders.clone()).unwrap();
+            observer.handle_committed_leaders(leaders.clone(), Source::Consensus).unwrap();
 
         // Check commits are returned by CommitObserver::handle_commit is accurate
         let mut expected_stored_refs: Vec<BlockRef> = vec![];
@@ -663,6 +657,7 @@ mod tests {
                     .into_iter()
                     .take(expected_last_processed_index)
                     .collect::<Vec<_>>(),
+                Source::Consensus,
             )
             .unwrap();
 
@@ -699,6 +694,7 @@ mod tests {
                         .into_iter()
                         .skip(expected_last_processed_index)
                         .collect::<Vec<_>>(),
+                    Source::Consensus,
                 )
                 .unwrap()
                 .0,
@@ -795,7 +791,7 @@ mod tests {
         // the consensus output channel.
         let expected_last_processed_index: usize = 10;
         let (created_commits, _missing_transactions_refs) =
-            observer.handle_committed_leaders(leaders.clone()).unwrap();
+            observer.handle_committed_leaders(leaders.clone(), Source::Consensus).unwrap();
 
         // Check commits sent over consensus output channel is accurate
         let mut processed_subdag_index = 0;

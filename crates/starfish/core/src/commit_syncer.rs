@@ -280,6 +280,7 @@ impl<C: NetworkClient> CommitSyncer<C> {
         let metrics = &self.inner.context.metrics.node_metrics;
         metrics
             .commit_sync_fetched_commits
+            .with_label_values(&["commit_sync"])
             .inc_by(certified_commits.commits().len() as u64);
         metrics
             .commit_sync_fetched_block_headers
@@ -289,6 +290,7 @@ impl<C: NetworkClient> CommitSyncer<C> {
             .inc_by(total_headers_size_bytes);
         metrics
             .commit_sync_total_fetched_transactions_size
+            .with_label_values(&["commit_sync"])
             .inc_by(total_transactions_size_bytes);
 
         let (commit_start, commit_end) = (
@@ -324,7 +326,7 @@ impl<C: NetworkClient> CommitSyncer<C> {
                 } else {
                     // Found gap between earliest fetched block and latest synced block,
                     // so not sending additional blocks to Core.
-                    metrics.commit_sync_gap_on_processing.inc();
+                    metrics.commit_sync_gap_on_processing.with_label_values(&["commit_sync"]).inc();
                     break;
                 };
             // Avoid sending to Core a whole batch of already synced blocks.
@@ -433,7 +435,7 @@ impl<C: NetworkClient> CommitSyncer<C> {
                                 .hostname;
                             metrics
                                 .commit_sync_fetch_missing_transactions
-                                .with_label_values(&[hostname])
+                                .with_label_values(&[hostname.as_str(), "commit_sync"])
                                 .inc();
                         }
                     }

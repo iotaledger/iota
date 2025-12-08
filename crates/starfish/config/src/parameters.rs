@@ -101,6 +101,12 @@ pub struct Parameters {
     /// Tonic network settings.
     #[serde(default = "TonicParameters::default")]
     pub tonic: TonicParameters,
+
+    // Number of commits to fetch in a batch for fast commit syncer, also the maximum number of commits returned per
+    // fetch. If this value is set too small, fetching becomes inefficient.
+    // If this value is set too large, it can result in load imbalance and stragglers.
+    #[serde(default = "Parameters::default_fast_commit_sync_batch_size")]
+    pub fast_commit_sync_batch_size: u32,
 }
 
 impl Parameters {
@@ -212,6 +218,15 @@ impl Parameters {
     pub(crate) fn default_max_shards_per_bundle() -> usize {
         150
     }
+
+    pub(crate) fn default_fast_commit_sync_batch_size() -> u32 {
+        if cfg!(msim) {
+            // Exercise fast commit sync.
+            5
+        } else {
+            500
+        }
+    }
 }
 
 impl Default for Parameters {
@@ -238,6 +253,7 @@ impl Default for Parameters {
             max_headers_per_bundle: Parameters::default_max_headers_per_bundle(),
             max_shards_per_bundle: Parameters::default_max_shards_per_bundle(),
             tonic: TonicParameters::default(),
+            fast_commit_sync_batch_size: Parameters::default_fast_commit_sync_batch_size(),
         }
     }
 }

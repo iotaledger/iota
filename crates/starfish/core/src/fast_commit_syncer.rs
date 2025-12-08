@@ -194,7 +194,7 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
             .max(self.highest_scheduled_index.unwrap_or(0));
         // When the node is falling behind, schedule pending fetches which will be
         // executed on later.
-        let step = self.inner.context.parameters.commit_sync_batch_size;
+        let step = self.inner.context.parameters.fast_commit_sync_batch_size;
 
         for prev_end in (fetch_after_index..=quorum_commit_index).step_by(step as usize) {
             // Create range with inclusive start and end.
@@ -240,9 +240,11 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
         let metrics = &self.inner.context.metrics.node_metrics;
         metrics
             .commit_sync_fetched_commits
+            .with_label_values(&["fast_commit_sync"])
             .inc_by(certified_commits.commits().len() as u64);
         metrics
             .commit_sync_total_fetched_transactions_size
+            .with_label_values(&["fast_commit_sync"])
             .inc_by(total_transactions_size_bytes);
 
         let (commit_start, commit_end) = (
@@ -251,7 +253,7 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
         );
         self.highest_fetched_commit_index = self.highest_fetched_commit_index.max(commit_end);
         metrics
-            .commit_sync_highest_fetched_index
+            .fast_commit_sync_highest_fetched_index
             .set(self.highest_fetched_commit_index as i64);
 
         // Allow returning partial results, and try fetching the rest separately.
@@ -278,7 +280,7 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
                 } else {
                     // Found gap between earliest fetched block and latest synced block,
                     // so not sending additional blocks to Core.
-                    metrics.commit_sync_gap_on_processing.inc();
+                    metrics.commit_sync_gap_on_processing.with_label_values(&["fast_commit_sync"]).inc();
                     break;
                 };
             // Avoid sending to Core a whole batch of already synced blocks.
@@ -390,7 +392,7 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
                                 .hostname;
                             metrics
                                 .commit_sync_fetch_missing_transactions
-                                .with_label_values(&[hostname])
+                                .with_label_values(&[hostname.as_str(), "fast_commit_sync"])
                                 .inc();
                         }
                     }

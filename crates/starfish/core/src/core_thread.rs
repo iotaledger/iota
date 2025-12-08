@@ -22,17 +22,8 @@ use thiserror::Error;
 use tokio::sync::{oneshot, watch};
 use tracing::warn;
 
-use crate::{
-    BlockHeaderAPI as _, VerifiedBlockHeader,
-    block_header::{BlockRef, Round, VerifiedBlock, VerifiedOwnShard, VerifiedTransactions},
-    commit::CertifiedCommits,
-    context::Context,
-    core::{Core, ReasonToCreateBlock},
-    core_thread::CoreError::Shutdown,
-    dag_state::{DagState, TransactionSource},
-    error::{ConsensusError, ConsensusResult},
-    transaction_ref::GenericTransactionRef,
-};
+use crate::{BlockHeaderAPI as _, VerifiedBlockHeader, block_header::{BlockRef, Round, VerifiedBlock, VerifiedOwnShard, VerifiedTransactions}, commit::CertifiedCommits, context::Context, core::{Core, ReasonToCreateBlock}, core_thread::CoreError::Shutdown, dag_state::{DagState, TransactionSource}, error::{ConsensusError, ConsensusResult}, transaction_ref::GenericTransactionRef, CommittedSubDag};
+use crate::commit_observer::Source;
 
 const CORE_THREAD_COMMANDS_CHANNEL_SIZE: usize = 2000;
 
@@ -85,6 +76,9 @@ enum CoreThreadCommand {
     /// Get missing transaction data that need to be synced
     GetMissingTransactionData(
         oneshot::Sender<BTreeMap<GenericTransactionRef, BTreeSet<AuthorityIndex>>>,
+    ),
+    AddSubdagFromFastSync(
+        Vec<CommittedSubDag>, oneshot::Sender<()>
     ),
 }
 
@@ -190,6 +184,7 @@ impl CoreThread {
     #[cfg_attr(test,tracing::instrument(skip_all, name ="",fields(authority = %self.context.own_index)))]
     pub async fn run(mut self) -> ConsensusResult<()> {
         tracing::debug!("Started core thread");
+        let mut fast_sync_ongoing = false;
 
         loop {
             tokio::select! {
@@ -199,47 +194,80 @@ impl CoreThread {
                     };
                     self.context.metrics.node_metrics.core_lock_dequeued.inc();
                     match command {
-                        FastSync {
-                            bool idet fast sync = true;
+                        CoreThreadCommand::AddSubdagFromFastSync(subdags, sender) => {
+                            fast_sync_ongoing = true;
+                            let _scope = monitored_scope("CoreThread::loop::add_subdags_from_fast_sync");
+                            self.core.handle_committed_sub_dags(subdags, Source::FastCommitSyncer)?;
+                            sender.send(()).ok();
+
                         }
                         CoreThreadCommand::AddBlocks(blocks, sender) => {
-                            if idet fast sync {
-                                sender.send().ok();
+                            if fast_sync_ongoing {
+                                sender.send((Default::default(), Default::default())).ok();
+                                break;
                             }
                             let _scope = monitored_scope("CoreThread::loop::add_blocks");
                             let (missing_block_refs, missing_committed_txns) = self.core.add_blocks(blocks)?;
                             sender.send((missing_block_refs, missing_committed_txns)).ok();
                         }
                         CoreThreadCommand::AddBlockHeaders(block_headers, sender) => {
+                            if fast_sync_ongoing {
+                                sender.send((Default::default(), Default::default())).ok();
+                                break;
+                            }
                             let _scope = monitored_scope("CoreThread::loop::add_block_headers");
                             let (missing_block_refs, missing_committed_txns) = self.core.add_block_headers(block_headers)?;
                             sender.send((missing_block_refs, missing_committed_txns)).ok();
                         }
                         CoreThreadCommand::AddCertifiedCommits(commits, sender) => {
+                            if fast_sync_ongoing {
+                                sender.send((Default::default(), Default::default())).ok();
+                                break;
+                            }
                             let _scope = monitored_scope("CoreThread::loop::add_certified_commits");
                             let (missing_block_refs, missing_committed_txns) = self.core.add_certified_commits(commits)?;
                             sender.send((missing_block_refs, missing_committed_txns)).ok();
                         }
                         CoreThreadCommand::NewBlock(round, sender, reason) => {
+                            if fast_sync_ongoing {
+                                sender.send(Default::default()).ok();
+                                break;
+                            }
                             let _scope = monitored_scope("CoreThread::loop::new_block");
                             let (_new_block_opt, missing_committed_txns) = self.core.new_block(round, reason)?;
                             sender.send(missing_committed_txns).ok();
                         }
                         CoreThreadCommand::GetMissingBlocks(sender) => {
+                            if fast_sync_ongoing {
+                                sender.send(Default::default()).ok();
+                                break;
+                            }
                             let _scope = monitored_scope("CoreThread::loop::get_missing_blocks");
                             sender.send(self.core.get_missing_blocks()).ok();
                         }
                         CoreThreadCommand::AddTransactions(transactions, sender, source) => {
+                            if fast_sync_ongoing {
+                                sender.send(()).ok();
+                                break;
+                            }
                             let _scope = monitored_scope("CoreThread::loop::add_transactions");
                             self.core.add_transactions(transactions, source)?;
                             sender.send(()).ok();
                         }
                         CoreThreadCommand::AddShards(serialized_shards, sender) => {
+                            if fast_sync_ongoing {
+                                sender.send(()).ok();
+                                break;
+                            }
                             let _scope = monitored_scope("CoreThread::loop::add_shards");
                             self.core.add_shards(serialized_shards)?;
                             sender.send(()).ok();
                         }
                         CoreThreadCommand::GetMissingTransactionData(sender) => {
+                            if fast_sync_ongoing {
+                                sender.send(Default::default()).ok();
+                                break;
+                            }
                             let _scope = monitored_scope("CoreThread::loop::get_missing_transaction_data");
                             sender.send(self.core.get_missing_transaction_data()).ok();
                         }

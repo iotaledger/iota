@@ -30,8 +30,9 @@ use crate::storage::Store;
 #[cfg(test)]
 use crate::storage::rocksdb_store::RocksDBStore;
 #[cfg(test)]
-use crate::{CommitConsumer, CommittedSubDag, TransactionClient, storage::mem_store::MemStore};
+use crate::{CommitConsumer, TransactionClient, storage::mem_store::MemStore};
 use crate::{
+    CommittedSubDag,
     Transaction,
     block_header::{
         BlockHeader, BlockHeaderAPI, BlockHeaderV1, BlockRef, BlockTimestampMs, GENESIS_ROUND,
@@ -53,6 +54,7 @@ use crate::{
         UniversalCommitter, universal_committer_builder::UniversalCommitterBuilder,
     },
 };
+use crate::commit_observer::Source;
 
 // Maximum number of commit votes to include in a block.
 // TODO: Move to protocol config, and verify in BlockVerifier.
@@ -253,7 +255,7 @@ impl Core {
         // to storage. The returned committed subdags and missing transaction
         // refs can be ignored as the missing transactions will be fetched by the
         // periodic transactions' synchronizer.
-        self.try_commit().unwrap();
+        self.try_commit(Source::Recover).unwrap();
         let last_own_non_genesis_block =
             match self.try_propose(ReasonToCreateBlock::Recover).unwrap() {
                 (Some(block), _) => Some(block),
@@ -323,7 +325,7 @@ impl Core {
             );
 
             // Try to commit the new blocks if possible.
-            let (_subdags, new_missing_committed_txns) = self.try_commit()?;
+            let (_subdags, new_missing_committed_txns) = self.try_commit(Source::Consensus)?;
 
             // Try to propose now since there are new blocks accepted.
             self.try_propose(ReasonToCreateBlock::AddBlock)?;
@@ -385,7 +387,7 @@ impl Core {
             );
 
             // Try to commit the new blocks if possible.
-            let (_subdags, new_missing_committed_txns) = self.try_commit()?;
+            let (_subdags, new_missing_committed_txns) = self.try_commit(Source::Consensus)?;
 
             // Try to propose now since there are new blocks accepted.
             self.try_propose(ReasonToCreateBlock::AddBlockHeader)?;
@@ -438,7 +440,7 @@ impl Core {
         // Commit observer is called with an empty vector of new leaders to check if all
         // transactions are available for any currently pending subdags, without
         // creating any new commits.
-        self.commit_observer.handle_committed_leaders(Vec::new())?;
+        self.commit_observer.handle_committed_leaders(Vec::new(), Source::Consensus)?;
 
         Ok(())
     }
@@ -507,6 +509,14 @@ impl Core {
         self.add_block_headers(block_headers)
     }
 
+    pub(crate) fn handle_committed_sub_dags(
+        &mut self,
+        committed_subdags: Vec<CommittedSubDag>,
+        source: Source
+    ) -> ConsensusResult<()> {
+        self.commit_observer.handle_committed_sub_dags(committed_subdags, source)
+    }
+
     /// If needed, signals a new clock round and sets up leader timeout.
     fn try_signal_new_round(&mut self) {
         // Signal only when the threshold clock round is more advanced than the last
@@ -572,7 +582,7 @@ impl Core {
             fail_point!("consensus-after-propose");
 
             // The new block may help commit.
-            let (_, missing_committed_txns) = self.try_commit()?;
+            let (_, missing_committed_txns) = self.try_commit(Source::Consensus)?;
             return Ok((Some(verified_block), missing_committed_txns));
         }
         Ok((None, BTreeMap::new()))
@@ -837,6 +847,7 @@ impl Core {
     #[instrument(level = "trace", skip_all)]
     fn try_commit(
         &mut self,
+        source: Source,
     ) -> ConsensusResult<(
         Vec<PendingSubDag>,
         BTreeMap<GenericTransactionRef, BTreeSet<AuthorityIndex>>,
@@ -930,7 +941,7 @@ impl Core {
             // TODO: refcount subdags
             let (subdags, missing_transactions_refs) = self
                 .commit_observer
-                .handle_committed_leaders(sequenced_leaders)?;
+                .handle_committed_leaders(sequenced_leaders, source)?;
 
             // Check for duplicates before extending
             assert!(
@@ -1608,7 +1619,7 @@ mod test {
         }
 
         // Run commit rule.
-        core.try_commit().ok();
+        core.try_commit(Source::Consensus).ok();
         let last_commit = store
             .read_last_commit()
             .unwrap()
@@ -2553,7 +2564,7 @@ mod test {
 
         // Now try to commit up to the latest leader (round = 4). Do not provide any
         // certified commits.
-        let (committed_sub_dags, _) = core.try_commit().unwrap();
+        let (committed_sub_dags, _) = core.try_commit(Source::Consensus).unwrap();
 
         // We should have committed up to round 4
         assert_eq!(committed_sub_dags.len(), 4);
