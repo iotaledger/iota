@@ -375,7 +375,7 @@ mod tests {
     use super::*;
     use crate::{
         CommittedSubDag,
-        block_header::{BlockHeaderAPI as _, GENESIS_ROUND},
+        block_header::GENESIS_ROUND,
         transaction::NoopTransactionVerifier,
     };
 
@@ -570,11 +570,11 @@ mod tests {
                     if let Ok(Some(committed_subdag)) =
                         tokio::time::timeout(remaining, receiver.recv()).await
                     {
-                        for header in &committed_subdag.headers {
-                            if header.round() > GENESIS_ROUND {
-                                let author_index = header.author();
+                        for block_ref in &committed_subdag.base.committed_header_refs {
+                            if block_ref.round > GENESIS_ROUND {
+                                let author_index = block_ref.author;
                                 last_round_committed_blocks[author_index] =
-                                    max(last_round_committed_blocks[author_index], header.round());
+                                    max(last_round_committed_blocks[author_index], block_ref.round);
                             }
                         }
 
@@ -778,8 +778,8 @@ mod tests {
                 .await
                 .expect("Timed out while waiting for at least one committed block from authority 1")
         {
-            for header in &result.headers {
-                if header.round() > GENESIS_ROUND && header.author() == index_1 {
+            for block_ref in &result.base.committed_header_refs {
+                if block_ref.round > GENESIS_ROUND && block_ref.author == index_1 {
                     break 'outer;
                 }
             }
@@ -880,8 +880,8 @@ mod tests {
         // authority
         let received_from_authority_1 = timeout(Duration::from_secs(10), async {
             'outer: while let Some(result) = output_receivers[index_1].recv().await {
-                for header in &result.headers {
-                    if header.round() > GENESIS_ROUND && header.author() == index_1 {
+                for block_ref in &result.base.committed_header_refs {
+                    if block_ref.round > GENESIS_ROUND && block_ref.author == index_1 {
                         break 'outer;
                     }
                 }
