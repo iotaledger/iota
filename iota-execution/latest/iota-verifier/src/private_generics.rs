@@ -102,18 +102,18 @@ fn verify_function(view: &CompiledModule, fdef: &FunctionDefinition) -> Result<(
             let type_arguments = &view.signature_at(*type_parameters).0;
             let ident = addr_module(view, mhandle);
             if ident == (IOTA_FRAMEWORK_ADDRESS, TRANSFER_MODULE) {
-                verify_private_transfer(view, fhandle, type_arguments)?
+                verify_private_transfer_module_functions(view, fhandle, type_arguments)?
             } else if ident == (IOTA_FRAMEWORK_ADDRESS, EVENT_MODULE) {
                 verify_private_event_emit(view, fhandle, type_arguments)?
             } else if ident == (IOTA_FRAMEWORK_ADDRESS, ACCOUNT_MODULE) {
-                verify_private_account(view, fhandle, type_arguments)?
+                verify_private_account_module_functions(view, fhandle, type_arguments)?
             }
         }
     }
     Ok(())
 }
 
-fn verify_private_transfer(
+fn verify_private_transfer_module_functions(
     view: &CompiledModule,
     fhandle: &FunctionHandle,
     type_arguments: &[SignatureToken],
@@ -154,7 +154,7 @@ fn verify_private_transfer(
     Ok(())
 }
 
-fn verify_private_account(
+fn verify_private_account_module_functions(
     view: &CompiledModule,
     fhandle: &FunctionHandle,
     type_arguments: &[SignatureToken],
