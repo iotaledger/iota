@@ -180,20 +180,36 @@ impl CommitSolidifier {
         &self,
         subdag: &PendingSubDag,
     ) -> Result<CommittedSubDag, Vec<GenericTransactionRef>> {
-        let transactions = self
-            .dag_state
-            .read()
-            .try_get_all_verified_transactions(&subdag.committed_transaction_refs)?;
+        let dag_state = self.dag_state.read();
+        // Get transactions and check if any are missing
+        let transaction_results =
+            dag_state.get_verified_transactions(&subdag.committed_transaction_refs);
+        let mut missing = Vec::new();
+        for (i, tx_opt) in transaction_results.iter().enumerate() {
+            if tx_opt.is_none() {
+                missing.push(subdag.committed_transaction_refs[i]);
+            }
+        }
 
-        Ok(CommittedSubDag::new(
-            subdag.leader,
-            subdag.base.headers.clone(),
-            subdag.base.committed_header_refs.clone(),
-            transactions,
-            subdag.timestamp_ms,
-            subdag.commit_ref,
-            subdag.reputation_scores_desc.clone(),
-        ))
+        if missing.is_empty() {
+            // All transactions exist, so we can create a CommittedSubDag
+            let transactions = transaction_results
+                .into_iter()
+                .map(|tx| tx.expect("Transaction must exist since we checked"))
+                .collect();
+
+            Ok(CommittedSubDag::new(
+                subdag.leader,
+                subdag.base.headers.clone(),
+                subdag.base.committed_header_refs.clone(),
+                transactions,
+                subdag.timestamp_ms,
+                subdag.commit_ref,
+                subdag.reputation_scores_desc.clone(),
+            ))
+        } else {
+            Err(missing)
+        }
     }
 }
 
