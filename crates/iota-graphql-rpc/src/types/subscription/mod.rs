@@ -1,10 +1,15 @@
 // Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use std::num::NonZeroUsize;
+
 use async_graphql::{Context, OutputType, ResultExt, SimpleObject, Subscription, Union};
 use futures::{Stream, StreamExt, TryStreamExt, future};
 use iota_indexer::read::IndexerReader;
-use iota_indexer_streaming::{memory::InMemory, metrics::InMemoryStreamMetrics};
+use iota_indexer_streaming::{
+    memory::{Config, InMemory},
+    metrics::InMemoryStreamMetrics,
+};
 use iota_json_rpc_types::Filter;
 use iota_types::supported_protocol_versions::Chain;
 use prometheus::Registry;
@@ -22,6 +27,10 @@ use crate::{
 };
 
 mod filter;
+
+/// Represents the channel size of the [`InMemory`] broker.
+const BROKER_CHANNEL_SIZE: NonZeroUsize =
+    NonZeroUsize::new(10_000).expect("value should be greater than 0");
 
 /// Notifies that the subscription consumer has fallen behind the live
 /// subscription stream and missed one or more payloads.
@@ -134,9 +143,13 @@ impl GraphQLStream {
         indexer_reader: IndexerReader,
         registry: &Registry,
     ) -> Result<Self, Error> {
+        let config = Config {
+            channel_buffer_size: BROKER_CHANNEL_SIZE,
+            ..Default::default()
+        };
         let streamer = InMemory::new(
             db_url,
-            Default::default(),
+            config,
             indexer_reader,
             InMemoryStreamMetrics::new(registry),
         )

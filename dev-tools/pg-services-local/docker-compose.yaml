@@ -5,8 +5,12 @@ services:
       context: ../../
       dockerfile: docker/iota/Dockerfile
       args:
-        - GIT_REVISION
+        - RUST_IMAGE_VERSION=${RUST_IMAGE_VERSION:-bookworm}
+        - PROFILE=release
+        - TARGET_FOLDER=target/release
+        - CARGO_BUILD_FEATURES=${CARGO_BUILD_FEATURES:-default}
         - BUILD_DATE
+        - GIT_REVISION
     container_name: local-network
     hostname: local-network
     restart: on-failure
@@ -42,9 +46,12 @@ services:
       context: ../../
       dockerfile: docker/iota-indexer/Dockerfile
       args:
-        - GIT_REVISION
-        - BUILD_DATE
+        - RUST_IMAGE_VERSION=${RUST_IMAGE_VERSION:-bookworm}
         - PROFILE=dev
+        - TARGET_FOLDER=target/debug
+        - CARGO_BUILD_FEATURES=${CARGO_BUILD_FEATURES:-default}
+        - BUILD_DATE
+        - GIT_REVISION
     container_name: indexer-sync
     hostname: indexer-sync
     restart: on-failure
@@ -123,9 +130,12 @@ services:
       context: ../../
       dockerfile: docker/iota-graphql-rpc/Dockerfile
       args:
-        - GIT_REVISION
-        - BUILD_DATE
+        - RUST_IMAGE_VERSION=${RUST_IMAGE_VERSION:-bookworm}
         - PROFILE=dev
+        - TARGET_FOLDER=target/debug
+        - CARGO_BUILD_FEATURES=${CARGO_BUILD_FEATURES:-default}
+        - BUILD_DATE
+        - GIT_REVISION
     container_name: graphql-server
     hostname: graphql-server
     restart: on-failure

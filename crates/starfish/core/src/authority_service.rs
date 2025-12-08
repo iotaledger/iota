@@ -769,13 +769,40 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
 
         // Get requested block headers from store.
         let serialized_headers = if commit_sync_handle {
-            // For commit sync, we respond with all blocks from the store
-            self.dag_state
-                .read()
-                .get_serialized_block_headers(&block_refs)
-                .into_iter()
-                .flatten()
-                .collect()
+            // For commit sync, optimize by fetching from store for headers below GC round
+            let gc_round = self.dag_state.read().gc_round_for_last_solid_commit();
+
+            // Partition block_refs into those below and at-or-above GC round
+            let (below_gc, above_gc): (Vec<_>, Vec<_>) = block_refs
+                .iter()
+                .partition(|block_ref| block_ref.round < gc_round);
+
+            let mut headers = Vec::new();
+
+            // Read headers below GC from store
+            if !below_gc.is_empty() {
+                let store_headers = self
+                    .store
+                    .read_serialized_block_headers(&below_gc)?
+                    .into_iter()
+                    .flatten()
+                    .collect::<Vec<_>>();
+                headers.extend(store_headers);
+            }
+
+            // Read headers at-or-above GC from dag_state
+            if !above_gc.is_empty() {
+                let dag_headers = self
+                    .dag_state
+                    .read()
+                    .get_serialized_block_headers(&above_gc)
+                    .into_iter()
+                    .flatten()
+                    .collect::<Vec<_>>();
+                headers.extend(dag_headers);
+            }
+
+            headers
         } else {
             // For periodic or live synchronizer, we respond with requested blocks from the
             // store and with additional blocks from the cache
@@ -991,21 +1018,46 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             &self.context.committee,
         )?;
 
-        // Get the transactions from the dag state
-        let transactions = self
-            .dag_state
-            .read()
-            .get_serialized_transactions(&block_refs);
+        // Optimize by reading from store for transactions below GC round
+        let gc_round = self.dag_state.read().gc_round_for_last_solid_commit();
 
-        // Return the serialized transactions
-        let result: Vec<_> = transactions
+        // Partition block_refs into those below and at-or-above GC round
+        let (below_gc, above_gc): (Vec<_>, Vec<_>) = block_refs
+            .iter()
+            .partition(|block_ref| block_ref.round < gc_round);
+
+        // Fetch transactions below GC from store
+        let store_transactions = if !below_gc.is_empty() {
+            self.store
+                .read_serialized_transactions(&below_gc)?
+                .into_iter()
+                .zip(below_gc.iter())
+                .collect::<Vec<_>>()
+        } else {
+            vec![]
+        };
+
+        // Fetch transactions at-or-above GC from dag_state
+        let dag_transactions = if !above_gc.is_empty() {
+            self.dag_state
+                .read()
+                .get_serialized_transactions(&above_gc)
+                .into_iter()
+                .zip(above_gc.iter())
+                .collect::<Vec<_>>()
+        } else {
+            vec![]
+        };
+
+        // Combine and serialize the results
+        let result: Vec<_> = store_transactions
             .into_iter()
-            .zip(block_refs)
+            .chain(dag_transactions.into_iter())
             .filter_map(|(opt_serialized_tx, block_ref)| {
                 opt_serialized_tx.map(|serialized_tx| {
                     Bytes::from(
                         bcs::to_bytes(&SerializedTransactions {
-                            block_ref,
+                            block_ref: *block_ref,
                             serialized_transactions: serialized_tx,
                         })
                         .map_err(ConsensusError::SerializationFailure)

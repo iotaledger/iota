@@ -19,6 +19,7 @@ clap.workspace = true
 csv = "1.2"
 fastcrypto.workspace = true
 flate2.workspace = true
+iota-sdk-types.workspace = true
 itertools.workspace = true
 packable = { version = "0.8", default-features = false, features = ["io"] }
 prefix-hex = "0.7"
@@ -54,7 +55,6 @@ move-compiler.workspace = true
 move-core-types.workspace = true
 move-package.workspace = true
 move-vm-runtime-latest = { path = "../../external-crates/move/crates/move-vm-runtime", package = "move-vm-runtime" }
-shared-crypto.workspace = true
 
 [target.'cfg(msim)'.dependencies]
 iota-simulator.workspace = true

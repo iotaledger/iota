@@ -19,6 +19,7 @@ fastcrypto.workspace = true
 fastcrypto-tbls.workspace = true
 futures.workspace = true
 governor.workspace = true
+iota-sdk-types.workspace = true
 prometheus.workspace = true
 rand.workspace = true
 serde.workspace = true
@@ -36,7 +37,6 @@ iota-metrics.workspace = true
 iota-network-stack.workspace = true
 iota-storage.workspace = true
 iota-types.workspace = true
-shared-crypto.workspace = true
 
 [build-dependencies]
 anemo-build.workspace = true

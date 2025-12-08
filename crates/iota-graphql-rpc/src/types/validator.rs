@@ -34,7 +34,6 @@ use crate::{
         move_object::MoveObject,
         object::Object,
         owner::Owner,
-        system_state_summary::SystemStateSummaryView,
         uint53::UInt53,
         validator_credentials::ValidatorCredentials,
     },

@@ -20,6 +20,7 @@ use iota_json_rpc_types::{
 use iota_keys::keystore::AccountKeystore;
 use iota_metrics::spawn_monitored_task;
 use iota_sdk::wallet_context::WalletContext;
+use iota_sdk_types::crypto::Intent;
 use iota_types::{
     base_types::{IotaAddress, ObjectID, TransactionDigest},
     gas_coin::GasCoin,
@@ -29,7 +30,6 @@ use iota_types::{
     transaction::{Transaction, TransactionData},
 };
 use prometheus::Registry;
-use shared_crypto::intent::Intent;
 use tap::tap::TapFallible;
 use tokio::{
     sync::{
@@ -1183,8 +1183,8 @@ mod tests {
     use anyhow::*;
     use iota_json_rpc_types::{IotaExecutionStatus, IotaTransactionBlockEffects};
     use iota_sdk::wallet_context::WalletContext;
+    use iota_sdk_types::crypto::Intent;
     use iota_types::transaction::{SenderSignedData, TransactionDataAPI};
-    use shared_crypto::intent::Intent;
     use test_cluster::TestClusterBuilder;
 
     use super::*;

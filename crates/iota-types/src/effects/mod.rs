@@ -7,9 +7,9 @@ use std::collections::{BTreeMap, BTreeSet};
 use effects_v1::TransactionEffectsV1;
 pub use effects_v1::UnchangedSharedKind;
 use enum_dispatch::enum_dispatch;
+use iota_sdk_types::crypto::{Intent, IntentScope};
 pub use object_change::{EffectsObjectChange, ObjectIn, ObjectOut};
 use serde::{Deserialize, Serialize};
-use shared_crypto::intent::{Intent, IntentScope};
 pub use test_effects_builder::TestEffectsBuilder;
 
 use crate::{
