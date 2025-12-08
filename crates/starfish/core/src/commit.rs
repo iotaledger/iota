@@ -368,8 +368,20 @@ pub type CommitVote = CommitRef;
 pub struct SubDagBase {
     /// A reference to the leader of the sub-dag
     pub leader: BlockRef,
-    /// All the block headers that are traversed on DAG starting with the leader
+
+    /// All the block headers that are traversed on DAG starting with the
+    /// leader.
+    ///
+    /// Required for leader scoring (ancestors) and metrics (timestamp_ms).
+    /// In the future, it may be optional when syncing via FastCommitSyncer.
     pub headers: Vec<VerifiedBlockHeader>,
+
+    /// Block references of committed headers.
+    ///
+    /// Used for operations that only need reference data (round, author,
+    /// digest) without full header details. Removes dependency on the
+    /// optional headers field in ConsensusOutputAPI trait implementation.
+    pub committed_header_refs: Vec<BlockRef>,
     /// The timestamp of the commit, obtained from the timestamp of the leader
     /// block.
     pub timestamp_ms: BlockTimestampMs,
@@ -409,17 +421,6 @@ impl SubDagBase {
             .map(|(round_auth, set)| (round_auth, set.into_iter().collect()))
             .collect()
     }
-
-    /// Helper method to format blocks consistently for display
-    fn format_block_refs(&self) -> String {
-        format_block_digests(
-            &self
-                .headers
-                .iter()
-                .map(|b| b.reference())
-                .collect::<Vec<_>>(),
-        )
-    }
 }
 
 impl Display for SubDagBase {
@@ -429,7 +430,7 @@ impl Display for SubDagBase {
             "CommittedSubDag(leader={}, ref={}, blocks=[{}])",
             self.leader,
             self.commit_ref,
-            self.format_block_refs(),
+            format_block_digests(&self.committed_header_refs),
         )
     }
 }
@@ -441,7 +442,7 @@ impl fmt::Debug for SubDagBase {
             "{}@{} ([{}];{}ms;rs{:?})",
             self.leader,
             self.commit_ref,
-            self.format_block_refs(),
+            format_block_digests(&self.committed_header_refs),
             self.timestamp_ms,
             self.reputation_scores_desc
         )
@@ -467,6 +468,7 @@ impl CommittedSubDag {
     pub fn new(
         leader: BlockRef,
         headers: Vec<VerifiedBlockHeader>,
+        committed_header_refs: Vec<BlockRef>,
         transactions: Vec<VerifiedTransactions>,
         timestamp_ms: BlockTimestampMs,
         commit_ref: CommitRef,
@@ -476,6 +478,7 @@ impl CommittedSubDag {
             base: SubDagBase {
                 leader,
                 headers,
+                committed_header_refs,
                 timestamp_ms,
                 commit_ref,
                 reputation_scores_desc,
@@ -508,7 +511,7 @@ impl Display for CommittedSubDag {
             "CommittedSubDag(leader={}, ref={}, blocks=[{}], committed_transactions=[{}])",
             self.leader,
             self.commit_ref,
-            self.base.format_block_refs(),
+            format_block_digests(&self.committed_header_refs),
             self.format_transaction_refs(),
         )
     }
@@ -521,7 +524,7 @@ impl fmt::Debug for CommittedSubDag {
             "{}@{} ([{}];[{}];{}ms;rs{:?})",
             self.leader,
             self.commit_ref,
-            self.base.format_block_refs(),
+            format_block_digests(&self.committed_header_refs),
             self.format_transaction_refs(),
             self.timestamp_ms,
             self.reputation_scores_desc
@@ -556,6 +559,7 @@ impl PendingSubDag {
     pub fn new(
         leader: BlockRef,
         headers: Vec<VerifiedBlockHeader>,
+        committed_header_refs: Vec<BlockRef>,
         committed_transaction_refs: Vec<BlockRef>,
         timestamp_ms: BlockTimestampMs,
         commit_ref: CommitRef,
@@ -565,6 +569,7 @@ impl PendingSubDag {
             base: SubDagBase {
                 leader,
                 headers,
+                committed_header_refs,
                 timestamp_ms,
                 commit_ref,
                 reputation_scores_desc,
@@ -589,7 +594,7 @@ impl Display for PendingSubDag {
             "PendingSubDag(leader={}, ref={}, blocks=[{}], committed_transactions=[{}])",
             self.leader,
             self.commit_ref,
-            self.base.format_block_refs(),
+            format_block_digests(&self.committed_header_refs),
             format_block_digests(&self.committed_transaction_refs),
         )
     }
@@ -602,7 +607,7 @@ impl fmt::Debug for PendingSubDag {
             "{}@{} ([{}];[{}];{}ms;rs{:?})",
             self.leader,
             self.commit_ref,
-            self.base.format_block_refs(),
+            format_block_digests(&self.committed_header_refs),
             format_block_digests(&self.committed_transaction_refs),
             self.timestamp_ms,
             self.reputation_scores_desc
@@ -647,7 +652,8 @@ pub fn load_pending_subdag_from_store(
     PendingSubDag::new(
         leader_block_ref,
         block_headers,
-        commit.committed_transactions().clone(),
+        commit.blocks().to_vec(),
+        commit.committed_transactions(),
         commit.timestamp_ms(),
         commit.reference(),
         reputation_scores_desc,
@@ -861,12 +867,13 @@ impl Debug for CommitRange {
 mod tests {
     use std::sync::Arc;
 
-    use super::*;
     use crate::{
+        BlockHeaderAPI, BlockTimestampMs, CommitDigest, VerifiedBlockHeader,
         block_header::{TestBlockHeader, VerifiedBlock},
+        commit::{CommitRange, TrustedCommit, WAVE_LENGTH, load_pending_subdag_from_store},
         context::Context,
         encoder::create_encoder,
-        storage::{WriteBatch, mem_store::MemStore},
+        storage::{Store, WriteBatch, mem_store::MemStore},
     };
 
     #[tokio::test]

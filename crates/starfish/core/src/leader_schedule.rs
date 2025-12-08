@@ -441,7 +441,7 @@ mod tests {
         block_header::{
             BlockHeaderDigest, BlockRef, BlockTimestampMs, TestBlockHeader, VerifiedBlockHeader,
         },
-        commit::{CommitDigest, CommitInfo, CommitRef, CommittedSubDag, TrustedCommit},
+        commit::{CommitAPI, CommitDigest, CommitInfo, CommitRef, CommittedSubDag, TrustedCommit},
         storage::{Store, WriteBatch, mem_store::MemStore},
         test_dag_builder::DagBuilder,
     };
@@ -684,6 +684,7 @@ mod tests {
                 BlockRef::new(1, AuthorityIndex::ZERO, BlockHeaderDigest::MIN),
                 vec![],
                 vec![],
+                vec![],
                 context.clock.timestamp_utc_ms(),
                 CommitRef::new(1, CommitDigest::MIN),
                 vec![],
@@ -784,6 +785,7 @@ mod tests {
             CommittedSubDag::new(
                 leader_ref,
                 blocks,
+                last_commit.blocks().to_vec(),
                 vec![], // Committed transactions are not important for this test.
                 context.clock.timestamp_utc_ms(),
                 last_commit.reference(),

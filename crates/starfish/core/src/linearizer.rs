@@ -156,6 +156,7 @@ impl Linearizer {
         let sub_dag = PendingSubDag::new(
             leader_block.reference(),
             to_commit,
+            commit.blocks().to_vec(),
             commit.committed_transactions(),
             timestamp_ms,
             commit.reference(),
@@ -525,8 +526,8 @@ mod tests {
                 // from 2 rounds before the leader round
                 assert_eq!(subdag.committed_transaction_refs.len(), num_authorities);
             }
-            for header in subdag.headers.iter() {
-                assert!(header.round() <= leaders[idx].round());
+            for block_ref in subdag.base.committed_header_refs.iter() {
+                assert!(block_ref.round <= leaders[idx].round());
             }
 
             for committed_transactions_ref in subdag.committed_transaction_refs.iter() {
@@ -728,17 +729,9 @@ mod tests {
         // Using the same sorting as used in CommittedSubDag::sort
         block_refs_wave_2
             .sort_by(|a, b| a.round.cmp(&b.round).then_with(|| a.author.cmp(&b.author)));
-        assert_eq!(
-            subdag
-                .headers
-                .clone()
-                .into_iter()
-                .map(|b| b.reference())
-                .collect::<Vec<_>>(),
-            block_refs_wave_2
-        );
-        for header in subdag.headers.iter() {
-            assert!(header.round() <= expected_second_commit.leader().round);
+        assert_eq!(subdag.committed_header_refs, block_refs_wave_2);
+        for block_ref in subdag.base.committed_header_refs.iter() {
+            assert!(block_ref.round <= expected_second_commit.leader().round);
         }
     }
 
@@ -882,8 +875,8 @@ mod tests {
                     assert_eq!(authors, (0..=3).map(AuthorityIndex::new_for_test).collect());
                 }
             }
-            for header in subdag.headers.iter() {
-                assert!(header.round() <= leaders[idx].round());
+            for block_ref in subdag.base.committed_header_refs.iter() {
+                assert!(block_ref.round <= leaders[idx].round());
             }
 
             for committed_transactions_ref in subdag.committed_transaction_refs.iter() {

@@ -19,7 +19,7 @@ use crate::{
         TestBlockHeader, Transaction, TransactionsCommitment, VerifiedBlock, VerifiedBlockHeader,
         VerifiedTransactions, genesis_block_headers,
     },
-    commit::{CertifiedCommit, CommitDigest, TrustedCommit, WAVE_LENGTH},
+    commit::{CertifiedCommit, CommitAPI, CommitDigest, TrustedCommit, WAVE_LENGTH},
     context::Context,
     dag_state::{DagState, TransactionSource},
     encoder::{ShardEncoder, create_encoder},
@@ -322,6 +322,7 @@ impl DagBuilder {
             let sub_dag = CommittedSubDag::new(
                 leader_block_ref,
                 to_commit,
+                commit.blocks().to_vec(),
                 vec![],
                 last_timestamp_ms,
                 commit.reference(),
