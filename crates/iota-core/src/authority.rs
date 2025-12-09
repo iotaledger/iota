@@ -926,6 +926,7 @@ impl AuthorityState {
             tx_data.sender(),
             &tx_checked_input_objects,
             &tx_receiving_objects,
+            &auth_checked_input_objects,
             &self.get_object_store(),
         )?;
 
