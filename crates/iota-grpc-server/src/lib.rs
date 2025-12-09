@@ -9,6 +9,7 @@ pub mod macros;
 pub mod server;
 pub mod transaction_execution_service;
 pub mod types;
+pub mod utils;
 
 // Re-export commonly used types and traits
 pub use ledger_service::LedgerGrpcService;

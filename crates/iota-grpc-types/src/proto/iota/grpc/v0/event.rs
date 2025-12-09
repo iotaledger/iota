@@ -6,9 +6,7 @@ include!("../../../generated/iota.grpc.v0.event.rs");
 include!("../../../generated/iota.grpc.v0.event.field_info.rs");
 include!("../../../generated/iota.grpc.v0.event.accessors.rs");
 
-use iota_json_rpc_types::{IotaEvent, type_and_fields_from_move_event_data};
-use iota_types::object::bounded_visitor::BoundedVisitor;
-use prost_types::value::Kind;
+use iota_json_rpc_types::IotaEvent;
 
 use crate::{
     field::FieldMaskTree,
@@ -112,74 +110,5 @@ impl Merge<&iota_sdk_types::Event> for grpc_event::Event {
         // type layout information which is not available at this level.
         // The caller should use `populate_json_contents_with_layout` if
         // json_contents is needed.
-    }
-}
-
-/// Convert serde_json::Value to prost_types::Value
-fn json_to_prost_value(value: serde_json::Value) -> Option<prost_types::Value> {
-    let kind = match value {
-        serde_json::Value::Null => Kind::NullValue(0),
-        serde_json::Value::Bool(b) => Kind::BoolValue(b),
-        serde_json::Value::Number(n) => {
-            if let Some(i) = n.as_i64() {
-                Kind::NumberValue(i as f64)
-            } else if let Some(u) = n.as_u64() {
-                Kind::NumberValue(u as f64)
-            } else if let Some(f) = n.as_f64() {
-                Kind::NumberValue(f)
-            } else {
-                return None;
-            }
-        }
-        serde_json::Value::String(s) => Kind::StringValue(s),
-        serde_json::Value::Array(arr) => {
-            let values: Option<Vec<prost_types::Value>> =
-                arr.into_iter().map(json_to_prost_value).collect();
-            Kind::ListValue(prost_types::ListValue { values: values? })
-        }
-        serde_json::Value::Object(obj) => {
-            let mut fields = std::collections::BTreeMap::new();
-            for (k, v) in obj {
-                let prost_v = json_to_prost_value(v)?;
-                fields.insert(k, prost_v);
-            }
-            Kind::StructValue(prost_types::Struct { fields })
-        }
-    };
-
-    Some(prost_types::Value { kind: Some(kind) })
-}
-
-impl grpc_event::Event {
-    /// Populate json_contents for this event using the provided Move type
-    /// layout. This uses `type_and_fields_from_move_event_data` to convert
-    /// BCS contents to JSON.
-    ///
-    /// Returns true if json_contents was successfully populated, false
-    /// otherwise.
-    pub fn populate_json_contents_with_layout(
-        &mut self,
-        event: &iota_sdk_types::Event,
-        layout: &move_core_types::annotated_value::MoveDatatypeLayout,
-    ) -> bool {
-        // Deserialize BCS contents using the layout
-        let Ok(move_value) =
-            BoundedVisitor::deserialize_value(&event.contents, &layout.clone().into_layout())
-        else {
-            return false;
-        };
-
-        // Convert to JSON using type_and_fields_from_move_event_data
-        let Ok((_type, json_value)) = type_and_fields_from_move_event_data(move_value) else {
-            return false;
-        };
-
-        // Convert serde_json::Value to prost_types::Value
-        let Some(prost_value) = json_to_prost_value(json_value) else {
-            return false;
-        };
-
-        self.json_contents = Some(Box::new(prost_value));
-        true
     }
 }
