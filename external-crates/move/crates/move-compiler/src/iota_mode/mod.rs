@@ -73,11 +73,23 @@ pub const SHARE_FUNCTION_NAME: Symbol = symbol!("share_object");
 pub const RECEIVE_FUNCTION_NAME: Symbol = symbol!("receive");
 pub const RECEIVING_TYPE_NAME: Symbol = symbol!("Receiving");
 
+pub const ACCOUNT_MODULE_NAME: Symbol = symbol!("account");
+pub const CREATE_ACCOUNT_V1_FUNCTION_NAME: Symbol = symbol!("create_account_v1");
+pub const CREATE_IMMUTABLE_ACCOUNT_V1_FUNCTION_NAME: Symbol =
+    symbol!("create_immutable_account_v1");
+pub const ROTATE_AUTH_INFO_V1_FUNCTION_NAME: Symbol = symbol!("rotate_auth_info_v1");
+
 pub const PRIVATE_TRANSFER_FUNCTIONS: &[Symbol] = &[
     TRANSFER_FUNCTION_NAME,
     FREEZE_FUNCTION_NAME,
     SHARE_FUNCTION_NAME,
     RECEIVE_FUNCTION_NAME,
+];
+
+pub const PRIVATE_ACCOUNT_FUNCTIONS: &[Symbol] = &[
+    CREATE_ACCOUNT_V1_FUNCTION_NAME,
+    CREATE_IMMUTABLE_ACCOUNT_V1_FUNCTION_NAME,
+    ROTATE_AUTH_INFO_V1_FUNCTION_NAME,
 ];
 
 //**************************************************************************************************
@@ -171,6 +183,15 @@ pub const PRIVATE_TRANSFER_CALL_DIAG: DiagnosticInfo = custom(
     // code
     9,
     "invalid private transfer call",
+);
+pub const PRIVATE_ACCOUNT_CALL_DIAG: DiagnosticInfo = custom(
+    IOTA_DIAG_PREFIX,
+    Severity::NonblockingError,
+    // category
+    TYPING,
+    // code
+    10,
+    "invalid private account call",
 );
 
 // Bridge supported asset

@@ -24,14 +24,9 @@ public fun create(
     authenticator: AuthenticatorInfoV1<AbstractAccount>,
     ctx: &mut TxContext,
 ) {
-    let mut account = AbstractAccount { id: object::new(ctx) };
-    let authenticator_compatibility_proof = account::check_auth_info_v1_compatibility(
-        &account,
-        authenticator,
-    );
+    let account = AbstractAccount { id: object::new(ctx) };
 
-    account::attach_auth_info_v1(&mut account.id, authenticator_compatibility_proof);
-    iota::transfer::share_object(account);
+    account::create_account_v1(account, authenticator);
 }
 
 #[authenticator]

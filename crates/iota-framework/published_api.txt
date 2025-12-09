@@ -1426,16 +1426,13 @@ AuthenticatorInfoV1Key
 AuthenticatorInfoV1
 	public struct
 	0x2::account
-AuthenticatorInfoV1CompatibilityProof
-	public struct
-	0x2::account
 create_auth_info_v1
 	public fun
 	0x2::account
-check_auth_info_v1_compatibility
+create_account_v1
 	public fun
 	0x2::account
-attach_auth_info_v1
+create_immutable_account_v1
 	public fun
 	0x2::account
 rotate_auth_info_v1
@@ -1448,6 +1445,18 @@ has_auth_info_v1
 	public fun
 	0x2::account
 auth_info_v1_key
+	fun
+	0x2::account
+attach_auth_info_v1
+	fun
+	0x2::account
+borrow_account_uid_mut
+	fun
+	0x2::account
+create_account_v1_impl
+	fun
+	0x2::account
+create_immutable_account_v1_impl
 	fun
 	0x2::account
 ProgrammableMoveCall

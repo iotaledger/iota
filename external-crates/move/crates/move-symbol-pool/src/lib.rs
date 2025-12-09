@@ -96,6 +96,10 @@ static_symbols!(
     "migration",
     "beta",
     "development",
+    "account",
+    "create_account_v1",
+    "create_immutable_account_v1",
+    "rotate_auth_info_v1",
 );
 
 /// The global, unique cache of strings.

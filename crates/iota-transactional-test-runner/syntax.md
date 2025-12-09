@@ -1467,14 +1467,12 @@ public fun create(
     authenticator: AuthenticatorInfoV1<AbstractAccount>,
     ctx: &mut TxContext,
 ): address {
-    let mut account = AbstractAccount { id: object::new(ctx) };
-    let authenticator_compatibility_proof = account::check_auth_info_v1_compatibility(
-        &account,
-        authenticator,
-    );
-    account::attach_auth_info_v1(&mut account.id, authenticator_compatibility_proof);
+    let account = AbstractAccount { id: object::new(ctx) };
+
     let account_address = object::id_address(&account);
-    iota::transfer::share_object(account);
+
+    account::create_account_v1(account, authenticator);
+
     account_address
 }
 
@@ -1527,13 +1525,13 @@ processed 7 tasks
 init:
 A: object(0,0)
 
-task 1, lines 8-43:
+task 1, lines 8-41:
 //# publish --sender A
 created: object(1,0), object(1,1)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 12334800,  storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 11149200,  storage_rebate: 0, non_refundable_storage_fee: 0
 
-task 2, lines 45-49:
+task 2, lines 43-47:
 //# programmable --sender A --inputs x"10" object(1,1) "abstract_account" "authenticate_hello_world" 7000000000
 //> 0: iota::account::create_auth_info_v1<test::abstract_account::AbstractAccount>(Input(1), Input(2), Input(3));
 //> 1: test::abstract_account::create(Input(0), Result(0));
@@ -1543,7 +1541,7 @@ created: object(2,0), object(2,1), object(2,2)
 mutated: object(0,0)
 gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 6748800,  storage_rebate: 980400, non_refundable_storage_fee: 0
 
-task 3, line 51:
+task 3, line 49:
 //# view-object 2,0
 Owner: Account Address ( fake(2,2) )
 Version: 3
@@ -1558,7 +1556,7 @@ Contents: iota::coin::Coin<iota::iota::IOTA> {
     },
 }
 
-task 4, line 53:
+task 4, line 51:
 //# view-object 2,2
 Owner: Shared( 3 )
 Version: 3
@@ -1570,14 +1568,14 @@ Contents: test::abstract_account::AbstractAccount {
     },
 }
 
-task 5, lines 55-57:
+task 5, lines 53-55:
 //# abstract --account immshared(2,2) --gas-payment 2,0 --auth-inputs "HelloWorld" --ptb-inputs 100 @A
 created: object(5,0)
 mutated: object(2,0)
 unchanged_shared: object(2,2)
 gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 1960800,  storage_rebate: 980400, non_refundable_storage_fee: 0
 
-task 6, line 59:
+task 6, line 57:
 //# view-object 5,0
 Owner: Account Address ( A )
 Version: 4
