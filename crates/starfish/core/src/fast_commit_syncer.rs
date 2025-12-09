@@ -668,6 +668,7 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
 
         // Check if any committed transactions were not fetched (committed_tx_refs should be empty now)
         if !committed_tx_refs.is_empty() {
+            // TODO: create subdags for prefix of commits
             return Err(ConsensusError::FetchedTransactionsMismatch {
                 peer: target_authority,
                 expected: committed_tx_refs.len() + fetched_transactions.len(),
@@ -696,7 +697,7 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
             BTreeMap::new()
         };
 
-        // 14. Now create the CommittedSubDags with the fetched transactions.
+        // 6. Now create the CommittedSubDags with the fetched transactions.
         // Note: In fast commit sync, we don't fetch block headers separately,
         // so we pass an empty vector for headers.
         let mut committed_subdags = Vec::new();
