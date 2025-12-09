@@ -14,11 +14,6 @@ export function setCookieDeclined(): void {
 
 /**
  * Handle user accepting cookies.
- * This will:
- * 1. Flush all buffered Amplitude events
- * 2. Enable Amplitude tracking (setOptOut false)
- * 3. Set the consent cookie
- *
  * @param ampliClient - Optional Amplitude client instance to call setOptOut on
  */
 export function handleConsentAccepted(ampliClient?: BrowserClient): void {
@@ -32,11 +27,6 @@ export function handleConsentAccepted(ampliClient?: BrowserClient): void {
 
 /**
  * Handle user declining cookies.
- * This will:
- * 1. Clear all buffered Amplitude events
- * 2. Disable Amplitude tracking (setOptOut true)
- * 3. Set the consent cookie to false
- *
  * @param ampliClient - Optional Amplitude client instance to call setOptOut on
  */
 export function handleConsentDeclined(ampliClient?: BrowserClient): void {
