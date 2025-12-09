@@ -92,13 +92,13 @@ impl Merge<Option<Vec<iota_types::object::Object>>> for Objects {
         // When a user requests specific fields (e.g., "input_objects.objects.bcs"),
         // subtree("objects") returns the sub-mask with the requested fields.
         if let Some(objects_mask) = mask.subtree(Self::OBJECTS_FIELD.name) {
-            // Merge each object in the source list with the appropriate field mask
-            let objects = source
-                .ok_or_else(|| "No objects available".to_string())?
-                .into_iter()
-                .map(|obj| Object::merge_from(obj, &objects_mask))
-                .collect::<Result<Vec<_>, _>>()?;
-            self.objects = objects;
+            if let Some(objects) = source {
+                // Merge each object in the source list with the appropriate field mask
+                self.objects = objects
+                    .into_iter()
+                    .map(|obj| Object::merge_from(obj, &objects_mask))
+                    .collect::<Result<Vec<_>, _>>()?;
+            }
         }
 
         Ok(())

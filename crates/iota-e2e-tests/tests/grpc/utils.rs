@@ -128,7 +128,7 @@ pub(crate) fn assert_field_presence(
     for expected_top_level_field in &expected_top_level_fields {
         assert!(
             actual_top_level_fields.contains(expected_top_level_field),
-            "Invalid field '{}' in {scenario}: field does not exist on this type",
+            "Invalid field '{}' in '{scenario}': field does not exist on this type",
             expected_top_level_field
         );
     }
@@ -139,11 +139,11 @@ pub(crate) fn assert_field_presence(
 
         let (is_present, _) = checker
             .check_field_presence(top_level_field)
-            .unwrap_or_else(|| panic!("Invalid field '{top_level_field}' in {scenario}"));
+            .unwrap_or_else(|| panic!("Invalid field '{top_level_field}' in '{scenario}'"));
 
         assert_eq!(
             is_present, should_be_present,
-            "Field '{top_level_field}' in {scenario}: expected {should_be_present}, got {is_present}"
+            "Field '{top_level_field}' in '{scenario}': expected '{should_be_present}', got '{is_present}'"
         );
     }
 
@@ -151,7 +151,7 @@ pub(crate) fn assert_field_presence(
     for non_nested_field in &expected_non_nested_field_paths {
         if expected_nested_field_paths.contains_key(non_nested_field) {
             panic!(
-                "Contradictory field paths in {scenario}: '{non_nested_field}' specified both as non-nested (implying no nested fields) and with nested fields ({})",
+                "Contradictory field paths in '{scenario}': '{non_nested_field}' specified both as non-nested (implying no nested fields) and with nested fields ({})",
                 expected_nested_field_paths[non_nested_field]
                     .iter()
                     .map(|s| format!("{}.{}", non_nested_field, s))

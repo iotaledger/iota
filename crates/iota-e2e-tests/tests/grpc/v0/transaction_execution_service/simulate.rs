@@ -170,7 +170,6 @@ async fn simulate_transaction_readmask_scenarios() {
             "default readmask",
             None,
             &[
-                "transaction.digest",
                 "transaction.transaction.digest",
                 "transaction.transaction.bcs",
                 "transaction.effects.digest",
@@ -190,9 +189,9 @@ async fn simulate_transaction_readmask_scenarios() {
             "full readmask",
             Some(FieldMask::from_paths(["transaction", "command_results"])),
             &[
-                "transaction.digest",
                 "transaction.transaction.digest",
                 "transaction.transaction.bcs",
+                "transaction.signatures.bcs",
                 "transaction.effects.digest",
                 "transaction.effects.bcs",
                 "transaction.events",
@@ -205,9 +204,9 @@ async fn simulate_transaction_readmask_scenarios() {
             "partial readmask (transaction only)",
             Some(FieldMask::from_paths(["transaction"])),
             &[
-                "transaction.digest",
                 "transaction.transaction.digest",
                 "transaction.transaction.bcs",
+                "transaction.signatures.bcs",
                 "transaction.effects.digest",
                 "transaction.effects.bcs",
                 "transaction.events",
@@ -222,11 +221,6 @@ async fn simulate_transaction_readmask_scenarios() {
         ),
         // Specific nested field masks - only the specified nested fields are returned
         (
-            "nested readmask (transaction.digest only)",
-            Some(FieldMask::from_paths(["transaction.digest"])),
-            &["transaction.digest"],
-        ),
-        (
             "nested readmask (transaction.effects only)",
             Some(FieldMask::from_paths(["transaction.effects"])),
             &["transaction.effects.digest", "transaction.effects.bcs"],
@@ -234,12 +228,10 @@ async fn simulate_transaction_readmask_scenarios() {
         (
             "nested readmask (multiple specific fields)",
             Some(FieldMask::from_paths([
-                "transaction.digest",
                 "transaction.effects",
                 "command_results",
             ])),
             &[
-                "transaction.digest",
                 "transaction.effects.digest",
                 "transaction.effects.bcs",
                 "command_results",

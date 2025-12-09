@@ -151,13 +151,11 @@ impl Merge<&TransactionReadSource<'_>> for grpc_tx::TransactionEffects {
         source: &TransactionReadSource<'_>,
         mask: &FieldMaskTree,
     ) -> Result<(), Box<dyn std::error::Error>> {
-        let effects = source
-            .effects
-            .as_ref()
-            .ok_or_else(|| "No effects available".to_string())?
-            .clone();
+        let Some(effects) = source.effects.as_ref() else {
+            return Ok(());
+        };
 
-        Merge::merge(self, effects, mask)
+        Merge::merge(self, effects.clone(), mask)
     }
 }
 
@@ -167,11 +165,9 @@ impl Merge<&TransactionReadSource<'_>> for grpc_tx::TransactionEvents {
         source: &TransactionReadSource<'_>,
         mask: &FieldMaskTree,
     ) -> Result<(), Box<dyn std::error::Error>> {
-        let events = source
-            .events
-            .as_ref()
-            .ok_or_else(|| "No events available".to_string())?
-            .clone();
+        let Some(events) = source.events.as_ref() else {
+            return Ok(());
+        };
 
         Self::merge(self, events.clone(), mask)?;
 
@@ -211,13 +207,12 @@ impl Merge<&TransactionReadSource<'_>> for grpc_sig::UserSignatures {
         mask: &FieldMaskTree,
     ) -> Result<(), Box<dyn std::error::Error>> {
         if let Some(signatures_mask) = mask.subtree(Self::SIGNATURES_FIELD.name) {
-            self.signatures = source
-                .signatures
-                .as_ref()
-                .ok_or_else(|| "No signatures available".to_string())?
-                .iter()
-                .map(|sig| grpc_sig::UserSignature::merge_from(sig.clone(), &signatures_mask))
-                .collect::<Result<Vec<_>, _>>()?;
+            if let Some(signatures) = source.signatures.as_ref() {
+                self.signatures = signatures
+                    .iter()
+                    .map(|sig| grpc_sig::UserSignature::merge_from(sig.clone(), &signatures_mask))
+                    .collect::<Result<Vec<_>, _>>()?;
+            }
         }
 
         Ok(())

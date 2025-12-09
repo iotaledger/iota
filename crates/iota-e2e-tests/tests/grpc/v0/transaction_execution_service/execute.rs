@@ -84,7 +84,6 @@ async fn execute_transaction_readmask_scenarios() {
             "full readmask",
             Some(FieldMask::from_paths(["transaction"])),
             &[
-                "transaction.digest",
                 "transaction.transaction.digest",
                 "transaction.transaction.bcs",
                 "transaction.signatures",
@@ -97,18 +96,13 @@ async fn execute_transaction_readmask_scenarios() {
         ),
         // Specific nested field masks - only the specified nested fields are returned
         (
-            "nested readmask (transaction.digest only)",
-            Some(FieldMask::from_paths(["transaction.digest"])),
-            &["transaction.digest"],
-        ),
-        (
             "nested readmask (multiple specific fields)",
             Some(FieldMask::from_paths([
-                "transaction.digest",
+                "transaction.transaction.digest",
                 "transaction.effects",
             ])),
             &[
-                "transaction.digest",
+                "transaction.transaction.digest",
                 "transaction.effects.digest",
                 "transaction.effects.bcs",
             ],
