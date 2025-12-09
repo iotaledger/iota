@@ -14,7 +14,6 @@ clap.workspace = true
 derive_more = { workspace = true, features = ["debug"] }
 fastcrypto.workspace = true
 futures.workspace = true
-iota-sdk-types.workspace = true
 jsonrpsee.workspace = true
 prometheus.workspace = true
 regex.workspace = true
@@ -37,6 +36,7 @@ iota-json-rpc-types.workspace = true
 iota-keys.workspace = true
 iota-move-build.workspace = true
 iota-sdk.workspace = true
+iota-sdk-types.workspace = true
 iota-swarm.workspace = true
 iota-swarm-config.workspace = true
 iota-test-transaction-builder.workspace = true

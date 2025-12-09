@@ -11,7 +11,6 @@ anyhow.workspace = true
 axum = { workspace = true, features = ["matched-path"] }
 bcs.workspace = true
 fastcrypto.workspace = true
-iota-sdk-types.workspace = true
 itertools.workspace = true
 mime = "0.3"
 openapiv3 = { git = "https://github.com/bmwill/openapiv3.git", rev = "ca4b4845b7c159a39f5c68ad8f7f76cb6f4d6963" }
@@ -29,6 +28,7 @@ url.workspace = true
 # internal dependencies
 iota-network-stack.workspace = true
 iota-protocol-config.workspace = true
+iota-sdk-types.workspace = true
 iota-types.workspace = true
 move-binary-format.workspace = true
 
