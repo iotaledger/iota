@@ -102,7 +102,8 @@ pub async fn start_grpc_server(
 
     // Add TransactionExecutionService if executor is provided
     if let Some(executor) = executor {
-        let tx_service = TransactionExecutionGrpcService::new(grpc_reader.clone(), executor);
+        let tx_service =
+            TransactionExecutionGrpcService::new(grpc_reader.clone(), executor, config.clone());
         server_builder = server_builder.add_service(
             grpc_tx_service::transaction_execution_service_server::TransactionExecutionServiceServer::new(tx_service),
         );

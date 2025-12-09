@@ -38,11 +38,20 @@ use crate::{error::RpcError, types::GrpcReader};
 pub struct TransactionExecutionGrpcService {
     pub reader: Arc<GrpcReader>,
     pub executor: Arc<dyn TransactionExecutor>,
+    pub config: iota_config::node::GrpcApiConfig,
 }
 
 impl TransactionExecutionGrpcService {
-    pub fn new(reader: Arc<GrpcReader>, executor: Arc<dyn TransactionExecutor>) -> Self {
-        Self { reader, executor }
+    pub fn new(
+        reader: Arc<GrpcReader>,
+        executor: Arc<dyn TransactionExecutor>,
+        config: iota_config::node::GrpcApiConfig,
+    ) -> Self {
+        Self {
+            reader,
+            executor,
+            config,
+        }
     }
 }
 
@@ -54,20 +63,30 @@ impl grpc_tx_service::transaction_execution_service_server::TransactionExecution
         &self,
         request: Request<ExecuteTransactionRequest>,
     ) -> Result<Response<ExecuteTransactionResponse>, tonic::Status> {
-        execute_transaction(&self.reader, &self.executor, request.into_inner())
-            .await
-            .map(Response::new)
-            .map_err(Into::into)
+        execute_transaction(
+            &self.reader,
+            &self.executor,
+            &self.config,
+            request.into_inner(),
+        )
+        .await
+        .map(Response::new)
+        .map_err(Into::into)
     }
 
     async fn simulate_transaction(
         &self,
         request: Request<SimulateTransactionRequest>,
     ) -> Result<Response<SimulateTransactionResponse>, tonic::Status> {
-        simulate::simulate_transaction(&self.reader, &self.executor, request.into_inner())
-            .await
-            .map(Response::new)
-            .map_err(Into::into)
+        simulate::simulate_transaction(
+            &self.reader,
+            &self.executor,
+            &self.config,
+            request.into_inner(),
+        )
+        .await
+        .map(Response::new)
+        .map_err(Into::into)
     }
 }
 
@@ -77,6 +96,7 @@ pub const EXECUTE_TRANSACTION_READ_MASK_DEFAULT: &str = "transaction.effects";
 pub async fn execute_transaction(
     reader: &Arc<GrpcReader>,
     executor: &Arc<dyn TransactionExecutor>,
+    config: &iota_config::node::GrpcApiConfig,
     request: ExecuteTransactionRequest,
 ) -> Result<ExecuteTransactionResponse, RpcError> {
     // Extract and validate transaction

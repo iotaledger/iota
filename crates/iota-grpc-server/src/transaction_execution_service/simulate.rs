@@ -49,6 +49,7 @@ pub const SIMULATE_TRANSACTION_READ_MASK_DEFAULT: &str = crate::field_mask!(
 pub async fn simulate_transaction(
     reader: &Arc<GrpcReader>,
     executor: &Arc<dyn TransactionExecutor>,
+    config: &iota_config::node::GrpcApiConfig,
     request: SimulateTransactionRequest,
 ) -> Result<SimulateTransactionResponse, RpcError> {
     // Parse read mask
