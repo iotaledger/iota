@@ -2,10 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{
-    env,
-    fmt::{self, Debug},
-};
+use std::{env, fmt};
 
 use anyhow::{anyhow, bail};
 use fastcrypto::encoding::{Base58, Encoding, Hex};
