@@ -350,13 +350,13 @@ impl<C: NetworkClient> CommitSyncer<C> {
 
             for certified_commit in commits.commits() {
                 // Collect committed_transactions from the TrustedCommit
-                for gen_tr_ref in certified_commit.committed_transactions() {
-                    expected_transactions.insert(gen_tr_ref);
+                for gen_tx_ref in certified_commit.committed_transactions() {
+                    expected_transactions.insert(gen_tx_ref);
                 }
 
                 // Collect available transactions from VerifiedTransactions
                 for verified_txns in certified_commit.transactions() {
-                    let gen_tr_ref = if self
+                    let gen_tx_ref = if self
                         .inner
                         .context
                         .protocol_config
@@ -366,7 +366,7 @@ impl<C: NetworkClient> CommitSyncer<C> {
                     } else {
                         GenericTransactionRef::BlockRef(verified_txns.block_ref())
                     };
-                    available_transactions.insert(gen_tr_ref);
+                    available_transactions.insert(gen_tx_ref);
                 }
             }
 
@@ -1172,7 +1172,7 @@ pub(crate) fn verify_transactions_with_transactions_refs(
     let mut encoder = create_encoder(context);
     for (committed_transactions_ref, inner_serialized_transactions) in serialized_transactions {
         let transaction_ref = match committed_transactions_ref {
-            GenericTransactionRef::TransactionRef(tr_ref) => tr_ref,
+            GenericTransactionRef::TransactionRef(tx_ref) => tx_ref,
             _ => {
                 return Err(ConsensusError::TransactionRefVariantMismatch {
                     protocol_flag_enabled: true,

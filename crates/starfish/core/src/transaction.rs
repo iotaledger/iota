@@ -151,18 +151,18 @@ impl TransactionConsumer {
 
         (
             transactions,
-            Box::new(move |gen_tr_ref: GenericTransactionRef| {
+            Box::new(move |gen_tx_ref: GenericTransactionRef| {
                 let mut block_status_subscribers = block_status_subscribers.lock();
 
                 for ack in acks {
                     let (status_tx, status_rx) = oneshot::channel();
 
                     block_status_subscribers
-                        .entry(gen_tr_ref)
+                        .entry(gen_tx_ref)
                         .or_default()
                         .push(status_tx);
 
-                    let _ = ack.send((gen_tr_ref, status_rx));
+                    let _ = ack.send((gen_tx_ref, status_rx));
                 }
             }),
             limit_reached,
@@ -180,10 +180,10 @@ impl TransactionConsumer {
     ) {
         // Notify for all own committed transaction data first
         let mut block_status_subscribers = self.block_status_subscribers.lock();
-        for gen_tr_ref in committed_transaction_refs {
-            if let Some(subscribers) = block_status_subscribers.remove(&gen_tr_ref) {
+        for gen_tx_ref in committed_transaction_refs {
+            if let Some(subscribers) = block_status_subscribers.remove(&gen_tx_ref) {
                 subscribers.into_iter().for_each(|s| {
-                    let _ = s.send(BlockStatus::Sequenced(gen_tr_ref));
+                    let _ = s.send(BlockStatus::Sequenced(gen_tx_ref));
                 });
             }
         }
@@ -205,12 +205,12 @@ impl TransactionConsumer {
     #[cfg(test)]
     pub(crate) fn subscribe_for_block_status_testing(
         &self,
-        gen_tr_ref: GenericTransactionRef,
+        gen_tx_ref: GenericTransactionRef,
     ) -> oneshot::Receiver<BlockStatus> {
         let (tx, rx) = oneshot::channel();
         let mut block_status_subscribers = self.block_status_subscribers.lock();
         block_status_subscribers
-            .entry(gen_tr_ref)
+            .entry(gen_tx_ref)
             .or_default()
             .push(tx);
         rx

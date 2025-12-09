@@ -36,7 +36,7 @@ pub(crate) struct MemStore {
 
 struct Inner {
     transactions: BTreeMap<(Round, AuthorityIndex, BlockHeaderDigest), VerifiedTransactions>,
-    transactions_by_tr_refs:
+    transactions_by_tx_refs:
         BTreeMap<(Round, AuthorityIndex, TransactionsCommitment), VerifiedTransactions>,
     block_headers: BTreeMap<(Round, AuthorityIndex, BlockHeaderDigest), VerifiedBlockHeader>,
     digests_by_authorities: BTreeSet<(AuthorityIndex, Round, BlockHeaderDigest)>,
@@ -56,7 +56,7 @@ impl MemStore {
         MemStore {
             inner: RwLock::new(Inner {
                 transactions: BTreeMap::new(),
-                transactions_by_tr_refs: BTreeMap::new(),
+                transactions_by_tx_refs: BTreeMap::new(),
                 block_headers: BTreeMap::new(),
                 digests_by_authorities: BTreeSet::new(),
                 transaction_commitments_by_authorities: BTreeSet::new(),
@@ -97,7 +97,7 @@ impl Store for MemStore {
             let block_ref = transaction.block_ref();
             let transaction_ref = transaction.transaction_ref();
             if context.protocol_config.consensus_transaction_ref() {
-                inner.transactions_by_tr_refs.insert(
+                inner.transactions_by_tx_refs.insert(
                     (
                         transaction_ref.round,
                         transaction_ref.author,
@@ -151,7 +151,7 @@ impl Store for MemStore {
                     .get(&(b.round, b.author, b.digest))
                     .cloned(),
                 GenericTransactionRef::TransactionRef(t) => inner
-                    .transactions_by_tr_refs
+                    .transactions_by_tx_refs
                     .get(&(t.round, t.author, t.transactions_commitment))
                     .cloned(),
             })
@@ -175,7 +175,7 @@ impl Store for MemStore {
                     .get(&(b.round, b.author, b.digest))
                     .map(|tx| tx.serialized().clone()),
                 GenericTransactionRef::TransactionRef(t) => inner
-                    .transactions_by_tr_refs
+                    .transactions_by_tx_refs
                     .get(&(t.round, t.author, t.transactions_commitment))
                     .map(|tx| tx.serialized().clone()),
             })
@@ -191,7 +191,7 @@ impl Store for MemStore {
         let inner = self.inner.read();
         // Get both headers and transactions for the given references
         let headers = self.read_verified_block_headers(refs)?;
-        let tr_refs = if self.context.protocol_config.consensus_transaction_ref() {
+        let tx_refs = if self.context.protocol_config.consensus_transaction_ref() {
             headers
                 .iter()
                 .map(|vh| {
@@ -207,9 +207,9 @@ impl Store for MemStore {
         } else {
             refs.iter()
                 .map(|r| GenericTransactionRef::BlockRef(*r))
-                .collect::<Vec<GenericTransactionRef>>()
+                .collect()
         };
-        let transactions = self.read_verified_transactions(tr_refs.as_slice())?;
+        let transactions = self.read_verified_transactions(tx_refs.as_slice())?;
         drop(inner); // Explicitly drop the read lock before combining results
 
         // Combine them into blocks if both parts exist
@@ -237,7 +237,7 @@ impl Store for MemStore {
                     .transactions
                     .contains_key(&(b.round, b.author, b.digest)),
                 GenericTransactionRef::TransactionRef(t) => inner
-                    .transactions_by_tr_refs
+                    .transactions_by_tx_refs
                     .contains_key(&(t.round, t.author, t.transactions_commitment)),
             })
             .collect();

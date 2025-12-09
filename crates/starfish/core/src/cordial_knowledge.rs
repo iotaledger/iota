@@ -388,8 +388,8 @@ impl CordialKnowledge {
                 header,
                 ack_transactions_commitments,
             } => self.update_cordial_knowledge(&header, &ack_transactions_commitments),
-            CordialKnowledgeMessage::NewShard(gen_tr_ref) => {
-                self.prepare_new_shard_msgs(gen_tr_ref)
+            CordialKnowledgeMessage::NewShard(gen_tx_ref) => {
+                self.prepare_new_shard_msgs(gen_tx_ref)
             }
             CordialKnowledgeMessage::EvictBelow(round) => self.handle_evict_below(round),
             CordialKnowledgeMessage::UsefulShardsFromPeers(useful_shards_from_peer) => {
@@ -472,7 +472,7 @@ impl CordialKnowledge {
                 continue;
             }
             let msg = ConnectionKnowledgeMessage::NewShard {
-                gen_tr_ref: gen_transaction_ref,
+                gen_tx_ref: gen_transaction_ref,
             };
             vec_msgs.push(vec![msg]);
         }
@@ -567,7 +567,7 @@ impl CordialKnowledge {
             .iter()
             .zip(ack_transactions_commitments.iter())
         {
-            let gen_tr_ref = if transaction_ref_enabled {
+            let gen_tx_ref = if transaction_ref_enabled {
                 if let Some(transactions_commitment) = transactions_commitment {
                     GenericTransactionRef::TransactionRef(crate::transaction_ref::TransactionRef {
                         round: acknowledgment.round,
@@ -583,7 +583,7 @@ impl CordialKnowledge {
             };
 
             vec_knowledge_msgs[block_author]
-                .push(ConnectionKnowledgeMessage::RemoveShard { gen_tr_ref });
+                .push(ConnectionKnowledgeMessage::RemoveShard { gen_tx_ref });
         }
 
         // 4) Traversing back and marking the causal past as known by block_author
@@ -640,9 +640,9 @@ pub enum ConnectionKnowledgeMessage {
     /// Remove a block header from the "unknown" set .
     RemoveHeader { block_ref: BlockRef },
     /// A new shard was added globally.
-    NewShard { gen_tr_ref: GenericTransactionRef },
+    NewShard { gen_tx_ref: GenericTransactionRef },
     /// Remove a header from the "unknown" set.
-    RemoveShard { gen_tr_ref: GenericTransactionRef },
+    RemoveShard { gen_tx_ref: GenericTransactionRef },
     /// Update useful info about which authorities are useful to/from the peer.
     UsefulAuthors {
         useful_headers_to_peer: BTreeMap<AuthorityIndex, Round>,
@@ -798,8 +798,8 @@ impl ConnectionKnowledge {
             round_upper_bound_exclusive,
             useful_authorities,
             max_take,
-            |gen_tr_ref| gen_tr_ref.author().value(),
-            |gen_tr_ref| gen_tr_ref.round(),
+            |gen_tx_ref| gen_tx_ref.author().value(),
+            |gen_tx_ref| gen_tx_ref.round(),
         )
     }
 
@@ -828,11 +828,11 @@ impl ConnectionKnowledge {
             ConnectionKnowledgeMessage::RemoveHeader { block_ref } => {
                 self.handle_remove_header(block_ref);
             }
-            ConnectionKnowledgeMessage::NewShard { gen_tr_ref } => {
-                self.handle_new_shard(gen_tr_ref);
+            ConnectionKnowledgeMessage::NewShard { gen_tx_ref } => {
+                self.handle_new_shard(gen_tx_ref);
             }
-            ConnectionKnowledgeMessage::RemoveShard { gen_tr_ref } => {
-                self.handle_remove_shard(gen_tr_ref);
+            ConnectionKnowledgeMessage::RemoveShard { gen_tx_ref } => {
+                self.handle_remove_shard(gen_tx_ref);
             }
             ConnectionKnowledgeMessage::EvictBelow(rounds) => {
                 self.evict_below(rounds);
@@ -1065,14 +1065,14 @@ impl ConnectionKnowledge {
     }
 
     /// Handles adding a new shard to the set of potentially unknown shards.
-    fn handle_new_shard(&mut self, gen_tr_ref: GenericTransactionRef) {
-        let round = gen_tr_ref.round();
-        let authority = gen_tr_ref.author().value();
+    fn handle_new_shard(&mut self, gen_tx_ref: GenericTransactionRef) {
+        let round = gen_tx_ref.round();
+        let authority = gen_tx_ref.author().value();
 
         self.shards_not_known[authority]
             .entry(round)
             .or_default()
-            .insert(gen_tr_ref);
+            .insert(gen_tx_ref);
     }
 
     /// Handles removing a header that this peer now knows.
@@ -1090,12 +1090,12 @@ impl ConnectionKnowledge {
     }
 
     /// Handles removing a shard that this peer now knows.
-    fn handle_remove_shard(&mut self, gen_tr_ref: GenericTransactionRef) {
-        let authority = gen_tr_ref.author().value();
-        let round = gen_tr_ref.round();
+    fn handle_remove_shard(&mut self, gen_tx_ref: GenericTransactionRef) {
+        let authority = gen_tx_ref.author().value();
+        let round = gen_tx_ref.round();
 
         if let Some(set) = self.shards_not_known[authority].get_mut(&round) {
-            set.remove(&gen_tr_ref);
+            set.remove(&gen_tx_ref);
             if set.is_empty() {
                 self.shards_not_known[authority].remove(&round);
             }

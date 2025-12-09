@@ -373,7 +373,7 @@ impl Linearizer {
         for missing_ref in missing_refs {
             let block_ref = match missing_ref {
                 GenericTransactionRef::BlockRef(br) => br,
-                GenericTransactionRef::TransactionRef(tr_ref) => BlockRef::from(tr_ref),
+                GenericTransactionRef::TransactionRef(tx_ref) => BlockRef::from(tx_ref),
             };
             if let Some(acknowledgments) = self.transactions_ack_tracker.get(&block_ref) {
                 acknowledged_map.insert(missing_ref, acknowledgments.votes());

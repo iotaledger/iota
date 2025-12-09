@@ -1316,17 +1316,17 @@ impl DagState {
         let mut exist = vec![false; transaction_refs.len()];
         let mut missing = Vec::new();
 
-        for (index, tr_ref) in transaction_refs.into_iter().enumerate() {
-            if tr_ref.round() == GENESIS_ROUND {
+        for (index, tx_ref) in transaction_refs.into_iter().enumerate() {
+            if tx_ref.round() == GENESIS_ROUND {
                 // Check if the genesis block exists
-                let genesis_ref = tr_ref.to_block_ref();
+                let genesis_ref = tx_ref.to_block_ref();
                 exist[index] = self.genesis.contains_key(&genesis_ref);
                 continue;
             }
-            if self.recent_transactions_by_authority[tr_ref.author()].contains_key(&tr_ref) {
+            if self.recent_transactions_by_authority[tx_ref.author()].contains_key(&tx_ref) {
                 exist[index] = true;
             } else {
-                missing.push((index, tr_ref));
+                missing.push((index, tx_ref));
             }
         }
 

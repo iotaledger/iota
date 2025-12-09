@@ -35,7 +35,7 @@ pub(crate) struct RocksDBStore {
     /// Stores Transactions by block refs
     transactions: DBMap<(Round, AuthorityIndex, BlockHeaderDigest), Bytes>,
     /// Stores Transactions by transaction refs
-    transactions_by_tr_refs: DBMap<(Round, AuthorityIndex, TransactionsCommitment), Bytes>,
+    transactions_by_tx_refs: DBMap<(Round, AuthorityIndex, TransactionsCommitment), Bytes>,
     /// A secondary index that orders refs first by authors.
     digests_by_authorities: DBMap<(AuthorityIndex, Round, BlockHeaderDigest), ()>,
     /// A secondary index that orders transaction commitments first by authors.
@@ -62,7 +62,7 @@ pub(crate) struct RocksDBStore {
 
 impl RocksDBStore {
     const TRANSACTIONS_CF: &'static str = "transactions";
-    const TRANSACTIONS_BY_TR_REF_CF: &'static str = "transactions_by_tr_refs";
+    const TRANSACTIONS_BY_TX_REF_CF: &'static str = "transactions_by_tx_refs";
     const BLOCK_HEADERS_CF: &'static str = "block_headers";
     const DIGESTS_BY_AUTHORITIES_CF: &'static str = "digests";
     const TRANSACTION_COMMITMENTS_BY_AUTHORITIES_CF: &'static str =
@@ -89,7 +89,7 @@ impl RocksDBStore {
                     .options,
             ),
             (
-                Self::TRANSACTIONS_BY_TR_REF_CF,
+                Self::TRANSACTIONS_BY_TX_REF_CF,
                 default_db_options()
                     .optimize_for_write_throughput_no_deletion()
                     // Using larger block is ok since there is not much point reads on the cf.
@@ -124,7 +124,7 @@ impl RocksDBStore {
         let (
             block_headers,
             transactions,
-            transactions_by_tr_refs,
+            transactions_by_tx_refs,
             digests_by_authorities,
             transaction_commitments_by_authorities,
             commits,
@@ -133,7 +133,7 @@ impl RocksDBStore {
         ) = reopen!(&rocksdb,
             Self::BLOCK_HEADERS_CF;<(Round, AuthorityIndex, BlockHeaderDigest), Bytes>,
             Self::TRANSACTIONS_CF;<(Round, AuthorityIndex, BlockHeaderDigest), Bytes>,
-            Self::TRANSACTIONS_BY_TR_REF_CF;<(Round, AuthorityIndex, TransactionsCommitment), Bytes>,
+            Self::TRANSACTIONS_BY_TX_REF_CF;<(Round, AuthorityIndex, TransactionsCommitment), Bytes>,
             Self::DIGESTS_BY_AUTHORITIES_CF;<(AuthorityIndex, Round, BlockHeaderDigest), ()>,
             Self::TRANSACTION_COMMITMENTS_BY_AUTHORITIES_CF;<(AuthorityIndex, Round, TransactionsCommitment, BlockHeaderDigest), ()>,
             Self::COMMITS_CF;<(CommitIndex, CommitDigest), Bytes>,
@@ -144,7 +144,7 @@ impl RocksDBStore {
         Self {
             block_headers,
             transactions,
-            transactions_by_tr_refs,
+            transactions_by_tx_refs,
             digests_by_authorities,
             transaction_commitments_by_authorities,
             commits,
@@ -199,7 +199,7 @@ impl Store for RocksDBStore {
             if context.protocol_config.consensus_transaction_ref() {
                 batch
                     .insert_batch(
-                        &self.transactions_by_tr_refs,
+                        &self.transactions_by_tx_refs,
                         [(
                             (
                                 transaction_ref.round,
@@ -270,7 +270,7 @@ impl Store for RocksDBStore {
     fn read_blocks(&self, refs: &[BlockRef]) -> ConsensusResult<Vec<Option<VerifiedBlock>>> {
         // Get both headers and transactions for the given references
         let headers = self.read_verified_block_headers(refs)?;
-        let tr_refs = if self.context.protocol_config.consensus_transaction_ref() {
+        let tx_refs = if self.context.protocol_config.consensus_transaction_ref() {
             headers
                 .iter()
                 .map(|vh| {
@@ -286,9 +286,9 @@ impl Store for RocksDBStore {
         } else {
             refs.iter()
                 .map(|r| GenericTransactionRef::BlockRef(*r))
-                .collect::<Vec<GenericTransactionRef>>()
+                .collect()
         };
-        let transactions = self.read_verified_transactions(tr_refs.as_slice())?;
+        let transactions = self.read_verified_transactions(tx_refs.as_slice())?;
 
         // Combine them into blocks if both parts exist
         let mut blocks = Vec::with_capacity(refs.len());
@@ -358,13 +358,13 @@ impl Store for RocksDBStore {
         };
         let mut result = Vec::with_capacity(refs.len());
         if transaction_ref_enabled {
-            for (gen_tr_ref, serialized_transactions) in
+            for (gen_tx_ref, serialized_transactions) in
                 refs.iter().zip(serialized_vec_transactions)
             {
-                let GenericTransactionRef::TransactionRef(tr_ref) = gen_tr_ref else {
+                let GenericTransactionRef::TransactionRef(tx_ref) = gen_tx_ref else {
                     return Err(ConsensusError::InconsistentTransactionRefVariants);
                 };
-                let block_ref = BlockRef::from(*tr_ref);
+                let block_ref = BlockRef::from(*tx_ref);
                 if let Some(serialized_transactions) = serialized_transactions {
                     let transactions: Vec<Transaction> = bcs::from_bytes(&serialized_transactions)
                         .map_err(ConsensusError::MalformedTransactions)?;
@@ -373,7 +373,7 @@ impl Store for RocksDBStore {
                     let verified_transactions = VerifiedTransactions::new(
                         transactions,
                         block_ref,
-                        tr_ref.transactions_commitment,
+                        tx_ref.transactions_commitment,
                         serialized_transactions,
                     );
                     result.push(Some(verified_transactions));
@@ -384,8 +384,8 @@ impl Store for RocksDBStore {
         } else {
             let block_refs = refs
                 .iter()
-                .map(|gen_tr_ref| {
-                    let GenericTransactionRef::BlockRef(block_ref) = gen_tr_ref else {
+                .map(|gen_tx_ref| {
+                    let GenericTransactionRef::BlockRef(block_ref) = gen_tx_ref else {
                         return Err(ConsensusError::InconsistentTransactionRefVariants);
                     };
                     Ok(*block_ref)
@@ -456,14 +456,14 @@ impl Store for RocksDBStore {
                 let keys: Result<Vec<_>, ConsensusError> = refs
                     .iter()
                     .map(|r| {
-                        if let GenericTransactionRef::TransactionRef(tr_ref) = r {
-                            Ok((tr_ref.round, tr_ref.author, tr_ref.transactions_commitment))
+                        if let GenericTransactionRef::TransactionRef(tx_ref) = r {
+                            Ok((tx_ref.round, tx_ref.author, tx_ref.transactions_commitment))
                         } else {
                             Err(ConsensusError::InconsistentTransactionRefVariants)
                         }
                     })
                     .collect();
-                Ok(self.transactions_by_tr_refs.multi_get(keys?)?)
+                Ok(self.transactions_by_tx_refs.multi_get(keys?)?)
             }
         }
     }
@@ -493,14 +493,14 @@ impl Store for RocksDBStore {
                 let keys: Result<Vec<_>, ConsensusError> = refs
                     .iter()
                     .map(|r| {
-                        if let GenericTransactionRef::TransactionRef(tr_ref) = r {
-                            Ok((tr_ref.round, tr_ref.author, tr_ref.transactions_commitment))
+                        if let GenericTransactionRef::TransactionRef(tx_ref) = r {
+                            Ok((tx_ref.round, tx_ref.author, tx_ref.transactions_commitment))
                         } else {
                             Err(ConsensusError::InconsistentTransactionRefVariants)
                         }
                     })
                     .collect();
-                Ok(self.transactions_by_tr_refs.multi_contains_keys(keys?)?)
+                Ok(self.transactions_by_tx_refs.multi_contains_keys(keys?)?)
             }
         }
     }

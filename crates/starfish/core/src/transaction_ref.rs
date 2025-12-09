@@ -115,7 +115,7 @@ impl GenericTransactionRef {
     pub(crate) fn to_block_ref(self) -> BlockRef {
         match self {
             GenericTransactionRef::BlockRef(block_ref) => block_ref,
-            GenericTransactionRef::TransactionRef(tr_ref) => BlockRef::from(tr_ref),
+            GenericTransactionRef::TransactionRef(tx_ref) => BlockRef::from(tx_ref),
         }
     }
 }

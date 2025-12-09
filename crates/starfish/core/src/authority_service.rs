@@ -1021,7 +1021,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         }
 
         // Some quick validation of the requested transactions refs
-        ConsensusError::quick_validation_requested_tr_refs(
+        ConsensusError::quick_validation_requested_tx_refs(
             &committed_transactions_refs,
             peer,
             &self.context.committee,
@@ -1035,7 +1035,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         let (below_gc, above_gc): (Vec<_>, Vec<_>) = committed_transactions_refs
             .iter()
             .cloned()
-            .partition(|gen_tr_ref| gen_tr_ref.round() < gc_round);
+            .partition(|gen_tx_ref| gen_tx_ref.round() < gc_round);
 
         // Fetch transactions below GC from store
         let store_transactions = if !below_gc.is_empty() {
