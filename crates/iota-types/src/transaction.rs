@@ -624,12 +624,11 @@ impl EndOfEpochTransactionKind {
                         "selecting committee only among validators supporting the protocol version not supported".to_string(),
                     ));
                 }
-                // This has to be uncommented before merging to develop
-                // if config.score_based_rewards() {
-                //     return Err(UserInputError::Unsupported(
-                //         "score based rewards enabled and
-                // required".to_string(),     ));
-                // }
+                if config.calculate_validator_scores() {
+                    return Err(UserInputError::Unsupported(
+                        "calculation of validator scoring not supported".to_string(),
+                    ));
+                }
             }
             Self::ChangeEpochV2(_) => {
                 if !config.protocol_defined_base_fee() {
@@ -642,12 +641,11 @@ impl EndOfEpochTransactionKind {
                         "selecting committee only among validators supporting the protocol version not supported".to_string(),
                     ));
                 }
-                // This has to be uncommented before merging to develop
-                // if config.score_based_rewards() {
-                //     return Err(UserInputError::Unsupported(
-                //         "score based rewards enabled and
-                // required".to_string(),     ));
-                // }
+                if config.calculate_validator_scores() {
+                    return Err(UserInputError::Unsupported(
+                        "calculation of validator scoring not supported".to_string(),
+                    ));
+                }
             }
             Self::ChangeEpochV3(_) => {
                 if !config.protocol_defined_base_fee() {
@@ -660,12 +658,11 @@ impl EndOfEpochTransactionKind {
                         "selecting committee only among validators supporting the protocol version required".to_string(),
                     ));
                 }
-                // This has to be uncommented before merging to develop
-                // if config.score_based_rewards() {
-                //     return Err(UserInputError::Unsupported(
-                //         "score based rewards enabled and
-                // required".to_string(),     ));
-                // }
+                if config.calculate_validator_scores() {
+                    return Err(UserInputError::Unsupported(
+                        "calculation of validator scoring not supported".to_string(),
+                    ));
+                }
             }
             Self::ChangeEpochV4(_) => {
                 if !config.protocol_defined_base_fee() {
@@ -678,9 +675,9 @@ impl EndOfEpochTransactionKind {
                         "selecting committee only among validators supporting the protocol version required".to_string(),
                     ));
                 }
-                if !config.adjust_rewards_by_score() {
+                if !config.calculate_validator_scores() {
                     return Err(UserInputError::Unsupported(
-                        "score based rewards not enabled".to_string(),
+                        "calculation of validator scores required".to_string(),
                     ));
                 }
             }
