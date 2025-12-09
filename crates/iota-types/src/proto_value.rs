@@ -67,16 +67,9 @@ impl ProtoVisitorBuilder {
         mut self,
         bytes: &[u8],
         layout: &A::MoveTypeLayout,
-    ) -> Result<Value, Error> {
+    ) -> anyhow::Result<Value> {
         let mut visitor = self.new_visitor()?;
-        A::MoveValue::visit_deserialize(bytes, layout, &mut visitor).map_err(|e| {
-            // TODO: this is obviously the wrong error, we need to remove the anyhow errors
-            // in annotated_value.
-            Error::Visitor(
-                e.downcast::<AV::Error>()
-                    .unwrap_or(AV::Error::UnexpectedEof),
-            )
-        })
+        A::MoveValue::visit_deserialize(bytes, layout, &mut visitor)
     }
 }
 
