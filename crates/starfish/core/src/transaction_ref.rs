@@ -13,10 +13,12 @@ use fastcrypto::hash::Digest;
 use serde::{Deserialize, Serialize};
 use starfish_config::{AuthorityIndex, DIGEST_LENGTH};
 
-use crate::block_header::{BlockHeaderDigest, BlockRef, Round, TransactionsCommitment};
 #[cfg(test)]
 use crate::context::Context;
-use crate::error::{ConsensusError, ConsensusResult};
+use crate::{
+    block_header::{BlockHeaderDigest, BlockRef, Round, TransactionsCommitment},
+    error::{ConsensusError, ConsensusResult},
+};
 
 #[derive(Clone, Copy, Serialize, Deserialize, Default, PartialEq, Eq, PartialOrd, Ord)]
 pub struct TransactionRef {
@@ -119,7 +121,6 @@ impl GenericTransactionRef {
             GenericTransactionRef::TransactionRef(tx_ref) => BlockRef::from(tx_ref),
         }
     }
-
 
     /// Extract TransactionRef, returning error if this is a BlockRef variant.
     /// This should only be called when consensus_transaction_ref flag is true.

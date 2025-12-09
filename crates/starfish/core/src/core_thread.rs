@@ -145,6 +145,11 @@ pub trait CoreThreadDispatcher: Sync + Send + 'static {
         CoreError,
     >;
 
+    async fn add_subdags_from_fast_sync(
+        &self,
+        subdags: Vec<CommittedSubDag>,
+    ) -> Result<(), CoreError>;
+
     async fn new_block(
         &self,
         round: Round,
@@ -481,6 +486,22 @@ impl CoreThreadDispatcher for ChannelCoreThreadDispatcher {
         Ok(receiver.await.map_err(|e| Shutdown(e.to_string()))?)
     }
 
+    async fn add_subdags_from_fast_sync(
+        &self,
+        subdags: Vec<CommittedSubDag>,
+    ) -> Result<(), CoreError> {
+        for subdag in &subdags {
+            for block_ref in &subdag.base.committed_header_refs {
+                self.highest_received_rounds[block_ref.author]
+                    .fetch_max(block_ref.round, Ordering::AcqRel);
+            }
+        }
+        let (sender, receiver) = oneshot::channel();
+        self.send(CoreThreadCommand::AddSubdagFromFastSync(subdags, sender))
+            .await;
+        Ok(receiver.await.map_err(|e| Shutdown(e.to_string()))?)
+    }
+
     async fn new_block(
         &self,
         round: Round,
@@ -657,6 +678,13 @@ pub(crate) mod tests {
             ),
             CoreError,
         > {
+            unimplemented!()
+        }
+
+        async fn add_subdags_from_fast_sync(
+            &self,
+            _subdags: Vec<CommittedSubDag>,
+        ) -> Result<(), CoreError> {
             unimplemented!()
         }
 

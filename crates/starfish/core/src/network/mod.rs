@@ -113,8 +113,10 @@ pub(crate) trait NetworkClient: Send + Sync + Sized + 'static {
         timeout: Duration,
     ) -> ConsensusResult<(Vec<Bytes>, Vec<Bytes>)>;
 
-    /// Fetches serialized commits in the commit range from a peer, headers voting for the last commit, and all transactions from these commits.
-    /// Returns serialized commits, serialized headers voting for the last commit, serialized transaction refs, and serialized transactions.
+    /// Fetches serialized commits in the commit range from a peer, headers
+    /// voting for the last commit, and all transactions from these commits.
+    /// Returns serialized commits, serialized headers voting for the last
+    /// commit, serialized transaction refs, and serialized transactions.
     /// Used in the fast commit syncer.
     async fn fetch_commits_and_transactions(
         &self,

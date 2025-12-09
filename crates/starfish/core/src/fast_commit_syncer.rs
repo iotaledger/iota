@@ -8,7 +8,7 @@ use std::{
 };
 
 use bytes::Bytes;
-use futures::{StreamExt as _, stream::FuturesOrdered};
+use futures::StreamExt as _;
 use iota_metrics::spawn_logged_monitored_task;
 use itertools::Itertools as _;
 use parking_lot::RwLock;
@@ -23,27 +23,23 @@ use tokio::{
 use tracing::{debug, info, warn};
 
 use crate::{
-    CommitConsumerMonitor, CommitIndex, VerifiedBlockHeader,
-    block_header::{
-        BlockHeaderAPI, BlockRef, SignedBlockHeader,
-    },
+    CommitConsumerMonitor, CommitIndex,
+    block_header::{BlockHeaderAPI, SignedBlockHeader, VerifiedTransactions},
     block_verifier::BlockVerifier,
     commit::{
-        CertifiedCommit, CertifiedCommits, Commit, CommitAPI as _, CommitDigest, CommitRange,
-        CommitRef, CommittedSubDag, TrustedCommit,
+        Commit, CommitAPI as _, CommitDigest, CommitRange, CommitRef, CommittedSubDag,
+        TrustedCommit,
     },
-    commit_syncer::{verify_transactions_with_headers, verify_transactions_with_transactions_refs},
+    commit_syncer::verify_transactions_with_transactions_refs,
     commit_vote_monitor::CommitVoteMonitor,
     context::Context,
     core_thread::CoreThreadDispatcher,
     dag_state::DagState,
     error::{ConsensusError, ConsensusResult},
-    network::{NetworkClient, SerializedTransactionsV1, SerializedTransactionsV2},
+    network::NetworkClient,
     stake_aggregator::{QuorumThreshold, StakeAggregator},
-    transaction_ref::{GenericTransactionRef, GenericTransactionRefAPI as _},
+    transaction_ref::{GenericTransactionRef, GenericTransactionRefAPI as _, TransactionRef},
 };
-use crate::block_header::VerifiedTransactions;
-use crate::transaction_ref::TransactionRef;
 
 // Handle to stop the CommitSyncer loop.
 pub(crate) struct FastCommitSyncerHandle {
@@ -72,11 +68,11 @@ pub(crate) struct FastCommitSyncer<C: NetworkClient> {
     // States only used by the scheduler.
 
     // Inflight requests to fetch commits from different authorities.
-    inflight_fetches: JoinSet<(u32, CertifiedCommits)>,
+    inflight_fetches: JoinSet<(u32, Vec<CommittedSubDag>)>,
     // Additional ranges of commits to fetch.
     pending_fetches: BTreeSet<CommitRange>,
     // Fetched commits and blocks by commit range.
-    fetched_ranges: BTreeMap<CommitRange, CertifiedCommits>,
+    fetched_ranges: BTreeMap<CommitRange, Vec<CommittedSubDag>>,
     // Highest commit index among inflight and pending fetches.
     // Used to determine the start of new ranges to be fetched.
     highest_scheduled_index: Option<CommitIndex>,
@@ -149,8 +145,8 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
                         self.inflight_fetches.shutdown().await;
                         return;
                     }
-                    let (target_end, commits) = result.unwrap();
-                    self.handle_fetch_result(target_end, commits).await;
+                    let (target_end, committed_subdags) = result.unwrap();
+                    self.handle_fetch_result(target_end, committed_subdags).await;
                 }
                 _ = &mut rx_shutdown => {
                     // Shutdown requested.
@@ -227,30 +223,29 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
     async fn handle_fetch_result(
         &mut self,
         target_end: CommitIndex,
-        certified_commits: CertifiedCommits,
+        committed_subdags: Vec<CommittedSubDag>,
     ) {
-        assert!(!certified_commits.commits().is_empty());
+        assert!(!committed_subdags.is_empty());
 
-        let total_transactions_size_bytes = certified_commits
-            .commits()
+        let total_transactions_size_bytes = committed_subdags
             .iter()
-            .flat_map(|c| c.transactions())
-            .map(|b| b.serialized().len() as u64)
+            .flat_map(|subdag| &subdag.transactions)
+            .map(|txns| txns.serialized().len() as u64)
             .sum();
 
         let metrics = &self.inner.context.metrics.node_metrics;
         metrics
             .commit_sync_fetched_commits
             .with_label_values(&["fast_commit_sync"])
-            .inc_by(certified_commits.commits().len() as u64);
+            .inc_by(committed_subdags.len() as u64);
         metrics
             .commit_sync_total_fetched_transactions_size
             .with_label_values(&["fast_commit_sync"])
             .inc_by(total_transactions_size_bytes);
 
         let (commit_start, commit_end) = (
-            certified_commits.commits().first().unwrap().index(),
-            certified_commits.commits().last().unwrap().index(),
+            committed_subdags.first().unwrap().commit_ref.index,
+            committed_subdags.last().unwrap().commit_ref.index,
         );
         self.highest_fetched_commit_index = self.highest_fetched_commit_index.max(commit_end);
         metrics
@@ -270,13 +265,13 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
         // Only add new blocks if at least some of them are not already synced.
         if self.synced_commit_index < commit_end {
             self.fetched_ranges
-                .insert((commit_start..=commit_end).into(), certified_commits);
+                .insert((commit_start..=commit_end).into(), committed_subdags);
         }
         // Try to process as many fetched blocks as possible.
-        while let Some((fetched_commit_range, _commits)) = self.fetched_ranges.first_key_value() {
+        while let Some((fetched_commit_range, _subdags)) = self.fetched_ranges.first_key_value() {
             // Only pop fetched_ranges if there is no gap with blocks already synced.
             // Note: start, end and synced_commit_index are all inclusive.
-            let (fetched_commit_range, commits) =
+            let (fetched_commit_range, subdags) =
                 if fetched_commit_range.start() <= self.synced_commit_index + 1 {
                     self.fetched_ranges.pop_first().unwrap()
                 } else {
@@ -294,118 +289,24 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
             }
 
             debug!(
-                "Fetched certified block headers for commit range {:?}: {}",
+                "Fetched {} subdags with transactions for commit range {:?}",
+                subdags.len(),
                 fetched_commit_range,
-                commits
-                    .commits()
-                    .iter()
-                    .flat_map(|c| c.block_headers())
-                    .map(|b| b.reference().to_string())
-                    .join(","),
             );
 
-            // Compare transactions available in CertifiedCommits with
-            // committed_transactions in TrustedCommits
-            let mut expected_transactions = BTreeSet::new();
-            let mut available_transactions = BTreeSet::new();
-
-            for certified_commit in commits.commits() {
-                // Collect committed_transactions from the TrustedCommit
-                for gen_tr_ref in certified_commit.committed_transactions() {
-                    expected_transactions.insert(gen_tr_ref);
-                }
-
-                // Collect available transactions from VerifiedTransactions
-                for verified_txns in certified_commit.transactions() {
-                    let gen_tr_ref = if self
-                        .inner
-                        .context
-                        .protocol_config
-                        .consensus_transaction_ref()
-                    {
-                        GenericTransactionRef::TransactionRef(verified_txns.transaction_ref())
-                    } else {
-                        GenericTransactionRef::BlockRef(verified_txns.block_ref())
-                    };
-                    available_transactions.insert(gen_tr_ref);
-                }
-            }
-
-            // Find missing transactions
-            let missing_transactions: Vec<_> = expected_transactions
-                .difference(&available_transactions)
-                .collect();
-
-            if !missing_transactions.is_empty() {
-                warn!(
-                    "Missing {} out of {} transactions after fetching commit range {:?}: {:?}",
-                    missing_transactions.len(),
-                    expected_transactions.len(),
-                    fetched_commit_range,
-                    missing_transactions,
-                );
-            }
-
             // If core thread cannot handle the incoming blocks, it is ok to block here.
-            // Also it is possible to have missing ancestors because an equivocating
-            // validator may produce blocks that are not included in commits but
-            // are ancestors to other blocks. Synchronizer is needed to fill in
-            // the missing ancestors in this case.
-            match self
+
+            if let Err(e) = self
                 .inner
                 .core_thread_dispatcher
-                .add_certified_commits(commits)
+                .add_subdags_from_fast_sync(subdags)
                 .await
             {
-                Ok((missing_headers, missing_committed_txns)) => {
-                    if !missing_headers.is_empty() {
-                        warn!(
-                            "Fetched block headers have missing ancestors: {:?} for commit range {:?}",
-                            missing_headers, fetched_commit_range
-                        );
-                    }
-                    for block_ref in missing_headers {
-                        let hostname = &self
-                            .inner
-                            .context
-                            .committee
-                            .authority(block_ref.author)
-                            .hostname;
-                        metrics
-                            .commit_sync_fetch_missing_block_headers
-                            .with_label_values(&[hostname])
-                            .inc();
-                    }
-                    if !missing_committed_txns.is_empty() {
-                        warn!(
-                            "Missing committed transactions after adding commit range {:?} to DAG State : {}",
-                            fetched_commit_range,
-                            missing_committed_txns
-                                .keys()
-                                .map(|b| b.to_string())
-                                .join(","),
-                        );
-                        for (gen_tran_ref, _ack_authorities) in missing_committed_txns {
-                            let hostname = &self
-                                .inner
-                                .context
-                                .committee
-                                .authority(gen_tran_ref.author())
-                                .hostname;
-                            metrics
-                                .commit_sync_fetch_missing_transactions
-                                .with_label_values(&[hostname.as_str(), "fast_commit_sync"])
-                                .inc();
-                        }
-                    }
-                }
-                Err(e) => {
-                    info!("Failed to add blocks, shutting down: {}", e);
-                    return;
-                }
-            };
+                info!("Failed to dispatch subdags to core, shutting down: {}", e);
+                return;
+            }
 
-            // Once commits and blocks are sent to Core, ratchet up synced_commit_index
+            // Once subdags are sent to Core, ratchet up synced_commit_index
             self.synced_commit_index = self.synced_commit_index.max(fetched_commit_range.end());
         }
 
@@ -486,7 +387,7 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
     async fn fetch_loop(
         inner: Arc<Inner<C>>,
         commit_range: CommitRange,
-    ) -> (CommitIndex, CertifiedCommits) {
+    ) -> (CommitIndex, Vec<CommittedSubDag>) {
         // Individual request base timeout.
         const TIMEOUT: Duration = Duration::from_secs(10);
         // Max per-request timeout will be base timeout times a multiplier.
@@ -525,13 +426,8 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
             // Increase timeout multiplier for each loop until MAX_TIMEOUT_MULTIPLIER.
             timeout_multiplier = (timeout_multiplier + 1).min(MAX_TIMEOUT_MULTIPLIER);
             let request_timeout = TIMEOUT * timeout_multiplier;
-            // TODO:review overall timeout
-            // Give enough overall timeout for fetching commits.
-            // - Timeout for fetching commits and commit certifying block headers.
-            // - Timeout for fetching block headers referenced by the commits.
-            // - Time spent on pipelining requests to fetch block headers.
-            // - Another headroom to allow fetch_once() to timeout gracefully if possible.
-            let fetch_timeout = request_timeout * 4;
+
+            let fetch_timeout = request_timeout * 2;
             // Try fetching from the selected target authority.
             for authority in target_authorities {
                 match tokio::time::timeout(
@@ -545,9 +441,9 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
                 )
                 .await
                 {
-                    Ok(Ok(commits)) => {
+                    Ok(Ok(committed_subdags)) => {
                         info!("Finished fetching commits in {commit_range:?}",);
-                        return (commit_range.end(), commits);
+                        return (commit_range.end(), committed_subdags);
                     }
                     Ok(Err(e)) => {
                         let hostname = inner
@@ -613,8 +509,14 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
             .start_timer();
         assert!(inner.context.protocol_config.consensus_transaction_ref());
 
-        // 1. Fetch commits, voting headers, transaction refs, and transactions in the commit range from the target authority.
-        let (serialized_commits, serialized_voting_block_headers, serialized_transaction_refs, serialized_transactions) = inner
+        // 1. Fetch commits, voting headers, transaction refs, and transactions in the
+        //    commit range from the target authority.
+        let (
+            serialized_commits,
+            serialized_voting_block_headers,
+            serialized_transaction_refs,
+            serialized_transactions,
+        ) = inner
             .network_client
             .fetch_commits_and_transactions(target_authority, commit_range.clone(), timeout)
             .await?;
@@ -647,8 +549,13 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
         // 4. Process fetched transactions.
 
         let mut fetched_transactions = BTreeMap::new();
-        for (serialized_transaction_ref, serialized_transaction) in serialized_transaction_refs.into_iter().zip(serialized_transactions) {
-            if let Ok(transaction_ref) = bcs::from_bytes::<TransactionRef>(&serialized_transaction_ref) {
+        for (serialized_transaction_ref, serialized_transaction) in serialized_transaction_refs
+            .into_iter()
+            .zip(serialized_transactions)
+        {
+            if let Ok(transaction_ref) =
+                bcs::from_bytes::<TransactionRef>(&serialized_transaction_ref)
+            {
                 if !committed_tx_refs.contains(&transaction_ref) {
                     return Err(ConsensusError::UnexpectedTransactionForCommit {
                         peer: target_authority,
@@ -661,12 +568,16 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
                 );
                 committed_tx_refs.remove(&transaction_ref);
             } else {
-                debug!("Failed to deserialize block ref: {:?}", serialized_transaction_ref);
+                debug!(
+                    "Failed to deserialize block ref: {:?}",
+                    serialized_transaction_ref
+                );
                 continue;
             }
         }
 
-        // Check if any committed transactions were not fetched (committed_tx_refs should be empty now)
+        // Check if any committed transactions were not fetched (committed_tx_refs
+        // should be empty now)
         if !committed_tx_refs.is_empty() {
             // TODO: create subdags for prefix of commits
             return Err(ConsensusError::FetchedTransactionsMismatch {
@@ -678,30 +589,35 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
 
         // 5. Verify transactions
         let mut transactions_map = if !fetched_transactions.is_empty() {
-                Handle::current()
-                    .spawn_blocking({
-                        let context = inner.context.clone();
+            Handle::current()
+                .spawn_blocking({
+                    let context = inner.context.clone();
 
-                        move || {
-                            verify_transactions_with_transactions_refs(
-                                &context,
-                                target_authority,
-                                fetched_transactions,
-                            )
-                        }
-                    })
-                    .await
-                    .expect("Spawn blocking should not fail")?
-
+                    move || {
+                        verify_transactions_with_transactions_refs(
+                            &context,
+                            target_authority,
+                            fetched_transactions,
+                        )
+                    }
+                })
+                .await
+                .expect("Spawn blocking should not fail")?
         } else {
             BTreeMap::new()
         };
 
         // 6. Now create the CommittedSubDags with the fetched transactions.
-        // Note: In fast commit sync, we don't fetch block headers separately,
-        // so we pass an empty vector for headers.
+        // For fast commit sync, we use block headers refs and reputation scores from
+        // the commit.
         let mut committed_subdags = Vec::new();
         for commit in &commits {
+            // Get block headers from the commit
+            let committed_header_refs = commit.block_headers().to_vec();
+
+            // Get reputation scores from the commit
+            let reputation_scores = commit.reputation_scores().to_vec();
+
             // Collect transactions for this commit
             let commit_transactions: Vec<VerifiedTransactions> = commit
                 .committed_transactions()
@@ -711,11 +627,12 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
 
             committed_subdags.push(CommittedSubDag::new(
                 commit.leader(),
-                vec![], // block_headers - empty for fast commit sync
+                vec![], // headers - VerifiedBlockHeader, we don't have these in fast sync
+                committed_header_refs,
                 commit_transactions,
                 commit.timestamp_ms(),
                 commit.reference(),
-                vec![], // reputation_scores_desc - empty for now
+                reputation_scores,
             ));
         }
 
@@ -733,7 +650,7 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
     }
 
     #[cfg(test)]
-    fn fetched_ranges(&self) -> BTreeMap<CommitRange, CertifiedCommits> {
+    fn fetched_ranges(&self) -> BTreeMap<CommitRange, Vec<CommittedSubDag>> {
         self.fetched_ranges.clone()
     }
 

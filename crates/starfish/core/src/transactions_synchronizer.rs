@@ -2370,6 +2370,13 @@ mod tests {
             unimplemented!()
         }
 
+        async fn add_subdags_from_fast_sync(
+            &self,
+            _subdags: Vec<crate::commit::CommittedSubDag>,
+        ) -> Result<(), CoreError> {
+            unimplemented!()
+        }
+
         async fn new_block(
             &self,
             _round: Round,
