@@ -6,7 +6,7 @@ module a::m {
     use iota::account::{Self, AuthenticatorInfoV1};
 
     public fun t1(account: other::A, authenticator: AuthenticatorInfoV1<other::A>) {
-        account::create_shared_account_v1(account, authenticator);
+        account::create_account_v1(account, authenticator);
     }
 
     public fun t2(account: other::A, authenticator: AuthenticatorInfoV1<other::A>) {
@@ -40,7 +40,7 @@ module iota::account {
         id: UID,
     }
 
-    public fun create_shared_account_v1<Account: key>(_: Account, _: AuthenticatorInfoV1<Account>) {
+    public fun create_account_v1<Account: key>(_: Account, _: AuthenticatorInfoV1<Account>) {
         abort 0
     }
 

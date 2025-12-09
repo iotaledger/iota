@@ -24,7 +24,7 @@ public fun create(
 
     let account_address = object::id_address(&account);
 
-    account::create_shared_account_v1(account, authenticator);
+    account::create_account_v1(account, authenticator);
 
     account_address
 }

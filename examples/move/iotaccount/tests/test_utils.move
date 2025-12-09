@@ -12,7 +12,7 @@ public fun create_iotaccount_for_testing(scenario: &mut iota::test_scenario::Sce
 
     let authenticator = create_authenticator_info_v1_for_testing();
 
-    builder(authenticator, ctx).add_dynamic_field(b"SomeData".to_ascii_string(), 3u8).build_shared()
+    builder(authenticator, ctx).add_dynamic_field(b"SomeData".to_ascii_string(), 3u8).build()
 }
 
 public fun create_authenticator_info_v1_for_testing(): account::AuthenticatorInfoV1<IOTAccount> {

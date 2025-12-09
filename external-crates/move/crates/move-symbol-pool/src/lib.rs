@@ -97,7 +97,7 @@ static_symbols!(
     "beta",
     "development",
     "account",
-    "create_shared_account_v1",
+    "create_account_v1",
     "create_immutable_account_v1",
     "rotate_auth_info_v1",
 );

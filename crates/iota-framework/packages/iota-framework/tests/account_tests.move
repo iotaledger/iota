@@ -27,7 +27,7 @@ fun authenticator_info_v1_shared_account_happy_path() {
         assert_eq(account::has_auth_info_v1(account.id()), false);
 
         // Create a shared account with an attached `AuthenticatorInfoV1` instance.
-        account::create_shared_account_v1(account, default_authenticator_info);
+        account::create_account_v1(account, default_authenticator_info);
 
         scenario.next_tx(@0x0);
 
@@ -89,14 +89,14 @@ fun authenticator_info_v1_double_shared_account_creation() {
             ascii::string(b"function2"),
         );
 
-        account::create_shared_account_v1(account, authenticator_info_1);
+        account::create_account_v1(account, authenticator_info_1);
 
         scenario.next_tx(@0x0);
 
         let account = scenario.take_shared<TestAccount>();
 
         // Call `account::create_account_v1` one more time for the same object that is forbidden.
-        account::create_shared_account_v1(account, authenticator_info_2);
+        account::create_account_v1(account, authenticator_info_2);
     });
 }
 

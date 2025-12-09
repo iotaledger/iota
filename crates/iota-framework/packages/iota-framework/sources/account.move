@@ -65,20 +65,20 @@ public fun create_auth_info_v1<Account: key>(
     }
 }
 
-/// Create a mutable shared account with the provided `authenticator`.
+/// Create an account as a mutable shared object with the provided `authenticator`.
 /// The `authenticator` instance will be added to the account as a dynamic field specified by the `AuthenticatorInfoV1Key` name.
 /// This function has custom rules performed by the IOTA Move bytecode verifier that ensures
-/// that `Account` is an object defined in the module where `create_shared_account_v1` is invoked.
-public fun create_shared_account_v1<Account: key>(
+/// that `Account` is an object defined in the module where `create_account_v1` is invoked.
+public fun create_account_v1<Account: key>(
     mut account: Account,
     authenticator: AuthenticatorInfoV1<Account>,
 ) {
     attach_auth_info_v1(&mut account, authenticator);
 
-    create_shared_account_v1_impl(account);
+    create_account_v1_impl(account);
 }
 
-/// Create an immutable account with the provided `authenticator`.
+/// Create an account as an immutable object with the provided `authenticator`.
 /// The `authenticator` instance will be added to the account as a dynamic field specified by the `AuthenticatorInfoV1Key` name.
 /// This function has custom rules performed by the IOTA Move bytecode verifier that ensures
 /// that `Account` is an object defined in the module where `create_immutable_account_v1` is invoked.
@@ -151,7 +151,7 @@ native fun borrow_account_uid_mut<Account: key>(account: &mut Account): &mut UID
 /// Turn `account` into a mutable shared object.
 /// This function must be called only from the functions protected by the IOTA Move bytecode verifier
 /// from being called outside the `Account` module.
-native fun create_shared_account_v1_impl<Account: key>(account: Account);
+native fun create_account_v1_impl<Account: key>(account: Account);
 
 /// Turn `account` into an immutable object.
 /// This function must be called only from the functions protected by the IOTA Move bytecode verifier

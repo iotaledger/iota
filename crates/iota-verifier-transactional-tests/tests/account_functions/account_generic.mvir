@@ -26,7 +26,7 @@ module 0x0.m {
 
     t2<T0: key>(account: T0, authenticator: account.AuthenticatorInfoV1<T0>) {
         label l0:
-        account.create_shared_account_v1<T0>(move(account), move(authenticator));
+        account.create_account_v1<T0>(move(account), move(authenticator));
         return;
     }
 }

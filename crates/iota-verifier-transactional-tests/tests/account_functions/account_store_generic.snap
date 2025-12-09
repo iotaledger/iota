@@ -12,7 +12,7 @@ gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storag
 task 1, lines 23-32:
 //# publish
 Error: Transaction Effects Status: IOTA Move Bytecode Verification Error. Please run the IOTA Move Verifier for more information.
-Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: IotaMoveVerificationError, source: Some("_::m::t2. Invalid call to 'iota::account::create_shared_account_v1' on an object of type 'T0'. The account object's type must be defined in the current module."), command: Some(0) } }
+Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: IotaMoveVerificationError, source: Some("_::m::t2. Invalid call to 'iota::account::create_account_v1' on an object of type 'T0'. The account object's type must be defined in the current module."), command: Some(0) } }
 
 task 2, lines 35-44:
 //# publish

@@ -67,7 +67,7 @@ public fun create(
     let account = DynamicMultisigAccount { id };
 
     // Create a mutable shared account object.
-    account::create_shared_account_v1(account, authenticator);
+    account::create_account_v1(account, authenticator);
 }
 
 // --------------------------------------- View Functions ---------------------------------------

@@ -47,7 +47,7 @@ public fun create(
 
     let account = TimeLocked { id };
 
-    account::create_shared_account_v1(account, authenticator);
+    account::create_account_v1(account, authenticator);
 }
 
 /// Authenticate access for the `Time locked account`.

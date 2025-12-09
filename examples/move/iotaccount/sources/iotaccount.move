@@ -66,12 +66,12 @@ public fun add_dynamic_field<Name: copy + drop + store, Value: store>(
 }
 
 /// Finish building a shared `IOTAccount` instance.
-public fun build_shared(self: IOTAccountBuilder): address {
+public fun build(self: IOTAccountBuilder): address {
     let IOTAccountBuilder { account, authenticator } = self;
 
     let account_address = account.account_address();
 
-    account::create_shared_account_v1(account, authenticator);
+    account::create_account_v1(account, authenticator);
 
     account_address
 }

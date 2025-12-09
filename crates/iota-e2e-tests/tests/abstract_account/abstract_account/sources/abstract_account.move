@@ -68,9 +68,9 @@ public fun add_dynamic_field<Name: copy + drop + store, Value: store>(
 }
 
 /// Finish building the `AbstractAccount` and share the object.
-public fun build_shared(self: AbstractAccountBuilder) {
+public fun build(self: AbstractAccountBuilder) {
     let AbstractAccountBuilder { account, authenticator } = self;
-    account::create_shared_account_v1(account, authenticator);
+    account::create_account_v1(account, authenticator);
 }
 
 /// Share AbstractAccount.

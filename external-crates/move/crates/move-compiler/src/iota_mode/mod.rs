@@ -74,7 +74,7 @@ pub const RECEIVE_FUNCTION_NAME: Symbol = symbol!("receive");
 pub const RECEIVING_TYPE_NAME: Symbol = symbol!("Receiving");
 
 pub const ACCOUNT_MODULE_NAME: Symbol = symbol!("account");
-pub const CREATE_SHARED_ACCOUNT_V1_FUNCTION_NAME: Symbol = symbol!("create_shared_account_v1");
+pub const CREATE_ACCOUNT_V1_FUNCTION_NAME: Symbol = symbol!("create_account_v1");
 pub const CREATE_IMMUTABLE_ACCOUNT_V1_FUNCTION_NAME: Symbol =
     symbol!("create_immutable_account_v1");
 pub const ROTATE_AUTH_INFO_V1_FUNCTION_NAME: Symbol = symbol!("rotate_auth_info_v1");
@@ -87,7 +87,7 @@ pub const PRIVATE_TRANSFER_FUNCTIONS: &[Symbol] = &[
 ];
 
 pub const PRIVATE_ACCOUNT_FUNCTIONS: &[Symbol] = &[
-    CREATE_SHARED_ACCOUNT_V1_FUNCTION_NAME,
+    CREATE_ACCOUNT_V1_FUNCTION_NAME,
     CREATE_IMMUTABLE_ACCOUNT_V1_FUNCTION_NAME,
     ROTATE_AUTH_INFO_V1_FUNCTION_NAME,
 ];

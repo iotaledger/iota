@@ -52,7 +52,7 @@ public fun create(
 ) {
     abstract_account::builder(authenticator, ctx)
         .add_dynamic_field(OwnerPublicKey {}, public_key)
-        .build_shared();
+        .build();
 }
 
 /// Rotates the account owner public key to a new one as well as the authenticator.

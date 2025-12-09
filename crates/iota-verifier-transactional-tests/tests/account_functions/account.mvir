@@ -43,7 +43,7 @@ module 0x0.m {
 
     t4(account: Self.Account, authenticator: account.AuthenticatorInfoV1<Self.Account>) {
         label l0:
-        account.create_shared_account_v1<Self.Account>(move(account), move(authenticator));
+        account.create_account_v1<Self.Account>(move(account), move(authenticator));
         return;
     }
 

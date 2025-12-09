@@ -20,7 +20,7 @@ public fun authenticate(_: &Account, _auth_ctx: &AuthContext, _ctx: &TxContext) 
 //# programmable --inputs object(1,1) "account" "authenticate"
 //> 0: test::account::create();
 //> 1: iota::account::create_auth_info_v1<test::account::Account>(Input(0), Input(1), Input(2));
-//> 2: iota::account::create_shared_account_v1<test::account::Account>(Result(0), Result(1));
+//> 2: iota::account::create_account_v1<test::account::Account>(Result(0), Result(1));
 
 //# programmable --inputs object(1,1) "account" "authenticate"
 //> 0: test::account::create();

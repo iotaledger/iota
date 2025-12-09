@@ -52,7 +52,7 @@ public fun create(
 ) {
     iotaccount::builder(authenticator, ctx)
         .add_dynamic_field(OwnerPublicKey {}, public_key)
-        .build_shared();
+        .build();
 }
 
 /// Ed25519 signature authenticator.

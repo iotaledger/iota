@@ -10,8 +10,8 @@ error[Iota E02010]: invalid private account call
   │
 8 │     public fun t1(account: other::A, authenticator: AuthenticatorInfoV1<other::A>) {
   │                            -------- The type 'a::other::A' is not declared in the current module
-9 │         account::create_shared_account_v1(account, authenticator);
-  │         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Invalid private account call. The function 'iota::account::create_shared_account_v1' is restricted to being called in the object's module, 'a::other'
+9 │         account::create_account_v1(account, authenticator);
+  │         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Invalid private account call. The function 'iota::account::create_account_v1' is restricted to being called in the object's module, 'a::other'
 
 error[Iota E02010]: invalid private account call
    ┌─ tests/iota_mode/account/external_account_store.move:13:9

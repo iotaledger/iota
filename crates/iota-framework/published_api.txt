@@ -1429,7 +1429,7 @@ AuthenticatorInfoV1
 create_auth_info_v1
 	public fun
 	0x2::account
-create_shared_account_v1
+create_account_v1
 	public fun
 	0x2::account
 create_immutable_account_v1
@@ -1453,7 +1453,7 @@ attach_auth_info_v1
 borrow_account_uid_mut
 	fun
 	0x2::account
-create_shared_account_v1_impl
+create_account_v1_impl
 	fun
 	0x2::account
 create_immutable_account_v1_impl

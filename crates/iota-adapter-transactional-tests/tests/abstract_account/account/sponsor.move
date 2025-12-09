@@ -22,7 +22,7 @@ public fun create(
 ) {
     let account = AbstractAccount { id: object::new(ctx) };
 
-    account::create_shared_account_v1(account, authenticator);
+    account::create_account_v1(account, authenticator);
 }
 
 #[authenticator]

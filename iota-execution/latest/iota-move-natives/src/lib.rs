@@ -784,7 +784,7 @@ pub fn all_natives(silent: bool, protocol_config: &ProtocolConfig) -> NativeFunc
         ),
         (
             "account",
-            "create_shared_account_v1_impl",
+            "create_account_v1_impl",
             make_native!(transfer::share_object),
         ),
         (
