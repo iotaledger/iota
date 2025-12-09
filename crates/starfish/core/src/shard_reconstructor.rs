@@ -22,8 +22,8 @@ use tracing::{debug, warn};
 use crate::{
     BlockRef, Round, Transaction,
     block_header::{
-        BlockHeaderDigest, GENESIS_ROUND, Shard, ShardWithProof, TransactionsCommitment,
-        VerifiedBlock, VerifiedTransactions,
+        BlockHeaderDigest, GENESIS_ROUND, Shard, ShardWithProof, ShardWithProofAPI,
+        TransactionsCommitment, VerifiedBlock, VerifiedTransactions,
     },
     context::Context,
     core_thread::CoreThreadDispatcher,
@@ -98,9 +98,9 @@ impl TransactionMessage {
         // Shard messages
         for shard_with_proof in shards {
             let shard_msg = ShardMessage {
-                block_ref: shard_with_proof.block_ref,
-                transactions_commitment: shard_with_proof.transaction_commitment,
-                shard: shard_with_proof.shard.clone(),
+                block_ref: shard_with_proof.block_ref(),
+                transactions_commitment: shard_with_proof.transaction_commitment(),
+                shard: shard_with_proof.shard().clone(),
                 shard_index,
             };
             messages.push(TransactionMessage::Shard(shard_msg));
@@ -668,6 +668,7 @@ mod tests {
             FullTransactionMessage, ShardMessage, ShardReconstructor, TransactionMessage,
         },
         storage::mem_store::MemStore,
+        transaction_ref::GenericTransactionRef,
     };
 
     #[derive(Default)]
@@ -704,7 +705,7 @@ mod tests {
         ) -> Result<
             (
                 BTreeSet<BlockRef>,
-                BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>,
+                BTreeMap<GenericTransactionRef, BTreeSet<AuthorityIndex>>,
             ),
             CoreError,
         > {
@@ -718,7 +719,7 @@ mod tests {
         ) -> Result<
             (
                 BTreeSet<BlockRef>,
-                BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>,
+                BTreeMap<GenericTransactionRef, BTreeSet<AuthorityIndex>>,
             ),
             CoreError,
         > {
@@ -731,7 +732,7 @@ mod tests {
 
         async fn get_missing_transaction_data(
             &self,
-        ) -> Result<BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>, CoreError> {
+        ) -> Result<BTreeMap<GenericTransactionRef, BTreeSet<AuthorityIndex>>, CoreError> {
             unimplemented!()
         }
 
@@ -741,7 +742,7 @@ mod tests {
         ) -> Result<
             (
                 BTreeSet<BlockRef>,
-                BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>,
+                BTreeMap<GenericTransactionRef, BTreeSet<AuthorityIndex>>,
             ),
             CoreError,
         > {
@@ -752,7 +753,7 @@ mod tests {
             &self,
             _round: Round,
             _reason: ReasonToCreateBlock,
-        ) -> Result<BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>, CoreError> {
+        ) -> Result<BTreeMap<GenericTransactionRef, BTreeSet<AuthorityIndex>>, CoreError> {
             unimplemented!()
         }
 
@@ -823,7 +824,7 @@ mod tests {
         let (context, _) = Context::new_for_test(committee_size);
         let context = Arc::new(context);
 
-        let store = Arc::new(MemStore::new());
+        let store = Arc::new(MemStore::new(context.clone()));
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
 
         let core_dispatcher = Arc::new(MockCoreThreadDispatcher::new());
@@ -925,7 +926,7 @@ mod tests {
         let (context, _) = Context::new_for_test(committee_size);
         let context = Arc::new(context);
 
-        let store = Arc::new(MemStore::new());
+        let store = Arc::new(MemStore::new(context.clone()));
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
 
         let core_dispatcher = Arc::new(MockCoreThreadDispatcher::new());
@@ -1036,7 +1037,7 @@ mod tests {
         let (context, _) = Context::new_for_test(committee_size);
         let context = Arc::new(context);
 
-        let store = Arc::new(MemStore::new());
+        let store = Arc::new(MemStore::new(context.clone()));
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
 
         let core_dispatcher = Arc::new(MockCoreThreadDispatcher::new());

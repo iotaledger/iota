@@ -9,6 +9,8 @@ pub(crate) mod rocksdb_store;
 #[cfg(test)]
 mod store_tests;
 
+use std::sync::Arc;
+
 use bytes::Bytes;
 use starfish_config::AuthorityIndex;
 
@@ -16,13 +18,15 @@ use crate::{
     CommitIndex,
     block_header::{BlockRef, Round, VerifiedBlock, VerifiedBlockHeader, VerifiedTransactions},
     commit::{CommitInfo, CommitRange, CommitRef, TrustedCommit},
+    context::Context,
     error::ConsensusResult,
+    transaction_ref::{GenericTransactionRef, TransactionRef},
 };
 
 /// A common interface for consensus storage.
 pub(crate) trait Store: Send + Sync {
     /// Writes blocks, consensus commits and other data to store atomically.
-    fn write(&self, write_batch: WriteBatch) -> ConsensusResult<()>;
+    fn write(&self, write_batch: WriteBatch, context: Arc<Context>) -> ConsensusResult<()>;
 
     /// Reads complete blocks by combining transactions and headers for the
     /// given refs.
@@ -44,17 +48,17 @@ pub(crate) trait Store: Send + Sync {
     /// Read and get verified transactions for the given refs.
     fn read_verified_transactions(
         &self,
-        refs: &[BlockRef],
+        refs: &[GenericTransactionRef],
     ) -> ConsensusResult<Vec<Option<VerifiedTransactions>>>;
 
     /// Read and get serialized transactions for the given refs.
     fn read_serialized_transactions(
         &self,
-        refs: &[BlockRef],
+        refs: &[GenericTransactionRef],
     ) -> ConsensusResult<Vec<Option<Bytes>>>;
 
     /// Checks if transactions exist in the store.
-    fn contains_transactions(&self, refs: &[BlockRef]) -> ConsensusResult<Vec<bool>>;
+    fn contains_transactions(&self, refs: &[GenericTransactionRef]) -> ConsensusResult<Vec<bool>>;
 
     /// Checks if block headers exist in the store.
     fn contains_block_headers(&self, refs: &[BlockRef]) -> ConsensusResult<Vec<bool>>;
@@ -83,31 +87,47 @@ pub(crate) trait Store: Send + Sync {
         before_round: Option<Round>,
     ) -> ConsensusResult<Vec<VerifiedBlock>>;
 
-    fn scan_references_by_author(
+    fn scan_block_references_by_author(
         &self,
         author: AuthorityIndex,
         start_round: Round,
     ) -> ConsensusResult<Vec<BlockRef>>;
 
+    fn scan_transaction_references_by_author(
+        &self,
+        author: AuthorityIndex,
+        start_round: Round,
+    ) -> ConsensusResult<Vec<TransactionRef>>;
+
     fn scan_transactions_by_author(
         &self,
         author: AuthorityIndex,
         start_round: Round,
+        context: Arc<Context>,
     ) -> ConsensusResult<Vec<VerifiedTransactions>> {
-        let refs = self.scan_references_by_author(author, start_round)?;
-        let results = self
-            .read_verified_transactions(refs.as_slice())?
+        let refs = if context.protocol_config.consensus_transaction_ref() {
+            self.scan_transaction_references_by_author(author, start_round)?
+                .into_iter()
+                .map(GenericTransactionRef::from)
+                .collect::<Vec<_>>()
+        } else {
+            self.scan_block_references_by_author(author, start_round)?
+                .into_iter()
+                .map(GenericTransactionRef::from)
+                .collect::<Vec<_>>()
+        };
+        Ok(self
+            .read_verified_transactions(&refs)?
             .into_iter()
             .flatten()
-            .collect::<Vec<_>>();
-        Ok(results)
+            .collect())
     }
     fn scan_block_headers_by_author(
         &self,
         author: AuthorityIndex,
         start_round: Round,
     ) -> ConsensusResult<Vec<VerifiedBlockHeader>> {
-        let refs = self.scan_references_by_author(author, start_round)?;
+        let refs = self.scan_block_references_by_author(author, start_round)?;
         let results = self.read_verified_block_headers(refs.as_slice())?;
         let mut block_headers = Vec::with_capacity(refs.len());
         for (r, block) in refs.into_iter().zip(results.into_iter()) {
