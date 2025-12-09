@@ -54,7 +54,10 @@ pub(crate) mod tonic_network;
 pub mod tonic_network;
 mod tonic_tls;
 
-use crate::encoder::ShardEncoder;
+use crate::{
+    encoder::ShardEncoder,
+    transaction_ref::{GenericTransactionRef, TransactionRef},
+};
 
 /// A stream of serialized blocks with additional information such as headers or
 /// shards.
@@ -81,7 +84,7 @@ pub(crate) trait NetworkClient: Send + Sync + Sized + 'static {
     async fn fetch_transactions(
         &self,
         peer: AuthorityIndex,
-        block_refs: Vec<BlockRef>,
+        transactions_refs: Vec<GenericTransactionRef>,
         timeout: Duration,
     ) -> ConsensusResult<Vec<Bytes>>;
 
@@ -179,7 +182,7 @@ pub(crate) trait NetworkService: Send + Sync + 'static {
     async fn handle_fetch_transactions(
         &self,
         peer: AuthorityIndex,
-        block_refs: Vec<BlockRef>,
+        block_refs: Vec<GenericTransactionRef>,
     ) -> ConsensusResult<Vec<Bytes>>;
 }
 
@@ -382,8 +385,14 @@ impl TryFrom<BlockBundle> for SerializedBlockBundle {
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub(crate) struct SerializedTransactions {
+pub(crate) struct SerializedTransactionsV1 {
     pub(crate) block_ref: BlockRef,
+    pub(crate) serialized_transactions: Bytes,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub(crate) struct SerializedTransactionsV2 {
+    pub(crate) transaction_ref: TransactionRef,
     pub(crate) serialized_transactions: Bytes,
 }
 

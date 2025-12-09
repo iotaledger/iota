@@ -11,6 +11,7 @@ use typed_store::TypedStoreError;
 use crate::{
     block_header::{BlockRef, GENESIS_ROUND, Round},
     commit::{Commit, CommitIndex},
+    transaction_ref::{GenericTransactionRef, GenericTransactionRefAPI as _},
 };
 
 /// Errors that can occur when processing blocks, reading from storage, or
@@ -188,7 +189,7 @@ pub(crate) enum ConsensusError {
     #[error("Received unexpected transaction from peer {peer}: {received:?}")]
     UnexpectedTransactionForCommit {
         peer: AuthorityIndex,
-        received: BlockRef,
+        received: GenericTransactionRef,
     },
 
     #[error("RocksDB failure: {0}")]
@@ -250,6 +251,20 @@ pub(crate) enum ConsensusError {
         shard_round: Round,
         block_round: Round,
     },
+
+    #[error(
+        "All GenericTransactionRef elements must have the same variant (BlockRef, TransactionRef, etc.) for batch operations."
+    )]
+    InconsistentTransactionRefVariants,
+
+    #[error(
+        "Transaction reference variant is inconsistent with protocol flag consensus_transaction_ref={protocol_flag_enabled}. Expected {expected_variant}, but received {received_variant}"
+    )]
+    TransactionRefVariantMismatch {
+        protocol_flag_enabled: bool,
+        expected_variant: &'static str,
+        received_variant: &'static str,
+    },
 }
 
 impl ConsensusError {
@@ -273,6 +288,26 @@ impl ConsensusError {
                 });
             }
             if block.round == GENESIS_ROUND {
+                return Err(ConsensusError::UnexpectedGenesisRequested { peer });
+            }
+        }
+        Ok(())
+    }
+
+    pub fn quick_validation_requested_tx_refs(
+        gen_tx_refs: &[GenericTransactionRef],
+        peer: AuthorityIndex,
+        committee: &Committee,
+    ) -> ConsensusResult<()> {
+        for gen_tx_ref in gen_tx_refs {
+            if !committee.is_valid_index(gen_tx_ref.author()) {
+                return Err(ConsensusError::InvalidAuthorityIndexRequested {
+                    index: gen_tx_ref.author(),
+                    max: committee.size(),
+                    peer,
+                });
+            }
+            if gen_tx_ref.round() == GENESIS_ROUND {
                 return Err(ConsensusError::UnexpectedGenesisRequested { peer });
             }
         }

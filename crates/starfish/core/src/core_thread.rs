@@ -31,6 +31,7 @@ use crate::{
     core_thread::CoreError::Shutdown,
     dag_state::{DagState, DataSource},
     error::{ConsensusError, ConsensusResult},
+    transaction_ref::GenericTransactionRef,
 };
 
 const CORE_THREAD_COMMANDS_CHANNEL_SIZE: usize = 2000;
@@ -42,7 +43,7 @@ enum CoreThreadCommand {
         DataSource,
         oneshot::Sender<(
             BTreeSet<BlockRef>,
-            BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>,
+            BTreeMap<GenericTransactionRef, BTreeSet<AuthorityIndex>>,
         )>,
     ),
     /// Add block headers to be processed and accepted
@@ -51,7 +52,7 @@ enum CoreThreadCommand {
         DataSource,
         oneshot::Sender<(
             BTreeSet<BlockRef>,
-            BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>,
+            BTreeMap<GenericTransactionRef, BTreeSet<AuthorityIndex>>,
         )>,
     ),
     /// Add committed sub dag blocks for processing and acceptance.
@@ -59,7 +60,7 @@ enum CoreThreadCommand {
         CertifiedCommits,
         oneshot::Sender<(
             BTreeSet<BlockRef>,
-            BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>,
+            BTreeMap<GenericTransactionRef, BTreeSet<AuthorityIndex>>,
         )>,
     ),
     /// Called when the min round has passed or the leader timeout occurred and
@@ -69,7 +70,7 @@ enum CoreThreadCommand {
     /// be found on the `Core` component.
     NewBlock(
         Round,
-        oneshot::Sender<BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>>,
+        oneshot::Sender<BTreeMap<GenericTransactionRef, BTreeSet<AuthorityIndex>>>,
         ReasonToCreateBlock,
     ),
     /// Request missing blocks that need to be synced together with authorities
@@ -80,7 +81,9 @@ enum CoreThreadCommand {
     /// Add shards to the dag_state
     AddShards(Vec<VerifiedOwnShard>, oneshot::Sender<()>),
     /// Get missing transaction data that need to be synced
-    GetMissingTransactionData(oneshot::Sender<BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>>),
+    GetMissingTransactionData(
+        oneshot::Sender<BTreeMap<GenericTransactionRef, BTreeSet<AuthorityIndex>>>,
+    ),
 }
 
 #[derive(Error, Debug)]
@@ -100,7 +103,7 @@ pub trait CoreThreadDispatcher: Sync + Send + 'static {
     ) -> Result<
         (
             BTreeSet<BlockRef>,
-            BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>,
+            BTreeMap<GenericTransactionRef, BTreeSet<AuthorityIndex>>,
         ),
         CoreError,
     >;
@@ -112,7 +115,7 @@ pub trait CoreThreadDispatcher: Sync + Send + 'static {
     ) -> Result<
         (
             BTreeSet<BlockRef>,
-            BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>,
+            BTreeMap<GenericTransactionRef, BTreeSet<AuthorityIndex>>,
         ),
         CoreError,
     >;
@@ -127,7 +130,7 @@ pub trait CoreThreadDispatcher: Sync + Send + 'static {
 
     async fn get_missing_transaction_data(
         &self,
-    ) -> Result<BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>, CoreError>;
+    ) -> Result<BTreeMap<GenericTransactionRef, BTreeSet<AuthorityIndex>>, CoreError>;
 
     async fn add_certified_commits(
         &self,
@@ -135,7 +138,7 @@ pub trait CoreThreadDispatcher: Sync + Send + 'static {
     ) -> Result<
         (
             BTreeSet<BlockRef>,
-            BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>,
+            BTreeMap<GenericTransactionRef, BTreeSet<AuthorityIndex>>,
         ),
         CoreError,
     >;
@@ -144,7 +147,7 @@ pub trait CoreThreadDispatcher: Sync + Send + 'static {
         &self,
         round: Round,
         reason: ReasonToCreateBlock,
-    ) -> Result<BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>, CoreError>;
+    ) -> Result<BTreeMap<GenericTransactionRef, BTreeSet<AuthorityIndex>>, CoreError>;
 
     async fn get_missing_block_headers(
         &self,
@@ -356,7 +359,7 @@ impl CoreThreadDispatcher for ChannelCoreThreadDispatcher {
     ) -> Result<
         (
             BTreeSet<BlockRef>,
-            BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>,
+            BTreeMap<GenericTransactionRef, BTreeSet<AuthorityIndex>>,
         ),
         CoreError,
     > {
@@ -376,7 +379,7 @@ impl CoreThreadDispatcher for ChannelCoreThreadDispatcher {
     ) -> Result<
         (
             BTreeSet<BlockRef>,
-            BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>,
+            BTreeMap<GenericTransactionRef, BTreeSet<AuthorityIndex>>,
         ),
         CoreError,
     > {
@@ -414,7 +417,7 @@ impl CoreThreadDispatcher for ChannelCoreThreadDispatcher {
 
     async fn get_missing_transaction_data(
         &self,
-    ) -> Result<BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>, CoreError> {
+    ) -> Result<BTreeMap<GenericTransactionRef, BTreeSet<AuthorityIndex>>, CoreError> {
         let (sender, receiver) = oneshot::channel();
         self.send(CoreThreadCommand::GetMissingTransactionData(sender))
             .await;
@@ -427,7 +430,7 @@ impl CoreThreadDispatcher for ChannelCoreThreadDispatcher {
     ) -> Result<
         (
             BTreeSet<BlockRef>,
-            BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>,
+            BTreeMap<GenericTransactionRef, BTreeSet<AuthorityIndex>>,
         ),
         CoreError,
     > {
@@ -447,7 +450,7 @@ impl CoreThreadDispatcher for ChannelCoreThreadDispatcher {
         &self,
         round: Round,
         reason: ReasonToCreateBlock,
-    ) -> Result<BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>, CoreError> {
+    ) -> Result<BTreeMap<GenericTransactionRef, BTreeSet<AuthorityIndex>>, CoreError> {
         let (sender, receiver) = oneshot::channel();
         self.send(CoreThreadCommand::NewBlock(round, sender, reason))
             .await;
@@ -561,7 +564,7 @@ pub(crate) mod tests {
         ) -> Result<
             (
                 BTreeSet<BlockRef>,
-                BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>,
+                BTreeMap<GenericTransactionRef, BTreeSet<AuthorityIndex>>,
             ),
             CoreError,
         > {
@@ -576,7 +579,7 @@ pub(crate) mod tests {
         ) -> Result<
             (
                 BTreeSet<BlockRef>,
-                BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>,
+                BTreeMap<GenericTransactionRef, BTreeSet<AuthorityIndex>>,
             ),
             CoreError,
         > {
@@ -604,7 +607,7 @@ pub(crate) mod tests {
 
         async fn get_missing_transaction_data(
             &self,
-        ) -> Result<BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>, CoreError> {
+        ) -> Result<BTreeMap<GenericTransactionRef, BTreeSet<AuthorityIndex>>, CoreError> {
             Ok(BTreeMap::new())
         }
 
@@ -614,7 +617,7 @@ pub(crate) mod tests {
         ) -> Result<
             (
                 BTreeSet<BlockRef>,
-                BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>,
+                BTreeMap<GenericTransactionRef, BTreeSet<AuthorityIndex>>,
             ),
             CoreError,
         > {
@@ -625,7 +628,7 @@ pub(crate) mod tests {
             &self,
             round: Round,
             reason: ReasonToCreateBlock,
-        ) -> Result<BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>, CoreError> {
+        ) -> Result<BTreeMap<GenericTransactionRef, BTreeSet<AuthorityIndex>>, CoreError> {
             self.new_block_calls
                 .lock()
                 .push((round, reason, Instant::now()));
@@ -660,7 +663,7 @@ pub(crate) mod tests {
         telemetry_subscribers::init_for_testing();
         let (context, mut key_pairs) = Context::new_for_test(4);
         let context = Arc::new(context);
-        let store = Arc::new(MemStore::new());
+        let store = Arc::new(MemStore::new(context.clone()));
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
         let block_manager = BlockManager::new(context.clone(), dag_state.clone());
         let (_transaction_client, tx_receiver) = TransactionClient::new(context.clone());

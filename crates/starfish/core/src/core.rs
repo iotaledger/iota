@@ -48,6 +48,7 @@ use crate::{
     leader_schedule::LeaderSchedule,
     stake_aggregator::{QuorumThreshold, StakeAggregator},
     transaction::TransactionConsumer,
+    transaction_ref::{GenericTransactionRef, GenericTransactionRefAPI as _},
     universal_committer::{
         UniversalCommitter, universal_committer_builder::UniversalCommitterBuilder,
     },
@@ -295,7 +296,7 @@ impl Core {
         source: DataSource,
     ) -> ConsensusResult<(
         BTreeSet<BlockRef>,
-        BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>,
+        BTreeMap<GenericTransactionRef, BTreeSet<AuthorityIndex>>,
     )> {
         let _scope = monitored_scope("Core::add_blocks");
         let _s = self
@@ -358,7 +359,7 @@ impl Core {
         source: DataSource,
     ) -> ConsensusResult<(
         BTreeSet<BlockRef>,
-        BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>,
+        BTreeMap<GenericTransactionRef, BTreeSet<AuthorityIndex>>,
     )> {
         let _scope = monitored_scope("Core::add_block_headers");
         let _s = self
@@ -479,7 +480,7 @@ impl Core {
         certified_commits: CertifiedCommits,
     ) -> ConsensusResult<(
         BTreeSet<BlockRef>,
-        BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>,
+        BTreeMap<GenericTransactionRef, BTreeSet<AuthorityIndex>>,
     )> {
         let _scope = monitored_scope("Core::add_certified_commits");
 
@@ -543,7 +544,7 @@ impl Core {
         reason: ReasonToCreateBlock,
     ) -> ConsensusResult<(
         Option<VerifiedBlock>,
-        BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>,
+        BTreeMap<GenericTransactionRef, BTreeSet<AuthorityIndex>>,
     )> {
         let _scope = monitored_scope("Core::new_block");
         if self.last_proposed_round() < round {
@@ -563,7 +564,7 @@ impl Core {
         reason: ReasonToCreateBlock,
     ) -> ConsensusResult<(
         Option<VerifiedBlock>,
-        BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>,
+        BTreeMap<GenericTransactionRef, BTreeSet<AuthorityIndex>>,
     )> {
         if !self.should_propose() {
             return Ok((None, BTreeMap::new()));
@@ -814,7 +815,12 @@ impl Core {
         drop(dag_state_guard);
         // Now acknowledge the transactions for their inclusion to block
         let block_ref = verified_block.reference();
-        ack_transactions(block_ref);
+        let gen_transaction_ref = if self.context.protocol_config.consensus_transaction_ref() {
+            GenericTransactionRef::from(verified_block.transaction_ref())
+        } else {
+            GenericTransactionRef::from(block_ref)
+        };
+        ack_transactions(gen_transaction_ref);
 
         info!("Created block {block_ref} for round {clock_round}");
 
@@ -836,7 +842,7 @@ impl Core {
         &mut self,
     ) -> ConsensusResult<(
         Vec<PendingSubDag>,
-        BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>,
+        BTreeMap<GenericTransactionRef, BTreeSet<AuthorityIndex>>,
     )> {
         let _s = self
             .context
@@ -953,7 +959,7 @@ impl Core {
             .iter()
             .flat_map(|sub_dag| sub_dag.committed_transaction_refs.iter())
             .filter_map(|block_ref| {
-                (block_ref.author == self.context.own_index).then_some(*block_ref)
+                (block_ref.author() == self.context.own_index).then_some(*block_ref)
             })
             .collect::<Vec<_>>();
 
@@ -978,7 +984,7 @@ impl Core {
     }
     pub(crate) fn get_missing_transaction_data(
         &self,
-    ) -> BTreeMap<BlockRef, BTreeSet<AuthorityIndex>> {
+    ) -> BTreeMap<GenericTransactionRef, BTreeSet<AuthorityIndex>> {
         let _scope = monitored_scope("Core::get_missing_transaction_data");
         let _s = self
             .context
@@ -1276,10 +1282,10 @@ impl CoreTextFixture {
 
         let context = Arc::new(context);
         let store: Arc<dyn Store> = if !with_rocksdb {
-            Arc::new(MemStore::new())
+            Arc::new(MemStore::new(context.clone()))
         } else {
             let store_path = context.parameters.db_path.as_path().to_str().unwrap();
-            Arc::new(RocksDBStore::new(store_path))
+            Arc::new(RocksDBStore::new(store_path, context.clone()))
         };
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
 
@@ -1355,16 +1361,23 @@ mod test {
         storage::{Store, WriteBatch, mem_store::MemStore},
         test_dag_builder::DagBuilder,
         transaction::{BlockStatus, TransactionClient},
+        transaction_ref::TransactionRef,
     };
 
     /// Recover Core and continue proposing from the last round which forms a
     /// quorum.
+    #[rstest]
     #[tokio::test]
-    async fn test_core_recover_from_store_for_full_round() {
+    async fn test_core_recover_from_store_for_full_round(
+        #[values(true, false)] consensus_transaction_ref: bool,
+    ) {
         telemetry_subscribers::init_for_testing();
-        let (context, mut key_pairs) = Context::new_for_test(4);
+        let (mut context, mut key_pairs) = Context::new_for_test(4);
+        context
+            .protocol_config
+            .set_consensus_transaction_ref_for_testing(consensus_transaction_ref);
         let context = Arc::new(context);
-        let store = Arc::new(MemStore::new());
+        let store = Arc::new(MemStore::new(context.clone()));
         let (_transaction_client, tx_receiver) = TransactionClient::new(context.clone());
         let transaction_consumer = TransactionConsumer::new(tx_receiver, context.clone());
         let mut block_status_subscriptions = FuturesUnordered::new();
@@ -1379,8 +1392,20 @@ mod test {
         // able to commit transactions up to round 2.
         for block in dag_builder.block_headers(1..=2) {
             if block.author() == context.own_index {
+                let generic_ref = if consensus_transaction_ref {
+                    // When consensus_transaction_ref is enabled, create TransactionRef variant
+                    GenericTransactionRef::TransactionRef(TransactionRef {
+                        round: block.round(),
+                        author: block.author(),
+                        transactions_commitment: block.transactions_commitment(),
+                        block_digest: block.digest(),
+                    })
+                } else {
+                    // When disabled, use BlockRef variant
+                    GenericTransactionRef::from(block.reference())
+                };
                 let subscription =
-                    transaction_consumer.subscribe_for_block_status_testing(block.reference());
+                    transaction_consumer.subscribe_for_block_status_testing(generic_ref);
                 block_status_subscriptions.push(subscription);
             }
         }
@@ -1391,6 +1416,7 @@ mod test {
                 WriteBatch::default()
                     .block_headers(dag_builder.block_headers(1..=num_rounds))
                     .transactions(dag_builder.transactions(1..=num_rounds)),
+                context.clone(),
             )
             .expect("We should expect a successful storing of headers");
 
@@ -1480,7 +1506,7 @@ mod test {
 
         let (context, mut key_pairs) = Context::new_for_test(4);
         let context = Arc::new(context);
-        let store = Arc::new(MemStore::new());
+        let store = Arc::new(MemStore::new(context.clone()));
         let (_transaction_client, tx_receiver) = TransactionClient::new(context.clone());
         let transaction_consumer = TransactionConsumer::new(tx_receiver, context.clone());
 
@@ -1519,6 +1545,7 @@ mod test {
                 WriteBatch::default()
                     .block_headers(block_headers)
                     .transactions(block_transactions),
+                context.clone(),
             )
             .expect("Storage error");
 
@@ -1610,7 +1637,7 @@ mod test {
 
         let (context, mut key_pairs) = Context::new_for_test(4);
         let context = Arc::new(context);
-        let store = Arc::new(MemStore::new());
+        let store = Arc::new(MemStore::new(context.clone()));
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
 
         let block_manager = BlockManager::new(context.clone(), dag_state.clone());
@@ -1768,7 +1795,7 @@ mod test {
         let (context, mut key_pairs) = Context::new_for_test(4);
         let context = Arc::new(context);
 
-        let store = Arc::new(MemStore::new());
+        let store = Arc::new(MemStore::new(context.clone()));
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
 
         let block_manager = BlockManager::new(context.clone(), dag_state.clone());
@@ -1858,7 +1885,7 @@ mod test {
             ..Default::default()
         }));
 
-        let store = Arc::new(MemStore::new());
+        let store = Arc::new(MemStore::new(context.clone()));
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
 
         let block_manager = BlockManager::new(context.clone(), dag_state.clone());
@@ -2074,7 +2101,7 @@ mod test {
         telemetry_subscribers::init_for_testing();
         let (context, mut key_pairs) = Context::new_for_test(4);
         let context = Arc::new(context);
-        let store = Arc::new(MemStore::new());
+        let store = Arc::new(MemStore::new(context.clone()));
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
 
         let block_manager = BlockManager::new(context.clone(), dag_state.clone());
@@ -2265,11 +2292,35 @@ mod test {
     #[tokio::test]
     #[serial]
     async fn test_sequenced_transactions_no_headers(
-        #[values(true, false)] commit_only_for_traversed_headers: bool,
+        #[values((true, true), (true, false), (false, false))] params: (bool, bool),
+    ) {
+        let (commit_only_for_traversed_headers, consensus_transaction_ref) = params;
+        test_sequenced_transactions_no_headers_impl(
+            commit_only_for_traversed_headers,
+            consensus_transaction_ref,
+        )
+        .await;
+    }
+
+    #[tokio::test]
+    #[serial]
+    #[should_panic(
+        expected = "The consensus transaction ref requires consensus_commit_transactions_only_for_traversed_headers to be enabled"
+    )]
+    async fn test_sequenced_transactions_no_headers_invalid_config() {
+        test_sequenced_transactions_no_headers_impl(false, true).await;
+    }
+
+    async fn test_sequenced_transactions_no_headers_impl(
+        commit_only_for_traversed_headers: bool,
+        consensus_transaction_ref: bool,
     ) {
         telemetry_subscribers::init_for_testing();
         let committee_size = 10;
         let (mut context, _key_pairs) = Context::new_for_test(committee_size);
+        context
+            .protocol_config
+            .set_consensus_transaction_ref_for_testing(consensus_transaction_ref);
         context
             .protocol_config
             .set_consensus_commit_transactions_only_for_traversed_headers_for_testing(
@@ -2375,16 +2426,22 @@ mod test {
         assert!(missing_references.is_empty());
         let first_missing_transaction_from_skipped = *missing_transactions
             .iter()
-            .find(|(a, _)| a.author == authority_to_skip)
+            .find(|(a, _)| a.author() == authority_to_skip)
             .unwrap()
             .0;
+        let block_ref_for_first_missing_tx = match first_missing_transaction_from_skipped {
+            GenericTransactionRef::BlockRef(ref b) => BlockRef::new(b.round, b.author, b.digest),
+            GenericTransactionRef::TransactionRef(ref t) => {
+                BlockRef::new(t.round, t.author, t.block_digest)
+            }
+        };
         if commit_only_for_traversed_headers {
             assert_eq!(
-                first_missing_transaction_from_skipped.round,
+                first_missing_transaction_from_skipped.round(),
                 num_rounds_with_skip_ancestors
             );
         } else {
-            assert_eq!(first_missing_transaction_from_skipped.round, 1);
+            assert_eq!(first_missing_transaction_from_skipped.round(), 1);
         }
         // Ensure that the block header corresponding to the
         // first_missing_transaction_from_skipped is not in dag_state
@@ -2393,7 +2450,7 @@ mod test {
             core_catch_up
                 .dag_state
                 .read()
-                .get_verified_block_headers(&[first_missing_transaction_from_skipped])[0]
+                .get_verified_block_headers(&[block_ref_for_first_missing_tx])[0]
                 .is_some(),
             commit_only_for_traversed_headers
         );
@@ -2410,7 +2467,15 @@ mod test {
         // synchronizer
         let missing_verified_transactions: Vec<_> = all_sequenced_transactions
             .into_iter()
-            .filter(|tx| missing_transactions.contains_key(&tx.block_ref()))
+            .filter(|tx| {
+                let tx_ref = tx.transaction_ref();
+                let generic_ref = if consensus_transaction_ref {
+                    GenericTransactionRef::TransactionRef(tx_ref)
+                } else {
+                    GenericTransactionRef::BlockRef(BlockRef::from(tx_ref))
+                };
+                missing_transactions.contains_key(&generic_ref)
+            })
             .collect();
         core_catch_up
             .add_transactions(
@@ -2873,14 +2938,20 @@ mod test {
         *receiver.borrow_and_update()
     }
 
+    #[rstest]
     #[tokio::test]
-    async fn test_commit_and_notify_for_block_status() {
+    async fn test_commit_and_notify_for_block_status(
+        #[values(true, false)] consensus_transaction_ref: bool,
+    ) {
         telemetry_subscribers::init_for_testing();
-        let (context, mut key_pairs) = Context::new_for_test(4);
+        let (mut context, mut key_pairs) = Context::new_for_test(4);
+        context
+            .protocol_config
+            .set_consensus_transaction_ref_for_testing(consensus_transaction_ref);
 
         let context = Arc::new(context);
 
-        let store = Arc::new(MemStore::new());
+        let store = Arc::new(MemStore::new(context.clone()));
         let (_transaction_client, tx_receiver) = TransactionClient::new(context.clone());
         let transaction_consumer = TransactionConsumer::new(tx_receiver, context.clone());
         let mut block_status_subscriptions = FuturesUnordered::new();
@@ -2894,20 +2965,38 @@ mod test {
         // able to commit transactions up to round 4.
         for block in dag_builder.block_headers(1..=4) {
             if block.author() == context.own_index {
+                let generic_ref = if consensus_transaction_ref {
+                    // When consensus_transaction_ref is enabled, create TransactionRef variant
+                    GenericTransactionRef::TransactionRef(TransactionRef {
+                        round: block.round(),
+                        author: block.author(),
+                        transactions_commitment: block.transactions_commitment(),
+                        block_digest: block.digest(),
+                    })
+                } else {
+                    // When disabled, use BlockRef variant
+                    GenericTransactionRef::from(block.reference())
+                };
                 let subscription =
-                    transaction_consumer.subscribe_for_block_status_testing(block.reference());
+                    transaction_consumer.subscribe_for_block_status_testing(generic_ref);
                 block_status_subscriptions.push(subscription);
             }
         }
 
         // write headers in store
         store
-            .write(WriteBatch::default().block_headers(dag_builder.block_headers(1..=8)))
+            .write(
+                WriteBatch::default().block_headers(dag_builder.block_headers(1..=8)),
+                context.clone(),
+            )
             .expect("We should expect a successful storing of headers");
 
         // write transactions in store
         store
-            .write(WriteBatch::default().transactions(dag_builder.transactions(1..=8)))
+            .write(
+                WriteBatch::default().transactions(dag_builder.transactions(1..=8)),
+                context.clone(),
+            )
             .expect("We should expect a successful storing of transactions");
 
         // create dag state after all blocks have been written to store
@@ -2958,11 +3047,43 @@ mod test {
         // The latest committed leader is from round 6 as the DAG is fully connected
         assert_eq!(last_commit.index(), 6);
 
-        while let Some(result) = block_status_subscriptions.next().await {
-            let status = result.unwrap();
+        // Add timeout to prevent infinite waiting
+        let timeout_duration = Duration::from_secs(10);
+        let mut received_notifications = 0;
+        let expected_notifications = block_status_subscriptions.len();
 
-            // otherwise all of them should be committed
-            assert!(matches!(status, BlockStatus::Sequenced(_)));
+        loop {
+            tokio::select! {
+                result = block_status_subscriptions.next() => {
+                    match result {
+                        Some(status_result) => {
+                            let status = status_result.unwrap();
+                            assert!(matches!(status, BlockStatus::Sequenced(_)));
+                            received_notifications += 1;
+
+                            // If we received all expected notifications, break
+                            if received_notifications >= expected_notifications {
+                                break;
+                            }
+                        }
+                        None => {
+                            break;
+                        }
+                    }
+                }
+                _ = tokio::time::sleep(timeout_duration) => {
+                    panic!("Test timed out after {:?}. Received {}/{} notifications. \
+                           This suggests notifications are not being sent properly.",
+                           timeout_duration, received_notifications, expected_notifications);
+                }
+            }
         }
+
+        // Verify we got all expected notifications
+        assert_eq!(
+            received_notifications, expected_notifications,
+            "Expected {} notifications but only received {}",
+            expected_notifications, received_notifications
+        );
     }
 }
