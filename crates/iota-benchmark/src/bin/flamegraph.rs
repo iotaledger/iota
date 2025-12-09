@@ -1,6 +1,10 @@
 // Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+/// This is a binary to generate test flamegraph data in a simple benchmark with
+/// a local test cluster. To run it, use:
+/// ```cargo run --release --package iota-benchmark --bin flamegraph```
+/// This will output a JSON blob that can be imported into Grafana to visualize the flamegraph.
 #[tokio::main]
 async fn main() {
     use iota_test_transaction_builder::make_transfer_iota_transaction;
