@@ -20,6 +20,11 @@ impl Merge<iota_types::object::Object> for Object {
         source: iota_types::object::Object,
         mask: &FieldMaskTree,
     ) -> Result<(), Box<dyn std::error::Error>> {
+        if !mask.contains(Self::REFERENCE_FIELD.name) && !mask.contains(Self::BCS_FIELD.name) {
+            // No need to convert if no field is requested
+            return Ok(());
+        }
+
         // TODO: wrap Object into a type with a version
         let sdk_object = source
             .try_into()

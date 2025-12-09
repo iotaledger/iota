@@ -14,6 +14,11 @@ impl Merge<iota_types::effects::TransactionEffects> for TransactionEffects {
         source: iota_types::effects::TransactionEffects,
         mask: &FieldMaskTree,
     ) -> Result<(), Box<dyn std::error::Error>> {
+        if !mask.contains(Self::DIGEST_FIELD.name) && !mask.contains(Self::BCS_FIELD.name) {
+            // No need to convert if no field is requested
+            return Ok(());
+        }
+
         // Convert iota_types to iota_sdk_types types for external compatibility
         let sdk_effects: iota_sdk_types::TransactionEffects = source
             .try_into()
@@ -52,6 +57,11 @@ impl Merge<iota_types::effects::TransactionEvents> for TransactionEvents {
         source: iota_types::effects::TransactionEvents,
         mask: &FieldMaskTree,
     ) -> Result<(), Box<dyn std::error::Error>> {
+        if !mask.contains(Self::DIGEST_FIELD.name) && !mask.contains(Self::EVENTS_FIELD.name) {
+            // No need to convert if no field is requested
+            return Ok(());
+        }
+
         let sdk_events: iota_sdk_types::TransactionEvents = source
             .try_into()
             .map_err(|e| format!("failed to convert events to SDK type: {e}"))?;

@@ -48,6 +48,11 @@ impl Merge<iota_types::signature::GenericSignature> for UserSignature {
         source: iota_types::signature::GenericSignature,
         mask: &FieldMaskTree,
     ) -> Result<(), Box<dyn std::error::Error>> {
+        if !mask.contains(Self::BCS_FIELD.name) {
+            // No need to convert if no field is requested
+            return Ok(());
+        }
+
         let sdk_signature: iota_sdk_types::UserSignature = source
             .try_into()
             .map_err(|e| format!("Failed to convert SDK signature: {}", e))?;

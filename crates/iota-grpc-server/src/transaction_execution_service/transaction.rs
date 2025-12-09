@@ -106,6 +106,11 @@ impl Merge<&TransactionReadSource> for grpc_tx::Transaction {
         source: &TransactionReadSource,
         mask: &FieldMaskTree,
     ) -> Result<(), Box<dyn std::error::Error>> {
+        if !mask.contains(Self::DIGEST_FIELD.name) && !mask.contains(Self::BCS_FIELD.name) {
+            // No need to convert if no field is requested
+            return Ok(());
+        }
+
         let sdk_transaction: iota_sdk_types::Transaction = source
             .transaction_data
             .clone()
