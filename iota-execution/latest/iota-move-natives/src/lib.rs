@@ -187,7 +187,6 @@ pub struct NativesCostTable {
 impl NativesCostTable {
     pub fn from_protocol_config(protocol_config: &ProtocolConfig) -> NativesCostTable {
         Self {
-            // address
             address_from_bytes_cost_params: AddressFromBytesCostParams {
                 address_from_bytes_cost_base: protocol_config.address_from_bytes_cost_base().into(),
             },
