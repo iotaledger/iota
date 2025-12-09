@@ -81,6 +81,7 @@ const NODE_CONFIG: &str = "/node-config";
 const RANDOMNESS_PARTIAL_SIGS_ROUTE: &str = "/randomness-partial-sigs";
 const RANDOMNESS_INJECT_PARTIAL_SIGS_ROUTE: &str = "/randomness-inject-partial-sigs";
 const RANDOMNESS_INJECT_FULL_SIG_ROUTE: &str = "/randomness-inject-full-sig";
+const FLAMEGRAPH_ROUTE: &str = "/flamegraph";
 
 struct AppState {
     node: Arc<IotaNode>,
@@ -124,6 +125,7 @@ pub async fn run_admin_server(
             RANDOMNESS_INJECT_FULL_SIG_ROUTE,
             post(randomness_inject_full_sig),
         )
+        .route(FLAMEGRAPH_ROUTE, get(flamegraph))
         .with_state(Arc::new(app_state));
 
     info!(
@@ -449,5 +451,12 @@ async fn randomness_inject_full_sig(
         Ok(Ok(())) => (StatusCode::OK, "full signature injected\n".to_string()),
         Ok(Err(e)) => (StatusCode::BAD_REQUEST, e.to_string()),
         Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()),
+    }
+}
+
+async fn flamegraph(State(state): State<Arc<AppState>>) -> impl axum::response::IntoResponse {
+    match state.tracing_handle.get_flamegraph() {
+        Some(sub) => Ok(axum::Json(sub.get_nested_sets("iota-node"))),
+        None => Err((StatusCode::NOT_FOUND, "flamegraphs are not enabled\n")),
     }
 }

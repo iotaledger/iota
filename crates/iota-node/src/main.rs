@@ -73,7 +73,7 @@ fn main() {
     let prometheus_registry = registry_service.default_registry();
 
     // Initialize logging
-    let (_guard, filter_handle) = telemetry_subscribers::TelemetryConfig::new()
+    let (_guard, tracing_handle) = telemetry_subscribers::TelemetryConfig::new()
         .with_env()
         .with_prom_registry(&prometheus_registry)
         .init();
@@ -142,7 +142,7 @@ fn main() {
     runtimes.metrics.spawn(async move {
         let node = node_once_cell.get().await;
 
-        iota_node::admin::run_admin_server(node, admin_interface_address, filter_handle).await
+        iota_node::admin::run_admin_server(node, admin_interface_address, tracing_handle).await
     });
 
     // wait for SIGINT on the main thread

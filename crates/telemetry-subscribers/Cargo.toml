@@ -7,6 +7,9 @@ license = "Apache-2.0"
 publish = false
 description = "Library for common telemetry and observability functionality"
 
+[lints]
+workspace = true
+
 [dependencies]
 atomic_float = "1.0"
 bytes.workspace = true
@@ -20,8 +23,10 @@ opentelemetry = "0.27.1"
 opentelemetry-otlp = { version = "0.27.0", features = ["grpc-tonic"] }
 opentelemetry-proto = "0.27.0"
 opentelemetry_sdk = { version = "0.27.1", features = ["rt-tokio"] }
+parking_lot.workspace = true
 prometheus.workspace = true
 prost = "0.13"
+serde.workspace = true
 thiserror.workspace = true
 tokio = { workspace = true, features = ["full"] }
 tonic = { version = "0.12.3" }

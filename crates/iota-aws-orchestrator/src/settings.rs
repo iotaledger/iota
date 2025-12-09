@@ -207,6 +207,9 @@ pub struct Settings {
     /// Binary build configuration.
     #[serde(default)]
     pub build_configs: HashMap<String, BinaryBuildConfig>,
+    /// Enable flamegraphs when running nodes.
+    #[serde(default)]
+    pub enable_flamegraph: bool,
 }
 
 fn default_working_dir() -> PathBuf {
@@ -380,6 +383,7 @@ impl Settings {
             results_dir: "results".into(),
             logs_dir: "logs".into(),
             build_configs: HashMap::new(),
+            enable_flamegraph: false,
         }
     }
 }
