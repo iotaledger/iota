@@ -382,7 +382,6 @@ url = "2.3.1"
 uuid = { version = "1.1.2", features = ["v4", "fast-rng"] }
 
 # internal dependencies
-### Workspace Members ###
 bin-version = { path = "crates/bin-version" }
 consensus-config = { path = "consensus/config" }
 consensus-core = { path = "consensus/core" }
