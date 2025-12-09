@@ -257,6 +257,12 @@ pub trait GrpcStateReader: Send + Sync + 'static {
 
     /// Get indexed epoch information
     fn get_epoch_info(&self, epoch: u64) -> Option<iota_types::storage::EpochInfo>;
+
+    /// Get the Move struct layout for a given struct tag
+    fn get_struct_layout(
+        &self,
+        struct_tag: &move_core_types::language_storage::StructTag,
+    ) -> Result<Option<move_core_types::annotated_value::MoveTypeLayout>>;
 }
 
 /// Adapter that implements GrpcStateReader for RestStateReader
@@ -343,6 +349,13 @@ impl GrpcStateReader for RestStateReaderAdapter {
         self.inner
             .indexes()
             .and_then(|indexes| indexes.get_epoch_info(epoch).ok().flatten())
+    }
+
+    fn get_struct_layout(
+        &self,
+        struct_tag: &move_core_types::language_storage::StructTag,
+    ) -> Result<Option<move_core_types::annotated_value::MoveTypeLayout>> {
+        Ok(self.inner.get_struct_layout(struct_tag)?)
     }
 }
 
@@ -452,6 +465,13 @@ impl GrpcReader {
 
     pub fn get_epoch_info(&self, epoch: u64) -> Option<iota_types::storage::EpochInfo> {
         self.state_reader.get_epoch_info(epoch)
+    }
+
+    pub fn get_struct_layout(
+        &self,
+        struct_tag: &move_core_types::language_storage::StructTag,
+    ) -> Result<Option<move_core_types::annotated_value::MoveTypeLayout>> {
+        self.state_reader.get_struct_layout(struct_tag)
     }
 
     /// Generic checkpoint streaming implementation that works with checkpoint
