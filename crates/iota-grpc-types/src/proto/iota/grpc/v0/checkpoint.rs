@@ -11,14 +11,14 @@ use crate::{field::FieldMaskTree, merge::Merge, proto::TryFromProtoError, v0::bc
 // CheckpointSummary
 //
 
-impl From<iota_sdk2::types::CheckpointSummary> for CheckpointSummary {
-    fn from(summary: iota_sdk2::types::CheckpointSummary) -> Self {
+impl From<iota_sdk_types::CheckpointSummary> for CheckpointSummary {
+    fn from(summary: iota_sdk_types::CheckpointSummary) -> Self {
         Self::merge_from(summary, &FieldMaskTree::new_wildcard())
     }
 }
 
-impl Merge<iota_sdk2::types::CheckpointSummary> for CheckpointSummary {
-    fn merge(&mut self, source: iota_sdk2::types::CheckpointSummary, mask: &FieldMaskTree) {
+impl Merge<iota_sdk_types::CheckpointSummary> for CheckpointSummary {
+    fn merge(&mut self, source: iota_sdk_types::CheckpointSummary, mask: &FieldMaskTree) {
         if mask.contains(Self::BCS_FIELD.name) {
             self.bcs = Some(BcsData::serialize(&source).unwrap());
         }
@@ -43,7 +43,7 @@ impl Merge<&CheckpointSummary> for CheckpointSummary {
     }
 }
 
-impl TryFrom<&CheckpointSummary> for iota_sdk2::types::CheckpointSummary {
+impl TryFrom<&CheckpointSummary> for iota_sdk_types::CheckpointSummary {
     type Error = TryFromProtoError;
 
     fn try_from(
@@ -60,14 +60,14 @@ impl TryFrom<&CheckpointSummary> for iota_sdk2::types::CheckpointSummary {
 // CheckpointContents
 //
 
-impl From<iota_sdk2::types::CheckpointContents> for CheckpointContents {
-    fn from(value: iota_sdk2::types::CheckpointContents) -> Self {
+impl From<iota_sdk_types::CheckpointContents> for CheckpointContents {
+    fn from(value: iota_sdk_types::CheckpointContents) -> Self {
         Self::merge_from(value, &FieldMaskTree::new_wildcard())
     }
 }
 
-impl Merge<iota_sdk2::types::CheckpointContents> for CheckpointContents {
-    fn merge(&mut self, source: iota_sdk2::types::CheckpointContents, mask: &FieldMaskTree) {
+impl Merge<iota_sdk_types::CheckpointContents> for CheckpointContents {
+    fn merge(&mut self, source: iota_sdk_types::CheckpointContents, mask: &FieldMaskTree) {
         if mask.contains(Self::BCS_FIELD.name) {
             self.bcs = Some(BcsData::serialize(&source).unwrap());
         }
@@ -92,7 +92,7 @@ impl Merge<&CheckpointContents> for CheckpointContents {
     }
 }
 
-impl TryFrom<&CheckpointContents> for iota_sdk2::types::CheckpointContents {
+impl TryFrom<&CheckpointContents> for iota_sdk_types::CheckpointContents {
     type Error = TryFromProtoError;
 
     fn try_from(value: &CheckpointContents) -> Result<Self, Self::Error> {
@@ -108,8 +108,8 @@ impl TryFrom<&CheckpointContents> for iota_sdk2::types::CheckpointContents {
 // Checkpoint
 //
 
-impl Merge<&iota_sdk2::types::CheckpointSummary> for Checkpoint {
-    fn merge(&mut self, source: &iota_sdk2::types::CheckpointSummary, mask: &FieldMaskTree) {
+impl Merge<&iota_sdk_types::CheckpointSummary> for Checkpoint {
+    fn merge(&mut self, source: &iota_sdk_types::CheckpointSummary, mask: &FieldMaskTree) {
         if mask.contains(Self::SEQUENCE_NUMBER_FIELD.name) {
             self.sequence_number = Some(source.sequence_number);
         }
@@ -120,10 +120,10 @@ impl Merge<&iota_sdk2::types::CheckpointSummary> for Checkpoint {
     }
 }
 
-impl Merge<iota_sdk2::types::ValidatorAggregatedSignature> for Checkpoint {
+impl Merge<iota_sdk_types::ValidatorAggregatedSignature> for Checkpoint {
     fn merge(
         &mut self,
-        source: iota_sdk2::types::ValidatorAggregatedSignature,
+        source: iota_sdk_types::ValidatorAggregatedSignature,
         mask: &FieldMaskTree,
     ) {
         if mask.contains(Self::SIGNATURE_FIELD.name) {
@@ -132,8 +132,8 @@ impl Merge<iota_sdk2::types::ValidatorAggregatedSignature> for Checkpoint {
     }
 }
 
-impl Merge<iota_sdk2::types::CheckpointContents> for Checkpoint {
-    fn merge(&mut self, source: iota_sdk2::types::CheckpointContents, mask: &FieldMaskTree) {
+impl Merge<iota_sdk_types::CheckpointContents> for Checkpoint {
+    fn merge(&mut self, source: iota_sdk_types::CheckpointContents, mask: &FieldMaskTree) {
         if let Some(submask) = mask.subtree(Self::CONTENTS_FIELD.name) {
             self.contents = Some(CheckpointContents::merge_from(source, &submask));
         }

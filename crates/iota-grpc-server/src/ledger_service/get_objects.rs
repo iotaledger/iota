@@ -134,8 +134,9 @@ fn get_object_impl(
             .ok_or_else(|| ObjectNotFoundError::new(object_id))?
     };
 
-    // Convert to iota_sdk2 type
-    // TODO: Remove this conversion when we migrate iota-types to iota_sdk2 types
+    // Convert to iota-sdk-types type
+    // TODO: Remove this conversion when we migrate iota-types to iota-sdk-types
+    // types
     let sdk_object = object
         .try_into()
         .map_err(|e: SdkTypeConversionError| anyhow::Error::msg(e.to_string()))?;
