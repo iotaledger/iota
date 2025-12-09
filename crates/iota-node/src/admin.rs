@@ -458,14 +458,19 @@ async fn randomness_inject_full_sig(
 #[derive(Deserialize)]
 struct Flamegraph {
     /// Toggle SVG response, otherwise return nested set model for Grafana.
+    #[serde(default)]
     svg: bool,
     /// SVG width in pixels (3600 by default).
+    #[serde(default)]
     width: usize,
     /// Select still running call graphs.
+    #[serde(default)]
     running: bool,
     /// Select already completed call graphs.
+    #[serde(default)]
     completed: bool,
     /// Select call graph with the given ID.
+    #[serde(default)]
     graph_id: String,
 }
 
