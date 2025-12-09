@@ -11,15 +11,15 @@ use crate::{field::FieldMaskTree, merge::Merge, proto::TryFromProtoError, v0::bc
 // ValidatorAggregatedSignature
 //
 
-impl From<iota_sdk2::types::ValidatorAggregatedSignature> for ValidatorAggregatedSignature {
-    fn from(value: iota_sdk2::types::ValidatorAggregatedSignature) -> Self {
+impl From<iota_sdk_types::ValidatorAggregatedSignature> for ValidatorAggregatedSignature {
+    fn from(value: iota_sdk_types::ValidatorAggregatedSignature) -> Self {
         Self {
             bcs: Some(BcsData::serialize(&value).unwrap()),
         }
     }
 }
 
-impl TryFrom<&ValidatorAggregatedSignature> for iota_sdk2::types::ValidatorAggregatedSignature {
+impl TryFrom<&ValidatorAggregatedSignature> for iota_sdk_types::ValidatorAggregatedSignature {
     type Error = TryFromProtoError;
 
     fn try_from(value: &ValidatorAggregatedSignature) -> Result<Self, Self::Error> {
@@ -35,14 +35,14 @@ impl TryFrom<&ValidatorAggregatedSignature> for iota_sdk2::types::ValidatorAggre
 // UserSignature
 //
 
-impl From<iota_sdk2::types::UserSignature> for UserSignature {
-    fn from(value: iota_sdk2::types::UserSignature) -> Self {
+impl From<iota_sdk_types::UserSignature> for UserSignature {
+    fn from(value: iota_sdk_types::UserSignature) -> Self {
         Self::merge_from(value, &FieldMaskTree::new_wildcard())
     }
 }
 
-impl Merge<iota_sdk2::types::UserSignature> for UserSignature {
-    fn merge(&mut self, source: iota_sdk2::types::UserSignature, mask: &FieldMaskTree) {
+impl Merge<iota_sdk_types::UserSignature> for UserSignature {
+    fn merge(&mut self, source: iota_sdk_types::UserSignature, mask: &FieldMaskTree) {
         if mask.contains(Self::BCS_FIELD.name) {
             self.bcs = Some(BcsData::serialize(&source).unwrap());
         }
@@ -59,7 +59,7 @@ impl Merge<&UserSignature> for UserSignature {
     }
 }
 
-impl TryFrom<&UserSignature> for iota_sdk2::types::UserSignature {
+impl TryFrom<&UserSignature> for iota_sdk_types::UserSignature {
     type Error = TryFromProtoError;
 
     fn try_from(value: &UserSignature) -> Result<Self, Self::Error> {
