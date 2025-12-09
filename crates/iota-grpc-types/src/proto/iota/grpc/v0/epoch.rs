@@ -13,8 +13,8 @@ use crate::{field::FieldMaskTree, merge::Merge, proto::TryFromProtoError};
 // ValidatorCommitteeMember
 //
 
-impl From<iota_sdk2::types::ValidatorCommitteeMember> for ValidatorCommitteeMember {
-    fn from(value: iota_sdk2::types::ValidatorCommitteeMember) -> Self {
+impl From<iota_sdk_types::ValidatorCommitteeMember> for ValidatorCommitteeMember {
+    fn from(value: iota_sdk_types::ValidatorCommitteeMember) -> Self {
         Self {
             public_key: Some(value.public_key.as_bytes().to_vec().into()),
             weight: Some(value.stake),
@@ -22,7 +22,7 @@ impl From<iota_sdk2::types::ValidatorCommitteeMember> for ValidatorCommitteeMemb
     }
 }
 
-impl TryFrom<&ValidatorCommitteeMember> for iota_sdk2::types::ValidatorCommitteeMember {
+impl TryFrom<&ValidatorCommitteeMember> for iota_sdk_types::ValidatorCommitteeMember {
     type Error = TryFromProtoError;
 
     fn try_from(
@@ -32,7 +32,7 @@ impl TryFrom<&ValidatorCommitteeMember> for iota_sdk2::types::ValidatorCommittee
             .as_ref()
             .ok_or_else(|| TryFromProtoError::missing("public_key"))?
             .as_ref()
-            .pipe(iota_sdk2::types::Bls12381PublicKey::from_bytes)
+            .pipe(iota_sdk_types::Bls12381PublicKey::from_bytes)
             .map_err(|e| {
                 TryFromProtoError::invalid(ValidatorCommitteeMember::PUBLIC_KEY_FIELD, e)
             })?;
@@ -45,8 +45,8 @@ impl TryFrom<&ValidatorCommitteeMember> for iota_sdk2::types::ValidatorCommittee
 // ValidatorCommittee
 //
 
-impl From<iota_sdk2::types::ValidatorCommittee> for ValidatorCommittee {
-    fn from(value: iota_sdk2::types::ValidatorCommittee) -> Self {
+impl From<iota_sdk_types::ValidatorCommittee> for ValidatorCommittee {
+    fn from(value: iota_sdk_types::ValidatorCommittee) -> Self {
         Self {
             epoch: Some(value.epoch),
             members: Some(ValidatorCommitteeMembers {
@@ -56,7 +56,7 @@ impl From<iota_sdk2::types::ValidatorCommittee> for ValidatorCommittee {
     }
 }
 
-impl TryFrom<&ValidatorCommittee> for iota_sdk2::types::ValidatorCommittee {
+impl TryFrom<&ValidatorCommittee> for iota_sdk_types::ValidatorCommittee {
     type Error = TryFromProtoError;
 
     fn try_from(value: &ValidatorCommittee) -> Result<Self, Self::Error> {

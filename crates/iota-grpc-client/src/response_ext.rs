@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 use iota_grpc_types::headers;
-use iota_sdk2::types::Digest;
+use iota_sdk_types::Digest;
 
 /// Extension trait used to facilitate retrieval of IOTA specific data from
 /// responses
