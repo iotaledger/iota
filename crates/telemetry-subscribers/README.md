@@ -273,12 +273,20 @@ async fn run_task() {
 }
 ```
 
-3. Enable flamegraph in config:
+3. Enable flamegraph in config or via Environment Variable:
+
+via config:
 
 ```rs
 let (guards, handle) = TelemetryConfig::new()
     .with_flamegraph()
     .init();
+```
+
+via Environment Variable:
+
+```bash
+TRACE_FLAMEGRAPH=1 cargo run `your-binary`
 ```
 
 4. Expose flamegraph profiling data via HTTP:
