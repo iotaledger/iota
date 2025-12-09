@@ -70,6 +70,7 @@ pub(crate) trait KeyValueStoreClient {
     ) -> IndexerResult<Vec<Option<Object>>>;
 }
 
+#[derive(Clone)]
 pub(crate) struct HttpRestKVClient {
     base_url: Url,
     client: Client,
@@ -142,7 +143,12 @@ where
     T: for<'de> Deserialize<'de>,
 {
     bcs::from_bytes(bytes)
-        .tap_err(|e| warn!("Error deserializing data for key {key:?}: {e:?}",))
+        .tap_err(|e| {
+            warn!(
+                "Error deserializing data for key {key:?} into type {}: {e:?}",
+                std::any::type_name::<T>()
+            )
+        })
         .ok()
 }
 

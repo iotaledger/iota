@@ -55,6 +55,7 @@ pub type OutputObjects = Vec<Object>;
 /// [`IndexerReader`](crate::read::IndexerReader) for fallback capabilities
 /// when the indexer is unable to fetch data from the database, which is
 /// especially useful when pruning is enabled.
+#[derive(Clone)]
 pub(crate) struct HistoricalFallbackReader {
     /// Client responsible for fetching data from the historical fallback
     /// storage through REST API interface.
@@ -396,7 +397,7 @@ impl HistoricalFallbackReader {
         checkpoint_sequence_number: CheckpointSequenceNumber,
         limit: usize,
         is_descending: bool,
-    ) -> IndexerResult<Vec<Option<StoredTransaction>>> {
+    ) -> IndexerResult<Vec<StoredTransaction>> {
         if limit == 0 {
             return Ok(vec![]);
         }
@@ -441,7 +442,15 @@ impl HistoricalFallbackReader {
             .take(limit)
             .collect::<Vec<TransactionDigest>>();
 
-        self.transactions(&tx_digests).await
+        let transactions = self.transactions(&tx_digests).await?;
+
+        if transactions.iter().any(|tx| tx.is_none()) {
+            return Err(IndexerError::HistoricalFallbackStorageError(format!(
+                "KV doesn't have full transaction data for checkpoint {checkpoint_sequence_number}"
+            )));
+        }
+
+        Ok(transactions.into_iter().flatten().collect::<Vec<_>>())
     }
 
     /// Fetches events for a specific transaction.
