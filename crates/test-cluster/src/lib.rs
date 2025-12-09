@@ -53,6 +53,7 @@ use iota_types::{
     base_types::{AuthorityName, ConciseableName, IotaAddress, ObjectID, ObjectRef},
     committee::{Committee, CommitteeTrait, EpochId},
     crypto::{AccountKeyPair, IotaKeyPair, KeypairTraits, get_key_pair},
+    digests::TransactionDigest,
     effects::{TransactionEffects, TransactionEvents},
     error::IotaResult,
     governance::MIN_VALIDATOR_JOINING_STAKE_NANOS,
@@ -728,14 +729,15 @@ impl TestCluster {
     }
 
     /// This call sends some funds from the seeded faucet address to the funding
-    /// address for the given amount and returns the gas object ref. This
-    /// is useful to construct transactions from the funding address.
-    pub async fn fund_address_and_return_gas(
+    /// address for the given amount and returns the gas object ref and
+    /// transaction digest. This is useful to construct transactions from
+    /// the funding address.
+    pub async fn fund_address_and_return_gas_and_tx(
         &self,
         rgp: u64,
         amount: Option<u64>,
         funding_address: IotaAddress,
-    ) -> ObjectRef {
+    ) -> (ObjectRef, TransactionDigest) {
         let Faucet { address, keypair } = &self
             .faucet
             .as_ref()
@@ -768,14 +770,34 @@ impl TestCluster {
             .await
             .unwrap();
 
-        response
+        let object_ref = response
             .effects
+            .as_ref()
             .unwrap()
             .created()
             .first()
             .unwrap()
             .reference
-            .to_object_ref()
+            .to_object_ref();
+
+        let tx_digest = response.digest;
+
+        (object_ref, tx_digest)
+    }
+
+    /// This call sends some funds from the seeded faucet address to the funding
+    /// address for the given amount and returns the gas object ref. This
+    /// is useful to construct transactions from the funding address.
+    pub async fn fund_address_and_return_gas(
+        &self,
+        rgp: u64,
+        amount: Option<u64>,
+        funding_address: IotaAddress,
+    ) -> ObjectRef {
+        let (object_ref, _tx_digest) = self
+            .fund_address_and_return_gas_and_tx(rgp, amount, funding_address)
+            .await;
+        object_ref
     }
 
     pub async fn transfer_iota_must_exceed(
