@@ -318,7 +318,7 @@ pub async fn run_flamegraph(handle: telemetry_subscribers::TracingHandle, addr: 
 - Method: GET
 - URL: `http://<admin-server>/flamegraph`
 - Parsing options & Result fields
-- Rows/root: TODO
+- Rows/root: (empty)
 - Columns
   - Selector `label` as `label` format as `String`
   - Selector `level` as `level` format as `Number`
