@@ -116,7 +116,7 @@ impl ConsensusAuthority {
         let network_client = network_manager.client();
 
         let store_path = context.parameters.db_path.as_path().to_str().unwrap();
-        let store = Arc::new(RocksDBStore::new(store_path));
+        let store = Arc::new(RocksDBStore::new(store_path, context.clone()));
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
 
         let cordial_knowledge = CordialKnowledge::start(context.clone(), dag_state.clone());
@@ -379,7 +379,7 @@ mod tests {
 
     #[rstest]
     #[tokio::test]
-    async fn test_authority_start_and_stop() {
+    async fn test_authority_start_and_stop(#[values(false, true)] transaction_ref_enabled: bool) {
         let (committee, keypairs) = local_committee_and_keys(0, vec![1]);
         let registry = Registry::new();
 
@@ -397,12 +397,15 @@ mod tests {
         let (sender, _receiver) = unbounded_channel("consensus_output");
         let commit_consumer = CommitConsumer::new(sender, 0);
 
+        let mut protocol_config = ProtocolConfig::get_for_max_version_UNSAFE();
+        protocol_config.set_consensus_transaction_ref_for_testing(transaction_ref_enabled);
+
         let authority = ConsensusAuthority::start(
             0,
             own_index,
             committee,
             parameters,
-            ProtocolConfig::get_for_max_version_UNSAFE(),
+            protocol_config,
             protocol_keypair,
             network_keypair,
             Arc::new(Clock::default()),
@@ -424,14 +427,18 @@ mod tests {
     /// with the rest of the committee.
     #[rstest]
     #[tokio::test(flavor = "current_thread")]
-    async fn test_restart_authority_committee(#[values(4, 6)] num_of_authorities: usize) {
+    async fn test_restart_authority_committee(
+        #[values(4, 6)] num_of_authorities: usize,
+        #[values(false, true)] transaction_ref_enabled: bool,
+    ) {
         telemetry_subscribers::init_for_testing();
         let db_registry = Registry::new();
         DBMetrics::init(&db_registry);
 
         let (committee, keypairs) =
             local_committee_and_keys(0, vec![1; num_of_authorities].to_vec());
-        let protocol_config = ProtocolConfig::get_for_max_version_UNSAFE();
+        let mut protocol_config = ProtocolConfig::get_for_max_version_UNSAFE();
+        protocol_config.set_consensus_transaction_ref_for_testing(transaction_ref_enabled);
 
         let temp_dirs = (0..num_of_authorities)
             .map(|_| TempDir::new().unwrap())
@@ -629,12 +636,16 @@ mod tests {
 
     #[rstest]
     #[tokio::test(flavor = "current_thread")]
-    async fn test_small_committee(#[values(1, 2, 3)] num_authorities: usize) {
+    async fn test_small_committee(
+        #[values(1, 2, 3)] num_authorities: usize,
+        #[values(false, true)] transaction_ref_enabled: bool,
+    ) {
         let db_registry = Registry::new();
         DBMetrics::init(&db_registry);
 
         let (committee, keypairs) = local_committee_and_keys(0, vec![1; num_authorities]);
-        let protocol_config: ProtocolConfig = ProtocolConfig::get_for_max_version_UNSAFE();
+        let mut protocol_config: ProtocolConfig = ProtocolConfig::get_for_max_version_UNSAFE();
+        protocol_config.set_consensus_transaction_ref_for_testing(transaction_ref_enabled);
 
         let temp_dirs = (0..num_authorities)
             .map(|_| TempDir::new().unwrap())
@@ -731,7 +742,7 @@ mod tests {
     /// successfully.
     #[rstest]
     #[tokio::test(flavor = "current_thread")]
-    async fn test_amnesia_recovery_success() {
+    async fn test_amnesia_recovery_success(#[values(false, true)] transaction_ref_enabled: bool) {
         telemetry_subscribers::init_for_testing();
         let db_registry = Registry::new();
         DBMetrics::init(&db_registry);
@@ -743,7 +754,8 @@ mod tests {
         let mut temp_dirs = BTreeMap::new();
         let mut boot_counters = [0; NUM_OF_AUTHORITIES];
 
-        let protocol_config = ProtocolConfig::get_for_max_version_UNSAFE();
+        let mut protocol_config = ProtocolConfig::get_for_max_version_UNSAFE();
+        protocol_config.set_consensus_transaction_ref_for_testing(transaction_ref_enabled);
 
         for (index, _authority_info) in committee.authorities() {
             let dir = TempDir::new().unwrap();

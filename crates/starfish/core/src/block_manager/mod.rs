@@ -379,7 +379,7 @@ mod tests {
         // GIVEN
         let (context, _key_pairs) = Context::new_for_test(4);
         let context = Arc::new(context);
-        let store = Arc::new(MemStore::new());
+        let store = Arc::new(MemStore::new(context.clone()));
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
 
         let mut block_manager = BlockManager::new(context.clone(), dag_state);
@@ -451,7 +451,7 @@ mod tests {
     async fn try_accept_block_returns_missing_blocks() {
         let (context, _key_pairs) = Context::new_for_test(4);
         let context = Arc::new(context);
-        let store = Arc::new(MemStore::new());
+        let store = Arc::new(MemStore::new(context.clone()));
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
 
         let mut block_manager = BlockManager::new(context.clone(), dag_state);
@@ -496,7 +496,7 @@ mod tests {
         // GIVEN
         let (context, _key_pairs) = Context::new_for_test(4);
         let context = Arc::new(context);
-        let store = Arc::new(MemStore::new());
+        let store = Arc::new(MemStore::new(context.clone()));
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
 
         let mut block_manager = BlockManager::new(context.clone(), dag_state);
@@ -559,7 +559,7 @@ mod tests {
         for seed in 0..100u8 {
             all_block_headers.shuffle(&mut StdRng::from_seed([seed; 32]));
 
-            let store = Arc::new(MemStore::new());
+            let store = Arc::new(MemStore::new(context.clone()));
             let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
 
             let mut block_manager = BlockManager::new(context.clone(), dag_state);
@@ -615,7 +615,7 @@ mod tests {
             .map(|block| block.reference())
             .collect::<BTreeSet<_>>();
 
-        let store = Arc::new(MemStore::new());
+        let store = Arc::new(MemStore::new(context.clone()));
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
 
         let mut block_manager = BlockManager::new(context.clone(), dag_state);
@@ -687,7 +687,7 @@ mod tests {
             .collect::<Vec<_>>();
 
         // Create BlockManager.
-        let store = Arc::new(MemStore::new());
+        let store = Arc::new(MemStore::new(context.clone()));
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
         let mut block_manager = BlockManager::new(context.clone(), dag_state);
         // Try to accept blocks from round 2 ~ 5 into block manager. All of them should
@@ -726,7 +726,7 @@ mod tests {
         // GIVEN
         let (context, _key_pairs) = Context::new_for_test(4);
         let context = Arc::new(context);
-        let store = Arc::new(MemStore::new());
+        let store = Arc::new(MemStore::new(context.clone()));
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
 
         let mut block_manager = BlockManager::new(context.clone(), dag_state);
