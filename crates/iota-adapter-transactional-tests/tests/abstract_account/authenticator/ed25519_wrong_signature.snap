@@ -10,7 +10,7 @@ task 1, lines 8-56:
 //# publish --sender A
 created: object(1,0), object(1,1)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 12182800,  storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 12129600,  storage_rebate: 0, non_refundable_storage_fee: 0
 
 task 2, lines 58-62:
 //# programmable --sender A --inputs x"cc62332e34bb2d5cd69f60efbb2a36cb916c7eb458301ea36636c4dbb012bd88" object(1,1) "abstract_account" "authenticate_ed25519" 7000000000
