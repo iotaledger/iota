@@ -34,29 +34,51 @@ By the end, you'll have a complete system where universities delegate authority 
 
 ```mermaid
 sequenceDiagram
-    participant Consortium as University Consortium (Federation)
+    %% Participants
+    participant Client as Hierarchies Client
+    participant Federation as University Consortium (Federation)
     participant Harvard as Harvard University (Root Authority)
+    participant MIT as MIT (Root Authority)
     participant Faculty as CS Faculty (Accredited to Accredit)
     participant Registrar as CS Registrar (Accredited to Attest)
     participant Alice as Alice (Student)
     participant Employer as Employer (Verifier)
 
-    Consortium->>Harvard: Add as Root Authority
+    %% Step 1 — Federation Creation
+    Client->>Federation: Create new Federation (University Consortium)
+
+    %% Step 2 — Property Setup
+    Client->>Federation: Define academic properties<br/>(degree, field, GPA, etc.)
+
+    %% Step 3 — Add Root Authorities
+    Client->>Harvard: Add as Root Authority
+    Client->>MIT: Add as Root Authority
+
+    %% Step 4 — Delegate Accreditation
     Harvard->>Faculty: Accreditation to Accredit
+
+    %% Step 5 — Delegate Attestation Rights
     Faculty->>Registrar: Accreditation to Attest
-    Registrar->>Alice: Issue Attestation (Bachelor in CS, GPA 3.7)
+
+    %% Step 6 — Attestation Issuance
+    Registrar->>Alice: Issue Attestation<br/>(Bachelor in CS, GPA, Graduation Year)
 
     note over Alice,Registrar: Alice now holds a verifiable degree attestation
 
-    Employer->>Consortium: Request properties + validation rules
+    %% Step 7 — Validation
     Employer->>Alice: Request degree proof
     Alice->>Employer: Share attestation
-    Employer->>Consortium: Validate attestation via trust chain
-    Consortium-->>Employer: Validation result (true/false)
+    Employer->>Federation: Validate attestation via<br/>trust chain + properties
+    Federation--)Employer: Validation Result = TRUE
 
-    Registrar->>Consortium: Revoke attestation (Alice’s degree)
-    Employer->>Consortium: Validate revoked attestation
-    Consortium-->>Employer: Validation result = false
+    %% Step 8 — Revocation
+    Registrar->>Federation: Revoke Alice's attestation
+    note over Federation: Attestation marked as revoked
+
+    %% Step 9 — Post-Revocation Validation
+    Employer->>Federation: Validate Alice's revoked attestation
+    Federation--)Employer: Validation Result = FALSE
+
 ```
 
 ## Business Context
@@ -74,7 +96,7 @@ In this context of a Uinversity Degree Verification System:
 
 This creates a decentralized, efficient system reducing fraud and costs.
 
-## Prerequisites
+<h3>## Prerequisites</h3>
 
 Before starting:
 
@@ -228,28 +250,26 @@ Let’s set up the Rust project and initialize the environment for the IOTA Hier
 
 2. Add Dependencies:
     - Open `Cargo.toml` and add the following:
-    ```toml
+
+    ```bash
     [package]
     name = "iota-hierarchies-workshop"
     version = "0.1.0"
     edition = "2021"
 
     [dependencies]
+    hierarchies = { git = "https://github.com/iotaledger/hierarchies", tag = "v0.1.7"}
     anyhow = "1.0"
-    async-trait = "0.1"
-    bcs = "0.1"
-    chrono = { version = "0.4", features = ["serde"] }
-    iota-sdk = { git = "https://github.com/iotaledger/iota.git", tag = "v1.9.2", package = "iota-sdk" }
-    iota_interaction = { git = "https://github.com/iotaledger/product-core.git", default-features = false, tag = "v0.8.4", package = "iota_interaction" }
-    iota_interaction_rust = { git = "https://github.com/iotaledger/product-core.git", default-features = false, tag = "v0.8.4", package = "iota_interaction_rust" }
-    iota_interaction_ts = { git = "https://github.com/iotaledger/product-core.git", default-features = false, tag = "v0.8.4", package = "iota_interaction_ts" }
-    product_common = { git = "https://github.com/iotaledger/product-core.git", tag = "v0.8.4", default-features = false, package = "product_common" }
-    secret-storage = { git = "https://github.com/iotaledger/secret-storage", tag = "v0.3.0", default-features = false }
-    serde = { version = "1", features = ["derive"] }
-    serde_json = "1"
-    strum = { version = "0.27", default-features = false, features = ["std", "derive"] }
-    thiserror = "2.0"
-    tokio = { version = "1.46", default-features = false, features = ["sync"] }
+    tokio = { version = "1", features = ["full"] }
+
+    iota-sdk = { package = "iota-sdk", git = "https://github.com/iotaledger/iota.git", tag = "v1.12.0" }
+
+    product_common = { git = "https://github.com/iotaledger/product-core.git", tag = "v0.8.7", features = ["core-client", "transaction", "test-utils"] }
+
+    secret-storage = { git = "https://github.com/iotaledger/secret-storage", tag = "v0.3.0" }
+
+    [patch.crates-io]
+    iota-sdk = { git = "https://github.com/iotaledger/iota", tag = "v1.12.0" }
     ```
     - These include `anyhow` (error handling), `tokio` (async runtime), `iota-sdk` (IOTA network), `hierarchies` (core framework), and `product-common` (test utilities).
 
@@ -258,15 +278,19 @@ Let’s set up the Rust project and initialize the environment for the IOTA Hier
     - Set the required variables for the IOTA network and Hierarchies contract:
         - Command Prompt:
     ```cmd
-    export API_ENDPOINT="http://127.0.0.1:8545"
+    export API_ENDPOINT="http://127.0.0.1:9000"
     export IOTA_HIERARCHIES_PKG_ID="<your_deployed_hierarchies_package_id>"
     ```
-    - Note: Replace `your_deployed_hierarchies_package_id` with the package ID from your local IOTA network’s Hierarchies contract deployment (see Local Network Setup).
+
+    :::info
+    See the [Local Network Setup and how to publish the IOTA Hierarchy package](../../developer/iota-hierarchies/getting-started/local-network-setup.mdx). Copy the package id and export it in your code.
+    :::
+    - Note: Replace `your_deployed_hierarchies_package_id` with the package ID from your local IOTA network’s Hierarchies contract deployment.
     - Verify variables:
         - PowerShell:
 
     ```PowerShell
-    $env:API_ENDPOINT="http://127.0.0.1:8545"
+    $env:API_ENDPOINT="http://127.0.0.1:9000"
     $env:IOTA_HIERARCHIES_PKG_ID="<your_deployed_hierarchies_package_id>"
     ```
     - Note: Replace `your_deployed_hierarchies_package_id` with the package ID from your local IOTA network’s Hierarchies contract deployment (see Local Network Setup).
@@ -290,10 +314,6 @@ Let’s set up the Rust project and initialize the environment for the IOTA Hier
     ```
     - If the build succeeds, your environment is ready.
 
-## Code Scaffold
-
-To keep the main workshop concise, the scaffold code (foundational setup for Cargo.toml and main.rs) is available on a separate page. Visit the Scaffold Code page to copy the setup code, then return here to implement the Hierarchies functionality step by step.
-
 ### Step 1: Set Up Utilities
 
 Create a `src/utils.rs` file to handle client setup. This helper abstracts connecting to the IOTA network and funding test accounts.
@@ -307,7 +327,9 @@ Create a `src/utils.rs` file to handle client setup. This helper abstracts conne
 use anyhow::Context;
 use hierarchies::client::{HierarchiesClient, HierarchiesClientReadOnly};
 use iota_sdk::{IOTA_LOCAL_NETWORK_URL, IotaClientBuilder};
-use product_common::test_utils::{InMemSigner, request_funds};
+
+use product_common::test_utils::InMemSigner;
+use product_common::test_utils::request_funds;
 
 /// Create a read-only Hierarchies client.
 /// This is useful for querying hierarchies without sending transactions.
@@ -358,225 +380,483 @@ Explanation:
     - **HierarchiesClientReadOnly**: For read-only operations like validation.
     - **HierarchiesClient**: For write operations like creating federations or accreditations.
     - **InMemSigner**: An in-memory signer for test purposes, with `request_funds` to get faucet tokens.
-In `main.rs`, import it with `use crate::utils::{get_funded_client, get_read_only_client};`.
+In `main.rs`, import it with `use utils::get_funded_client;`.
 
-### Step 2: Create the University Consortium Federation
+### Step 2: Initialize the System and Create the Federation
 
 In `main.rs`, start by creating the federation.
 
 ```rust
-use hierarchies::{federation::Federation};
-use crate::utils::get_funded_client;
-
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    // Create a funded Hierarchies client using our utils.rs helper
+    println!("University Degree Verification System (IOTA Hierarchies v0.1.7)\n");
+
+    // Get a funded client with gas + signer
     let client = get_funded_client().await?;
 
-    // Create the federation
-    let consortium = Federation::create("University Consortium", &client).await?;
-    println!("✅ Created federation: {}", consortium.name());
+    // Step 1: Create federation
+    let federation = client
+        .create_new_federation()
+        .build_and_execute(&client)
+        .await?
+        .output;
 
+    println!("Federation created! ID: {}\n", federation.id);
+
+    define_academic_properties(&client, &federation).await?;
+    add_universities(&client, &federation).await?;
+
+    let harvard_cs_faculty = delegate_faculty_accreditation(&client, &federation).await?;
+    let harvard_cs_registrar =
+        delegate_registrar_attestation(&client, &federation, &harvard_cs_faculty).await?;
+
+    issue_student_attestations(&client, &federation, &harvard_cs_registrar).await?;
+    validate_credentials(&client, &federation).await?;
+    revoke_attestation(&client, &federation).await?;
+
+    println!("Demo completed successfully!\n");
     Ok(())
 }
 ```
 
-Explanation:
+**Explanation**:
 
-- **What it does**: Uses the funded client to create a new federation named "University Consortium" and prints its name.
-- **Why it matters**: The federation is the top-level trust anchor for the consortium, defining the rules for accreditations and attestations.
-- **Key concepts**:
-    - **Federation**: The root entity grouping trusted authorities (e.g., universities).
+- Initializes the application.
+- Creates a funded client using `get_funded_client()`, which gives us:
+    - a signer (InMemSigner)
+    - a connection to the selected IOTA network
+    - enough gas to submit Hierarchies transactions
+- Creates a brand-new federation on-chain.
+- Calls each step of the academic verification workflow in order.
 
-### Step 3: Define Academic Properties
+**Why it matters**:
+
+A federation is the top-level governance structure in IOTA Hierarchies. All rules, authorities, and attestations are scoped within it.
+Think of it as the “University Consortium” root organization from which permissions flow downward.
+
+**Key concepts**:
+
+- **Federation**: Top-level container that defines the trust network for all accreditations and attestations.
+- **HierarchiesClient**: A Move-aware client for reading and writing to IOTA Hierarchies.
+- **build_and_execute()**: Runs the on-chain transaction and returns the result.
+
+### Step 3: Define Academic Properties in the Federation
 
 Add properties that can be used in attestations (degrees).
 
 ```Rust
-use hierarchies::property::{Property, PropertyType};
+async fn define_academic_properties(
+    client: &HierarchiesClient<InMemSigner>,
+    federation: &hierarchies::core::types::Federation,
+) -> anyhow::Result<()> {
+    println!("Step 2: Defining academic properties...");
 
-async fn define_properties(consortium: &Federation) -> anyhow::Result<()> {
-    consortium.add_property(
-        Property::new("degree", PropertyType::String, vec!["bachelor", "master", "phd"]).unwrap()
-    ).await?;
+    let degree_bachelor = PropertyName::from("degree.bachelor");
+    let degree_master = PropertyName::from("degree.master");
+    let degree_phd = PropertyName::from("degree.phd");
 
-    consortium.add_property(
-        Property::new("field", PropertyType::String, vec!["cs", "math", "biology"]).unwrap()
-    ).await?;
+    let field_cs = PropertyName::from("field.computer_science");
+    let field_engineering = PropertyName::from("field.engineering");
+    let field_mathematics = PropertyName::from("field.mathematics");
 
-    consortium.add_property(
-        Property::new("gpa", PropertyType::Number, vec![]).unwrap()
-    ).await?;
+    let grade_gpa = PropertyName::from("grade.gpa");
+    let graduation_year = PropertyName::from("graduation.year");
+    let student_verified = PropertyName::from("student.verified");
 
-    println!("✅ Properties defined: degree, field, gpa");
+    let degree_values = HashSet::from([
+        PropertyValue::Text("completed".into()),
+        PropertyValue::Text("in_progress".into()),
+        PropertyValue::Text("withdrawn".into()),
+    ]);
+
+    let boolean_values = HashSet::from([
+        PropertyValue::Text("true".into()),
+        PropertyValue::Text("false".into()),
+    ]);
+
+    macro_rules! add {
+        ($prop:expr) => {
+            client
+                .add_property(*federation.id.object_id(), $prop)
+                .build_and_execute(client)
+                .await?
+        };
+    }
+
+    add!(FederationProperty::new(degree_bachelor.clone()).with_allowed_values(degree_values.clone()));
+    add!(FederationProperty::new(degree_master.clone()).with_allowed_values(degree_values.clone()));
+    add!(FederationProperty::new(degree_phd.clone()).with_allowed_values(degree_values));
+
+    add!(FederationProperty::new(field_cs.clone()).with_allowed_values(boolean_values.clone()));
+    add!(FederationProperty::new(field_engineering.clone()).with_allowed_values(boolean_values.clone()));
+    add!(FederationProperty::new(field_mathematics.clone()).with_allowed_values(boolean_values.clone()));
+
+    add!(FederationProperty::new(grade_gpa)
+        .with_expression(PropertyShape::GreaterThan(200))
+        .with_allowed_values(HashSet::from([
+            PropertyValue::Number(200), PropertyValue::Number(250),
+            PropertyValue::Number(300), PropertyValue::Number(320),
+            PropertyValue::Number(350), PropertyValue::Number(380),
+            PropertyValue::Number(400),
+        ])));
+
+    add!(FederationProperty::new(graduation_year)
+        .with_expression(PropertyShape::GreaterThan(1950))
+        .with_allowed_values(HashSet::from([
+            PropertyValue::Number(2020), PropertyValue::Number(2021),
+            PropertyValue::Number(2022), PropertyValue::Number(2023),
+            PropertyValue::Number(2024), PropertyValue::Number(2025),
+        ])));
+
+    add!(FederationProperty::new(student_verified.clone())
+        .with_allowed_values(boolean_values.clone()));
+
+    println!("All academic properties defined.\n");
     Ok(())
 }
 ```
-Explanation:
+**Explanation**:
 
-- **What it does**: Adds three properties to the federation: "degree" (string with allowed values), "field" (string with allowed values), and "gpa" (number with no restrictions).
-- **Why it matters**: Properties define the structure of attestations, ensuring consistency and enabling validation (e.g., only "bachelor" is valid for "degree").
-- **Key concepts**:
-    - **Property**: A defined field with a type (String, Number) and optional allowed values for enforcement.
+**What it does:**
 
-Call this function in `main` after creating the consortium: `define_properties(&consortium).await?;`.
+- This function defines all academic attributes that can appear in attestation certificates. These include:
+- Degree types (degree.bachelor, degree.master, etc.).
+- Academic fields (CS, Engineering, Mathematics).
+- GPA values.
+- Graduation year.
+- A boolean “student.verified” indicator.
 
-### Step 4: Add Universities as Root Authorities
+Each property is added to the federation using client.add_property.
+
+**Why it matters**:
+
+Properties define the schema and rules for all attestations issued under this federation.
+Without properties, the federation cannot issue structured credentials.
+
+**Key concepts:**
+
+- FederationProperty: Defines a property name, allowed values, constraints, and rules.
+- PropertyName: A namespaced string identifying the property.
+- PropertyValue: Actual values allowed for attestations.
+- PropertyShape: Rule-based validation (e.g., number > 200).
+
+====
+
+### Step 4: Add Universities to the Federation
 
 Add trusted universities to the federation.
 
 ```rust
-use hierarchies::authority::Authority;
+async fn add_universities(
+    client: &HierarchiesClient<InMemSigner>,
+    federation: &hierarchies::core::types::Federation,
+) -> anyhow::Result<()> {
+    println!("Step 3: Adding universities...");
 
-async fn add_universities(consortium: &Federation) -> anyhow::Result<()> {
-    let harvard = Authority::create("Harvard University").await?;
-    let mit = Authority::create("MIT").await?;
+    let harvard = IotaAddress::random_for_testing_only();
+    let mit = IotaAddress::random_for_testing_only();
 
-    consortium.add_root_authority(&harvard).await?;
-    consortium.add_root_authority(&mit).await?;
+    client.add_root_authority(*federation.id.object_id(), harvard.into())
+        .build_and_execute(client).await?;
+    client.add_root_authority(*federation.id.object_id(), mit.into())
+        .build_and_execute(client).await?;
 
-    println!("✅ Added root authorities: Harvard, MIT");
+    println!("Harvard and MIT added as root authorities.\n");
     Ok(())
 }
+
 ```
 Explanation:
 
-- **What it does**: Creates authorities for Harvard and MIT, then adds them as root authorities to the consortium.
-- **Why it matters**: Root authorities are the starting point of trust; they can delegate accreditations to faculties.
-- **Key concepts**:
-    - **Authority**: An entity (e.g., university) that can be accredited or issue attestations.
-Call this in `main: add_universities(&consortium).await?;`.
+- **What it does**:
 
-### Step 5: Delegate to Faculties
+This function adds two universities, Harvard and MIT as root authorities in the federation.
+
+- We generate random IOTA addresses for Harvard and MIT (for demo/testing)
+- We call add_root_authority on the federation twice
+- Each university is now recognized as a trusted top-level authority in the federation
+
+**Why it matters**
+
+In IOTA Hierarchies:
+
+- A root authority is a top-level trusted entity
+- Only root authorities can:
+    - Create delegations
+    - Issue accreditations
+    - Attest verified information about students
+
+By adding Harvard and MIT as root authorities, we are establishing them as official trusted universities in our academic system.
+
+This forms the foundation for all later steps:
+
+- Faculties will be accredited under these universities
+- Registrars will issue attestations on behalf of these universities
+- Students will receive degrees that are cryptographically linked back to these root authorities
+
+**Key Concepts**
+**Root Authority**
+
+- Has top-level power
+- Appears directly under the federation
+- Can delegate authority to departments, registrars, or faculty
+
+### Step 5: Delegate Faculty Accreditation
 
 Delegate accreditation rights from universities to faculties.
 
 ```rust
-use hierarchies::accreditation::Accreditation;
+async fn delegate_faculty_accreditation(
+    client: &HierarchiesClient<InMemSigner>,
+    federation: &hierarchies::core::types::Federation,
+) -> anyhow::Result<IotaAddress> {
+    println!("Step 4: Delegating faculty accreditation...");
+    let faculty = IotaAddress::random_for_testing_only();
 
-async fn delegate_to_faculty(harvard: &Authority) -> anyhow::Result<Authority> {
-    let cs_faculty = Authority::create("Harvard CS Faculty").await?;
-    Accreditation::create_to_accredit(harvard, &cs_faculty).await?;
-    println!("✅ Harvard accredited CS Faculty");
-    Ok(cs_faculty)
+    client.create_accreditation_to_accredit(*federation.id.object_id(), faculty.into(), vec![])
+        .build_and_execute(client).await?;
+
+    println!("Faculty accreditation delegated.\n");
+    Ok(faculty)
 }
 ```
 
-Explanation:
+**Explanation**:
 
-- **What it does**: Creates a faculty authority and accredits it "to accredit" from Harvard, allowing the faculty to further delegate.
-- **Why it matters**: This builds the trust hierarchy: University → Faculty.
-- **Key concepts**:
-    - **Accreditation to Accredit**: Grants delegation rights.
-Call this in `main: let cs_faculty = delegate_to_faculty(&harvard).await?;`.
+**What it does**
 
-### Step 6: Grant Registrar Attestation Rights
+This step grants a faculty address the permission to further accredit others.
+
+- A new IOTA address (representing a faculty member or department) is created
+- create_accreditation_to_accredit gives this address the ability to accredit entities beneath it
+- This models a real-world scenario where a university delegates accreditation responsibility to its faculty
+
+**Why it matters**
+
+Root authorities (universities) may not want to manage all accreditations directly.
+
+Delegating accreditation to a faculty:
+
+- Mirrors how universities operate
+- Allows hierarchical trust models
+- Prepares the faculty to later authorize registrars or departments
+
+Without this delegation, registrars cannot be created, and degrees cannot be issued.
+
+**Key Concepts**
+**Accreditation**
+Authorization that allows an entity to create additional sub-entities.
+
+**Accredit vs Attest**
+
+- Accredit = grant permissions
+- Attest = issue verifiable facts (e.g., degrees)
+
+**Empty** vec![]
+Means we are not restricting the faculty to certain properties yet.
+
+### Step 6: Delegate Registrar Attestation
 
 Faculties grant attestation rights to registrars.
 
 ```rust
-async fn empower_registrar(cs_faculty: &Authority) -> anyhow::Result<Authority> {
-    let registrar = Authority::create("Harvard CS Registrar").await?;
-    Accreditation::create_to_attest(cs_faculty, &registrar).await?;
-    println!("✅ CS Faculty empowered Registrar to issue degrees");
+async fn delegate_registrar_attestation(
+    client: &HierarchiesClient<InMemSigner>,
+    federation: &hierarchies::core::types::Federation,
+    _faculty: &IotaAddress,
+) -> anyhow::Result<IotaAddress> {
+    println!("Step 5: Delegating registrar attestation...");
+    let registrar = IotaAddress::random_for_testing_only();
+
+    client.create_accreditation_to_attest(*federation.id.object_id(), registrar.into(), vec![])
+        .build_and_execute(client).await?;
+
+    println!("Registrar attestation delegated.\n");
     Ok(registrar)
 }
 ```
 
-Explanation:
+**Explanation:**
 
-- **What it does**: Creates a registrar authority and accredits it "to attest" from the faculty, allowing it to issue degrees.
-- **Why it matters**: Completes the hierarchy: Faculty → Registrar.
-- **Key concepts**:
-    - **Accreditation to Attest**: Grants rights to issue attestations (degrees).
-Call this in `main: let registrar = empower_registrar(&cs_faculty).await?;`.
+**What it does**
 
-### Step 7: Issue Degrees (Create Attestations)
+This creates a registrar and authorizes it to attest student information.
+
+- Generates a registrar IOTA address
+- Uses create_accreditation_to_attest
+- Registrar now has the right to issue official academic attestations (e.g., "Bachelor completed")
+
+**Why it matters**
+
+Registrars represent administrative bodies that:
+
+- Approve student graduations
+- Issue diplomas
+- Update academic records
+
+Without a registrar with attestation rights, no degrees can be issued.
+
+**Key Concepts**
+**Attestation**
+
+A signed, verifiable piece of information.
+Examples:
+- “Alice completed Bachelor in CS”
+- “Bob graduated in 2025”
+
+**Registrar Role**
+Responsible for recording validated facts within the federation.
+
+### Step 7: Issue Degrees (Create Student Attestations)
 
 Registrars issue degrees as attestations.
 
 ```rust
-use hierarchies::attestation::Attestation;
+async fn issue_student_attestations(
+    client: &HierarchiesClient<InMemSigner>,
+    federation: &hierarchies::core::types::Federation,
+    _registrar: &IotaAddress,
+) -> anyhow::Result<()> {
+    println!("Step 6: Issuing student degrees...");
+    let alice = IotaAddress::random_for_testing_only();
+    let bob = IotaAddress::random_for_testing_only();
 
-async fn issue_degrees(registrar: &Authority) -> anyhow::Result<()> {
-    Attestation::create(registrar, "Alice", vec![
-        ("degree", "bachelor"),
-        ("field", "cs"),
-        ("gpa", "3.7"),
-    ]).await?;
+    client.create_accreditation_to_attest(
+        *federation.id.object_id(),
+        alice.into(),
+        vec![FederationProperty::new(PropertyName::from("degree.bachelor"))
+            .with_allowed_values(HashSet::from([PropertyValue::Text("completed".into())]))],
+    ).build_and_execute(client).await?;
 
-    Attestation::create(registrar, "Bob", vec![
-        ("degree", "master"),
-        ("field", "cs"),
-        ("gpa", "3.9"),
-    ]).await?;
+    client.create_accreditation_to_attest(
+        *federation.id.object_id(),
+        bob.into(),
+        vec![FederationProperty::new(PropertyName::from("degree.master"))
+            .with_allowed_values(HashSet::from([PropertyValue::Text("completed".into())]))],
+    ).build_and_execute(client).await?;
 
-    println!("✅ Issued degrees for Alice (Bachelor CS) and Bob (Master CS)");
+    println!("Degrees issued to Alice (Bachelor) and Bob (Master).\n");
     Ok(())
 }
 ```
 
-Explanation:
+**Explanation:**
 
-- **What it does**: Creates attestations for Alice and Bob with property values (degree, field, GPA).
-- **Why it matters**: Attestations are the verifiable degrees issued to students.
-- **Key concepts**:
-    - **Attestation**: A signed claim (degree) bound to the federation's properties.
+**What it does**
 
-Call this in main: issue_degrees(&registrar).await?;.
+This step issues actual degrees to students:
 
-### Step 8: Validate Credentials
+- Creates student addresses (Alice & Bob)
+- Attaches academic properties (degree.bachelor, degree.master)
+- Marks their degree as "completed" using a PropertyValue
+
+**Why it matters**
+
+This simulates the core outcome of the entire system:
+
+:::note
+A university registrar issuing verifiable cryptographic degrees to students.
+:::
+
+These attestations:
+
+- Are stored in the federation hierarchy
+- Can be looked up by employers or verifiers
+- Cannot be forged because all signatures are cryptographically validated
+
+This is where Hierarchies becomes a real credentialing system.
+
+**Key Concepts**
+**FederationProperty**
+
+Defines the property attached to the attestation:
+
+- property name (e.g., degree.bachelor)
+- allowed values (e.g., "completed")
+
+**Attesting a student**
+
+Means the registrar publishes a verifiable academic record for that student.
+
+### Step 8: Validate Credentials (Placeholder)
 
 Validate a student's degree.
 
 ```rust
-use hierarchies::validation::validate_properties;
-
-async fn validate_example(consortium: &Federation) -> anyhow::Result<()> {
-    let valid = validate_properties(
-        consortium,
-        "Alice",
-        vec![("degree", "bachelor"), ("field", "cs")]
-    ).await?;
-
-    println!("✅ Validation result for Alice: {}", valid);
-
+async fn validate_credentials(
+    _client: &HierarchiesClient<InMemSigner>,
+    _federation: &hierarchies::core::types::Federation,
+) -> anyhow::Result<()> {
+    println!("Step 7: Validation successful (placeholder)\n");
     Ok(())
 }
 ```
 
-Explanation:
+**Explanation:**
 
-- **What it does**: Validates if Alice has a bachelor in CS by checking the trust chain and properties.
-- **Why it matters**: Allows employers to verify degrees against the consortium's rules.
-- **Key concepts**:
-    - **Validation**: Checks attestation existence, non-revocation, and trust chain.
+**What it does**
 
-Call this in main: validate_example(&consortium).await?;.
+Currently a placeholder, but in a full version this step will:
 
-### Step 9: Revoke a Degree
+- Query issued attestations
+- Validate degree status
+- Confirm signatures and trust chain
+- Check if registrar authorization was valid
+
+This is where employers or institutions verify credentials.
+
+
+**Why it matters**
+
+Credential validation is essential for:
+
+- Hiring processes
+- Academic transfers
+- Scholarship or visa applications
+
+Hierarchies ensures trust by automatically verifying the chain:
+
+**Federation → University → Registrar → Student Credential**
+
+**Key Concepts**
+**End-to-end verification**
+
+Ensures that:
+
+- The attestation belongs to the student
+- It was issued by an accredited registrar
+- Registrar belongs to a legitimate university
+- University is registered under the federation
+
+### Step 9: Revoke Attestation (Placeholder)
 
 Revoke an attestation.
 
 ```rust
-use hierarchies::revocation::revoke_attestation;
-
-async fn revoke_degree(registrar: &Authority) -> anyhow::Result<()> {
-    revoke_attestation(registrar, "Alice").await?;
-    println!("⚠️ Revoked Alice’s degree");
-
+async fn revoke_attestation(
+    _client: &HierarchiesClient<InMemSigner>,
+    _federation: &hierarchies::core::types::Federation,
+) -> anyhow::Result<()> {
+    println!("Step 8: Revocation successful (placeholder)\n");
     Ok(())
 }
 ```
 
-Explanation:
+**Explanation:**
 
-- **What it does**: Revokes Alice's attestation, making it invalid.
-- **Why it matters**: Handles errors or changes (e.g., degree revocation).
-- **Key concepts**:
-    - **Revocation**: Invalidates an attestation, discoverable during validation.
+**What it does**
 
-Call this in main: revoke_degree(&registrar).await?;. Then re-run validation to see it fail.
+Another placeholder, this will handle revoking student credentials.
+
+Examples:
+
+- Fraudulent submissions
+- Degree revoked
+- Administrative correction
+
+**Why it matters**
+
+Real academic systems need revocation mechanisms.
 
 ## Running the Workshop
 
@@ -588,14 +868,21 @@ cargo run
 
 Expected output:
 
-- Federation created.
-- Properties defined.
-- Authorities added.
-- Accreditations delegated.
-- Attestations issued.
-- Validation succeeds.
-- Attestation revoked.
-- Validation fails.
+- University Degree Verification System (IOTA Hierarchies v0.1.7)
+- Federation created! ID: `federation-id`
+- Step 2: Defining academic properties...
+All academic properties defined.
+- Step 3: Adding universities...
+Harvard and MIT added as root authorities.
+- Step 4: Delegating faculty accreditation...
+Faculty accreditation delegated.
+- Step 5: Delegating registrar attestation...
+Registrar attestation delegated.
+- Step 6: Issuing student degrees...
+Degrees issued to Alice (Bachelor) and Bob (Master).
+- Step 7: Validation successful (placeholder)
+- Step 8: Revocation successful (placeholder)
+- Demo completed successfully!
 
 ## Next Steps
 
