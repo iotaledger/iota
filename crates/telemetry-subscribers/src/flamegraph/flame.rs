@@ -75,11 +75,7 @@ impl PartialEq<str> for Metadata<'_> {
         if !self.target.is_empty() {
             self.caption.eq(other)
         } else {
-            other
-                .strip_prefix(self.caption)
-                .and_then(|other| other.strip_suffix(self.target))
-                .map(|other| other.eq("::"))
-                .unwrap_or_default()
+            other.eq(&format!("{}::{}", self.target, self.caption))
         }
     }
 }
@@ -87,7 +83,7 @@ impl PartialEq<str> for Metadata<'_> {
 impl<'a> From<&'a str> for Metadata<'a> {
     fn from(s: &'a str) -> Self {
         s.rsplit_once("::")
-            .map(|(caption, target)| Self { caption, target })
+            .map(|(target, caption)| Self { caption, target })
             .unwrap_or(Self {
                 caption: s,
                 target: "",
