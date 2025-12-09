@@ -14,8 +14,6 @@ export const AMP_COOKIE_PREFIX = 'AMP_';
  * allows us to collect analytics data in a GDPR-compliant way
  * before the user has formally provided consent for us to use
  * tracking cookies :)
- *
- * @deprecated Use @iota/core's consentBufferPlugin instead
  */
 export class PersistableStorage<T> implements Storage<T> {
     private cookieStorage: CookieStorage<T>;

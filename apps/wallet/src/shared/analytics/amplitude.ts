@@ -9,8 +9,7 @@ import { getNetwork, type Network } from '@iota/iota-sdk/client';
 
 import { ampli } from './ampli';
 
-// const IS_ENABLED = process.env.BUILD_ENV === 'production';
-const IS_ENABLED = true;
+const IS_ENABLED = process.env.BUILD_ENV === 'production';
 
 const ApiKey = {
     production: '2a5d35822a1bab41835813f0223f319e',
