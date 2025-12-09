@@ -252,7 +252,7 @@ mod tests {
 
 _Property-based tests_
 
-Move contains [property-based tests](https://blog.jessitron.com/2013/04/25/property-based-testing-what-is-it/) written in Rust using the [`proptest` framework](https://github.com/AltSysrq/proptest). Property-based tests generate random test cases and assert that invariants, also called _properties_, hold for the code under test.
+Move contains [property-based tests](https://jessitron.com/2013/04/25/property-based-testing-what-is-it/) written in Rust using the [`proptest` framework](https://github.com/AltSysrq/proptest). Property-based tests generate random test cases and assert that invariants, also called _properties_, hold for the code under test.
 
 Some examples of properties tested in Move:
 

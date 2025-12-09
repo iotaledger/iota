@@ -31,7 +31,7 @@ use iota_json_rpc_types::{
 };
 use iota_keys::keystore::{AccountKeystore, FileBasedKeystore, Keystore};
 use iota_node::IotaNodeHandle;
-use iota_protocol_config::ProtocolVersion;
+use iota_protocol_config::{Chain, ProtocolVersion};
 use iota_sdk::{
     IotaClient, IotaClientBuilder,
     apis::QuorumDriverApi,
@@ -1007,6 +1007,7 @@ pub struct TestClusterBuilder {
     submit_delay_step_override_millis: Option<u64>,
     validator_state_accumulator_config: StateAccumulatorV1EnabledConfig,
     disable_address_verification_cooldown: bool,
+    chain_override: Option<Chain>,
 }
 
 impl TestClusterBuilder {
@@ -1014,6 +1015,7 @@ impl TestClusterBuilder {
         TestClusterBuilder {
             genesis_config: None,
             network_config: None,
+            chain_override: None,
             additional_objects: vec![],
             fullnode_rpc_port: None,
             fullnode_rpc_addr: None,
@@ -1273,6 +1275,11 @@ impl TestClusterBuilder {
         self
     }
 
+    pub fn with_chain_override(mut self, chain: Chain) -> Self {
+        self.chain_override = Some(chain);
+        self
+    }
+
     pub async fn build(mut self) -> TestCluster {
         // We can add a faucet account to the `GenesisConfig` if there was no
         // `NetworkConfig` provided. Only either a `GenesisConfig` or a
@@ -1373,6 +1380,10 @@ impl TestClusterBuilder {
             .with_fullnode_run_with_range(self.fullnode_run_with_range)
             .with_fullnode_policy_config(self.fullnode_policy_config.clone())
             .with_fullnode_fw_config(self.fullnode_fw_config.clone());
+
+        if let Some(chain) = self.chain_override {
+            builder = builder.with_chain_override(chain);
+        }
 
         if let Some(genesis_config) = self.genesis_config.take() {
             builder = builder.with_genesis_config(genesis_config);

@@ -60,7 +60,7 @@ To ensure your node's consensus module is properly synced with the network, moni
 metrics="$(curl -s localhost:9184/metrics)"
 local_index="$(echo "$metrics" | grep ^consensus_commit_sync_local_index | awk '{print $2}')"
 quorum_index="$(echo "$metrics" | grep ^consensus_commit_sync_quorum_index | awk '{print $2}')"
-difference=$((local_index - quorum_index))
+difference=$((quorum_index - local_index))
 
 if (( difference > 100 )); then
     echo "[WARNING] Consensus module not in sync. Difference: $difference"
@@ -77,65 +77,30 @@ fi
 - **Growing difference**: Network is advancing faster than node is syncing
 - **Shrinking difference**: Node is correctly syncing and catching up
 
-### Monitor validator connections
+### Monitor skipped proposals
 
-Check connections to other validators using the `consensus_subscribed_by` and `consensus_subscribed_to` metrics, with committee size determined dynamically:
+Check the `consensus_core_skipped_proposals` metric to detect issues with block production:
 
 ```shell
-metrics="$(curl -s localhost:9184/metrics)"
-committee_size="$(echo "$metrics" | grep ^consensus_last_committed_authority_round | wc -l)"
-min_connections=$((committee_size * 80 / 100))
+metrics="$(curl -s curl -s localhost:9184/metrics)"
+skipped_proposals="$(echo "$metrics" | grep ^consensus_core_skipped_proposals)"
 
-# Count connections with value = 1 and report any with different values
-subscribed_by_good="$(echo "$metrics" | grep ^consensus_subscribed_by | awk '{if($NF == 1) count++} END {print count+0}')"
-subscribed_to_good="$(echo "$metrics" | grep ^consensus_subscribed_to | awk '{if($NF == 1) count++} END {print count+0}')"
-
-# Report any connections with values != 1
-bad_by="$(echo "$metrics" | grep ^consensus_subscribed_by | awk '{if($NF != 1) {match($0, /authority="([^"]*)"/, arr); print arr[1] ": " $NF}}')"
-bad_to="$(echo "$metrics" | grep ^consensus_subscribed_to | awk '{if($NF != 1) {match($0, /authority="([^"]*)"/, arr); print arr[1] ": " $NF}}')"
-
-if [[ -n "$bad_by" ]]; then
-    echo "[WARNING] subscribed_by connections with value != 1 (ignore your own name):"
-    echo "$bad_by"
-fi
-
-if [[ -n "$bad_to" ]]; then
-    echo "[WARNING] subscribed_to connections with value != 1 (ignore your own name):"
-    echo "$bad_to"
-fi
-
-# Check if both metrics have the same set of authorities
-by_authorities="$(echo "$metrics" | grep ^consensus_subscribed_by | awk '{match($0, /authority="([^"]*)"/, arr); print arr[1]}' | sort)"
-to_authorities="$(echo "$metrics" | grep ^consensus_subscribed_to | awk '{match($0, /authority="([^"]*)"/, arr); print arr[1]}' | sort)"
-
-if [[ "$by_authorities" != "$to_authorities" ]]; then
-    echo "[WARNING] Different sets of authorities in subscribed_by vs subscribed_to metrics (ignore your own name)"
-    echo "Only in subscribed_by: $(comm -23 <(echo "$by_authorities") <(echo "$to_authorities") | tr '\n' ' ')"
-    echo "Only in subscribed_to: $(comm -13 <(echo "$by_authorities") <(echo "$to_authorities") | tr '\n' ' ')"
-fi
-
-if (( subscribed_by_good >= min_connections && subscribed_to_good >= min_connections )); then
-    echo "[OK] Sufficient validator connections"
+if [[ -z "$skipped_proposals" ]]; then
+    echo "[OK] No skipped proposals metric found"
 else
-    echo "[WARNING] Low validator connections (need at least 80% of committee)"
-    echo "Committee size: $committee_size"
-    echo "Minimum required connections (80%): $min_connections"
-    echo "Connections subscribed by (value=1): $subscribed_by_good"
-    echo "Connections subscribed to (value=1): $subscribed_to_good"
-fi
-
-difference=$((subscribed_by_good > subscribed_to_good ? subscribed_by_good - subscribed_to_good : subscribed_to_good - subscribed_by_good))
-if (( difference > 1 )); then
-    echo "[WARNING] Asymmetric connections - some validators only reachable one-way"
+    echo "Skipped proposals by reason:"
+    echo "$skipped_proposals"
+    echo ""
+    echo "Monitor these values over time. Growing counts indicate issues:"
+    echo "  - no_quorum_subscriber: Insufficient connections (< 2f+1 stake) to produce blocks"
+    echo "  - Other reasons: Check the specific label for the cause"
 fi
 ```
 
-**Connection health indicators:**
-- **Minimum 80% of committee**: Required for healthy operation
-- **Value = 1**: Healthy connections should have value 1, others indicate issues
-- **Equal counts**: Both metrics should have similar numbers of good connections
-- **Same authority sets**: Both metrics should contain the same set of authorities
-- **Unequal counts or sets**: Indicates one-way connections to some validators
+**Key indicators:**
+- **Growing `no_quorum_subscriber`**: Insufficient validator connections (less than 2f+1 stake connected). Node cannot safely produce new blocks
+- **Growing other labels**: The corresponding label value indicates the specific cause of skipped proposals
+- Run the script periodically to compare values and identify trends
 
 ### Overall node health
 

@@ -240,15 +240,13 @@ impl Store for RocksDBStore {
         Ok(blocks)
     }
 
-    fn read_block_headers(
+    /// Return Verified Block Headers by reading their entries from storage and
+    /// deserializing them
+    fn read_verified_block_headers(
         &self,
         refs: &[BlockRef],
     ) -> ConsensusResult<Vec<Option<VerifiedBlockHeader>>> {
-        let keys = refs
-            .iter()
-            .map(|r| (r.round, r.author, r.digest))
-            .collect::<Vec<_>>();
-        let serialized_block_headers = self.block_headers.multi_get(keys)?;
+        let serialized_block_headers = self.read_serialized_block_headers(refs)?;
         let mut block_headers = vec![];
         for (key, serialized_block_header) in refs.iter().zip(serialized_block_headers) {
             if let Some(serialized_block_header) = serialized_block_header {
@@ -264,19 +262,28 @@ impl Store for RocksDBStore {
         Ok(block_headers)
     }
 
-    fn read_transactions(
+    /// Return Bytes of Block Headers by reading their entries from storage
+    fn read_serialized_block_headers(
         &self,
         refs: &[BlockRef],
-    ) -> ConsensusResult<Vec<Option<VerifiedTransactions>>> {
+    ) -> ConsensusResult<Vec<Option<Bytes>>> {
         let keys = refs
             .iter()
             .map(|r| (r.round, r.author, r.digest))
             .collect::<Vec<_>>();
-        let serialized_vec_transactions = self.transactions.multi_get(keys.clone())?;
-        // read headers to collect commitment
-        // TODO::optimize it later by storing commitment separately or together with
-        // transactions
         let serialized_block_headers = self.block_headers.multi_get(keys)?;
+        Ok(serialized_block_headers)
+    }
+
+    /// Return Verified Transactions by reading both transactions and headers
+    /// from storage, deserializing them and assembling into the required output
+    fn read_verified_transactions(
+        &self,
+        refs: &[BlockRef],
+    ) -> ConsensusResult<Vec<Option<VerifiedTransactions>>> {
+        let serialized_vec_transactions = self.read_serialized_transactions(refs)?;
+        let serialized_block_headers = self.read_serialized_block_headers(refs)?;
+        // TODO::optimize it later by storing commitment together with transactions
         let mut result = Vec::with_capacity(refs.len());
         for ((block_ref, serialized_block_header), serialized_transactions) in refs
             .iter()
@@ -291,8 +298,8 @@ impl Store for RocksDBStore {
                         .map_err(ConsensusError::MalformedHeader)?;
                 let transactions: Vec<Transaction> = bcs::from_bytes(&serialized_transactions)
                     .map_err(ConsensusError::MalformedTransactions)?;
-
-                // We don't check the transactions commitment as it's loaded from storage.
+                // We don't check the transactions commitment from the header as it's loaded
+                // from storage. Assemble verified transactions
                 let verified_transactions = VerifiedTransactions::new(
                     transactions,
                     *block_ref,
@@ -306,6 +313,20 @@ impl Store for RocksDBStore {
             }
         }
         Ok(result)
+    }
+
+    /// Return Bytes of corresponding Transactions by reading their entries from
+    /// storage
+    fn read_serialized_transactions(
+        &self,
+        refs: &[BlockRef],
+    ) -> ConsensusResult<Vec<Option<Bytes>>> {
+        let keys = refs
+            .iter()
+            .map(|r| (r.round, r.author, r.digest))
+            .collect::<Vec<_>>();
+        let serialized_vec_transactions = self.transactions.multi_get(keys.clone())?;
+        Ok(serialized_vec_transactions)
     }
 
     fn contains_transactions(&self, refs: &[BlockRef]) -> ConsensusResult<Vec<bool>> {

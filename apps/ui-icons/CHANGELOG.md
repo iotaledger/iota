@@ -1,5 +1,23 @@
 # @iota/apps-ui-icons
 
+## 0.7.0
+
+### Minor Changes
+
+-   ae1385d: Update dependencies.
+
+## 0.6.0
+
+### Minor Changes
+
+-   147c97e: Update repository URLs.
+
+## 0.5.0
+
+### Minor Changes
+
+-   83fd8ac: add passkey icon
+
 ## 0.4.2
 
 ### Patch Changes

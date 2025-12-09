@@ -97,7 +97,6 @@ impl<D: CoreThreadDispatcher> LeaderTimeoutTask<D> {
         tokio::pin!(max_leader_timeout);
 
         loop {
-            debug!("Loop is running");
             tokio::select! {
                 // When the min block delay timer expires, then we attempt to trigger the creation of a new block.
                 // If we already timed out before then, the branch gets disabled so we don't attempt
@@ -174,7 +173,7 @@ impl<D: CoreThreadDispatcher> LeaderTimeoutTask<D> {
                 },
                  // A new block was created. Set a timer in min_block_delay
                 Ok(block) = new_block.recv() => {
-                    debug!("New block {block:?} was created and seen in leader timeout task");
+                    debug!("New block {:?} was created and seen in leader timeout task", block.verified_block_header);
                     last_own_block_round = Some(block.round());
 
                     min_block_delay_timed_out = false;
@@ -203,7 +202,6 @@ mod tests {
     use crate::{
         BlockRef, Round, TestBlockHeader,
         block_header::VerifiedBlock,
-        block_verifier::NoopBlockVerifier,
         commit::CommitRange,
         context::Context,
         core::{CoreSignals, ReasonToCreateBlock},
@@ -286,12 +284,10 @@ mod tests {
         let start = Instant::now();
 
         let (mut signals, signal_receivers) = CoreSignals::new(context.clone());
-        let block_verifier = Arc::new(NoopBlockVerifier {});
         let transactions_synchronizer = TransactionsSynchronizer::start(
             Arc::new(FakeNetworkClient::default()),
             context.clone(),
             dispatcher.clone(),
-            block_verifier,
             Arc::new(RwLock::new(DagState::new(
                 context.clone(),
                 Arc::new(MemStore::new()),
@@ -381,13 +377,11 @@ mod tests {
             ..Default::default()
         };
         let context = Arc::new(context.with_parameters(parameters));
-        let block_verifier = Arc::new(NoopBlockVerifier {});
 
         let transactions_synchronizer = TransactionsSynchronizer::start(
             Arc::new(FakeNetworkClient::default()),
             context.clone(),
             dispatcher.clone(),
-            block_verifier.clone(),
             Arc::new(RwLock::new(DagState::new(
                 context.clone(),
                 Arc::new(MemStore::new()),

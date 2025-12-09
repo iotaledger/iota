@@ -11,9 +11,9 @@ use std::{
 
 use bytes::Bytes;
 use fastcrypto::hash::{Digest, HashFunction};
+use iota_sdk_types::crypto::{Intent, IntentMessage, IntentScope};
 use rs_merkle::{MerkleProof, MerkleTree};
 use serde::{Deserialize, Serialize};
-use shared_crypto::intent::{Intent, IntentMessage, IntentScope};
 use starfish_config::{
     AuthorityIndex, DIGEST_LENGTH, DefaultHashFunction, DefaultHashFunctionWrapper, Epoch,
     ProtocolKeyPair, ProtocolKeySignature, ProtocolPublicKey,
@@ -23,7 +23,6 @@ use crate::{
     commit::CommitVote,
     context::Context,
     encoder::ShardEncoder,
-    ensure,
     error::{ConsensusError, ConsensusResult},
 };
 
@@ -431,12 +430,6 @@ impl AsRef<[u8]> for BlockHeaderDigest {
     }
 }
 
-// TODO: https://github.com/iotaledger/iota/issues/8220
-// We might need to join TransactionDigest with BlockDigest since we use
-// the same parameters for both structures. TransactionDigest is used for
-// including a commitment for a transaction data to a block header. This digest
-// is used for BlockDigest computations of BlockHeader does not include
-// explicitly the transaction data.
 #[derive(Clone, Copy, Serialize, Deserialize, Default, PartialEq, Eq, PartialOrd, Ord)]
 pub struct TransactionsCommitment([u8; starfish_config::DIGEST_LENGTH]);
 pub type MerkleProofBytes = Vec<u8>;
@@ -653,15 +646,11 @@ impl SignedBlockHeader {
     /// the full block header should be done via BlockHeaderVerifier.
     pub(crate) fn verify_signature(&self, context: &Context) -> ConsensusResult<()> {
         let block_header = &self.inner;
-        let committee = &context.committee;
-        ensure!(
-            committee.is_valid_index(block_header.author()),
-            ConsensusError::InvalidAuthorityIndex {
-                index: block_header.author(),
-                max: committee.size() - 1
-            }
-        );
-        let authority = committee.authority(block_header.author());
+        ConsensusError::quick_validation_authority_indices(
+            &[block_header.author()],
+            &context.committee,
+        )?;
+        let authority = context.committee.authority(block_header.author());
         verify_block_header_signature(block_header, self.signature(), &authority.protocol_key)
     }
 
@@ -1328,7 +1317,7 @@ mod tests {
                 acknowledgments.clone(),
             );
 
-        let expected = vec![ref_a, ref_b, ref_c, ref_d, ref_e, ref_a];
+        let expected = [ref_a, ref_b, ref_c, ref_d, ref_e, ref_a];
         assert_eq!(references.len(), expected.len());
         for r in references.iter() {
             assert!(expected.contains(r));

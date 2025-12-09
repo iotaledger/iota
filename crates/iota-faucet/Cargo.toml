@@ -16,6 +16,7 @@ clap.workspace = true
 eyre.workspace = true
 futures.workspace = true
 http.workspace = true
+iota-sdk-types.workspace = true
 parking_lot.workspace = true
 prometheus.workspace = true
 scopeguard.workspace = true
@@ -40,7 +41,6 @@ iota-metrics.workspace = true
 iota-network-stack.workspace = true
 iota-sdk.workspace = true
 iota-types.workspace = true
-shared-crypto.workspace = true
 telemetry-subscribers.workspace = true
 typed-store.workspace = true
 

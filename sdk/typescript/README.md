@@ -8,7 +8,7 @@ For more complete docs, visit the
 `@iota/iota-sdk` is part of the **IOTA Rebased SDK**, designed specifically for interacting with the IOTA Rebased protocol.
 
 This is the IOTA TypeScript SDK built on the IOTA
-[JSON RPC API](https://github.com/iotaledger/iota/blob/develop/docs/content/references/iota-api.mdx).
+[JSON RPC API](https://docs.iota.org/iota-api-ref).
 It provides utility classes and functions for applications to sign transactions and interact with
 the IOTA network.
 
@@ -20,7 +20,7 @@ upcoming TestNet launch.
 
 The SDK will be published to [npm registry](https://www.npmjs.com/package/@iota/iota-sdk) with the
 same bi-weekly release cycle as the Devnet validators and
-[RPC Server](https://github.com/iotaledger/iota/blob/develop/docs/content/references/iota-api.mdx). To
+[RPC Server](https://docs.iota.org/iota-api-ref). To
 use the SDK in your project, you can do:
 
 ```bash
@@ -41,7 +41,7 @@ npm install @iota/iota-sdk@experimental
 ```
 
 Refer to the
-[JSON RPC](https://github.com/iotaledger/iota/blob/develop/docs/content/references/iota-api.mdx) topic
+[JSON RPC](https://docs.iota.org/iota-api-ref) topic
 for instructions about how to start a local network and local RPC server.
 
 ## Building Locally
@@ -111,8 +111,8 @@ VITE_FAUCET_URL='https://faucet.devnet.iota.cafe:443/gas' VITE_FULLNODE_URL='htt
 The `IotaClient` class provides a connection to the JSON-RPC Server and should be used for all
 read-only operations. The default URLs to connect with the RPC server are:
 
-- local: http://127.0.0.1:9000
-- Devnet: https://api.devnet.iota.cafe
+- Local: `http://127.0.0.1:9000`
+- Devnet: `https://api.devnet.iota.cafe`
 
 ```typescript
 import { getFullnodeUrl, IotaClient } from '@iota/iota-sdk/client';

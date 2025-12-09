@@ -527,7 +527,7 @@
             "name": "transaction",
             "required": true,
             "schema": {
-              "$ref": "#/components/schemas/TransactionDigest"
+              "$ref": "#/components/schemas/Digest"
             },
             "style": "simple"
           }
@@ -1142,6 +1142,7 @@
         }
       },
       "ActiveJwk": {
+        "description": "A new Jwk\n\n# BCS\n\nThe BCS serialized form for this type is defined by the following ABNF:\n\n```text active-jwk = jwk-id jwk u64 ```",
         "type": "object",
         "required": [
           "epoch",
@@ -1150,15 +1151,25 @@
         ],
         "properties": {
           "epoch": {
-            "description": "Radix-10 encoded 64-bit unsigned integer",
+            "description": "Most recent epoch in which the jwk was validated",
             "type": "string",
             "format": "u64"
           },
           "jwk": {
-            "$ref": "#/components/schemas/Jwk"
+            "description": "The Jwk",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Jwk"
+              }
+            ]
           },
           "jwk_id": {
-            "$ref": "#/components/schemas/JwkId"
+            "description": "Identifier used to uniquely identify a Jwk",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/JwkId"
+              }
+            ]
           }
         }
       },
@@ -1270,21 +1281,22 @@
         }
       },
       "Bls12381PublicKey": {
-        "description": "Base64 encoded data",
+        "description": "A bls12381 min-sig public key.\n\n# BCS\n\nThe BCS serialized form for this type is defined by the following ABNF:\n\n```text bls-public-key = %x60 96OCTECT ```\n\nDue to historical reasons, even though a min-sig `Bls12381PublicKey` has a fixed-length of 96, IOTA's binary representation of a min-sig `Bls12381PublicKey` is prefixed with its length meaning its serialized binary form (in bcs) is 97 bytes long vs a more compact 96 bytes.",
         "type": "string",
         "format": "base64"
       },
       "Bls12381Signature": {
-        "description": "Base64 encoded data",
+        "description": "A bls12381 min-sig signature.\n\n# BCS\n\nThe BCS serialized form for this type is defined by the following ABNF:\n\n```text bls-signature = 48OCTECT ```",
         "type": "string",
         "format": "base64"
       },
       "Bn254FieldElement": {
-        "description": "Radix-10 encoded 256-bit unsigned integer",
+        "description": "A point on the BN254 elliptic curve.\n\nThis is a 32-byte, or 256-bit, value that is generally represented as radix10 when a human-readable display format is needed, and is represented as a 32-byte big-endian value while in memory.\n\n# BCS\n\nThe BCS serialized form for this type is defined by the following ABNF:\n\n```text bn254-field-element = *DIGIT ; which is then interpreted as a radix10 encoded 32-byte value ```",
         "type": "string",
         "format": "u256"
       },
       "CancelledTransaction": {
+        "description": "A transaction that was cancelled\n\n# BCS\n\nThe BCS serialized form for this type is defined by the following ABNF:\n\n```text cancelled-transaction = digest (vector version-assignment) ```",
         "type": "object",
         "required": [
           "digest",
@@ -1292,7 +1304,7 @@
         ],
         "properties": {
           "digest": {
-            "$ref": "#/components/schemas/TransactionDigest"
+            "$ref": "#/components/schemas/Digest"
           },
           "version_assignments": {
             "type": "array",
@@ -1303,6 +1315,7 @@
         }
       },
       "ChangedObject": {
+        "description": "Input/output state of an object that was changed during execution\n\n# BCS\n\nThe BCS serialized form for this type is defined by the following ABNF:\n\n```text changed-object = object-id object-in object-out id-operation ```",
         "type": "object",
         "required": [
           "id_operation",
@@ -1328,7 +1341,12 @@
             ]
           },
           "object_id": {
-            "$ref": "#/components/schemas/ObjectId"
+            "description": "Id of the object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ObjectId"
+              }
+            ]
           },
           "output_state": {
             "description": "State of the object in the store after this transaction.",
@@ -1341,8 +1359,10 @@
         }
       },
       "CheckpointCommitment": {
+        "description": "A commitment made by a checkpoint.\n\n# BCS\n\nThe BCS serialized form for this type is defined by the following ABNF:\n\n```text ; CheckpointCommitment is an enum and each variant is prefixed with its index checkpoint-commitment = ecmh-live-object-set ecmh-live-object-set = %x00 digest ```",
         "oneOf": [
           {
+            "description": "An Elliptic Curve Multiset Hash attesting to the set of Objects that compose the live state of the IOTA blockchain.",
             "type": "object",
             "required": [
               "digest",
@@ -1363,16 +1383,11 @@
         ]
       },
       "CheckpointContents": {
+        "description": "The committed to contents of a checkpoint.\n\n`CheckpointContents` contains a list of digests of Transactions, their effects, and the user signatures that authorized their execution included in a checkpoint.\n\n# BCS\n\nThe BCS serialized form for this type is defined by the following ABNF:\n\n```text checkpoint-contents = %x00 checkpoint-contents-v1 ; variant 0\n\ncheckpoint-contents-v1 = (vector (digest digest)) ; vector of transaction and effect digests (vector (vector bcs-user-signature)) ; set of user signatures for each ; transaction. MUST be the same ; length as the vector of digests ```",
         "type": "array",
         "items": {
           "$ref": "#/components/schemas/CheckpointTransactionInfo"
         }
-      },
-      "CheckpointContentsDigest": {
-        "$ref": "#/components/schemas/Digest"
-      },
-      "CheckpointDigest": {
-        "$ref": "#/components/schemas/Digest"
       },
       "CheckpointId": {
         "anyOf": [
@@ -1393,7 +1408,7 @@
             ],
             "allOf": [
               {
-                "$ref": "#/components/schemas/CheckpointDigest"
+                "$ref": "#/components/schemas/Digest"
               }
             ]
           }
@@ -1418,6 +1433,7 @@
         }
       },
       "CheckpointSummary": {
+        "description": "A header for a Checkpoint on the IOTA blockchain.\n\nOn the IOTA network, checkpoints define the history of the blockchain. They are quite similar to the concept of blocks used by other blockchains like Bitcoin or Ethereum. The IOTA blockchain, however, forms checkpoints after transaction execution has already happened to provide a certified history of the chain, instead of being formed before execution.\n\nCheckpoints commit to a variety of state including but not limited to: - The hash of the previous checkpoint. - The set of transaction digests, their corresponding effects digests, as well as the set of user signatures which authorized its execution. - The object's produced by a transaction. - The set of live objects that make up the current state of the chain. - On epoch transitions, the next validator committee.\n\n`CheckpointSummary`s themselves don't directly include all of the above information but they are the top-level type by which all the above are committed to transitively via cryptographic hashes included in the summary. `CheckpointSummary`s are signed and certified by a quorum of the validator committee in a given epoch in order to allow verification of the chain's state.\n\n# BCS\n\nThe BCS serialized form for this type is defined by the following ABNF:\n\n```text checkpoint-summary = u64                            ; epoch u64                            ; sequence_number u64                            ; network_total_transactions digest                         ; content_digest (option digest)                ; previous_digest gas-cost-summary               ; epoch_rolling_gas_cost_summary u64                            ; timestamp_ms (vector checkpoint-commitment) ; checkpoint_commitments (option end-of-epoch-data)     ; end_of_epoch_data bytes                          ; version_specific_data ```",
         "type": "object",
         "required": [
           "content_digest",
@@ -1429,17 +1445,22 @@
         ],
         "properties": {
           "checkpoint_commitments": {
-            "description": "Commitments to checkpoint-specific state (e.g. txns in checkpoint, objects read/written in checkpoint).",
+            "description": "Commitments to checkpoint-specific state.",
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/CheckpointCommitment"
             }
           },
           "content_digest": {
-            "$ref": "#/components/schemas/CheckpointContentsDigest"
+            "description": "The hash of the [`CheckpointContents`] for this checkpoint.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Digest"
+              }
+            ]
           },
           "end_of_epoch_data": {
-            "description": "Present only on the final checkpoint of the epoch.",
+            "description": "Extra data only present in the final checkpoint of an epoch.",
             "allOf": [
               {
                 "$ref": "#/components/schemas/EndOfEpochData"
@@ -1447,7 +1468,7 @@
             ]
           },
           "epoch": {
-            "description": "Radix-10 encoded 64-bit unsigned integer",
+            "description": "Epoch that this checkpoint belongs to.",
             "type": "string",
             "format": "u64"
           },
@@ -1465,10 +1486,15 @@
             "format": "u64"
           },
           "previous_digest": {
-            "$ref": "#/components/schemas/CheckpointDigest"
+            "description": "The hash of the previous `CheckpointSummary`.\n\nThis will be only be `None` for the first, or genesis checkpoint.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Digest"
+              }
+            ]
           },
           "sequence_number": {
-            "description": "Radix-10 encoded 64-bit unsigned integer",
+            "description": "The height of this checkpoint.",
             "type": "string",
             "format": "u64"
           },
@@ -1485,6 +1511,7 @@
         }
       },
       "CheckpointTransactionInfo": {
+        "description": "Transaction information committed to in a checkpoint",
         "type": "object",
         "required": [
           "effects",
@@ -1493,7 +1520,7 @@
         ],
         "properties": {
           "effects": {
-            "$ref": "#/components/schemas/TransactionEffectsDigest"
+            "$ref": "#/components/schemas/Digest"
           },
           "signatures": {
             "type": "array",
@@ -1502,12 +1529,12 @@
             }
           },
           "transaction": {
-            "$ref": "#/components/schemas/TransactionDigest"
+            "$ref": "#/components/schemas/Digest"
           }
         }
       },
       "CircomG1": {
-        "description": "A G1 point in BN254 serialized as a vector of three strings which is the canonical decimal representation of the projective coordinates in Fq.",
+        "description": "A G1 point\n\nThis represents the canonical decimal representation of the projective coordinates in Fq.\n\n# BCS\n\nThe BCS serialized form for this type is defined by the following ABNF:\n\n```text circom-g1 = %x03 3(bn254-field-element) ```",
         "type": "array",
         "items": {
           "$ref": "#/components/schemas/Bn254FieldElement"
@@ -1516,7 +1543,7 @@
         "minItems": 3
       },
       "CircomG2": {
-        "description": "A G2 point in BN254 serialized as a vector of three vectors each being a vector of two strings which are the canonical decimal representation of the coefficients of the projective coordinates in Fq2.",
+        "description": "A G2 point\n\nThis represents the canonical decimal representation of the coefficients of the projective coordinates in Fq2.\n\n# BCS\n\nThe BCS serialized form for this type is defined by the following ABNF:\n\n```text circom-g2 = %x03 3(%x02 2(bn254-field-element)) ```",
         "type": "array",
         "items": {
           "type": "array",
@@ -1528,24 +1555,6 @@
         },
         "maxItems": 3,
         "minItems": 3
-      },
-      "Claim": {
-        "description": "A claim consists of value and index_mod_4.",
-        "type": "object",
-        "required": [
-          "index_mod_4",
-          "value"
-        ],
-        "properties": {
-          "index_mod_4": {
-            "type": "integer",
-            "format": "uint8",
-            "minimum": 0.0
-          },
-          "value": {
-            "type": "string"
-          }
-        }
       },
       "CoinInfo": {
         "type": "object",
@@ -1619,7 +1628,7 @@
         }
       },
       "Command": {
-        "description": "A single command in a programmable transaction.",
+        "description": "A single command in a programmable transaction.\n\n# BCS\n\nThe BCS serialized form for this type is defined by the following ABNF:\n\n```text command =  command-move-call =/ command-transfer-objects =/ command-split-coins =/ command-merge-coins =/ command-publish =/ command-make-move-vector =/ command-upgrade\n\ncommand-move-call           = %x00 move-call command-transfer-objects    = %x01 transfer-objects command-split-coins         = %x02 split-coins command-merge-coins         = %x03 merge-coins command-publish             = %x04 publish command-make-move-vector    = %x05 make-move-vector command-upgrade             = %x06 upgrade ```",
         "oneOf": [
           {
             "description": "A call to either an entry or a public Move function",
@@ -1689,7 +1698,12 @@
             ],
             "properties": {
               "address": {
-                "$ref": "#/components/schemas/Argument"
+                "description": "The address to transfer ownership to",
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/Argument"
+                  }
+                ]
               },
               "command": {
                 "type": "string",
@@ -1698,6 +1712,7 @@
                 ]
               },
               "objects": {
+                "description": "Set of objects to transfer",
                 "type": "array",
                 "items": {
                   "$ref": "#/components/schemas/Argument"
@@ -1715,13 +1730,19 @@
             ],
             "properties": {
               "amounts": {
+                "description": "The amounts to split off",
                 "type": "array",
                 "items": {
                   "$ref": "#/components/schemas/Argument"
                 }
               },
               "coin": {
-                "$ref": "#/components/schemas/Argument"
+                "description": "The coin to split",
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/Argument"
+                  }
+                ]
               },
               "command": {
                 "type": "string",
@@ -1741,9 +1762,15 @@
             ],
             "properties": {
               "coin": {
-                "$ref": "#/components/schemas/Argument"
+                "description": "Coin to merge coins into",
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/Argument"
+                  }
+                ]
               },
               "coins_to_merge": {
+                "description": "Set of coins to merge into `coin`\n\nAll listed coins must be of the same type and be the same type as `coin`",
                 "type": "array",
                 "items": {
                   "$ref": "#/components/schemas/Argument"
@@ -1773,12 +1800,14 @@
                 ]
               },
               "dependencies": {
+                "description": "Set of packages that the to-be published package depends on",
                 "type": "array",
                 "items": {
                   "$ref": "#/components/schemas/ObjectId"
                 }
               },
               "modules": {
+                "description": "The serialized move modules",
                 "type": "array",
                 "items": {
                   "description": "Base64 encoded data",
@@ -1803,13 +1832,19 @@
                 ]
               },
               "elements": {
+                "description": "The set individual elements to build the vector with",
                 "type": "array",
                 "items": {
                   "$ref": "#/components/schemas/Argument"
                 }
               },
               "type": {
-                "$ref": "#/components/schemas/TypeTag"
+                "description": "Type of the individual elements\n\nThis is required to be set when the type can't be inferred, for example when the set of provided arguments are all pure input values.",
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/TypeTag"
+                  }
+                ]
               }
             }
           },
@@ -1831,12 +1866,14 @@
                 ]
               },
               "dependencies": {
+                "description": "Set of packages that the to-be published package depends on",
                 "type": "array",
                 "items": {
                   "$ref": "#/components/schemas/ObjectId"
                 }
               },
               "modules": {
+                "description": "The serialized move modules",
                 "type": "array",
                 "items": {
                   "description": "Base64 encoded data",
@@ -1845,16 +1882,27 @@
                 }
               },
               "package": {
-                "$ref": "#/components/schemas/ObjectId"
+                "description": "Package id of the package to upgrade",
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/ObjectId"
+                  }
+                ]
               },
               "ticket": {
-                "$ref": "#/components/schemas/Argument"
+                "description": "Ticket authorizing the upgrade",
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/Argument"
+                  }
+                ]
               }
             }
           }
         ]
       },
       "CommandArgumentError": {
+        "description": "An error with an argument to a command\n\n# BCS\n\nThe BCS serialized form for this type is defined by the following ABNF:\n\n```text command-argument-error =  type-mismatch =/ invalid-bcs-bytes =/ invalid-usage-of-pure-argument =/ invalid-argument-to-private-entry-function =/ index-out-of-bounds =/ secondary-index-out-of-bound =/ invalid-result-arity =/ invalid-gas-coin-usage =/ invalid-value-usage =/ invalid-object-by-value =/ invalid-object-by-mut-ref =/ shared-object-operation-not-allowed\n\ntype-mismatch                               = %x00 invalid-bcs-bytes                           = %x01 invalid-usage-of-pure-argument              = %x02 invalid-argument-to-private-entry-function  = %x03 index-out-of-bounds                         = %x04 u16 secondary-index-out-of-bound                = %x05 u16 u16 invalid-result-arity                        = %x06 u16 invalid-gas-coin-usage                      = %x07 invalid-value-usage                         = %x08 invalid-object-by-value                     = %x09 invalid-object-by-mut-ref                   = %x0a shared-object-operation-not-allowed         = %x0b ```",
         "oneOf": [
           {
             "description": "The type of the value does not match the expected type",
@@ -2077,9 +2125,6 @@
           }
         ]
       },
-      "ConsensusCommitDigest": {
-        "$ref": "#/components/schemas/Digest"
-      },
       "ConsensusDeterminedVersionAssignments": {
         "oneOf": [
           {
@@ -2107,7 +2152,7 @@
         ]
       },
       "Digest": {
-        "description": "A representation of a 32 byte digest",
+        "description": "A 32-byte Blake2b256 hash output.\n\n# BCS\n\nA `Digest`'s BCS serialized form is defined by the following:\n\n```text digest = %x20 32OCTET ```\n\nDue to historical reasons, even though a `Digest` has a fixed-length of 32, IOTA's binary representation of a `Digest` is prefixed with its length meaning its serialized binary form (in bcs) is 33 bytes long vs a more compact 32 bytes.",
         "type": "string",
         "format": "base58"
       },
@@ -2167,17 +2212,14 @@
         ]
       },
       "Ed25519PublicKey": {
-        "description": "Base64 encoded data",
+        "description": "An ed25519 public key.\n\n# BCS\n\nThe BCS serialized form for this type is defined by the following ABNF:\n\n```text ed25519-public-key = 32OCTECT ```",
         "type": "string",
         "format": "base64"
       },
       "Ed25519Signature": {
-        "description": "Base64 encoded data",
+        "description": "An ed25519 signature.\n\n# BCS\n\nThe BCS serialized form for this type is defined by the following ABNF:\n\n```text ed25519-signature = 64OCTECT ```",
         "type": "string",
         "format": "base64"
-      },
-      "EffectsAuxiliaryDataDigest": {
-        "$ref": "#/components/schemas/Digest"
       },
       "EffectsFinality": {
         "anyOf": [
@@ -2213,6 +2255,7 @@
         ]
       },
       "EndOfEpochData": {
+        "description": "Data, which when included in a [`CheckpointSummary`], signals the end of an `Epoch`.\n\n# BCS\n\nThe BCS serialized form for this type is defined by the following ABNF:\n\n```text end-of-epoch-data = (vector validator-committee-member) ; next_epoch_committee u64                                 ; next_epoch_protocol_version (vector checkpoint-commitment)      ; epoch_commitments ```",
         "type": "object",
         "required": [
           "epoch_commitments",
@@ -2234,23 +2277,24 @@
             "format": "int64"
           },
           "next_epoch_committee": {
-            "description": "next_epoch_committee is `Some` if and only if the current checkpoint is the last checkpoint of an epoch. Therefore next_epoch_committee can be used to pick the last checkpoint of an epoch, which is often useful to get epoch level summary stats like total gas cost of an epoch, or the total number of transactions from genesis to the end of an epoch. The committee is stored as a vector of validator pub key and stake pairs. The vector should be sorted based on the Committee data structure.",
+            "description": "The set of Validators that will be in the ValidatorCommittee for the next epoch.",
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/ValidatorCommitteeMember"
             }
           },
           "next_epoch_protocol_version": {
-            "description": "The protocol version that is in effect during the epoch that starts immediately after this checkpoint.",
+            "description": "The protocol version that is in effect during the next epoch.",
             "type": "string",
             "format": "u64"
           }
         }
       },
       "EndOfEpochTransactionKind": {
-        "description": "EndOfEpochTransactionKind",
+        "description": "Operation run at the end of an epoch\n\n# BCS\n\nThe BCS serialized form for this type is defined by the following ABNF:\n\n```text end-of-epoch-transaction-kind   =  eoe-change-epoch =/ eoe-authenticator-state-create =/ eoe-authenticator-state-expire =/ eoe-randomness-state-create =/ eoe-deny-list-state-create =/ eoe-bridge-state-create =/ eoe-bridge-committee-init =/ eoe-store-execution-time-observations\n\neoe-change-epoch                = %x00 change-epoch eoe-authenticator-state-create  = %x01 eoe-authenticator-state-expire  = %x02 authenticator-state-expire eoe-randomness-state-create     = %x03 eoe-deny-list-state-create      = %x04 eoe-bridge-state-create         = %x05 digest eoe-bridge-committee-init       = %x06 u64 eoe-store-execution-time-observations = %x07 stored-execution-time-observations ```",
         "oneOf": [
           {
+            "description": "End the epoch and start the next one",
             "type": "object",
             "required": [
               "computation_charge",
@@ -2315,6 +2359,7 @@
             }
           },
           {
+            "description": "End the epoch and start the next one",
             "type": "object",
             "required": [
               "computation_charge",
@@ -2385,6 +2430,7 @@
             }
           },
           {
+            "description": "End the epoch and start the next one",
             "type": "object",
             "required": [
               "computation_charge",
@@ -2465,6 +2511,7 @@
             }
           },
           {
+            "description": "Create and initialize the authenticator object used for zklogin",
             "type": "object",
             "required": [
               "kind"
@@ -2479,6 +2526,7 @@
             }
           },
           {
+            "description": "Expire JWKs used for zklogin",
             "type": "object",
             "required": [
               "authenticator_obj_initial_shared_version",
@@ -2507,7 +2555,7 @@
         ]
       },
       "Event": {
-        "description": "Specific type of event",
+        "description": "An event\n\n# BCS\n\nThe BCS serialized form for this type is defined by the following ABNF:\n\n```text event = object-id identifier address struct-tag bytes ```",
         "type": "object",
         "required": [
           "contents",
@@ -2518,25 +2566,46 @@
         ],
         "properties": {
           "contents": {
-            "description": "Base64 encoded data",
+            "description": "BCS serialized bytes of the event",
             "type": "string",
             "format": "base64"
           },
           "module": {
-            "$ref": "#/components/schemas/Identifier"
+            "description": "Module name of the top-level function invoked by a MoveCall command which triggered this event to be emitted.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Identifier"
+              }
+            ]
           },
           "package_id": {
-            "$ref": "#/components/schemas/ObjectId"
+            "description": "Package id of the top-level function invoked by a MoveCall command which triggered this event to be emitted.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ObjectId"
+              }
+            ]
           },
           "sender": {
-            "$ref": "#/components/schemas/Address"
+            "description": "Address of the account that sent the transaction where this event was emitted.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Address"
+              }
+            ]
           },
           "type": {
-            "$ref": "#/components/schemas/StructTag"
+            "description": "The type of the event emitted",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/StructTag"
+              }
+            ]
           }
         }
       },
       "ExecutionError": {
+        "description": "An error that can occur during the execution of a transaction\n\n# BCS\n\nThe BCS serialized form for this type is defined by the following ABNF:\n\n```text\n\nexecution-error =  insufficient-gas =/ invalid-gas-object =/ invariant-violation =/ feature-not-yet-supported =/ object-too-big =/ package-too-big =/ circular-object-ownership =/ insufficient-coin-balance =/ coin-balance-overflow =/ publish-error-non-zero-address =/ iota-move-verification-error =/ move-primitive-runtime-error =/ move-abort =/ vm-verification-or-deserialization-error =/ vm-invariant-violation =/ function-not-found =/ arity-mismatch =/ type-arity-mismatch =/ non-entry-function-invoked =/ command-argument-error =/ type-argument-error =/ unused-value-without-drop =/ invalid-public-function-return-type =/ invalid-transfer-object =/ effects-too-large =/ publish-upgrade-missing-dependency =/ publish-upgrade-dependency-downgrade =/ package-upgrade-error =/ written-objects-too-large =/ certificate-denied =/ iota-move-verification-timeout =/ shared-object-operation-not-allowed =/ input-object-deleted =/ execution-cancelled-due-to-shared-object-congestion =/ address-denied-for-coin =/ coin-type-global-pause =/ execution-cancelled-due-to-randomness-unavailable\n\ninsufficient-gas                                    = %x00 invalid-gas-object                                  = %x01 invariant-violation                                 = %x02 feature-not-yet-supported                           = %x03 object-too-big                                      = %x04 u64 u64 package-too-big                                     = %x05 u64 u64 circular-object-ownership                           = %x06 object-id insufficient-coin-balance                           = %x07 coin-balance-overflow                               = %x08 publish-error-non-zero-address                      = %x09 iota-move-verification-error                        = %x0a move-primitive-runtime-error                        = %x0b (option move-location) move-abort                                          = %x0c move-location u64 vm-verification-or-deserialization-error            = %x0d vm-invariant-violation                              = %x0e function-not-found                                  = %x0f arity-mismatch                                      = %x10 type-arity-mismatch                                 = %x11 non-entry-function-invoked                          = %x12 command-argument-error                              = %x13 u16 command-argument-error type-argument-error                                 = %x14 u16 type-argument-error unused-value-without-drop                           = %x15 u16 u16 invalid-public-function-return-type                 = %x16 u16 invalid-transfer-object                             = %x17 effects-too-large                                   = %x18 u64 u64 publish-upgrade-missing-dependency                  = %x19 publish-upgrade-dependency-downgrade                = %x1a package-upgrade-error                               = %x1b package-upgrade-error written-objects-too-large                           = %x1c u64 u64 certificate-denied                                  = %x1d iota-move-verification-timeout                      = %x1e shared-object-operation-not-allowed                 = %x1f input-object-deleted                                = %x20 execution-cancelled-due-to-shared-object-congestion = %x21 (vector object-id) address-denied-for-coin                             = %x22 address string coin-type-global-pause                              = %x23 string execution-cancelled-due-to-randomness-unavailable   = %x24 ```",
         "oneOf": [
           {
             "description": "Insufficient Gas",
@@ -2908,6 +2977,7 @@
                 "$ref": "#/components/schemas/TypeArgumentError"
               },
               "type_argument": {
+                "description": "Index of the problematic type argument",
                 "type": "integer",
                 "format": "uint16",
                 "minimum": 0.0
@@ -3282,7 +3352,7 @@
         }
       },
       "GasCostSummary": {
-        "description": "Summary of gas charges.\n\nStorage is charged independently of computation. There are 3 parts to the storage charges: `storage_cost`: it is the charge of storage at the time the transaction is executed.                 The cost of storage is the number of bytes of the objects being mutated                 multiplied by a variable storage cost per byte `storage_rebate`: this is the amount a user gets back when manipulating an object.                   The `storage_rebate` is the `storage_cost` for an object minus fees. `non_refundable_storage_fee`: not all the value of the object storage cost is given back to user and there is a small fraction that is kept by the system. This value tracks that charge.\n\nWhen looking at a gas cost summary the amount charged to the user is `computation_cost + storage_cost - storage_rebate` and that is the amount that is deducted from the gas coins. `non_refundable_storage_fee` is collected from the objects being mutated/deleted and it is tracked by the system in storage funds.\n\nObjects deleted, including the older versions of objects mutated, have the storage field on the objects added up to a pool of \"potential rebate\". This rebate then is reduced by the \"nonrefundable rate\" such that: `potential_rebate(storage cost of deleted/mutated objects) = storage_rebate + non_refundable_storage_fee`",
+        "description": "Summary of gas charges.\n\nStorage is charged independently of computation. There are 3 parts to the storage charges: `storage_cost`: it is the charge of storage at the time the transaction is executed.                 The cost of storage is the number of bytes of the objects being mutated                 multiplied by a variable storage cost per byte `storage_rebate`: this is the amount a user gets back when manipulating an object.                   The `storage_rebate` is the `storage_cost` for an object minus fees. `non_refundable_storage_fee`: not all the value of the object storage cost is given back to user and there is a small fraction that is kept by the system. This value tracks that charge.\n\nWhen looking at a gas cost summary the amount charged to the user is `computation_cost + storage_cost - storage_rebate` and that is the amount that is deducted from the gas coins. `non_refundable_storage_fee` is collected from the objects being mutated/deleted and it is tracked by the system in storage funds.\n\nObjects deleted, including the older versions of objects mutated, have the storage field on the objects added up to a pool of \"potential rebate\". This rebate then is reduced by the \"nonrefundable rate\" such that: `potential_rebate(storage cost of deleted/mutated objects) = storage_rebate + non_refundable_storage_fee`\n\n# BCS\n\nThe BCS serialized form for this type is defined by the following ABNF:\n\n```text gas-cost-summary = u64 ; computation-cost u64 ; storage-cost u64 ; storage-rebate u64 ; non-refundable-storage-fee ```",
         "type": "object",
         "required": [
           "computation_cost",
@@ -3333,6 +3403,7 @@
         }
       },
       "GasPayment": {
+        "description": "Payment information for executing a transaction\n\n# BCS\n\nThe BCS serialized form for this type is defined by the following ABNF:\n\n```text gas-payment = (vector object-ref) ; gas coin objects address             ; owner u64                 ; price u64                 ; budget ```",
         "type": "object",
         "required": [
           "budget",
@@ -3342,7 +3413,7 @@
         ],
         "properties": {
           "budget": {
-            "description": "Radix-10 encoded 64-bit unsigned integer",
+            "description": "Total budget willing to spend for the execution of a transaction",
             "type": "string",
             "format": "u64"
           },
@@ -3353,10 +3424,15 @@
             }
           },
           "owner": {
-            "$ref": "#/components/schemas/Address"
+            "description": "Owner of the gas objects, either the transaction sender or a sponsor",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Address"
+              }
+            ]
           },
           "price": {
-            "description": "Radix-10 encoded 64-bit unsigned integer",
+            "description": "Gas unit price to use when charging for computation\n\nMust be greater-than-or-equal-to the network's current RGP (reference gas price)",
             "type": "string",
             "format": "u64"
           }
@@ -3396,6 +3472,7 @@
         }
       },
       "IdOperation": {
+        "description": "Defines what happened to an ObjectId during execution\n\n# BCS\n\nThe BCS serialized form for this type is defined by the following ABNF:\n\n```text id-operation =  id-operation-none =/ id-operation-created =/ id-operation-deleted\n\nid-operation-none       = %x00 id-operation-created    = %x01 id-operation-deleted    = %x02 ```",
         "type": "string",
         "enum": [
           "none",
@@ -3412,9 +3489,11 @@
         "type": "string",
         "pattern": "(?:[a-zA-Z][a-zA-Z0-9_]{0,127})|(?:_[a-zA-Z0-9_]{0,127})"
       },
-      "InputArgument": {
+      "Input": {
+        "description": "An input to a user transaction\n\n# BCS\n\nThe BCS serialized form for this type is defined by the following ABNF:\n\n```text input = input-pure / input-immutable-or-owned / input-shared / input-receiving\n\ninput-pure                  = %x00 bytes input-immutable-or-owned    = %x01 object-ref input-shared                = %x02 object-id u64 bool input-receiving             = %x04 object-ref ```",
         "oneOf": [
           {
+            "description": "A move value serialized as BCS.\n\nFor normal operations this is required to be a move primitive type and not contain structs or objects.",
             "type": "object",
             "required": [
               "type",
@@ -3435,6 +3514,7 @@
             }
           },
           {
+            "description": "A move object that is either immutable or address owned",
             "type": "object",
             "required": [
               "digest",
@@ -3444,10 +3524,20 @@
             ],
             "properties": {
               "digest": {
-                "$ref": "#/components/schemas/ObjectDigest"
+                "description": "The digest of this object.",
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/Digest"
+                  }
+                ]
               },
               "object_id": {
-                "$ref": "#/components/schemas/ObjectId"
+                "description": "The object id of this object.",
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/ObjectId"
+                  }
+                ]
               },
               "type": {
                 "type": "string",
@@ -3456,13 +3546,14 @@
                 ]
               },
               "version": {
-                "description": "Radix-10 encoded 64-bit unsigned integer",
+                "description": "The version of this object.",
                 "type": "string",
                 "format": "u64"
               }
             }
           },
           {
+            "description": "A move object whose owner is \"Shared\"",
             "type": "object",
             "required": [
               "initial_shared_version",
@@ -3477,6 +3568,7 @@
                 "format": "u64"
               },
               "mutable": {
+                "description": "Controls whether the caller asks for a mutable reference to the shared object.",
                 "type": "boolean"
               },
               "object_id": {
@@ -3491,6 +3583,7 @@
             }
           },
           {
+            "description": "A move object that is attempted to be received in this transaction.",
             "type": "object",
             "required": [
               "digest",
@@ -3500,10 +3593,20 @@
             ],
             "properties": {
               "digest": {
-                "$ref": "#/components/schemas/ObjectDigest"
+                "description": "The digest of this object.",
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/Digest"
+                  }
+                ]
               },
               "object_id": {
-                "$ref": "#/components/schemas/ObjectId"
+                "description": "The object id of this object.",
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/ObjectId"
+                  }
+                ]
               },
               "type": {
                 "type": "string",
@@ -3512,7 +3615,7 @@
                 ]
               },
               "version": {
-                "description": "Radix-10 encoded 64-bit unsigned integer",
+                "description": "The version of this object.",
                 "type": "string",
                 "format": "u64"
               }
@@ -3521,7 +3624,7 @@
         ]
       },
       "Jwk": {
-        "description": "Struct that contains info for a JWK. A list of them for different kids can be retrieved from the JWK endpoint (e.g. <https://www.googleapis.com/oauth2/v3/certs>). The JWK is used to verify the JWT token.",
+        "description": "A JSON Web Key\n\nStruct that contains info for a JWK. A list of them for different kids can be retrieved from the JWK endpoint (e.g. <https://www.googleapis.com/oauth2/v3/certs>). The JWK is used to verify the JWT token.\n\n# BCS\n\nThe BCS serialized form for this type is defined by the following ABNF:\n\n```text jwk = string string string string ```",
         "type": "object",
         "required": [
           "alg",
@@ -3549,7 +3652,7 @@
         }
       },
       "JwkId": {
-        "description": "Key to identify a JWK, consists of iss and kid.",
+        "description": "Key to uniquely identify a JWK\n\n# BCS\n\nThe BCS serialized form for this type is defined by the following ABNF:\n\n```text jwk-id = string string ```",
         "type": "object",
         "required": [
           "iss",
@@ -3557,16 +3660,17 @@
         ],
         "properties": {
           "iss": {
-            "description": "iss string that identifies the OIDC provider.",
+            "description": "The issuer or identity of the OIDC provider.",
             "type": "string"
           },
           "kid": {
-            "description": "kid string that identifies the JWK.",
+            "description": "A key id use to uniquely identify a key from an OIDC provider.",
             "type": "string"
           }
         }
       },
       "MoveLocation": {
+        "description": "Location in move bytecode where an error occurred\n\n# BCS\n\nThe BCS serialized form for this type is defined by the following ABNF:\n\n```text move-location = object-id identifier u16 u16 (option identifier) ```",
         "type": "object",
         "required": [
           "function",
@@ -3576,12 +3680,18 @@
         ],
         "properties": {
           "function": {
+            "description": "The function index",
             "type": "integer",
             "format": "uint16",
             "minimum": 0.0
           },
           "function_name": {
-            "$ref": "#/components/schemas/Identifier"
+            "description": "The name of the function if available",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Identifier"
+              }
+            ]
           },
           "instruction": {
             "description": "Index into the code stream for a jump. The offset is relative to the beginning of the instruction stream.",
@@ -3590,10 +3700,20 @@
             "minimum": 0.0
           },
           "module": {
-            "$ref": "#/components/schemas/Identifier"
+            "description": "The module name",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Identifier"
+              }
+            ]
           },
           "package": {
-            "$ref": "#/components/schemas/ObjectId"
+            "description": "The package id",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ObjectId"
+              }
+            ]
           }
         }
       },
@@ -3611,6 +3731,7 @@
         }
       },
       "MultisigCommittee": {
+        "description": "A multisig committee\n\nA `MultisigCommittee` is a set of members who collectively control a single `Address` on the IOTA blockchain. The number of required signatures to authorize the execution of a transaction is determined by `(signature_0_weight + signature_1_weight ..) >= threshold`.\n\n# BCS\n\nThe BCS serialized form for this type is defined by the following ABNF:\n\n```text multisig-committee = (vector multisig-member) u16    ; threshold ```\n\nThere is also a legacy encoding for this type defined as:\n\n```text legacy-multisig-committee = (vector legacy-multisig-member) u16     ; threshold ```",
         "type": "object",
         "required": [
           "members",
@@ -3633,6 +3754,7 @@
         }
       },
       "MultisigMember": {
+        "description": "A member in a multisig committee\n\n# BCS\n\nThe BCS serialized form for this type is defined by the following ABNF:\n\n```text multisig-member = multisig-member-public-key u8    ; weight ```\n\nThere is also a legacy encoding for this type defined as:\n\n```text legacy-multisig-member = legacy-multisig-member-public-key u8     ; weight ```",
         "type": "object",
         "required": [
           "public_key",
@@ -3706,7 +3828,7 @@
             }
           },
           {
-            "description": "A wrapper struct to retrofit in [enum PublicKey] for zkLogin. Useful to construct [struct MultiSigPublicKey].",
+            "description": "Public Key equivalent for Zklogin authenticators\n\nA `ZkLoginPublicIdentifier` is the equivalent of a public key for other account authenticators, and contains the information required to derive the onchain account [`Address`] for a Zklogin authenticator.\n\n## Note\n\nDue to a historical bug that was introduced in the IOTA Typescript SDK when the zklogin authenticator was first introduced, there are now possibly two \"valid\" addresses for each zklogin authenticator depending on the bit-pattern of the `address_seed` value.\n\nThe original bug incorrectly derived a zklogin's address by stripping any leading zero-bytes that could have been present in the 32-byte length `address_seed` value prior to hashing, leading to a different derived address. This incorrectly derived address was presented to users of various wallets, leading them to sending funds to these addresses that they couldn't access. Instead of letting these users lose any assets that were sent to these addresses, the IOTA network decided to change the protocol to allow for a zklogin authenticator who's `address_seed` value had leading zero-bytes be authorized to sign for both the addresses derived from both the unpadded and padded `address_seed` value.\n\n# BCS\n\nThe BCS serialized form for this type is defined by the following ABNF:\n\n```text zklogin-public-identifier-bcs = bytes ; where the contents are defined by ; <zklogin-public-identifier>\n\nzklogin-public-identifier = zklogin-public-identifier-iss address-seed\n\nzklogin-public-identifier-unpadded = zklogin-public-identifier-iss address-seed-unpadded\n\n; The iss, or issuer, is a utf8 string that is less than 255 bytes long ; and is serialized with the iss's length in bytes as a u8 followed by ; the bytes of the iss zklogin-public-identifier-iss = u8 *255(OCTET)\n\n; A Bn254FieldElement serialized as a 32-byte big-endian value address-seed = 32(OCTET)\n\n; A Bn254FieldElement serialized as a 32-byte big-endian value ; with any leading zero bytes stripped address-seed-unpadded = %x00 / %x01-ff *31(OCTET) ```\n\n[`Address`]: crate::Address",
             "type": "object",
             "required": [
               "address_seed",
@@ -3787,7 +3909,7 @@
             }
           },
           {
-            "description": "An zk login authenticator with all the necessary fields.",
+            "description": "A zklogin authenticator\n\n# BCS\n\nThe BCS serialized form for this type is defined by the following ABNF:\n\n```text zklogin-bcs = bytes             ; contents are defined by <zklogin-authenticator> zklogin     = zklogin-flag zklogin-inputs u64               ; max epoch simple-signature ```\n\nNote: Due to historical reasons, signatures are serialized slightly different from the majority of the types in IOTA. In particular if a signature is ever embedded in another structure it generally is serialized as `bytes` meaning it has a length prefix that defines the length of the completely serialized signature.",
             "type": "object",
             "required": [
               "inputs",
@@ -3797,10 +3919,15 @@
             ],
             "properties": {
               "inputs": {
-                "$ref": "#/components/schemas/ZkLoginInputs"
+                "description": "Zklogin proof and inputs required to perform proof verification.",
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/ZkLoginInputs"
+                  }
+                ]
               },
               "max_epoch": {
-                "description": "Radix-10 encoded 64-bit unsigned integer",
+                "description": "Maximum epoch for which the proof is valid.",
                 "type": "string",
                 "format": "u64"
               },
@@ -3811,7 +3938,12 @@
                 ]
               },
               "signature": {
-                "$ref": "#/components/schemas/SimpleSignature"
+                "description": "User signature with the pubkey attested to by the provided proof.",
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/SimpleSignature"
+                  }
+                ]
               }
             }
           }
@@ -3837,7 +3969,7 @@
             "description": "The chain identifier of the chain that this Node is on",
             "allOf": [
               {
-                "$ref": "#/components/schemas/CheckpointDigest"
+                "$ref": "#/components/schemas/Digest"
               }
             ]
           },
@@ -3897,7 +4029,7 @@
             "$ref": "#/components/schemas/Owner"
           },
           "previous_transaction": {
-            "$ref": "#/components/schemas/TransactionDigest"
+            "$ref": "#/components/schemas/Digest"
           },
           "storage_rebate": {
             "description": "Radix-10 encoded 64-bit unsigned integer",
@@ -3914,14 +4046,16 @@
           }
         }
       },
-      "ObjectDigest": {
-        "$ref": "#/components/schemas/Digest"
-      },
       "ObjectId": {
-        "$ref": "#/components/schemas/Address"
+        "description": "An `ObjectId` is a 32-byte identifier used to uniquely identify an object on the IOTA blockchain.\n\n## Relationship to Address\n\n[`Address`]es and `ObjectId`s share the same 32-byte addressable space but are derived leveraging different domain-separator values to ensure, cryptographically, that there won't be any overlap, e.g. there can't be a valid `Object` whose `ObjectId` is equal to that of the `Address` of a user account.\n\n# BCS\n\nAn `ObjectId`'s BCS serialized form is defined by the following:\n\n```text object-id = 32*OCTET ```",
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/Address"
+          }
+        ]
       },
       "ObjectIn": {
-        "description": "If an object exists (at root-level) in the store prior to this transaction, it should be Exist, otherwise it's NonExist, e.g. wrapped objects should be NonExist.",
+        "description": "State of an object prior to execution\n\nIf an object exists (at root-level) in the store prior to this transaction, it should be Data, otherwise it's Missing, e.g. wrapped objects should be Missing.\n\n# BCS\n\nThe BCS serialized form for this type is defined by the following ABNF:\n\n```text object-in = object-in-missing / object-in-data\n\nobject-in-missing = %x00 object-in-data    = %x01 u64 digest owner ```",
         "oneOf": [
           {
             "type": "object",
@@ -3932,7 +4066,7 @@
               "state": {
                 "type": "string",
                 "enum": [
-                  "not_exist"
+                  "missing"
                 ]
               }
             }
@@ -3948,7 +4082,7 @@
             ],
             "properties": {
               "digest": {
-                "$ref": "#/components/schemas/ObjectDigest"
+                "$ref": "#/components/schemas/Digest"
               },
               "owner": {
                 "$ref": "#/components/schemas/Owner"
@@ -3956,7 +4090,7 @@
               "state": {
                 "type": "string",
                 "enum": [
-                  "exist"
+                  "data"
                 ]
               },
               "version": {
@@ -3969,6 +4103,7 @@
         ]
       },
       "ObjectOut": {
+        "description": "State of an object after execution\n\n# BCS\n\nThe BCS serialized form for this type is defined by the following ABNF:\n\n```text object-out  =  object-out-missing =/ object-out-object-write =/ object-out-package-write\n\nobject-out-missing        = %x00 object-out-object-write   = %x01 digest owner object-out-package-write  = %x02 version digest ```",
         "oneOf": [
           {
             "description": "Same definition as in ObjectIn.",
@@ -3980,7 +4115,7 @@
               "state": {
                 "type": "string",
                 "enum": [
-                  "not_exist"
+                  "missing"
                 ]
               }
             }
@@ -3995,7 +4130,7 @@
             ],
             "properties": {
               "digest": {
-                "$ref": "#/components/schemas/ObjectDigest"
+                "$ref": "#/components/schemas/Digest"
               },
               "owner": {
                 "$ref": "#/components/schemas/Owner"
@@ -4018,7 +4153,7 @@
             ],
             "properties": {
               "digest": {
-                "$ref": "#/components/schemas/ObjectDigest"
+                "$ref": "#/components/schemas/Digest"
               },
               "state": {
                 "type": "string",
@@ -4036,6 +4171,7 @@
         ]
       },
       "ObjectReference": {
+        "description": "Reference to an object\n\nContains sufficient information to uniquely identify a specific object.\n\n# BCS\n\nThe BCS serialized form for this type is defined by the following ABNF:\n\n```text object-ref = object-id u64 digest ```",
         "type": "object",
         "required": [
           "digest",
@@ -4044,22 +4180,32 @@
         ],
         "properties": {
           "digest": {
-            "$ref": "#/components/schemas/ObjectDigest"
+            "description": "The digest of this object.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Digest"
+              }
+            ]
           },
           "object_id": {
-            "$ref": "#/components/schemas/ObjectId"
+            "description": "The object id of this object.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ObjectId"
+              }
+            ]
           },
           "version": {
-            "description": "Radix-10 encoded 64-bit unsigned integer",
+            "description": "The version of this object.",
             "type": "string",
             "format": "u64"
           }
         }
       },
       "Owner": {
+        "description": "Enum of different types of ownership for an object.\n\n# BCS\n\nThe BCS serialized form for this type is defined by the following ABNF:\n\n```text owner = owner-address / owner-object / owner-shared / owner-immutable\n\nowner-address   = %x00 address owner-object    = %x01 object-id owner-shared    = %x02 u64 owner-immutable = %x03 ```",
         "oneOf": [
           {
-            "title": "Address Owned",
             "description": "Object is exclusively owned by a single address, and is mutable.",
             "type": "object",
             "required": [
@@ -4073,7 +4219,6 @@
             "additionalProperties": false
           },
           {
-            "title": "Object Owned",
             "description": "Object is exclusively owned by a single object, and is mutable.",
             "type": "object",
             "required": [
@@ -4087,7 +4232,6 @@
             "additionalProperties": false
           },
           {
-            "title": "Shared Object",
             "description": "Object is shared, can be used by any address, and is mutable.",
             "type": "object",
             "required": [
@@ -4103,7 +4247,6 @@
             "additionalProperties": false
           },
           {
-            "title": "Immutable",
             "description": "Object is immutable, and hence ownership doesn't matter.",
             "type": "string",
             "enum": [
@@ -4143,6 +4286,7 @@
         }
       },
       "PackageUpgradeError": {
+        "description": "An error with a upgrading a package\n\n# BCS\n\nThe BCS serialized form for this type is defined by the following ABNF:\n\n```text package-upgrade-error = unable-to-fetch-package / not-a-package           / incompatible-upgrade    / digest-does-not-match   / unknown-upgrade-policy  / package-id-does-not-match\n\nunable-to-fetch-package     = %x00 object-id not-a-package               = %x01 object-id incompatible-upgrade        = %x02 digest-does-not-match       = %x03 digest unknown-upgrade-policy      = %x04 u8 package-id-does-not-match   = %x05 object-id object-id ```",
         "oneOf": [
           {
             "description": "Unable to fetch package",
@@ -4305,22 +4449,22 @@
         }
       },
       "Secp256k1PublicKey": {
-        "description": "Base64 encoded data",
+        "description": "A secp256k1 public key.\n\n# BCS\n\nThe BCS serialized form for this type is defined by the following ABNF:\n\n```text secp256k1-public-key = 33OCTECT ```",
         "type": "string",
         "format": "base64"
       },
       "Secp256k1Signature": {
-        "description": "Base64 encoded data",
+        "description": "A secp256k1 signature.\n\n# BCS\n\nThe BCS serialized form for this type is defined by the following ABNF:\n\n```text secp256k1-signature = 64OCTECT ```",
         "type": "string",
         "format": "base64"
       },
       "Secp256r1PublicKey": {
-        "description": "Base64 encoded data",
+        "description": "A secp256r1 public key.\n\n# BCS\n\nThe BCS serialized form for this type is defined by the following ABNF:\n\n```text secp256r1-public-key = 33OCTECT ```",
         "type": "string",
         "format": "base64"
       },
       "Secp256r1Signature": {
-        "description": "Base64 encoded data",
+        "description": "A secp256r1 signature.\n\n# BCS\n\nThe BCS serialized form for this type is defined by the following ABNF:\n\n```text secp256r1-signature = 64OCTECT ```",
         "type": "string",
         "format": "base64"
       },
@@ -4340,6 +4484,7 @@
         }
       },
       "SimpleSignature": {
+        "description": "A basic signature\n\nThis enumeration defines the set of simple or basic signature schemes supported by IOTA. Most signature schemes supported by IOTA end up comprising of a at least one simple signature scheme.\n\n# BCS\n\nThe BCS serialized form for this type is defined by the following ABNF:\n\n```text simple-signature-bcs = bytes ; where the contents of the bytes are defined by <simple-signature> simple-signature = (ed25519-flag ed25519-signature ed25519-public-key) / (secp256k1-flag secp256k1-signature secp256k1-public-key) / (secp256r1-flag secp256r1-signature secp256r1-public-key) ```\n\nNote: Due to historical reasons, signatures are serialized slightly different from the majority of the types in IOTA. In particular if a signature is ever embedded in another structure it generally is serialized as `bytes` meaning it has a length prefix that defines the length of the completely serialized signature.",
         "oneOf": [
           {
             "type": "object",
@@ -4723,47 +4868,27 @@
         }
       },
       "Transaction": {
+        "description": "Transaction\n\n# BCS\n\nThe BCS serialized form for this type is defined by the following ABNF:\n\n```text transaction = %x00 transaction-v1\n\ntransaction-v1 = transaction-kind address gas-payment transaction-expiration ```",
         "oneOf": [
           {
             "type": "object",
             "required": [
-              "expiration",
-              "gas_payment",
-              "kind",
-              "sender",
-              "version"
+              "1"
             ],
             "properties": {
-              "expiration": {
-                "$ref": "#/components/schemas/TransactionExpiration"
-              },
-              "gas_payment": {
-                "$ref": "#/components/schemas/GasPayment"
-              },
-              "kind": {
-                "$ref": "#/components/schemas/TransactionKind"
-              },
-              "sender": {
-                "$ref": "#/components/schemas/Address"
-              },
-              "version": {
-                "type": "string",
-                "enum": [
-                  "1"
-                ]
+              "1": {
+                "$ref": "#/components/schemas/TransactionV1"
               }
-            }
+            },
+            "additionalProperties": false
           }
         ]
       },
-      "TransactionDigest": {
-        "$ref": "#/components/schemas/Digest"
-      },
       "TransactionEffects": {
-        "description": "The response from processing a transaction or a certified transaction",
+        "description": "The output or effects of executing a transaction\n\n# BCS\n\nThe BCS serialized form for this type is defined by the following ABNF:\n\n```text transaction-effects =  %x00 effects-v1 =/ %x01 effects-v2 ```",
         "oneOf": [
           {
-            "description": "The response from processing a transaction or a certified transaction",
+            "description": "Version 1 of TransactionEffects\n\n# BCS\n\nThe BCS serialized form for this type is defined by the following ABNF:\n\n```text effects-v1 = execution-status u64                                ; epoch gas-cost-summary digest                             ; transaction digest (option u32)                       ; gas object index (option digest)                    ; events digest (vector digest)                    ; list of transaction dependencies u64                                ; lamport version (vector changed-object) (vector unchanged-shared-object) (option digest)                    ; auxiliary data digest ```",
             "type": "object",
             "required": [
               "changed_objects",
@@ -4781,7 +4906,7 @@
                 "description": "Auxiliary data that are not protocol-critical, generated as part of the effects but are stored separately. Storing it separately allows us to avoid bloating the effects with data that are not critical. It also provides more flexibility on the format and type of the data.",
                 "allOf": [
                   {
-                    "$ref": "#/components/schemas/EffectsAuxiliaryDataDigest"
+                    "$ref": "#/components/schemas/Digest"
                   }
                 ]
               },
@@ -4796,7 +4921,7 @@
                 "description": "The set of transaction digests this transaction depends on.",
                 "type": "array",
                 "items": {
-                  "$ref": "#/components/schemas/TransactionDigest"
+                  "$ref": "#/components/schemas/Digest"
                 }
               },
               "epoch": {
@@ -4808,7 +4933,7 @@
                 "description": "The digest of the events emitted during execution, can be None if the transaction does not emit any event.",
                 "allOf": [
                   {
-                    "$ref": "#/components/schemas/TransactionEventsDigest"
+                    "$ref": "#/components/schemas/Digest"
                   }
                 ]
               },
@@ -4819,7 +4944,12 @@
                 "minimum": 0.0
               },
               "gas_used": {
-                "$ref": "#/components/schemas/GasCostSummary"
+                "description": "The gas used by this transaction",
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/GasCostSummary"
+                  }
+                ]
               },
               "lamport_version": {
                 "description": "The version number of all the written Move objects by this transaction.",
@@ -4836,7 +4966,7 @@
                 "description": "The transaction digest",
                 "allOf": [
                   {
-                    "$ref": "#/components/schemas/TransactionDigest"
+                    "$ref": "#/components/schemas/Digest"
                   }
                 ]
               },
@@ -4857,17 +4987,12 @@
           }
         ]
       },
-      "TransactionEffectsDigest": {
-        "$ref": "#/components/schemas/Digest"
-      },
       "TransactionEvents": {
+        "description": "Events emitted during the successful execution of a transaction\n\n# BCS\n\nThe BCS serialized form for this type is defined by the following ABNF:\n\n```text transaction-events = vector event ```",
         "type": "array",
         "items": {
           "$ref": "#/components/schemas/Event"
         }
-      },
-      "TransactionEventsDigest": {
-        "$ref": "#/components/schemas/Digest"
       },
       "TransactionExecutionResponse": {
         "description": "Response type for the execute transaction endpoint",
@@ -4931,7 +5056,7 @@
       "TransactionKind": {
         "oneOf": [
           {
-            "description": "A series of commands where the results of one command can be used in future commands",
+            "description": "A user transaction\n\nContains a series of native commands and move calls where the results of one command can be used in future commands.\n\n# BCS\n\nThe BCS serialized form for this type is defined by the following ABNF:\n\n```text ptb = (vector input) (vector command) ```",
             "type": "object",
             "required": [
               "commands",
@@ -4950,7 +5075,7 @@
                 "description": "Input objects or primitive values",
                 "type": "array",
                 "items": {
-                  "$ref": "#/components/schemas/InputArgument"
+                  "$ref": "#/components/schemas/Input"
                 }
               },
               "kind": {
@@ -4962,6 +5087,7 @@
             }
           },
           {
+            "description": "The genesis transaction\n\n# BCS\n\nThe BCS serialized form for this type is defined by the following ABNF:\n\n```text genesis-transaction = (vector genesis-object) ```",
             "type": "object",
             "required": [
               "events",
@@ -4990,6 +5116,7 @@
             }
           },
           {
+            "description": "V1 of the consensus commit prologue system transaction\n\n# BCS\n\nThe BCS serialized form for this type is defined by the following ABNF:\n\n```text consensus-commit-prologue-v1 = u64 u64 (option u64) u64 digest consensus-determined-version-assignments ```",
             "type": "object",
             "required": [
               "commit_timestamp_ms",
@@ -5009,7 +5136,7 @@
                 "description": "Digest of consensus output",
                 "allOf": [
                   {
-                    "$ref": "#/components/schemas/ConsensusCommitDigest"
+                    "$ref": "#/components/schemas/Digest"
                   }
                 ]
               },
@@ -5045,6 +5172,7 @@
             }
           },
           {
+            "description": "Update the set of valid JWKs\n\n# BCS\n\nThe BCS serialized form for this type is defined by the following ABNF:\n\n```text authenticator-state-update = u64 ; epoch u64 ; round (vector active-jwk) u64 ; initial version of the authenticator object ```",
             "type": "object",
             "required": [
               "authenticator_obj_initial_shared_version",
@@ -5106,6 +5234,7 @@
             }
           },
           {
+            "description": "Randomness update\n\n# BCS\n\nThe BCS serialized form for this type is defined by the following ABNF:\n\n```text randomness-state-update = u64 u64 bytes u64 ```",
             "type": "object",
             "required": [
               "epoch",
@@ -5161,7 +5290,7 @@
             "format": "u64"
           },
           "digest": {
-            "$ref": "#/components/schemas/TransactionDigest"
+            "$ref": "#/components/schemas/Digest"
           },
           "effects": {
             "$ref": "#/components/schemas/TransactionEffects"
@@ -5219,7 +5348,31 @@
           }
         }
       },
+      "TransactionV1": {
+        "type": "object",
+        "required": [
+          "expiration",
+          "gas_payment",
+          "kind",
+          "sender"
+        ],
+        "properties": {
+          "expiration": {
+            "$ref": "#/components/schemas/TransactionExpiration"
+          },
+          "gas_payment": {
+            "$ref": "#/components/schemas/GasPayment"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/TransactionKind"
+          },
+          "sender": {
+            "$ref": "#/components/schemas/Address"
+          }
+        }
+      },
       "TypeArgumentError": {
+        "description": "An error with a type argument\n\n# BCS\n\nThe BCS serialized form for this type is defined by the following ABNF:\n\n```text type-argument-error = type-not-found / constraint-not-satisfied type-not-found = %x00 constraint-not-satisfied = %x01 ```",
         "oneOf": [
           {
             "description": "A type was not found in the module specified",
@@ -5238,7 +5391,7 @@
         ]
       },
       "TypeOrigin": {
-        "description": "Identifies a struct and the module it was defined in",
+        "description": "Identifies a struct and the module it was defined in\n\n# BCS\n\nThe BCS serialized form for this type is defined by the following ABNF:\n\n```text type-origin = identifier identifier object-id ```",
         "type": "object",
         "required": [
           "module_name",
@@ -5266,6 +5419,7 @@
         "type": "string"
       },
       "UnchangedSharedKind": {
+        "description": "Type of unchanged shared object\n\n# BCS\n\nThe BCS serialized form for this type is defined by the following ABNF:\n\n```text unchanged-shared-object-kind =  read-only-root =/ mutate-deleted =/ read-deleted =/ cancelled =/ per-epoch-config\n\nread-only-root      = %x00 u64 digest mutate-deleted      = %x01 u64 read-deleted        = %x02 u64 cancelled           = %x03 u64 per-epoch-config    = %x04 ```",
         "oneOf": [
           {
             "description": "Read-only shared objects from the input. We don't really need ObjectDigest for protocol correctness, but it will make it easier to verify untrusted read.",
@@ -5277,7 +5431,7 @@
             ],
             "properties": {
               "digest": {
-                "$ref": "#/components/schemas/ObjectDigest"
+                "$ref": "#/components/schemas/Digest"
               },
               "kind": {
                 "type": "string",
@@ -5373,6 +5527,7 @@
         ]
       },
       "UnchangedSharedObject": {
+        "description": "A shared object that wasn't changed during execution\n\n# BCS\n\nThe BCS serialized form for this type is defined by the following ABNF:\n\n```text unchanged-shared-object = object-id unchanged-shared-object-kind ```",
         "type": "object",
         "required": [
           "kind",
@@ -5388,7 +5543,7 @@
         }
       },
       "UpgradeInfo": {
-        "description": "Upgraded package info for the linkage table",
+        "description": "Upgraded package info for the linkage table\n\n# BCS\n\nThe BCS serialized form for this type is defined by the following ABNF:\n\n```text upgrade-info = object-id u64 ```",
         "type": "object",
         "required": [
           "upgraded_id",
@@ -5479,7 +5634,7 @@
             }
           },
           {
-            "description": "The struct that contains signatures and public keys necessary for authenticating a Multisig.",
+            "description": "Aggregated signature from members of a multisig committee.\n\n# BCS\n\nThe BCS serialized form for this type is defined by the following ABNF:\n\n```text multisig-aggregated-signature = (vector multisig-member-signature) u16     ; bitmap multisig-committee ```\n\nThere is also a legacy encoding for this type defined as:\n\n```text legacy-multisig-aggregated-signature = (vector multisig-member-signature) roaring-bitmap   ; bitmap legacy-multisig-committee roaring-bitmap = bytes  ; where the contents of the bytes are valid ; according to the serialized spec for ; roaring bitmaps ```\n\nSee [here](https://github.com/RoaringBitmap/RoaringFormatSpec) for the specification for the serialized format of RoaringBitmaps.",
             "type": "object",
             "required": [
               "bitmap",
@@ -5509,7 +5664,7 @@
                 ]
               },
               "signatures": {
-                "description": "The plain signature encoded with signature scheme.",
+                "description": "The plain signature encoded with signature scheme.\n\nThe signatures must be in the same order as they are listed in the committee.",
                 "type": "array",
                 "items": {
                   "$ref": "#/components/schemas/MultisigMemberSignature"
@@ -5518,7 +5673,7 @@
             }
           },
           {
-            "description": "An zk login authenticator with all the necessary fields.",
+            "description": "A zklogin authenticator\n\n# BCS\n\nThe BCS serialized form for this type is defined by the following ABNF:\n\n```text zklogin-bcs = bytes             ; contents are defined by <zklogin-authenticator> zklogin     = zklogin-flag zklogin-inputs u64               ; max epoch simple-signature ```\n\nNote: Due to historical reasons, signatures are serialized slightly different from the majority of the types in IOTA. In particular if a signature is ever embedded in another structure it generally is serialized as `bytes` meaning it has a length prefix that defines the length of the completely serialized signature.",
             "type": "object",
             "required": [
               "inputs",
@@ -5528,10 +5683,15 @@
             ],
             "properties": {
               "inputs": {
-                "$ref": "#/components/schemas/ZkLoginInputs"
+                "description": "Zklogin proof and inputs required to perform proof verification.",
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/ZkLoginInputs"
+                  }
+                ]
               },
               "max_epoch": {
-                "description": "Radix-10 encoded 64-bit unsigned integer",
+                "description": "Maximum epoch for which the proof is valid.",
                 "type": "string",
                 "format": "u64"
               },
@@ -5542,7 +5702,12 @@
                 ]
               },
               "signature": {
-                "$ref": "#/components/schemas/SimpleSignature"
+                "description": "User signature with the pubkey attested to by the provided proof.",
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/SimpleSignature"
+                  }
+                ]
               }
             }
           },
@@ -5580,6 +5745,7 @@
         ]
       },
       "ValidatorAggregatedSignature": {
+        "description": "An aggregated signature from multiple Validators.\n\n# BCS\n\nThe BCS serialized form for this type is defined by the following ABNF:\n\n```text validator-aggregated-signature = u64               ; epoch bls-signature roaring-bitmap roaring-bitmap = bytes  ; where the contents of the bytes are valid ; according to the serialized spec for ; roaring bitmaps ```\n\nSee [here](https://github.com/RoaringBitmap/RoaringFormatSpec) for the specification for the serialized format of RoaringBitmaps.",
         "type": "object",
         "required": [
           "bitmap",
@@ -5603,6 +5769,7 @@
         }
       },
       "ValidatorCommittee": {
+        "description": "The Validator Set for a particular epoch.\n\n# BCS\n\nThe BCS serialized form for this type is defined by the following ABNF:\n\n```text validator-committee = u64 ; epoch (vector validator-committee-member) ```",
         "type": "object",
         "required": [
           "epoch",
@@ -5623,6 +5790,7 @@
         }
       },
       "ValidatorCommitteeMember": {
+        "description": "A member of a Validator Committee\n\n# BCS\n\nThe BCS serialized form for this type is defined by the following ABNF:\n\n```text validator-committee-member = bls-public-key u64 ; stake ```",
         "type": "object",
         "required": [
           "public_key",
@@ -5830,6 +5998,7 @@
         }
       },
       "VersionAssignment": {
+        "description": "Object version assignment from consensus\n\n# BCS\n\nThe BCS serialized form for this type is defined by the following ABNF:\n\n```text version-assignment = object-id u64 ```",
         "type": "object",
         "required": [
           "object_id",
@@ -5846,8 +6015,25 @@
           }
         }
       },
+      "ZkLoginClaim": {
+        "description": "A claim of the iss in a zklogin proof\n\n# BCS\n\nThe BCS serialized form for this type is defined by the following ABNF:\n\n```text zklogin-claim = string u8 ```",
+        "type": "object",
+        "required": [
+          "index_mod_4",
+          "value"
+        ],
+        "properties": {
+          "index_mod_4": {
+            "type": "integer",
+            "format": "uint8",
+            "minimum": 0.0
+          },
+          "value": {
+            "type": "string"
+          }
+        }
+      },
       "ZkLoginInputs": {
-        "description": "All inputs required for the zk login proof verification and other public inputs.",
         "type": "object",
         "required": [
           "address_seed",
@@ -5863,7 +6049,7 @@
             "type": "string"
           },
           "iss_base64_details": {
-            "$ref": "#/components/schemas/Claim"
+            "$ref": "#/components/schemas/ZkLoginClaim"
           },
           "proof_points": {
             "$ref": "#/components/schemas/ZkLoginProof"
@@ -5871,7 +6057,7 @@
         }
       },
       "ZkLoginProof": {
-        "description": "The struct for zk login proof.",
+        "description": "A zklogin groth16 proof\n\n# BCS\n\nThe BCS serialized form for this type is defined by the following ABNF:\n\n```text zklogin-proof = circom-g1 circom-g2 circom-g1 ```",
         "type": "object",
         "required": [
           "a",
