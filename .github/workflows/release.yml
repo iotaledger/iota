@@ -201,14 +201,14 @@ jobs:
 
           cat <<EOF >>VERIFICATION.txt
           IOTA Binary verification steps
-          1. Download https://github.com/iotaledger/iota/releases/download/${{ env.iota_ref }}/${{ env.artifact_name }}.tgz
+          1. Download https://github.com/iotaledger/iota/releases/download/${{ needs.generate-tag.outputs.iota_ref }}/${{ env.artifact_name }}.tgz
           2. Extract iota.exe
           3. Verify binary: checksum.exe -t sha256 iota.exe: ${iota_sha}
           4. Verify file 'LICENSE.txt': https://github.com/iotaledger/iota/blob/develop/LICENSE
           EOF
 
           # Strip pre-release as we want to publish rc as release version on choco
-          export choco_version=$(echo "${{ env.iota_ref }}" | sed 's/^v//' | sed 's/-.*$//')
+          export choco_version=$(echo "${{ needs.generate-tag.outputs.iota_ref }}" | sed 's/^v//' | sed 's/-.*$//')
 
           choco pack --version ${choco_version} configuration=release
           choco apikey --api-key ${{ secrets.CHOCO_API_KEY }} --source https://push.chocolatey.org/
