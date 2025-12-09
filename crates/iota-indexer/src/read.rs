@@ -127,6 +127,8 @@ impl IndexerReader {
         }
     }
 
+    /// Returns a [`DBReader`] bound to this `IndexerReader` instance which
+    /// allows to perform database reads.
     pub fn db(&self) -> DBReader<'_> {
         DBReader::new(self)
     }
@@ -1077,14 +1079,13 @@ impl IndexerReader {
             .db()
             .query_transactions_by_checkpoint_seq(checkpoint_seq, cursor, limit, is_descending)
             .await;
-        let stored_txs = if let (Err(IndexerError::PostgresDataPruned(err)), Some(kv_reader)) =
+        let stored_txs = if let (Err(IndexerError::DataPruned(err)), Some(kv_reader)) =
             (db_res.as_ref(), self.kv_reader.as_ref())
         {
-            let fallback_reason = format!("fallback triggered by {err}");
             kv_reader
                 .checkpoint_transactions(cursor, checkpoint_seq, limit, is_descending)
                 .await
-                .context(&fallback_reason)?
+                .context(&format!("fallback triggered by {err}"))?
         } else {
             db_res?
         };
@@ -1100,20 +1101,18 @@ impl IndexerReader {
         limit: usize,
         is_descending: bool,
     ) -> IndexerResult<Vec<IotaTransactionBlockResponse>> {
-        match filter {
-            Some(TransactionFilterKind::V1(TransactionFilter::Checkpoint(seq)))
-            | Some(TransactionFilterKind::V2(TransactionFilterV2::Checkpoint(seq))) => {
-                return self
-                    .query_transactions_by_checkpoint_seq_with_fallback(
-                        seq,
-                        cursor,
-                        limit,
-                        is_descending,
-                        options,
-                    )
-                    .await;
-            }
-            _ => {} // remaining cases will be handled below
+        if let Some(TransactionFilterKind::V1(TransactionFilter::Checkpoint(seq)))
+        | Some(TransactionFilterKind::V2(TransactionFilterV2::Checkpoint(seq))) = filter
+        {
+            return self
+                .query_transactions_by_checkpoint_seq_with_fallback(
+                    seq,
+                    cursor,
+                    limit,
+                    is_descending,
+                    options,
+                )
+                .await;
         };
 
         let cursor_tx_seq = if let Some(cursor) = cursor {
@@ -1528,14 +1527,13 @@ impl IndexerReader {
             .query_events_by_tx_digest(tx_digest, cursor, limit, descending_order)
             .await;
 
-        if let (Err(IndexerError::PostgresDataPruned(err)), Some(kv_reader)) =
+        if let (Err(IndexerError::DataPruned(err)), Some(kv_reader)) =
             (db_res.as_ref(), self.kv_reader.as_ref())
         {
-            let fallback_reason = format!("fallback triggered by {err}");
             kv_reader
                 .events(tx_digest, cursor, limit, descending_order)
                 .await
-                .context(&fallback_reason)
+                .context(&format!("fallback triggered by {err}"))
         } else {
             let mut iota_event_futures = vec![];
             for stored_event in db_res? {
@@ -2409,7 +2407,7 @@ impl<'a> DBReader<'a> {
         else {
             // This check should be replaced with reading the "watermarks" table once it is
             // used by the pruner
-            return Err(IndexerError::PostgresDataPruned(format!(
+            return Err(IndexerError::DataPruned(format!(
                 "requesting data from checkpoint {checkpoint_seq}, which is not available",
             )));
         };
@@ -2488,7 +2486,7 @@ impl<'a> DBReader<'a> {
         let query = query.limit(limit as i64);
         let db_events = run_query_async!(&pool, move |conn| { query.load::<StoredEvent>(conn) })?;
         if db_events.is_empty() && self.check_tx_pruned(tx_digest).await? {
-            return Err(IndexerError::PostgresDataPruned(format!(
+            return Err(IndexerError::DataPruned(format!(
                 "data for tx {tx_digest} potentially pruned"
             )));
         }
