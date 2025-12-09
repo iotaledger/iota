@@ -28,7 +28,6 @@ use iota_types::{
     IOTA_FRAMEWORK_ADDRESS, MOVE_STDLIB_PACKAGE_ID,
     base_types::{IotaAddress, ObjectID},
     crypto::{AccountKeyPair, get_key_pair},
-    digests::TransactionDigest,
     dynamic_field::DynamicFieldName,
     gas_coin::GAS,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
@@ -412,9 +411,24 @@ fn query_events_supported_events() {
     runtime.block_on(async move {
         indexer_wait_for_checkpoint(store, 1).await;
 
+        let real_tx_digest = client
+            .query_transaction_blocks(
+                IotaTransactionBlockResponseQuery {
+                    filter: None,
+                    options: None,
+                },
+                None,
+                Some(1),
+                None,
+            )
+            .await
+            .unwrap()
+            .data[0]
+            .digest;
+
         let supported_filters = vec![
             EventFilter::Sender(IotaAddress::ZERO),
-            EventFilter::Transaction(TransactionDigest::ZERO),
+            EventFilter::Transaction(real_tx_digest),
             EventFilter::Package(ObjectID::ZERO),
             EventFilter::MoveEventModule {
                 package: ObjectID::ZERO,
@@ -428,8 +442,9 @@ fn query_events_supported_events() {
         ];
 
         for event_filter in supported_filters {
+            let err_str = format!("query_events should succeed for filter: {event_filter:?}");
             let result = client.query_events(event_filter, None, None, None).await;
-            assert!(result.is_ok());
+            result.expect(&err_str);
         }
     });
 }
