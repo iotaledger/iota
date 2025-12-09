@@ -354,10 +354,7 @@ impl TransactionBlock {
         let DataLoader(loader) = ctx.data_unchecked();
         match key {
             TransactionBlockLookup::ByDigest(digest_key) => loader.load_one(digest_key).await,
-            TransactionBlockLookup::BySeq(seq_key) => {
-                todo!()
-                // loader.load_one(seq_key).await
-            }
+            TransactionBlockLookup::BySeq(seq_key) => loader.load_one(seq_key).await,
         }
     }
 
@@ -676,14 +673,10 @@ impl Loader<SeqKey> for Db {
                 continue;
             };
 
-            let checkpoint_viewed_at =
-                if key.checkpoint_viewed_at < stored.checkpoint_sequence_number as u64 {
-                    // Disable usage as a cursor, as the checkpoint is not in the available range
-                    UNAVAILABLE_CHECKPOINT_SEQUENCE_NUMBER
-                } else {
-                    key.checkpoint_viewed_at
-                };
-
+            let mut checkpoint_viewed_at = key.checkpoint_viewed_at;
+            if key.checkpoint_viewed_at < stored.checkpoint_sequence_number as u64 {
+                checkpoint_viewed_at = UNAVAILABLE_CHECKPOINT_SEQUENCE_NUMBER;
+            }
             results.insert(
                 *key,
                 TransactionBlock {

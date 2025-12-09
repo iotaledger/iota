@@ -446,7 +446,7 @@ impl TransactionBlockEffects {
                     Event::try_from_optimistic_transaction(optimistic_tx, c.ix, c.c).extend()?
                 }
                 TransactionBlockEffectsKind::DryRun { events, .. } => Event {
-                    stored: None,
+                    checkpointed_info: None,
                     native: events[c.ix].clone(),
                     checkpoint_viewed_at: c.c,
                 },
