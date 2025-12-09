@@ -580,16 +580,13 @@ impl TryFrom<TransactionBlock> for TransactionBlockEffectsKind {
         match block.inner {
             TransactionBlockInner::Checkpointed { stored_tx, .. } => {
                 bcs::from_bytes(&stored_tx.raw_effects)
-                    .map(|native| TransactionBlockEffectsKind::Checkpointed {
-                        stored_tx: stored_tx.clone(),
-                        native,
-                    })
+                    .map(|native| TransactionBlockEffectsKind::Checkpointed { stored_tx, native })
                     .map_err(|e| {
                         Error::Internal(format!("Error deserializing transaction effects: {e}"))
                     })
             }
             TransactionBlockInner::Executed { optimistic_tx, .. } => {
-                TransactionBlockEffectsKind::try_from(optimistic_tx.clone())
+                TransactionBlockEffectsKind::try_from(optimistic_tx)
             }
 
             TransactionBlockInner::DryRun {

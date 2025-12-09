@@ -739,20 +739,20 @@ impl TryFrom<TransactionBlockEffects> for TransactionBlock {
         let checkpoint_viewed_at = effects.checkpoint_viewed_at;
         let inner = match effects.kind {
             TransactionBlockEffectsKind::Checkpointed { stored_tx, .. } => {
-                TransactionBlockInner::try_from(stored_tx.clone())
+                TransactionBlockInner::try_from(stored_tx)
             }
             TransactionBlockEffectsKind::Executed { optimistic_tx, .. } => {
-                TransactionBlockInner::try_from(optimistic_tx.clone())
+                TransactionBlockInner::try_from(optimistic_tx)
             }
 
             TransactionBlockEffectsKind::DryRun {
                 tx_data,
-                native,
+                native: effects,
                 events,
             } => Ok(TransactionBlockInner::DryRun {
-                tx_data: tx_data.clone(),
-                effects: native.clone(),
-                events: events.clone(),
+                tx_data,
+                effects,
+                events,
             }),
         }?;
 
