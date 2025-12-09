@@ -14,6 +14,7 @@ workspace = true
 anemo.workspace = true
 anyhow.workspace = true
 async-trait.workspace = true
+base64.workspace = true
 bcs.workspace = true
 better_any.workspace = true
 bincode.workspace = true
@@ -42,6 +43,7 @@ passkey-types.workspace = true
 prometheus.workspace = true
 proptest = { workspace = true, optional = true }
 proptest-derive = { workspace = true, optional = true }
+prost-types.workspace = true
 rand.workspace = true
 roaring.workspace = true
 schemars.workspace = true
