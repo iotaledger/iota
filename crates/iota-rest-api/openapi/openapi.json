@@ -2511,7 +2511,7 @@
             }
           },
           {
-            "description": "Create and initialize the authenticator object used for zklogin",
+            "description": "End the epoch and start the next one",
             "type": "object",
             "required": [
               "adjust_rewards_by_score",
@@ -2607,6 +2607,7 @@
             }
           },
           {
+            "description": "Create and initialize the authenticator object used for zklogin",
             "type": "object",
             "required": [
               "kind"
