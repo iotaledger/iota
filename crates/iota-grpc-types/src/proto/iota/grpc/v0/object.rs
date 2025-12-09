@@ -79,10 +79,10 @@ impl Merge<&iota_sdk_types::object::Object> for Object {
     }
 }
 
-impl Merge<&[iota_sdk_types::object::Object]> for Objects {
+impl Merge<Option<Vec<iota_types::object::Object>>> for Objects {
     fn merge(
         &mut self,
-        source: &[iota_sdk_types::object::Object],
+        source: Option<Vec<iota_types::object::Object>>,
         mask: &FieldMaskTree,
     ) -> Result<(), Box<dyn std::error::Error>> {
         // Objects is a wrapper message containing a repeated field `objects`.
@@ -93,14 +93,12 @@ impl Merge<&[iota_sdk_types::object::Object]> for Objects {
         // subtree("objects") returns the sub-mask with the requested fields.
         if let Some(objects_mask) = mask.subtree(Self::OBJECTS_FIELD.name) {
             // Merge each object in the source list with the appropriate field mask
-            self.objects = source
-                .iter()
-                .map(|obj| -> Result<_, Box<dyn std::error::Error>> {
-                    let mut proto_obj = Object::default();
-                    proto_obj.merge(obj, &objects_mask)?;
-                    Ok(proto_obj)
-                })
+            let objects = source
+                .ok_or_else(|| "No objects available".to_string())?
+                .into_iter()
+                .map(|obj| Object::merge_from(obj, &objects_mask))
                 .collect::<Result<Vec<_>, _>>()?;
+            self.objects = objects;
         }
 
         Ok(())

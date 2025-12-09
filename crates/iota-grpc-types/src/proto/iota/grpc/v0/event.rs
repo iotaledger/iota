@@ -52,9 +52,7 @@ impl Merge<&iota_sdk_types::TransactionEvents> for grpc_event::Events {
                 .0
                 .iter()
                 .map(|event| -> Result<_, Box<dyn std::error::Error>> {
-                    let mut proto_event = grpc_event::Event::default();
-                    proto_event.merge(event, &events_mask)?;
-                    Ok(proto_event)
+                    Merge::merge_from(event, &events_mask)
                 })
                 .collect::<Result<Vec<_>, _>>()?;
         }

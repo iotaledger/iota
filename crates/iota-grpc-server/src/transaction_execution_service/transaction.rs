@@ -1,12 +1,20 @@
-// Copyright (c) 2025 IOTA Stiftung
+// Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
+
+use std::sync::Arc;
 
 use iota_grpc_types::{
     field::FieldMaskTree,
     merge::Merge,
     proto::timestamp_ms_to_proto,
-    v0::{bcs as grpc_bcs, object as grpc_obj, signatures as grpc_sig, transaction as grpc_tx},
+    v0::{
+        bcs as grpc_bcs, event as grpc_event, object as grpc_obj, signatures as grpc_sig,
+        transaction as grpc_tx,
+    },
 };
+
+use crate::GrpcReader;
 
 /// Source data bundle for populating gRPC transaction response messages.
 ///
@@ -25,7 +33,9 @@ use iota_grpc_types::{
 /// `transaction.data` because `iota_sdk_types::SignedTransaction` doesn't
 /// expose a `digest()` method, and the digest is computed externally from
 /// `iota_types::TransactionData`.
-pub struct TransactionReadSource {
+pub struct TransactionReadSource<'a> {
+    pub reader: Arc<GrpcReader>,
+    pub config: &'a iota_config::node::GrpcApiConfig,
     pub transaction_data: iota_types::transaction::TransactionData,
     pub signatures: Option<Vec<iota_types::signature::GenericSignature>>,
     pub effects: Option<iota_types::effects::TransactionEffects>,
@@ -36,10 +46,10 @@ pub struct TransactionReadSource {
     pub output_objects: Option<Vec<iota_types::object::Object>>,
 }
 
-impl Merge<&TransactionReadSource> for grpc_tx::ExecutedTransaction {
+impl Merge<&TransactionReadSource<'_>> for grpc_tx::ExecutedTransaction {
     fn merge(
         &mut self,
-        source: &TransactionReadSource,
+        source: &TransactionReadSource<'_>,
         mask: &FieldMaskTree,
     ) -> Result<(), Box<dyn std::error::Error>> {
         // Set transaction if requested
@@ -100,10 +110,10 @@ impl Merge<&TransactionReadSource> for grpc_tx::ExecutedTransaction {
     }
 }
 
-impl Merge<&TransactionReadSource> for grpc_tx::Transaction {
+impl Merge<&TransactionReadSource<'_>> for grpc_tx::Transaction {
     fn merge(
         &mut self,
-        source: &TransactionReadSource,
+        source: &TransactionReadSource<'_>,
         mask: &FieldMaskTree,
     ) -> Result<(), Box<dyn std::error::Error>> {
         if !mask.contains(Self::DIGEST_FIELD.name) && !mask.contains(Self::BCS_FIELD.name) {
@@ -135,10 +145,10 @@ impl Merge<&TransactionReadSource> for grpc_tx::Transaction {
     }
 }
 
-impl Merge<&TransactionReadSource> for grpc_tx::TransactionEffects {
+impl Merge<&TransactionReadSource<'_>> for grpc_tx::TransactionEffects {
     fn merge(
         &mut self,
-        source: &TransactionReadSource,
+        source: &TransactionReadSource<'_>,
         mask: &FieldMaskTree,
     ) -> Result<(), Box<dyn std::error::Error>> {
         let effects = source
@@ -151,10 +161,10 @@ impl Merge<&TransactionReadSource> for grpc_tx::TransactionEffects {
     }
 }
 
-impl Merge<&TransactionReadSource> for grpc_tx::TransactionEvents {
+impl Merge<&TransactionReadSource<'_>> for grpc_tx::TransactionEvents {
     fn merge(
         &mut self,
-        source: &TransactionReadSource,
+        source: &TransactionReadSource<'_>,
         mask: &FieldMaskTree,
     ) -> Result<(), Box<dyn std::error::Error>> {
         let events = source
@@ -163,16 +173,41 @@ impl Merge<&TransactionReadSource> for grpc_tx::TransactionEvents {
             .ok_or_else(|| "No events available".to_string())?
             .clone();
 
-        Merge::merge(self, events, mask)
+        Self::merge(self, events.clone(), mask)?;
+
+        if mask
+            .subtree(Self::EVENTS_FIELD.name)
+            .is_some_and(|event_mask| {
+                event_mask.contains(grpc_event::Event::JSON_CONTENTS_FIELD.name)
+            })
+        {
+            match self.events.as_mut() {
+                None => return Ok(()),
+                Some(proto_events) => {
+                    for (message, event) in proto_events.events.iter_mut().zip(&events.data) {
+                        // Populate json_contents if we have a valid datatype layout
+                        message.json_contents = crate::utils::render_json(
+                            source.reader.clone(),
+                            source.config.max_json_move_value_size,
+                            &event.type_,
+                            &event.contents,
+                        )
+                        .map(Box::new);
+                    }
+                }
+            }
+        }
+
+        Ok(())
     }
 }
 
 // UserSignatures
 //
-impl Merge<&TransactionReadSource> for grpc_sig::UserSignatures {
+impl Merge<&TransactionReadSource<'_>> for grpc_sig::UserSignatures {
     fn merge(
         &mut self,
-        source: &TransactionReadSource,
+        source: &TransactionReadSource<'_>,
         mask: &FieldMaskTree,
     ) -> Result<(), Box<dyn std::error::Error>> {
         if let Some(signatures_mask) = mask.subtree(Self::SIGNATURES_FIELD.name) {
