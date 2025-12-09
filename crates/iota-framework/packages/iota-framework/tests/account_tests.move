@@ -19,14 +19,14 @@ fun id(self: &TestAccount): &UID {
 }
 
 #[test]
-fun authenticator_info_v1_shared_account_happy_path() {
+fun authenticator_info_v1_account_happy_path() {
     account_test!(|scenario, account| {
         let default_authenticator_info = create_default_authenticator_info_v1_for_testing();
 
         // Check that there is no an attached `AuthenticatorInfoV1` just after creation.
         assert_eq(account::has_auth_info_v1(account.id()), false);
 
-        // Create a shared account with an attached `AuthenticatorInfoV1` instance.
+        // Create an account as a shared object with an attached `AuthenticatorInfoV1` instance.
         account::create_account_v1(account, default_authenticator_info);
 
         scenario.next_tx(@0x0);
@@ -80,7 +80,7 @@ fun authenticator_info_v1_immutable_account_happy_path() {
 
 #[test]
 #[expected_failure(abort_code = account::EAuthenticatorInfoV1AlreadyAttached)]
-fun authenticator_info_v1_double_shared_account_creation() {
+fun authenticator_info_v1_double_account_creation() {
     account_test!(|scenario, account| {
         let authenticator_info_1 = create_default_authenticator_info_v1_for_testing();
         let authenticator_info_2 = account::create_auth_info_v1_for_testing(
