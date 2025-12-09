@@ -264,6 +264,7 @@ mod test {
         error::ConsensusResult,
         network::{BlockBundleStream, SerializedBlockBundle, test_network::TestService},
         storage::mem_store::MemStore,
+        transaction_ref::GenericTransactionRef,
     };
 
     struct SubscriberTestClient {}
@@ -296,7 +297,7 @@ mod test {
         async fn fetch_transactions(
             &self,
             _peer: AuthorityIndex,
-            _block_refs: Vec<BlockRef>,
+            _block_refs: Vec<GenericTransactionRef>,
             _timeout: Duration,
         ) -> ConsensusResult<Vec<Bytes>> {
             unimplemented!("Unimplemented")
@@ -338,7 +339,7 @@ mod test {
         let context = Arc::new(context);
         let authority_service = Arc::new(Mutex::new(TestService::new()));
         let network_client = Arc::new(SubscriberTestClient::new());
-        let store = Arc::new(MemStore::new());
+        let store = Arc::new(MemStore::new(context.clone()));
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
         let subscriber = Subscriber::new(
             context.clone(),

@@ -15,7 +15,7 @@ use tokio::time::Instant;
 use tracing::{debug, info, instrument};
 
 use crate::{
-    BlockRef, CommitConsumer, CommittedSubDag,
+    CommitConsumer, CommittedSubDag,
     block_header::{BlockHeaderAPI, VerifiedBlockHeader},
     commit::{CommitAPI, CommitIndex, PendingSubDag, load_pending_subdag_from_store},
     commit_solidifier::CommitSolidifier,
@@ -25,6 +25,7 @@ use crate::{
     leader_schedule::LeaderSchedule,
     linearizer::Linearizer,
     storage::Store,
+    transaction_ref::GenericTransactionRef,
 };
 
 /// Role of CommitObserver
@@ -105,7 +106,7 @@ impl CommitObserver {
         committed_leaders: Vec<VerifiedBlockHeader>,
     ) -> ConsensusResult<(
         Vec<PendingSubDag>,
-        BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>,
+        BTreeMap<GenericTransactionRef, BTreeSet<AuthorityIndex>>,
     )> {
         let _s = self
             .context
@@ -327,7 +328,7 @@ impl CommitObserver {
     /// who acknowledged them
     pub(crate) fn get_missing_transaction_data(
         &self,
-    ) -> BTreeMap<BlockRef, BTreeSet<AuthorityIndex>> {
+    ) -> BTreeMap<GenericTransactionRef, BTreeSet<AuthorityIndex>> {
         let missing_refs = self.commit_solidifier.get_missing_transaction_data();
         self.linearizer
             .get_transaction_ack_authors(missing_refs.into_iter().collect())
@@ -455,7 +456,7 @@ mod tests {
         telemetry_subscribers::init_for_testing();
         let num_authorities = 4;
         let context = Arc::new(Context::new_for_test(num_authorities).0);
-        let mem_store = Arc::new(MemStore::new());
+        let mem_store = Arc::new(MemStore::new(context.clone()));
         let dag_state = Arc::new(RwLock::new(DagState::new(
             context.clone(),
             mem_store.clone(),
@@ -571,7 +572,7 @@ mod tests {
         telemetry_subscribers::init_for_testing();
         let num_authorities = 4;
         let context = Arc::new(Context::new_for_test(num_authorities).0);
-        let mem_store = Arc::new(MemStore::new());
+        let mem_store = Arc::new(MemStore::new(context.clone()));
         let dag_state = Arc::new(RwLock::new(DagState::new(
             context.clone(),
             mem_store.clone(),
@@ -709,7 +710,7 @@ mod tests {
         telemetry_subscribers::init_for_testing();
         let num_authorities = 4;
         let context = Arc::new(Context::new_for_test(num_authorities).0);
-        let mem_store = Arc::new(MemStore::new());
+        let mem_store = Arc::new(MemStore::new(context.clone()));
         let dag_state = Arc::new(RwLock::new(DagState::new(
             context.clone(),
             mem_store.clone(),
@@ -865,7 +866,7 @@ mod tests {
             clock,
         ));
 
-        let mem_store = Arc::new(MemStore::new());
+        let mem_store = Arc::new(MemStore::new(context.clone()));
         let dag_state = Arc::new(RwLock::new(DagState::new(
             context.clone(),
             mem_store.clone(),

@@ -24,8 +24,8 @@ use crate::{
     CommitIndex, Round, Transaction, VerifiedBlockHeader,
     block_header::{
         BlockHeaderAPI, BlockHeaderDigest, BlockRef, GENESIS_ROUND, ShardWithProof,
-        SignedBlockHeader, TransactionsCommitment, VerifiedBlock, VerifiedOwnShard,
-        VerifiedTransactions,
+        ShardWithProofAPI, SignedBlockHeader, TransactionsCommitment, VerifiedBlock,
+        VerifiedOwnShard, VerifiedTransactions,
     },
     block_verifier::BlockVerifier,
     commit::{CommitAPI as _, CommitRange, TrustedCommit},
@@ -39,11 +39,13 @@ use crate::{
     header_synchronizer::HeaderSynchronizerHandle,
     network::{
         BlockBundleStream, NetworkService, SerializedBlock, SerializedBlockBundle,
-        SerializedBlockBundleParts, SerializedHeaderAndTransactions, SerializedTransactions,
+        SerializedBlockBundleParts, SerializedHeaderAndTransactions, SerializedTransactionsV1,
+        SerializedTransactionsV2,
     },
     shard_reconstructor::TransactionMessage,
     stake_aggregator::{QuorumThreshold, StakeAggregator},
     storage::Store,
+    transaction_ref::{GenericTransactionRef, GenericTransactionRefAPI as _},
     transactions_synchronizer::TransactionsSynchronizerHandle,
 };
 
@@ -225,12 +227,13 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
         let block_ref = verified_block.reference();
         debug!("Received block {} via stream block bundle.", block_ref);
         let shard_for_core = if has_transactions {
-            Some(ShardWithProof {
-                shard: our_shard,
-                transaction_commitment,
-                proof: proof_for_shard,
+            Some(ShardWithProof::new(
+                our_shard,
+                proof_for_shard,
                 block_ref,
-            })
+                transaction_commitment,
+                self.context.protocol_config.consensus_transaction_ref(),
+            ))
         } else {
             None
         };
@@ -331,9 +334,9 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
             let shard: ShardWithProof =
                 bcs::from_bytes(serialized_shard).map_err(ConsensusError::MalformedShard)?;
 
-            if shard.block_ref.round >= block_round {
+            if shard.round() >= block_round {
                 let e = ConsensusError::TooBigShardRoundInABundle {
-                    shard_round: shard.block_ref.round,
+                    shard_round: shard.round(),
                     block_round,
                 };
                 self.context
@@ -356,7 +359,7 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
             } else {
                 let e = ConsensusError::IncorrectShardProof {
                     peer,
-                    round: shard.block_ref.round,
+                    round: shard.round(),
                 };
                 self.context
                     .metrics
@@ -478,6 +481,12 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             encoder,
         )?;
         let block_ref = verified_block.reference();
+        let transaction_ref = verified_block.transaction_ref();
+        let gen_transaction_ref = if self.context.protocol_config.consensus_transaction_ref() {
+            GenericTransactionRef::from(transaction_ref)
+        } else {
+            GenericTransactionRef::from(block_ref)
+        };
         // 2. Record timestamp drift metric (NEW mode - no waiting or rejection)
         let now = self.context.clock.timestamp_utc_ms();
         let forward_time_drift =
@@ -603,7 +612,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
                 .into();
             let shard_for_core = VerifiedOwnShard {
                 serialized_shard: serialized_shard_for_core,
-                block_ref,
+                gen_transaction_ref,
             };
             self.core_dispatcher
                 .add_shards(vec![shard_for_core])
@@ -987,11 +996,11 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
     async fn handle_fetch_transactions(
         &self,
         peer: AuthorityIndex,
-        mut block_refs: Vec<BlockRef>,
+        mut committed_transactions_refs: Vec<GenericTransactionRef>,
     ) -> ConsensusResult<Vec<Bytes>> {
         fail_point_async!("consensus-rpc-response");
 
-        if block_refs.is_empty() {
+        if committed_transactions_refs.is_empty() {
             return Ok(Vec::new());
         }
 
@@ -1007,13 +1016,13 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
                     .max_transactions_per_commit_sync_fetch,
             );
 
-        if block_refs.len() > max_transactions {
-            block_refs.truncate(max_transactions);
+        if committed_transactions_refs.len() > max_transactions {
+            committed_transactions_refs.truncate(max_transactions);
         }
 
-        // Some quick validation of the requested block refs
-        ConsensusError::quick_validation_requested_block_refs(
-            &block_refs,
+        // Some quick validation of the requested transactions refs
+        ConsensusError::quick_validation_requested_tx_refs(
+            &committed_transactions_refs,
             peer,
             &self.context.committee,
         )?;
@@ -1021,17 +1030,19 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         // Optimize by reading from store for transactions below GC round
         let gc_round = self.dag_state.read().gc_round_for_last_solid_commit();
 
-        // Partition block_refs into those below and at-or-above GC round
-        let (below_gc, above_gc): (Vec<_>, Vec<_>) = block_refs
+        // Partition committed_transactions_refs into those below and at-or-above GC
+        // round
+        let (below_gc, above_gc): (Vec<_>, Vec<_>) = committed_transactions_refs
             .iter()
-            .partition(|block_ref| block_ref.round < gc_round);
+            .cloned()
+            .partition(|gen_tx_ref| gen_tx_ref.round() < gc_round);
 
         // Fetch transactions below GC from store
         let store_transactions = if !below_gc.is_empty() {
             self.store
                 .read_serialized_transactions(&below_gc)?
                 .into_iter()
-                .zip(below_gc.iter())
+                .zip(below_gc.into_iter())
                 .collect::<Vec<_>>()
         } else {
             vec![]
@@ -1043,29 +1054,49 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
                 .read()
                 .get_serialized_transactions(&above_gc)
                 .into_iter()
-                .zip(above_gc.iter())
+                .zip(above_gc.into_iter())
                 .collect::<Vec<_>>()
         } else {
             vec![]
         };
 
         // Combine and serialize the results
-        let result: Vec<_> = store_transactions
+        let mut result = Vec::new();
+        for (opt_serialized_tx, gen_ref) in store_transactions
             .into_iter()
             .chain(dag_transactions.into_iter())
-            .filter_map(|(opt_serialized_tx, block_ref)| {
-                opt_serialized_tx.map(|serialized_tx| {
-                    Bytes::from(
-                        bcs::to_bytes(&SerializedTransactions {
-                            block_ref: *block_ref,
+        {
+            if let Some(serialized_tx) = opt_serialized_tx {
+                let serialized = if !self.context.protocol_config.consensus_transaction_ref() {
+                    if let GenericTransactionRef::BlockRef(block_ref) = gen_ref {
+                        bcs::to_bytes(&SerializedTransactionsV1 {
+                            block_ref,
                             serialized_transactions: serialized_tx,
                         })
-                        .map_err(ConsensusError::SerializationFailure)
-                        .expect("serialization should succeed"),
-                    )
-                })
-            })
-            .collect();
+                        .map_err(ConsensusError::SerializationFailure)?
+                    } else {
+                        return Err(ConsensusError::TransactionRefVariantMismatch {
+                            protocol_flag_enabled: false,
+                            expected_variant: "BlockRef",
+                            received_variant: gen_ref.variant_name(),
+                        });
+                    }
+                } else if let GenericTransactionRef::TransactionRef(transaction_ref) = gen_ref {
+                    bcs::to_bytes(&SerializedTransactionsV2 {
+                        transaction_ref,
+                        serialized_transactions: serialized_tx,
+                    })
+                    .map_err(ConsensusError::SerializationFailure)?
+                } else {
+                    return Err(ConsensusError::TransactionRefVariantMismatch {
+                        protocol_flag_enabled: true,
+                        expected_variant: "TransactionRef",
+                        received_variant: gen_ref.variant_name(),
+                    });
+                };
+                result.push(Bytes::from(serialized));
+            }
+        }
 
         Ok(result)
     }
@@ -1300,6 +1331,7 @@ mod tests {
     use futures::StreamExt;
     use iota_metrics::monitored_mpsc::unbounded_channel;
     use parking_lot::{Mutex, RwLock};
+    use rstest::rstest;
     use starfish_config::{AuthorityIndex, Parameters};
     use tokio::{
         sync::{broadcast, mpsc},
@@ -1333,11 +1365,12 @@ mod tests {
         network::{
             BlockBundle, BlockBundleStream, NetworkClient, NetworkService, SerializedBlock,
             SerializedBlockBundle, SerializedBlockBundleParts, SerializedHeaderAndTransactions,
-            SerializedTransactions,
+            SerializedTransactionsV1, SerializedTransactionsV2,
         },
         storage::{Store, mem_store::MemStore},
         test_dag_builder::DagBuilder,
         transaction::TransactionConsumer,
+        transaction_ref::GenericTransactionRef,
         transactions_synchronizer::TransactionsSynchronizer,
     };
 
@@ -1387,16 +1420,22 @@ mod tests {
         async fn fetch_transactions(
             &self,
             _peer: AuthorityIndex,
-            _block_refs: Vec<BlockRef>,
+            _block_refs: Vec<GenericTransactionRef>,
             _timeout: Duration,
         ) -> ConsensusResult<Vec<Bytes>> {
             unimplemented!("Unimplemented")
         }
     }
 
+    #[rstest]
     #[tokio::test(flavor = "current_thread", start_paused = true)]
-    async fn test_handle_subscribed_block_bundle_time_drift() {
-        let (context, _keys) = Context::new_for_test(4);
+    async fn test_handle_subscribed_block_bundle_time_drift(
+        #[values(false, true)] transaction_ref_enabled: bool,
+    ) {
+        let (mut context, _keys) = Context::new_for_test(4);
+        context
+            .protocol_config
+            .set_consensus_transaction_ref_for_testing(transaction_ref_enabled);
         let context = Arc::new(context);
         let block_verifier = Arc::new(crate::block_verifier::NoopBlockVerifier {});
         let commit_vote_monitor = Arc::new(CommitVoteMonitor::new(context.clone()));
@@ -1405,7 +1444,7 @@ mod tests {
         let (tx_message_sender, _tx_message_receiver) = mpsc::channel(100);
 
         let network_client = Arc::new(FakeNetworkClient::default());
-        let store = Arc::new(MemStore::new());
+        let store = Arc::new(MemStore::new(context.clone()));
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
         let cordial_knowledge = CordialKnowledge::start(context.clone(), dag_state.clone());
 
@@ -1472,9 +1511,15 @@ mod tests {
         assert_eq!(blocks[0], input_block);
     }
 
+    #[rstest]
     #[tokio::test(flavor = "current_thread")]
-    async fn test_handle_subscribed_block_bundle_wrong_peer() {
-        let (context, _keys) = Context::new_for_test(4);
+    async fn test_handle_subscribed_block_bundle_wrong_peer(
+        #[values(false, true)] transaction_ref_enabled: bool,
+    ) {
+        let (mut context, _keys) = Context::new_for_test(4);
+        context
+            .protocol_config
+            .set_consensus_transaction_ref_for_testing(transaction_ref_enabled);
         let context = Arc::new(context);
         let block_verifier = Arc::new(crate::block_verifier::NoopBlockVerifier {});
         let commit_vote_monitor = Arc::new(CommitVoteMonitor::new(context.clone()));
@@ -1483,7 +1528,7 @@ mod tests {
         let (tx_message_sender, _tx_message_receiver) = mpsc::channel(100);
 
         let network_client = Arc::new(FakeNetworkClient::default());
-        let store = Arc::new(MemStore::new());
+        let store = Arc::new(MemStore::new(context.clone()));
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
         let cordial_knowledge = CordialKnowledge::start(context.clone(), dag_state.clone());
         let transactions_synchronizer = TransactionsSynchronizer::start(
@@ -1559,9 +1604,15 @@ mod tests {
         assert_eq!(blocks[0], input_block);
     }
 
+    #[rstest]
     #[tokio::test(flavor = "current_thread")]
-    async fn test_handle_subscribed_block_bundle_wrong_transaction_commitment() {
-        let (context, _keys) = Context::new_for_test(4);
+    async fn test_handle_subscribed_block_bundle_wrong_transaction_commitment(
+        #[values(false, true)] transaction_ref_enabled: bool,
+    ) {
+        let (mut context, _keys) = Context::new_for_test(4);
+        context
+            .protocol_config
+            .set_consensus_transaction_ref_for_testing(transaction_ref_enabled);
         let context = Arc::new(context);
         let block_verifier = Arc::new(crate::block_verifier::NoopBlockVerifier {});
         let commit_vote_monitor = Arc::new(CommitVoteMonitor::new(context.clone()));
@@ -1570,7 +1621,7 @@ mod tests {
         let (tx_message_sender, _tx_message_receiver) = mpsc::channel(100);
 
         let network_client = Arc::new(FakeNetworkClient::default());
-        let store = Arc::new(MemStore::new());
+        let store = Arc::new(MemStore::new(context.clone()));
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
         let cordial_knowledge = CordialKnowledge::start(context.clone(), dag_state.clone());
 
@@ -1638,10 +1689,16 @@ mod tests {
         }
     }
 
+    #[rstest]
     #[tokio::test(flavor = "current_thread")]
-    async fn test_handle_subscribed_block_bundle_with_bad_headers() {
+    async fn test_handle_subscribed_block_bundle_with_bad_headers(
+        #[values(false, true)] transaction_ref_enabled: bool,
+    ) {
         let committee_size = 4;
-        let (context, _keys) = Context::new_for_test(committee_size);
+        let (mut context, _keys) = Context::new_for_test(committee_size);
+        context
+            .protocol_config
+            .set_consensus_transaction_ref_for_testing(transaction_ref_enabled);
         let context = Arc::new(context);
         let block_verifier = Arc::new(crate::block_verifier::NoopBlockVerifier {});
         let commit_vote_monitor = Arc::new(CommitVoteMonitor::new(context.clone()));
@@ -1650,7 +1707,7 @@ mod tests {
         let (tx_message_sender, _tx_message_receiver) = mpsc::channel(100);
 
         let network_client = Arc::new(FakeNetworkClient::default());
-        let store = Arc::new(MemStore::new());
+        let store = Arc::new(MemStore::new(context.clone()));
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
         let cordial_knowledge = CordialKnowledge::start(context.clone(), dag_state.clone());
         let transactions_synchronizer = TransactionsSynchronizer::start(
@@ -1787,7 +1844,7 @@ mod tests {
         let (tx_message_sender, _tx_message_receiver) = mpsc::channel(100);
 
         let network_client = Arc::new(FakeNetworkClient::default());
-        let store = Arc::new(MemStore::new());
+        let store = Arc::new(MemStore::new(context.clone()));
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
         let cordial_knowledge = CordialKnowledge::start(context.clone(), dag_state.clone());
         let transactions_synchronizer = TransactionsSynchronizer::start(
@@ -1868,7 +1925,7 @@ mod tests {
             Arc::new(crate::block_verifier::test::TxnSizeVerifier {}),
         ));
         let commit_vote_monitor = Arc::new(CommitVoteMonitor::new(context.clone()));
-        let store = Arc::new(MemStore::new());
+        let store = Arc::new(MemStore::new(context.clone()));
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
         let cordial_knowledge = CordialKnowledge::start(context.clone(), dag_state.clone());
 
@@ -2031,7 +2088,7 @@ mod tests {
         ) -> Result<
             (
                 BTreeSet<BlockRef>,
-                BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>,
+                BTreeMap<GenericTransactionRef, BTreeSet<AuthorityIndex>>,
             ),
             CoreError,
         > {
@@ -2051,7 +2108,7 @@ mod tests {
         ) -> Result<
             (
                 BTreeSet<BlockRef>,
-                BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>,
+                BTreeMap<GenericTransactionRef, BTreeSet<AuthorityIndex>>,
             ),
             CoreError,
         > {
@@ -2079,7 +2136,7 @@ mod tests {
 
         async fn get_missing_transaction_data(
             &self,
-        ) -> Result<BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>, CoreError> {
+        ) -> Result<BTreeMap<GenericTransactionRef, BTreeSet<AuthorityIndex>>, CoreError> {
             unimplemented!("Unimplemented")
         }
 
@@ -2089,7 +2146,7 @@ mod tests {
         ) -> Result<
             (
                 BTreeSet<BlockRef>,
-                BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>,
+                BTreeMap<GenericTransactionRef, BTreeSet<AuthorityIndex>>,
             ),
             CoreError,
         > {
@@ -2100,7 +2157,7 @@ mod tests {
             &self,
             _round: Round,
             _reason: ReasonToCreateBlock,
-        ) -> Result<BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>, CoreError> {
+        ) -> Result<BTreeMap<GenericTransactionRef, BTreeSet<AuthorityIndex>>, CoreError> {
             unimplemented!("Unimplemented")
         }
 
@@ -2124,19 +2181,25 @@ mod tests {
             guard.clone()
         }
     }
+    #[rstest]
     #[tokio::test(flavor = "current_thread")]
-    async fn test_handle_subscribed_block_bundle_with_additional_headers() {
+    async fn test_handle_subscribed_block_bundle_with_additional_headers(
+        #[values(false, true)] transaction_ref_enabled: bool,
+    ) {
         // GIVEN
         let rounds = 10;
         let validators = 10;
-        let (context, key_pairs) = Context::new_for_test(validators);
+        let (mut context, key_pairs) = Context::new_for_test(validators);
+        context
+            .protocol_config
+            .set_consensus_transaction_ref_for_testing(transaction_ref_enabled);
         let context = Arc::new(context);
         let block_verifier = Arc::new(SignedBlockVerifier::new(
             context.clone(),
             Arc::new(crate::block_verifier::test::TxnSizeVerifier {}),
         ));
         let commit_vote_monitor = Arc::new(CommitVoteMonitor::new(context.clone()));
-        let store = Arc::new(MemStore::new());
+        let store = Arc::new(MemStore::new(context.clone()));
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
         let cordial_knowledge = CordialKnowledge::start(context.clone(), dag_state.clone());
 
@@ -2280,19 +2343,25 @@ mod tests {
         }
     }
 
+    #[rstest]
     #[tokio::test(flavor = "current_thread")]
-    async fn test_handle_subscribe_bundle_without_additional_headers() {
+    async fn test_handle_subscribe_bundle_without_additional_headers(
+        #[values(false, true)] transaction_ref_enabled: bool,
+    ) {
         // GIVEN
         let rounds = 10;
         let validators = 10;
-        let (context, key_pairs) = Context::new_for_test(validators);
+        let (mut context, key_pairs) = Context::new_for_test(validators);
+        context
+            .protocol_config
+            .set_consensus_transaction_ref_for_testing(transaction_ref_enabled);
         let context = Arc::new(context);
         let block_verifier = Arc::new(SignedBlockVerifier::new(
             context.clone(),
             Arc::new(crate::block_verifier::test::TxnSizeVerifier {}),
         ));
         let commit_vote_monitor = Arc::new(CommitVoteMonitor::new(context.clone()));
-        let store = Arc::new(MemStore::new());
+        let store = Arc::new(MemStore::new(context.clone()));
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
         let cordial_knowledge = CordialKnowledge::start(context.clone(), dag_state.clone());
 
@@ -2450,21 +2519,27 @@ mod tests {
         assert_eq!(received, None);
     }
 
+    #[rstest]
     #[tokio::test]
-    async fn test_handle_subscribe_block_bundles_request() {
+    async fn test_handle_subscribe_block_bundles_request(
+        #[values(false, true)] transaction_ref_enabled: bool,
+    ) {
         telemetry_subscribers::init_for_testing();
         // GIVEN
         let rounds = 10;
         let validators = 4;
         let to_whom_authority = AuthorityIndex::new_for_test(1);
-        let (context, key_pairs) = Context::new_for_test(validators);
+        let (mut context, key_pairs) = Context::new_for_test(validators);
+        context
+            .protocol_config
+            .set_consensus_transaction_ref_for_testing(transaction_ref_enabled);
         let context = Arc::new(context);
         let block_verifier = Arc::new(SignedBlockVerifier::new(
             context.clone(),
             Arc::new(crate::block_verifier::test::TxnSizeVerifier {}),
         ));
         let commit_vote_monitor = Arc::new(CommitVoteMonitor::new(context.clone()));
-        let store = Arc::new(MemStore::new());
+        let store = Arc::new(MemStore::new(context.clone()));
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
         let cordial_knowledge = CordialKnowledge::start(context.clone(), dag_state.clone());
         let block_manager = BlockManager::new(context.clone(), dag_state.clone());
@@ -2601,9 +2676,11 @@ mod tests {
 
         // Collect expected blocks from the first batch
         let expected_number = first_batch_end_exclusive - 1 - last_received_round;
-        for _ in 0..expected_number {
-            if let Some(bundle) = stream.next().await {
-                received_bundles.push(bundle);
+        for i in 0..expected_number {
+            match tokio::time::timeout(Duration::from_secs(5), stream.next()).await {
+                Ok(Some(bundle)) => received_bundles.push(bundle),
+                Ok(None) => panic!("Stream ended at bundle {} of {}", i, expected_number),
+                Err(_) => panic!("Timeout at bundle {} of {}", i, expected_number),
             }
         }
 
@@ -2681,8 +2758,14 @@ mod tests {
                 .send(all_blocks[round as usize][0].clone())
                 .expect("We expect that block is sent successfully");
             sleep(Duration::from_millis(50)).await;
-            if let Some(bundle) = stream.next().await {
-                received_bundles.push(bundle);
+            match tokio::time::timeout(Duration::from_secs(5), stream.next()).await {
+                Ok(Some(bundle)) => received_bundles.push(bundle),
+                Ok(None) => panic!("Stream ended at round {}", round),
+                Err(_) => panic!(
+                    "Timeout at round {}, got {} bundles",
+                    round,
+                    received_bundles.len()
+                ),
             }
         }
 
@@ -2778,7 +2861,7 @@ mod tests {
             Arc::new(crate::block_verifier::test::TxnSizeVerifier {}),
         ));
         let commit_vote_monitor = Arc::new(CommitVoteMonitor::new(context.clone()));
-        let store = Arc::new(MemStore::new());
+        let store = Arc::new(MemStore::new(context.clone()));
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
         let cordial_knowledge = CordialKnowledge::start(context.clone(), dag_state.clone());
 
@@ -2919,7 +3002,7 @@ mod tests {
             Arc::new(crate::block_verifier::test::TxnSizeVerifier {}),
         ));
         let commit_vote_monitor = Arc::new(CommitVoteMonitor::new(context.clone()));
-        let store = Arc::new(MemStore::new());
+        let store = Arc::new(MemStore::new(context.clone()));
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
         let cordial_knowledge = CordialKnowledge::start(context.clone(), dag_state.clone());
 
@@ -3065,19 +3148,23 @@ mod tests {
         );
     }
 
+    #[rstest]
     #[tokio::test]
-    async fn test_handle_fetch_commits() {
+    async fn test_handle_fetch_commits(#[values(false, true)] transaction_ref_enabled: bool) {
         // GIVEN
         let rounds = 15;
         let validators = 4;
-        let (context, key_pairs) = Context::new_for_test(validators);
+        let (mut context, key_pairs) = Context::new_for_test(validators);
+        context
+            .protocol_config
+            .set_consensus_transaction_ref_for_testing(transaction_ref_enabled);
         let context = Arc::new(context);
         let block_verifier = Arc::new(SignedBlockVerifier::new(
             context.clone(),
             Arc::new(crate::block_verifier::test::TxnSizeVerifier {}),
         ));
         let commit_vote_monitor = Arc::new(CommitVoteMonitor::new(context.clone()));
-        let store = Arc::new(MemStore::new());
+        let store = Arc::new(MemStore::new(context.clone()));
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
         let cordial_knowledge = CordialKnowledge::start(context.clone(), dag_state.clone());
 
@@ -3246,12 +3333,16 @@ mod tests {
         );
     }
 
+    #[rstest]
     #[tokio::test]
-    async fn test_handle_fetch_transactions() {
+    async fn test_handle_fetch_transactions(#[values(false, true)] transaction_ref_enabled: bool) {
         // GIVEN
         let rounds = 10;
         let validators = 4;
-        let (context, key_pairs) = Context::new_for_test(validators);
+        let (mut context, key_pairs) = Context::new_for_test(validators);
+        context
+            .protocol_config
+            .set_consensus_transaction_ref_for_testing(transaction_ref_enabled);
         let context = Context {
             parameters: Parameters {
                 max_transactions_per_regular_sync_fetch: 20,
@@ -3266,7 +3357,7 @@ mod tests {
             Arc::new(crate::block_verifier::test::TxnSizeVerifier {}),
         ));
         let commit_vote_monitor = Arc::new(CommitVoteMonitor::new(context.clone()));
-        let store = Arc::new(MemStore::new());
+        let store = Arc::new(MemStore::new(context.clone()));
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
         let cordial_knowledge = CordialKnowledge::start(context.clone(), dag_state.clone());
 
@@ -3356,19 +3447,28 @@ mod tests {
             all_block_headers.push(dag_builder.block_headers(round..=round));
         }
 
-        let mut block_refs_to_request_first_batch: Vec<BlockRef> = (1..=rounds)
+        let mut block_refs_to_request_first_batch: Vec<GenericTransactionRef> = (1..=rounds)
             .flat_map(|round| {
-                all_block_headers[round as usize]
-                    .iter()
-                    .map(|bh| bh.reference())
+                all_block_headers[round as usize].iter().map(|bh| {
+                    if transaction_ref_enabled {
+                        GenericTransactionRef::TransactionRef(bh.transaction_ref())
+                    } else {
+                        GenericTransactionRef::from(bh.reference())
+                    }
+                })
             })
             .collect();
 
-        let mut block_refs_to_request_second_batch: Vec<BlockRef> = (rounds + 1..=2 * rounds)
+        let mut block_refs_to_request_second_batch: Vec<GenericTransactionRef> = (rounds + 1
+            ..=2 * rounds)
             .flat_map(|round| {
-                all_block_headers[round as usize]
-                    .iter()
-                    .map(|bh| bh.reference())
+                all_block_headers[round as usize].iter().map(|bh| {
+                    if transaction_ref_enabled {
+                        GenericTransactionRef::TransactionRef(bh.transaction_ref())
+                    } else {
+                        GenericTransactionRef::from(bh.reference())
+                    }
+                })
             })
             .collect();
 
@@ -3390,26 +3490,55 @@ mod tests {
 
         // Check the correctness of the received transactions
         for (i, serialized_transactions_bytes) in serialized_transactions.iter().enumerate() {
-            // Deserialize and check transaction commitment
-            let deserialized: SerializedTransactions =
-                bcs::from_bytes(serialized_transactions_bytes)
-                    .expect("deserialization should succeed");
-            let block_ref = deserialized.block_ref;
-            assert_eq!(block_ref, block_refs_to_request_first_batch[i]);
-            let serialized_transactions = deserialized.serialized_transactions;
-            let block_header = all_block_headers[block_ref.round as usize]
-                .iter()
-                .find(|header| header.reference() == block_ref)
-                .expect("We expect to find the header with such block_ref");
-            assert_eq!(
-                block_header.transactions_commitment(),
-                TransactionsCommitment::compute_transactions_commitment(
-                    &serialized_transactions,
-                    &context,
-                    &mut encoder
-                )
-                .unwrap()
-            );
+            if transaction_ref_enabled {
+                // Deserialize V2 format with TransactionRef
+                let deserialized: SerializedTransactionsV2 =
+                    bcs::from_bytes(serialized_transactions_bytes)
+                        .expect("deserialization should succeed");
+                let transaction_ref = deserialized.transaction_ref;
+
+                // Verify it matches the expected ref
+                assert_eq!(
+                    GenericTransactionRef::TransactionRef(transaction_ref),
+                    block_refs_to_request_first_batch[i]
+                );
+
+                let serialized_transactions = deserialized.serialized_transactions;
+                // Verify the transaction commitment matches
+                assert_eq!(
+                    transaction_ref.transactions_commitment,
+                    TransactionsCommitment::compute_transactions_commitment(
+                        &serialized_transactions,
+                        &context,
+                        &mut encoder
+                    )
+                    .unwrap()
+                );
+            } else {
+                // Deserialize V1 format with BlockRef
+                let deserialized: SerializedTransactionsV1 =
+                    bcs::from_bytes(serialized_transactions_bytes)
+                        .expect("deserialization should succeed");
+                let block_ref = deserialized.block_ref;
+                assert_eq!(
+                    GenericTransactionRef::from(block_ref),
+                    block_refs_to_request_first_batch[i]
+                );
+                let serialized_transactions = deserialized.serialized_transactions;
+                let block_header = all_block_headers[block_ref.round as usize]
+                    .iter()
+                    .find(|header| header.reference() == block_ref)
+                    .expect("We expect to find the header with such block_ref");
+                assert_eq!(
+                    block_header.transactions_commitment(),
+                    TransactionsCommitment::compute_transactions_commitment(
+                        &serialized_transactions,
+                        &context,
+                        &mut encoder
+                    )
+                    .unwrap()
+                );
+            }
         }
 
         block_refs_to_request_second_batch
