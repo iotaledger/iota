@@ -361,6 +361,14 @@ impl RestStateReader for MockRestStateReader {
     fn indexes(&self) -> Option<&dyn RestIndexes> {
         None
     }
+
+    fn get_struct_layout(
+        &self,
+        _: &move_core_types::language_storage::StructTag,
+    ) -> iota_types::storage::error::Result<Option<move_core_types::annotated_value::MoveTypeLayout>>
+    {
+        Ok(None)
+    }
 }
 
 async fn test_server_and_client_setup<I: Iterator<Item = u64>>(
