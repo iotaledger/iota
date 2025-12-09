@@ -104,7 +104,7 @@ pub(crate) trait NetworkClient: Send + Sync + Sized + 'static {
     ) -> ConsensusResult<Vec<Bytes>>;
 
     /// Fetches serialized commits in the commit range from a peer.
-    /// Returns a tuple of both the serialized commits, and serialized blocks
+    /// Returns a tuple of both the serialized commits and serialized headers
     /// that contain votes certifying the last commit.
     async fn fetch_commits(
         &self,
@@ -112,6 +112,16 @@ pub(crate) trait NetworkClient: Send + Sync + Sized + 'static {
         commit_range: CommitRange,
         timeout: Duration,
     ) -> ConsensusResult<(Vec<Bytes>, Vec<Bytes>)>;
+
+    /// Fetches serialized commits in the commit range from a peer, headers voting for the last commit, and all transactions from these commits.
+    /// Returns serialized commits, serialized headers voting for the last commit, serialized transaction refs, and serialized transactions.
+    /// Used in the fast commit syncer.
+    async fn fetch_commits_and_transactions(
+        &self,
+        peer: AuthorityIndex,
+        commit_range: CommitRange,
+        timeout: Duration,
+    ) -> ConsensusResult<(Vec<Bytes>, Vec<Bytes>, Vec<Bytes>, Vec<Bytes>)>;
 
     /// Fetches the latest block from `peer` for the requested `authorities`.
     /// The latest blocks are returned in the serialised format of

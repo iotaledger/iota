@@ -1576,6 +1576,15 @@ mod tests {
 
             Ok(serialized_headers)
         }
+
+        async fn fetch_commits_and_transactions(
+            &self,
+            _peer: AuthorityIndex,
+            _commit_range: CommitRange,
+            _timeout: Duration,
+        ) -> ConsensusResult<(Vec<Bytes>, Vec<Bytes>, Vec<Bytes>, Vec<Bytes>)> {
+            unimplemented!("fetch_commits_and_transactions not implemented in mock")
+        }
     }
 
     #[test]

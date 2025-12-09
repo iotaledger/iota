@@ -330,6 +330,15 @@ mod test {
         ) -> ConsensusResult<Vec<Bytes>> {
             unimplemented!("Unimplemented")
         }
+
+        async fn fetch_commits_and_transactions(
+            &self,
+            _peer: AuthorityIndex,
+            _commit_range: CommitRange,
+            _timeout: Duration,
+        ) -> ConsensusResult<(Vec<Bytes>, Vec<Bytes>, Vec<Bytes>, Vec<Bytes>)> {
+            unimplemented!("Unimplemented")
+        }
     }
 
     #[tokio::test(flavor = "current_thread", start_paused = true)]

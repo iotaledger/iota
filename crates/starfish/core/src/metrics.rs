@@ -224,7 +224,7 @@ pub(crate) struct NodeMetrics {
     pub(crate) commit_sync_local_index: IntGauge,
     pub(crate) commit_sync_gap_on_processing: IntCounterVec,
     pub(crate) commit_sync_fetch_loop_latency: Histogram,
-    pub(crate) commit_sync_fetch_once_latency: Histogram,
+    pub(crate) commit_sync_fetch_once_latency: HistogramVec,
     pub(crate) commit_sync_fetch_once_errors: IntCounterVec,
     pub(crate) commit_sync_fetch_missing_block_headers: IntCounterVec,
     pub(crate) commit_sync_fetch_missing_transactions: IntCounterVec,
@@ -933,9 +933,10 @@ impl NodeMetrics {
                 LATENCY_SEC_BUCKETS.to_vec(),
                 registry,
             ).unwrap(),
-            commit_sync_fetch_once_latency: register_histogram_with_registry!(
+            commit_sync_fetch_once_latency: register_histogram_vec_with_registry!(
                 "commit_sync_fetch_once_latency",
                 "The time taken to fetch commits and block headers once",
+                &["source"],
                 LATENCY_SEC_BUCKETS.to_vec(),
                 registry,
             ).unwrap(),

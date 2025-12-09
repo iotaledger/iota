@@ -2488,5 +2488,14 @@ mod tests {
             // Not needed for transactions synchronizer tests
             unimplemented!("fetch_latest_block_headers not implemented in mock")
         }
+
+        async fn fetch_commits_and_transactions(
+            &self,
+            _peer: AuthorityIndex,
+            _commit_range: CommitRange,
+            _timeout: Duration,
+        ) -> ConsensusResult<(Vec<Bytes>, Vec<Bytes>, Vec<Bytes>, Vec<Bytes>)> {
+            unimplemented!("fetch_commits_and_transactions not implemented in mock")
+        }
     }
 }

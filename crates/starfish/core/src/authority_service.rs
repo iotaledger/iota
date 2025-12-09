@@ -1417,6 +1417,15 @@ mod tests {
             unimplemented!("Unimplemented")
         }
 
+        async fn fetch_commits_and_transactions(
+            &self,
+            _peer: AuthorityIndex,
+            _commit_range: CommitRange,
+            _timeout: Duration,
+        ) -> ConsensusResult<(Vec<Bytes>, Vec<Bytes>, Vec<Bytes>, Vec<Bytes>)> {
+            unimplemented!("Unimplemented")
+        }
+
         async fn fetch_transactions(
             &self,
             _peer: AuthorityIndex,

@@ -23,26 +23,27 @@ use tokio::{
 use tracing::{debug, info, warn};
 
 use crate::{
-    CommitConsumerMonitor, CommitIndex, Transaction, VerifiedBlockHeader,
+    CommitConsumerMonitor, CommitIndex, VerifiedBlockHeader,
     block_header::{
-        BlockHeaderAPI, BlockRef, SignedBlockHeader, TransactionsCommitment, VerifiedTransactions,
+        BlockHeaderAPI, BlockRef, SignedBlockHeader,
     },
     block_verifier::BlockVerifier,
     commit::{
         CertifiedCommit, CertifiedCommits, Commit, CommitAPI as _, CommitDigest, CommitRange,
-        CommitRef, TrustedCommit,
+        CommitRef, CommittedSubDag, TrustedCommit,
     },
     commit_syncer::{verify_transactions_with_headers, verify_transactions_with_transactions_refs},
     commit_vote_monitor::CommitVoteMonitor,
     context::Context,
     core_thread::CoreThreadDispatcher,
     dag_state::DagState,
-    encoder::create_encoder,
     error::{ConsensusError, ConsensusResult},
     network::{NetworkClient, SerializedTransactionsV1, SerializedTransactionsV2},
     stake_aggregator::{QuorumThreshold, StakeAggregator},
     transaction_ref::{GenericTransactionRef, GenericTransactionRefAPI as _},
 };
+use crate::block_header::VerifiedTransactions;
+use crate::transaction_ref::TransactionRef;
 
 // Handle to stop the CommitSyncer loop.
 pub(crate) struct FastCommitSyncerHandle {
@@ -592,15 +593,13 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
         }
     }
 
-    // Fetches commits and blocks from a single authority. At a high level, first
-    // the commits are fetched and verified. After that, blocks referenced in
-    // the certified commits are fetched and sent to Core for processing.
+    // Fetches commits and transactions from a single authority.
     async fn fetch_once(
         inner: Arc<Inner<C>>,
         target_authority: AuthorityIndex,
         commit_range: CommitRange,
         timeout: Duration,
-    ) -> ConsensusResult<CertifiedCommits> {
+    ) -> ConsensusResult<Vec<CommittedSubDag>> {
         // Maximum delay between consecutive pipelined requests, to avoid
         // overwhelming the peer while still maintaining reasonable throughput.
         const MAX_PIPELINE_DELAY: Duration = Duration::from_secs(1);
@@ -610,19 +609,19 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
             .metrics
             .node_metrics
             .commit_sync_fetch_once_latency
+            .with_label_values(&["fast_commit_sync"])
             .start_timer();
-        let transaction_ref_enabled = inner.context.protocol_config.consensus_transaction_ref();
+        assert!(inner.context.protocol_config.consensus_transaction_ref());
 
-        // 1. Fetch commits in the commit range from the target authority.
-        let (serialized_commits, serialized_voting_block_headers) = inner
+        // 1. Fetch commits, voting headers, transaction refs, and transactions in the commit range from the target authority.
+        let (serialized_commits, serialized_voting_block_headers, serialized_transaction_refs, serialized_transactions) = inner
             .network_client
-            .fetch_commits(target_authority, commit_range.clone(), timeout)
+            .fetch_commits_and_transactions(target_authority, commit_range.clone(), timeout)
             .await?;
 
         // 2. Verify the response contains block headers that can certify the last
-        //    returned commit,
-        // and the returned commits are chained by digest, so earlier commits are
-        // certified as well.
+        //    returned commit, and the returned commits are chained by digest,
+        // so earlier commits are certified as well.
         let commits = Handle::current()
             .spawn_blocking({
                 let inner = inner.clone();
@@ -638,256 +637,46 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
             .await
             .expect("Spawn blocking should not fail")?;
 
-        // 3. Fetch block headers referenced by the commits, from the same authority.
-        let mut block_refs: Vec<_> = commits.iter().flat_map(|c| c.blocks()).cloned().collect();
-
-        // 3a. Collect all committed transaction block refs from commits
-        let committed_tx_refs: Vec<GenericTransactionRef> = commits
+        // 3. Collect all committed transaction block refs from commits
+        let mut committed_tx_refs: BTreeSet<TransactionRef> = commits
             .iter()
             .flat_map(|c| c.committed_transactions())
+            .filter_map(|gen_tr_ref| gen_tr_ref.expect_transaction_ref().ok())
             .collect();
 
-        if !transaction_ref_enabled {
-            // 3b. Identify which committed transaction blocks are NOT in the committed
-            // blocks list and add them to block_refs so they get fetched together.
-            // If transaction_ref_enabled is true, then we fetch these transactions
-            // separately without fetching headers, so in this case we don't need to do
-            // anything here
-            let block_refs_set: BTreeSet<_> = block_refs.iter().cloned().collect();
-            let missing_tx_header_refs: ConsensusResult<Vec<BlockRef>> = committed_tx_refs
-                .iter()
-                .filter_map(|tx_ref| match tx_ref {
-                    GenericTransactionRef::BlockRef(br) => {
-                        if !block_refs_set.contains(br) {
-                            Some(Ok(*br))
-                        } else {
-                            None
-                        }
-                    }
-                    _ => Some(Err(ConsensusError::TransactionRefVariantMismatch {
-                        protocol_flag_enabled: false,
-                        expected_variant: "BlockRef",
-                        received_variant: "TransactionRef",
-                    })),
-                })
-                .collect();
-            let missing_tx_header_refs = missing_tx_header_refs?;
+        // 4. Process fetched transactions.
 
-            // Merge missing transaction headers into the main block_refs list
-            block_refs.extend(missing_tx_header_refs);
-        }
-
-        let num_chunks = block_refs
-            .len()
-            .div_ceil(inner.context.parameters.max_headers_per_commit_sync_fetch)
-            as u32;
-        let mut requests: FuturesOrdered<_> = block_refs
-            .chunks(inner.context.parameters.max_headers_per_commit_sync_fetch)
-            .enumerate()
-            .map(|(i, request_block_refs)| {
-                let inner = inner.clone();
-                async move {
-                    // 4. Send out pipelined fetch requests to avoid overloading the target
-                    //    authority.
-                    let individual_delay = (timeout / num_chunks).min(MAX_PIPELINE_DELAY);
-                    sleep(individual_delay * i as u32).await;
-                    // TODO: add some retries.
-                    let serialized_block_headers = inner
-                        .network_client
-                        .fetch_block_headers(
-                            target_authority,
-                            request_block_refs.to_vec(),
-                            vec![],
-                            timeout,
-                        )
-                        .await?;
-                    // 5. Verify the same number of block headers is returned as requested.
-                    if request_block_refs.len() != serialized_block_headers.len() {
-                        return Err(ConsensusError::UnexpectedNumberOfHeadersFetched {
-                            authority: target_authority,
-                            requested: request_block_refs.len(),
-                            received_headers: serialized_block_headers.len(),
-                        });
-                    }
-                    // 6. Verify returned block headers have valid formats.
-                    let verified_block_headers = serialized_block_headers
-                        .iter()
-                        .cloned()
-                        .zip(request_block_refs)
-                        .map(|(serialized_block_header, requested_block_ref)| {
-                            // we don't verify the header, we only check the block reference below
-                            let block_header =
-                                VerifiedBlockHeader::new_from_bytes(serialized_block_header)?;
-
-                            // 7. Verify the returned block headers match the requested block refs.
-                            // If they do match, the returned block headers can be considered
-                            // verified as well.
-                            if *requested_block_ref != block_header.reference() {
-                                return Err(ConsensusError::UnexpectedBlockHeaderForCommit {
-                                    peer: target_authority,
-                                    requested: *requested_block_ref,
-                                    received: block_header.reference(),
-                                });
-                            }
-
-                            Ok(block_header)
-                        })
-                        .collect::<ConsensusResult<Vec<_>>>()?;
-
-                    Ok(verified_block_headers)
-                }
-            })
-            .collect();
-
-        // 8. Create transaction fetch requests (will be processed concurrently with
-        //    headers)
-        let mut transaction_requests: FuturesOrdered<_> = if !committed_tx_refs.is_empty() {
-            let num_tx_chunks = committed_tx_refs.len().div_ceil(
-                inner
-                    .context
-                    .parameters
-                    .max_transactions_per_commit_sync_fetch,
-            ) as u32;
-            committed_tx_refs
-                .chunks(
-                    inner
-                        .context
-                        .parameters
-                        .max_transactions_per_commit_sync_fetch,
-                )
-                .enumerate()
-                .map(|(i, request_block_refs)| {
-                    let inner = inner.clone();
-                    async move {
-                        // 9. Send out pipelined fetch requests to avoid overloading the target
-                        //    authority. Offset by half delay to interleave with header requests.
-                        let individual_delay =
-                            (timeout / num_tx_chunks.max(1)).min(MAX_PIPELINE_DELAY);
-                        sleep(individual_delay * i as u32 + individual_delay / 2).await;
-                        let serialized_transactions = inner
-                            .network_client
-                            .fetch_transactions(
-                                target_authority,
-                                request_block_refs.to_vec(),
-                                timeout,
-                            )
-                            .await?;
-
-                        // 10. Verify that the number of returned transactions is not greater than
-                        //     the number of requested transactions. It's OK if not all requested
-                        //     transactions are returned as long as the peer returns all the
-                        //     headers. We don't want to fail the whole fetch in this case.
-                        //     TransactionSynchronizer will take care of fetching missing
-                        //     transactions later.
-                        if request_block_refs.len() < serialized_transactions.len() {
-                            return Err(ConsensusError::TooManyFetchedTransactionsReturned(
-                                target_authority,
-                            ));
-                        }
-                        let requested_block_refs_set: BTreeSet<_> =
-                            request_block_refs.iter().cloned().collect();
-                        // Deserialize to extract BlockRef and build a map directly
-                        let mut result = BTreeMap::new();
-                        for serialized_bytes in serialized_transactions {
-                            let (committed_transaction_ref, serialized_transactions) =
-                                if !transaction_ref_enabled {
-                                    let serialized_tx: SerializedTransactionsV1 =
-                                        bcs::from_bytes(&serialized_bytes)
-                                            .map_err(ConsensusError::MalformedTransactions)?;
-
-                                    // 11. Verify the returned transactions match the requested
-                                    //     block refs.
-                                    let committed_transaction_ref =
-                                        GenericTransactionRef::BlockRef(serialized_tx.block_ref);
-                                    if !requested_block_refs_set
-                                        .contains(&committed_transaction_ref)
-                                    {
-                                        return Err(
-                                            ConsensusError::UnexpectedTransactionForCommit {
-                                                peer: target_authority,
-                                                received: committed_transaction_ref,
-                                            },
-                                        );
-                                    }
-                                    (
-                                        committed_transaction_ref,
-                                        serialized_tx.serialized_transactions,
-                                    )
-                                } else {
-                                    let serialized_tx: SerializedTransactionsV2 =
-                                        bcs::from_bytes(&serialized_bytes)
-                                            .map_err(ConsensusError::MalformedTransactions)?;
-
-                                    // 11. Verify the returned transactions match the requested
-                                    //     transaction refs.
-                                    let committed_transaction_ref =
-                                        GenericTransactionRef::TransactionRef(
-                                            serialized_tx.transaction_ref,
-                                        );
-                                    if !requested_block_refs_set
-                                        .contains(&committed_transaction_ref)
-                                    {
-                                        return Err(
-                                            ConsensusError::UnexpectedTransactionForCommit {
-                                                peer: target_authority,
-                                                received: committed_transaction_ref,
-                                            },
-                                        );
-                                    }
-                                    (
-                                        committed_transaction_ref,
-                                        serialized_tx.serialized_transactions,
-                                    )
-                                };
-
-                            result.insert(committed_transaction_ref, serialized_transactions);
-                        }
-
-                        Ok::<BTreeMap<GenericTransactionRef, Bytes>, ConsensusError>(result)
-                    }
-                })
-                .collect()
-        } else {
-            FuturesOrdered::new()
-        };
-
-        // 12. Process header and transaction requests concurrently
-        let mut fetched_block_headers = BTreeMap::new();
         let mut fetched_transactions = BTreeMap::new();
-
-        loop {
-            tokio::select! {
-                Some(result) = requests.next() => {
-                    for block_header in result? {
-                        fetched_block_headers.insert(block_header.reference(), block_header);
-                    }
+        for (serialized_transaction_ref, serialized_transaction) in serialized_transaction_refs.into_iter().zip(serialized_transactions) {
+            if let Ok(transaction_ref) = bcs::from_bytes::<TransactionRef>(&serialized_transaction_ref) {
+                if !committed_tx_refs.contains(&transaction_ref) {
+                    return Err(ConsensusError::UnexpectedTransactionForCommit {
+                        peer: target_authority,
+                        received: GenericTransactionRef::TransactionRef(transaction_ref),
+                    });
                 }
-                Some(result) = transaction_requests.next() => {
-                    fetched_transactions.extend(result?);
-                }
-                else => break,
+                fetched_transactions.insert(
+                    GenericTransactionRef::TransactionRef(transaction_ref),
+                    serialized_transaction,
+                );
+                committed_tx_refs.remove(&transaction_ref);
+            } else {
+                debug!("Failed to deserialize block ref: {:?}", serialized_transaction_ref);
+                continue;
             }
         }
 
-        // 13. Verify transactions
+        // Check if any committed transactions were not fetched (committed_tx_refs should be empty now)
+        if !committed_tx_refs.is_empty() {
+            return Err(ConsensusError::FetchedTransactionsMismatch {
+                peer: target_authority,
+                expected: committed_tx_refs.len() + fetched_transactions.len(),
+                received: fetched_transactions.len(),
+            });
+        }
+
+        // 5. Verify transactions
         let mut transactions_map = if !fetched_transactions.is_empty() {
-            if !inner.context.protocol_config.consensus_transaction_ref() {
-                Handle::current()
-                    .spawn_blocking({
-                        let context = inner.context.clone();
-                        let fetched_block_headers_clone = fetched_block_headers.clone();
-                        move || {
-                            verify_transactions_with_headers(
-                                context,
-                                target_authority,
-                                fetched_transactions,
-                                fetched_block_headers_clone,
-                            )
-                        }
-                    })
-                    .await
-                    .expect("Spawn blocking should not fail")?
-            } else {
                 Handle::current()
                     .spawn_blocking({
                         let context = inner.context.clone();
@@ -902,42 +691,34 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
                     })
                     .await
                     .expect("Spawn blocking should not fail")?
-            }
+
         } else {
             BTreeMap::new()
         };
 
-        // 14. Now create the Certified commits by assigning the block headers and
-        //     transactions to each commit and retaining the commit votes history.
-        let mut certified_commits = Vec::new();
+        // 14. Now create the CommittedSubDags with the fetched transactions.
+        // Note: In fast commit sync, we don't fetch block headers separately,
+        // so we pass an empty vector for headers.
+        let mut committed_subdags = Vec::new();
         for commit in &commits {
-            let block_headers = commit
-                .blocks()
-                .iter()
-                .map(|block_ref| {
-                    fetched_block_headers
-                        .remove(block_ref)
-                        // safe to call .expect here as we make sure beforehand that all headers
-                        // from the commit are fetched
-                        .expect("Block should exist")
-                })
-                .collect::<Vec<_>>();
-
             // Collect transactions for this commit
-            let commit_transactions = commit
+            let commit_transactions: Vec<VerifiedTransactions> = commit
                 .committed_transactions()
                 .iter()
                 .filter_map(|tx_ref| transactions_map.remove(tx_ref))
-                .collect::<Vec<_>>();
+                .collect();
 
-            certified_commits.push(CertifiedCommit::new_certified(
-                commit.clone(),
-                block_headers,
+            committed_subdags.push(CommittedSubDag::new(
+                commit.leader(),
+                vec![], // block_headers - empty for fast commit sync
                 commit_transactions,
+                commit.timestamp_ms(),
+                commit.reference(),
+                vec![], // reputation_scores_desc - empty for now
             ));
         }
 
-        Ok(CertifiedCommits::new(certified_commits))
+        Ok(committed_subdags)
     }
 
     fn unhandled_commits_threshold(&self) -> CommitIndex {

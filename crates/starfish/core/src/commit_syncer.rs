@@ -651,6 +651,7 @@ impl<C: NetworkClient> CommitSyncer<C> {
             .metrics
             .node_metrics
             .commit_sync_fetch_once_latency
+            .with_label_values(&["commit_sync"])
             .start_timer();
         let transaction_ref_enabled = inner.context.protocol_config.consensus_transaction_ref();
 
@@ -1299,6 +1300,15 @@ mod tests {
             _commit_range: CommitRange,
             _timeout: Duration,
         ) -> ConsensusResult<(Vec<Bytes>, Vec<Bytes>)> {
+            unimplemented!("Unimplemented")
+        }
+
+        async fn fetch_commits_and_transactions(
+            &self,
+            _peer: AuthorityIndex,
+            _commit_range: CommitRange,
+            _timeout: Duration,
+        ) -> ConsensusResult<(Vec<Bytes>, Vec<Bytes>, Vec<Bytes>, Vec<Bytes>)> {
             unimplemented!("Unimplemented")
         }
 

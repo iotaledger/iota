@@ -382,6 +382,15 @@ impl NetworkClient for TonicClient {
         }
         Ok(vec_serialized_transactions)
     }
+
+    async fn fetch_commits_and_transactions(
+        &self,
+        _peer: AuthorityIndex,
+        _commit_range: CommitRange,
+        _timeout: Duration,
+    ) -> ConsensusResult<(Vec<Bytes>, Vec<Bytes>, Vec<Bytes>, Vec<Bytes>)> {
+        unimplemented!("fetch_commits_and_transactions is not yet implemented")
+    }
 }
 
 // Tonic channel wrapped with layers.

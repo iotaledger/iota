@@ -16,6 +16,7 @@ use starfish_config::{AuthorityIndex, DIGEST_LENGTH};
 use crate::block_header::{BlockHeaderDigest, BlockRef, Round, TransactionsCommitment};
 #[cfg(test)]
 use crate::context::Context;
+use crate::error::{ConsensusError, ConsensusResult};
 
 #[derive(Clone, Copy, Serialize, Deserialize, Default, PartialEq, Eq, PartialOrd, Ord)]
 pub struct TransactionRef {
@@ -116,6 +117,37 @@ impl GenericTransactionRef {
         match self {
             GenericTransactionRef::BlockRef(block_ref) => block_ref,
             GenericTransactionRef::TransactionRef(tx_ref) => BlockRef::from(tx_ref),
+        }
+    }
+
+
+    /// Extract TransactionRef, returning error if this is a BlockRef variant.
+    /// This should only be called when consensus_transaction_ref flag is true.
+    pub(crate) fn expect_transaction_ref(self) -> ConsensusResult<TransactionRef> {
+        match self {
+            GenericTransactionRef::TransactionRef(tr) => Ok(tr),
+            GenericTransactionRef::BlockRef(_) => {
+                Err(ConsensusError::TransactionRefVariantMismatch {
+                    protocol_flag_enabled: true,
+                    expected_variant: "TransactionRef",
+                    received_variant: self.variant_name(),
+                })
+            }
+        }
+    }
+
+    /// Extract BlockRef, returning error if this is a TransactionRef variant.
+    /// This should only be called when consensus_transaction_ref flag is false.
+    pub(crate) fn expect_block_ref(self) -> ConsensusResult<BlockRef> {
+        match self {
+            GenericTransactionRef::BlockRef(br) => Ok(br),
+            GenericTransactionRef::TransactionRef(_) => {
+                Err(ConsensusError::TransactionRefVariantMismatch {
+                    protocol_flag_enabled: false,
+                    expected_variant: "BlockRef",
+                    received_variant: self.variant_name(),
+                })
+            }
         }
     }
 }
