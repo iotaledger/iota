@@ -18,13 +18,13 @@ enclosed in quotation marks, you should use an editor that supports UTF-8, not t
 		<summary>IOTA CLI to interact with the IOTA network</summary>
 		<description>Bringing the real world to Web3 with a scalable, decentralized and programmable DLT infrastructure</description>
 		<releaseNotes>https://github.com/iotaledger/iota/releases/tag/mainnet-v$version$</releaseNotes>
+		<dependencies>
+    		<dependency id="postgresql" version="14.0.1" />
+		</dependencies>
 	</metadata>
-	<dependencies>
-    	<dependency id="postgresql" version="14.0.1" />
-	</dependencies>
 	<files>
 		<file src="../tmp/release/iota.exe" target="bin/iota.exe" />
-		<file src="../LICENSE" target="bin/LICENSE.txt" />
+		<file src="../LICENSE" target="tools/LICENSE" />
 		<file src="./VERIFICATION.txt" target="bin/VERIFICATION.txt" />
 	</files>
 </package>
