@@ -1476,7 +1476,7 @@ impl ProtocolConfig {
     pub fn adjust_rewards_by_score(&self) -> bool {
         let adjust = self.feature_flags.adjust_rewards_by_score;
         assert!(
-            !adjust || self.scorer_version.is_some(),
+            !adjust || (self.scorer_version.is_some() && self.calculate_validator_scores()),
             "adjust_rewards_by_score requires scorer_version to be set"
         );
         adjust

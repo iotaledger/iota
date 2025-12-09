@@ -629,6 +629,11 @@ impl EndOfEpochTransactionKind {
                         "calculation of validator scoring not supported".to_string(),
                     ));
                 }
+                if config.adjust_rewards_by_score() {
+                    return Err(UserInputError::Unsupported(
+                        "adjusting rewards by score not supported".to_string(),
+                    ));
+                }
             }
             Self::ChangeEpochV2(_) => {
                 if !config.protocol_defined_base_fee() {
@@ -646,6 +651,11 @@ impl EndOfEpochTransactionKind {
                         "calculation of validator scoring not supported".to_string(),
                     ));
                 }
+                if config.adjust_rewards_by_score() {
+                    return Err(UserInputError::Unsupported(
+                        "adjusting rewards by score not supported".to_string(),
+                    ));
+                }
             }
             Self::ChangeEpochV3(_) => {
                 if !config.protocol_defined_base_fee() {
@@ -661,6 +671,11 @@ impl EndOfEpochTransactionKind {
                 if config.calculate_validator_scores() {
                     return Err(UserInputError::Unsupported(
                         "calculation of validator scoring not supported".to_string(),
+                    ));
+                }
+                if config.adjust_rewards_by_score() {
+                    return Err(UserInputError::Unsupported(
+                        "adjusting rewards by score not supported".to_string(),
                     ));
                 }
             }
