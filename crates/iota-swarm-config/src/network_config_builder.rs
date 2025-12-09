@@ -17,6 +17,7 @@ use iota_config::{
 };
 use iota_genesis_builder::genesis_build_effects::GenesisBuildEffects;
 use iota_macros::nondeterministic;
+use iota_protocol_config::Chain;
 use iota_types::{
     base_types::{AuthorityName, IotaAddress},
     committee::{Committee, ProtocolVersion},
@@ -79,6 +80,7 @@ pub struct ConfigBuilder<R = OsRng> {
     rng: Option<R>,
     config_directory: PathBuf,
     supported_protocol_versions_config: Option<ProtocolVersionsConfig>,
+    chain_override: Option<Chain>,
     committee: CommitteeConfig,
     genesis_config: Option<GenesisConfig>,
     reference_gas_price: Option<u64>,
@@ -103,6 +105,7 @@ impl ConfigBuilder {
             rng: Some(OsRng),
             config_directory: config_directory.as_ref().into(),
             supported_protocol_versions_config: None,
+            chain_override: None,
             // FIXME: A network with only 1 validator does not have liveness.
             // We need to change this. There are some tests that depend on it though.
             committee: CommitteeConfig::Size(NonZeroUsize::new(1).unwrap()),
@@ -166,6 +169,12 @@ impl<R> ConfigBuilder<R> {
     pub fn with_genesis_config(mut self, genesis_config: GenesisConfig) -> Self {
         assert!(self.genesis_config.is_none(), "Genesis config already set");
         self.genesis_config = Some(genesis_config);
+        self
+    }
+
+    pub fn with_chain_override(mut self, chain: Chain) -> Self {
+        assert!(self.chain_override.is_none(), "Chain override already set");
+        self.chain_override = Some(chain);
         self
     }
 
@@ -296,6 +305,7 @@ impl<R> ConfigBuilder<R> {
             supported_protocol_versions_config: self.supported_protocol_versions_config,
             committee: self.committee,
             genesis_config: self.genesis_config,
+            chain_override: self.chain_override,
             reference_gas_price: self.reference_gas_price,
             additional_objects: self.additional_objects,
             num_unpruned_validators: self.num_unpruned_validators,
@@ -485,6 +495,10 @@ impl<R: rand::RngCore + rand::CryptoRng> ConfigBuilder<R> {
                     .with_config_directory(self.config_directory.clone())
                     .with_policy_config(self.policy_config.clone())
                     .with_firewall_config(self.firewall_config.clone());
+
+                if let Some(chain) = self.chain_override {
+                    builder = builder.with_chain_override(chain);
+                }
 
                 if let Some(max_submit_position) = self.max_submit_position {
                     builder = builder.with_max_submit_position(max_submit_position);

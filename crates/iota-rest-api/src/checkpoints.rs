@@ -3,8 +3,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use axum::extract::{Path, Query, State};
-use iota_sdk2::types::{
-    CheckpointContents, CheckpointDigest, CheckpointSequenceNumber, CheckpointSummary,
+use iota_sdk_types::{
+    CheckpointContents, CheckpointSequenceNumber, CheckpointSummary, Digest,
     SignedCheckpointSummary, ValidatorAggregatedSignature,
 };
 use iota_types::storage::ReadStore;
@@ -137,10 +137,10 @@ pub enum CheckpointId {
     SequenceNumber(#[schemars(with = "crate::_schemars::U64")] CheckpointSequenceNumber),
     #[schemars(title = "Digest", example = "example_digest")]
     /// Base58 encoded 32-byte digest of a Checkpoint
-    Digest(CheckpointDigest),
+    Digest(Digest),
 }
 
-fn example_digest() -> CheckpointDigest {
+fn example_digest() -> Digest {
     "4btiuiMPvEENsttpZC7CZ53DruC3MAgfznDbASZ7DR6S"
         .parse()
         .unwrap()
@@ -155,7 +155,7 @@ impl<'de> serde::Deserialize<'de> for CheckpointId {
 
         if let Ok(s) = raw.parse::<CheckpointSequenceNumber>() {
             Ok(Self::SequenceNumber(s))
-        } else if let Ok(d) = raw.parse::<CheckpointDigest>() {
+        } else if let Ok(d) = raw.parse::<Digest>() {
             Ok(Self::Digest(d))
         } else {
             Err(serde::de::Error::custom(format!(

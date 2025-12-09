@@ -466,7 +466,7 @@ impl DagState {
         self.recent_block_headers
             .insert(block_ref, block_header.clone());
         self.recent_headers_refs_by_authority[block_ref.author].insert(block_ref);
-        self.threshold_clock.add_block(block_ref);
+        self.threshold_clock.add_block_header(block_ref);
         self.highest_accepted_round = max(self.highest_accepted_round, block_header.round());
         self.context
             .metrics
@@ -1927,7 +1927,7 @@ mod test {
             .collect();
 
         // Round 11 block headers.
-        let round_11_headers = vec![
+        let round_11_headers = [
             // This will connect to round 12.
             VerifiedBlockHeader::new_for_test(
                 TestBlockHeader::new(11, 0)
@@ -1979,7 +1979,7 @@ mod test {
             round_11_headers[1].reference(),
             round_11_headers[5].reference(),
         ];
-        let round_12_headers = vec![
+        let round_12_headers = [
             VerifiedBlockHeader::new_for_test(
                 TestBlockHeader::new(12, 0)
                     .set_timestamp_ms(1200)
@@ -2007,7 +2007,7 @@ mod test {
             round_12_headers[2].reference(),
             round_11_headers[2].reference(),
         ];
-        let round_13_headers = vec![
+        let round_13_headers = [
             VerifiedBlockHeader::new_for_test(
                 TestBlockHeader::new(12, 1)
                     .set_timestamp_ms(1300)

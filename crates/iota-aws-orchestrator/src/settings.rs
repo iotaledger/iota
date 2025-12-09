@@ -7,6 +7,7 @@ use std::{
     env,
     fmt::Display,
     fs::{self},
+    hash::Hash,
     path::{Path, PathBuf},
 };
 
@@ -14,6 +15,79 @@ use reqwest::Url;
 use serde::{Deserialize, Deserializer, de::Error};
 
 use crate::error::{SettingsError, SettingsResult};
+
+/// Helper function to filter out empty strings and join them with a separator.
+pub(crate) fn join_non_empty_strings<S: AsRef<str>>(items: &[S], separator: &str) -> String {
+    items
+        .iter()
+        .map(|s| s.as_ref())
+        .filter(|f| !f.is_empty())
+        .collect::<Vec<_>>()
+        .join(separator)
+}
+
+pub fn build_cargo_command<S1: AsRef<str>, S2: AsRef<str>, S3: AsRef<str>>(
+    subcommand: &str,
+    toolchain: Option<String>,
+    features: Vec<String>,
+    binaries: &[S1],
+    setup_commands: &[S2],
+    additional_args: &[S3],
+) -> String {
+    let toolchain_arg = toolchain
+        .as_ref()
+        .filter(|t| t.as_str() != "stable")
+        .map(|t| format!("+{t}"))
+        .unwrap_or_default();
+
+    let target_dir_arg = toolchain
+        .filter(|t| t != "stable")
+        .map(|t| format!("--target-dir target_{t}"))
+        .unwrap_or_default();
+
+    let features_arg = if features.is_empty() {
+        "".to_string()
+    } else {
+        format!("--features \"{}\"", features.join(" "))
+    };
+
+    let binaries_args: Vec<String> = binaries
+        .iter()
+        .map(|name| format!("--bin {}", name.as_ref()))
+        .collect();
+    let binaries_args = join_non_empty_strings(&binaries_args, " ");
+
+    let additional_args_str = join_non_empty_strings(additional_args, " ");
+
+    let mut cargo_args = vec![
+        "cargo",
+        &toolchain_arg,
+        subcommand,
+        &target_dir_arg,
+        "--release",
+        &binaries_args,
+        &features_arg,
+    ];
+
+    if !additional_args_str.is_empty() {
+        cargo_args.extend(&["--", &additional_args_str]);
+    }
+
+    let cargo_command = join_non_empty_strings(&cargo_args, " ");
+
+    let default_setup = [
+        "source \"$HOME/.cargo/env\"",
+        "export RUSTFLAGS='-C target-cpu=native'",
+    ];
+
+    let all_commands: Vec<String> = default_setup
+        .iter()
+        .map(|s| s.to_string())
+        .chain(setup_commands.iter().map(|s| s.as_ref().to_string()))
+        .chain(std::iter::once(cargo_command))
+        .collect();
+    join_non_empty_strings(&all_commands, " && ")
+}
 
 /// The git repository holding the codebase.
 #[derive(Deserialize, Clone)]
@@ -70,6 +144,16 @@ pub struct BuildCache {
     pub servers: HashMap<String, BuildCacheServer>,
 }
 
+#[derive(Deserialize, Clone)]
+pub struct BinaryBuildConfig {
+    /// Select rust toolchain to build and run the binary.
+    #[serde(default)]
+    pub toolchain: Option<String>,
+    /// Additional features to enable when building the binary.
+    #[serde(default)]
+    pub features: Vec<String>,
+}
+
 /// The testbed settings. Those are topically specified in a file.
 #[derive(Deserialize, Clone)]
 pub struct Settings {
@@ -120,6 +204,9 @@ pub struct Settings {
     /// the instances.
     #[serde(default = "default_logs_dir")]
     pub logs_dir: PathBuf,
+    /// Binary build configuration.
+    #[serde(default)]
+    pub build_configs: HashMap<String, BinaryBuildConfig>,
 }
 
 fn default_working_dir() -> PathBuf {
@@ -205,6 +292,28 @@ impl Settings {
             .unwrap_or(false)
     }
 
+    /// Get build groups for the default binaries (iota, iota-node, stress).
+    /// Groups binaries by toolchain and features to minimize build steps.
+    pub fn build_groups(&self) -> BuildGroups {
+        let mut groups: BuildGroups = HashMap::new();
+
+        for name in ["iota", "iota-node", "stress"] {
+            let config = self.build_configs.get(name);
+
+            let mut features = config.map(|c| c.features.clone()).unwrap_or_default();
+            features.sort(); // Sort for consistent grouping
+
+            let group = BuildGroup {
+                toolchain: config.and_then(|c| c.toolchain.clone()),
+                features,
+            };
+
+            groups.entry(group).or_default().push(name.to_string());
+        }
+
+        groups
+    }
+
     /// Get the build cache server configuration for a specific CPU target.
     pub fn build_cache_server_for_target(&self, cpu_target: &str) -> Option<&BuildCacheServer> {
         self.build_cache.as_ref().and_then(|build_cache| {
@@ -270,9 +379,21 @@ impl Settings {
             use_fullnode_for_execution: false,
             results_dir: "results".into(),
             logs_dir: "logs".into(),
+            build_configs: HashMap::new(),
         }
     }
 }
+
+/// Represents a group of binaries that can be built together with the same
+/// toolchain and features.
+#[derive(Hash, Eq, PartialEq, Clone)]
+pub struct BuildGroup {
+    pub toolchain: Option<String>,
+    pub features: Vec<String>,
+}
+
+/// Maps build groups to the list of binary names in each group.
+pub type BuildGroups = HashMap<BuildGroup, Vec<String>>;
 
 // Resolves ${ENV} into it's value for each env variable.
 fn resolve_env(s: &str) -> String {

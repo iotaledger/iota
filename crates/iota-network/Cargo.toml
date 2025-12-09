@@ -19,7 +19,6 @@ fastcrypto.workspace = true
 fastcrypto-tbls.workspace = true
 futures.workspace = true
 governor.workspace = true
-iota-sdk-types.workspace = true
 prometheus.workspace = true
 rand.workspace = true
 serde.workspace = true
@@ -35,6 +34,7 @@ iota-config.workspace = true
 iota-macros.workspace = true
 iota-metrics.workspace = true
 iota-network-stack.workspace = true
+iota-sdk-types.workspace = true
 iota-storage.workspace = true
 iota-types.workspace = true
 

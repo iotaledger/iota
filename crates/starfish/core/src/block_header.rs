@@ -1317,7 +1317,7 @@ mod tests {
                 acknowledgments.clone(),
             );
 
-        let expected = vec![ref_a, ref_b, ref_c, ref_d, ref_e, ref_a];
+        let expected = [ref_a, ref_b, ref_c, ref_d, ref_e, ref_a];
         assert_eq!(references.len(), expected.len());
         for r in references.iter() {
             assert!(expected.contains(r));
