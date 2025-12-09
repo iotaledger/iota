@@ -431,6 +431,9 @@ struct FeatureFlags {
     // If false, a default score (MAX_SCORE) is passed
     #[serde(skip_serializing_if = "is_false")]
     pass_calculated_validator_scores_to_advance_epoch: bool,
+    // If true, then TransactionRef is used in commit instead of BlockRef
+    #[serde(skip_serializing_if = "is_false")]
+    consensus_transaction_ref: bool,
 }
 
 fn is_true(b: &bool) -> bool {
@@ -1576,6 +1579,14 @@ impl ProtocolConfig {
             "pass_calculated_validator_scores_to_advance_epoch requires pass_validator_scores_to_advance_epoch and calculate_validator_scores to be enabled"
         );
         pass
+    }
+    pub fn consensus_transaction_ref(&self) -> bool {
+        let res = self.feature_flags.consensus_transaction_ref;
+        assert!(
+            !res || self.consensus_commit_transactions_only_for_traversed_headers(),
+            "The consensus transaction ref requires consensus_commit_transactions_only_for_traversed_headers to be enabled"
+        );
+        res
     }
 }
 
@@ -2725,6 +2736,9 @@ impl ProtocolConfig {
 
     pub fn set_enable_move_authentication_for_testing(&mut self, val: bool) {
         self.feature_flags.enable_move_authentication = val;
+    }
+    pub fn set_consensus_transaction_ref_for_testing(&mut self, val: bool) {
+        self.feature_flags.consensus_transaction_ref = val;
     }
 }
 
