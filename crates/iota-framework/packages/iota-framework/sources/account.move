@@ -105,10 +105,7 @@ public fun rotate_auth_info_v1<Account: key>(
 
     let name = auth_info_v1_key();
 
-    let previous_authenticator_info = dynamic_field::remove<_, AuthenticatorInfoV1<Account>>(
-        account_id,
-        name,
-    );
+    let previous_authenticator_info = dynamic_field::remove(account_id, name);
     dynamic_field::add(account_id, name, authenticator);
     previous_authenticator_info
 }
