@@ -1,0 +1,18 @@
+// Copyright (c) 2025 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
+//# publish
+module 0x0::receiving;
+
+use iota::auth_context::AuthContext;
+use iota::transfer::Receiving;
+
+// Receiving
+
+public struct Object has key, store {
+    id: iota::object::UID,
+}
+
+// FAIL
+#[authenticator]
+public fun immutable_ref(_to_receive: &Receiving<Object>, _actx: &AuthContext, _ctx: &TxContext) {}
