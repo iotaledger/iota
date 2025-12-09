@@ -12,7 +12,6 @@ workspace = true
 [dependencies]
 # external dependencies
 bcs.workspace = true
-iota-sdk2.workspace = true
 prost.workspace = true
 prost-types.workspace = true
 serde.workspace = true
@@ -22,4 +21,5 @@ tonic-prost.workspace = true
 
 # internal dependencies
 iota-json-rpc-types.workspace = true
+iota-sdk-types.workspace = true
 iota-types.workspace = true

@@ -13,8 +13,8 @@ use crate::{
 };
 
 // TODO: Wrap Object into a type with a version
-impl Merge<&iota_sdk2::types::object::Object> for Object {
-    fn merge(&mut self, source: &iota_sdk2::types::object::Object, mask: &FieldMaskTree) {
+impl Merge<&iota_sdk_types::object::Object> for Object {
+    fn merge(&mut self, source: &iota_sdk_types::object::Object, mask: &FieldMaskTree) {
         if mask.contains("bcs") {
             if let Ok(bcs_bytes) = bcs::to_bytes(source) {
                 self.bcs = Some(BcsData {
