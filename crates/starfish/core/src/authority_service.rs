@@ -45,7 +45,7 @@ use crate::{
     shard_reconstructor::TransactionMessage,
     stake_aggregator::{QuorumThreshold, StakeAggregator},
     storage::Store,
-    transaction_ref::{GenericTransactionRef, GenericTransactionRefAPI as _},
+    transaction_ref::{GenericTransactionRef, GenericTransactionRefAPI as _, TransactionRef},
     transactions_synchronizer::TransactionsSynchronizerHandle,
 };
 
@@ -923,6 +923,53 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             .flatten()
             .collect();
         Ok((commits, certifier_block_headers))
+    }
+
+    async fn handle_fetch_commits_and_transactions(
+        &self,
+        peer: AuthorityIndex,
+        commit_range: CommitRange,
+    ) -> ConsensusResult<(
+        Vec<TrustedCommit>,
+        Vec<VerifiedBlockHeader>,
+        Vec<TransactionRef>,
+        Vec<VerifiedTransactions>,
+    )> {
+        fail_point_async!("consensus-rpc-response");
+
+        // First fetch commits and certifier headers using existing logic
+        let (commits, certifier_block_headers) =
+            self.handle_fetch_commits(peer, commit_range).await?;
+
+        // Collect all transaction refs from the commits
+        let mut transaction_refs = Vec::new();
+        for commit in &commits {
+            for gen_tx_ref in commit.committed_transactions() {
+                if let GenericTransactionRef::TransactionRef(tx_ref) = gen_tx_ref {
+                    transaction_refs.push(tx_ref);
+                }
+            }
+        }
+
+        // Fetch all transactions for the collected refs
+        let generic_refs: Vec<GenericTransactionRef> = transaction_refs
+            .iter()
+            .map(|tx_ref| GenericTransactionRef::TransactionRef(*tx_ref))
+            .collect();
+
+        let dag_state = self.dag_state.read();
+        let transactions = dag_state
+            .get_verified_transactions(&generic_refs)
+            .into_iter()
+            .flatten()
+            .collect();
+
+        Ok((
+            commits,
+            certifier_block_headers,
+            transaction_refs,
+            transactions,
+        ))
     }
 
     async fn handle_fetch_latest_block_headers(

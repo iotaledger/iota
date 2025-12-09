@@ -98,6 +98,19 @@ impl NetworkService for Mutex<TestService> {
         Ok((vec![], vec![]))
     }
 
+    async fn handle_fetch_commits_and_transactions(
+        &self,
+        _peer: AuthorityIndex,
+        _commit_range: CommitRange,
+    ) -> ConsensusResult<(
+        Vec<TrustedCommit>,
+        Vec<VerifiedBlockHeader>,
+        Vec<crate::transaction_ref::TransactionRef>,
+        Vec<crate::block_header::VerifiedTransactions>,
+    )> {
+        unimplemented!("Unimplemented")
+    }
+
     async fn handle_fetch_latest_block_headers(
         &self,
         _peer: AuthorityIndex,

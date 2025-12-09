@@ -385,11 +385,99 @@ impl NetworkClient for TonicClient {
 
     async fn fetch_commits_and_transactions(
         &self,
-        _peer: AuthorityIndex,
-        _commit_range: CommitRange,
-        _timeout: Duration,
+        peer: AuthorityIndex,
+        commit_range: CommitRange,
+        timeout: Duration,
     ) -> ConsensusResult<(Vec<Bytes>, Vec<Bytes>, Vec<Bytes>, Vec<Bytes>)> {
-        unimplemented!("fetch_commits_and_transactions is not yet implemented")
+        let mut client = self.get_client(peer, timeout).await?;
+        let mut request = Request::new(FetchCommitsAndTransactionsRequest {
+            start: commit_range.start(),
+            end: commit_range.end(),
+        });
+        request.set_timeout(timeout);
+        let mut stream = client
+            .fetch_commits_and_transactions(request)
+            .await
+            .map_err(|e| {
+                if e.code() == tonic::Code::DeadlineExceeded {
+                    ConsensusError::NetworkRequestTimeout(format!(
+                        "fetch_commits_and_transactions failed: {e:?}"
+                    ))
+                } else {
+                    ConsensusError::NetworkRequest(format!(
+                        "fetch_commits_and_transactions failed: {e:?}"
+                    ))
+                }
+            })?
+            .into_inner();
+
+        // First chunk contains commits and certifier headers
+        let mut commits = Vec::new();
+        let mut certifier_block_headers = Vec::new();
+        let mut transaction_refs = Vec::new();
+        let mut transactions = Vec::new();
+        let mut total_fetched_bytes = 0;
+
+        loop {
+            match stream.message().await {
+                Ok(Some(response)) => {
+                    // Accumulate commits and headers (typically in first chunk)
+                    for c in &response.commits {
+                        total_fetched_bytes += c.len();
+                    }
+                    commits.extend(response.commits);
+
+                    for h in &response.certifier_block_headers {
+                        total_fetched_bytes += h.len();
+                    }
+                    certifier_block_headers.extend(response.certifier_block_headers);
+
+                    // Accumulate transactions (streamed in subsequent chunks)
+                    for tr in &response.transaction_refs {
+                        total_fetched_bytes += tr.len();
+                    }
+                    transaction_refs.extend(response.transaction_refs);
+
+                    for t in &response.transactions {
+                        total_fetched_bytes += t.len();
+                    }
+                    transactions.extend(response.transactions);
+
+                    if total_fetched_bytes > MAX_TOTAL_FETCHED_BYTES {
+                        info!(
+                            "fetch_commits_and_transactions() fetched bytes exceeded limit: {} > {}, terminating stream.",
+                            total_fetched_bytes, MAX_TOTAL_FETCHED_BYTES,
+                        );
+                        break;
+                    }
+                }
+                Ok(None) => {
+                    break;
+                }
+                Err(e) => {
+                    if commits.is_empty() {
+                        if e.code() == tonic::Code::DeadlineExceeded {
+                            return Err(ConsensusError::NetworkRequestTimeout(format!(
+                                "fetch_commits_and_transactions failed mid-stream: {e:?}"
+                            )));
+                        }
+                        return Err(ConsensusError::NetworkRequest(format!(
+                            "fetch_commits_and_transactions failed mid-stream: {e:?}"
+                        )));
+                    } else {
+                        warn!("fetch_commits_and_transactions failed mid-stream: {e:?}");
+                        break;
+                    }
+                }
+            }
+        }
+
+        Ok((
+            commits,
+            certifier_block_headers,
+            transaction_refs,
+            transactions,
+        ))
     }
 }
 
@@ -632,6 +720,83 @@ impl<S: NetworkService> ConsensusService for TonicServiceProxy<S> {
             commits,
             certifier_block_headers,
         }))
+    }
+
+    type FetchCommitsAndTransactionsStream =
+        Iter<std::vec::IntoIter<Result<FetchCommitsAndTransactionsResponse, tonic::Status>>>;
+
+    async fn fetch_commits_and_transactions(
+        &self,
+        request: Request<FetchCommitsAndTransactionsRequest>,
+    ) -> Result<Response<Self::FetchCommitsAndTransactionsStream>, tonic::Status> {
+        let Some(peer_index) = request
+            .extensions()
+            .get::<PeerInfo>()
+            .map(|p| p.authority_index)
+        else {
+            return Err(tonic::Status::internal("PeerInfo not found"));
+        };
+        let request = request.into_inner();
+        let (commits, certifier_block_headers, transaction_refs, transactions) = self
+            .service
+            .handle_fetch_commits_and_transactions(peer_index, (request.start..=request.end).into())
+            .await
+            .map_err(|e| tonic::Status::internal(format!("{e:?}")))?;
+
+        // Serialize commits and headers
+        let serialized_commits: Vec<Bytes> = commits
+            .into_iter()
+            .map(|c| c.serialized().clone())
+            .collect();
+        let serialized_certifier_headers: Vec<Bytes> = certifier_block_headers
+            .into_iter()
+            .map(|bh| bh.serialized().clone())
+            .collect();
+
+        // Serialize transaction refs and transactions
+        let serialized_tx_refs: Vec<Bytes> = transaction_refs
+            .into_iter()
+            .map(|tr| {
+                bcs::to_bytes(&tr)
+                    .map(Bytes::from)
+                    .unwrap_or_else(|_| Bytes::new())
+            })
+            .collect();
+        let serialized_transactions: Vec<Bytes> = transactions
+            .into_iter()
+            .map(|t| t.serialized().clone())
+            .collect();
+
+        // Build response chunks:
+        // 1. First chunk: commits and certifier headers
+        // 2. Subsequent chunks: transactions (chunked by size)
+        let mut responses = Vec::new();
+
+        // First chunk with commits and headers
+        responses.push(Ok(FetchCommitsAndTransactionsResponse {
+            commits: serialized_commits,
+            certifier_block_headers: serialized_certifier_headers,
+            transaction_refs: vec![],
+            transactions: vec![],
+        }));
+
+        // Stream transactions in chunks
+        let tx_chunks = chunk_transactions(
+            serialized_tx_refs,
+            serialized_transactions,
+            MAX_FETCH_RESPONSE_BYTES,
+        );
+        for (tx_refs_chunk, txs_chunk) in tx_chunks {
+            responses.push(Ok(FetchCommitsAndTransactionsResponse {
+                commits: vec![],
+                certifier_block_headers: vec![],
+                transaction_refs: tx_refs_chunk,
+                transactions: txs_chunk,
+            }));
+        }
+
+        let stream = iter(responses.into_iter());
+        Ok(Response::new(stream))
     }
 
     type FetchLatestBlockHeadersStream =
@@ -1235,6 +1400,30 @@ pub(crate) struct FetchCommitsResponse {
 }
 
 #[derive(Clone, prost::Message)]
+pub(crate) struct FetchCommitsAndTransactionsRequest {
+    #[prost(uint32, tag = "1")]
+    start: CommitIndex,
+    #[prost(uint32, tag = "2")]
+    end: CommitIndex,
+}
+
+#[derive(Clone, prost::Message)]
+pub(crate) struct FetchCommitsAndTransactionsResponse {
+    // Serialized consecutive Commit (sent in first chunk).
+    #[prost(bytes = "bytes", repeated, tag = "1")]
+    commits: Vec<Bytes>,
+    // Serialized SignedBlockHeader that certify the last commit (sent in first chunk).
+    #[prost(bytes = "bytes", repeated, tag = "2")]
+    certifier_block_headers: Vec<Bytes>,
+    // Serialized TransactionRef for each transaction (sent in transaction chunks).
+    #[prost(bytes = "bytes", repeated, tag = "3")]
+    transaction_refs: Vec<Bytes>,
+    // Serialized transactions corresponding to the transaction_refs (sent in transaction chunks).
+    #[prost(bytes = "bytes", repeated, tag = "4")]
+    transactions: Vec<Bytes>,
+}
+
+#[derive(Clone, prost::Message)]
 pub(crate) struct FetchLatestBlockHeadersRequest {
     #[prost(uint32, repeated, tag = "1")]
     authorities: Vec<u32>,
@@ -1290,6 +1479,44 @@ fn chunk_data(data: Vec<Bytes>, chunk_limit: usize) -> Vec<Vec<Bytes>> {
     }
     if !chunk.is_empty() {
         chunks.push(chunk);
+    }
+    chunks
+}
+
+// Splits paired transaction refs and transactions into chunks where each
+// chunk's total size does not exceed the specified `chunk_limit`.
+// Transaction refs and transactions are kept in sync (the same index in each
+// chunk).
+fn chunk_transactions(
+    tx_refs: Vec<Bytes>,
+    transactions: Vec<Bytes>,
+    chunk_limit: usize,
+) -> Vec<(Vec<Bytes>, Vec<Bytes>)> {
+    assert_eq!(
+        tx_refs.len(),
+        transactions.len(),
+        "tx_refs and transactions must have same length"
+    );
+
+    let mut chunks = vec![];
+    let mut chunk_refs = vec![];
+    let mut chunk_txs = vec![];
+    let mut chunk_size = 0;
+
+    for (tx_ref, tx) in tx_refs.into_iter().zip(transactions.into_iter()) {
+        let pair_size = tx_ref.len() + tx.len();
+        if !chunk_refs.is_empty() && chunk_size + pair_size > chunk_limit {
+            chunks.push((chunk_refs, chunk_txs));
+            chunk_refs = vec![];
+            chunk_txs = vec![];
+            chunk_size = 0;
+        }
+        chunk_refs.push(tx_ref);
+        chunk_txs.push(tx);
+        chunk_size += pair_size;
+    }
+    if !chunk_refs.is_empty() {
+        chunks.push((chunk_refs, chunk_txs));
     }
     chunks
 }

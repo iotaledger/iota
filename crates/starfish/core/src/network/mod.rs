@@ -32,7 +32,7 @@ use starfish_config::AuthorityIndex;
 
 use crate::{
     Round, VerifiedBlockHeader,
-    block_header::{BlockRef, VerifiedBlock},
+    block_header::{BlockRef, VerifiedBlock, VerifiedTransactions},
     commit::{CommitRange, TrustedCommit},
     error::{ConsensusError, ConsensusResult},
 };
@@ -174,6 +174,19 @@ pub(crate) trait NetworkService: Send + Sync + 'static {
         peer: AuthorityIndex,
         commit_range: CommitRange,
     ) -> ConsensusResult<(Vec<TrustedCommit>, Vec<VerifiedBlockHeader>)>;
+
+    /// Handles the request to fetch commits and transactions by index range
+    /// from the peer. Used in fast commit sync.
+    async fn handle_fetch_commits_and_transactions(
+        &self,
+        peer: AuthorityIndex,
+        commit_range: CommitRange,
+    ) -> ConsensusResult<(
+        Vec<TrustedCommit>,
+        Vec<VerifiedBlockHeader>,
+        Vec<TransactionRef>,
+        Vec<VerifiedTransactions>,
+    )>;
 
     /// Handles the request to fetch the latest block headers for the provided
     /// `authorities`.
