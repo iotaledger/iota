@@ -280,19 +280,19 @@ impl InflightTransactionsMap {
     /// has been called, it will panic.
     fn unlock_transactions(
         self: &Arc<Self>,
-        block_refs: &BTreeSet<GenericTransactionRef>,
+        tx_refs: &BTreeSet<GenericTransactionRef>,
         peer: AuthorityIndex,
     ) {
         // Now mark all the transactions as fetched from the map
         let mut transactions_to_fetch = self.inner.lock();
-        for gen_tx_ref in block_refs {
+        for tx_ref in tx_refs {
             let authorities = transactions_to_fetch
-                .get_mut(gen_tx_ref)
+                .get_mut(tx_ref)
                 .expect("We should expect a non empty map with at least one peer");
             assert!(authorities.remove(&peer), "Peer index should be present!");
             // If the last one then just clean up
             if authorities.is_empty() {
-                transactions_to_fetch.remove(gen_tx_ref);
+                transactions_to_fetch.remove(tx_ref);
             }
         }
     }
@@ -692,13 +692,13 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
         // Build a mapping from authority -> set of BlockRefs it has acknowledged
         let mut blocks_by_authority: BTreeMap<AuthorityIndex, BTreeSet<GenericTransactionRef>> =
             BTreeMap::new();
-        for (gen_tx_ref, authorities) in &missing_transactions {
+        for (tx_ref, authorities) in &missing_transactions {
             for authority in authorities {
                 if *authority != context.own_index {
                     blocks_by_authority
                         .entry(*authority)
                         .or_default()
-                        .insert(*gen_tx_ref);
+                        .insert(*tx_ref);
                 }
             }
         }
@@ -1058,8 +1058,8 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
                 .spawn_blocking({
                     // Validate that all refs are TransactionRef as expected when
                     // consensus_transaction_ref is true
-                    for gen_tx_ref in requested_transactions_guard.transactions_refs.iter() {
-                        if let GenericTransactionRef::BlockRef(_) = gen_tx_ref {
+                    for tx_ref in requested_transactions_guard.transactions_refs.iter() {
+                        if let GenericTransactionRef::BlockRef(_) = tx_ref {
                             return Err(ConsensusError::TransactionRefVariantMismatch {
                                 protocol_flag_enabled: true,
                                 expected_variant: "TransactionRef",
@@ -2208,20 +2208,20 @@ mod tests {
                         transaction_ref,
                         serialized_transactions: transaction.serialized().clone(),
                     };
-                    let gen_tx_ref = GenericTransactionRef::TransactionRef(transaction_ref);
+                    let tx_ref = GenericTransactionRef::TransactionRef(transaction_ref);
                     // Serialize the SerializedTransactions struct
                     let serialized = bcs::to_bytes(&serialized_transactions).unwrap();
-                    transactions_map.insert((peer, gen_tx_ref), serialized.into());
+                    transactions_map.insert((peer, tx_ref), serialized.into());
                 } else {
                     // Create a SerializedTransactionsV1 struct with BlockRef
                     let serialized_transactions = SerializedTransactionsV1 {
                         block_ref,
                         serialized_transactions: transaction.serialized().clone(),
                     };
-                    let gen_tx_ref = GenericTransactionRef::BlockRef(block_ref);
+                    let tx_ref = GenericTransactionRef::BlockRef(block_ref);
                     // Serialize the SerializedTransactions struct
                     let serialized = bcs::to_bytes(&serialized_transactions).unwrap();
-                    transactions_map.insert((peer, gen_tx_ref), serialized.into());
+                    transactions_map.insert((peer, tx_ref), serialized.into());
                 }
             }
         }

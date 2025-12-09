@@ -29,7 +29,7 @@ impl fmt::Display for TransactionRef {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
         write!(
             f,
-            "Tr{}({},{})",
+            "Tx{}({},{})",
             self.round, self.author, self.transactions_commitment
         )
     }

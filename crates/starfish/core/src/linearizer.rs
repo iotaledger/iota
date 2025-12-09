@@ -137,7 +137,7 @@ impl Linearizer {
         );
 
         // Convert BlockRef to GenericTransactionRef based on protocol flag
-        let generic_committed_transactions: Vec<GenericTransactionRef> =
+        let committed_transactions_refs: Vec<GenericTransactionRef> =
             if self.context.protocol_config.consensus_transaction_ref() {
                 // Use batch function to get transaction commitments efficiently
                 let dag_state_guard = self.dag_state.read();
@@ -177,7 +177,7 @@ impl Linearizer {
                 .iter()
                 .map(|block| block.reference())
                 .collect::<Vec<BlockRef>>(),
-            generic_committed_transactions,
+            committed_transactions_refs,
             reputation_scores_desc.clone(),
         );
         let serialized = commit
