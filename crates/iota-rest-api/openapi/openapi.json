@@ -2607,9 +2607,10 @@
             }
           },
           {
-            "description": "Create and initialize the authenticator object used for zklogin",
+            "description": "End the epoch and start the next one",
             "type": "object",
             "required": [
+              "adjust_rewards_by_score",
               "computation_charge",
               "computation_charge_burned",
               "eligible_active_validators",
@@ -2624,6 +2625,10 @@
               "system_packages"
             ],
             "properties": {
+              "adjust_rewards_by_score": {
+                "description": "Whether to adjust validator rewards based on score.",
+                "type": "boolean"
+              },
               "computation_charge": {
                 "description": "The total amount of gas charged for computation during the epoch.",
                 "type": "string",

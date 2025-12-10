@@ -135,7 +135,7 @@ impl<T: SubmitToConsensus + ReconfigurationInitiator> CheckpointOutput
             checkpoint_seq,
         );
         self.sender
-            .submit_to_consensus(&vec![transaction], epoch_store)?;
+            .submit_to_consensus(&[transaction], epoch_store)?;
 
         if checkpoint_timestamp >= self.next_reconfiguration_timestamp_ms {
             // close_epoch is ok if called multiple times

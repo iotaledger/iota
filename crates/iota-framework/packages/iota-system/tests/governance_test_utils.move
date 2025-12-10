@@ -209,6 +209,7 @@ public fun advance_epoch_with_reward_amounts_return_rebate_and_max_committee_mem
         max_committee_members_count,
         eligible_active_validators,
         scores,
+        true,
         ctx,
     );
     test_scenario::return_shared(system_state);
@@ -313,6 +314,7 @@ public fun advance_epoch_with_reward_amounts_and_slashing_rates(
         max_committee_members_count,
         eligible_active_validators,
         scores,
+        true,
         ctx,
     );
     test_utils::destroy(storage_rebate);
@@ -323,6 +325,7 @@ public fun advance_epoch_with_reward_amounts_and_slashing_rates(
 public fun advance_epoch_with_subsidy_and_scores(
     validator_subsidy: u64,
     scores: vector<u64>,
+    adjust_rewards_by_score: bool,
     scenario: &mut Scenario,
 ) {
     scenario.next_tx(@0x0);
@@ -353,6 +356,7 @@ public fun advance_epoch_with_subsidy_and_scores(
         max_committee_members_count,
         eligible_active_validators,
         scores,
+        adjust_rewards_by_score,
         ctx,
     );
     test_utils::destroy(storage_rebate);

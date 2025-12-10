@@ -97,7 +97,8 @@ pub const MAX_PROTOCOL_VERSION: u64 = 19;
 //             mechanism on devnet.
 //             Enable a separate gas price feedback mechanism for transactions
 //             using randomness on devnet.
-//             Enable score based rewards on devnet.
+//             Enable validator scoring on all networks and enable adjustment of
+//             validator rewards based on scores on Devnet.
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
 
@@ -387,9 +388,13 @@ struct FeatureFlags {
     #[serde(skip_serializing_if = "is_false")]
     separate_gas_price_feedback_mechanism_for_randomness: bool,
 
-    // If true, validators will use the committee's score to calculate rewards.
+    // If true, enables calculation of validator scores.
     #[serde(skip_serializing_if = "is_false")]
-    score_based_rewards: bool,
+    calculate_validator_scores: bool,
+
+    // If true, validators will use the committee's score to adjust rewards.
+    #[serde(skip_serializing_if = "is_false")]
+    adjust_rewards_by_score: bool,
 }
 
 fn is_true(b: &bool) -> bool {
@@ -1487,13 +1492,22 @@ impl ProtocolConfig {
             .separate_gas_price_feedback_mechanism_for_randomness
     }
 
-    pub fn score_based_rewards(&self) -> bool {
-        let score_based_rewards = self.feature_flags.score_based_rewards;
+    pub fn calculate_validator_scores(&self) -> bool {
+        let calculate_validator_scores = self.feature_flags.calculate_validator_scores;
         assert!(
-            !score_based_rewards || self.scorer_version.is_some(),
-            "score_based_rewards requires scorer_version to be set"
+            !calculate_validator_scores || self.scorer_version.is_some(),
+            "calculate_validator_scores requires scorer_version to be set"
         );
-        score_based_rewards
+        calculate_validator_scores
+    }
+
+    pub fn adjust_rewards_by_score(&self) -> bool {
+        let adjust = self.feature_flags.adjust_rewards_by_score;
+        assert!(
+            !adjust || (self.scorer_version.is_some() && self.calculate_validator_scores()),
+            "adjust_rewards_by_score requires scorer_version to be set"
+        );
+        adjust
     }
 }
 
@@ -2378,6 +2392,10 @@ impl ProtocolConfig {
                     }
                 }
                 19 => {
+                    // Enable validator score calculation on all networks.
+                    cfg.feature_flags.calculate_validator_scores = true;
+                    cfg.scorer_version = Some(1);
+
                     if chain != Chain::Testnet && chain != Chain::Mainnet {
                         // Enable congestion limit overshoot in the gas price feedback
                         // mechanism on devnet.
@@ -2387,9 +2405,8 @@ impl ProtocolConfig {
                         // randomness on devnet.
                         cfg.feature_flags
                             .separate_gas_price_feedback_mechanism_for_randomness = true;
-                        // Enables score based rewards on Devnet
-                        cfg.feature_flags.score_based_rewards = true;
-                        cfg.scorer_version = Some(1);
+                        // Enable adjustment of validator rewards based on score in devnet.
+                        cfg.feature_flags.adjust_rewards_by_score = true;
                     }
                 }
 

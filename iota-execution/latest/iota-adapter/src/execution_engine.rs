@@ -969,6 +969,7 @@ mod checked {
             CallArg::Pure(bcs::to_bytes(&params.max_committee_members_count).unwrap()), /* max_committee_members_count: u64 */
             CallArg::Pure(bcs::to_bytes(&params.eligible_active_validators).unwrap()), /* eligible_active_validators: Vec<u64> */
             CallArg::Pure(bcs::to_bytes(&params.scores).unwrap()), // scores: Vec<u64>
+            CallArg::Pure(bcs::to_bytes(&params.adjust_rewards_by_score).unwrap()), /* adjust_rewards_by_score: bool */
         ];
         construct_advance_epoch_pt_impl(builder, params, call_arg_vec)
     }
@@ -1071,6 +1072,7 @@ mod checked {
             max_committee_members_count: 0,
             eligible_active_validators: vec![],
             scores: vec![],
+            adjust_rewards_by_score: false,
         };
         let advance_epoch_pt = construct_advance_epoch_pt_v1(builder, &params)?;
         advance_epoch_impl(
@@ -1117,6 +1119,7 @@ mod checked {
             // separate AdvanceEpochParams struct.
             eligible_active_validators: vec![],
             scores: vec![],
+            adjust_rewards_by_score: false,
         };
         let advance_epoch_pt = construct_advance_epoch_pt_v2(builder, &params)?;
         advance_epoch_impl(
@@ -1163,6 +1166,7 @@ mod checked {
             // AdvanceEpochV3 does not use these fields, but keeping them to avoid creating a
             // separate AdvanceEpochParams struct.
             scores: vec![],
+            adjust_rewards_by_score: false,
         };
         let advance_epoch_pt = construct_advance_epoch_pt_v3(builder, &params)?;
         advance_epoch_impl(
@@ -1207,6 +1211,7 @@ mod checked {
             max_committee_members_count: protocol_config.max_committee_members_count(),
             eligible_active_validators: change_epoch_v4.eligible_active_validators,
             scores: change_epoch_v4.scores,
+            adjust_rewards_by_score: change_epoch_v4.adjust_rewards_by_score,
         };
         let advance_epoch_pt = construct_advance_epoch_pt_v4(builder, &params)?;
         advance_epoch_impl(
