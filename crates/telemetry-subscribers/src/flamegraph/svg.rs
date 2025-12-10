@@ -293,7 +293,7 @@ impl CallGraph<FlameMetric> {
         self.raw_svg(&mut raw);
         raw.render(caption, config)
     }
-    fn render_svg(&self, caption: &str, config: &Config) -> Svg where {
+    fn render_svg(&self, caption: &str, config: &Config) -> Svg {
         #[cfg(feature = "flamegraph-alloc")]
         {
             if config.measure_mem {
