@@ -288,7 +288,8 @@ impl ConsensusTransactionKind {
 pub enum VersionedMisbehaviorReport {
     V1(
         MisbehaviorsV1<Vec<u64>>,
-        #[serde(skip)] OnceCell<MisbehaviorReportDigest>,
+        #[serde(skip)]
+        OnceCell<MisbehaviorReportDigest>,
     ),
 }
 
