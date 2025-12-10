@@ -199,7 +199,7 @@ fn verify_authenticate_param_type(
             }
         }
         _ => {
-            if is_primitive(module, function_type_args, param) {
+            if is_primitive_strict(module, function_type_args, param) {
                 Ok(())
             } else {
                 Err(format!(

@@ -260,12 +260,39 @@ pub fn is_primitive(
     function_type_args: &[AbilitySet],
     s: &SignatureToken,
 ) -> bool {
+    is_primitive_inner(view, function_type_args, s, false)
+}
+
+pub fn is_primitive_strict(
+    view: &CompiledModule,
+    function_type_args: &[AbilitySet],
+    s: &SignatureToken,
+) -> bool {
+    is_primitive_inner(view, function_type_args, s, true)
+}
+
+pub fn is_primitive_inner(
+    view: &CompiledModule,
+    function_type_args: &[AbilitySet],
+    s: &SignatureToken,
+    is_strict: bool,
+) -> bool {
     use SignatureToken as S;
     match s {
         S::Bool | S::U8 | S::U16 | S::U32 | S::U64 | S::U128 | S::U256 | S::Address => true,
         S::Signer => false,
-        // optimistic, but no primitive has key
-        S::TypeParameter(idx) => !function_type_args[*idx as usize].has_key(),
+        // optimistic -> no primitive has key
+        // strict -> all primitives have at least copy or drop
+        S::TypeParameter(idx) => {
+            if !is_strict {
+                // optimistic: has no key
+                !function_type_args[*idx as usize].has_key()
+            } else {
+                // strict: has at least one of: copy or drop (or store and one of the others)
+                let abilities = function_type_args[*idx as usize];
+                abilities.has_copy() || abilities.has_drop()
+            }
+        }
 
         S::Datatype(idx) => [RESOLVED_IOTA_ID, RESOLVED_ASCII_STR, RESOLVED_UTF8_STR]
             .contains(&resolve_struct(view, *idx)),
@@ -276,10 +303,10 @@ pub fn is_primitive(
             // option is a primitive
             resolved_struct == RESOLVED_STD_OPTION
                 && targs.len() == 1
-                && is_primitive(view, function_type_args, &targs[0])
+                && is_primitive_inner(view, function_type_args, &targs[0], is_strict)
         }
 
-        S::Vector(inner) => is_primitive(view, function_type_args, inner),
+        S::Vector(inner) => is_primitive_inner(view, function_type_args, inner, is_strict),
         S::Reference(_) | S::MutableReference(_) => false,
     }
 }
