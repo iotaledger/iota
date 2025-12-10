@@ -9,4 +9,4 @@ A: object(0,0)
 task 1, lines 8-25:
 //# publish --sender A
 Error: Transaction Effects Status: IOTA Move Bytecode Verification Error. Please run the IOTA Move Verifier for more information.
-Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: IotaMoveVerificationError, source: Some("Invalid pure type. A datatype instantiation must be an option of pure types, offending argument: StructInstantiation(DatatypeHandleIndex(5), [StructInstantiation(DatatypeHandleIndex(2), [Struct(DatatypeHandleIndex(3))])])"), command: Some(0) } }
+Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: IotaMoveVerificationError, source: Some("Invalid authenticator function parameter type: iota::transfer::Receiving<iota::coin::Coin<iota::iota::IOTA>>. Receiving objects are invalid. Valid types are immutable references to objects or primitive types."), command: Some(0) } }
