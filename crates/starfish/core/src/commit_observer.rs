@@ -12,7 +12,7 @@ use iota_metrics::monitored_mpsc::UnboundedSender;
 use parking_lot::RwLock;
 use starfish_config::AuthorityIndex;
 use tokio::time::Instant;
-use tracing::{debug, info, instrument};
+use tracing::{debug, info, instrument, warn};
 
 use crate::{
     CommitConsumer, CommittedSubDag,
@@ -29,10 +29,20 @@ use crate::{
 };
 
 #[derive(Clone, Copy)]
-pub(crate) enum Source {
+pub(crate) enum CommittedSubDagSource {
     FastCommitSyncer,
     Consensus,
     Recover,
+}
+
+impl CommittedSubDagSource {
+    pub(crate) fn as_str(&self) -> &'static str {
+        match self {
+            CommittedSubDagSource::FastCommitSyncer => "fast_commit_syncer",
+            CommittedSubDagSource::Consensus => "consensus",
+            CommittedSubDagSource::Recover => "recover",
+        }
+    }
 }
 
 /// Role of CommitObserver
@@ -111,7 +121,7 @@ impl CommitObserver {
     pub(crate) fn handle_committed_leaders(
         &mut self,
         committed_leaders: Vec<VerifiedBlockHeader>,
-        source: Source,
+        source: CommittedSubDagSource,
     ) -> ConsensusResult<(
         Vec<PendingSubDag>,
         BTreeMap<GenericTransactionRef, BTreeSet<AuthorityIndex>>,
@@ -158,7 +168,7 @@ impl CommitObserver {
     pub(crate) fn handle_committed_sub_dags(
         &mut self,
         committed_subdags: Vec<CommittedSubDag>,
-        source: Source,
+        source: CommittedSubDagSource,
     ) -> ConsensusResult<()> {
         self.handle_committed_sub_dags_internal(&[], committed_subdags, source)
     }
@@ -167,7 +177,7 @@ impl CommitObserver {
         &mut self,
         pending_sub_dags: &[PendingSubDag],
         committed_subdags: Vec<CommittedSubDag>,
-        source: Source,
+        source: CommittedSubDagSource,
     ) -> ConsensusResult<()> {
         let mut sent_sub_dags = Vec::with_capacity(committed_subdags.len());
         for solid_sub_dag in committed_subdags.iter() {
@@ -189,7 +199,7 @@ impl CommitObserver {
 
             // Failures in sender.send() are assumed to be permanent
             if let Err(err) = self.sender.send(solid_sub_dag.clone()) {
-                tracing::error!(
+                warn!(
                     "Failed to send committed sub-dag, probably due to shutdown: {err:?}"
                 );
                 return Err(ConsensusError::Shutdown);
@@ -366,15 +376,11 @@ impl CommitObserver {
         &self,
         pending_sub_dags: &[PendingSubDag],
         committed_sub_dags: &[CommittedSubDag],
-        source: Source,
+        source: CommittedSubDagSource,
     ) {
         let metrics = &self.context.metrics.node_metrics;
         let utc_now = self.context.clock.timestamp_utc_ms();
-        let source_label = match source {
-            Source::FastCommitSyncer => "fast_commit_syncer",
-            Source::Consensus => "consensus",
-            Source::Recover => "recover",
-        };
+        let source_label = source.as_str();
 
         // First report block_header-related metrics for pending subdags
         for commit in pending_sub_dags {
@@ -532,7 +538,7 @@ mod tests {
             .collect::<Vec<_>>();
 
         let (commits, _missing_transactions_refs) = observer
-            .handle_committed_leaders(leaders.clone(), Source::Consensus)
+            .handle_committed_leaders(leaders.clone(), CommittedSubDagSource::Consensus)
             .unwrap();
 
         // Check commits are returned by CommitObserver::handle_commit is accurate
@@ -658,7 +664,7 @@ mod tests {
                     .into_iter()
                     .take(expected_last_processed_index)
                     .collect::<Vec<_>>(),
-                Source::Consensus,
+                CommittedSubDagSource::Consensus,
             )
             .unwrap();
 
@@ -695,7 +701,7 @@ mod tests {
                         .into_iter()
                         .skip(expected_last_processed_index)
                         .collect::<Vec<_>>(),
-                    Source::Consensus,
+                    CommittedSubDagSource::Consensus,
                 )
                 .unwrap()
                 .0,
@@ -792,7 +798,7 @@ mod tests {
         // the consensus output channel.
         let expected_last_processed_index: usize = 10;
         let (created_commits, _missing_transactions_refs) = observer
-            .handle_committed_leaders(leaders.clone(), Source::Consensus)
+            .handle_committed_leaders(leaders.clone(), CommittedSubDagSource::Consensus)
             .unwrap();
 
         // Check commits sent over consensus output channel is accurate

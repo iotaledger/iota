@@ -108,6 +108,12 @@ pub struct Parameters {
     // stragglers.
     #[serde(default = "Parameters::default_fast_commit_sync_batch_size")]
     pub fast_commit_sync_batch_size: u32,
+
+    // Gap threshold for switching between commit syncers. When the gap between quorum and local
+    // commit index is larger than this threshold, FastCommitSyncer fetches. Otherwise,
+    // CommitSyncer fetches.
+    #[serde(default = "Parameters::default_commit_sync_gap_threshold")]
+    pub commit_sync_gap_threshold: u32,
 }
 
 impl Parameters {
@@ -225,7 +231,20 @@ impl Parameters {
             // Exercise fast commit sync.
             5
         } else {
-            500
+            // With ~10KB per commit and 4MB max message size, 1000 commits (~10MB) requires
+            // chunking. The server will chunk commits across multiple response messages.
+            1000
+        }
+    }
+
+    pub(crate) fn default_commit_sync_gap_threshold() -> u32 {
+        if cfg!(msim) {
+            // Use smaller threshold for testing.
+            10
+        } else {
+            // When gap > 1000, FastCommitSyncer is more efficient.
+            // When gap <= 1000, CommitSyncer handles incremental sync.
+            1000
         }
     }
 }
@@ -255,6 +274,7 @@ impl Default for Parameters {
             max_shards_per_bundle: Parameters::default_max_shards_per_bundle(),
             tonic: TonicParameters::default(),
             fast_commit_sync_batch_size: Parameters::default_fast_commit_sync_batch_size(),
+            commit_sync_gap_threshold: Parameters::default_commit_sync_gap_threshold(),
         }
     }
 }

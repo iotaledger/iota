@@ -139,6 +139,7 @@ impl GenericTransactionRef {
 
     /// Extract BlockRef, returning error if this is a TransactionRef variant.
     /// This should only be called when consensus_transaction_ref flag is false.
+    #[allow(dead_code)]
     pub(crate) fn expect_block_ref(self) -> ConsensusResult<BlockRef> {
         match self {
             GenericTransactionRef::BlockRef(br) => Ok(br),

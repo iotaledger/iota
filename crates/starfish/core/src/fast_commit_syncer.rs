@@ -8,7 +8,6 @@ use std::{
 };
 
 use bytes::Bytes;
-use futures::StreamExt as _;
 use iota_metrics::spawn_logged_monitored_task;
 use itertools::Itertools as _;
 use parking_lot::RwLock;
@@ -30,15 +29,15 @@ use crate::{
         Commit, CommitAPI as _, CommitDigest, CommitRange, CommitRef, CommittedSubDag,
         TrustedCommit,
     },
-    commit_syncer::verify_transactions_with_transactions_refs,
+    commit_syncer::{CommitSyncType, verify_transactions_with_transactions_refs},
     commit_vote_monitor::CommitVoteMonitor,
     context::Context,
     core_thread::CoreThreadDispatcher,
     dag_state::DagState,
     error::{ConsensusError, ConsensusResult},
-    network::NetworkClient,
+    network::{NetworkClient, SerializedTransactionsV2},
     stake_aggregator::{QuorumThreshold, StakeAggregator},
-    transaction_ref::{GenericTransactionRef, GenericTransactionRefAPI as _, TransactionRef},
+    transaction_ref::{GenericTransactionRef, TransactionRef},
 };
 
 // Handle to stop the CommitSyncer loop.
@@ -102,6 +101,7 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
             network_client,
             block_verifier,
             dag_state,
+            sync_type: CommitSyncType::Fast,
         });
         let synced_commit_index = inner.dag_state.read().last_commit_index();
         FastCommitSyncer {
@@ -140,7 +140,7 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
                         if e.is_panic() {
                             std::panic::resume_unwind(e.into_panic());
                         }
-                        warn!("Fetch cancelled. FastCommitSyncer shutting down: {}", e);
+                        warn!("[{}] Fetch cancelled. FastCommitSyncer shutting down: {}", self.inner.sync_type.as_str(), e);
                         // If any fetch is cancelled or panicked, try to shutdown and exit the loop.
                         self.inflight_fetches.shutdown().await;
                         return;
@@ -150,7 +150,7 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
                 }
                 _ = &mut rx_shutdown => {
                     // Shutdown requested.
-                    info!("CommitSyncer shutting down ...");
+                    info!("[{}] FastCommitSyncer shutting down ...", self.inner.sync_type.as_str());
                     self.inflight_fetches.shutdown().await;
                     return;
                 }
@@ -163,6 +163,13 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
     fn try_schedule_once(&mut self) {
         let quorum_commit_index = self.inner.commit_vote_monitor.quorum_commit_index();
         let local_commit_index = self.inner.dag_state.read().last_commit_index();
+
+        // Skip scheduling if gap is small - CommitSyncer handles small gaps.
+        let gap = quorum_commit_index.saturating_sub(local_commit_index);
+        if gap <= self.inner.context.parameters.commit_sync_gap_threshold {
+            return;
+        }
+
         let metrics = &self.inner.context.metrics.node_metrics;
         metrics
             .commit_sync_quorum_index
@@ -172,18 +179,10 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
             .set(local_commit_index as i64);
         let highest_handled_index = self.inner.commit_consumer_monitor.highest_handled_commit();
         let highest_scheduled_index = self.highest_scheduled_index.unwrap_or(0);
-        // Update synced_commit_index periodically to make sure it is no smaller than
+        // Update synced_commit_index periodically to make sure it is not smaller than
         // local commit index.
         self.synced_commit_index = self.synced_commit_index.max(local_commit_index);
         let unhandled_commits_threshold = self.unhandled_commits_threshold();
-        info!(
-            "Checking to schedule fetches: synced_commit_index={}, highest_handled_index={}, highest_scheduled_index={}, quorum_commit_index={}, unhandled_commits_threshold={}",
-            self.synced_commit_index,
-            highest_handled_index,
-            highest_scheduled_index,
-            quorum_commit_index,
-            unhandled_commits_threshold,
-        );
 
         // TODO: cleanup inflight fetches that are no longer needed.
         let fetch_after_index = self
@@ -191,7 +190,21 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
             .max(self.highest_scheduled_index.unwrap_or(0));
         // When the node is falling behind, schedule pending fetches which will be
         // executed on later.
-        let step = self.inner.context.parameters.fast_commit_sync_batch_size;
+        let step = self.inner.sync_type.commit_sync_batch_size(&self.inner.context);
+
+        info!(
+            "[{}] Checking to schedule fetches: synced_commit_index={}, highest_handled_index={}, highest_scheduled_index={}, quorum_commit_index={}, unhandled_commits_threshold={}, fetch_after_index={}, step={}",
+            self.inner.sync_type.as_str(),
+            self.synced_commit_index,
+            highest_handled_index,
+            highest_scheduled_index,
+            quorum_commit_index,
+            unhandled_commits_threshold,
+            fetch_after_index,
+            step
+        );
+
+
 
         for prev_end in (fetch_after_index..=quorum_commit_index).step_by(step as usize) {
             // Create range with inclusive start and end.
@@ -207,11 +220,17 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
             // Pause scheduling new fetches when handling of commits is lagging.
             if highest_handled_index + unhandled_commits_threshold < range_end {
                 warn!(
-                    "Skip scheduling new commit fetches: consensus handler is lagging. highest_handled_index={}, highest_scheduled_index={}",
-                    highest_handled_index, highest_scheduled_index
+                    "[{}] Skip scheduling new commit fetches: consensus handler is lagging. highest_handled_index={}, highest_scheduled_index={}",
+                    self.inner.sync_type.as_str(), highest_handled_index, highest_scheduled_index
                 );
                 break;
             }
+            info!(
+                "[{}] Scheduling fetch for commit range {}..={}",
+                self.inner.sync_type.as_str(),
+                range_start,
+                range_end
+            );
             self.pending_fetches
                 .insert((range_start..=range_end).into());
             // quorum_commit_index should be non-decreasing, so highest_scheduled_index
@@ -234,13 +253,14 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
             .sum();
 
         let metrics = &self.inner.context.metrics.node_metrics;
+        let sync_label = self.inner.sync_type.as_str();
         metrics
             .commit_sync_fetched_commits
-            .with_label_values(&["fast_commit_sync"])
+            .with_label_values(&[sync_label])
             .inc_by(committed_subdags.len() as u64);
         metrics
             .commit_sync_total_fetched_transactions_size
-            .with_label_values(&["fast_commit_sync"])
+            .with_label_values(&[sync_label])
             .inc_by(total_transactions_size_bytes);
 
         let (commit_start, commit_end) = (
@@ -250,7 +270,7 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
         self.highest_fetched_commit_index = self.highest_fetched_commit_index.max(commit_end);
         metrics
             .commit_sync_highest_fetched_index
-            .with_label_values(&["fast_commit_sync"])
+            .with_label_values(&[sync_label])
             .set(self.highest_fetched_commit_index as i64);
 
         // Allow returning partial results, and try fetching the rest separately.
@@ -279,7 +299,7 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
                     // so not sending additional blocks to Core.
                     metrics
                         .commit_sync_gap_on_processing
-                        .with_label_values(&["fast_commit_sync"])
+                        .with_label_values(&[sync_label])
                         .inc();
                     break;
                 };
@@ -289,7 +309,8 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
             }
 
             debug!(
-                "Fetched {} subdags with transactions for commit range {:?}",
+                "[{}] Fetched {} subdags with transactions for commit range {:?}",
+                sync_label,
                 subdags.len(),
                 fetched_commit_range,
             );
@@ -302,7 +323,7 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
                 .add_subdags_from_fast_sync(subdags)
                 .await
             {
-                info!("Failed to dispatch subdags to core, shutting down: {}", e);
+                info!("[{}] Failed to dispatch subdags to core, shutting down: {}", sync_label, e);
                 return;
             }
 
@@ -312,15 +333,15 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
 
         metrics
             .commit_sync_inflight_fetches
-            .with_label_values(&["fast_commit_sync"])
+            .with_label_values(&[sync_label])
             .set(self.inflight_fetches.len() as i64);
         metrics
             .commit_sync_pending_fetches
-            .with_label_values(&["fast_commit_sync"])
+            .with_label_values(&[sync_label])
             .set(self.pending_fetches.len() as i64);
         metrics
             .commit_sync_highest_synced_index
-            .with_label_values(&["fast_commit_sync"])
+            .with_label_values(&[sync_label])
             .set(self.synced_commit_index as i64);
     }
 
@@ -351,7 +372,8 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
             }
             if !self.pending_fetches.is_empty() {
                 info!(
-                    "Pending fetches: {:?}, target parallel fetches: {}, inflight fetch number: {}",
+                    "[{}] Pending fetches: {:?}, target parallel fetches: {}, inflight fetch number: {}",
+                    self.inner.sync_type.as_str(),
                     self.pending_fetches,
                     target_parallel_fetches,
                     self.inflight_fetches.len()
@@ -365,17 +387,18 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
         }
 
         let metrics = &self.inner.context.metrics.node_metrics;
+        let sync_label = self.inner.sync_type.as_str();
         metrics
             .commit_sync_inflight_fetches
-            .with_label_values(&["fast_commit_sync"])
+            .with_label_values(&[sync_label])
             .set(self.inflight_fetches.len() as i64);
         metrics
             .commit_sync_pending_fetches
-            .with_label_values(&["fast_commit_sync"])
+            .with_label_values(&[sync_label])
             .set(self.pending_fetches.len() as i64);
         metrics
             .commit_sync_highest_synced_index
-            .with_label_values(&["fast_commit_sync"])
+            .with_label_values(&[sync_label])
             .set(self.synced_commit_index as i64);
     }
 
@@ -405,7 +428,7 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
             .node_metrics
             .commit_sync_fetch_loop_latency
             .start_timer();
-        info!("Starting to fetch commits in {commit_range:?} ...",);
+        info!("[{}] Starting to fetch commits in {commit_range:?} ...", inner.sync_type.as_str());
         loop {
             // Attempt to fetch commits and blocks through min(committee size,
             // MAX_NUM_TARGETS) peers.
@@ -442,7 +465,7 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
                 .await
                 {
                     Ok(Ok(committed_subdags)) => {
-                        info!("Finished fetching commits in {commit_range:?}",);
+                        info!("[{}] Finished fetching commits in {commit_range:?}", inner.sync_type.as_str());
                         return (commit_range.end(), committed_subdags);
                     }
                     Ok(Err(e)) => {
@@ -452,14 +475,14 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
                             .authority(authority)
                             .hostname
                             .clone();
-                        warn!("Failed to fetch {commit_range:?} from {hostname}: {}", e);
+                        warn!("[{}] Failed to fetch {commit_range:?} from {hostname}: {}", inner.sync_type.as_str(), e);
                         let error: &'static str = e.into();
                         inner
                             .context
                             .metrics
                             .node_metrics
                             .commit_sync_fetch_once_errors
-                            .with_label_values(&[hostname.as_str(), error, "fast_commit_sync"])
+                            .with_label_values(&[hostname.as_str(), error, inner.sync_type.as_str()])
                             .inc();
                     }
                     Err(_) => {
@@ -469,7 +492,7 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
                             .authority(authority)
                             .hostname
                             .clone();
-                        warn!("Timed out fetching {commit_range:?} from {authority}",);
+                        warn!("[{}] Timed out fetching {commit_range:?} from {authority}", inner.sync_type.as_str());
                         inner
                             .context
                             .metrics
@@ -478,7 +501,7 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
                             .with_label_values(&[
                                 hostname.as_str(),
                                 "FetchTimeout",
-                                "fast_commit_sync",
+                                inner.sync_type.as_str(),
                             ])
                             .inc();
                     }
@@ -496,27 +519,19 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
         commit_range: CommitRange,
         timeout: Duration,
     ) -> ConsensusResult<Vec<CommittedSubDag>> {
-        // Maximum delay between consecutive pipelined requests, to avoid
-        // overwhelming the peer while still maintaining reasonable throughput.
-        const MAX_PIPELINE_DELAY: Duration = Duration::from_secs(1);
-
         let _timer = inner
             .context
             .metrics
             .node_metrics
             .commit_sync_fetch_once_latency
-            .with_label_values(&["fast_commit_sync"])
+            .with_label_values(&[inner.sync_type.as_str()])
             .start_timer();
         assert!(inner.context.protocol_config.consensus_transaction_ref());
 
-        // 1. Fetch commits, voting headers, transaction refs, and transactions in the
-        //    commit range from the target authority.
-        let (
-            serialized_commits,
-            serialized_voting_block_headers,
-            serialized_transaction_refs,
-            serialized_transactions,
-        ) = inner
+        // 1. Fetch commits, voting headers, and transactions in the commit range
+        //    from the target authority. Each transaction is serialized as
+        //    SerializedTransactionsV2 which includes the TransactionRef.
+        let (serialized_commits, serialized_voting_block_headers, serialized_transactions) = inner
             .network_client
             .fetch_commits_and_transactions(target_authority, commit_range.clone(), timeout)
             .await?;
@@ -546,16 +561,13 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
             .filter_map(|gen_tr_ref| gen_tr_ref.expect_transaction_ref().ok())
             .collect();
 
-        // 4. Process fetched transactions.
-
+        // 4. Process fetched transactions. Each serialized_transaction is a
+        //    SerializedTransactionsV2 containing both the TransactionRef and the
+        //    actual transaction data.
         let mut fetched_transactions = BTreeMap::new();
-        for (serialized_transaction_ref, serialized_transaction) in serialized_transaction_refs
-            .into_iter()
-            .zip(serialized_transactions)
-        {
-            if let Ok(transaction_ref) =
-                bcs::from_bytes::<TransactionRef>(&serialized_transaction_ref)
-            {
+        for serialized_transaction in serialized_transactions {
+            if let Ok(tx_v2) = bcs::from_bytes::<SerializedTransactionsV2>(&serialized_transaction) {
+                let transaction_ref = tx_v2.transaction_ref;
                 if !committed_tx_refs.contains(&transaction_ref) {
                     return Err(ConsensusError::UnexpectedTransactionForCommit {
                         peer: target_authority,
@@ -564,13 +576,14 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
                 }
                 fetched_transactions.insert(
                     GenericTransactionRef::TransactionRef(transaction_ref),
-                    serialized_transaction,
+                    tx_v2.serialized_transactions,
                 );
                 committed_tx_refs.remove(&transaction_ref);
             } else {
                 debug!(
-                    "Failed to deserialize block ref: {:?}",
-                    serialized_transaction_ref
+                    "[{}] Failed to deserialize SerializedTransactionsV2: {:?}",
+                    inner.sync_type.as_str(),
+                    serialized_transaction
                 );
                 continue;
             }
@@ -645,26 +658,31 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
     }
 
     #[cfg(test)]
+    #[allow(dead_code)]
     fn pending_fetches(&self) -> BTreeSet<CommitRange> {
         self.pending_fetches.clone()
     }
 
     #[cfg(test)]
+    #[allow(dead_code)]
     fn fetched_ranges(&self) -> BTreeMap<CommitRange, Vec<CommittedSubDag>> {
         self.fetched_ranges.clone()
     }
 
     #[cfg(test)]
+    #[allow(dead_code)]
     fn highest_scheduled_index(&self) -> Option<CommitIndex> {
         self.highest_scheduled_index
     }
 
     #[cfg(test)]
+    #[allow(dead_code)]
     fn highest_fetched_commit_index(&self) -> CommitIndex {
         self.highest_fetched_commit_index
     }
 
     #[cfg(test)]
+    #[allow(dead_code)]
     fn synced_commit_index(&self) -> CommitIndex {
         self.synced_commit_index
     }
@@ -678,6 +696,7 @@ struct Inner<C: NetworkClient> {
     network_client: Arc<C>,
     block_verifier: Arc<dyn BlockVerifier>,
     dag_state: Arc<RwLock<DagState>>,
+    sync_type: CommitSyncType,
 }
 
 impl<C: NetworkClient> Inner<C> {

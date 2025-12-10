@@ -32,7 +32,7 @@ use starfish_config::AuthorityIndex;
 
 use crate::{
     Round, VerifiedBlockHeader,
-    block_header::{BlockRef, VerifiedBlock, VerifiedTransactions},
+    block_header::{BlockRef, VerifiedBlock},
     commit::{CommitRange, TrustedCommit},
     error::{ConsensusError, ConsensusResult},
 };
@@ -58,6 +58,7 @@ use crate::{
     encoder::ShardEncoder,
     transaction_ref::{GenericTransactionRef, TransactionRef},
 };
+use crate::commit_syncer::CommitSyncType;
 
 /// A stream of serialized blocks with additional information such as headers or
 /// shards.
@@ -116,14 +117,14 @@ pub(crate) trait NetworkClient: Send + Sync + Sized + 'static {
     /// Fetches serialized commits in the commit range from a peer, headers
     /// voting for the last commit, and all transactions from these commits.
     /// Returns serialized commits, serialized headers voting for the last
-    /// commit, serialized transaction refs, and serialized transactions.
+    /// commit, and serialized transactions (as SerializedTransactionsV2 which includes TransactionRef).
     /// Used in the fast commit syncer.
     async fn fetch_commits_and_transactions(
         &self,
         peer: AuthorityIndex,
         commit_range: CommitRange,
         timeout: Duration,
-    ) -> ConsensusResult<(Vec<Bytes>, Vec<Bytes>, Vec<Bytes>, Vec<Bytes>)>;
+    ) -> ConsensusResult<(Vec<Bytes>, Vec<Bytes>, Vec<Bytes>)>;
 
     /// Fetches the latest block from `peer` for the requested `authorities`.
     /// The latest blocks are returned in the serialised format of
@@ -169,24 +170,23 @@ pub(crate) trait NetworkService: Send + Sync + 'static {
     ) -> ConsensusResult<Vec<Bytes>>;
 
     /// Handles the request to fetch commits by index range from the peer.
+    /// Batch size limit depends on the sync type.
     async fn handle_fetch_commits(
         &self,
         peer: AuthorityIndex,
         commit_range: CommitRange,
+        commit_sync_type: CommitSyncType,
     ) -> ConsensusResult<(Vec<TrustedCommit>, Vec<VerifiedBlockHeader>)>;
 
     /// Handles the request to fetch commits and transactions by index range
     /// from the peer. Used in fast commit sync.
+    /// Returns (commits, certifier_block_headers, transactions) as serialized bytes.
+    /// Each transaction is serialized as SerializedTransactionsV2 which includes the TransactionRef.
     async fn handle_fetch_commits_and_transactions(
         &self,
         peer: AuthorityIndex,
         commit_range: CommitRange,
-    ) -> ConsensusResult<(
-        Vec<TrustedCommit>,
-        Vec<VerifiedBlockHeader>,
-        Vec<TransactionRef>,
-        Vec<VerifiedTransactions>,
-    )>;
+    ) -> ConsensusResult<(Vec<Bytes>, Vec<Bytes>, Vec<Bytes>)>;
 
     /// Handles the request to fetch the latest block headers for the provided
     /// `authorities`.

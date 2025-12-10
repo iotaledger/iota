@@ -47,6 +47,7 @@ use crate::{
     },
     transaction_ref::{GenericTransactionRef, TransactionRef},
 };
+use crate::commit_syncer::CommitSyncType;
 
 // Maximum bytes size in a single fetch_blocks()response.
 // TODO: put max RPC response size in protocol config.
@@ -388,7 +389,7 @@ impl NetworkClient for TonicClient {
         peer: AuthorityIndex,
         commit_range: CommitRange,
         timeout: Duration,
-    ) -> ConsensusResult<(Vec<Bytes>, Vec<Bytes>, Vec<Bytes>, Vec<Bytes>)> {
+    ) -> ConsensusResult<(Vec<Bytes>, Vec<Bytes>, Vec<Bytes>)> {
         let mut client = self.get_client(peer, timeout).await?;
         let mut request = Request::new(FetchCommitsAndTransactionsRequest {
             start: commit_range.start(),
@@ -414,7 +415,6 @@ impl NetworkClient for TonicClient {
         // First chunk contains commits and certifier headers
         let mut commits = Vec::new();
         let mut certifier_block_headers = Vec::new();
-        let mut transaction_refs = Vec::new();
         let mut transactions = Vec::new();
         let mut total_fetched_bytes = 0;
 
@@ -433,11 +433,6 @@ impl NetworkClient for TonicClient {
                     certifier_block_headers.extend(response.certifier_block_headers);
 
                     // Accumulate transactions (streamed in subsequent chunks)
-                    for tr in &response.transaction_refs {
-                        total_fetched_bytes += tr.len();
-                    }
-                    transaction_refs.extend(response.transaction_refs);
-
                     for t in &response.transactions {
                         total_fetched_bytes += t.len();
                     }
@@ -472,12 +467,7 @@ impl NetworkClient for TonicClient {
             }
         }
 
-        Ok((
-            commits,
-            certifier_block_headers,
-            transaction_refs,
-            transactions,
-        ))
+        Ok((commits, certifier_block_headers, transactions))
     }
 }
 
@@ -705,7 +695,11 @@ impl<S: NetworkService> ConsensusService for TonicServiceProxy<S> {
         let request = request.into_inner();
         let (commits, certifier_block_headers) = self
             .service
-            .handle_fetch_commits(peer_index, (request.start..=request.end).into())
+            .handle_fetch_commits(
+                peer_index,
+                (request.start..=request.end).into(),
+                CommitSyncType::Regular, 
+            )
             .await
             .map_err(|e| tonic::Status::internal(format!("{e:?}")))?;
         let commits = commits
@@ -737,60 +731,46 @@ impl<S: NetworkService> ConsensusService for TonicServiceProxy<S> {
             return Err(tonic::Status::internal("PeerInfo not found"));
         };
         let request = request.into_inner();
-        let (commits, certifier_block_headers, transaction_refs, transactions) = self
+        let (serialized_commits, serialized_headers, serialized_transactions) = self
             .service
-            .handle_fetch_commits_and_transactions(peer_index, (request.start..=request.end).into())
+            .handle_fetch_commits_and_transactions(
+                peer_index,
+                (request.start..=request.end).into(),
+            )
             .await
             .map_err(|e| tonic::Status::internal(format!("{e:?}")))?;
 
-        // Serialize commits and headers
-        let serialized_commits: Vec<Bytes> = commits
-            .into_iter()
-            .map(|c| c.serialized().clone())
-            .collect();
-        let serialized_certifier_headers: Vec<Bytes> = certifier_block_headers
-            .into_iter()
-            .map(|bh| bh.serialized().clone())
-            .collect();
-
-        // Serialize transaction refs and transactions
-        let serialized_tx_refs: Vec<Bytes> = transaction_refs
-            .into_iter()
-            .map(|tr| {
-                bcs::to_bytes(&tr)
-                    .map(Bytes::from)
-                    .unwrap_or_else(|_| Bytes::new())
-            })
-            .collect();
-        let serialized_transactions: Vec<Bytes> = transactions
-            .into_iter()
-            .map(|t| t.serialized().clone())
-            .collect();
-
-        // Build response chunks:
-        // 1. First chunk: commits and certifier headers
-        // 2. Subsequent chunks: transactions (chunked by size)
+        // Build response as a stream of chunks to stay under gRPC message size limit.
+        // Commits and transactions are chunked by size. Certifier headers are small
+        // enough to fit in a single chunk and are sent with the first commit chunk.
         let mut responses = Vec::new();
 
-        // First chunk with commits and headers
-        responses.push(Ok(FetchCommitsAndTransactionsResponse {
-            commits: serialized_commits,
-            certifier_block_headers: serialized_certifier_headers,
-            transaction_refs: vec![],
-            transactions: vec![],
-        }));
+        let commit_chunks = chunk_data(serialized_commits, MAX_FETCH_RESPONSE_BYTES);
+        for (i, commit_chunk) in commit_chunks.into_iter().enumerate() {
+            responses.push(Ok(FetchCommitsAndTransactionsResponse {
+                commits: commit_chunk,
+                certifier_block_headers: if i == 0 {
+                    serialized_headers.clone()
+                } else {
+                    vec![]
+                },
+                transactions: vec![],
+            }));
+        }
 
-        // Stream transactions in chunks
-        let tx_chunks = chunk_transactions(
-            serialized_tx_refs,
-            serialized_transactions,
-            MAX_FETCH_RESPONSE_BYTES,
-        );
-        for (tx_refs_chunk, txs_chunk) in tx_chunks {
+        if responses.is_empty() {
+            responses.push(Ok(FetchCommitsAndTransactionsResponse {
+                commits: vec![],
+                certifier_block_headers: serialized_headers,
+                transactions: vec![],
+            }));
+        }
+
+        let tx_chunks = chunk_data(serialized_transactions, MAX_FETCH_RESPONSE_BYTES);
+        for txs_chunk in tx_chunks {
             responses.push(Ok(FetchCommitsAndTransactionsResponse {
                 commits: vec![],
                 certifier_block_headers: vec![],
-                transaction_refs: tx_refs_chunk,
                 transactions: txs_chunk,
             }));
         }
@@ -1415,11 +1395,9 @@ pub(crate) struct FetchCommitsAndTransactionsResponse {
     // Serialized SignedBlockHeader that certify the last commit (sent in first chunk).
     #[prost(bytes = "bytes", repeated, tag = "2")]
     certifier_block_headers: Vec<Bytes>,
-    // Serialized TransactionRef for each transaction (sent in transaction chunks).
+    // Serialized transactions as SerializedTransactionsV2 (sent in transaction chunks).
+    // Each entry contains both the TransactionRef and the actual transaction data.
     #[prost(bytes = "bytes", repeated, tag = "3")]
-    transaction_refs: Vec<Bytes>,
-    // Serialized transactions corresponding to the transaction_refs (sent in transaction chunks).
-    #[prost(bytes = "bytes", repeated, tag = "4")]
     transactions: Vec<Bytes>,
 }
 
@@ -1479,44 +1457,6 @@ fn chunk_data(data: Vec<Bytes>, chunk_limit: usize) -> Vec<Vec<Bytes>> {
     }
     if !chunk.is_empty() {
         chunks.push(chunk);
-    }
-    chunks
-}
-
-// Splits paired transaction refs and transactions into chunks where each
-// chunk's total size does not exceed the specified `chunk_limit`.
-// Transaction refs and transactions are kept in sync (the same index in each
-// chunk).
-fn chunk_transactions(
-    tx_refs: Vec<Bytes>,
-    transactions: Vec<Bytes>,
-    chunk_limit: usize,
-) -> Vec<(Vec<Bytes>, Vec<Bytes>)> {
-    assert_eq!(
-        tx_refs.len(),
-        transactions.len(),
-        "tx_refs and transactions must have same length"
-    );
-
-    let mut chunks = vec![];
-    let mut chunk_refs = vec![];
-    let mut chunk_txs = vec![];
-    let mut chunk_size = 0;
-
-    for (tx_ref, tx) in tx_refs.into_iter().zip(transactions.into_iter()) {
-        let pair_size = tx_ref.len() + tx.len();
-        if !chunk_refs.is_empty() && chunk_size + pair_size > chunk_limit {
-            chunks.push((chunk_refs, chunk_txs));
-            chunk_refs = vec![];
-            chunk_txs = vec![];
-            chunk_size = 0;
-        }
-        chunk_refs.push(tx_ref);
-        chunk_txs.push(tx);
-        chunk_size += pair_size;
-    }
-    if !chunk_refs.is_empty() {
-        chunks.push((chunk_refs, chunk_txs));
     }
     chunks
 }

@@ -213,7 +213,7 @@ pub(crate) struct NodeMetrics {
     pub(crate) subscribed_by: IntGaugeVec,
     pub(crate) commit_sync_inflight_fetches: IntGaugeVec,
     pub(crate) commit_sync_pending_fetches: IntGaugeVec,
-    pub(crate) commit_sync_fetch_commits_handler_uncertified_skipped: IntCounter,
+    pub(crate) commit_sync_fetch_commits_handler_uncertified_skipped: IntCounterVec,
     pub(crate) commit_sync_fetched_commits: IntCounterVec,
     pub(crate) commit_sync_fetched_block_headers: IntCounter,
     pub(crate) commit_sync_total_fetched_block_headers_size: IntCounter,
@@ -946,9 +946,10 @@ impl NodeMetrics {
                 &["authority", "error", "source"],
                 registry
             ).unwrap(),
-            commit_sync_fetch_commits_handler_uncertified_skipped: register_int_counter_with_registry!(
+            commit_sync_fetch_commits_handler_uncertified_skipped: register_int_counter_vec_with_registry!(
                 "commit_sync_fetch_commits_handler_uncertified_skipped",
                 "Number of uncertified commits that got skipped when fetching commits due to lack of votes",
+                &["source"],
                 registry,
             ).unwrap(),
             commit_sync_fetch_missing_block_headers: register_int_counter_vec_with_registry!(

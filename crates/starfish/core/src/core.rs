@@ -40,7 +40,7 @@ use crate::{
     },
     block_manager::BlockManager,
     commit::{CertifiedCommits, PendingSubDag},
-    commit_observer::{CommitObserver, Source},
+    commit_observer::{CommitObserver, CommittedSubDagSource},
     context::Context,
     dag_state::{DagState, TransactionSource},
     encoder::{ShardEncoder, create_encoder},
@@ -253,7 +253,7 @@ impl Core {
         // to storage. The returned committed subdags and missing transaction
         // refs can be ignored as the missing transactions will be fetched by the
         // periodic transactions' synchronizer.
-        self.try_commit(Source::Recover).unwrap();
+        self.try_commit(CommittedSubDagSource::Recover).unwrap();
         let last_own_non_genesis_block =
             match self.try_propose(ReasonToCreateBlock::Recover).unwrap() {
                 (Some(block), _) => Some(block),
@@ -323,7 +323,7 @@ impl Core {
             );
 
             // Try to commit the new blocks if possible.
-            let (_subdags, new_missing_committed_txns) = self.try_commit(Source::Consensus)?;
+            let (_subdags, new_missing_committed_txns) = self.try_commit(CommittedSubDagSource::Consensus)?;
 
             // Try to propose now since there are new blocks accepted.
             self.try_propose(ReasonToCreateBlock::AddBlock)?;
@@ -385,7 +385,7 @@ impl Core {
             );
 
             // Try to commit the new blocks if possible.
-            let (_subdags, new_missing_committed_txns) = self.try_commit(Source::Consensus)?;
+            let (_subdags, new_missing_committed_txns) = self.try_commit(CommittedSubDagSource::Consensus)?;
 
             // Try to propose now since there are new blocks accepted.
             self.try_propose(ReasonToCreateBlock::AddBlockHeader)?;
@@ -439,7 +439,7 @@ impl Core {
         // transactions are available for any currently pending subdags, without
         // creating any new commits.
         self.commit_observer
-            .handle_committed_leaders(Vec::new(), Source::Consensus)?;
+            .handle_committed_leaders(Vec::new(), CommittedSubDagSource::Consensus)?;
 
         Ok(())
     }
@@ -511,7 +511,7 @@ impl Core {
     pub(crate) fn handle_committed_sub_dags(
         &mut self,
         committed_subdags: Vec<CommittedSubDag>,
-        source: Source,
+        source: CommittedSubDagSource,
     ) -> ConsensusResult<()> {
         self.commit_observer
             .handle_committed_sub_dags(committed_subdags, source)
@@ -582,7 +582,7 @@ impl Core {
             fail_point!("consensus-after-propose");
 
             // The new block may help commit.
-            let (_, missing_committed_txns) = self.try_commit(Source::Consensus)?;
+            let (_, missing_committed_txns) = self.try_commit(CommittedSubDagSource::Consensus)?;
             return Ok((Some(verified_block), missing_committed_txns));
         }
         Ok((None, BTreeMap::new()))
@@ -847,7 +847,7 @@ impl Core {
     #[instrument(level = "trace", skip_all)]
     fn try_commit(
         &mut self,
-        source: Source,
+        source: CommittedSubDagSource,
     ) -> ConsensusResult<(
         Vec<PendingSubDag>,
         BTreeMap<GenericTransactionRef, BTreeSet<AuthorityIndex>>,
@@ -1619,7 +1619,7 @@ mod test {
         }
 
         // Run commit rule.
-        core.try_commit(Source::Consensus).ok();
+        core.try_commit(CommittedSubDagSource::Consensus).ok();
         let last_commit = store
             .read_last_commit()
             .unwrap()
@@ -2564,7 +2564,7 @@ mod test {
 
         // Now try to commit up to the latest leader (round = 4). Do not provide any
         // certified commits.
-        let (committed_sub_dags, _) = core.try_commit(Source::Consensus).unwrap();
+        let (committed_sub_dags, _) = core.try_commit(CommittedSubDagSource::Consensus).unwrap();
 
         // We should have committed up to round 4
         assert_eq!(committed_sub_dags.len(), 4);

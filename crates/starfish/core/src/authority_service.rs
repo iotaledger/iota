@@ -20,34 +20,15 @@ use tokio::sync::{Mutex, broadcast, mpsc::Sender};
 use tokio_util::sync::ReusableBoxFuture;
 use tracing::{debug, info, warn};
 
-use crate::{
-    CommitIndex, Round, Transaction, VerifiedBlockHeader,
-    block_header::{
-        BlockHeaderAPI, BlockHeaderDigest, BlockRef, GENESIS_ROUND, ShardWithProof,
-        ShardWithProofAPI, SignedBlockHeader, TransactionsCommitment, VerifiedBlock,
-        VerifiedOwnShard, VerifiedTransactions,
-    },
-    block_verifier::BlockVerifier,
-    commit::{CommitAPI as _, CommitRange, TrustedCommit},
-    commit_vote_monitor::CommitVoteMonitor,
-    context::Context,
-    cordial_knowledge::CordialKnowledgeHandle,
-    core_thread::CoreThreadDispatcher,
-    dag_state::DagState,
-    encoder::ShardEncoder,
-    error::{ConsensusError, ConsensusResult},
-    header_synchronizer::HeaderSynchronizerHandle,
-    network::{
-        BlockBundleStream, NetworkService, SerializedBlock, SerializedBlockBundle,
-        SerializedBlockBundleParts, SerializedHeaderAndTransactions, SerializedTransactionsV1,
-        SerializedTransactionsV2,
-    },
-    shard_reconstructor::TransactionMessage,
-    stake_aggregator::{QuorumThreshold, StakeAggregator},
-    storage::Store,
-    transaction_ref::{GenericTransactionRef, GenericTransactionRefAPI as _, TransactionRef},
-    transactions_synchronizer::TransactionsSynchronizerHandle,
-};
+use crate::{CommitIndex, Round, Transaction, VerifiedBlockHeader, block_header::{
+    BlockHeaderAPI, BlockHeaderDigest, BlockRef, GENESIS_ROUND, ShardWithProof,
+    ShardWithProofAPI, SignedBlockHeader, TransactionsCommitment, VerifiedBlock,
+    VerifiedOwnShard, VerifiedTransactions,
+}, block_verifier::BlockVerifier, commit::{CommitAPI as _, CommitRange, TrustedCommit}, commit_vote_monitor::CommitVoteMonitor, context::Context, cordial_knowledge::CordialKnowledgeHandle, core_thread::CoreThreadDispatcher, dag_state::DagState, encoder::ShardEncoder, error::{ConsensusError, ConsensusResult}, header_synchronizer::HeaderSynchronizerHandle, network::{
+    BlockBundleStream, NetworkService, SerializedBlock, SerializedBlockBundle,
+    SerializedBlockBundleParts, SerializedHeaderAndTransactions, SerializedTransactionsV1,
+    SerializedTransactionsV2,
+}, shard_reconstructor::TransactionMessage, stake_aggregator::{QuorumThreshold, StakeAggregator}, storage::Store, transaction_ref::{GenericTransactionRef, GenericTransactionRefAPI as _}, transactions_synchronizer::TransactionsSynchronizerHandle, commit_syncer::CommitSyncType};
 
 pub(crate) const COMMIT_LAG_MULTIPLIER: u32 = 5;
 
@@ -874,19 +855,22 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         Ok(serialized_headers)
     }
 
+
+
     async fn handle_fetch_commits(
         &self,
         _peer: AuthorityIndex,
         commit_range: CommitRange,
+        commit_sync_type: CommitSyncType,
     ) -> ConsensusResult<(Vec<TrustedCommit>, Vec<VerifiedBlockHeader>)> {
         fail_point_async!("consensus-rpc-response");
 
-        // Compute an inclusive end index and bound the maximum number of commits
-        // scanned.
-        let inclusive_end = commit_range.end().min(
-            commit_range.start() + self.context.parameters.commit_sync_batch_size as CommitIndex
-                - 1,
-        );
+        // Bound the range based on sync type.
+        let batch_size = commit_sync_type.commit_sync_batch_size(&self.context);
+        let inclusive_end =
+            commit_range
+                .end()
+                .min(commit_range.start() + batch_size as CommitIndex - 1);
         let mut commits = self
             .store
             .scan_commits((commit_range.start()..=inclusive_end).into())?;
@@ -912,6 +896,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
                     .metrics
                     .node_metrics
                     .commit_sync_fetch_commits_handler_uncertified_skipped
+                    .with_label_values(&[commit_sync_type.as_str()])
                     .inc();
                 commits.pop();
             }
@@ -929,47 +914,33 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         &self,
         peer: AuthorityIndex,
         commit_range: CommitRange,
-    ) -> ConsensusResult<(
-        Vec<TrustedCommit>,
-        Vec<VerifiedBlockHeader>,
-        Vec<TransactionRef>,
-        Vec<VerifiedTransactions>,
-    )> {
+    ) -> ConsensusResult<(Vec<Bytes>, Vec<Bytes>, Vec<Bytes>)> {
         fail_point_async!("consensus-rpc-response");
 
-        // First fetch commits and certifier headers using existing logic
-        let (commits, certifier_block_headers) =
-            self.handle_fetch_commits(peer, commit_range).await?;
+        let (commits, certifier_block_headers) = self
+            .handle_fetch_commits(peer, commit_range, CommitSyncType::Fast)
+            .await?;
 
-        // Collect all transaction refs from the commits
-        let mut transaction_refs = Vec::new();
-        for commit in &commits {
-            for gen_tx_ref in commit.committed_transactions() {
-                if let GenericTransactionRef::TransactionRef(tx_ref) = gen_tx_ref {
-                    transaction_refs.push(tx_ref);
-                }
-            }
-        }
-
-        // Fetch all transactions for the collected refs
-        let generic_refs: Vec<GenericTransactionRef> = transaction_refs
+        let transaction_refs: Vec<GenericTransactionRef> = commits
             .iter()
-            .map(|tx_ref| GenericTransactionRef::TransactionRef(*tx_ref))
+            .flat_map(|commit| commit.committed_transactions())
             .collect();
 
-        let dag_state = self.dag_state.read();
-        let transactions = dag_state
-            .get_verified_transactions(&generic_refs)
+        let serialized_transactions = self
+            .handle_fetch_transactions(peer, transaction_refs)
+            .await?;
+
+        let serialized_commits: Vec<Bytes> = commits
             .into_iter()
-            .flatten()
+            .map(|c| c.serialized().clone())
             .collect();
 
-        Ok((
-            commits,
-            certifier_block_headers,
-            transaction_refs,
-            transactions,
-        ))
+        let serialized_headers: Vec<Bytes> = certifier_block_headers
+            .into_iter()
+            .map(|h| h.serialized().clone())
+            .collect();
+
+        Ok((serialized_commits, serialized_headers, serialized_transactions))
     }
 
     async fn handle_fetch_latest_block_headers(
@@ -1420,6 +1391,7 @@ mod tests {
         transaction_ref::GenericTransactionRef,
         transactions_synchronizer::TransactionsSynchronizer,
     };
+    use crate::commit_syncer::CommitSyncType;
 
     #[derive(Default)]
     struct FakeNetworkClient {}
@@ -1469,7 +1441,7 @@ mod tests {
             _peer: AuthorityIndex,
             _commit_range: CommitRange,
             _timeout: Duration,
-        ) -> ConsensusResult<(Vec<Bytes>, Vec<Bytes>, Vec<Bytes>, Vec<Bytes>)> {
+        ) -> ConsensusResult<(Vec<Bytes>, Vec<Bytes>, Vec<Bytes>)> {
             unimplemented!("Unimplemented")
         }
 
@@ -3383,7 +3355,7 @@ mod tests {
         let peer = context.committee.to_authority_index(1).unwrap();
 
         let result = authority_service
-            .handle_fetch_commits(peer, range)
+            .handle_fetch_commits(peer, range, CommitSyncType::Regular)
             .await
             .unwrap();
 
