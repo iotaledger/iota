@@ -9,10 +9,10 @@ use crate::GrpcReader;
 pub fn render_json(
     grpc_reader: Arc<GrpcReader>,
     max_json_move_value_size: usize,
-    struct_tag: &move_core_types::language_storage::StructTag,
+    type_tag: &iota_types::TypeTag,
     contents: &[u8],
 ) -> Option<prost_types::Value> {
-    let layout = grpc_reader.get_struct_layout(struct_tag).ok().flatten()?;
+    let layout = grpc_reader.get_type_layout(type_tag).ok().flatten()?;
 
     iota_types::proto_value::ProtoVisitorBuilder::new(max_json_move_value_size)
         .deserialize_value(contents, &layout)
