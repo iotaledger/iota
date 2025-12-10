@@ -170,7 +170,7 @@ fn verify_authenticate_account_type(
 /// function. Check that:
 /// - no Receiving objects are passed at all;
 /// - no objects are passed by value or by mutable reference, but only by
-///  immutable reference;
+///   immutable reference;
 /// - only primitive types are allowed by value.
 fn verify_authenticate_param_type(
     module: &CompiledModule,
