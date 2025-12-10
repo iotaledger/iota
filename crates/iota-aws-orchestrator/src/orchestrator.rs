@@ -6,7 +6,7 @@ use std::{
     collections::HashSet,
     fs::{self},
     marker::PhantomData,
-    path::PathBuf,
+    path::{Path, PathBuf},
     time::Duration,
 };
 
@@ -628,7 +628,7 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
         &self,
         parameters: &BenchmarkParameters<T>,
         nodes: Vec<Instance>,
-        path: &PathBuf,
+        path: &Path,
         query: &str,
         file_prefix: &str,
     ) -> TestbedResult<()> {
@@ -641,13 +641,11 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
             .await?;
         for (i, (stdout, stderr)) in stdio.into_iter().enumerate() {
             if !stdout.is_empty() {
-                let mut file = PathBuf::from(path);
-                file.push(format!("{file_prefix}-{i}.svg"));
+                let file = path.join(format!("{file_prefix}-{i}.svg"));
                 fs::write(file, stdout).unwrap();
             }
             if !stderr.is_empty() {
-                let mut file = PathBuf::from(path);
-                file.push(format!("{file_prefix}-{i}.log"));
+                let file = path.join(format!("{file_prefix}-{i}.log"));
                 fs::write(file, stderr).unwrap();
             }
         }
