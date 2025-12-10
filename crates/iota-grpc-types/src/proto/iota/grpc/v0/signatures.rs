@@ -14,7 +14,7 @@ use crate::{field::FieldMaskTree, merge::Merge, proto::TryFromProtoError, v0::bc
 impl From<iota_sdk_types::ValidatorAggregatedSignature> for ValidatorAggregatedSignature {
     fn from(value: iota_sdk_types::ValidatorAggregatedSignature) -> Self {
         Self {
-            bcs: Some(BcsData::serialize(&value).unwrap()),
+            bcs: BcsData::serialize(&value).ok(),
         }
     }
 }
@@ -68,7 +68,7 @@ impl Merge<iota_sdk_types::UserSignature> for UserSignature {
         mask: &FieldMaskTree,
     ) -> Result<(), Box<dyn std::error::Error>> {
         if mask.contains(Self::BCS_FIELD.name) {
-            self.bcs = Some(BcsData::serialize(&source)?);
+            self.bcs = BcsData::serialize(&source).ok();
         }
 
         Ok(())

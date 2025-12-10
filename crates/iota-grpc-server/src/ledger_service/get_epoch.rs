@@ -109,12 +109,9 @@ pub fn get_epoch(
 
     if let Some(system_state) = system_state {
         if read_mask.contains(Epoch::BCS_SYSTEM_STATE_FIELD.name) {
-            let bcs_bytes = bcs::to_bytes(&system_state).map_err(|e| {
-                Status::internal(format!("Failed to serialize system state to BCS: {e}"))
-            })?;
-            message.bcs_system_state = Some(Box::new(BcsData {
-                data: bcs_bytes.into(),
-            }));
+            if let Ok(bcs_data) = BcsData::serialize(&system_state) {
+                message.bcs_system_state = Some(Box::new(bcs_data));
+            }
         }
     }
 

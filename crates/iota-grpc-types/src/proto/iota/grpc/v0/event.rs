@@ -18,11 +18,7 @@ use crate::{
 impl From<&IotaEvent> for grpc_event::Event {
     fn from(event: &IotaEvent) -> Self {
         grpc_event::Event {
-            bcs: Some(grpc_bcs::BcsData {
-                data: bcs::to_bytes(&event)
-                    .expect("BCS serialization should not fail")
-                    .into(),
-            }),
+            bcs: grpc_bcs::BcsData::serialize(&event).ok(),
             package_id: Some(grpc_types::Address {
                 address: event.package_id.into_bytes().to_vec().into(),
             }),
@@ -69,11 +65,7 @@ impl Merge<&iota_sdk_types::Event> for grpc_event::Event {
         mask: &FieldMaskTree,
     ) -> Result<(), Box<dyn std::error::Error>> {
         if mask.contains(Self::BCS_FIELD.name) {
-            if let Ok(bcs_bytes) = bcs::to_bytes(source) {
-                self.bcs = Some(grpc_bcs::BcsData {
-                    data: bcs_bytes.into(),
-                });
-            }
+            self.bcs = grpc_bcs::BcsData::serialize(&source).ok();
         }
 
         if mask.contains(Self::PACKAGE_ID_FIELD.name) {

@@ -26,7 +26,7 @@ impl Merge<iota_sdk_types::CheckpointSummary> for CheckpointSummary {
         mask: &FieldMaskTree,
     ) -> Result<(), Box<dyn std::error::Error>> {
         if mask.contains(Self::BCS_FIELD.name) {
-            self.bcs = Some(BcsData::serialize(&source)?);
+            self.bcs = BcsData::serialize(&source).ok();
         }
 
         if mask.contains(Self::DIGEST_FIELD.name) {
@@ -89,7 +89,7 @@ impl Merge<iota_sdk_types::CheckpointContents> for CheckpointContents {
         mask: &FieldMaskTree,
     ) -> Result<(), Box<dyn std::error::Error>> {
         if mask.contains(Self::BCS_FIELD.name) {
-            self.bcs = Some(BcsData::serialize(&source)?);
+            self.bcs = BcsData::serialize(&source).ok();
         }
 
         if mask.contains(Self::DIGEST_FIELD.name) {

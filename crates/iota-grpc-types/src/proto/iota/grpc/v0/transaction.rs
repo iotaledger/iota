@@ -41,10 +41,7 @@ impl Merge<&iota_sdk_types::TransactionEffects> for TransactionEffects {
 
         // Set BCS if requested
         if mask.contains(Self::BCS_FIELD.name) {
-            let bcs_bytes = bcs::to_bytes(source)?;
-            self.bcs = Some(BcsData {
-                data: bcs_bytes.into(),
-            });
+            self.bcs = BcsData::serialize(source).ok();
         }
 
         Ok(())

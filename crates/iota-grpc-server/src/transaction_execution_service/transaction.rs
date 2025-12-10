@@ -134,11 +134,7 @@ impl Merge<&TransactionReadSource<'_>> for grpc_tx::Transaction {
 
         // Set BCS if requested
         if mask.contains(Self::BCS_FIELD.name) {
-            if let Ok(bcs_bytes) = bcs::to_bytes(&sdk_transaction) {
-                self.bcs = Some(grpc_bcs::BcsData {
-                    data: bcs_bytes.into(),
-                });
-            }
+            self.bcs = grpc_bcs::BcsData::serialize(&sdk_transaction).ok();
         }
 
         Ok(())

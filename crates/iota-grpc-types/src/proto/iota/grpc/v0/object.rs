@@ -42,11 +42,7 @@ impl Merge<&iota_sdk_types::object::Object> for Object {
         mask: &FieldMaskTree,
     ) -> Result<(), Box<dyn std::error::Error>> {
         if mask.contains(Self::BCS_FIELD.name) {
-            if let Ok(bcs_bytes) = bcs::to_bytes(source) {
-                self.bcs = Some(BcsData {
-                    data: bcs_bytes.into(),
-                });
-            }
+            self.bcs = BcsData::serialize(source).ok();
         }
 
         if mask.contains(Self::REFERENCE_FIELD.name) {
