@@ -2,11 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 module coiner::coin_factory {
-    use std::option;
     use iota::coin::{Self, Coin, TreasuryCap};
-    use iota::transfer;
-    use std::vector;
-    use iota::tx_context::{Self, TxContext};
 
     public struct COIN_FACTORY has drop {}
 
