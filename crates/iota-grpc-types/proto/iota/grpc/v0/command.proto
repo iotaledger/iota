@@ -56,8 +56,8 @@ message CommandOutputs {
 
 // An intermediate result/output from the execution of a single command
 message CommandResult {
-  optional CommandOutputs return_values = 1;
-  optional CommandOutputs mutated_by_ref = 2;
+  optional CommandOutputs mutated_by_ref = 1;
+  optional CommandOutputs return_values = 2;
 }
 
 message CommandResults {

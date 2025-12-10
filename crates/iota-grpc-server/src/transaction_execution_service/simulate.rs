@@ -9,31 +9,25 @@ use iota_grpc_types::{
     google::rpc::bad_request::FieldViolation,
     merge::Merge,
     v0::{
-        bcs::BcsData,
-        command::{
-            Argument as ProtoArgument, CommandOutput, CommandOutputs, CommandResult,
-            CommandResults, argument,
-        },
+        command::CommandResults,
         error_reason::ErrorReason,
         transaction::ExecutedTransaction,
         transaction_execution_service::{
             SimulateTransactionRequest, SimulateTransactionResponse,
             simulate_transaction_request::TransactionCheckModes,
         },
-        types::{TypeTag as ProtoTypeTag, TypeTagStruct, type_tag},
     },
 };
 use iota_protocol_config::ProtocolConfig;
 use iota_types::{
     effects::TransactionEffectsAPI,
-    execution::ExecutionResult,
     gas::GasCostSummary,
     transaction::TransactionDataAPI,
     transaction_executor::{SimulateTransactionResult, TransactionExecutor, VmChecks},
 };
 
-use super::TransactionReadSource;
-use crate::{error::RpcError, types::GrpcReader, utils::render_json};
+use super::{CommandResultsReadSource, TransactionReadSource};
+use crate::{error::RpcError, types::GrpcReader};
 
 pub const SIMULATE_TRANSACTION_READ_MASK_DEFAULT: &str = crate::field_mask!(
     "transaction.digest",
@@ -231,112 +225,35 @@ pub async fn simulate_transaction(
     }
 
     // Only include command results if requested
-    if read_mask.contains(SimulateTransactionResponse::COMMAND_RESULTS_FIELD.name) {
-        let command_results =
-            build_command_results(reader, config.max_json_move_value_size, execution_result)?;
-        response.command_results = Some(command_results);
+    if let Some(cmd_mask) =
+        read_mask.subtree(SimulateTransactionResponse::COMMAND_RESULTS_FIELD.name)
+    {
+        match execution_result {
+            Ok(execution_results) => {
+                // Only build command results if the execution was successful
+                // Create a source for the merge
+                let source = CommandResultsReadSource {
+                    reader: reader.clone(),
+                    config,
+                    execution_results,
+                };
+
+                response.command_results =
+                    Some(CommandResults::merge_from(&source, &cmd_mask).map_err(|e| {
+                        RpcError::new(
+                            tonic::Code::Internal,
+                            format!("failed to build command results in simulation response: {e}"),
+                        )
+                    })?);
+            }
+            Err(_) => {
+                // If execution failed, return empty results
+                response.command_results = Some(CommandResults::default());
+            }
+        }
     }
 
     Ok(response)
-}
-
-fn build_command_results(
-    reader: &Arc<GrpcReader>,
-    max_json_move_value_size: usize,
-    execution_result: std::result::Result<Vec<ExecutionResult>, iota_types::error::ExecutionError>,
-) -> Result<CommandResults, RpcError> {
-    let mut results = CommandResults::default();
-
-    match execution_result {
-        Ok(execution_results) => {
-            results.results = execution_results
-                .into_iter()
-                .map(|(mutable_reference_outputs, return_values)| CommandResult {
-                    return_values: Some(CommandOutputs {
-                        outputs: return_values
-                            .into_iter()
-                            .map(|(bcs_bytes, ty)| {
-                                to_command_output(
-                                    reader,
-                                    max_json_move_value_size,
-                                    None,
-                                    bcs_bytes,
-                                    ty,
-                                )
-                            })
-                            .collect::<Vec<_>>(),
-                    }),
-                    mutated_by_ref: Some(CommandOutputs {
-                        outputs: mutable_reference_outputs
-                            .into_iter()
-                            .map(|(arg, bcs_bytes, ty)| {
-                                to_command_output(
-                                    reader,
-                                    max_json_move_value_size,
-                                    Some(arg),
-                                    bcs_bytes,
-                                    ty,
-                                )
-                            })
-                            .collect::<Vec<_>>(),
-                    }),
-                })
-                .collect();
-        }
-        Err(e) => {
-            // If execution failed, return empty results with error info
-            // The error is captured in the effects status
-            tracing::debug!("Simulation execution failed: {e}");
-        }
-    }
-
-    Ok(results)
-}
-
-fn to_command_output(
-    reader: &Arc<GrpcReader>,
-    max_json_move_value_size: usize,
-    arg: Option<iota_types::transaction::Argument>,
-    bcs_bytes: Vec<u8>,
-    ty: iota_types::TypeTag,
-) -> CommandOutput {
-    CommandOutput {
-        argument: arg.map(convert_argument),
-        type_tag: Some(ProtoTypeTag {
-            type_tag: Some(type_tag::TypeTag::StructTag(TypeTagStruct {
-                struct_tag: ty.to_canonical_string(true),
-            })),
-        }),
-        json: render_json(reader.clone(), max_json_move_value_size, &ty, &bcs_bytes).map(Box::new),
-        bcs: Some(BcsData {
-            data: bcs_bytes.into(),
-        }),
-    }
-}
-
-fn convert_argument(arg: iota_types::transaction::Argument) -> ProtoArgument {
-    match arg {
-        iota_types::transaction::Argument::GasCoin => ProtoArgument {
-            kind: Some(argument::Kind::GasCoin(argument::GasCoin {})),
-        },
-        iota_types::transaction::Argument::Input(idx) => ProtoArgument {
-            kind: Some(argument::Kind::Input(argument::Input {
-                index: Some(idx as u32),
-            })),
-        },
-        iota_types::transaction::Argument::Result(idx) => ProtoArgument {
-            kind: Some(argument::Kind::Result(argument::Result {
-                index: Some(idx as u32),
-                nested_result_index: None,
-            })),
-        },
-        iota_types::transaction::Argument::NestedResult(idx, nested_idx) => ProtoArgument {
-            kind: Some(argument::Kind::Result(argument::Result {
-                index: Some(idx as u32),
-                nested_result_index: Some(nested_idx as u32),
-            })),
-        },
-    }
 }
 
 // An amount of gas (in gas units) that is added to transactions as an overhead

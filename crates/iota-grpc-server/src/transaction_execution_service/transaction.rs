@@ -9,30 +9,16 @@ use iota_grpc_types::{
     merge::Merge,
     proto::timestamp_ms_to_proto,
     v0::{
-        bcs as grpc_bcs, event as grpc_event, object as grpc_obj, signatures as grpc_sig,
-        transaction as grpc_tx,
+        bcs::{self as grpc_bcs, BcsData},
+        command::{CommandOutput, CommandOutputs, CommandResult, CommandResults},
+        event as grpc_event, object as grpc_obj, signatures as grpc_sig, transaction as grpc_tx,
     },
 };
+use iota_types::execution::ExecutionResult;
 
-use crate::GrpcReader;
+use crate::{GrpcReader, utils::render_json};
 
-/// Source data bundle for populating gRPC transaction response messages.
-///
-/// Different gRPC endpoints return different message types based on client
-/// needs:
-/// - `GetTransaction`: `Transaction` (digest + BCS)
-/// - `ExecuteTransaction`: `ExecutedTransaction` (effects, events, signatures)
-/// - Other endpoints may return specific subsets like `UserSignatures`
-///
-/// This struct bundles all transaction-related data in one place, allowing the
-/// `Merge` implementation to populate any response type from a common source.
-/// Each response type's `Merge` impl extracts only the fields it needs.
-//
-/// # Note
-/// The digest is stored separately even though it's derivable from
-/// `transaction.data` because `iota_sdk_types::SignedTransaction` doesn't
-/// expose a `digest()` method, and the digest is computed externally from
-/// `iota_types::TransactionData`.
+/// Source for building ExecutedTransaction using the Merge trait
 pub struct TransactionReadSource<'a> {
     pub reader: Arc<GrpcReader>,
     pub config: &'a iota_config::node::GrpcApiConfig,
@@ -209,6 +195,168 @@ impl Merge<&TransactionReadSource<'_>> for grpc_sig::UserSignatures {
                     .map(|sig| grpc_sig::UserSignature::merge_from(sig.clone(), &signatures_mask))
                     .collect::<Result<Vec<_>, _>>()?;
             }
+        }
+
+        Ok(())
+    }
+}
+
+/// Source for building CommandResults using the Merge trait
+pub struct CommandResultsReadSource<'a> {
+    pub reader: Arc<GrpcReader>,
+    pub config: &'a iota_config::node::GrpcApiConfig,
+    pub execution_results: Vec<ExecutionResult>,
+}
+
+impl Merge<&CommandResultsReadSource<'_>> for CommandResults {
+    fn merge(
+        &mut self,
+        source: &CommandResultsReadSource<'_>,
+        mask: &FieldMaskTree,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        if let Some(results_mask) = mask.subtree(Self::RESULTS_FIELD.name) {
+            self.results = source
+                .execution_results
+                .iter()
+                .map(|(mutable_reference_outputs, return_values)| {
+                    let result_source = CommandResultReadSource {
+                        reader: &source.reader,
+                        config: source.config,
+                        mutable_reference_outputs,
+                        return_values,
+                    };
+                    CommandResult::merge_from(&result_source, &results_mask)
+                })
+                .collect::<Result<Vec<_>, _>>()?;
+        }
+        Ok(())
+    }
+}
+
+/// Source for building a single CommandResult
+struct CommandResultReadSource<'a> {
+    reader: &'a Arc<GrpcReader>,
+    config: &'a iota_config::node::GrpcApiConfig,
+    mutable_reference_outputs: &'a [(
+        iota_types::transaction::Argument,
+        Vec<u8>,
+        iota_types::TypeTag,
+    )],
+    return_values: &'a [(Vec<u8>, iota_types::TypeTag)],
+}
+
+impl Merge<&CommandResultReadSource<'_>> for CommandResult {
+    fn merge(
+        &mut self,
+        source: &CommandResultReadSource<'_>,
+        mask: &FieldMaskTree,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        if let Some(mutated_mask) = mask.subtree(Self::MUTATED_BY_REF_FIELD.name) {
+            let outputs_source = CommandOutputsReadSource {
+                reader: source.reader,
+                config: source.config,
+                outputs: source
+                    .mutable_reference_outputs
+                    .iter()
+                    .map(|(arg, bcs_bytes, ty)| (Some(*arg), bcs_bytes.as_slice(), ty))
+                    .collect(),
+            };
+            self.mutated_by_ref = Some(CommandOutputs::merge_from(&outputs_source, &mutated_mask)?);
+        }
+        if let Some(return_values_mask) = mask.subtree(Self::RETURN_VALUES_FIELD.name) {
+            let outputs_source = CommandOutputsReadSource {
+                reader: source.reader,
+                config: source.config,
+                outputs: source
+                    .return_values
+                    .iter()
+                    .map(|(bcs_bytes, ty)| (None, bcs_bytes.as_slice(), ty))
+                    .collect(),
+            };
+            self.return_values = Some(CommandOutputs::merge_from(
+                &outputs_source,
+                &return_values_mask,
+            )?);
+        }
+
+        Ok(())
+    }
+}
+
+/// Source for building CommandOutputs
+struct CommandOutputsReadSource<'a> {
+    reader: &'a Arc<GrpcReader>,
+    config: &'a iota_config::node::GrpcApiConfig,
+    outputs: Vec<(
+        Option<iota_types::transaction::Argument>,
+        &'a [u8],
+        &'a iota_types::TypeTag,
+    )>,
+}
+
+impl Merge<&CommandOutputsReadSource<'_>> for CommandOutputs {
+    fn merge(
+        &mut self,
+        source: &CommandOutputsReadSource<'_>,
+        mask: &FieldMaskTree,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        if let Some(outputs_mask) = mask.subtree(Self::OUTPUTS_FIELD.name) {
+            self.outputs = source
+                .outputs
+                .iter()
+                .map(|(arg, bcs_bytes, ty)| {
+                    let output_source = CommandOutputReadSource {
+                        reader: source.reader,
+                        config: source.config,
+                        arg: *arg,
+                        bcs_bytes,
+                        ty,
+                    };
+                    CommandOutput::merge_from(&output_source, &outputs_mask)
+                })
+                .collect::<Result<Vec<_>, _>>()?;
+        }
+        Ok(())
+    }
+}
+
+/// Source for building a single CommandOutput
+struct CommandOutputReadSource<'a> {
+    reader: &'a Arc<GrpcReader>,
+    config: &'a iota_config::node::GrpcApiConfig,
+    arg: Option<iota_types::transaction::Argument>,
+    bcs_bytes: &'a [u8],
+    ty: &'a iota_types::TypeTag,
+}
+
+impl Merge<&CommandOutputReadSource<'_>> for CommandOutput {
+    fn merge(
+        &mut self,
+        source: &CommandOutputReadSource<'_>,
+        mask: &FieldMaskTree,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        if mask.contains(Self::ARGUMENT_FIELD.name) {
+            self.argument = source.arg.map(Into::into);
+        }
+
+        if mask.contains(Self::TYPE_TAG_FIELD.name) {
+            self.type_tag = Some(source.ty.into());
+        }
+
+        if mask.contains(Self::BCS_FIELD.name) {
+            self.bcs = Some(BcsData {
+                data: source.bcs_bytes.to_vec().into(),
+            });
+        }
+
+        if mask.contains(Self::JSON_FIELD.name) {
+            self.json = render_json(
+                source.reader.clone(),
+                source.config.max_json_move_value_size,
+                source.ty,
+                source.bcs_bytes,
+            )
+            .map(Box::new);
         }
 
         Ok(())

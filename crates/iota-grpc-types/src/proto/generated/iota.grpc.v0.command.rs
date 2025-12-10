@@ -67,9 +67,9 @@ pub struct CommandOutputs {
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct CommandResult {
     #[prost(message, optional, tag = "1")]
-    pub return_values: ::core::option::Option<CommandOutputs>,
-    #[prost(message, optional, tag = "2")]
     pub mutated_by_ref: ::core::option::Option<CommandOutputs>,
+    #[prost(message, optional, tag = "2")]
+    pub return_values: ::core::option::Option<CommandOutputs>,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct CommandResults {

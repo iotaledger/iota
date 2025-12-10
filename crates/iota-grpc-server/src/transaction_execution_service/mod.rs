@@ -25,7 +25,7 @@ use iota_types::{
     transaction_executor::TransactionExecutor,
 };
 use tonic::{Request, Response};
-pub use transaction::TransactionReadSource;
+pub use transaction::{CommandResultsReadSource, TransactionReadSource};
 
 use crate::{error::RpcError, types::GrpcReader};
 
