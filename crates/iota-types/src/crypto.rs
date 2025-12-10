@@ -39,7 +39,7 @@ use fastcrypto::{
     },
 };
 use fastcrypto_zkp::{bn254::zk_login::ZkLoginInputs, zk_login_utils::Bn254FrElement};
-use iota_sdk_types::crypto::{Intent, IntentMessage, IntentScope};
+use iota_sdk_2::types::crypto::{Intent, IntentMessage, IntentScope};
 use rand::{
     SeedableRng,
     rngs::{OsRng, StdRng},
@@ -1657,7 +1657,7 @@ pub mod bcs_signable_test {
     where
         T: super::bcs_signable::BcsSignable,
     {
-        use iota_sdk_types::crypto::{Intent, IntentScope};
+        use iota_sdk_2::types::crypto::{Intent, IntentScope};
 
         let mut obligation = VerificationObligation::default();
         // Add the obligation of the authority signature verifications.

@@ -29,7 +29,7 @@ use iota_framework::{BuiltInFramework, SystemPackage};
 use iota_genesis_common::{execute_genesis_transaction, get_genesis_protocol_config};
 use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
 use iota_sdk::Url;
-use iota_sdk_types::crypto::{Intent, IntentMessage, IntentScope};
+use iota_sdk_2::types::crypto::{Intent, IntentMessage, IntentScope};
 use iota_types::{
     IOTA_FRAMEWORK_PACKAGE_ID, IOTA_SYSTEM_ADDRESS,
     balance::{BALANCE_MODULE_NAME, Balance},

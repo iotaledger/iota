@@ -8,7 +8,7 @@ use fastcrypto::traits::EncodeDecodeBase64;
 use iota_core::authority_client::AuthorityAPI;
 use iota_macros::sim_test;
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::crypto::{Intent, IntentMessage};
+use iota_sdk_2::types::crypto::{Intent, IntentMessage};
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
     base_types::IotaAddress,

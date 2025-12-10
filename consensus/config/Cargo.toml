@@ -17,7 +17,7 @@ serde.workspace = true
 
 # internal dependencies
 iota-network-stack.workspace = true
-iota-sdk-types.workspace = true
+iota-sdk-2.workspace = true
 
 [dev-dependencies]
 insta.workspace = true

@@ -17,7 +17,7 @@ use fastcrypto_zkp::{
     zk_login_utils::Bn254FrElement,
 };
 use im::hashmap::HashMap as ImHashMap;
-use iota_sdk_types::crypto::{Intent, IntentMessage, PersonalMessage};
+use iota_sdk_2::types::crypto::{Intent, IntentMessage, PersonalMessage};
 use once_cell::sync::OnceCell;
 use rand::{SeedableRng, rngs::StdRng};
 

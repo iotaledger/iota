@@ -21,7 +21,7 @@ use iota_sdk::{
         transaction::{Argument, ObjectArg, Transaction, TransactionData},
     },
 };
-use iota_sdk_types::crypto::Intent;
+use iota_sdk_2::types::crypto::Intent;
 use move_core_types::ident_str;
 
 /// Got from iota-genesis-builder/src/stardust/test_outputs/stardust_mix.rs

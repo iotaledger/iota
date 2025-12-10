@@ -16,7 +16,7 @@ use anyhow::bail;
 use enum_dispatch::enum_dispatch;
 use fastcrypto::{encoding::Base64, hash::HashFunction};
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::crypto::{Intent, IntentMessage, IntentScope};
+use iota_sdk_2::types::crypto::{Intent, IntentMessage, IntentScope};
 use itertools::Either;
 use move_core_types::{
     ident_str,

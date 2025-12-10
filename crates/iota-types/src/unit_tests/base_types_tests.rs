@@ -10,7 +10,7 @@ use std::str::FromStr;
 use base_types_tests::timelock::TimeLock;
 use fastcrypto::{encoding::Base58, traits::EncodeDecodeBase64};
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::crypto::{Intent, IntentMessage, IntentScope};
+use iota_sdk_2::types::crypto::{Intent, IntentMessage, IntentScope};
 use move_binary_format::file_format;
 
 use super::*;

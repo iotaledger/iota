@@ -5,7 +5,7 @@
 use std::borrow::Cow;
 
 use axum::{Json, extract::State};
-use iota_sdk_types::Digest;
+use iota_sdk_2::types::Digest;
 use tap::Pipe;
 
 use crate::{

@@ -8,7 +8,7 @@ use std::{
 };
 
 use fastcrypto::{encoding::Base64, hash::HashFunction};
-use iota_sdk_types::crypto::HashingIntentScope;
+use iota_sdk_2::types::crypto::HashingIntentScope;
 use move_core_types::{
     annotated_value::{MoveStruct, MoveValue},
     ident_str,

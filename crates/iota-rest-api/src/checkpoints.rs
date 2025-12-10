@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use axum::extract::{Path, Query, State};
-use iota_sdk_types::{
+use iota_sdk_2::types::{
     CheckpointContents, CheckpointSequenceNumber, CheckpointSummary, Digest,
     SignedCheckpointSummary, ValidatorAggregatedSignature,
 };

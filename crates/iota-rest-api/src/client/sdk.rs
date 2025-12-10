@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_sdk_types::{
+use iota_sdk_2::types::{
     Address, CheckpointData, CheckpointSequenceNumber, Digest, EpochId, Object, ObjectId,
     SignedCheckpointSummary, SignedTransaction, StructTag, Transaction, ValidatorCommittee,
     Version,

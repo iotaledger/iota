@@ -20,7 +20,7 @@ use fastcrypto::{
     hash::{Blake2b256, HashFunction},
     traits::{KeyPair as _, Signer as _, ToFromBytes as _, VerifyingKey as _},
 };
-use iota_sdk_types::crypto::INTENT_PREFIX_LENGTH;
+use iota_sdk_2::types::crypto::INTENT_PREFIX_LENGTH;
 use serde::{Deserialize, Serialize};
 
 /// Network key is used for TLS and as the network identity of the authority.

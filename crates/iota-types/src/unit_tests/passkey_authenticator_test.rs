@@ -10,7 +10,7 @@ use fastcrypto::{
     rsa::{Base64UrlUnpadded, Encoding as _},
     traits::ToFromBytes,
 };
-use iota_sdk_types::crypto::{Intent, IntentMessage};
+use iota_sdk_2::types::crypto::{Intent, IntentMessage};
 use p256::pkcs8::DecodePublicKey;
 use passkey_authenticator::{Authenticator, UserCheck, UserValidationMethod};
 use passkey_client::Client;

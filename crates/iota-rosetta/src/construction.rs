@@ -18,7 +18,7 @@ use iota_json_rpc_types::{
     StakeStatus,
 };
 use iota_sdk::rpc_types::IotaExecutionStatus;
-use iota_sdk_types::crypto::{Intent, IntentMessage};
+use iota_sdk_2::types::crypto::{Intent, IntentMessage};
 use iota_types::{
     base_types::IotaAddress,
     crypto::{DefaultHash, SignatureScheme, ToFromBytes},

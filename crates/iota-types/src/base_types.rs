@@ -17,7 +17,7 @@ use fastcrypto::{
     traits::AllowedRng,
 };
 use fastcrypto_zkp::bn254::zk_login::ZkLoginInputs;
-use iota_sdk_types::crypto::HashingIntentScope;
+use iota_sdk_2::types::crypto::HashingIntentScope;
 use move_binary_format::{CompiledModule, file_format::SignatureToken};
 use move_bytecode_utils::resolve_struct;
 use move_core_types::{

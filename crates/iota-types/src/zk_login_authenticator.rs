@@ -13,7 +13,7 @@ use fastcrypto_zkp::bn254::{
     zk_login::{JWK, JwkId, ZkLoginInputs},
     zk_login_api::{ZkLoginEnv, verify_zk_login},
 };
-use iota_sdk_types::crypto::IntentMessage;
+use iota_sdk_2::types::crypto::IntentMessage;
 use once_cell::sync::OnceCell;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};

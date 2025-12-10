@@ -8,7 +8,7 @@ use std::{
     sync::Arc,
 };
 
-use iota_sdk_types::crypto::Intent;
+use iota_sdk_2::types::crypto::Intent;
 use iota_types::{
     base_types::{AuthorityName, ConciseableName},
     committee::{Committee, CommitteeTrait, StakeUnit},

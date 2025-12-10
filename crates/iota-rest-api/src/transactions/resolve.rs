@@ -9,7 +9,7 @@ use axum::{
     extract::{Query, State},
 };
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::{Argument, Command, ObjectId, Transaction};
+use iota_sdk_2::types::{Argument, Command, ObjectId, Transaction};
 use iota_types::{
     base_types::{IotaAddress, ObjectID, ObjectRef},
     effects::TransactionEffectsAPI,

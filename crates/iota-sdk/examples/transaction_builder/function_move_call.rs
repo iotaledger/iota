@@ -18,7 +18,7 @@ use iota_sdk::{
         transaction::{Argument, CallArg, Command, Transaction, TransactionData},
     },
 };
-use iota_sdk_types::crypto::Intent;
+use iota_sdk_2::types::crypto::Intent;
 use utils::setup_for_write;
 
 // This example shows how to use programmable transactions to chain multiple

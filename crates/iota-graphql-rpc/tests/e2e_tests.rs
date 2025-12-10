@@ -555,7 +555,7 @@ mod tests {
     #[serial]
     #[ignore = "https://github.com/iotaledger/iota/issues/1777"]
     async fn test_zklogin_sig_verify() {
-        use iota_sdk_types::crypto::{Intent, IntentMessage};
+        use iota_sdk_2::types::crypto::{Intent, IntentMessage};
         use iota_test_transaction_builder::TestTransactionBuilder;
         use iota_types::{
             base_types::IotaAddress, crypto::Signature, signature::GenericSignature,

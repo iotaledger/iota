@@ -22,7 +22,7 @@ use iota_sdk::{
         IotaTransactionBlockResponse, OwnedObjectRef,
     },
 };
-use iota_sdk_types::crypto::Intent;
+use iota_sdk_2::types::crypto::Intent;
 use iota_types::{
     TypeTag,
     base_types::{IotaAddress, ObjectID, ObjectRef},

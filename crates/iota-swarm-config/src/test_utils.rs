@@ -4,7 +4,7 @@
 
 use std::collections::HashMap;
 
-use iota_sdk_types::crypto::{Intent, IntentMessage, IntentScope};
+use iota_sdk_2::types::crypto::{Intent, IntentMessage, IntentScope};
 use iota_types::{
     base_types::AuthorityName,
     committee::{Committee, EpochId, StakeUnit},

@@ -4,7 +4,7 @@
 
 use std::{hash::Hash, sync::Arc};
 
-use iota_sdk_types::crypto::Intent;
+use iota_sdk_2::types::crypto::Intent;
 use lru::LruCache;
 use nonempty::NonEmpty;
 use parking_lot::RwLock;

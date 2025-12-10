@@ -13,7 +13,7 @@ use fastcrypto_zkp::bn254::{
 use futures::pin_mut;
 use im::hashmap::HashMap as ImHashMap;
 use iota_metrics::monitored_scope;
-use iota_sdk_types::crypto::Intent;
+use iota_sdk_2::types::crypto::Intent;
 use iota_types::{
     base_types::AuthorityName,
     committee::Committee,

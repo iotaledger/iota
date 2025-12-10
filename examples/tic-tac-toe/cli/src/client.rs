@@ -17,7 +17,7 @@ use iota_sdk::{
     },
     wallet_context::WalletContext,
 };
-use iota_sdk_types::crypto::Intent;
+use iota_sdk_2::types::crypto::Intent;
 use iota_types::{
     Identifier,
     base_types::{IotaAddress, ObjectID, ObjectRef},

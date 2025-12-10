@@ -1,7 +1,7 @@
 // Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_sdk_types::{Address, Command, Digest, ObjectId, TransactionExpiration, Version};
+use iota_sdk_2::types::{Address, Command, Digest, ObjectId, TransactionExpiration, Version};
 
 pub(crate) type OptionReadableDisplay =
     ::serde_with::As<Option<::serde_with::IfIsHumanReadable<::serde_with::DisplayFromStr>>>;

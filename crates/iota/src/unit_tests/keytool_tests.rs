@@ -11,7 +11,7 @@ use fastcrypto::{
     traits::ToFromBytes,
 };
 use iota_keys::keystore::{AccountKeystore, FileBasedKeystore, InMemKeystore, Keystore, StoredKey};
-use iota_sdk_types::crypto::{Intent, IntentScope};
+use iota_sdk_2::types::crypto::{Intent, IntentScope};
 use iota_types::{
     base_types::{IotaAddress, ObjectDigest, ObjectID, SequenceNumber},
     crypto::{

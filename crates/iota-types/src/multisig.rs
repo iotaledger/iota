@@ -18,7 +18,7 @@ use fastcrypto::{
     secp256r1::Secp256r1PublicKey,
     traits::{EncodeDecodeBase64, ToFromBytes, VerifyingKey},
 };
-use iota_sdk_types::crypto::IntentMessage;
+use iota_sdk_2::types::crypto::IntentMessage;
 use once_cell::sync::OnceCell;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};

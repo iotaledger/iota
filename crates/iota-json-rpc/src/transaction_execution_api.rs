@@ -21,7 +21,7 @@ use iota_metrics::spawn_monitored_task;
 use iota_open_rpc::Module;
 use iota_package_resolver::{Package, PackageStore, error::Error as PackageResolverError};
 use iota_protocol_config::Chain;
-use iota_sdk_types::crypto::{Intent, IntentAppId, IntentMessage, IntentScope, IntentVersion};
+use iota_sdk_2::types::crypto::{Intent, IntentAppId, IntentMessage, IntentScope, IntentVersion};
 use iota_transaction_builder::TransactionBuilder;
 use iota_types::{
     base_types::IotaAddress,

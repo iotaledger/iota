@@ -15,7 +15,7 @@ use axum::{
     extract::{Path, Query, State},
     http::StatusCode,
 };
-use iota_sdk_types::{
+use iota_sdk_2::types::{
     CheckpointSequenceNumber, Digest, Transaction, TransactionEffects, TransactionEvents,
     UserSignature,
 };
