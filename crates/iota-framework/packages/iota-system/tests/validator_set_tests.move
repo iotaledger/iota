@@ -990,6 +990,7 @@ fun advance_epoch_with_dummy_rewards(
         committee_size,
         eligible_validators,
         scores,
+        true,
         scenario.ctx(),
     );
 
@@ -1022,6 +1023,7 @@ fun advance_epoch_with_eligible_validators(
         committee_size,
         eligible_validators,
         scores,
+        true,
         scenario.ctx(),
     );
 
@@ -1060,6 +1062,7 @@ fun advance_epoch_with_low_stake_params(
         committee_size,
         eligible_validators,
         scores,
+        true,
         scenario.ctx(),
     );
 

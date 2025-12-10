@@ -4877,8 +4877,9 @@ impl AuthorityState {
                 }
             }
 
-            // Use ChangeEpochV4 when the feature flag is enabled
-            if config.score_based_rewards() {
+            // Use ChangeEpochV4 when the calculate_validator_scores feature flag is enabled
+            // as scores are provided.
+            if config.calculate_validator_scores() {
                 txns.push(EndOfEpochTransactionKind::new_change_epoch_v4(
                     next_epoch,
                     next_epoch_protocol_version,
@@ -4891,6 +4892,7 @@ impl AuthorityState {
                     next_epoch_system_package_bytes,
                     eligible_active_validators,
                     scores,
+                    config.adjust_rewards_by_score(),
                 ));
             } else {
                 txns.push(EndOfEpochTransactionKind::new_change_epoch_v3(

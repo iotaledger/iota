@@ -141,6 +141,7 @@ ChangeEpochV4:
         SEQ: U64
     - scores:
         SEQ: U64
+    - adjust_rewards_by_score: BOOL
 CheckpointCommitment:
   ENUM:
     0:

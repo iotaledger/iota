@@ -451,6 +451,7 @@ pub struct AdvanceEpochParams {
     pub max_committee_members_count: u64,
     pub eligible_active_validators: Vec<u64>,
     pub scores: Vec<u64>,
+    pub adjust_rewards_by_score: bool,
 }
 
 #[cfg(msim)]

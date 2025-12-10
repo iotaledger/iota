@@ -1460,7 +1460,7 @@ fun test_pool_tokens_minted() {
 }
 
 #[test]
-fun test_rewards_with_scores() {
+fun test_rewards_with_scores_no_adjustment() {
     set_up_iota_system_state();
     let mut scenario_val = test_scenario::begin(VALIDATOR_ADDR_1);
     let scenario = &mut scenario_val;
@@ -1479,11 +1479,50 @@ fun test_rewards_with_scores() {
     ];
     test_scenario::return_shared(system_state);
 
-    // Advance epoch with 800 IOTA of subsidy and the above scores.
-    advance_epoch_with_subsidy_and_scores(800, scores, scenario);
+    // Advance epoch with 800 IOTA of subsidy and the above scores, but don't adjust rewards by score.
+    advance_epoch_with_subsidy_and_scores(800, scores, false, scenario);
+
+    // Check that the rewards were distributed and were unaffected by the scores.
+    // Each pool gets +200 IOTA. 
+    assert_validator_self_stake_amounts(
+        validator_addrs(),
+        vector[ 
+            (100 + 200) * NANOS_PER_IOTA,
+            (200 + 200) * NANOS_PER_IOTA,
+            (300 + 200) * NANOS_PER_IOTA,
+            (400 + 200) * NANOS_PER_IOTA,
+        ],
+        scenario,
+    );
+
+    scenario_val.end();
+}
+
+#[test]
+fun test_rewards_with_scores_and_adjustment() {
+    set_up_iota_system_state();
+    let mut scenario_val = test_scenario::begin(VALIDATOR_ADDR_1);
+    let scenario = &mut scenario_val;
+
+    // Need to advance epoch so validator's staking starts counting.
+    advance_epoch(scenario);
+
+    // Set validator scores.
+    let system_state = scenario.take_shared<IotaSystemState>();
+    let max_score = 65_536u64;
+    let scores = vector[
+        max_score / 4,    // Validator 1
+        max_score / 2,    // Validator 2
+        (max_score * 3) / 4,  // Validator 3
+        max_score,        // Validator 4
+    ];
+    test_scenario::return_shared(system_state);
+
+    // Advance epoch with 800 IOTA of subsidy and the above scores, and adjust rewards by score.
+    advance_epoch_with_subsidy_and_scores(800, scores, true, scenario);
 
     // Check that the rewards were distributed according to the scores.
-    // Each pool gets +200 IOTA. 
+    // Each pool gets +200 IOTA and adjusted by score.
     assert_validator_self_stake_amounts(
         validator_addrs(),
         vector[ 
@@ -1499,7 +1538,7 @@ fun test_rewards_with_scores() {
 }
 
 #[test]
-fun test_rewards_with_scores_and_slashing() {
+fun test_rewards_with_scores_and_slashing_no_adjustment() {
     set_up_iota_system_state();
     let mut scenario_val = test_scenario::begin(VALIDATOR_ADDR_1);
     let scenario = &mut scenario_val;
@@ -1527,16 +1566,63 @@ fun test_rewards_with_scores_and_slashing() {
     report_validator(VALIDATOR_ADDR_3, VALIDATOR_ADDR_4, scenario);
 
     // Advance epoch with 800 IOTA of subsidy and the above scores.
-    advance_epoch_with_subsidy_and_scores(800, scores, scenario);
+    advance_epoch_with_subsidy_and_scores(800, scores, false, scenario);
 
-    // Check that the rewards were distributed according to the scores.
+    // Check that the rewards were distributed according to slashing only, without score adjustment.
     // Each pool gets +200 IOTA. 
     assert_validator_self_stake_amounts(
         validator_addrs(),
         vector[ 
-            (100 + 50) * NANOS_PER_IOTA, // 200 * 1/4 = 50
+            (100 + 200) * NANOS_PER_IOTA, // full rewards
             (200) * NANOS_PER_IOTA, // slashed
-            (300 + 150) * NANOS_PER_IOTA, // 200 * 3/4 = 150
+            (300 + 200) * NANOS_PER_IOTA, // full rewards
+            (400) * NANOS_PER_IOTA, // slashed 
+        ],
+        scenario,
+    );
+
+    scenario_val.end();
+}
+
+#[test]
+fun test_rewards_with_scores_and_slashing_and_adjustment() {
+    set_up_iota_system_state();
+    let mut scenario_val = test_scenario::begin(VALIDATOR_ADDR_1);
+    let scenario = &mut scenario_val;
+
+    // Need to advance epoch so validator's staking starts counting.
+    advance_epoch(scenario);
+
+    // Set validator scores.
+    let system_state = scenario.take_shared<IotaSystemState>();
+    let max_score = 65_536u64;
+    let scores = vector[
+        max_score / 4,    // Validator 1
+        max_score / 2,    // Validator 2
+        (max_score * 3) / 4,  // Validator 3
+        max_score,        // Validator 4
+    ];
+    test_scenario::return_shared(system_state);
+
+    // validators 2 and 4 reported by all others, so they get slashed.
+    report_validator(VALIDATOR_ADDR_1, VALIDATOR_ADDR_2, scenario);
+    report_validator(VALIDATOR_ADDR_3, VALIDATOR_ADDR_2, scenario);
+    report_validator(VALIDATOR_ADDR_4, VALIDATOR_ADDR_2, scenario);
+    report_validator(VALIDATOR_ADDR_1, VALIDATOR_ADDR_4, scenario);
+    report_validator(VALIDATOR_ADDR_2, VALIDATOR_ADDR_4, scenario);
+    report_validator(VALIDATOR_ADDR_3, VALIDATOR_ADDR_4, scenario);
+
+    // Advance epoch with 800 IOTA of subsidy and the above scores.
+    advance_epoch_with_subsidy_and_scores(800, scores, true, scenario);
+
+    // Check that the rewards were distributed according to slashing only, without score adjustment.
+    // Each pool gets +200 IOTA. 
+    assert_validator_self_stake_amounts(
+        validator_addrs(),
+        vector[ 
+            (100 + 50) * NANOS_PER_IOTA, // adjusted rewards = 200 * 1/4 = 50
+            (200) * NANOS_PER_IOTA, // slashed
+            (300 + 150) * NANOS_PER_IOTA, // adjusted rewards = 200 * 3/4 = 150
             (400) * NANOS_PER_IOTA, // slashed 
         ],
         scenario,
