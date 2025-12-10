@@ -248,49 +248,19 @@ fn build_command_results(
         Ok(execution_results) => {
             results.results = execution_results
                 .into_iter()
-                .map(|(mutable_reference_outputs, return_values)| {
-                    let mut command_result = CommandResult::default();
-
-                    // Process return values
-                    let return_outputs: Vec<CommandOutput> = return_values
-                        .into_iter()
-                        .map(|(bcs_bytes, tt)| CommandOutput {
-                            argument: None,
-                            type_tag: Some(ProtoTypeTag {
-                                type_tag: Some(type_tag::TypeTag::StructTag(TypeTagStruct {
-                                    struct_tag: tt.to_canonical_string(true),
-                                })),
-                            }),
-                            bcs: Some(BcsData {
-                                data: bcs_bytes.into(),
-                            }),
-                        })
-                        .collect();
-
-                    command_result.return_values = Some(CommandOutputs {
-                        outputs: return_outputs,
-                    });
-
-                    // Process mutable reference outputs
-                    let mutated_outputs: Vec<CommandOutput> = mutable_reference_outputs
-                        .into_iter()
-                        .map(|(arg, bcs_bytes, tt)| CommandOutput {
-                            argument: Some(convert_argument(arg)),
-                            type_tag: Some(ProtoTypeTag {
-                                type_tag: Some(type_tag::TypeTag::StructTag(TypeTagStruct {
-                                    struct_tag: tt.to_canonical_string(true),
-                                })),
-                            }),
-                            bcs: Some(BcsData {
-                                data: bcs_bytes.into(),
-                            }),
-                        })
-                        .collect();
-                    command_result.mutated_by_ref = Some(CommandOutputs {
-                        outputs: mutated_outputs,
-                    });
-
-                    command_result
+                .map(|(mutable_reference_outputs, return_values)| CommandResult {
+                    return_values: Some(CommandOutputs {
+                        outputs: return_values
+                            .into_iter()
+                            .map(|(bcs_bytes, ty)| to_command_output(None, bcs_bytes, ty))
+                            .collect::<Vec<_>>(),
+                    }),
+                    mutated_by_ref: Some(CommandOutputs {
+                        outputs: mutable_reference_outputs
+                            .into_iter()
+                            .map(|(arg, bcs_bytes, ty)| to_command_output(Some(arg), bcs_bytes, ty))
+                            .collect::<Vec<_>>(),
+                    }),
                 })
                 .collect();
         }
@@ -302,6 +272,24 @@ fn build_command_results(
     }
 
     Ok(results)
+}
+
+fn to_command_output(
+    arg: Option<iota_types::transaction::Argument>,
+    bcs_bytes: Vec<u8>,
+    ty: iota_types::TypeTag,
+) -> CommandOutput {
+    CommandOutput {
+        argument: arg.map(convert_argument),
+        type_tag: Some(ProtoTypeTag {
+            type_tag: Some(type_tag::TypeTag::StructTag(TypeTagStruct {
+                struct_tag: ty.to_canonical_string(true),
+            })),
+        }),
+        bcs: Some(BcsData {
+            data: bcs_bytes.into(),
+        }),
+    }
 }
 
 fn convert_argument(arg: iota_types::transaction::Argument) -> ProtoArgument {
