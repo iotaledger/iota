@@ -20,7 +20,7 @@ PERCENT_LOSS=0           # Percent chance to apply packet loss
 PERCENT_RESTART=0         # Percent of validators to stop and start after RESTART_DURATION seconds
 RESTART_DURATION=120    # Seconds to stop validators during restart
 RESTART_TIMEOUT=60      # Seconds to wait before restarting (timeout duration)
-RESTART_MODE="preserve-consensus"  # restart mode: preserve-consensus | full-reset | clean-restart
+RESTART_MODE="preserve-consensus"  # restart mode: preserve-consensus | full-reset | simple-restart
 GEODISTRIBUTED=false  # Large geodistributed latencies or small ones
 LOG_FILE="logs/fuzz_script.log" # Output file for script
 
@@ -37,7 +37,7 @@ while getopts "g:n:s:b:l:r:d:w:M:o:" opt; do
     w) RESTART_TIMEOUT="$OPTARG" ;;
     M) RESTART_MODE="$OPTARG" ;;
     o) LOG_FILE="$OPTARG" ;;
-    *) echo "Usage: $0 [-n num_validators] [-s seed] [-b percent_block] [-l percent_packet_loss] [-r percent_restart] [-d restart_duration] [-w restart_timeout] [-M restart_mode(preserve-consensus|full-reset|clean-restart)] [-g geodistributed_bool]"; exit 1 ;;
+    *) echo "Usage: $0 [-n num_validators] [-s seed] [-b percent_block] [-l percent_packet_loss] [-r percent_restart] [-d restart_duration] [-w restart_timeout] [-M restart_mode(preserve-consensus|full-reset|simple-restart)] [-g geodistributed_bool]"; exit 1 ;;
   esac
 done
 shift $((OPTIND-1))
@@ -189,7 +189,7 @@ block_connection() {
 # Supports three modes:
 #   - preserve-consensus: Remove only authorities_db, keep consensus_db
 #   - full-reset: Remove both authorities_db and consensus_db
-#   - clean-restart: Don't remove any databases, clean docker restart only
+#   - simple-restart: Don't remove any databases, clean docker restart only
 restart_validator() {
  local v=$1 d=$2 timeout=${3:-60} mode=${4:-preserve-consensus}
  log "Stopping $v..."
@@ -227,9 +227,9 @@ restart_validator() {
      done
      ;;
 
-   clean-restart)
+   simple-restart)
      # Don't remove any databases
-     log "Restart mode: clean-restart (no database deletion)"
+     log "Restart mode: simple-restart (no database deletion)"
      ;;
 
    *)

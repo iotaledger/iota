@@ -21,7 +21,7 @@ DEFAULT_PERCENT_LOSS=0       # percent chance to apply netem loss
 DEFAULT_PERCENT_RESTART=0     # percent chance to restart a validator
 DEFAULT_RESTART_DURATION=120  # default restart duration in seconds
 DEFAULT_RESTART_TIMEOUT=60    # default timeout before restarting (seconds)
-DEFAULT_RESTART_MODE="preserve-consensus"  # restart mode: preserve-consensus | full-reset | clean-restart
+DEFAULT_RESTART_MODE="preserve-consensus"  # restart mode: preserve-consensus | full-reset | simple-restart
 DEFAULT_EPOCH_DURATION_MS=1200000  # default epoch duration: 20 minutes (in milliseconds)
 DEFAULT_RUN_DURATION=3600  # default sleep at end: 1 hour
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -168,7 +168,7 @@ usage() {
   echo "Usage: $0 [-n num_validators(4..30)] [-p protocol(mysticeti|starfish)] [-b build_images(true|false)]"
   echo "          [-g geodistributed(true|false)] [-s seed(number)] [-x percent_block_connection(0..100)] [-l percent_loss_packets(0..100)]"
   echo "          [-t run_duration_seconds] [-d restart_duration_seconds] [-r percent_restart(0..100)]"
-  echo "          [-w restart_timeout_seconds] [-M restart_mode(preserve-consensus|full-reset|clean-restart)]"
+  echo "          [-w restart_timeout_seconds] [-M restart_mode(preserve-consensus|full-reset|simple-restart)]"
   echo "          [-E epoch_duration_ms] [-m flag_to_output_network_statistics]"
   echo "          [-S spammer_enable(true|false)] [-T spammer_tps(number)] [-Z spammer_size_per_tx(KiB)] [-C spammer_type(iota-spammer|stress)]"
 }
