@@ -10,7 +10,7 @@ use iota::auth_context::{Self, AuthContext};
 use iota::hex;
 use iota::programmable_transaction;
 use iota::test_scenario::{Self, Scenario};
-use spending_limit::account as spending_limit;
+use spending_limit::account::{Self as spending_limit, SpendLimit};
 use spending_limit::spending_limit as limit;
 use std::ascii;
 use std::unit_test::assert_eq;
@@ -637,7 +637,7 @@ fun test_withdraw_invalid_bcs_amount() {
 
 // --------------------------------------- Test Utilities ---------------------------------------
 
-fun create_authenticator_info_v1_for_testing(): AuthenticatorInfoV1 {
+fun create_authenticator_info_v1_for_testing(): AuthenticatorInfoV1<SpendLimit> {
     iota::account::create_auth_info_v1_for_testing(
         @0x1,
         ascii::string(b"spending_limit"),

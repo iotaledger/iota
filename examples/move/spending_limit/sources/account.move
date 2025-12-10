@@ -64,20 +64,25 @@ public struct BalanceReserve has store {
 public fun create(
     public_key: vector<u8>,
     limit: u64,
-    authenticator: AuthenticatorInfoV1,
+    authenticator: AuthenticatorInfoV1<SpendLimit>,
     ctx: &mut TxContext,
 ) {
-    // Attach authenticator info.
-    let mut id = object::new(ctx);
+    // Create the SpendLimit account object.
+    let mut spend_limit_account = SpendLimit { id: object::new(ctx) };
+
+    // Check compatibility and create proof.
+    let proof = account::check_auth_info_v1_compatibility(&spend_limit_account, authenticator);
+
+    // Attach the authenticator info.
     account::attach_auth_info_v1(
-        &mut id,
-        authenticator,
+        &mut spend_limit_account.id,
+        proof,
     );
     // Attach public key using the owner_public_key module.
-    owner_public_key::attach(&mut id, public_key);
+    owner_public_key::attach(&mut spend_limit_account.id, public_key);
     // Initialize balance reserve.
     dynamic_field::add(
-        &mut id,
+        &mut spend_limit_account.id,
         BalanceReserveKey {},
         BalanceReserve {
             balance: balance::zero<IOTA>(),
@@ -85,10 +90,9 @@ public fun create(
     );
     // Attach spending limit.
     spending_limit::attach(
-        &mut id,
+        &mut spend_limit_account.id,
         limit,
     );
-    let spend_limit_account = SpendLimit { id };
     iota::transfer::share_object(spend_limit_account);
 }
 
@@ -208,7 +212,7 @@ fun first_arg_equals_sender(
 ): bool {
     // Read the MoveCall's argument list and get arg0.
     let args = arguments(call);
-    if (args.length() == 0) {
+    if (args.is_empty()) {
         return false
     };
 
@@ -293,8 +297,8 @@ public fun public_key(account: &SpendLimit): &vector<u8> {
 }
 
 // Get the authenticator info.
-public fun authenticator_info(account: &SpendLimit): &AuthenticatorInfoV1 {
-    account::borrow_auth_info_v1(&account.id)
+public fun authenticator_info(account: &SpendLimit): &AuthenticatorInfoV1<SpendLimit> {
+    account::borrow_auth_info_v1<SpendLimit>(&account.id)
 }
 
 // === Admin Functions ===
