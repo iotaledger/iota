@@ -8,8 +8,8 @@ import { useContext, useEffect, useRef, useState } from 'react';
 
 import { NetworkContext } from '~/contexts';
 import { CustomRPCInput } from '~/components/ui';
-import { ampli } from '~/lib/utils';
-import { type NetworkId, getAllNetworks } from '@iota/iota-sdk/client';
+import { ampli, setNetworkGroup } from '~/lib/utils';
+import { type NetworkId, getAllNetworks, getNetwork } from '@iota/iota-sdk/client';
 import { Button, ButtonSize, ButtonType, Dropdown, ListItem } from '@iota/apps-ui-kit';
 import { ArrowDown, CheckmarkFilled } from '@iota/apps-ui-icons';
 import { Transition } from '@headlessui/react';
@@ -32,6 +32,9 @@ export function NetworkSelector(): JSX.Element {
     })) as NetworkOption[];
 
     const handleNetworkSwitch = (networkId: NetworkId) => {
+        const isCustom = !networks.find(({ id }) => id === networkId);
+        const network = getNetwork(networkId);
+        setNetworkGroup(network.id, isCustom ? networkId : undefined);
         ampli.switchedNetwork({ toNetwork: networkId });
         setNetwork(networkId);
     };

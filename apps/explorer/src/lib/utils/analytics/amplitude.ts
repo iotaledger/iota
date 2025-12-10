@@ -4,9 +4,10 @@
 
 import * as amplitude from '@amplitude/analytics-browser';
 import { LogLevel, TransportType, type UserSession } from '@amplitude/analytics-types';
-import { PersistableStorage } from '@iota/core';
+import { getCustomNetwork, PersistableStorage } from '@iota/core';
 
 import { ampli } from './ampli';
+import { getNetwork, type Network } from '@iota/iota-sdk/client';
 
 const IS_PROD_ENV = import.meta.env.VITE_BUILD_ENV === 'production';
 
@@ -34,4 +35,27 @@ export async function initAmplitude() {
         amplitude.setTransport(TransportType.SendBeacon);
         amplitude.flush();
     });
+}
+
+/**
+ * Get the network name for analytics tracking.
+ * Returns the network name (e.g., "mainnet", "testnet", "devnet", "custom").
+ */
+export function getNetworkName(network: Network, customRpc?: string | null): string {
+    if (customRpc) {
+        return getCustomNetwork(customRpc).name || 'custom';
+    }
+    return getNetwork(network)?.name || 'unknown';
+}
+
+/**
+ * Update the user's network group in Amplitude.
+ * This allows filtering events by network in Amplitude analytics.
+ */
+export function setNetworkGroup(network: Network, customRpc?: string | null): void {
+    if (!ampli.isLoaded) {
+        return;
+    }
+    const networkName = getNetworkName(network, customRpc);
+    ampli.client.setGroup('network', networkName);
 }
