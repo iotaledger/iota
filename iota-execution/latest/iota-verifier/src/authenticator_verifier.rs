@@ -168,11 +168,7 @@ fn verify_authenticate_account_type(
                 let abilities = module
                     .abilities(s, function_type_args)
                     .map_err(|vm_err| vm_err.to_string())?;
-                if abilities.has_key()
-                    && type_args
-                        .iter()
-                        .all(|t| is_not_type_parameter(module, function_type_args, t))
-                {
+                if abilities.has_key() && type_args.iter().all(is_not_type_parameter) {
                     return Ok(());
                 }
             }
@@ -231,11 +227,7 @@ fn verify_authenticate_param_type(
 }
 
 /// Check that a type is not a type parameter, recursively
-fn is_not_type_parameter(
-    module: &CompiledModule,
-    function_type_args: &[AbilitySet],
-    s: &SignatureToken,
-) -> bool {
+fn is_not_type_parameter(s: &SignatureToken) -> bool {
     use SignatureToken as S;
     match s {
         S::TypeParameter(_) => false,
@@ -251,12 +243,10 @@ fn is_not_type_parameter(
         | S::Datatype(_) => true,
         S::DatatypeInstantiation(struct_inst) => {
             let (_, type_args) = &**struct_inst;
-            type_args
-                .iter()
-                .all(|t| is_not_type_parameter(module, function_type_args, t))
+            type_args.iter().all(is_not_type_parameter)
         }
         S::Vector(inner) | S::Reference(inner) | S::MutableReference(inner) => {
-            is_not_type_parameter(module, function_type_args, inner)
+            is_not_type_parameter(inner)
         }
     }
 }
