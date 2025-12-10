@@ -26,15 +26,15 @@ public fun create(
         module_name,
         function_name,
     );
+
     let mut account = AbstractAccount { id: object::new(ctx) };
-    let authenticator_compatibility_proof = account::check_auth_info_v1_compatibility(
-        &account,
-        authenticator,
-    );
-    account::attach_auth_info_v1(account.uid_mut(), authenticator_compatibility_proof);
+
     dynamic_field::add(&mut account.id, OwnerPublicKey {}, public_key);
+
     let account_address = object::id_address(&account);
-    iota::transfer::share_object(account);
+
+    account::create_account_v1(account, authenticator);
+
     account_address
 }
 

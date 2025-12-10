@@ -22,29 +22,21 @@ public fun create(
         module_name,
         function_name,
     );
-    let mut account = AbstractAccount { id: object::new(ctx) };
-    let authenticator_compatibility_proof = account::check_auth_info_v1_compatibility(
-        &account,
-        authenticator,
-    );
-    account::attach_auth_info_v1(account.uid_mut(), authenticator_compatibility_proof);
-    let account_address = object::id_address(&account);
-    iota::transfer::share_object(account);
-    account_address
+
+    create_with_auth_info(authenticator, ctx)
 }
 
 public fun create_with_auth_info(
     authenticator: AuthenticatorInfoV1<AbstractAccount>,
     ctx: &mut TxContext,
 ): address {
-    let mut account = AbstractAccount { id: object::new(ctx) };
-    let authenticator_compatibility_proof = account::check_auth_info_v1_compatibility(
-        &account,
-        authenticator,
-    );
-    account::attach_auth_info_v1(account.uid_mut(), authenticator_compatibility_proof);
+
+    let account = AbstractAccount { id: object::new(ctx) };
+
     let account_address = object::id_address(&account);
-    iota::transfer::share_object(account);
+
+    account::create_account_v1(account, authenticator);
+
     account_address
 }
 
