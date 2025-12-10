@@ -7,7 +7,9 @@ module 0x0::receiving;
 use iota::auth_context::AuthContext;
 use iota::transfer::Receiving;
 
-// Receiving
+public struct Account has key {
+    id: UID,
+}
 
 public struct Object has key, store {
     id: iota::object::UID,
@@ -16,6 +18,7 @@ public struct Object has key, store {
 // FAIL
 #[authenticator]
 public fun by_value(
+    _account: &Account,
     to_receive: Receiving<Object>,
     parent: &mut Object,
     _actx: &AuthContext,

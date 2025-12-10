@@ -2,18 +2,20 @@
 // SPDX-License-Identifier: Apache-2.0
 
 //# publish
-module 0x0::signature;
+module 0x0::account;
 
 use iota::auth_context::AuthContext;
 
-public struct Account has key {
+#[allow(unused_field)]
+public struct Account<T: store> has key {
     id: UID,
+    wrapped: T,
 }
 
 // FAIL
 #[authenticator]
-public fun account_cant_be_mutable_ref(
-    _account: &mut Account,
+public fun templated_mutable_ref<T: store>(
+    _account: &mut Account<T>,
     _actx: &AuthContext,
     _ctx: &TxContext,
 ) {}

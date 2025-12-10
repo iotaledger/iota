@@ -7,7 +7,9 @@ module 0x0::receiving;
 use iota::auth_context::AuthContext;
 use iota::transfer::Receiving;
 
-// Receiving
+public struct Account has key {
+    id: UID,
+}
 
 public struct Object has key, store {
     id: iota::object::UID,
@@ -15,4 +17,9 @@ public struct Object has key, store {
 
 // FAIL
 #[authenticator]
-public fun immutable_ref(_to_receive: &Receiving<Object>, _actx: &AuthContext, _ctx: &TxContext) {}
+public fun immutable_ref(
+    _account: &Account,
+    _to_receive: &Receiving<Object>,
+    _actx: &AuthContext,
+    _ctx: &TxContext,
+) {}

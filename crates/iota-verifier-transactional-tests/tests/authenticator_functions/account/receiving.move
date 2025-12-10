@@ -2,9 +2,10 @@
 // SPDX-License-Identifier: Apache-2.0
 
 //# publish
-module 0x0::signature;
+module 0x0::receiving;
 
 use iota::auth_context::AuthContext;
+use iota::transfer::Receiving;
 
 public struct Account has key {
     id: UID,
@@ -12,4 +13,4 @@ public struct Account has key {
 
 // FAIL
 #[authenticator]
-public fun account_isnt_struct(_account: u64, _actx: &AuthContext, _ctx: &TxContext) {}
+public fun receiving(_account: &Receiving<Account>, _actx: &AuthContext, _ctx: &TxContext) {}

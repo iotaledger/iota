@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 //# publish
-module 0x0::signature;
+module 0x0::account;
 
 use iota::auth_context::AuthContext;
 
@@ -12,7 +12,8 @@ public struct Account has key {
 
 // FAIL
 #[authenticator]
-public fun account_cant_be_value(account: Account, _actx: &AuthContext, _ctx: &TxContext) {
-    let Account { id } = account;
-    object::delete(id);
-}
+public fun vector_mutable_ref(
+    _account: &mut vector<Account>,
+    _actx: &AuthContext,
+    _ctx: &TxContext,
+) {}

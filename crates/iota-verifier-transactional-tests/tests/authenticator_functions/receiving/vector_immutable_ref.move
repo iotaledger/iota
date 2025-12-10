@@ -7,7 +7,9 @@ module 0x0::receiving;
 use iota::auth_context::AuthContext;
 use iota::transfer::Receiving;
 
-// Receiving
+public struct Account has key {
+    id: UID,
+}
 
 public struct Object has key, store {
     id: iota::object::UID,
@@ -18,6 +20,7 @@ public struct Object has key, store {
 // FAIL Invalid parameter type
 #[authenticator]
 public fun vector_immutable_ref(
+    _account: &Account,
     _objects: &vector<Receiving<Object>>,
     _actx: &AuthContext,
     _ctx: &TxContext,
