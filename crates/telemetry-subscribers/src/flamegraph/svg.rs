@@ -24,6 +24,7 @@ pub struct Config {
     pub width: Option<usize>,
     /// Desired aspect ratio (width, height) of the SVG.
     pub aspect_ratio: Option<(usize, usize)>,
+    /// Seed value for random color generation to ensure reproducible flamegraph colors.
     pub seed: u64,
 }
 impl Default for Config {
@@ -132,6 +133,7 @@ impl Raw {
 
         let (x_scale, width) = config
             .resolution_nanos_per_px // try resolution first
+            .and_then(|r| (r > 0).then_some(r))
             .map(|r| (1.0 / r as f64, (total.as_nanos() / r) as usize + 20))
             .unwrap_or_else(|| {
                 let w = config
@@ -143,7 +145,9 @@ impl Raw {
                     })
                     .max(100); // minimum width
                 // 10px margin on each side
-                ((w - 20) as f64 / total.as_nanos() as f64, w)
+                if total.is_zero() { (1.0, w) } else {
+                    ((w - 20) as f64 / total.as_nanos() as f64, w)
+                }
             });
 
         use rand::SeedableRng as _;

@@ -489,7 +489,7 @@ async fn flamegraph(State(state): State<Arc<AppState>>, query: Query<Flamegraph>
         }
         if svg {
             // draw an svg
-            let width = (width == 0).then_some(3600).or(Some(width));
+            let width = if width == 0 { Some(3600) } else { Some(width) };
             let config = telemetry_subscribers::flamegraph::SvgConfig {
                 width,
                 ..Default::default()
