@@ -48,7 +48,7 @@ public struct AuthenticatorInfoV1CompatibilityProof<phantom Account: key> has dr
 /// even if package A does not have a dependency on package B.
 /// In fact package A may have a dependency on package B version 1, but can still refer to an `authenticate`
 /// function defined in package B version 2.
-/// Refiring to an `authenticate` function with `create_auth_info_v1` is a strictly runtime dependency and
+/// Refering to an `authenticate` function with `create_auth_info_v1` is a strictly runtime dependency and
 /// it does not collide with any compile time restrictions.
 ///
 /// This function cannot be used in `move unit tests` as there is no mechanism to refer to the package being tested.

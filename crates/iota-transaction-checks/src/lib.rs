@@ -209,8 +209,8 @@ mod checked {
     /// A common function to check the `MoveAuthenticator` inputs for signing.
     ///
     /// Checks that the authenticator inputs meet the requirements and returns
-    /// the union of the checked authenticator input objects and the account
-    /// object.
+    /// checked authenticator input objects, among which we also find the
+    /// account object.
     #[instrument(level = "trace", skip_all)]
     pub fn check_move_authenticator_input_for_signing(
         authenticator_input_objects: InputObjects,
