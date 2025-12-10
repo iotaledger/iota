@@ -1505,10 +1505,10 @@ mod checked {
             None => false,
         };
         if has_auth_context {
-            if !context.protocol_config.move_auth() {
+            if !context.protocol_config.enable_move_authentication() {
                 return Err(ExecutionError::new_with_source(
                     ExecutionErrorKind::VMInvariantViolation,
-                    "`iota::auth_context::AuthContext` can't be used as a parameter if the `move_auth` feature is disabled",
+                    "`iota::auth_context::AuthContext` can't be used as a parameter if the `move_authentication` feature is disabled",
                 ));
             }
             if !Mode::allow_auth_context() {

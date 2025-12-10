@@ -2422,7 +2422,7 @@ impl SenderSignedData {
                     }
                 }
                 GenericSignature::MoveAuthenticator(_) => {
-                    if !config.move_auth() {
+                    if !config.enable_move_authentication() {
                         return Err(IotaError::UserInput {
                             error: UserInputError::Unsupported(
                                 "`Move authentication` is not enabled on this network".to_string(),

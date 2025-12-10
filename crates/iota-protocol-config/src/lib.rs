@@ -389,7 +389,7 @@ struct FeatureFlags {
 
     // If true, enables the authentication of account using Move code.
     #[serde(skip_serializing_if = "is_false")]
-    move_auth: bool,
+    enable_move_authentication: bool,
 }
 
 fn is_true(b: &bool) -> bool {
@@ -1476,8 +1476,8 @@ impl ProtocolConfig {
         self.feature_flags.publish_package_metadata
     }
 
-    pub fn move_auth(&self) -> bool {
-        self.feature_flags.move_auth
+    pub fn enable_move_authentication(&self) -> bool {
+        self.feature_flags.enable_move_authentication
     }
 }
 
@@ -2358,7 +2358,7 @@ impl ProtocolConfig {
                         cfg.feature_flags.metadata_in_module_bytes = true;
                         cfg.feature_flags.publish_package_metadata = true;
                         // Enable Move authentication in devnet
-                        cfg.feature_flags.move_auth = true;
+                        cfg.feature_flags.enable_move_authentication = true;
                         // Max auth gas budget is in NANOS and an absolute value 1IOTA
                         cfg.max_auth_gas = Some(1_000_000_000);
                     }
@@ -2556,7 +2556,7 @@ impl ProtocolConfig {
     }
 
     pub fn set_move_auth_for_testing(&mut self, val: bool) {
-        self.feature_flags.move_auth = val;
+        self.feature_flags.enable_move_authentication = val;
     }
 }
 
