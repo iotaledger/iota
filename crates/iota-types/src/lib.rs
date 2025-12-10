@@ -310,7 +310,7 @@ pub fn is_object_vector(
     }
 }
 
-fn is_object_struct(
+pub fn is_object_struct(
     view: &CompiledModule,
     function_type_args: &[AbilitySet],
     s: &SignatureToken,
