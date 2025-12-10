@@ -130,7 +130,7 @@ const RNG_SEED: [u8; 32] = [
 
 const DEFAULT_GAS_BUDGET: u64 = 5_000_000_000;
 const GAS_FOR_TESTING: u64 = GAS_VALUE_FOR_TESTING;
-const GAS_FOR_ABSTRACT_ACCOUNT: u64 = 100_000_000_000_000;
+const GAS_FOR_ABSTRACT_ACCOUNT: u64 = 10_000_000_000_000;
 
 const DEFAULT_CHAIN_START_TIMESTAMP: u64 = 0;
 
@@ -1351,13 +1351,14 @@ impl IotaTestAdapter {
         let aa_sender_addr = aa_arg.id().into();
 
         let gas_ref = self
-            .fund_address_for_testing(aa_sender_addr, GAS_FOR_ABSTRACT_ACCOUNT)
-            .await?;
+                .fund_address_for_testing(aa_sender_addr, GAS_FOR_ABSTRACT_ACCOUNT)
+                .await?;
         let account = TestAccount {
             address: aa_sender_addr,
             key_pair: None,
             gas: gas_ref.0,
         };
+
         Ok((
             account,
             GenericSignature::MoveAuthenticator(MoveAuthenticator::new_for_testing(
