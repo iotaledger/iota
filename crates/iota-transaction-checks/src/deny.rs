@@ -91,6 +91,11 @@ fn check_disabled_features(
                 ),
                 "zkLogin OAuth provider is temporarily disabled"
             )
+        } else if let GenericSignature::MoveAuthenticator(_) = s {
+            deny_if_true!(
+                filter_config.move_authenticator_disabled(),
+                "MoveAuthenticator is temporarily disabled"
+            );
         }
         Ok(())
     })?;

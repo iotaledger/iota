@@ -132,7 +132,7 @@ const RNG_SEED: [u8; 32] = [
 
 const DEFAULT_GAS_BUDGET: u64 = 5_000_000_000;
 const GAS_FOR_TESTING: u64 = GAS_VALUE_FOR_TESTING;
-const GAS_FOR_ABSTRACT_ACCOUNT: u64 = 100_000_000_000_000;
+const GAS_FOR_ABSTRACT_ACCOUNT: u64 = 10_000_000_000_000;
 
 const DEFAULT_CHAIN_START_TIMESTAMP: u64 = 0;
 
@@ -518,7 +518,7 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
             let pt = builder.finish();
             TransactionData::new_programmable(sender, gas, pt, gas_budget, gas_price)
         };
-        let transaction = self.sign_txn(sender, data, false);
+        let transaction = self.sign_txn(sender, data);
         let summary = self.execute_txn(transaction).await?;
 
         let created_package = summary
@@ -778,19 +778,15 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
                 };
                 let gas_budget = gas_budget.unwrap_or(DEFAULT_GAS_BUDGET);
                 let gas_price: u64 = gas_price.unwrap_or(self.gas_price);
-                let transaction = self.sign_txn(
-                    sender,
-                    |sender, gas| {
-                        let rec_arg = builder.pure(recipient).unwrap();
-                        builder.command(iota_types::transaction::Command::TransferObjects(
-                            vec![obj_arg],
-                            rec_arg,
-                        ));
-                        let pt = builder.finish();
-                        TransactionData::new_programmable(sender, gas, pt, gas_budget, gas_price)
-                    },
-                    false,
-                );
+                let transaction = self.sign_txn(sender, |sender, gas| {
+                    let rec_arg = builder.pure(recipient).unwrap();
+                    builder.command(iota_types::transaction::Command::TransferObjects(
+                        vec![obj_arg],
+                        rec_arg,
+                    ));
+                    let pt = builder.finish();
+                    TransactionData::new_programmable(sender, gas, pt, gas_budget, gas_price)
+                });
                 let summary = self.execute_txn(transaction).await?;
                 let output = self.object_summary_output(&summary, /* summarize */ false);
                 Ok(output)
@@ -1412,6 +1408,7 @@ impl IotaTestAdapter {
             key_pair: None,
             gas: gas_ref.0,
         };
+
         Ok((
             account,
             GenericSignature::MoveAuthenticator(MoveAuthenticator::new_for_testing(
@@ -1610,7 +1607,7 @@ impl IotaTestAdapter {
             let data = |sender, gas| {
                 TransactionData::new_programmable(sender, gas, pt, gas_budget, gas_price)
             };
-            let transaction = self.sign_txn(Some(sender), data, false);
+            let transaction = self.sign_txn(Some(sender), data);
             self.execute_txn(transaction).await?
         };
         let created_package = summary
@@ -1649,13 +1646,8 @@ impl IotaTestAdapter {
             // gas
             Vec<ObjectRef>,
         ) -> TransactionData,
-        is_default_acc: bool,
     ) -> Transaction {
-        let sender = if is_default_acc {
-            &self.default_account
-        } else {
-            self.get_sender(sender)
-        };
+        let sender = self.get_sender(sender);
         self.sign_sponsor_txn(sender, None, vec![], None, move |sender, _, gas| {
             txn_data(sender, gas)
         })
@@ -1768,7 +1760,7 @@ impl IotaTestAdapter {
             let pt = builder.finish();
             TransactionData::new_programmable(sender, gas, pt, gas_budget, gas_price)
         };
-        Ok(self.sign_txn(sender, data, false))
+        Ok(self.sign_txn(sender, data))
     }
 
     async fn execute_txn(&mut self, transaction: Transaction) -> anyhow::Result<TxnSummary> {
@@ -2235,7 +2227,7 @@ impl IotaTestAdapter {
 
             TransactionData::new_programmable(sender, gas, pt, gas_budget, gas_price)
         };
-        let transaction = self.sign_txn(None, data, true);
+        let transaction = self.sign_txn(None, data);
         let (effects, _) = self.executor.execute_txn(transaction).await?;
 
         match effects.status() {
