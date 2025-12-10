@@ -123,11 +123,16 @@ impl MoveTypeTagTrait for GlobalPauseKey {
 #[instrument(level = "trace", skip_all)]
 pub fn check_coin_deny_list_v1_during_signing(
     address: IotaAddress,
-    input_objects: &CheckedInputObjects,
-    receiving_objects: &ReceivingObjects,
+    tx_input_objects: &CheckedInputObjects,
+    tx_receiving_objects: &ReceivingObjects,
+    auth_input_objects: &Option<CheckedInputObjects>,
     object_store: &dyn ObjectStore,
 ) -> UserInputResult {
-    let coin_types = input_object_coin_types_for_denylist_check(input_objects, receiving_objects);
+    let coin_types = input_object_coin_types_for_denylist_check(
+        tx_input_objects,
+        tx_receiving_objects,
+        auth_input_objects,
+    );
     for coin_type in coin_types {
         let Some(deny_list) = get_per_type_coin_deny_list_v1(&coin_type, object_store) else {
             continue;
@@ -303,13 +308,21 @@ where
 /// that it's not a regulated coin.
 #[instrument(level = "trace", skip_all)]
 fn input_object_coin_types_for_denylist_check(
-    input_objects: &CheckedInputObjects,
-    receiving_objects: &ReceivingObjects,
+    tx_input_objects: &CheckedInputObjects,
+    tx_receiving_objects: &ReceivingObjects,
+    auth_input_objects: &Option<CheckedInputObjects>,
 ) -> BTreeSet<String> {
-    let all_objects = input_objects
+    let all_objects = tx_input_objects
         .inner()
         .iter_objects()
-        .chain(receiving_objects.iter_objects());
+        .chain(tx_receiving_objects.iter_objects())
+        .chain(
+            auth_input_objects
+                .as_ref()
+                .map(|auth_input_objects| auth_input_objects.inner().iter_objects())
+                .into_iter()
+                .flatten(),
+        );
     all_objects
         .filter_map(|obj| {
             if obj.is_gas_coin() {

@@ -304,4 +304,37 @@ mod zk_login {
         ))
     }
 }
+
+mod move_authenticator {
+    pub use crate::move_authenticator::MoveAuthenticator;
+    use crate::{
+        base_types::IotaAddress,
+        object::OBJECT_START_VERSION,
+        signature::GenericSignature,
+        transaction::{CallArg, ObjectArg, SenderSignedData, Transaction},
+        utils::make_transaction_data,
+    };
+
+    /// Make a transaction signed with `MoveAuthenticator` for testing.
+    pub fn make_move_authenticator_tx(address: IotaAddress) -> Transaction {
+        let data = make_transaction_data(address);
+
+        // There is no a real Move account behind this address.
+        //
+        // TODO: if it is necessary, AA accounts need to be supported properly in the
+        // `AuthorityState` used for testing.
+        let self_call_arg = CallArg::Object(ObjectArg::SharedObject {
+            id: address.into(),
+            initial_shared_version: OBJECT_START_VERSION,
+            mutable: false,
+        });
+        let authenticator = GenericSignature::MoveAuthenticator(
+            MoveAuthenticator::new_for_testing(vec![], vec![], self_call_arg),
+        );
+
+        Transaction::new(SenderSignedData::new(data, vec![authenticator]))
+    }
+}
+
+pub use move_authenticator::*;
 pub use zk_login::*;
