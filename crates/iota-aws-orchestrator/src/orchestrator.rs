@@ -623,7 +623,7 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
                 .settings
                 .build_configs
                 .get("iota-node")
-                .map_or(false, |config| {
+                .is_some_and(|config| {
                     config.features.iter().any(|f| f == "flamegraph-alloc")
                 })
             {
