@@ -10,7 +10,6 @@ use std::{
     fmt::{self, Write},
     io::Write as IoWrite,
     path::{Path, PathBuf},
-    str::FromStr,
     sync::Arc,
     time::Duration,
 };
@@ -83,7 +82,7 @@ use move_compiler::{
 use move_core_types::{
     account_address::AccountAddress,
     ident_str,
-    identifier::{IdentStr, Identifier},
+    identifier::IdentStr,
     language_storage::{ModuleId, TypeTag},
     metadata::Metadata,
     parsing::{address::ParsedAddress, values::ParsedValue},
