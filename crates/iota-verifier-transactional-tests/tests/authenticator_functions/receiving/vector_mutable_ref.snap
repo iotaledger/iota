@@ -6,4 +6,4 @@ processed 1 task
 task 0, lines 4-22:
 //# publish
 Error: Transaction Effects Status: IOTA Move Bytecode Verification Error. Please run the IOTA Move Verifier for more information.
-Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: IotaMoveVerificationError, source: Some("Invalid account type. Account can only be a reference type, offending argument: MutableReference(Vector(StructInstantiation(DatatypeHandleIndex(3), [Struct(DatatypeHandleIndex(0))])))"), command: Some(0) } }
+Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: IotaMoveVerificationError, source: Some("Invalid authenticator function account type: &mut vector<iota::transfer::Receiving<_::receiving::Object>>. Valid types for the first parameter are immutable references to an object type."), command: Some(0) } }
