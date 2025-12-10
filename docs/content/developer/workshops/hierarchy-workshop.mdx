@@ -96,7 +96,7 @@ In this context of a Uinversity Degree Verification System:
 
 This creates a decentralized, efficient system reducing fraud and costs.
 
-<h3>## Prerequisites</h3>
+## Prerequisites
 
 Before starting:
 
@@ -297,8 +297,8 @@ Let’s set up the Rust project and initialize the environment for the IOTA Hier
     - Verify variables:
         - Command Prompt:
         ```bash
-        echo API_ENDPOINT
-        echo IOTA_HIERARCHIES_PKG_ID
+        echo $API_ENDPOINT
+        echo $IOTA_HIERARCHIES_PKG_ID
         ```
         - PowerShell:
 
@@ -372,7 +372,8 @@ pub async fn get_funded_client() -> Result<HierarchiesClient<InMemSigner>, anyho
     Ok(hierarchies_client)
 }
 ```
-Explanation:
+
+**Explanation**:
 
 - **What it does**: Defines two functions to create Hierarchies clients. `get_read_only_client` creates a client for querying the network without transactions. `get_funded_client` creates a funded client with signing capabilities for creating federations and issuing attestations.
 - **Why it matters**: These utilities handle boilerplate like network connection, package ID retrieval, and test funding, keeping the main code focused on Hierarchies logic.
@@ -382,9 +383,58 @@ Explanation:
     - **InMemSigner**: An in-memory signer for test purposes, with `request_funds` to get faucet tokens.
 In `main.rs`, import it with `use utils::get_funded_client;`.
 
-### Step 2: Initialize the System and Create the Federation
+### Step 2: Add IOTA Hierarchies Library Types Import
 
-In `main.rs`, start by creating the federation.
+In `main.rs`, start by creating the imports.
+
+```rust
+use std::collections::{HashSet};
+
+use hierarchies::client::HierarchiesClient;
+use hierarchies::core::types::property::FederationProperty;
+use hierarchies::core::types::property_name::PropertyName;
+use hierarchies::core::types::property_shape::PropertyShape;
+use hierarchies::core::types::property_value::PropertyValue;
+use iota_sdk::types::base_types::IotaAddress;
+use product_common::test_utils::InMemSigner;
+
+
+mod utils;
+use utils::get_funded_client;
+```
+
+**What it does**:
+
+These imports bring in all the core types and utilities needed to interact with the IOTA Hierarchies library. They include the Hierarchies client, property-definition types, IOTA addresses, and an in-memory signer for test transactions. The final lines import the helper function for creating a funded client, from the utility file.
+
+**Why it matters**:
+
+This section is essential because it loads every building block your program needs to:
+
+- connect to the IOTA blockchain,
+- create federations,
+- define academic properties,
+- delegate accreditations,
+- issue and revoke attestations.
+
+The utilities abstract away low-level setup (like funding and signing), so the main logic stays clean and focused on the credential workflow.
+
+**Key concepts**:
+
+- **HierarchiesClient**:
+    - Full read/write client used for creating federations, delegating authority, issuing and revoking attestations.
+- **FederationProperty, PropertyName, PropertyShape, PropertyValue**:
+    - Core schema components defining the structure, rules, and allowed values of credential properties.
+- **IotaAddress**:
+    - Represents identities participating in the federation (universities, faculty, registrar, students).
+- **InMemSigner**:
+    - Temporary in-memory signer for test transactions—no persistent keys needed.
+    - Used with faucet funding so operations can be published on-chain.
+- **get_funded_client (from utils module)**:
+    - Creates a fully working Hierarchies client with funds and signing capability.
+    - Imported into `main.rs` with:
+
+### Step 3: Initialize the System and Create the Federation
 
 ```rust
 #[tokio::main]
@@ -440,7 +490,7 @@ Think of it as the “University Consortium” root organization from which perm
 - **HierarchiesClient**: A Move-aware client for reading and writing to IOTA Hierarchies.
 - **build_and_execute()**: Runs the on-chain transaction and returns the result.
 
-### Step 3: Define Academic Properties in the Federation
+### Step 4: Define Academic Properties in the Federation
 
 Add properties that can be used in attestations (degrees).
 
@@ -540,7 +590,7 @@ Without properties, the federation cannot issue structured credentials.
 - PropertyValue: Actual values allowed for attestations.
 - PropertyShape: Rule-based validation (e.g., number > 200).
 
-### Step 4: Add Universities to the Federation
+### Step 5: Add Universities to the Federation
 
 Add trusted universities to the federation.
 
@@ -599,7 +649,7 @@ This forms the foundation for all later steps:
 - Appears directly under the federation
 - Can delegate authority to departments, registrars, or faculty
 
-### Step 5: Delegate Faculty Accreditation
+### Step 6: Delegate Faculty Accreditation
 
 Delegate accreditation rights from universities to faculties.
 
@@ -653,7 +703,7 @@ Authorization that allows an entity to create additional sub-entities.
 **Empty** vec![]
 Means we are not restricting the faculty to certain properties yet.
 
-### Step 6: Delegate Registrar Attestation
+### Step 7: Delegate Registrar Attestation
 
 Faculties grant attestation rights to registrars.
 
@@ -705,7 +755,7 @@ Examples:
 **Registrar Role**
 Responsible for recording validated facts within the federation.
 
-### Step 7: Issue Degrees (Create Student Attestations)
+### Step 8: Issue Degrees (Create Student Attestations)
 
 Registrars issue degrees as attestations.
 
@@ -776,7 +826,7 @@ Defines the property attached to the attestation:
 
 Means the registrar publishes a verifiable academic record for that student.
 
-### Step 8: Validate Credentials (Placeholder)
+### Step 9: Validate Credentials (Placeholder)
 
 Validate a student's degree.
 
@@ -826,7 +876,7 @@ Ensures that:
 - Registrar belongs to a legitimate university
 - University is registered under the federation
 
-### Step 9: Revoke Attestation (Placeholder)
+### Step 10: Revoke Attestation (Placeholder)
 
 Revoke an attestation.
 
@@ -846,7 +896,7 @@ async fn revoke_attestation(
 
 Another placeholder, this will handle revoking student credentials.
 
-Examples:
+**Examples**:
 
 - Fraudulent submissions
 - Degree revoked
@@ -864,23 +914,9 @@ Compile and run:
 cargo run
 ```
 
-Expected output:
+**Expected output**:
 
-- University Degree Verification System (IOTA Hierarchies v0.1.7)
-- Federation created! ID: `federation-id`
-- Step 2: Defining academic properties...
-All academic properties defined.
-- Step 3: Adding universities...
-Harvard and MIT added as root authorities.
-- Step 4: Delegating faculty accreditation...
-Faculty accreditation delegated.
-- Step 5: Delegating registrar attestation...
-Registrar attestation delegated.
-- Step 6: Issuing student degrees...
-Degrees issued to Alice (Bachelor) and Bob (Master).
-- Step 7: Validation successful (placeholder)
-- Step 8: Revocation successful (placeholder)
-- Demo completed successfully!
+![Full Page](./images/output.png)
 
 ## Next Steps
 
