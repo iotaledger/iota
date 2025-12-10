@@ -6,7 +6,6 @@
 module e::m {
     use std::ascii::String as ASCII;
     use std::string::String as UTF8;
-    use iota::object::UID;
 
     public struct O has key { id: UID }
 
