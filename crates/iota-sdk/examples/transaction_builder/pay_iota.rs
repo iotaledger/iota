@@ -14,42 +14,27 @@ use iota_sdk::{
     rpc_types::IotaTransactionBlockResponseOptions,
     types::{quorum_driver_types::ExecuteTransactionRequestType, transaction::Transaction},
 };
+use iota_sdk_transaction_builder::TransactionBuilder;
 use iota_sdk_types::crypto::Intent;
-use utils::setup_for_write;
 
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {
     // 1) Get the IOTA client, the sender and recipient that we will use
     // for the transaction
-    let (client, sender, recipient) = setup_for_write().await?;
+    let (client, sender, recipient) = utils::setup_for_write().await?;
 
-    // 2) Get the coin we will use as gas and for the payment
-    let coins = client
-        .coin_read_api()
-        .get_coins(sender, None, None, None)
-        .await?;
-    let gas_coin = coins.data.into_iter().next().unwrap();
-
-    let gas_budget = 5_000_000;
-
-    // 3) Build the transaction data, to transfer 1_000 NANOS from the gas coin to
+    // 2) Build the transaction data, to transfer 1_000 NANOS from the gas coin to
     //    the recipient address
-    let tx_data = client
-        .transaction_builder()
-        .pay_iota(
-            sender,
-            vec![gas_coin.coin_object_id],
-            vec![recipient],
-            vec![1_000],
-            gas_budget,
-        )
-        .await?;
+    let mut builder = TransactionBuilder::new(sender).with_client(&client);
+    builder.send_iota(recipient, 1_000u64);
+    let tx_data = builder.finish().await?;
 
-    // 4) Sign transaction
+    // 3) Sign transaction
     let keystore = FileBasedKeystore::new(&iota_config_dir()?.join(IOTA_KEYSTORE_FILENAME))?;
+
     let signature = keystore.sign_secure(&sender, &tx_data, Intent::iota_transaction())?;
 
-    // 5) Execute the transaction
+    // 4) Execute the transaction
     println!("Executing the transaction...");
     let transaction_response = client
         .quorum_driver_api()

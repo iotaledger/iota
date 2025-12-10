@@ -34,6 +34,7 @@ iota-json.workspace = true
 iota-json-rpc-api.workspace = true
 iota-json-rpc-types.workspace = true
 iota-keys.workspace = true
+iota-sdk-transaction-builder.workspace = true
 iota-sdk-types.workspace = true
 iota-transaction-builder.workspace = true
 iota-types.workspace = true
