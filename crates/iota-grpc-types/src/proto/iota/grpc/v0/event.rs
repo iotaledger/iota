@@ -26,7 +26,7 @@ impl From<&IotaEvent> for grpc_event::Event {
             sender: Some(grpc_types::Address {
                 address: event.sender.to_vec().into(),
             }),
-            event_type: Some(event.type_.to_string()),
+            event_type: Some(event.type_.to_canonical_string(true)),
             bcs_contents: Some(grpc_bcs::BcsData {
                 data: event.bcs.clone().into_bytes().into(),
             }),
