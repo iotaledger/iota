@@ -499,7 +499,7 @@ impl<R: rand::RngCore + rand::CryptoRng> ConfigBuilder<R> {
         let validator_configs = validators
             .into_iter()
             .enumerate()
-            .map(|(idx, validator)| {
+            .map(|(idx, mut validator)| {
                 let mut builder = ValidatorConfigBuilder::new()
                     .with_config_directory(self.config_directory.clone())
                     .with_policy_config(self.policy_config.clone())
@@ -559,7 +559,7 @@ impl<R: rand::RngCore + rand::CryptoRng> ConfigBuilder<R> {
                     }
                 }
                 if let Some(admin_interface_address) = self.admin_interface_address {
-                    builder = builder.with_admin_interface_address(admin_interface_address);
+                    validator.admin_interface_address = admin_interface_address;
                 }
                 if self.empty_validator_genesis {
                     builder.build_without_genesis(validator)
