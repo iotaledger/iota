@@ -4,7 +4,7 @@
 
 import { ampli } from '_src/shared/analytics/ampli';
 import { Fragment, useState } from 'react';
-import { toast } from '@iota/core';
+import { Feature, toast, useFeatureEnabledByNetwork } from '@iota/core';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
     Card,
@@ -52,6 +52,7 @@ async function openTabOnImportKeystone() {
 export function AddAccountPage() {
     const [searchParams] = useSearchParams();
     const navigate = useNavigate();
+    const network = useAppSelector(({ app }) => app.network);
     const sourceFlow = searchParams.get('sourceFlow') || 'Unknown';
     const forceShowLedger =
         searchParams.has('showLedger') && searchParams.get('showLedger') !== 'false';
@@ -60,6 +61,8 @@ export function AddAccountPage() {
     const [isConnectLedgerModalOpen, setConnectLedgerModalOpen] = useState(forceShowLedger);
     const createAccountsMutation = useCreateAccountsMutation();
     const [cameraPermissionStatus] = useCheckCameraPermissionStatus();
+
+    const isPasskeysEnabled = useFeatureEnabledByNetwork(Feature.WalletPasskeys, network);
 
     type CardGroup = {
         title?: string;
@@ -80,12 +83,6 @@ export function AddAccountPage() {
                     actionType: AccountsFormType.NewMnemonic,
                     isDisabled: createAccountsMutation.isPending,
                 },
-                {
-                    title: 'New Passkey Profile',
-                    icon: Passkey,
-                    actionType: AccountsFormType.Passkey,
-                    isDisabled: createAccountsMutation.isPending,
-                },
             ],
         },
         {
@@ -101,12 +98,6 @@ export function AddAccountPage() {
                     title: 'Private Key',
                     icon: Key,
                     actionType: AccountsFormType.ImportPrivateKey,
-                    isDisabled: createAccountsMutation.isPending,
-                },
-                {
-                    title: 'Passkey',
-                    icon: Passkey,
-                    actionType: AccountsFormType.ImportPasskey,
                     isDisabled: createAccountsMutation.isPending,
                 },
                 {
@@ -136,6 +127,25 @@ export function AddAccountPage() {
             ],
         },
     ];
+
+    if (isPasskeysEnabled) {
+        const createGroup = cardGroups.find((c) => c.title === undefined);
+        const importGroup = cardGroups.find((c) => c.title === 'Import');
+
+        createGroup?.cards?.push({
+            title: 'New Passkey Profile',
+            icon: Passkey,
+            actionType: AccountsFormType.Passkey,
+            isDisabled: createAccountsMutation.isPending,
+        });
+
+        importGroup?.cards?.splice(2, 0, {
+            title: 'Passkey',
+            icon: Passkey,
+            actionType: AccountsFormType.ImportPasskey,
+            isDisabled: createAccountsMutation.isPending,
+        });
+    }
 
     const handleCardAction = async (actionType: AccountsFormType) => {
         switch (actionType) {
