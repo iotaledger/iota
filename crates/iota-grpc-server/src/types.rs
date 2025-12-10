@@ -4,7 +4,6 @@
 use std::sync::Arc;
 
 use anyhow::Result;
-use async_trait::async_trait;
 use iota_grpc_types::v0::{
     bcs as grpc_bcs,
     checkpoint::{
@@ -14,7 +13,6 @@ use iota_grpc_types::v0::{
     ledger_service as grpc_ledger_service,
 };
 use iota_json_rpc_types::{EventFilter, IotaEvent};
-use iota_package_resolver::{Package, PackageStore, error::Error as PackageResolverError};
 use iota_types::{
     base_types::{ObjectID, VersionNumber},
     full_checkpoint_content::CheckpointData,
@@ -22,7 +20,6 @@ use iota_types::{
     object::Object,
     storage::{ObjectStore, ReadStore, RestStateReader, error::Kind},
 };
-use move_core_types::account_address::AccountAddress;
 use serde::Serialize;
 use tokio::sync::broadcast::{Receiver, Sender, error::RecvError};
 use tokio_util::sync::CancellationToken;
@@ -598,25 +595,5 @@ impl GrpcReader {
             },
             |item| item.sequence_number(),
         )
-    }
-}
-
-/// Implement PackageStore for GrpcReader so it can be used with a package
-/// resolver
-#[async_trait]
-impl PackageStore for GrpcReader {
-    async fn fetch(&self, id: AccountAddress) -> Result<Arc<Package>, PackageResolverError> {
-        let object_id = ObjectID::from(id);
-        let object = self
-            .get_object(&object_id)
-            .ok_or_else(|| PackageResolverError::PackageNotFound(id))?;
-
-        let package =
-            Package::read_from_object(&object).map_err(|e| PackageResolverError::Store {
-                store: "GrpcReader",
-                source: Arc::new(e),
-            })?;
-
-        Ok(Arc::new(package))
     }
 }
