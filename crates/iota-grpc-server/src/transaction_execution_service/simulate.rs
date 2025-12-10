@@ -33,7 +33,7 @@ use iota_types::{
 };
 
 use super::TransactionReadSource;
-use crate::{error::RpcError, types::GrpcReader};
+use crate::{error::RpcError, types::GrpcReader, utils::render_json};
 
 pub const SIMULATE_TRANSACTION_READ_MASK_DEFAULT: &str = crate::field_mask!(
     "transaction.digest",
@@ -232,7 +232,8 @@ pub async fn simulate_transaction(
 
     // Only include command results if requested
     if read_mask.contains(SimulateTransactionResponse::COMMAND_RESULTS_FIELD.name) {
-        let command_results = build_command_results(execution_result)?;
+        let command_results =
+            build_command_results(reader, config.max_json_move_value_size, execution_result)?;
         response.command_results = Some(command_results);
     }
 
@@ -240,6 +241,8 @@ pub async fn simulate_transaction(
 }
 
 fn build_command_results(
+    reader: &Arc<GrpcReader>,
+    max_json_move_value_size: usize,
     execution_result: std::result::Result<Vec<ExecutionResult>, iota_types::error::ExecutionError>,
 ) -> Result<CommandResults, RpcError> {
     let mut results = CommandResults::default();
@@ -252,13 +255,29 @@ fn build_command_results(
                     return_values: Some(CommandOutputs {
                         outputs: return_values
                             .into_iter()
-                            .map(|(bcs_bytes, ty)| to_command_output(None, bcs_bytes, ty))
+                            .map(|(bcs_bytes, ty)| {
+                                to_command_output(
+                                    reader,
+                                    max_json_move_value_size,
+                                    None,
+                                    bcs_bytes,
+                                    ty,
+                                )
+                            })
                             .collect::<Vec<_>>(),
                     }),
                     mutated_by_ref: Some(CommandOutputs {
                         outputs: mutable_reference_outputs
                             .into_iter()
-                            .map(|(arg, bcs_bytes, ty)| to_command_output(Some(arg), bcs_bytes, ty))
+                            .map(|(arg, bcs_bytes, ty)| {
+                                to_command_output(
+                                    reader,
+                                    max_json_move_value_size,
+                                    Some(arg),
+                                    bcs_bytes,
+                                    ty,
+                                )
+                            })
                             .collect::<Vec<_>>(),
                     }),
                 })
@@ -275,6 +294,8 @@ fn build_command_results(
 }
 
 fn to_command_output(
+    reader: &Arc<GrpcReader>,
+    max_json_move_value_size: usize,
     arg: Option<iota_types::transaction::Argument>,
     bcs_bytes: Vec<u8>,
     ty: iota_types::TypeTag,
@@ -286,6 +307,7 @@ fn to_command_output(
                 struct_tag: ty.to_canonical_string(true),
             })),
         }),
+        json: render_json(reader.clone(), max_json_move_value_size, &ty, &bcs_bytes).map(Box::new),
         bcs: Some(BcsData {
             data: bcs_bytes.into(),
         }),

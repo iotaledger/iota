@@ -34,7 +34,6 @@ message Event {
   optional iota.grpc.v0.bcs.BcsData bcs_contents = 6;
 
   // JSON rendering of the event.
-  // TODO: mention "type_and_fields_from_move_event_data" in the comment of the backend
   optional google.protobuf.Value json_contents = 7;
 }
 

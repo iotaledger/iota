@@ -261,12 +261,20 @@ mod _field_impls {
             is_optional: true,
             message_fields: Some(BcsData::FIELDS),
         };
+        pub const JSON_FIELD: &'static MessageField = &MessageField {
+            name: "json",
+            json_name: "json",
+            number: 4i32,
+            is_optional: true,
+            message_fields: None,
+        };
     }
     impl MessageFields for CommandOutput {
         const FIELDS: &'static [&'static MessageField] = &[
             Self::ARGUMENT_FIELD,
             Self::TYPE_TAG_FIELD,
             Self::BCS_FIELD,
+            Self::JSON_FIELD,
         ];
     }
     impl CommandOutput {
@@ -300,6 +308,10 @@ mod _field_impls {
         pub fn bcs(mut self) -> BcsDataFieldPathBuilder {
             self.path.push(CommandOutput::BCS_FIELD.name);
             BcsDataFieldPathBuilder::new_with_base(self.path)
+        }
+        pub fn json(mut self) -> String {
+            self.path.push(CommandOutput::JSON_FIELD.name);
+            self.finish()
         }
     }
     impl CommandOutputs {

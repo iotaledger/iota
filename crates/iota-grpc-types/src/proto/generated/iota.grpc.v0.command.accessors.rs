@@ -322,6 +322,7 @@ mod _accessor_impls {
                 argument: None,
                 type_tag: None,
                 bcs: None,
+                json: None,
             }
         }
         #[doc(hidden)]
@@ -420,6 +421,28 @@ mod _accessor_impls {
             field: T,
         ) -> Self {
             self.set_bcs(field.into());
+            self
+        }
+        ///If `json` is set, returns [`Some`] with a mutable reference to the value; otherwise returns [`None`].
+        pub fn json_opt_mut(&mut self) -> Option<&mut ::prost_types::Value> {
+            self.json.as_mut().map(|field| field as _)
+        }
+        ///Returns a mutable reference to `json`.
+        ///If the field is unset, it is first initialized with the default value.
+        pub fn json_mut(&mut self) -> &mut ::prost_types::Value {
+            self.json.get_or_insert_default()
+        }
+        ///If `json` is set, returns [`Some`] with the value; otherwise returns [`None`].
+        pub fn json_opt(&self) -> Option<&::prost_types::Value> {
+            self.json.as_ref().map(|field| field as _)
+        }
+        ///Sets `json` with the provided value.
+        pub fn set_json<T: Into<::prost_types::Value>>(&mut self, field: T) {
+            self.json = Some(field.into().into());
+        }
+        ///Sets `json` with the provided value.
+        pub fn with_json<T: Into<::prost_types::Value>>(mut self, field: T) -> Self {
+            self.set_json(field.into());
             self
         }
     }
