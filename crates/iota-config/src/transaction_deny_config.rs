@@ -199,7 +199,7 @@ impl TransactionDenyConfigBuilder {
         self
     }
 
-    pub fn move_authenticator_disabled(mut self) -> Self {
+    pub fn disable_move_authenticator(mut self) -> Self {
         self.config.move_authenticator_disabled = true;
         self
     }
