@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 module tto::M3 {
-    use iota::transfer::{Receiving};
+    use iota::transfer::Receiving;
 
     public struct A has key, store {
         id: UID,
