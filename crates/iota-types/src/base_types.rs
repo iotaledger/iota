@@ -1385,6 +1385,28 @@ impl ObjectID {
         ObjectID::try_from(&hash.as_ref()[0..ObjectID::LENGTH]).unwrap()
     }
 
+    /// Increment the ObjectID by one, assuming the ObjectID hex is a number
+    /// represented as an array of bytes
+    pub fn next_increment(&self) -> Result<ObjectID, anyhow::Error> {
+        let mut prev_val = self.to_vec();
+        let mx = [0xFF; Self::LENGTH];
+
+        if prev_val == mx {
+            bail!("Increment will cause overflow");
+        }
+
+        // This logic increments the integer representation of an ObjectID u8 array
+        for idx in (0..Self::LENGTH).rev() {
+            if prev_val[idx] == 0xFF {
+                prev_val[idx] = 0;
+            } else {
+                prev_val[idx] += 1;
+                break;
+            };
+        }
+        ObjectID::try_from(prev_val.clone()).map_err(|w| w.into())
+    }
+
     /// Create `count` object IDs starting with one at `offset`
     pub fn in_range(offset: ObjectID, count: u64) -> Result<Vec<ObjectID>, anyhow::Error> {
         let mut ret = Vec::new();
