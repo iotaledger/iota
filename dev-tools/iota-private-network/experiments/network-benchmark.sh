@@ -111,20 +111,40 @@ apply_and_mark() {
       sleep 0.1
   done
 
-  # All three steps now run atomically
-
   # Get container PID and target IP
   pid=$(container_pid "$A")
   IPB=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' "$B")
 
-  # Mark packets
-  nsenter -t "$pid" -n iptables -t mangle -A OUTPUT -d "${IPB}" -j MARK --set-mark 1 2>/dev/null || \
-    log "Warning: failed to mark traffic from $A → $B"
+  # Derive a per-destination mark from the validator index of B
+  local idxB mark classid
+  idxB=${B#validator-}
+  mark=${idxB:-1}
+  classid="1:$((100 + mark))"
 
-  # Apply latency
-  nsenter -t "$pid" -n tc qdisc del dev eth0 root 2>/dev/null || true
-  nsenter -t "$pid" -n tc qdisc add dev eth0 root netem delay "${D}ms" "${J}ms" 2>/dev/null || \
+  # Ensure a classful root qdisc exists once per container
+  if ! nsenter -t "$pid" -n tc qdisc show dev eth0 2>/dev/null | grep -q "htb 1:"; then
+    nsenter -t "$pid" -n tc qdisc del dev eth0 root 2>/dev/null || true
+    nsenter -t "$pid" -n tc qdisc add dev eth0 root handle 1: htb default 1 2>/dev/null || \
+      log "Warning: failed to create htb root qdisc for $A"
+    nsenter -t "$pid" -n tc class add dev eth0 parent 1: classid 1:1 htb rate 1000mbit ceil 1000mbit 2>/dev/null || true
+  fi
+
+  # Mark packets A → B inside the container namespace (idempotent)
+  if ! nsenter -t "$pid" -n iptables -t mangle -C OUTPUT -d "${IPB}" -j MARK --set-mark "$mark" 2>/dev/null; then
+    nsenter -t "$pid" -n iptables -t mangle -A OUTPUT -d "${IPB}" -j MARK --set-mark "$mark" 2>/dev/null || \
+      log "Warning: failed to mark traffic from $A → $B"
+  fi
+
+  # Create/update a dedicated class and netem qdisc for this destination
+  nsenter -t "$pid" -n tc class replace dev eth0 parent 1: classid "$classid" htb rate 1000mbit ceil 1000mbit 2>/dev/null || true
+  nsenter -t "$pid" -n tc qdisc replace dev eth0 parent "$classid" handle "${mark}0:" netem delay "${D}ms" "${J}ms" 2>/dev/null || \
     log "Warning: failed to apply latency to $A → $B"
+
+  # Attach a filter that routes marked packets into the class
+  if ! nsenter -t "$pid" -n tc filter show dev eth0 parent 1: 2>/dev/null | grep -q "fh $mark .* flowid $classid"; then
+    nsenter -t "$pid" -n tc filter add dev eth0 parent 1: protocol ip handle "$mark" fw flowid "$classid" 2>/dev/null || \
+      log "Warning: failed to attach tc filter for $A → $B"
+  fi
 
   # Release lock automatically when function exits
   flock -u 200

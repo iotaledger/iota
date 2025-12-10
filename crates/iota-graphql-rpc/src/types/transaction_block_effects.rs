@@ -12,15 +12,8 @@ use iota_package_resolver::{CleverError, ErrorConstants};
 use iota_types::{
     effects::{TransactionEffects as NativeTransactionEffects, TransactionEffectsAPI},
     event::Event as NativeEvent,
-    execution_status::{
-        ExecutionFailureStatus, ExecutionStatus as NativeExecutionStatus, MoveLocation,
-        MoveLocationOpt,
-    },
-    transaction::{
-        Command, ProgrammableTransaction, SenderSignedData as NativeSenderSignedData,
-        TransactionData as NativeTransactionData, TransactionDataAPI,
-        TransactionKind as NativeTransactionKind,
-    },
+    execution_status::{ExecutionFailureStatus, ExecutionStatus as NativeExecutionStatus},
+    transaction::TransactionData as NativeTransactionData,
 };
 
 use crate::{
@@ -128,9 +121,8 @@ impl TransactionBlockEffects {
     /// displaying the abort code and location.
     async fn errors(&self, ctx: &Context<'_>) -> Result<Option<String>> {
         let resolver: &PackageResolver = ctx.data_unchecked();
-        let status = self.resolve_native_status_impl(resolver).await?;
 
-        match status {
+        match self.native().status() {
             NativeExecutionStatus::Success => Ok(None),
 
             NativeExecutionStatus::Failure {
@@ -527,84 +519,6 @@ impl TransactionBlockEffects {
             TransactionBlockEffectsKind::DryRun { native, .. } => native,
             TransactionBlockEffectsKind::Executed { native, .. } => native,
         }
-    }
-
-    /// Get the transaction data from the transaction block effects.
-    /// Will error if the transaction data is not available/invalid, but this
-    /// should not occur.
-    fn transaction_data(&self) -> Result<NativeTransactionData> {
-        Ok(match &self.kind {
-            TransactionBlockEffectsKind::Checkpointed { stored_tx, .. } => {
-                let s: NativeSenderSignedData = bcs::from_bytes(&stored_tx.raw_transaction)
-                    .map_err(|e| {
-                        Error::Internal(format!("Error deserializing transaction data: {e}"))
-                    })?;
-                s.transaction_data().clone()
-            }
-            TransactionBlockEffectsKind::DryRun { tx_data, .. } => tx_data.clone(),
-            TransactionBlockEffectsKind::Executed { optimistic_tx, .. } => {
-                let data: NativeSenderSignedData = bcs::from_bytes(&optimistic_tx.raw_transaction)
-                    .map_err(|e| {
-                        Error::Internal(format!("Error deserializing transaction data: {e}"))
-                    })?;
-                data.transaction_data().clone()
-            }
-        })
-    }
-
-    /// Get the programmable transaction from the transaction block effects.
-    /// * If the transaction was unable to be retrieved, this will return an
-    ///   Err.
-    /// * If the transaction was able to be retrieved but was not a programmable
-    ///   transaction, this will return Ok(None).
-    /// * If the transaction was a programmable transaction, this will return
-    ///   Ok(Some(tx)).
-    fn programmable_transaction(&self) -> Result<Option<ProgrammableTransaction>> {
-        let tx_data = self.transaction_data()?;
-        match tx_data.into_kind() {
-            NativeTransactionKind::ProgrammableTransaction(tx) => Ok(Some(tx)),
-            _ => Ok(None),
-        }
-    }
-
-    /// Resolves the module ID within a Move abort to the storage ID of the
-    /// package that the abort occurred in.
-    /// * If the error is not a Move abort, or the Move call in the programmable
-    ///   transaction cannot be found, this function will do nothing.
-    /// * If the error is a Move abort and the storage ID is unable to be
-    ///   resolved an error is returned.
-    async fn resolve_native_status_impl(
-        &self,
-        resolver: &PackageResolver,
-    ) -> Result<NativeExecutionStatus> {
-        let mut status = self.native().status().clone();
-        if let NativeExecutionStatus::Failure {
-            error:
-                ExecutionFailureStatus::MoveAbort(MoveLocation { module, .. }, _)
-                | ExecutionFailureStatus::MovePrimitiveRuntimeError(MoveLocationOpt(Some(MoveLocation {
-                    module,
-                    ..
-                }))),
-            command: Some(command_idx),
-        } = &mut status
-        {
-            // Get the Move call that this error is associated with.
-            if let Some(Command::MoveCall(ptb_call)) = self
-                .programmable_transaction()?
-                .and_then(|ptb| ptb.commands.into_iter().nth(*command_idx))
-            {
-                let module_new = module.clone();
-                // Resolve the runtime module ID in the Move abort to the storage ID of the
-                // package that the abort occurred in. This is important to make
-                // sure that we look at the correct version of the module when
-                // resolving the error.
-                *module = resolver
-                    .resolve_module_id(module_new, ptb_call.package.into())
-                    .await
-                    .map_err(|e| Error::Internal(format!("Error resolving Move location: {e}")))?;
-            }
-        }
-        Ok(status)
     }
 }
 

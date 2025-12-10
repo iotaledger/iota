@@ -150,6 +150,7 @@ pub trait ServerProviderClient: Display {
         role: InstanceRole,
         quantity: usize,
         use_spot_instances: bool,
+        id: String,
     ) -> CloudProviderResult<Vec<Instance>>
     where
         S: Into<String> + Serialize + Send;
@@ -259,6 +260,7 @@ pub mod test_client {
             role: InstanceRole,
             quantity: usize,
             use_spot_instances: bool,
+            _id: String,
         ) -> CloudProviderResult<Vec<Instance>>
         where
             S: Into<String> + Serialize + Send,
