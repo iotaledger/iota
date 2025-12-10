@@ -1479,11 +1479,13 @@ public fun authenticate_hello_world(
 ```
 
 In this section we have:
+
 ```move
 //# abstract --account immshared(4,0) --auth-inputs "HelloWorld" --ptb-inputs 100 @A
 //> 0: SplitCoins(Gas, [Input(0)]);
 //> 1: TransferObjects([Result(0)], Input(1));
 ```
+
 - Account (--account)
   The immutable shared object that represents Abstract Account - `immshared(4,0)`.
 - Auth Inputs (--auth-inputs)
@@ -1571,6 +1573,7 @@ It compiles and publishes Move source files provided by path and then stores the
 ```move
 //# publish-deps [OPTIONS]
 ```
+
 #### Options
 
 ```
@@ -1585,6 +1588,7 @@ It compiles and publishes Move source files provided by path and then stores the
 ```
 
 Output:
+
 ```
 Output for './dep1.move':
 ```
