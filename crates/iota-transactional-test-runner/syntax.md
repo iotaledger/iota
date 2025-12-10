@@ -28,6 +28,7 @@
   - [`run-graphql`](#run-graphql)
   - [`bench`](#bench)
   - [`abstract`](#abstract)
+  - [`publish-dependencies`](#publish-dependencies)
 - [How `run_test` Compares a Move File With the Corresponding `.snap` File](#how-run_test-compares-a-move-file-with-the-corresponding-snap-file)
   - [Adapter Creation in `create_adapter`](#adapter-creation-in-create_adapter)
   - [Execution Process in `run_tasks_with_adapter`](#execution-process-in-run_tasks_with_adapter)
@@ -1434,11 +1435,11 @@ Doesn't support simulator mode.
 ```
 --account <ACCOUNT>: the sender of the abstract transaction. Must be an Abstract Account (AA) shared object.
 --sponsor <SPONSOR> (optional): account that pays for gas.
---gas-payment <OBJECT_ID>: coin object used to pay gas.
---auth-inputs <AUTH_INPUTS>: arguments to build the MoveAuthenticator(for instance - signature, public key etc).
---ptb-inputs <PTB_INPUTS>: inputs passed to the PTB (Programmable Transaction Block) body.
 --gas-budget <GAS_BUDGET> (optional): maximum gas units for execution.
 --gas-price <GAS_PRICE> (optional): gas price per unit.
+--gas-payment <OBJECT_ID>: coin object used to pay gas.
+--ptb-inputs <PTB_INPUTS>: inputs passed to the PTB (Programmable Transaction Block) body.
+--auth-inputs <AUTH_INPUTS>: arguments to build the MoveAuthenticator(for instance - signature, public key etc).
 ```
 
 #### Example
@@ -1477,14 +1478,22 @@ public fun authenticate_hello_world(
 //# view-object 6,0
 ```
 
+In this section we have:
+```move
+//# abstract --account immshared(4,0) --auth-inputs "HelloWorld" --ptb-inputs 100 @A
+//> 0: SplitCoins(Gas, [Input(0)]);
+//> 1: TransferObjects([Result(0)], Input(1));
+```
 - Account (--account)
-  The immutable shared object that represents Abstract Account.
+  The immutable shared object that represents Abstract Account - `immshared(4,0)`.
+- Auth Inputs (--auth-inputs)
+  These are the inputs used for the authenticator arguments. They should reflect the parameters of the function marked with `#[authenticator]`.
 - PTB Inputs (--ptb-inputs)
   These are inputs used inside the transaction body - for example, numeric values, objects, or addresses.
   The PTB commands (//> ...) operate as in the programmable command.
 
-- object(1,1)
-  The `PackageMetadata` object carries information about function annotations, such as attributes
+- object(3,1)
+  The `PackageMetadata` object carries information about function annotations, such as function attributes.
 
 `.snap` output:
 
@@ -1550,6 +1559,34 @@ Contents: iota::coin::Coin<iota::iota::IOTA> {
         value: 100u64,
     },
 }
+```
+
+### `publish-dependencies`
+
+The `publish-dependencies` subcommand (`PublishDeps` in Rust) is a lightweight helper for transactional tests that need to publish prepared dependency modules (e.g., Account Abstraction implementations) in order to avoid duplication/complex relations.
+It compiles and publishes Move source files provided by path and then stores the published modules in the adapter’s compiled state. As a result, the newly published package becomes available for subsequent commands and can be used as a proper dependency within built-in Move code.
+
+#### Syntax
+
+```move
+//# publish-deps [OPTIONS]
+```
+#### Options
+
+```
+--paths <PATHS>...: one or more Move source file paths to compile and publish.
+  Each path may be relative to the IOTA root or absolute.
+```
+
+#### Example
+
+```move
+//# publish --sender A --dependencies dep1
+```
+
+Output:
+```
+Output for './dep1.move':
 ```
 
 ## How `run_test` Compares a Move File With the Corresponding `.snap` File
