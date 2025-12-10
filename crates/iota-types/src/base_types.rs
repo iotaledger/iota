@@ -10,7 +10,7 @@ use std::{
     str::FromStr,
 };
 
-use anyhow::anyhow;
+use anyhow::{anyhow, bail};
 use fastcrypto::{
     encoding::{Encoding, Hex, decode_bytes_hex},
     hash::HashFunction,
