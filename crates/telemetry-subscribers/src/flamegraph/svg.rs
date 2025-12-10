@@ -101,7 +101,7 @@ impl From<TotalTime> for f64 {
 impl Measure for TotalTime {}
 
 #[cfg(feature = "flamegraph-alloc")]
-#[derive(Clone, Copy, Debug, Default)]
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 struct TotalMem(usize);
 #[cfg(feature = "flamegraph-alloc")]
 impl std::ops::Add<&FlameMetric> for TotalMem {
