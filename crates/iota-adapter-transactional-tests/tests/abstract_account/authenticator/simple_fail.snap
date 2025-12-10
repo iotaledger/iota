@@ -6,13 +6,13 @@ processed 5 tasks
 init:
 A: object(0,0)
 
-task 1, lines 8-42:
+task 1, lines 8-40:
 //# publish --sender A
 created: object(1,0), object(1,1)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 12319600,  storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 11080800,  storage_rebate: 0, non_refundable_storage_fee: 0
 
-task 2, lines 44-46:
+task 2, lines 42-44:
 //# programmable --sender A --inputs object(1,1) "abstract_account" "authenticate_hello_world"
 //> 0: iota::account::create_auth_info_v1<test::abstract_account::AbstractAccount>(Input(0), Input(1), Input(2));
 //> 1: test::abstract_account::create(Result(0));
@@ -20,7 +20,7 @@ created: object(2,0), object(2,1)
 mutated: object(0,0)
 gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 5768400,  storage_rebate: 980400, non_refundable_storage_fee: 0
 
-task 3, line 48:
+task 3, line 46:
 //# view-object 2,1
 Owner: Shared( 3 )
 Version: 3
@@ -32,6 +32,6 @@ Contents: test::abstract_account::AbstractAccount {
     },
 }
 
-task 4, lines 50-51:
+task 4, lines 48-49:
 //# abstract --account immshared(2,1) --auth-inputs "test" --ptb-inputs 100 @A
 Error: Failed to execute the Move authenticator, reason: "ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: MoveAbort(MoveLocation { module: ModuleId { address: object(1,0), name: Identifier(\"abstract_account\") }, function: 1, instruction: 7, function_name: Some(\"authenticate_hello_world\") }, 0), source: Some(VMError { major_status: ABORTED, sub_status: Some(0), message: Some(\"object(1,0)::abstract_account::authenticate_hello_world at offset 7\"), exec_state: None, location: Module(ModuleId { address: object(1,0), name: Identifier(\"abstract_account\") }), indices: [], offsets: [(FunctionDefinitionIndex(1), 7)] }), command: Some(0) } }".

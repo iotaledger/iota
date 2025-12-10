@@ -1444,11 +1444,6 @@ Doesn't support simulator mode.
 #### Example
 
 ```move
-// Copyright (c) 2025 IOTA Stiftung
-// SPDX-License-Identifier: Apache-2.0
-
-// simple authentication using abstract account
-
 //# init --addresses test=0x0 --accounts A
 
 //# publish --sender A
@@ -1466,14 +1461,12 @@ public fun create(
     authenticator: AuthenticatorInfoV1<AbstractAccount>,
     ctx: &mut TxContext,
 ): address {
-    let mut account = AbstractAccount { id: object::new(ctx) };
-    let authenticator_compatibility_proof = account::check_auth_info_v1_compatibility(
-        &account,
-        authenticator,
-    );
-    account::attach_auth_info_v1(&mut account.id, authenticator_compatibility_proof);
+    let account = AbstractAccount { id: object::new(ctx) };
+
     let account_address = object::id_address(&account);
-    iota::transfer::share_object(account);
+
+    account::create_account_v1(account, authenticator);
+
     account_address
 }
 
@@ -1520,21 +1513,21 @@ processed 6 tasks
 init:
 A: object(0,0)
 
-task 1, lines 8-41:
+task 1, lines 8-40:
 //# publish --sender A
 created: object(1,0), object(1,1)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 8800800,  storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 11080800,  storage_rebate: 0, non_refundable_storage_fee: 0
 
-task 2, lines 43-45:
-//# programmable --sender A --inputs @test "abstract_account" "authenticate_hello_world"
+task 2, lines 42-44:
+//# programmable --sender A --inputs object(1,1) "abstract_account" "authenticate_hello_world"
 //> 0: iota::account::create_auth_info_v1<test::abstract_account::AbstractAccount>(Input(0), Input(1), Input(2));
 //> 1: test::abstract_account::create(Result(0));
 created: object(2,0), object(2,1)
 mutated: object(0,0)
 gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 5768400,  storage_rebate: 980400, non_refundable_storage_fee: 0
 
-task 3, line 47:
+task 3, line 46:
 //# view-object 2,1
 Owner: Shared( 3 )
 Version: 3
@@ -1546,14 +1539,14 @@ Contents: test::abstract_account::AbstractAccount {
     },
 }
 
-task 4, lines 49-51:
+task 4, lines 48-50:
 //# abstract --account immshared(2,1) --auth-inputs "HelloWorld" --ptb-inputs 100 @A
 created: object(4,0)
 mutated: object(_)
 unchanged_shared: object(2,1)
 gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 1960800,  storage_rebate: 980400, non_refundable_storage_fee: 0
 
-task 5, line 53:
+task 5, line 52:
 //# view-object 4,0
 Owner: Account Address ( A )
 Version: 4

@@ -1,0 +1,62 @@
+// Copyright (c) 2025 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
+//# publish
+module 0x0.m {
+    import 0x2.account;
+    import 0x2.object;
+    import 0x2.package_metadata;
+    import 0x1.ascii;
+
+    struct Account has key, store {
+        id: object.UID,
+    }
+
+    t1(
+        package_metadata: &package_metadata.PackageMetadataV1,
+        module_name: ascii.String,
+        function_name: ascii.String,
+    ): account.AuthenticatorInfoV1<Self.Account> {
+        let a: account.AuthenticatorInfoV1<Self.Account>;
+        label l0:
+        a = account.create_auth_info_v1<Self.Account>(move(package_metadata), move(module_name), move(function_name));
+        return move(a);
+    }
+
+    t2(account: &Self.Account): &account.AuthenticatorInfoV1<Self.Account> {
+        let a: &account.AuthenticatorInfoV1<Self.Account>;
+        let id: &object.UID;
+        label l0:
+        id = &move(account).Account::id;
+        a = account.borrow_auth_info_v1<Self.Account>(move(id));
+        return move(a);
+    }
+
+    t3(account: &Self.Account): bool {
+        let b: bool;
+        let id: &object.UID;
+        label l0:
+        id = &move(account).Account::id;
+        b = account.has_auth_info_v1(move(id));
+        return move(b);
+    }
+
+    t4(account: Self.Account, authenticator: account.AuthenticatorInfoV1<Self.Account>) {
+        label l0:
+        account.create_account_v1<Self.Account>(move(account), move(authenticator));
+        return;
+    }
+
+    t5(account: Self.Account, authenticator: account.AuthenticatorInfoV1<Self.Account>) {
+        label l0:
+        account.create_immutable_account_v1<Self.Account>(move(account), move(authenticator));
+        return;
+    }
+
+    t6(account: &mut Self.Account, authenticator: account.AuthenticatorInfoV1<Self.Account>): account.AuthenticatorInfoV1<Self.Account> {
+        let a: account.AuthenticatorInfoV1<Self.Account>;
+        label l0:
+        a = account.rotate_auth_info_v1<Self.Account>(move(account), move(authenticator));
+        return move(a);
+    }
+}
