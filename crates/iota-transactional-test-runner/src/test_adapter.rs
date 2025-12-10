@@ -1351,8 +1351,8 @@ impl IotaTestAdapter {
         let aa_sender_addr = aa_arg.id().into();
 
         let gas_ref = self
-                .fund_address_for_testing(aa_sender_addr, GAS_FOR_ABSTRACT_ACCOUNT)
-                .await?;
+            .fund_address_for_testing(aa_sender_addr, GAS_FOR_ABSTRACT_ACCOUNT)
+            .await?;
         let account = TestAccount {
             address: aa_sender_addr,
             key_pair: None,
