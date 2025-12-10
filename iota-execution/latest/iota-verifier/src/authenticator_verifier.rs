@@ -12,7 +12,7 @@ use iota_types::{
     auth_context::{AuthContext, AuthContextKind},
     base_types::{TxContext, TxContextKind},
     error::ExecutionError,
-    is_object_struct, is_primitive,
+    is_object_struct, is_primitive_strict,
     transfer::Receiving,
 };
 use move_binary_format::{
@@ -30,7 +30,9 @@ use crate::verification_failure;
 ///   types)
 /// - has no return type
 /// - must be a public non-entry function
-/// - the first argument is a reference to the account object type (a Datatype)
+/// - the first argument is a reference to the account object type (a Datatype
+///   or a concrete DatatypeInstantiation, i.e., with no template type
+///   parameters but concrete ones, both with `key` ability)
 /// - the last two arguments in order are AuthContext and TxContext
 /// - AuthContext has to be an immutable reference
 /// - TxContext has to be an immutable reference
@@ -148,20 +150,37 @@ fn verify_authenticate_account_type(
 
     // Check that the parameter is an immutable reference
     if let Reference(ref_param) = param {
-        // Check that the referenced type is a Datatype or DatatypeInstantiation
-        if let Datatype(_) | DatatypeInstantiation(_) = &**ref_param {
-            // Check that the referenced type is an object struct
-            let abilities = module
-                .abilities(ref_param, function_type_args)
-                .map_err(|vm_err| vm_err.to_string())?;
-            // If it has the `key` ability, it's an object struct
-            if abilities.has_key() {
-                return Ok(());
+        // Check if a type is a concrete object type (i.e., a Datatype with
+        // `key` ability or a DatatypeInstantiation with `key` ability
+        // and all type arguments being concrete object types).
+        let s = &**ref_param;
+        match s {
+            Datatype(_) => {
+                let abilities = module
+                    .abilities(s, function_type_args)
+                    .map_err(|vm_err| vm_err.to_string())?;
+                if abilities.has_key() {
+                    return Ok(());
+                }
             }
+            DatatypeInstantiation(struct_inst) => {
+                let (_, type_args) = &**struct_inst;
+                let abilities = module
+                    .abilities(s, function_type_args)
+                    .map_err(|vm_err| vm_err.to_string())?;
+                if abilities.has_key()
+                    && type_args
+                        .iter()
+                        .all(|t| is_not_type_parameter(module, function_type_args, t))
+                {
+                    return Ok(());
+                }
+            }
+            _ => {}
         }
     }
     Err(format!(
-        "Invalid authenticator function account type: {}. Valid types for the first parameter are immutable references to an object type.",
+        "Invalid authenticator function account type: {}. Valid types for the first parameter are immutable references to an object type (with no generics).",
         format_signature_token(module, param),
     ))
 }
@@ -193,7 +212,7 @@ fn verify_authenticate_param_type(
                 Ok(())
             } else {
                 Err(format!(
-                    "Invalid parameter type for authenticator function: {}.  Non object immutable references are invalid. Valid types are immutable references to objects or primitive types.",
+                    "Invalid parameter type for authenticator function: {}. Non object immutable references are invalid. Valid types are immutable references to objects or primitive types.",
                     format_signature_token(module, param)
                 ))
             }
@@ -207,6 +226,37 @@ fn verify_authenticate_param_type(
                     format_signature_token(module, param)
                 ))
             }
+        }
+    }
+}
+
+/// Check that a type is not a type parameter, recursively
+fn is_not_type_parameter(
+    module: &CompiledModule,
+    function_type_args: &[AbilitySet],
+    s: &SignatureToken,
+) -> bool {
+    use SignatureToken as S;
+    match s {
+        S::TypeParameter(_) => false,
+        S::Bool
+        | S::U8
+        | S::U16
+        | S::U32
+        | S::U64
+        | S::U128
+        | S::U256
+        | S::Address
+        | S::Signer
+        | S::Datatype(_) => true,
+        S::DatatypeInstantiation(struct_inst) => {
+            let (_, type_args) = &**struct_inst;
+            type_args
+                .iter()
+                .all(|t| is_not_type_parameter(module, function_type_args, t))
+        }
+        S::Vector(inner) | S::Reference(inner) | S::MutableReference(inner) => {
+            is_not_type_parameter(module, function_type_args, inner)
         }
     }
 }
