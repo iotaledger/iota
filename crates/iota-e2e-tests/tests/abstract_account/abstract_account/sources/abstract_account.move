@@ -72,13 +72,13 @@ public fun add_dynamic_field<Name: copy + drop + store, Value: store>(
     self
 }
 
-/// Finish building the `AbstractAccount` and share the object.
+/// Finish building the `AbstractAccount`.
 public fun finish(self: AbstractAccountBuilder): AbstractAccount {
     let AbstractAccountBuilder { account } = self;
     account
 }
 
-/// Share AbstractAccount.
+/// Share the `AbstractAccount`.
 public fun share(self: AbstractAccount) {
     iota::transfer::share_object(self);
 }
@@ -133,7 +133,7 @@ public fun borrow_field_mut<Name: copy + drop + store, Value: store>(
 ///
 /// Only the account itself can call this function.
 /// This function cannot change the type of the stored `Value`.
-public fun rotate_field<Name: copy + drop + store, Value: store>(
+public fun replace_field<Name: copy + drop + store, Value: store>(
     self: &mut AbstractAccount,
     name: Name,
     value: Value,
