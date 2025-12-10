@@ -174,33 +174,6 @@ pub struct AbstractTransactionCommand {
     pub authenticator_inputs: Vec<ParsedValue<IotaExtraValueArgs>>,
 }
 
-// package, module, authenticate_fn don't have arg attribute because they are
-// positional arguments it allows us to write commands like:
-// init-abstract-acc --sender <SENDER> <PACKAGE> <MODULE> <AUTHENTICATE_FN>
-// instead of
-// init-abstract-acc --sender <SENDER> --package <PACKAGE> --module <MODULE>
-// --authenticate-fn <AUTHENTICATE_FN>
-#[derive(Debug, clap::Parser)]
-pub struct InitAbstractAccountCommand {
-    #[arg(long)]
-    pub sender: Option<String>,
-    #[arg(
-        long,
-        value_parser = ParsedValue::<IotaExtraValueArgs>::parse,
-    )]
-    pub package_metadata: ParsedValue<IotaExtraValueArgs>,
-    pub module: String,
-    pub authenticate_fn: String,
-    pub account_type: String,
-    #[arg(
-        long,
-        value_parser = ParsedValue::<IotaExtraValueArgs>::parse,
-        num_args(1..),
-        action = clap::ArgAction::Append,
-    )]
-    pub inputs: Vec<ParsedValue<IotaExtraValueArgs>>,
-}
-
 #[derive(Debug, Parser)]
 pub struct PublishDepsCommand {
     #[arg(long, num_args(1..))]
@@ -301,7 +274,6 @@ pub enum IotaSubcommand<ExtraValueArgs: ParsableValue, ExtraRunArgs: Parser> {
     RunGraphql(RunGraphqlCommand),
     Bench(RunCommand<ExtraValueArgs>, ExtraRunArgs),
     AbstractTransaction(AbstractTransactionCommand),
-    InitAbstractAccount(InitAbstractAccountCommand),
     PublishDeps(PublishDepsCommand),
 }
 
@@ -356,10 +328,7 @@ impl<ExtraValueArgs: ParsableValue, ExtraRunArgs: Parser> clap::FromArgMatches
                 RunCommand::from_arg_matches(matches)?,
                 ExtraRunArgs::from_arg_matches(matches)?,
             ),
-            Some(("init-abstract-acc", matches)) => IotaSubcommand::InitAbstractAccount(
-                InitAbstractAccountCommand::from_arg_matches(matches)?,
-            ),
-            Some(("publish-deps", matches)) => {
+            Some(("publish-dependencies", matches)) => {
                 IotaSubcommand::PublishDeps(PublishDepsCommand::from_arg_matches(matches)?)
             }
             _ => {
@@ -399,8 +368,7 @@ impl<ExtraValueArgs: ParsableValue, ExtraRunArgs: Parser> clap::CommandFactory
             .subcommand(
                 RunCommand::<ExtraValueArgs>::augment_args(ExtraRunArgs::command()).name("bench"),
             )
-            .subcommand(InitAbstractAccountCommand::command().name("init-abstract-acc"))
-            .subcommand(PublishDepsCommand::command().name("publish-deps"))
+            .subcommand(PublishDepsCommand::command().name("publish-dependencies"))
     }
 
     fn command_for_update() -> clap::Command {

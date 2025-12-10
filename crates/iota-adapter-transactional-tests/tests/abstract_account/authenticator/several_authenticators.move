@@ -5,7 +5,7 @@
 
 //# init --addresses test=0x0 aa=0x0 --accounts A
 
-//# publish-deps --paths crates/iota-adapter-transactional-tests/data/account_abstraction/abstract_account.move
+//# publish-dependencies --paths crates/iota-adapter-transactional-tests/data/account_abstraction/abstract_account.move
 
 //# publish --sender A --dependencies aa
 module test::authenticate;
@@ -34,7 +34,8 @@ public fun authenticate_hello_world2(
     assert!(msg == ascii::string(b"HelloWorld"), 0);
 }
 
-//# init-abstract-acc --sender A --package-metadata object(3,1) authenticate authenticate_hello_world aa::abstract_account::AbstractAccount
+//# programmable --sender A --inputs object(3,1) "authenticate" "authenticate_hello_world"
+//> 0: aa::abstract_account::create(Input(0), Input(1), Input(2));
 
 //# view-object 4,0
 
@@ -43,5 +44,3 @@ public fun authenticate_hello_world2(
 //> 1: TransferObjects([Result(0)], Input(1));
 
 //# view-object 6,0
-
-

@@ -8,15 +8,18 @@
 //# publish --sender A
 module test::authenticate;
 
-use iota::account::AuthenticatorInfoV1;
 use iota::auth_context::AuthContext;
+use iota::package_metadata::PackageMetadataV1;
+use std::ascii;
 
 public struct AbstractAccount has key {
     id: UID,
 }
 
 public fun create(
-    _authenticator: AuthenticatorInfoV1<AbstractAccount>,
+    _package_metadata: &PackageMetadataV1,
+    _module_name: ascii::String,
+    _function_name: ascii::String,
     ctx: &mut TxContext,
 ): address {
     let account = AbstractAccount { id: object::new(ctx) };
@@ -28,7 +31,8 @@ public fun create(
 #[authenticator]
 public fun authenticate(_account: &AbstractAccount, _auth_ctx: &AuthContext, _ctx: &TxContext) {}
 
-//# init-abstract-acc --sender A --package-metadata object(1,1) authenticate authenticate test::authenticate::AbstractAccount
+//# programmable --sender A --inputs object(1,1) "authenticate" "authenticate"
+//> 0: test::authenticate::create(Input(0), Input(1), Input(2));
 
 //# view-object 2,0
 

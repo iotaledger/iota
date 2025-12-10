@@ -7,11 +7,11 @@ init:
 A: object(0,0)
 
 task 1, line 8:
-//# publish-deps --paths crates/iota-adapter-transactional-tests/data/account_abstraction/abstract_account.move
+//# publish-dependencies --paths crates/iota-adapter-transactional-tests/data/account_abstraction/abstract_account.move
 Output for 'crates/iota-adapter-transactional-tests/data/account_abstraction/abstract_account.move':
 created: object(2,0)
 mutated: object(0,1)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 7615200,  storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 9431600,  storage_rebate: 0, non_refundable_storage_fee: 0
 
 task 2, lines 10-25:
 //# publish --sender A --dependencies aa
@@ -19,13 +19,14 @@ created: object(3,0), object(3,1)
 mutated: object(0,0)
 gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 9918000,  storage_rebate: 0, non_refundable_storage_fee: 0
 
-task 3, line 27:
-//# init-abstract-acc --sender A --package-metadata object(3,1) authenticate authenticate_hello_world aa::abstract_account::AbstractAccount
+task 3, lines 27-28:
+//# programmable --sender A --inputs object(3,1) "authenticate" "authenticate_hello_world"
+//> 0: aa::abstract_account::create(Input(0), Input(1), Input(2));
 created: object(4,0), object(4,1)
 mutated: object(0,0)
 gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 5738000,  storage_rebate: 980400, non_refundable_storage_fee: 0
 
-task 4, line 29:
+task 4, line 30:
 //# view-object 4,0
 Owner: Shared( 3 )
 Version: 3
@@ -37,14 +38,14 @@ Contents: aa::abstract_account::AbstractAccount {
     },
 }
 
-task 5, lines 31-33:
+task 5, lines 32-34:
 //# abstract --account immshared(4,0) --auth-inputs "HelloWorld" --ptb-inputs 100 @A
 created: object(6,0)
 mutated: object(_)
 unchanged_shared: object(4,0)
 gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 1960800,  storage_rebate: 980400, non_refundable_storage_fee: 0
 
-task 6, line 35:
+task 6, line 36:
 //# view-object 6,0
 Owner: Account Address ( A )
 Version: 4

@@ -1240,24 +1240,6 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
                 let output = self.object_summary_output(&summary, /* summarize */ false);
                 Ok(output)
             }
-            IotaSubcommand::InitAbstractAccount(InitAbstractAccountCommand {
-                sender,
-                package_metadata,
-                module,
-                authenticate_fn,
-                account_type,
-                inputs,
-            }) => {
-                self.init_abstract_account(
-                    sender,
-                    package_metadata,
-                    module,
-                    authenticate_fn,
-                    account_type,
-                    inputs,
-                )
-                .await
-            }
             IotaSubcommand::PublishDeps(PublishDepsCommand { paths }) => {
                 let mut outputs = vec![];
                 for file_path in paths {
@@ -2340,50 +2322,6 @@ impl IotaTestAdapter {
         );
 
         Ok(builder.finish())
-    }
-
-    async fn init_abstract_account(
-        &mut self,
-        sender: Option<String>,
-        package_metadata: ParsedValue<IotaExtraValueArgs>,
-        module_name: String,
-        authenticate_fn: String,
-        aa_type: String,
-        inputs: Vec<ParsedValue<IotaExtraValueArgs>>,
-    ) -> anyhow::Result<Option<String>> {
-        // let pkg_addr = self
-        //     .compiled_state
-        //     .named_address_mapping
-        //     .get(&package_name)
-        //     .with_context(|| format!("Unknown package named address
-        // '{package_name}'"))?     .into_inner();
-        // let package_id: ObjectID = pkg_addr.into();
-
-        let (aa_package_id, aa_module_name, account_type) = self.resolve_aa_params(aa_type)?;
-        let pt = self.build_abstract_account_transaction(
-            package_metadata,
-            module_name.clone(),
-            authenticate_fn,
-            account_type,
-            aa_package_id,
-            &aa_module_name,
-            inputs,
-        )?;
-
-        let gas_budget = DEFAULT_GAS_BUDGET;
-        let gas_price = self.gas_price;
-
-        let tx = self.sign_txn(
-            sender,
-            |sender_addr, gas| {
-                TransactionData::new_programmable(sender_addr, gas, pt, gas_budget, gas_price)
-            },
-            false,
-        );
-
-        let summary = self.execute_txn(tx).await?;
-        let output = self.object_summary_output(&summary, false);
-        Ok(output)
     }
 }
 

@@ -7,11 +7,11 @@ init:
 A: object(0,0)
 
 task 1, line 8:
-//# publish-deps --paths crates/iota-adapter-transactional-tests/data/account_abstraction/abstract_account.move
+//# publish-dependencies --paths crates/iota-adapter-transactional-tests/data/account_abstraction/abstract_account.move
 Output for 'crates/iota-adapter-transactional-tests/data/account_abstraction/abstract_account.move':
 created: object(2,0)
 mutated: object(0,1)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 7615200,  storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 9431600,  storage_rebate: 0, non_refundable_storage_fee: 0
 
 task 2, lines 10-25:
 //# publish --sender A --dependencies aa
@@ -19,25 +19,28 @@ created: object(3,0), object(3,1)
 mutated: object(0,0)
 gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 9918000,  storage_rebate: 0, non_refundable_storage_fee: 0
 
-task 3, line 27:
-//# init-abstract-acc --sender A --package-metadata object(3,1) authenticate authenticate_hello_world aa::abstract_account::AbstractAccount
+task 3, lines 27-28:
+//# programmable --sender A --inputs object(3,1) "authenticate" "authenticate_hello_world"
+//> 0: aa::abstract_account::create(Input(0), Input(1), Input(2));
 created: object(4,0), object(4,1)
 mutated: object(0,0)
 gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 5738000,  storage_rebate: 980400, non_refundable_storage_fee: 0
 
-task 4, line 29:
-//# init-abstract-acc --sender A --package-metadata object(3,1) authenticate authenticate_hello_world aa::abstract_account::AbstractAccount
+task 4, lines 30-31:
+//# programmable --sender A --inputs object(3,1) "authenticate" "authenticate_hello_world"
+//> 0: aa::abstract_account::create(Input(0), Input(1), Input(2));
 created: object(5,0), object(5,1)
 mutated: object(0,0)
 gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 5738000,  storage_rebate: 980400, non_refundable_storage_fee: 0
 
-task 5, line 31:
-//# init-abstract-acc --sender A --package-metadata object(3,1) authenticate authenticate_hello_world aa::abstract_account::AbstractAccount
+task 5, lines 33-34:
+//# programmable --sender A --inputs object(3,1) "authenticate" "authenticate_hello_world"
+//> 0: aa::abstract_account::create(Input(0), Input(1), Input(2));
 created: object(6,0), object(6,1)
 mutated: object(0,0)
 gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 5738000,  storage_rebate: 980400, non_refundable_storage_fee: 0
 
-task 6, line 33:
+task 6, line 36:
 //# view-object 4,0
 Owner: Shared( 3 )
 Version: 3
@@ -49,7 +52,7 @@ Contents: aa::abstract_account::AbstractAccount {
     },
 }
 
-task 7, line 35:
+task 7, line 38:
 //# view-object 4,1
 Owner: Object ID: ( fake(4,0) )
 Version: 3
@@ -113,7 +116,7 @@ Contents: iota::dynamic_field::Field<iota::account::AuthenticatorInfoV1Key, iota
     },
 }
 
-task 8, line 37:
+task 8, line 40:
 //# view-object 5,0
 Owner: Shared( 4 )
 Version: 4
@@ -125,7 +128,7 @@ Contents: aa::abstract_account::AbstractAccount {
     },
 }
 
-task 9, line 39:
+task 9, line 42:
 //# view-object 5,1
 Owner: Object ID: ( fake(5,0) )
 Version: 4
@@ -189,7 +192,7 @@ Contents: iota::dynamic_field::Field<iota::account::AuthenticatorInfoV1Key, iota
     },
 }
 
-task 10, line 41:
+task 10, line 44:
 //# view-object 6,0
 Owner: Shared( 5 )
 Version: 5
@@ -201,7 +204,7 @@ Contents: aa::abstract_account::AbstractAccount {
     },
 }
 
-task 11, line 43:
+task 11, line 46:
 //# view-object 6,1
 Owner: Object ID: ( fake(6,0) )
 Version: 5

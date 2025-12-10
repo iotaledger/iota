@@ -3,18 +3,22 @@
 
 module aa::abstract_account;
 
+use iota::account;
+use iota::dynamic_field;
 use iota::package_metadata::PackageMetadataV1;
-use iota::account::{Self, AuthenticatorInfoV1};
 use std::ascii;
 
 public struct AbstractAccount has key {
     id: UID,
 }
 
+public struct OwnerPublicKey has copy, drop, store {}
+
 public fun create(
     package_metadata: &PackageMetadataV1,
     module_name: ascii::String,
     function_name: ascii::String,
+    public_key: vector<u8>,
     ctx: &mut TxContext,
 ): address {
     let authenticator = account::create_auth_info_v1<AbstractAccount>(
@@ -28,21 +32,7 @@ public fun create(
         authenticator,
     );
     account::attach_auth_info_v1(account.uid_mut(), authenticator_compatibility_proof);
-    let account_address = object::id_address(&account);
-    iota::transfer::share_object(account);
-    account_address
-}
-
-public fun create_with_auth_info(
-    authenticator: AuthenticatorInfoV1<AbstractAccount>,
-    ctx: &mut TxContext,
-): address {
-    let mut account = AbstractAccount { id: object::new(ctx) };
-    let authenticator_compatibility_proof = account::check_auth_info_v1_compatibility(
-        &account,
-        authenticator,
-    );
-    account::attach_auth_info_v1(account.uid_mut(), authenticator_compatibility_proof);
+    dynamic_field::add(&mut account.id, OwnerPublicKey {}, public_key);
     let account_address = object::id_address(&account);
     iota::transfer::share_object(account);
     account_address
@@ -50,4 +40,8 @@ public fun create_with_auth_info(
 
 public fun uid_mut(self: &mut AbstractAccount): &mut UID {
     &mut self.id
+}
+
+public fun borrow_public_key(account: &AbstractAccount): &vector<u8> {
+    dynamic_field::borrow(&account.id, OwnerPublicKey {})
 }
