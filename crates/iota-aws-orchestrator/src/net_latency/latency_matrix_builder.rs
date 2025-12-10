@@ -6,12 +6,12 @@ use super::{PerturbationSpec, TopologyLayout};
 // Mainnet validator region indices (0-9 correspond to RTT_LATENCY_TABLE
 // rows/cols). Extracted from current IOTA Mainnet validator list
 // and checking IP geolocation.
-// Distribution: 18x US-East, 4x US-West, 2x Canada, 21x EU-West,
+// Distribution: 20x US-East, 4x US-West, 2x Canada, 21x EU-West,
 // 13x EU-North, 8x AP-Southeast, 1x AP-South, 1x AP-Northeast
 const MAINNET_NODE_REGIONS: [usize; 70] = [
-    5, 3, 0, 3, 3, 3, 8, 3, 0, 5, 3, 5, 3, 3, 8, 5, 0, 1, 3, 1, 0, 5, 3, 5, 0, 5, 0, 0, 5, 5, 3, 5,
-    3, 0, 3, 5, 3, 9, 3, 8, 0, 3, 3, 3, 2, 7, 0, 1, 0, 2, 0, 5, 0, 8, 8, 1, 0, 8, 0, 0, 3, 3, 8, 0,
-    3, 0, 8, 5, 0, 0,
+    5, 9, 0, 8, 8, 3, 8, 3, 0, 5, 3, 5, 3, 3, 8, 5, 0, 1, 3, 1, 0, 5, 3, 5, 0, 5, 0, 0, 5, 5, 3, 5,
+    3, 0, 3, 5, 3, 3, 3, 8, 0, 3, 3, 3, 2, 7, 0, 1, 0, 2, 0, 5, 0, 8, 3, 1, 0, 8, 0, 0, 3, 3, 8, 0,
+    3, 0, 3, 5, 0, 0,
 ];
 
 // RTT table for 10 AWS regions, in milliseconds.
@@ -51,6 +51,7 @@ pub fn generate_block_matrix(n: usize, k: usize) -> Vec<Vec<bool>> {
 
     // For symmetry, we assign blocks in round-robin pairs:
     // node i blocks nodes (i+1)%n, (i+2)%n, ..., (i+k)%n
+    #[expect(clippy::needless_range_loop)]
     for i in 0..n {
         for offset in 1..=k {
             let j = (i + offset) % n;
@@ -132,7 +133,7 @@ impl LatencyMatrixBuilder {
         let cluster_of = |idx: usize| -> usize {
             idx * c / self.number_of_instances // 0..n-1 -> 0..c-1
         };
-        #[allow(clippy::needless_range_loop)]
+        #[expect(clippy::needless_range_loop)]
         for i in 0..self.number_of_instances {
             let ci = cluster_of(i);
 
@@ -200,7 +201,7 @@ impl LatencyMatrixBuilder {
         let n = self.matrix.len();
         let blocking_matrix =
             generate_block_matrix(self.matrix.len(), number_of_blocking_connections);
-        #[allow(clippy::needless_range_loop)]
+        #[expect(clippy::needless_range_loop)]
         for i in 0..n {
             for j in 0..n {
                 if !blocking_matrix[i][j] {
@@ -308,5 +309,30 @@ mod tests {
             .with_max_latency(300)
             .build();
         println!("{:?}", matrix);
+    }
+
+    #[test]
+    fn test_mainnet_region_distribution() {
+        let expected = [
+            (0, 20),
+            (1, 4),
+            (2, 2),
+            (3, 21),
+            (5, 13),
+            (7, 1),
+            (8, 8),
+            (9, 1),
+        ];
+        let mut counts = [0usize; 10];
+        for &region in &MAINNET_NODE_REGIONS {
+            counts[region] += 1;
+        }
+        for &(region, expected_count) in &expected {
+            assert_eq!(
+                counts[region], expected_count,
+                "Region {}: expected {}, got {}",
+                region, expected_count, counts[region]
+            );
+        }
     }
 }

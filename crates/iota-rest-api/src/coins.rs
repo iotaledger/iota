@@ -6,7 +6,7 @@ use axum::{
     Json,
     extract::{Path, State},
 };
-use iota_sdk2::types::{ObjectId, StructTag};
+use iota_sdk_types::{ObjectId, StructTag};
 use iota_types::iota_sdk_types_conversions::struct_tag_sdk_to_core;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};

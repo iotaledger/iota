@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use axum::extract::{Path, State};
-use iota_sdk2::types::{CheckpointSequenceNumber, EpochId, SignedCheckpointSummary};
+use iota_sdk_types::{CheckpointSequenceNumber, EpochId, SignedCheckpointSummary};
 use tap::Pipe;
 
 use crate::{
