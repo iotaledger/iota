@@ -38,6 +38,9 @@ pub mod diesel_macro {
         }};
     }
 
+    /// Runs a blocking SQL query.
+    ///
+    /// In an async context, it must be wrapped in an spawn blocking task.
     #[macro_export]
     macro_rules! read_only_blocking {
         ($pool:expr, $query:expr) => {{
@@ -56,6 +59,9 @@ pub mod diesel_macro {
         }};
     }
 
+    /// Runs a blocking SQL query.
+    ///
+    /// In an async context, it must be wrapped in an spawn blocking task.
     #[macro_export]
     macro_rules! transactional_blocking_with_retry {
         ($pool:expr, $query:expr, $max_elapsed:expr) => {{
@@ -95,6 +101,9 @@ pub mod diesel_macro {
         }};
     }
 
+    /// Runs a blocking SQL query.
+    ///
+    /// In an async context, it must be wrapped in an spawn blocking task.
     #[macro_export]
     macro_rules! transactional_blocking_with_retry_with_conditional_abort {
         ($pool:expr, $query:expr, $abort_condition:expr, $max_elapsed:expr) => {{
@@ -138,6 +147,7 @@ pub mod diesel_macro {
         }};
     }
 
+    /// Runs an async SQL query wrapped in a spawn blocking task.
     #[macro_export]
     macro_rules! spawn_read_only_blocking {
         ($pool:expr, $query:expr, $repeatable_read:expr) => {{
@@ -224,6 +234,9 @@ pub mod diesel_macro {
         }};
     }
 
+    /// Runs a blocking SQL query.
+    ///
+    /// In an async context, it must be wrapped in an spawn blocking task.
     #[macro_export]
     macro_rules! run_query {
         ($pool:expr, $query:expr) => {{
@@ -232,6 +245,9 @@ pub mod diesel_macro {
         }};
     }
 
+    /// Runs a blocking SQL query.
+    ///
+    /// In an async context, it must be wrapped in an spawn blocking task.
     #[macro_export]
     macro_rules! run_query_repeatable {
         ($pool:expr, $query:expr) => {{
@@ -240,6 +256,9 @@ pub mod diesel_macro {
         }};
     }
 
+    /// Runs a blocking SQL query.
+    ///
+    /// In an async context, it must be wrapped in an spawn blocking task.
     #[macro_export]
     macro_rules! run_query_with_retry {
         ($pool:expr, $query:expr, $max_elapsed:expr) => {{
@@ -264,6 +283,7 @@ pub mod diesel_macro {
         }};
     }
 
+    /// Runs an async SQL query wrapped in a spawn blocking task.
     #[macro_export]
     macro_rules! run_query_async {
         ($pool:expr, $query:expr) => {{ spawn_read_only_blocking!($pool, $query, false) }};

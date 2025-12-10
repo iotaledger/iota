@@ -185,9 +185,7 @@ impl OptimisticTransactionExecutor {
         effects: &TransactionEffects,
     ) -> Result<bool, IndexerError> {
         self.read
-            .deep_check_all_transactions_are_indexed_in_blocking_task(
-                effects.dependencies().to_vec(),
-            )
+            .deep_check_all_transactions_are_indexed_in_blocking_task(effects.dependencies())
             .await
     }
 

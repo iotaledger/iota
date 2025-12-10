@@ -214,49 +214,22 @@ impl HistoricalFallbackReader {
 
     /// Fetches multiple checkpoints from the historical fallback storage.
     ///
-    /// Returns checkpoints in paginated form, supporting both ascending and
-    /// descending order.
-    ///
-    /// # Pagination Behavior
-    ///
-    /// | cursor | descending | Result                      |
-    /// |--------|------------|-----------------------------|
-    /// | `n`    | `false`    | Starts from checkpoint n+1  |
-    /// | `n`    | `true`     | Starts from checkpoint n-1  |
-    ///
     /// # NOTE
     /// `StoredCheckpoint.successful_tx_num` is hardcoded to 0, due to missing
     /// data in the historical fallback. It can be derived but the operations
     /// could be expensive. Can be added in future iterations.
     pub(crate) async fn checkpoints(
         &self,
-        cursor: CheckpointSequenceNumber,
-        limit: usize,
-        descending_order: bool,
+        checkpoints: Vec<CheckpointSequenceNumber>,
     ) -> IndexerResult<Vec<Option<StoredCheckpoint>>> {
-        if limit == 0 {
-            return Ok(vec![]);
-        }
-
-        let seq_nums: Vec<CheckpointSequenceNumber> = if descending_order {
-            // descending: start from cursor - 1, go down `limit` items
-            let end = cursor.saturating_sub(limit as u64);
-            (end..cursor).rev().collect()
-        } else {
-            // ascending: start from cursor + 1, go up `limit` items
-            let start = cursor + 1;
-            let end = start + limit as u64;
-            (start..end).collect()
-        };
-
-        if seq_nums.is_empty() {
+        if checkpoints.is_empty() {
             return Ok(vec![]);
         }
 
         let (summaries, contents) = tokio::try_join!(
             self.client
-                .multi_get_checkpoints_summaries_by_sequence_numbers(&seq_nums),
-            self.client.multi_get_checkpoints_contents(&seq_nums)
+                .multi_get_checkpoints_summaries_by_sequence_numbers(&checkpoints),
+            self.client.multi_get_checkpoints_contents(&checkpoints)
         )?;
 
         let checkpoints = summaries
@@ -279,14 +252,23 @@ impl HistoricalFallbackReader {
             self.resolve_checkpoints(tx_digests)
         )?;
 
-        let Some(historical_events) = events.into_iter().next().and_then(|events| {
-            let (summary, _) = checkpoint_summaries.get(&tx_digest).cloned()?;
-            Some(HistoricalFallbackEvents::new(events?, summary))
-        }) else {
+        // check first if transaction exists, all valid transaction are part of a
+        // checkpoint, if not found then the provided digest is invalid.
+        let (summary, _) = checkpoint_summaries
+            .get(&tx_digest)
+            .cloned()
+            .ok_or_else(|| {
+                IndexerError::HistoricalFallbackStorageError(format!(
+                    "transaction: {tx_digest} does not exist"
+                ))
+            })?;
+
+        let Some(Some(events)) = events.into_iter().next() else {
+            // transaction does not have associated events.
             return Ok(vec![]);
         };
 
-        historical_events
+        HistoricalFallbackEvents::new(events, summary)
             .into_iota_events(self.package_resolver.clone(), tx_digest)
             .await
     }
