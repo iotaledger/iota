@@ -168,24 +168,24 @@ impl ValidatorGenesisConfigBuilder {
             network_address,
             p2p_address,
             metrics_address,
-            admin_interface_address,
             primary_address,
+            admin_interface_address,
         ) = if let Some(offset) = self.port_offset {
             (
                 local_ip_utils::new_deterministic_tcp_address_for_testing(&ip, offset),
                 local_ip_utils::new_deterministic_udp_address_for_testing(&ip, offset + 1),
                 local_ip_utils::new_deterministic_tcp_address_for_testing(&ip, offset + 2)
                     .with_zero_ip(),
-                local_ip_utils::new_deterministic_tcp_address_for_testing(&ip, offset + 3),
-                local_ip_utils::new_deterministic_udp_address_for_testing(&ip, offset + 4),
+                local_ip_utils::new_deterministic_udp_address_for_testing(&ip, offset + 3),
+                local_ip_utils::new_deterministic_tcp_address_for_testing(&ip, offset + 4),
             )
         } else {
             (
                 local_ip_utils::new_tcp_address_for_testing(&ip),
                 local_ip_utils::new_udp_address_for_testing(&ip),
                 local_ip_utils::new_tcp_address_for_testing(&localhost),
-                local_ip_utils::new_tcp_address_for_testing(&localhost),
                 local_ip_utils::new_udp_address_for_testing(&ip),
+                local_ip_utils::new_tcp_address_for_testing(&localhost),
             )
         };
 
