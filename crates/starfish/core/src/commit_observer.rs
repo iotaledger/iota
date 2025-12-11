@@ -939,7 +939,7 @@ mod tests {
         // Commit first 3 leaders (rounds 1-3)
         // Each leader in the first 3 rounds has transactions from previous rounds
         let (commits_before, _) = observer
-            .handle_committed_leaders(all_leaders[0..3].to_vec())
+            .handle_committed_leaders(all_leaders[0..3].to_vec(), CommittedSubDagSource::Consensus)
             .unwrap();
 
         // Count transactions: with 4 authorities and standard DAG, each commit includes
@@ -985,7 +985,7 @@ mod tests {
         // Process new blocks - they acknowledge transactions from rounds 5-6
         // plus transactions from recovered blocks (rounds 1-3)
         let (_commits_after, _) = observer_after_restart
-            .handle_committed_leaders(new_leaders)
+            .handle_committed_leaders(new_leaders, CommittedSubDagSource::Consensus)
             .unwrap();
 
         // Count transactions from new commits: new leaders in rounds 7-8 will process

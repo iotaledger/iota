@@ -8,7 +8,7 @@ use std::{
     sync::Arc,
     time::Duration,
 };
-
+use std::cmp::max;
 use async_trait::async_trait;
 use bytes::Bytes;
 use dashmap::DashSet;
@@ -1031,21 +1031,14 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
                 // No truncation for fast commit sync - all transactions referenced
                 // by commits must be fetched
             }
-            TransactionFetchMode::CommitSync => {
-                let max_transactions = self
+            TransactionFetchMode::TransactionSync => {
+                let max_transactions = max(self
                     .context
                     .parameters
-                    .max_transactions_per_commit_sync_fetch;
-
-                if committed_transactions_refs.len() > max_transactions {
-                    committed_transactions_refs.truncate(max_transactions);
-                }
-            }
-            TransactionFetchMode::TransactionsSynchronizer => {
-                let max_transactions = self
-                    .context
-                    .parameters
-                    .max_transactions_per_regular_sync_fetch;
+                    .max_transactions_per_commit_sync_fetch,
+                    self.context
+                        .parameters
+                        .max_transactions_per_regular_sync_fetch);
 
                 if committed_transactions_refs.len() > max_transactions {
                     committed_transactions_refs.truncate(max_transactions);

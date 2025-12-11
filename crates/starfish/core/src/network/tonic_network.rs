@@ -27,14 +27,10 @@ use tonic::{Request, Response, Streaming, codec::CompressionEncoding};
 use tower_http::trace::{DefaultMakeSpan, DefaultOnFailure, TraceLayer};
 use tracing::{debug, error, info, trace, warn};
 
-use super::{
-    BlockBundleStream, NetworkClient, NetworkService, SerializedBlockBundle,
-    metrics_layer::{MetricsCallbackMaker, MetricsResponseCallback, SizedRequest, SizedResponse},
-    tonic_gen::{
-        consensus_service_client::ConsensusServiceClient,
-        consensus_service_server::ConsensusService,
-    },
-};
+use super::{BlockBundleStream, NetworkClient, NetworkService, SerializedBlockBundle, metrics_layer::{MetricsCallbackMaker, MetricsResponseCallback, SizedRequest, SizedResponse}, tonic_gen::{
+    consensus_service_client::ConsensusServiceClient,
+    consensus_service_server::ConsensusService,
+}, TransactionFetchMode};
 use crate::{
     CommitIndex, Round,
     block_header::BlockRef,
@@ -895,7 +891,7 @@ impl<S: NetworkService> ConsensusService for TonicServiceProxy<S> {
 
         let vec_serialized_transactions = self
             .service
-            .handle_fetch_transactions(peer_index, committed_transactions_refs, crate::network::TransactionFetchMode::TransactionsSynchronizer)
+            .handle_fetch_transactions(peer_index, committed_transactions_refs, TransactionFetchMode::TransactionSync)
             .await
             .map_err(|e| tonic::Status::internal(format!("fetch_transactions failed: {e:?}")))?;
 
