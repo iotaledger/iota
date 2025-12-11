@@ -117,9 +117,6 @@ pub type VersionNumber = SequenceNumber;
 /// The round number.
 pub type CommitRound = u64;
 
-#[derive(Eq, PartialEq, Ord, PartialOrd, Clone, Hash, Default, Debug, Serialize, Deserialize)]
-pub struct UserData(pub Option<[u8; 32]>);
-
 pub type AuthorityName = AuthorityPublicKeyBytes;
 
 pub trait ConciseableName<'a> {
@@ -146,14 +143,6 @@ pub fn random_object_ref() -> ObjectRef {
     (
         ObjectID::random(),
         SequenceNumber::new(),
-        ObjectDigest::new([0; 32]),
-    )
-}
-
-pub fn update_object_ref_for_testing(object_ref: ObjectRef) -> ObjectRef {
-    (
-        object_ref.0,
-        object_ref.1.next(),
         ObjectDigest::new([0; 32]),
     )
 }
@@ -337,12 +326,6 @@ impl MoveObjectType {
             }
             MoveObjectType_::Other(s) => TreasuryCap::is_treasury_type(s),
         }
-    }
-
-    pub fn is_upgrade_cap(&self) -> bool {
-        self.address() == IOTA_FRAMEWORK_ADDRESS
-            && self.module().as_str() == "package"
-            && self.name().as_str() == "UpgradeCap"
     }
 
     pub fn is_regulated_coin_metadata(&self) -> bool {
@@ -661,10 +644,6 @@ pub struct IotaAddress(
 impl IotaAddress {
     pub const ZERO: Self = Self([0u8; IOTA_ADDRESS_LENGTH]);
 
-    pub fn new(bytes: [u8; IOTA_ADDRESS_LENGTH]) -> Self {
-        Self(bytes)
-    }
-
     /// Convert the address to a byte buffer.
     pub fn to_vec(&self) -> Vec<u8> {
         self.0.to_vec()
@@ -678,29 +657,6 @@ impl IotaAddress {
     pub fn generate<R: rand::RngCore + rand::CryptoRng>(mut rng: R) -> Self {
         let buf: [u8; IOTA_ADDRESS_LENGTH] = rng.gen();
         Self(buf)
-    }
-
-    /// Serialize an `Option<IotaAddress>` in Hex.
-    pub fn optional_address_as_hex<S>(
-        key: &Option<IotaAddress>,
-        serializer: S,
-    ) -> Result<S::Ok, S::Error>
-    where
-        S: serde::ser::Serializer,
-    {
-        serializer.serialize_str(&key.map(Hex::encode).unwrap_or_default())
-    }
-
-    /// Deserialize into an `Option<IotaAddress>`.
-    pub fn optional_address_from_hex<'de, D>(
-        deserializer: D,
-    ) -> Result<Option<IotaAddress>, D::Error>
-    where
-        D: serde::de::Deserializer<'de>,
-    {
-        let s = String::deserialize(deserializer)?;
-        let value = decode_bytes_hex(&s).map_err(serde::de::Error::custom)?;
-        Ok(Some(value))
     }
 
     /// Return the underlying byte array of a IotaAddress.
@@ -1427,33 +1383,6 @@ impl ObjectID {
         // OK to access slice because digest should never be shorter than
         // ObjectID::LENGTH.
         ObjectID::try_from(&hash.as_ref()[0..ObjectID::LENGTH]).unwrap()
-    }
-
-    /// Increment the ObjectID by usize IDs, assuming the ObjectID hex is a
-    /// number represented as an array of bytes
-    pub fn advance(&self, step: usize) -> Result<ObjectID, anyhow::Error> {
-        let mut curr_vec = self.to_vec();
-        let mut step_copy = step;
-
-        let mut carry = 0;
-        for idx in (0..Self::LENGTH).rev() {
-            if step_copy == 0 {
-                // Nothing else to do
-                break;
-            }
-            // Extract the relevant part
-            let g = (step_copy % 0x100) as u16;
-            // Shift to next group
-            step_copy >>= 8;
-            let mut val = curr_vec[idx] as u16;
-            (carry, val) = ((val + carry + g) / 0x100, (val + carry + g) % 0x100);
-            curr_vec[idx] = val as u8;
-        }
-
-        if carry > 0 {
-            bail!("Increment will cause overflow");
-        }
-        ObjectID::try_from(curr_vec).map_err(|w| w.into())
     }
 
     /// Increment the ObjectID by one, assuming the ObjectID hex is a number
