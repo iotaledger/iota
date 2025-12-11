@@ -255,6 +255,8 @@ impl<T: MoveTypeTagTrait> MoveTypeTagTrait for Vec<T> {
     }
 }
 
+/// Check if a type is a primitive type in optimistic mode. It invokes the inner
+/// function with is_strict = false.
 pub fn is_primitive(
     view: &CompiledModule,
     function_type_args: &[AbilitySet],
@@ -263,6 +265,8 @@ pub fn is_primitive(
     is_primitive_inner(view, function_type_args, s, false)
 }
 
+/// Check if a type is a primitive type in strict mode. It invokes the inner
+/// function with is_strict = true.
 pub fn is_primitive_strict(
     view: &CompiledModule,
     function_type_args: &[AbilitySet],
@@ -271,6 +275,11 @@ pub fn is_primitive_strict(
     is_primitive_inner(view, function_type_args, s, true)
 }
 
+/// Check if a type is a primitive type.
+/// In optimistic mode (is_strict = false), a type parameter is considered
+/// primitive if it has no key ability. In strict mode (is_strict = true), a
+/// type parameter is considered primitive if it has at least copy or drop
+/// ability.
 pub fn is_primitive_inner(
     view: &CompiledModule,
     function_type_args: &[AbilitySet],
@@ -288,9 +297,10 @@ pub fn is_primitive_inner(
                 // optimistic: has no key
                 !function_type_args[*idx as usize].has_key()
             } else {
-                // strict: has at least one of: copy or drop (or store and one of the others)
+                // strict: has at least one of: copy or drop (or store and one of the others).
+                // copy or drop abilities always imply having no key, but here we double check
                 let abilities = function_type_args[*idx as usize];
-                abilities.has_copy() || abilities.has_drop()
+                !abilities.has_key() && (abilities.has_copy() || abilities.has_drop())
             }
         }
 
