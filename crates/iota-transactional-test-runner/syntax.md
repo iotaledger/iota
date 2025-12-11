@@ -27,6 +27,7 @@
   - [`view-checkpoint`](#view-checkpoint)
   - [`run-graphql`](#run-graphql)
   - [`bench`](#bench)
+  - [`abstract`](#abstract)
 - [How `run_test` Compares a Move File With the Corresponding `.snap` File](#how-run_test-compares-a-move-file-with-the-corresponding-snap-file)
   - [Adapter Creation in `create_adapter`](#adapter-creation-in-create_adapter)
   - [Execution Process in `run_tasks_with_adapter`](#execution-process-in-run_tasks_with_adapter)
@@ -1414,6 +1415,180 @@ task 1 'publish'. lines 3-15:
 created: object(1,0), object(1,1)
 mutated: object(0,0)
 gas summary: computation_cost: 1000000, storage_cost: 7220000,  storage_rebate: 0, non_refundable_storage_fee: 0
+```
+
+### `abstract`
+
+The `abstract` subcommand (`AbstractTransaction` in Rust) extends the capabilities of programmable transactions by allowing them to be executed through an Abstract Account (AA) authentication by a Move-based authenticator (`MoveAuthenticator`).
+Unlike programmable, where the sender directly signs the transaction with a system signature, abstract enables account abstraction — the sender is represented by a Abstract Account object itself.
+Doesn't support simulator mode.
+
+#### Syntax
+
+```
+//# abstract [OPTIONS]
+```
+
+#### Options
+
+```
+--account <ACCOUNT>: the sender of the abstract transaction. Must be an Abstract Account (AA) shared object.
+--sponsor <SPONSOR> (optional): account that pays for gas. If omitted, you must provide --gas-payment and that coin must be owned by the Abstract Account (AA).
+--gas-payment <OBJECT_ID>: coin object used to pay gas. Required when --sponsor is not provided.
+--auth-inputs <AUTH_INPUTS>: arguments to build the MoveAuthenticator(for instance - signature, public key etc).
+--ptb-inputs <PTB_INPUTS>: inputs passed to the PTB (Programmable Transaction Block) body.
+--gas-budget <GAS_BUDGET> (optional): maximum gas units for execution.
+--gas-price <GAS_PRICE> (optional): gas price per unit.
+```
+
+#### Example
+
+```move
+// Copyright (c) 2025 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
+// simple authentication using abstract account
+
+//# init --addresses test=0x0 --accounts A
+
+//# publish --sender A
+module test::abstract_account;
+
+use iota::account::{Self, AuthenticatorInfoV1};
+use iota::auth_context::AuthContext;
+use std::ascii;
+
+public struct AbstractAccount has key {
+    id: UID,
+}
+
+public fun create(
+    _public_key: vector<u8>,
+    authenticator: AuthenticatorInfoV1<AbstractAccount>,
+    ctx: &mut TxContext,
+): address {
+    let account = AbstractAccount { id: object::new(ctx) };
+
+    let account_address = object::id_address(&account);
+
+    account::create_account_v1(account, authenticator);
+
+    account_address
+}
+
+#[authenticator]
+public fun authenticate_hello_world(
+    _account: &AbstractAccount,
+    msg: ascii::String,
+    _auth_ctx: &AuthContext,
+    _ctx: &TxContext,
+) {
+    assert!(msg == ascii::string(b"HelloWorld"), 0);
+}
+
+//# programmable --sender A --inputs x"10" object(1,1) "abstract_account" "authenticate_hello_world" 7000000000
+//> 0: iota::account::create_auth_info_v1<test::abstract_account::AbstractAccount>(Input(1), Input(2), Input(3));
+//> 1: test::abstract_account::create(Input(0), Result(0));
+//> 2: SplitCoins(Gas, [Input(4)]);
+//> 3: TransferObjects([Result(2)], Result(1));
+
+//# view-object 2,0
+
+//# view-object 2,2
+
+//# abstract --account immshared(2,2) --gas-payment 2,0 --auth-inputs "HelloWorld" --ptb-inputs 100 @A
+//> 0: SplitCoins(Gas, [Input(0)]);
+//> 1: TransferObjects([Result(0)], Input(1));
+
+//# view-object 5,0
+```
+
+- Account (--account)
+  The immutable shared object that represents Abstract Account.
+- Gas Payment (--gas-payment)
+  Coin object that must be owned by the Abstract Account (AA).
+- PTB Inputs (--ptb-inputs)
+  These are inputs used inside the transaction body - for example, numeric values, objects, or addresses.
+  The PTB commands (//> ...) operate as in the programmable command.
+
+- object(1,1)
+  The `PackageMetadata` object carries information about function annotations, such as attributes
+
+`.snap` output:
+
+```
+---
+source: external-crates/move/crates/move-transactional-test-runner/src/framework.rs
+---
+processed 7 tasks
+
+init:
+A: object(0,0)
+
+task 1, lines 8-41:
+//# publish --sender A
+created: object(1,0), object(1,1)
+mutated: object(0,0)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 11149200,  storage_rebate: 0, non_refundable_storage_fee: 0
+
+task 2, lines 43-47:
+//# programmable --sender A --inputs x"10" object(1,1) "abstract_account" "authenticate_hello_world" 7000000000
+//> 0: iota::account::create_auth_info_v1<test::abstract_account::AbstractAccount>(Input(1), Input(2), Input(3));
+//> 1: test::abstract_account::create(Input(0), Result(0));
+//> 2: SplitCoins(Gas, [Input(4)]);
+//> 3: TransferObjects([Result(2)], Result(1));
+created: object(2,0), object(2,1), object(2,2)
+mutated: object(0,0)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 6748800,  storage_rebate: 980400, non_refundable_storage_fee: 0
+
+task 3, line 49:
+//# view-object 2,0
+Owner: Account Address ( fake(2,2) )
+Version: 3
+Contents: iota::coin::Coin<iota::iota::IOTA> {
+    id: iota::object::UID {
+        id: iota::object::ID {
+            bytes: fake(2,0),
+        },
+    },
+    balance: iota::balance::Balance<iota::iota::IOTA> {
+        value: 7000000000u64,
+    },
+}
+
+task 4, line 51:
+//# view-object 2,2
+Owner: Shared( 3 )
+Version: 3
+Contents: test::abstract_account::AbstractAccount {
+    id: iota::object::UID {
+        id: iota::object::ID {
+            bytes: fake(2,2),
+        },
+    },
+}
+
+task 5, lines 53-55:
+//# abstract --account immshared(2,2) --gas-payment 2,0 --auth-inputs "HelloWorld" --ptb-inputs 100 @A
+created: object(5,0)
+mutated: object(2,0)
+unchanged_shared: object(2,2)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 1960800,  storage_rebate: 980400, non_refundable_storage_fee: 0
+
+task 6, line 57:
+//# view-object 5,0
+Owner: Account Address ( A )
+Version: 4
+Contents: iota::coin::Coin<iota::iota::IOTA> {
+    id: iota::object::UID {
+        id: iota::object::ID {
+            bytes: fake(5,0),
+        },
+    },
+    balance: iota::balance::Balance<iota::iota::IOTA> {
+        value: 100u64,
+    },
+}
 ```
 
 ## How `run_test` Compares a Move File With the Corresponding `.snap` File
