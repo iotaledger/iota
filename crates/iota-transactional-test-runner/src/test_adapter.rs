@@ -82,7 +82,7 @@ use move_compiler::{
 use move_core_types::{
     account_address::AccountAddress,
     ident_str,
-    identifier::IdentStr,
+    identifier::{IdentStr, Identifier},
     language_storage::{ModuleId, TypeTag},
     metadata::Metadata,
     parsing::{address::ParsedAddress, values::ParsedValue},
@@ -169,6 +169,7 @@ pub struct IotaTestAdapter {
     /// name.
     package_upgrade_mapping: BTreeMap<Symbol, Symbol>,
     accounts: BTreeMap<String, TestAccount>,
+    abstract_accounts: BTreeMap<ObjectID, TestAccount>,
     default_account: TestAccount,
     default_syntax: SyntaxChoice,
     object_enumeration: BiBTreeMap<ObjectID, FakeID>,
@@ -420,6 +421,7 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
             ),
             package_upgrade_mapping: BTreeMap::new(),
             accounts,
+            abstract_accounts: BTreeMap::new(),
             default_account,
             default_syntax,
             object_enumeration: BiBTreeMap::new(),
@@ -1201,18 +1203,22 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
                 // Parse and resolve ptb inputs.
                 let (ptb_inputs, ptb_commands) = self.prepare_ptb_data(data, ptb_inputs)?;
 
-                // Parse and resolve auth inputs.
-                // Build MoveAuthenticator.
-                // Get Abstract Test Account
-                let (aa_sender, move_authenticator) = self
-                    .prepare_move_authenticator_data(authenticator_inputs, account)
-                    .await?;
-
                 let gas_budget = gas_budget.unwrap_or(DEFAULT_GAS_BUDGET);
                 let gas_price = gas_price.unwrap_or(self.gas_price);
 
+                // Parse and resolve auth inputs.
+                // Build MoveAuthenticator.
+                // Get Abstract Test Account
+                let (aa_id, move_authenticator) = self
+                    .prepare_move_authenticator_data(authenticator_inputs, account)
+                    .await?;
+
+                let account = self.abstract_accounts.get(&aa_id).ok_or_else(|| {
+                    anyhow::anyhow!("Unbound abstract account @{aa_id} for MoveAuthenticator")
+                })?;
+
                 let tx = self.sign_sponsor_txn(
-                    &aa_sender,
+                    account,
                     sponsor,
                     gas_payment,
                     Some(move_authenticator),
@@ -1270,6 +1276,16 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
                     ));
                 }
                 Ok(Some(outputs.join("\n\n")))
+            }
+            IotaSubcommand::InitAbstractAccount(InitAbstractAccountCommand {
+                sender,
+                package_metadata,
+                inputs,
+                aa_create_fn,
+                aa_type,
+            }) => {
+                self.init_abstract_account(sender, package_metadata, inputs, aa_create_fn, aa_type)
+                    .await
             }
         }
     }
@@ -1380,7 +1396,7 @@ impl IotaTestAdapter {
         &mut self,
         authenticator_inputs: Vec<ParsedValue<IotaExtraValueArgs>>,
         account: ParsedValue<IotaExtraValueArgs>,
-    ) -> anyhow::Result<(TestAccount, GenericSignature)> {
+    ) -> anyhow::Result<(ObjectID, GenericSignature)> {
         // Resolve authenticator inputs
         let auth_inputs_resolved = self.compiled_state().resolve_args(authenticator_inputs)?;
         let auth_inputs: Vec<CallArg> = auth_inputs_resolved
@@ -1397,19 +1413,10 @@ impl IotaTestAdapter {
         let CallArg::Object(aa_arg) = aa_arg.into_call_arg(self)? else {
             anyhow::bail!("abstract: account must be an object representing the abstract account");
         };
-        let aa_sender_addr = aa_arg.id().into();
-
-        let gas_ref = self
-            .fund_address_for_testing(aa_sender_addr, GAS_FOR_ABSTRACT_ACCOUNT)
-            .await?;
-        let account = TestAccount {
-            address: aa_sender_addr,
-            key_pair: None,
-            gas: gas_ref.0,
-        };
+        let aa_id = aa_arg.id();
 
         Ok((
-            account,
+            aa_id,
             GenericSignature::MoveAuthenticator(MoveAuthenticator::new_for_testing(
                 auth_inputs,
                 vec![],
@@ -2206,46 +2213,154 @@ impl IotaTestAdapter {
         Ok(dependencies)
     }
 
-    async fn fund_address_for_testing(
+    async fn init_abstract_account(
         &mut self,
-        recipient: IotaAddress,
-        amount: u64,
-    ) -> anyhow::Result<ObjectRef> {
-        let data = |sender, gas| {
-            let mut builder = ProgrammableTransactionBuilder::new();
+        sender: Option<String>,
+        package_metadata: ParsedValue<IotaExtraValueArgs>,
+        inputs: Vec<ParsedValue<IotaExtraValueArgs>>,
+        aa_create_fn_path: String,
+        aa_type: String,
+    ) -> anyhow::Result<Option<String>> {
+        // let pkg_addr = self
+        //     .compiled_state
+        //     .named_address_mapping
+        //     .get(&package_name)
+        //     .with_context(|| format!("Unknown package named address
+        // '{package_name}'"))?     .into_inner();
+        // let package_id: ObjectID = pkg_addr.into();
 
-            let amount_arg = builder.pure(amount).unwrap();
-            let recipient_arg = builder.pure(recipient).unwrap();
-            let gas_budget = DEFAULT_GAS_BUDGET;
-            let gas_price: u64 = self.gas_price;
-            let new_coin_arg =
-                builder.command(Command::SplitCoins(Argument::GasCoin, vec![amount_arg]));
-            builder.command(Command::TransferObjects(vec![new_coin_arg], recipient_arg));
+        let (aa_package_id, aa_module_name, create_fn_name) =
+            self.resolve_aa_create_fn_path(aa_create_fn_path)?;
+        println!(
+            "Creating abstract account via {}::{} in package {}",
+            aa_module_name,
+            create_fn_name.clone(),
+            aa_package_id
+        );
+        let pt = self.build_abstract_account_transaction(
+            package_metadata,
+            inputs,
+            aa_package_id,
+            &aa_module_name,
+            &create_fn_name,
+        )?;
 
-            let pt = builder.finish();
+        let gas_budget = DEFAULT_GAS_BUDGET;
+        let gas_price = self.gas_price;
 
-            TransactionData::new_programmable(sender, gas, pt, gas_budget, gas_price)
-        };
-        let transaction = self.sign_txn(None, data);
-        let (effects, _) = self.executor.execute_txn(transaction).await?;
+        let tx = self.sign_txn(sender, |sender_addr, gas| {
+            TransactionData::new_programmable(sender_addr, gas, pt, gas_budget, gas_price)
+        });
 
-        match effects.status() {
-            ExecutionStatus::Success => {
-                for ((id, version, _digest), owner) in effects.created() {
-                    if let iota_types::object::Owner::AddressOwner(addr) = owner {
-                        if addr == recipient {
-                            let obj = self.get_object(&id, Some(version))?;
-                            return Ok(obj.compute_object_reference());
-                        }
+        let summary = self.execute_txn(tx).await?;
+        println!(
+            "Abstract account creation transaction summary: {:?}",
+            summary.created
+        );
+
+        let created_abstract_account = summary
+            .created
+            .iter()
+            .find_map(|id| {
+                let object = self.get_object(id, None).unwrap();
+                if let Some(struct_tag) = object.struct_tag() {
+                    println!("Object struct tag: {:?}", struct_tag);
+                    if struct_tag.name.as_str() == &aa_type {
+                        Some(*id)
+                    } else {
+                        None
                     }
+                } else {
+                    None
                 }
-            }
-            ExecutionStatus::Failure { error, .. } => {
-                bail!("Internal funding transaction for abstract account failed: {error}")
-            }
-        }
+            })
+            .unwrap();
+        let created_abstract_account_coin = summary
+            .created
+            .iter()
+            .find_map(|id| {
+                let object = self.get_object(id, None).unwrap();
+                let coin_obj = object.as_coin_maybe();
+                if coin_obj.is_some() {
+                    return Some(object.compute_object_reference());
+                } else {
+                    None
+                }
+            })
+            .unwrap();
+        let abstract_account = TestAccount {
+            address: IotaAddress::from(created_abstract_account),
+            key_pair: None,
+            gas: created_abstract_account_coin.0,
+        };
+        self.abstract_accounts
+            .insert(created_abstract_account, abstract_account);
+        println!("Created abstract account: {:?}", self.abstract_accounts);
+        let output = self.object_summary_output(&summary, false);
+        Ok(output)
+    }
 
-        bail!("Internal funding transaction didn't create coin for the recipient {recipient}");
+    fn resolve_aa_create_fn_path(
+        &self,
+        aa_create_fn_path: String,
+    ) -> anyhow::Result<(ObjectID, String, String)> {
+        let mut account_create_fn_path_parts: Vec<String> = aa_create_fn_path
+            .split("::")
+            .map(|s| s.to_string())
+            .collect();
+
+        let aa_package_addr = self
+            .compiled_state
+            .named_address_mapping
+            .get(&account_create_fn_path_parts[0])
+            .context("abstract account package address not found")?
+            .into_inner();
+        let aa_module_name = account_create_fn_path_parts[1].clone();
+        account_create_fn_path_parts[0] = format!("0x{aa_package_addr}");
+        let create_fn_name = account_create_fn_path_parts[2].clone();
+        Ok((aa_package_addr.into(), aa_module_name, create_fn_name))
+    }
+
+    fn build_abstract_account_transaction(
+        &mut self,
+        package_metadata: ParsedValue<IotaExtraValueArgs>,
+        inputs: Vec<ParsedValue<IotaExtraValueArgs>>,
+        aa_pkg_id: ObjectID,
+        aa_module_name: &str,
+        aa_create_fn_name: &str,
+    ) -> anyhow::Result<ProgrammableTransaction> {
+        let mut builder = ProgrammableTransactionBuilder::new();
+
+        let mut create_fn_inputs = vec![];
+
+        let inputs = self
+            .compiled_state()
+            .resolve_args(inputs)?
+            .into_iter()
+            .map(|arg| arg.into_argument(&mut builder, self))
+            .collect::<anyhow::Result<Vec<Argument>>>()?;
+        let state = self.compiled_state();
+        let pkg_metadata =
+            package_metadata.into_concrete_value(&|s| Some(state.resolve_named_address(s)))?;
+        let pkg_metadata_arg = pkg_metadata.into_argument(&mut builder, self)?;
+
+        create_fn_inputs.push(pkg_metadata_arg);
+        create_fn_inputs.extend(inputs);
+
+        println!("AA PACKAGE ID {}", aa_pkg_id);
+        let aa_addr = builder.programmable_move_call(
+            aa_pkg_id,
+            Identifier::new(aa_module_name)?,
+            Identifier::new(aa_create_fn_name)?,
+            vec![],
+            create_fn_inputs,
+        );
+        let gas_amount = builder.pure(GAS_FOR_ABSTRACT_ACCOUNT)?;
+        let new_coin_arg =
+            builder.command(Command::SplitCoins(Argument::GasCoin, vec![gas_amount]));
+        builder.command(Command::TransferObjects(vec![new_coin_arg], aa_addr));
+
+        Ok(builder.finish())
     }
 }
 

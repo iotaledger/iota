@@ -1,0 +1,60 @@
+---
+source: external-crates/move/crates/move-transactional-test-runner/src/framework.rs
+---
+processed 7 tasks
+
+init:
+A: object(0,0)
+
+task 1, line 8:
+//# publish-dependencies --paths crates/iota-adapter-transactional-tests/data/account_abstraction/abstract_account.move
+Output for 'crates/iota-adapter-transactional-tests/data/account_abstraction/abstract_account.move':
+created: object(2,0)
+mutated: object(0,1)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 7584800,  storage_rebate: 0, non_refundable_storage_fee: 0
+
+task 2, lines 10-25:
+//# publish --sender A --dependencies aa
+created: object(3,0), object(3,1)
+mutated: object(0,0)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 9918000,  storage_rebate: 0, non_refundable_storage_fee: 0
+
+task 3, line 27:
+//# init-abstract-account --sender A --package-metadata object(3,1) --inputs "authenticate" "authenticate_hello_world" --aa-create-fn aa::abstract_account::create --aa-type AbstractAccount
+created: object(4,0), object(4,1), object(4,2)
+mutated: object(0,0)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 6718400,  storage_rebate: 980400, non_refundable_storage_fee: 0
+
+task 4, line 29:
+//# view-object 4,0
+Owner: Shared( 3 )
+Version: 3
+Contents: aa::abstract_account::AbstractAccount {
+    id: iota::object::UID {
+        id: iota::object::ID {
+            bytes: fake(4,0),
+        },
+    },
+}
+
+task 5, lines 31-33:
+//# abstract --account immshared(4,0) --auth-inputs "HelloWorld" --ptb-inputs 100 @A
+created: object(6,0)
+mutated: object(4,1)
+unchanged_shared: object(4,0)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 1960800,  storage_rebate: 980400, non_refundable_storage_fee: 0
+
+task 6, line 35:
+//# view-object 6,0
+Owner: Account Address ( A )
+Version: 4
+Contents: iota::coin::Coin<iota::iota::IOTA> {
+    id: iota::object::UID {
+        id: iota::object::ID {
+            bytes: fake(6,0),
+        },
+    },
+    balance: iota::balance::Balance<iota::iota::IOTA> {
+        value: 100u64,
+    },
+}

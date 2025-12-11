@@ -117,6 +117,28 @@ pub struct ConsensusCommitPrologueCommand {
 }
 
 #[derive(Debug, clap::Parser)]
+pub struct InitAbstractAccountCommand {
+    #[arg(long)]
+    pub sender: Option<String>,
+    #[arg(
+        long,
+        value_parser = ParsedValue::<IotaExtraValueArgs>::parse,
+    )]
+    pub package_metadata: ParsedValue<IotaExtraValueArgs>,
+    #[arg(
+        long,
+        value_parser = ParsedValue::<IotaExtraValueArgs>::parse,
+        num_args(1..),
+        action = clap::ArgAction::Append,
+    )]
+    pub inputs: Vec<ParsedValue<IotaExtraValueArgs>>,
+    #[arg(long)]
+    pub aa_create_fn: String,
+    #[arg(long)]
+    pub aa_type: String,
+}
+
+#[derive(Debug, clap::Parser)]
 pub struct ProgrammableTransactionCommand {
     #[arg(long)]
     pub sender: Option<String>,
@@ -275,6 +297,7 @@ pub enum IotaSubcommand<ExtraValueArgs: ParsableValue, ExtraRunArgs: Parser> {
     Bench(RunCommand<ExtraValueArgs>, ExtraRunArgs),
     AbstractTransaction(AbstractTransactionCommand),
     PublishDeps(PublishDepsCommand),
+    InitAbstractAccount(InitAbstractAccountCommand),
 }
 
 impl<ExtraValueArgs: ParsableValue, ExtraRunArgs: Parser> clap::FromArgMatches
@@ -331,6 +354,9 @@ impl<ExtraValueArgs: ParsableValue, ExtraRunArgs: Parser> clap::FromArgMatches
             Some(("publish-dependencies", matches)) => {
                 IotaSubcommand::PublishDeps(PublishDepsCommand::from_arg_matches(matches)?)
             }
+            Some(("init-abstract-account", matches)) => IotaSubcommand::InitAbstractAccount(
+                InitAbstractAccountCommand::from_arg_matches(matches)?,
+            ),
             _ => {
                 return Err(clap::Error::raw(
                     clap::error::ErrorKind::InvalidSubcommand,
@@ -369,6 +395,7 @@ impl<ExtraValueArgs: ParsableValue, ExtraRunArgs: Parser> clap::CommandFactory
                 RunCommand::<ExtraValueArgs>::augment_args(ExtraRunArgs::command()).name("bench"),
             )
             .subcommand(PublishDepsCommand::command().name("publish-dependencies"))
+            .subcommand(InitAbstractAccountCommand::command().name("init-abstract-account"))
     }
 
     fn command_for_update() -> clap::Command {
