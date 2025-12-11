@@ -172,12 +172,12 @@ impl Indexer {
 
         let mut read = IndexerReader::new(connection_pool.clone());
 
-        if let Some(rest_kv_url) = &config.historic_fallback_options.rest_kv_url {
+        if let Some(fallback_kv_url) = &config.historic_fallback_options.fallback_kv_url {
             let historic_fallback_reader =
-                HistoricalFallbackReader::new(rest_kv_url.as_str(), read.package_resolver())?;
+                HistoricalFallbackReader::new(fallback_kv_url.as_str(), read.package_resolver())?;
             info!(
                 "HistoricalFallbackReader initialized with URL: {}",
-                rest_kv_url
+                fallback_kv_url
             );
             read.with_historical_fallback(historic_fallback_reader);
         } else {

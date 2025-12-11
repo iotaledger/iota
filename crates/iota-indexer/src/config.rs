@@ -125,7 +125,7 @@ pub struct HistoricFallbackOptions {
         long,
         help = "Experimental: REST KV store URL for historic fallback. Depends on the iota-rest-kv API which is still being finalized."
     )]
-    pub rest_kv_url: Option<Url>,
+    pub fallback_kv_url: Option<Url>,
 }
 
 #[derive(Args, Debug, Default, Clone)]
@@ -613,7 +613,9 @@ pub mod deprecated {
                         old_conf.rpc_server_port,
                     ),
                     rpc_client_url: old_conf.rpc_client_url,
-                    historic_fallback_options: HistoricFallbackOptions { rest_kv_url: None },
+                    historic_fallback_options: HistoricFallbackOptions {
+                        fallback_kv_url: None,
+                    },
                 })
             } else if old_conf.fullnode_sync_worker {
                 Command::Indexer {
@@ -735,7 +737,7 @@ mod test {
         parse_args::<JsonRpcConfig>([
             "--rpc-address=127.0.0.1:8080",
             "--rpc-client-url=http://example.com",
-            "--rest-kv-url=http://example.com/restkv/",
+            "--fallback-kv-url=http://example.com/restkv/",
         ])
         .unwrap();
 
