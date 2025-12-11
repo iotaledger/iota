@@ -133,7 +133,7 @@ pub struct InitAbstractAccountCommand {
     )]
     pub inputs: Vec<ParsedValue<IotaExtraValueArgs>>,
     #[arg(long)]
-    pub aa_create_fn: String,
+    pub aa_create_fn_path: String,
     #[arg(long)]
     pub aa_type: String,
 }

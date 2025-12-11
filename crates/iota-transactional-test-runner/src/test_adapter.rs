@@ -1281,11 +1281,17 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
                 sender,
                 package_metadata,
                 inputs,
-                aa_create_fn,
+                aa_create_fn_path,
                 aa_type,
             }) => {
-                self.init_abstract_account(sender, package_metadata, inputs, aa_create_fn, aa_type)
-                    .await
+                self.init_abstract_account(
+                    sender,
+                    package_metadata,
+                    inputs,
+                    aa_create_fn_path,
+                    aa_type,
+                )
+                .await
             }
         }
     }
@@ -2221,22 +2227,10 @@ impl IotaTestAdapter {
         aa_create_fn_path: String,
         aa_type: String,
     ) -> anyhow::Result<Option<String>> {
-        // let pkg_addr = self
-        //     .compiled_state
-        //     .named_address_mapping
-        //     .get(&package_name)
-        //     .with_context(|| format!("Unknown package named address
-        // '{package_name}'"))?     .into_inner();
-        // let package_id: ObjectID = pkg_addr.into();
-
+        // Resolve abstract account `create` function path
         let (aa_package_id, aa_module_name, create_fn_name) =
             self.resolve_aa_create_fn_path(aa_create_fn_path)?;
-        println!(
-            "Creating abstract account via {}::{} in package {}",
-            aa_module_name,
-            create_fn_name.clone(),
-            aa_package_id
-        );
+
         let pt = self.build_abstract_account_transaction(
             package_metadata,
             inputs,
@@ -2253,49 +2247,40 @@ impl IotaTestAdapter {
         });
 
         let summary = self.execute_txn(tx).await?;
-        println!(
-            "Abstract account creation transaction summary: {:?}",
-            summary.created
-        );
 
-        let created_abstract_account = summary
+        let created_abstract_account_id = summary
             .created
             .iter()
             .find_map(|id| {
                 let object = self.get_object(id, None).unwrap();
-                if let Some(struct_tag) = object.struct_tag() {
-                    println!("Object struct tag: {:?}", struct_tag);
-                    if struct_tag.name.as_str() == &aa_type {
-                        Some(*id)
-                    } else {
-                        None
-                    }
-                } else {
-                    None
-                }
+                object
+                    .struct_tag()
+                    .filter(|tag| tag.name.as_str() == aa_type)
+                    .map(|_| *id)
             })
-            .unwrap();
+            .expect("Abstract account must have been created");
+
         let created_abstract_account_coin = summary
             .created
             .iter()
             .find_map(|id| {
                 let object = self.get_object(id, None).unwrap();
-                let coin_obj = object.as_coin_maybe();
-                if coin_obj.is_some() {
-                    return Some(object.compute_object_reference());
-                } else {
-                    None
-                }
+                object
+                    .as_coin_maybe()
+                    .map(|_| object.compute_object_reference())
             })
-            .unwrap();
+            .expect("Abstract account creation must have a gas coin");
+
         let abstract_account = TestAccount {
-            address: IotaAddress::from(created_abstract_account),
+            address: IotaAddress::from(created_abstract_account_id),
             key_pair: None,
             gas: created_abstract_account_coin.0,
         };
+
+        // Store the created abstract account
         self.abstract_accounts
-            .insert(created_abstract_account, abstract_account);
-        println!("Created abstract account: {:?}", self.abstract_accounts);
+            .insert(created_abstract_account_id, abstract_account);
+
         let output = self.object_summary_output(&summary, false);
         Ok(output)
     }
@@ -2347,7 +2332,6 @@ impl IotaTestAdapter {
         create_fn_inputs.push(pkg_metadata_arg);
         create_fn_inputs.extend(inputs);
 
-        println!("AA PACKAGE ID {}", aa_pkg_id);
         let aa_addr = builder.programmable_move_call(
             aa_pkg_id,
             Identifier::new(aa_module_name)?,
@@ -2355,6 +2339,8 @@ impl IotaTestAdapter {
             vec![],
             create_fn_inputs,
         );
+
+        // Fund the abstract account with gas
         let gas_amount = builder.pure(GAS_FOR_ABSTRACT_ACCOUNT)?;
         let new_coin_arg =
             builder.command(Command::SplitCoins(Argument::GasCoin, vec![gas_amount]));

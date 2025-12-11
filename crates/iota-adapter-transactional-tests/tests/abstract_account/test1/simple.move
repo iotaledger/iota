@@ -24,7 +24,7 @@ public fun authenticate_hello_world(
     assert!(msg == ascii::string(b"HelloWorld"), 0);
 }
 
-//# init-abstract-account --sender A --package-metadata object(3,1) --inputs "authenticate" "authenticate_hello_world" --aa-create-fn aa::abstract_account::create --aa-type AbstractAccount
+//# init-abstract-account --sender A --package-metadata object(3,1) --inputs "authenticate" "authenticate_hello_world" --aa-create-fn-path aa::abstract_account::create --aa-type AbstractAccount
 
 //# view-object 4,0
 
