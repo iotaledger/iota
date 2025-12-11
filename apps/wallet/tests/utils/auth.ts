@@ -12,7 +12,7 @@ export async function createWallet(page: Page, extensionUrl: string) {
     await page.goto(extensionUrl, { waitUntil: 'commit' });
     await page.getByRole('button', { name: /Get Started/ }).click({ timeout: SHORT_TIMEOUT });
     await page.getByText('Create a new wallet').click();
-    await page.getByText('Recovery Phrase', { exact: true }).click();
+    await page.getByText('Mnemonic', { exact: true }).click();
     await page.getByTestId('password.input').fill('iotae2etests');
     await page.getByTestId('password.confirmation').fill('iotae2etests');
     await page.getByText('I read and agree').click();
@@ -25,7 +25,7 @@ export async function importWallet(page: Page, extensionUrl: string, mnemonic: s
     await page.goto(extensionUrl, { waitUntil: 'commit' });
     await page.getByRole('button', { name: /Get Started/ }).click({ timeout: SHORT_TIMEOUT });
     await page.getByText('Add existing wallet').click();
-    await page.getByText('Recovery Phrase', { exact: true }).click();
+    await page.getByText('Mnemonic', { exact: true }).click();
 
     const mnemonicArray = typeof mnemonic === 'string' ? mnemonic.split(' ') : mnemonic;
 
