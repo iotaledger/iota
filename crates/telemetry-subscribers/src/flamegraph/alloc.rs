@@ -14,7 +14,7 @@ impl<A> CounterAlloc<A> {
     }
 }
 
-#[cfg_attr(feature = "flamegraph-alloc", thread_local)]
+#[thread_local]
 static mut THREAD_METRICS: AllocMetrics = AllocMetrics::new();
 
 pub fn get_alloc_metrics() -> AllocMetrics {

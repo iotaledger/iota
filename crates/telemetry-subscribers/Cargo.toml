@@ -39,5 +39,8 @@ tracing-appender = "0.2.2"
 tracing-opentelemetry = "0.28.0"
 tracing-subscriber.workspace = true
 
+[build-dependencies]
+rustc_version_runtime = "0.3"
+
 [dev-dependencies]
 camino.workspace = true

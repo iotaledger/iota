@@ -33,7 +33,7 @@ pub struct Config {
     /// Seed value for random color generation to ensure reproducible flamegraph
     /// colors.
     pub seed: u64,
-    #[cfg(feature = "flamegraph-alloc")]
+    #[cfg(all(feature = "flamegraph-alloc", nightly))]
     /// Use memory allocations span measure instead of total duration.
     pub measure_mem: bool,
 }
@@ -44,7 +44,7 @@ impl Default for Config {
             width: Some(1920),
             aspect_ratio: None,
             seed: 1,
-            #[cfg(feature = "flamegraph-alloc")]
+            #[cfg(all(feature = "flamegraph-alloc", nightly))]
             measure_mem: false,
         }
     }
@@ -100,10 +100,10 @@ impl From<TotalTime> for f64 {
 }
 impl Measure for TotalTime {}
 
-#[cfg(feature = "flamegraph-alloc")]
+#[cfg(all(feature = "flamegraph-alloc", nightly))]
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 struct TotalMem(usize);
-#[cfg(feature = "flamegraph-alloc")]
+#[cfg(all(feature = "flamegraph-alloc", nightly))]
 impl std::ops::Add<&FlameMetric> for TotalMem {
     type Output = Self;
     fn add(mut self, rhs: &FlameMetric) -> Self {
@@ -111,27 +111,27 @@ impl std::ops::Add<&FlameMetric> for TotalMem {
         self
     }
 }
-#[cfg(feature = "flamegraph-alloc")]
+#[cfg(all(feature = "flamegraph-alloc", nightly))]
 impl std::ops::AddAssign<&FlameMetric> for TotalMem {
     fn add_assign(&mut self, rhs: &FlameMetric) {
         self.0 += rhs.alloc_total.alloc;
     }
 }
-#[cfg(feature = "flamegraph-alloc")]
+#[cfg(all(feature = "flamegraph-alloc", nightly))]
 impl FromSpanMetrics<FlameMetric> for TotalMem {}
-#[cfg(feature = "flamegraph-alloc")]
+#[cfg(all(feature = "flamegraph-alloc", nightly))]
 impl From<&Frame<FlameMetric>> for TotalMem {
     fn from(frame: &Frame<FlameMetric>) -> Self {
         TotalMem(frame.metrics.alloc_total.alloc)
     }
 }
-#[cfg(feature = "flamegraph-alloc")]
+#[cfg(all(feature = "flamegraph-alloc", nightly))]
 impl From<TotalMem> for f64 {
     fn from(t: TotalMem) -> f64 {
         t.0 as f64
     }
 }
-#[cfg(feature = "flamegraph-alloc")]
+#[cfg(all(feature = "flamegraph-alloc", nightly))]
 impl Measure for TotalMem {}
 
 impl Frame<FlameMetric> {
@@ -167,7 +167,7 @@ impl Frame<FlameMetric> {
                     total,
                     ..
                 },
-                #[cfg(feature = "flamegraph-alloc")]
+                #[cfg(all(feature = "flamegraph-alloc", nightly))]
                 // allocation metrics are accumulated metrics per all span entries
                 alloc_total: alloc,
                 // we do not need the rest of the metrics
@@ -178,12 +178,12 @@ impl Frame<FlameMetric> {
         let rgb = random_rgb(rng);
         let dur = total.as_nanos() as f64 / 1_000_000.0;
         let avg = dur / samples as f64;
-        #[cfg(not(feature = "flamegraph-alloc"))]
+        #[cfg(not(all(feature = "flamegraph-alloc", nightly)))]
         let title = format!(
             "{} (#{samples}, dur={dur:.2}ms, avg={avg:.2}ms, {percent:.2}%)",
             label.name
         );
-        #[cfg(feature = "flamegraph-alloc")]
+        #[cfg(all(feature = "flamegraph-alloc", nightly))]
         let title = format!(
             "{} (#{samples}, dur={dur:.2}ms, avg={avg:.2}ms, {percent:.2}%, {alloc})",
             label.name,
@@ -294,7 +294,7 @@ impl CallGraph<FlameMetric> {
         raw.render(caption, config)
     }
     fn render_svg(&self, caption: &str, config: &Config) -> Svg {
-        #[cfg(feature = "flamegraph-alloc")]
+        #[cfg(all(feature = "flamegraph-alloc", nightly))]
         {
             if config.measure_mem {
                 self.render_svg_with_measure::<TotalMem>(caption, config)
@@ -302,7 +302,7 @@ impl CallGraph<FlameMetric> {
                 self.render_svg_with_measure::<TotalTime>(caption, config)
             }
         }
-        #[cfg(not(feature = "flamegraph-alloc"))]
+        #[cfg(not(all(feature = "flamegraph-alloc", nightly)))]
         {
             self.render_svg_with_measure::<TotalTime>(caption, config)
         }
@@ -363,7 +363,7 @@ impl Flames<FlameMetric> {
         completed: bool,
         config: &Config,
     ) -> Option<Svg> {
-        #[cfg(feature = "flamegraph-alloc")]
+        #[cfg(all(feature = "flamegraph-alloc", nightly))]
         {
             if config.measure_mem {
                 self.render_combined_svg_with_measure::<TotalMem>(
@@ -375,7 +375,7 @@ impl Flames<FlameMetric> {
                 )
             }
         }
-        #[cfg(not(feature = "flamegraph-alloc"))]
+        #[cfg(not(all(feature = "flamegraph-alloc", nightly)))]
         {
             self.render_combined_svg_with_measure::<TotalTime>(caption, running, completed, config)
         }

@@ -473,7 +473,7 @@ struct Flamegraph {
     #[serde(default)]
     graph_id: String,
     /// Use memory allocations as span measure rather than duration.
-    #[cfg(feature = "flamegraph-alloc")]
+    #[cfg(all(feature = "flamegraph-alloc", nightly))]
     #[serde(default)]
     mem: bool,
 }
@@ -486,7 +486,7 @@ async fn flamegraph(State(state): State<Arc<AppState>>, query: Query<Flamegraph>
             mut running,
             mut completed,
             graph_id,
-            #[cfg(feature = "flamegraph-alloc")]
+            #[cfg(all(feature = "flamegraph-alloc", nightly))]
             mem,
         }) = query;
         if !running && !completed {
@@ -498,7 +498,7 @@ async fn flamegraph(State(state): State<Arc<AppState>>, query: Query<Flamegraph>
             let width = if width == 0 { Some(3600) } else { Some(width) };
             let config = telemetry_subscribers::flamegraph::SvgConfig {
                 width,
-                #[cfg(feature = "flamegraph-alloc")]
+                #[cfg(all(feature = "flamegraph-alloc", nightly))]
                 measure_mem: mem,
                 ..Default::default()
             };

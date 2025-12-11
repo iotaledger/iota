@@ -5728,6 +5728,7 @@ dependencies = [
  "prometheus",
  "rand 0.8.5",
  "regex",
+ "rustc_version_runtime",
  "serde",
  "serde_json",
  "strum 0.26.3",
@@ -7194,6 +7195,7 @@ dependencies = [
  "move-vm-profiler",
  "prometheus",
  "reqwest 0.12.7",
+ "rustc_version_runtime",
  "serde",
  "tap",
  "telemetry-subscribers",
@@ -12722,6 +12724,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "rustc_version_runtime"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2dd18cd2bae1820af0b6ad5e54f4a51d0f3fcc53b05f845675074efcc7af071d"
+dependencies = [
+ "rustc_version",
+ "semver",
+]
+
+[[package]]
 name = "rusticata-macros"
 version = "4.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -14359,6 +14371,7 @@ dependencies = [
  "prometheus",
  "prost 0.13.3",
  "rand 0.8.5",
+ "rustc_version_runtime",
  "serde",
  "thiserror 1.0.64",
  "tokio",

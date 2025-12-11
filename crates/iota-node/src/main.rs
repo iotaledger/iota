@@ -13,12 +13,12 @@ use iota_types::{
     committee::EpochId, messages_checkpoint::CheckpointSequenceNumber, multiaddr::Multiaddr,
     supported_protocol_versions::SupportedProtocolVersions,
 };
-#[cfg(feature = "flamegraph-alloc")]
+#[cfg(all(feature = "flamegraph-alloc", nightly))]
 use telemetry_subscribers::flamegraph::CounterAlloc;
 use tokio::sync::broadcast;
 use tracing::{error, info};
 
-#[cfg(feature = "flamegraph-alloc")]
+#[cfg(all(feature = "flamegraph-alloc", nightly))]
 #[global_allocator]
 static GLOBAL: CounterAlloc<std::alloc::System> = CounterAlloc::new(std::alloc::System);
 

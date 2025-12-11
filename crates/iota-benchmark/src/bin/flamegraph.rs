@@ -1,15 +1,14 @@
 // Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{alloc::System, fs};
-
 use iota_test_transaction_builder::make_transfer_iota_transaction;
-use telemetry_subscribers::flamegraph::CounterAlloc;
 use test_cluster::TestClusterBuilder;
 use tracing::Instrument as _;
 
+#[cfg(all(feature = "flamegraph-alloc", nightly))]
 #[global_allocator]
-static GLOBAL: CounterAlloc<System> = CounterAlloc::new(System);
+static GLOBAL: telemetry_subscribers::flamegraph::CounterAlloc<std::alloc::System> =
+    telemetry_subscribers::flamegraph::CounterAlloc::new(std::alloc::System);
 
 /// This is a binary to generate test flamegraph data in a simple benchmark with
 /// a local test cluster. To run it, use:
@@ -34,7 +33,10 @@ async fn main() {
     println!("{}", serde_json::to_string_pretty(&nested_sets).unwrap());
 
     use std::io::Write as _;
+
+    #[allow(unused_mut)]
     let mut config = Default::default();
+
     std::fs::File::create("flamegraph.svg")
         .unwrap()
         .write_all(
@@ -44,7 +46,7 @@ async fn main() {
                 .as_bytes(),
         )
         .unwrap();
-    #[cfg(feature = "flamegraph-alloc")]
+    #[cfg(all(feature = "flamegraph-alloc", nightly))]
     {
         config.measure_mem = true;
         std::fs::File::create("flamegraph-mem.svg")
