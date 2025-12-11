@@ -31,11 +31,10 @@ public fun create(
 #[authenticator]
 public fun authenticate(_account: &AbstractAccount, _auth_ctx: &AuthContext, _ctx: &TxContext) {}
 
-//# programmable --sender A --inputs object(1,1) "authenticate" "authenticate"
-//> 0: test::authenticate::create(Input(0), Input(1), Input(2));
+//# init-abstract-account --sender A --package-metadata object(1,1) --inputs "authenticate" "authenticate" --aa-create-fn-path test::authenticate::create --aa-type AbstractAccount
 
-//# view-object 2,0
+//# view-object 2,1
 
-//# abstract --account immshared(2,0) --ptb-inputs 100 @A
+//# abstract --account immshared(2,1) --ptb-inputs 100 @A
 //> 0: SplitCoins(Gas, [Input(0)]);
 //> 1: TransferObjects([Result(0)], Input(1));

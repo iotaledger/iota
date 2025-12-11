@@ -34,8 +34,7 @@ public fun authenticate_ed25519(
     );
 }
 
-//# programmable --sender A --inputs object(3,1) "authenticate" "authenticate_ed25519" x"cc62332e34bb2d5cd69f60efbb2a36cb916c7eb458301ea36636c4dbb012bd88"
-//> 0: aa::abstract_account::create(Input(0), Input(1), Input(2), Input(3));
+//# init-abstract-account --sender A --package-metadata object(3,1) --inputs "authenticate" "authenticate_ed25519" x"cc62332e34bb2d5cd69f60efbb2a36cb916c7eb458301ea36636c4dbb012bd88" --aa-create-fn-path aa::abstract_account::create --aa-type AbstractAccount
 
 //# view-object 4,0
 

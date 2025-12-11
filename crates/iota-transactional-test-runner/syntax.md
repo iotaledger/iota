@@ -28,6 +28,7 @@
   - [`run-graphql`](#run-graphql)
   - [`bench`](#bench)
   - [`abstract`](#abstract)
+  - [`init-abstract-account`](#init-abstract-account)
   - [`publish-dependencies`](#publish-dependencies)
 - [How `run_test` Compares a Move File With the Corresponding `.snap` File](#how-run_test-compares-a-move-file-with-the-corresponding-snap-file)
   - [Adapter Creation in `create_adapter`](#adapter-creation-in-create_adapter)
@@ -1466,8 +1467,7 @@ public fun authenticate_hello_world(
     assert!(msg == ascii::string(b"HelloWorld"), 0);
 }
 
-//# programmable --sender A --inputs object(3,1) "authenticate" "authenticate_hello_world"
-//> 0: aa::abstract_account::create(Input(0), Input(1), Input(2));
+//# init-abstract-account --sender A --package-metadata object(3,1) --inputs "authenticate" "authenticate_hello_world" --aa-create-fn-path aa::abstract_account::create --aa-type AbstractAccount
 
 //# view-object 4,0
 
@@ -1513,7 +1513,7 @@ task 1, line 8:
 Output for 'crates/iota-adapter-transactional-tests/data/account_abstraction/abstract_account.move':
 created: object(2,0)
 mutated: object(0,1)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 7873600,  storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 7584800,  storage_rebate: 0, non_refundable_storage_fee: 0
 
 task 2, lines 10-25:
 //# publish --sender A --dependencies aa
@@ -1521,14 +1521,13 @@ created: object(3,0), object(3,1)
 mutated: object(0,0)
 gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 9918000,  storage_rebate: 0, non_refundable_storage_fee: 0
 
-task 3, lines 27-28:
-//# programmable --sender A --inputs object(3,1) "authenticate" "authenticate_hello_world"
-//> 0: aa::abstract_account::create(Input(0), Input(1), Input(2));
-created: object(4,0), object(4,1)
+task 3, line 27:
+//# init-abstract-account --sender A --package-metadata object(3,1) --inputs "authenticate" "authenticate_hello_world" --aa-create-fn-path aa::abstract_account::create --aa-type AbstractAccount
+created: object(4,0), object(4,1), object(4,2)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 5738000,  storage_rebate: 980400, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 6718400,  storage_rebate: 980400, non_refundable_storage_fee: 0
 
-task 4, line 30:
+task 4, line 29:
 //# view-object 4,0
 Owner: Shared( 3 )
 Version: 3
@@ -1540,14 +1539,14 @@ Contents: aa::abstract_account::AbstractAccount {
     },
 }
 
-task 5, lines 32-34:
+task 5, lines 31-33:
 //# abstract --account immshared(4,0) --auth-inputs "HelloWorld" --ptb-inputs 100 @A
 created: object(6,0)
-mutated: object(_)
+mutated: object(4,1)
 unchanged_shared: object(4,0)
 gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 1960800,  storage_rebate: 980400, non_refundable_storage_fee: 0
 
-task 6, line 36:
+task 6, line 35:
 //# view-object 6,0
 Owner: Account Address ( A )
 Version: 4
@@ -1562,6 +1561,66 @@ Contents: iota::coin::Coin<iota::iota::IOTA> {
     },
 }
 ```
+
+### `init-abstract-account`
+
+The `init-abstract-account` subcommand (`InitAbstractAccount` in Rust) creates and registers an Abstract Account (AA) in the transactional test environment.
+
+#### Syntax
+
+```
+//# init-abstract-account [OPTIONS]
+```
+
+#### Options
+
+```
+--sender <SENDER>: Named account that submits and pays for the initialization transaction.
+    Defaults to the adapter’s default account if omitted.
+
+--package-metadata <PACKAGE_METADATA>: Reference to the `PackageMetadata` object associated with the AA package,
+    typically created during `publish`. For example: `object(3,1)`.
+    This value is passed as the first argument to the AA `create` function.
+
+--inputs <INPUTS>: Additional arguments passed to the AA `create` function after
+    `package_metadata`. These must match the function’s parameter list
+    (e.g. key material, configuration values, initial settings).
+
+--aa-create-fn-path <AA_CREATE_FN_PATH>: Fully qualified path to the Abstract Account creation function in the AA.
+    Move module: <named-address>::<module>::<function>
+
+    Example: `aa::abstract_account::create`.
+
+    The `named-address` part must already be bound to the AA package address
+    via `publish` / `publish-deps` and the named address mapping.
+
+--aa-type <AA_TYPE_NAME>: The name of the Abstract Account struct type that is expected to be created
+    by the `create` function. Example: `AbstractAccount`.
+    The adapter uses this type name to locate the newly created AA object in
+    the transaction’s `created` set and register it as an abstract account.
+```
+
+#### Example
+
+```move
+// Initialize Abstract Account and register it in the adapter
+//# init-abstract-account --sender A --package-metadata object(3,1) --inputs "authenticate" "authenticate_hello_world" --aa-create-fn-path aa::abstract_account::create --aa-type AbstractAccount
+```
+
+- --package-metadata `object(3,1)`
+  `object(3,1)` is a `PackageMetadata` object produced by the publish step for the AA package.
+  It carries metadata about module functions (including authenticator attributes) and is passed as the first argument to aa::abstract_account::create.
+- --inputs "authenticate" "authenticate_hello_world"
+  These values are passed as additional arguments to the create function (after package_metadata).
+  They must correspond to the function parameters defined in `aa::abstract_account::create` (e.g. the module name and authenticator function name to register).
+- --aa-create-fn-path `aa::abstract_account::create`
+  This string is split into three parts:
+  - aa - named address (resolved via the named address mapping to the AA package ID),
+  - abstract_account - module name,
+  - create - function name.
+- --aa-type `AbstractAccount`
+  After the transaction is executed, the adapter scans the created objects and finds the one whose struct tag name equals AbstractAccount.
+  That object ID becomes the logical address of the Abstract Account.
 
 ### `publish-dependencies`
 

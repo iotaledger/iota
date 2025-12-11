@@ -51,8 +51,7 @@ module test_account::authenticate {
     ) {}
 }
 
-//# programmable --sender A --inputs object(5,1) "authenticate" "authenticate"
-//> 0: aa::abstract_account::create(Input(0), Input(1), Input(2));
+//# init-abstract-account --sender A --package-metadata object(5,1) --inputs "authenticate" "authenticate" --aa-create-fn-path aa::abstract_account::create --aa-type AbstractAccount
 
 //# set-address account_addr object(6,0)
 

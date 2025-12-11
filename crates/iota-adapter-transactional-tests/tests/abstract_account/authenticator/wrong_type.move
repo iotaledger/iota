@@ -19,5 +19,4 @@ public struct AbstractAccount2 has key {
 #[authenticator]
 public fun authenticate(_account: &AbstractAccount2, _auth_ctx: &AuthContext, _ctx: &TxContext) {}
 
-//# programmable --sender A --inputs object(3,1) "authenticate" "authenticate"
-//> 0: aa::abstract_account::create(Input(0), Input(1), Input(2));
+//# init-abstract-account --sender A --package-metadata object(3,1) --inputs "authenticate" "authenticate" --aa-create-fn-path aa::abstract_account::create --aa-type AbstractAccount

@@ -19,14 +19,13 @@ created: object(3,0), object(3,1)
 mutated: object(0,0)
 gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 9918000,  storage_rebate: 0, non_refundable_storage_fee: 0
 
-task 3, lines 27-28:
-//# programmable --sender A --inputs object(3,1) "authenticate" "authenticate_hello_world"
-//> 0: aa::abstract_account::create(Input(0), Input(1), Input(2));
-created: object(4,0), object(4,1)
+task 3, line 27:
+//# init-abstract-account --sender A --package-metadata object(3,1) --inputs "authenticate" "authenticate_hello_world" --aa-create-fn-path aa::abstract_account::create --aa-type AbstractAccount
+created: object(4,0), object(4,1), object(4,2)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 5738000,  storage_rebate: 980400, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 6718400,  storage_rebate: 980400, non_refundable_storage_fee: 0
 
-task 4, line 30:
+task 4, line 29:
 //# view-object 4,0
 Owner: Shared( 3 )
 Version: 3
@@ -38,6 +37,6 @@ Contents: aa::abstract_account::AbstractAccount {
     },
 }
 
-task 5, lines 32-33:
+task 5, lines 31-32:
 //# abstract --account immshared(4,0) --auth-inputs "test" --ptb-inputs 100 @A
 Error: Failed to execute the Move authenticator, reason: "ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: MoveAbort(MoveLocation { module: ModuleId { address: object(3,0), name: Identifier(\"authenticate\") }, function: 0, instruction: 7, function_name: Some(\"authenticate_hello_world\") }, 0), source: Some(VMError { major_status: ABORTED, sub_status: Some(0), message: Some(\"object(3,0)::authenticate::authenticate_hello_world at offset 7\"), exec_state: None, location: Module(ModuleId { address: object(3,0), name: Identifier(\"authenticate\") }), indices: [], offsets: [(FunctionDefinitionIndex(0), 7)] }), command: Some(0) } }".
