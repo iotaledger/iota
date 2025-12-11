@@ -15,10 +15,11 @@ OVERLAY_PATH="$PRIVNET_DIR/configs/validator-common.yaml"
 # Parse `-n` for number of validators (default 4) and `-e` for epoch duration (default 1200000)
 NUM_VALIDATORS=4
 EPOCH_DURATION_MS=1200000
+FLAG_SPECIFIED=false
 while getopts "n:e:" opt; do
   case "$opt" in
-    n) NUM_VALIDATORS="$OPTARG" ;;
-    e) EPOCH_DURATION_MS="$OPTARG" ;;
+    n) NUM_VALIDATORS="$OPTARG"; FLAG_SPECIFIED=true ;;
+    e) EPOCH_DURATION_MS="$OPTARG"; FLAG_SPECIFIED=true ;;
     *) echo "Usage: $0 [-n num_validators] [-e epoch_duration_ms]"; exit 1 ;;
   esac
 done
@@ -26,8 +27,9 @@ done
 generate_genesis_template_if_missing() {
     mkdir -p "$PRIVNET_DIR/configs"
     GENESIS_TEMPLATE="$PRIVNET_DIR/configs/genesis-template-${NUM_VALIDATORS}.yaml"
+    GENESIS_BLOB="$GENESIS_DIR/genesis.blob"
 
-    if [[ -f "$GENESIS_TEMPLATE" ]]; then
+    if [[ -f "$GENESIS_TEMPLATE" ]] && [[ -f "$GENESIS_BLOB" ]] && [[ "$FLAG_SPECIFIED" == "false" ]]; then
         echo "Genesis template already exists: $GENESIS_TEMPLATE"
     else
         echo "Generating genesis template for $NUM_VALIDATORS validators (epoch: ${EPOCH_DURATION_MS}ms)..."
