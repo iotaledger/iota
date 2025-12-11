@@ -38,10 +38,6 @@ public fun create(
     account_address
 }
 
-public fun uid_mut(self: &mut AbstractAccount): &mut UID {
-    &mut self.id
-}
-
 public fun borrow_public_key(account: &AbstractAccount): &vector<u8> {
     dynamic_field::borrow(&account.id, OwnerPublicKey {})
 }

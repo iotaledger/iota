@@ -39,7 +39,3 @@ public fun create_with_auth_info(
 
     account_address
 }
-
-public fun uid_mut(self: &mut AbstractAccount): &mut UID {
-    &mut self.id
-}

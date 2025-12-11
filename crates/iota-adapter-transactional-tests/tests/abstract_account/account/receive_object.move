@@ -40,10 +40,6 @@ public fun create(
     account_address
 }
 
-public fun uid_mut(self: &mut AbstractAccount): &mut UID {
-    &mut self.id
-}
-
 public fun receive_object(
     self: &mut AbstractAccount,
     coin: transfer::Receiving<Coin<IOTA>>,

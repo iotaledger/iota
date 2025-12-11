@@ -1567,6 +1567,7 @@ Contents: iota::coin::Coin<iota::iota::IOTA> {
 
 The `publish-dependencies` subcommand (`PublishDeps` in Rust) is a lightweight helper for transactional tests that need to publish prepared dependency modules (e.g., Account Abstraction implementations) in order to avoid duplication/complex relations.
 It compiles and publishes Move source files provided by path and then stores the published modules in the adapter’s compiled state. As a result, the newly published package becomes available for subsequent commands and can be used as a proper dependency within built-in Move code.
+The package name of the dependency must be initialized to `0x0` with the init command, e.g., `aa=0x0`.
 
 #### Syntax
 
