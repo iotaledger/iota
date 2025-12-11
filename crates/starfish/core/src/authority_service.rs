@@ -27,7 +27,7 @@ use crate::{CommitIndex, Round, Transaction, VerifiedBlockHeader, block_header::
 }, block_verifier::BlockVerifier, commit::{CommitAPI as _, CommitRange, TrustedCommit}, commit_vote_monitor::CommitVoteMonitor, context::Context, cordial_knowledge::CordialKnowledgeHandle, core_thread::CoreThreadDispatcher, dag_state::DagState, encoder::ShardEncoder, error::{ConsensusError, ConsensusResult}, header_synchronizer::HeaderSynchronizerHandle, network::{
     BlockBundleStream, NetworkService, SerializedBlock, SerializedBlockBundle,
     SerializedBlockBundleParts, SerializedHeaderAndTransactions, SerializedTransactionsV1,
-    SerializedTransactionsV2,
+    SerializedTransactionsV2, TransactionFetchMode,
 }, shard_reconstructor::TransactionMessage, stake_aggregator::{QuorumThreshold, StakeAggregator}, storage::Store, transaction_ref::{GenericTransactionRef, GenericTransactionRefAPI as _}, transactions_synchronizer::TransactionsSynchronizerHandle, commit_syncer::CommitSyncType};
 
 pub(crate) const COMMIT_LAG_MULTIPLIER: u32 = 5;
@@ -927,7 +927,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             .collect();
 
         let serialized_transactions = self
-            .handle_fetch_transactions(peer, transaction_refs)
+            .handle_fetch_transactions(peer, transaction_refs, TransactionFetchMode::FastCommitSync)
             .await?;
 
         let serialized_commits: Vec<Bytes> = commits
@@ -1015,6 +1015,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         &self,
         peer: AuthorityIndex,
         mut committed_transactions_refs: Vec<GenericTransactionRef>,
+        fetch_mode: TransactionFetchMode,
     ) -> ConsensusResult<Vec<Bytes>> {
         fail_point_async!("consensus-rpc-response");
 
@@ -1022,20 +1023,34 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             return Ok(Vec::new());
         }
 
-        // Use the maximum of both limits to accommodate both commit sync and regular
-        // sync requests
-        let max_transactions = self
-            .context
-            .parameters
-            .max_transactions_per_regular_sync_fetch
-            .max(
-                self.context
-                    .parameters
-                    .max_transactions_per_commit_sync_fetch,
-            );
 
-        if committed_transactions_refs.len() > max_transactions {
-            committed_transactions_refs.truncate(max_transactions);
+
+        // Apply truncation based on fetch mode
+        match fetch_mode {
+            TransactionFetchMode::FastCommitSync => {
+                // No truncation for fast commit sync - all transactions referenced
+                // by commits must be fetched
+            }
+            TransactionFetchMode::CommitSync => {
+                let max_transactions = self
+                    .context
+                    .parameters
+                    .max_transactions_per_commit_sync_fetch;
+
+                if committed_transactions_refs.len() > max_transactions {
+                    committed_transactions_refs.truncate(max_transactions);
+                }
+            }
+            TransactionFetchMode::TransactionsSynchronizer => {
+                let max_transactions = self
+                    .context
+                    .parameters
+                    .max_transactions_per_regular_sync_fetch;
+
+                if committed_transactions_refs.len() > max_transactions {
+                    committed_transactions_refs.truncate(max_transactions);
+                }
+            }
         }
 
         // Some quick validation of the requested transactions refs
@@ -1383,7 +1398,7 @@ mod tests {
         network::{
             BlockBundle, BlockBundleStream, NetworkClient, NetworkService, SerializedBlock,
             SerializedBlockBundle, SerializedBlockBundleParts, SerializedHeaderAndTransactions,
-            SerializedTransactionsV1, SerializedTransactionsV2,
+            SerializedTransactionsV1, SerializedTransactionsV2, TransactionFetchMode,
         },
         storage::{Store, mem_store::MemStore},
         test_dag_builder::DagBuilder,
@@ -3509,7 +3524,7 @@ mod tests {
 
         let peer = context.committee.to_authority_index(1).unwrap();
         let serialized_transactions = authority_service
-            .handle_fetch_transactions(peer, block_refs_to_request_first_batch.clone())
+            .handle_fetch_transactions(peer, block_refs_to_request_first_batch.clone(), TransactionFetchMode::TransactionsSynchronizer)
             .await
             .expect("We should expect a correct return of serialized transactions");
 
@@ -3580,7 +3595,7 @@ mod tests {
             .truncate(context.parameters.max_transactions_per_regular_sync_fetch);
 
         let serialized_transactions = authority_service
-            .handle_fetch_transactions(peer, block_refs_to_request_second_batch.clone())
+            .handle_fetch_transactions(peer, block_refs_to_request_second_batch.clone(), TransactionFetchMode::TransactionsSynchronizer)
             .await
             .expect("Should return an empty vector");
 

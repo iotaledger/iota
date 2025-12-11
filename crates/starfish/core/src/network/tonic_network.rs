@@ -895,7 +895,7 @@ impl<S: NetworkService> ConsensusService for TonicServiceProxy<S> {
 
         let vec_serialized_transactions = self
             .service
-            .handle_fetch_transactions(peer_index, committed_transactions_refs)
+            .handle_fetch_transactions(peer_index, committed_transactions_refs, crate::network::TransactionFetchMode::TransactionsSynchronizer)
             .await
             .map_err(|e| tonic::Status::internal(format!("fetch_transactions failed: {e:?}")))?;
 

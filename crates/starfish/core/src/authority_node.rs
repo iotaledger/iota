@@ -1033,7 +1033,7 @@ mod tests {
                 dag_state_cached_rounds: 5,
                 commit_sync_parallel_fetches: 2,
                 commit_sync_batch_size: 10,
-                commit_sync_gap_threshold: 50, // Low threshold for faster triggering
+                commit_sync_gap_threshold: 50,
                 fast_commit_sync_batch_size: 20,
                 sync_last_known_own_block_timeout: Duration::from_millis(2_000),
                 ..Default::default()
@@ -1075,8 +1075,8 @@ mod tests {
             dag_state_cached_rounds: 5,
             commit_sync_parallel_fetches: 2,
             commit_sync_batch_size: 10,
-            commit_sync_gap_threshold: 50, // Same low threshold
-            fast_commit_sync_batch_size: 20, // Same low threshold
+            commit_sync_gap_threshold: 50,
+            fast_commit_sync_batch_size: 20,
             sync_last_known_own_block_timeout: Duration::from_millis(2_000),
             ..Default::default()
         };
@@ -1097,8 +1097,41 @@ mod tests {
 
         // Let it run to observe sync behavior in logs
         // Look for: "[fast_commit_sync] Checking to schedule fetches"
-        tracing::info!("Observing sync behavior for 30 seconds...");
-        sleep(Duration::from_secs(30)).await;
+        let start_time = Instant::now();
+        let mut last_committed_index = vec![0; NUM_AUTHORITIES];
+        let mut last_round_committed_blocks = vec![0; NUM_AUTHORITIES];
+        loop {
+            if start_time.elapsed() > Duration::from_secs(60) {
+                break;
+            }
+            for (index, receiver) in output_receivers.iter_mut().enumerate() {
+                // Manually update the commit consumer monitor with the highest handled commit
+                let deadline = Instant::now() + Duration::from_millis(25);
+                while Instant::now() < deadline {
+                    let remaining = deadline - Instant::now();
+                    if let Ok(Some(committed_subdag)) =
+                        tokio::time::timeout(remaining, receiver.recv()).await
+                    {
+                        for block_ref in &committed_subdag.base.committed_header_refs {
+                            if block_ref.round > GENESIS_ROUND {
+                                let author_index = block_ref.author;
+                                last_round_committed_blocks[author_index] =
+                                    max(last_round_committed_blocks[author_index], block_ref.round);
+                            }
+                        }
+
+
+                        let commit_index = committed_subdag.commit_ref.index;
+                        assert!(last_committed_index[index] < commit_index);
+                        last_committed_index[index] = commit_index;
+                        consumer_monitors[index].set_highest_handled_commit(commit_index);
+                    } else {
+                        // If we time out, we assume that no new dags were committed.
+                        break;
+                    }
+                }
+            }
+        }
 
         // Stop all authorities
         tracing::info!("Stopping all authorities...");

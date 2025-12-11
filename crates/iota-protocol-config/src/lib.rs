@@ -19,7 +19,7 @@ use tracing::{info, warn};
 
 /// The minimum and maximum protocol versions supported by this build.
 const MIN_PROTOCOL_VERSION: u64 = 1;
-pub const MAX_PROTOCOL_VERSION: u64 = 17;
+pub const MAX_PROTOCOL_VERSION: u64 = 19;
 
 // Record history of protocol version allocations here:
 //
@@ -92,6 +92,8 @@ pub const MAX_PROTOCOL_VERSION: u64 = 17;
 //             Enable committing transactions only for traversed headers in
 //             Starfish.
 // Version 17: Increase the committee size to 100 on all networks.
+// Version 18: (reserved for future use)
+// Version 19: Enable consensus_transaction_ref for fast commit syncer.
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
 
@@ -2327,6 +2329,13 @@ impl ProtocolConfig {
                 17 => {
                     // Increase the committee size to 100 on all networks.
                     cfg.max_committee_members_count = Some(100);
+                }
+                18 => {
+                    // version 18 is reserved for future use
+                }
+                19 => {
+                    // Enable consensus_transaction_ref for fast commit syncer
+                    cfg.feature_flags.consensus_transaction_ref = true;
                 }
                 // Use this template when making changes:
                 //

@@ -280,8 +280,8 @@ kill_spammer_processes || true
 # --- 1) Build images (optional) ---
 if [ "$BUILD" = true ]; then
   (cd ../../../docker/iota-node && ./build.sh -t iota-node)
-  (cd ../../../docker/iota-tools && ./build.sh -t iota-tools)
-  (cd ../../../docker/iota-indexer && ./build.sh -t iota-indexer)
+  #(cd ../../../docker/iota-tools && ./build.sh -t iota-tools)
+  #(cd ../../../docker/iota-indexer && ./build.sh -t iota-indexer)
 else
   log "Skipping image builds"
 fi

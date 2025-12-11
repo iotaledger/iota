@@ -257,6 +257,18 @@ services:
       - ./configs/genesis/genesis.blob:/opt/iota/config/genesis.blob:ro
       - ./data/validator-19:/opt/iota/db:rw
 
+  validator-20:
+    <<: *common-validator
+    container_name: validator-20
+    hostname: validator-20
+    networks:
+      iota-network:
+        ipv4_address: 10.0.0.30
+    volumes:
+      - ./configs/validators/validator-20-8080.yaml:/opt/iota/config/validator.yaml:ro
+      - ./configs/genesis/genesis.blob:/opt/iota/config/genesis.blob:ro
+      - ./data/validator-20:/opt/iota/db:rw
+
   fullnode-1:
     <<: *common-fullnode
     container_name: fullnode-1
