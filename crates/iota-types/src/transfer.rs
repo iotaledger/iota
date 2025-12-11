@@ -2,6 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use iota_sdk_2::types::Address;
 use move_binary_format::{CompiledModule, file_format::SignatureToken};
 use move_bytecode_utils::resolve_struct;
 use move_core_types::{
@@ -13,8 +14,7 @@ use move_core_types::{
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    IOTA_FRAMEWORK_ADDRESS,
-    base_types::{ObjectID, SequenceNumber},
+    base_types::{ObjectId, Version},
     id::ID,
 };
 
@@ -22,7 +22,7 @@ const TRANSFER_MODULE_NAME: &IdentStr = ident_str!("transfer");
 const RECEIVING_STRUCT_NAME: &IdentStr = ident_str!("Receiving");
 
 pub const RESOLVED_RECEIVING_STRUCT: (&AccountAddress, &IdentStr, &IdentStr) = (
-    &IOTA_FRAMEWORK_ADDRESS,
+    &AccountAddress::new(Address::FRAMEWORK.into_bytes()),
     TRANSFER_MODULE_NAME,
     RECEIVING_STRUCT_NAME,
 );
@@ -31,11 +31,11 @@ pub const RESOLVED_RECEIVING_STRUCT: (&AccountAddress, &IdentStr, &IdentStr) = (
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct Receiving {
     pub id: ID,
-    pub version: SequenceNumber,
+    pub version: Version,
 }
 
 impl Receiving {
-    pub fn new(id: ObjectID, version: SequenceNumber) -> Self {
+    pub fn new(id: ObjectId, version: Version) -> Self {
         Self {
             id: ID::new(id),
             version,
@@ -48,7 +48,7 @@ impl Receiving {
 
     pub fn struct_tag() -> StructTag {
         StructTag {
-            address: IOTA_FRAMEWORK_ADDRESS,
+            address: AccountAddress::new(Address::FRAMEWORK.into_bytes()),
             module: TRANSFER_MODULE_NAME.to_owned(),
             name: RECEIVING_STRUCT_NAME.to_owned(),
             // TODO: this should really include the type parameters eventually when we add type

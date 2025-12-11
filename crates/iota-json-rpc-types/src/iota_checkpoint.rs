@@ -4,7 +4,7 @@
 
 use fastcrypto::encoding::Base64;
 use iota_types::{
-    base_types::TransactionDigest,
+    base_types::{TransactionDigest, Version},
     committee::EpochId,
     crypto::AggregateAuthoritySignature,
     digests::CheckpointDigest,
@@ -12,8 +12,8 @@ use iota_types::{
     iota_serde::BigInt,
     message_envelope::Message,
     messages_checkpoint::{
-        CheckpointCommitment, CheckpointContents, CheckpointSequenceNumber, CheckpointSummary,
-        CheckpointTimestamp, EndOfEpochData,
+        CheckpointCommitment, CheckpointContents, CheckpointSummary, CheckpointTimestamp,
+        EndOfEpochData,
     },
 };
 use schemars::JsonSchema;
@@ -34,7 +34,7 @@ pub struct Checkpoint {
     /// Checkpoint sequence number
     #[schemars(with = "BigInt<u64>")]
     #[serde_as(as = "BigInt<u64>")]
-    pub sequence_number: CheckpointSequenceNumber,
+    pub sequence_number: Version,
     /// Checkpoint digest
     pub digest: CheckpointDigest,
     /// Total number of transactions committed since genesis, including those in
@@ -121,13 +121,13 @@ pub enum CheckpointId {
     SequenceNumber(
         #[schemars(with = "BigInt<u64>")]
         #[serde_as(as = "BigInt<u64>")]
-        CheckpointSequenceNumber,
+        Version,
     ),
     Digest(CheckpointDigest),
 }
 
-impl From<CheckpointSequenceNumber> for CheckpointId {
-    fn from(seq: CheckpointSequenceNumber) -> Self {
+impl From<Version> for CheckpointId {
+    fn from(seq: Version) -> Self {
         Self::SequenceNumber(seq)
     }
 }

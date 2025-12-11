@@ -21,7 +21,7 @@ use iota_json_rpc::authority_state::StateRead;
 use iota_json_rpc_types::{DevInspectResults, DryRunTransactionBlockResponse, EventFilter};
 use iota_storage::key_value_store::TransactionKeyValueStore;
 use iota_types::{
-    base_types::{IotaAddress, ObjectID, VersionNumber},
+    base_types::{Address, ObjectId, Version},
     committee::EpochId,
     digests::{TransactionDigest, TransactionEventsDigest},
     effects::{TransactionEffects, TransactionEvents},
@@ -90,7 +90,7 @@ pub trait TransactionalAdapter: Send + Sync + ReadStore {
 
     async fn request_gas(
         &mut self,
-        address: IotaAddress,
+        address: Address,
         amount: u64,
     ) -> anyhow::Result<TransactionEffects>;
 
@@ -102,7 +102,7 @@ pub trait TransactionalAdapter: Send + Sync + ReadStore {
 
     async fn dev_inspect_transaction_block(
         &self,
-        sender: IotaAddress,
+        sender: Address,
         transaction_kind: TransactionKind,
         gas_price: Option<u64>,
     ) -> IotaResult<DevInspectResults>;
@@ -113,7 +113,7 @@ pub trait TransactionalAdapter: Send + Sync + ReadStore {
         limit: usize,
     ) -> IotaResult<Vec<Event>>;
 
-    async fn get_active_validator_addresses(&self) -> IotaResult<Vec<IotaAddress>>;
+    async fn get_active_validator_addresses(&self) -> IotaResult<Vec<Address>>;
 }
 
 #[async_trait::async_trait]
@@ -185,7 +185,7 @@ impl TransactionalAdapter for ValidatorWithFullnode {
 
     async fn dev_inspect_transaction_block(
         &self,
-        sender: IotaAddress,
+        sender: Address,
         transaction_kind: TransactionKind,
         gas_price: Option<u64>,
     ) -> IotaResult<DevInspectResults> {
@@ -243,13 +243,13 @@ impl TransactionalAdapter for ValidatorWithFullnode {
 
     async fn request_gas(
         &mut self,
-        _address: IotaAddress,
+        _address: Address,
         _amount: u64,
     ) -> anyhow::Result<TransactionEffects> {
         unimplemented!("request_gas not supported")
     }
 
-    async fn get_active_validator_addresses(&self) -> IotaResult<Vec<IotaAddress>> {
+    async fn get_active_validator_addresses(&self) -> IotaResult<Vec<Address>> {
         let system_state_summary = self
             .fullnode
             .get_system_state()
@@ -305,10 +305,7 @@ impl ReadStore for ValidatorWithFullnode {
         todo!()
     }
 
-    fn try_get_lowest_available_checkpoint(
-        &self,
-    ) -> iota_types::storage::error::Result<iota_types::messages_checkpoint::CheckpointSequenceNumber>
-    {
+    fn try_get_lowest_available_checkpoint(&self) -> iota_types::storage::error::Result<Version> {
         todo!()
     }
 
@@ -321,7 +318,7 @@ impl ReadStore for ValidatorWithFullnode {
 
     fn try_get_checkpoint_by_sequence_number(
         &self,
-        sequence_number: iota_types::messages_checkpoint::CheckpointSequenceNumber,
+        sequence_number: Version,
     ) -> iota_types::storage::error::Result<Option<VerifiedCheckpoint>> {
         self.validator
             .get_checkpoint_store()
@@ -343,7 +340,7 @@ impl ReadStore for ValidatorWithFullnode {
 
     fn try_get_checkpoint_contents_by_sequence_number(
         &self,
-        _sequence_number: iota_types::messages_checkpoint::CheckpointSequenceNumber,
+        _sequence_number: Version,
     ) -> iota_types::storage::error::Result<
         Option<iota_types::messages_checkpoint::CheckpointContents>,
     > {
@@ -383,7 +380,7 @@ impl ReadStore for ValidatorWithFullnode {
 
     fn try_get_full_checkpoint_contents_by_sequence_number(
         &self,
-        _sequence_number: iota_types::messages_checkpoint::CheckpointSequenceNumber,
+        _sequence_number: Version,
     ) -> iota_types::storage::error::Result<
         Option<iota_types::messages_checkpoint::FullCheckpointContents>,
     > {
@@ -403,15 +400,15 @@ impl ReadStore for ValidatorWithFullnode {
 impl ObjectStore for ValidatorWithFullnode {
     fn try_get_object(
         &self,
-        object_id: &ObjectID,
+        object_id: &ObjectId,
     ) -> Result<Option<Object>, iota_types::storage::error::Error> {
         self.validator.get_object_store().try_get_object(object_id)
     }
 
     fn try_get_object_by_key(
         &self,
-        object_id: &ObjectID,
-        version: VersionNumber,
+        object_id: &ObjectId,
+        version: Version,
     ) -> Result<Option<Object>, iota_types::storage::error::Error> {
         self.validator
             .get_object_store()
@@ -442,7 +439,7 @@ impl TransactionalAdapter for Simulacrum<StdRng, PersistedStore> {
 
     async fn dev_inspect_transaction_block(
         &self,
-        _sender: IotaAddress,
+        _sender: Address,
         _transaction_kind: TransactionKind,
         _gas_price: Option<u64>,
     ) -> IotaResult<DevInspectResults> {
@@ -487,13 +484,13 @@ impl TransactionalAdapter for Simulacrum<StdRng, PersistedStore> {
 
     async fn request_gas(
         &mut self,
-        address: IotaAddress,
+        address: Address,
         amount: u64,
     ) -> anyhow::Result<TransactionEffects> {
         self.request_gas(address, amount)
     }
 
-    async fn get_active_validator_addresses(&self) -> IotaResult<Vec<IotaAddress>> {
+    async fn get_active_validator_addresses(&self) -> IotaResult<Vec<Address>> {
         // TODO: this is a hack to get the validator addresses. Currently using start
         // state       but we should have a better way to get this information
         // after reconfig

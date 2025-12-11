@@ -2,7 +2,9 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use iota_sdk_2::types::Address;
 use move_core_types::{
+    account_address::AccountAddress,
     annotated_value::{MoveFieldLayout, MoveStructLayout, MoveTypeLayout},
     ident_str,
     identifier::IdentStr,
@@ -13,7 +15,6 @@ use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 
 use crate::{
-    IOTA_FRAMEWORK_ADDRESS,
     error::{ExecutionError, ExecutionErrorKind},
     iota_serde::{BigInt, Readable},
 };
@@ -42,7 +43,7 @@ impl Balance {
 
     pub fn type_(type_param: TypeTag) -> StructTag {
         StructTag {
-            address: IOTA_FRAMEWORK_ADDRESS,
+            address: AccountAddress::new(Address::FRAMEWORK.into_bytes()),
             module: BALANCE_MODULE_NAME.to_owned(),
             name: BALANCE_STRUCT_NAME.to_owned(),
             type_params: vec![type_param],
@@ -54,7 +55,7 @@ impl Balance {
     }
 
     pub fn is_balance(s: &StructTag) -> bool {
-        s.address == IOTA_FRAMEWORK_ADDRESS
+        s.address == AccountAddress::new(Address::FRAMEWORK.into_bytes())
             && s.module.as_ident_str() == BALANCE_MODULE_NAME
             && s.name.as_ident_str() == BALANCE_STRUCT_NAME
     }

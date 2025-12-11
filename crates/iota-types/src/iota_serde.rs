@@ -12,6 +12,7 @@ use std::{
 
 use fastcrypto::encoding::Hex;
 use iota_protocol_config::ProtocolVersion;
+use iota_sdk_2::types::{Address, ObjectId};
 use move_core_types::{
     account_address::AccountAddress,
     language_storage::{StructTag, TypeTag},
@@ -24,10 +25,7 @@ use serde::{
 };
 use serde_with::{Bytes, DeserializeAs, DisplayFromStr, SerializeAs, serde_as};
 
-use crate::{
-    IOTA_CLOCK_ADDRESS, IOTA_FRAMEWORK_ADDRESS, IOTA_SYSTEM_ADDRESS, IOTA_SYSTEM_STATE_ADDRESS,
-    STARDUST_ADDRESS, parse_iota_struct_tag, parse_iota_type_tag,
-};
+use crate::{parse_iota_struct_tag, parse_iota_type_tag};
 
 #[inline]
 fn to_custom_error<'de, D, E>(e: E) -> D::Error
@@ -171,12 +169,13 @@ impl SerializeAs<StructTag> for IotaStructTag {
 const IOTA_ADDRESSES: [AccountAddress; 7] = [
     AccountAddress::ZERO,
     AccountAddress::ONE,
-    IOTA_FRAMEWORK_ADDRESS,
-    IOTA_SYSTEM_ADDRESS,
-    STARDUST_ADDRESS,
-    IOTA_SYSTEM_STATE_ADDRESS,
-    IOTA_CLOCK_ADDRESS,
+    AccountAddress::new(Address::FRAMEWORK.into_bytes()),
+    AccountAddress::new(Address::SYSTEM.into_bytes()),
+    AccountAddress::new(Address::STARDUST.into_bytes()),
+    AccountAddress::new(ObjectId::SYSTEM.into_bytes()),
+    AccountAddress::new(ObjectId::CLOCK.into_bytes()),
 ];
+
 /// Serialize StructTag as a string, retaining the leading zeros in the address.
 pub fn to_iota_struct_tag_string(value: &StructTag) -> Result<String, fmt::Error> {
     let mut f = String::new();
@@ -320,28 +319,25 @@ where
 
 #[serde_as]
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, Copy, JsonSchema)]
-pub struct SequenceNumber(#[schemars(with = "BigInt<u64>")] u64);
+pub struct Version(#[schemars(with = "BigInt<u64>")] u64);
 
-impl SerializeAs<crate::base_types::SequenceNumber> for SequenceNumber {
-    fn serialize_as<S>(
-        value: &crate::base_types::SequenceNumber,
-        serializer: S,
-    ) -> Result<S::Ok, S::Error>
+impl SerializeAs<crate::base_types::Version> for Version {
+    fn serialize_as<S>(value: &crate::base_types::Version, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
     {
-        let s = value.value().to_string();
+        let s = value.to_string();
         s.serialize(serializer)
     }
 }
 
-impl<'de> DeserializeAs<'de, crate::base_types::SequenceNumber> for SequenceNumber {
-    fn deserialize_as<D>(deserializer: D) -> Result<crate::base_types::SequenceNumber, D::Error>
+impl<'de> DeserializeAs<'de, crate::base_types::Version> for Version {
+    fn deserialize_as<D>(deserializer: D) -> Result<crate::base_types::Version, D::Error>
     where
         D: Deserializer<'de>,
     {
         let b = BigInt::deserialize(deserializer)?;
-        Ok(crate::base_types::SequenceNumber::from_u64(*b))
+        Ok(*b)
     }
 }
 

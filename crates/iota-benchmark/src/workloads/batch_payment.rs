@@ -7,7 +7,7 @@ use std::{collections::HashMap, sync::Arc};
 use async_trait::async_trait;
 use iota_core::test_utils::make_pay_iota_transaction;
 use iota_types::{
-    base_types::{IotaAddress, ObjectID, ObjectRef, SequenceNumber},
+    base_types::{Address, ObjectId, ObjectReference, Version, VersionExt},
     crypto::get_key_pair,
     digests::ObjectDigest,
     gas_coin::NANOS_PER_IOTA,
@@ -39,11 +39,8 @@ const PRIMARY_COIN_VALUE: u64 = 100 * NANOS_PER_IOTA;
 /// Number of nanos sent to each address on each batch transfer
 const BATCH_TRANSFER_AMOUNT: u64 = 1;
 
-const DUMMY_GAS: ObjectRef = (
-    ObjectID::ZERO,
-    SequenceNumber::MIN_VALID_INCL,
-    ObjectDigest::MIN,
-);
+const DUMMY_GAS: ObjectReference =
+    ObjectReference::new(ObjectId::ZERO, Version::MIN_VALID_INCL, ObjectDigest::MIN);
 
 #[derive(Debug)]
 pub struct BatchPaymentTestPayload {
@@ -52,7 +49,7 @@ pub struct BatchPaymentTestPayload {
     num_payments: usize,
     /// address of the first sender. important because in the beginning, only
     /// one address has any coins. after the first tx, any address can send
-    first_sender: IotaAddress,
+    first_sender: Address,
     system_state_observer: Arc<SystemStateObserver>,
 }
 
@@ -83,11 +80,7 @@ impl Payload for BatchPaymentTestPayload {
     }
 
     fn make_transaction(&mut self) -> Transaction {
-        let addrs = self
-            .state
-            .addresses()
-            .cloned()
-            .collect::<Vec<IotaAddress>>();
+        let addrs = self.state.addresses().cloned().collect::<Vec<Address>>();
         let num_recipients = addrs.len();
         let sender = if self.num_payments == 0 {
             // first tx--use the address that has gas
@@ -240,7 +233,7 @@ impl Workload<dyn Payload> for BatchPaymentWorkload {
         _proxy: Arc<dyn ValidatorProxy + Sync + Send>,
         system_state_observer: Arc<SystemStateObserver>,
     ) -> Vec<Box<dyn Payload>> {
-        let mut gas_by_address: HashMap<IotaAddress, Vec<Gas>> = HashMap::new();
+        let mut gas_by_address: HashMap<Address, Vec<Gas>> = HashMap::new();
         debug!(
             "Making test payloads with {} payload gas...",
             self.payload_gas.len()
@@ -268,7 +261,7 @@ impl Workload<dyn Payload> for BatchPaymentWorkload {
         for (addr, gas) in gas_by_address {
             let mut state = InMemoryWallet::default();
             let key = gas[0].2.clone();
-            let mut objs: Vec<ObjectRef> = gas.into_iter().map(|g| g.0).collect();
+            let mut objs: Vec<ObjectReference> = gas.into_iter().map(|g| g.0).collect();
             let gas_coin = objs.pop().unwrap();
             state.add_account(addr, key, gas_coin, objs);
             // add empty accounts for `addr` to transfer to

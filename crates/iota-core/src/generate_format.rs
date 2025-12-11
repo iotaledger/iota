@@ -10,8 +10,8 @@ use fastcrypto_zkp::{bn254::zk_login::OIDCProvider, zk_login_utils::Bn254FrEleme
 use iota_sdk_2::types::crypto::{Intent, IntentMessage, PersonalMessage};
 use iota_types::{
     base_types::{
-        self, IotaAddress, MoveObjectType, MoveObjectType_, ObjectDigest, ObjectID,
-        TransactionDigest, TransactionEffectsDigest,
+        self, Address, MoveObjectType, MoveObjectType_, ObjectDigest, ObjectId, TransactionDigest,
+        TransactionEffectsDigest,
     },
     crypto::{
         AccountKeyPair, AggregateAuthoritySignature, AuthorityKeyPair, AuthorityPublicKeyBytes,
@@ -160,33 +160,33 @@ fn get_registry() -> Result<Registry> {
     tracer.trace_value(&mut samples, &sig3).unwrap();
     tracer.trace_value(&mut samples, &sig4).unwrap();
     tracer.trace_value(&mut samples, &sig5).unwrap();
-    // ObjectID and IotaAddress are the same length
-    let oid: ObjectID = addr.into();
+    // ObjectId and Address are the same length
+    let oid: ObjectId = addr.into();
     tracer.trace_value(&mut samples, &oid).unwrap();
 
     // ObjectDigest and Transaction digest use the `serde_as`speedup for ser/de =>
     // trace them
-    let od = ObjectDigest::random();
-    let td = TransactionDigest::random();
+    let od = ObjectDigest::new(rand::random());
+    let td = TransactionDigest::new(rand::random());
     tracer.trace_value(&mut samples, &od).unwrap();
     tracer.trace_value(&mut samples, &td).unwrap();
 
-    let teff = TransactionEffectsDigest::random();
+    let teff = TransactionEffectsDigest::new(rand::random());
     tracer.trace_value(&mut samples, &teff).unwrap();
 
-    let ccd = CheckpointContentsDigest::random();
+    let ccd = CheckpointContentsDigest::new(rand::random());
     tracer.trace_value(&mut samples, &ccd).unwrap();
 
     let struct_tag = StructTag::from_str("0x2::coin::Coin<0x2::iota::IOTA>").unwrap();
     tracer.trace_value(&mut samples, &struct_tag).unwrap();
 
-    let ccd = CheckpointDigest::random();
+    let ccd = CheckpointDigest::new(rand::random());
     tracer.trace_value(&mut samples, &ccd).unwrap();
 
     let tot = TypeOrigin {
         module_name: "module_name".to_string(),
         datatype_name: "datatype_name".to_string(),
-        package: ObjectID::random(),
+        package: ObjectId::new(rand::random()),
     };
     tracer.trace_value(&mut samples, &tot).unwrap();
 
@@ -201,9 +201,9 @@ fn get_registry() -> Result<Registry> {
     // We need Event sample here, because our GenesisTransaction contains an
     // Event while, sui's doesn't.
     let event = Event {
-        package_id: ObjectID::random(),
+        package_id: ObjectId::new(rand::random()),
         transaction_module: Identifier::new("foo").unwrap(),
-        sender: IotaAddress::ZERO,
+        sender: Address::ZERO,
         type_: struct_tag.clone(),
         contents: vec![0],
     };
@@ -228,9 +228,7 @@ fn get_registry() -> Result<Registry> {
     tracer.trace_type::<TransactionKind>(&samples).unwrap();
     tracer.trace_type::<MoveObjectType>(&samples).unwrap();
     tracer.trace_type::<MoveObjectType_>(&samples).unwrap();
-    tracer
-        .trace_type::<base_types::IotaAddress>(&samples)
-        .unwrap();
+    tracer.trace_type::<base_types::Address>(&samples).unwrap();
     tracer.trace_type::<DeleteKind>(&samples).unwrap();
     tracer.trace_type::<Argument>(&samples).unwrap();
     tracer.trace_type::<Command>(&samples).unwrap();
@@ -259,7 +257,7 @@ fn get_registry() -> Result<Registry> {
     let sender_data = SenderSignedData::new(
         TransactionData::new_with_gas_coins(
             TransactionKind::EndOfEpochTransaction(Vec::new()),
-            IotaAddress::ZERO,
+            Address::ZERO,
             Vec::new(),
             0,
             0,

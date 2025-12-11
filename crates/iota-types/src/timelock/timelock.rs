@@ -4,6 +4,7 @@
 use iota_protocol_config::ProtocolConfig;
 use iota_stardust_sdk::types::block::output::{BasicOutput, OutputId};
 use move_core_types::{
+    account_address::AccountAddress,
     ident_str,
     identifier::IdentStr,
     language_storage::{StructTag, TypeTag},
@@ -14,9 +15,8 @@ use super::{
     label::label_struct_tag_to_string, stardust_upgrade_label::stardust_upgrade_label_type,
 };
 use crate::{
-    IOTA_FRAMEWORK_ADDRESS,
     balance::Balance,
-    base_types::{IotaAddress, MoveObjectType, ObjectID, SequenceNumber, TxContext},
+    base_types::{Address, MoveObjectType, ObjectId, TxContext, Version},
     error::{ExecutionError, IotaError},
     gas_coin::GasCoin,
     id::UID,
@@ -39,7 +39,7 @@ pub const VESTED_REWARD_ID_PREFIX: &str =
 pub enum VestedRewardError {
     #[error("failed to create genesis move object, owner: {owner}, timelock: {timelock:#?}")]
     ObjectCreation {
-        owner: IotaAddress,
+        owner: Address,
         timelock: TimeLock<Balance>,
         source: ExecutionError,
     },
@@ -105,7 +105,7 @@ pub fn try_from_stardust(
         return Err(VestedRewardError::NativeTokensNotSupported);
     }
 
-    let id = UID::new(ObjectID::new(output_id.hash()));
+    let id = UID::new(ObjectId::new(output_id.hash()));
     let locked = Balance::new(basic_output.amount());
 
     // We already checked the existence of the timelock unlock condition at this
@@ -124,10 +124,10 @@ pub fn try_from_stardust(
 /// Creates a genesis object from a time-locked balance.
 pub fn to_genesis_object(
     timelock: TimeLock<Balance>,
-    owner: IotaAddress,
+    owner: Address,
     protocol_config: &ProtocolConfig,
     tx_context: &TxContext,
-    version: SequenceNumber,
+    version: Version,
 ) -> Result<Object, VestedRewardError> {
     let move_object = {
         MoveObject::new_from_execution(
@@ -176,7 +176,7 @@ impl<T> TimeLock<T> {
     /// Get the TimeLock's `type`.
     pub fn type_(type_param: TypeTag) -> StructTag {
         StructTag {
-            address: IOTA_FRAMEWORK_ADDRESS,
+            address: AccountAddress::new(Address::FRAMEWORK.into_bytes()),
             module: TIMELOCK_MODULE_NAME.to_owned(),
             name: TIMELOCK_STRUCT_NAME.to_owned(),
             type_params: vec![type_param],
@@ -184,7 +184,7 @@ impl<T> TimeLock<T> {
     }
 
     /// Get the TimeLock's `id`.
-    pub fn id(&self) -> &ObjectID {
+    pub fn id(&self) -> &ObjectId {
         self.id.object_id()
     }
 
@@ -223,7 +223,7 @@ where
 
 /// Is this other StructTag representing a TimeLock?
 pub fn is_timelock(other: &StructTag) -> bool {
-    other.address == IOTA_FRAMEWORK_ADDRESS
+    other.address == AccountAddress::new(Address::FRAMEWORK.into_bytes())
         && other.module.as_ident_str() == TIMELOCK_MODULE_NAME
         && other.name.as_ident_str() == TIMELOCK_STRUCT_NAME
 }

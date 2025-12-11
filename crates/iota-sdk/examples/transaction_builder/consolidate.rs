@@ -17,6 +17,7 @@ use iota_sdk::{
         transaction::{Argument, Command, ObjectArg, TransactionData, TransactionKind},
     },
 };
+use iota_sdk_2::types::ObjectReference;
 use utils::{setup_for_write, sign_and_execute_transaction};
 
 #[tokio::main]
@@ -86,7 +87,7 @@ async fn main() -> Result<(), anyhow::Error> {
                 ..
             } = object_change
             {
-                gas_coin_ref.replace((object_id, version, digest));
+                gas_coin_ref.replace(ObjectReference::new(object_id, version, digest));
             }
         }
     }

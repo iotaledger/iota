@@ -26,9 +26,9 @@ use iota_names::{
 use iota_protocol_config::Chain;
 use iota_sdk::{IotaClient, PagedFn, wallet_context::WalletContext};
 use iota_types::{
-    IOTA_CLOCK_OBJECT_ID, IOTA_FRAMEWORK_PACKAGE_ID, TypeTag,
+    TypeTag,
     balance::Balance,
-    base_types::{IotaAddress, ObjectID},
+    base_types::{Address, ObjectId},
     coin::Coin,
     collection_types::{Entry, LinkedTable, LinkedTableNode, VecMap},
     digests::{ChainIdentifier, TransactionDigest},
@@ -108,7 +108,7 @@ pub enum NameCommand {
         name: Name,
         /// The coin to use for payment. If not provided, selects the first coin
         /// with enough balance.
-        coin: Option<ObjectID>,
+        coin: Option<ObjectId>,
         /// The address or alias to which the name will point. If the flag is
         /// specified without a value, the current active address will be used.
         #[arg(long)]
@@ -140,7 +140,7 @@ pub enum NameCommand {
         years: u8,
         /// The coin to use for payment. If not provided, selects the first coin
         /// with enough balance.
-        coin: Option<ObjectID>,
+        coin: Option<ObjectId>,
         /// Coupons to apply discounts to the price.
         #[arg(long, num_args(1..))]
         coupons: Vec<String>,
@@ -336,7 +336,7 @@ impl NameCommand {
                     args: vec![
                         IotaJsonValue::from_object_id(iota_names_config.object_id),
                         IotaJsonValue::from_object_id(nft.id()),
-                        IotaJsonValue::from_object_id(IOTA_CLOCK_OBJECT_ID),
+                        IotaJsonValue::from_object_id(ObjectId::CLOCK),
                     ],
                     payment,
                     gas_data,
@@ -435,20 +435,20 @@ impl NameCommand {
                     let coupons_package_address = get_coupons_package_address(&iota_client).await?;
 
                     for coupon in coupons {
-                        args.push(format!("--move-call {coupons_package_address}::coupon_house::apply_coupon register_intent @{} '{coupon}' @{IOTA_CLOCK_OBJECT_ID}", iota_names_config.object_id,
+                        args.push(format!("--move-call {coupons_package_address}::coupon_house::apply_coupon register_intent @{} '{coupon}' @{}", iota_names_config.object_id, ObjectId::CLOCK
                         ));
                     }
                 }
 
                 args.extend_from_slice(&[
                     format!(
-                        "--move-call {}::payments::handle_base_payment <{IOTA_FRAMEWORK_PACKAGE_ID}::iota::IOTA> @{} register_intent coins.0",
-                        iota_names_config.payments_package_address, iota_names_config.object_id
+                        "--move-call {}::payments::handle_base_payment <{}::iota::IOTA> @{} register_intent coins.0",
+                        iota_names_config.payments_package_address, ObjectId::from(Address::FRAMEWORK), iota_names_config.object_id
                     ),
                     "--assign receipt".to_string(),
                     format!(
-                        "--move-call {}::payment::register receipt @{} @{IOTA_CLOCK_OBJECT_ID}",
-                        iota_names_config.package_address, iota_names_config.object_id
+                        "--move-call {}::payment::register receipt @{} @{}",
+                        iota_names_config.package_address, iota_names_config.object_id, ObjectId::CLOCK
                     ),
                     "--assign nft".to_string(),
                 ]);
@@ -462,8 +462,8 @@ impl NameCommand {
                         bail!("cannot set reverse lookup if target address is not the sender");
                     }
                     args.push(format!(
-                        "--move-call {}::controller::set_target_address @{} nft some(@{target_address}) @{IOTA_CLOCK_OBJECT_ID}",
-                        iota_names_config.package_address, iota_names_config.object_id,
+                        "--move-call {}::controller::set_target_address @{} nft some(@{target_address}) @{}",
+                        iota_names_config.package_address, iota_names_config.object_id, ObjectId::CLOCK
                     ));
                 }
                 if set_reverse_lookup {
@@ -544,20 +544,20 @@ impl NameCommand {
                     let coupons_package_address = get_coupons_package_address(&iota_client).await?;
 
                     for coupon in coupons {
-                        args.push(format!("--move-call {coupons_package_address}::coupon_house::apply_coupon renew_intent @{} '{coupon}' @{IOTA_CLOCK_OBJECT_ID}", iota_names_config.object_id,
+                        args.push(format!("--move-call {coupons_package_address}::coupon_house::apply_coupon renew_intent @{} '{coupon}' @{}", iota_names_config.object_id, ObjectId::CLOCK
                         ));
                     }
                 }
 
                 args.extend_from_slice(&[
                     format!(
-                        "--move-call {}::payments::handle_base_payment <{IOTA_FRAMEWORK_PACKAGE_ID}::iota::IOTA> @{} renew_intent coins.0",
-                        iota_names_config.payments_package_address, iota_names_config.object_id
+                        "--move-call {}::payments::handle_base_payment <{}::iota::IOTA> @{} renew_intent coins.0",
+                        iota_names_config.payments_package_address, ObjectId::from(Address::FRAMEWORK), iota_names_config.object_id
                     ),
                     "--assign receipt".to_string(),
                     format!(
-                        "--move-call {}::payment::renew receipt @{} @{nft_id} @{IOTA_CLOCK_OBJECT_ID}",
-                        iota_names_config.package_address, iota_names_config.object_id,
+                        "--move-call {}::payment::renew receipt @{} @{nft_id} @{}",
+                        iota_names_config.package_address, iota_names_config.object_id, ObjectId::CLOCK
                     ),
                 ]);
 
@@ -669,7 +669,7 @@ impl NameCommand {
                         IotaJsonValue::from_object_id(iota_names_config.object_id),
                         IotaJsonValue::from_object_id(nft.id()),
                         IotaJsonValue::new(serde_json::to_value(vec![new_address])?)?,
-                        IotaJsonValue::from_object_id(IOTA_CLOCK_OBJECT_ID),
+                        IotaJsonValue::from_object_id(ObjectId::CLOCK),
                     ],
                     payment,
                     gas_data,
@@ -710,7 +710,7 @@ impl NameCommand {
                         IotaJsonValue::from_object_id(nft.id()),
                         IotaJsonValue::new(serde_json::Value::String(key.clone()))?,
                         IotaJsonValue::new(serde_json::Value::String(value.clone()))?,
-                        IotaJsonValue::from_object_id(IOTA_CLOCK_OBJECT_ID),
+                        IotaJsonValue::from_object_id(ObjectId::CLOCK),
                     ],
                     payment,
                     gas_data,
@@ -744,10 +744,15 @@ impl NameCommand {
                 let iota_names_config = get_iota_names_config(&iota_client).await?;
 
                 let res = IotaClientCommands::Call {
-                    package: IOTA_FRAMEWORK_PACKAGE_ID,
+                    package: ObjectId::from(Address::FRAMEWORK),
                     module: "transfer".to_owned(),
                     function: "public_transfer".to_owned(),
-                    type_args: vec![nft.type_(iota_names_config.package_address.into()).into()],
+                    type_args: vec![
+                        nft.type_(AccountAddress::new(
+                            iota_names_config.package_address.into_bytes(),
+                        ))
+                        .into(),
+                    ],
                     args: vec![
                         IotaJsonValue::from_object_id(nft.id()),
                         IotaJsonValue::new(serde_json::to_value(address)?)?,
@@ -827,8 +832,8 @@ impl NameCommand {
                     args: vec![
                         IotaJsonValue::from_object_id(iota_names_config.object_id),
                         IotaJsonValue::from_object_id(nft.id()),
-                        IotaJsonValue::new(serde_json::to_value(Vec::<IotaAddress>::new())?)?,
-                        IotaJsonValue::from_object_id(IOTA_CLOCK_OBJECT_ID),
+                        IotaJsonValue::new(serde_json::to_value(Vec::<Address>::new())?)?,
+                        IotaJsonValue::from_object_id(ObjectId::CLOCK),
                     ],
                     payment,
                     gas_data,
@@ -867,7 +872,7 @@ impl NameCommand {
                         IotaJsonValue::from_object_id(iota_names_config.object_id),
                         IotaJsonValue::from_object_id(nft.id()),
                         IotaJsonValue::new(serde_json::Value::String(key.clone()))?,
-                        IotaJsonValue::from_object_id(IOTA_CLOCK_OBJECT_ID),
+                        IotaJsonValue::from_object_id(ObjectId::CLOCK),
                     ],
                     payment,
                     gas_data,
@@ -903,7 +908,7 @@ pub enum AuctionCommand {
         /// The coin to use for payment. If not provided, selects the first coin
         /// with enough balance.
         #[arg(long)]
-        coin: Option<ObjectID>,
+        coin: Option<ObjectId>,
         // Whether to print detailed output.
         #[arg(long)]
         verbose: bool,
@@ -941,7 +946,7 @@ pub enum AuctionCommand {
         /// The coin to use for payment. If not provided, selects the first coin
         /// with enough balance.
         #[arg(long)]
-        coin: Option<ObjectID>,
+        coin: Option<ObjectId>,
         // Whether to print detailed output.
         #[arg(long)]
         verbose: bool,
@@ -998,9 +1003,10 @@ impl AuctionCommand {
                     format!("--split-coins {coin} [{amount}]"),
                     "--assign coins".to_string(),
                     format!(
-                        "--move-call {auction_package_address}::auction::place_bid @{} '{}' coins.0 @{IOTA_CLOCK_OBJECT_ID}",
+                        "--move-call {auction_package_address}::auction::place_bid @{} '{}' coins.0 @{}",
                         auction_house.id,
                         name.to_string(),
+                        ObjectId::CLOCK
                     ),
                 ];
                 let display = take(&mut processing.display);
@@ -1039,8 +1045,9 @@ impl AuctionCommand {
                     "--move-call iota::tx_context::sender".to_string(),
                     "--assign sender".to_string(),
                     format!(
-                        "--move-call {auction_package_address}::auction::claim @{} '{name}' @{IOTA_CLOCK_OBJECT_ID}",
-                        auction_house.id
+                        "--move-call {auction_package_address}::auction::claim @{} '{name}' @{}",
+                        auction_house.id,
+                        ObjectId::CLOCK
                     ),
                     "--assign nft".to_string(),
                     "--transfer-objects [nft] sender".to_string(),
@@ -1101,10 +1108,11 @@ impl AuctionCommand {
                     format!("--split-coins {coin} [{amount}]"),
                     "--assign coins".to_string(),
                     format!(
-                        "--move-call {auction_package_address}::auction::start_auction_and_place_bid @{} @{} '{}' coins.0 @{IOTA_CLOCK_OBJECT_ID}",
+                        "--move-call {auction_package_address}::auction::start_auction_and_place_bid @{} @{} '{}' coins.0 @{}",
                         auction_house.id,
                         iota_names_config.object_id,
                         name.to_string(),
+                        ObjectId::CLOCK
                     ),
                 ];
                 let display = take(&mut processing.display);
@@ -1258,7 +1266,7 @@ impl SubnameCommand {
                     args: vec![
                         IotaJsonValue::from_object_id(iota_names_config.object_id),
                         IotaJsonValue::from_object_id(parent.id()),
-                        IotaJsonValue::from_object_id(IOTA_CLOCK_OBJECT_ID),
+                        IotaJsonValue::from_object_id(ObjectId::CLOCK),
                         IotaJsonValue::new(JsonValue::String(name.to_string()))?,
                         IotaJsonValue::new(JsonValue::String(target_address.to_string()))?,
                     ],
@@ -1317,9 +1325,10 @@ impl SubnameCommand {
                     "--assign sender".to_owned(),
                     format!(
                         "--move-call {package_id}::{module_name}::new \
-                        @{} @{parent_id} @{IOTA_CLOCK_OBJECT_ID} \
+                        @{} @{parent_id} @{} \
                         '{name}' {expiration_timestamp} {allow_creation} {allow_time_extension}",
-                        iota_names_config.object_id
+                        iota_names_config.object_id,
+                        ObjectId::CLOCK
                     ),
                     "--assign nft".to_owned(),
                     "--transfer-objects [nft] sender".to_owned(),
@@ -1369,7 +1378,7 @@ impl SubnameCommand {
                     args: vec![
                         IotaJsonValue::from_object_id(iota_names_config.object_id),
                         IotaJsonValue::from_object_id(parent.id()),
-                        IotaJsonValue::from_object_id(IOTA_CLOCK_OBJECT_ID),
+                        IotaJsonValue::from_object_id(ObjectId::CLOCK),
                         IotaJsonValue::new(JsonValue::String(name.to_string()))?,
                         IotaJsonValue::new(JsonValue::Bool(allow_creation))?,
                         IotaJsonValue::new(JsonValue::Bool(allow_time_extension))?,
@@ -1478,7 +1487,7 @@ pub enum NameCommandResult {
     List(Vec<NameRegistration>),
     Lookup {
         name: Name,
-        target_address: Option<IotaAddress>,
+        target_address: Option<Address>,
     },
     Register {
         record: NameRecord,
@@ -1500,7 +1509,7 @@ pub enum NameCommandResult {
         digest: TransactionDigest,
     },
     ReverseLookup {
-        address: IotaAddress,
+        address: Address,
         name: Option<Name>,
     },
     SetReverseLookup {
@@ -1519,11 +1528,11 @@ pub enum NameCommandResult {
     },
     Transfer {
         name: Name,
-        to: IotaAddress,
+        to: Address,
         digest: TransactionDigest,
     },
     UnsetReverseLookup {
-        address: IotaAddress,
+        address: Address,
         digest: TransactionDigest,
     },
     UnsetTargetAddress {
@@ -1952,12 +1961,14 @@ impl std::fmt::Debug for NameCommandResult {
 impl PrintableResult for NameCommandResult {}
 
 async fn get_owned_nfts<T: DeserializeOwned + IotaNamesNft>(
-    address: IotaAddress,
+    address: Address,
     context: &mut WalletContext,
 ) -> anyhow::Result<Vec<T>> {
     let client = context.get_client().await?;
     let iota_names_config = get_iota_names_config(&client).await?;
-    let nft_type = T::type_(iota_names_config.package_address.into());
+    let nft_type = T::type_(AccountAddress::new(
+        iota_names_config.package_address.into_bytes(),
+    ));
     let responses = PagedFn::collect::<Vec<_>>(async |cursor| {
         client
             .read_api()
@@ -2022,7 +2033,7 @@ impl FromStr for Timestamp {
 
 async fn get_owned_nft_by_name<T: DeserializeOwned + IotaNamesNft>(
     name: &Name,
-    sender: Option<IotaAddress>,
+    sender: Option<Address>,
     context: &mut WalletContext,
 ) -> anyhow::Result<T> {
     let name = name.to_string();
@@ -2039,7 +2050,7 @@ async fn get_owned_nft_by_name<T: DeserializeOwned + IotaNamesNft>(
 
 async fn get_proxy_nft_by_name(
     name: &Name,
-    sender: Option<IotaAddress>,
+    sender: Option<Address>,
     context: &mut WalletContext,
 ) -> anyhow::Result<IotaNamesNftProxy> {
     Ok(if name.is_sln() {
@@ -2060,7 +2071,7 @@ pub async fn get_registry_entry(
 }
 
 async fn get_reverse_registry_entry(
-    address: IotaAddress,
+    address: Address,
     client: &IotaClient,
 ) -> anyhow::Result<Option<ReverseRegistryEntry>> {
     let iota_names_config = get_iota_names_config(client).await?;
@@ -2187,7 +2198,7 @@ impl IotaNamesNftProxy {
     def_enum_fns! {
         fn expiration_timestamp_ms(&self) -> u64;
         fn has_expired(&self) -> bool;
-        fn id(&self) -> ObjectID;
+        fn id(&self) -> ObjectId;
     }
 
     fn type_(&self, package_id: AccountAddress) -> StructTag {
@@ -2197,7 +2208,7 @@ impl IotaNamesNftProxy {
         }
     }
 
-    async fn controller_package_id(&self, client: &IotaClient) -> anyhow::Result<ObjectID> {
+    async fn controller_package_id(&self, client: &IotaClient) -> anyhow::Result<ObjectId> {
         Ok(match self {
             IotaNamesNftProxy::Name(_) => {
                 let names_config = get_iota_names_config(client).await?;
@@ -2214,7 +2225,7 @@ impl IotaNamesNftProxy {
         })
     }
 
-    async fn subname_package_id(&self, client: &IotaClient) -> anyhow::Result<ObjectID> {
+    async fn subname_package_id(&self, client: &IotaClient) -> anyhow::Result<ObjectId> {
         Ok(match self {
             IotaNamesNftProxy::Name(_) => {
                 fetch_package_id_by_module_and_name(
@@ -2298,9 +2309,9 @@ impl PricingConfig {
 // Returns "@<coin id>" or "gas" to be used as coin payment argument in a PTB
 async fn select_coin_arg_for_payment(
     name: &str,
-    coin: Option<ObjectID>,
+    coin: Option<ObjectId>,
     price: u64,
-    sender: Option<IotaAddress>,
+    sender: Option<Address>,
     context: &mut WalletContext,
 ) -> anyhow::Result<String> {
     Ok(match coin {
@@ -2343,7 +2354,7 @@ pub struct Auction {
     pub name: Name,
     pub start_timestamp_ms: u64,
     pub end_timestamp_ms: u64,
-    pub current_bidder: IotaAddress,
+    pub current_bidder: Address,
     pub current_bid: Coin,
     pub nft: NameRegistration,
 }
@@ -2372,7 +2383,7 @@ impl Auction {
 
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub struct AuctionEntry {
-    pub id: ObjectID,
+    pub id: ObjectId,
     pub name: Name,
     pub node: LinkedTableNode<Name, Auction>,
 }
@@ -2380,7 +2391,7 @@ pub struct AuctionEntry {
 #[expect(unused)]
 #[derive(Debug, Deserialize)]
 struct AuctionHouse {
-    id: ObjectID,
+    id: ObjectId,
     balance: Balance,
     auctions: LinkedTable<Name>,
 }
@@ -2428,7 +2439,7 @@ async fn fetch_package_id_by_module_and_name(
     client: &IotaClient,
     module_name: &Identifier,
     struct_name: &Identifier,
-) -> anyhow::Result<ObjectID> {
+) -> anyhow::Result<ObjectId> {
     let names_config = get_iota_names_config(client).await?;
     let dynamic_fields_page = client
         .read_api()
@@ -2439,7 +2450,7 @@ async fn fetch_package_id_by_module_and_name(
             for param in &tag.type_params {
                 if let TypeTag::Struct(ref param_tag) = param {
                     if &param_tag.module == module_name && &param_tag.name == struct_name {
-                        return Ok(ObjectID::from(param_tag.address));
+                        return Ok(ObjectId::new(param_tag.address.into_bytes()));
                     }
                 }
             }
@@ -2448,7 +2459,7 @@ async fn fetch_package_id_by_module_and_name(
     bail!("failed to find package ID for {module_name}::{struct_name}")
 }
 
-async fn get_auction_package_address(client: &IotaClient) -> anyhow::Result<ObjectID> {
+async fn get_auction_package_address(client: &IotaClient) -> anyhow::Result<ObjectId> {
     let auction_package_address = fetch_package_id_by_module_and_name(
         client,
         &Identifier::from_str("auction")?,
@@ -2460,9 +2471,9 @@ async fn get_auction_package_address(client: &IotaClient) -> anyhow::Result<Obje
 }
 
 async fn get_auction_house_id(
-    auction_package_id: ObjectID,
+    auction_package_id: ObjectId,
     client: &SimpleClient,
-) -> anyhow::Result<ObjectID> {
+) -> anyhow::Result<ObjectId> {
     let variable = GraphqlQueryVariable {
         name: "type".to_string(),
         ty: "String".to_string(),
@@ -2491,7 +2502,7 @@ async fn get_auction_house_id(
     let object_id_str = response_body["data"]["objects"]["edges"][0]["node"]["address"]
         .as_str()
         .ok_or(anyhow::anyhow!("missing AuctionHouse object"))?;
-    let object_id = ObjectID::from_str(object_id_str)?;
+    let object_id = ObjectId::from_str(object_id_str)?;
     Ok(object_id)
 }
 
@@ -2505,7 +2516,7 @@ pub enum RpcError {
 
 async fn get_object_from_bcs<T: DeserializeOwned>(
     client: &IotaClient,
-    object_id: ObjectID,
+    object_id: ObjectId,
 ) -> Result<T, RpcError> {
     let object_response = client
         .read_api()
@@ -2532,7 +2543,7 @@ fn deserialize_move_object_from_bcs<T: DeserializeOwned>(
         .deserialize::<T>()
 }
 
-async fn get_coupons_package_address(client: &IotaClient) -> anyhow::Result<ObjectID> {
+async fn get_coupons_package_address(client: &IotaClient) -> anyhow::Result<ObjectId> {
     let coupons_package_address = fetch_package_id_by_module_and_name(
         client,
         &Identifier::from_str("coupon_house")?,
@@ -2560,7 +2571,7 @@ struct CouponRange {
 struct CouponRules {
     pub length: Option<CouponRange>,
     pub available_claims: Option<u64>,
-    pub user: Option<IotaAddress>,
+    pub user: Option<Address>,
     pub expiration: Option<u64>,
     pub years: Option<CouponRange>,
     pub can_stack: bool,
@@ -2578,7 +2589,7 @@ struct Coupon {
 struct CouponHouse {
     coupons: Coupons,
     version: u8,
-    id: ObjectID,
+    id: ObjectId,
 }
 
 impl CouponHouse {

@@ -21,7 +21,7 @@ use iota_network::randomness;
 use iota_protocol_config::{Chain, ProtocolConfig};
 use iota_swarm_config::{genesis_config::AccountConfig, network_config::NetworkConfig};
 use iota_types::{
-    base_types::{AuthorityName, ObjectID},
+    base_types::{AuthorityName, ObjectId},
     crypto::AuthorityKeyPair,
     digests::ChainIdentifier,
     executable_transaction::VerifiedExecutableTransaction,
@@ -210,8 +210,10 @@ impl<'a> TestAuthorityBuilder<'a> {
         let genesis_committee = genesis.committee().unwrap();
         let path = self.store_base_path.unwrap_or_else(|| {
             let dir = std::env::temp_dir();
-            let store_base_path =
-                dir.join(format!("DB_{:?}", nondeterministic!(ObjectID::random())));
+            let store_base_path = dir.join(format!(
+                "DB_{:?}",
+                nondeterministic!(ObjectId::new(rand::random()))
+            ));
             std::fs::create_dir(&store_base_path).unwrap();
             store_base_path
         });

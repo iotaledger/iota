@@ -14,8 +14,7 @@ use iota_sdk::rpc_types::{
     IotaTransactionBlockKind, IotaTransactionBlockResponse,
 };
 use iota_types::{
-    IOTA_SYSTEM_ADDRESS, IOTA_SYSTEM_PACKAGE_ID,
-    base_types::{IotaAddress, ObjectID, SequenceNumber},
+    base_types::{Address, ObjectId, Version},
     digests::TransactionDigest,
     gas_coin::{GAS, GasCoin},
     governance::{ADD_STAKE_FUN_NAME, WITHDRAW_STAKE_FUN_NAME},
@@ -24,6 +23,7 @@ use iota_types::{
     transaction::TransactionData,
 };
 use move_core_types::{
+    account_address::AccountAddress,
     ident_str,
     language_storage::{ModuleId, StructTag},
     resolver::ModuleResolver,
@@ -219,7 +219,7 @@ impl Operations {
 
     fn from_transaction(
         tx: IotaTransactionBlockKind,
-        sender: IotaAddress,
+        sender: Address,
         status: Option<OperationStatus>,
     ) -> Result<Vec<Operation>, Error> {
         Ok(match tx {
@@ -249,7 +249,7 @@ impl Operations {
     }
 
     fn parse_programmable_transaction(
-        sender: IotaAddress,
+        sender: Address,
         status: Option<OperationStatus>,
         pt: IotaProgrammableTransactionBlock,
     ) -> Result<Vec<Operation>, Error> {
@@ -301,7 +301,7 @@ impl Operations {
             Some(amounts)
         }
         fn transfer_object(
-            aggregated_recipients: &mut HashMap<IotaAddress, u64>,
+            aggregated_recipients: &mut HashMap<Address, u64>,
             inputs: &[IotaCallArg],
             known_results: &[Vec<KnownValue>],
             objs: &[IotaArgument],
@@ -334,7 +334,7 @@ impl Operations {
             inputs: &[IotaCallArg],
             known_results: &[Vec<KnownValue>],
             call: &IotaProgrammableMoveCall,
-        ) -> Result<Option<(Option<u64>, IotaAddress)>, Error> {
+        ) -> Result<Option<(Option<u64>, Address)>, Error> {
             let IotaProgrammableMoveCall { arguments, .. } = call;
             let (amount, validator) = match &arguments[..] {
                 [_, coin, validator] => {
@@ -377,7 +377,7 @@ impl Operations {
         fn unstake_call(
             inputs: &[IotaCallArg],
             call: &IotaProgrammableMoveCall,
-        ) -> Result<Option<ObjectID>, Error> {
+        ) -> Result<Option<ObjectId>, Error> {
             let IotaProgrammableMoveCall { arguments, .. } = call;
             let id = match &arguments[..] {
                 [_, stake_id] => {
@@ -404,7 +404,7 @@ impl Operations {
         }
         let IotaProgrammableTransactionBlock { inputs, commands } = &pt;
         let mut known_results: Vec<Vec<KnownValue>> = vec![];
-        let mut aggregated_recipients: HashMap<IotaAddress, u64> = HashMap::new();
+        let mut aggregated_recipients: HashMap<Address, u64> = HashMap::new();
         let mut needs_generic = false;
         let mut operations = vec![];
         let mut stake_ids = vec![];
@@ -486,23 +486,23 @@ impl Operations {
     }
 
     fn is_stake_call(tx: &IotaProgrammableMoveCall) -> bool {
-        tx.package == IOTA_SYSTEM_PACKAGE_ID
+        tx.package == ObjectId::from_address(Address::SYSTEM)
             && tx.module == IOTA_SYSTEM_MODULE_NAME.as_str()
             && tx.function == ADD_STAKE_FUN_NAME.as_str()
     }
 
     fn is_unstake_call(tx: &IotaProgrammableMoveCall) -> bool {
-        tx.package == IOTA_SYSTEM_PACKAGE_ID
+        tx.package == ObjectId::from_address(Address::SYSTEM)
             && tx.module == IOTA_SYSTEM_MODULE_NAME.as_str()
             && tx.function == WITHDRAW_STAKE_FUN_NAME.as_str()
     }
 
     fn process_balance_change(
-        gas_owner: IotaAddress,
+        gas_owner: Address,
         gas_used: i128,
         balance_changes: &[BalanceChange],
         status: Option<OperationStatus>,
-        balances: HashMap<IotaAddress, i128>,
+        balances: HashMap<Address, i128>,
     ) -> impl Iterator<Item = Operation> {
         let mut balances = balance_changes
             .iter()
@@ -636,7 +636,7 @@ impl TryFrom<IotaTransactionBlockResponse> for Operations {
 }
 
 fn is_unstake_event(tag: &StructTag) -> bool {
-    tag.address == IOTA_SYSTEM_ADDRESS
+    tag.address == AccountAddress::new(Address::SYSTEM.into_bytes())
         && tag.module.as_ident_str() == ident_str!("validator")
         && tag.name.as_ident_str() == ident_str!("UnstakingRequestEvent")
 }
@@ -672,14 +672,14 @@ impl PartialEq for Operation {
 #[derive(Deserialize, Serialize, Clone, Debug, Eq, PartialEq)]
 pub enum OperationMetadata {
     GenericTransaction(IotaTransactionBlockKind),
-    Stake { validator: IotaAddress },
-    WithdrawStake { stake_ids: Vec<ObjectID> },
+    Stake { validator: Address },
+    WithdrawStake { stake_ids: Vec<ObjectId> },
 }
 
 impl Operation {
     fn generic_op(
         status: Option<OperationStatus>,
-        sender: IotaAddress,
+        sender: Address,
         tx: IotaTransactionBlockKind,
     ) -> Self {
         Operation {
@@ -693,7 +693,7 @@ impl Operation {
         }
     }
 
-    pub fn genesis(index: u64, sender: IotaAddress, coin: GasCoin) -> Self {
+    pub fn genesis(index: u64, sender: Address, coin: GasCoin) -> Self {
         Operation {
             operation_identifier: index.into(),
             type_: OperationType::Genesis,
@@ -704,7 +704,7 @@ impl Operation {
                 coin_identifier: CoinIdentifier {
                     identifier: CoinID {
                         id: *coin.id(),
-                        version: SequenceNumber::new(),
+                        version: Version::default(),
                     },
                 },
                 coin_action: CoinAction::CoinCreated,
@@ -713,7 +713,7 @@ impl Operation {
         }
     }
 
-    fn pay_iota(status: Option<OperationStatus>, address: IotaAddress, amount: i128) -> Self {
+    fn pay_iota(status: Option<OperationStatus>, address: Address, amount: i128) -> Self {
         Operation {
             operation_identifier: Default::default(),
             type_: OperationType::PayIota,
@@ -725,7 +725,7 @@ impl Operation {
         }
     }
 
-    fn balance_change(status: Option<OperationStatus>, addr: IotaAddress, amount: i128) -> Self {
+    fn balance_change(status: Option<OperationStatus>, addr: Address, amount: i128) -> Self {
         Self {
             operation_identifier: Default::default(),
             type_: OperationType::IotaBalanceChange,
@@ -736,7 +736,7 @@ impl Operation {
             metadata: None,
         }
     }
-    fn gas(addr: IotaAddress, amount: i128) -> Self {
+    fn gas(addr: Address, amount: i128) -> Self {
         Self {
             operation_identifier: Default::default(),
             type_: OperationType::Gas,
@@ -747,7 +747,7 @@ impl Operation {
             metadata: None,
         }
     }
-    fn stake_reward(status: Option<OperationStatus>, addr: IotaAddress, amount: i128) -> Self {
+    fn stake_reward(status: Option<OperationStatus>, addr: Address, amount: i128) -> Self {
         Self {
             operation_identifier: Default::default(),
             type_: OperationType::StakeReward,
@@ -758,7 +758,7 @@ impl Operation {
             metadata: None,
         }
     }
-    fn stake_principle(status: Option<OperationStatus>, addr: IotaAddress, amount: i128) -> Self {
+    fn stake_principle(status: Option<OperationStatus>, addr: Address, amount: i128) -> Self {
         Self {
             operation_identifier: Default::default(),
             type_: OperationType::StakePrinciple,

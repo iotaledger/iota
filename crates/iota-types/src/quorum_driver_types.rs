@@ -11,7 +11,7 @@ use strum::AsRefStr;
 use thiserror::Error;
 
 use crate::{
-    base_types::{AuthorityName, EpochId, ObjectRef, TransactionDigest},
+    base_types::{AuthorityName, EpochId, ObjectReference, TransactionDigest},
     committee::{QUORUM_THRESHOLD, StakeUnit, TOTAL_VOTING_POWER},
     crypto::{AuthorityStrongQuorumSignInfo, ConciseAuthorityPublicKeyBytes},
     effects::{
@@ -19,7 +19,7 @@ use crate::{
         VerifiedCertifiedTransactionEffects,
     },
     error::IotaError,
-    messages_checkpoint::CheckpointSequenceNumber,
+    messages_checkpoint::CheckpointVersion,
     object::Object,
     transaction::Transaction,
 };
@@ -44,7 +44,7 @@ pub enum QuorumDriverError {
         "Failed to sign transaction by a quorum of validators because of locked objects: {conflicting_txes:?}"
     )]
     ObjectsDoubleUsed {
-        conflicting_txes: BTreeMap<TransactionDigest, (Vec<(AuthorityName, ObjectRef)>, StakeUnit)>,
+        conflicting_txes: BTreeMap<TransactionDigest, (Vec<(AuthorityName, ObjectReference)>, StakeUnit)>,
     },
     #[error("Transaction timed out before reaching finality")]
     TimeoutBeforeFinality,
@@ -177,7 +177,7 @@ pub enum ExecuteTransactionRequestType {
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub enum EffectsFinalityInfo {
     Certified(AuthorityStrongQuorumSignInfo),
-    Checkpointed(EpochId, CheckpointSequenceNumber),
+    Checkpointed(EpochId, CheckpointVersion),
 }
 
 /// When requested to execute a transaction with WaitForLocalExecution,

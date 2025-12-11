@@ -5687,6 +5687,7 @@ dependencies = [
  "object_store 0.10.2",
  "parquet",
  "prometheus",
+ "rand 0.8.5",
  "serde",
  "serde_json",
  "simulacrum",
@@ -6304,6 +6305,7 @@ dependencies = [
  "iota-types",
  "parking_lot 0.12.3",
  "prometheus",
+ "rand 0.8.5",
  "scopeguard",
  "serde",
  "tap",
@@ -6703,6 +6705,7 @@ dependencies = [
  "iota-metrics",
  "iota-types",
  "prometheus",
+ "rand 0.8.5",
  "telemetry-subscribers",
  "tokio",
  "tokio-util 0.7.12",
@@ -6740,6 +6743,7 @@ dependencies = [
  "move-binary-format",
  "move-bytecode-utils",
  "move-core-types",
+ "rand 0.8.5",
  "schemars",
  "serde",
  "serde_json",
@@ -6788,6 +6792,7 @@ dependencies = [
  "move-core-types",
  "move-package",
  "prometheus",
+ "rand 0.8.5",
  "serde",
  "serde_json",
  "signature 1.6.4",
@@ -6884,6 +6889,7 @@ dependencies = [
  "move-core-types",
  "move-disassembler",
  "move-ir-types",
+ "rand 0.8.5",
  "schemars",
  "serde",
  "serde_json",
@@ -7172,6 +7178,7 @@ dependencies = [
  "bcs",
  "iota-types",
  "move-core-types",
+ "rand 0.8.5",
  "serde",
  "thiserror 1.0.64",
 ]
@@ -7629,6 +7636,7 @@ dependencies = [
  "iota-sdk 3.0.0-alpha.1",
  "iota-types",
  "itertools 0.13.0",
+ "rand 0.8.5",
  "serde",
  "serde_json",
  "shellexpand",
@@ -7721,7 +7729,7 @@ dependencies = [
 [[package]]
 name = "iota-sdk"
 version = "3.0.0-alpha.1"
-source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=281ceb716a8703528ba8da7ed3728b2d13fa9bd0#281ceb716a8703528ba8da7ed3728b2d13fa9bd0"
+source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=263fde82fe514ad5a6c3cc1ab80909ce69098d3d#263fde82fe514ad5a6c3cc1ab80909ce69098d3d"
 dependencies = [
  "iota-sdk-crypto",
  "iota-sdk-graphql-client",
@@ -7733,7 +7741,7 @@ dependencies = [
 [[package]]
 name = "iota-sdk-crypto"
 version = "0.0.1-alpha.1"
-source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=281ceb716a8703528ba8da7ed3728b2d13fa9bd0#281ceb716a8703528ba8da7ed3728b2d13fa9bd0"
+source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=263fde82fe514ad5a6c3cc1ab80909ce69098d3d#263fde82fe514ad5a6c3cc1ab80909ce69098d3d"
 dependencies = [
  "ark-bn254",
  "ark-ff",
@@ -7765,7 +7773,7 @@ dependencies = [
 [[package]]
 name = "iota-sdk-graphql-client"
 version = "0.0.1-alpha.1"
-source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=281ceb716a8703528ba8da7ed3728b2d13fa9bd0#281ceb716a8703528ba8da7ed3728b2d13fa9bd0"
+source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=263fde82fe514ad5a6c3cc1ab80909ce69098d3d#263fde82fe514ad5a6c3cc1ab80909ce69098d3d"
 dependencies = [
  "base64ct",
  "bcs",
@@ -7789,7 +7797,7 @@ dependencies = [
 [[package]]
 name = "iota-sdk-graphql-client-build"
 version = "0.0.1-alpha.1"
-source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=281ceb716a8703528ba8da7ed3728b2d13fa9bd0#281ceb716a8703528ba8da7ed3728b2d13fa9bd0"
+source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=263fde82fe514ad5a6c3cc1ab80909ce69098d3d#263fde82fe514ad5a6c3cc1ab80909ce69098d3d"
 dependencies = [
  "cynic-codegen",
 ]
@@ -7797,7 +7805,7 @@ dependencies = [
 [[package]]
 name = "iota-sdk-transaction-builder"
 version = "0.0.1-alpha.1"
-source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=281ceb716a8703528ba8da7ed3728b2d13fa9bd0#281ceb716a8703528ba8da7ed3728b2d13fa9bd0"
+source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=263fde82fe514ad5a6c3cc1ab80909ce69098d3d#263fde82fe514ad5a6c3cc1ab80909ce69098d3d"
 dependencies = [
  "base64ct",
  "bcs",
@@ -7818,7 +7826,7 @@ dependencies = [
 [[package]]
 name = "iota-sdk-types"
 version = "0.0.1-alpha.1"
-source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=281ceb716a8703528ba8da7ed3728b2d13fa9bd0#281ceb716a8703528ba8da7ed3728b2d13fa9bd0"
+source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=263fde82fe514ad5a6c3cc1ab80909ce69098d3d#263fde82fe514ad5a6c3cc1ab80909ce69098d3d"
 dependencies = [
  "base64ct",
  "bcs",
@@ -8030,6 +8038,7 @@ dependencies = [
  "parking_lot 0.12.3",
  "percent-encoding",
  "prometheus",
+ "rand 0.8.5",
  "reqwest 0.12.7",
  "rustls 0.23.28",
  "serde",
@@ -8213,6 +8222,7 @@ dependencies = [
  "num_cpus",
  "object_store 0.10.2",
  "prometheus",
+ "rand 0.8.5",
  "ron",
  "serde",
  "serde_json",
@@ -14691,6 +14701,7 @@ dependencies = [
  "iota-types",
  "jsonrpsee",
  "move-binary-format",
+ "move-core-types",
  "prometheus",
  "rand 0.8.5",
  "tokio",

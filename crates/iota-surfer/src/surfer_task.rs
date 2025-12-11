@@ -6,7 +6,7 @@ use std::{collections::HashMap, sync::Arc};
 
 use iota_core::authority::authority_store_tables::LiveObject;
 use iota_types::{
-    base_types::{IotaAddress, ObjectRef},
+    base_types::{Address, ObjectReference},
     object::Owner,
 };
 use rand::{Rng, SeedableRng, rngs::StdRng};
@@ -36,7 +36,7 @@ impl SurferTask {
         let immutable_objects: ImmObjects = Arc::new(RwLock::new(HashMap::new()));
         let shared_objects: SharedObjects = Arc::new(RwLock::new(HashMap::new()));
 
-        let mut accounts: HashMap<IotaAddress, (Option<ObjectRef>, OwnedObjects)> = cluster
+        let mut accounts: HashMap<Address, (Option<ObjectReference>, OwnedObjects)> = cluster
             .get_addresses()
             .iter()
             .skip(skip_accounts)
@@ -76,7 +76,7 @@ impl SurferTask {
                                     .await
                                     .entry(struct_tag)
                                     .or_default()
-                                    .push((obj_ref.0, initial_shared_version));
+                                    .push((obj_ref.object_id, initial_shared_version));
                             }
                             Owner::AddressOwner(address) => {
                                 if let Some((gas_object, owned_objects)) =

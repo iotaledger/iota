@@ -21,7 +21,7 @@ use iota_sdk::{
         IotaObjectDataOptions, IotaObjectResponseQuery, IotaTransactionBlockEffectsV1,
         OwnedObjectRef,
     },
-    types::{base_types::ObjectID, object::Owner, transaction::TEST_ONLY_GAS_UNIT_FOR_PUBLISH},
+    types::{base_types::ObjectId, object::Owner, transaction::TEST_ONLY_GAS_UNIT_FOR_PUBLISH},
     wallet_context::WalletContext,
 };
 use iota_source_validation_service::{
@@ -180,7 +180,7 @@ Network localnet: Multiple source verification errors found:
 async fn run_publish(
     package_path: PathBuf,
     context: &mut WalletContext,
-    gas_obj_id: ObjectID,
+    gas_obj_id: ObjectId,
     rgp: u64,
 ) -> anyhow::Result<IotaTransactionBlockEffectsV1> {
     let build_config = BuildConfig::new_for_testing().config;
@@ -214,7 +214,7 @@ async fn run_upgrade(
     upgrade_pkg_path: PathBuf,
     cap: &OwnedObjectRef,
     context: &mut WalletContext,
-    gas_obj_id: ObjectID,
+    gas_obj_id: ObjectId,
     rgp: u64,
 ) -> anyhow::Result<()> {
     let build_config = BuildConfig::new_for_testing().config;
@@ -251,7 +251,7 @@ async fn run_upgrade(
 fn copy_with_published_at_manifest(
     source_path: &PathBuf,
     dest_path: &PathBuf,
-    package_id: ObjectID,
+    package_id: ObjectId,
 ) -> PathBuf {
     fs_extra::dir::copy(
         source_path,
@@ -276,7 +276,7 @@ fn copy_with_published_at_manifest(
     let idx = lines.iter().position(|s| s == "[package]").unwrap();
     lines.insert(
         idx + 1,
-        format!("published-at = \"{}\"", package_id.to_hex_uncompressed()),
+        format!("published-at = \"{}\"", package_id.to_hex()),
     );
     let new = lines.join("\n");
 

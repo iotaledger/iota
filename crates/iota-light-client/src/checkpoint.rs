@@ -17,6 +17,7 @@ use iota_config::{genesis::Genesis, node::ArchiveReaderConfig};
 use iota_json_rpc_types::CheckpointId;
 use iota_sdk::IotaClientBuilder;
 use iota_types::{
+    base_types::Version,
     committee::Committee,
     messages_checkpoint::{CertifiedCheckpointSummary, EndOfEpochData, VerifiedCheckpoint},
     storage::{ObjectStore, ReadStore, WriteStore},
@@ -436,10 +437,7 @@ impl ReadStore for CheckpointSummaryFileStore {
         unimplemented!()
     }
 
-    fn try_get_lowest_available_checkpoint(
-        &self,
-    ) -> iota_types::storage::error::Result<iota_types::messages_checkpoint::CheckpointSequenceNumber>
-    {
+    fn try_get_lowest_available_checkpoint(&self) -> iota_types::storage::error::Result<Version> {
         unimplemented!()
     }
 
@@ -452,7 +450,7 @@ impl ReadStore for CheckpointSummaryFileStore {
 
     fn try_get_checkpoint_by_sequence_number(
         &self,
-        _: iota_types::messages_checkpoint::CheckpointSequenceNumber,
+        _: Version,
     ) -> iota_types::storage::error::Result<Option<VerifiedCheckpoint>> {
         unimplemented!()
     }
@@ -468,7 +466,7 @@ impl ReadStore for CheckpointSummaryFileStore {
 
     fn try_get_checkpoint_contents_by_sequence_number(
         &self,
-        _: iota_types::messages_checkpoint::CheckpointSequenceNumber,
+        _: Version,
     ) -> iota_types::storage::error::Result<
         Option<iota_types::messages_checkpoint::CheckpointContents>,
     > {
@@ -499,7 +497,7 @@ impl ReadStore for CheckpointSummaryFileStore {
 
     fn try_get_full_checkpoint_contents_by_sequence_number(
         &self,
-        _: iota_types::messages_checkpoint::CheckpointSequenceNumber,
+        _: Version,
     ) -> iota_types::storage::error::Result<
         Option<iota_types::messages_checkpoint::FullCheckpointContents>,
     > {
@@ -519,15 +517,15 @@ impl ReadStore for CheckpointSummaryFileStore {
 impl ObjectStore for CheckpointSummaryFileStore {
     fn try_get_object(
         &self,
-        _: &iota_types::base_types::ObjectID,
+        _: &iota_types::base_types::ObjectId,
     ) -> iota_types::storage::error::Result<Option<iota_types::object::Object>> {
         unimplemented!()
     }
 
     fn try_get_object_by_key(
         &self,
-        _: &iota_types::base_types::ObjectID,
-        _: iota_types::base_types::VersionNumber,
+        _: &iota_types::base_types::ObjectId,
+        _: Version,
     ) -> iota_types::storage::error::Result<Option<iota_types::object::Object>> {
         unimplemented!()
     }

@@ -14,7 +14,7 @@ use aws_sdk_dynamodb::{
     types::AttributeValue,
 };
 use iota_data_ingestion_core::ProgressStore;
-use iota_types::messages_checkpoint::CheckpointSequenceNumber;
+use iota_types::base_types::Version;
 
 pub struct DynamoDBProgressStore {
     client: Client,
@@ -55,7 +55,7 @@ impl DynamoDBProgressStore {
 impl ProgressStore for DynamoDBProgressStore {
     type Error = anyhow::Error;
 
-    async fn load(&mut self, task_name: String) -> Result<CheckpointSequenceNumber, Self::Error> {
+    async fn load(&mut self, task_name: String) -> Result<Version, Self::Error> {
         let item = self
             .client
             .get_item()
@@ -65,7 +65,7 @@ impl ProgressStore for DynamoDBProgressStore {
             .await?;
         if let Some(output) = item.item() {
             if let AttributeValue::N(checkpoint_number) = &output["nstate"] {
-                return Ok(CheckpointSequenceNumber::from_str(checkpoint_number)?);
+                return Ok(Version::from_str(checkpoint_number)?);
             }
         }
         Ok(0)
@@ -73,7 +73,7 @@ impl ProgressStore for DynamoDBProgressStore {
     async fn save(
         &mut self,
         task_name: String,
-        checkpoint_number: CheckpointSequenceNumber,
+        checkpoint_number: Version,
     ) -> Result<(), Self::Error> {
         let backoff = backoff::ExponentialBackoff::default();
         backoff::future::retry(backoff, || async {

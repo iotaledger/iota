@@ -8,10 +8,10 @@ use anyhow::{anyhow, bail};
 use iota_core::jsonrpc_index::IndexStoreTables;
 use iota_types::{
     Identifier, TypeTag,
-    base_types::{IotaAddress, ObjectID, TxSequenceNumber},
+    base_types::{Address, ObjectId, Version},
     digests::TransactionDigest,
 };
-use move_core_types::language_storage::ModuleId;
+use move_core_types::{account_address::AccountAddress, language_storage::ModuleId};
 use serde::{Serialize, de::DeserializeOwned};
 use typed_store::{
     rocks::{DBMap, MetricConf},
@@ -244,132 +244,131 @@ where
     Ok(entries)
 }
 
-fn from_addr_seq(s: &str) -> Result<(IotaAddress, TxSequenceNumber), anyhow::Error> {
+fn from_addr_seq(s: &str) -> Result<(Address, Version), anyhow::Error> {
     // Remove whitespaces
     let s = s.trim();
     let tokens = s.split(',').collect::<Vec<&str>>();
     if tokens.len() != 2 {
         bail!("Invalid address, sequence number pair");
     }
-    let address = IotaAddress::from_str(tokens[0].trim())?;
-    let sequence_number = TxSequenceNumber::from_str(tokens[1].trim())?;
+    let address = Address::from_str(tokens[0].trim())?;
+    let sequence_number = Version::from_str(tokens[1].trim())?;
 
     Ok((address, sequence_number))
 }
 
-fn from_id_seq(s: &str) -> Result<(ObjectID, TxSequenceNumber), anyhow::Error> {
+fn from_id_seq(s: &str) -> Result<(ObjectId, Version), anyhow::Error> {
     // Remove whitespaces
     let s = s.trim();
     let tokens = s.split(',').collect::<Vec<&str>>();
     if tokens.len() != 2 {
         bail!("Invalid object id, sequence number pair");
     }
-    let oid = ObjectID::from_str(tokens[0].trim())?;
-    let sequence_number = TxSequenceNumber::from_str(tokens[1].trim())?;
+    let oid = ObjectId::from_str(tokens[0].trim())?;
+    let sequence_number = Version::from_str(tokens[1].trim())?;
 
     Ok((oid, sequence_number))
 }
 
 fn from_id_module_function_txseq(
     s: &str,
-) -> Result<(ObjectID, String, String, TxSequenceNumber), anyhow::Error> {
+) -> Result<(ObjectId, String, String, Version), anyhow::Error> {
     // Remove whitespaces
     let s = s.trim();
     let tokens = s.split(',').collect::<Vec<&str>>();
     if tokens.len() != 4 {
         bail!("Invalid object id, module name, function name, TX sequence number quad");
     }
-    let pid = ObjectID::from_str(tokens[0].trim())?;
+    let pid = ObjectId::from_str(tokens[0].trim())?;
     let module: Identifier = Identifier::from_str(tokens[1].trim())?;
     let func: Identifier = Identifier::from_str(tokens[2].trim())?;
-    let seq: TxSequenceNumber = TxSequenceNumber::from_str(tokens[3].trim())?;
+    let seq: Version = Version::from_str(tokens[3].trim())?;
 
     Ok((pid, module.to_string(), func.to_string(), seq))
 }
 
-fn from_addr_oid(s: &str) -> Result<(IotaAddress, ObjectID), anyhow::Error> {
+fn from_addr_oid(s: &str) -> Result<(Address, ObjectId), anyhow::Error> {
     // Remove whitespaces
     let s = s.trim();
     let tokens = s.split(',').collect::<Vec<&str>>();
     if tokens.len() != 2 {
         bail!("Invalid address, object id pair");
     }
-    let addr = IotaAddress::from_str(tokens[0].trim())?;
-    let oid = ObjectID::from_str(tokens[1].trim())?;
+    let addr = Address::from_str(tokens[0].trim())?;
+    let oid = ObjectId::from_str(tokens[1].trim())?;
 
     Ok((addr, oid))
 }
 
-fn from_addr_str_oid(s: &str) -> Result<(IotaAddress, String, ObjectID), anyhow::Error> {
+fn from_addr_str_oid(s: &str) -> Result<(Address, String, ObjectId), anyhow::Error> {
     // Remove whitespaces
     let s = s.trim();
     let tokens = s.split(',').collect::<Vec<&str>>();
     if tokens.len() != 3 {
         bail!("Invalid addr, type tag object id triplet");
     }
-    let address = IotaAddress::from_str(tokens[0].trim())?;
+    let address = Address::from_str(tokens[0].trim())?;
     let tag: TypeTag = TypeTag::from_str(tokens[1].trim())?;
-    let oid: ObjectID = ObjectID::from_str(tokens[2].trim())?;
+    let oid: ObjectId = ObjectId::from_str(tokens[2].trim())?;
 
     Ok((address, tag.to_string(), oid))
 }
 
-fn from_oid_oid(s: &str) -> Result<(ObjectID, ObjectID), anyhow::Error> {
+fn from_oid_oid(s: &str) -> Result<(ObjectId, ObjectId), anyhow::Error> {
     // Remove whitespaces
     let s = s.trim();
     let tokens = s.split(',').collect::<Vec<&str>>();
     if tokens.len() != 2 {
         bail!("Invalid object id, object id triplet");
     }
-    let oid1 = ObjectID::from_str(tokens[0].trim())?;
-    let oid2: ObjectID = ObjectID::from_str(tokens[1].trim())?;
+    let oid1 = ObjectId::from_str(tokens[0].trim())?;
+    let oid2: ObjectId = ObjectId::from_str(tokens[1].trim())?;
 
     Ok((oid1, oid2))
 }
 
-fn from_module_id_and_event_id(
-    s: &str,
-) -> Result<(ModuleId, (TxSequenceNumber, usize)), anyhow::Error> {
+fn from_module_id_and_event_id(s: &str) -> Result<(ModuleId, (Version, usize)), anyhow::Error> {
     // Example: "0x1::Event 1234 5"
     let tokens = s.split(' ').collect::<Vec<&str>>();
     if tokens.len() != 3 {
         bail!("Invalid input");
     }
-    let tx_seq = TxSequenceNumber::from_str(tokens[1])?;
+    let tx_seq = Version::from_str(tokens[1])?;
     let event_seq = usize::from_str(tokens[2])?;
     let tokens = tokens[0].split("::").collect::<Vec<&str>>();
     if tokens.len() != 2 {
         bail!("Invalid module id");
     }
-    let package = ObjectID::from_str(tokens[0].trim())?;
+    let package = ObjectId::from_str(tokens[0].trim())?;
 
     Ok((
-        ModuleId::new(package.into(), Identifier::from_str(tokens[1].trim())?),
+        ModuleId::new(
+            AccountAddress::new(package.into_bytes()),
+            Identifier::from_str(tokens[1].trim())?,
+        ),
         (tx_seq, event_seq),
     ))
 }
 
-fn from_event_id(s: &str) -> Result<(TxSequenceNumber, usize), anyhow::Error> {
+fn from_event_id(s: &str) -> Result<(Version, usize), anyhow::Error> {
     // Example: "1234 5"
     let tokens = s.split(' ').collect::<Vec<&str>>();
     if tokens.len() != 2 {
         bail!("Invalid input");
     }
-    let tx_seq = TxSequenceNumber::from_str(tokens[0])?;
+    let tx_seq = Version::from_str(tokens[0])?;
     let event_seq = usize::from_str(tokens[1])?;
     Ok((tx_seq, event_seq))
 }
 
-fn from_address_and_event_id(
-    s: &str,
-) -> Result<(IotaAddress, (TxSequenceNumber, usize)), anyhow::Error> {
+fn from_address_and_event_id(s: &str) -> Result<(Address, (Version, usize)), anyhow::Error> {
     // Example: "0x1 1234 5"
     let tokens = s.split(' ').collect::<Vec<&str>>();
     if tokens.len() != 3 {
         bail!("Invalid input");
     }
-    let tx_seq = TxSequenceNumber::from_str(tokens[1])?;
+    let tx_seq = Version::from_str(tokens[1])?;
     let event_seq = usize::from_str(tokens[2])?;
-    let address = IotaAddress::from_str(tokens[0].trim())?;
+    let address = Address::from_str(tokens[0].trim())?;
     Ok((address, (tx_seq, event_seq)))
 }

@@ -23,7 +23,7 @@ use rand::{SeedableRng, rngs::StdRng};
 
 use super::{MultiSigPublicKey, ThresholdUnit, WeightUnit};
 use crate::{
-    base_types::IotaAddress,
+    base_types::{Address, address_from_multisig_pub_key},
     crypto::{
         Ed25519IotaSignature, IotaKeyPair, IotaSignatureInner, PublicKey, Signature,
         ZkLoginPublicIdentifier, get_key_pair, get_key_pair_from_rng,
@@ -194,9 +194,9 @@ fn test_multisig_address() {
 
     let multisig_pk =
         MultiSigPublicKey::new(vec![pk1, pk2, pk3], vec![w1, w2, w3], threshold).unwrap();
-    let address: IotaAddress = (&multisig_pk).into();
+    let address: Address = address_from_multisig_pub_key(&multisig_pk);
     assert_eq!(
-        IotaAddress::from_str("0x25c72ac38e59084e0c8263489f810f50b2d1a38bbb8128a5d1474317af7c8eb3")
+        Address::from_str("0x25c72ac38e59084e0c8263489f810f50b2d1a38bbb8128a5d1474317af7c8eb3")
             .unwrap(),
         address
     );
@@ -355,10 +355,10 @@ fn test_multisig_zklogin_scenarios() {
     // set up 1-out-of-2 multisig with one zklogin public identifier and one
     // traditional public key.
     let multisig_pk = MultiSigPublicKey::new(vec![pk1, pk2], vec![1, 1], 1).unwrap();
-    let multisig_addr = IotaAddress::from(&multisig_pk);
+    let multisig_addr = address_from_multisig_pub_key(&multisig_pk);
     assert_eq!(
         multisig_addr,
-        IotaAddress::from_str("0x3abd6a29ba3b00c7c84d7980160179c32a7bbd639d79c53dd30f9481ee0a94e2")
+        Address::from_str("0x3abd6a29ba3b00c7c84d7980160179c32a7bbd639d79c53dd30f9481ee0a94e2")
             .unwrap()
     );
 
@@ -398,7 +398,7 @@ fn test_zklogin_in_multisig_works_with_both_addresses() {
     let pk1 = PublicKey::ZkLogin(ZkLoginPublicIdentifier(bytes));
     let pk2 = ikp.public();
     let multisig_pk = MultiSigPublicKey::new(vec![pk1, pk2.clone()], vec![1; 2], 1).unwrap();
-    let multisig_address = IotaAddress::from(&multisig_pk);
+    let multisig_address = address_from_multisig_pub_key(&multisig_pk);
 
     let (kp, _pk, input) =
         &load_test_vectors("./src/unit_tests/zklogin_test_vectors.json").unwrap()[0];
@@ -446,7 +446,7 @@ fn test_zklogin_in_multisig_works_with_both_addresses() {
         .unwrap(),
     );
     let multisig_pk_padded = MultiSigPublicKey::new(vec![pk1_padded, pk2], vec![1; 2], 1).unwrap();
-    let multisig_address_padded = IotaAddress::from(&multisig_pk_padded);
+    let multisig_address_padded = address_from_multisig_pub_key(&multisig_pk_padded);
     let modified_inputs_padded =
         ZkLoginInputs::from_json(&serde_json::to_string(input).unwrap(), SHORT_ADDRESS_SEED)
             .unwrap();
@@ -500,10 +500,10 @@ fn test_zklogin_derive_multisig_address() {
     assert_eq!(pk1.as_ref().len(), pk2.as_ref().len());
 
     let multisig_pk = MultiSigPublicKey::new(vec![pk1, pk2], vec![1, 1], 1).unwrap();
-    let multisig_addr = IotaAddress::from(&multisig_pk);
+    let multisig_addr = address_from_multisig_pub_key(&multisig_pk);
     assert_eq!(
         multisig_addr,
-        IotaAddress::from_str("0x77a9fbf3c695d78dd83449a81a9e70aa79a77dbfd6fb72037bf09201c12052cd")
+        Address::from_str("0x77a9fbf3c695d78dd83449a81a9e70aa79a77dbfd6fb72037bf09201c12052cd")
             .unwrap()
     );
 }

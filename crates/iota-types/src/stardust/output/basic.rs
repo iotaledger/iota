@@ -6,7 +6,9 @@
 
 use anyhow::Result;
 use iota_protocol_config::ProtocolConfig;
-use move_core_types::{ident_str, identifier::IdentStr, language_storage::StructTag};
+use move_core_types::{
+    account_address::AccountAddress, ident_str, identifier::IdentStr, language_storage::StructTag,
+};
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 
@@ -14,9 +16,9 @@ use super::unlock_conditions::{
     ExpirationUnlockCondition, StorageDepositReturnUnlockCondition, TimelockUnlockCondition,
 };
 use crate::{
-    STARDUST_ADDRESS, TypeTag,
+    TypeTag,
     balance::Balance,
-    base_types::{IotaAddress, MoveObjectType, ObjectID, SequenceNumber, TxContext},
+    base_types::{Address, MoveObjectType, ObjectId, TxContext, Version},
     coin::Coin,
     collection_types::Bag,
     error::IotaError,
@@ -57,7 +59,7 @@ pub struct BasicOutput {
     /// The tag feature.
     pub tag: Option<Vec<u8>>,
     /// The sender feature.
-    pub sender: Option<IotaAddress>,
+    pub sender: Option<Address>,
 }
 
 impl BasicOutput {
@@ -65,7 +67,7 @@ impl BasicOutput {
     /// Output Header ID and Stardust
     /// [`BasicOutput`][iota_stardust_sdk::types::block::output::BasicOutput].
     pub fn new(
-        header_object_id: ObjectID,
+        header_object_id: ObjectId,
         output: &iota_stardust_sdk::types::block::output::BasicOutput,
     ) -> Result<Self> {
         let id = UID::new(header_object_id);
@@ -109,7 +111,7 @@ impl BasicOutput {
     /// Returns the struct tag of the BasicOutput struct
     pub fn tag(type_param: TypeTag) -> StructTag {
         StructTag {
-            address: STARDUST_ADDRESS,
+            address: AccountAddress::new(Address::STARDUST.into_bytes()),
             module: BASIC_OUTPUT_MODULE_NAME.to_owned(),
             name: BASIC_OUTPUT_STRUCT_NAME.to_owned(),
             type_params: vec![type_param],
@@ -135,10 +137,10 @@ impl BasicOutput {
 
     pub fn to_genesis_object(
         &self,
-        owner: IotaAddress,
+        owner: Address,
         protocol_config: &ProtocolConfig,
         tx_context: &TxContext,
-        version: SequenceNumber,
+        version: Version,
         coin_type: &CoinType,
     ) -> Result<Object> {
         let move_object = {
@@ -166,10 +168,10 @@ impl BasicOutput {
 
     pub fn into_genesis_coin_object(
         self,
-        owner: IotaAddress,
+        owner: Address,
         protocol_config: &ProtocolConfig,
         tx_context: &TxContext,
-        version: SequenceNumber,
+        version: Version,
         coin_type: &CoinType,
     ) -> Result<Object> {
         create_coin(
@@ -192,18 +194,18 @@ impl BasicOutput {
 
     /// Whether the given `StructTag` represents a `BasicOutput`.
     pub fn is_basic_output(s: &StructTag) -> bool {
-        s.address == STARDUST_ADDRESS
+        s.address == AccountAddress::new(Address::STARDUST.into_bytes())
             && s.module.as_ident_str() == BASIC_OUTPUT_MODULE_NAME
             && s.name.as_ident_str() == BASIC_OUTPUT_STRUCT_NAME
     }
 }
 
 pub(crate) fn create_coin(
-    object_id: ObjectID,
-    owner: IotaAddress,
+    object_id: ObjectId,
+    owner: Address,
     amount: u64,
     tx_context: &TxContext,
-    version: SequenceNumber,
+    version: Version,
     protocol_config: &ProtocolConfig,
     coin_type: &CoinType,
 ) -> Result<Object> {

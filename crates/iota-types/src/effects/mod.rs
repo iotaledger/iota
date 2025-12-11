@@ -13,7 +13,7 @@ use serde::{Deserialize, Serialize};
 pub use test_effects_builder::TestEffectsBuilder;
 
 use crate::{
-    base_types::{ExecutionDigests, ObjectID, ObjectRef, SequenceNumber},
+    base_types::{ExecutionDigests, ObjectId, ObjectReference, Version},
     committee::{Committee, EpochId},
     crypto::{
         AuthoritySignInfo, AuthoritySignInfoTrait, AuthorityStrongQuorumSignInfo, EmptySignInfo,
@@ -36,7 +36,7 @@ mod test_effects_builder;
 
 // Since `std::mem::size_of` may not be stable across platforms, we use rough
 // constants We need these for estimating effects sizes
-// Approximate size of `ObjectRef` type in bytes
+// Approximate size of `ObjectReference` type in bytes
 pub const APPROX_SIZE_OF_OBJECT_REF: usize = 80;
 // Approximate size of `ExecutionStatus` type in bytes
 pub const APPROX_SIZE_OF_EXECUTION_STATUS: usize = 120;
@@ -87,11 +87,11 @@ impl TransactionEffects {
         executed_epoch: EpochId,
         gas_used: GasCostSummary,
         shared_objects: Vec<SharedInput>,
-        loaded_per_epoch_config_objects: BTreeSet<ObjectID>,
+        loaded_per_epoch_config_objects: BTreeSet<ObjectId>,
         transaction_digest: TransactionDigest,
-        lamport_version: SequenceNumber,
-        changed_objects: BTreeMap<ObjectID, EffectsObjectChange>,
-        gas_object: Option<ObjectID>,
+        lamport_version: Version,
+        changed_objects: BTreeMap<ObjectId, EffectsObjectChange>,
+        gas_object: Option<ObjectId>,
         events_digest: Option<TransactionEventsDigest>,
         dependencies: Vec<TransactionDigest>,
     ) -> Self {
@@ -141,7 +141,7 @@ impl TransactionEffects {
     /// mutated, created and unwrapped objects. In other words, all objects
     /// that still exist in the object state after this transaction.
     /// It doesn't include deleted/wrapped objects.
-    pub fn all_changed_objects(&self) -> Vec<(ObjectRef, Owner, WriteKind)> {
+    pub fn all_changed_objects(&self) -> Vec<(ObjectReference, Owner, WriteKind)> {
         self.mutated()
             .into_iter()
             .map(|(r, o)| (r, o, WriteKind::Mutate))
@@ -162,7 +162,7 @@ impl TransactionEffects {
     /// but no longer exist in the state after the transaction.
     /// It includes deleted and wrapped objects, but does not include
     /// unwrapped_then_deleted objects.
-    pub fn all_removed_objects(&self) -> Vec<(ObjectRef, ObjectRemoveKind)> {
+    pub fn all_removed_objects(&self) -> Vec<(ObjectReference, ObjectRemoveKind)> {
         self.deleted()
             .iter()
             .map(|obj_ref| (*obj_ref, ObjectRemoveKind::Delete))
@@ -176,17 +176,17 @@ impl TransactionEffects {
 
     /// Returns all objects that will become a tombstone after this transaction.
     /// This includes deleted, unwrapped_then_deleted and wrapped objects.
-    pub fn all_tombstones(&self) -> Vec<(ObjectID, SequenceNumber)> {
+    pub fn all_tombstones(&self) -> Vec<(ObjectId, Version)> {
         self.deleted()
             .into_iter()
             .chain(self.unwrapped_then_deleted())
             .chain(self.wrapped())
-            .map(|obj_ref| (obj_ref.0, obj_ref.1))
+            .map(|obj_ref| (obj_ref.object_id, obj_ref.version))
             .collect()
     }
 
     /// Returns all objects that were created + wrapped in the same transaction.
-    pub fn created_then_wrapped_objects(&self) -> Vec<(ObjectID, SequenceNumber)> {
+    pub fn created_then_wrapped_objects(&self) -> Vec<(ObjectId, Version)> {
         // Filter `ObjectChange` where:
         // - `input_digest` and `output_digest` are `None`, and
         // - `id_operation` is `Created`.
@@ -206,7 +206,7 @@ impl TransactionEffects {
     }
 
     /// Return an iterator of mutated objects, but excluding the gas object.
-    pub fn mutated_excluding_gas(&self) -> Vec<(ObjectRef, Owner)> {
+    pub fn mutated_excluding_gas(&self) -> Vec<(ObjectReference, Owner)> {
         self.mutated()
             .into_iter()
             .filter(|o| o != &self.gas_object())
@@ -231,28 +231,28 @@ impl TransactionEffects {
 
 #[derive(Eq, PartialEq, Clone, Debug)]
 pub enum InputSharedObject {
-    Mutate(ObjectRef),
-    ReadOnly(ObjectRef),
-    ReadDeleted(ObjectID, SequenceNumber),
-    MutateDeleted(ObjectID, SequenceNumber),
-    Cancelled(ObjectID, SequenceNumber),
+    Mutate(ObjectReference),
+    ReadOnly(ObjectReference),
+    ReadDeleted(ObjectId, Version),
+    MutateDeleted(ObjectId, Version),
+    Cancelled(ObjectId, Version),
 }
 
 impl InputSharedObject {
-    pub fn id_and_version(&self) -> (ObjectID, SequenceNumber) {
+    pub fn id_and_version(&self) -> (ObjectId, Version) {
         let oref = self.object_ref();
-        (oref.0, oref.1)
+        (oref.object_id, oref.version)
     }
 
-    pub fn object_ref(&self) -> ObjectRef {
+    pub fn object_ref(&self) -> ObjectReference {
         match self {
             InputSharedObject::Mutate(oref) | InputSharedObject::ReadOnly(oref) => *oref,
             InputSharedObject::ReadDeleted(id, version)
             | InputSharedObject::MutateDeleted(id, version) => {
-                (*id, *version, ObjectDigest::OBJECT_DIGEST_DELETED)
+                ObjectReference::new(*id, *version, ObjectDigest::OBJECT_DELETED)
             }
             InputSharedObject::Cancelled(id, version) => {
-                (*id, *version, ObjectDigest::OBJECT_DIGEST_CANCELLED)
+                ObjectReference::new(*id, *version, ObjectDigest::OBJECT_CANCELLED)
             }
         }
     }
@@ -263,16 +263,16 @@ pub trait TransactionEffectsAPI {
     fn status(&self) -> &ExecutionStatus;
     fn into_status(self) -> ExecutionStatus;
     fn executed_epoch(&self) -> EpochId;
-    fn modified_at_versions(&self) -> Vec<(ObjectID, SequenceNumber)>;
+    fn modified_at_versions(&self) -> Vec<(ObjectId, Version)>;
 
     /// The version assigned to all output objects (apart from packages).
-    fn lamport_version(&self) -> SequenceNumber;
+    fn lamport_version(&self) -> Version;
 
     /// Metadata of objects prior to modification. This includes any object that
     /// exists in the store prior to this transaction and is modified in
     /// this transaction. It includes objects that are mutated, wrapped and
     /// deleted.
-    fn old_object_metadata(&self) -> Vec<(ObjectRef, Owner)>;
+    fn old_object_metadata(&self) -> Vec<(ObjectReference, Owner)>;
     /// Returns the list of sequenced shared objects used in the input.
     /// This is needed in effects because in transaction we only have object ID
     /// for shared objects. Their version and digest can only be figured out
@@ -281,19 +281,19 @@ pub trait TransactionEffectsAPI {
     /// config objects since they do not require sequencing. TODO: Rename
     /// this function to indicate sequencing requirement.
     fn input_shared_objects(&self) -> Vec<InputSharedObject>;
-    fn created(&self) -> Vec<(ObjectRef, Owner)>;
-    fn mutated(&self) -> Vec<(ObjectRef, Owner)>;
-    fn unwrapped(&self) -> Vec<(ObjectRef, Owner)>;
-    fn deleted(&self) -> Vec<ObjectRef>;
-    fn unwrapped_then_deleted(&self) -> Vec<ObjectRef>;
-    fn wrapped(&self) -> Vec<ObjectRef>;
+    fn created(&self) -> Vec<(ObjectReference, Owner)>;
+    fn mutated(&self) -> Vec<(ObjectReference, Owner)>;
+    fn unwrapped(&self) -> Vec<(ObjectReference, Owner)>;
+    fn deleted(&self) -> Vec<ObjectReference>;
+    fn unwrapped_then_deleted(&self) -> Vec<ObjectReference>;
+    fn wrapped(&self) -> Vec<ObjectReference>;
 
     fn object_changes(&self) -> Vec<ObjectChange>;
 
     // TODO: We should consider having this function to return Option.
     // When the gas object is not available (i.e. system transaction), we currently
     // return dummy object ref and owner. This is not ideal.
-    fn gas_object(&self) -> (ObjectRef, Owner);
+    fn gas_object(&self) -> (ObjectReference, Owner);
 
     fn events_digest(&self) -> Option<&TransactionEventsDigest>;
     fn dependencies(&self) -> &[TransactionDigest];
@@ -302,7 +302,7 @@ pub trait TransactionEffectsAPI {
 
     fn gas_cost_summary(&self) -> &GasCostSummary;
 
-    fn deleted_mutably_accessed_shared_objects(&self) -> Vec<ObjectID> {
+    fn deleted_mutably_accessed_shared_objects(&self) -> Vec<ObjectId> {
         self.input_shared_objects()
             .into_iter()
             .filter_map(|kind| match kind {
@@ -317,7 +317,7 @@ pub trait TransactionEffectsAPI {
 
     /// Returns all root shared objects (i.e. not child object) that are
     /// read-only in the transaction.
-    fn unchanged_shared_objects(&self) -> Vec<(ObjectID, UnchangedSharedKind)>;
+    fn unchanged_shared_objects(&self) -> Vec<(ObjectId, UnchangedSharedKind)>;
 
     // All of these should be #[cfg(test)], but they are used by tests in other
     // crates, and dependencies don't get built with cfg(test) set as far as I
@@ -329,18 +329,18 @@ pub trait TransactionEffectsAPI {
     fn unsafe_add_input_shared_object_for_testing(&mut self, kind: InputSharedObject);
 
     // Adding an old version of a live object.
-    fn unsafe_add_deleted_live_object_for_testing(&mut self, obj_ref: ObjectRef);
+    fn unsafe_add_deleted_live_object_for_testing(&mut self, obj_ref: ObjectReference);
 
     // Adding a tombstone for a deleted object.
-    fn unsafe_add_object_tombstone_for_testing(&mut self, obj_ref: ObjectRef);
+    fn unsafe_add_object_tombstone_for_testing(&mut self, obj_ref: ObjectReference);
 }
 
 #[derive(Clone)]
 pub struct ObjectChange {
-    pub id: ObjectID,
-    pub input_version: Option<SequenceNumber>,
+    pub id: ObjectId,
+    pub input_version: Option<Version>,
     pub input_digest: Option<ObjectDigest>,
-    pub output_version: Option<SequenceNumber>,
+    pub output_version: Option<Version>,
     pub output_digest: Option<ObjectDigest>,
     pub id_operation: IDOperation,
 }

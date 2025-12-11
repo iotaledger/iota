@@ -27,10 +27,10 @@ public use fun uid_to_address as UID.to_address;
 public use fun uid_to_bytes as UID.to_bytes;
 
 /// The hardcoded ID for the singleton IOTA System State Object.
-const IOTA_SYSTEM_STATE_OBJECT_ID: address = @0x5;
+const ObjectId::SYSTEM: address = @0x5;
 
 /// The hardcoded ID for the singleton Clock Object.
-const IOTA_CLOCK_OBJECT_ID: address = @0x6;
+const ObjectId::CLOCK: address = @0x6;
 
 /// The hardcoded ID for the singleton AuthenticatorState Object.
 const IOTA_AUTHENTICATOR_STATE_ID: address = @0x7;
@@ -39,7 +39,7 @@ const IOTA_AUTHENTICATOR_STATE_ID: address = @0x7;
 const IOTA_RANDOM_ID: address = @0x8;
 
 /// The hardcoded ID for the singleton DenyList.
-const IOTA_DENY_LIST_OBJECT_ID: address = @0x403;
+const ObjectId::DENY_LIST: address = @0x403;
 
 /// Sender is not @0x0 the system address.
 const ENotSystemAddress: u64 = 0;
@@ -98,7 +98,7 @@ public fun id_from_address(bytes: address): ID {
 fun iota_system_state(ctx: &TxContext): UID {
     assert!(ctx.sender() == @0x0, ENotSystemAddress);
     UID {
-        id: ID { bytes: IOTA_SYSTEM_STATE_OBJECT_ID },
+        id: ID { bytes: ObjectId::SYSTEM },
     }
 }
 
@@ -106,7 +106,7 @@ fun iota_system_state(ctx: &TxContext): UID {
 /// This should only be called once from `clock`.
 public(package) fun clock(): UID {
     UID {
-        id: ID { bytes: IOTA_CLOCK_OBJECT_ID },
+        id: ID { bytes: ObjectId::CLOCK },
     }
 }
 
@@ -130,7 +130,7 @@ public(package) fun randomness_state(): UID {
 /// This should only be called once from `deny_list`.
 public(package) fun iota_deny_list_object_id(): UID {
     UID {
-        id: ID { bytes: IOTA_DENY_LIST_OBJECT_ID },
+        id: ID { bytes: ObjectId::DENY_LIST },
     }
 }
 

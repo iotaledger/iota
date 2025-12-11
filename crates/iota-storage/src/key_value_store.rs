@@ -9,13 +9,11 @@ use std::{sync::Arc, time::Instant};
 
 use async_trait::async_trait;
 use iota_types::{
-    base_types::{ObjectID, SequenceNumber, VersionNumber},
+    base_types::{ObjectId, Version},
     digests::{CheckpointDigest, TransactionDigest},
     effects::{TransactionEffects, TransactionEvents},
     error::{IotaError, IotaResult, UserInputError},
-    messages_checkpoint::{
-        CertifiedCheckpointSummary, CheckpointContents, CheckpointSequenceNumber,
-    },
+    messages_checkpoint::{CertifiedCheckpointSummary, CheckpointContents},
     object::Object,
     transaction::Transaction,
 };
@@ -119,8 +117,8 @@ impl TransactionKeyValueStore {
 
     pub async fn multi_get_checkpoints(
         &self,
-        checkpoint_summaries: &[CheckpointSequenceNumber],
-        checkpoint_contents: &[CheckpointSequenceNumber],
+        checkpoint_summaries: &[Version],
+        checkpoint_contents: &[Version],
         checkpoint_summaries_by_digest: &[CheckpointDigest],
     ) -> IotaResult<(
         Vec<Option<CertifiedCheckpointSummary>>,
@@ -201,7 +199,7 @@ impl TransactionKeyValueStore {
 
     pub async fn multi_get_checkpoints_summaries(
         &self,
-        keys: &[CheckpointSequenceNumber],
+        keys: &[Version],
     ) -> IotaResult<Vec<Option<CertifiedCheckpointSummary>>> {
         self.multi_get_checkpoints(keys, &[], &[])
             .await
@@ -210,7 +208,7 @@ impl TransactionKeyValueStore {
 
     pub async fn multi_get_checkpoints_contents(
         &self,
-        keys: &[CheckpointSequenceNumber],
+        keys: &[Version],
     ) -> IotaResult<Vec<Option<CheckpointContents>>> {
         self.multi_get_checkpoints(&[], keys, &[])
             .await
@@ -271,7 +269,7 @@ impl TransactionKeyValueStore {
     /// multi_get_checkpoints_summaries whenever possible.
     pub async fn get_checkpoint_summary(
         &self,
-        checkpoint: CheckpointSequenceNumber,
+        checkpoint: Version,
     ) -> IotaResult<CertifiedCheckpointSummary> {
         self.multi_get_checkpoints_summaries(&[checkpoint])
             .await?
@@ -288,7 +286,7 @@ impl TransactionKeyValueStore {
     /// whenever possible.
     pub async fn get_checkpoint_contents(
         &self,
-        checkpoint: CheckpointSequenceNumber,
+        checkpoint: Version,
     ) -> IotaResult<CheckpointContents> {
         self.multi_get_checkpoints_contents(&[checkpoint])
             .await?
@@ -320,7 +318,7 @@ impl TransactionKeyValueStore {
     pub async fn get_transaction_perpetual_checkpoint(
         &self,
         digest: TransactionDigest,
-    ) -> IotaResult<Option<CheckpointSequenceNumber>> {
+    ) -> IotaResult<Option<Version>> {
         self.inner
             .get_transaction_perpetual_checkpoint(digest)
             .await
@@ -328,8 +326,8 @@ impl TransactionKeyValueStore {
 
     pub async fn get_object(
         &self,
-        object_id: ObjectID,
-        version: VersionNumber,
+        object_id: ObjectId,
+        version: Version,
     ) -> IotaResult<Option<Object>> {
         self.inner.get_object(object_id, version).await
     }
@@ -337,7 +335,7 @@ impl TransactionKeyValueStore {
     pub async fn multi_get_transactions_perpetual_checkpoints(
         &self,
         digests: &[TransactionDigest],
-    ) -> IotaResult<Vec<Option<CheckpointSequenceNumber>>> {
+    ) -> IotaResult<Vec<Option<Version>>> {
         self.inner
             .multi_get_transactions_perpetual_checkpoints(digests)
             .await
@@ -368,26 +366,23 @@ pub trait TransactionKeyValueStoreTrait {
     /// a single round trip.
     async fn multi_get_checkpoints(
         &self,
-        checkpoint_summaries: &[CheckpointSequenceNumber],
-        checkpoint_contents: &[CheckpointSequenceNumber],
+        checkpoint_summaries: &[Version],
+        checkpoint_contents: &[Version],
         checkpoint_summaries_by_digest: &[CheckpointDigest],
     ) -> IotaResult<KVStoreCheckpointData>;
 
     async fn get_transaction_perpetual_checkpoint(
         &self,
         digest: TransactionDigest,
-    ) -> IotaResult<Option<CheckpointSequenceNumber>>;
+    ) -> IotaResult<Option<Version>>;
 
-    async fn get_object(
-        &self,
-        object_id: ObjectID,
-        version: SequenceNumber,
-    ) -> IotaResult<Option<Object>>;
+    async fn get_object(&self, object_id: ObjectId, version: Version)
+    -> IotaResult<Option<Object>>;
 
     async fn multi_get_transactions_perpetual_checkpoints(
         &self,
         digests: &[TransactionDigest],
-    ) -> IotaResult<Vec<Option<CheckpointSequenceNumber>>>;
+    ) -> IotaResult<Vec<Option<Version>>>;
 
     async fn multi_get_events_by_tx_digests(
         &self,
@@ -456,8 +451,8 @@ impl TransactionKeyValueStoreTrait for FallbackTransactionKVStore {
     #[instrument(level = "trace", skip_all)]
     async fn multi_get_checkpoints(
         &self,
-        checkpoint_summaries: &[CheckpointSequenceNumber],
-        checkpoint_contents: &[CheckpointSequenceNumber],
+        checkpoint_summaries: &[Version],
+        checkpoint_contents: &[Version],
         checkpoint_summaries_by_digest: &[CheckpointDigest],
     ) -> IotaResult<(
         Vec<Option<CertifiedCheckpointSummary>>,
@@ -510,7 +505,7 @@ impl TransactionKeyValueStoreTrait for FallbackTransactionKVStore {
     async fn get_transaction_perpetual_checkpoint(
         &self,
         digest: TransactionDigest,
-    ) -> IotaResult<Option<CheckpointSequenceNumber>> {
+    ) -> IotaResult<Option<Version>> {
         let mut res = self
             .primary
             .get_transaction_perpetual_checkpoint(digest)
@@ -527,8 +522,8 @@ impl TransactionKeyValueStoreTrait for FallbackTransactionKVStore {
     #[instrument(level = "trace", skip_all)]
     async fn get_object(
         &self,
-        object_id: ObjectID,
-        version: SequenceNumber,
+        object_id: ObjectId,
+        version: Version,
     ) -> IotaResult<Option<Object>> {
         let mut res = self.primary.get_object(object_id, version).await?;
         if res.is_none() {
@@ -541,7 +536,7 @@ impl TransactionKeyValueStoreTrait for FallbackTransactionKVStore {
     async fn multi_get_transactions_perpetual_checkpoints(
         &self,
         digests: &[TransactionDigest],
-    ) -> IotaResult<Vec<Option<CheckpointSequenceNumber>>> {
+    ) -> IotaResult<Vec<Option<Version>>> {
         let mut res = self
             .primary
             .multi_get_transactions_perpetual_checkpoints(digests)

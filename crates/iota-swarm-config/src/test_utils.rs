@@ -6,14 +6,14 @@ use std::collections::HashMap;
 
 use iota_sdk_2::types::crypto::{Intent, IntentMessage, IntentScope};
 use iota_types::{
-    base_types::AuthorityName,
+    base_types::{AuthorityName, Version},
     committee::{Committee, EpochId, StakeUnit},
     crypto::{
         AuthorityKeyPair, AuthoritySignInfo, AuthoritySignature, IotaAuthoritySignature,
         KeypairTraits,
     },
     messages_checkpoint::{
-        CertifiedCheckpointSummary, CheckpointDigest, CheckpointSequenceNumber, CheckpointSummary,
+        CertifiedCheckpointSummary, CheckpointDigest, CheckpointSummary,
         CheckpointVersionSpecificData, EndOfEpochData, FullCheckpointContents, VerifiedCheckpoint,
         VerifiedCheckpointContents,
     },
@@ -30,7 +30,7 @@ pub struct CommitteeFixture {
 type MakeCheckpointResults = (
     Vec<VerifiedCheckpoint>,
     Vec<VerifiedCheckpointContents>,
-    HashMap<CheckpointSequenceNumber, CheckpointDigest>,
+    HashMap<Version, CheckpointDigest>,
     HashMap<CheckpointDigest, VerifiedCheckpoint>,
 );
 
@@ -223,11 +223,7 @@ impl CommitteeFixture {
         &self,
         previous_checkpoint: VerifiedCheckpoint,
         end_of_epoch_data: Option<EndOfEpochData>,
-    ) -> (
-        CheckpointSequenceNumber,
-        CheckpointDigest,
-        VerifiedCheckpoint,
-    ) {
+    ) -> (Version, CheckpointDigest, VerifiedCheckpoint) {
         let summary = CheckpointSummary {
             epoch: self.epoch,
             sequence_number: previous_checkpoint.sequence_number + 1,

@@ -7,7 +7,6 @@ use std::{collections::HashSet, env, path::PathBuf, str::FromStr};
 
 use iota_move_build::{BuildConfig, IotaPackageHooks};
 use iota_types::{
-    IOTA_FRAMEWORK_PACKAGE_ID,
     base_types::{RESOLVED_ASCII_STR, RESOLVED_STD_OPTION, RESOLVED_UTF8_STR},
     crypto::{AccountKeyPair, get_key_pair},
     error::{ExecutionErrorKind, IotaError},
@@ -34,7 +33,7 @@ use crate::authority::authority_tests::{
 async fn test_object_wrapping_unwrapping() {
     telemetry_subscribers::init_for_testing();
     let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
-    let gas = ObjectID::random();
+    let gas = ObjectId::new(rand::random());
     let authority = init_state_with_ids(vec![(sender, gas)]).await;
 
     let package = build_and_publish_test_package(
@@ -49,7 +48,7 @@ async fn test_object_wrapping_unwrapping() {
     .await;
 
     let gas_version = authority.get_object(&gas).await.unwrap().version();
-    let create_child_version = SequenceNumber::lamport_increment([gas_version]);
+    let create_child_version = Version::lamport_increment([gas_version]);
 
     // Create a Child object.
     let effects = call_move(
@@ -57,7 +56,7 @@ async fn test_object_wrapping_unwrapping() {
         &gas,
         &sender,
         &sender_key,
-        &package.0,
+        &package.object_id,
         "object_wrapping",
         "create_child",
         vec![],
@@ -71,10 +70,10 @@ async fn test_object_wrapping_unwrapping() {
         effects.status()
     );
     let child_object_ref = effects.created()[0].0;
-    assert_eq!(child_object_ref.1, create_child_version);
+    assert_eq!(child_object_ref.version, create_child_version);
 
     let wrapped_version =
-        SequenceNumber::lamport_increment([child_object_ref.1, effects.gas_object().0.1]);
+        Version::lamport_increment([child_object_ref.version, effects.gas_object().0.version]);
 
     // Create a Parent object, by wrapping the child object.
     let effects = call_move(
@@ -82,11 +81,11 @@ async fn test_object_wrapping_unwrapping() {
         &gas,
         &sender,
         &sender_key,
-        &package.0,
+        &package.object_id,
         "object_wrapping",
         "create_parent",
         vec![],
-        vec![TestCallArg::Object(child_object_ref.0)],
+        vec![TestCallArg::Object(child_object_ref.object_id)],
     )
     .await
     .unwrap();
@@ -106,20 +105,20 @@ async fn test_object_wrapping_unwrapping() {
         (1, 0, 0, 1)
     );
     let new_child_object_ref = effects.wrapped()[0];
-    let expected_child_object_ref = (
-        child_object_ref.0,
+    let expected_child_object_ref = ObjectReference::new(
+        child_object_ref.object_id,
         wrapped_version,
-        ObjectDigest::OBJECT_DIGEST_WRAPPED,
+        ObjectDigest::OBJECT_WRAPPED,
     );
     // Make sure that the child's version gets increased after wrapped.
     assert_eq!(new_child_object_ref, expected_child_object_ref);
     check_latest_object_ref(&authority, &expected_child_object_ref, true).await;
 
     let parent_object_ref = effects.created()[0].0;
-    assert_eq!(parent_object_ref.1, wrapped_version);
+    assert_eq!(parent_object_ref.version, wrapped_version);
 
     let unwrapped_version =
-        SequenceNumber::lamport_increment([parent_object_ref.1, effects.gas_object().0.1]);
+        Version::lamport_increment([parent_object_ref.version, effects.gas_object().0.version]);
 
     // Extract the child out of the parent.
     let effects = call_move(
@@ -127,11 +126,11 @@ async fn test_object_wrapping_unwrapping() {
         &gas,
         &sender,
         &sender_key,
-        &package.0,
+        &package.object_id,
         "object_wrapping",
         "extract_child",
         vec![],
-        vec![TestCallArg::Object(parent_object_ref.0)],
+        vec![TestCallArg::Object(parent_object_ref.object_id)],
     )
     .await
     .unwrap();
@@ -151,14 +150,14 @@ async fn test_object_wrapping_unwrapping() {
         (2, 0, 1)
     );
     // Make sure that version increments again when unwrapped.
-    assert_eq!(effects.unwrapped()[0].0.1, unwrapped_version);
+    assert_eq!(effects.unwrapped()[0].0.version, unwrapped_version);
     check_latest_object_ref(&authority, &effects.unwrapped()[0].0, false).await;
     let child_object_ref = effects.unwrapped()[0].0;
 
-    let rewrap_version = SequenceNumber::lamport_increment([
-        parent_object_ref.1,
-        child_object_ref.1,
-        effects.gas_object().0.1,
+    let rewrap_version = Version::lamport_increment([
+        parent_object_ref.version,
+        child_object_ref.version,
+        effects.gas_object().0.version,
     ]);
 
     // Wrap the child to the parent again.
@@ -167,13 +166,13 @@ async fn test_object_wrapping_unwrapping() {
         &gas,
         &sender,
         &sender_key,
-        &package.0,
+        &package.object_id,
         "object_wrapping",
         "set_child",
         vec![],
         vec![
-            TestCallArg::Object(parent_object_ref.0),
-            TestCallArg::Object(child_object_ref.0),
+            TestCallArg::Object(parent_object_ref.object_id),
+            TestCallArg::Object(child_object_ref.object_id),
         ],
     )
     .await
@@ -186,10 +185,10 @@ async fn test_object_wrapping_unwrapping() {
     // Check that child object showed up in wrapped.
     // mutated contains parent and gas.
     assert_eq!((effects.mutated().len(), effects.wrapped().len()), (2, 1));
-    let expected_child_object_ref = (
-        child_object_ref.0,
+    let expected_child_object_ref = ObjectReference::new(
+        child_object_ref.object_id,
         rewrap_version,
-        ObjectDigest::OBJECT_DIGEST_WRAPPED,
+        ObjectDigest::OBJECT_WRAPPED,
     );
     assert_eq!(effects.wrapped()[0], expected_child_object_ref);
     check_latest_object_ref(&authority, &expected_child_object_ref, true).await;
@@ -197,7 +196,7 @@ async fn test_object_wrapping_unwrapping() {
     let parent_object_ref = effects.mutated_excluding_gas().first().unwrap().0;
 
     let deleted_version =
-        SequenceNumber::lamport_increment([parent_object_ref.1, effects.gas_object().0.1]);
+        Version::lamport_increment([parent_object_ref.version, effects.gas_object().0.version]);
 
     // Now delete the parent object, which will in turn delete the child object.
     let effects = call_move(
@@ -205,11 +204,11 @@ async fn test_object_wrapping_unwrapping() {
         &gas,
         &sender,
         &sender_key,
-        &package.0,
+        &package.object_id,
         "object_wrapping",
         "delete_parent",
         vec![],
-        vec![TestCallArg::Object(parent_object_ref.0)],
+        vec![TestCallArg::Object(parent_object_ref.object_id)],
     )
     .await
     .unwrap();
@@ -221,10 +220,10 @@ async fn test_object_wrapping_unwrapping() {
     assert_eq!(effects.deleted().len(), 1);
     assert_eq!(effects.unwrapped_then_deleted().len(), 1);
     // Check that both objects are marked as deleted in the authority.
-    let expected_child_object_ref = (
-        child_object_ref.0,
+    let expected_child_object_ref = ObjectReference::new(
+        child_object_ref.object_id,
         deleted_version,
-        ObjectDigest::OBJECT_DIGEST_DELETED,
+        ObjectDigest::OBJECT_DELETED,
     );
     assert!(
         effects
@@ -232,10 +231,10 @@ async fn test_object_wrapping_unwrapping() {
             .contains(&expected_child_object_ref)
     );
     check_latest_object_ref(&authority, &expected_child_object_ref, true).await;
-    let expected_parent_object_ref = (
-        parent_object_ref.0,
+    let expected_parent_object_ref = ObjectReference::new(
+        parent_object_ref.object_id,
         deleted_version,
-        ObjectDigest::OBJECT_DIGEST_DELETED,
+        ObjectDigest::OBJECT_DELETED,
     );
     assert!(effects.deleted().contains(&expected_parent_object_ref));
     check_latest_object_ref(&authority, &expected_parent_object_ref, true).await;
@@ -245,7 +244,7 @@ async fn test_object_wrapping_unwrapping() {
 #[cfg_attr(msim, ignore)]
 async fn test_object_owning_another_object() {
     let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
-    let gas = ObjectID::random();
+    let gas = ObjectId::new(rand::random());
     let authority = init_state_with_ids(vec![(sender, gas)]).await;
 
     let package = build_and_publish_test_package(
@@ -265,7 +264,7 @@ async fn test_object_owning_another_object() {
         &gas,
         &sender,
         &sender_key,
-        &package.0,
+        &package.object_id,
         "object_owner",
         "create_parent",
         vec![],
@@ -282,7 +281,7 @@ async fn test_object_owning_another_object() {
         &gas,
         &sender,
         &sender_key,
-        &package.0,
+        &package.object_id,
         "object_owner",
         "create_child",
         vec![],
@@ -300,11 +299,11 @@ async fn test_object_owning_another_object() {
         &gas,
         &sender,
         &sender_key,
-        &package.0,
+        &package.object_id,
         "object_owner",
         "mutate_child",
         vec![],
-        vec![TestCallArg::Object(child.0)],
+        vec![TestCallArg::Object(child.object_id)],
     )
     .await
     .unwrap();
@@ -316,11 +315,14 @@ async fn test_object_owning_another_object() {
         &gas,
         &sender,
         &sender_key,
-        &package.0,
+        &package.object_id,
         "object_owner",
         "add_child",
         vec![],
-        vec![TestCallArg::Object(parent.0), TestCallArg::Object(child.0)],
+        vec![
+            TestCallArg::Object(parent.object_id),
+            TestCallArg::Object(child.object_id),
+        ],
     )
     .await
     .unwrap();
@@ -328,7 +330,7 @@ async fn test_object_owning_another_object() {
     let child_effect = effects
         .mutated()
         .into_iter()
-        .find(|((id, _, _), _)| id == &child.0)
+        .find(|(oref, _)| oref.object_id == child.object_id)
         .unwrap();
     // Check that the child is now owned by the parent.
     let field_id = match child_effect.1 {
@@ -336,7 +338,7 @@ async fn test_object_owning_another_object() {
         Owner::Shared { .. } | Owner::Immutable | Owner::AddressOwner(_) => panic!(),
     };
     let field_object = authority.get_object(&field_id).await.unwrap();
-    assert_eq!(field_object.owner, parent.0);
+    assert_eq!(field_object.owner, parent.object_id);
 
     // Mutate the child directly will now fail because we need the parent to
     // authenticate.
@@ -345,11 +347,11 @@ async fn test_object_owning_another_object() {
         &gas,
         &sender,
         &sender_key,
-        &package.0,
+        &package.object_id,
         "object_owner",
         "mutate_child",
         vec![],
-        vec![TestCallArg::Object(child.0)],
+        vec![TestCallArg::Object(child.object_id)],
     )
     .await;
     assert!(result.is_err());
@@ -360,11 +362,14 @@ async fn test_object_owning_another_object() {
         &gas,
         &sender,
         &sender_key,
-        &package.0,
+        &package.object_id,
         "object_owner",
         "mutate_child_with_parent",
         vec![],
-        vec![TestCallArg::Object(child.0), TestCallArg::Object(parent.0)],
+        vec![
+            TestCallArg::Object(child.object_id),
+            TestCallArg::Object(parent.object_id),
+        ],
     )
     .await;
     assert!(effects.is_err());
@@ -376,7 +381,7 @@ async fn test_object_owning_another_object() {
         &gas,
         &sender,
         &sender_key,
-        &package.0,
+        &package.object_id,
         "object_owner",
         "create_parent",
         vec![],
@@ -394,13 +399,13 @@ async fn test_object_owning_another_object() {
         &gas,
         &sender,
         &sender_key,
-        &package.0,
+        &package.object_id,
         "object_owner",
         "transfer_child",
         vec![],
         vec![
-            TestCallArg::Object(parent.0),
-            TestCallArg::Object(new_parent.0),
+            TestCallArg::Object(parent.object_id),
+            TestCallArg::Object(new_parent.object_id),
         ],
     )
     .await
@@ -415,11 +420,11 @@ async fn test_object_owning_another_object() {
         &gas,
         &sender,
         &sender_key,
-        &package.0,
+        &package.object_id,
         "object_owner",
         "delete_child",
         vec![],
-        vec![TestCallArg::Object(child.0)],
+        vec![TestCallArg::Object(child.object_id)],
     )
     .await;
     assert!(effects.is_err());
@@ -429,7 +434,7 @@ async fn test_object_owning_another_object() {
 #[cfg_attr(msim, ignore)]
 async fn test_create_then_delete_parent_child() {
     let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
-    let gas = ObjectID::random();
+    let gas = ObjectId::new(rand::random());
     let authority = init_state_with_ids(vec![(sender, gas)]).await;
 
     let package = build_and_publish_test_package(
@@ -449,7 +454,7 @@ async fn test_create_then_delete_parent_child() {
         &gas,
         &sender,
         &sender_key,
-        &package.0,
+        &package.object_id,
         "object_owner",
         "create_parent_and_child",
         vec![],
@@ -474,11 +479,11 @@ async fn test_create_then_delete_parent_child() {
         &gas,
         &sender,
         &sender_key,
-        &package.0,
+        &package.object_id,
         "object_owner",
         "delete_parent_and_child",
         vec![],
-        vec![TestCallArg::Object(parent.0)],
+        vec![TestCallArg::Object(parent.object_id)],
     )
     .await
     .unwrap();
@@ -491,7 +496,7 @@ async fn test_create_then_delete_parent_child() {
 #[cfg_attr(msim, ignore)]
 async fn test_create_then_delete_parent_child_wrap() {
     let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
-    let gas = ObjectID::random();
+    let gas = ObjectId::new(rand::random());
     let authority = init_state_with_ids(vec![(sender, gas)]).await;
 
     let package = build_and_publish_test_package(
@@ -511,7 +516,7 @@ async fn test_create_then_delete_parent_child_wrap() {
         &gas,
         &sender,
         &sender_key,
-        &package.0,
+        &package.object_id,
         "object_owner",
         "create_parent_and_child_wrapped",
         vec![],
@@ -540,7 +545,7 @@ async fn test_create_then_delete_parent_child_wrap() {
     let field = effects
         .created()
         .iter()
-        .find(|((id, _, _), _)| id != &parent.0)
+        .find(|(oref, _)| oref.object_id != parent.object_id)
         .unwrap()
         .0;
 
@@ -550,11 +555,11 @@ async fn test_create_then_delete_parent_child_wrap() {
         &gas,
         &sender,
         &sender_key,
-        &package.0,
+        &package.object_id,
         "object_owner",
         "delete_parent_and_child_wrapped",
         vec![],
-        vec![TestCallArg::Object(parent.0)],
+        vec![TestCallArg::Object(parent.object_id)],
     )
     .await
     .unwrap();
@@ -574,9 +579,9 @@ async fn test_create_then_delete_parent_child_wrap() {
             .into_iter()
             .collect::<HashSet<_>>(),
         HashSet::from([
-            (gas_ref.0, gas_ref.1),
-            (parent.0, parent.1),
-            (field.0, field.1)
+            (gas_ref.object_id, gas_ref.version),
+            (parent.object_id, parent.version),
+            (field.object_id, field.version)
         ]),
     );
 }
@@ -588,7 +593,7 @@ async fn test_create_then_delete_parent_child_wrap() {
 #[cfg_attr(msim, ignore)]
 async fn test_remove_child_when_no_prior_version_exists() {
     let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
-    let gas = ObjectID::random();
+    let gas = ObjectId::new(rand::random());
     let authority = init_state_with_ids(vec![(sender, gas)]).await;
 
     let package = build_and_publish_test_package(
@@ -608,7 +613,7 @@ async fn test_remove_child_when_no_prior_version_exists() {
         &gas,
         &sender,
         &sender_key,
-        &package.0,
+        &package.object_id,
         "object_owner",
         "create_parent_and_child_wrapped",
         vec![],
@@ -637,7 +642,7 @@ async fn test_remove_child_when_no_prior_version_exists() {
     let field = effects
         .created()
         .iter()
-        .find(|((id, _, _), _)| id != &parent.0)
+        .find(|(oref, _)| oref.object_id != parent.object_id)
         .unwrap()
         .0;
 
@@ -647,11 +652,11 @@ async fn test_remove_child_when_no_prior_version_exists() {
         &gas,
         &sender,
         &sender_key,
-        &package.0,
+        &package.object_id,
         "object_owner",
         "remove_wrapped_child",
         vec![],
-        vec![TestCallArg::Object(parent.0)],
+        vec![TestCallArg::Object(parent.object_id)],
     )
     .await
     .unwrap();
@@ -670,9 +675,9 @@ async fn test_remove_child_when_no_prior_version_exists() {
             .into_iter()
             .collect::<HashSet<_>>(),
         HashSet::from([
-            (gas_ref.0, gas_ref.1),
-            (parent.0, parent.1),
-            (field.0, field.1)
+            (gas_ref.object_id, gas_ref.version),
+            (parent.object_id, parent.version),
+            (field.object_id, field.version)
         ]),
     );
 }
@@ -681,7 +686,7 @@ async fn test_remove_child_when_no_prior_version_exists() {
 #[cfg_attr(msim, ignore)]
 async fn test_create_then_delete_parent_child_wrap_separate() {
     let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
-    let gas = ObjectID::random();
+    let gas = ObjectId::new(rand::random());
     let authority = init_state_with_ids(vec![(sender, gas)]).await;
 
     let package = build_and_publish_test_package(
@@ -701,7 +706,7 @@ async fn test_create_then_delete_parent_child_wrap_separate() {
         &gas,
         &sender,
         &sender_key,
-        &package.0,
+        &package.object_id,
         "object_owner",
         "create_parent",
         vec![],
@@ -719,7 +724,7 @@ async fn test_create_then_delete_parent_child_wrap_separate() {
         &gas,
         &sender,
         &sender_key,
-        &package.0,
+        &package.object_id,
         "object_owner",
         "create_child",
         vec![],
@@ -737,11 +742,14 @@ async fn test_create_then_delete_parent_child_wrap_separate() {
         &gas,
         &sender,
         &sender_key,
-        &package.0,
+        &package.object_id,
         "object_owner",
         "add_child_wrapped",
         vec![],
-        vec![TestCallArg::Object(parent.0), TestCallArg::Object(child.0)],
+        vec![
+            TestCallArg::Object(parent.object_id),
+            TestCallArg::Object(child.object_id),
+        ],
     )
     .await
     .unwrap();
@@ -756,11 +764,11 @@ async fn test_create_then_delete_parent_child_wrap_separate() {
         &gas,
         &sender,
         &sender_key,
-        &package.0,
+        &package.object_id,
         "object_owner",
         "delete_parent_and_child_wrapped",
         vec![],
-        vec![TestCallArg::Object(parent.0)],
+        vec![TestCallArg::Object(parent.object_id)],
     )
     .await
     .unwrap();
@@ -776,7 +784,7 @@ async fn test_create_then_delete_parent_child_wrap_separate() {
 #[cfg_attr(msim, ignore)]
 async fn test_entry_point_vector_empty() {
     let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
-    let gas = ObjectID::random();
+    let gas = ObjectId::new(rand::random());
     let authority = init_state_with_ids(vec![(sender, gas)]).await;
     let rgp = authority.reference_gas_price_for_testing().unwrap();
 
@@ -793,13 +801,14 @@ async fn test_entry_point_vector_empty() {
 
     // call a function with an empty vector
     let type_tag =
-        TypeTag::from_str(format!("{}::entry_point_vector::Obj", package.0).as_str()).unwrap();
+        TypeTag::from_str(format!("{}::entry_point_vector::Obj", package.object_id).as_str())
+            .unwrap();
     let pt = {
         let mut builder = ProgrammableTransactionBuilder::new();
         let empty_vec =
             builder.command(Command::MakeMoveVec(Some(type_tag.clone().into()), vec![]));
         builder.programmable_move_call(
-            package.0,
+            package.object_id,
             Identifier::new("entry_point_vector").unwrap(),
             Identifier::new("obj_vec_empty").unwrap(),
             vec![],
@@ -829,7 +838,7 @@ async fn test_entry_point_vector_empty() {
         let empty_vec =
             builder.command(Command::MakeMoveVec(Some(type_tag.clone().into()), vec![]));
         builder.programmable_move_call(
-            package.0,
+            package.object_id,
             Identifier::new("entry_point_vector").unwrap(),
             Identifier::new("type_param_vec_empty").unwrap(),
             vec![type_tag.clone()],
@@ -859,7 +868,7 @@ async fn test_entry_point_vector_empty() {
         let mut builder = ProgrammableTransactionBuilder::new();
         let empty_vec = builder.command(Command::MakeMoveVec(None, vec![]));
         builder.programmable_move_call(
-            package.0,
+            package.object_id,
             Identifier::new("entry_point_vector").unwrap(),
             Identifier::new("obj_vec_empty").unwrap(),
             vec![],
@@ -889,7 +898,7 @@ async fn test_entry_point_vector_empty() {
         let mut builder = ProgrammableTransactionBuilder::new();
         let empty_vec = builder.command(Command::MakeMoveVec(None, vec![]));
         builder.programmable_move_call(
-            package.0,
+            package.object_id,
             Identifier::new("entry_point_vector").unwrap(),
             Identifier::new("type_param_vec_empty").unwrap(),
             vec![type_tag],
@@ -919,7 +928,7 @@ async fn test_entry_point_vector_empty() {
 #[cfg_attr(msim, ignore)]
 async fn test_entry_point_vector_primitive() {
     let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
-    let gas = ObjectID::random();
+    let gas = ObjectId::new(rand::random());
     let authority = init_state_with_ids(vec![(sender, gas)]).await;
 
     let package = build_and_publish_test_package(
@@ -940,7 +949,7 @@ async fn test_entry_point_vector_primitive() {
         &gas,
         &sender,
         &sender_key,
-        &package.0,
+        &package.object_id,
         "entry_point_vector",
         "prim_vec_len",
         vec![],
@@ -961,7 +970,7 @@ async fn test_entry_point_vector_primitive() {
 #[cfg_attr(msim, ignore)]
 async fn test_entry_point_vector() {
     let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
-    let gas = ObjectID::random();
+    let gas = ObjectId::new(rand::random());
     let authority = init_state_with_ids(vec![(sender, gas)]).await;
 
     let package = build_and_publish_test_package(
@@ -981,7 +990,7 @@ async fn test_entry_point_vector() {
         &gas,
         &sender,
         &sender_key,
-        &package.0,
+        &package.object_id,
         "entry_point_vector",
         "mint",
         vec![],
@@ -994,18 +1003,18 @@ async fn test_entry_point_vector() {
         "{:?}",
         effects.status()
     );
-    let (obj_id, _, _) = effects.created()[0].0;
+    let obj_ref = effects.created()[0].0;
     // call a function with a vector containing one owned object
     let effects = call_move(
         &authority,
         &gas,
         &sender,
         &sender_key,
-        &package.0,
+        &package.object_id,
         "entry_point_vector",
         "obj_vec_destroy",
         vec![],
-        vec![TestCallArg::ObjVec(vec![obj_id])],
+        vec![TestCallArg::ObjVec(vec![obj_ref.object_id])],
     )
     .await
     .unwrap();
@@ -1022,7 +1031,7 @@ async fn test_entry_point_vector() {
         &gas,
         &sender,
         &sender_key,
-        &package.0,
+        &package.object_id,
         "entry_point_vector",
         "mint",
         vec![],
@@ -1035,19 +1044,19 @@ async fn test_entry_point_vector() {
         "{:?}",
         effects.status()
     );
-    let (parent_id, _, _) = effects.created()[0].0;
+    let parent_ref = effects.created()[0].0;
     let effects = call_move(
         &authority,
         &gas,
         &sender,
         &sender_key,
-        &package.0,
+        &package.object_id,
         "entry_point_vector",
         "mint_child",
         vec![],
         vec![
             TestCallArg::Pure(bcs::to_bytes(&(42_u64)).unwrap()),
-            TestCallArg::Object(parent_id),
+            TestCallArg::Object(parent_ref.object_id),
         ],
     )
     .await
@@ -1057,7 +1066,7 @@ async fn test_entry_point_vector() {
         "{:?}",
         effects.status()
     );
-    let (child_id, _, _) = effects.created()[0].0;
+    let child_ref = effects.created()[0].0;
     // call a function with a vector containing the same owned object as another one
     // passed as a reference argument
     let effects = call_move(
@@ -1065,13 +1074,13 @@ async fn test_entry_point_vector() {
         &gas,
         &sender,
         &sender_key,
-        &package.0,
+        &package.object_id,
         "entry_point_vector",
         "child_access",
         vec![],
         vec![
-            TestCallArg::Object(child_id),
-            TestCallArg::ObjVec(vec![parent_id]),
+            TestCallArg::Object(child_ref.object_id),
+            TestCallArg::ObjVec(vec![parent_ref.object_id]),
         ],
     )
     .await;
@@ -1083,7 +1092,7 @@ async fn test_entry_point_vector() {
 #[cfg_attr(msim, ignore)]
 async fn test_entry_point_vector_error() {
     let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
-    let gas = ObjectID::random();
+    let gas = ObjectId::new(rand::random());
     let authority = init_state_with_ids(vec![(sender, gas)]).await;
 
     let package = build_and_publish_test_package(
@@ -1103,7 +1112,7 @@ async fn test_entry_point_vector_error() {
         &gas,
         &sender,
         &sender_key,
-        &package.0,
+        &package.object_id,
         "entry_point_vector",
         "mint_another",
         vec![],
@@ -1116,18 +1125,18 @@ async fn test_entry_point_vector_error() {
         "{:?}",
         effects.status()
     );
-    let (obj_id, _, _) = effects.created()[0].0;
+    let obj_ref = effects.created()[0].0;
     // call a function with a vector containing one owned object
     let effects = call_move(
         &authority,
         &gas,
         &sender,
         &sender_key,
-        &package.0,
+        &package.object_id,
         "entry_point_vector",
         "obj_vec_destroy",
         vec![],
-        vec![TestCallArg::ObjVec(vec![obj_id])],
+        vec![TestCallArg::ObjVec(vec![obj_ref.object_id])],
     )
     .await
     .unwrap();
@@ -1144,7 +1153,7 @@ async fn test_entry_point_vector_error() {
         &gas,
         &sender,
         &sender_key,
-        &package.0,
+        &package.object_id,
         "entry_point_vector",
         "mint_another",
         vec![],
@@ -1157,13 +1166,13 @@ async fn test_entry_point_vector_error() {
         "{:?}",
         effects.status()
     );
-    let (wrong_obj_id, _, _) = effects.created()[0].0;
+    let wrong_obj_ref = effects.created()[0].0;
     let effects = call_move(
         &authority,
         &gas,
         &sender,
         &sender_key,
-        &package.0,
+        &package.object_id,
         "entry_point_vector",
         "mint",
         vec![],
@@ -1176,18 +1185,21 @@ async fn test_entry_point_vector_error() {
         "{:?}",
         effects.status()
     );
-    let (correct_obj_id, _, _) = effects.created()[0].0;
+    let correct_obj_ref = effects.created()[0].0;
     // call a function with a vector containing one owned object
     let effects = call_move(
         &authority,
         &gas,
         &sender,
         &sender_key,
-        &package.0,
+        &package.object_id,
         "entry_point_vector",
         "two_obj_vec_destroy",
         vec![],
-        vec![TestCallArg::ObjVec(vec![wrong_obj_id, correct_obj_id])],
+        vec![TestCallArg::ObjVec(vec![
+            wrong_obj_ref.object_id,
+            correct_obj_ref.object_id,
+        ])],
     )
     .await
     .unwrap();
@@ -1205,7 +1217,7 @@ async fn test_entry_point_vector_error() {
         &gas,
         &sender,
         &sender_key,
-        &package.0,
+        &package.object_id,
         "entry_point_vector",
         "mint_shared",
         vec![],
@@ -1218,7 +1230,7 @@ async fn test_entry_point_vector_error() {
         "{:?}",
         effects.status()
     );
-    let (shared_obj_id, _, _) = effects.created()[0].0;
+    let shared_obj_ref = effects.created()[0].0;
     // call a function with a vector containing one shared object
     let effects = call_move_(
         &authority,
@@ -1226,11 +1238,11 @@ async fn test_entry_point_vector_error() {
         &gas,
         &sender,
         &sender_key,
-        &package.0,
+        &package.object_id,
         "entry_point_vector",
         "obj_vec_destroy",
         vec![],
-        vec![TestCallArg::ObjVec(vec![shared_obj_id])],
+        vec![TestCallArg::ObjVec(vec![shared_obj_ref.object_id])],
         true, // shared object in arguments
     )
     .await
@@ -1248,7 +1260,7 @@ async fn test_entry_point_vector_error() {
         &gas,
         &sender,
         &sender_key,
-        &package.0,
+        &package.object_id,
         "entry_point_vector",
         "mint",
         vec![],
@@ -1261,7 +1273,7 @@ async fn test_entry_point_vector_error() {
         "{:?}",
         effects.status()
     );
-    let (obj_id, _, _) = effects.created()[0].0;
+    let obj_ref = effects.created()[0].0;
     // call a function with a vector containing the same owned object as another one
     // passed as argument
     let result = call_move(
@@ -1269,13 +1281,13 @@ async fn test_entry_point_vector_error() {
         &gas,
         &sender,
         &sender_key,
-        &package.0,
+        &package.object_id,
         "entry_point_vector",
         "same_objects",
         vec![],
         vec![
-            TestCallArg::Object(obj_id),
-            TestCallArg::ObjVec(vec![obj_id]),
+            TestCallArg::Object(obj_ref.object_id),
+            TestCallArg::ObjVec(vec![obj_ref.object_id]),
         ],
     )
     .await;
@@ -1298,7 +1310,7 @@ async fn test_entry_point_vector_error() {
         &gas,
         &sender,
         &sender_key,
-        &package.0,
+        &package.object_id,
         "entry_point_vector",
         "mint",
         vec![],
@@ -1311,7 +1323,7 @@ async fn test_entry_point_vector_error() {
         "{:?}",
         effects.status()
     );
-    let (obj_id, _, _) = effects.created()[0].0;
+    let obj_ref = effects.created()[0].0;
     // call a function with a vector containing the same owned object as another one
     // passed as a reference argument
     let result = call_move(
@@ -1319,13 +1331,13 @@ async fn test_entry_point_vector_error() {
         &gas,
         &sender,
         &sender_key,
-        &package.0,
+        &package.object_id,
         "entry_point_vector",
         "same_objects_ref",
         vec![],
         vec![
-            TestCallArg::Object(obj_id),
-            TestCallArg::ObjVec(vec![obj_id]),
+            TestCallArg::Object(obj_ref.object_id),
+            TestCallArg::ObjVec(vec![obj_ref.object_id]),
         ],
     )
     .await;
@@ -1347,7 +1359,7 @@ async fn test_entry_point_vector_error() {
 #[cfg_attr(msim, ignore)]
 async fn test_entry_point_vector_any() {
     let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
-    let gas = ObjectID::random();
+    let gas = ObjectId::new(rand::random());
     let authority = init_state_with_ids(vec![(sender, gas)]).await;
 
     let package = build_and_publish_test_package(
@@ -1362,7 +1374,8 @@ async fn test_entry_point_vector_any() {
     .await;
 
     let any_type_tag =
-        TypeTag::from_str(format!("{}::entry_point_vector::Any", package.0).as_str()).unwrap();
+        TypeTag::from_str(format!("{}::entry_point_vector::Any", package.object_id).as_str())
+            .unwrap();
 
     // mint an owned object
     let effects = call_move(
@@ -1370,7 +1383,7 @@ async fn test_entry_point_vector_any() {
         &gas,
         &sender,
         &sender_key,
-        &package.0,
+        &package.object_id,
         "entry_point_vector",
         "mint_any",
         vec![any_type_tag.clone()],
@@ -1383,18 +1396,18 @@ async fn test_entry_point_vector_any() {
         "{:?}",
         effects.status()
     );
-    let (obj_id, _, _) = effects.created()[0].0;
+    let obj_ref = effects.created()[0].0;
     // call a function with a vector containing one owned object
     let effects = call_move(
         &authority,
         &gas,
         &sender,
         &sender_key,
-        &package.0,
+        &package.object_id,
         "entry_point_vector",
         "obj_vec_destroy_any",
         vec![any_type_tag.clone()],
-        vec![TestCallArg::ObjVec(vec![obj_id])],
+        vec![TestCallArg::ObjVec(vec![obj_ref.object_id])],
     )
     .await
     .unwrap();
@@ -1411,7 +1424,7 @@ async fn test_entry_point_vector_any() {
         &gas,
         &sender,
         &sender_key,
-        &package.0,
+        &package.object_id,
         "entry_point_vector",
         "mint_any",
         vec![any_type_tag.clone()],
@@ -1424,19 +1437,19 @@ async fn test_entry_point_vector_any() {
         "{:?}",
         effects.status()
     );
-    let (parent_id, _, _) = effects.created()[0].0;
+    let parent_ref = effects.created()[0].0;
     let effects = call_move(
         &authority,
         &gas,
         &sender,
         &sender_key,
-        &package.0,
+        &package.object_id,
         "entry_point_vector",
         "mint_child_any",
         vec![any_type_tag.clone()],
         vec![
             TestCallArg::Pure(bcs::to_bytes(&(42_u64)).unwrap()),
-            TestCallArg::Object(parent_id),
+            TestCallArg::Object(parent_ref.object_id),
         ],
     )
     .await
@@ -1446,7 +1459,7 @@ async fn test_entry_point_vector_any() {
         "{:?}",
         effects.status()
     );
-    let (child_id, _, _) = effects.created()[0].0;
+    let child_ref = effects.created()[0].0;
     // call a function with a vector containing the same owned object as another one
     // passed as a reference argument
     let effects = call_move(
@@ -1454,13 +1467,13 @@ async fn test_entry_point_vector_any() {
         &gas,
         &sender,
         &sender_key,
-        &package.0,
+        &package.object_id,
         "entry_point_vector",
         "child_access_any",
         vec![any_type_tag],
         vec![
-            TestCallArg::Object(child_id),
-            TestCallArg::ObjVec(vec![parent_id]),
+            TestCallArg::Object(child_ref.object_id),
+            TestCallArg::ObjVec(vec![parent_ref.object_id]),
         ],
     )
     .await;
@@ -1472,7 +1485,7 @@ async fn test_entry_point_vector_any() {
 #[cfg_attr(msim, ignore)]
 async fn test_entry_point_vector_any_error() {
     let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
-    let gas = ObjectID::random();
+    let gas = ObjectId::new(rand::random());
     let authority = init_state_with_ids(vec![(sender, gas)]).await;
 
     let package = build_and_publish_test_package(
@@ -1487,7 +1500,8 @@ async fn test_entry_point_vector_any_error() {
     .await;
 
     let any_type_tag =
-        TypeTag::from_str(format!("{}::entry_point_vector::Any", package.0).as_str()).unwrap();
+        TypeTag::from_str(format!("{}::entry_point_vector::Any", package.object_id).as_str())
+            .unwrap();
 
     // mint an owned object of a wrong type
     let effects = call_move(
@@ -1495,7 +1509,7 @@ async fn test_entry_point_vector_any_error() {
         &gas,
         &sender,
         &sender_key,
-        &package.0,
+        &package.object_id,
         "entry_point_vector",
         "mint_another_any",
         vec![any_type_tag.clone()],
@@ -1508,18 +1522,18 @@ async fn test_entry_point_vector_any_error() {
         "{:?}",
         effects.status()
     );
-    let (obj_id, _, _) = effects.created()[0].0;
+    let obj_ref = effects.created()[0].0;
     // call a function with a vector containing one owned object
     let effects = call_move(
         &authority,
         &gas,
         &sender,
         &sender_key,
-        &package.0,
+        &package.object_id,
         "entry_point_vector",
         "obj_vec_destroy_any",
         vec![any_type_tag.clone()],
-        vec![TestCallArg::ObjVec(vec![obj_id])],
+        vec![TestCallArg::ObjVec(vec![obj_ref.object_id])],
     )
     .await
     .unwrap();
@@ -1536,7 +1550,7 @@ async fn test_entry_point_vector_any_error() {
         &gas,
         &sender,
         &sender_key,
-        &package.0,
+        &package.object_id,
         "entry_point_vector",
         "mint_another_any",
         vec![any_type_tag.clone()],
@@ -1549,13 +1563,13 @@ async fn test_entry_point_vector_any_error() {
         "{:?}",
         effects.status()
     );
-    let (wrong_obj_id, _, _) = effects.created()[0].0;
+    let wrong_obj_ref = effects.created()[0].0;
     let effects = call_move(
         &authority,
         &gas,
         &sender,
         &sender_key,
-        &package.0,
+        &package.object_id,
         "entry_point_vector",
         "mint_any",
         vec![any_type_tag.clone()],
@@ -1568,18 +1582,21 @@ async fn test_entry_point_vector_any_error() {
         "{:?}",
         effects.status()
     );
-    let (correct_obj_id, _, _) = effects.created()[0].0;
+    let correct_obj_ref = effects.created()[0].0;
     // call a function with a vector containing one owned object
     let effects = call_move(
         &authority,
         &gas,
         &sender,
         &sender_key,
-        &package.0,
+        &package.object_id,
         "entry_point_vector",
         "two_obj_vec_destroy_any",
         vec![any_type_tag.clone()],
-        vec![TestCallArg::ObjVec(vec![wrong_obj_id, correct_obj_id])],
+        vec![TestCallArg::ObjVec(vec![
+            wrong_obj_ref.object_id,
+            correct_obj_ref.object_id,
+        ])],
     )
     .await
     .unwrap();
@@ -1597,7 +1614,7 @@ async fn test_entry_point_vector_any_error() {
         &gas,
         &sender,
         &sender_key,
-        &package.0,
+        &package.object_id,
         "entry_point_vector",
         "mint_shared_any",
         vec![any_type_tag.clone()],
@@ -1610,7 +1627,7 @@ async fn test_entry_point_vector_any_error() {
         "{:?}",
         effects.status()
     );
-    let (shared_obj_id, _, _) = effects.created()[0].0;
+    let shared_obj_ref = effects.created()[0].0;
     // call a function with a vector containing one shared object
     let effects = call_move_(
         &authority,
@@ -1618,11 +1635,11 @@ async fn test_entry_point_vector_any_error() {
         &gas,
         &sender,
         &sender_key,
-        &package.0,
+        &package.object_id,
         "entry_point_vector",
         "obj_vec_destroy_any",
         vec![any_type_tag.clone()],
-        vec![TestCallArg::ObjVec(vec![shared_obj_id])],
+        vec![TestCallArg::ObjVec(vec![shared_obj_ref.object_id])],
         true, // shared object in arguments
     )
     .await
@@ -1640,7 +1657,7 @@ async fn test_entry_point_vector_any_error() {
         &gas,
         &sender,
         &sender_key,
-        &package.0,
+        &package.object_id,
         "entry_point_vector",
         "mint_any",
         vec![any_type_tag.clone()],
@@ -1653,7 +1670,7 @@ async fn test_entry_point_vector_any_error() {
         "{:?}",
         effects.status()
     );
-    let (obj_id, _, _) = effects.created()[0].0;
+    let obj_ref = effects.created()[0].0;
     // call a function with a vector containing the same owned object as another one
     // passed as argument
     let result = call_move(
@@ -1661,13 +1678,13 @@ async fn test_entry_point_vector_any_error() {
         &gas,
         &sender,
         &sender_key,
-        &package.0,
+        &package.object_id,
         "entry_point_vector",
         "same_objects_any",
         vec![any_type_tag.clone()],
         vec![
-            TestCallArg::Object(obj_id),
-            TestCallArg::ObjVec(vec![obj_id]),
+            TestCallArg::Object(obj_ref.object_id),
+            TestCallArg::ObjVec(vec![obj_ref.object_id]),
         ],
     )
     .await;
@@ -1690,7 +1707,7 @@ async fn test_entry_point_vector_any_error() {
         &gas,
         &sender,
         &sender_key,
-        &package.0,
+        &package.object_id,
         "entry_point_vector",
         "mint_any",
         vec![any_type_tag.clone()],
@@ -1703,7 +1720,7 @@ async fn test_entry_point_vector_any_error() {
         "{:?}",
         effects.status()
     );
-    let (obj_id, _, _) = effects.created()[0].0;
+    let obj_ref = effects.created()[0].0;
     // call a function with a vector containing the same owned object as another one
     // passed as a reference argument
     let result = call_move(
@@ -1711,13 +1728,13 @@ async fn test_entry_point_vector_any_error() {
         &gas,
         &sender,
         &sender_key,
-        &package.0,
+        &package.object_id,
         "entry_point_vector",
         "same_objects_ref_any",
         vec![any_type_tag.clone()],
         vec![
-            TestCallArg::Object(obj_id),
-            TestCallArg::ObjVec(vec![obj_id]),
+            TestCallArg::Object(obj_ref.object_id),
+            TestCallArg::ObjVec(vec![obj_ref.object_id]),
         ],
     )
     .await;
@@ -1737,7 +1754,7 @@ async fn test_entry_point_vector_any_error() {
 #[cfg_attr(msim, ignore)]
 async fn test_entry_point_string() {
     let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
-    let gas = ObjectID::random();
+    let gas = ObjectId::new(rand::random());
     let authority = init_state_with_ids(vec![(sender, gas)]).await;
 
     let package = build_and_publish_test_package(
@@ -1760,7 +1777,7 @@ async fn test_entry_point_string() {
         &gas,
         &sender,
         &sender_key,
-        &package.0,
+        &package.object_id,
         "entry_point_types",
         "ascii_arg",
         vec![],
@@ -1782,7 +1799,7 @@ async fn test_entry_point_string() {
         &gas,
         &sender,
         &sender_key,
-        &package.0,
+        &package.object_id,
         "entry_point_types",
         "utf8_arg",
         vec![],
@@ -1804,7 +1821,7 @@ async fn test_entry_point_string() {
         &gas,
         &sender,
         &sender_key,
-        &package.0,
+        &package.object_id,
         "entry_point_types",
         "utf8_arg",
         vec![],
@@ -1822,7 +1839,7 @@ async fn test_entry_point_string() {
 #[cfg_attr(msim, ignore)]
 async fn test_nested_string() {
     let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
-    let gas = ObjectID::random();
+    let gas = ObjectId::new(rand::random());
     let authority = init_state_with_ids(vec![(sender, gas)]).await;
 
     let package = build_and_publish_test_package(
@@ -1844,7 +1861,7 @@ async fn test_nested_string() {
         &gas,
         &sender,
         &sender_key,
-        &package.0,
+        &package.object_id,
         "entry_point_types",
         "option_utf8_arg",
         vec![],
@@ -1862,7 +1879,7 @@ async fn test_nested_string() {
         &gas,
         &sender,
         &sender_key,
-        &package.0,
+        &package.object_id,
         "entry_point_types",
         "vec_option_utf8_arg",
         vec![],
@@ -1880,7 +1897,7 @@ async fn test_nested_string() {
         &gas,
         &sender,
         &sender_key,
-        &package.0,
+        &package.object_id,
         "entry_point_types",
         "option_vec_option_utf8_arg",
         vec![],
@@ -1898,7 +1915,7 @@ async fn test_nested_string() {
         &gas,
         &sender,
         &sender_key,
-        &package.0,
+        &package.object_id,
         "entry_point_types",
         "option_utf8_arg",
         vec![],
@@ -1916,7 +1933,7 @@ async fn test_nested_string() {
         &gas,
         &sender,
         &sender_key,
-        &package.0,
+        &package.object_id,
         "entry_point_types",
         "vec_option_utf8_arg",
         vec![],
@@ -1934,7 +1951,7 @@ async fn test_nested_string() {
         &gas,
         &sender,
         &sender_key,
-        &package.0,
+        &package.object_id,
         "entry_point_types",
         "vec_option_utf8_arg",
         vec![],
@@ -1952,7 +1969,7 @@ async fn test_nested_string() {
         &gas,
         &sender,
         &sender_key,
-        &package.0,
+        &package.object_id,
         "entry_point_types",
         "option_vec_option_utf8_arg",
         vec![],
@@ -1967,7 +1984,7 @@ async fn test_nested_string() {
 #[cfg_attr(msim, ignore)]
 async fn test_entry_point_string_vec() {
     let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
-    let gas = ObjectID::random();
+    let gas = ObjectId::new(rand::random());
     let authority = init_state_with_ids(vec![(sender, gas)]).await;
 
     let package = build_and_publish_test_package(
@@ -1991,7 +2008,7 @@ async fn test_entry_point_string_vec() {
         &gas,
         &sender,
         &sender_key,
-        &package.0,
+        &package.object_id,
         "entry_point_types",
         "utf8_vec_arg",
         vec![],
@@ -2009,7 +2026,7 @@ async fn test_entry_point_string_vec() {
 #[cfg_attr(msim, ignore)]
 async fn test_entry_point_string_error() {
     let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
-    let gas = ObjectID::random();
+    let gas = ObjectId::new(rand::random());
     let authority = init_state_with_ids(vec![(sender, gas)]).await;
 
     let package = build_and_publish_test_package(
@@ -2032,7 +2049,7 @@ async fn test_entry_point_string_error() {
         &gas,
         &sender,
         &sender_key,
-        &package.0,
+        &package.object_id,
         "entry_point_types",
         "ascii_arg",
         vec![],
@@ -2067,7 +2084,7 @@ async fn test_entry_point_string_error() {
         &gas,
         &sender,
         &sender_key,
-        &package.0,
+        &package.object_id,
         "entry_point_types",
         "ascii_arg",
         vec![],
@@ -2102,7 +2119,7 @@ async fn test_entry_point_string_error() {
         &gas,
         &sender,
         &sender_key,
-        &package.0,
+        &package.object_id,
         "entry_point_types",
         "utf8_arg",
         vec![],
@@ -2129,7 +2146,7 @@ async fn test_entry_point_string_error() {
 #[cfg_attr(msim, ignore)]
 async fn test_entry_point_string_vec_error() {
     let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
-    let gas = ObjectID::random();
+    let gas = ObjectId::new(rand::random());
     let authority = init_state_with_ids(vec![(sender, gas)]).await;
 
     let package = build_and_publish_test_package(
@@ -2158,7 +2175,7 @@ async fn test_entry_point_string_vec_error() {
         &gas,
         &sender,
         &sender_key,
-        &package.0,
+        &package.object_id,
         "entry_point_types",
         "utf8_vec_arg",
         vec![],
@@ -2185,7 +2202,7 @@ async fn test_entry_point_string_vec_error() {
 #[cfg_attr(msim, ignore)]
 async fn test_entry_point_string_option_error() {
     let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
-    let gas = ObjectID::random();
+    let gas = ObjectId::new(rand::random());
     let authority = init_state_with_ids(vec![(sender, gas)]).await;
 
     let package = build_and_publish_test_package(
@@ -2207,7 +2224,7 @@ async fn test_entry_point_string_option_error() {
         &gas,
         &sender,
         &sender_key,
-        &package.0,
+        &package.object_id,
         "entry_point_types",
         "option_ascii_arg",
         vec![],
@@ -2237,7 +2254,7 @@ async fn test_entry_point_string_option_error() {
         &gas,
         &sender,
         &sender_key,
-        &package.0,
+        &package.object_id,
         "entry_point_types",
         "option_utf8_arg",
         vec![],
@@ -2265,7 +2282,7 @@ async fn test_entry_point_string_option_error() {
         &gas,
         &sender,
         &sender_key,
-        &package.0,
+        &package.object_id,
         "entry_point_types",
         "option_utf8_arg",
         vec![],
@@ -2287,16 +2304,16 @@ async fn test_entry_point_string_option_error() {
 
 async fn test_make_move_vec_for_type<T: Clone + Serialize>(
     authority: &AuthorityState,
-    gas: &ObjectID,
-    sender: &IotaAddress,
+    gas: &ObjectId,
+    sender: &Address,
     sender_key: &AccountKeyPair,
-    package_id: ObjectID,
+    package_id: ObjectId,
     t: TypeTag,
     value: T,
 ) {
     fn make_and_drop(
         builder: &mut ProgrammableTransactionBuilder,
-        package: ObjectID,
+        package: ObjectId,
         t: &TypeTag,
         args: Vec<Argument>,
     ) {
@@ -2453,7 +2470,7 @@ macro_rules! make_vec_tests_for_type {
         #[cfg_attr(msim, ignore)]
         async fn $test() {
             let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
-            let gas = ObjectID::random();
+            let gas = ObjectId::new(rand::random());
             let authority = init_state_with_ids(vec![(sender, gas)]).await;
             let package = build_and_publish_test_package(
                 &authority,
@@ -2465,7 +2482,7 @@ macro_rules! make_vec_tests_for_type {
                 false,
             )
             .await;
-            let package_id = package.0;
+            let package_id = package.object_id;
             test_make_move_vec_for_type(
                 &authority,
                 &gas,
@@ -2539,15 +2556,15 @@ make_vec_tests_for_type!(test_make_move_vec_u128, u128, TypeTag::U128, 0u128);
 make_vec_tests_for_type!(test_make_move_vec_u256, U256, TypeTag::U256, U256::zero());
 make_vec_tests_for_type!(
     test_make_move_vec_address,
-    IotaAddress,
+    Address,
     TypeTag::Address,
-    IotaAddress::ZERO
+    Address::ZERO
 );
 make_vec_tests_for_type!(
     test_make_move_vec_address_id,
-    ObjectID,
+    ObjectId,
     TypeTag::Struct(Box::new(iota_types::id::ID::type_())),
-    ObjectID::ZERO
+    ObjectId::ZERO
 );
 make_vec_tests_for_type!(test_make_move_vec_utf8, &str, utf8_tag(), "❤️🧀");
 make_vec_tests_for_type!(
@@ -2559,8 +2576,8 @@ make_vec_tests_for_type!(
 
 async fn error_test_make_move_vec_for_type<T: Clone + Serialize>(
     authority: &AuthorityState,
-    gas: &ObjectID,
-    sender: &IotaAddress,
+    gas: &ObjectId,
+    sender: &Address,
     sender_key: &AccountKeyPair,
     t: TypeTag,
     value: T,
@@ -2660,7 +2677,7 @@ macro_rules! make_vec_error_tests_for_type {
         #[cfg_attr(msim, ignore)]
         async fn $test() {
             let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
-            let gas = ObjectID::random();
+            let gas = ObjectId::new(rand::random());
             let authority = init_state_with_ids(vec![(sender, gas)]).await;
             error_test_make_move_vec_for_type(&authority, &gas, &sender, &sender_key, $tag, $value)
                 .await;
@@ -2727,15 +2744,15 @@ make_vec_error_tests_for_type!(
 );
 make_vec_error_tests_for_type!(
     test_error_make_move_vec_address,
-    IotaAddress,
+    Address,
     TypeTag::Address,
-    IotaAddress::ZERO
+    Address::ZERO
 );
 make_vec_error_tests_for_type!(
     test_error_make_move_vec_address_id,
-    ObjectID,
+    ObjectId,
     TypeTag::Struct(Box::new(iota_types::id::ID::type_())),
-    ObjectID::ZERO
+    ObjectId::ZERO
 );
 make_vec_error_tests_for_type!(test_error_make_move_vec_utf8, &str, utf8_tag(), "❤️🧀");
 make_vec_error_tests_for_type!(
@@ -2749,7 +2766,7 @@ make_vec_error_tests_for_type!(
 #[cfg_attr(msim, ignore)]
 async fn test_make_move_vec_empty() {
     let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
-    let gas = ObjectID::random();
+    let gas = ObjectId::new(rand::random());
     let authority = init_state_with_ids(vec![(sender, gas)]).await;
     let rgp = authority.reference_gas_price_for_testing().unwrap();
     let mut builder = ProgrammableTransactionBuilder::new();
@@ -2827,7 +2844,7 @@ pub fn build_test_package(test_dir: &str, with_unpublished_deps: bool) -> Vec<Ve
 pub fn build_package(
     code_dir: &str,
     with_unpublished_deps: bool,
-) -> (Vec<u8>, Vec<Vec<u8>>, Vec<ObjectID>) {
+) -> (Vec<u8>, Vec<Vec<u8>>, Vec<ObjectId>) {
     move_package::package_hooks::register_package_hooks(Box::new(IotaPackageHooks));
     let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     path.extend(["src", "unit_tests", "data", code_dir]);
@@ -2840,9 +2857,9 @@ pub fn build_package(
 
 pub async fn build_and_try_publish_test_package(
     authority: &AuthorityState,
-    sender: &IotaAddress,
+    sender: &Address,
     sender_key: &AccountKeyPair,
-    gas_object_id: &ObjectID,
+    gas_object_id: &ObjectId,
     test_dir: &str,
     gas_budget: u64,
     gas_price: u64,
@@ -2880,12 +2897,12 @@ pub async fn build_and_try_publish_test_package(
 
 pub async fn build_and_publish_test_package(
     authority: &AuthorityState,
-    sender: &IotaAddress,
+    sender: &Address,
     sender_key: &AccountKeyPair,
-    gas_object_id: &ObjectID,
+    gas_object_id: &ObjectId,
     test_dir: &str,
     with_unpublished_deps: bool,
-) -> ObjectRef {
+) -> ObjectReference {
     build_and_publish_test_package_with_upgrade_cap(
         authority,
         sender,
@@ -2900,12 +2917,12 @@ pub async fn build_and_publish_test_package(
 
 pub async fn build_and_publish_test_package_with_upgrade_cap(
     authority: &AuthorityState,
-    sender: &IotaAddress,
+    sender: &Address,
     sender_key: &AccountKeyPair,
-    gas_object_id: &ObjectID,
+    gas_object_id: &ObjectId,
     test_dir: &str,
     with_unpublished_deps: bool,
-) -> (ObjectRef, ObjectRef) {
+) -> (ObjectReference, ObjectReference) {
     let gas_price = authority.reference_gas_price_for_testing().unwrap();
     let gas_budget = TEST_ONLY_GAS_UNIT_FOR_PUBLISH * gas_price;
     let effects = build_and_try_publish_test_package(
@@ -2944,32 +2961,32 @@ pub async fn build_and_publish_test_package_with_upgrade_cap(
 pub async fn collect_packages_and_upgrade_caps(
     authority: &AuthorityState,
     effects: &TransactionEffects,
-) -> HashMap<ObjectID, ObjectRef> {
+) -> HashMap<ObjectId, ObjectReference> {
     let packages: HashMap<_, _> = effects
         .created()
         .into_iter()
         .filter(|(_, owner)| matches!(owner, Owner::Immutable))
-        .map(|(package, _)| (package.0, package))
+        .map(|(package, _)| (package.object_id, package))
         .collect();
     let mut caps = HashMap::new();
     for (obj_ref, owner) in effects.created() {
         if !matches!(owner, Owner::AddressOwner(_)) {
             continue;
         }
-        let cap = authority.get_object(&obj_ref.0).await.unwrap();
+        let cap = authority.get_object(&obj_ref.object_id).await.unwrap();
         let bcs = cap.data.try_as_move().unwrap().contents();
         let obj: UpgradeCap = bcs::from_bytes(bcs).unwrap();
         let pkg = packages.get(&obj.package.bytes).unwrap();
-        caps.insert(pkg.0, obj_ref);
+        caps.insert(pkg.object_id, obj_ref);
     }
     caps
 }
 
 pub async fn run_multi_txns(
     authority: &AuthorityState,
-    sender: IotaAddress,
+    sender: Address,
     sender_key: &AccountKeyPair,
-    gas_object_id: &ObjectID,
+    gas_object_id: &ObjectId,
     builder: ProgrammableTransactionBuilder,
 ) -> Result<(CertifiedTransaction, SignedTransactionEffects), IotaError> {
     // build the transaction data
@@ -2989,8 +3006,8 @@ pub async fn run_multi_txns(
 
 pub fn build_multi_publish_txns(
     builder: &mut ProgrammableTransactionBuilder,
-    sender: IotaAddress,
-    packages: Vec<(Vec<Vec<u8>>, Vec<ObjectID>)>,
+    sender: Address,
+    packages: Vec<(Vec<Vec<u8>>, Vec<ObjectId>)>,
 ) {
     for (modules, dep_ids) in packages {
         let upgrade_cap = builder.publish_upgradeable(modules, dep_ids);
@@ -2999,11 +3016,11 @@ pub fn build_multi_publish_txns(
 }
 
 pub struct UpgradeData {
-    pub package_id: ObjectID,
-    pub upgrade_cap: ObjectRef,
+    pub package_id: ObjectId,
+    pub upgrade_cap: ObjectReference,
     pub policy: u8,
     pub digest: Vec<u8>,
-    pub dep_ids: Vec<ObjectID>,
+    pub dep_ids: Vec<ObjectId>,
     pub modules: Vec<Vec<u8>>,
 }
 
@@ -3020,7 +3037,7 @@ pub fn build_multi_upgrade_txns(
         let policy = builder.pure(package_upgrade.policy).unwrap();
         let digest = builder.pure(package_upgrade.digest).unwrap();
         let ticket = builder.programmable_move_call(
-            IOTA_FRAMEWORK_PACKAGE_ID,
+            ObjectId::from(Address::FRAMEWORK),
             Identifier::new("package").unwrap(),
             Identifier::new("authorize_upgrade").unwrap(),
             vec![],
@@ -3033,7 +3050,7 @@ pub fn build_multi_upgrade_txns(
             package_upgrade.modules,
         );
         builder.programmable_move_call(
-            IOTA_FRAMEWORK_PACKAGE_ID,
+            ObjectId::from(Address::FRAMEWORK),
             Identifier::new("package").unwrap(),
             Identifier::new("commit_upgrade").unwrap(),
             vec![],
@@ -3044,12 +3061,12 @@ pub fn build_multi_upgrade_txns(
 
 async fn check_latest_object_ref(
     authority: &AuthorityState,
-    object_ref: &ObjectRef,
+    object_ref: &ObjectReference,
     expect_not_found: bool,
 ) {
     let response = authority
         .handle_object_info_request(ObjectInfoRequest {
-            object_id: object_ref.0,
+            object_id: object_ref.object_id,
             generate_layout: LayoutGenerationOption::None,
             request_kind: ObjectInfoRequestKind::LatestObjectInfo,
         })

@@ -27,6 +27,7 @@ use futures::StreamExt;
 use iota_common::{debug_fatal, fatal};
 use iota_config::node::{CheckpointExecutorConfig, RunWithRange};
 use iota_macros::fail_point;
+use iota_sdk_2::types::Version;
 use iota_types::{
     accumulator::Accumulator,
     base_types::{TransactionDigest, TransactionEffectsDigest},
@@ -36,10 +37,7 @@ use iota_types::{
     full_checkpoint_content::CheckpointData,
     inner_temporary_store::PackageStoreWithFallback,
     message_envelope::Message,
-    messages_checkpoint::{
-        CertifiedCheckpointSummary, CheckpointContents, CheckpointSequenceNumber,
-        VerifiedCheckpoint,
-    },
+    messages_checkpoint::{CertifiedCheckpointSummary, CheckpointContents, VerifiedCheckpoint},
     transaction::{TransactionDataAPI, TransactionKind, VerifiedTransaction},
 };
 use parking_lot::Mutex;
@@ -175,7 +173,7 @@ impl CheckpointExecutor {
 
     // Gets the next checkpoint to schedule for execution. If the epoch is already
     // completed, returns None.
-    fn get_next_to_schedule(&self) -> Option<CheckpointSequenceNumber> {
+    fn get_next_to_schedule(&self) -> Option<Version> {
         // Decide the first checkpoint to schedule for execution.
         // If we haven't executed anything in the past, we schedule checkpoint 0.
         // Otherwise we schedule the one after highest executed.

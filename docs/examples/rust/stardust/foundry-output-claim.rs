@@ -14,8 +14,8 @@ use iota_sdk::{
         IotaObjectDataOptions, IotaObjectResponseQuery, IotaTransactionBlockResponseOptions,
     },
     types::{
-        IOTA_FRAMEWORK_ADDRESS, STARDUST_ADDRESS, TypeTag,
-        base_types::ObjectID,
+        Address::FRAMEWORK, STARDUST_ADDRESS, TypeTag,
+        base_types::ObjectId,
         coin_manager::CoinManagerTreasuryCap,
         crypto::SignatureScheme::ED25519,
         dynamic_field::DynamicFieldName,
@@ -59,7 +59,7 @@ async fn main() -> Result<(), anyhow::Error> {
 
     // This object id was fetched manually. It refers to an Alias Output object that
     // contains a CoinManagerTreasuryCap (i.e., a Foundry representation).
-    let alias_output_object_id = ObjectID::from_hex_literal(
+    let alias_output_object_id = ObjectId::from_hex(
         "0xa58e9b6b85863e2fa50710c4594f701b2f5e2c6ff5e3c2b10cf09e6b18d740da",
     )?;
     let alias_output_object = iota_client
@@ -93,7 +93,7 @@ async fn main() -> Result<(), anyhow::Error> {
     let alias_owned_objects_page = iota_client
         .read_api()
         .get_owned_objects(
-            alias_object_ref.0.into(),
+            alias_object_ref.object_id.into(),
             Some(IotaObjectResponseQuery::new_with_options(
                 IotaObjectDataOptions::new().with_bcs().with_type(),
             )),
@@ -171,7 +171,7 @@ async fn main() -> Result<(), anyhow::Error> {
             let type_arguments = vec![GAS::type_tag()];
             let arguments = vec![extracted_base_token];
             let iota_coin = builder.programmable_move_call(
-                IOTA_FRAMEWORK_ADDRESS.into(),
+                Address::FRAMEWORK.into(),
                 ident_str!("coin").to_owned(),
                 ident_str!("from_balance").to_owned(),
                 type_arguments,
@@ -184,7 +184,7 @@ async fn main() -> Result<(), anyhow::Error> {
             // In this example the native tokens bag is empty, so it can be destroyed.
             let arguments = vec![extracted_native_tokens_bag];
             builder.programmable_move_call(
-                IOTA_FRAMEWORK_ADDRESS.into(),
+                Address::FRAMEWORK.into(),
                 ident_str!("bag").to_owned(),
                 ident_str!("destroy_empty").to_owned(),
                 vec![],

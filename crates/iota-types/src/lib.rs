@@ -9,7 +9,7 @@
     rust_2021_compatibility
 )]
 
-use base_types::{IotaAddress, ObjectID, SequenceNumber};
+use base_types::{Address, ObjectId, Version};
 pub use iota_network_stack::multiaddr;
 use move_binary_format::{
     CompiledModule,
@@ -99,56 +99,20 @@ pub mod zk_login_util;
 #[path = "./unit_tests/utils.rs"]
 pub mod utils;
 
-macro_rules! built_in_ids {
-    ($($addr:ident / $id:ident = $init:expr);* $(;)?) => {
-        $(
-            pub const $addr: AccountAddress = builtin_address($init);
-            pub const $id: ObjectID = ObjectID::from_address($addr);
-        )*
-    }
-}
+pub const IOTA_SYSTEM_STATE_OBJECT_SHARED_VERSION: Version = OBJECT_START_VERSION;
+pub const IOTA_CLOCK_OBJECT_SHARED_VERSION: Version = OBJECT_START_VERSION;
+pub const IOTA_AUTHENTICATOR_STATE_OBJECT_SHARED_VERSION: Version = OBJECT_START_VERSION;
 
-macro_rules! built_in_pkgs {
-    ($($addr:ident / $id:ident = $init:expr);* $(;)?) => {
-        built_in_ids! { $($addr / $id = $init;)* }
-        pub const SYSTEM_PACKAGE_ADDRESSES: &[AccountAddress] = &[$($addr),*];
-        pub fn is_system_package(addr: impl Into<AccountAddress>) -> bool {
-            matches!(addr.into(), $($addr)|*)
-        }
-    }
-}
-
-built_in_pkgs! {
-    MOVE_STDLIB_ADDRESS / MOVE_STDLIB_PACKAGE_ID = 0x1;
-    IOTA_FRAMEWORK_ADDRESS / IOTA_FRAMEWORK_PACKAGE_ID = 0x2;
-    IOTA_SYSTEM_ADDRESS / IOTA_SYSTEM_PACKAGE_ID = 0x3;
-    GENESIS_BRIDGE_ADDRESS / GENESIS_BRIDGE_PACKAGE_ID = 0xb;
-    STARDUST_ADDRESS / STARDUST_PACKAGE_ID = 0x107a;
-}
-
-built_in_ids! {
-    IOTA_SYSTEM_STATE_ADDRESS / IOTA_SYSTEM_STATE_OBJECT_ID = 0x5;
-    IOTA_CLOCK_ADDRESS / IOTA_CLOCK_OBJECT_ID = 0x6;
-    IOTA_AUTHENTICATOR_STATE_ADDRESS / IOTA_AUTHENTICATOR_STATE_OBJECT_ID = 0x7;
-    IOTA_RANDOMNESS_STATE_ADDRESS / IOTA_RANDOMNESS_STATE_OBJECT_ID = 0x8;
-    GENESIS_IOTA_BRIDGE_ADDRESS / GENESIS_IOTA_BRIDGE_OBJECT_ID = 0x9;
-    IOTA_DENY_LIST_ADDRESS / IOTA_DENY_LIST_OBJECT_ID = 0x403;
-}
-
-pub const IOTA_SYSTEM_STATE_OBJECT_SHARED_VERSION: SequenceNumber = OBJECT_START_VERSION;
-pub const IOTA_CLOCK_OBJECT_SHARED_VERSION: SequenceNumber = OBJECT_START_VERSION;
-pub const IOTA_AUTHENTICATOR_STATE_OBJECT_SHARED_VERSION: SequenceNumber = OBJECT_START_VERSION;
-
-const fn builtin_address(suffix: u16) -> AccountAddress {
-    let mut addr = [0u8; AccountAddress::LENGTH];
-    let [hi, lo] = suffix.to_be_bytes();
-    addr[AccountAddress::LENGTH - 2] = hi;
-    addr[AccountAddress::LENGTH - 1] = lo;
-    AccountAddress::new(addr)
-}
+pub const SYSTEM_PACKAGE_ADDRESSES: &[AccountAddress] = &[
+    AccountAddress::new(Address::STD_LIB.into_bytes()),
+    AccountAddress::new(Address::FRAMEWORK.into_bytes()),
+    AccountAddress::new(Address::SYSTEM.into_bytes()),
+    AccountAddress::new(Address::GENESIS_BRIDGE.into_bytes()),
+    AccountAddress::new(Address::STARDUST.into_bytes()),
+];
 
 pub fn iota_framework_address_concat_string(suffix: &str) -> String {
-    format!("{}{suffix}", IOTA_FRAMEWORK_ADDRESS.to_hex_literal())
+    format!("{}{suffix}", Address::FRAMEWORK)
 }
 
 /// Parses `s` as an address. Valid formats for addresses are:
@@ -161,11 +125,13 @@ pub fn iota_framework_address_concat_string(suffix: &str) -> String {
 /// Parsing succeeds if and only if `s` matches one of these formats exactly,
 /// with no remaining suffix. This function is intended for use within the
 /// authority codebases.
-pub fn parse_iota_address(s: &str) -> anyhow::Result<IotaAddress> {
+pub fn parse_iota_address(s: &str) -> anyhow::Result<Address> {
     use move_core_types::parsing::address::ParsedAddress;
-    Ok(ParsedAddress::parse(s)?
-        .into_account_address(&resolve_address)?
-        .into())
+    Ok(Address::new(
+        ParsedAddress::parse(s)?
+            .into_account_address(&resolve_address)?
+            .into_bytes(),
+    ))
 }
 
 /// Parse `s` as a Module ID: An address (see `parse_iota_address`), followed by
@@ -208,13 +174,16 @@ pub fn parse_iota_type_tag(s: &str) -> anyhow::Result<TypeTag> {
 
 /// Resolve well-known named addresses into numeric addresses.
 pub fn resolve_address(addr: &str) -> Option<AccountAddress> {
-    match addr {
-        "std" => Some(MOVE_STDLIB_ADDRESS),
-        "iota" => Some(IOTA_FRAMEWORK_ADDRESS),
-        "iota_system" => Some(IOTA_SYSTEM_ADDRESS),
-        "stardust" => Some(STARDUST_ADDRESS),
-        _ => None,
-    }
+    Some(AccountAddress::new(
+        match addr {
+            "std" => Address::STD_LIB,
+            "iota" => Address::FRAMEWORK,
+            "iota_system" => Address::SYSTEM,
+            "stardust" => Address::STARDUST,
+            _ => return None,
+        }
+        .into_bytes(),
+    ))
 }
 
 pub trait MoveTypeTagTrait {
@@ -233,13 +202,13 @@ impl MoveTypeTagTrait for u64 {
     }
 }
 
-impl MoveTypeTagTrait for ObjectID {
+impl MoveTypeTagTrait for ObjectId {
     fn get_type_tag() -> TypeTag {
         TypeTag::Address
     }
 }
 
-impl MoveTypeTagTrait for IotaAddress {
+impl MoveTypeTagTrait for Address {
     fn get_type_tag() -> TypeTag {
         TypeTag::Address
     }

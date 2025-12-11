@@ -8,15 +8,14 @@ use iota_config::genesis;
 use iota_protocol_config::ProtocolVersion;
 use iota_swarm_config::{genesis_config::AccountConfig, network_config_builder::ConfigBuilder};
 use iota_types::{
-    base_types::{IotaAddress, ObjectID, SequenceNumber, VersionNumber},
+    base_types::{Address, ObjectId, ObjectReference, Version},
     committee::{Committee, EpochId},
     crypto::AccountKeyPair,
-    digests::{ObjectDigest, TransactionDigest, TransactionEventsDigest},
+    digests::{TransactionDigest, TransactionEventsDigest},
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
     error::{IotaError, UserInputError},
     messages_checkpoint::{
-        CheckpointContents, CheckpointContentsDigest, CheckpointDigest, CheckpointSequenceNumber,
-        VerifiedCheckpoint,
+        CheckpointContents, CheckpointContentsDigest, CheckpointDigest, VerifiedCheckpoint,
     },
     object::{Object, Owner},
     storage::{
@@ -52,9 +51,8 @@ pub struct PersistedStoreInnerReadOnlyWrapper {
 #[derive(Debug, DBMapUtils)]
 pub struct PersistedStoreInner {
     // Checkpoint data
-    checkpoints:
-        DBMap<CheckpointSequenceNumber, iota_types::messages_checkpoint::TrustedCheckpoint>,
-    checkpoint_digest_to_sequence_number: DBMap<CheckpointDigest, CheckpointSequenceNumber>,
+    checkpoints: DBMap<Version, iota_types::messages_checkpoint::TrustedCheckpoint>,
+    checkpoint_digest_to_sequence_number: DBMap<CheckpointDigest, Version>,
     checkpoint_contents: DBMap<CheckpointContentsDigest, CheckpointContents>,
 
     // Transaction data
@@ -67,8 +65,8 @@ pub struct PersistedStoreInner {
     epoch_to_committee: DBMap<(), Vec<Committee>>,
 
     // Object data
-    live_objects: DBMap<ObjectID, SequenceNumber>,
-    objects: DBMap<ObjectID, BTreeMap<SequenceNumber, Object>>,
+    live_objects: DBMap<ObjectId, Version>,
+    objects: DBMap<ObjectId, BTreeMap<Version, Object>>,
 }
 
 impl PersistedStore {
@@ -166,7 +164,7 @@ impl PersistedStore {
 impl SimulatorStore for PersistedStore {
     fn get_checkpoint_by_sequence_number(
         &self,
-        sequence_number: CheckpointSequenceNumber,
+        sequence_number: Version,
     ) -> Option<VerifiedCheckpoint> {
         self.read_write
             .checkpoints
@@ -253,7 +251,7 @@ impl SimulatorStore for PersistedStore {
             })
     }
 
-    fn get_object(&self, id: &ObjectID) -> Option<Object> {
+    fn get_object(&self, id: &ObjectId) -> Option<Object> {
         let version = self
             .read_write
             .live_objects
@@ -262,7 +260,7 @@ impl SimulatorStore for PersistedStore {
         self.get_object_at_version(id, version)
     }
 
-    fn get_object_at_version(&self, id: &ObjectID, version: SequenceNumber) -> Option<Object> {
+    fn get_object_at_version(&self, id: &ObjectId, version: Version) -> Option<Object> {
         self.read_write
             .objects
             .get(id)
@@ -275,13 +273,13 @@ impl SimulatorStore for PersistedStore {
     }
 
     fn get_clock(&self) -> iota_types::clock::Clock {
-        SimulatorStore::get_object(self, &iota_types::IOTA_CLOCK_OBJECT_ID)
+        SimulatorStore::get_object(self, &ObjectId::CLOCK)
             .expect("clock should exist")
             .to_rust()
             .expect("clock object should deserialize")
     }
 
-    fn owned_objects(&self, owner: IotaAddress) -> Box<dyn Iterator<Item = Object> + '_> {
+    fn owned_objects(&self, owner: Address) -> Box<dyn Iterator<Item = Object> + '_> {
         Box::new(self.read_write.live_objects
             .unbounded_iter()
             .flat_map(|(id, version)| self.get_object_at_version(&id, version))
@@ -338,7 +336,7 @@ impl SimulatorStore for PersistedStore {
         transaction: VerifiedTransaction,
         effects: TransactionEffects,
         events: TransactionEvents,
-        written_objects: BTreeMap<ObjectID, Object>,
+        written_objects: BTreeMap<ObjectId, Object>,
     ) {
         let deleted_objects = effects.deleted();
         let tx_digest = *effects.transaction_digest();
@@ -375,13 +373,13 @@ impl SimulatorStore for PersistedStore {
 
     fn update_objects(
         &mut self,
-        written_objects: BTreeMap<ObjectID, Object>,
-        deleted_objects: Vec<(ObjectID, SequenceNumber, ObjectDigest)>,
+        written_objects: BTreeMap<ObjectId, Object>,
+        deleted_objects: Vec<ObjectReference>,
     ) {
-        for (object_id, _, _) in deleted_objects {
+        for oref in deleted_objects {
             self.read_write
                 .live_objects
-                .remove(&object_id)
+                .remove(&oref.object_id)
                 .expect("Fatal: DB write failed");
         }
 
@@ -413,7 +411,7 @@ impl SimulatorStore for PersistedStore {
 impl BackingPackageStore for PersistedStore {
     fn get_package_object(
         &self,
-        package_id: &ObjectID,
+        package_id: &ObjectId,
     ) -> iota_types::error::IotaResult<Option<PackageObject>> {
         load_package_object_from_object_store(self, package_id)
     }
@@ -422,9 +420,9 @@ impl BackingPackageStore for PersistedStore {
 impl ChildObjectResolver for PersistedStore {
     fn read_child_object(
         &self,
-        parent: &ObjectID,
-        child: &ObjectID,
-        child_version_upper_bound: SequenceNumber,
+        parent: &ObjectId,
+        child: &ObjectId,
+        child_version_upper_bound: Version,
     ) -> iota_types::error::IotaResult<Option<Object>> {
         let child_object = match SimulatorStore::get_object(self, child) {
             None => return Ok(None),
@@ -452,9 +450,9 @@ impl ChildObjectResolver for PersistedStore {
 
     fn get_object_received_at_version(
         &self,
-        owner: &ObjectID,
-        receiving_object_id: &ObjectID,
-        receive_object_at_version: SequenceNumber,
+        owner: &ObjectId,
+        receiving_object_id: &ObjectId,
+        receive_object_at_version: Version,
         _epoch_id: EpochId,
     ) -> iota_types::error::IotaResult<Option<Object>> {
         let recv_object = match SimulatorStore::get_object(self, receiving_object_id) {
@@ -488,7 +486,7 @@ impl ModuleResolver for PersistedStore {
 
     fn get_module(&self, module_id: &ModuleId) -> Result<Option<Vec<u8>>, Self::Error> {
         Ok(self
-            .get_package_object(&ObjectID::from(*module_id.address()))?
+            .get_package_object(&ObjectId::new(module_id.address().into_bytes()))?
             .and_then(|package| {
                 package
                     .move_package()
@@ -502,15 +500,15 @@ impl ModuleResolver for PersistedStore {
 impl ObjectStore for PersistedStore {
     fn try_get_object(
         &self,
-        object_id: &ObjectID,
+        object_id: &ObjectId,
     ) -> Result<Option<Object>, iota_types::storage::error::Error> {
         Ok(SimulatorStore::get_object(self, object_id))
     }
 
     fn try_get_object_by_key(
         &self,
-        object_id: &ObjectID,
-        version: iota_types::base_types::VersionNumber,
+        object_id: &ObjectId,
+        version: iota_types::base_types::Version,
     ) -> Result<Option<Object>, iota_types::storage::error::Error> {
         Ok(self.get_object_at_version(object_id, version))
     }
@@ -519,7 +517,7 @@ impl ObjectStore for PersistedStore {
 impl ObjectStore for PersistedStoreInnerReadOnlyWrapper {
     fn try_get_object(
         &self,
-        object_id: &ObjectID,
+        object_id: &ObjectId,
     ) -> iota_types::storage::error::Result<Option<Object>> {
         self.sync();
 
@@ -534,8 +532,8 @@ impl ObjectStore for PersistedStoreInnerReadOnlyWrapper {
 
     fn try_get_object_by_key(
         &self,
-        object_id: &ObjectID,
-        version: VersionNumber,
+        object_id: &ObjectId,
+        version: Version,
     ) -> iota_types::storage::error::Result<Option<Object>> {
         self.sync();
 
@@ -565,7 +563,7 @@ impl ReadStore for PersistedStoreInnerReadOnlyWrapper {
             .transpose()?
             .map(|(_, checkpoint)| checkpoint.into())
             .ok_or(IotaError::UserInput {
-                error: UserInputError::LatestCheckpointSequenceNumberNotFound,
+                error: UserInputError::LatestCheckpointVersionNotFound,
             })
             .map_err(iota_types::storage::error::Error::custom)
     }
@@ -582,9 +580,7 @@ impl ReadStore for PersistedStoreInnerReadOnlyWrapper {
         todo!()
     }
 
-    fn try_get_lowest_available_checkpoint(
-        &self,
-    ) -> iota_types::storage::error::Result<CheckpointSequenceNumber> {
+    fn try_get_lowest_available_checkpoint(&self) -> iota_types::storage::error::Result<Version> {
         Ok(0)
     }
 
@@ -597,7 +593,7 @@ impl ReadStore for PersistedStoreInnerReadOnlyWrapper {
 
     fn try_get_checkpoint_by_sequence_number(
         &self,
-        sequence_number: CheckpointSequenceNumber,
+        sequence_number: Version,
     ) -> iota_types::storage::error::Result<Option<VerifiedCheckpoint>> {
         self.sync();
         Ok(self
@@ -623,7 +619,7 @@ impl ReadStore for PersistedStoreInnerReadOnlyWrapper {
 
     fn try_get_checkpoint_contents_by_sequence_number(
         &self,
-        _sequence_number: CheckpointSequenceNumber,
+        _sequence_number: Version,
     ) -> iota_types::storage::error::Result<Option<CheckpointContents>> {
         todo!()
     }
@@ -670,7 +666,7 @@ impl ReadStore for PersistedStoreInnerReadOnlyWrapper {
 
     fn try_get_full_checkpoint_contents_by_sequence_number(
         &self,
-        _sequence_number: CheckpointSequenceNumber,
+        _sequence_number: Version,
     ) -> iota_types::storage::error::Result<
         Option<iota_types::messages_checkpoint::FullCheckpointContents>,
     > {
@@ -690,7 +686,7 @@ impl ReadStore for PersistedStoreInnerReadOnlyWrapper {
 impl RestStateReader for PersistedStoreInnerReadOnlyWrapper {
     fn get_lowest_available_checkpoint_objects(
         &self,
-    ) -> iota_types::storage::error::Result<CheckpointSequenceNumber> {
+    ) -> iota_types::storage::error::Result<Version> {
         Ok(0)
     }
 

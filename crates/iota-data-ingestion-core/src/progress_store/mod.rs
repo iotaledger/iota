@@ -8,19 +8,19 @@ use std::{
 };
 
 use async_trait::async_trait;
-use iota_types::messages_checkpoint::CheckpointSequenceNumber;
 mod file;
 pub use file::FileProgressStore;
+use iota_types::base_types::Version;
 
 use crate::{IngestionError, IngestionResult};
 
-pub type ExecutorProgress = HashMap<String, CheckpointSequenceNumber>;
+pub type ExecutorProgress = HashMap<String, Version>;
 
 /// A trait defining the interface for persistent storage of checkpoint
 /// progress.
 ///
 /// This trait allows for loading and saving the progress of a task, represented
-/// by a `task_name` & `CheckpointSequenceNumber` as key value pairs.
+/// by a `task_name` & `Version` as key value pairs.
 /// Implementations of this trait are responsible for persisting this progress
 /// across restarts or failures.
 #[async_trait]
@@ -28,13 +28,13 @@ pub trait ProgressStore: Send {
     type Error: Debug + Display;
 
     /// Loads the last saved checkpoint sequence number for a given task.
-    async fn load(&mut self, task_name: String) -> Result<CheckpointSequenceNumber, Self::Error>;
+    async fn load(&mut self, task_name: String) -> Result<Version, Self::Error>;
 
     /// Saves the current checkpoint sequence number for a given task.
     async fn save(
         &mut self,
         task_name: String,
-        checkpoint_number: CheckpointSequenceNumber,
+        checkpoint_number: Version,
     ) -> Result<(), Self::Error>;
 }
 
@@ -47,7 +47,7 @@ pub struct ProgressStoreWrapper<P> {
 impl<P: ProgressStore> ProgressStore for ProgressStoreWrapper<P> {
     type Error = IngestionError;
 
-    async fn load(&mut self, task_name: String) -> Result<CheckpointSequenceNumber, Self::Error> {
+    async fn load(&mut self, task_name: String) -> Result<Version, Self::Error> {
         let watermark = self
             .progress_store
             .load(task_name.clone())
@@ -60,7 +60,7 @@ impl<P: ProgressStore> ProgressStore for ProgressStoreWrapper<P> {
     async fn save(
         &mut self,
         task_name: String,
-        checkpoint_number: CheckpointSequenceNumber,
+        checkpoint_number: Version,
     ) -> Result<(), Self::Error> {
         self.progress_store
             .save(task_name.clone(), checkpoint_number)
@@ -79,7 +79,7 @@ impl<P: ProgressStore> ProgressStoreWrapper<P> {
         }
     }
 
-    pub fn min_watermark(&self) -> IngestionResult<CheckpointSequenceNumber> {
+    pub fn min_watermark(&self) -> IngestionResult<Version> {
         self.pending_state
             .values()
             .min()
@@ -120,10 +120,10 @@ pub struct ShimProgressStore(pub u64);
 impl ProgressStore for ShimProgressStore {
     type Error = IngestionError;
 
-    async fn load(&mut self, _: String) -> Result<CheckpointSequenceNumber, Self::Error> {
+    async fn load(&mut self, _: String) -> Result<Version, Self::Error> {
         Ok(self.0)
     }
-    async fn save(&mut self, _: String, _: CheckpointSequenceNumber) -> Result<(), Self::Error> {
+    async fn save(&mut self, _: String, _: Version) -> Result<(), Self::Error> {
         Ok(())
     }
 }

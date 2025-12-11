@@ -14,9 +14,8 @@ use iota_move_build::CompiledPackage;
 use iota_protocol_config::ProtocolVersion;
 use iota_sdk::types::block::output::{FoundryOutput, Output, OutputId};
 use iota_types::{
-    IOTA_FRAMEWORK_PACKAGE_ID, IOTA_SYSTEM_PACKAGE_ID, MOVE_STDLIB_PACKAGE_ID, STARDUST_PACKAGE_ID,
     balance::Balance,
-    base_types::{IotaAddress, ObjectID, TxContext},
+    base_types::{Address, ObjectId, TxContext},
     epoch_data::EpochData,
     object::Object,
     stardust::coin_type::CoinType,
@@ -43,11 +42,11 @@ use crate::stardust::{
 pub const MIGRATION_PROTOCOL_VERSION: u64 = 1;
 
 /// The dependencies of the generated packages for native tokens.
-pub const PACKAGE_DEPS: [ObjectID; 4] = [
-    MOVE_STDLIB_PACKAGE_ID,
-    IOTA_FRAMEWORK_PACKAGE_ID,
-    IOTA_SYSTEM_PACKAGE_ID,
-    STARDUST_PACKAGE_ID,
+pub const PACKAGE_DEPS: [ObjectId; 4] = [
+    ObjectId::from_address(Address::STD_LIB),
+    ObjectId::from_address(Address::FRAMEWORK),
+    ObjectId::from_address(Address::SYSTEM),
+    ObjectId::from_address(Address::STARDUST),
 ];
 
 pub(crate) const NATIVE_TOKEN_BAG_KEY_TYPE: &str = "0x01::ascii::String";
@@ -294,8 +293,8 @@ impl Migration {
 #[derive(Debug, Clone, Default)]
 pub struct MigrationObjects {
     inner: Vec<Object>,
-    owner_timelock: HashMap<IotaAddress, Vec<usize>>,
-    owner_gas_coin: HashMap<IotaAddress, Vec<usize>>,
+    owner_timelock: HashMap<Address, Vec<usize>>,
+    owner_gas_coin: HashMap<Address, Vec<usize>>,
 }
 
 impl Extend<Object> for MigrationObjects {
@@ -337,7 +336,7 @@ impl MigrationObjects {
     }
 
     /// Evict the objects with the specified ids
-    pub fn evict(&mut self, objects: impl IntoIterator<Item = ObjectID>) {
+    pub fn evict(&mut self, objects: impl IntoIterator<Item = ObjectId>) {
         let eviction_set = objects.into_iter().collect::<HashSet<_>>();
         let inner = std::mem::take(&mut self.inner);
         self.inner = inner
@@ -367,7 +366,7 @@ impl MigrationObjects {
     /// order.
     pub fn get_sorted_timelocks_and_expiration_by_owner(
         &self,
-        address: IotaAddress,
+        address: Address,
     ) -> Option<Vec<(&Object, ExpirationTimestamp)>> {
         self.get_timelocks_and_expiration_by_owner(address)
             .map(|mut timelocks| {
@@ -382,7 +381,7 @@ impl MigrationObjects {
     /// The query is filtered by the object owner.
     pub fn get_timelocks_and_expiration_by_owner(
         &self,
-        address: IotaAddress,
+        address: Address,
     ) -> Option<Vec<(&Object, ExpirationTimestamp)>> {
         Some(
             self.owner_timelock
@@ -405,7 +404,7 @@ impl MigrationObjects {
     /// migration.
     ///
     /// The query is filtered by the object owner.
-    pub fn get_gas_coins_by_owner(&self, address: IotaAddress) -> Option<Vec<&Object>> {
+    pub fn get_gas_coins_by_owner(&self, address: Address) -> Option<Vec<&Object>> {
         Some(
             self.owner_gas_coin
                 .get(&address)?
@@ -448,7 +447,7 @@ pub(super) fn create_migration_context(
     target_network: MigrationTargetNetwork,
 ) -> TxContext {
     TxContext::new(
-        &IotaAddress::default(),
+        &Address::ZERO,
         &target_network.migration_transaction_digest(coin_type),
         &EpochData::new_genesis(0),
     )
@@ -459,7 +458,7 @@ mod tests {
     use iota_protocol_config::ProtocolConfig;
     use iota_types::{
         balance::Balance,
-        base_types::SequenceNumber,
+        base_types::{Version, VersionExt},
         gas_coin::GasCoin,
         id::UID,
         object::{Data, Owner},
@@ -470,36 +469,50 @@ mod tests {
 
     #[test]
     fn migration_objects_get_timelocks() {
-        let owner = IotaAddress::random_for_testing_only();
-        let address = IotaAddress::random_for_testing_only();
+        let owner = Address::new(rand::random());
+        let address = Address::new(rand::random());
         let tx_context = TxContext::random_for_testing_only();
         let expected_timelocks = (0..4)
-            .map(|_| TimeLock::new(UID::new(ObjectID::random()), Balance::new(0), 0, None))
+            .map(|_| {
+                TimeLock::new(
+                    UID::new(ObjectId::new(rand::random())),
+                    Balance::new(0),
+                    0,
+                    None,
+                )
+            })
             .map(|timelock| {
                 to_genesis_object(
                     timelock,
                     owner,
                     &ProtocolConfig::get_for_min_version(),
                     &tx_context,
-                    SequenceNumber::MIN_VALID_INCL,
+                    Version::MIN_VALID_INCL,
                 )
                 .unwrap()
             })
             .collect::<Vec<_>>();
         let non_matching_timelocks = (0..8)
-            .map(|_| TimeLock::new(UID::new(ObjectID::random()), Balance::new(0), 0, None))
+            .map(|_| {
+                TimeLock::new(
+                    UID::new(ObjectId::new(rand::random())),
+                    Balance::new(0),
+                    0,
+                    None,
+                )
+            })
             .map(|timelock| {
                 to_genesis_object(
                     timelock,
                     address,
                     &ProtocolConfig::get_for_min_version(),
                     &tx_context,
-                    SequenceNumber::MIN_VALID_INCL,
+                    Version::MIN_VALID_INCL,
                 )
                 .unwrap()
             });
         let non_matching_objects = (0..8)
-            .map(|_| GasCoin::new_for_testing(0).to_object(SequenceNumber::MIN_VALID_INCL))
+            .map(|_| GasCoin::new_for_testing(0).to_object(Version::MIN_VALID_INCL))
             .map(|move_object| {
                 Object::new_from_genesis(
                     Data::Move(move_object),
@@ -527,23 +540,30 @@ mod tests {
 
     #[test]
     fn migration_objects_get_gas_coins() {
-        let owner = IotaAddress::random_for_testing_only();
-        let address = IotaAddress::random_for_testing_only();
+        let owner = Address::new(rand::random());
+        let address = Address::new(rand::random());
         let tx_context = TxContext::random_for_testing_only();
         let non_matching_timelocks = (0..8)
-            .map(|_| TimeLock::new(UID::new(ObjectID::random()), Balance::new(0), 0, None))
+            .map(|_| {
+                TimeLock::new(
+                    UID::new(ObjectId::new(rand::random())),
+                    Balance::new(0),
+                    0,
+                    None,
+                )
+            })
             .map(|timelock| {
                 to_genesis_object(
                     timelock,
                     address,
                     &ProtocolConfig::get_for_min_version(),
                     &tx_context,
-                    SequenceNumber::MIN_VALID_INCL,
+                    Version::MIN_VALID_INCL,
                 )
                 .unwrap()
             });
         let expected_gas_coins = (0..8)
-            .map(|_| GasCoin::new_for_testing(0).to_object(SequenceNumber::MIN_VALID_INCL))
+            .map(|_| GasCoin::new_for_testing(0).to_object(Version::MIN_VALID_INCL))
             .map(|move_object| {
                 Object::new_from_genesis(
                     Data::Move(move_object),

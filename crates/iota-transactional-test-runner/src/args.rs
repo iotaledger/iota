@@ -8,7 +8,7 @@ use anyhow::{bail, ensure};
 use clap::{self, Args, Parser};
 use iota_graphql_rpc::test_infra::cluster::SnapshotLagConfig;
 use iota_types::{
-    base_types::{IotaAddress, SequenceNumber},
+    base_types::{Address, Version},
     move_package::UpgradePolicy,
     object::{Object, Owner},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
@@ -332,20 +332,20 @@ impl<ExtraValueArgs: ParsableValue, ExtraRunArgs: Parser> clap::Parser
 
 #[derive(Clone, Debug)]
 pub enum IotaExtraValueArgs {
-    Object(FakeID, Option<SequenceNumber>),
+    Object(FakeID, Option<Version>),
     Digest(String),
-    Receiving(FakeID, Option<SequenceNumber>),
-    ImmShared(FakeID, Option<SequenceNumber>),
+    Receiving(FakeID, Option<Version>),
+    ImmShared(FakeID, Option<Version>),
 }
 
 #[derive(Clone)]
 pub enum IotaValue {
     MoveValue(MoveValue),
-    Object(FakeID, Option<SequenceNumber>),
-    ObjVec(Vec<(FakeID, Option<SequenceNumber>)>),
+    Object(FakeID, Option<Version>),
+    ObjVec(Vec<(FakeID, Option<Version>)>),
     Digest(String),
-    Receiving(FakeID, Option<SequenceNumber>),
-    ImmShared(FakeID, Option<SequenceNumber>),
+    Receiving(FakeID, Option<Version>),
+    ImmShared(FakeID, Option<Version>),
 }
 
 impl IotaExtraValueArgs {
@@ -384,7 +384,7 @@ impl IotaExtraValueArgs {
     fn parse_receiving_or_object_value<'a, I: Iterator<Item = (ValueToken, &'a str)>>(
         parser: &mut MoveCLParser<'a, ValueToken, I>,
         ident_name: &str,
-    ) -> anyhow::Result<(FakeID, Option<SequenceNumber>)> {
+    ) -> anyhow::Result<(FakeID, Option<Version>)> {
         let contents = parser.advance(ValueToken::Ident)?;
         ensure!(contents == ident_name);
         parser.advance(ValueToken::LParen)?;
@@ -401,7 +401,7 @@ impl IotaExtraValueArgs {
         } else {
             let mut u256_bytes = i.to_le_bytes().to_vec();
             u256_bytes.reverse();
-            let address: IotaAddress = IotaAddress::from_bytes(&u256_bytes).unwrap();
+            let address: Address = Address::from_bytes(&u256_bytes).unwrap();
             FakeID::Known(address.into())
         };
         parser.advance(ValueToken::RParen)?;
@@ -409,7 +409,7 @@ impl IotaExtraValueArgs {
             parser.advance(ValueToken::AtSign)?;
             let v_str = parser.advance(ValueToken::Number)?;
             let (v, _) = parse_u64(v_str)?;
-            Some(SequenceNumber::from_u64(v))
+            Some(v)
         } else {
             None
         };
@@ -429,7 +429,7 @@ impl IotaValue {
         }
     }
 
-    fn assert_object(self) -> (FakeID, Option<SequenceNumber>) {
+    fn assert_object(self) -> (FakeID, Option<Version>) {
         match self {
             IotaValue::MoveValue(_) => panic!("unexpected nested non-object value in args"),
             IotaValue::Object(id, version) => (id, version),
@@ -442,7 +442,7 @@ impl IotaValue {
 
     fn resolve_object(
         fake_id: FakeID,
-        version: Option<SequenceNumber>,
+        version: Option<Version>,
         test_adapter: &IotaTestAdapter,
     ) -> anyhow::Result<Object> {
         let id = match test_adapter.fake_to_real_object_id(fake_id) {
@@ -463,7 +463,7 @@ impl IotaValue {
 
     fn receiving_arg(
         fake_id: FakeID,
-        version: Option<SequenceNumber>,
+        version: Option<Version>,
         test_adapter: &IotaTestAdapter,
     ) -> anyhow::Result<ObjectArg> {
         let obj = Self::resolve_object(fake_id, version, test_adapter)?;
@@ -472,7 +472,7 @@ impl IotaValue {
 
     fn read_shared_arg(
         fake_id: FakeID,
-        version: Option<SequenceNumber>,
+        version: Option<Version>,
         test_adapter: &IotaTestAdapter,
     ) -> anyhow::Result<ObjectArg> {
         let obj = Self::resolve_object(fake_id, version, test_adapter)?;
@@ -482,7 +482,7 @@ impl IotaValue {
         } = obj.owner
         {
             Ok(ObjectArg::SharedObject {
-                id,
+                object_id: id,
                 initial_shared_version,
                 mutable: false,
             })
@@ -493,7 +493,7 @@ impl IotaValue {
 
     fn object_arg(
         fake_id: FakeID,
-        version: Option<SequenceNumber>,
+        version: Option<Version>,
         test_adapter: &IotaTestAdapter,
     ) -> anyhow::Result<ObjectArg> {
         let obj = Self::resolve_object(fake_id, version, test_adapter)?;
@@ -502,7 +502,7 @@ impl IotaValue {
             Owner::Shared {
                 initial_shared_version,
             } => Ok(ObjectArg::SharedObject {
-                id,
+                object_id: id,
                 initial_shared_version,
                 mutable: true,
             }),
@@ -617,7 +617,7 @@ fn parse_fake_id(s: &str) -> anyhow::Result<FakeID> {
         let (i, _) = parse_u256(s)?;
         let mut u256_bytes = i.to_le_bytes().to_vec();
         u256_bytes.reverse();
-        let address: IotaAddress = IotaAddress::from_bytes(&u256_bytes).unwrap();
+        let address: Address = Address::from_bytes(&u256_bytes).unwrap();
         FakeID::Known(address.into())
     })
 }

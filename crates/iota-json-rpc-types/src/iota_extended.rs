@@ -6,11 +6,10 @@ use std::collections::BTreeMap;
 
 use fastcrypto::traits::ToFromBytes;
 use iota_types::{
-    base_types::{AuthorityName, EpochId},
+    base_types::{AuthorityName, EpochId, Version},
     committee::Committee,
     iota_serde::BigInt,
     iota_system_state::iota_system_state_summary::IotaValidatorSummary,
-    messages_checkpoint::CheckpointSequenceNumber,
 };
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -38,7 +37,7 @@ pub struct EpochInfo {
     /// First, last checkpoint sequence numbers
     #[schemars(with = "BigInt<u64>")]
     #[serde_as(as = "BigInt<u64>")]
-    pub first_checkpoint_id: CheckpointSequenceNumber,
+    pub first_checkpoint_id: Version,
     /// The timestamp when the epoch started.
     #[schemars(with = "BigInt<u64>")]
     #[serde_as(as = "BigInt<u64>")]
@@ -87,7 +86,7 @@ pub struct EpochMetrics {
     /// The first checkpoint ID of the epoch.
     #[schemars(with = "BigInt<u64>")]
     #[serde_as(as = "BigInt<u64>")]
-    pub first_checkpoint_id: CheckpointSequenceNumber,
+    pub first_checkpoint_id: Version,
     /// The timestamp when the epoch started.
     #[schemars(with = "BigInt<u64>")]
     #[serde_as(as = "BigInt<u64>")]
@@ -102,7 +101,7 @@ pub struct EpochMetrics {
 pub struct EndOfEpochInfo {
     #[schemars(with = "BigInt<u64>")]
     #[serde_as(as = "BigInt<u64>")]
-    pub last_checkpoint_id: CheckpointSequenceNumber,
+    pub last_checkpoint_id: Version,
     #[schemars(with = "BigInt<u64>")]
     #[serde_as(as = "BigInt<u64>")]
     pub epoch_end_timestamp: u64,

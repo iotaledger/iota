@@ -11,7 +11,7 @@ use fastcrypto::{encoding::Hex, hash::HashFunction};
 use iota_sdk::types::{
     api::plugins::participation::types::PARTICIPATION_TAG,
     block::{
-        address::{Address, Ed25519Address},
+        address::{Address as StardustAddress, Ed25519Address},
         output::{
             AliasOutputBuilder, BasicOutput, BasicOutputBuilder, FoundryOutputBuilder,
             NftOutputBuilder, OUTPUT_INDEX_MAX, Output, OutputId,
@@ -22,7 +22,7 @@ use iota_sdk::types::{
     },
 };
 use iota_types::{
-    base_types::IotaAddress,
+    base_types::Address,
     crypto::DefaultHash,
     timelock::timelock::{VESTED_REWARD_ID_PREFIX, is_vested_reward},
 };
@@ -465,7 +465,7 @@ struct UnlockedVestingIterator<I> {
     /// Iterator over `(OutputHeader, Output)` pairs.
     outputs: I,
     /// Stores aggregated balances for eligible addresses.
-    unlocked_address_balances: BTreeMap<Address, OutputHeaderWithBalance>,
+    unlocked_address_balances: BTreeMap<StardustAddress, OutputHeaderWithBalance>,
     /// Timestamp used to evaluate timelock conditions.
     snapshot_timestamp_s: u32,
     /// Output picked to be merged
@@ -631,7 +631,7 @@ fn get_address_if_vesting_output(
     header: &OutputHeader,
     output: &Output,
     snapshot_timestamp_s: u32,
-) -> Option<Address> {
+) -> Option<StardustAddress> {
     if !output.is_basic() || !is_vested_reward(header.output_id(), output.as_basic()) {
         // if the output is not basic and a vested reward then skip
         return None;
@@ -654,7 +654,7 @@ fn get_address_if_vesting_output(
 /// the original `basic_output` has some remainder amount, then return it
 /// (without swapping its address unlock condition).
 fn swap_split_operation<'a>(
-    destinations: impl Iterator<Item = (&'a mut IotaAddress, &'a mut u64)>,
+    destinations: impl Iterator<Item = (&'a mut Address, &'a mut u64)>,
     basic_output: &BasicOutput,
 ) -> (Option<Output>, Vec<Output>) {
     let mut original_output_opt = None;
@@ -682,7 +682,7 @@ fn swap_split_operation<'a>(
             BasicOutputBuilder::from(basic_output)
                 .with_amount(swap_split_amount)
                 .replace_unlock_condition(AddressUnlockCondition::new(Ed25519Address::new(
-                    destination.to_inner(),
+                    destination.into_bytes(),
                 )))
                 .finish()
                 .expect("failed to create basic output during split")

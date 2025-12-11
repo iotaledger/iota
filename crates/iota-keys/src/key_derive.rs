@@ -12,7 +12,7 @@ use fastcrypto::{
     traits::{KeyPair, ToFromBytes},
 };
 use iota_types::{
-    base_types::IotaAddress,
+    base_types::{Address, address_from_iota_pub_key},
     crypto::{IotaKeyPair, SignatureScheme},
     error::IotaError,
 };
@@ -32,7 +32,7 @@ pub fn derive_key_pair_from_path(
     seed: &[u8],
     derivation_path: Option<DerivationPath>,
     key_scheme: &SignatureScheme,
-) -> Result<(IotaAddress, IotaKeyPair), IotaError> {
+) -> Result<(Address, IotaKeyPair), IotaError> {
     let path = validate_path(key_scheme, derivation_path)?;
     match key_scheme {
         SignatureScheme::ED25519 => {
@@ -41,7 +41,10 @@ pub fn derive_key_pair_from_path(
             let sk = Ed25519PrivateKey::from_bytes(&derived)
                 .map_err(|e| IotaError::SignatureKeyGen(e.to_string()))?;
             let kp: Ed25519KeyPair = sk.into();
-            Ok((kp.public().into(), IotaKeyPair::Ed25519(kp)))
+            Ok((
+                address_from_iota_pub_key(kp.public()),
+                IotaKeyPair::Ed25519(kp),
+            ))
         }
         SignatureScheme::Secp256k1 => {
             let child_xprv = XPrv::derive_from_path(seed, &path)
@@ -50,7 +53,10 @@ pub fn derive_key_pair_from_path(
                 Secp256k1PrivateKey::from_bytes(child_xprv.private_key().to_bytes().as_slice())
                     .map_err(|e| IotaError::SignatureKeyGen(e.to_string()))?,
             );
-            Ok((kp.public().into(), IotaKeyPair::Secp256k1(kp)))
+            Ok((
+                address_from_iota_pub_key(kp.public()),
+                IotaKeyPair::Secp256k1(kp),
+            ))
         }
         SignatureScheme::Secp256r1 => {
             let child_xprv = XPrv::derive_from_path(seed, &path)
@@ -59,7 +65,10 @@ pub fn derive_key_pair_from_path(
                 Secp256r1PrivateKey::from_bytes(child_xprv.private_key().to_bytes().as_slice())
                     .map_err(|e| IotaError::SignatureKeyGen(e.to_string()))?,
             );
-            Ok((kp.public().into(), IotaKeyPair::Secp256r1(kp)))
+            Ok((
+                address_from_iota_pub_key(kp.public()),
+                IotaKeyPair::Secp256r1(kp),
+            ))
         }
         SignatureScheme::BLS12381
         | SignatureScheme::MultiSig
@@ -175,7 +184,7 @@ pub fn generate_new_key(
     key_scheme: SignatureScheme,
     derivation_path: Option<DerivationPath>,
     word_length: Option<String>,
-) -> Result<(IotaAddress, IotaKeyPair, SignatureScheme, String), anyhow::Error> {
+) -> Result<(Address, IotaKeyPair, SignatureScheme, String), anyhow::Error> {
     let mnemonic = Mnemonic::new(parse_word_length(word_length)?, Language::English);
     let seed = Seed::new(&mnemonic, "");
     match derive_key_pair_from_path(seed.as_bytes(), derivation_path, &key_scheme) {

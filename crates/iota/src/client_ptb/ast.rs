@@ -6,7 +6,7 @@ use std::fmt;
 
 use iota_types::{
     Identifier, TypeTag,
-    base_types::{ObjectID, RESOLVED_ASCII_STR, RESOLVED_STD_OPTION, RESOLVED_UTF8_STR},
+    base_types::{ObjectId, RESOLVED_ASCII_STR, RESOLVED_STD_OPTION, RESOLVED_UTF8_STR},
     id::RESOLVED_IOTA_ID,
 };
 use move_core_types::{
@@ -122,7 +122,7 @@ pub struct ProgramMetadata {
     pub summary_set: bool,
     pub serialize_unsigned_set: bool,
     pub serialize_signed_set: bool,
-    pub gas_object_ids: Option<Vec<Spanned<ObjectID>>>,
+    pub gas_object_ids: Option<Vec<Spanned<ObjectId>>>,
     pub json_set: bool,
     pub tx_digest_set: bool,
     pub dry_run_set: bool,

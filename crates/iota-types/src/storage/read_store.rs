@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 
 use super::{ObjectStore, error::Result};
 use crate::{
-    base_types::{EpochId, IotaAddress, MoveObjectType, ObjectID, SequenceNumber},
+    base_types::{EpochId, Address, MoveObjectType, ObjectId, Version},
     committee::Committee,
     digests::{
         ChainIdentifier, CheckpointContentsDigest, CheckpointDigest, TransactionDigest,
@@ -19,7 +19,7 @@ use crate::{
     effects::{TransactionEffects, TransactionEvents},
     full_checkpoint_content::CheckpointData,
     messages_checkpoint::{
-        CheckpointContents, CheckpointSequenceNumber, FullCheckpointContents, VerifiedCheckpoint,
+        CheckpointContents, CheckpointVersion, FullCheckpointContents, VerifiedCheckpoint,
     },
     transaction::VerifiedTransaction,
 };
@@ -54,13 +54,13 @@ pub trait ReadStore: ObjectStore {
 
     /// Get the latest available checkpoint sequence number. This is the
     /// sequence number of the latest executed checkpoint.
-    fn try_get_latest_checkpoint_sequence_number(&self) -> Result<CheckpointSequenceNumber> {
+    fn try_get_latest_checkpoint_sequence_number(&self) -> Result<CheckpointVersion> {
         let latest_checkpoint = self.try_get_latest_checkpoint()?;
         Ok(*latest_checkpoint.sequence_number())
     }
 
     /// Non-fallible version of `try_get_latest_checkpoint_sequence_number`.
-    fn get_latest_checkpoint_sequence_number(&self) -> CheckpointSequenceNumber {
+    fn get_latest_checkpoint_sequence_number(&self) -> CheckpointVersion {
         self.try_get_latest_checkpoint_sequence_number()
             .expect("storage access failed")
     }
@@ -111,10 +111,10 @@ pub trait ReadStore: ObjectStore {
     ///  - events
     ///
     /// For object availability see `get_lowest_available_checkpoint_objects`.
-    fn try_get_lowest_available_checkpoint(&self) -> Result<CheckpointSequenceNumber>;
+    fn try_get_lowest_available_checkpoint(&self) -> Result<CheckpointVersion>;
 
     /// Non-fallible version of `try_get_lowest_available_checkpoint`.
-    fn get_lowest_available_checkpoint(&self) -> CheckpointSequenceNumber {
+    fn get_lowest_available_checkpoint(&self) -> CheckpointVersion {
         self.try_get_lowest_available_checkpoint()
             .expect("storage access failed")
     }
@@ -132,13 +132,13 @@ pub trait ReadStore: ObjectStore {
 
     fn try_get_checkpoint_by_sequence_number(
         &self,
-        sequence_number: CheckpointSequenceNumber,
+        sequence_number: CheckpointVersion,
     ) -> Result<Option<VerifiedCheckpoint>>;
 
     /// Non-fallible version of `try_get_checkpoint_by_sequence_number`.
     fn get_checkpoint_by_sequence_number(
         &self,
-        sequence_number: CheckpointSequenceNumber,
+        sequence_number: CheckpointVersion,
     ) -> Option<VerifiedCheckpoint> {
         self.try_get_checkpoint_by_sequence_number(sequence_number)
             .expect("storage access failed")
@@ -160,14 +160,14 @@ pub trait ReadStore: ObjectStore {
 
     fn try_get_checkpoint_contents_by_sequence_number(
         &self,
-        sequence_number: CheckpointSequenceNumber,
+        sequence_number: CheckpointVersion,
     ) -> Result<Option<CheckpointContents>>;
 
     /// Non-fallible version of
     /// `try_get_checkpoint_contents_by_sequence_number`.
     fn get_checkpoint_contents_by_sequence_number(
         &self,
-        sequence_number: CheckpointSequenceNumber,
+        sequence_number: CheckpointVersion,
     ) -> Option<CheckpointContents> {
         self.try_get_checkpoint_contents_by_sequence_number(sequence_number)
             .expect("storage access failed")
@@ -273,14 +273,14 @@ pub trait ReadStore: ObjectStore {
     /// "full" checkpoints include: header, contents, transactions, effects
     fn try_get_full_checkpoint_contents_by_sequence_number(
         &self,
-        sequence_number: CheckpointSequenceNumber,
+        sequence_number: CheckpointVersion,
     ) -> Result<Option<FullCheckpointContents>>;
 
     /// Non-fallible version of
     /// `try_get_full_checkpoint_contents_by_sequence_number`.
     fn get_full_checkpoint_contents_by_sequence_number(
         &self,
-        sequence_number: CheckpointSequenceNumber,
+        sequence_number: CheckpointVersion,
     ) -> Option<FullCheckpointContents> {
         self.try_get_full_checkpoint_contents_by_sequence_number(sequence_number)
             .expect("storage access failed")
@@ -440,7 +440,7 @@ impl<T: ReadStore + ?Sized> ReadStore for &T {
         (*self).try_get_latest_checkpoint()
     }
 
-    fn try_get_latest_checkpoint_sequence_number(&self) -> Result<CheckpointSequenceNumber> {
+    fn try_get_latest_checkpoint_sequence_number(&self) -> Result<CheckpointVersion> {
         (*self).try_get_latest_checkpoint_sequence_number()
     }
 
@@ -456,7 +456,7 @@ impl<T: ReadStore + ?Sized> ReadStore for &T {
         (*self).try_get_highest_synced_checkpoint()
     }
 
-    fn try_get_lowest_available_checkpoint(&self) -> Result<CheckpointSequenceNumber> {
+    fn try_get_lowest_available_checkpoint(&self) -> Result<CheckpointVersion> {
         (*self).try_get_lowest_available_checkpoint()
     }
 
@@ -469,7 +469,7 @@ impl<T: ReadStore + ?Sized> ReadStore for &T {
 
     fn try_get_checkpoint_by_sequence_number(
         &self,
-        sequence_number: CheckpointSequenceNumber,
+        sequence_number: CheckpointVersion,
     ) -> Result<Option<VerifiedCheckpoint>> {
         (*self).try_get_checkpoint_by_sequence_number(sequence_number)
     }
@@ -483,7 +483,7 @@ impl<T: ReadStore + ?Sized> ReadStore for &T {
 
     fn try_get_checkpoint_contents_by_sequence_number(
         &self,
-        sequence_number: CheckpointSequenceNumber,
+        sequence_number: CheckpointVersion,
     ) -> Result<Option<CheckpointContents>> {
         (*self).try_get_checkpoint_contents_by_sequence_number(sequence_number)
     }
@@ -532,7 +532,7 @@ impl<T: ReadStore + ?Sized> ReadStore for &T {
 
     fn try_get_full_checkpoint_contents_by_sequence_number(
         &self,
-        sequence_number: CheckpointSequenceNumber,
+        sequence_number: CheckpointVersion,
     ) -> Result<Option<FullCheckpointContents>> {
         (*self).try_get_full_checkpoint_contents_by_sequence_number(sequence_number)
     }
@@ -562,7 +562,7 @@ impl<T: ReadStore + ?Sized> ReadStore for Box<T> {
         (**self).try_get_latest_checkpoint()
     }
 
-    fn try_get_latest_checkpoint_sequence_number(&self) -> Result<CheckpointSequenceNumber> {
+    fn try_get_latest_checkpoint_sequence_number(&self) -> Result<CheckpointVersion> {
         (**self).try_get_latest_checkpoint_sequence_number()
     }
 
@@ -578,7 +578,7 @@ impl<T: ReadStore + ?Sized> ReadStore for Box<T> {
         (**self).try_get_highest_synced_checkpoint()
     }
 
-    fn try_get_lowest_available_checkpoint(&self) -> Result<CheckpointSequenceNumber> {
+    fn try_get_lowest_available_checkpoint(&self) -> Result<CheckpointVersion> {
         (**self).try_get_lowest_available_checkpoint()
     }
 
@@ -591,7 +591,7 @@ impl<T: ReadStore + ?Sized> ReadStore for Box<T> {
 
     fn try_get_checkpoint_by_sequence_number(
         &self,
-        sequence_number: CheckpointSequenceNumber,
+        sequence_number: CheckpointVersion,
     ) -> Result<Option<VerifiedCheckpoint>> {
         (**self).try_get_checkpoint_by_sequence_number(sequence_number)
     }
@@ -605,7 +605,7 @@ impl<T: ReadStore + ?Sized> ReadStore for Box<T> {
 
     fn try_get_checkpoint_contents_by_sequence_number(
         &self,
-        sequence_number: CheckpointSequenceNumber,
+        sequence_number: CheckpointVersion,
     ) -> Result<Option<CheckpointContents>> {
         (**self).try_get_checkpoint_contents_by_sequence_number(sequence_number)
     }
@@ -654,7 +654,7 @@ impl<T: ReadStore + ?Sized> ReadStore for Box<T> {
 
     fn try_get_full_checkpoint_contents_by_sequence_number(
         &self,
-        sequence_number: CheckpointSequenceNumber,
+        sequence_number: CheckpointVersion,
     ) -> Result<Option<FullCheckpointContents>> {
         (**self).try_get_full_checkpoint_contents_by_sequence_number(sequence_number)
     }
@@ -684,7 +684,7 @@ impl<T: ReadStore + ?Sized> ReadStore for Arc<T> {
         (**self).try_get_latest_checkpoint()
     }
 
-    fn try_get_latest_checkpoint_sequence_number(&self) -> Result<CheckpointSequenceNumber> {
+    fn try_get_latest_checkpoint_sequence_number(&self) -> Result<CheckpointVersion> {
         (**self).try_get_latest_checkpoint_sequence_number()
     }
 
@@ -700,7 +700,7 @@ impl<T: ReadStore + ?Sized> ReadStore for Arc<T> {
         (**self).try_get_highest_synced_checkpoint()
     }
 
-    fn try_get_lowest_available_checkpoint(&self) -> Result<CheckpointSequenceNumber> {
+    fn try_get_lowest_available_checkpoint(&self) -> Result<CheckpointVersion> {
         (**self).try_get_lowest_available_checkpoint()
     }
 
@@ -713,7 +713,7 @@ impl<T: ReadStore + ?Sized> ReadStore for Arc<T> {
 
     fn try_get_checkpoint_by_sequence_number(
         &self,
-        sequence_number: CheckpointSequenceNumber,
+        sequence_number: CheckpointVersion,
     ) -> Result<Option<VerifiedCheckpoint>> {
         (**self).try_get_checkpoint_by_sequence_number(sequence_number)
     }
@@ -727,7 +727,7 @@ impl<T: ReadStore + ?Sized> ReadStore for Arc<T> {
 
     fn try_get_checkpoint_contents_by_sequence_number(
         &self,
-        sequence_number: CheckpointSequenceNumber,
+        sequence_number: CheckpointVersion,
     ) -> Result<Option<CheckpointContents>> {
         (**self).try_get_checkpoint_contents_by_sequence_number(sequence_number)
     }
@@ -776,7 +776,7 @@ impl<T: ReadStore + ?Sized> ReadStore for Arc<T> {
 
     fn try_get_full_checkpoint_contents_by_sequence_number(
         &self,
-        sequence_number: CheckpointSequenceNumber,
+        sequence_number: CheckpointVersion,
     ) -> Result<Option<FullCheckpointContents>> {
         (**self).try_get_full_checkpoint_contents_by_sequence_number(sequence_number)
     }
@@ -806,7 +806,7 @@ pub trait RestStateReader: ObjectStore + ReadStore + Send + Sync {
     ///
     /// Specifically this is the lowest checkpoint for which input/output object
     /// data will be available.
-    fn get_lowest_available_checkpoint_objects(&self) -> Result<CheckpointSequenceNumber>;
+    fn get_lowest_available_checkpoint_objects(&self) -> Result<CheckpointVersion>;
 
     fn get_chain_identifier(&self) -> Result<ChainIdentifier>;
 
@@ -820,38 +820,38 @@ pub trait RestIndexes: Send + Sync {
     fn get_transaction_checkpoint(
         &self,
         digest: &TransactionDigest,
-    ) -> Result<Option<CheckpointSequenceNumber>>;
+    ) -> Result<Option<CheckpointVersion>>;
 
     fn account_owned_objects_info_iter(
         &self,
-        owner: IotaAddress,
-        cursor: Option<ObjectID>,
+        owner: Address,
+        cursor: Option<ObjectId>,
     ) -> Result<Box<dyn Iterator<Item = AccountOwnedObjectInfo> + '_>>;
 
     fn dynamic_field_iter(
         &self,
-        parent: ObjectID,
-        cursor: Option<ObjectID>,
+        parent: ObjectId,
+        cursor: Option<ObjectId>,
     ) -> Result<Box<dyn Iterator<Item = (DynamicFieldKey, DynamicFieldIndexInfo)> + '_>>;
 
     fn get_coin_info(&self, coin_type: &StructTag) -> Result<Option<CoinInfo>>;
 }
 
 pub struct AccountOwnedObjectInfo {
-    pub owner: IotaAddress,
-    pub object_id: ObjectID,
-    pub version: SequenceNumber,
+    pub owner: Address,
+    pub object_id: ObjectId,
+    pub version: Version,
     pub type_: MoveObjectType,
 }
 
 #[derive(Clone, Copy, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Debug)]
 pub struct DynamicFieldKey {
-    pub parent: ObjectID,
-    pub field_id: ObjectID,
+    pub parent: ObjectId,
+    pub field_id: ObjectId,
 }
 
 impl DynamicFieldKey {
-    pub fn new<P: Into<ObjectID>>(parent: P, field_id: ObjectID) -> Self {
+    pub fn new<P: Into<ObjectId>>(parent: P, field_id: ObjectId) -> Self {
         Self {
             parent: parent.into(),
             field_id,
@@ -873,11 +873,11 @@ pub struct DynamicFieldIndexInfo {
     // pub value_type: TypeTag,
     /// ObjectId of the child object when `dynamic_field_type ==
     /// DynamicFieldType::DynamicObject`
-    pub dynamic_object_id: Option<ObjectID>,
+    pub dynamic_object_id: Option<ObjectId>,
 }
 
 #[derive(Clone, Serialize, Deserialize, PartialEq, Eq, Debug)]
 pub struct CoinInfo {
-    pub coin_metadata_object_id: Option<ObjectID>,
-    pub treasury_object_id: Option<ObjectID>,
+    pub coin_metadata_object_id: Option<ObjectId>,
+    pub treasury_object_id: Option<ObjectId>,
 }

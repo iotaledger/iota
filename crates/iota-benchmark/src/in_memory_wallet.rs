@@ -5,7 +5,7 @@
 use std::{collections::BTreeMap, sync::Arc};
 
 use iota_types::{
-    base_types::{IotaAddress, ObjectID, ObjectRef},
+    base_types::{Address, ObjectId, ObjectReference},
     crypto::AccountKeyPair,
     object::Owner,
     transaction::{CallArg, Command, Transaction, TransactionData, TransactionDataAPI},
@@ -23,32 +23,32 @@ use crate::{
 pub struct IotaAccount {
     key: Arc<AccountKeyPair>,
     /// object this account uses to pay for gas
-    pub gas: ObjectRef,
+    pub gas: ObjectReference,
     /// objects owned by this account. does not include `gas`
-    owned: BTreeMap<ObjectID, ObjectRef>,
+    owned: BTreeMap<ObjectId, ObjectReference>,
     // TODO: optional type info
 }
 
 impl IotaAccount {
-    pub fn new(key: Arc<AccountKeyPair>, gas: ObjectRef, objs: Vec<ObjectRef>) -> Self {
-        let owned = objs.into_iter().map(|obj| (obj.0, obj)).collect();
+    pub fn new(key: Arc<AccountKeyPair>, gas: ObjectReference, objs: Vec<ObjectReference>) -> Self {
+        let owned = objs.into_iter().map(|obj| (obj.object_id, obj)).collect();
         IotaAccount { key, gas, owned }
     }
 
     /// Update the state associated with `obj`, adding it if it doesn't exist
-    pub fn add_or_update(&mut self, obj: ObjectRef) -> Option<ObjectRef> {
-        if self.gas.0 == obj.0 {
+    pub fn add_or_update(&mut self, obj: ObjectReference) -> Option<ObjectReference> {
+        if self.gas.object_id == obj.object_id {
             let old_gas = self.gas;
             self.gas = obj;
             Some(old_gas)
         } else {
-            self.owned.insert(obj.0, obj)
+            self.owned.insert(obj.object_id, obj)
         }
     }
 
     /// Delete `id` and return the old value
-    pub fn delete(&mut self, id: &ObjectID) -> Option<ObjectRef> {
-        debug_assert!(self.gas.0 != *id, "Deleting gas object");
+    pub fn delete(&mut self, id: &ObjectId) -> Option<ObjectReference> {
+        debug_assert!(self.gas.object_id != *id, "Deleting gas object");
 
         self.owned.remove(id)
     }
@@ -63,8 +63,8 @@ impl IotaAccount {
 /// objects, and immutable objects
 #[derive(Debug, Default)]
 pub struct InMemoryWallet {
-    accounts: BTreeMap<IotaAddress, IotaAccount>, /* TODO: track shared and immutable objects as
-                                                   * well */
+    accounts: BTreeMap<Address, IotaAccount>, /* TODO: track shared and immutable objects as
+                                               * well */
 }
 
 impl InMemoryWallet {
@@ -78,10 +78,10 @@ impl InMemoryWallet {
 
     pub fn add_account(
         &mut self,
-        addr: IotaAddress,
+        addr: Address,
         key: Arc<AccountKeyPair>,
-        gas: ObjectRef,
-        objs: Vec<ObjectRef>,
+        gas: ObjectReference,
+        objs: Vec<ObjectReference>,
     ) {
         self.accounts.insert(addr, IotaAccount::new(key, gas, objs));
     }
@@ -105,28 +105,28 @@ impl InMemoryWallet {
                 // 3. is shared (though we do not yet support deletion of shared objects)
                 // so, we just try to delete everything from the sender's account here, though
                 // it's worth noting that (2) and (3) are possible.
-                sender_account.delete(&obj.0);
+                sender_account.delete(&obj.object_id);
             }
         } // else, tx sender is not an account we can spend from, we don't care
     }
 
-    pub fn account_mut(&mut self, addr: &IotaAddress) -> Option<&mut IotaAccount> {
+    pub fn account_mut(&mut self, addr: &Address) -> Option<&mut IotaAccount> {
         self.accounts.get_mut(addr)
     }
 
-    pub fn account(&self, addr: &IotaAddress) -> Option<&IotaAccount> {
+    pub fn account(&self, addr: &Address) -> Option<&IotaAccount> {
         self.accounts.get(addr)
     }
 
-    pub fn gas(&self, addr: &IotaAddress) -> Option<&ObjectRef> {
+    pub fn gas(&self, addr: &Address) -> Option<&ObjectReference> {
         self.accounts.get(addr).map(|a| &a.gas)
     }
 
-    pub fn owned_object(&self, addr: &IotaAddress, id: &ObjectID) -> Option<&ObjectRef> {
+    pub fn owned_object(&self, addr: &Address, id: &ObjectId) -> Option<&ObjectReference> {
         self.accounts.get(addr).and_then(|a| a.owned.get(id))
     }
 
-    pub fn owned_objects(&self, addr: &IotaAddress) -> Option<impl Iterator<Item = &ObjectRef>> {
+    pub fn owned_objects(&self, addr: &Address) -> Option<impl Iterator<Item = &ObjectReference>> {
         self.accounts.get(addr).map(|a| a.owned.values())
     }
 
@@ -137,8 +137,8 @@ impl InMemoryWallet {
 
     pub fn move_call(
         &self,
-        sender: IotaAddress,
-        package: ObjectID,
+        sender: Address,
+        package: ObjectId,
         module: &str,
         function: &str,
         type_arguments: Vec<TypeTag>,
@@ -164,8 +164,8 @@ impl InMemoryWallet {
 
     pub fn move_call_pt(
         &self,
-        sender: IotaAddress,
-        package: ObjectID,
+        sender: Address,
+        package: ObjectId,
         module: &str,
         function: &str,
         type_arguments: Vec<TypeTag>,
@@ -188,7 +188,7 @@ impl InMemoryWallet {
         )
     }
 
-    pub fn keypair(&self, addr: &IotaAddress) -> Option<Arc<AccountKeyPair>> {
+    pub fn keypair(&self, addr: &Address) -> Option<Arc<AccountKeyPair>> {
         self.accounts.get(addr).map(|a| a.key.clone())
     }
 
@@ -196,7 +196,7 @@ impl InMemoryWallet {
         self.accounts.len()
     }
 
-    pub fn addresses(&self) -> impl Iterator<Item = &IotaAddress> {
+    pub fn addresses(&self) -> impl Iterator<Item = &Address> {
         self.accounts.keys()
     }
 
@@ -210,14 +210,14 @@ impl InMemoryWallet {
 }
 
 pub fn move_call_pt_impl(
-    sender: IotaAddress,
+    sender: Address,
     keypair: &AccountKeyPair,
-    package: ObjectID,
+    package: ObjectId,
     module: &str,
     function: &str,
     type_arguments: Vec<TypeTag>,
     arguments: Vec<BenchMoveCallArg>,
-    gas_ref: &ObjectRef,
+    gas_ref: &ObjectReference,
     gas_budget: u64,
     gas_price: u64,
 ) -> Transaction {

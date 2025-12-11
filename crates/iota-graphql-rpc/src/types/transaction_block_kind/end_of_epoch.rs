@@ -7,7 +7,7 @@ use async_graphql::{
     *,
 };
 use iota_types::{
-    base_types::{ObjectID, SequenceNumber},
+    base_types::{ObjectId, Version},
     committee::{EpochId, ProtocolVersion},
     digests::TransactionDigest,
     object::Object as NativeObject,
@@ -87,7 +87,7 @@ pub(crate) struct ChangeEpochTransactionV2 {
     /// out the modules below.  Modules are provided with the version they
     /// will be upgraded to, their modules in serialized form (which include
     /// their package ID), and a list of their transitive dependencies.
-    pub system_packages: Vec<(SequenceNumber, Vec<Vec<u8>>, Vec<ObjectID>)>,
+    pub system_packages: Vec<(Version, Vec<Vec<u8>>, Vec<ObjectId>)>,
     /// Vector of active validator indices eligible to take part in committee
     /// selection because they support the new, target protocol version.
     pub eligible_active_validators: Option<Vec<u64>>,
@@ -417,7 +417,6 @@ impl AuthenticatorStateExpireTransaction {
     async fn authenticator_obj_initial_shared_version(&self) -> UInt53 {
         self.native
             .authenticator_obj_initial_shared_version
-            .value()
             .into()
     }
 }

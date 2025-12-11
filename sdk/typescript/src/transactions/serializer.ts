@@ -6,7 +6,7 @@ import type { BcsType } from '@iota/bcs';
 
 import { bcs } from '../bcs/index.js';
 import type { IotaMoveNormalizedType } from '../client/index.js';
-import { MOVE_STDLIB_ADDRESS, IOTA_FRAMEWORK_ADDRESS } from '../utils/index.js';
+import { MOVE_STDLIB_ADDRESS, Address::FRAMEWORK } from '../utils/index.js';
 import { normalizeIotaAddress } from '../utils/iota-types.js';
 import type { OpenMoveTypeSignature, OpenMoveTypeSignatureBody } from './data/internal.js';
 
@@ -98,7 +98,7 @@ export function getPureBcsSchema(typeSignature: OpenMoveTypeSignatureBody): BcsT
         }
 
         if (
-            pkg === normalizeIotaAddress(IOTA_FRAMEWORK_ADDRESS) &&
+            pkg === normalizeIotaAddress(Address::FRAMEWORK) &&
             typeSignature.datatype.module === OBJECT_MODULE_NAME &&
             typeSignature.datatype.type === ID_STRUCT_NAME
         ) {

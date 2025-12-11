@@ -7,7 +7,7 @@ use std::{collections::HashMap, sync::Arc};
 use async_trait::async_trait;
 use backoff::{ExponentialBackoff, backoff::Backoff};
 use futures::StreamExt;
-use iota_types::messages_checkpoint::CheckpointSequenceNumber;
+use iota_types::base_types::Version;
 use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
 use tokio_util::sync::CancellationToken;
@@ -153,8 +153,8 @@ pub trait Reducer<Mapper: Worker>: Send + Sync {
 /// ensuring no data loss for processed messages.
 pub(crate) async fn reduce<W: Worker>(
     task_name: String,
-    mut current_checkpoint_number: CheckpointSequenceNumber,
-    watermark_receiver: mpsc::Receiver<(CheckpointSequenceNumber, W::Message)>,
+    mut current_checkpoint_number: Version,
+    watermark_receiver: mpsc::Receiver<(Version, W::Message)>,
     executor_progress_sender: mpsc::Sender<WorkerPoolStatus>,
     reducer: Box<dyn Reducer<W>>,
     backoff: Arc<ExponentialBackoff>,

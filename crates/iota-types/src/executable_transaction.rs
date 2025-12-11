@@ -8,7 +8,7 @@ use crate::{
     committee::EpochId,
     crypto::AuthorityStrongQuorumSignInfo,
     message_envelope::{Envelope, TrustedEnvelope, VerifiedEnvelope},
-    messages_checkpoint::CheckpointSequenceNumber,
+    messages_checkpoint::CheckpointVersion,
     transaction::{SenderSignedData, TransactionDataAPI},
 };
 
@@ -19,7 +19,7 @@ use crate::{
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum CertificateProof {
     /// Validity was proven by inclusion in the given checkpoint
-    Checkpoint(EpochId, CheckpointSequenceNumber),
+    Checkpoint(EpochId, CheckpointVersion),
     /// Validity was proven by transaction certificate signature
     Certified(AuthorityStrongQuorumSignInfo),
     /// At least f+1 validators have executed this transaction.
@@ -36,7 +36,7 @@ impl CertificateProof {
         Self::Certified(sig)
     }
 
-    pub fn new_from_checkpoint(epoch: EpochId, checkpoint: CheckpointSequenceNumber) -> Self {
+    pub fn new_from_checkpoint(epoch: EpochId, checkpoint: CheckpointVersion) -> Self {
         Self::Checkpoint(epoch, checkpoint)
     }
 

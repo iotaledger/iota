@@ -3,14 +3,16 @@
 
 use iota_protocol_config::ProtocolConfig;
 use iota_stardust_sdk::types::block::output::AliasOutput as StardustAlias;
-use move_core_types::{ident_str, identifier::IdentStr, language_storage::StructTag};
+use move_core_types::{
+    account_address::AccountAddress, ident_str, identifier::IdentStr, language_storage::StructTag,
+};
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 
 use crate::{
-    STARDUST_ADDRESS, TypeTag,
+    TypeTag,
     balance::Balance,
-    base_types::{IotaAddress, ObjectID, SequenceNumber, TxContext},
+    base_types::{Address, ObjectId, TxContext, Version},
     collection_types::Bag,
     error::IotaError,
     id::UID,
@@ -33,19 +35,19 @@ pub struct Alias {
     pub id: UID,
 
     /// The last State Controller address assigned before the migration.
-    pub legacy_state_controller: IotaAddress,
+    pub legacy_state_controller: Address,
     /// A counter increased by 1 every time the alias was state transitioned.
     pub state_index: u32,
     /// State metadata that can be used to store additional information.
     pub state_metadata: Option<Vec<u8>>,
 
     /// The sender feature.
-    pub sender: Option<IotaAddress>,
+    pub sender: Option<Address>,
     /// The metadata feature.
     pub metadata: Option<Vec<u8>>,
 
     /// The immutable issuer feature.
-    pub immutable_issuer: Option<IotaAddress>,
+    pub immutable_issuer: Option<Address>,
     /// The immutable metadata feature.
     pub immutable_metadata: Option<Vec<u8>>,
 }
@@ -55,7 +57,7 @@ impl Alias {
     /// [`Alias`] in its move package.
     pub fn tag() -> StructTag {
         StructTag {
-            address: STARDUST_ADDRESS,
+            address: AccountAddress::new(Address::STARDUST.into_bytes()),
             module: ALIAS_MODULE_NAME.to_owned(),
             name: ALIAS_STRUCT_NAME.to_owned(),
             type_params: Vec::new(),
@@ -64,7 +66,7 @@ impl Alias {
 
     /// Creates the Move-based Alias model from a Stardust-based Alias Output.
     pub fn try_from_stardust(
-        alias_id: ObjectID,
+        alias_id: ObjectId,
         alias: &StardustAlias,
     ) -> Result<Self, anyhow::Error> {
         if alias_id.as_ref() == [0; 32] {
@@ -76,7 +78,7 @@ impl Alias {
         } else {
             Some(alias.state_metadata().to_vec())
         };
-        let sender: Option<IotaAddress> = alias
+        let sender: Option<Address> = alias
             .features()
             .sender()
             .map(|sender_feat| stardust_to_iota_address(sender_feat.address()))
@@ -85,7 +87,7 @@ impl Alias {
             .features()
             .metadata()
             .map(|metadata_feat| metadata_feat.data().to_vec());
-        let immutable_issuer: Option<IotaAddress> = alias
+        let immutable_issuer: Option<Address> = alias
             .immutable_features()
             .issuer()
             .map(|issuer_feat| stardust_to_iota_address(issuer_feat.address()))
@@ -112,7 +114,7 @@ impl Alias {
         owner: Owner,
         protocol_config: &ProtocolConfig,
         tx_context: &TxContext,
-        version: SequenceNumber,
+        version: Version,
     ) -> anyhow::Result<Object> {
         // Construct the Alias object.
         let move_alias_object = {
@@ -155,7 +157,7 @@ impl AliasOutput {
     /// [`AliasOutput`] in its move package.
     pub fn tag(type_param: TypeTag) -> StructTag {
         StructTag {
-            address: STARDUST_ADDRESS,
+            address: AccountAddress::new(Address::STARDUST.into_bytes()),
             module: ALIAS_OUTPUT_MODULE_NAME.to_owned(),
             name: ALIAS_OUTPUT_STRUCT_NAME.to_owned(),
             type_params: vec![type_param],
@@ -165,7 +167,7 @@ impl AliasOutput {
     /// Creates the Move-based Alias Output model from a Stardust-based Alias
     /// Output.
     pub fn try_from_stardust(
-        object_id: ObjectID,
+        object_id: ObjectId,
         alias: &StardustAlias,
         native_tokens: Bag,
     ) -> Result<Self, anyhow::Error> {
@@ -181,7 +183,7 @@ impl AliasOutput {
         owner: Owner,
         protocol_config: &ProtocolConfig,
         tx_context: &TxContext,
-        version: SequenceNumber,
+        version: Version,
         coin_type: CoinType,
     ) -> anyhow::Result<Object> {
         // Construct the Alias Output object.
@@ -211,7 +213,7 @@ impl AliasOutput {
     }
 
     pub fn is_alias_output(s: &StructTag) -> bool {
-        s.address == STARDUST_ADDRESS
+        s.address == AccountAddress::new(Address::STARDUST.into_bytes())
             && s.module.as_ident_str() == ALIAS_OUTPUT_MODULE_NAME
             && s.name.as_ident_str() == ALIAS_OUTPUT_STRUCT_NAME
     }

@@ -7,7 +7,7 @@ use std::sync::Arc;
 
 use iota_protocol_config::ProtocolConfig;
 use iota_types::{
-    base_types::{IotaAddress, ObjectRef},
+    base_types::{Address, ObjectReference},
     error::{IotaError, UserInputError},
     execution_status::{ExecutionFailureStatus, ExecutionStatus},
     object::Object,
@@ -129,7 +129,7 @@ impl TransactionSponsorship {
         accounts: &mut AccountTriple,
         exec: &mut Executor,
         gas_coins: u32,
-    ) -> (Vec<ObjectRef>, (u64, Object), IotaAddress) {
+    ) -> (Vec<ObjectReference>, (u64, Object), Address) {
         match self {
             TransactionSponsorship::None => {
                 let gas_object = accounts.account_1.new_gas_object(exec);

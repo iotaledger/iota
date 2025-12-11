@@ -7,8 +7,7 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
-    IOTA_RANDOMNESS_STATE_OBJECT_ID,
-    base_types::{ObjectID, SequenceNumber},
+    base_types::{ObjectId, Version},
     crypto::get_key_pair,
     object::Owner,
     transaction::Transaction,
@@ -35,8 +34,8 @@ pub const MAX_GAS_IN_UNIT: u64 = 1_000_000_000;
 
 #[derive(Debug)]
 pub struct RandomnessTestPayload {
-    package_id: ObjectID,
-    randomness_initial_shared_version: SequenceNumber,
+    package_id: ObjectId,
+    randomness_initial_shared_version: Version,
     gas: Gas,
     system_state_observer: Arc<SystemStateObserver>,
 }
@@ -154,8 +153,8 @@ impl WorkloadBuilder<dyn Payload> for RandomnessWorkloadBuilder {
 
 #[derive(Debug)]
 pub struct RandomnessWorkload {
-    pub basics_package_id: Option<ObjectID>,
-    pub randomness_initial_shared_version: Option<SequenceNumber>,
+    pub basics_package_id: Option<ObjectId>,
+    pub randomness_initial_shared_version: Option<Version>,
     pub init_gas: Vec<Gas>,
     pub payload_gas: Vec<Gas>,
 }
@@ -182,7 +181,7 @@ impl Workload<dyn Payload> for RandomnessWorkload {
             self.basics_package_id = Some(
                 publish_basics_package(gas.0, proxy.clone(), gas.1, &gas.2, gas_price)
                     .await
-                    .0,
+                    .object_id,
             );
             info!("Basics package id {:?}", self.basics_package_id);
         }
@@ -190,7 +189,7 @@ impl Workload<dyn Payload> for RandomnessWorkload {
         // Get randomness shared object initial version
         if self.randomness_initial_shared_version.is_none() {
             let obj = proxy
-                .get_object(IOTA_RANDOMNESS_STATE_OBJECT_ID)
+                .get_object(ObjectId::RANDOMNESS_STATE)
                 .await
                 .expect("Failed to get randomness object");
             let Owner::Shared {

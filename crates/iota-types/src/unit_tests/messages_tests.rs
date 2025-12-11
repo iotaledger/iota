@@ -9,7 +9,7 @@ use std::{
 };
 
 use fastcrypto::traits::{AggregateAuthenticator, KeyPair};
-use move_core_types::language_storage::StructTag;
+use move_core_types::{account_address::AccountAddress, language_storage::StructTag};
 use roaring::RoaringBitmap;
 
 use super::*;
@@ -721,9 +721,9 @@ fn signature_from_signer(
 fn test_sponsored_transaction_message() {
     let epoch = 0;
     let sender_kp = IotaKeyPair::Ed25519(get_key_pair().1);
-    let sender = (&sender_kp.public()).into();
+    let sender = address_from_pub_key(&sender_kp.public());
     let sponsor_kp = IotaKeyPair::Ed25519(get_key_pair().1);
-    let sponsor = (&sponsor_kp.public()).into();
+    let sponsor = address_from_pub_key(&sponsor_kp.public());
     let pt = {
         let mut builder = ProgrammableTransactionBuilder::new();
         builder
@@ -817,9 +817,9 @@ fn test_sponsored_transaction_message() {
 #[test]
 fn test_sponsored_transaction_validity_check() {
     let sender_kp = IotaKeyPair::Ed25519(get_key_pair().1);
-    let sender = (&sender_kp.public()).into();
+    let sender = address_from_pub_key(&sender_kp.public());
     let sponsor_kp = IotaKeyPair::Ed25519(get_key_pair().1);
-    let sponsor = (&sponsor_kp.public()).into();
+    let sponsor = address_from_pub_key(&sponsor_kp.public());
 
     // This is a sponsored transaction
     let gas_price = 10;
@@ -847,7 +847,7 @@ fn test_sponsored_transaction_validity_check() {
         let mut builder = ProgrammableTransactionBuilder::new();
         builder
             .move_call(
-                ObjectID::random(),
+                ObjectId::new(rand::random()),
                 Identifier::new("random_module").unwrap(),
                 Identifier::new("random_function").unwrap(),
                 vec![],
@@ -879,7 +879,7 @@ fn test_sponsored_transaction_validity_check() {
         builder
             .pay(
                 vec![random_object_ref()],
-                vec![IotaAddress::random_for_testing_only()],
+                vec![Address::new(rand::random())],
                 vec![100000],
             )
             .unwrap();
@@ -893,7 +893,7 @@ fn test_sponsored_transaction_validity_check() {
     // TransferIota
     let pt = {
         let mut builder = ProgrammableTransactionBuilder::new();
-        builder.transfer_iota(IotaAddress::random_for_testing_only(), Some(50000));
+        builder.transfer_iota(Address::new(rand::random()), Some(50000));
         builder.finish()
     };
     let kind = TransactionKind::programmable(pt);
@@ -915,7 +915,7 @@ fn test_sponsored_transaction_validity_check() {
     // PayAllIota
     let pt = {
         let mut builder = ProgrammableTransactionBuilder::new();
-        builder.pay_all_iota(IotaAddress::random_for_testing_only());
+        builder.pay_all_iota(Address::new(rand::random()));
         builder.finish()
     };
     let kind = TransactionKind::programmable(pt);
@@ -936,7 +936,7 @@ fn verify_sender_signature_correctly_with_flag() {
 
     // create a receiver keypair with Secp256k1
     let receiver_kp = IotaKeyPair::Secp256k1(get_key_pair().1);
-    let receiver_address = (&receiver_kp.public()).into();
+    let receiver_address = address_from_pub_key(&receiver_kp.public());
 
     // create a sender keypair with Secp256k1
     let sender_kp = IotaKeyPair::Secp256k1(get_key_pair().1);
@@ -945,7 +945,7 @@ fn verify_sender_signature_correctly_with_flag() {
     let tx_data = TransactionData::new_transfer(
         receiver_address,
         random_object_ref(),
-        (&sender_kp.public()).into(),
+        address_from_pub_key(&sender_kp.public()),
         random_object_ref(),
         TEST_ONLY_GAS_UNIT_FOR_TRANSFER * gas_price,
         gas_price,
@@ -954,13 +954,13 @@ fn verify_sender_signature_correctly_with_flag() {
     // create a sender keypair with Ed25519
     let sender_kp_2 = IotaKeyPair::Ed25519(get_key_pair().1);
     let mut tx_data_2 = tx_data.clone();
-    *tx_data_2.sender_mut_for_testing() = (&sender_kp_2.public()).into();
+    *tx_data_2.sender_mut_for_testing() = address_from_pub_key(&sender_kp_2.public());
     tx_data_2.gas_data_mut().owner = tx_data_2.sender();
 
     // create a sender keypair with Secp256r1
     let sender_kp_3 = IotaKeyPair::Secp256r1(get_key_pair().1);
     let mut tx_data_3 = tx_data.clone();
-    *tx_data_3.sender_mut_for_testing() = (&sender_kp_3.public()).into();
+    *tx_data_3.sender_mut_for_testing() = address_from_pub_key(&sender_kp_3.public());
     tx_data_3.gas_data_mut().owner = tx_data_3.sender();
 
     let transaction = Transaction::from_data_and_signer(tx_data, vec![&sender_kp])
@@ -1079,7 +1079,7 @@ fn test_consensus_commit_prologue_v1_transaction() {
     assert_eq!(
         tx.shared_input_objects().next().unwrap(),
         SharedInputObject {
-            id: IOTA_CLOCK_OBJECT_ID,
+            id: ObjectId::CLOCK,
             initial_shared_version: IOTA_CLOCK_OBJECT_SHARED_VERSION,
             mutable: true,
         },
@@ -1098,21 +1098,21 @@ fn test_consensus_commit_prologue_v1_transaction() {
 
 #[test]
 fn test_move_input_objects() {
-    let package = ObjectID::random();
-    let p1 = ObjectID::random();
-    let p2 = ObjectID::random();
-    let p3 = ObjectID::random();
-    let p4 = ObjectID::random();
-    let p5 = ObjectID::random();
+    let package = ObjectId::new(rand::random());
+    let p1 = ObjectId::new(rand::random());
+    let p2 = ObjectId::new(rand::random());
+    let p3 = ObjectId::new(rand::random());
+    let p4 = ObjectId::new(rand::random());
+    let p5 = ObjectId::new(rand::random());
     let o1 = random_object_ref();
     let o2 = random_object_ref();
     let o3 = random_object_ref();
     let shared = random_object_ref();
 
     let gas_object_ref = random_object_ref();
-    let mk_st = |package: ObjectID, type_args| {
+    let mk_st = |package: ObjectId, type_args| {
         TypeTag::Struct(Box::new(StructTag {
-            address: package.into(),
+            address: AccountAddress::new(package.into_bytes()),
             module: Identifier::new("foo").unwrap(),
             name: Identifier::new("bar").unwrap(),
             type_params: type_args,
@@ -1135,8 +1135,8 @@ fn test_move_input_objects() {
             .unwrap(),
         builder
             .input(CallArg::Object(ObjectArg::SharedObject {
-                id: shared.0,
-                initial_shared_version: shared.1,
+                object_id: shared.object_id,
+                initial_shared_version: shared.version,
                 mutable: true,
             }))
             .unwrap(),
@@ -1149,7 +1149,7 @@ fn test_move_input_objects() {
         args,
     ));
     let data = TransactionData::new_programmable(
-        IotaAddress::random_for_testing_only(),
+        Address::new(rand::random()),
         vec![gas_object_ref],
         builder.finish(),
         1_000_000, // any random number the transaction is not run
@@ -1178,8 +1178,8 @@ fn test_move_input_objects() {
     rem!(InputObjectKind::ImmOrOwnedMoveObject(o2));
     rem!(InputObjectKind::ImmOrOwnedMoveObject(o3));
     rem!(InputObjectKind::SharedMoveObject {
-        id: shared.0,
-        initial_shared_version: shared.1,
+        object_id: shared.object_id,
+        initial_shared_version: shared.version,
         mutable: true,
     });
     rem!(InputObjectKind::ImmOrOwnedMoveObject(gas_object_ref));
@@ -1188,20 +1188,20 @@ fn test_move_input_objects() {
 
 #[test]
 fn test_unique_input_objects() {
-    let package = ObjectID::random();
-    let p1 = ObjectID::random();
-    let p2 = ObjectID::random();
-    let p3 = ObjectID::random();
-    let p4 = ObjectID::random();
-    let p5 = ObjectID::random();
+    let package = ObjectId::new(rand::random());
+    let p1 = ObjectId::new(rand::random());
+    let p2 = ObjectId::new(rand::random());
+    let p3 = ObjectId::new(rand::random());
+    let p4 = ObjectId::new(rand::random());
+    let p5 = ObjectId::new(rand::random());
     let o1 = random_object_ref();
     let o2 = random_object_ref();
     let o3 = random_object_ref();
     let shared = random_object_ref();
 
-    let mk_st = |package: ObjectID, type_args| {
+    let mk_st = |package: ObjectId, type_args| {
         TypeTag::Struct(Box::new(StructTag {
-            address: package.into(),
+            address: AccountAddress::new(package.into_bytes()),
             module: Identifier::new("foo").unwrap(),
             name: Identifier::new("bar").unwrap(),
             type_params: type_args,
@@ -1226,15 +1226,15 @@ fn test_unique_input_objects() {
     let args_2 = vec![
         builder
             .input(CallArg::Object(ObjectArg::SharedObject {
-                id: shared.0,
-                initial_shared_version: shared.1,
+                object_id: shared.object_id,
+                initial_shared_version: shared.version,
                 mutable: true,
             }))
             .unwrap(),
     ];
 
     let sender_kp = IotaKeyPair::Ed25519(get_key_pair().1);
-    let sender = (&sender_kp.public()).into();
+    let sender = address_from_pub_key(&sender_kp.public());
     let gas_price = 10;
     let gas_object_ref = random_object_ref();
     let gas_data = GasData {
@@ -1378,7 +1378,7 @@ fn check_approx_effects_components_size() {
         "Update APPROX_SIZE_OF_OPT_TX_EVENTS_DIGEST constant"
     );
     assert!(
-        size_of::<ObjectRef>() < APPROX_SIZE_OF_OBJECT_REF,
+        size_of::<ObjectReference>() < APPROX_SIZE_OF_OBJECT_REF,
         "Update APPROX_SIZE_OF_OBJECT_REF constant"
     );
     assert!(

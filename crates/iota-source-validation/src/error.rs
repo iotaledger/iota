@@ -7,7 +7,7 @@ use std::fmt;
 use iota_json_rpc_types::IotaRawMoveObject;
 use iota_package_management::PublishedAtError;
 use iota_sdk::error::Error as SdkError;
-use iota_types::{base_types::ObjectID, error::IotaObjectResponseError};
+use iota_types::{base_types::ObjectId, error::IotaObjectResponseError};
 use move_core_types::account_address::AccountAddress;
 use move_symbol_pool::Symbol;
 
@@ -50,7 +50,7 @@ pub enum Error {
     },
 
     #[error("Dependency ID contains an IOTA object, not a Move package: {}", .0.0)]
-    ObjectFoundWhenPackageExpected(Box<(ObjectID, IotaRawMoveObject)>),
+    ObjectFoundWhenPackageExpected(Box<(ObjectId, IotaRawMoveObject)>),
 
     #[error("Could not deserialize on-chain dependency {address}::{module}.")]
     OnChainDependencyDeserializationError {

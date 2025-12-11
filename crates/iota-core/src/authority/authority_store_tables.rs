@@ -5,7 +5,7 @@
 use std::path::Path;
 
 use iota_types::{
-    accumulator::Accumulator, base_types::SequenceNumber, digests::TransactionEventsDigest,
+    accumulator::Accumulator, base_types::Version, digests::TransactionEventsDigest,
     effects::TransactionEffects, storage::MarkerValue,
 };
 use serde::{Deserialize, Serialize};
@@ -74,7 +74,7 @@ pub struct AuthorityPerpetualTables {
     pub(crate) objects: DBMap<ObjectKey, StoreObjectWrapper>,
 
     /// Object references of currently active objects that can be mutated.
-    pub(crate) live_owned_object_markers: DBMap<ObjectRef, ()>,
+    pub(crate) live_owned_object_markers: DBMap<ObjectReference, ()>,
 
     /// This is a map between the transaction digest and the corresponding
     /// transaction that's known to be executable. This means that it may
@@ -113,20 +113,19 @@ pub struct AuthorityPerpetualTables {
     /// executor. Currently, mainly used to implement JSON RPC `ReadApi`.
     /// Note, there is a table with the same name in
     /// `AuthorityEpochTables`/`AuthorityPerEpochStore`.
-    pub(crate) executed_transactions_to_checkpoint:
-        DBMap<TransactionDigest, (EpochId, CheckpointSequenceNumber)>,
+    pub(crate) executed_transactions_to_checkpoint: DBMap<TransactionDigest, (EpochId, Version)>,
 
     // Finalized root state accumulator for epoch, to be included in CheckpointSummary
     // of last checkpoint of epoch. These values should only ever be written once
     // and never changed
-    pub(crate) root_state_hash_by_epoch: DBMap<EpochId, (CheckpointSequenceNumber, Accumulator)>,
+    pub(crate) root_state_hash_by_epoch: DBMap<EpochId, (Version, Accumulator)>,
 
     /// Parameters of the system fixed at the epoch start
     pub(crate) epoch_start_configuration: DBMap<(), EpochStartConfiguration>,
 
     /// A singleton table that stores latest pruned checkpoint. Used to keep
     /// objects pruner progress
-    pub(crate) pruned_checkpoint: DBMap<(), CheckpointSequenceNumber>,
+    pub(crate) pruned_checkpoint: DBMap<(), Version>,
 
     /// The total IOTA supply and the epoch at which it was stored.
     /// We check and update it at the end of each epoch if expensive checks are
@@ -151,7 +150,7 @@ pub struct AuthorityPerpetualTables {
 
 #[derive(DBMapUtils)]
 pub struct AuthorityPrunerTables {
-    pub(crate) object_tombstones: DBMap<ObjectID, SequenceNumber>,
+    pub(crate) object_tombstones: DBMap<ObjectId, Version>,
 }
 
 impl AuthorityPrunerTables {
@@ -237,8 +236,8 @@ impl AuthorityPerpetualTables {
     // or eq to the parent.
     pub fn find_object_lt_or_eq_version(
         &self,
-        object_id: ObjectID,
-        version: SequenceNumber,
+        object_id: ObjectId,
+        version: Version,
     ) -> IotaResult<Option<Object>> {
         let mut iter = self.objects.reversed_safe_iter_with_bounds(
             Some(ObjectKey::min_for_id(&object_id)),
@@ -276,21 +275,17 @@ impl AuthorityPerpetualTables {
         &self,
         object_key: &ObjectKey,
         store_object: StoreObjectWrapper,
-    ) -> Result<ObjectRef, IotaError> {
+    ) -> Result<ObjectReference, IotaError> {
         let obj_ref = match store_object.migrate().into_inner() {
             StoreObject::Value(object) => self
                 .construct_object(object_key, object)?
                 .compute_object_reference(),
-            StoreObject::Deleted => (
-                object_key.0,
-                object_key.1,
-                ObjectDigest::OBJECT_DIGEST_DELETED,
-            ),
-            StoreObject::Wrapped => (
-                object_key.0,
-                object_key.1,
-                ObjectDigest::OBJECT_DIGEST_WRAPPED,
-            ),
+            StoreObject::Deleted => {
+                ObjectReference::new(object_key.0, object_key.1, ObjectDigest::OBJECT_DELETED)
+            }
+            StoreObject::Wrapped => {
+                ObjectReference::new(object_key.0, object_key.1, ObjectDigest::OBJECT_WRAPPED)
+            }
         };
         Ok(obj_ref)
     }
@@ -299,17 +294,17 @@ impl AuthorityPerpetualTables {
         &self,
         object_key: &ObjectKey,
         store_object: &StoreObjectWrapper,
-    ) -> Result<Option<ObjectRef>, IotaError> {
+    ) -> Result<Option<ObjectReference>, IotaError> {
         let obj_ref = match store_object.inner() {
-            StoreObject::Deleted => Some((
+            StoreObject::Deleted => Some(ObjectReference::new(
                 object_key.0,
                 object_key.1,
-                ObjectDigest::OBJECT_DIGEST_DELETED,
+                ObjectDigest::OBJECT_DELETED,
             )),
-            StoreObject::Wrapped => Some((
+            StoreObject::Wrapped => Some(ObjectReference::new(
                 object_key.0,
                 object_key.1,
-                ObjectDigest::OBJECT_DIGEST_WRAPPED,
+                ObjectDigest::OBJECT_WRAPPED,
             )),
             _ => None,
         };
@@ -318,8 +313,8 @@ impl AuthorityPerpetualTables {
 
     pub fn get_latest_object_ref_or_tombstone(
         &self,
-        object_id: ObjectID,
-    ) -> Result<Option<ObjectRef>, IotaError> {
+        object_id: ObjectId,
+    ) -> Result<Option<ObjectReference>, IotaError> {
         let mut iterator = self.objects.reversed_safe_iter_with_bounds(
             Some(ObjectKey::min_for_id(&object_id)),
             Some(ObjectKey::max_for_id(&object_id)),
@@ -335,7 +330,7 @@ impl AuthorityPerpetualTables {
 
     pub fn get_latest_object_or_tombstone(
         &self,
-        object_id: ObjectID,
+        object_id: ObjectId,
     ) -> Result<Option<(ObjectKey, StoreObjectWrapper)>, IotaError> {
         let mut iterator = self.objects.reversed_safe_iter_with_bounds(
             Some(ObjectKey::min_for_id(&object_id)),
@@ -372,14 +367,14 @@ impl AuthorityPerpetualTables {
         Ok(())
     }
 
-    pub fn get_highest_pruned_checkpoint(&self) -> IotaResult<CheckpointSequenceNumber> {
+    pub fn get_highest_pruned_checkpoint(&self) -> IotaResult<Version> {
         Ok(self.pruned_checkpoint.get(&())?.unwrap_or_default())
     }
 
     pub fn set_highest_pruned_checkpoint(
         &self,
         wb: &mut DBBatch,
-        checkpoint_number: CheckpointSequenceNumber,
+        checkpoint_number: Version,
     ) -> IotaResult {
         wb.insert_batch(&self.pruned_checkpoint, [((), checkpoint_number)])?;
         Ok(())
@@ -408,18 +403,18 @@ impl AuthorityPerpetualTables {
     pub fn get_checkpoint_sequence_number(
         &self,
         digest: &TransactionDigest,
-    ) -> IotaResult<Option<(EpochId, CheckpointSequenceNumber)>> {
+    ) -> IotaResult<Option<(EpochId, Version)>> {
         Ok(self.executed_transactions_to_checkpoint.get(digest)?)
     }
 
     pub fn get_newer_object_keys(
         &self,
-        object: &(ObjectID, SequenceNumber),
+        object: &(ObjectId, Version),
     ) -> IotaResult<Vec<ObjectKey>> {
         let mut objects = vec![];
         for result in self.objects.safe_iter_with_bounds(
-            Some(ObjectKey(object.0, object.1.next())),
-            Some(ObjectKey(object.0, VersionNumber::MAX_VALID_EXCL)),
+            Some(ObjectKey(object.0, object.1 + 1)),
+            Some(ObjectKey(object.0, Version::MAX_VALID_EXCL)),
         ) {
             let (key, _) = result?;
             objects.push(key);
@@ -429,7 +424,7 @@ impl AuthorityPerpetualTables {
 
     pub fn set_highest_pruned_checkpoint_without_wb(
         &self,
-        checkpoint_number: CheckpointSequenceNumber,
+        checkpoint_number: Version,
     ) -> IotaResult {
         let mut wb = self.pruned_checkpoint.batch();
         self.set_highest_pruned_checkpoint(&mut wb, checkpoint_number)?;
@@ -451,8 +446,8 @@ impl AuthorityPerpetualTables {
 
     pub fn range_iter_live_object_set(
         &self,
-        lower_bound: Option<ObjectID>,
-        upper_bound: Option<ObjectID>,
+        lower_bound: Option<ObjectId>,
+        upper_bound: Option<ObjectId>,
     ) -> LiveSetIter<'_> {
         let lower_bound = lower_bound.as_ref().map(ObjectKey::min_for_id);
         let upper_bound = upper_bound.as_ref().map(ObjectKey::max_for_id);
@@ -489,14 +484,14 @@ impl AuthorityPerpetualTables {
     pub fn get_root_state_hash(
         &self,
         epoch: EpochId,
-    ) -> IotaResult<Option<(CheckpointSequenceNumber, Accumulator)>> {
+    ) -> IotaResult<Option<(Version, Accumulator)>> {
         Ok(self.root_state_hash_by_epoch.get(&epoch)?)
     }
 
     pub fn insert_root_state_hash(
         &self,
         epoch: EpochId,
-        last_checkpoint_of_epoch: CheckpointSequenceNumber,
+        last_checkpoint_of_epoch: Version,
         accumulator: Accumulator,
     ) -> IotaResult {
         self.root_state_hash_by_epoch
@@ -521,7 +516,7 @@ impl ObjectStore for AuthorityPerpetualTables {
     /// Read an object and return it, or Ok(None) if the object was not found.
     fn try_get_object(
         &self,
-        object_id: &ObjectID,
+        object_id: &ObjectId,
     ) -> Result<Option<Object>, iota_types::storage::error::Error> {
         let obj_entry = self
             .objects
@@ -539,8 +534,8 @@ impl ObjectStore for AuthorityPerpetualTables {
 
     fn try_get_object_by_key(
         &self,
-        object_id: &ObjectID,
-        version: VersionNumber,
+        object_id: &ObjectId,
+        version: Version,
     ) -> Result<Option<Object>, iota_types::storage::error::Error> {
         Ok(self
             .objects
@@ -567,24 +562,26 @@ pub enum LiveObject {
 }
 
 impl LiveObject {
-    pub fn object_id(&self) -> ObjectID {
+    pub fn object_id(&self) -> ObjectId {
         match self {
             LiveObject::Normal(obj) => obj.id(),
             LiveObject::Wrapped(key) => key.0,
         }
     }
 
-    pub fn version(&self) -> SequenceNumber {
+    pub fn version(&self) -> Version {
         match self {
             LiveObject::Normal(obj) => obj.version(),
             LiveObject::Wrapped(key) => key.1,
         }
     }
 
-    pub fn object_reference(&self) -> ObjectRef {
+    pub fn object_reference(&self) -> ObjectReference {
         match self {
             LiveObject::Normal(obj) => obj.compute_object_reference(),
-            LiveObject::Wrapped(key) => (key.0, key.1, ObjectDigest::OBJECT_DIGEST_WRAPPED),
+            LiveObject::Wrapped(key) => {
+                ObjectReference::new(key.0, key.1, ObjectDigest::OBJECT_WRAPPED)
+            }
         }
     }
 

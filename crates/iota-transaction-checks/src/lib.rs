@@ -16,9 +16,8 @@ mod checked {
     use iota_config::verifier_signing_config::VerifierSigningConfig;
     use iota_protocol_config::ProtocolConfig;
     use iota_types::{
-        IOTA_AUTHENTICATOR_STATE_OBJECT_ID, IOTA_CLOCK_OBJECT_ID, IOTA_CLOCK_OBJECT_SHARED_VERSION,
-        IOTA_RANDOMNESS_STATE_OBJECT_ID,
-        base_types::{IotaAddress, ObjectID, ObjectRef, SequenceNumber},
+        IOTA_CLOCK_OBJECT_SHARED_VERSION,
+        base_types::{Address, ObjectId, ObjectReference, Version, VersionExt},
         error::{IotaError, IotaResult, UserInputError, UserInputResult},
         executable_transaction::VerifiedExecutableTransaction,
         fp_bail, fp_ensure,
@@ -49,7 +48,7 @@ mod checked {
     // is verified and good to go
     pub fn get_gas_status(
         objects: &InputObjects,
-        gas: &[ObjectRef],
+        gas: &[ObjectReference],
         protocol_config: &ProtocolConfig,
         reference_gas_price: u64,
         transaction: &TransactionData,
@@ -171,7 +170,7 @@ mod checked {
             ))
             .into());
         }
-        let mut used_objects: HashSet<IotaAddress> = HashSet::new();
+        let mut used_objects: HashSet<Address> = HashSet::new();
         for input_object in input_objects.iter() {
             let Some(object) = input_object.as_object() else {
                 // object was deleted
@@ -200,7 +199,7 @@ mod checked {
         transaction: &TransactionData,
         input_objects: &InputObjects,
         // Overrides the gas objects in the transaction.
-        gas_override: &[ObjectRef],
+        gas_override: &[ObjectReference],
     ) -> IotaResult<IotaGasStatus> {
         // Cheap validity checks that is ok to run multiple times during processing.
         let gas = if gas_override.is_empty() {
@@ -240,13 +239,18 @@ mod checked {
         // If there are any object IDs in common (either between receiving objects and
         // input objects) we return an error.
         for ReceivingObjectReadResult {
-            object_ref: (object_id, version, object_digest),
+            object_ref:
+                ObjectReference {
+                    object_id,
+                    version,
+                    digest: object_digest,
+                },
             object,
         } in receiving_objects.iter()
         {
             fp_ensure!(
-                *version < SequenceNumber::MAX_VALID_EXCL,
-                UserInputError::InvalidSequenceNumber.into()
+                *version < Version::MAX_VALID_EXCL,
+                UserInputError::InvalidVersion.into()
             );
 
             let Some(object) = object.as_object() else {
@@ -262,7 +266,11 @@ mod checked {
                 fp_ensure!(
                     object.version() == *version,
                     UserInputError::ObjectVersionUnavailableForConsumption {
-                        provided_obj_ref: (*object_id, *version, *object_digest),
+                        provided_obj_ref: ObjectReference::new(
+                            *object_id,
+                            *version,
+                            *object_digest
+                        ),
                         current_version: object.version(),
                     }
                     .into()
@@ -332,7 +340,7 @@ mod checked {
 
             fp_ensure!(
                 !objects_in_txn.contains(object_id),
-                UserInputError::DuplicateObjectRefInput.into()
+                UserInputError::DuplicateObjectReferenceInput.into()
             );
 
             objects_in_txn.insert(*object_id);
@@ -347,7 +355,7 @@ mod checked {
         objects: &InputObjects,
         protocol_config: &ProtocolConfig,
         reference_gas_price: u64,
-        gas: &[ObjectRef],
+        gas: &[ObjectReference],
         gas_budget: u64,
         gas_price: u64,
         tx_kind: &TransactionKind,
@@ -363,10 +371,10 @@ mod checked {
             let objects: BTreeMap<_, _> = objects.iter().map(|o| (o.id(), o)).collect();
             let mut gas_objects = vec![];
             for obj_ref in gas {
-                let obj = objects.get(&obj_ref.0);
+                let obj = objects.get(&obj_ref.object_id);
                 let obj = *obj.ok_or(UserInputError::ObjectNotFound {
-                    object_id: obj_ref.0,
-                    version: Some(obj_ref.1),
+                    object_id: obj_ref.object_id,
+                    version: Some(obj_ref.version),
                 })?;
                 gas_objects.push(obj);
             }
@@ -380,7 +388,7 @@ mod checked {
     #[instrument(level = "trace", skip_all)]
     fn check_objects(transaction: &TransactionData, objects: &InputObjects) -> UserInputResult<()> {
         // We require that mutable objects cannot show up more than once.
-        let mut used_objects: HashSet<IotaAddress> = HashSet::new();
+        let mut used_objects: HashSet<Address> = HashSet::new();
         for object in objects.iter() {
             if object.is_mutable() {
                 fp_ensure!(
@@ -396,8 +404,8 @@ mod checked {
             return Err(UserInputError::ObjectInputArityViolation);
         }
 
-        let gas_coins: HashSet<ObjectID> =
-            HashSet::from_iter(transaction.gas().iter().map(|obj_ref| obj_ref.0));
+        let gas_coins: HashSet<ObjectId> =
+            HashSet::from_iter(transaction.gas().iter().map(|obj_ref| obj_ref.object_id));
         for object in objects.iter() {
             let input_object_kind = object.input_object_kind;
 
@@ -432,7 +440,7 @@ mod checked {
 
     /// Check one object against a reference
     fn check_one_object(
-        owner: &IotaAddress,
+        owner: &Address,
         object_kind: InputObjectKind,
         object: &Object,
         system_transaction: bool,
@@ -446,23 +454,26 @@ mod checked {
                     }
                 );
             }
-            InputObjectKind::ImmOrOwnedMoveObject((object_id, sequence_number, object_digest)) => {
+            InputObjectKind::ImmOrOwnedMoveObject(ObjectReference {
+                object_id,
+                version,
+                digest: object_digest,
+            }) => {
                 fp_ensure!(
                     !object.is_package(),
                     UserInputError::MovePackageAsObject { object_id }
                 );
                 fp_ensure!(
-                    sequence_number < SequenceNumber::MAX_VALID_EXCL,
-                    UserInputError::InvalidSequenceNumber
+                    version < Version::MAX_VALID_EXCL,
+                    UserInputError::InvalidVersion
                 );
 
                 // This is an invariant - we just load the object with the given ID and version.
                 assert_eq!(
                     object.version(),
-                    sequence_number,
-                    "The fetched object version {} does not match the requested version {}, object id: {}",
+                    version,
+                    "The fetched object version {} does not match the requested version {version}, object id: {}",
                     object.version(),
-                    sequence_number,
                     object.id(),
                 );
 
@@ -505,7 +516,7 @@ mod checked {
                 };
             }
             InputObjectKind::SharedMoveObject {
-                id: IOTA_CLOCK_OBJECT_ID,
+                object_id: ObjectId::CLOCK,
                 initial_shared_version: IOTA_CLOCK_OBJECT_SHARED_VERSION,
                 mutable: true,
             } => {
@@ -515,24 +526,24 @@ mod checked {
                     return Ok(());
                 } else {
                     return Err(UserInputError::ImmutableParameterExpected {
-                        object_id: IOTA_CLOCK_OBJECT_ID,
+                        object_id: ObjectId::CLOCK,
                     });
                 }
             }
             InputObjectKind::SharedMoveObject {
-                id: IOTA_AUTHENTICATOR_STATE_OBJECT_ID,
+                object_id: ObjectId::AUTHENTICATOR_STATE,
                 ..
             } => {
                 if system_transaction {
                     return Ok(());
                 } else {
                     return Err(UserInputError::InaccessibleSystemObject {
-                        object_id: IOTA_AUTHENTICATOR_STATE_OBJECT_ID,
+                        object_id: ObjectId::AUTHENTICATOR_STATE,
                     });
                 }
             }
             InputObjectKind::SharedMoveObject {
-                id: IOTA_RANDOMNESS_STATE_OBJECT_ID,
+                object_id: ObjectId::RANDOMNESS_STATE,
                 mutable: true,
                 ..
             } => {
@@ -542,7 +553,7 @@ mod checked {
                     return Ok(());
                 } else {
                     return Err(UserInputError::ImmutableParameterExpected {
-                        object_id: IOTA_RANDOMNESS_STATE_OBJECT_ID,
+                        object_id: ObjectId::RANDOMNESS_STATE,
                     });
                 }
             }
@@ -551,8 +562,8 @@ mod checked {
                 ..
             } => {
                 fp_ensure!(
-                    object.version() < SequenceNumber::MAX_VALID_EXCL,
-                    UserInputError::InvalidSequenceNumber
+                    object.version() < Version::MAX_VALID_EXCL,
+                    UserInputError::InvalidVersion
                 );
 
                 match object.owner {

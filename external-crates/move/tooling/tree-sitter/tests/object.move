@@ -19,10 +19,10 @@ module iota::object {
     friend iota::test_scenario;
 
     /// The hardcoded ID for the singleton IOTA System State Object.
-    const IOTA_SYSTEM_STATE_OBJECT_ID: address = @0x5;
+    const ObjectId::SYSTEM: address = @0x5;
 
     /// The hardcoded ID for the singleton Clock Object.
-    const IOTA_CLOCK_OBJECT_ID: address = @0x6;
+    const ObjectId::CLOCK: address = @0x6;
 
     /// The hardcoded ID for the singleton AuthenticatorState Object.
     const IOTA_AUTHENTICATOR_STATE_ID: address = @0x7;
@@ -87,7 +87,7 @@ module iota::object {
     fun iota_system_state(ctx: &TxContext): UID {
         assert!(tx_context::sender(ctx) == @0x0, ENotSystemAddress);
         UID {
-            id: ID { bytes: IOTA_SYSTEM_STATE_OBJECT_ID },
+            id: ID { bytes: ObjectId::SYSTEM },
         }
     }
 
@@ -95,7 +95,7 @@ module iota::object {
     /// This should only be called once from `clock`.
     public(friend) fun clock(): UID {
         UID {
-            id: ID { bytes: IOTA_CLOCK_OBJECT_ID }
+            id: ID { bytes: ObjectId::CLOCK }
         }
     }
 

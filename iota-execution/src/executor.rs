@@ -6,7 +6,7 @@ use std::{collections::HashSet, sync::Arc};
 
 use iota_protocol_config::ProtocolConfig;
 use iota_types::{
-    base_types::{IotaAddress, ObjectRef, TxContext},
+    base_types::{Address, ObjectReference, TxContext},
     committee::EpochId,
     digests::TransactionDigest,
     effects::TransactionEffects,
@@ -37,11 +37,11 @@ pub trait Executor {
         // Transaction Inputs
         input_objects: CheckedInputObjects,
         // Gas related
-        gas_coins: Vec<ObjectRef>,
+        gas_coins: Vec<ObjectReference>,
         gas_status: IotaGasStatus,
         // Transaction
         transaction_kind: TransactionKind,
-        transaction_signer: IotaAddress,
+        transaction_signer: Address,
         transaction_digest: TransactionDigest,
         trace_builder_opt: &mut Option<MoveTraceBuilder>,
     ) -> (
@@ -65,11 +65,11 @@ pub trait Executor {
         // Transaction Inputs
         input_objects: CheckedInputObjects,
         // Gas related
-        gas_coins: Vec<ObjectRef>,
+        gas_coins: Vec<ObjectReference>,
         gas_status: IotaGasStatus,
         // Transaction
         transaction_kind: TransactionKind,
-        transaction_signer: IotaAddress,
+        transaction_signer: Address,
         transaction_digest: TransactionDigest,
         skip_all_checks: bool,
     ) -> (

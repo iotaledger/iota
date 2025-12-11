@@ -14,8 +14,8 @@ use iota_json_rpc_types::{IotaTransactionBlockEffects, IotaTransactionBlockEffec
 use iota_move_build::BuildConfig;
 use iota_protocol_config::{Chain, ProtocolConfig};
 use iota_types::{
-    IOTA_FRAMEWORK_ADDRESS, Identifier,
-    base_types::{IotaAddress, ObjectID, ObjectRef, SequenceNumber},
+    Identifier,
+    base_types::{Address, ObjectId, ObjectReference, Version},
     execution_config_utils::to_binary_config,
     object::{Object, Owner},
     storage::WriteKind,
@@ -32,7 +32,7 @@ type Type = normalized::Type<normalized::ArcIdentifier>;
 
 #[derive(Debug, Clone)]
 pub struct EntryFunction {
-    pub package: ObjectID,
+    pub package: ObjectId,
     pub module: String,
     pub function: String,
     pub parameters: Vec<Type>,
@@ -44,7 +44,7 @@ pub struct SurfStatistics {
     pub num_failed_transactions: u64,
     pub num_owned_obj_transactions: u64,
     pub num_shared_obj_transactions: u64,
-    pub unique_move_functions_called: HashSet<(ObjectID, String, String)>,
+    pub unique_move_functions_called: HashSet<(ObjectId, String, String)>,
 }
 
 impl SurfStatistics {
@@ -52,7 +52,7 @@ impl SurfStatistics {
         &mut self,
         has_shared_object: bool,
         tx_succeeded: bool,
-        package: ObjectID,
+        package: ObjectId,
         module: String,
         function: String,
     ) {
@@ -102,13 +102,13 @@ impl SurfStatistics {
     }
 }
 
-pub type OwnedObjects = HashMap<StructTag, IndexSet<ObjectRef>>;
+pub type OwnedObjects = HashMap<StructTag, IndexSet<ObjectReference>>;
 
-pub type ImmObjects = Arc<RwLock<HashMap<StructTag, Vec<ObjectRef>>>>;
+pub type ImmObjects = Arc<RwLock<HashMap<StructTag, Vec<ObjectReference>>>>;
 
 /// Map from StructTag to a vector of shared objects, where each shared object
 /// is a tuple of (object ID, initial shared version).
-pub type SharedObjects = Arc<RwLock<HashMap<StructTag, Vec<(ObjectID, SequenceNumber)>>>>;
+pub type SharedObjects = Arc<RwLock<HashMap<StructTag, Vec<(ObjectId, Version)>>>>;
 
 pub struct SurferState {
     pub pool: Arc<RwLock<normalized::ArcPool>>,
@@ -116,8 +116,8 @@ pub struct SurferState {
     pub cluster: Arc<TestCluster>,
     pub rng: StdRng,
 
-    pub address: IotaAddress,
-    pub gas_object: ObjectRef,
+    pub address: Address,
+    pub gas_object: ObjectReference,
     pub owned_objects: OwnedObjects,
     pub immutable_objects: ImmObjects,
     pub shared_objects: SharedObjects,
@@ -131,8 +131,8 @@ impl SurferState {
         id: usize,
         cluster: Arc<TestCluster>,
         rng: StdRng,
-        address: IotaAddress,
-        gas_object: ObjectRef,
+        address: Address,
+        gas_object: ObjectReference,
         owned_objects: OwnedObjects,
         immutable_objects: ImmObjects,
         shared_objects: SharedObjects,
@@ -156,7 +156,7 @@ impl SurferState {
     #[tracing::instrument(skip_all, fields(surfer_id = self.id))]
     pub async fn execute_move_transaction(
         &mut self,
-        package: ObjectID,
+        package: ObjectId,
         module: String,
         function: String,
         args: Vec<CallArg>,
@@ -226,7 +226,7 @@ impl SurferState {
             let obj_ref = owned_ref.reference.to_object_ref();
             let object = self
                 .cluster
-                .get_object_from_fullnode_store(&obj_ref.0)
+                .get_object_from_fullnode_store(&obj_ref.object_id)
                 .await
                 .unwrap();
             if object.is_package() {
@@ -261,14 +261,14 @@ impl SurferState {
                             .await
                             .entry(struct_tag)
                             .or_default()
-                            .push((obj_ref.0, initial_shared_version));
+                            .push((obj_ref.object_id, initial_shared_version));
                     }
                     // We do not need to insert it if it's a Mutate, because it
                     // means we should already have it in
                     // the inventory.
                 }
             }
-            if obj_ref.0 == self.gas_object.0 {
+            if obj_ref.object_id == self.gas_object.object_id {
                 self.gas_object = obj_ref;
             }
         }
@@ -389,7 +389,7 @@ impl SurferState {
             .unwrap_or(0)
     }
 
-    pub fn choose_nth_owned_object(&mut self, type_tag: &StructTag, n: usize) -> ObjectRef {
+    pub fn choose_nth_owned_object(&mut self, type_tag: &StructTag, n: usize) -> ObjectReference {
         self.owned_objects
             .get_mut(type_tag)
             .unwrap()
@@ -397,7 +397,11 @@ impl SurferState {
             .unwrap()
     }
 
-    pub async fn choose_nth_immutable_object(&self, type_tag: &StructTag, n: usize) -> ObjectRef {
+    pub async fn choose_nth_immutable_object(
+        &self,
+        type_tag: &StructTag,
+        n: usize,
+    ) -> ObjectReference {
         self.immutable_objects.read().await.get(type_tag).unwrap()[n]
     }
 
@@ -405,7 +409,7 @@ impl SurferState {
         &self,
         type_tag: &StructTag,
         n: usize,
-    ) -> (ObjectID, SequenceNumber) {
+    ) -> (ObjectId, Version) {
         self.shared_objects.read().await.get(type_tag).unwrap()[n]
     }
 }
@@ -414,7 +418,7 @@ fn is_type_tx_context(ty: &Type) -> bool {
     match ty {
         Type::Reference(_, inner) => match inner.as_ref() {
             Type::Datatype(dt) => {
-                dt.module.address == IOTA_FRAMEWORK_ADDRESS
+                dt.module.address.as_ref() == Address::FRAMEWORK.as_bytes()
                     && dt.module.name.as_ident_str() == IdentStr::new("tx_context").unwrap()
                     && dt.name.as_ident_str() == IdentStr::new("TxContext").unwrap()
                     && dt.type_arguments.is_empty()

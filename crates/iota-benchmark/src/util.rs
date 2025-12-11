@@ -8,7 +8,7 @@ use anyhow::{Result, bail};
 use iota_keys::keystore::{AccountKeystore, FileBasedKeystore, StoredKey};
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
-    base_types::{IotaAddress, ObjectRef},
+    base_types::{Address, ObjectReference},
     crypto::{AccountKeyPair, IotaKeyPair, KeypairTraits},
     object::Owner,
     transaction::{TEST_ONLY_GAS_UNIT_FOR_TRANSFER, Transaction, TransactionData},
@@ -24,7 +24,7 @@ pub type UpdatedAndNewlyMintedGasCoins = Vec<Gas>;
 
 pub fn get_ed25519_keypair_from_keystore(
     keystore_path: PathBuf,
-    requested_address: &IotaAddress,
+    requested_address: &Address,
 ) -> Result<AccountKeyPair> {
     let keystore = FileBasedKeystore::new(&keystore_path)?;
     match keystore.get_key(requested_address) {
@@ -34,11 +34,11 @@ pub fn get_ed25519_keypair_from_keystore(
 }
 
 pub fn make_pay_tx(
-    input_coins: Vec<ObjectRef>,
-    sender: IotaAddress,
-    addresses: Vec<IotaAddress>,
+    input_coins: Vec<ObjectReference>,
+    sender: Address,
+    addresses: Vec<Address>,
     split_amounts: Vec<u64>,
-    gas: ObjectRef,
+    gas: ObjectReference,
     keypair: &AccountKeyPair,
     gas_price: u64,
 ) -> Result<Transaction> {
@@ -55,12 +55,12 @@ pub fn make_pay_tx(
 }
 
 pub async fn publish_basics_package(
-    gas: ObjectRef,
+    gas: ObjectReference,
     proxy: Arc<dyn ValidatorProxy + Sync + Send>,
-    sender: IotaAddress,
+    sender: Address,
     keypair: &AccountKeyPair,
     gas_price: u64,
-) -> ObjectRef {
+) -> ObjectReference {
     let transaction = TestTransactionBuilder::new(sender, gas, gas_price)
         .publish_examples("basics")
         .build_and_sign(keypair);

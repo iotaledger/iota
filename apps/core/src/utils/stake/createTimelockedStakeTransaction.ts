@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { Transaction } from '@iota/iota-sdk/transactions';
-import { IOTA_SYSTEM_STATE_OBJECT_ID, IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
+import { ObjectId::SYSTEM, IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 
 /**
  * The grouped timelocked object is used to create a timelocked staking transaction.
@@ -80,7 +80,7 @@ export function createTimelockedStakeTransaction(
         target: `0x3::timelocked_staking::request_add_stake_mul_bal`,
         arguments: [
             tx.sharedObjectRef({
-                objectId: IOTA_SYSTEM_STATE_OBJECT_ID,
+                objectId: ObjectId::SYSTEM,
                 initialSharedVersion: 1,
                 mutable: true,
             }),

@@ -13,7 +13,7 @@ use iota_genesis_builder::stardust::{
 };
 use iota_sdk::types::block::address::Ed25519Address;
 use iota_types::{
-    base_types::IotaAddress, gas_coin::STARDUST_TOTAL_SUPPLY_IOTA, stardust::coin_type::CoinType,
+    base_types::Address, gas_coin::STARDUST_TOTAL_SUPPLY_IOTA, stardust::coin_type::CoinType,
 };
 
 const WITH_SAMPLING: bool = false;
@@ -32,7 +32,7 @@ enum Snapshot {
         #[arg(long, help = "Path to the IOTA Hornet full-snapshot file")]
         snapshot_path: String,
         #[arg(long, help = "Specify the delegator address")]
-        delegator: IotaAddress,
+        delegator: Address,
     },
 }
 
@@ -93,7 +93,7 @@ async fn main() -> anyhow::Result<()> {
         &new_path,
         coin_type,
         randomness_seed,
-        Ed25519Address::from(delegator_address.to_inner()),
+        Ed25519Address::from(delegator_address.into_bytes()),
         WITH_SAMPLING,
     )
     .await?;

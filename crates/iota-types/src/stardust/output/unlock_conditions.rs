@@ -1,22 +1,22 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_stardust_sdk::types::block::address::Address;
+use iota_stardust_sdk::types::block::address::Address as StardustAddress;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 
-use crate::{base_types::IotaAddress, stardust::stardust_to_iota_address};
+use crate::{base_types::Address, stardust::stardust_to_iota_address};
 
 /// Rust version of the stardust expiration unlock condition.
 #[serde_as]
 #[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq, JsonSchema)]
 pub struct ExpirationUnlockCondition {
     /// The address who owns the output before the timestamp has passed.
-    pub owner: IotaAddress,
+    pub owner: Address,
     /// The address that is allowed to spend the locked funds after the
     /// timestamp has passed.
-    pub return_address: IotaAddress,
+    pub return_address: Address,
     /// Before this unix time, Address Unlock Condition is allowed to unlock the
     /// output, after that only the address defined in Return Address.
     pub unix_time: u32,
@@ -24,7 +24,7 @@ pub struct ExpirationUnlockCondition {
 
 impl ExpirationUnlockCondition {
     pub(crate) fn new(
-        owner_address: &Address,
+        owner_address: &StardustAddress,
         expiration_unlock_condition: &iota_stardust_sdk::types::block::output::unlock_condition::ExpirationUnlockCondition,
     ) -> anyhow::Result<Self> {
         let owner = stardust_to_iota_address(owner_address)?;
@@ -46,7 +46,7 @@ impl ExpirationUnlockCondition {
 pub struct StorageDepositReturnUnlockCondition {
     /// The address to which the consuming transaction should deposit the amount
     /// defined in Return Amount.
-    pub return_address: IotaAddress,
+    pub return_address: Address,
     /// The amount of IOTA coins the consuming transaction should deposit to the
     /// address defined in Return Address.
     pub return_amount: u64,

@@ -23,7 +23,7 @@ use iota_storage::key_value_store::{
     KVStoreTransactionData, TransactionKeyValueStore, TransactionKeyValueStoreTrait,
 };
 use iota_types::{
-    base_types::{IotaAddress, MoveObjectType, ObjectID, ObjectInfo, ObjectRef, SequenceNumber},
+    base_types::{Address, MoveObjectType, ObjectId, ObjectInfo, ObjectReference, Version},
     committee::{Committee, EpochId},
     digests::{ChainIdentifier, TransactionDigest},
     dynamic_field::DynamicFieldInfo,
@@ -34,8 +34,7 @@ use iota_types::{
     iota_serde::BigInt,
     iota_system_state::IotaSystemState,
     messages_checkpoint::{
-        CheckpointContents, CheckpointContentsDigest, CheckpointDigest, CheckpointSequenceNumber,
-        VerifiedCheckpoint,
+        CheckpointContents, CheckpointContentsDigest, CheckpointDigest, VerifiedCheckpoint,
     },
     object::{Object, ObjectRead, PastObjectRead},
     storage::{BackingPackageStore, ObjectStore, WriteKind},
@@ -62,24 +61,24 @@ pub trait StateRead: Send + Sync {
         effects_keys: &[TransactionDigest],
     ) -> StateReadResult<KVStoreTransactionData>;
 
-    fn get_object_read(&self, object_id: &ObjectID) -> StateReadResult<ObjectRead>;
+    fn get_object_read(&self, object_id: &ObjectId) -> StateReadResult<ObjectRead>;
 
     fn get_past_object_read(
         &self,
-        object_id: &ObjectID,
-        version: SequenceNumber,
+        object_id: &ObjectId,
+        version: Version,
     ) -> StateReadResult<PastObjectRead>;
 
-    async fn get_object(&self, object_id: &ObjectID) -> StateReadResult<Option<Object>>;
+    async fn get_object(&self, object_id: &ObjectId) -> StateReadResult<Option<Object>>;
 
     fn load_epoch_store_one_call_per_task(&self) -> Guard<Arc<AuthorityPerEpochStore>>;
 
     fn get_dynamic_fields(
         &self,
-        owner: ObjectID,
-        cursor: Option<ObjectID>,
+        owner: ObjectId,
+        cursor: Option<ObjectId>,
         limit: usize,
-    ) -> StateReadResult<Vec<(ObjectID, DynamicFieldInfo)>>;
+    ) -> StateReadResult<Vec<(ObjectId, DynamicFieldInfo)>>;
 
     fn get_cache_reader(&self) -> &Arc<dyn ObjectCacheRead>;
 
@@ -89,8 +88,8 @@ pub trait StateRead: Send + Sync {
 
     fn get_owner_objects(
         &self,
-        owner: IotaAddress,
-        cursor: Option<ObjectID>,
+        owner: Address,
+        cursor: Option<ObjectId>,
         filter: Option<IotaObjectDataFilter>,
     ) -> StateReadResult<Vec<ObjectInfo>>;
 
@@ -112,19 +111,19 @@ pub trait StateRead: Send + Sync {
         transaction_digest: TransactionDigest,
     ) -> StateReadResult<(
         DryRunTransactionBlockResponse,
-        BTreeMap<ObjectID, (ObjectRef, Object, WriteKind)>,
+        BTreeMap<ObjectId, (ObjectReference, Object, WriteKind)>,
         TransactionEffects,
-        Option<ObjectID>,
+        Option<ObjectId>,
     )>;
 
     async fn dev_inspect_transaction_block(
         &self,
-        sender: IotaAddress,
+        sender: Address,
         transaction_kind: TransactionKind,
         gas_price: Option<u64>,
         gas_budget: Option<u64>,
-        gas_sponsor: Option<IotaAddress>,
-        gas_objects: Option<Vec<ObjectRef>>,
+        gas_sponsor: Option<Address>,
+        gas_objects: Option<Vec<ObjectReference>>,
         show_raw_txn_data_and_effects: Option<bool>,
         skip_checks: Option<bool>,
     ) -> StateReadResult<DevInspectResults>;
@@ -134,8 +133,8 @@ pub trait StateRead: Send + Sync {
 
     fn get_owner_objects_with_limit(
         &self,
-        owner: IotaAddress,
-        cursor: Option<ObjectID>,
+        owner: Address,
+        cursor: Option<ObjectId>,
         limit: usize,
         filter: Option<IotaObjectDataFilter>,
     ) -> StateReadResult<Vec<ObjectInfo>>;
@@ -151,27 +150,27 @@ pub trait StateRead: Send + Sync {
 
     fn get_dynamic_field_object_id(
         &self,
-        owner: ObjectID,
+        owner: ObjectId,
         name_type: TypeTag,
         name_bcs_bytes: &[u8],
-    ) -> StateReadResult<Option<ObjectID>>;
+    ) -> StateReadResult<Option<ObjectId>>;
 
     // governance_api
-    async fn get_staked_iota(&self, owner: IotaAddress) -> StateReadResult<Vec<StakedIota>>;
+    async fn get_staked_iota(&self, owner: Address) -> StateReadResult<Vec<StakedIota>>;
     async fn get_timelocked_staked_iota(
         &self,
-        owner: IotaAddress,
+        owner: Address,
     ) -> StateReadResult<Vec<TimelockedStakedIota>>;
 
     fn get_system_state(&self) -> StateReadResult<IotaSystemState>;
     fn get_or_latest_committee(&self, epoch: Option<BigInt<u64>>) -> StateReadResult<Committee>;
 
     // coin_api
-    fn find_publish_txn_digest(&self, package_id: ObjectID) -> StateReadResult<TransactionDigest>;
+    fn find_publish_txn_digest(&self, package_id: ObjectId) -> StateReadResult<TransactionDigest>;
     fn get_owned_coins(
         &self,
-        owner: IotaAddress,
-        cursor: (String, ObjectID),
+        owner: Address,
+        cursor: (String, ObjectId),
         limit: usize,
         one_coin_type_only: bool,
     ) -> StateReadResult<Vec<IotaCoin>>;
@@ -182,18 +181,18 @@ pub trait StateRead: Send + Sync {
     ) -> StateReadResult<(Transaction, TransactionEffects)>;
     async fn get_balance(
         &self,
-        owner: IotaAddress,
+        owner: Address,
         coin_type: TypeTag,
     ) -> StateReadResult<TotalBalance>;
     async fn get_all_balance(
         &self,
-        owner: IotaAddress,
+        owner: Address,
     ) -> StateReadResult<Arc<HashMap<TypeTag, TotalBalance>>>;
 
     // read_api
     fn get_verified_checkpoint_by_sequence_number(
         &self,
-        sequence_number: CheckpointSequenceNumber,
+        sequence_number: Version,
     ) -> StateReadResult<VerifiedCheckpoint>;
 
     fn get_checkpoint_contents(
@@ -209,26 +208,26 @@ pub trait StateRead: Send + Sync {
     fn multi_get_transactions_perpetual_checkpoints(
         &self,
         digests: &[TransactionDigest],
-    ) -> StateReadResult<Vec<Option<(EpochId, CheckpointSequenceNumber)>>>;
+    ) -> StateReadResult<Vec<Option<(EpochId, Version)>>>;
 
     fn get_transaction_perpetual_checkpoint(
         &self,
         digest: &TransactionDigest,
-    ) -> StateReadResult<Option<(EpochId, CheckpointSequenceNumber)>>;
+    ) -> StateReadResult<Option<(EpochId, Version)>>;
 
     fn multi_get_checkpoint_by_sequence_number(
         &self,
-        sequence_numbers: &[CheckpointSequenceNumber],
+        sequence_numbers: &[Version],
     ) -> StateReadResult<Vec<Option<VerifiedCheckpoint>>>;
 
     fn get_total_transaction_blocks(&self) -> StateReadResult<u64>;
 
     fn get_checkpoint_by_sequence_number(
         &self,
-        sequence_number: CheckpointSequenceNumber,
+        sequence_number: Version,
     ) -> StateReadResult<Option<VerifiedCheckpoint>>;
 
-    fn get_latest_checkpoint_sequence_number(&self) -> StateReadResult<CheckpointSequenceNumber>;
+    fn get_latest_checkpoint_sequence_number(&self) -> StateReadResult<Version>;
 
     fn get_chain_identifier(&self) -> StateReadResult<ChainIdentifier>;
 }
@@ -250,18 +249,18 @@ impl StateRead for AuthorityState {
         )
     }
 
-    fn get_object_read(&self, object_id: &ObjectID) -> StateReadResult<ObjectRead> {
+    fn get_object_read(&self, object_id: &ObjectId) -> StateReadResult<ObjectRead> {
         Ok(self.get_object_read(object_id)?)
     }
 
-    async fn get_object(&self, object_id: &ObjectID) -> StateReadResult<Option<Object>> {
+    async fn get_object(&self, object_id: &ObjectId) -> StateReadResult<Option<Object>> {
         Ok(self.try_get_object(object_id).await?)
     }
 
     fn get_past_object_read(
         &self,
-        object_id: &ObjectID,
-        version: SequenceNumber,
+        object_id: &ObjectId,
+        version: Version,
     ) -> StateReadResult<PastObjectRead> {
         Ok(self.get_past_object_read(object_id, version)?)
     }
@@ -272,10 +271,10 @@ impl StateRead for AuthorityState {
 
     fn get_dynamic_fields(
         &self,
-        owner: ObjectID,
-        cursor: Option<ObjectID>,
+        owner: ObjectId,
+        cursor: Option<ObjectId>,
         limit: usize,
-    ) -> StateReadResult<Vec<(ObjectID, DynamicFieldInfo)>> {
+    ) -> StateReadResult<Vec<(ObjectId, DynamicFieldInfo)>> {
         Ok(self.get_dynamic_fields(owner, cursor, limit)?)
     }
 
@@ -293,8 +292,8 @@ impl StateRead for AuthorityState {
 
     fn get_owner_objects(
         &self,
-        owner: IotaAddress,
-        cursor: Option<ObjectID>,
+        owner: Address,
+        cursor: Option<ObjectId>,
         filter: Option<IotaObjectDataFilter>,
     ) -> StateReadResult<Vec<ObjectInfo>> {
         Ok(self
@@ -322,21 +321,21 @@ impl StateRead for AuthorityState {
         transaction_digest: TransactionDigest,
     ) -> StateReadResult<(
         DryRunTransactionBlockResponse,
-        BTreeMap<ObjectID, (ObjectRef, Object, WriteKind)>,
+        BTreeMap<ObjectId, (ObjectReference, Object, WriteKind)>,
         TransactionEffects,
-        Option<ObjectID>,
+        Option<ObjectId>,
     )> {
         Ok(self.dry_exec_transaction(transaction, transaction_digest)?)
     }
 
     async fn dev_inspect_transaction_block(
         &self,
-        sender: IotaAddress,
+        sender: Address,
         transaction_kind: TransactionKind,
         gas_price: Option<u64>,
         gas_budget: Option<u64>,
-        gas_sponsor: Option<IotaAddress>,
-        gas_objects: Option<Vec<ObjectRef>>,
+        gas_sponsor: Option<Address>,
+        gas_objects: Option<Vec<ObjectReference>>,
         show_raw_txn_data_and_effects: Option<bool>,
         skip_checks: Option<bool>,
     ) -> StateReadResult<DevInspectResults> {
@@ -360,8 +359,8 @@ impl StateRead for AuthorityState {
 
     fn get_owner_objects_with_limit(
         &self,
-        owner: IotaAddress,
-        cursor: Option<ObjectID>,
+        owner: Address,
+        cursor: Option<ObjectId>,
         limit: usize,
         filter: Option<IotaObjectDataFilter>,
     ) -> StateReadResult<Vec<ObjectInfo>> {
@@ -384,14 +383,14 @@ impl StateRead for AuthorityState {
     fn get_dynamic_field_object_id(
         // indexer
         &self,
-        owner: ObjectID,
+        owner: ObjectId,
         name_type: TypeTag,
         name_bcs_bytes: &[u8],
-    ) -> StateReadResult<Option<ObjectID>> {
+    ) -> StateReadResult<Option<ObjectId>> {
         Ok(self.get_dynamic_field_object_id(owner, name_type, name_bcs_bytes)?)
     }
 
-    async fn get_staked_iota(&self, owner: IotaAddress) -> StateReadResult<Vec<StakedIota>> {
+    async fn get_staked_iota(&self, owner: Address) -> StateReadResult<Vec<StakedIota>> {
         Ok(self
             .get_move_objects(owner, MoveObjectType::staked_iota())
             .await?)
@@ -399,7 +398,7 @@ impl StateRead for AuthorityState {
 
     async fn get_timelocked_staked_iota(
         &self,
-        owner: IotaAddress,
+        owner: Address,
     ) -> StateReadResult<Vec<TimelockedStakedIota>> {
         Ok(self
             .get_move_objects(owner, MoveObjectType::timelocked_staked_iota())
@@ -418,13 +417,13 @@ impl StateRead for AuthorityState {
             .get_or_latest_committee(epoch.map(|e| *e))?)
     }
 
-    fn find_publish_txn_digest(&self, package_id: ObjectID) -> StateReadResult<TransactionDigest> {
+    fn find_publish_txn_digest(&self, package_id: ObjectId) -> StateReadResult<TransactionDigest> {
         Ok(self.find_publish_txn_digest(package_id)?)
     }
     fn get_owned_coins(
         &self,
-        owner: IotaAddress,
-        cursor: (String, ObjectID),
+        owner: Address,
+        cursor: (String, ObjectId),
         limit: usize,
         one_coin_type_only: bool,
     ) -> StateReadResult<Vec<IotaCoin>> {
@@ -453,7 +452,7 @@ impl StateRead for AuthorityState {
 
     async fn get_balance(
         &self,
-        owner: IotaAddress,
+        owner: Address,
         coin_type: TypeTag,
     ) -> StateReadResult<TotalBalance> {
         let indexes = self.indexes.clone();
@@ -469,7 +468,7 @@ impl StateRead for AuthorityState {
 
     async fn get_all_balance(
         &self,
-        owner: IotaAddress,
+        owner: Address,
     ) -> StateReadResult<Arc<HashMap<TypeTag, TotalBalance>>> {
         let indexes = self.indexes.clone();
         Ok(tokio::task::spawn_blocking(move || {
@@ -484,7 +483,7 @@ impl StateRead for AuthorityState {
 
     fn get_verified_checkpoint_by_sequence_number(
         &self,
-        sequence_number: CheckpointSequenceNumber,
+        sequence_number: Version,
     ) -> StateReadResult<VerifiedCheckpoint> {
         Ok(self.get_verified_checkpoint_by_sequence_number(sequence_number)?)
     }
@@ -506,7 +505,7 @@ impl StateRead for AuthorityState {
     fn multi_get_transactions_perpetual_checkpoints(
         &self,
         digests: &[TransactionDigest],
-    ) -> StateReadResult<Vec<Option<(EpochId, CheckpointSequenceNumber)>>> {
+    ) -> StateReadResult<Vec<Option<(EpochId, Version)>>> {
         Ok(self
             .get_checkpoint_cache()
             .try_multi_get_transactions_perpetual_checkpoints(digests)?)
@@ -515,7 +514,7 @@ impl StateRead for AuthorityState {
     fn get_transaction_perpetual_checkpoint(
         &self,
         digest: &TransactionDigest,
-    ) -> StateReadResult<Option<(EpochId, CheckpointSequenceNumber)>> {
+    ) -> StateReadResult<Option<(EpochId, Version)>> {
         Ok(self
             .get_checkpoint_cache()
             .try_get_transaction_perpetual_checkpoint(digest)?)
@@ -523,7 +522,7 @@ impl StateRead for AuthorityState {
 
     fn multi_get_checkpoint_by_sequence_number(
         &self,
-        sequence_numbers: &[CheckpointSequenceNumber],
+        sequence_numbers: &[Version],
     ) -> StateReadResult<Vec<Option<VerifiedCheckpoint>>> {
         Ok(self.multi_get_checkpoint_by_sequence_number(sequence_numbers)?)
     }
@@ -534,12 +533,12 @@ impl StateRead for AuthorityState {
 
     fn get_checkpoint_by_sequence_number(
         &self,
-        sequence_number: CheckpointSequenceNumber,
+        sequence_number: Version,
     ) -> StateReadResult<Option<VerifiedCheckpoint>> {
         Ok(self.get_checkpoint_by_sequence_number(sequence_number)?)
     }
 
-    fn get_latest_checkpoint_sequence_number(&self) -> StateReadResult<CheckpointSequenceNumber> {
+    fn get_latest_checkpoint_sequence_number(&self) -> StateReadResult<Version> {
         Ok(self.get_latest_checkpoint_sequence_number()?)
     }
 
@@ -555,18 +554,14 @@ impl StateRead for AuthorityState {
 impl<S: ?Sized + StateRead> ObjectProvider for Arc<S> {
     type Error = StateReadError;
 
-    async fn get_object(
-        &self,
-        id: &ObjectID,
-        version: &SequenceNumber,
-    ) -> Result<Object, Self::Error> {
+    async fn get_object(&self, id: &ObjectId, version: &Version) -> Result<Object, Self::Error> {
         Ok(self.get_past_object_read(id, *version)?.into_object()?)
     }
 
     async fn find_object_lt_or_eq_version(
         &self,
-        id: &ObjectID,
-        version: &SequenceNumber,
+        id: &ObjectId,
+        version: &Version,
     ) -> Result<Option<Object>, Self::Error> {
         Ok(self
             .get_cache_reader()
@@ -578,11 +573,7 @@ impl<S: ?Sized + StateRead> ObjectProvider for Arc<S> {
 impl<S: ?Sized + StateRead> ObjectProvider for (Arc<S>, Arc<TransactionKeyValueStore>) {
     type Error = StateReadError;
 
-    async fn get_object(
-        &self,
-        id: &ObjectID,
-        version: &SequenceNumber,
-    ) -> Result<Object, Self::Error> {
+    async fn get_object(&self, id: &ObjectId, version: &Version) -> Result<Object, Self::Error> {
         let object_read = self.0.get_past_object_read(id, *version)?;
         match object_read {
             PastObjectRead::ObjectNotExists(_) | PastObjectRead::VersionNotFound(..) => {
@@ -597,8 +588,8 @@ impl<S: ?Sized + StateRead> ObjectProvider for (Arc<S>, Arc<TransactionKeyValueS
 
     async fn find_object_lt_or_eq_version(
         &self,
-        id: &ObjectID,
-        version: &SequenceNumber,
+        id: &ObjectId,
+        version: &Version,
     ) -> Result<Option<Object>, Self::Error> {
         Ok(self
             .0

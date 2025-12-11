@@ -12,7 +12,7 @@ use iota_sdk::{
     rpc_types::IotaTransactionBlockResponseOptions,
     types::{
         Identifier,
-        base_types::ObjectID,
+        base_types::ObjectId,
         programmable_transaction_builder::ProgrammableTransactionBuilder,
         quorum_driver_types::ExecuteTransactionRequestType,
         transaction::{Argument, CallArg, Command, Transaction, TransactionData},
@@ -61,7 +61,7 @@ async fn main() -> Result<(), anyhow::Error> {
     // 3) add a move call to the PTB
     // Replace the pkg_id with the package id you want to call
     let pkg_id = "0x883393ee444fb828aa0e977670cf233b0078b41d144e6208719557cb3888244d";
-    let package = ObjectID::from_hex_literal(pkg_id).map_err(|e| anyhow!(e))?;
+    let package = ObjectId::from_hex(pkg_id).map_err(|e| anyhow!(e))?;
     let module = Identifier::new("hello_world").map_err(|e| anyhow!(e))?;
     let function = Identifier::new("hello_world").map_err(|e| anyhow!(e))?;
     ptb.command(Command::move_call(

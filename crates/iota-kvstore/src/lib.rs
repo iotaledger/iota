@@ -5,12 +5,11 @@
 use anyhow::Result;
 use async_trait::async_trait;
 use iota_types::{
+    base_types::Version,
     digests::{CheckpointDigest, TransactionDigest},
     effects::{TransactionEffects, TransactionEvents},
     full_checkpoint_content::{CheckpointData, CheckpointTransaction},
-    messages_checkpoint::{
-        CertifiedCheckpointSummary, CheckpointContents, CheckpointSequenceNumber,
-    },
+    messages_checkpoint::{CertifiedCheckpointSummary, CheckpointContents},
     object::Object,
     storage::ObjectKey,
     transaction::Transaction,
@@ -40,7 +39,7 @@ pub trait KeyValueStoreReader {
     /// Fetches a list of checkpoints by their sequence numbers.
     async fn get_checkpoints(
         &mut self,
-        sequence_numbers: &[CheckpointSequenceNumber],
+        sequence_numbers: &[Version],
     ) -> Result<Vec<Checkpoint>, Self::Error>;
 
     /// Fetches a checkpoint by its digest.
@@ -84,13 +83,13 @@ pub struct TransactionData {
     pub transaction: Transaction,
     pub effects: TransactionEffects,
     pub events: Option<TransactionEvents>,
-    pub checkpoint_number: CheckpointSequenceNumber,
+    pub checkpoint_number: Version,
 }
 
 impl TransactionData {
     pub fn new(
         checkpoint_transaction: &CheckpointTransaction,
-        checkpoint_sequence_number: CheckpointSequenceNumber,
+        checkpoint_sequence_number: Version,
     ) -> Self {
         Self {
             transaction: checkpoint_transaction.transaction.clone(),

@@ -11,10 +11,10 @@ use anemo::{Request, Response, Result, rpc::Status, types::response::StatusCode}
 use dashmap::DashMap;
 use futures::future::BoxFuture;
 use iota_types::{
+    base_types::Version,
     digests::{CheckpointContentsDigest, CheckpointDigest},
     messages_checkpoint::{
-        CertifiedCheckpointSummary as Checkpoint, CheckpointSequenceNumber, FullCheckpointContents,
-        VerifiedCheckpoint,
+        CertifiedCheckpointSummary as Checkpoint, FullCheckpointContents, VerifiedCheckpoint,
     },
     storage::WriteStore,
 };
@@ -27,13 +27,13 @@ use super::{PeerHeights, StateSync, StateSyncMessage};
 pub enum GetCheckpointSummaryRequest {
     Latest,
     ByDigest(CheckpointDigest),
-    BySequenceNumber(CheckpointSequenceNumber),
+    BySequenceNumber(Version),
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct GetCheckpointAvailabilityResponse {
     pub(crate) highest_synced_checkpoint: Checkpoint,
-    pub(crate) lowest_available_checkpoint: CheckpointSequenceNumber,
+    pub(crate) lowest_available_checkpoint: Version,
 }
 
 pub(super) struct Server<S> {

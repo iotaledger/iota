@@ -9,9 +9,9 @@ use axum::{
     extract::{Query, State},
 };
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_2::types::{Argument, Command, ObjectId, Transaction};
+use iota_sdk_2::types::{Argument, Command, ObjectId, ObjectReference, Transaction};
 use iota_types::{
-    base_types::{IotaAddress, ObjectID, ObjectRef},
+    base_types::Address,
     effects::TransactionEffectsAPI,
     gas::GasCostSummary,
     gas_coin::GasCoin,
@@ -154,9 +154,9 @@ async fn resolve_transaction(
             .map_err(anyhow::Error::from)?
             .iter()
             .flat_map(|obj| match obj {
-                iota_types::transaction::InputObjectKind::ImmOrOwnedMoveObject((id, _, _)) => {
-                    Some(*id)
-                }
+                iota_types::transaction::InputObjectKind::ImmOrOwnedMoveObject(
+                    ObjectReference { object_id, .. },
+                ) => Some(*object_id),
                 _ => None,
             })
             .collect_vec();
@@ -325,7 +325,7 @@ pub struct ResolveTransactionResponse {
 fn resolve_object_reference(
     reader: &StateReader,
     unresolved_object_reference: UnresolvedObjectReference,
-) -> Result<ObjectRef> {
+) -> Result<ObjectReference> {
     let UnresolvedObjectReference {
         object_id,
         version,
@@ -354,7 +354,7 @@ fn resolve_object_reference(
         ));
     }
 
-    Ok((id, v, d))
+    Ok(ObjectReference::new(id, v, d))
 }
 
 fn resolve_ptb(
@@ -486,7 +486,7 @@ fn resolve_arg(
             }
 
             CallArg::Object(ObjectArg::SharedObject {
-                id,
+                object_id: id,
                 initial_shared_version,
                 mutable,
             })
@@ -571,11 +571,11 @@ fn estimate_gas_budget_from_gas_cost(
 
 fn select_gas(
     reader: &StateReader,
-    owner: IotaAddress,
+    owner: Address,
     budget: u64,
     max_gas_payment_objects: u32,
-    input_objects: &[ObjectID],
-) -> Result<Vec<ObjectRef>> {
+    input_objects: &[ObjectId],
+) -> Result<Vec<ObjectReference>> {
     let gas_coins = reader
         .inner()
         .indexes()

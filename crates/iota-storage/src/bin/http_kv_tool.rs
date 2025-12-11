@@ -10,9 +10,8 @@ use iota_storage::{
     key_value_store_metrics::KeyValueStoreMetrics,
 };
 use iota_types::{
-    base_types::ObjectID,
+    base_types::ObjectId,
     digests::{CheckpointDigest, TransactionDigest},
-    messages_checkpoint::CheckpointSequenceNumber,
 };
 
 // Command line options are:
@@ -52,9 +51,7 @@ async fn main() {
     let seqs: Vec<_> = options
         .seq
         .into_iter()
-        .map(|s| {
-            CheckpointSequenceNumber::from_str(&s).expect("invalid checkpoint sequence number")
-        })
+        .map(|s| s.parse().expect("invalid checkpoint sequence number"))
         .collect();
 
     // verify that type is valid
@@ -116,7 +113,7 @@ async fn main() {
         }
 
         "ob" => {
-            let object_id = ObjectID::from_str(&options.digest[0]).expect("invalid object id");
+            let object_id = ObjectId::from_str(&options.digest[0]).expect("invalid object id");
             let object = kv.get_object(object_id, seqs[0].into()).await.unwrap();
             println!("fetched object {object:?}");
         }

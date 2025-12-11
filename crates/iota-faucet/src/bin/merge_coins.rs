@@ -11,7 +11,7 @@ use iota_keys::keystore::AccountKeystore;
 use iota_sdk::wallet_context::WalletContext;
 use iota_sdk_2::types::crypto::Intent;
 use iota_types::{
-    base_types::ObjectID, gas_coin::GasCoin, quorum_driver_types::ExecuteTransactionRequestType,
+    base_types::ObjectId, gas_coin::GasCoin, quorum_driver_types::ExecuteTransactionRequestType,
     transaction::Transaction,
 };
 use tracing::info;
@@ -50,7 +50,7 @@ async fn _split_coins_equally(
         .active_address()
         .map_err(|err| FaucetError::Wallet(err.to_string()))?;
     let client = wallet.get_client().await?;
-    let coin_object_id = ObjectID::from_str(gas_coin).unwrap();
+    let coin_object_id = ObjectId::from_str(gas_coin).unwrap();
     let tx_data = client
         .transaction_builder()
         .split_coin_equal(active_address, coin_object_id, count, None, 50000000000)
@@ -100,10 +100,10 @@ async fn _merge_coins(gas_coin: &str, wallet: WalletContext) -> Result<(), anyho
         let mut coin_vector = chunk
             .iter()
             .map(|coin| *coin.id())
-            .collect::<Vec<ObjectID>>();
+            .collect::<Vec<ObjectId>>();
 
         // prepend big gas coin instance to vector
-        coin_vector.insert(0, ObjectID::from_str(gas_coin).unwrap());
+        coin_vector.insert(0, ObjectId::from_str(gas_coin).unwrap());
         let target = vec![active_address];
         let target_amount = vec![total_balance];
 

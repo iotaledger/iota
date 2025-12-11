@@ -16,11 +16,11 @@ impl From<&IotaEvent> for grpc_events::Event {
                 }),
             }),
             package_id: Some(grpc_common::Address {
-                address: event.package_id.to_vec(),
+                address: event.package_id.as_bytes().to_vec(),
             }),
             transaction_module: event.transaction_module.to_string(),
             sender: Some(grpc_common::Address {
-                address: event.sender.to_vec(),
+                address: event.sender.as_bytes().to_vec(),
             }),
             type_name: event.type_.to_string(),
             parsed_json: event.parsed_json.to_string(),

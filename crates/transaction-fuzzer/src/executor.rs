@@ -11,7 +11,7 @@ use iota_core::{
 };
 use iota_move_build::BuildConfig;
 use iota_types::{
-    base_types::ObjectID,
+    base_types::ObjectId,
     effects::{TransactionEffects, TransactionEffectsAPI},
     error::IotaError,
     execution_status::{ExecutionFailureStatus, ExecutionStatus},
@@ -113,7 +113,7 @@ impl Executor {
     pub fn publish(
         &mut self,
         package_name: &str,
-        dep_ids: Vec<ObjectID>,
+        dep_ids: Vec<ObjectId>,
         account: &mut AccountCurrent,
     ) -> TransactionEffects {
         let (_, modules) = build_test_modules(package_name);

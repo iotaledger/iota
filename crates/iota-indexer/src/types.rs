@@ -7,16 +7,14 @@ use iota_json_rpc_types::{
     ObjectChange,
 };
 use iota_types::{
-    base_types::{IotaAddress, ObjectDigest, ObjectID, SequenceNumber},
+    base_types::{Address, ObjectDigest, ObjectId, Version},
     crypto::AggregateAuthoritySignature,
     digests::TransactionDigest,
     dynamic_field::DynamicFieldType,
     effects::TransactionEffects,
     event::{SystemEpochInfoEvent, SystemEpochInfoEventV1, SystemEpochInfoEventV2},
     iota_serde::IotaStructTag,
-    messages_checkpoint::{
-        CheckpointCommitment, CheckpointDigest, CheckpointSequenceNumber, EndOfEpochData,
-    },
+    messages_checkpoint::{CheckpointCommitment, CheckpointDigest, EndOfEpochData},
     move_package::MovePackage,
     object::{Object, Owner},
     transaction::SenderSignedData,
@@ -155,11 +153,11 @@ pub struct IndexedEvent {
     pub event_sequence_number: u64,
     pub checkpoint_sequence_number: u64,
     pub transaction_digest: TransactionDigest,
-    pub senders: Vec<IotaAddress>,
-    pub package: ObjectID,
+    pub senders: Vec<Address>,
+    pub package: ObjectId,
     pub module: String,
     pub event_type: String,
-    pub event_type_package: ObjectID,
+    pub event_type_package: ObjectId,
     pub event_type_module: String,
     /// Struct name of the event, without type parameters.
     pub event_type_name: String,
@@ -185,7 +183,7 @@ impl IndexedEvent {
             package: event.package_id,
             module: event.transaction_module.to_string(),
             event_type: event.type_.to_canonical_string(/* with_prefix */ true),
-            event_type_package: event.type_.address.into(),
+            event_type_package: ObjectId::new(event.type_.address.into_bytes()),
             event_type_module: event.type_.module.to_string(),
             event_type_name: event.type_.name.to_string(),
             bcs: event.contents.clone(),
@@ -198,10 +196,10 @@ impl IndexedEvent {
 pub struct EventIndex {
     pub tx_sequence_number: u64,
     pub event_sequence_number: u64,
-    pub sender: IotaAddress,
-    pub emit_package: ObjectID,
+    pub sender: Address,
+    pub emit_package: ObjectId,
     pub emit_module: String,
-    pub type_package: ObjectID,
+    pub type_package: ObjectId,
     pub type_module: String,
     /// Struct name of the event, without type parameters.
     pub type_name: String,
@@ -228,7 +226,7 @@ impl EventIndex {
             sender: event.sender,
             emit_package: event.package_id,
             emit_module: event.transaction_module.to_string(),
-            type_package: event.type_.address.into(),
+            type_package: ObjectId::new(event.type_.address.into_bytes()),
             type_module: event.type_.module.to_string(),
             type_name: event.type_.name.to_string(),
             type_instantiation,
@@ -246,10 +244,10 @@ impl EventIndex {
         EventIndex {
             tx_sequence_number: rng.gen(),
             event_sequence_number: rng.gen(),
-            sender: IotaAddress::random_for_testing_only(),
-            emit_package: ObjectID::random(),
+            sender: Address::new(rand::random()),
+            emit_package: ObjectId::new(rand::random()),
             emit_module: rng.gen::<u64>().to_string(),
-            type_package: ObjectID::random(),
+            type_package: ObjectId::new(rand::random()),
             type_module: rng.gen::<u64>().to_string(),
             type_name: rng.gen::<u64>().to_string(),
             type_instantiation: rng.gen::<u64>().to_string(),
@@ -305,7 +303,7 @@ impl TryFrom<i16> for OwnerType {
 }
 
 // Returns owner_type, owner_address
-pub fn owner_to_owner_info(owner: &Owner) -> (OwnerType, Option<IotaAddress>) {
+pub fn owner_to_owner_info(owner: &Owner) -> (OwnerType, Option<Address>) {
     match owner {
         Owner::AddressOwner(address) => (OwnerType::Address, Some(*address)),
         Owner::ObjectOwner(address) => (OwnerType::Object, Some(*address)),
@@ -322,14 +320,14 @@ pub enum DynamicFieldKind {
 
 #[derive(Clone, Debug)]
 pub struct IndexedObject {
-    pub checkpoint_sequence_number: CheckpointSequenceNumber,
+    pub checkpoint_sequence_number: Version,
     pub object: Object,
     pub df_kind: Option<DynamicFieldType>,
 }
 
 impl IndexedObject {
     pub fn from_object(
-        checkpoint_sequence_number: CheckpointSequenceNumber,
+        checkpoint_sequence_number: Version,
         object: Object,
         df_kind: Option<DynamicFieldType>,
     ) -> Self {
@@ -345,7 +343,7 @@ impl IndexedObject {
 impl IndexedObject {
     pub fn random() -> Self {
         let mut rng = rand::thread_rng();
-        let random_address = IotaAddress::random_for_testing_only();
+        let random_address = Address::new(rand::random());
         IndexedObject {
             checkpoint_sequence_number: rng.gen(),
             object: Object::with_owner_for_testing(random_address),
@@ -363,7 +361,7 @@ impl IndexedObject {
 
 #[derive(Clone, Debug)]
 pub struct IndexedDeletedObject {
-    pub object_id: ObjectID,
+    pub object_id: ObjectId,
     pub object_version: u64,
     pub checkpoint_sequence_number: u64,
 }
@@ -373,7 +371,7 @@ impl IndexedDeletedObject {
     pub fn random() -> Self {
         let mut rng = rand::thread_rng();
         IndexedDeletedObject {
-            object_id: ObjectID::random(),
+            object_id: ObjectId::new(rand::random()),
             object_version: rng.gen(),
             checkpoint_sequence_number: rng.gen(),
         }
@@ -382,7 +380,7 @@ impl IndexedDeletedObject {
 
 #[derive(Debug)]
 pub struct IndexedPackage {
-    pub package_id: ObjectID,
+    pub package_id: ObjectId,
     pub move_package: MovePackage,
     pub checkpoint_sequence_number: u64,
 }
@@ -408,13 +406,13 @@ pub struct TxIndex {
     pub tx_kind: IotaTransactionKind,
     pub transaction_digest: TransactionDigest,
     pub checkpoint_sequence_number: u64,
-    pub input_objects: Vec<ObjectID>,
-    pub changed_objects: Vec<ObjectID>,
-    pub payers: Vec<IotaAddress>,
-    pub sender: IotaAddress,
-    pub recipients: Vec<IotaAddress>,
-    pub move_calls: Vec<(ObjectID, String, String)>,
-    pub wrapped_or_deleted_objects: Vec<ObjectID>,
+    pub input_objects: Vec<ObjectId>,
+    pub changed_objects: Vec<ObjectId>,
+    pub payers: Vec<Address>,
+    pub sender: Address,
+    pub recipients: Vec<Address>,
+    pub move_calls: Vec<(ObjectId, String, String)>,
+    pub wrapped_or_deleted_objects: Vec<ObjectId>,
 }
 
 #[cfg(any(test, feature = "pg_integration"))]
@@ -438,34 +436,40 @@ impl TxIndex {
             IotaTransactionKind::ProgrammableTransaction
         };
 
-        let input_objects = repeat_with(ObjectID::random).take(MAX_OBJECTS).collect();
-        let changed_objects = repeat_with(ObjectID::random).take(MAX_OBJECTS).collect();
-        let payers = repeat_with(IotaAddress::random_for_testing_only)
+        let input_objects = repeat_with(|| ObjectId::new(rand::random()))
+            .take(MAX_OBJECTS)
+            .collect();
+        let changed_objects = repeat_with(|| ObjectId::new(rand::random()))
+            .take(MAX_OBJECTS)
+            .collect();
+        let payers = repeat_with(|| Address::new(rand::random()))
             .take(rng.gen_range(0..MAX_PAYERS))
             .collect();
-        let recipients = repeat_with(IotaAddress::random_for_testing_only)
+        let recipients = repeat_with(|| Address::new(rand::random()))
             .take(rng.gen_range(0..MAX_RECIPIENTS))
             .collect();
         let move_calls = repeat_with(|| {
             (
-                ObjectID::random(),
+                ObjectId::new(rand::random()),
                 rand::random::<u64>().to_string(),
                 rand::random::<u64>().to_string(),
             )
         })
         .take(rng.gen_range(0..MAX_MOVE_CALLS))
         .collect();
-        let wrapped_or_deleted_objects = repeat_with(ObjectID::random).take(MAX_OBJECTS).collect();
+        let wrapped_or_deleted_objects = repeat_with(|| ObjectId::new(rand::random()))
+            .take(MAX_OBJECTS)
+            .collect();
 
         TxIndex {
             tx_sequence_number: rng.gen(),
             tx_kind,
-            transaction_digest: TransactionDigest::random(),
+            transaction_digest: TransactionDigest::new(rand::random()),
             checkpoint_sequence_number: rng.gen(),
             input_objects,
             changed_objects,
             payers,
-            sender: IotaAddress::random_for_testing_only(),
+            sender: Address::new(rand::random()),
             recipients,
             move_calls,
             wrapped_or_deleted_objects,
@@ -478,55 +482,55 @@ impl TxIndex {
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
 pub enum IndexedObjectChange {
     Published {
-        package_id: ObjectID,
-        version: SequenceNumber,
+        package_id: ObjectId,
+        version: Version,
         digest: ObjectDigest,
         modules: Vec<String>,
     },
     Transferred {
-        sender: IotaAddress,
+        sender: Address,
         recipient: Owner,
         #[serde_as(as = "IotaStructTag")]
         object_type: StructTag,
-        object_id: ObjectID,
-        version: SequenceNumber,
+        object_id: ObjectId,
+        version: Version,
         digest: ObjectDigest,
     },
     /// Object mutated.
     Mutated {
-        sender: IotaAddress,
+        sender: Address,
         owner: Owner,
         #[serde_as(as = "IotaStructTag")]
         object_type: StructTag,
-        object_id: ObjectID,
-        version: SequenceNumber,
-        previous_version: SequenceNumber,
+        object_id: ObjectId,
+        version: Version,
+        previous_version: Version,
         digest: ObjectDigest,
     },
     /// Delete object
     Deleted {
-        sender: IotaAddress,
+        sender: Address,
         #[serde_as(as = "IotaStructTag")]
         object_type: StructTag,
-        object_id: ObjectID,
-        version: SequenceNumber,
+        object_id: ObjectId,
+        version: Version,
     },
     /// Wrapped object
     Wrapped {
-        sender: IotaAddress,
+        sender: Address,
         #[serde_as(as = "IotaStructTag")]
         object_type: StructTag,
-        object_id: ObjectID,
-        version: SequenceNumber,
+        object_id: ObjectId,
+        version: Version,
     },
     /// New object creation
     Created {
-        sender: IotaAddress,
+        sender: Address,
         owner: Owner,
         #[serde_as(as = "IotaStructTag")]
         object_type: StructTag,
-        object_id: ObjectID,
-        version: SequenceNumber,
+        object_id: ObjectId,
+        version: Version,
         digest: ObjectDigest,
     },
 }

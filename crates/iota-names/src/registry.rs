@@ -4,7 +4,7 @@
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use iota_types::{
-    base_types::{IotaAddress, ObjectID},
+    base_types::{Address, ObjectId},
     collection_types::VecMap,
     dynamic_field::Field,
     id::ID,
@@ -17,7 +17,7 @@ use crate::{constants::IOTA_NAMES_LEAF_EXPIRATION_TIMESTAMP, error::IotaNamesErr
 /// Rust version of the Move `iota::table::Table` type.
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub struct Table {
-    pub id: ObjectID,
+    pub id: ObjectId,
     pub size: u64,
 }
 
@@ -26,22 +26,22 @@ pub struct Registry {
     /// The `registry` table maps `Name` to `NameRecord`.
     /// Added / replaced in the `add_record` function.
     registry: Table,
-    /// The `reverse_registry` table maps `IotaAddress` to `Name`.
+    /// The `reverse_registry` table maps `Address` to `Name`.
     /// Updated in the `set_reverse_lookup` function.
     reverse_registry: Table,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct RegistryEntry {
-    pub id: ObjectID,
+    pub id: ObjectId,
     pub name: Name,
     pub name_record: NameRecord,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ReverseRegistryEntry {
-    pub id: ObjectID,
-    pub address: IotaAddress,
+    pub id: ObjectId,
+    pub address: Address,
     pub name: Name,
 }
 
@@ -59,7 +59,7 @@ pub struct NameRecord {
     /// Timestamp in milliseconds when the record expires.
     pub expiration_timestamp_ms: u64,
     /// The target address that this name points to.
-    pub target_address: Option<IotaAddress>,
+    pub target_address: Option<Address>,
     /// Additional data which may be stored in a record.
     pub data: VecMap<String, String>,
 }
@@ -121,9 +121,9 @@ mod tests {
         let system_time: u64 = 100;
 
         let mut name = NameRecord {
-            nft_id: iota_types::id::ID::new(ObjectID::random()),
+            nft_id: iota_types::id::ID::new(ObjectId::new(rand::random())),
             data: VecMap { contents: vec![] },
-            target_address: Some(IotaAddress::random_for_testing_only()),
+            target_address: Some(Address::new(rand::random())),
             expiration_timestamp_ms: system_time + 10,
         };
 

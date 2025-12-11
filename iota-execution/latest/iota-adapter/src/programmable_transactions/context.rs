@@ -18,7 +18,7 @@ mod checked {
     use iota_protocol_config::ProtocolConfig;
     use iota_types::{
         balance::Balance,
-        base_types::{IotaAddress, MoveObjectType, ObjectID, TxContext},
+        base_types::{Address, MoveObjectType, ObjectId, ObjectReference, TxContext},
         coin::Coin,
         error::{ExecutionError, ExecutionErrorKind, command_argument_error},
         event::Event,
@@ -84,7 +84,7 @@ mod checked {
         /// The gas charger used for metering
         pub gas_charger: &'a mut GasCharger,
         /// Additional transfers not from the Move runtime
-        additional_transfers: Vec<(/* new owner */ IotaAddress, ObjectValue)>,
+        additional_transfers: Vec<(/* new owner */ Address, ObjectValue)>,
         /// Newly published packages
         new_packages: Vec<MovePackage>,
         /// User events are claimed after each Move call
@@ -260,7 +260,7 @@ mod checked {
         }
 
         /// Create a new ID and update the state
-        pub fn fresh_id(&mut self) -> Result<ObjectID, ExecutionError> {
+        pub fn fresh_id(&mut self) -> Result<ObjectId, ExecutionError> {
             let object_id = self.tx_context.fresh_id();
             self.native_extensions
                 .get_mut()
@@ -270,7 +270,7 @@ mod checked {
         }
 
         /// Delete an ID and update the state
-        pub fn delete_id(&mut self, object_id: ObjectID) -> Result<(), ExecutionError> {
+        pub fn delete_id(&mut self, object_id: ObjectId) -> Result<(), ExecutionError> {
             self.native_extensions
                 .get_mut()
                 .and_then(|object_runtime: &mut ObjectRuntime| object_runtime.delete_id(object_id))
@@ -282,14 +282,14 @@ mod checked {
         /// ID of the link context package on success.
         pub fn set_link_context(
             &mut self,
-            package_id: ObjectID,
+            package_id: ObjectId,
         ) -> Result<AccountAddress, ExecutionError> {
             if self.linkage_view.has_linkage(package_id) {
                 // Setting same context again, can skip.
                 return Ok(self
                     .linkage_view
                     .original_package_id()
-                    .unwrap_or(*package_id));
+                    .unwrap_or(AccountAddress::new(package_id.into_bytes())));
             }
 
             let package = package_for_linkage(&self.linkage_view, package_id)
@@ -627,7 +627,7 @@ mod checked {
         pub fn transfer_object(
             &mut self,
             obj: ObjectValue,
-            addr: IotaAddress,
+            addr: Address,
         ) -> Result<(), ExecutionError> {
             self.additional_transfers.push((addr, obj));
             Ok(())
@@ -646,7 +646,7 @@ mod checked {
         /// and `dependencies`
         pub fn upgrade_package<'p>(
             &self,
-            storage_id: ObjectID,
+            storage_id: ObjectId,
             previous_package: &MovePackage,
             new_modules: &[CompiledModule],
             dependencies: impl IntoIterator<Item = &'p MovePackage>,
@@ -920,7 +920,7 @@ mod checked {
                 .into_iter()
                 .map(|(module_id, tag, contents)| {
                     Event::new(
-                        module_id.address(),
+                        Address::new(module_id.address().into_bytes()),
                         module_id.name(),
                         tx_context.sender(),
                         tag,
@@ -1191,7 +1191,7 @@ mod checked {
     /// or is not a package.
     fn package_for_linkage(
         linkage_view: &LinkageView,
-        package_id: ObjectID,
+        package_id: ObjectId,
     ) -> VMResult<PackageObject> {
         use move_binary_format::errors::PartialVMError;
         use move_core_types::vm_status::StatusCode;
@@ -1232,7 +1232,7 @@ mod checked {
         } = struct_tag;
 
         // Load the package that the struct is defined in, in storage
-        let defining_id = ObjectID::from_address(*address);
+        let defining_id = ObjectId::new(address.into_bytes());
         let package = package_for_linkage(linkage_view, defining_id)?;
 
         // Set the defining package as the link context while loading the
@@ -1406,9 +1406,9 @@ mod checked {
         state_view: &dyn ExecutionState,
         linkage_view: &mut LinkageView,
         new_packages: &[MovePackage],
-        input_object_map: &mut BTreeMap<ObjectID, object_runtime::InputObject>,
+        input_object_map: &mut BTreeMap<ObjectId, object_runtime::InputObject>,
         override_as_immutable: bool,
-        id: ObjectID,
+        id: ObjectId,
     ) -> Result<InputValue, ExecutionError> {
         let Some(obj) = state_view.read_object(&id) else {
             // protected by transaction input checker
@@ -1468,7 +1468,7 @@ mod checked {
         state_view: &dyn ExecutionState,
         linkage_view: &mut LinkageView,
         new_packages: &[MovePackage],
-        input_object_map: &mut BTreeMap<ObjectID, object_runtime::InputObject>,
+        input_object_map: &mut BTreeMap<ObjectId, object_runtime::InputObject>,
         call_arg: CallArg,
     ) -> Result<InputValue, ExecutionError> {
         Ok(match call_arg {
@@ -1491,11 +1491,11 @@ mod checked {
         state_view: &dyn ExecutionState,
         linkage_view: &mut LinkageView,
         new_packages: &[MovePackage],
-        input_object_map: &mut BTreeMap<ObjectID, object_runtime::InputObject>,
+        input_object_map: &mut BTreeMap<ObjectId, object_runtime::InputObject>,
         obj_arg: ObjectArg,
     ) -> Result<InputValue, ExecutionError> {
         match obj_arg {
-            ObjectArg::ImmOrOwnedObject((id, _, _)) => load_object(
+            ObjectArg::ImmOrOwnedObject(ObjectReference { object_id, .. }) => load_object(
                 vm,
                 state_view,
                 linkage_view,
@@ -1503,9 +1503,11 @@ mod checked {
                 input_object_map,
                 // imm override
                 false,
-                id,
+                object_id,
             ),
-            ObjectArg::SharedObject { id, mutable, .. } => load_object(
+            ObjectArg::SharedObject {
+                object_id, mutable, ..
+            } => load_object(
                 vm,
                 state_view,
                 linkage_view,
@@ -1513,17 +1515,17 @@ mod checked {
                 input_object_map,
                 // imm override
                 !mutable,
-                id,
+                object_id,
             ),
-            ObjectArg::Receiving((id, version, _)) => {
-                Ok(InputValue::new_receiving_object(id, version))
-            }
+            ObjectArg::Receiving(ObjectReference {
+                object_id, version, ..
+            }) => Ok(InputValue::new_receiving_object(object_id, version)),
         }
     }
 
     /// Generate an additional write for an ObjectValue
     fn add_additional_write(
-        additional_writes: &mut BTreeMap<ObjectID, AdditionalWrite>,
+        additional_writes: &mut BTreeMap<ObjectId, AdditionalWrite>,
         owner: Owner,
         object_value: ObjectValue,
     ) -> Result<(), ExecutionError> {
@@ -1550,9 +1552,9 @@ mod checked {
     /// transaction, now we return exactly that amount. Gas will be charged
     /// by the execution engine
     fn refund_max_gas_budget(
-        additional_writes: &mut BTreeMap<ObjectID, AdditionalWrite>,
+        additional_writes: &mut BTreeMap<ObjectId, AdditionalWrite>,
         gas_charger: &mut GasCharger,
-        gas_id: ObjectID,
+        gas_id: ObjectId,
     ) -> Result<(), ExecutionError> {
         let Some(AdditionalWrite { bytes, .. }) = additional_writes.get_mut(&gas_id) else {
             invariant_violation!("Gas object cannot be wrapped or destroyed")
@@ -1576,8 +1578,8 @@ mod checked {
         vm: &MoveVM,
         linkage_view: &LinkageView,
         protocol_config: &ProtocolConfig,
-        objects_modified_at: &BTreeMap<ObjectID, LoadedRuntimeObject>,
-        id: ObjectID,
+        objects_modified_at: &BTreeMap<ObjectId, LoadedRuntimeObject>,
+        id: ObjectId,
         type_: Type,
         contents: Vec<u8>,
     ) -> Result<MoveObject, ExecutionError> {

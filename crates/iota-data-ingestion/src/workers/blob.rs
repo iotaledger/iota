@@ -13,8 +13,7 @@ use iota_data_ingestion_core::Worker;
 use iota_rest_api::Client;
 use iota_storage::blob::{Blob, BlobEncoding};
 use iota_types::{
-    committee::EpochId, full_checkpoint_content::CheckpointData,
-    messages_checkpoint::CheckpointSequenceNumber,
+    base_types::Version, committee::EpochId, full_checkpoint_content::CheckpointData,
 };
 use object_store::{DynObjectStore, MultipartUpload, ObjectStore, path::Path};
 use serde::{Deserialize, Deserializer, Serialize};
@@ -76,10 +75,7 @@ impl BlobWorker {
 
     /// Resets the remote object store by deleting checkpoints within the
     /// specified range.
-    pub async fn reset_remote_store(
-        &self,
-        range: Range<CheckpointSequenceNumber>,
-    ) -> anyhow::Result<()> {
+    pub async fn reset_remote_store(&self, range: Range<Version>) -> anyhow::Result<()> {
         tracing::info!("delete checkpoints from remote store: {range:?}");
 
         let paths = range
@@ -173,7 +169,7 @@ impl BlobWorker {
 
     /// Constructs a file path for a checkpoint file based on the checkpoint
     /// sequence number.
-    fn file_path(chk_seq_num: CheckpointSequenceNumber) -> Path {
+    fn file_path(chk_seq_num: Version) -> Path {
         Path::from(INGESTION_DIR_NAME)
             .child(LIVE_DIR_NAME)
             .child(format!("{chk_seq_num}.{CHECKPOINT_FILE_SUFFIX}"))

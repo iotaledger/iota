@@ -256,7 +256,7 @@ impl ListDynamicFieldsQueryParameters {
             .unwrap_or(crate::DEFAULT_PAGE_SIZE)
     }
 
-    pub fn start(&self) -> Option<iota_types::base_types::ObjectID> {
+    pub fn start(&self) -> Option<iota_types::base_types::ObjectId> {
         self.start.map(Into::into)
     }
 }

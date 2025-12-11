@@ -8,12 +8,13 @@
 //! - The first field has type `iota::object::UID`
 
 use iota_types::{
-    IOTA_FRAMEWORK_ADDRESS,
+    base_types::Address,
     error::ExecutionError,
     fp_ensure,
     id::{OBJECT_MODULE_NAME, UID_STRUCT_NAME},
 };
 use move_binary_format::file_format::{CompiledModule, SignatureToken};
+use move_core_types::account_address::AccountAddress;
 
 use crate::verification_failure;
 
@@ -52,13 +53,14 @@ fn verify_key_structs(module: &CompiledModule) -> Result<(), ExecutionError> {
             SignatureToken::Datatype(struct_type) => struct_type,
             _ => {
                 return Err(verification_failure(format!(
-                    "First field of struct {name} must be of type {IOTA_FRAMEWORK_ADDRESS}::object::UID, \
-                    {uid_field_type:?} type found"
+                    "First field of struct {name} must be of type {}::object::UID, \
+                    {uid_field_type:?} type found",
+                    Address::FRAMEWORK
                 )));
             }
         };
         // check that the struct type for "id" field must be
-        // IOTA_FRAMEWORK_ADDRESS::object::UID.
+        // Address::FRAMEWORK::object::UID.
         let uid_type_struct = module.datatype_handle_at(*uid_field_type);
         let uid_type_struct_name = module.identifier_at(uid_type_struct.name);
         let uid_type_module = module.module_handle_at(uid_type_struct.module);
@@ -66,11 +68,12 @@ fn verify_key_structs(module: &CompiledModule) -> Result<(), ExecutionError> {
         let uid_type_module_name = module.identifier_at(uid_type_module.name);
         fp_ensure!(
             uid_type_struct_name == UID_STRUCT_NAME
-                && uid_type_module_address == &IOTA_FRAMEWORK_ADDRESS
+                && uid_type_module_address == &AccountAddress::new(Address::FRAMEWORK.into_bytes())
                 && uid_type_module_name == OBJECT_MODULE_NAME,
             verification_failure(format!(
-                "First field of struct {name} must be of type {IOTA_FRAMEWORK_ADDRESS}::object::UID, \
-                {uid_type_module_address}::{uid_type_module_name}::{uid_type_struct_name} type found"
+                "First field of struct {name} must be of type {}::object::UID, \
+                {uid_type_module_address}::{uid_type_module_name}::{uid_type_struct_name} type found",
+                Address::FRAMEWORK
             ))
         );
     }

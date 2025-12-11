@@ -18,7 +18,7 @@ pub mod workload_configuration;
 use std::sync::Arc;
 
 use iota_types::{
-    base_types::{IotaAddress, ObjectRef},
+    base_types::{Address, ObjectReference},
     crypto::AccountKeyPair,
 };
 use workload::*;
@@ -48,14 +48,14 @@ pub struct WorkloadInfo {
     pub workload: Box<dyn Workload<dyn Payload>>,
 }
 
-pub type Gas = (ObjectRef, IotaAddress, Arc<AccountKeyPair>);
+pub type Gas = (ObjectReference, Address, Arc<AccountKeyPair>);
 
 #[derive(Clone)]
 pub struct GasCoinConfig {
     // amount of IOTA to transfer to this gas coin
     pub amount: u64,
     // recipient of this gas coin
-    pub address: IotaAddress,
+    pub address: Address,
     // recipient account key pair (useful for signing txns)
     pub keypair: Arc<AccountKeyPair>,
 }

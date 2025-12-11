@@ -2,13 +2,15 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use move_core_types::{ident_str, identifier::IdentStr, language_storage::StructTag};
+use iota_sdk_2::types::Address;
+use move_core_types::{
+    account_address::AccountAddress, ident_str, identifier::IdentStr, language_storage::StructTag,
+};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    IOTA_SYSTEM_ADDRESS,
     balance::Balance,
-    base_types::ObjectID,
+    base_types::ObjectId,
     committee::EpochId,
     error::IotaError,
     gas_coin::NANOS_PER_IOTA,
@@ -61,7 +63,7 @@ pub struct StakedIota {
 impl StakedIota {
     pub fn type_() -> StructTag {
         StructTag {
-            address: IOTA_SYSTEM_ADDRESS,
+            address: AccountAddress::new(Address::SYSTEM.into_bytes()),
             module: STAKING_POOL_MODULE_NAME.to_owned(),
             name: STAKED_IOTA_STRUCT_NAME.to_owned(),
             type_params: vec![],
@@ -69,17 +71,17 @@ impl StakedIota {
     }
 
     pub fn is_staked_iota(s: &StructTag) -> bool {
-        s.address == IOTA_SYSTEM_ADDRESS
+        s.address == AccountAddress::new(Address::SYSTEM.into_bytes())
             && s.module.as_ident_str() == STAKING_POOL_MODULE_NAME
             && s.name.as_ident_str() == STAKED_IOTA_STRUCT_NAME
             && s.type_params.is_empty()
     }
 
-    pub fn id(&self) -> ObjectID {
+    pub fn id(&self) -> ObjectId {
         self.id.id.bytes
     }
 
-    pub fn pool_id(&self) -> ObjectID {
+    pub fn pool_id(&self) -> ObjectId {
         self.pool_id.bytes
     }
 

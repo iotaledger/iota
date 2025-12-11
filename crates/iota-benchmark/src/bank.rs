@@ -9,7 +9,7 @@ use std::{
 
 use anyhow::{Error, Result};
 use iota_core::test_utils::{make_pay_iota_transaction, make_transfer_iota_transaction};
-use iota_types::{base_types::IotaAddress, crypto::AccountKeyPair};
+use iota_types::{base_types::Address, crypto::AccountKeyPair};
 use itertools::Itertools;
 use tracing::info;
 
@@ -109,8 +109,7 @@ impl BenchmarkBank {
         init_coin: &mut Gas,
         gas_price: u64,
     ) -> Result<UpdatedAndNewlyMintedGasCoins> {
-        let recipient_addresses: Vec<IotaAddress> =
-            coin_configs.iter().map(|g| g.address).collect();
+        let recipient_addresses: Vec<Address> = coin_configs.iter().map(|g| g.address).collect();
         let amounts: Vec<u64> = coin_configs.iter().map(|c| c.amount).collect();
 
         info!(
@@ -140,7 +139,7 @@ impl BenchmarkBank {
         let updated_gas = effects
             .mutated()
             .into_iter()
-            .find(|(k, _)| k.0 == init_coin.0.0)
+            .find(|(k, _)| k.object_id == init_coin.0.object_id)
             .ok_or("Input gas missing in the effects")
             .map_err(Error::msg)?;
 
@@ -148,7 +147,7 @@ impl BenchmarkBank {
         init_coin.1 = updated_gas.1.get_owner_address()?;
         init_coin.2 = self.primary_coin.2.clone();
 
-        let address_map: HashMap<IotaAddress, Arc<AccountKeyPair>> = coin_configs
+        let address_map: HashMap<Address, Arc<AccountKeyPair>> = coin_configs
             .iter()
             .map(|c| (c.address, c.keypair.clone()))
             .collect();
@@ -191,7 +190,7 @@ impl BenchmarkBank {
         let updated_gas = effects
             .mutated()
             .into_iter()
-            .find(|(k, _)| k.0 == self.primary_coin.0.0)
+            .find(|(k, _)| k.object_id == self.primary_coin.0.object_id)
             .ok_or("Input gas missing in the effects")
             .map_err(Error::msg)?;
 

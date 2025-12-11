@@ -3,11 +3,10 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use iota_types::{
-    base_types::{ObjectDigest, ObjectID, ObjectRef, SequenceNumber, TransactionDigest},
+    base_types::{ObjectDigest, ObjectId, ObjectReference, TransactionDigest, Version},
     coin::CoinMetadata,
     error::IotaError,
-    iota_serde::{BigInt, SequenceNumber as AsSequenceNumber},
-    messages_checkpoint::CheckpointSequenceNumber,
+    iota_serde::{BigInt, Version as AsVersion},
     object::Object,
 };
 use schemars::JsonSchema;
@@ -16,7 +15,7 @@ use serde_with::serde_as;
 
 use crate::Page;
 
-pub type CoinPage = Page<Coin, ObjectID>;
+pub type CoinPage = Page<Coin, ObjectId>;
 
 #[serde_as]
 #[derive(Serialize, Deserialize, Debug, JsonSchema, PartialEq, Eq, Clone)]
@@ -44,10 +43,10 @@ impl Balance {
 #[serde(rename_all = "camelCase")]
 pub struct Coin {
     pub coin_type: String,
-    pub coin_object_id: ObjectID,
-    #[schemars(with = "AsSequenceNumber")]
-    #[serde_as(as = "AsSequenceNumber")]
-    pub version: SequenceNumber,
+    pub coin_object_id: ObjectId,
+    #[schemars(with = "AsVersion")]
+    #[serde_as(as = "AsVersion")]
+    pub version: Version,
     pub digest: ObjectDigest,
     #[schemars(with = "BigInt<u64>")]
     #[serde_as(as = "BigInt<u64>")]
@@ -56,8 +55,8 @@ pub struct Coin {
 }
 
 impl Coin {
-    pub fn object_ref(&self) -> ObjectRef {
-        (self.coin_object_id, self.version, self.digest)
+    pub fn object_ref(&self) -> ObjectReference {
+        ObjectReference::new(self.coin_object_id, self.version, self.digest)
     }
 }
 
@@ -75,7 +74,7 @@ pub struct IotaCoinMetadata {
     /// URL for the token logo
     pub icon_url: Option<String>,
     /// Object id for the CoinMetadata object
-    pub id: Option<ObjectID>,
+    pub id: Option<ObjectId>,
 }
 
 impl TryFrom<Object> for IotaCoinMetadata {
@@ -118,5 +117,5 @@ pub struct IotaCirculatingSupply {
     /// 1.0).
     pub circulating_supply_percentage: f64,
     /// Timestamp (UTC) when the circulating supply was calculated.
-    pub at_checkpoint: CheckpointSequenceNumber,
+    pub at_checkpoint: Version,
 }

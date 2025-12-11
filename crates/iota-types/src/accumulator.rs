@@ -13,10 +13,10 @@ mod tests {
 
     #[test]
     fn test_accumulator() {
-        let ref1 = ObjectDigest::random();
-        let ref2 = ObjectDigest::random();
-        let ref3 = ObjectDigest::random();
-        let ref4 = ObjectDigest::random();
+        let ref1 = ObjectDigest::new(rand::random());
+        let ref2 = ObjectDigest::new(rand::random());
+        let ref3 = ObjectDigest::new(rand::random());
+        let ref4 = ObjectDigest::new(rand::random());
 
         let mut a1 = Accumulator::default();
         a1.insert(ref1);
@@ -61,9 +61,9 @@ mod tests {
 
     #[test]
     fn test_accumulator_commutativity() {
-        let ref1 = ObjectDigest::random();
-        let ref2 = ObjectDigest::random();
-        let ref3 = ObjectDigest::random();
+        let ref1 = ObjectDigest::new(rand::random());
+        let ref2 = ObjectDigest::new(rand::random());
+        let ref3 = ObjectDigest::new(rand::random());
 
         let mut a1 = Accumulator::default();
         a1.remove(ref1);
@@ -105,7 +105,9 @@ mod tests {
 
     #[test]
     fn test_accumulator_insert_stress() {
-        let mut refs: Vec<_> = (0..100).map(|_| ObjectDigest::random()).collect();
+        let mut refs: Vec<_> = (0..100)
+            .map(|_| ObjectDigest::new(rand::random()))
+            .collect();
         let mut accumulator = Accumulator::default();
         accumulator.insert_all(&refs);
         let mut rng = rand::thread_rng();
@@ -119,8 +121,12 @@ mod tests {
 
     #[test]
     fn test_accumulator_remove_stress() {
-        let mut refs1: Vec<_> = (0..100).map(|_| ObjectDigest::random()).collect();
-        let mut refs2: Vec<_> = (0..100).map(|_| ObjectDigest::random()).collect();
+        let mut refs1: Vec<_> = (0..100)
+            .map(|_| ObjectDigest::new(rand::random()))
+            .collect();
+        let mut refs2: Vec<_> = (0..100)
+            .map(|_| ObjectDigest::new(rand::random()))
+            .collect();
         let mut accumulator = Accumulator::default();
         accumulator.insert_all(&refs1);
 

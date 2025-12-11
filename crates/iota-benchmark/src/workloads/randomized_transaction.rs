@@ -8,8 +8,8 @@ use async_trait::async_trait;
 use futures::future::join_all;
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
-    IOTA_RANDOMNESS_STATE_OBJECT_ID, Identifier,
-    base_types::{IotaAddress, ObjectID, ObjectRef, SequenceNumber},
+    Identifier,
+    base_types::{Address, ObjectId, ObjectReference, Version},
     crypto::{AccountKeyPair, get_key_pair},
     object::Owner,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
@@ -53,11 +53,11 @@ pub const MAX_GAS_IN_UNIT: u64 = 1_000_000_000;
 /// transaction patterns.
 #[derive(Debug)]
 pub struct RandomizedTransactionPayload {
-    package_id: ObjectID,
-    shared_objects: Vec<ObjectRef>,
-    owned_object: ObjectRef,
-    randomness_initial_shared_version: SequenceNumber,
-    transfer_to: IotaAddress,
+    package_id: ObjectId,
+    shared_objects: Vec<ObjectReference>,
+    owned_object: ObjectReference,
+    randomness_initial_shared_version: Version,
+    transfer_to: Address,
     gas: Gas,
     system_state_observer: Arc<SystemStateObserver>,
 }
@@ -132,8 +132,9 @@ impl RandomizedTransactionPayload {
                         Identifier::new("increment").unwrap(),
                         vec![],
                         vec![CallArg::Object(ObjectArg::SharedObject {
-                            id: self.shared_objects[next_shared_input_index].0,
-                            initial_shared_version: self.shared_objects[next_shared_input_index].1,
+                            object_id: self.shared_objects[next_shared_input_index].object_id,
+                            initial_shared_version: self.shared_objects[next_shared_input_index]
+                                .version,
                             mutable: true,
                         })],
                     )
@@ -148,10 +149,10 @@ impl RandomizedTransactionPayload {
                         vec![],
                         vec![
                             CallArg::Object(ObjectArg::SharedObject {
-                                id: self.shared_objects[next_shared_input_index].0,
+                                object_id: self.shared_objects[next_shared_input_index].object_id,
                                 initial_shared_version: self.shared_objects
                                     [next_shared_input_index]
-                                    .1,
+                                    .version,
                                 mutable: true,
                             }),
                             CallArg::Pure((10_u64).to_le_bytes().to_vec()),
@@ -167,8 +168,9 @@ impl RandomizedTransactionPayload {
                         Identifier::new("value").unwrap(),
                         vec![],
                         vec![CallArg::Object(ObjectArg::SharedObject {
-                            id: self.shared_objects[next_shared_input_index].0,
-                            initial_shared_version: self.shared_objects[next_shared_input_index].1,
+                            object_id: self.shared_objects[next_shared_input_index].object_id,
+                            initial_shared_version: self.shared_objects[next_shared_input_index]
+                                .version,
                             mutable: false,
                         })],
                     )
@@ -185,7 +187,7 @@ impl RandomizedTransactionPayload {
                 Identifier::new("new").unwrap(),
                 vec![],
                 vec![CallArg::Object(ObjectArg::SharedObject {
-                    id: IOTA_RANDOMNESS_STATE_OBJECT_ID,
+                    object_id: ObjectId::RANDOMNESS_STATE,
                     initial_shared_version: self.randomness_initial_shared_version,
                     mutable: false,
                 })],
@@ -218,7 +220,7 @@ impl Payload for RandomizedTransactionPayload {
         if let Some(owned_in_effects) = effects
             .mutated()
             .iter()
-            .find(|(object_ref, _)| object_ref.0 == self.owned_object.0)
+            .find(|(object_ref, _)| object_ref.object_id == self.owned_object.object_id)
             .map(|x| x.0)
         {
             tracing::debug!("Owned object mutated: {:?}", owned_in_effects);
@@ -246,8 +248,8 @@ impl Payload for RandomizedTransactionPayload {
         for i in 0..config.num_shared_inputs {
             builder
                 .obj(ObjectArg::SharedObject {
-                    id: self.shared_objects[i as usize].0,
-                    initial_shared_version: self.shared_objects[i as usize].1,
+                    object_id: self.shared_objects[i as usize].object_id,
+                    initial_shared_version: self.shared_objects[i as usize].version,
                     mutable: rand::thread_rng().gen_bool(0.5),
                 })
                 .unwrap();
@@ -401,13 +403,13 @@ impl WorkloadBuilder<dyn Payload> for RandomizedTransactionWorkloadBuilder {
 
 #[derive(Debug)]
 pub struct RandomizedTransactionWorkload {
-    pub basics_package_id: Option<ObjectID>,
-    pub shared_objects: Vec<ObjectRef>,
-    pub owned_objects: Vec<ObjectRef>,
-    pub transfer_to: Option<IotaAddress>,
+    pub basics_package_id: Option<ObjectId>,
+    pub shared_objects: Vec<ObjectReference>,
+    pub owned_objects: Vec<ObjectReference>,
+    pub transfer_to: Option<Address>,
     pub init_gas: Vec<Gas>,
     pub payload_gas: Vec<Gas>,
-    pub randomness_initial_shared_version: Option<SequenceNumber>,
+    pub randomness_initial_shared_version: Option<Version>,
 }
 
 #[async_trait]
@@ -436,7 +438,7 @@ impl Workload<dyn Payload> for RandomizedTransactionWorkload {
         self.basics_package_id = Some(
             publish_basics_package(head.0, proxy.clone(), head.1, &head.2, gas_price)
                 .await
-                .0,
+                .object_id,
         );
 
         // Create a transfer address
@@ -500,7 +502,7 @@ impl Workload<dyn Payload> for RandomizedTransactionWorkload {
         // Get randomness shared object initial version
         if self.randomness_initial_shared_version.is_none() {
             let obj = proxy
-                .get_object(IOTA_RANDOMNESS_STATE_OBJECT_ID)
+                .get_object(ObjectId::RANDOMNESS_STATE)
                 .await
                 .expect("Failed to get randomness object");
             let Owner::Shared {

@@ -5,7 +5,7 @@
 use fastcrypto_zkp::bn254::zk_login::OIDCProvider;
 use iota_config::transaction_deny_config::TransactionDenyConfig;
 use iota_types::{
-    base_types::ObjectRef,
+    base_types::ObjectReference,
     error::{IotaError, IotaResult, UserInputError},
     signature::GenericSignature,
     storage::BackingPackageStore,
@@ -31,7 +31,7 @@ pub fn check_transaction_for_signing(
     tx_data: &TransactionData,
     tx_signatures: &[GenericSignature],
     input_object_kinds: &[InputObjectKind],
-    receiving_objects: &[ObjectRef],
+    receiving_objects: &[ObjectReference],
     filter_config: &TransactionDenyConfig,
     package_store: &dyn BackingPackageStore,
 ) -> IotaResult {
@@ -51,16 +51,16 @@ pub fn check_transaction_for_signing(
 #[instrument(level = "trace", skip_all)]
 fn check_receiving_objects(
     filter_config: &TransactionDenyConfig,
-    receiving_objects: &[ObjectRef],
+    receiving_objects: &[ObjectReference],
 ) -> IotaResult {
     deny_if_true!(
         filter_config.receiving_objects_disabled() && !receiving_objects.is_empty(),
         "Receiving objects is temporarily disabled".to_string()
     );
-    for (id, _, _) in receiving_objects {
+    for ObjectReference { object_id, .. } in receiving_objects {
         deny_if_true!(
-            filter_config.get_object_deny_set().contains(id),
-            format!("Access to object {:?} is temporarily disabled", id)
+            filter_config.get_object_deny_set().contains(object_id),
+            format!("Access to object {:?} is temporarily disabled", object_id)
         );
     }
     Ok(())

@@ -25,9 +25,9 @@ use iota_storage::{
     object_store::util::{copy_file, path_to_filesystem},
 };
 use iota_types::{
+    base_types::Version,
     messages_checkpoint::{
-        CertifiedCheckpointSummary as Checkpoint, CheckpointSequenceNumber,
-        FullCheckpointContents as CheckpointContents,
+        CertifiedCheckpointSummary as Checkpoint, FullCheckpointContents as CheckpointContents,
     },
     storage::WriteStore,
 };
@@ -428,7 +428,7 @@ impl ArchiveWriter {
     /// If the checkpoint is available, writes the checkpoint contents and
     /// summary to the CheckpointWriter.
     fn start_tailing_checkpoints<S>(
-        start_checkpoint_sequence_number: CheckpointSequenceNumber,
+        start_checkpoint_sequence_number: Version,
         mut checkpoint_writer: CheckpointWriter,
         store: S,
         mut kill: tokio::sync::broadcast::Receiver<()>,

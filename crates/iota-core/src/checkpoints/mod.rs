@@ -23,7 +23,7 @@ use iota_metrics::{MonitoredFutureExt, monitored_future, monitored_scope};
 use iota_network::default_iota_network_config;
 use iota_protocol_config::ProtocolVersion;
 use iota_types::{
-    base_types::{AuthorityName, ConciseableName, EpochId, TransactionDigest},
+    base_types::{AuthorityName, ConciseableName, EpochId, TransactionDigest, Version},
     committee::StakeUnit,
     crypto::AuthorityStrongQuorumSignInfo,
     digests::{CheckpointContentsDigest, CheckpointDigest},
@@ -39,10 +39,9 @@ use iota_types::{
     message_envelope::Message,
     messages_checkpoint::{
         CertifiedCheckpointSummary, CheckpointCommitment, CheckpointContents, CheckpointRequest,
-        CheckpointResponse, CheckpointSequenceNumber, CheckpointSignatureMessage,
-        CheckpointSummary, CheckpointSummaryResponse, CheckpointTimestamp, EndOfEpochData,
-        FullCheckpointContents, SignedCheckpointSummary, TrustedCheckpoint, VerifiedCheckpoint,
-        VerifiedCheckpointContents,
+        CheckpointResponse, CheckpointSignatureMessage, CheckpointSummary,
+        CheckpointSummaryResponse, CheckpointTimestamp, EndOfEpochData, FullCheckpointContents,
+        SignedCheckpointSummary, TrustedCheckpoint, VerifiedCheckpoint, VerifiedCheckpointContents,
     },
     messages_consensus::ConsensusTransactionKey,
     signature::GenericSignature,
@@ -151,31 +150,30 @@ pub struct CheckpointStoreTables {
     pub(crate) checkpoint_content: DBMap<CheckpointContentsDigest, CheckpointContents>,
 
     /// Maps checkpoint contents digest to checkpoint sequence number
-    pub(crate) checkpoint_sequence_by_contents_digest:
-        DBMap<CheckpointContentsDigest, CheckpointSequenceNumber>,
+    pub(crate) checkpoint_sequence_by_contents_digest: DBMap<CheckpointContentsDigest, Version>,
 
     /// Stores entire checkpoint contents from state sync, indexed by sequence
     /// number, for efficient reads of full checkpoints. Entries from this
     /// table are deleted after state accumulation has completed.
-    full_checkpoint_content: DBMap<CheckpointSequenceNumber, FullCheckpointContents>,
+    full_checkpoint_content: DBMap<Version, FullCheckpointContents>,
 
     /// Stores certified checkpoints
-    pub(crate) certified_checkpoints: DBMap<CheckpointSequenceNumber, TrustedCheckpoint>,
+    pub(crate) certified_checkpoints: DBMap<Version, TrustedCheckpoint>,
     /// Map from checkpoint digest to certified checkpoint
     pub(crate) checkpoint_by_digest: DBMap<CheckpointDigest, TrustedCheckpoint>,
 
     /// Store locally computed checkpoint summaries so that we can detect forks
     /// and log useful information. Can be pruned as soon as we verify that
     /// we are in agreement with the latest certified checkpoint.
-    pub(crate) locally_computed_checkpoints: DBMap<CheckpointSequenceNumber, CheckpointSummary>,
+    pub(crate) locally_computed_checkpoints: DBMap<Version, CheckpointSummary>,
 
     /// A map from epoch ID to the sequence number of the last checkpoint in
     /// that epoch.
-    epoch_last_checkpoint_map: DBMap<EpochId, CheckpointSequenceNumber>,
+    epoch_last_checkpoint_map: DBMap<EpochId, Version>,
 
     /// Watermarks used to determine the highest verified, fully synced, and
     /// fully executed checkpoints
-    pub(crate) watermarks: DBMap<CheckpointWatermark, (CheckpointSequenceNumber, CheckpointDigest)>,
+    pub(crate) watermarks: DBMap<CheckpointWatermark, (Version, CheckpointDigest)>,
 }
 
 impl CheckpointStoreTables {
@@ -194,8 +192,8 @@ impl CheckpointStoreTables {
 
 pub struct CheckpointStore {
     pub(crate) tables: CheckpointStoreTables,
-    synced_checkpoint_notify_read: NotifyRead<CheckpointSequenceNumber, VerifiedCheckpoint>,
-    executed_checkpoint_notify_read: NotifyRead<CheckpointSequenceNumber, VerifiedCheckpoint>,
+    synced_checkpoint_notify_read: NotifyRead<Version, VerifiedCheckpoint>,
+    executed_checkpoint_notify_read: NotifyRead<Version, VerifiedCheckpoint>,
 }
 
 impl CheckpointStore {
@@ -280,7 +278,7 @@ impl CheckpointStore {
 
     pub fn get_checkpoint_by_sequence_number(
         &self,
-        sequence_number: CheckpointSequenceNumber,
+        sequence_number: Version,
     ) -> Result<Option<VerifiedCheckpoint>, TypedStoreError> {
         self.tables
             .certified_checkpoints
@@ -290,7 +288,7 @@ impl CheckpointStore {
 
     pub fn get_locally_computed_checkpoint(
         &self,
-        sequence_number: CheckpointSequenceNumber,
+        sequence_number: Version,
     ) -> Result<Option<CheckpointSummary>, TypedStoreError> {
         self.tables
             .locally_computed_checkpoints
@@ -300,7 +298,7 @@ impl CheckpointStore {
     pub fn get_sequence_number_by_contents_digest(
         &self,
         digest: &CheckpointContentsDigest,
-    ) -> Result<Option<CheckpointSequenceNumber>, TypedStoreError> {
+    ) -> Result<Option<Version>, TypedStoreError> {
         self.tables
             .checkpoint_sequence_by_contents_digest
             .get(digest)
@@ -341,7 +339,7 @@ impl CheckpointStore {
 
     pub fn multi_get_checkpoint_by_sequence_number(
         &self,
-        sequence_numbers: &[CheckpointSequenceNumber],
+        sequence_numbers: &[Version],
     ) -> Result<Vec<Option<VerifiedCheckpoint>>, TypedStoreError> {
         let checkpoints = self
             .tables
@@ -393,7 +391,7 @@ impl CheckpointStore {
 
     pub fn get_highest_synced_checkpoint_seq_number(
         &self,
-    ) -> Result<Option<CheckpointSequenceNumber>, TypedStoreError> {
+    ) -> Result<Option<Version>, TypedStoreError> {
         if let Some(highest_synced) = self
             .tables
             .watermarks
@@ -407,7 +405,7 @@ impl CheckpointStore {
 
     pub fn get_highest_executed_checkpoint_seq_number(
         &self,
-    ) -> Result<Option<CheckpointSequenceNumber>, TypedStoreError> {
+    ) -> Result<Option<Version>, TypedStoreError> {
         if let Some(highest_executed) = self
             .tables
             .watermarks
@@ -434,9 +432,7 @@ impl CheckpointStore {
         self.get_checkpoint_by_digest(&highest_executed.1)
     }
 
-    pub fn get_highest_pruned_checkpoint_seq_number(
-        &self,
-    ) -> Result<CheckpointSequenceNumber, TypedStoreError> {
+    pub fn get_highest_pruned_checkpoint_seq_number(&self) -> Result<Version, TypedStoreError> {
         Ok(self
             .tables
             .watermarks
@@ -454,7 +450,7 @@ impl CheckpointStore {
 
     pub fn get_full_checkpoint_contents_by_sequence_number(
         &self,
-        seq: CheckpointSequenceNumber,
+        seq: Version,
     ) -> Result<Option<FullCheckpointContents>, TypedStoreError> {
         self.tables.full_checkpoint_content.get(&seq)
     }
@@ -632,12 +628,12 @@ impl CheckpointStore {
 
     async fn notify_read_checkpoint_watermark<F>(
         &self,
-        notify_read: &NotifyRead<CheckpointSequenceNumber, VerifiedCheckpoint>,
-        seq: CheckpointSequenceNumber,
+        notify_read: &NotifyRead<Version, VerifiedCheckpoint>,
+        seq: Version,
         get_watermark: F,
     ) -> VerifiedCheckpoint
     where
-        F: Fn() -> Option<CheckpointSequenceNumber>,
+        F: Fn() -> Option<Version>,
     {
         type ReadResult = Result<Vec<Option<VerifiedCheckpoint>>, TypedStoreError>;
 
@@ -663,10 +659,7 @@ impl CheckpointStore {
             .unwrap()
     }
 
-    pub async fn notify_read_synced_checkpoint(
-        &self,
-        seq: CheckpointSequenceNumber,
-    ) -> VerifiedCheckpoint {
+    pub async fn notify_read_synced_checkpoint(&self, seq: Version) -> VerifiedCheckpoint {
         self.notify_read_checkpoint_watermark(&self.synced_checkpoint_notify_read, seq, || {
             self.get_highest_synced_checkpoint_seq_number()
                 .expect("db error")
@@ -674,10 +667,7 @@ impl CheckpointStore {
         .await
     }
 
-    pub async fn notify_read_executed_checkpoint(
-        &self,
-        seq: CheckpointSequenceNumber,
-    ) -> VerifiedCheckpoint {
+    pub async fn notify_read_executed_checkpoint(&self, seq: Version) -> VerifiedCheckpoint {
         self.notify_read_checkpoint_watermark(&self.executed_checkpoint_notify_read, seq, || {
             self.get_highest_executed_checkpoint_seq_number()
                 .expect("db error")
@@ -777,10 +767,7 @@ impl CheckpointStore {
         batch.write()
     }
 
-    pub fn delete_full_checkpoint_contents(
-        &self,
-        seq: CheckpointSequenceNumber,
-    ) -> Result<(), TypedStoreError> {
+    pub fn delete_full_checkpoint_contents(&self, seq: Version) -> Result<(), TypedStoreError> {
         self.tables.full_checkpoint_content.remove(&seq)
     }
 
@@ -1006,7 +993,7 @@ pub struct CheckpointBuilder {
     epoch_store: Arc<AuthorityPerEpochStore>,
     notify: Arc<Notify>,
     notify_aggregator: Arc<Notify>,
-    last_built: watch::Sender<CheckpointSequenceNumber>,
+    last_built: watch::Sender<Version>,
     effects_store: Arc<dyn TransactionCacheRead>,
     accumulator: Weak<StateAccumulator>,
     output: Box<dyn CheckpointOutput>,
@@ -1047,7 +1034,7 @@ impl CheckpointBuilder {
         accumulator: Weak<StateAccumulator>,
         output: Box<dyn CheckpointOutput>,
         notify_aggregator: Arc<Notify>,
-        last_built: watch::Sender<CheckpointSequenceNumber>,
+        last_built: watch::Sender<Version>,
         metrics: Arc<CheckpointMetrics>,
         max_transactions_per_checkpoint: usize,
         max_checkpoint_size_bytes: usize,
@@ -1170,10 +1157,7 @@ impl CheckpointBuilder {
     }
 
     #[instrument(level = "debug", skip_all, fields(last_height = pendings.last().unwrap().details().checkpoint_height))]
-    async fn make_checkpoint(
-        &self,
-        pendings: Vec<PendingCheckpoint>,
-    ) -> anyhow::Result<CheckpointSequenceNumber> {
+    async fn make_checkpoint(&self, pendings: Vec<PendingCheckpoint>) -> anyhow::Result<Version> {
         let last_details = pendings.last().unwrap().details().clone();
 
         // Keeps track of the effects that are already included in the current
@@ -1467,7 +1451,7 @@ impl CheckpointBuilder {
     fn load_last_built_checkpoint_summary(
         epoch_store: &AuthorityPerEpochStore,
         store: &CheckpointStore,
-    ) -> IotaResult<Option<(CheckpointSequenceNumber, CheckpointSummary)>> {
+    ) -> IotaResult<Option<(Version, CheckpointSummary)>> {
         let mut last_checkpoint = epoch_store.last_built_checkpoint_summary()?;
         if last_checkpoint.is_none() {
             let epoch = epoch_store.epoch();
@@ -1771,7 +1755,7 @@ impl CheckpointBuilder {
         epoch_start_timestamp_ms: CheckpointTimestamp,
         checkpoint_effects: &mut Vec<TransactionEffects>,
         signatures: &mut Vec<Vec<GenericSignature>>,
-        checkpoint: CheckpointSequenceNumber,
+        checkpoint: Version,
     ) -> anyhow::Result<(IotaSystemState, Option<SystemEpochInfoEvent>)> {
         let (system_state, system_epoch_info_event, effects) = self
             .state
@@ -2096,7 +2080,7 @@ impl CheckpointAggregator {
         Ok(result)
     }
 
-    fn next_checkpoint_to_certify(&self) -> IotaResult<CheckpointSequenceNumber> {
+    fn next_checkpoint_to_certify(&self) -> IotaResult<Version> {
         Ok(self
             .store
             .tables
@@ -2424,10 +2408,10 @@ pub struct CheckpointService {
     notify_aggregator: Arc<Notify>,
     last_signature_index: Mutex<u64>,
     // A notification for the current highest built sequence number.
-    highest_currently_built_seq_tx: watch::Sender<CheckpointSequenceNumber>,
+    highest_currently_built_seq_tx: watch::Sender<Version>,
     // The highest sequence number that had already been built at the time CheckpointService
     // was constructed
-    highest_previously_built_seq: CheckpointSequenceNumber,
+    highest_previously_built_seq: Version,
     metrics: Arc<CheckpointMetrics>,
     state: Mutex<CheckpointServiceState>,
 }
@@ -2666,7 +2650,7 @@ mod tests {
     use iota_macros::sim_test;
     use iota_protocol_config::{Chain, ProtocolConfig};
     use iota_types::{
-        base_types::{ObjectID, SequenceNumber, TransactionEffectsDigest},
+        base_types::{ObjectId, TransactionEffectsDigest, Version},
         crypto::Signature,
         digests::TransactionEventsDigest,
         effects::{TransactionEffects, TransactionEvents},
@@ -2697,8 +2681,8 @@ mod tests {
             vec![GenesisObject::RawObject {
                 data: object::Data::Package(
                     MovePackage::new(
-                        ObjectID::random(),
-                        SequenceNumber::new(),
+                        ObjectId::new(rand::random()),
+                        Version::default(),
                         BTreeMap::from([(format!("{:0>40000}", "1"), Vec::new())]),
                         100_000,
                         // no modules so empty type_origin_table as no types are defined in this

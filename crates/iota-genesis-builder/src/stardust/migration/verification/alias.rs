@@ -8,7 +8,7 @@ use iota_sdk::types::block::output as stardust;
 use iota_types::{
     TypeTag,
     balance::Balance,
-    base_types::{IotaAddress, ObjectID},
+    base_types::{Address, ObjectId},
     dynamic_field::{DynamicFieldInfo, Field, derive_dynamic_field_id},
     in_memory_storage::InMemoryStorage,
     object::Owner,
@@ -41,7 +41,7 @@ pub(super) fn verify_alias_output(
     tokens_counter: &mut TokensAmountCounter,
     address_swap_map: &AddressSwapMap,
 ) -> anyhow::Result<()> {
-    let alias_id = ObjectID::new(*output.alias_id_non_null(&output_id));
+    let alias_id = ObjectId::new(*output.alias_id_non_null(&output_id));
 
     let created_output_obj = created_objects.output().and_then(|id| {
         storage
@@ -112,7 +112,7 @@ pub(super) fn verify_alias_output(
     let expected_state_controller = output
         .state_controller_address()
         .to_string()
-        .parse::<IotaAddress>()?;
+        .parse::<Address>()?;
     ensure!(
         created_alias.legacy_state_controller == expected_state_controller,
         "legacy state controller mismatch: found {}, expected {}",

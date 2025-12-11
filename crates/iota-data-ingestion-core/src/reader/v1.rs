@@ -13,9 +13,7 @@ use std::{
 use backoff::backoff::Backoff;
 use futures::StreamExt;
 use iota_metrics::spawn_monitored_task;
-use iota_types::{
-    full_checkpoint_content::CheckpointData, messages_checkpoint::CheckpointSequenceNumber,
-};
+use iota_types::{base_types::Version, full_checkpoint_content::CheckpointData};
 use object_store::ObjectStore;
 use tap::pipe::Pipe;
 use tokio::{
@@ -43,10 +41,10 @@ pub struct CheckpointReader {
     path: PathBuf,
     remote_store_url: Option<String>,
     remote_store_options: Vec<(String, String)>,
-    current_checkpoint_number: CheckpointSequenceNumber,
-    last_pruned_watermark: CheckpointSequenceNumber,
+    current_checkpoint_number: Version,
+    last_pruned_watermark: Version,
     checkpoint_sender: mpsc::Sender<Arc<CheckpointData>>,
-    processed_receiver: mpsc::Receiver<CheckpointSequenceNumber>,
+    processed_receiver: mpsc::Receiver<Version>,
     remote_fetcher_receiver: Option<mpsc::Receiver<CheckpointResult>>,
     exit_receiver: oneshot::Receiver<()>,
     options: ReaderOptions,
@@ -54,7 +52,7 @@ pub struct CheckpointReader {
 }
 
 impl LocalRead for CheckpointReader {
-    fn exceeds_capacity(&self, checkpoint_number: CheckpointSequenceNumber) -> bool {
+    fn exceeds_capacity(&self, checkpoint_number: Version) -> bool {
         ((MAX_CHECKPOINTS_IN_PROGRESS as u64 + self.last_pruned_watermark) <= checkpoint_number)
             || self.data_limiter.exceeds()
     }
@@ -63,11 +61,11 @@ impl LocalRead for CheckpointReader {
         &self.path
     }
 
-    fn current_checkpoint_number(&self) -> CheckpointSequenceNumber {
+    fn current_checkpoint_number(&self) -> Version {
         self.current_checkpoint_number
     }
 
-    fn update_last_pruned_watermark(&mut self, watermark: CheckpointSequenceNumber) {
+    fn update_last_pruned_watermark(&mut self, watermark: Version) {
         self.last_pruned_watermark = watermark;
     }
 }
@@ -116,7 +114,7 @@ enum RemoteStore {
 impl CheckpointReader {
     async fn remote_fetch_checkpoint_internal(
         store: &RemoteStore,
-        checkpoint_number: CheckpointSequenceNumber,
+        checkpoint_number: Version,
     ) -> CheckpointResult {
         match store {
             RemoteStore::ObjectStore(store) => {
@@ -134,7 +132,7 @@ impl CheckpointReader {
 
     async fn remote_fetch_checkpoint(
         store: &RemoteStore,
-        checkpoint_number: CheckpointSequenceNumber,
+        checkpoint_number: Version,
     ) -> CheckpointResult {
         let mut backoff = backoff::ExponentialBackoff::default();
         backoff.max_elapsed_time = Some(Duration::from_secs(60));
@@ -275,14 +273,14 @@ impl CheckpointReader {
 
     pub fn initialize(
         path: PathBuf,
-        starting_checkpoint_number: CheckpointSequenceNumber,
+        starting_checkpoint_number: Version,
         remote_store_url: Option<String>,
         remote_store_options: Vec<(String, String)>,
         options: ReaderOptions,
     ) -> (
         Self,
         mpsc::Receiver<Arc<CheckpointData>>,
-        mpsc::Sender<CheckpointSequenceNumber>,
+        mpsc::Sender<Version>,
         oneshot::Sender<()>,
     ) {
         let (checkpoint_sender, checkpoint_recv) = mpsc::channel(MAX_CHECKPOINTS_IN_PROGRESS);
@@ -342,7 +340,7 @@ pub struct DataLimiter {
     /// limit.
     limit: usize,
     /// A mapping from checkpoint sequence number to its data size (in bytes)
-    queue: BTreeMap<CheckpointSequenceNumber, usize>,
+    queue: BTreeMap<Version, usize>,
     /// The current total in-progress data size (in bytes).
     in_progress: usize,
 }
@@ -376,7 +374,7 @@ impl DataLimiter {
     /// Performs garbage collection by removing all checkpoints with a sequence
     /// number less than the given `watermark`, and recalculates the total
     /// in-progress size.
-    pub fn gc(&mut self, watermark: CheckpointSequenceNumber) {
+    pub fn gc(&mut self, watermark: Version) {
         if self.limit == 0 {
             return;
         }

@@ -16,8 +16,7 @@ use iota_protocol_config::ProtocolConfig;
 use iota_swarm_config::genesis_config::AccountConfig;
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
-    IOTA_FRAMEWORK_ADDRESS,
-    base_types::{IotaAddress, MoveObjectType, ObjectID},
+    base_types::{Address, MoveObjectType, ObjectId},
     collection_types::VecMap,
     crypto::deterministic_random_account_key,
     digests::TransactionDigest,
@@ -31,6 +30,7 @@ use iota_types::{
     transaction::{CallArg, Command, ObjectArg, TransactionData},
 };
 use move_core_types::{
+    account_address::AccountAddress,
     annotated_value::MoveValue,
     identifier::Identifier,
     language_storage::{StructTag, TypeTag},
@@ -42,15 +42,13 @@ async fn test_nft_display_object() -> Result<(), anyhow::Error> {
     let (address, _) = deterministic_random_account_key();
 
     let nft = Nft {
-        id: UID::new(ObjectID::random()),
-        legacy_sender: Some(IotaAddress::ZERO),
+        id: UID::new(ObjectId::new(rand::random())),
+        legacy_sender: Some(Address::ZERO),
         metadata: Some(String::from("metadata value").into_bytes()),
         tag: Some(String::from("tag value").into_bytes()),
         immutable_issuer: Some(
-            IotaAddress::from_str(
-                "0x1000000000000000002000000000000003000000000000040000000000000005",
-            )
-            .unwrap(),
+            Address::from_str("0x1000000000000000002000000000000003000000000000040000000000000005")
+                .unwrap(),
         ),
         immutable_metadata: Irc27Metadata {
             version: String::from("version value"),
@@ -78,7 +76,7 @@ async fn test_nft_display_object() -> Result<(), anyhow::Error> {
     let nft_object = ObjectInner {
         owner: Owner::AddressOwner(address),
         data: Data::Move(nft_move_object),
-        previous_transaction: TransactionDigest::genesis_marker(),
+        previous_transaction: TransactionDigest::GENESIS_MARKER,
         storage_rebate: 0,
     };
 
@@ -153,7 +151,7 @@ async fn query_events_no_events_descending() {
 
     let indexer_events = client
         .query_events(
-            EventFilter::Sender(IotaAddress::random_for_testing_only()),
+            EventFilter::Sender(Address::new(rand::random())),
             None,
             None,
             Some(true),
@@ -172,7 +170,7 @@ async fn query_events_no_events_ascending() {
 
     let indexer_events = client
         .query_events(
-            EventFilter::Sender(IotaAddress::random_for_testing_only()),
+            EventFilter::Sender(Address::new(rand::random())),
             None,
             None,
             None,
@@ -190,13 +188,13 @@ async fn query_events() {
     let client = cluster.rpc_client();
 
     let result = client
-        .query_events(EventFilter::Sender(IotaAddress::ZERO), None, None, None)
+        .query_events(EventFilter::Sender(Address::ZERO), None, None, None)
         .await;
 
     let event_page = result.unwrap();
 
     for event in event_page.data {
-        assert_eq!(event.sender, IotaAddress::ZERO);
+        assert_eq!(event.sender, Address::ZERO);
     }
 }
 
@@ -223,7 +221,7 @@ async fn query_events_unsupported_filters() {
             path: String::default(),
             value: true.into(),
         },
-        EventFilter::Package(ObjectID::random()),
+        EventFilter::Package(ObjectId::new(rand::random())),
     ];
 
     for event_filter in unsupported_filters {
@@ -462,7 +460,7 @@ async fn test_query_transaction_blocks() -> Result<(), anyhow::Error> {
         .data;
 
     // make 2 move calls of same package & module, but different functions
-    let package_id = ObjectID::new(IOTA_FRAMEWORK_ADDRESS.into_bytes());
+    let package_id = ObjectId::from_address(Address::FRAMEWORK);
     let coin = objects.first().unwrap();
     let coin_2 = &objects[1];
     let signer = cluster.wallet.active_address().unwrap();
@@ -566,7 +564,7 @@ async fn test_get_dynamic_fields() -> Result<(), anyhow::Error> {
     let pt = {
         let mut builder = ProgrammableTransactionBuilder::new();
         let bag = builder.programmable_move_call(
-            ObjectID::new(IOTA_FRAMEWORK_ADDRESS.into_bytes()),
+            ObjectId::from_address(Address::FRAMEWORK),
             Identifier::from_str("bag")?,
             Identifier::from_str("new")?,
             vec![],
@@ -577,7 +575,7 @@ async fn test_get_dynamic_fields() -> Result<(), anyhow::Error> {
         let field_value_argument = builder.pure(0u64).expect("valid pure");
 
         let _ = builder.programmable_move_call(
-            ObjectID::new(IOTA_FRAMEWORK_ADDRESS.into_bytes()),
+            ObjectId::from_address(Address::FRAMEWORK),
             Identifier::from_str("bag")?,
             Identifier::from_str("add")?,
             vec![TypeTag::U64, TypeTag::U64],
@@ -601,7 +599,7 @@ async fn test_get_dynamic_fields() -> Result<(), anyhow::Error> {
             address,
             Some(IotaObjectResponseQuery::new(
                 Some(IotaObjectDataFilter::StructType(StructTag {
-                    address: IOTA_FRAMEWORK_ADDRESS,
+                    address: AccountAddress::new(Address::FRAMEWORK.into_bytes()),
                     module: Identifier::from_str("bag")?,
                     name: Identifier::from_str("Bag")?,
                     type_params: Vec::new(),
@@ -623,7 +621,7 @@ async fn test_get_dynamic_fields() -> Result<(), anyhow::Error> {
 
     // Verify that the dynamic field was successfully added
     let dynamic_fields = rpc_client
-        .get_dynamic_fields(bag_object_ref.0, None, None)
+        .get_dynamic_fields(bag_object_ref.object_id, None, None)
         .await
         .expect("failed to get dynamic fields");
 
@@ -656,7 +654,7 @@ async fn test_get_dynamic_field_object() -> Result<(), anyhow::Error> {
     let pt = {
         let mut builder = ProgrammableTransactionBuilder::new();
         let bag = builder.programmable_move_call(
-            ObjectID::new(IOTA_FRAMEWORK_ADDRESS.into_bytes()),
+            ObjectId::from_address(Address::FRAMEWORK),
             Identifier::from_str("object_bag")?,
             Identifier::from_str("new")?,
             vec![],
@@ -669,13 +667,13 @@ async fn test_get_dynamic_field_object() -> Result<(), anyhow::Error> {
             .unwrap();
 
         let _ = builder.programmable_move_call(
-            ObjectID::new(IOTA_FRAMEWORK_ADDRESS.into_bytes()),
+            ObjectId::from_address(Address::FRAMEWORK),
             Identifier::from_str("object_bag")?,
             Identifier::from_str("add")?,
             vec![
                 TypeTag::U64,
                 TypeTag::Struct(Box::new(StructTag {
-                    address: IOTA_FRAMEWORK_ADDRESS,
+                    address: AccountAddress::new(Address::FRAMEWORK.into_bytes()),
                     module: Identifier::from_str("coin")?,
                     name: Identifier::from_str("Coin")?,
                     type_params: vec![GAS::type_tag()],
@@ -701,7 +699,7 @@ async fn test_get_dynamic_field_object() -> Result<(), anyhow::Error> {
             address,
             Some(IotaObjectResponseQuery::new(
                 Some(IotaObjectDataFilter::StructType(StructTag {
-                    address: IOTA_FRAMEWORK_ADDRESS,
+                    address: AccountAddress::new(Address::FRAMEWORK.into_bytes()),
                     module: Identifier::from_str("object_bag")?,
                     name: Identifier::from_str("ObjectBag")?,
                     type_params: Vec::new(),
@@ -728,7 +726,7 @@ async fn test_get_dynamic_field_object() -> Result<(), anyhow::Error> {
 
     // Verify that the dynamic field was successfully added
     let dynamic_fields = rpc_client
-        .get_dynamic_field_object(bag_object_ref.0, name)
+        .get_dynamic_field_object(bag_object_ref.object_id, name)
         .await
         .expect("failed to get dynamic field object");
 

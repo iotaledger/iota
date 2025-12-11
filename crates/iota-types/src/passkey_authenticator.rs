@@ -21,7 +21,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Deserializer, Serialize};
 
 use crate::{
-    base_types::{EpochId, IotaAddress},
+    base_types::{Address, EpochId, address_from_pub_key},
     crypto::{
         DefaultHash, IotaSignature, IotaSignatureInner, PublicKey, Secp256r1IotaSignature,
         Signature, SignatureScheme,
@@ -244,7 +244,7 @@ impl AuthenticatorTrait for PasskeyAuthenticator {
     fn verify_claims<T>(
         &self,
         intent_msg: &IntentMessage<T>,
-        author: IotaAddress,
+        author: Address,
         _aux_verify_data: &VerifyParams,
         _zklogin_inputs_cache: Arc<VerifiedDigestCache<ZKLoginInputsDigest>>,
     ) -> IotaResult
@@ -252,7 +252,7 @@ impl AuthenticatorTrait for PasskeyAuthenticator {
         T: Serialize,
     {
         // Check if author is derived from the public key.
-        if author != IotaAddress::from(&self.get_pk()?) {
+        if author != address_from_pub_key(&self.get_pk()?) {
             return Err(IotaError::InvalidSignature {
                 error: "Invalid author".to_string(),
             });

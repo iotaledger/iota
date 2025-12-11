@@ -9,7 +9,7 @@ use iota_data_ingestion_core::{
     DataIngestionMetrics, IndexerExecutor, IngestionError, ReaderOptions, ShimProgressStore,
     WorkerPool,
 };
-use iota_types::messages_checkpoint::CheckpointSequenceNumber;
+use iota_types::base_types::Version;
 use prometheus::Registry;
 use tokio::sync::Notify;
 use tokio_util::sync::CancellationToken;
@@ -38,7 +38,7 @@ const PG_COMMIT_CHUNK_SIZE: usize = 100;
 /// buffered records in order, pausing the backfill until the required
 /// checkpoint data arrives (via `notify`), and commit the chunks.
 pub struct IngestionBackfillTask<T: IngestionBackfill> {
-    ready_checkpoints: Arc<DashMap<CheckpointSequenceNumber, Vec<T::ProcessedType>>>,
+    ready_checkpoints: Arc<DashMap<Version, Vec<T::ProcessedType>>>,
     notify: Arc<Notify>,
     _cancel_token: CancellationToken,
 }
@@ -47,7 +47,7 @@ impl<T: IngestionBackfill + 'static> IngestionBackfillTask<T> {
     // Creates and starts a new ingestion‐driven backfill task using processor `T`.
     pub(crate) async fn new(
         config: IngestionConfig,
-        start_checkpoint: CheckpointSequenceNumber,
+        start_checkpoint: Version,
     ) -> Result<Self, IndexerError> {
         let ready_checkpoints = Arc::new(DashMap::new());
         let notify = Arc::new(Notify::new());
@@ -127,10 +127,7 @@ impl<T: IngestionBackfill> Backfill for IngestionBackfillTask<T> {
         let end = *range.end();
 
         while start <= end {
-            if let Some((_, processed)) = self
-                .ready_checkpoints
-                .remove(&(start as CheckpointSequenceNumber))
-            {
+            if let Some((_, processed)) = self.ready_checkpoints.remove(&(start as Version)) {
                 processed_data.extend(processed);
                 start += 1;
             } else {
@@ -167,9 +164,7 @@ mod tests {
     use std::sync::Arc;
 
     use diesel::{RunQueryDsl, sql_query, sql_types::BigInt};
-    use iota_types::{
-        full_checkpoint_content::CheckpointData, messages_checkpoint::CheckpointSequenceNumber,
-    };
+    use iota_types::{base_types::Version, full_checkpoint_content::CheckpointData};
     use tokio::sync::Notify;
     use tokio_util::sync::CancellationToken;
 
@@ -245,7 +240,7 @@ mod tests {
 
             // Simulate ready checkpoints for backfill
             for seq in 0..20 {
-                ready_checkpoints.insert(seq as CheckpointSequenceNumber, vec![seq]);
+                ready_checkpoints.insert(seq as Version, vec![seq]);
             }
 
             // Perform backfill for checkpoint 0..=4

@@ -9,9 +9,10 @@ use std::{
 
 use futures::{Stream, future::Either};
 use iota_common::fatal;
+use iota_sdk_2::types::Version;
 use iota_types::{
     base_types::{TransactionDigest, TransactionEffectsDigest},
-    messages_checkpoint::{CheckpointSequenceNumber, VerifiedCheckpoint},
+    messages_checkpoint::VerifiedCheckpoint,
 };
 use tracing::{debug, error, info, instrument, warn};
 
@@ -20,19 +21,19 @@ use crate::{checkpoints::CheckpointStore, execution_cache::TransactionCacheRead}
 #[instrument(level = "debug", skip_all)]
 pub(super) fn stream_synced_checkpoints(
     checkpoint_store: Arc<CheckpointStore>,
-    start_seq: CheckpointSequenceNumber,
-    stop_seq: Option<CheckpointSequenceNumber>,
+    start_seq: Version,
+    stop_seq: Option<Version>,
 ) -> impl Stream<Item = VerifiedCheckpoint> + 'static {
     let scheduling_timeout_config = get_scheduling_timeout();
     let panic_timeout = scheduling_timeout_config.panic_timeout;
     let warning_timeout = scheduling_timeout_config.warning_timeout;
 
     struct State {
-        current_seq: CheckpointSequenceNumber,
+        current_seq: Version,
         checkpoint_store: Arc<CheckpointStore>,
         warning_timeout: Duration,
         panic_timeout: Option<Duration>,
-        stop_seq: Option<CheckpointSequenceNumber>,
+        stop_seq: Option<Version>,
     }
 
     let state = State {
@@ -73,7 +74,7 @@ pub(super) fn stream_synced_checkpoints(
 
 async fn wait_for_checkpoint(
     checkpoint_store: &CheckpointStore,
-    seq: CheckpointSequenceNumber,
+    seq: Version,
     warning_timeout: Duration,
     panic_timeout: Option<Duration>,
 ) -> VerifiedCheckpoint {

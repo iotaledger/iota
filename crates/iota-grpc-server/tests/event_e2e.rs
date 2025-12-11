@@ -7,7 +7,7 @@ use futures::StreamExt;
 use iota_config::local_ip_utils;
 use iota_grpc_client::{EventClient, NodeClient};
 use iota_grpc_types::v0::{common as grpc_common, events as grpc_events};
-use iota_types::{base_types::ObjectID, effects::TransactionEffectsAPI, transaction::CallArg};
+use iota_types::{base_types::ObjectId, effects::TransactionEffectsAPI, transaction::CallArg};
 use test_cluster::{TestCluster, TestClusterBuilder};
 use tokio::time::timeout;
 
@@ -26,7 +26,7 @@ const OBJECT_ID_FIELD: &str = "object_id";
 const CREATOR_FIELD: &str = "creator";
 const NAME_FIELD: &str = "name";
 
-async fn setup_test_cluster() -> (TestCluster, EventClient, ObjectID, ObjectID) {
+async fn setup_test_cluster() -> (TestCluster, EventClient, ObjectId, ObjectId) {
     let localhost = local_ip_utils::localhost_for_testing();
     let grpc_port = local_ip_utils::get_available_port(&localhost);
     let grpc_addr = format!("{localhost}:{grpc_port}");
@@ -65,7 +65,7 @@ async fn setup_test_cluster() -> (TestCluster, EventClient, ObjectID, ObjectID) 
         .created()
         .iter()
         .find(|obj| obj.1.is_immutable())
-        .map(|obj| obj.0.0)
+        .map(|obj| obj.0.object_id)
         .expect("Should have created NFT package");
 
     // Publish basics package
@@ -85,7 +85,7 @@ async fn setup_test_cluster() -> (TestCluster, EventClient, ObjectID, ObjectID) 
         .created()
         .iter()
         .find(|obj| obj.1.is_immutable())
-        .map(|obj| obj.0.0)
+        .map(|obj| obj.0.object_id)
         .expect("Should have created basics package");
 
     (cluster, event_client, nft_package_id, basics_package_id)
@@ -114,7 +114,7 @@ async fn test_event_filtering_and_bcs_serialization() {
     let sender_filter = grpc_events::EventFilter {
         filter: Some(Filter::Sender(grpc_events::SenderFilter {
             sender: Some(grpc_common::Address {
-                address: sender_1.to_vec(),
+                address: sender_1.as_bytes().to_vec(),
             }),
         })),
     };
@@ -128,7 +128,7 @@ async fn test_event_filtering_and_bcs_serialization() {
     let nft_filter = grpc_events::EventFilter {
         filter: Some(Filter::MoveEventType(grpc_events::MoveEventTypeFilter {
             package_id: Some(grpc_common::Address {
-                address: nft_package_id.to_vec(),
+                address: nft_package_id.as_bytes().to_vec(),
             }),
             module: NFT_MODULE.to_string(),
             name: NFT_MINTED_EVENT.to_string(),

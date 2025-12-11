@@ -6,13 +6,13 @@ use std::str::FromStr;
 
 use anyhow::anyhow;
 use iota_types::{
-    IOTA_FRAMEWORK_ADDRESS, MOVE_STDLIB_ADDRESS,
-    base_types::{IotaAddress, ObjectDigest, ObjectID, SequenceNumber},
+    base_types::{Address, ObjectDigest, ObjectId, Version},
     gas_coin::GasCoin,
     object::{MoveObject, Owner},
     parse_iota_struct_tag,
 };
 use move_core_types::{
+    account_address::AccountAddress,
     annotated_value::{MoveStruct, MoveValue},
     ident_str,
     identifier::Identifier,
@@ -24,11 +24,11 @@ use crate::{IotaMoveStruct, IotaMoveValue, ObjectChange};
 
 #[test]
 fn test_move_value_to_iota_coin() {
-    let id = ObjectID::random();
+    let id = ObjectId::new(rand::random());
     let value = 10000;
     let coin = GasCoin::new(id, value);
 
-    let move_object = MoveObject::new_gas_coin(SequenceNumber::new(), id, value);
+    let move_object = MoveObject::new_gas_coin(Version::default(), id, value);
     let layout = GasCoin::layout();
 
     let move_struct = move_object.to_move_struct(&layout).unwrap();
@@ -49,7 +49,7 @@ fn test_move_value_to_string() {
 
     let move_value = MoveValue::Struct(MoveStruct {
         type_: StructTag {
-            address: MOVE_STDLIB_ADDRESS,
+            address: AccountAddress::new(Address::STD_LIB.into_bytes()),
             module: ident_str!("string").to_owned(),
             name: ident_str!("String").to_owned(),
             type_params: vec![],
@@ -67,7 +67,7 @@ fn test_option() {
     // bugfix for https://github.com/iotaledger/iota/issues/4995
     let option = MoveValue::Struct(MoveStruct {
         type_: StructTag {
-            address: MOVE_STDLIB_ADDRESS,
+            address: AccountAddress::new(Address::STD_LIB.into_bytes()),
             module: Identifier::from_str("option").unwrap(),
             name: Identifier::from_str("Option").unwrap(),
             type_params: vec![TypeTag::U8],
@@ -95,7 +95,7 @@ fn test_move_value_to_url() {
 
     let string_move_value = MoveValue::Struct(MoveStruct {
         type_: StructTag {
-            address: MOVE_STDLIB_ADDRESS,
+            address: AccountAddress::new(Address::STD_LIB.into_bytes()),
             module: ident_str!("string").to_owned(),
             name: ident_str!("String").to_owned(),
             type_params: vec![],
@@ -105,7 +105,7 @@ fn test_move_value_to_url() {
 
     let url_move_value = MoveValue::Struct(MoveStruct {
         type_: StructTag {
-            address: IOTA_FRAMEWORK_ADDRESS,
+            address: AccountAddress::new(Address::FRAMEWORK.into_bytes()),
             module: ident_str!("url").to_owned(),
             name: ident_str!("Url").to_owned(),
             type_params: vec![],
@@ -123,10 +123,10 @@ fn test_serde() {
     let test_values = [
         IotaMoveValue::Number(u32::MAX),
         IotaMoveValue::UID {
-            id: ObjectID::random(),
+            id: ObjectId::new(rand::random()),
         },
         IotaMoveValue::String("some test string".to_string()),
-        IotaMoveValue::Address(IotaAddress::random_for_testing_only()),
+        IotaMoveValue::Address(Address::new(rand::random())),
         IotaMoveValue::Bool(true),
         IotaMoveValue::Option(Box::new(None)),
         IotaMoveValue::Vector(vec![
@@ -186,12 +186,12 @@ fn test_type_tag_struct_tag_devnet_inc_222() {
 
     for tag in offending_tags {
         let oc = ObjectChange::Created {
-            sender: Default::default(),
+            sender: Address::ZERO,
             owner: Owner::Immutable,
             object_type: parse_iota_struct_tag(tag).unwrap(),
-            object_id: ObjectID::random(),
+            object_id: ObjectId::new(rand::random()),
             version: Default::default(),
-            digest: ObjectDigest::random(),
+            digest: ObjectDigest::new(rand::random()),
         };
 
         let serde_json = serde_json::to_string(&oc).unwrap();

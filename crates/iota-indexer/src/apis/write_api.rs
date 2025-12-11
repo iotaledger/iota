@@ -18,7 +18,7 @@ use iota_open_rpc::Module;
 use iota_protocol_config::Chain;
 use iota_transaction_builder::TransactionBuilder;
 use iota_types::{
-    base_types::IotaAddress, iota_serde::BigInt, quorum_driver_types::ExecuteTransactionRequestType,
+    base_types::Address, iota_serde::BigInt, quorum_driver_types::ExecuteTransactionRequestType,
 };
 use jsonrpsee::{RpcModule, core::RpcResult, http_client::HttpClient};
 
@@ -90,7 +90,7 @@ impl WriteApiServer for WriteApi {
 
     async fn dev_inspect_transaction_block(
         &self,
-        sender_address: IotaAddress,
+        sender_address: Address,
         tx_bytes: Base64,
         gas_price: Option<BigInt<u64>>,
         epoch: Option<BigInt<u64>>,
@@ -129,7 +129,7 @@ impl WriteApiServer for WriteApi {
             module,
             function,
         } = function_name.as_str().parse().map_err(IndexerError::from)?;
-        let sender = IotaAddress::ZERO;
+        let sender = Address::ZERO;
         let tx_kind = self
             .transaction_builder
             .move_view_call_tx_kind(
@@ -176,7 +176,7 @@ impl WriteApiServer for OptimisticWriteApi {
 
     async fn dev_inspect_transaction_block(
         &self,
-        sender_address: IotaAddress,
+        sender_address: Address,
         tx_bytes: Base64,
         gas_price: Option<BigInt<u64>>,
         epoch: Option<BigInt<u64>>,

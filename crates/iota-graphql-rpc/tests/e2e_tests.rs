@@ -18,8 +18,9 @@ mod tests {
     use iota_indexer::{
         run_query_async, schema::optimistic_transactions, spawn_read_only_blocking,
     };
+    use iota_sdk_2::types::Address;
     use iota_types::{
-        IOTA_FRAMEWORK_ADDRESS, IOTA_FRAMEWORK_PACKAGE_ID, STARDUST_ADDRESS,
+        base_types::address_from_pub_key,
         digests::{ChainIdentifier, TransactionDigest},
         gas_coin::GAS,
         transaction::{CallArg, ObjectArg, Transaction, TransactionDataAPI},
@@ -258,7 +259,7 @@ mod tests {
                 .unwrap()
                 .as_str()
                 .unwrap(),
-            IOTA_FRAMEWORK_ADDRESS.to_canonical_string(true)
+            Address::FRAMEWORK.to_canonical_string(true)
         );
         assert_eq!(
             data.get("obj2")
@@ -267,7 +268,7 @@ mod tests {
                 .unwrap()
                 .as_str()
                 .unwrap(),
-            STARDUST_ADDRESS.to_canonical_string(true)
+            Address::STARDUST.to_canonical_string(true)
         );
 
         let bad_variables = vec![
@@ -558,7 +559,7 @@ mod tests {
         use iota_sdk_2::types::crypto::{Intent, IntentMessage};
         use iota_test_transaction_builder::TestTransactionBuilder;
         use iota_types::{
-            base_types::IotaAddress, crypto::Signature, signature::GenericSignature,
+            base_types::Address, crypto::Signature, signature::GenericSignature,
             utils::load_test_vectors, zk_login_authenticator::ZkLoginAuthenticator,
         };
 
@@ -582,13 +583,13 @@ mod tests {
             &load_test_vectors("../iota-types/src/unit_tests/zklogin_test_vectors.json").unwrap()
                 [1];
 
-        let zklogin_addr = (pk_zklogin).into();
+        let zklogin_addr = address_from_pub_key(pk_zklogin);
         let rgp = test_cluster.get_reference_gas_price().await;
         let gas = test_cluster
             .fund_address_and_return_gas(rgp, Some(20000000000), zklogin_addr)
             .await;
         let tx_data = TestTransactionBuilder::new(zklogin_addr, gas, rgp)
-            .transfer_iota(None, IotaAddress::ZERO)
+            .transfer_iota(None, Address::ZERO)
             .build();
         let msg = IntentMessage::new(Intent::iota_transaction(), tx_data.clone());
         let eph_sig = Signature::new_secure(&msg, kp);
@@ -873,7 +874,7 @@ mod tests {
             .await
             // A split coin that goes nowhere -> execution failure
             .move_call(
-                IOTA_FRAMEWORK_PACKAGE_ID,
+                Address::FRAMEWORK.into(),
                 "coin",
                 "split",
                 vec![

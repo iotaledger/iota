@@ -5,8 +5,7 @@
 use std::{fmt::Formatter, sync::LazyLock};
 
 use iota_types::{
-    IOTA_FRAMEWORK_PACKAGE_ID, IOTA_SYSTEM_PACKAGE_ID, MOVE_STDLIB_PACKAGE_ID, STARDUST_PACKAGE_ID,
-    base_types::{ObjectID, ObjectRef},
+    base_types::{Address, ObjectId, ObjectReference},
     digests::TransactionDigest,
     move_package::MovePackage,
     object::{OBJECT_START_VERSION, Object},
@@ -34,18 +33,18 @@ pub struct SystemPackageMetadata {
 /// id or compiled bytecode).
 #[derive(Clone, Serialize, PartialEq, Eq, Deserialize)]
 pub struct SystemPackage {
-    pub id: ObjectID,
+    pub id: ObjectId,
     pub bytes: Vec<Vec<u8>>,
-    pub dependencies: Vec<ObjectID>,
+    pub dependencies: Vec<ObjectId>,
 }
 
 impl SystemPackageMetadata {
     pub fn new(
         name: impl ToString,
         path: impl ToString,
-        id: ObjectID,
+        id: ObjectId,
         raw_bytes: &'static [u8],
-        dependencies: &[ObjectID],
+        dependencies: &[ObjectId],
     ) -> Self {
         SystemPackageMetadata {
             name: name.to_string(),
@@ -56,7 +55,7 @@ impl SystemPackageMetadata {
 }
 
 impl SystemPackage {
-    pub fn new(id: ObjectID, raw_bytes: &'static [u8], dependencies: &[ObjectID]) -> Self {
+    pub fn new(id: ObjectId, raw_bytes: &'static [u8], dependencies: &[ObjectId]) -> Self {
         let bytes: Vec<Vec<u8>> = bcs::from_bytes(raw_bytes).unwrap();
         Self {
             id,
@@ -85,7 +84,7 @@ impl SystemPackage {
             &self.modules(),
             OBJECT_START_VERSION,
             self.dependencies.to_vec(),
-            TransactionDigest::genesis_marker(),
+            TransactionDigest::GENESIS_MARKER,
         )
     }
 }
@@ -124,34 +123,45 @@ impl BuiltInFramework {
         // TODO: Is it possible to derive dependencies from the bytecode instead of
         // manually specifying them?
         define_system_package_metadata!([
-            (MOVE_STDLIB_PACKAGE_ID, "MoveStdlib", "move-stdlib", []),
             (
-                IOTA_FRAMEWORK_PACKAGE_ID,
+                ObjectId::from(Address::STD_LIB),
+                "MoveStdlib",
+                "move-stdlib",
+                []
+            ),
+            (
+                ObjectId::from(Address::FRAMEWORK),
                 "Iota",
                 "iota-framework",
-                [MOVE_STDLIB_PACKAGE_ID]
+                [ObjectId::from(Address::STD_LIB)]
             ),
             (
-                IOTA_SYSTEM_PACKAGE_ID,
+                ObjectId::from(Address::SYSTEM),
                 "IotaSystem",
                 "iota-system",
-                [MOVE_STDLIB_PACKAGE_ID, IOTA_FRAMEWORK_PACKAGE_ID]
+                [
+                    ObjectId::from(Address::STD_LIB),
+                    ObjectId::from(Address::FRAMEWORK)
+                ]
             ),
             (
-                STARDUST_PACKAGE_ID,
+                ObjectId::from(Address::STARDUST),
                 "Stardust",
                 "stardust",
-                [MOVE_STDLIB_PACKAGE_ID, IOTA_FRAMEWORK_PACKAGE_ID]
+                [
+                    ObjectId::from(Address::STD_LIB),
+                    ObjectId::from(Address::FRAMEWORK)
+                ]
             ),
         ])
         .iter()
     }
 
-    pub fn all_package_ids() -> Vec<ObjectID> {
+    pub fn all_package_ids() -> Vec<ObjectId> {
         Self::iter_system_packages().map(|p| p.id).collect()
     }
 
-    pub fn get_package_by_id(id: &ObjectID) -> &'static SystemPackage {
+    pub fn get_package_by_id(id: &ObjectId) -> &'static SystemPackage {
         Self::iter_system_packages().find(|s| &s.id == id).unwrap()
     }
 
@@ -188,11 +198,11 @@ pub fn legacy_test_cost() -> InternalGas {
 ///   (indicates support for a protocol upgrade with a framework upgrade).
 pub async fn compare_system_package<S: ObjectStore>(
     object_store: &S,
-    id: &ObjectID,
+    id: &ObjectId,
     modules: &[CompiledModule],
-    dependencies: Vec<ObjectID>,
+    dependencies: Vec<ObjectId>,
     binary_config: &BinaryConfig,
-) -> Option<ObjectRef> {
+) -> Option<ObjectReference> {
     let cur_object = match object_store.try_get_object(id) {
         Ok(Some(cur_object)) => cur_object,
 
@@ -209,7 +219,7 @@ pub async fn compare_system_package<S: ObjectStore>(
                     // Genesis is fine here, we only use it to calculate an object ref that we can
                     // use for all validators to commit to the same bytes in
                     // the update
-                    TransactionDigest::genesis_marker(),
+                    TransactionDigest::GENESIS_MARKER,
                 )
                 .compute_object_reference(),
             );

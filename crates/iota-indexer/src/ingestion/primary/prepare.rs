@@ -13,15 +13,13 @@ use iota_data_ingestion_core::Worker;
 use iota_json_rpc::{ObjectProvider, get_balance_changes_from_effect, get_object_changes};
 use iota_json_rpc_types::IotaTransactionKind;
 use iota_types::{
-    base_types::{ObjectID, SequenceNumber},
+    base_types::{ObjectId, Version},
     digests::TransactionDigest,
     effects::{TransactionEffects, TransactionEffectsAPI},
     event::{SystemEpochInfoEvent, SystemEpochInfoEventV1, SystemEpochInfoEventV2},
     full_checkpoint_content::{CheckpointData, CheckpointTransaction},
     iota_system_state::{IotaSystemStateTrait, get_iota_system_state},
-    messages_checkpoint::{
-        CertifiedCheckpointSummary, CheckpointContents, CheckpointSequenceNumber,
-    },
+    messages_checkpoint::{CertifiedCheckpointSummary, CheckpointContents},
     object::{Object, Owner},
     transaction::{TransactionData, TransactionDataAPI},
 };
@@ -364,7 +362,7 @@ impl PrimaryWorker {
     pub(crate) async fn index_transaction(
         tx: &CheckpointTransaction,
         tx_sequence_number: u64,
-        checkpoint_seq: CheckpointSequenceNumber,
+        checkpoint_seq: Version,
         checkpoint_timestamp_ms: u64,
         metrics: &IndexerMetrics,
     ) -> IndexerResult<IndexedTransactionComponents> {
@@ -451,7 +449,7 @@ impl PrimaryWorker {
         let changed_objects = fx
             .all_changed_objects()
             .into_iter()
-            .map(|(object_ref, _owner, _write_kind)| object_ref.0)
+            .map(|(object_ref, _owner, _write_kind)| object_ref.object_id)
             .collect::<Vec<_>>();
 
         // Wrapped or deleted objects
@@ -483,7 +481,7 @@ impl PrimaryWorker {
         let move_calls = tx
             .move_calls()
             .iter()
-            .map(|(p, m, f)| (*<&ObjectID>::clone(p), m.to_string(), f.to_string()))
+            .map(|(p, m, f)| (*<&ObjectId>::clone(p), m.to_string(), f.to_string()))
             .collect();
 
         let db_tx_indices = TxIndex {
@@ -529,8 +527,8 @@ impl PrimaryWorker {
         let indexed_eventually_removed_objects = eventually_removed_object_refs_post_version
             .into_iter()
             .map(|obj_ref| IndexedDeletedObject {
-                object_id: obj_ref.0,
-                object_version: obj_ref.1.into(),
+                object_id: obj_ref.object_id,
+                object_version: obj_ref.version.into(),
                 checkpoint_sequence_number: checkpoint_seq,
             })
             .collect();
@@ -562,8 +560,8 @@ impl PrimaryWorker {
         let indexed_deleted_objects: Vec<IndexedDeletedObject> = deleted_objects
             .into_iter()
             .map(|obj_ref| IndexedDeletedObject {
-                object_id: obj_ref.0,
-                object_version: obj_ref.1.into(),
+                object_id: obj_ref.object_id,
+                object_version: obj_ref.version.into(),
                 checkpoint_sequence_number: checkpoint_seq,
             })
             .collect();
@@ -629,8 +627,8 @@ impl PrimaryWorker {
 }
 
 pub struct InMemObjectCache {
-    id_map: HashMap<ObjectID, Object>,
-    seq_map: HashMap<(ObjectID, SequenceNumber), Object>,
+    id_map: HashMap<ObjectId, Object>,
+    seq_map: HashMap<(ObjectId, Version), Object>,
 }
 
 impl InMemObjectCache {
@@ -646,7 +644,7 @@ impl InMemObjectCache {
         self.seq_map.insert((obj.id(), obj.version()), obj);
     }
 
-    pub fn get(&self, id: &ObjectID, version: Option<&SequenceNumber>) -> Option<&Object> {
+    pub fn get(&self, id: &ObjectId, version: Option<&Version>) -> Option<&Object> {
         if let Some(version) = version {
             self.seq_map.get(&(*id, *version))
         } else {
@@ -722,11 +720,7 @@ impl InMemTxChanges {
 impl ObjectProvider for InMemTxChanges {
     type Error = IndexerError;
 
-    async fn get_object(
-        &self,
-        id: &ObjectID,
-        version: &SequenceNumber,
-    ) -> Result<Object, Self::Error> {
+    async fn get_object(&self, id: &ObjectId, version: &Version) -> Result<Object, Self::Error> {
         let object = self
             .object_cache
             .get(id, Some(version))
@@ -744,8 +738,8 @@ impl ObjectProvider for InMemTxChanges {
 
     async fn find_object_lt_or_eq_version(
         &self,
-        id: &ObjectID,
-        version: &SequenceNumber,
+        id: &ObjectId,
+        version: &Version,
     ) -> Result<Option<Object>, Self::Error> {
         // First look up the exact version in object_cache.
         let object = self
@@ -803,7 +797,7 @@ impl<'a> EpochEndIndexingObjectStore<'a> {
 impl iota_types::storage::ObjectStore for EpochEndIndexingObjectStore<'_> {
     fn try_get_object(
         &self,
-        object_id: &ObjectID,
+        object_id: &ObjectId,
     ) -> Result<Option<Object>, iota_types::storage::error::Error> {
         Ok(self
             .objects
@@ -815,8 +809,8 @@ impl iota_types::storage::ObjectStore for EpochEndIndexingObjectStore<'_> {
 
     fn try_get_object_by_key(
         &self,
-        object_id: &ObjectID,
-        version: iota_types::base_types::VersionNumber,
+        object_id: &ObjectId,
+        version: Version,
     ) -> Result<Option<Object>, iota_types::storage::error::Error> {
         Ok(self
             .objects

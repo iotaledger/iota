@@ -14,7 +14,7 @@ use crate::{
     digests::{CheckpointContentsDigest, CheckpointDigest, TransactionEventsDigest},
     effects::{TransactionEffects, TransactionEvents},
     messages_checkpoint::{
-        CheckpointContents, CheckpointSequenceNumber, FullCheckpointContents, VerifiedCheckpoint,
+        CheckpointContents, CheckpointVersion, FullCheckpointContents, VerifiedCheckpoint,
         VerifiedCheckpointContents,
     },
     storage::{ReadStore, WriteStore},
@@ -47,7 +47,7 @@ impl ReadStore for SharedInMemoryStore {
 
     fn try_get_checkpoint_by_sequence_number(
         &self,
-        sequence_number: CheckpointSequenceNumber,
+        sequence_number: CheckpointVersion,
     ) -> Result<Option<VerifiedCheckpoint>> {
         self.inner()
             .get_checkpoint_by_sequence_number(sequence_number)
@@ -71,13 +71,13 @@ impl ReadStore for SharedInMemoryStore {
             .pipe(Ok)
     }
 
-    fn try_get_lowest_available_checkpoint(&self) -> Result<CheckpointSequenceNumber> {
+    fn try_get_lowest_available_checkpoint(&self) -> Result<CheckpointVersion> {
         Ok(self.inner().get_lowest_available_checkpoint())
     }
 
     fn try_get_full_checkpoint_contents_by_sequence_number(
         &self,
-        sequence_number: CheckpointSequenceNumber,
+        sequence_number: CheckpointVersion,
     ) -> Result<Option<FullCheckpointContents>> {
         Ok(self
             .inner()
@@ -160,7 +160,7 @@ impl ReadStore for SharedInMemoryStore {
 
     fn try_get_checkpoint_contents_by_sequence_number(
         &self,
-        _sequence_number: CheckpointSequenceNumber,
+        _sequence_number: CheckpointVersion,
     ) -> Result<Option<CheckpointContents>> {
         todo!()
     }
@@ -169,15 +169,15 @@ impl ReadStore for SharedInMemoryStore {
 impl ObjectStore for SharedInMemoryStore {
     fn try_get_object(
         &self,
-        _object_id: &crate::base_types::ObjectID,
+        _object_id: &crate::base_types::ObjectId,
     ) -> Result<Option<crate::object::Object>> {
         todo!()
     }
 
     fn try_get_object_by_key(
         &self,
-        _object_id: &crate::base_types::ObjectID,
-        _version: crate::base_types::VersionNumber,
+        _object_id: &crate::base_types::ObjectId,
+        _version: crate::base_types::Version,
     ) -> Result<Option<crate::object::Object>> {
         todo!()
     }
@@ -228,12 +228,12 @@ impl SharedInMemoryStore {
 
 #[derive(Debug, Default)]
 pub struct InMemoryStore {
-    highest_verified_checkpoint: Option<(CheckpointSequenceNumber, CheckpointDigest)>,
-    highest_synced_checkpoint: Option<(CheckpointSequenceNumber, CheckpointDigest)>,
+    highest_verified_checkpoint: Option<(CheckpointVersion, CheckpointDigest)>,
+    highest_synced_checkpoint: Option<(CheckpointVersion, CheckpointDigest)>,
     checkpoints: HashMap<CheckpointDigest, VerifiedCheckpoint>,
-    full_checkpoint_contents: HashMap<CheckpointSequenceNumber, FullCheckpointContents>,
-    contents_digest_to_sequence_number: HashMap<CheckpointContentsDigest, CheckpointSequenceNumber>,
-    sequence_number_to_digest: HashMap<CheckpointSequenceNumber, CheckpointDigest>,
+    full_checkpoint_contents: HashMap<CheckpointVersion, FullCheckpointContents>,
+    contents_digest_to_sequence_number: HashMap<CheckpointContentsDigest, CheckpointVersion>,
+    sequence_number_to_digest: HashMap<CheckpointVersion, CheckpointDigest>,
     checkpoint_contents: HashMap<CheckpointContentsDigest, CheckpointContents>,
     transactions: HashMap<TransactionDigest, VerifiedTransaction>,
     effects: HashMap<TransactionDigest, TransactionEffects>,
@@ -241,7 +241,7 @@ pub struct InMemoryStore {
 
     epoch_to_committee: Vec<Committee>,
 
-    lowest_checkpoint_number: CheckpointSequenceNumber,
+    lowest_checkpoint_number: CheckpointVersion,
 }
 
 impl InMemoryStore {
@@ -266,7 +266,7 @@ impl InMemoryStore {
 
     pub fn get_checkpoint_by_sequence_number(
         &self,
-        sequence_number: CheckpointSequenceNumber,
+        sequence_number: CheckpointVersion,
     ) -> Option<&VerifiedCheckpoint> {
         self.sequence_number_to_digest
             .get(&sequence_number)
@@ -276,7 +276,7 @@ impl InMemoryStore {
     pub fn get_sequence_number_by_contents_digest(
         &self,
         digest: &CheckpointContentsDigest,
-    ) -> Option<CheckpointSequenceNumber> {
+    ) -> Option<CheckpointVersion> {
         self.contents_digest_to_sequence_number.get(digest).copied()
     }
 
@@ -292,14 +292,11 @@ impl InMemoryStore {
             .and_then(|(_, digest)| self.get_checkpoint_by_digest(digest))
     }
 
-    pub fn get_lowest_available_checkpoint(&self) -> CheckpointSequenceNumber {
+    pub fn get_lowest_available_checkpoint(&self) -> CheckpointVersion {
         self.lowest_checkpoint_number
     }
 
-    pub fn set_lowest_available_checkpoint(
-        &mut self,
-        checkpoint_seq_num: CheckpointSequenceNumber,
-    ) {
+    pub fn set_lowest_available_checkpoint(&mut self, checkpoint_seq_num: CheckpointVersion) {
         self.lowest_checkpoint_number = checkpoint_seq_num;
     }
 
@@ -419,7 +416,7 @@ impl InMemoryStore {
 
     pub fn checkpoint_sequence_number_to_digest(
         &self,
-    ) -> &HashMap<CheckpointSequenceNumber, CheckpointDigest> {
+    ) -> &HashMap<CheckpointVersion, CheckpointDigest> {
         &self.sequence_number_to_digest
     }
 
@@ -483,15 +480,15 @@ impl SingleCheckpointSharedInMemoryStore {
 impl ObjectStore for SingleCheckpointSharedInMemoryStore {
     fn try_get_object(
         &self,
-        _object_id: &crate::base_types::ObjectID,
+        _object_id: &crate::base_types::ObjectId,
     ) -> Result<Option<crate::object::Object>> {
         todo!()
     }
 
     fn try_get_object_by_key(
         &self,
-        _object_id: &crate::base_types::ObjectID,
-        _version: crate::base_types::VersionNumber,
+        _object_id: &crate::base_types::ObjectId,
+        _version: crate::base_types::Version,
     ) -> Result<Option<crate::object::Object>> {
         todo!()
     }
@@ -507,7 +504,7 @@ impl ReadStore for SingleCheckpointSharedInMemoryStore {
 
     fn try_get_checkpoint_by_sequence_number(
         &self,
-        sequence_number: CheckpointSequenceNumber,
+        sequence_number: CheckpointVersion,
     ) -> Result<Option<VerifiedCheckpoint>> {
         self.0
             .try_get_checkpoint_by_sequence_number(sequence_number)
@@ -521,13 +518,13 @@ impl ReadStore for SingleCheckpointSharedInMemoryStore {
         self.0.try_get_highest_synced_checkpoint()
     }
 
-    fn try_get_lowest_available_checkpoint(&self) -> Result<CheckpointSequenceNumber> {
+    fn try_get_lowest_available_checkpoint(&self) -> Result<CheckpointVersion> {
         self.0.try_get_lowest_available_checkpoint()
     }
 
     fn try_get_full_checkpoint_contents_by_sequence_number(
         &self,
-        sequence_number: CheckpointSequenceNumber,
+        sequence_number: CheckpointVersion,
     ) -> Result<Option<FullCheckpointContents>> {
         self.0
             .try_get_full_checkpoint_contents_by_sequence_number(sequence_number)
@@ -578,7 +575,7 @@ impl ReadStore for SingleCheckpointSharedInMemoryStore {
 
     fn try_get_checkpoint_contents_by_sequence_number(
         &self,
-        _sequence_number: CheckpointSequenceNumber,
+        _sequence_number: CheckpointVersion,
     ) -> Result<Option<CheckpointContents>> {
         todo!()
     }

@@ -5,7 +5,7 @@
 use async_trait::async_trait;
 use futures::future::join_all;
 use iota_types::{
-    base_types::IotaAddress,
+    base_types::{Address, address_from_pub_key},
     crypto::{EncodeDecodeBase64, IotaKeyPair},
     quorum_driver_types::ExecuteTransactionRequestType,
     transaction::TransactionData,
@@ -30,7 +30,7 @@ impl<'a> ProcessPayload<'a, &'a PayIota> for RpcCommandProcessor {
             gas_budget,
             gas_payment,
         } = signer_info.clone().unwrap();
-        let recipient = IotaAddress::random_for_testing_only();
+        let recipient = Address::new(rand::random());
         let amount = 1;
         let gas_budget = gas_budget.unwrap_or(DEFAULT_GAS_BUDGET);
         let gas_payments = gas_payment.unwrap();
@@ -43,7 +43,7 @@ impl<'a> ProcessPayload<'a, &'a PayIota> for RpcCommandProcessor {
             gas_payments.len()
         );
 
-        let sender = IotaAddress::from(&keypair.public());
+        let sender = address_from_pub_key(&keypair.public());
         // TODO: For write operations, we usually just want to submit the transaction to
         // fullnode Let's figure out what's the best way to support other mode
         // later

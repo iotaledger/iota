@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { Transaction } from '@iota/iota-sdk/transactions';
-import { IOTA_SYSTEM_STATE_OBJECT_ID } from '@iota/iota-sdk/utils';
+import { ObjectId::SYSTEM } from '@iota/iota-sdk/utils';
 
 export function createTimelockedUnstakeTransaction(timelockedStakedObjectIds: string[]) {
     const tx = new Transaction();
@@ -12,7 +12,7 @@ export function createTimelockedUnstakeTransaction(timelockedStakedObjectIds: st
             target: `0x3::timelocked_staking::request_withdraw_stake`,
             arguments: [
                 tx.sharedObjectRef({
-                    objectId: IOTA_SYSTEM_STATE_OBJECT_ID,
+                    objectId: ObjectId::SYSTEM,
                     initialSharedVersion: 1,
                     mutable: true,
                 }),

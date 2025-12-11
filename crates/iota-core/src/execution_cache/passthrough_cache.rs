@@ -9,14 +9,13 @@ use iota_common::sync::notify_read::NotifyRead;
 use iota_storage::package_object_cache::PackageObjectCache;
 use iota_types::{
     accumulator::Accumulator,
-    base_types::{EpochId, ObjectID, ObjectRef, SequenceNumber, VerifiedExecutionData},
+    base_types::{EpochId, ObjectId, ObjectReference, VerifiedExecutionData, Version},
     digests::{TransactionDigest, TransactionEffectsDigest, TransactionEventsDigest},
     effects::{TransactionEffects, TransactionEvents},
     error::{IotaError, IotaResult},
     executable_transaction::VerifiedExecutableTransaction,
     iota_system_state::{IotaSystemState, get_iota_system_state},
     message_envelope::Message,
-    messages_checkpoint::CheckpointSequenceNumber,
     object::Object,
     storage::{MarkerValue, ObjectKey, ObjectOrTombstone, ObjectStore, PackageObject},
     transaction::{VerifiedSignedTransaction, VerifiedTransaction},
@@ -92,26 +91,26 @@ impl PassthroughCache {
 
 impl ObjectCacheRead for PassthroughCache {
     #[instrument(level = "trace", skip_all, fields(package_id))]
-    fn try_get_package_object(&self, package_id: &ObjectID) -> IotaResult<Option<PackageObject>> {
+    fn try_get_package_object(&self, package_id: &ObjectId) -> IotaResult<Option<PackageObject>> {
         self.package_cache
             .get_package_object(package_id, &*self.store)
     }
 
-    fn force_reload_system_packages(&self, system_package_ids: &[ObjectID]) {
+    fn force_reload_system_packages(&self, system_package_ids: &[ObjectId]) {
         self.package_cache
             .force_reload_system_packages(system_package_ids.iter().cloned(), self);
     }
 
     #[instrument(level = "trace", skip_all, fields(object_id = ?id))]
-    fn try_get_object(&self, id: &ObjectID) -> IotaResult<Option<Object>> {
+    fn try_get_object(&self, id: &ObjectId) -> IotaResult<Option<Object>> {
         self.store.try_get_object(id).map_err(Into::into)
     }
 
     #[instrument(level = "trace", skip_all, fields(object_id, version))]
     fn try_get_object_by_key(
         &self,
-        object_id: &ObjectID,
-        version: SequenceNumber,
+        object_id: &ObjectId,
+        version: Version,
     ) -> IotaResult<Option<Object>> {
         Ok(self.store.try_get_object_by_key(object_id, version)?)
     }
@@ -125,11 +124,7 @@ impl ObjectCacheRead for PassthroughCache {
     }
 
     #[instrument(level = "trace", skip_all, fields(object_id, version))]
-    fn try_object_exists_by_key(
-        &self,
-        object_id: &ObjectID,
-        version: SequenceNumber,
-    ) -> IotaResult<bool> {
+    fn try_object_exists_by_key(&self, object_id: &ObjectId, version: Version) -> IotaResult<bool> {
         self.store.object_exists_by_key(object_id, version)
     }
 
@@ -141,15 +136,15 @@ impl ObjectCacheRead for PassthroughCache {
     #[instrument(level = "trace", skip_all, fields(object_id))]
     fn try_get_latest_object_ref_or_tombstone(
         &self,
-        object_id: ObjectID,
-    ) -> IotaResult<Option<ObjectRef>> {
+        object_id: ObjectId,
+    ) -> IotaResult<Option<ObjectReference>> {
         self.store.get_latest_object_ref_or_tombstone(object_id)
     }
 
     #[instrument(level = "trace", skip_all, fields(object_id))]
     fn try_get_latest_object_or_tombstone(
         &self,
-        object_id: ObjectID,
+        object_id: ObjectId,
     ) -> Result<Option<(ObjectKey, ObjectOrTombstone)>, IotaError> {
         self.store.get_latest_object_or_tombstone(object_id)
     }
@@ -157,25 +152,28 @@ impl ObjectCacheRead for PassthroughCache {
     #[instrument(level = "trace", skip_all, fields(object_id, version_bound))]
     fn try_find_object_lt_or_eq_version(
         &self,
-        object_id: ObjectID,
-        version: SequenceNumber,
+        object_id: ObjectId,
+        version: Version,
     ) -> IotaResult<Option<Object>> {
         self.store.find_object_lt_or_eq_version(object_id, version)
     }
 
     fn try_get_lock(
         &self,
-        obj_ref: ObjectRef,
+        obj_ref: ObjectReference,
         epoch_store: &AuthorityPerEpochStore,
     ) -> IotaLockResult {
         self.store.get_lock(obj_ref, epoch_store)
     }
 
-    fn _try_get_live_objref(&self, object_id: ObjectID) -> IotaResult<ObjectRef> {
+    fn _try_get_live_objref(&self, object_id: ObjectId) -> IotaResult<ObjectReference> {
         self.store.get_latest_live_version_for_object_id(object_id)
     }
 
-    fn try_check_owned_objects_are_live(&self, owned_object_refs: &[ObjectRef]) -> IotaResult {
+    fn try_check_owned_objects_are_live(
+        &self,
+        owned_object_refs: &[ObjectReference],
+    ) -> IotaResult {
         self.store.check_owned_objects_are_live(owned_object_refs)
     }
 
@@ -185,8 +183,8 @@ impl ObjectCacheRead for PassthroughCache {
 
     fn try_get_marker_value(
         &self,
-        object_id: &ObjectID,
-        version: SequenceNumber,
+        object_id: &ObjectId,
+        version: Version,
         epoch_id: EpochId,
     ) -> IotaResult<Option<MarkerValue>> {
         self.store.get_marker_value(object_id, &version, epoch_id)
@@ -194,13 +192,13 @@ impl ObjectCacheRead for PassthroughCache {
 
     fn try_get_latest_marker(
         &self,
-        object_id: &ObjectID,
+        object_id: &ObjectId,
         epoch_id: EpochId,
-    ) -> IotaResult<Option<(SequenceNumber, MarkerValue)>> {
+    ) -> IotaResult<Option<(Version, MarkerValue)>> {
         self.store.get_latest_marker(object_id, epoch_id)
     }
 
-    fn try_get_highest_pruned_checkpoint(&self) -> IotaResult<CheckpointSequenceNumber> {
+    fn try_get_highest_pruned_checkpoint(&self) -> IotaResult<Version> {
         self.store.perpetual_tables.get_highest_pruned_checkpoint()
     }
 }
@@ -297,7 +295,7 @@ impl ExecutionCacheWrite for PassthroughCache {
     fn try_acquire_transaction_locks<'a>(
         &'a self,
         epoch_store: &'a AuthorityPerEpochStore,
-        owned_input_objects: &'a [ObjectRef],
+        owned_input_objects: &'a [ObjectReference],
         transaction: VerifiedSignedTransaction,
     ) -> IotaResult {
         self.store
@@ -309,20 +307,20 @@ impl AccumulatorStore for PassthroughCache {
     fn get_root_state_accumulator_for_epoch(
         &self,
         epoch: EpochId,
-    ) -> IotaResult<Option<(CheckpointSequenceNumber, Accumulator)>> {
+    ) -> IotaResult<Option<(Version, Accumulator)>> {
         self.store.get_root_state_accumulator_for_epoch(epoch)
     }
 
     fn get_root_state_accumulator_for_highest_epoch(
         &self,
-    ) -> IotaResult<Option<(EpochId, (CheckpointSequenceNumber, Accumulator))>> {
+    ) -> IotaResult<Option<(EpochId, (Version, Accumulator))>> {
         self.store.get_root_state_accumulator_for_highest_epoch()
     }
 
     fn insert_state_accumulator_for_epoch(
         &self,
         epoch: EpochId,
-        checkpoint_seq_num: &CheckpointSequenceNumber,
+        checkpoint_seq_num: &Version,
         acc: &Accumulator,
     ) -> IotaResult {
         self.store

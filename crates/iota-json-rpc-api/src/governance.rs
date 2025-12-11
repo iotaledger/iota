@@ -5,7 +5,7 @@
 use iota_json_rpc_types::{DelegatedStake, DelegatedTimelockedStake, IotaCommittee, ValidatorApys};
 use iota_open_rpc_macros::open_rpc;
 use iota_types::{
-    base_types::{IotaAddress, ObjectID},
+    base_types::{Address, ObjectId},
     iota_serde::BigInt,
     iota_system_state::iota_system_state_summary::{
         IotaSystemStateSummary, IotaSystemStateSummaryV1,
@@ -23,26 +23,26 @@ pub trait GovernanceReadApi {
     #[method(name = "getStakesByIds")]
     async fn get_stakes_by_ids(
         &self,
-        staked_iota_ids: Vec<ObjectID>,
+        staked_iota_ids: Vec<ObjectId>,
     ) -> RpcResult<Vec<DelegatedStake>>;
 
     /// Return all [DelegatedStake].
     #[method(name = "getStakes")]
-    async fn get_stakes(&self, owner: IotaAddress) -> RpcResult<Vec<DelegatedStake>>;
+    async fn get_stakes(&self, owner: Address) -> RpcResult<Vec<DelegatedStake>>;
 
     /// Return one or more [DelegatedTimelockedStake]. If a Stake was withdrawn
     /// its status will be Unstaked.
     #[method(name = "getTimelockedStakesByIds")]
     async fn get_timelocked_stakes_by_ids(
         &self,
-        timelocked_staked_iota_ids: Vec<ObjectID>,
+        timelocked_staked_iota_ids: Vec<ObjectId>,
     ) -> RpcResult<Vec<DelegatedTimelockedStake>>;
 
     /// Return all [DelegatedTimelockedStake].
     #[method(name = "getTimelockedStakes")]
     async fn get_timelocked_stakes(
         &self,
-        owner: IotaAddress,
+        owner: Address,
     ) -> RpcResult<Vec<DelegatedTimelockedStake>>;
 
     /// Return the committee information for the asked `epoch`.

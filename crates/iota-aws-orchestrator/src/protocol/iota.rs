@@ -10,7 +10,7 @@ use std::{
 };
 
 use iota_swarm_config::genesis_config::GenesisConfig;
-use iota_types::{base_types::IotaAddress, multiaddr::Multiaddr};
+use iota_types::{base_types::address_from_pub_key, multiaddr::Multiaddr};
 use serde::{Deserialize, Serialize};
 
 use super::{ProtocolCommands, ProtocolMetrics};
@@ -321,7 +321,7 @@ impl ProtocolCommands<IotaBenchmarkType> for IotaProtocol {
                 let genesis = genesis_path.display().to_string();
                 let keystore = keystore_path.display().to_string();
                 let gas_key = &gas_keys[i % committee_size];
-                let gas_address = IotaAddress::from(&gas_key.public());
+                let gas_address = address_from_pub_key(&gas_key.public());
 
                 let mut stress_args: Vec<String> = vec![
                     "--num-client-threads 24 --num-server-threads 1".to_string(),

@@ -14,8 +14,9 @@ use iota_storage::object_store::util::{
     find_all_dirs_with_epoch_prefix, find_all_files_with_epoch_prefix,
 };
 use iota_types::{
-    base_types::EpochId, dynamic_field::DynamicFieldType, full_checkpoint_content::CheckpointData,
-    messages_checkpoint::CheckpointSequenceNumber,
+    base_types::{EpochId, Version},
+    dynamic_field::DynamicFieldType,
+    full_checkpoint_content::CheckpointData,
 };
 use num_enum::{IntoPrimitive, TryFromPrimitive};
 use object_store::path::Path;
@@ -479,7 +480,7 @@ impl FileMetadata {
 
 pub struct Processor {
     pub processor: Box<dyn Worker<Message = (), Error = anyhow::Error>>,
-    pub starting_checkpoint_seq_num: CheckpointSequenceNumber,
+    pub starting_checkpoint_seq_num: Version,
 }
 
 #[async_trait::async_trait]
@@ -501,7 +502,7 @@ impl Processor {
         handler: Box<dyn AnalyticsHandler<S>>,
         writer: Box<dyn AnalyticsWriter<S>>,
         max_checkpoint_reader: Box<dyn MaxCheckpointReader>,
-        starting_checkpoint_seq_num: CheckpointSequenceNumber,
+        starting_checkpoint_seq_num: Version,
         metrics: AnalyticsMetrics,
         config: AnalyticsIndexerConfig,
     ) -> Result<Self> {
@@ -532,7 +533,7 @@ pub async fn read_store_for_checkpoint(
     remote_store_config: ObjectStoreConfig,
     file_type: FileType,
     dir_prefix: Option<Path>,
-) -> Result<CheckpointSequenceNumber> {
+) -> Result<Version> {
     let remote_object_store = remote_store_config.make()?;
     let remote_store_is_empty = remote_object_store
         .list_with_delimiter(None)

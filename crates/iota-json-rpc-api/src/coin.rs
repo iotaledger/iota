@@ -6,7 +6,7 @@ use iota_json_rpc_types::{Balance, CoinPage, IotaCirculatingSupply, IotaCoinMeta
 use iota_open_rpc_macros::open_rpc;
 use iota_types::{
     balance::Supply,
-    base_types::{IotaAddress, ObjectID},
+    base_types::{Address, ObjectId},
 };
 use jsonrpsee::{core::RpcResult, proc_macros::rpc};
 
@@ -21,11 +21,11 @@ pub trait CoinReadApi {
     async fn get_coins(
         &self,
         /// the owner's IOTA address
-        owner: IotaAddress,
+        owner: Address,
         /// optional type name for the coin (e.g., 0x168da5bf1f48dafc111b0a488fa454aca95e0b5e::usdc::USDC), default to 0x2::iota::IOTA if not specified.
         coin_type: Option<String>,
         /// optional paging cursor
-        cursor: Option<ObjectID>,
+        cursor: Option<ObjectId>,
         /// maximum number of items per page
         limit: Option<usize>,
     ) -> RpcResult<CoinPage>;
@@ -36,9 +36,9 @@ pub trait CoinReadApi {
     async fn get_all_coins(
         &self,
         /// the owner's IOTA address
-        owner: IotaAddress,
+        owner: Address,
         /// optional paging cursor
-        cursor: Option<ObjectID>,
+        cursor: Option<ObjectId>,
         /// maximum number of items per page
         limit: Option<usize>,
     ) -> RpcResult<CoinPage>;
@@ -49,7 +49,7 @@ pub trait CoinReadApi {
     async fn get_balance(
         &self,
         /// the owner's IOTA address
-        owner: IotaAddress,
+        owner: Address,
         /// optional type names for the coin (e.g., 0x168da5bf1f48dafc111b0a488fa454aca95e0b5e::usdc::USDC), default to 0x2::iota::IOTA if not specified.
         coin_type: Option<String>,
     ) -> RpcResult<Balance>;
@@ -60,7 +60,7 @@ pub trait CoinReadApi {
     async fn get_all_balances(
         &self,
         /// the owner's IOTA address
-        owner: IotaAddress,
+        owner: Address,
     ) -> RpcResult<Vec<Balance>>;
 
     /// Return metadata (e.g., symbol, decimals) for a coin.

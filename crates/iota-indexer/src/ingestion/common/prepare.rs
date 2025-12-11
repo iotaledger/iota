@@ -7,11 +7,10 @@
 use std::collections::BTreeMap;
 
 use iota_types::{
-    base_types::{ObjectID, ObjectRef},
+    base_types::{ObjectId, ObjectReference, Version},
     digests::TransactionDigest,
     dynamic_field::{DynamicFieldInfo, DynamicFieldType},
     full_checkpoint_content::CheckpointData,
-    messages_checkpoint::CheckpointSequenceNumber,
     object::Object,
 };
 use move_core_types::language_storage::{StructTag, TypeTag};
@@ -38,7 +37,7 @@ impl<'chk> Extractor<'chk> {
                 latest_live_objects.insert(obj.id(), obj);
             }
             for obj_ref in tx.removed_object_refs_post_version() {
-                latest_live_objects.remove(&(obj_ref.0));
+                latest_live_objects.remove(&(obj_ref.object_id));
             }
         }
         latest_live_objects.into_values()
@@ -46,12 +45,12 @@ impl<'chk> Extractor<'chk> {
 
     pub(crate) fn iter_removed_objects(
         &'chk self,
-    ) -> impl Iterator<Item = (ObjectRef, TransactionDigest)> + 'chk {
+    ) -> impl Iterator<Item = (ObjectReference, TransactionDigest)> + 'chk {
         let mut eventually_removed_object_refs = BTreeMap::new();
         for tx in self.checkpoint.transactions.iter() {
             let digest = tx.transaction.digest();
             for obj_ref in tx.removed_object_refs_post_version() {
-                eventually_removed_object_refs.insert(obj_ref.0, (obj_ref, *digest));
+                eventually_removed_object_refs.insert(obj_ref.object_id, (obj_ref, *digest));
             }
             for obj in tx.output_objects.iter() {
                 eventually_removed_object_refs.remove(&(obj.id()));
@@ -99,7 +98,7 @@ pub(crate) struct LiveObject {
 
 impl LiveObject {
     pub fn new(
-        checkpoint_sequence_number: CheckpointSequenceNumber,
+        checkpoint_sequence_number: Version,
         transaction_digest: TransactionDigest,
         object: Object,
     ) -> IndexerResult<Self> {
@@ -124,7 +123,7 @@ impl LiveObject {
     fn random() -> Self {
         Self {
             indexed_object: IndexedObject::random(),
-            transaction_digest: TransactionDigest::random(),
+            transaction_digest: TransactionDigest::new(rand::random()),
         }
     }
 }
@@ -140,15 +139,17 @@ pub(crate) struct RemovedObject {
 
 impl RemovedObject {
     pub fn new(
-        checkpoint_sequence_number: CheckpointSequenceNumber,
+        checkpoint_sequence_number: Version,
         transaction_digest: TransactionDigest,
-        object_ref: ObjectRef,
+        object_ref: ObjectReference,
     ) -> Self {
-        let (object_id, object_version, _) = object_ref;
+        let ObjectReference {
+            object_id, version, ..
+        } = object_ref;
         let indexed_object = IndexedDeletedObject {
             checkpoint_sequence_number,
             object_id,
-            object_version: object_version.into(),
+            object_version: version,
         };
         Self {
             indexed_object,
@@ -160,7 +161,7 @@ impl RemovedObject {
         self.indexed_object.object_version
     }
 
-    pub(crate) fn object_id(&self) -> ObjectID {
+    pub(crate) fn object_id(&self) -> ObjectId {
         self.indexed_object.object_id
     }
 
@@ -168,7 +169,7 @@ impl RemovedObject {
     fn random() -> Self {
         Self {
             indexed_object: IndexedDeletedObject::random(),
-            transaction_digest: TransactionDigest::random(),
+            transaction_digest: TransactionDigest::new(rand::random()),
         }
     }
 }
@@ -224,8 +225,8 @@ pub(crate) fn retain_latest_objects_from_checkpoint_batch(
 ) -> CheckpointObjectChanges {
     use std::collections::HashMap;
 
-    let mut mutations = HashMap::<ObjectID, LiveObject>::new();
-    let mut deletions = HashMap::<ObjectID, RemovedObject>::new();
+    let mut mutations = HashMap::<ObjectId, LiveObject>::new();
+    let mut deletions = HashMap::<ObjectId, RemovedObject>::new();
 
     for change in checkpoint_batch_object_changes {
         // Remove mutation / deletion with a following deletion / mutation,
@@ -237,7 +238,7 @@ pub(crate) fn retain_latest_objects_from_checkpoint_batch(
 
             if let Some(existing) = deletions.remove(&id) {
                 assert!(
-                    existing.version() < version.value(),
+                    existing.version() < version,
                     "mutation version ({version:?}) should be greater than existing deletion version ({:?}) for object {id:?}",
                     existing.version()
                 );
@@ -258,7 +259,7 @@ pub(crate) fn retain_latest_objects_from_checkpoint_batch(
 
             if let Some(existing) = mutations.remove(&id) {
                 assert!(
-                    existing.object().version().value() < version,
+                    existing.object().version() < version,
                     "deletion version ({version:?}) should be greater than existing mutation version ({:?}) for object {id:?}",
                     existing.object().version(),
                 );

@@ -4,7 +4,7 @@
 use std::collections::{BTreeMap, HashMap};
 
 use iota_types::{
-    base_types::ObjectID, executable_transaction::VerifiedExecutableTransaction,
+    base_types::ObjectId, executable_transaction::VerifiedExecutableTransaction,
     transaction::TransactionDataAPI,
 };
 use tracing::instrument;
@@ -38,7 +38,7 @@ impl ScheduledTransactionCongestionInfo {
 type PerObjectCongestionInfo = BTreeMap<ExecutionTime, ScheduledTransactionCongestionInfo>;
 
 /// Holds shared object congestion data for a single consensus commit round.
-type PerCommitCongestionInfo = HashMap<ObjectID, PerObjectCongestionInfo>;
+type PerCommitCongestionInfo = HashMap<ObjectId, PerObjectCongestionInfo>;
 
 /// `SuggestedGasPriceCalculator` calculates suggested gas prices for
 /// deferred/cancelled shared-object transactions, using congestion
@@ -238,7 +238,7 @@ impl SuggestedGasPriceCalculator {
 #[cfg(test)]
 pub mod suggested_gas_price_calculator_test_utils {
     use iota_protocol_config::PerObjectCongestionControlMode;
-    use iota_types::base_types::ObjectID;
+    use iota_types::base_types::ObjectId;
 
     use super::SuggestedGasPriceCalculator;
     use crate::authority::shared_object_congestion_tracker::{
@@ -249,7 +249,7 @@ pub mod suggested_gas_price_calculator_test_utils {
     };
 
     pub(crate) fn new_suggested_gas_price_calculator_with_initial_values_for_test(
-        init_values: &[(ObjectID, ExecutionTime, u64)],
+        init_values: &[(ObjectId, ExecutionTime, u64)],
         per_object_congestion_control_mode: PerObjectCongestionControlMode,
         max_execution_duration_per_commit: Option<ExecutionTime>,
         min_free_execution_slot_assigned: bool,
@@ -330,7 +330,7 @@ mod tests {
     use std::collections::HashMap;
 
     use iota_protocol_config::{PerObjectCongestionControlMode, ProtocolConfig};
-    use iota_types::{base_types::ObjectID, executable_transaction::VerifiedExecutableTransaction};
+    use iota_types::{base_types::ObjectId, executable_transaction::VerifiedExecutableTransaction};
     use rstest::rstest;
 
     use super::SuggestedGasPriceCalculator;
@@ -354,7 +354,7 @@ mod tests {
     }
 
     fn build_and_try_sequencing_certificate(
-        input_shared_objects: &[(ObjectID, bool)],
+        input_shared_objects: &[(ObjectId, bool)],
         tx_gas_data: TxGasData,
         max_execution_duration_per_commit: ExecutionTime,
         shared_object_congestion_tracker: &mut SharedObjectCongestionTracker,
@@ -409,11 +409,11 @@ mod tests {
             max_gas_price,
         );
 
-        let object_1 = ObjectID::random();
-        let object_2 = ObjectID::random();
-        let object_3 = ObjectID::random();
-        let object_4 = ObjectID::random();
-        let object_5 = ObjectID::random();
+        let object_1 = ObjectId::new(rand::random());
+        let object_2 = ObjectId::new(rand::random());
+        let object_3 = ObjectId::new(rand::random());
+        let object_4 = ObjectId::new(rand::random());
+        let object_5 = ObjectId::new(rand::random());
 
         // Construct the first certificate that touches shared objects:
         // - `object_1` by mutable reference,
@@ -607,8 +607,8 @@ mod tests {
             max_gas_price,
         );
 
-        let object_1 = ObjectID::random();
-        let object_2 = ObjectID::random();
+        let object_1 = ObjectId::new(rand::random());
+        let object_2 = ObjectId::new(rand::random());
 
         // Gas prices (sorted in descending order) and gas budget to build transactions
         let txs_gas_data = [

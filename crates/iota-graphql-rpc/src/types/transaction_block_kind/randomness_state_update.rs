@@ -38,7 +38,6 @@ impl RandomnessStateUpdateTransaction {
     async fn randomness_obj_initial_shared_version(&self) -> UInt53 {
         self.native
             .randomness_obj_initial_shared_version
-            .value()
             .into()
     }
 }

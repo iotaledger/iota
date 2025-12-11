@@ -3,8 +3,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use iota_json_rpc_types::IotaCallArg;
+use iota_sdk_2::types::ObjectReference;
 use iota_types::{
-    base_types::{IotaAddress, ObjectDigest, ObjectID, SequenceNumber},
+    base_types::{Address, ObjectDigest, ObjectId, Version},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     transaction::{CallArg, TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionData},
 };
@@ -14,18 +15,18 @@ use crate::{operations::Operations, types::ConstructionMetadata};
 
 #[tokio::test]
 async fn test_operation_data_parsing() -> Result<(), anyhow::Error> {
-    let gas = (
-        ObjectID::random(),
-        SequenceNumber::new(),
-        ObjectDigest::random(),
+    let gas = ObjectReference::new(
+        ObjectId::new(rand::random()),
+        Version::default(),
+        ObjectDigest::new(rand::random()),
     );
 
-    let sender = IotaAddress::random_for_testing_only();
+    let sender = Address::new(rand::random());
 
     let pt = {
         let mut builder = ProgrammableTransactionBuilder::new();
         builder
-            .pay_iota(vec![IotaAddress::random_for_testing_only()], vec![10000])
+            .pay_iota(vec![Address::new(rand::random())], vec![10000])
             .unwrap();
         builder.finish()
     };

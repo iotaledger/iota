@@ -5,13 +5,11 @@
 use async_trait::async_trait;
 use iota_bigtable::{BigTableClient, Cell, Row};
 use iota_types::{
-    base_types::TransactionDigest,
+    base_types::{TransactionDigest, Version},
     digests::CheckpointDigest,
     effects::{TransactionEffects, TransactionEvents},
     full_checkpoint_content::CheckpointData,
-    messages_checkpoint::{
-        CertifiedCheckpointSummary, CheckpointContents, CheckpointSequenceNumber,
-    },
+    messages_checkpoint::{CertifiedCheckpointSummary, CheckpointContents},
     object::Object,
     storage::ObjectKey,
     transaction::Transaction,
@@ -157,7 +155,7 @@ impl KeyValueStoreReader for BigTableClient {
                         events = Some(bcs::from_bytes::<Option<TransactionEvents>>(&value)?)
                     }
                     TRANSACTION_TO_CHECKPOINT => {
-                        checkpoint_number = bcs::from_bytes::<CheckpointSequenceNumber>(&value)?
+                        checkpoint_number = bcs::from_bytes::<Version>(&value)?
                     }
                     unexpected_cell_name => {
                         error!("unexpected column {unexpected_cell_name:?} in transactions table")
@@ -177,7 +175,7 @@ impl KeyValueStoreReader for BigTableClient {
 
     async fn get_checkpoints(
         &mut self,
-        sequence_numbers: &[CheckpointSequenceNumber],
+        sequence_numbers: &[Version],
     ) -> Result<Vec<Checkpoint>, Self::Error> {
         let keys = sequence_numbers
             .iter()
@@ -231,7 +229,7 @@ impl KeyValueStoreReader for BigTableClient {
 }
 
 fn raw_object_key(object_key: &ObjectKey) -> Vec<u8> {
-    let mut raw_key = object_key.0.to_vec();
-    raw_key.extend(object_key.1.value().to_be_bytes());
+    let mut raw_key = object_key.0.as_bytes().to_vec();
+    raw_key.extend(object_key.1.to_be_bytes());
     raw_key
 }

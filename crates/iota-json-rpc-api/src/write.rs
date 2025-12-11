@@ -10,7 +10,7 @@ use iota_json_rpc_types::{
 };
 use iota_open_rpc_macros::open_rpc;
 use iota_types::{
-    base_types::IotaAddress, iota_serde::BigInt, quorum_driver_types::ExecuteTransactionRequestType,
+    base_types::Address, iota_serde::BigInt, quorum_driver_types::ExecuteTransactionRequestType,
 };
 use jsonrpsee::{core::RpcResult, proc_macros::rpc};
 
@@ -62,7 +62,7 @@ pub trait WriteApi {
     #[method(name = "devInspectTransactionBlock")]
     async fn dev_inspect_transaction_block(
         &self,
-        sender_address: IotaAddress,
+        sender_address: Address,
         /// BCS encoded TransactionKind(as opposed to TransactionData, which include gasBudget and gasPrice)
         tx_bytes: Base64,
         /// Gas is not charged, but gas usage is still calculated. Default to use reference gas price

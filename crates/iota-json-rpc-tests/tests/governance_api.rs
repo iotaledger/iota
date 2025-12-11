@@ -19,7 +19,7 @@ use iota_swarm_config::genesis_config::{
 };
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
-    base_types::{MoveObjectType, ObjectID},
+    base_types::{MoveObjectType, ObjectId, address_from_pub_key},
     crypto::deterministic_random_account_key,
     digests::TransactionDigest,
     governance::MIN_VALIDATOR_JOINING_STAKE_NANOS,
@@ -66,7 +66,7 @@ async fn execute_add_validator_transactions(
             _ => unimplemented!(),
         }
     });
-    let address = (&new_validator.account_key_pair.public()).into();
+    let address = address_from_pub_key(&new_validator.account_key_pair.public());
     let gas = test_cluster
         .wallet
         .get_one_gas_object_owned_by_address(address)
@@ -97,7 +97,7 @@ async fn execute_add_validator_transactions(
         assert_eq!(validator_candidates_size, cur_validator_candidate_count + 1);
     });
 
-    let address = (&new_validator.account_key_pair.public()).into();
+    let address = address_from_pub_key(&new_validator.account_key_pair.public());
     let stake_coin = test_cluster
         .wallet
         .gas_for_owner_budget(
@@ -111,7 +111,7 @@ async fn execute_add_validator_transactions(
         .object_ref();
     let gas = test_cluster
         .wallet
-        .gas_for_owner_budget(address, 0, BTreeSet::from([stake_coin.0]))
+        .gas_for_owner_budget(address, 0, BTreeSet::from([stake_coin.object_id]))
         .await
         .unwrap()
         .1
@@ -123,7 +123,11 @@ async fn execute_add_validator_transactions(
         .build_and_sign(&new_validator.account_key_pair);
     test_cluster.execute_transaction(stake_tx).await;
 
-    let gas = test_cluster.wallet.get_object_ref(gas.0).await.unwrap();
+    let gas = test_cluster
+        .wallet
+        .get_object_ref(gas.object_id)
+        .await
+        .unwrap();
     let tx = TestTransactionBuilder::new(address, gas, rgp)
         .call_request_add_validator()
         .build_and_sign(&new_validator.account_key_pair);
@@ -150,7 +154,7 @@ async fn execute_add_validator_transactions(
 async fn get_stakes_with_new_validator() {
     // Create the keypair for the new validator candidate
     let new_validator = ValidatorGenesisConfigBuilder::new().build(&mut OsRng);
-    let address = (&new_validator.account_key_pair.public()).into();
+    let address = address_from_pub_key(&new_validator.account_key_pair.public());
 
     let mut test_cluster = TestClusterBuilder::new()
         .with_validator_candidates([address])
@@ -475,7 +479,7 @@ async fn test_timelocked_staking() -> Result<(), anyhow::Error> {
             MoveObjectType::timelocked_iota_balance(),
             OBJECT_START_VERSION,
             TimeLock::<iota_types::balance::Balance>::new(
-                UID::new(ObjectID::random()),
+                UID::new(ObjectId::new(rand::random())),
                 iota_types::balance::Balance::new(principal),
                 expiration_timestamp_ms,
                 label.clone(),
@@ -488,7 +492,7 @@ async fn test_timelocked_staking() -> Result<(), anyhow::Error> {
     let timelock_iota = ObjectInner {
         owner: Owner::AddressOwner(address),
         data: Data::Move(timelock_iota),
-        previous_transaction: TransactionDigest::genesis_marker(),
+        previous_transaction: TransactionDigest::GENESIS_MARKER,
         storage_rebate: 0,
     };
 
@@ -627,7 +631,7 @@ async fn test_timelocked_unstaking() -> Result<(), anyhow::Error> {
             MoveObjectType::timelocked_iota_balance(),
             OBJECT_START_VERSION,
             TimeLock::<iota_types::balance::Balance>::new(
-                UID::new(ObjectID::random()),
+                UID::new(ObjectId::new(rand::random())),
                 iota_types::balance::Balance::new(principal),
                 expiration_timestamp_ms,
                 label.clone(),
@@ -640,7 +644,7 @@ async fn test_timelocked_unstaking() -> Result<(), anyhow::Error> {
     let timelock_iota = ObjectInner {
         owner: Owner::AddressOwner(address),
         data: Data::Move(timelock_iota),
-        previous_transaction: TransactionDigest::genesis_marker(),
+        previous_transaction: TransactionDigest::GENESIS_MARKER,
         storage_rebate: 0,
     };
 

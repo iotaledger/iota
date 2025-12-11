@@ -6,14 +6,13 @@ use std::collections::BTreeMap;
 
 use iota_config::genesis;
 use iota_types::{
-    base_types::{IotaAddress, ObjectID, ObjectRef, SequenceNumber},
+    base_types::{Address, ObjectId, ObjectReference, Version},
     committee::{Committee, EpochId},
-    digests::{ObjectDigest, TransactionDigest, TransactionEventsDigest},
+    digests::{TransactionDigest, TransactionEventsDigest},
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
     error::{IotaResult, UserInputError},
     messages_checkpoint::{
-        CheckpointContents, CheckpointContentsDigest, CheckpointDigest, CheckpointSequenceNumber,
-        VerifiedCheckpoint,
+        CheckpointContents, CheckpointContentsDigest, CheckpointDigest, VerifiedCheckpoint,
     },
     object::Object,
     storage::{BackingStore, ChildObjectResolver},
@@ -52,7 +51,7 @@ pub trait SimulatorStore:
 
     fn get_checkpoint_by_sequence_number(
         &self,
-        sequence_number: CheckpointSequenceNumber,
+        sequence_number: Version,
     ) -> Option<VerifiedCheckpoint>;
 
     fn get_checkpoint_by_digest(&self, digest: &CheckpointDigest) -> Option<VerifiedCheckpoint>;
@@ -78,15 +77,15 @@ pub trait SimulatorStore:
         tx_digest: &TransactionDigest,
     ) -> Option<TransactionEvents>;
 
-    fn get_object(&self, id: &ObjectID) -> Option<Object>;
+    fn get_object(&self, id: &ObjectId) -> Option<Object>;
 
-    fn get_object_at_version(&self, id: &ObjectID, version: SequenceNumber) -> Option<Object>;
+    fn get_object_at_version(&self, id: &ObjectId, version: Version) -> Option<Object>;
 
     fn get_system_state(&self) -> iota_types::iota_system_state::IotaSystemState;
 
     fn get_clock(&self) -> iota_types::clock::Clock;
 
-    fn owned_objects(&self, owner: IotaAddress) -> Box<dyn Iterator<Item = Object> + '_>;
+    fn owned_objects(&self, owner: Address) -> Box<dyn Iterator<Item = Object> + '_>;
 
     fn insert_checkpoint(&mut self, checkpoint: VerifiedCheckpoint);
 
@@ -99,7 +98,7 @@ pub trait SimulatorStore:
         transaction: VerifiedTransaction,
         effects: TransactionEffects,
         events: TransactionEvents,
-        written_objects: BTreeMap<ObjectID, Object>,
+        written_objects: BTreeMap<ObjectId, Object>,
     );
 
     fn insert_transaction(&mut self, transaction: VerifiedTransaction);
@@ -110,8 +109,8 @@ pub trait SimulatorStore:
 
     fn update_objects(
         &mut self,
-        written_objects: BTreeMap<ObjectID, Object>,
-        deleted_objects: Vec<(ObjectID, SequenceNumber, ObjectDigest)>,
+        written_objects: BTreeMap<ObjectId, Object>,
+        deleted_objects: Vec<ObjectReference>,
     );
 
     fn backing_store(&self) -> &dyn BackingStore;
@@ -125,7 +124,7 @@ pub trait SimulatorStore:
         &self,
         _tx_digest: &TransactionDigest,
         input_object_kinds: &[InputObjectKind],
-        receiving_object_refs: &[ObjectRef],
+        receiving_object_refs: &[ObjectReference],
     ) -> IotaResult<(InputObjects, ReceivingObjects)> {
         let mut input_objects = Vec::new();
         for kind in input_object_kinds {
@@ -134,10 +133,10 @@ pub trait SimulatorStore:
                     crate::store::SimulatorStore::get_object(self, id)
                 }
                 InputObjectKind::ImmOrOwnedMoveObject(objref) => {
-                    self.try_get_object_by_key(&objref.0, objref.1)?
+                    self.try_get_object_by_key(&objref.object_id, objref.version)?
                 }
 
-                InputObjectKind::SharedMoveObject { id, .. } => {
+                InputObjectKind::SharedMoveObject { object_id: id, .. } => {
                     crate::store::SimulatorStore::get_object(self, id)
                 }
             };
@@ -151,10 +150,11 @@ pub trait SimulatorStore:
         let mut receiving_objects = Vec::new();
         for objref in receiving_object_refs {
             // no need for marker table check in simulacrum
-            let Some(obj) = crate::store::SimulatorStore::get_object(self, &objref.0) else {
+            let Some(obj) = crate::store::SimulatorStore::get_object(self, &objref.object_id)
+            else {
                 return Err(UserInputError::ObjectNotFound {
-                    object_id: objref.0,
-                    version: Some(objref.1),
+                    object_id: objref.object_id,
+                    version: Some(objref.version),
                 }
                 .into());
             };

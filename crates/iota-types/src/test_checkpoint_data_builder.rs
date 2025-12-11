@@ -5,17 +5,17 @@
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 use iota_protocol_config::ProtocolConfig;
+use iota_sdk_2::types::object::VersionExt;
 use move_core_types::{
+    account_address::AccountAddress,
     ident_str,
     language_storage::{StructTag, TypeTag},
 };
 use tap::Pipe;
 
 use crate::{
-    IOTA_SYSTEM_ADDRESS,
     base_types::{
-        ExecutionDigests, IotaAddress, ObjectID, ObjectRef, SequenceNumber, dbg_addr,
-        random_object_ref,
+        Address, ExecutionDigests, ObjectId, ObjectReference, Version, dbg_addr, random_object_ref,
     },
     committee::Committee,
     digests::TransactionDigest,
@@ -49,13 +49,13 @@ use crate::{
 /// Simulacrum instead.
 pub struct TestCheckpointDataBuilder {
     /// Map of all live objects in the state.
-    live_objects: HashMap<ObjectID, Object>,
+    live_objects: HashMap<ObjectId, Object>,
     /// Map of all wrapped objects in the state.
-    wrapped_objects: HashMap<ObjectID, Object>,
+    wrapped_objects: HashMap<ObjectId, Object>,
     /// A map from sender addresses to gas objects they own.
     /// These are created automatically when a transaction is started.
     /// Users of this builder should not need to worry about them.
-    gas_map: HashMap<IotaAddress, ObjectID>,
+    gas_map: HashMap<Address, ObjectId>,
 
     /// The current checkpoint builder.
     /// It is initialized when the builder is created, and is reset when
@@ -78,18 +78,18 @@ struct CheckpointBuilder {
 
 struct TransactionBuilder {
     sender_idx: u8,
-    gas: ObjectRef,
-    move_calls: Vec<(ObjectID, &'static str, &'static str)>,
-    created_objects: BTreeMap<ObjectID, Object>,
-    mutated_objects: BTreeMap<ObjectID, Object>,
-    unwrapped_objects: BTreeSet<ObjectID>,
-    wrapped_objects: BTreeSet<ObjectID>,
-    deleted_objects: BTreeSet<ObjectID>,
+    gas: ObjectReference,
+    move_calls: Vec<(ObjectId, &'static str, &'static str)>,
+    created_objects: BTreeMap<ObjectId, Object>,
+    mutated_objects: BTreeMap<ObjectId, Object>,
+    unwrapped_objects: BTreeSet<ObjectId>,
+    wrapped_objects: BTreeSet<ObjectId>,
+    deleted_objects: BTreeSet<ObjectId>,
     events: Option<Vec<Event>>,
 }
 
 impl TransactionBuilder {
-    pub fn new(sender_idx: u8, gas: ObjectRef) -> Self {
+    pub fn new(sender_idx: u8, gas: ObjectReference) -> Self {
         Self {
             sender_idx,
             gas,
@@ -128,7 +128,7 @@ impl TestCheckpointDataBuilder {
 
     /// Start creating a new transaction.
     /// `sender_idx` is a convenient representation of the sender's address.
-    /// A proper IotaAddress will be derived from it.
+    /// A proper Address will be derived from it.
     /// It will also create a gas object for the sender if it doesn't already
     /// exist in the live object map. You do not need to create the gas
     /// object yourself.
@@ -168,7 +168,7 @@ impl TestCheckpointDataBuilder {
         self.create_coin_object_with_owner(
             object_idx,
             Owner::Shared {
-                initial_shared_version: SequenceNumber::MIN_VALID_INCL,
+                initial_shared_version: Version::MIN_VALID_INCL,
             },
             GAS_VALUE_FOR_TESTING,
             GAS::type_tag(),
@@ -225,7 +225,7 @@ impl TestCheckpointDataBuilder {
             coin_type,
             // version doesn't matter since we will set it to the lamport version when we finalize
             // the transaction
-            SequenceNumber::MIN_VALID_INCL,
+            Version::MIN_VALID_INCL,
             object_id,
             balance,
         );
@@ -349,7 +349,7 @@ impl TestCheckpointDataBuilder {
     /// `function` is the name of the function to be called.
     pub fn add_move_call(
         mut self,
-        package: ObjectID,
+        package: ObjectId,
         module: &'static str,
         function: &'static str,
     ) -> Self {
@@ -430,7 +430,7 @@ impl TestCheckpointDataBuilder {
             .chain(deleted_objects.clone())
             .chain(wrapped_objects.clone())
             .chain(std::iter::once(
-                self.live_objects.get(&gas.0).unwrap().clone(),
+                self.live_objects.get(&gas.object_id).unwrap().clone(),
             ))
             .collect();
         let output_objects: Vec<_> = created_objects
@@ -439,13 +439,13 @@ impl TestCheckpointDataBuilder {
             .chain(mutated_objects.values().cloned())
             .chain(unwrapped_objects.clone())
             .chain(std::iter::once(
-                self.live_objects.get(&gas.0).cloned().unwrap(),
+                self.live_objects.get(&gas.object_id).cloned().unwrap(),
             ))
             .map(|mut o| {
                 o.data
                     .try_as_move_mut()
                     .unwrap()
-                    .increment_version_to(lamport_version);
+                    .set_version(lamport_version);
                 o
             })
             .collect();
@@ -488,7 +488,7 @@ impl TestCheckpointDataBuilder {
         // pipeline.
         let end_of_epoch_tx = TransactionData::new(
             TransactionKind::EndOfEpochTransaction(vec![tx_kind]),
-            IotaAddress::default(),
+            Address::ZERO,
             random_object_ref(),
             1,
             1,
@@ -503,13 +503,13 @@ impl TestCheckpointDataBuilder {
                 ..Default::default()
             };
             let struct_tag = StructTag {
-                address: IOTA_SYSTEM_ADDRESS,
+                address: AccountAddress::new(Address::SYSTEM.into_bytes()),
                 module: ident_str!("iota_system_state_inner").to_owned(),
                 name: ident_str!("SystemEpochInfoEvent").to_owned(),
                 type_params: vec![],
             };
             Some(vec![Event::new(
-                &IOTA_SYSTEM_ADDRESS,
+                Address::SYSTEM,
                 ident_str!("iota_system_state_inner"),
                 TestCheckpointDataBuilder::derive_address(0),
                 struct_tag,
@@ -593,16 +593,16 @@ impl TestCheckpointDataBuilder {
     /// Derive an object ID from an index. This is used to conveniently
     /// represent an object's ID. We ensure that the bytes of object IDs
     /// have a stable order that is the same as object_idx.
-    pub fn derive_object_id(object_idx: u64) -> ObjectID {
+    pub fn derive_object_id(object_idx: u64) -> ObjectId {
         // We achieve this by setting the first 8 bytes of the object ID to the
         // object_idx.
-        let mut bytes = [0; ObjectID::LENGTH];
+        let mut bytes = [0; ObjectId::LENGTH];
         bytes[0..8].copy_from_slice(&object_idx.to_le_bytes());
-        ObjectID::from_bytes(bytes).unwrap()
+        ObjectId::new(bytes)
     }
 
     /// Derive an address from an index.
-    pub fn derive_address(address_idx: u8) -> IotaAddress {
+    pub fn derive_address(address_idx: u8) -> Address {
         dbg_addr(address_idx)
     }
 }
@@ -689,12 +689,11 @@ mod tests {
 
         // Verify effects show object creation
         assert!(
-            tx.effects
-                .created()
-                .iter()
-                .any(|((id, ..), owner)| *id == created_obj_id
+            tx.effects.created().iter().any(
+                |(ObjectReference { object_id, .. }, owner)| *object_id == created_obj_id
                     && owner.get_owner_address().unwrap()
-                        == TestCheckpointDataBuilder::derive_address(0))
+                        == TestCheckpointDataBuilder::derive_address(0)
+            )
         );
     }
 
@@ -721,7 +720,7 @@ mod tests {
             tx.effects
                 .mutated()
                 .iter()
-                .any(|((id, ..), _)| *id == obj_id)
+                .any(|(ObjectReference { object_id, .. }, _)| *object_id == obj_id)
         );
     }
 
@@ -744,7 +743,12 @@ mod tests {
         assert!(!tx.output_objects.iter().any(|obj| obj.id() == obj_id));
 
         // Verify effects show object deletion
-        assert!(tx.effects.deleted().iter().any(|(id, ..)| *id == obj_id));
+        assert!(
+            tx.effects
+                .deleted()
+                .iter()
+                .any(|ObjectReference { object_id, .. }| *object_id == obj_id)
+        );
     }
 
     #[test]
@@ -769,7 +773,12 @@ mod tests {
         assert!(!tx.output_objects.iter().any(|obj| obj.id() == obj_id));
 
         // Verify effects show object wrapping
-        assert!(tx.effects.wrapped().iter().any(|(id, ..)| *id == obj_id));
+        assert!(
+            tx.effects
+                .wrapped()
+                .iter()
+                .any(|ObjectReference { object_id, .. }| *object_id == obj_id)
+        );
 
         let tx = &checkpoint.transactions[2];
 
@@ -782,7 +791,7 @@ mod tests {
             tx.effects
                 .unwrapped()
                 .iter()
-                .any(|((id, ..), _)| *id == obj_id)
+                .any(|(ObjectReference { object_id, .. }, _)| *object_id == obj_id)
         );
     }
 
@@ -806,12 +815,11 @@ mod tests {
 
         // Verify effects show object transfer
         assert!(
-            tx.effects
-                .mutated()
-                .iter()
-                .any(|((id, ..), owner)| *id == obj_id
+            tx.effects.mutated().iter().any(
+                |(ObjectReference { object_id, .. }, owner)| *object_id == obj_id
                     && owner.get_owner_address().unwrap()
-                        == TestCheckpointDataBuilder::derive_address(1))
+                        == TestCheckpointDataBuilder::derive_address(1)
+            )
         );
     }
 
@@ -922,7 +930,7 @@ mod tests {
         let checkpoint = TestCheckpointDataBuilder::new(1)
             .start_transaction(0)
             .with_events(vec![Event::new(
-                &ObjectID::ZERO,
+                Address::ZERO,
                 ident_str!("test"),
                 TestCheckpointDataBuilder::derive_address(0),
                 GAS::type_(),
@@ -943,7 +951,7 @@ mod tests {
     fn test_move_call() {
         let checkpoint = TestCheckpointDataBuilder::new(1)
             .start_transaction(0)
-            .add_move_call(ObjectID::ZERO, "test", "test")
+            .add_move_call(ObjectId::ZERO, "test", "test")
             .finish_transaction()
             .build_checkpoint();
         let tx = &checkpoint.transactions[0];
@@ -956,7 +964,7 @@ mod tests {
                 .iter_commands()
                 .any(|cmd| {
                     cmd == &Command::MoveCall(Box::new(ProgrammableMoveCall {
-                        package: ObjectID::ZERO,
+                        package: ObjectId::ZERO,
                         module: "test".to_string(),
                         function: "test".to_string(),
                         type_arguments: vec![],

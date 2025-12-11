@@ -13,7 +13,7 @@ use iota_json_rpc_types::{
 };
 use iota_open_rpc::Module;
 use iota_types::{
-    base_types::ObjectID,
+    base_types::ObjectId,
     move_package::normalize_modules,
     object::{Data, ObjectRead},
 };
@@ -42,16 +42,16 @@ pub trait MoveUtilsInternalTrait {
 
     async fn get_move_module(
         &self,
-        package: ObjectID,
+        package: ObjectId,
         module_name: String,
     ) -> Result<NormalizedModule, Error>;
 
     async fn get_move_modules_by_package(
         &self,
-        package: ObjectID,
+        package: ObjectId,
     ) -> Result<BTreeMap<String, NormalizedModule>, Error>;
 
-    fn get_object_read(&self, package: ObjectID) -> Result<ObjectRead, Error>;
+    fn get_object_read(&self, package: ObjectId) -> Result<ObjectRead, Error>;
 }
 
 pub struct MoveUtilsInternal {
@@ -72,7 +72,7 @@ impl MoveUtilsInternalTrait for MoveUtilsInternal {
 
     async fn get_move_module(
         &self,
-        package: ObjectID,
+        package: ObjectId,
         module_name: String,
     ) -> Result<NormalizedModule, Error> {
         let mut normalized = self.get_move_modules_by_package(package).await?;
@@ -86,7 +86,7 @@ impl MoveUtilsInternalTrait for MoveUtilsInternal {
 
     async fn get_move_modules_by_package(
         &self,
-        package: ObjectID,
+        package: ObjectId,
     ) -> Result<BTreeMap<String, NormalizedModule>, Error> {
         let object_read = self.get_state().get_object_read(&package).tap_err(|_| {
             warn!("failed to call get_move_modules_by_package for package: {package:?}");
@@ -121,7 +121,7 @@ impl MoveUtilsInternalTrait for MoveUtilsInternal {
         }
     }
 
-    fn get_object_read(&self, package: ObjectID) -> Result<ObjectRead, Error> {
+    fn get_object_read(&self, package: ObjectId) -> Result<ObjectRead, Error> {
         self.state.get_object_read(&package).map_err(Error::from)
     }
 }
@@ -154,7 +154,7 @@ impl MoveUtilsServer for MoveUtils {
     #[instrument(skip(self))]
     async fn get_normalized_move_modules_by_package(
         &self,
-        package: ObjectID,
+        package: ObjectId,
     ) -> RpcResult<BTreeMap<String, IotaMoveNormalizedModule>> {
         async move {
             let modules = self.internal.get_move_modules_by_package(package).await?;
@@ -170,7 +170,7 @@ impl MoveUtilsServer for MoveUtils {
     #[instrument(skip(self))]
     async fn get_normalized_move_module(
         &self,
-        package: ObjectID,
+        package: ObjectId,
         module_name: String,
     ) -> RpcResult<IotaMoveNormalizedModule> {
         async move {
@@ -184,7 +184,7 @@ impl MoveUtilsServer for MoveUtils {
     #[instrument(skip(self))]
     async fn get_normalized_move_struct(
         &self,
-        package: ObjectID,
+        package: ObjectId,
         module_name: String,
         struct_name: String,
     ) -> RpcResult<IotaMoveNormalizedStruct> {
@@ -207,7 +207,7 @@ impl MoveUtilsServer for MoveUtils {
     #[instrument(skip(self))]
     async fn get_normalized_move_function(
         &self,
-        package: ObjectID,
+        package: ObjectId,
         module_name: String,
         function_name: String,
     ) -> RpcResult<IotaMoveNormalizedFunction> {
@@ -230,7 +230,7 @@ impl MoveUtilsServer for MoveUtils {
     #[instrument(skip(self))]
     async fn get_move_function_arg_types(
         &self,
-        package: ObjectID,
+        package: ObjectId,
         module: String,
         function: String,
     ) -> RpcResult<Vec<MoveFunctionArgType>> {
@@ -299,8 +299,8 @@ mod tests {
 
         use super::super::*;
 
-        fn setup() -> (ObjectID, String) {
-            (ObjectID::random(), String::from("test_module"))
+        fn setup() -> (ObjectId, String) {
+            (ObjectId::new(rand::random()), String::from("test_module"))
         }
 
         #[tokio::test]

@@ -19,7 +19,7 @@ use iota_genesis_builder::genesis_build_effects::GenesisBuildEffects;
 use iota_macros::nondeterministic;
 use iota_protocol_config::Chain;
 use iota_types::{
-    base_types::{AuthorityName, IotaAddress},
+    base_types::{AuthorityName, address_from_pub_key},
     committee::{Committee, ProtocolVersion},
     crypto::{AccountKeyPair, PublicKey, get_key_pair_from_rng},
     object::Object,
@@ -423,7 +423,7 @@ impl<R: rand::RngCore + rand::CryptoRng> ConfigBuilder<R> {
             // Add allocations for each validator
             for validator in &validators {
                 let account_key: PublicKey = validator.account_key_pair.public();
-                let address = IotaAddress::from(&account_key);
+                let address = address_from_pub_key(&account_key);
                 // Give each validator some gas so they can pay for their transactions.
                 let gas_coin = TokenAllocation {
                     recipient_address: address,

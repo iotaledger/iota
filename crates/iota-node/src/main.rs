@@ -10,7 +10,7 @@ use iota_config::{Config, NodeConfig, node::RunWithRange};
 use iota_core::runtime::IotaRuntimes;
 use iota_node::{IotaNode, metrics};
 use iota_types::{
-    committee::EpochId, messages_checkpoint::CheckpointSequenceNumber, multiaddr::Multiaddr,
+    base_types::Version, committee::EpochId, multiaddr::Multiaddr,
     supported_protocol_versions::SupportedProtocolVersions,
 };
 use tokio::sync::broadcast;
@@ -36,7 +36,7 @@ struct Args {
     run_with_range_epoch: Option<EpochId>,
 
     #[arg(long, group = "exclusive")]
-    run_with_range_checkpoint: Option<CheckpointSequenceNumber>,
+    run_with_range_checkpoint: Option<Version>,
 }
 
 fn main() {

@@ -52,7 +52,7 @@ use strum::EnumString;
 use tracing::{instrument, warn};
 
 use crate::{
-    base_types::{AuthorityName, ConciseableName, IotaAddress},
+    base_types::{Address, AuthorityName, ConciseableName, address_from_iota_pub_key},
     committee::{Committee, CommitteeTrait, EpochId, StakeUnit},
     error::{IotaError, IotaResult},
     iota_serde::{IotaBitmap, Readable},
@@ -112,7 +112,7 @@ pub const IOTA_PRIV_KEY_PREFIX: &str = "iotaprivkey";
 /// is constructed as `authority_pubkey_bytes || authority_account_address`.
 pub fn generate_proof_of_possession(
     keypair: &AuthorityKeyPair,
-    address: IotaAddress,
+    address: Address,
 ) -> AuthoritySignature {
     let mut msg: Vec<u8> = Vec::new();
     msg.extend_from_slice(keypair.public().as_bytes());
@@ -129,7 +129,7 @@ pub fn generate_proof_of_possession(
 pub fn verify_proof_of_possession(
     pop: &AuthoritySignature,
     authority_pubkey: &AuthorityPublicKey,
-    iota_address: IotaAddress,
+    iota_address: Address,
 ) -> Result<(), IotaError> {
     authority_pubkey
         .validate()
@@ -619,7 +619,7 @@ impl IotaAuthoritySignature for AuthoritySignature {
 
 // TODO: get_key_pair() and get_key_pair_from_bytes() should return KeyPair
 // only. TODO: rename to random_key_pair
-pub fn get_key_pair<KP: KeypairTraits>() -> (IotaAddress, KP)
+pub fn get_key_pair<KP: KeypairTraits>() -> (Address, KP)
 where
     <KP as KeypairTraits>::PubKey: IotaPublicKey,
 {
@@ -645,32 +645,32 @@ pub fn random_committee_key_pairs_of_size(size: usize) -> Vec<AuthorityKeyPair> 
         .collect()
 }
 
-pub fn deterministic_random_account_key() -> (IotaAddress, AccountKeyPair) {
+pub fn deterministic_random_account_key() -> (Address, AccountKeyPair) {
     let mut rng = StdRng::from_seed([0; 32]);
     get_key_pair_from_rng(&mut rng)
 }
 
-pub fn get_account_key_pair() -> (IotaAddress, AccountKeyPair) {
+pub fn get_account_key_pair() -> (Address, AccountKeyPair) {
     get_key_pair()
 }
 
-pub fn get_authority_key_pair() -> (IotaAddress, AuthorityKeyPair) {
+pub fn get_authority_key_pair() -> (Address, AuthorityKeyPair) {
     get_key_pair()
 }
 
 /// Generate a keypair from the specified RNG (useful for testing with seedable
 /// rngs).
-pub fn get_key_pair_from_rng<KP: KeypairTraits, R>(csprng: &mut R) -> (IotaAddress, KP)
+pub fn get_key_pair_from_rng<KP: KeypairTraits, R>(csprng: &mut R) -> (Address, KP)
 where
     R: rand::CryptoRng + rand::RngCore,
     <KP as KeypairTraits>::PubKey: IotaPublicKey,
 {
     let kp = KP::generate(&mut StdRng::from_rng(csprng).unwrap());
-    (kp.public().into(), kp)
+    (address_from_iota_pub_key(kp.public()), kp)
 }
 
 // TODO: C-GETTER
-pub fn get_key_pair_from_bytes<KP: KeypairTraits>(bytes: &[u8]) -> IotaResult<(IotaAddress, KP)>
+pub fn get_key_pair_from_bytes<KP: KeypairTraits>(bytes: &[u8]) -> IotaResult<(Address, KP)>
 where
     <KP as KeypairTraits>::PubKey: IotaPublicKey,
 {
@@ -690,7 +690,7 @@ where
     )
     .map_err(|_| IotaError::InvalidPrivateKey)?;
     let kp: KP = sk.into();
-    Ok((kp.public().into(), kp))
+    Ok((address_from_iota_pub_key(kp.public()), kp))
 }
 
 // Account Signatures
@@ -986,7 +986,7 @@ pub trait IotaSignature: Sized + ToFromBytes {
     fn verify_secure<T>(
         &self,
         value: &IntentMessage<T>,
-        author: IotaAddress,
+        author: Address,
         scheme: SignatureScheme,
     ) -> IotaResult<()>
     where
@@ -1013,7 +1013,7 @@ impl<S: IotaSignatureInner + Sized> IotaSignature for S {
     fn verify_secure<T>(
         &self,
         value: &IntentMessage<T>,
-        author: IotaAddress,
+        author: Address,
         scheme: SignatureScheme,
     ) -> Result<(), IotaError>
     where
@@ -1028,7 +1028,7 @@ impl<S: IotaSignatureInner + Sized> IotaSignature for S {
             SignatureScheme::ZkLoginAuthenticator => {} // Pass this check because zk login does
             // not derive address from pubkey.
             _ => {
-                let address = IotaAddress::from(pk);
+                let address = address_from_iota_pub_key(pk);
                 if author != address {
                     return Err(IotaError::IncorrectSigner {
                         error: format!("Incorrect signer, expected {author:?}, got {address:?}"),

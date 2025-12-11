@@ -8,7 +8,7 @@ use iota_types::{digests::CertificateDigest, signature_verification::VerifiedDig
 
 fn verified_cert_cache_bench(c: &mut Criterion) {
     let mut digests: Vec<_> = (0..(1 << 18))
-        .map(|_| CertificateDigest::random())
+        .map(|_| CertificateDigest::new(rand::random()))
         .collect();
     digests.extend_from_slice(&digests.clone());
     rand::seq::SliceRandom::shuffle(digests.as_mut_slice(), &mut rand::rngs::OsRng);

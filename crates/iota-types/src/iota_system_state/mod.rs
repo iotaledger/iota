@@ -7,7 +7,10 @@ use std::fmt;
 use anyhow::Result;
 use enum_dispatch::enum_dispatch;
 use iota_protocol_config::{ProtocolConfig, ProtocolVersion};
-use move_core_types::{ident_str, identifier::IdentStr, language_storage::StructTag};
+use iota_sdk_2::types::Address;
+use move_core_types::{
+    account_address::AccountAddress, ident_str, identifier::IdentStr, language_storage::StructTag,
+};
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 
 use self::{
@@ -16,8 +19,8 @@ use self::{
     iota_system_state_summary::{IotaSystemStateSummary, IotaValidatorSummary},
 };
 use crate::{
-    IOTA_SYSTEM_ADDRESS, IOTA_SYSTEM_STATE_OBJECT_ID, MoveTypeTagTrait,
-    base_types::ObjectID,
+    MoveTypeTagTrait,
+    base_types::ObjectId,
     committee::CommitteeWithNetworkMetadata,
     dynamic_field::{Field, get_dynamic_field_from_store, get_dynamic_field_object_from_store},
     error::IotaError,
@@ -71,7 +74,7 @@ pub struct IotaSystemStateWrapper {
 impl IotaSystemStateWrapper {
     pub fn type_() -> StructTag {
         StructTag {
-            address: IOTA_SYSTEM_ADDRESS,
+            address: AccountAddress::new(Address::SYSTEM.into_bytes()),
             name: IOTA_SYSTEM_STATE_WRAPPER_STRUCT_NAME.to_owned(),
             module: IOTA_SYSTEM_MODULE_NAME.to_owned(),
             type_params: vec![],
@@ -235,7 +238,7 @@ pub fn get_iota_system_state_wrapper(
     object_store: &dyn ObjectStore,
 ) -> Result<IotaSystemStateWrapper, IotaError> {
     let wrapper = object_store
-        .try_get_object(&IOTA_SYSTEM_STATE_OBJECT_ID)?
+        .try_get_object(&ObjectId::SYSTEM)?
         // Don't panic here on None because object_store is a generic store.
         .ok_or_else(|| {
             IotaError::IotaSystemStateRead("IotaSystemStateWrapper object not found".to_owned())
@@ -330,7 +333,7 @@ pub fn get_iota_system_state(object_store: &dyn ObjectStore) -> Result<IotaSyste
 /// that the validator is stored in the table as Validator type.
 pub fn get_validator_from_table<K>(
     object_store: &dyn ObjectStore,
-    table_id: ObjectID,
+    table_id: ObjectId,
     key: &K,
 ) -> Result<IotaValidatorSummary, IotaError>
 where
@@ -387,7 +390,7 @@ where
 
 pub fn get_validators_from_table_vec<S, ValidatorType>(
     object_store: &S,
-    table_id: ObjectID,
+    table_id: ObjectId,
     table_size: u64,
 ) -> Result<Vec<ValidatorType>, IotaError>
 where

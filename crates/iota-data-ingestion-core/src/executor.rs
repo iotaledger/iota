@@ -7,7 +7,7 @@ use std::{path::PathBuf, pin::Pin, sync::Arc};
 use futures::Future;
 use iota_metrics::spawn_monitored_task;
 use iota_rest_api::CheckpointData;
-use iota_types::{committee::EpochId, messages_checkpoint::CheckpointSequenceNumber};
+use iota_types::{base_types::Version, committee::EpochId};
 use prometheus::Registry;
 use tokio::{
     sync::{mpsc, oneshot},
@@ -57,7 +57,7 @@ pub enum IngestionLimit {
     ///
     /// After processing this checkpoint the framework will start the graceful
     /// shutdown process.
-    MaxCheckpoint(CheckpointSequenceNumber),
+    MaxCheckpoint(Version),
     /// Last checkpoint to process based on the given epoch.
     ///
     /// After processing this checkpoint the framework will start the graceful
@@ -94,7 +94,7 @@ enum CheckpointReader {
     /// The old checkpoint reader implementation.
     V1 {
         checkpoint_recv: mpsc::Receiver<Arc<CheckpointData>>,
-        gc_sender: mpsc::Sender<CheckpointSequenceNumber>,
+        gc_sender: mpsc::Sender<Version>,
         exit_sender: oneshot::Sender<()>,
         handle: JoinHandle<IngestionResult<()>>,
     },
@@ -114,10 +114,7 @@ impl CheckpointReader {
     }
 
     /// Sends a GC signal to the reader.
-    async fn send_gc_signal(
-        &mut self,
-        seq_number: CheckpointSequenceNumber,
-    ) -> IngestionResult<()> {
+    async fn send_gc_signal(&mut self, seq_number: Version) -> IngestionResult<()> {
         match self {
             Self::V1 { gc_sender, .. } => gc_sender.send(seq_number).await.map_err(|_| {
                 IngestionError::Channel(
@@ -305,14 +302,11 @@ impl<P: ProgressStore> IndexerExecutor<P> {
     pub async fn update_watermark(
         &mut self,
         task_name: String,
-        watermark: CheckpointSequenceNumber,
+        watermark: Version,
     ) -> IngestionResult<()> {
         self.progress_store.save(task_name, watermark).await
     }
-    pub async fn read_watermark(
-        &mut self,
-        task_name: String,
-    ) -> IngestionResult<CheckpointSequenceNumber> {
+    pub async fn read_watermark(&mut self, task_name: String) -> IngestionResult<Version> {
         self.progress_store.load(task_name).await
     }
 
@@ -467,7 +461,7 @@ impl<P: ProgressStore> IndexerExecutor<P> {
     fn should_shutdown(
         &mut self,
         checkpoint: &CheckpointData,
-        checkpoint_limit_reached: &mut Option<CheckpointSequenceNumber>,
+        checkpoint_limit_reached: &mut Option<Version>,
     ) -> bool {
         if checkpoint_limit_reached.is_some() {
             return true;
@@ -556,7 +550,7 @@ impl<P: ProgressStore> IndexerExecutor<P> {
 pub async fn setup_single_workflow<W: Worker + 'static>(
     worker: W,
     remote_store_url: String,
-    initial_checkpoint_number: CheckpointSequenceNumber,
+    initial_checkpoint_number: Version,
     concurrency: usize,
     reader_options: Option<ReaderOptions>,
 ) -> IngestionResult<(

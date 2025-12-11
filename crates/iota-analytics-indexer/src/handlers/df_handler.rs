@@ -12,7 +12,7 @@ use iota_json_rpc_types::IotaMoveValue;
 use iota_package_resolver::Resolver;
 use iota_types::{
     SYSTEM_PACKAGE_ADDRESSES, TypeTag,
-    base_types::ObjectID,
+    base_types::ObjectId,
     dynamic_field::{DynamicFieldName, DynamicFieldType, visitor as DFV},
     full_checkpoint_content::{CheckpointData, CheckpointTransaction},
     object::{Object, bounded_visitor::BoundedVisitor},
@@ -112,7 +112,7 @@ impl DynamicFieldHandler {
         checkpoint: u64,
         timestamp_ms: u64,
         object: &Object,
-        all_written_objects: &HashMap<ObjectID, Object>,
+        all_written_objects: &HashMap<ObjectId, Object>,
         state: &mut State,
     ) -> Result<()> {
         let move_obj_opt = object.data.try_as_move();
@@ -151,7 +151,7 @@ impl DynamicFieldHandler {
         let entry = match type_ {
             DynamicFieldType::DynamicField => DynamicFieldEntry {
                 parent_object_id: parent_id.to_string(),
-                transaction_digest: object.previous_transaction.base58_encode(),
+                transaction_digest: object.previous_transaction.to_base58(),
                 checkpoint,
                 epoch,
                 timestamp_ms,
@@ -159,7 +159,7 @@ impl DynamicFieldHandler {
                 bcs_name: Base64::encode(bcs_name),
                 type_,
                 object_id: object.id().to_string(),
-                version: object.version().value(),
+                version: object.version(),
                 digest: object.digest().to_string(),
                 object_type: move_object.clone().into_type().into_type_params()[1]
                     .to_canonical_string(/* with_prefix */ true),
@@ -171,12 +171,12 @@ impl DynamicFieldHandler {
 
                     )),
                 )?;
-                let version = object.version().value();
+                let version = object.version();
                 let digest = object.digest().to_string();
                 let object_type = object.data.type_().unwrap().clone();
                 DynamicFieldEntry {
                     parent_object_id: parent_id.to_string(),
-                    transaction_digest: object.previous_transaction.base58_encode(),
+                    transaction_digest: object.previous_transaction.to_base58(),
                     checkpoint,
                     epoch,
                     timestamp_ms,

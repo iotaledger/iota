@@ -9,13 +9,13 @@ use iota_common::fatal;
 use iota_metrics::monitored_scope;
 use iota_types::{
     accumulator::Accumulator,
-    base_types::{ObjectID, SequenceNumber},
+    base_types::{ObjectId, Version},
     committee::EpochId,
     digests::ObjectDigest,
     effects::{TransactionEffects, TransactionEffectsAPI},
     error::IotaResult,
     in_memory_storage::InMemoryStorage,
-    messages_checkpoint::{CheckpointSequenceNumber, ECMHLiveObjectSetDigest},
+    messages_checkpoint::ECMHLiveObjectSetDigest,
     storage::ObjectStore,
 };
 use prometheus::{IntGauge, Registry, register_int_gauge_with_registry};
@@ -53,16 +53,16 @@ pub trait AccumulatorStore: ObjectStore + Send + Sync {
     fn get_root_state_accumulator_for_epoch(
         &self,
         epoch: EpochId,
-    ) -> IotaResult<Option<(CheckpointSequenceNumber, Accumulator)>>;
+    ) -> IotaResult<Option<(Version, Accumulator)>>;
 
     fn get_root_state_accumulator_for_highest_epoch(
         &self,
-    ) -> IotaResult<Option<(EpochId, (CheckpointSequenceNumber, Accumulator))>>;
+    ) -> IotaResult<Option<(EpochId, (Version, Accumulator))>>;
 
     fn insert_state_accumulator_for_epoch(
         &self,
         epoch: EpochId,
-        checkpoint_seq_num: &CheckpointSequenceNumber,
+        checkpoint_seq_num: &Version,
         acc: &Accumulator,
     ) -> IotaResult;
 
@@ -77,20 +77,20 @@ impl AccumulatorStore for InMemoryStorage {
     fn get_root_state_accumulator_for_epoch(
         &self,
         _epoch: EpochId,
-    ) -> IotaResult<Option<(CheckpointSequenceNumber, Accumulator)>> {
+    ) -> IotaResult<Option<(Version, Accumulator)>> {
         unreachable!("not used for testing")
     }
 
     fn get_root_state_accumulator_for_highest_epoch(
         &self,
-    ) -> IotaResult<Option<(EpochId, (CheckpointSequenceNumber, Accumulator))>> {
+    ) -> IotaResult<Option<(EpochId, (Version, Accumulator))>> {
         unreachable!("not used for testing")
     }
 
     fn insert_state_accumulator_for_epoch(
         &self,
         _epoch: EpochId,
-        _checkpoint_seq_num: &CheckpointSequenceNumber,
+        _checkpoint_seq_num: &Version,
         _acc: &Accumulator,
     ) -> IotaResult {
         unreachable!("not used for testing")
@@ -101,22 +101,22 @@ impl AccumulatorStore for InMemoryStorage {
     }
 }
 
-/// Serializable representation of the ObjectRef of an
+/// Serializable representation of the ObjectReference of an
 /// object that has been wrapped
 /// TODO: This can be replaced with ObjectKey.
 #[derive(Serialize, Debug)]
 pub struct WrappedObject {
-    id: ObjectID,
-    wrapped_at: SequenceNumber,
+    id: ObjectId,
+    wrapped_at: Version,
     digest: ObjectDigest,
 }
 
 impl WrappedObject {
-    pub fn new(id: ObjectID, wrapped_at: SequenceNumber) -> Self {
+    pub fn new(id: ObjectId, wrapped_at: Version) -> Self {
         Self {
             id,
             wrapped_at,
-            digest: ObjectDigest::OBJECT_DIGEST_WRAPPED,
+            digest: ObjectDigest::OBJECT_WRAPPED,
         }
     }
 }
@@ -131,7 +131,7 @@ fn accumulate_effects(effects: &[TransactionEffects]) -> Accumulator {
             .flat_map(|fx| {
                 fx.all_changed_objects()
                     .into_iter()
-                    .map(|(object_ref, _, _)| object_ref.2)
+                    .map(|(object_ref, _, _)| object_ref.digest)
             })
             .collect::<Vec<ObjectDigest>>(),
     );
@@ -143,7 +143,7 @@ fn accumulate_effects(effects: &[TransactionEffects]) -> Accumulator {
             .flat_map(|fx| {
                 fx.old_object_metadata()
                     .into_iter()
-                    .map(|(object_ref, _owner)| object_ref.2)
+                    .map(|(object_ref, _owner)| object_ref.digest)
             })
             .collect::<Vec<ObjectDigest>>(),
     );
@@ -175,7 +175,7 @@ impl StateAccumulator {
     pub fn accumulate_checkpoint(
         &self,
         effects: &[TransactionEffects],
-        checkpoint_seq_num: CheckpointSequenceNumber,
+        checkpoint_seq_num: Version,
         epoch_store: &AuthorityPerEpochStore,
     ) -> IotaResult<Accumulator> {
         let _scope = monitored_scope("AccumulateCheckpoint");
@@ -216,7 +216,7 @@ impl StateAccumulator {
     pub fn accumulate_live_object(acc: &mut Accumulator, live_object: &LiveObject) {
         match live_object {
             LiveObject::Normal(object) => {
-                acc.insert(object.compute_object_reference().2);
+                acc.insert(object.digest());
             }
             LiveObject::Wrapped(key) => {
                 acc.insert(
@@ -235,7 +235,7 @@ impl StateAccumulator {
     pub async fn digest_epoch(
         &self,
         epoch_store: Arc<AuthorityPerEpochStore>,
-        last_checkpoint_of_epoch: CheckpointSequenceNumber,
+        last_checkpoint_of_epoch: Version,
     ) -> IotaResult<ECMHLiveObjectSetDigest> {
         Ok(self
             .accumulate_epoch(epoch_store, last_checkpoint_of_epoch)?
@@ -246,7 +246,7 @@ impl StateAccumulator {
     pub async fn wait_for_previous_running_root(
         &self,
         epoch_store: &AuthorityPerEpochStore,
-        checkpoint_seq_num: CheckpointSequenceNumber,
+        checkpoint_seq_num: Version,
     ) -> IotaResult {
         assert!(checkpoint_seq_num > 0);
 
@@ -274,7 +274,7 @@ impl StateAccumulator {
     fn get_prior_root(
         &self,
         epoch_store: &AuthorityPerEpochStore,
-        checkpoint_seq_num: CheckpointSequenceNumber,
+        checkpoint_seq_num: Version,
     ) -> IotaResult<Accumulator> {
         if checkpoint_seq_num == 0 {
             return Ok(Accumulator::default());
@@ -307,7 +307,7 @@ impl StateAccumulator {
     pub fn accumulate_running_root(
         &self,
         epoch_store: &AuthorityPerEpochStore,
-        checkpoint_seq_num: CheckpointSequenceNumber,
+        checkpoint_seq_num: Version,
         checkpoint_acc: Option<Accumulator>,
     ) -> IotaResult {
         let _scope = monitored_scope("AccumulateRunningRoot");
@@ -349,7 +349,7 @@ impl StateAccumulator {
     pub fn accumulate_epoch(
         &self,
         epoch_store: Arc<AuthorityPerEpochStore>,
-        last_checkpoint_of_epoch: CheckpointSequenceNumber,
+        last_checkpoint_of_epoch: Version,
     ) -> IotaResult<Accumulator> {
         let _scope = monitored_scope("AccumulateEpoch");
         let running_root = epoch_store

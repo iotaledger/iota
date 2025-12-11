@@ -189,7 +189,7 @@ let deny_cap = ptb.obj(ObjectArg::ImmOrOwnedObject(deny_cap))?;
 let address_to_ban = IotaAddress::from_str("0x...")?;
 let address_to_ban_arg = ptb.pure(address_to_ban)?;
 ptb.programmable_move_call(
-    IOTA_FRAMEWORK_PACKAGE_ID,
+    ObjectId::from(Address::FRAMEWORK),
     Identifier::from(COIN_MODULE_NAME),
     Identifier::from_str("deny_list_add")?,
     vec![<otw-type>],

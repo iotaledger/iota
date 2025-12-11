@@ -6,7 +6,7 @@ use move_core_types::annotated_value::MoveStructLayout;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    base_types::{ObjectID, SequenceNumber, TransactionDigest},
+    base_types::{ObjectId, TransactionDigest, Version},
     crypto::{AuthoritySignInfo, AuthorityStrongQuorumSignInfo},
     effects::{SignedTransactionEffects, TransactionEvents, VerifiedSignedTransactionEffects},
     messages_consensus::SignedAuthorityCapabilitiesV1,
@@ -22,7 +22,7 @@ pub enum ObjectInfoRequestKind {
     /// This is used only for debugging purpose and will not work as a generic
     /// solution since we don't keep around all historic object versions.
     /// No production code should depend on this kind.
-    PastObjectInfoDebug(SequenceNumber),
+    PastObjectInfoDebug(Version),
 }
 
 /// Layout generation options -- you can either generate or not generate the
@@ -38,7 +38,7 @@ pub enum LayoutGenerationOption {
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Serialize, Deserialize)]
 pub struct ObjectInfoRequest {
     /// The id of the object to retrieve, at the latest version.
-    pub object_id: ObjectID,
+    pub object_id: ObjectId,
     /// if true return the layout of the object.
     pub generate_layout: LayoutGenerationOption,
     /// The type of request, either latest object info or the past.
@@ -47,8 +47,8 @@ pub struct ObjectInfoRequest {
 
 impl ObjectInfoRequest {
     pub fn past_object_info_debug_request(
-        object_id: ObjectID,
-        version: SequenceNumber,
+        object_id: ObjectId,
+        version: Version,
         generate_layout: LayoutGenerationOption,
     ) -> Self {
         ObjectInfoRequest {
@@ -59,7 +59,7 @@ impl ObjectInfoRequest {
     }
 
     pub fn latest_object_info_request(
-        object_id: ObjectID,
+        object_id: ObjectId,
         generate_layout: LayoutGenerationOption,
     ) -> Self {
         ObjectInfoRequest {

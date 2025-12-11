@@ -14,9 +14,7 @@ use anyhow::{Context, Result};
 use iota_config::object_storage_config::{ObjectStoreConfig, ObjectStoreType};
 use iota_data_ingestion_core::Worker;
 use iota_storage::object_store::util::{copy_file, path_to_filesystem};
-use iota_types::{
-    full_checkpoint_content::CheckpointData, messages_checkpoint::CheckpointSequenceNumber,
-};
+use iota_types::{base_types::Version, full_checkpoint_content::CheckpointData};
 use object_store::{DynObjectStore, path::Path};
 use serde::Serialize;
 use tokio::sync::{Mutex, mpsc, oneshot};
@@ -110,7 +108,7 @@ impl<S: Serialize + ParquetSchema + 'static> AnalyticsProcessor<S> {
         handler: Box<dyn AnalyticsHandler<S>>,
         writer: Box<dyn AnalyticsWriter<S>>,
         max_checkpoint_reader: Box<dyn MaxCheckpointReader>,
-        next_checkpoint_seq_num: CheckpointSequenceNumber,
+        next_checkpoint_seq_num: Version,
         metrics: AnalyticsMetrics,
         config: AnalyticsIndexerConfig,
     ) -> Result<Self> {

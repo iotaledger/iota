@@ -5,7 +5,7 @@
 use std::collections::BTreeMap;
 
 use crate::{
-    base_types::ObjectID,
+    base_types::ObjectId,
     effects::{TransactionEffects, TransactionEvents},
     error::{ExecutionError, IotaError},
     execution::ExecutionResult,
@@ -36,10 +36,10 @@ pub trait TransactionExecutor: Send + Sync {
 pub struct SimulateTransactionResult {
     pub effects: TransactionEffects,
     pub events: Option<TransactionEvents>,
-    pub input_objects: BTreeMap<ObjectID, Object>,
-    pub output_objects: BTreeMap<ObjectID, Object>,
+    pub input_objects: BTreeMap<ObjectId, Object>,
+    pub output_objects: BTreeMap<ObjectId, Object>,
     pub execution_result: Result<Vec<ExecutionResult>, ExecutionError>,
-    pub mock_gas_id: Option<ObjectID>,
+    pub mock_gas_id: Option<ObjectId>,
 }
 
 #[derive(Default, Debug, Copy, Clone)]

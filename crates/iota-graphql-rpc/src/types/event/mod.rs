@@ -19,7 +19,7 @@ use iota_indexer::{
 };
 use iota_types::{
     Identifier,
-    base_types::{IotaAddress as NativeIotaAddress, ObjectID},
+    base_types::{Address as NativeIotaAddress, ObjectId},
     event::Event as NativeEvent,
     parse_iota_struct_tag,
 };
@@ -251,8 +251,8 @@ impl Event {
             tx_sequence_number: stored_tx.tx_sequence_number,
             event_sequence_number: idx as i64,
             transaction_digest: stored_tx.transaction_digest.clone(),
-            senders: vec![Some(native_event.sender.to_vec())],
-            package: native_event.package_id.to_vec(),
+            senders: vec![Some(native_event.sender.as_bytes().to_vec())],
+            package: native_event.package_id.as_bytes().to_vec(),
             module: native_event.transaction_module.to_string(),
             event_type: native_event.type_.to_canonical_string(with_prefix),
             bcs: native_event.contents.clone(),
@@ -276,7 +276,7 @@ impl Event {
         let sender = NativeIotaAddress::from_bytes(sender_bytes)
             .map_err(|e| Error::Internal(e.to_string()))?;
         let package_id =
-            ObjectID::from_bytes(&stored.package).map_err(|e| Error::Internal(e.to_string()))?;
+            ObjectId::from_bytes(&stored.package).map_err(|e| Error::Internal(e.to_string()))?;
         let type_ = parse_iota_struct_tag(&stored.event_type)
             .map_err(|e| Error::Internal(e.to_string()))?;
         let transaction_module =
@@ -319,8 +319,8 @@ impl Event {
             tx_sequence_number: optimistic_tx.optimistic_sequence_number,
             event_sequence_number: idx as i64,
             transaction_digest: optimistic_tx.transaction_digest.clone(),
-            senders: vec![Some(native_event.sender.to_vec())],
-            package: native_event.package_id.to_vec(),
+            senders: vec![Some(native_event.sender.as_bytes().to_vec())],
+            package: native_event.package_id.as_bytes().to_vec(),
             module: native_event.transaction_module.to_string(),
             event_type: native_event.type_.to_canonical_string(with_prefix),
             bcs: native_event.contents.clone(),

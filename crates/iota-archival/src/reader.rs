@@ -23,10 +23,10 @@ use iota_storage::{
     verify_checkpoint,
 };
 use iota_types::{
+    base_types::Version,
     messages_checkpoint::{
-        CertifiedCheckpointSummary, CheckpointSequenceNumber,
-        FullCheckpointContents as CheckpointContents, VerifiedCheckpoint,
-        VerifiedCheckpointContents,
+        CertifiedCheckpointSummary, FullCheckpointContents as CheckpointContents,
+        VerifiedCheckpoint, VerifiedCheckpointContents,
     },
     storage::WriteStore,
 };
@@ -84,7 +84,7 @@ impl ArchiveReaderBalancer {
         Ok(ArchiveReaderBalancer { readers })
     }
     pub async fn get_archive_watermark(&self) -> Result<Option<u64>> {
-        let mut checkpoints: Vec<Result<CheckpointSequenceNumber>> = vec![];
+        let mut checkpoints: Vec<Result<Version>> = vec![];
         for reader in self
             .readers
             .iter()
@@ -98,12 +98,12 @@ impl ArchiveReaderBalancer {
             );
             checkpoints.push(latest_checkpoint)
         }
-        let checkpoints: Result<Vec<CheckpointSequenceNumber>> = checkpoints.into_iter().collect();
+        let checkpoints: Result<Vec<Version>> = checkpoints.into_iter().collect();
         checkpoints.map(|vec| vec.into_iter().min())
     }
     pub async fn pick_one_random(
         &self,
-        checkpoint_range: Range<CheckpointSequenceNumber>,
+        checkpoint_range: Range<Version>,
     ) -> Option<Arc<ArchiveReader>> {
         let mut archives_with_complete_range = vec![];
         for reader in self.readers.iter() {
@@ -284,7 +284,7 @@ impl ArchiveReader {
     pub async fn read_summaries_for_range_no_verify<S>(
         &self,
         store: S,
-        checkpoint_range: Range<CheckpointSequenceNumber>,
+        checkpoint_range: Range<Version>,
         checkpoint_counter: Arc<AtomicU64>,
     ) -> Result<()>
     where
@@ -336,7 +336,7 @@ impl ArchiveReader {
     pub async fn read_summaries_for_list_no_verify<S>(
         &self,
         store: S,
-        checkpoints: Vec<CheckpointSequenceNumber>,
+        checkpoints: Vec<Version>,
         checkpoint_counter: Arc<AtomicU64>,
     ) -> Result<()>
     where
@@ -385,7 +385,7 @@ impl ArchiveReader {
     pub async fn read<S>(
         &self,
         store: S,
-        checkpoint_range: Range<CheckpointSequenceNumber>,
+        checkpoint_range: Range<Version>,
         txn_counter: Arc<AtomicU64>,
         checkpoint_counter: Arc<AtomicU64>,
         verify: bool,
@@ -498,7 +498,7 @@ impl ArchiveReader {
     }
 
     /// Return latest available checkpoint in archive
-    pub async fn latest_available_checkpoint(&self) -> Result<CheckpointSequenceNumber> {
+    pub async fn latest_available_checkpoint(&self) -> Result<Version> {
         let manifest = self.manifest.lock().await.clone();
         manifest
             .next_checkpoint_seq_num()
@@ -595,7 +595,7 @@ impl ArchiveReader {
 
     async fn get_summary_files_for_range(
         &self,
-        checkpoint_range: Range<CheckpointSequenceNumber>,
+        checkpoint_range: Range<Version>,
     ) -> Result<(Vec<FileMetadata>, usize, usize)> {
         let manifest = self.manifest.lock().await.clone();
 
@@ -637,7 +637,7 @@ impl ArchiveReader {
 
     async fn get_summary_files_for_list(
         &self,
-        checkpoints: Vec<CheckpointSequenceNumber>,
+        checkpoints: Vec<Version>,
     ) -> Result<Vec<FileMetadata>> {
         assert!(!checkpoints.is_empty());
         let manifest = self.manifest.lock().await.clone();

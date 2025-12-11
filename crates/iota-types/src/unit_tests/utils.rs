@@ -10,8 +10,8 @@ use rand::{SeedableRng, rngs::StdRng};
 use serde::Deserialize;
 
 use crate::{
-    IotaAddress,
-    base_types::{ObjectID, dbg_addr},
+    Address,
+    base_types::{ObjectId, dbg_addr},
     committee::Committee,
     crypto::{
         AccountKeyPair, AuthorityKeyPair, AuthorityPublicKeyBytes, DefaultHash, IotaKeyPair,
@@ -70,7 +70,7 @@ where
 pub fn create_fake_transaction() -> Transaction {
     let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
     let recipient = dbg_addr(2);
-    let object_id = ObjectID::random();
+    let object_id = ObjectId::new(rand::random());
     let object = Object::immutable_with_id_for_testing(object_id);
     let pt = {
         let mut builder = ProgrammableTransactionBuilder::new();
@@ -87,10 +87,9 @@ pub fn create_fake_transaction() -> Transaction {
     to_sender_signed_transaction(data, &sender_key)
 }
 
-pub fn make_transaction_data(sender: IotaAddress) -> TransactionData {
-    let object = Object::immutable_with_id_for_testing(ObjectID::random_from_rng(
-        &mut StdRng::from_seed([0; 32]),
-    ));
+pub fn make_transaction_data(sender: Address) -> TransactionData {
+    let object =
+        Object::immutable_with_id_for_testing(Address::generate(StdRng::from_seed([0; 32])).into());
     let pt = {
         let mut builder = ProgrammableTransactionBuilder::new();
         builder.transfer_iota(dbg_addr(2), None);
@@ -107,7 +106,7 @@ pub fn make_transaction_data(sender: IotaAddress) -> TransactionData {
 
 /// Make a user signed transaction with the given sender and its keypair. This
 /// is not verified or signed by authority.
-pub fn make_transaction(sender: IotaAddress, kp: &IotaKeyPair) -> Transaction {
+pub fn make_transaction(sender: Address, kp: &IotaKeyPair) -> Transaction {
     let data = make_transaction_data(sender);
     Transaction::from_data_and_signer(data, vec![kp])
 }
@@ -132,7 +131,11 @@ mod zk_login {
     use iota_sdk_2::types::crypto::PersonalMessage;
 
     use super::*;
-    use crate::{crypto::PublicKey, zk_login_util::get_zklogin_inputs};
+    use crate::{
+        base_types::{address_from_multisig_pub_key, address_from_pub_key},
+        crypto::PublicKey,
+        zk_login_util::get_zklogin_inputs,
+    };
     pub static DEFAULT_ADDRESS_SEED: &str =
         "20794788559620669596206457022966176986688727876128223628113916380927502737911";
     pub static SHORT_ADDRESS_SEED: &str =
@@ -162,9 +165,9 @@ mod zk_login {
         test_data[1].zklogin_inputs.clone()
     }
 
-    pub fn get_zklogin_user_address() -> IotaAddress {
+    pub fn get_zklogin_user_address() -> Address {
         thread_local! {
-            static USER_ADDRESS: IotaAddress = {
+            static USER_ADDRESS: Address = {
                 // Derive user address manually: Blake2b_256 hash of [zklogin_flag || iss_bytes_length || iss_bytes || address seed in bytes])
                 let mut hasher = DefaultHash::default();
                 hasher.update([SignatureScheme::ZkLoginAuthenticator.flag()]);
@@ -173,7 +176,7 @@ mod zk_login {
                 hasher.update([iss_bytes.len() as u8]);
                 hasher.update(iss_bytes);
                 hasher.update(inputs.get_address_seed().unpadded());
-                IotaAddress::from_bytes(hasher.finalize().digest).unwrap()
+                Address::from_bytes(hasher.finalize().digest).unwrap()
             };
         }
         USER_ADDRESS.with(|a| *a)
@@ -189,17 +192,17 @@ mod zk_login {
         ZKLOGIN_INPUTS.with(|a| a.clone())
     }
 
-    pub fn get_legacy_zklogin_user_address() -> IotaAddress {
+    pub fn get_legacy_zklogin_user_address() -> Address {
         thread_local! {
-            static USER_ADDRESS: IotaAddress = {
+            static USER_ADDRESS: Address = {
                 let inputs = get_inputs_with_bad_address_seed();
-                IotaAddress::from(&PublicKey::from_zklogin_inputs(&inputs).unwrap())
+                address_from_pub_key(&PublicKey::from_zklogin_inputs(&inputs).unwrap())
             };
         }
         USER_ADDRESS.with(|a| *a)
     }
 
-    pub fn sign_zklogin_personal_msg(data: PersonalMessage<'_>) -> (IotaAddress, GenericSignature) {
+    pub fn sign_zklogin_personal_msg(data: PersonalMessage<'_>) -> (Address, GenericSignature) {
         let inputs = get_zklogin_inputs();
         let msg = IntentMessage::new(Intent::personal_message(), data.0);
         let s = Signature::new_secure(&msg, &get_zklogin_user_key());
@@ -212,7 +215,7 @@ mod zk_login {
     pub fn sign_zklogin_tx_with_default_proof(
         data: TransactionData,
         legacy: bool,
-    ) -> (IotaAddress, Transaction, GenericSignature) {
+    ) -> (Address, Transaction, GenericSignature) {
         let inputs = if legacy {
             get_inputs_with_bad_address_seed()
         } else {
@@ -226,7 +229,7 @@ mod zk_login {
         user_key: &IotaKeyPair,
         proof: ZkLoginInputs,
         data: TransactionData,
-    ) -> (IotaAddress, Transaction, GenericSignature) {
+    ) -> (Address, Transaction, GenericSignature) {
         let tx = Transaction::from_data_and_signer(data.clone(), vec![user_key]);
 
         let s = match tx.inner().tx_signatures.first().unwrap() {
@@ -246,9 +249,9 @@ mod zk_login {
     }
 
     pub fn make_zklogin_tx(
-        address: IotaAddress,
+        address: Address,
         legacy: bool,
-    ) -> (IotaAddress, Transaction, GenericSignature) {
+    ) -> (Address, Transaction, GenericSignature) {
         let data = make_transaction_data(address);
         sign_zklogin_tx_with_default_proof(data, legacy)
     }
@@ -273,7 +276,7 @@ mod zk_login {
             2,
         )
         .unwrap();
-        let addr = IotaAddress::from(&multisig_pk);
+        let addr = address_from_multisig_pub_key(&multisig_pk);
         let tx = make_transaction(addr, &keys[0]);
 
         let msg = IntentMessage::new(Intent::iota_transaction(), tx.transaction_data().clone());

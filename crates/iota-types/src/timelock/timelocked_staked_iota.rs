@@ -1,12 +1,14 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use move_core_types::{ident_str, identifier::IdentStr, language_storage::StructTag};
+use iota_sdk_2::types::Address;
+use move_core_types::{
+    account_address::AccountAddress, ident_str, identifier::IdentStr, language_storage::StructTag,
+};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    IOTA_SYSTEM_ADDRESS,
-    base_types::ObjectID,
+    base_types::ObjectId,
     committee::EpochId,
     error::IotaError,
     governance::StakedIota,
@@ -34,7 +36,7 @@ impl TimelockedStakedIota {
     /// Get the TimeLock's `type`.
     pub fn type_() -> StructTag {
         StructTag {
-            address: IOTA_SYSTEM_ADDRESS,
+            address: AccountAddress::new(Address::SYSTEM.into_bytes()),
             module: TIMELOCKED_STAKED_IOTA_MODULE_NAME.to_owned(),
             name: TIMELOCKED_STAKED_IOTA_STRUCT_NAME.to_owned(),
             type_params: vec![],
@@ -43,19 +45,19 @@ impl TimelockedStakedIota {
 
     /// Is this other StructTag representing a TimelockedStakedIota?
     pub fn is_timelocked_staked_iota(s: &StructTag) -> bool {
-        s.address == IOTA_SYSTEM_ADDRESS
+        s.address == AccountAddress::new(Address::SYSTEM.into_bytes())
             && s.module.as_ident_str() == TIMELOCKED_STAKED_IOTA_MODULE_NAME
             && s.name.as_ident_str() == TIMELOCKED_STAKED_IOTA_STRUCT_NAME
             && s.type_params.is_empty()
     }
 
     /// Get the TimelockedStakedIota's `id`.
-    pub fn id(&self) -> ObjectID {
+    pub fn id(&self) -> ObjectId {
         self.id.id.bytes
     }
 
     /// Get the wrapped StakedIota's `pool_id`.
-    pub fn pool_id(&self) -> ObjectID {
+    pub fn pool_id(&self) -> ObjectId {
         self.staked_iota.pool_id()
     }
 

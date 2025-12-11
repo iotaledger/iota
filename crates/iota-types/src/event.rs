@@ -18,8 +18,7 @@ use serde_json::Value;
 use serde_with::{Bytes, serde_as};
 
 use crate::{
-    IOTA_SYSTEM_ADDRESS,
-    base_types::{IotaAddress, ObjectID, TransactionDigest},
+    base_types::{Address, ObjectId, TransactionDigest},
     error::{IotaError, IotaResult},
     iota_serde::{BigInt, Readable},
     object::bounded_visitor::BoundedVisitor,
@@ -102,9 +101,9 @@ impl EventEnvelope {
 #[serde_as]
 #[derive(PartialEq, Eq, Debug, Clone, Deserialize, Serialize, Hash)]
 pub struct Event {
-    pub package_id: ObjectID,
+    pub package_id: ObjectId,
     pub transaction_module: Identifier,
-    pub sender: IotaAddress,
+    pub sender: Address,
     pub type_: StructTag,
     #[serde_as(as = "Bytes")]
     pub contents: Vec<u8>,
@@ -112,14 +111,14 @@ pub struct Event {
 
 impl Event {
     pub fn new(
-        package_id: &AccountAddress,
+        package_id: Address,
         module: &IdentStr,
-        sender: IotaAddress,
+        sender: Address,
         type_: StructTag,
         contents: Vec<u8>,
     ) -> Self {
         Self {
-            package_id: ObjectID::from(*package_id),
+            package_id: ObjectId::from(package_id),
             transaction_module: Identifier::from(module),
             sender,
             type_,
@@ -138,13 +137,13 @@ impl Event {
     }
 
     pub fn is_system_epoch_info_event_v1(&self) -> bool {
-        self.type_.address == IOTA_SYSTEM_ADDRESS
+        self.type_.address.as_ref() == Address::SYSTEM.as_bytes()
             && self.type_.module.as_ident_str() == ident_str!("iota_system_state_inner")
             && self.type_.name.as_ident_str() == ident_str!("SystemEpochInfoEventV1")
     }
 
     pub fn is_system_epoch_info_event_v2(&self) -> bool {
-        self.type_.address == IOTA_SYSTEM_ADDRESS
+        self.type_.address.as_ref() == Address::SYSTEM.as_bytes()
             && self.type_.module.as_ident_str() == ident_str!("iota_system_state_inner")
             && self.type_.name.as_ident_str() == ident_str!("SystemEpochInfoEventV2")
     }
@@ -157,11 +156,11 @@ impl Event {
 impl Event {
     pub fn random_for_testing() -> Self {
         Self {
-            package_id: ObjectID::random(),
+            package_id: ObjectId::new(rand::random()),
             transaction_module: Identifier::new("test").unwrap(),
-            sender: AccountAddress::random().into(),
+            sender: Address::new(rand::random()),
             type_: StructTag {
-                address: AccountAddress::random(),
+                address: AccountAddress::new(rand::random()),
                 module: Identifier::new("test").unwrap(),
                 name: Identifier::new("test").unwrap(),
                 type_params: vec![],

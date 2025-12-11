@@ -16,7 +16,7 @@ use iota_config::{
 };
 use iota_metrics::spawn_monitored_task;
 use iota_rest_api::CheckpointData;
-use iota_types::messages_checkpoint::CheckpointSequenceNumber;
+use iota_types::base_types::Version;
 use object_store::ObjectStore;
 use serde::{Deserialize, Serialize};
 use tap::Pipe;
@@ -171,15 +171,15 @@ struct CheckpointReaderActor {
     /// Filesystem path to the local checkpoint directory.
     path: PathBuf,
     /// Start fetch from the current checkpoint sequence.
-    current_checkpoint_number: CheckpointSequenceNumber,
+    current_checkpoint_number: Version,
     /// Keeps tracks the last processed checkpoint sequence number, used to
     /// delete checkpoint files from ingestion path.
-    last_pruned_watermark: CheckpointSequenceNumber,
+    last_pruned_watermark: Version,
     /// Channel for sending checkpoints to WorkerPools.
     checkpoint_tx: mpsc::Sender<Arc<CheckpointData>>,
     /// Sends a garbage collection (GC) signal to prune checkpoint files below
     /// the specified watermark.
-    gc_signal_rx: mpsc::Receiver<CheckpointSequenceNumber>,
+    gc_signal_rx: mpsc::Receiver<Version>,
     /// Remote checkpoint reader for fetching checkpoints from the network.
     remote_store: Option<Arc<RemoteStore>>,
     /// Signal when the reader should exit.
@@ -191,7 +191,7 @@ struct CheckpointReaderActor {
 }
 
 impl LocalRead for CheckpointReaderActor {
-    fn exceeds_capacity(&self, checkpoint_number: CheckpointSequenceNumber) -> bool {
+    fn exceeds_capacity(&self, checkpoint_number: Version) -> bool {
         ((MAX_CHECKPOINTS_IN_PROGRESS as u64 + self.last_pruned_watermark) <= checkpoint_number)
             || self.data_limiter.exceeds()
     }
@@ -200,11 +200,11 @@ impl LocalRead for CheckpointReaderActor {
         &self.path
     }
 
-    fn current_checkpoint_number(&self) -> CheckpointSequenceNumber {
+    fn current_checkpoint_number(&self) -> Version {
         self.current_checkpoint_number
     }
 
-    fn update_last_pruned_watermark(&mut self, watermark: CheckpointSequenceNumber) {
+    fn update_last_pruned_watermark(&mut self, watermark: Version) {
         self.last_pruned_watermark = watermark;
     }
 }
@@ -487,13 +487,13 @@ impl CheckpointReaderActor {
 pub(crate) struct CheckpointReader {
     handle: JoinHandle<()>,
     shutdown_tx: oneshot::Sender<()>,
-    gc_signal_tx: mpsc::Sender<CheckpointSequenceNumber>,
+    gc_signal_tx: mpsc::Sender<Version>,
     checkpoint_rx: mpsc::Receiver<Arc<CheckpointData>>,
 }
 
 impl CheckpointReader {
     pub(crate) async fn new(
-        starting_checkpoint_number: CheckpointSequenceNumber,
+        starting_checkpoint_number: Version,
         config: CheckpointReaderConfig,
     ) -> IngestionResult<Self> {
         let (checkpoint_tx, checkpoint_rx) = mpsc::channel(MAX_CHECKPOINTS_IN_PROGRESS);
@@ -551,10 +551,7 @@ impl CheckpointReader {
     /// checkpoints below this watermark can be safely pruned or cleaned up.
     /// The signal is sent over an internal channel to the checkpoint reader
     /// task.
-    pub(crate) async fn send_gc_signal(
-        &self,
-        watermark: CheckpointSequenceNumber,
-    ) -> IngestionResult<()> {
+    pub(crate) async fn send_gc_signal(&self, watermark: Version) -> IngestionResult<()> {
         self.gc_signal_tx.send(watermark).await.map_err(|_| {
             IngestionError::Channel(
                 "unable to send GC operation to checkpoint reader, receiver half closed".into(),

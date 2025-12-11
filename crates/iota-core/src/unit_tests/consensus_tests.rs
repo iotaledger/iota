@@ -8,9 +8,9 @@ use consensus_core::{BlockRef, BlockStatus};
 use fastcrypto::traits::KeyPair;
 use iota_macros::sim_test;
 use iota_protocol_config::ProtocolConfig;
+use iota_sdk_2::types::Address;
 use iota_types::{
-    IOTA_FRAMEWORK_PACKAGE_ID,
-    base_types::{ExecutionDigests, ObjectID},
+    base_types::{ExecutionDigests, ObjectId},
     crypto::deterministic_random_account_key,
     gas::GasCostSummary,
     messages_checkpoint::{
@@ -24,7 +24,7 @@ use iota_types::{
     },
     utils::{make_committee_key_num, to_sender_signed_transaction},
 };
-use move_core_types::{account_address::AccountAddress, ident_str};
+use move_core_types::ident_str;
 use parking_lot::Mutex;
 use rand::{Rng, SeedableRng, rngs::StdRng, thread_rng};
 use tokio::time::sleep;
@@ -42,7 +42,7 @@ pub fn test_gas_objects() -> Vec<Object> {
     thread_local! {
         static GAS_OBJECTS: Vec<Object> = (0..4)
             .map(|_| {
-                let gas_object_id = ObjectID::random();
+                let gas_object_id = ObjectId::new(rand::random());
                 let (owner, _) = deterministic_random_account_key();
                 Object::with_id_owner_for_testing(gas_object_id, owner)
             })
@@ -63,7 +63,7 @@ pub async fn test_certificates(
 
     let mut certificates = Vec::new();
     let shared_object_arg = ObjectArg::SharedObject {
-        id: shared_object.id(),
+        object_id: shared_object.id(),
         initial_shared_version: shared_object.version(),
         mutable: true,
     };
@@ -76,7 +76,7 @@ pub async fn test_certificates(
 
         let data = TransactionData::new_move_call(
             sender,
-            IOTA_FRAMEWORK_PACKAGE_ID,
+            ObjectId::from(Address::FRAMEWORK),
             ident_str!(module).to_owned(),
             ident_str!(function).to_owned(),
             // type_args
@@ -86,7 +86,7 @@ pub async fn test_certificates(
             vec![
                 CallArg::Object(shared_object_arg),
                 CallArg::Pure(16u64.to_le_bytes().to_vec()),
-                CallArg::Pure(bcs::to_bytes(&AccountAddress::from(sender)).unwrap()),
+                CallArg::Pure(bcs::to_bytes(&sender).unwrap()),
             ],
             rgp * TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS,
             rgp,

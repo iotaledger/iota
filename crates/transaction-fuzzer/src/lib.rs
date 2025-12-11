@@ -14,7 +14,7 @@ use std::fmt::Debug;
 use executor::Executor;
 use iota_protocol_config::ProtocolConfig;
 use iota_types::{
-    base_types::{IotaAddress, ObjectID},
+    base_types::{Address, ObjectId},
     crypto::{AccountKeyPair, get_key_pair},
     digests::TransactionDigest,
     gas_coin::NANOS_PER_IOTA,
@@ -26,9 +26,9 @@ use rand::{Rng, SeedableRng, rngs::StdRng};
 
 fn new_gas_coin_with_balance_and_owner(balance: u64, owner: Owner) -> Object {
     Object::new_move(
-        MoveObject::new_gas_coin(OBJECT_START_VERSION, ObjectID::random(), balance),
+        MoveObject::new_gas_coin(OBJECT_START_VERSION, ObjectId::new(rand::random()), balance),
         owner,
-        TransactionDigest::genesis_marker(),
+        TransactionDigest::GENESIS_MARKER,
     )
 }
 
@@ -45,7 +45,7 @@ fn generate_random_gas_data(
     // was implemented.
     const MAX_GAS_BALANCE: u64 = 4_600_000_000 * NANOS_PER_IOTA;
 
-    let (sender, sender_key): (IotaAddress, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (Address, AccountKeyPair) = get_key_pair();
     let mut rng = StdRng::from_seed(seed);
     let mut gas_objects = vec![];
     let mut object_refs = vec![];

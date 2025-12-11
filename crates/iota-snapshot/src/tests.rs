@@ -13,7 +13,7 @@ use iota_core::{
     state_accumulator::StateAccumulator,
 };
 use iota_types::{
-    accumulator::Accumulator, base_types::ObjectID, messages_checkpoint::ECMHLiveObjectSetDigest,
+    accumulator::Accumulator, base_types::ObjectId, messages_checkpoint::ECMHLiveObjectSetDigest,
     object::Object,
 };
 use tempfile::tempdir;
@@ -26,11 +26,23 @@ fn temp_dir() -> std::path::PathBuf {
         .keep()
 }
 
+fn ids_in_range(start: ObjectId, count: usize) -> Vec<ObjectId> {
+    let mut prev = start;
+    let mut ret = vec![prev];
+    if count > 0 {
+        for _ in 0..count - 1 {
+            prev = prev.next_lexicographical();
+            ret.push(prev);
+        }
+    }
+    ret
+}
+
 pub fn insert_keys(
     db: &AuthorityPerpetualTables,
     total_unique_object_ids: u64,
 ) -> Result<(), anyhow::Error> {
-    let ids = ObjectID::in_range(ObjectID::ZERO, total_unique_object_ids)?;
+    let ids = ids_in_range(ObjectId::ZERO, total_unique_object_ids as _);
     for id in ids {
         let object = Object::immutable_with_id_for_testing(id);
         db.insert_object_test_only(object)?;

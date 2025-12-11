@@ -134,9 +134,9 @@ async fn make_clients(
     Ok(authority_clients)
 }
 
-type ObjectVersionResponses = (Option<SequenceNumber>, Result<ObjectInfoResponse>, f64);
+type ObjectVersionResponses = (Option<Version>, Result<ObjectInfoResponse>, f64);
 pub struct ObjectData {
-    requested_id: ObjectID,
+    requested_id: ObjectId,
     responses: Vec<(AuthorityName, Multiaddr, ObjectVersionResponses)>,
 }
 
@@ -160,7 +160,7 @@ where
 pub struct GroupedObjectOutput {
     pub grouped_results: BTreeMap<
         Option<(
-            Option<SequenceNumber>,
+            Option<Version>,
             ObjectDigest,
             TransactionDigest,
             Owner,
@@ -170,7 +170,7 @@ pub struct GroupedObjectOutput {
     >,
     pub voting_power: Vec<(
         Option<(
-            Option<SequenceNumber>,
+            Option<Version>,
             ObjectDigest,
             TransactionDigest,
             Owner,
@@ -194,7 +194,7 @@ impl GroupedObjectOutput {
             let stake = committee.get(name).unwrap();
             let key = match resp {
                 Ok(r) => {
-                    let obj_digest = r.object.compute_object_reference().2;
+                    let obj_digest = r.object.digest();
                     let parent_tx_digest = r.object.previous_transaction;
                     let owner = r.object.owner;
                     let lock = r.lock_for_debugging.as_ref().map(|lock| *lock.digest());
@@ -279,7 +279,7 @@ impl std::fmt::Display for ConciseObjectOutput {
                 f,
                 "{:<20} {:<8}",
                 format!("{:?}", name.concise()),
-                version.map(|s| s.value()).opt_debug("-")
+                version.map(|s| s).opt_debug("-")
             )?;
             match resp {
                 Err(_) => writeln!(
@@ -288,7 +288,7 @@ impl std::fmt::Display for ConciseObjectOutput {
                     "object-fetch-failed", "no-cert-available", "no-owner-available"
                 )?,
                 Ok(resp) => {
-                    let obj_digest = resp.object.compute_object_reference().2;
+                    let obj_digest = resp.object.digest();
                     let parent = resp.object.previous_transaction;
                     let owner = resp.object.owner;
                     write!(f, " {obj_digest:<66} {parent:<45} {owner:<51}")?;
@@ -318,11 +318,7 @@ impl std::fmt::Display for VerboseObjectOutput {
             match resp {
                 Err(e) => writeln!(f, "Error fetching object: {e}")?,
                 Ok(resp) => {
-                    writeln!(
-                        f,
-                        "  -- object digest: {}",
-                        resp.object.compute_object_reference().2
-                    )?;
+                    writeln!(f, "  -- object digest: {}", resp.object.digest())?;
                     if resp.object.is_package() {
                         writeln!(f, "  -- object: <Move Package>")?;
                     } else if let Some(layout) = &resp.layout {
@@ -351,7 +347,7 @@ impl std::fmt::Display for VerboseObjectOutput {
 }
 
 pub async fn get_object(
-    obj_id: ObjectID,
+    obj_id: ObjectId,
     version: Option<u64>,
     validator: Option<AuthorityName>,
     clients: Arc<BTreeMap<AuthorityName, (Multiaddr, NetworkAuthorityClient)>>,
@@ -480,9 +476,9 @@ pub async fn get_transaction_block(
 
 async fn get_object_impl(
     client: &NetworkAuthorityClient,
-    id: ObjectID,
+    id: ObjectId,
     version: Option<u64>,
-) -> (Option<SequenceNumber>, Result<ObjectInfoResponse>, f64) {
+) -> (Option<Version>, Result<ObjectInfoResponse>, f64) {
     let start = Instant::now();
     let resp = client
         .handle_object_info_request(ObjectInfoRequest {
@@ -490,15 +486,15 @@ async fn get_object_impl(
             generate_layout: LayoutGenerationOption::Generate,
             request_kind: match version {
                 None => ObjectInfoRequestKind::LatestObjectInfo,
-                Some(v) => ObjectInfoRequestKind::PastObjectInfoDebug(SequenceNumber::from_u64(v)),
+                Some(v) => ObjectInfoRequestKind::PastObjectInfoDebug(v),
             },
         })
         .await
         .map_err(anyhow::Error::from);
     let elapsed = start.elapsed().as_secs_f64();
 
-    let resp_version = resp.as_ref().ok().map(|r| r.object.version().value());
-    (resp_version.map(SequenceNumber::from), resp, elapsed)
+    let resp_version = resp.as_ref().ok().map(|r| r.object.version());
+    (resp_version, resp, elapsed)
 }
 
 pub(crate) fn make_anemo_config() -> anemo_cli::Config {

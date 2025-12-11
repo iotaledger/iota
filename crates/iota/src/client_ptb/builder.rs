@@ -11,9 +11,10 @@ use iota_json::{is_receiving_argument, primitive_type};
 use iota_json_rpc_types::{IotaObjectData, IotaObjectDataOptions, IotaRawData};
 use iota_move::manage_package::resolve_lock_file_path;
 use iota_sdk::apis::ReadApi;
+use iota_sdk_2::types::Address;
 use iota_types::{
-    IOTA_FRAMEWORK_PACKAGE_ID, Identifier, TypeTag,
-    base_types::{ObjectID, TxContext, TxContextKind, is_primitive_type_tag},
+    Identifier, TypeTag,
+    base_types::{ObjectId, TxContext, TxContextKind, is_primitive_type_tag},
     move_package::MovePackage,
     object::Owner,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
@@ -78,7 +79,7 @@ trait Resolver<'a>: Send {
         &mut self,
         builder: &mut PTBBuilder<'a>,
         loc: Span,
-        obj_id: ObjectID,
+        obj_id: ObjectId,
     ) -> PTBResult<Tx::Argument>;
 
     fn re_resolve(&self) -> bool {
@@ -120,7 +121,7 @@ impl<'a> Resolver<'a> for ToObject {
         &mut self,
         builder: &mut PTBBuilder<'a>,
         loc: Span,
-        obj_id: ObjectID,
+        obj_id: ObjectId,
     ) -> PTBResult<Tx::Argument> {
         // Get the object from the reader to get metadata about the object.
         let obj = builder.get_object(obj_id, loc).await?;
@@ -136,7 +137,7 @@ impl<'a> Resolver<'a> for ToObject {
             Owner::Shared {
                 initial_shared_version,
             } => ObjectArg::SharedObject {
-                id: object_ref.0,
+                object_id: object_ref.object_id,
                 initial_shared_version,
                 mutable: self.is_mut,
             },
@@ -190,7 +191,7 @@ impl<'a> Resolver<'a> for ToPure {
         &mut self,
         builder: &mut PTBBuilder<'a>,
         loc: Span,
-        obj_id: ObjectID,
+        obj_id: ObjectId,
     ) -> PTBResult<Tx::Argument> {
         builder.ptb.pure(obj_id).map_err(|e| err!(loc, "{e}"))
     }
@@ -420,7 +421,7 @@ impl<'a> PTBBuilder<'a> {
     /// Resolve an object ID to a Move package.
     async fn resolve_to_package(
         &mut self,
-        package_id: ObjectID,
+        package_id: ObjectId,
         loc: Span,
     ) -> PTBResult<MovePackage> {
         let object = self
@@ -697,7 +698,7 @@ impl<'a> PTBBuilder<'a> {
                 self.resolve(arg_loc.wrap(PTBArg::Identifier(i)), ctx).await
             }
             PTBArg::Address(addr) => {
-                let object_id = ObjectID::from_address(addr.into_inner());
+                let object_id = ObjectId::new(addr.into_inner().into_bytes());
                 ctx.resolve_object_id(self, arg_loc, object_id).await
             }
             PTBArg::VariableAccess(head, fields) => {
@@ -774,7 +775,7 @@ impl<'a> PTBBuilder<'a> {
 
     /// Fetch the `IotaObjectData` for an object ID -- this is used for object
     /// resolution.
-    async fn get_object(&self, object_id: ObjectID, obj_loc: Span) -> PTBResult<IotaObjectData> {
+    async fn get_object(&self, object_id: ObjectId, obj_loc: Span) -> PTBResult<IotaObjectData> {
         let res = self
             .reader
             .get_object_with_options(
@@ -922,7 +923,7 @@ impl<'a> PTBBuilder<'a> {
                     }
                 })?;
 
-                let package_id = ObjectID::from_address(resolved_address);
+                let package_id = ObjectId::new(resolved_address.into_bytes());
                 let package = self.resolve_to_package(package_id, address.span).await?;
                 let args = self
                     .resolve_move_call_args(
@@ -1047,7 +1048,7 @@ impl<'a> PTBBuilder<'a> {
                     self.reader,
                     build_config.clone(),
                     &package_path,
-                    ObjectID::from_address(upgrade_cap_id.into_inner()),
+                    ObjectId::new(upgrade_cap_id.into_inner().into_bytes()),
                     false, // with_unpublished_dependencies
                     true,  // skip_dependency_verification
                     None,
@@ -1090,7 +1091,7 @@ impl<'a> PTBBuilder<'a> {
                     .pure(package_digest.to_vec())
                     .map_err(|e| err!(cmd_span, "{e}"))?;
                 let upgrade_ticket = self.ptb.command(Tx::Command::move_call(
-                    IOTA_FRAMEWORK_PACKAGE_ID,
+                    ObjectId::from(Address::FRAMEWORK),
                     ident_str!("package").to_owned(),
                     ident_str!("authorize_upgrade").to_owned(),
                     vec![],
@@ -1107,7 +1108,7 @@ impl<'a> PTBBuilder<'a> {
                     compiled_modules,
                 );
                 let res = self.ptb.command(Tx::Command::move_call(
-                    IOTA_FRAMEWORK_PACKAGE_ID,
+                    ObjectId::from(Address::FRAMEWORK),
                     ident_str!("package").to_owned(),
                     ident_str!("commit_upgrade").to_owned(),
                     vec![],

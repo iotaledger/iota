@@ -8,7 +8,7 @@ use async_trait::async_trait;
 use iota_core::test_utils::make_transfer_iota_transaction;
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
-    base_types::{IotaAddress, ObjectRef},
+    base_types::{Address, ObjectReference},
     crypto::{AccountKeyPair, get_key_pair},
     gas_coin::NANOS_PER_IOTA,
     transaction::Transaction,
@@ -32,10 +32,10 @@ use crate::{
 
 #[derive(Debug)]
 pub struct DelegationTestPayload {
-    coin: Option<ObjectRef>,
-    gas: ObjectRef,
-    validator: IotaAddress,
-    sender: IotaAddress,
+    coin: Option<ObjectReference>,
+    gas: ObjectReference,
+    validator: Address,
+    sender: Address,
     keypair: Arc<AccountKeyPair>,
     system_state_observer: Arc<SystemStateObserver>,
 }

@@ -39,7 +39,9 @@ use iota_keys::{
 use iota_ledger::Ledger;
 use iota_sdk_2::types::crypto::{Intent, IntentMessage};
 use iota_types::{
-    base_types::IotaAddress,
+    base_types::{
+        Address, address_from_iota_pub_key, address_from_multisig_pub_key, address_from_pub_key,
+    },
     crypto::{
         DefaultHash, EncodeDecodeBase64, IotaKeyPair, PublicKey, SignatureScheme,
         get_authority_key_pair,
@@ -262,7 +264,7 @@ pub enum KeyToolCommand {
     //     #[arg(long)]
     //     kp_bigint: String,
     //     #[arg(long)]
-    //     ephemeral_key_identifier: IotaAddress,
+    //     ephemeral_key_identifier: Address,
     //     #[arg(long, default_value = "devnet")]
     //     network: String,
     //     #[arg(long, default_value = "false")]
@@ -328,7 +330,7 @@ pub struct DecodedMultiSig {
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DecodedMultiSigOutput {
-    multisig_address: IotaAddress,
+    multisig_address: Address,
     participating_keys_signatures: Vec<DecodedMultiSig>,
     pub_keys: Vec<MultiSigOutput>,
     threshold: usize,
@@ -347,7 +349,7 @@ pub struct DecodeOrVerifyTxOutput {
 pub struct Key {
     #[serde(skip_serializing_if = "Option::is_none")]
     alias: Option<String>,
-    pub(crate) iota_address: IotaAddress,
+    pub(crate) iota_address: Address,
     pub(crate) public_base64_key: String,
     pub(crate) public_base64_key_with_flag: String,
     key_scheme: String,
@@ -379,7 +381,7 @@ pub struct MultiSigAddress {
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct MultiSigCombinePartialSig {
-    multisig_address: IotaAddress,
+    multisig_address: Address,
     multisig_parsed: MultiSig,
     multisig_serialized: String,
 }
@@ -387,7 +389,7 @@ pub struct MultiSigCombinePartialSig {
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct MultiSigOutput {
-    address: IotaAddress,
+    address: Address,
     public_base64_key_with_flag: String,
     weight: u8,
 }
@@ -409,7 +411,7 @@ pub struct SerializedSig {
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SignData {
-    iota_address: IotaAddress,
+    iota_address: Address,
     // Base64 encoded string of serialized transaction data.
     raw_tx_data: String,
     // Intent struct used, see [struct Intent] for field definitions.
@@ -486,12 +488,12 @@ impl KeyToolCommand {
                 let pks = multisig.get_pk().pubkeys();
                 let sigs = multisig.get_sigs();
                 let bitmap = multisig.get_indices()?;
-                let address = IotaAddress::from(multisig.get_pk());
+                let address = address_from_multisig_pub_key(multisig.get_pk());
 
                 let pub_keys = pks
                     .iter()
                     .map(|(pk, w)| MultiSigOutput {
-                        address: (pk).into(),
+                        address: address_from_pub_key(pk),
                         public_base64_key_with_flag: pk.encode_base64(),
                         weight: *w,
                     })
@@ -715,7 +717,7 @@ impl KeyToolCommand {
                 weights,
             } => {
                 let multisig_pk = MultiSigPublicKey::new(pks.clone(), weights.clone(), threshold)?;
-                let address: IotaAddress = (&multisig_pk).into();
+                let address: Address = address_from_multisig_pub_key(&multisig_pk);
                 let mut output = MultiSigAddress {
                     multisig_address: address.to_string(),
                     multisig: vec![],
@@ -724,7 +726,7 @@ impl KeyToolCommand {
 
                 for (pk, w) in pks.into_iter().zip(weights.into_iter()) {
                     output.multisig.push(MultiSigOutput {
-                        address: Into::<IotaAddress>::into(&pk),
+                        address: address_from_pub_key(&pk),
                         public_base64_key_with_flag: pk.encode_base64(),
                         weight: w,
                     });
@@ -738,7 +740,7 @@ impl KeyToolCommand {
                 threshold,
             } => {
                 let multisig_pk = MultiSigPublicKey::new(pks, weights, threshold)?;
-                let address: IotaAddress = (&multisig_pk).into();
+                let address: Address = address_from_multisig_pub_key(&multisig_pk);
                 let multisig = MultiSig::combine(sigs, multisig_pk)?;
                 let multisig_serialized = multisig.encode_base64();
                 CommandOutput::MultiSigCombinePartialSig(MultiSigCombinePartialSig {
@@ -763,7 +765,7 @@ impl KeyToolCommand {
                             );
                             CommandOutput::Show(Key {
                                 alias: None, // alias does not get stored in key files
-                                iota_address: (keypair.public()).into(),
+                                iota_address: address_from_iota_pub_key(keypair.public()),
                                 public_base64_key,
                                 public_base64_key_with_flag,
                                 key_scheme: SignatureScheme::BLS12381.to_string(),
@@ -818,7 +820,7 @@ impl KeyToolCommand {
                 // Currently only supports secp256k1 keys
                 let pk_owner = PublicKey::decode_base64(&base64pk)
                     .map_err(|e| anyhow!("Invalid base64 key: {:?}", e))?;
-                let address_owner = IotaAddress::from(&pk_owner);
+                let address_owner = address_from_pub_key(&pk_owner);
                 info!("Address For Corresponding KMS Key: {}", address_owner);
                 info!("Raw tx_bytes to execute: {}", data);
                 let intent = intent.unwrap_or_else(Intent::iota_transaction);
@@ -928,7 +930,7 @@ impl KeyToolCommand {
                *         )
                *         .unwrap(),
                *     );
-               *     let address = IotaAddress::from(&pk);
+               *     let address = Address::from(&pk);
                *     // sign with ephemeral key and combine with zklogin inputs to generic
                * signature     let s = Signature::new_secure(&intent_msg, &skp);
                *     let sig = GenericSignature::ZkLoginAuthenticator(ZkLoginAuthenticator::new(
@@ -958,7 +960,7 @@ impl KeyToolCommand {
                *     };
                *     println!("Ephemeral keypair: {:?}", skp.encode());
                *     let pk = skp.public();
-               *     let ephemeral_key_identifier: IotaAddress = (&skp.public()).into();
+               *     let ephemeral_key_identifier: Address = (&skp.public()).into();
                *     println!("Ephemeral key identifier: {ephemeral_key_identifier}");
                *     keystore.add_key(None, skp)?; */
 

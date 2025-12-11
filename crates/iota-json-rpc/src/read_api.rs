@@ -24,18 +24,17 @@ use iota_json_rpc_types::{
 use iota_metrics::{add_server_timing, spawn_monitored_task};
 use iota_open_rpc::Module;
 use iota_protocol_config::{ProtocolConfig, ProtocolVersion};
+use iota_sdk_2::types::ObjectReference;
 use iota_storage::key_value_store::TransactionKeyValueStore;
 use iota_types::{
-    base_types::{ObjectID, SequenceNumber, TransactionDigest},
+    base_types::{ObjectId, TransactionDigest, Version},
     collection_types::VecMap,
     crypto::AggregateAuthoritySignature,
     display::DisplayVersionUpdatedEvent,
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
     error::{IotaError, IotaObjectResponseError},
     iota_serde::BigInt,
-    messages_checkpoint::{
-        CheckpointContents, CheckpointSequenceNumber, CheckpointSummary, CheckpointTimestamp,
-    },
+    messages_checkpoint::{CheckpointContents, CheckpointSummary, CheckpointTimestamp},
     object::{Object, ObjectRead, PastObjectRead},
     transaction::{Transaction, TransactionDataAPI},
 };
@@ -77,7 +76,7 @@ struct IntermediateTransactionResponse {
     transaction: Option<Transaction>,
     effects: Option<TransactionEffects>,
     events: Option<IotaTransactionBlockEvents>,
-    checkpoint_seq: Option<CheckpointSequenceNumber>,
+    checkpoint_seq: Option<Version>,
     balance_changes: Option<Vec<BalanceChange>>,
     object_changes: Option<Vec<ObjectChange>>,
     timestamp: Option<CheckpointTimestamp>,
@@ -143,7 +142,7 @@ impl ReadApi {
         state: Arc<dyn StateRead>,
         transaction_kv_store: Arc<TransactionKeyValueStore>,
         // If `Some`, the query will start from the next item after the specified cursor
-        cursor: Option<CheckpointSequenceNumber>,
+        cursor: Option<Version>,
         limit: u64,
         descending_order: bool,
     ) -> StateReadResult<Vec<Checkpoint>> {
@@ -272,7 +271,7 @@ impl ReadApi {
             // It's likely that many transactions have the same checkpoint, so we don't
             // need to over-fetch
             .unique()
-            .collect::<Vec<CheckpointSequenceNumber>>();
+            .collect::<Vec<Version>>();
 
         // fetch timestamp from the DB
         trace!("getting checkpoint summaries");
@@ -481,7 +480,7 @@ impl ReadApiServer for ReadApi {
     #[instrument(skip(self))]
     async fn get_object(
         &self,
-        object_id: ObjectID,
+        object_id: ObjectId,
         options: Option<IotaObjectDataOptions>,
     ) -> RpcResult<IotaObjectResponse> {
         async move {
@@ -527,13 +526,17 @@ impl ReadApiServer for ReadApi {
                         display_fields,
                     )?))
                 }
-                ObjectRead::Deleted((object_id, version, digest)) => Ok(
-                    IotaObjectResponse::new_with_error(IotaObjectResponseError::Deleted {
+                ObjectRead::Deleted(ObjectReference {
+                    object_id,
+                    version,
+                    digest,
+                }) => Ok(IotaObjectResponse::new_with_error(
+                    IotaObjectResponseError::Deleted {
                         object_id,
                         version,
                         digest,
-                    }),
-                ),
+                    },
+                )),
             }
         }
         .trace()
@@ -543,7 +546,7 @@ impl ReadApiServer for ReadApi {
     #[instrument(skip(self))]
     async fn multi_get_objects(
         &self,
-        object_ids: Vec<ObjectID>,
+        object_ids: Vec<ObjectId>,
         options: Option<IotaObjectDataOptions>,
     ) -> RpcResult<Vec<IotaObjectResponse>> {
         async move {
@@ -592,8 +595,8 @@ impl ReadApiServer for ReadApi {
     #[instrument(skip(self))]
     async fn try_get_past_object(
         &self,
-        object_id: ObjectID,
-        version: SequenceNumber,
+        object_id: ObjectId,
+        version: Version,
         options: Option<IotaObjectDataOptions>,
     ) -> RpcResult<IotaPastObjectResponse> {
         async move {
@@ -652,8 +655,8 @@ impl ReadApiServer for ReadApi {
     #[instrument(skip(self))]
     async fn try_get_object_before_version(
         &self,
-        object_id: ObjectID,
-        version: SequenceNumber,
+        object_id: ObjectId,
+        version: Version,
     ) -> RpcResult<IotaPastObjectResponse> {
         let version = self
             .state
@@ -1414,11 +1417,11 @@ fn convert_to_response(
 
 fn calculate_checkpoint_numbers(
     // If `Some`, the query will start from the next item after the specified cursor
-    cursor: Option<CheckpointSequenceNumber>,
+    cursor: Option<Version>,
     limit: u64,
     descending_order: bool,
-    max_checkpoint: CheckpointSequenceNumber,
-) -> Vec<CheckpointSequenceNumber> {
+    max_checkpoint: Version,
+) -> Vec<Version> {
     let (start_index, end_index) = match cursor {
         Some(t) => {
             if descending_order {

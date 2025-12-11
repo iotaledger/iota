@@ -24,7 +24,7 @@ use iota_rosetta::{
     },
 };
 use iota_sdk::IotaClient;
-use iota_types::{base_types::IotaAddress, crypto::IotaSignature};
+use iota_types::{base_types::Address, crypto::IotaSignature};
 use reqwest::Client;
 use serde::{Serialize, de::DeserializeOwned};
 use serde_json::Value;
@@ -183,7 +183,7 @@ impl RosettaClient {
     pub async fn get_balance(
         &self,
         network_identifier: NetworkIdentifier,
-        address: IotaAddress,
+        address: Address,
         sub_account: Option<SubAccountType>,
     ) -> AccountBalanceResponse {
         let sub_account = sub_account.map(|account_type| SubAccount { account_type });

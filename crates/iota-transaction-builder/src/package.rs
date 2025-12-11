@@ -7,8 +7,7 @@ use std::result::Result;
 use anyhow::{Ok, anyhow, bail};
 use iota_json_rpc_types::IotaObjectDataOptions;
 use iota_types::{
-    IOTA_FRAMEWORK_PACKAGE_ID,
-    base_types::{IotaAddress, ObjectID},
+    base_types::{Address, ObjectId},
     move_package::MovePackage,
     object::Owner,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
@@ -23,9 +22,9 @@ impl TransactionBuilder {
     /// [`iota_types::transaction::Command::Publish`] for the provided package.
     pub async fn publish_tx_kind(
         &self,
-        sender: IotaAddress,
+        sender: Address,
         modules: Vec<Vec<u8>>,
-        dep_ids: Vec<ObjectID>,
+        dep_ids: Vec<ObjectId>,
     ) -> Result<TransactionKind, anyhow::Error> {
         let pt = {
             let mut builder = ProgrammableTransactionBuilder::new();
@@ -39,10 +38,10 @@ impl TransactionBuilder {
     /// Publish a new move package.
     pub async fn publish(
         &self,
-        sender: IotaAddress,
+        sender: Address,
         compiled_modules: Vec<Vec<u8>>,
-        dep_ids: Vec<ObjectID>,
-        gas: impl Into<Option<ObjectID>>,
+        dep_ids: Vec<ObjectId>,
+        gas: impl Into<Option<ObjectId>>,
         gas_budget: u64,
     ) -> anyhow::Result<TransactionData> {
         let gas_price = self.0.get_reference_gas_price().await?;
@@ -63,10 +62,10 @@ impl TransactionBuilder {
     /// [`iota_types::transaction::Command::Upgrade`] for the provided package.
     pub async fn upgrade_tx_kind(
         &self,
-        package_id: ObjectID,
+        package_id: ObjectId,
         modules: Vec<Vec<u8>>,
-        dep_ids: Vec<ObjectID>,
-        upgrade_capability: ObjectID,
+        dep_ids: Vec<ObjectId>,
+        upgrade_capability: ObjectId,
         upgrade_policy: u8,
         digest: Vec<u8>,
     ) -> Result<TransactionKind, anyhow::Error> {
@@ -90,7 +89,7 @@ impl TransactionBuilder {
                 Owner::Shared {
                     initial_shared_version,
                 } => ObjectArg::SharedObject {
-                    id: upgrade_capability.object_ref().0,
+                    object_id: upgrade_capability.object_ref().object_id,
                     initial_shared_version,
                     mutable: true,
                 },
@@ -107,7 +106,7 @@ impl TransactionBuilder {
             let upgrade_arg = builder.pure(upgrade_policy).unwrap();
             let digest_arg = builder.pure(digest).unwrap();
             let upgrade_ticket = builder.programmable_move_call(
-                IOTA_FRAMEWORK_PACKAGE_ID,
+                Address::FRAMEWORK.into(),
                 ident_str!("package").to_owned(),
                 ident_str!("authorize_upgrade").to_owned(),
                 vec![],
@@ -116,7 +115,7 @@ impl TransactionBuilder {
             let upgrade_receipt = builder.upgrade(package_id, upgrade_ticket, dep_ids, modules);
 
             builder.programmable_move_call(
-                IOTA_FRAMEWORK_PACKAGE_ID,
+                Address::FRAMEWORK.into(),
                 ident_str!("package").to_owned(),
                 ident_str!("commit_upgrade").to_owned(),
                 vec![],
@@ -132,13 +131,13 @@ impl TransactionBuilder {
     /// Upgrade an existing move package.
     pub async fn upgrade(
         &self,
-        sender: IotaAddress,
-        package_id: ObjectID,
+        sender: Address,
+        package_id: ObjectId,
         compiled_modules: Vec<Vec<u8>>,
-        dep_ids: Vec<ObjectID>,
-        upgrade_capability: ObjectID,
+        dep_ids: Vec<ObjectId>,
+        upgrade_capability: ObjectId,
         upgrade_policy: u8,
-        gas: impl Into<Option<ObjectID>>,
+        gas: impl Into<Option<ObjectId>>,
         gas_budget: u64,
     ) -> anyhow::Result<TransactionData> {
         let gas_price = self.0.get_reference_gas_price().await?;

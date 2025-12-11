@@ -23,10 +23,9 @@ use bytes::{Buf, Bytes};
 use fastcrypto::hash::{HashFunction, Sha3_256};
 use futures::StreamExt;
 use iota_types::{
+    base_types::Version,
     committee::Committee,
-    messages_checkpoint::{
-        CertifiedCheckpointSummary, CheckpointSequenceNumber, VerifiedCheckpoint,
-    },
+    messages_checkpoint::{CertifiedCheckpointSummary, VerifiedCheckpoint},
     storage::WriteStore,
 };
 use itertools::Itertools;
@@ -249,7 +248,7 @@ where
 }
 
 pub async fn verify_checkpoint_range<S>(
-    checkpoint_range: Range<CheckpointSequenceNumber>,
+    checkpoint_range: Range<Version>,
     store: S,
     checkpoint_counter: Arc<AtomicU64>,
     max_concurrency: usize,

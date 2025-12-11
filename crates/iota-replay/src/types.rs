@@ -8,7 +8,7 @@ use iota_json_rpc_types::{IotaEvent, IotaTransactionBlockEffects};
 use iota_protocol_config::{Chain, ProtocolVersion};
 use iota_sdk::error::Error as IotaRpcError;
 use iota_types::{
-    base_types::{IotaAddress, ObjectID, ObjectRef, SequenceNumber, VersionNumber},
+    base_types::{Address, ObjectId, ObjectReference, Version},
     digests::{ObjectDigest, TransactionDigest},
     error::{IotaError, IotaObjectResponseError, IotaResult, UserInputError},
     object::Object,
@@ -44,20 +44,20 @@ pub(crate) const EPOCH_CHANGE_STRUCT_TAGS: [&str; 2] = [
 pub struct OnChainTransactionInfo {
     pub tx_digest: TransactionDigest,
     pub sender_signed_data: SenderSignedData,
-    pub sender: IotaAddress,
+    pub sender: Address,
     pub input_objects: Vec<InputObjectKind>,
     pub kind: TransactionKind,
-    pub modified_at_versions: Vec<(ObjectID, SequenceNumber)>,
-    pub shared_object_refs: Vec<ObjectRef>,
-    pub gas: Vec<(ObjectID, SequenceNumber, ObjectDigest)>,
+    pub modified_at_versions: Vec<(ObjectId, Version)>,
+    pub shared_object_refs: Vec<ObjectReference>,
+    pub gas: Vec<ObjectReference>,
     pub gas_budget: u64,
     pub gas_price: u64,
     pub executed_epoch: u64,
     pub dependencies: Vec<TransactionDigest>,
     #[serde(skip)]
-    pub receiving_objs: Vec<(ObjectID, SequenceNumber)>,
+    pub receiving_objs: Vec<(ObjectId, Version)>,
     #[serde(skip)]
-    pub config_objects: Vec<(ObjectID, SequenceNumber)>,
+    pub config_objects: Vec<(ObjectId, Version)>,
     // TODO: There are two problems with this being a json-rpc type:
     // 1. The json-rpc type is not a perfect mirror with TransactionEffects since v2. We lost the
     // ability to replay effects v2 specific forks. We need to fix this asap. Unfortunately at the
@@ -98,13 +98,10 @@ pub enum ReplayEngineError {
     IotaRpcRequestTimeout,
 
     #[error("ObjectNotExist: {:#?}", id)]
-    ObjectNotExist { id: ObjectID },
+    ObjectNotExist { id: ObjectId },
 
     #[error("ObjectVersionNotFound: {:#?} version {}", id, version)]
-    ObjectVersionNotFound {
-        id: ObjectID,
-        version: SequenceNumber,
-    },
+    ObjectVersionNotFound { id: ObjectId, version: Version },
 
     #[error(
         "ObjectVersionTooHigh: {:#?}, requested version {}, latest version found {}",
@@ -113,9 +110,9 @@ pub enum ReplayEngineError {
         latest_version
     )]
     ObjectVersionTooHigh {
-        id: ObjectID,
-        asked_version: SequenceNumber,
-        latest_version: SequenceNumber,
+        id: ObjectId,
+        asked_version: Version,
+        latest_version: Version,
     },
 
     #[error(
@@ -125,8 +122,8 @@ pub enum ReplayEngineError {
         digest
     )]
     ObjectDeleted {
-        id: ObjectID,
-        version: SequenceNumber,
+        id: ObjectId,
+        version: Version,
         digest: ObjectDigest,
     },
 
@@ -181,8 +178,8 @@ pub enum ReplayEngineError {
     #[error("Internal error or cache corrupted! Object {id}{} should be in cache.", version.map(|q| format!(" version {q:#?}")).unwrap_or_default()
     )]
     InternalCacheInvariantViolation {
-        id: ObjectID,
-        version: Option<SequenceNumber>,
+        id: ObjectId,
+        version: Option<Version>,
     },
 
     #[error("Error getting dynamic fields loaded objects: {}", rpc_err)]
@@ -270,12 +267,12 @@ impl From<anyhow::Error> for ReplayEngineError {
 #[expect(clippy::large_enum_variant)]
 pub enum ExecutionStoreEvent {
     BackingPackageGetPackageObject {
-        package_id: ObjectID,
+        package_id: ObjectId,
         result: IotaResult<Option<Object>>,
     },
     ChildObjectResolverStoreReadChildObject {
-        parent: ObjectID,
-        child: ObjectID,
+        parent: ObjectId,
+        child: ObjectId,
         result: IotaResult<Option<Object>>,
     },
     ResourceResolverGetResource {
@@ -288,12 +285,12 @@ pub enum ExecutionStoreEvent {
         result: IotaResult<Option<Vec<u8>>>,
     },
     ObjectStoreGetObject {
-        object_id: ObjectID,
+        object_id: ObjectId,
         result: IotaResult<Option<Object>>,
     },
     ObjectStoreGetObjectByKey {
-        object_id: ObjectID,
-        version: VersionNumber,
+        object_id: ObjectId,
+        version: Version,
         result: IotaResult<Option<Object>>,
     },
     GetModuleGetModuleByModuleId {
@@ -301,9 +298,9 @@ pub enum ExecutionStoreEvent {
         result: IotaResult<Option<CompiledModule>>,
     },
     ReceiveObject {
-        owner: ObjectID,
-        receive: ObjectID,
-        receive_at_version: SequenceNumber,
+        owner: ObjectId,
+        receive: ObjectId,
+        receive_at_version: Version,
         result: IotaResult<Option<Object>>,
     },
 }

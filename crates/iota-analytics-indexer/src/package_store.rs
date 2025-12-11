@@ -9,7 +9,7 @@ use iota_package_resolver::{
     Package, PackageStore, PackageStoreWithLruCache, Result, error::Error as PackageResolverError,
 };
 use iota_rest_api::Client;
-use iota_types::{base_types::ObjectID, object::Object};
+use iota_types::{base_types::ObjectId, object::Object};
 use move_core_types::account_address::AccountAddress;
 use thiserror::Error;
 use typed_store::{
@@ -39,7 +39,7 @@ impl From<Error> for PackageResolverError {
 
 #[derive(DBMapUtils)]
 pub struct PackageStoreTables {
-    pub(crate) packages: DBMap<ObjectID, Object>,
+    pub(crate) packages: DBMap<ObjectId, Object>,
 }
 
 impl PackageStoreTables {
@@ -91,14 +91,14 @@ impl LocalDBPackageStore {
         let object = if let Some(object) = self
             .package_store_tables
             .packages
-            .get(&ObjectID::from(id))
+            .get(&ObjectId::new(id.into_bytes()))
             .map_err(Error::TypedStore)?
         {
             object
         } else {
             let object = self
                 .fallback_client
-                .get_object(ObjectID::from(id))
+                .get_object(ObjectId::new(id.into_bytes()))
                 .await
                 .map_err(|_| PackageResolverError::PackageNotFound(id))?;
             self.update(&object)?;

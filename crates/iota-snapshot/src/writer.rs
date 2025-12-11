@@ -30,7 +30,7 @@ use iota_storage::{
 };
 use iota_types::{
     accumulator::Accumulator,
-    base_types::{ObjectID, ObjectRef},
+    base_types::{ObjectId, ObjectReference},
     messages_checkpoint::ECMHLiveObjectSetDigest,
 };
 use object_store::{DynObjectStore, path::Path};
@@ -235,15 +235,15 @@ impl LiveObjectSetWriterV1 {
     }
 
     /// Writes an object reference to the reference file.
-    fn write_object_ref(&mut self, object_ref: &ObjectRef) -> Result<()> {
+    fn write_object_ref(&mut self, object_ref: &ObjectReference) -> Result<()> {
         let mut buf = [0u8; OBJECT_REF_BYTES];
-        buf[0..ObjectID::LENGTH].copy_from_slice(object_ref.0.as_ref());
+        buf[0..ObjectId::LENGTH].copy_from_slice(object_ref.object_id.as_ref());
         BigEndian::write_u64(
-            &mut buf[ObjectID::LENGTH..OBJECT_REF_BYTES],
-            object_ref.1.value(),
+            &mut buf[ObjectId::LENGTH..OBJECT_REF_BYTES],
+            object_ref.version,
         );
-        buf[ObjectID::LENGTH + SEQUENCE_NUM_BYTES..OBJECT_REF_BYTES]
-            .copy_from_slice(object_ref.2.as_ref());
+        buf[ObjectId::LENGTH + SEQUENCE_NUM_BYTES..OBJECT_REF_BYTES]
+            .copy_from_slice(object_ref.digest.as_ref());
         self.ref_wbuf.write_all(&buf)?;
         Ok(())
     }
@@ -463,7 +463,7 @@ impl StateSnapshotWriterV1 {
         let mut wbuf = BufWriter::new(f);
         let manifest: Manifest = Manifest::V1(ManifestV1 {
             snapshot_version: 1,
-            address_length: ObjectID::LENGTH as u64,
+            address_length: ObjectId::LENGTH as u64,
             file_metadata,
             epoch,
         });

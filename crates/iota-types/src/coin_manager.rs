@@ -1,12 +1,15 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use move_core_types::{ident_str, identifier::IdentStr, language_storage::TypeTag};
+use iota_sdk_2::types::Address;
+use move_core_types::{
+    account_address::AccountAddress, ident_str, identifier::IdentStr, language_storage::TypeTag,
+};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    IOTA_FRAMEWORK_ADDRESS, StructTag,
+    StructTag,
     coin::{CoinMetadata, TreasuryCap},
     error::IotaError,
     id::UID,
@@ -47,7 +50,7 @@ pub struct CoinManager {
 
 impl CoinManager {
     pub fn is_coin_manager(object_type: &StructTag) -> bool {
-        object_type.address == IOTA_FRAMEWORK_ADDRESS
+        object_type.address == AccountAddress::new(Address::FRAMEWORK.into_bytes())
             && object_type.module.as_ident_str() == COIN_MANAGER_MODULE_NAME
             && object_type.name.as_ident_str() == COIN_MANAGER_STRUCT_NAME
     }
@@ -60,7 +63,7 @@ impl CoinManager {
 
     pub fn type_(type_param: StructTag) -> StructTag {
         StructTag {
-            address: IOTA_FRAMEWORK_ADDRESS,
+            address: AccountAddress::new(Address::FRAMEWORK.into_bytes()),
             name: COIN_MANAGER_STRUCT_NAME.to_owned(),
             module: COIN_MANAGER_MODULE_NAME.to_owned(),
             type_params: vec![TypeTag::Struct(Box::new(type_param))],
@@ -94,7 +97,7 @@ pub struct CoinManagerTreasuryCap {
 
 impl CoinManagerTreasuryCap {
     pub fn is_coin_manager_treasury_cap(object_type: &StructTag) -> bool {
-        object_type.address == IOTA_FRAMEWORK_ADDRESS
+        object_type.address == AccountAddress::new(Address::FRAMEWORK.into_bytes())
             && object_type.module.as_ident_str() == COIN_MANAGER_MODULE_NAME
             && object_type.name.as_ident_str() == COIN_MANAGER_TREASURY_CAP_STRUCT_NAME
     }

@@ -279,7 +279,7 @@ impl From<IotaRpcInputError> for ErrorObjectOwned {
 mod tests {
     use expect_test::expect;
     use iota_types::{
-        base_types::{AuthorityName, ObjectID, ObjectRef, SequenceNumber},
+        base_types::{AuthorityName, ObjectId, ObjectReference},
         committee::StakeUnit,
         crypto::{AuthorityPublicKey, AuthorityPublicKeyBytes},
         digests::{ObjectDigest, TransactionDigest},
@@ -287,12 +287,8 @@ mod tests {
 
     use super::*;
 
-    fn test_object_ref() -> ObjectRef {
-        (
-            ObjectID::ZERO,
-            SequenceNumber::from_u64(0),
-            ObjectDigest::new([0; 32]),
-        )
+    fn test_object_ref() -> ObjectReference {
+        ObjectReference::new(ObjectId::ZERO, 0, ObjectDigest::ZERO)
     }
 
     mod match_quorum_driver_error_tests {
@@ -352,7 +348,7 @@ mod tests {
             use iota_types::crypto::VerifyingKey;
             let mut conflicting_txes: BTreeMap<
                 TransactionDigest,
-                (Vec<(AuthorityName, ObjectRef)>, StakeUnit),
+                (Vec<(AuthorityName, ObjectReference)>, StakeUnit),
             > = BTreeMap::new();
             let tx_digest = TransactionDigest::from([1; 32]);
             let object_ref = test_object_ref();
@@ -392,7 +388,7 @@ mod tests {
             use iota_types::crypto::VerifyingKey;
             let mut conflicting_txes: BTreeMap<
                 TransactionDigest,
-                (Vec<(AuthorityName, ObjectRef)>, StakeUnit),
+                (Vec<(AuthorityName, ObjectReference)>, StakeUnit),
             > = BTreeMap::new();
             let tx_digest = TransactionDigest::from([1; 32]);
             let object_ref = test_object_ref();
@@ -446,7 +442,7 @@ mod tests {
                         IotaError::UserInput {
                             error: UserInputError::ObjectVersionUnavailableForConsumption {
                                 provided_obj_ref: test_object_ref(),
-                                current_version: 10.into(),
+                                current_version: 10,
                             },
                         },
                         0,
@@ -473,7 +469,7 @@ mod tests {
                     (
                         IotaError::UserInput {
                             error: UserInputError::ObjectNotFound {
-                                object_id: test_object_ref().0,
+                                object_id: test_object_ref().object_id,
                                 version: None,
                             },
                         },

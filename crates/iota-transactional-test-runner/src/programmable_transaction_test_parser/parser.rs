@@ -6,7 +6,7 @@ use std::{borrow::BorrowMut, marker::PhantomData, str::FromStr};
 
 use anyhow::{Context, Result, bail};
 use iota_types::{
-    base_types::ObjectID,
+    base_types::ObjectId,
     transaction::{Argument, Command, ProgrammableMoveCall},
     type_input::TypeInput,
 };
@@ -358,10 +358,10 @@ impl ParsedCommand {
                 let dependencies = dependencies
                     .into_iter()
                     .map(|d| match address_mapping(&d) {
-                        Some(a) => Ok(a.into()),
+                        Some(a) => Ok(ObjectId::new(a.into_bytes())),
                         None => bail!("Unbound dependency '{d}"),
                     })
-                    .collect::<Result<Vec<ObjectID>>>()?;
+                    .collect::<Result<Vec<ObjectId>>>()?;
                 Command::Publish(package_contents, dependencies)
             }
             ParsedCommand::Upgrade(staged_package, dependencies, upgraded_package, ticket) => {
@@ -371,14 +371,14 @@ impl ParsedCommand {
                 let dependencies = dependencies
                     .into_iter()
                     .map(|d| match address_mapping(&d) {
-                        Some(a) => Ok(a.into()),
+                        Some(a) => Ok(ObjectId::new(a.into_bytes())),
                         None => bail!("Unbound dependency '{d}"),
                     })
-                    .collect::<Result<Vec<ObjectID>>>()?;
+                    .collect::<Result<Vec<ObjectId>>>()?;
                 let Some(upgraded_package) = address_mapping(&upgraded_package) else {
                     bail!("Unbound upgraded package '{upgraded_package}'");
                 };
-                let upgraded_package = upgraded_package.into();
+                let upgraded_package = ObjectId::new(upgraded_package.into_bytes());
                 Command::Upgrade(package_contents, dependencies, upgraded_package, ticket)
             }
         })
@@ -405,7 +405,7 @@ impl ParsedMoveCall {
             .map(|t| t.into_type_tag(address_mapping).map(TypeInput::from))
             .collect::<Result<_>>()?;
         Ok(ProgrammableMoveCall {
-            package: package.into(),
+            package: ObjectId::new(package.into_bytes()),
             module: module.to_string(),
             function: function.to_string(),
             type_arguments,

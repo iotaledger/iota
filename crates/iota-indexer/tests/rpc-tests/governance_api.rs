@@ -8,9 +8,8 @@ use iota_json_rpc_types::{
 use iota_protocol_config::ProtocolVersion;
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
-    IOTA_FRAMEWORK_ADDRESS, IOTA_SYSTEM_ADDRESS,
     balance::Balance,
-    base_types::ObjectID,
+    base_types::{Address, ObjectId},
     crypto::{AccountKeyPair, get_key_pair},
     gas_coin::GAS,
     iota_system_state::iota_system_state_summary::IotaSystemStateSummary,
@@ -46,7 +45,7 @@ fn test_staking() {
             )
             .await;
 
-        indexer_wait_for_object(client, gas.0, gas.1).await;
+        indexer_wait_for_object(client, gas.object_id, gas.version).await;
 
         let iota_coin_ref = cluster
             .fund_address_and_return_gas(
@@ -56,7 +55,7 @@ fn test_staking() {
             )
             .await;
 
-        indexer_wait_for_object(client, iota_coin_ref.0, iota_coin_ref.1).await;
+        indexer_wait_for_object(client, iota_coin_ref.object_id, iota_coin_ref.version).await;
 
         // Check StakedIota object before test
         let staked_iota: Vec<DelegatedStake> = client.get_stakes(sender).await.unwrap();
@@ -73,10 +72,10 @@ fn test_staking() {
         let transaction_bytes: TransactionBlockBytes = client
             .request_add_stake(
                 sender,
-                vec![iota_coin_ref.0],
+                vec![iota_coin_ref.object_id],
                 Some(1000000000.into()),
                 validator,
-                Some(gas.0),
+                Some(gas.object_id),
                 100_000_000.into(),
             )
             .await
@@ -123,7 +122,7 @@ fn test_unstaking() {
             )
             .await;
 
-        indexer_wait_for_object(client, gas.0, gas.1).await;
+        indexer_wait_for_object(client, gas.object_id, gas.version).await;
 
         let iota_coin_ref = cluster
             .fund_address_and_return_gas(
@@ -133,7 +132,7 @@ fn test_unstaking() {
             )
             .await;
 
-        indexer_wait_for_object(client, iota_coin_ref.0, iota_coin_ref.1).await;
+        indexer_wait_for_object(client, iota_coin_ref.object_id, iota_coin_ref.version).await;
 
         // Check StakedIota object before test
         let staked_iota: Vec<DelegatedStake> = client.get_stakes(sender).await.unwrap();
@@ -150,10 +149,10 @@ fn test_unstaking() {
         let transaction_bytes: TransactionBlockBytes = client
             .request_add_stake(
                 sender,
-                vec![iota_coin_ref.0],
+                vec![iota_coin_ref.object_id],
                 Some(1000000000.into()),
                 validator,
-                Some(gas.0),
+                Some(gas.object_id),
                 100_000_000.into(),
             )
             .await
@@ -182,7 +181,7 @@ fn test_unstaking() {
             .request_withdraw_stake(
                 sender,
                 staked_iota[0].stakes[0].staked_iota_id,
-                Some(gas.0),
+                Some(gas.object_id),
                 100_000_000.into(),
             )
             .await
@@ -231,7 +230,7 @@ fn test_timelocked_staking() {
             )
             .await;
 
-        indexer_wait_for_object(client, gas.0, gas.1).await;
+        indexer_wait_for_object(client, gas.object_id, gas.version).await;
 
         let iota_coin_ref = cluster
             .fund_address_and_return_gas(
@@ -241,7 +240,7 @@ fn test_timelocked_staking() {
             )
             .await;
 
-        indexer_wait_for_object(client, iota_coin_ref.0, iota_coin_ref.1).await;
+        indexer_wait_for_object(client, iota_coin_ref.object_id, iota_coin_ref.version).await;
 
         let pt = {
             let mut builder = ProgrammableTransactionBuilder::new();
@@ -252,7 +251,7 @@ fn test_timelocked_staking() {
 
             // Step 1: Get the IOTA balance from the coin object.
             let iota_balance = builder.programmable_move_call(
-                ObjectID::new(IOTA_FRAMEWORK_ADDRESS.into_bytes()),
+                ObjectId::from_address(Address::FRAMEWORK),
                 Identifier::new("coin").unwrap(),
                 Identifier::new("into_balance").unwrap(),
                 vec![GAS::type_tag()],
@@ -262,7 +261,7 @@ fn test_timelocked_staking() {
             // Step 2: Timelock the IOTA balance.
             let timelock_timestamp = builder.input(CallArg::from(u64::MAX)).unwrap();
             let timelocked_iota_balance = builder.programmable_move_call(
-                ObjectID::new(IOTA_FRAMEWORK_ADDRESS.into_bytes()),
+                ObjectId::from_address(Address::FRAMEWORK),
                 Identifier::new("timelock").unwrap(),
                 Identifier::new("lock").unwrap(),
                 vec![TypeTag::Struct(Box::new(Balance::type_(GAS::type_tag())))],
@@ -283,7 +282,7 @@ fn test_timelocked_staking() {
             let state = builder.input(CallArg::IOTA_SYSTEM_MUT).unwrap();
 
             let _ = builder.programmable_move_call(
-                ObjectID::new(IOTA_SYSTEM_ADDRESS.into_bytes()),
+                ObjectId::new(Address::SYSTEM.into_bytes()),
                 Identifier::new("timelocked_staking").unwrap(),
                 Identifier::new("request_add_stake").unwrap(),
                 vec![],
@@ -343,7 +342,7 @@ fn test_timelocked_unstaking() {
             )
             .await;
 
-        indexer_wait_for_object(client, gas.0, gas.1).await;
+        indexer_wait_for_object(client, gas.object_id, gas.version).await;
 
         let iota_coin_ref = cluster
             .fund_address_and_return_gas(
@@ -353,7 +352,7 @@ fn test_timelocked_unstaking() {
             )
             .await;
 
-        indexer_wait_for_object(client, iota_coin_ref.0, iota_coin_ref.1).await;
+        indexer_wait_for_object(client, iota_coin_ref.object_id, iota_coin_ref.version).await;
 
         let pt = {
             let mut builder = ProgrammableTransactionBuilder::new();
@@ -364,7 +363,7 @@ fn test_timelocked_unstaking() {
 
             // Step 1: Get the IOTA balance from the coin object.
             let iota_balance = builder.programmable_move_call(
-                ObjectID::new(IOTA_FRAMEWORK_ADDRESS.into_bytes()),
+                ObjectId::from_address(Address::FRAMEWORK),
                 Identifier::new("coin").unwrap(),
                 Identifier::new("into_balance").unwrap(),
                 vec![GAS::type_tag()],
@@ -374,7 +373,7 @@ fn test_timelocked_unstaking() {
             // Step 2: Timelock the IOTA balance.
             let timelock_timestamp = builder.input(CallArg::from(u64::MAX)).unwrap();
             let timelocked_iota_balance = builder.programmable_move_call(
-                ObjectID::new(IOTA_FRAMEWORK_ADDRESS.into_bytes()),
+                ObjectId::from_address(Address::FRAMEWORK),
                 Identifier::new("timelock").unwrap(),
                 Identifier::new("lock").unwrap(),
                 vec![TypeTag::Struct(Box::new(Balance::type_(GAS::type_tag())))],
@@ -395,7 +394,7 @@ fn test_timelocked_unstaking() {
             let state = builder.input(CallArg::IOTA_SYSTEM_MUT).unwrap();
 
             let _ = builder.programmable_move_call(
-                ObjectID::new(IOTA_SYSTEM_ADDRESS.into_bytes()),
+                ObjectId::new(Address::SYSTEM.into_bytes()),
                 Identifier::new("timelocked_staking").unwrap(),
                 Identifier::new("request_add_stake").unwrap(),
                 vec![],
@@ -447,7 +446,7 @@ fn test_timelocked_unstaking() {
             let state = builder.input(CallArg::IOTA_SYSTEM_MUT).unwrap();
 
             let _ = builder.programmable_move_call(
-                ObjectID::new(IOTA_SYSTEM_ADDRESS.into_bytes()),
+                ObjectId::new(Address::SYSTEM.into_bytes()),
                 Identifier::new("timelocked_staking").unwrap(),
                 Identifier::new("request_withdraw_stake").unwrap(),
                 vec![],
@@ -457,7 +456,7 @@ fn test_timelocked_unstaking() {
             builder.finish()
         };
 
-        let gas = cluster.wallet.get_object_ref(gas.0).await.unwrap();
+        let gas = cluster.wallet.get_object_ref(gas.object_id).await.unwrap();
         let tx_builder = TestTransactionBuilder::new(sender, gas, gas_price);
         let txn = to_sender_signed_transaction(tx_builder.programmable(pt).build(), &keypair);
 

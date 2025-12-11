@@ -10,13 +10,12 @@ pub mod checked {
 
     use iota_protocol_config::ProtocolConfig;
     use iota_types::{
-        base_types::{ObjectID, ObjectRef},
+        base_types::{Address, ObjectId, ObjectReference},
         deny_list_v1::CONFIG_SETTING_DYNAMIC_FIELD_SIZE_FOR_GAS,
         digests::TransactionDigest,
         error::ExecutionError,
         gas::{GasCostSummary, IotaGasStatus, deduct_gas},
         gas_model::tables::GasStatus,
-        is_system_package,
         object::Data,
     };
     use tracing::trace;
@@ -37,17 +36,17 @@ pub mod checked {
         tx_digest: TransactionDigest,
         #[expect(unused)]
         gas_model_version: u64,
-        gas_coins: Vec<ObjectRef>,
+        gas_coins: Vec<ObjectReference>,
         // this is the first gas coin in `gas_coins` and the one that all others will
         // be smashed into. It can be None for system transactions when `gas_coins` is empty.
-        smashed_gas_coin: Option<ObjectID>,
+        smashed_gas_coin: Option<ObjectId>,
         gas_status: IotaGasStatus,
     }
 
     impl GasCharger {
         pub fn new(
             tx_digest: TransactionDigest,
-            gas_coins: Vec<ObjectRef>,
+            gas_coins: Vec<ObjectReference>,
             gas_status: IotaGasStatus,
             protocol_config: &ProtocolConfig,
         ) -> Self {
@@ -73,13 +72,13 @@ pub mod checked {
 
         // TODO: there is only one caller to this function that should not exist
         // otherwise.       Explore way to remove it.
-        pub(crate) fn gas_coins(&self) -> &[ObjectRef] {
+        pub(crate) fn gas_coins(&self) -> &[ObjectReference] {
             &self.gas_coins
         }
 
         // Return the logical gas coin for this transactions or None if no gas coin was
         // present (system transactions).
-        pub fn gas_coin(&self) -> Option<ObjectID> {
+        pub fn gas_coin(&self) -> Option<ObjectId> {
             self.smashed_gas_coin
         }
 
@@ -126,13 +125,14 @@ pub mod checked {
         // are correct.
         pub fn smash_gas(&mut self, temporary_store: &mut TemporaryStore<'_>) {
             let gas_coin_count = self.gas_coins.len();
-            if gas_coin_count == 0 || (gas_coin_count == 1 && self.gas_coins[0].0 == ObjectID::ZERO)
+            if gas_coin_count == 0
+                || (gas_coin_count == 1 && self.gas_coins[0].object_id == ObjectId::ZERO)
             {
                 return; // self.smashed_gas_coin is None
             }
             // set the first coin to be the transaction only gas coin.
             // All others will be smashed into this one.
-            let gas_coin_id = self.gas_coins[0].0;
+            let gas_coin_id = self.gas_coins[0].object_id;
             self.smashed_gas_coin = Some(gas_coin_id);
             if gas_coin_count == 1 {
                 return;
@@ -143,7 +143,7 @@ pub mod checked {
                 .gas_coins
                 .iter()
                 .map(|obj_ref| {
-                    let obj = temporary_store.objects().get(&obj_ref.0).unwrap();
+                    let obj = temporary_store.objects().get(&obj_ref.object_id).unwrap();
                     let Data::Move(move_obj) = &obj.data else {
                         return Err(ExecutionError::invariant_violation(
                             "Provided non-gas coin object as input for gas!",
@@ -180,9 +180,9 @@ pub mod checked {
                 })
                 .clone();
             // delete all gas objects except the primary_gas_object
-            for (id, _version, _digest) in &self.gas_coins[1..] {
-                debug_assert_ne!(*id, primary_gas_object.id());
-                temporary_store.delete_input_object(id);
+            for ObjectReference { object_id, .. } in &self.gas_coins[1..] {
+                debug_assert_ne!(*object_id, primary_gas_object.id());
+                temporary_store.delete_input_object(object_id);
             }
             primary_gas_object
                 .data
@@ -204,7 +204,7 @@ pub mod checked {
 
         pub fn track_storage_mutation(
             &mut self,
-            object_id: ObjectID,
+            object_id: ObjectId,
             new_size: usize,
             storage_rebate: u64,
         ) -> u64 {
@@ -236,7 +236,7 @@ pub mod checked {
                 .objects()
                 .iter()
                 // don't charge for loading IOTA Framework or Move stdlib
-                .filter(|(id, _)| !is_system_package(**id))
+                .filter(|(id, _)| !Address::from_object_id(**id).is_system_package())
                 .map(|(_, obj)| obj.object_size_for_gas_metering())
                 .sum();
             self.gas_status.charge_storage_read(total_size)

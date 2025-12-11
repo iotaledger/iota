@@ -6,7 +6,7 @@ use std::{collections::HashMap, sync::Arc};
 
 use iota_common::fatal;
 use iota_types::{
-    base_types::{EpochId, ObjectRef, TransactionDigest},
+    base_types::{EpochId, ObjectReference, TransactionDigest, VersionExt},
     error::{IotaError, IotaResult, UserInputError},
     storage::ObjectKey,
     transaction::{
@@ -45,7 +45,7 @@ impl TransactionInputLoader {
         &self,
         _tx_digest_for_caching: Option<&TransactionDigest>,
         input_object_kinds: &[InputObjectKind],
-        receiving_objects: &[ObjectRef],
+        receiving_objects: &[ObjectReference],
         epoch_id: EpochId,
     ) -> IotaResult<(InputObjects, ReceivingObjects)> {
         // Length of input_object_kinds have been checked via validity_check() for
@@ -67,9 +67,9 @@ impl TransactionInputLoader {
                         object: ObjectReadResultKind::Object(package),
                     });
                 }
-                InputObjectKind::SharedMoveObject { id, .. } => match self
+                InputObjectKind::SharedMoveObject { object_id, .. } => match self
                     .cache
-                    .try_get_object(id)?
+                    .try_get_object(object_id)?
                 {
                     Some(object) => {
                         input_results[i] = Some(ObjectReadResult::new(*kind, object.into()))
@@ -77,7 +77,7 @@ impl TransactionInputLoader {
                     None => {
                         if let Some((version, digest)) = self
                             .cache
-                            .try_get_last_shared_object_deletion_info(id, epoch_id)?
+                            .try_get_last_shared_object_deletion_info(object_id, epoch_id)?
                         {
                             input_results[i] = Some(ObjectReadResult {
                                 input_object_kind: *kind,
@@ -171,7 +171,7 @@ impl TransactionInputLoader {
                     object_keys.push(objref.into());
                     fetches.push((i, input));
                 }
-                InputObjectKind::SharedMoveObject { id, .. } => {
+                InputObjectKind::SharedMoveObject { object_id, .. } => {
                     let assigned_shared_versions = assigned_shared_versions_cell
                         .get_or_init(|| {
                             epoch_store
@@ -190,8 +190,8 @@ impl TransactionInputLoader {
                         });
                     // If we find a set of assigned versions but an object is missing, it indicates
                     // a serious inconsistency:
-                    let version = assigned_shared_versions.get(id).unwrap_or_else(|| {
-                        panic!("Shared object version should have been assigned. key: {tx_key:?}, obj id: {id:?}")
+                    let version = assigned_shared_versions.get(object_id).unwrap_or_else(|| {
+                        panic!("Shared object version should have been assigned. key: {tx_key:?}, obj id: {object_id:?}")
                     });
                     if version.is_cancelled() {
                         // Do not need to fetch shared object for cancelled transaction.
@@ -202,7 +202,7 @@ impl TransactionInputLoader {
                             ),
                         })
                     } else {
-                        object_keys.push(ObjectKey(*id, *version));
+                        object_keys.push(ObjectKey(*object_id, *version));
                         fetches.push((i, input));
                     }
                 }
@@ -223,13 +223,15 @@ impl TransactionInputLoader {
                     input_object_kind: *input_object_kind,
                     object: obj.into(),
                 },
-                (None, InputObjectKind::SharedMoveObject { id, .. }) => {
+                (None, InputObjectKind::SharedMoveObject { object_id, .. }) => {
                     assert!(key.1.is_valid());
                     // Check if the object was deleted by a concurrently certified tx
                     let version = key.1;
                     if let Some(dependency) = self
                         .cache
-                        .try_get_deleted_shared_object_previous_tx_digest(id, version, epoch_id)?
+                        .try_get_deleted_shared_object_previous_tx_digest(
+                            object_id, version, epoch_id,
+                        )?
                     {
                         ObjectReadResult {
                             input_object_kind: *input,
@@ -238,7 +240,7 @@ impl TransactionInputLoader {
                     } else {
                         panic!(
                             "All dependencies of tx {tx_key:?} should have been executed now, but Shared Object id: {}, version: {version} is absent in epoch {epoch_id}",
-                            *id
+                            *object_id
                         );
                     }
                 }
@@ -260,13 +262,15 @@ impl TransactionInputLoader {
 impl TransactionInputLoader {
     fn read_receiving_objects_for_signing(
         &self,
-        receiving_objects: &[ObjectRef],
+        receiving_objects: &[ObjectReference],
         epoch_id: EpochId,
     ) -> IotaResult<ReceivingObjects> {
         let mut receiving_results = Vec::with_capacity(receiving_objects.len());
         for objref in receiving_objects {
             // Note: the digest is checked later in check_transaction_input
-            let (object_id, version, _) = objref;
+            let ObjectReference {
+                object_id, version, ..
+            } = objref;
 
             if self
                 .cache

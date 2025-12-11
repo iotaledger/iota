@@ -16,9 +16,9 @@ use iota_json_rpc_types::{
 };
 use iota_keys::keystore::AccountKeystore;
 use iota_types::{
-    IOTA_FRAMEWORK_ADDRESS, TypeTag,
+    TypeTag,
     balance::Supply,
-    base_types::{IotaAddress, ObjectID},
+    base_types::{Address, ObjectId},
     coin::{COIN_MODULE_NAME, CoinMetadata, TreasuryCap},
     crypto::{AccountKeyPair, IotaKeyPair, Signature, get_key_pair},
     parse_iota_struct_tag,
@@ -27,7 +27,9 @@ use iota_types::{
 };
 use itertools::Itertools;
 use jsonrpsee::http_client::HttpClient;
-use move_core_types::{identifier::Identifier, language_storage::StructTag};
+use move_core_types::{
+    account_address::AccountAddress, identifier::Identifier, language_storage::StructTag,
+};
 use test_cluster::TestCluster;
 use tokio::sync::OnceCell;
 
@@ -37,13 +39,13 @@ use crate::common::{
     start_test_cluster_with_read_write_indexer,
 };
 
-static COMMON_TESTING_ADDR_AND_CUSTOM_COIN_NAME: OnceCell<(IotaAddress, IotaKeyPair, String)> =
+static COMMON_TESTING_ADDR_AND_CUSTOM_COIN_NAME: OnceCell<(Address, IotaKeyPair, String)> =
     OnceCell::const_new();
 
 async fn get_or_init_addr_and_custom_coins(
     cluster: &TestCluster,
     indexer_client: &HttpClient,
-) -> &'static (IotaAddress, IotaKeyPair, String) {
+) -> &'static (Address, IotaKeyPair, String) {
     COMMON_TESTING_ADDR_AND_CUSTOM_COIN_NAME
         .get_or_init(|| async {
             let (address, keypair): (_, AccountKeyPair) = get_key_pair();
@@ -216,7 +218,7 @@ fn get_all_coins_with_cursor() {
 
         let first_page_results = client.get_all_coins(*owner, None, Some(4)).await.unwrap();
         assert!(first_page_results.has_next_page);
-        let second_page_results: iota_json_rpc_types::Page<iota_json_rpc_types::Coin, ObjectID> =
+        let second_page_results: iota_json_rpc_types::Page<iota_json_rpc_types::Coin, ObjectId> =
             client
                 .get_all_coins(*owner, first_page_results.next_cursor, Some(4))
                 .await
@@ -329,7 +331,7 @@ fn get_all_balances_with_zero_iotas() {
     } = ApiTestSetup::get_or_init();
     runtime.block_on(async move {
         let (owner, keypair, _) = get_or_init_addr_and_custom_coins(cluster, client).await;
-        let coins_dump_address = IotaAddress::random_for_testing_only();
+        let coins_dump_address = Address::new(rand::random());
 
         // first call is to make node and potentially the indexer cache the result
         // and increase chance of producing wrong result on the second call
@@ -657,9 +659,9 @@ fn get_total_supply_with_nonexistent_coin() {
 async fn get_coins_fullnode_indexer(
     cluster: &TestCluster,
     client: &HttpClient,
-    owner: IotaAddress,
+    owner: Address,
     coin_type: Option<String>,
-    cursor: Option<ObjectID>,
+    cursor: Option<ObjectId>,
     limit: Option<usize>,
 ) -> (CoinPage, CoinPage) {
     let result_fullnode = cluster
@@ -677,8 +679,8 @@ async fn get_coins_fullnode_indexer(
 async fn get_all_coins_fullnode_indexer(
     cluster: &TestCluster,
     client: &HttpClient,
-    owner: IotaAddress,
-    cursor: Option<ObjectID>,
+    owner: Address,
+    cursor: Option<ObjectId>,
     limit: Option<usize>,
 ) -> (CoinPage, CoinPage) {
     let result_fullnode = cluster
@@ -693,7 +695,7 @@ async fn get_all_coins_fullnode_indexer(
 async fn get_balance_fullnode_indexer(
     cluster: &TestCluster,
     client: &HttpClient,
-    owner: IotaAddress,
+    owner: Address,
     coin_type: Option<String>,
 ) -> (Balance, Balance) {
     let result_fullnode = cluster
@@ -708,7 +710,7 @@ async fn get_balance_fullnode_indexer(
 async fn get_all_balances_fullnode_indexer(
     cluster: &TestCluster,
     client: &HttpClient,
-    owner: IotaAddress,
+    owner: Address,
 ) -> (Vec<Balance>, Vec<Balance>) {
     let result_fullnode = cluster.rpc_client().get_all_balances(owner).await.unwrap();
     let result_indexer = client.get_all_balances(owner).await.unwrap();
@@ -745,12 +747,12 @@ async fn get_total_supply_fullnode_indexer(
 
 async fn create_trusted_coins(
     cluster: &TestCluster,
-    address: IotaAddress,
+    address: Address,
     account_keypair: &IotaKeyPair,
 ) -> Result<(String, String), anyhow::Error> {
     let http_client = cluster.rpc_client();
 
-    let ((package_id, _, _), _) = publish_test_move_package(
+    let (package, _) = publish_test_move_package(
         http_client,
         address,
         account_keypair,
@@ -758,23 +760,25 @@ async fn create_trusted_coins(
     )
     .await?;
 
-    let coin_name = format!("{package_id}::trusted_coin::TRUSTED_COIN");
-    let imm_coin_name =
-        format!("{package_id}::immutable_metadata_trusted_coin::IMMUTABLE_METADATA_TRUSTED_COIN");
+    let coin_name = format!("{}::trusted_coin::TRUSTED_COIN", package.object_id);
+    let imm_coin_name = format!(
+        "{}::immutable_metadata_trusted_coin::IMMUTABLE_METADATA_TRUSTED_COIN",
+        package.object_id
+    );
 
     Ok((coin_name, imm_coin_name))
 }
 
 pub async fn execute_move_call(
     client: &HttpClient,
-    address: IotaAddress,
+    address: Address,
     account_keypair: &dyn Signer<Signature>,
-    package_object_id: ObjectID,
+    package_object_id: ObjectId,
     module: String,
     function: String,
     type_arguments: Vec<IotaTypeTag>,
     arguments: Vec<IotaJsonValue>,
-    gas: Option<ObjectID>,
+    gas: Option<ObjectId>,
 ) -> Result<IotaTransactionBlockResponse, anyhow::Error> {
     let transaction_bytes: TransactionBlockBytes = client
         .move_call(
@@ -813,7 +817,7 @@ pub async fn execute_move_call(
 async fn mint_trusted_coin(
     cluster: &TestCluster,
     coin_name: String,
-    address: IotaAddress,
+    address: Address,
     account_keypair: &IotaKeyPair,
     amount: u64,
 ) -> Result<IotaObjectRef, anyhow::Error> {
@@ -835,7 +839,7 @@ async fn mint_trusted_coin(
         http_client,
         address,
         account_keypair,
-        IOTA_FRAMEWORK_ADDRESS.into(),
+        Address::FRAMEWORK.into(),
         COIN_MODULE_NAME.to_string(),
         "mint_and_transfer".into(),
         type_args![coin_name.clone()].unwrap(),
@@ -854,7 +858,7 @@ async fn create_migrated_coin_manager_coins(
     cluster: &TestCluster,
     indexer_client: &HttpClient,
     pg_store: &PgIndexerStore,
-    address: IotaAddress,
+    address: Address,
     account_keypair: &IotaKeyPair,
 ) -> Result<(String, String), anyhow::Error> {
     let (coin_name, immutable_metadata_coin_name) =
@@ -870,7 +874,7 @@ async fn create_migrated_coin_manager_coins(
     .unwrap();
 
     let http_client = cluster.rpc_client();
-    let ((package_id, _, _), _) = publish_test_move_package(
+    let (package, _) = publish_test_move_package(
         http_client,
         address,
         account_keypair,
@@ -892,11 +896,11 @@ async fn create_migrated_coin_manager_coins(
                 .object_id;
 
         let guardian_type = StructTag {
-            address: *package_id,
+            address: AccountAddress::new(package.object_id.into_bytes()),
             module: Identifier::new("coin_manager_coin").unwrap(),
             name: Identifier::new("Guardian").unwrap(),
             type_params: vec![TypeTag::Struct(Box::new(StructTag {
-                address: *package_id,
+                address: AccountAddress::new(package.object_id.into_bytes()),
                 module: Identifier::new("coin_manager_coin").unwrap(),
                 name: Identifier::new("COIN_MANAGER_COIN").unwrap(),
                 type_params: vec![],
@@ -906,12 +910,15 @@ async fn create_migrated_coin_manager_coins(
             .await
             .object_id;
 
-        let coin_manager_coin_name = format!("{package_id}::coin_manager_coin::COIN_MANAGER_COIN");
+        let coin_manager_coin_name = format!(
+            "{}::coin_manager_coin::COIN_MANAGER_COIN",
+            package.object_id
+        );
         let tx_response = execute_move_call(
             http_client,
             address,
             account_keypair,
-            package_id,
+            package.object_id,
             "coin_manager_coin".to_string(),
             "migrate_to_manager".into(),
             type_args![coin_name, coin_manager_coin_name].unwrap(),
@@ -939,11 +946,11 @@ async fn create_migrated_coin_manager_coins(
             .unwrap();
 
         let guardian_type = StructTag {
-            address: *package_id,
+            address: AccountAddress::new(package.object_id.into_bytes()),
             module: Identifier::new("immutable_metadata_coin_manager_coin").unwrap(),
             name: Identifier::new("Guardian").unwrap(),
             type_params: vec![TypeTag::Struct(Box::new(StructTag {
-                address: *package_id,
+                address: AccountAddress::new(package.object_id.into_bytes()),
                 module: Identifier::new("immutable_metadata_coin_manager_coin").unwrap(),
                 name: Identifier::new("IMMUTABLE_METADATA_COIN_MANAGER_COIN").unwrap(),
                 type_params: vec![],
@@ -954,13 +961,14 @@ async fn create_migrated_coin_manager_coins(
             .object_id;
 
         let coin_manager_immutable_metadata_coin_name = format!(
-            "{package_id}::immutable_metadata_coin_manager_coin::IMMUTABLE_METADATA_COIN_MANAGER_COIN"
+            "{}::immutable_metadata_coin_manager_coin::IMMUTABLE_METADATA_COIN_MANAGER_COIN",
+            package.object_id
         );
         let tx_response = execute_move_call(
             http_client,
             address,
             account_keypair,
-            package_id,
+            package.object_id,
             "immutable_metadata_coin_manager_coin".to_string(),
             "migrate_to_manager".into(),
             type_args![
@@ -980,7 +988,7 @@ async fn create_migrated_coin_manager_coins(
             http_client,
             address,
             account_keypair,
-            imm_coin_type.address.into(),
+            ObjectId::new(imm_coin_type.address.into_bytes()),
             "immutable_metadata_trusted_coin".to_string(),
             "hide_metadata".into(),
             type_args![immutable_metadata_coin_name].unwrap(),
@@ -999,25 +1007,27 @@ async fn create_native_coin_manager_coins(
     cluster: &TestCluster,
     indexer_client: &HttpClient,
     pg_store: &PgIndexerStore,
-    address: IotaAddress,
+    address: Address,
     account_keypair: &IotaKeyPair,
 ) -> Result<(String, String), anyhow::Error> {
     let http_client = cluster.rpc_client();
 
-    let ((package_id, _, _), tx_response) =
+    let (package, tx_response) =
         publish_test_move_package(http_client, address, account_keypair, "coin_manager_coins")
             .await?;
     indexer_wait_for_transaction(tx_response.digest, pg_store, indexer_client).await;
 
-    let coin_name = format!("{package_id}::normal_coin::NORMAL_COIN");
-    let immutable_metadata_coin_name =
-        format!("{package_id}::immutable_metadata_coin::IMMUTABLE_METADATA_COIN");
+    let coin_name = format!("{}::normal_coin::NORMAL_COIN", package.object_id);
+    let immutable_metadata_coin_name = format!(
+        "{}::immutable_metadata_coin::IMMUTABLE_METADATA_COIN",
+        package.object_id
+    );
     Ok((coin_name, immutable_metadata_coin_name))
 }
 
 async fn get_single_owned_object_by_type(
     http_client: &HttpClient,
-    address: IotaAddress,
+    address: Address,
     struct_tag: StructTag,
 ) -> IotaObjectData {
     http_client
@@ -1043,9 +1053,9 @@ async fn transfer_all_coins(
     cluster: &TestCluster,
     indexer_client: &HttpClient,
     store: &PgIndexerStore,
-    from_address: IotaAddress,
+    from_address: Address,
     keypair: &IotaKeyPair,
-    to_address: IotaAddress,
+    to_address: Address,
 ) {
     let coins: Vec<_> = cluster
         .rpc_client()

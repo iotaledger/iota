@@ -13,7 +13,7 @@ use futures::TryFutureExt;
 use iota_indexer::apis::GovernanceReadApi;
 use iota_json_rpc::governance_api::median_apy_from_exchange_rates;
 use iota_types::{
-    base_types::IotaAddress as NativeIotaAddress,
+    base_types::Address as NativeIotaAddress,
     committee::EpochId,
     iota_system_state::{
         PoolTokenExchangeRate,
@@ -424,6 +424,6 @@ impl Validator {
 
 impl Validator {
     pub fn operation_cap_id(&self) -> IotaAddress {
-        IotaAddress::from_array(**self.validator_summary.operation_cap_id)
+        IotaAddress::from_array(self.validator_summary.operation_cap_id.into_bytes())
     }
 }

@@ -21,7 +21,7 @@ use iota_sdk::{IotaClient, IotaClientBuilder, rpc_types::IotaTransactionBlockRes
 use iota_types::{
     base_types::*,
     crypto::AuthorityPublicKeyBytes,
-    messages_checkpoint::{CheckpointRequest, CheckpointResponse, CheckpointSequenceNumber},
+    messages_checkpoint::{CheckpointRequest, CheckpointResponse},
     messages_grpc::TransactionInfoRequest,
     transaction::{SenderSignedData, Transaction},
 };
@@ -51,11 +51,11 @@ pub enum ToolCommand {
         /// Either id or address must be provided
         /// The object to check
         #[arg(long, help = "The object ID to fetch")]
-        id: Option<ObjectID>,
+        id: Option<ObjectId>,
         /// Either id or address must be provided
         /// If provided, check all gas objects owned by this account
         #[arg(long)]
-        address: Option<IotaAddress>,
+        address: Option<Address>,
         /// RPC address to provide the up-to-date committee info
         #[arg(long)]
         fullnode_rpc_url: String,
@@ -68,7 +68,7 @@ pub enum ToolCommand {
     /// Fetch the same object from all validators
     FetchObject {
         #[arg(long, help = "The object ID to fetch")]
-        id: ObjectID,
+        id: ObjectId,
 
         #[arg(long, help = "Fetch object at a specific sequence")]
         version: Option<u64>,
@@ -217,7 +217,7 @@ pub enum ToolCommand {
         fullnode_rpc_url: String,
 
         #[arg(long, help = "Fetch checkpoint at a specific sequence number")]
-        sequence_number: Option<CheckpointSequenceNumber>,
+        sequence_number: Option<Version>,
     },
 
     Anemo {
@@ -399,7 +399,7 @@ pub enum ToolCommand {
 async fn check_locked_object(
     iota_client: &Arc<IotaClient>,
     committee: Arc<BTreeMap<AuthorityPublicKeyBytes, u64>>,
-    id: ObjectID,
+    id: ObjectId,
     rescue: bool,
 ) -> anyhow::Result<()> {
     let clients = Arc::new(make_clients(iota_client).await?);

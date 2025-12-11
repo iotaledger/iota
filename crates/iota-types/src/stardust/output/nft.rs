@@ -6,7 +6,9 @@ use iota_protocol_config::ProtocolConfig;
 use iota_stardust_sdk::types::block::output::{
     NftOutput as StardustNft, feature::Irc27Metadata as StardustIrc27,
 };
-use move_core_types::{ident_str, identifier::IdentStr, language_storage::StructTag};
+use move_core_types::{
+    account_address::AccountAddress, ident_str, identifier::IdentStr, language_storage::StructTag,
+};
 use num_rational::Ratio;
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
@@ -15,9 +17,9 @@ use super::unlock_conditions::{
     ExpirationUnlockCondition, StorageDepositReturnUnlockCondition, TimelockUnlockCondition,
 };
 use crate::{
-    STARDUST_ADDRESS, TypeTag,
+    TypeTag,
     balance::Balance,
-    base_types::{IotaAddress, ObjectID, SequenceNumber, TxContext},
+    base_types::{Address, ObjectId, TxContext, Version},
     collection_types::{Bag, Entry, VecMap},
     error::IotaError,
     id::UID,
@@ -140,7 +142,7 @@ pub struct Irc27Metadata {
     /// Contains a hash of the 32 bytes parsed from the BECH32 encoded IOTA
     /// address in the metadata, it is a legacy address. Royalties are not
     /// supported by the protocol and needed to be processed by an integrator.
-    pub royalties: VecMap<IotaAddress, FixedPoint32>,
+    pub royalties: VecMap<Address, FixedPoint32>,
 
     /// The human-readable name of the NFT creator.
     pub issuer_name: Option<String>,
@@ -179,7 +181,7 @@ impl TryFrom<StardustIrc27> for Irc27Metadata {
                             value: FixedPoint32::try_from(*value)?,
                         })
                     })
-                    .collect::<Result<Vec<Entry<IotaAddress, FixedPoint32>>, Self::Error>>()?,
+                    .collect::<Result<Vec<Entry<Address, FixedPoint32>>, Self::Error>>()?,
             },
             issuer_name: irc27.issuer_name().clone(),
             description: irc27.description().clone(),
@@ -245,14 +247,14 @@ pub struct Nft {
 
     /// The sender feature holds the last sender address assigned before the
     /// migration and is not supported by the protocol after it.
-    pub legacy_sender: Option<IotaAddress>,
+    pub legacy_sender: Option<Address>,
     /// The metadata feature.
     pub metadata: Option<Vec<u8>>,
     /// The tag feature.
     pub tag: Option<Vec<u8>>,
 
     /// The immutable issuer feature.
-    pub immutable_issuer: Option<IotaAddress>,
+    pub immutable_issuer: Option<Address>,
     /// The immutable metadata feature.
     pub immutable_metadata: Irc27Metadata,
 }
@@ -262,7 +264,7 @@ impl Nft {
     /// [`Nft`] in its move package.
     pub fn tag() -> StructTag {
         StructTag {
-            address: STARDUST_ADDRESS,
+            address: AccountAddress::new(Address::STARDUST.into_bytes()),
             module: NFT_MODULE_NAME.to_owned(),
             name: NFT_STRUCT_NAME.to_owned(),
             type_params: Vec::new(),
@@ -270,12 +272,12 @@ impl Nft {
     }
 
     /// Creates the Move-based Nft model from a Stardust-based Nft Output.
-    pub fn try_from_stardust(nft_id: ObjectID, nft: &StardustNft) -> Result<Self, anyhow::Error> {
+    pub fn try_from_stardust(nft_id: ObjectId, nft: &StardustNft) -> Result<Self, anyhow::Error> {
         if nft_id.as_ref() == [0; 32] {
             anyhow::bail!("nft_id must be non-zeroed");
         }
 
-        let legacy_sender: Option<IotaAddress> = nft
+        let legacy_sender: Option<Address> = nft
             .features()
             .sender()
             .map(|sender_feat| stardust_to_iota_address(sender_feat.address()))
@@ -285,7 +287,7 @@ impl Nft {
             .metadata()
             .map(|metadata_feat| metadata_feat.data().to_vec());
         let tag: Option<Vec<u8>> = nft.features().tag().map(|tag_feat| tag_feat.tag().to_vec());
-        let immutable_issuer: Option<IotaAddress> = nft
+        let immutable_issuer: Option<Address> = nft
             .immutable_features()
             .issuer()
             .map(|issuer_feat| stardust_to_iota_address(issuer_feat.address()))
@@ -355,7 +357,7 @@ impl Nft {
         owner: Owner,
         protocol_config: &ProtocolConfig,
         tx_context: &TxContext,
-        version: SequenceNumber,
+        version: Version,
     ) -> anyhow::Result<Object> {
         // Construct the Nft object.
         let move_nft_object = {
@@ -405,7 +407,7 @@ impl NftOutput {
     /// [`NftOutput`] in its move package.
     pub fn tag(type_param: TypeTag) -> StructTag {
         StructTag {
-            address: STARDUST_ADDRESS,
+            address: AccountAddress::new(Address::STARDUST.into_bytes()),
             module: NFT_OUTPUT_MODULE_NAME.to_owned(),
             name: NFT_OUTPUT_STRUCT_NAME.to_owned(),
             type_params: vec![type_param],
@@ -415,7 +417,7 @@ impl NftOutput {
     /// Creates the Move-based Nft Output model from a Stardust-based Nft
     /// Output.
     pub fn try_from_stardust(
-        object_id: ObjectID,
+        object_id: ObjectId,
         nft: &StardustNft,
         native_tokens: Bag,
     ) -> Result<Self, anyhow::Error> {
@@ -438,10 +440,10 @@ impl NftOutput {
 
     pub fn to_genesis_object(
         &self,
-        owner: IotaAddress,
+        owner: Address,
         protocol_config: &ProtocolConfig,
         tx_context: &TxContext,
-        version: SequenceNumber,
+        version: Version,
         coin_type: CoinType,
     ) -> anyhow::Result<Object> {
         // Construct the Nft Output object.
@@ -479,7 +481,7 @@ impl NftOutput {
     }
 
     pub fn is_nft_output(s: &StructTag) -> bool {
-        s.address == STARDUST_ADDRESS
+        s.address == AccountAddress::new(Address::STARDUST.into_bytes())
             && s.module.as_ident_str() == NFT_OUTPUT_MODULE_NAME
             && s.name.as_ident_str() == NFT_OUTPUT_STRUCT_NAME
     }

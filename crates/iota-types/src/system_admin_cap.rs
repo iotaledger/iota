@@ -10,11 +10,11 @@ pub use checked::*;
 
 #[iota_macros::with_checked_arithmetic]
 mod checked {
-    use move_core_types::language_storage::StructTag;
+    use iota_sdk_2::types::Address;
+    use move_core_types::{account_address::AccountAddress, language_storage::StructTag};
     use serde::{Deserialize, Serialize};
 
     use super::*;
-    use crate::IOTA_FRAMEWORK_ADDRESS;
 
     /// Rust version of the IotaSystemAdminCap type.
     #[derive(Debug, Default, Serialize, Deserialize, Clone, Eq, PartialEq)]
@@ -28,7 +28,7 @@ mod checked {
     impl IotaSystemAdminCap {
         pub fn type_() -> StructTag {
             StructTag {
-                address: IOTA_FRAMEWORK_ADDRESS,
+                address: AccountAddress::new(Address::FRAMEWORK.into_bytes()),
                 module: IOTA_SYSTEM_ADMIN_CAP_MODULE_NAME.to_owned(),
                 name: IOTA_SYSTEM_ADMIN_CAP_STRUCT_NAME.to_owned(),
                 type_params: Vec::new(),

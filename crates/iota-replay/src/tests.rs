@@ -6,7 +6,7 @@ use iota_config::node::ExpensiveSafetyCheckConfig;
 use iota_json_rpc_api::QUERY_MAX_RESULT_LIMIT;
 use iota_json_rpc_types::IotaTransactionBlockResponseOptions;
 use iota_sdk::{IotaClient, IotaClientBuilder};
-use iota_types::{base_types::IotaAddress, digests::TransactionDigest};
+use iota_types::{base_types::Address, digests::TransactionDigest};
 
 use crate::{
     LocalExec,
@@ -107,7 +107,7 @@ async fn extract_one_no_system_tx(
     mut txs: Vec<TransactionDigest>,
 ) -> Option<TransactionDigest> {
     let opts = IotaTransactionBlockResponseOptions::full_content();
-    txs.retain(|q| *q != TransactionDigest::genesis_marker());
+    txs.retain(|q| *q != TransactionDigest::GENESIS_MARKER);
 
     for ch in txs.chunks(*QUERY_MAX_RESULT_LIMIT) {
         match rpc_client
@@ -119,7 +119,7 @@ async fn extract_one_no_system_tx(
             .filter_map(|x| {
                 if match x.transaction.unwrap().data {
                     iota_json_rpc_types::IotaTransactionBlockData::V1(tx) => tx.sender,
-                } != IotaAddress::ZERO
+                } != Address::ZERO
                 {
                     Some(x.digest)
                 } else {

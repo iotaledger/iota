@@ -15,9 +15,8 @@ mod checked {
     use iota_move_natives::object_runtime::ObjectRuntime;
     use iota_protocol_config::ProtocolConfig;
     use iota_types::{
-        IOTA_FRAMEWORK_ADDRESS,
         base_types::{
-            IotaAddress, MoveObjectType, ObjectID, RESOLVED_ASCII_STR, RESOLVED_STD_OPTION,
+            Address, MoveObjectType, ObjectId, RESOLVED_ASCII_STR, RESOLVED_STD_OPTION,
             RESOLVED_UTF8_STR, TX_CONTEXT_MODULE_NAME, TX_CONTEXT_STRUCT_NAME, TxContext,
             TxContextKind,
         },
@@ -243,7 +242,7 @@ mod checked {
                     .enumerate()
                     .map(|(idx, arg)| context.by_value_arg(CommandKind::TransferObjects, idx, arg))
                     .collect::<Result<_, _>>()?;
-                let addr: IotaAddress =
+                let addr: Address =
                     context.by_value_arg(CommandKind::TransferObjects, objs.len(), addr_arg)?;
                 for obj in objs {
                     obj.ensure_public_transfer_eligible()?;
@@ -347,7 +346,8 @@ mod checked {
                 }
 
                 let original_address = context.set_link_context(package)?;
-                let storage_id = ModuleId::new(*package, module.clone());
+                let storage_id =
+                    ModuleId::new(AccountAddress::new(package.into_bytes()), module.clone());
                 let runtime_id = ModuleId::new(original_address, module);
                 let return_values = execute_move_call::<Mode>(
                     context,
@@ -537,7 +537,7 @@ mod checked {
         context: &mut ExecutionContext<'_, '_, '_>,
         argument_updates: &mut Mode::ArgumentUpdates,
         module_bytes: Vec<Vec<u8>>,
-        dep_ids: Vec<ObjectID>,
+        dep_ids: Vec<ObjectId>,
         trace_builder_opt: &mut Option<MoveTraceBuilder>,
     ) -> Result<Vec<Value>, ExecutionError> {
         assert_invariant!(
@@ -555,7 +555,7 @@ mod checked {
         // since Move objects and Move packages cannot interact
         let runtime_id = if Mode::packages_are_predefined() {
             // do not calculate or substitute id for predefined packages
-            (*modules[0].self_id().address()).into()
+            ObjectId::new(modules[0].self_id().address().into_bytes())
         } else {
             let id = context.tx_context.fresh_id();
             substitute_package_id(&mut modules, id)?;
@@ -605,8 +605,8 @@ mod checked {
     fn execute_move_upgrade<Mode: ExecutionMode>(
         context: &mut ExecutionContext<'_, '_, '_>,
         module_bytes: Vec<Vec<u8>>,
-        dep_ids: Vec<ObjectID>,
-        current_package_id: ObjectID,
+        dep_ids: Vec<ObjectId>,
+        current_package_id: ObjectId,
         upgrade_ticket_arg: Arg,
     ) -> Result<Vec<Value>, ExecutionError> {
         assert_invariant!(
@@ -815,7 +815,7 @@ mod checked {
     /// does not match the expected count.
     fn fetch_package(
         context: &ExecutionContext<'_, '_, '_>,
-        package_id: &ObjectID,
+        package_id: &ObjectId,
     ) -> Result<PackageObject, ExecutionError> {
         let mut fetched_packages = fetch_packages(context, vec![package_id])?;
         assert_invariant!(
@@ -835,7 +835,7 @@ mod checked {
     /// and attempts to retrieve the corresponding packages from the state view.
     fn fetch_packages<'ctx, 'vm, 'state, 'a>(
         context: &'ctx ExecutionContext<'vm, 'state, 'a>,
-        package_ids: impl IntoIterator<Item = &'ctx ObjectID>,
+        package_ids: impl IntoIterator<Item = &'ctx ObjectId>,
     ) -> Result<Vec<PackageObject>, ExecutionError> {
         let package_ids: BTreeSet<_> = package_ids.into_iter().collect();
         match get_package_objects(&context.state_view, package_ids) {
@@ -952,7 +952,7 @@ mod checked {
     /// verifier has passed.
     fn publish_and_verify_modules(
         context: &mut ExecutionContext<'_, '_, '_>,
-        package_id: ObjectID,
+        package_id: ObjectId,
         modules: &[CompiledModule],
     ) -> Result<(), ExecutionError> {
         // TODO(https://github.com/iotaledger/iota/issues/69): avoid this redundant serialization by exposing VM API that allows us to run the linker directly on `Vec<CompiledModule>`
@@ -971,7 +971,10 @@ mod checked {
             })
             .collect();
         context
-            .publish_module_bundle(new_module_bytes, AccountAddress::from(package_id))
+            .publish_module_bundle(
+                new_module_bytes,
+                AccountAddress::new(package_id.into_bytes()),
+            )
             .map_err(|e| context.convert_vm_error(e))?;
 
         // run the IOTA verifier
@@ -1275,14 +1278,23 @@ mod checked {
         _type_arguments: &[Type],
     ) -> Result<(), ExecutionError> {
         let module_ident = (module_id.address(), module_id.name());
-        if module_ident == (&IOTA_FRAMEWORK_ADDRESS, EVENT_MODULE) {
+        if module_ident
+            == (
+                &AccountAddress::new(Address::FRAMEWORK.into_bytes()),
+                EVENT_MODULE,
+            )
+        {
             return Err(ExecutionError::new_with_source(
                 ExecutionErrorKind::NonEntryFunctionInvoked,
                 format!("Cannot directly call functions in iota::{EVENT_MODULE}"),
             ));
         }
 
-        if module_ident == (&IOTA_FRAMEWORK_ADDRESS, TRANSFER_MODULE)
+        if module_ident
+            == (
+                &AccountAddress::new(Address::FRAMEWORK.into_bytes()),
+                TRANSFER_MODULE,
+            )
             && PRIVATE_TRANSFER_FUNCTIONS.contains(&function)
         {
             let msg = format!(
@@ -1345,7 +1357,7 @@ mod checked {
         let mut by_mut_ref = vec![];
         let mut serialized_args = Vec::with_capacity(num_args);
         let command_kind = CommandKind::MoveCall {
-            package: (*module_id.address()).into(),
+            package: ObjectId::new(module_id.address().into_bytes()),
             module: module_id.name(),
             function,
         };
@@ -1570,7 +1582,8 @@ mod checked {
             invariant_violation!("Loaded struct not found")
         };
         let (module_addr, module_name, struct_name) = get_datatype_ident(&s);
-        let is_tx_context_type = module_addr == &IOTA_FRAMEWORK_ADDRESS
+        let is_tx_context_type = module_addr
+            == &AccountAddress::new(Address::FRAMEWORK.into_bytes())
             && module_name == TX_CONTEXT_MODULE_NAME
             && struct_name == TX_CONTEXT_STRUCT_NAME;
         Ok(if is_tx_context_type {
@@ -1818,7 +1831,7 @@ mod checked {
                     Ok(())
                 }
                 PrimitiveArgumentLayout::Address => {
-                    IotaAddress::deserialize(deserializer)?;
+                    Address::deserialize(deserializer)?;
                     Ok(())
                 }
             }

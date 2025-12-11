@@ -10,7 +10,7 @@ use std::{
 
 use iota_macros::nondeterministic;
 use iota_types::{
-    base_types::ObjectID,
+    base_types::ObjectId,
     committee::{Committee, EpochId},
     error::{IotaError, IotaResult},
 };
@@ -61,7 +61,7 @@ impl CommitteeStore {
 
     pub fn new_for_testing(genesis_committee: &Committee) -> Self {
         let dir = std::env::temp_dir();
-        let path = dir.join(format!("DB_{:?}", nondeterministic!(ObjectID::random())));
+        let path = dir.join(format!("DB_{:?}", nondeterministic!(ObjectId::new(rand::random()))));
         Self::new(path, genesis_committee, None)
     }
 

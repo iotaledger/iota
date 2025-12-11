@@ -628,7 +628,7 @@ impl ObjectImpl<'_> {
     pub(crate) async fn digest(&self) -> Option<String> {
         self.0
             .native_impl()
-            .map(|native| native.digest().base58_encode())
+            .map(|native| native.digest().to_base58())
     }
 
     pub(crate) async fn owner(&self, ctx: &Context<'_>) -> Option<ObjectOwner> {
@@ -663,7 +663,7 @@ impl ObjectImpl<'_> {
             O::Shared {
                 initial_shared_version,
             } => Some(ObjectOwner::Shared(Shared {
-                initial_shared_version: initial_shared_version.value().into(),
+                initial_shared_version: initial_shared_version.into(),
             })),
         }
     }
@@ -809,7 +809,7 @@ impl Object {
         use ObjectKind as K;
 
         match &self.kind {
-            K::NotIndexed(native) | K::Indexed(native, _) => native.version().value(),
+            K::NotIndexed(native) | K::Indexed(native, _) => native.version(),
             K::WrappedOrDeleted(object_version) => *object_version,
         }
     }

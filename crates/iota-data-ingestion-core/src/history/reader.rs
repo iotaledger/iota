@@ -11,9 +11,7 @@ use iota_storage::{
     compute_sha3_checksum_for_bytes, make_iterator,
     object_store::{ObjectStoreGetExt, http::HttpDownloaderBuilder, util::get},
 };
-use iota_types::{
-    full_checkpoint_content::CheckpointData, messages_checkpoint::CheckpointSequenceNumber,
-};
+use iota_types::{base_types::Version, full_checkpoint_content::CheckpointData};
 use object_store::path::Path;
 use tokio::sync::{
     Mutex,
@@ -149,7 +147,7 @@ impl HistoricalReader {
     /// ```
     pub async fn stream_blobs_for_range(
         &self,
-        checkpoint_range: Range<CheckpointSequenceNumber>,
+        checkpoint_range: Range<Version>,
     ) -> Result<impl Stream<Item = Result<Bytes>> + Send + use<'_>> {
         let files = self.get_files_for_range(checkpoint_range).await?;
         Ok(futures::stream::iter(files)
@@ -173,7 +171,7 @@ impl HistoricalReader {
     /// [`make_blob_iterator_for_range`].
     pub async fn iter_for_range(
         &self,
-        checkpoint_range: Range<CheckpointSequenceNumber>,
+        checkpoint_range: Range<Version>,
     ) -> Result<impl Iterator<Item = CheckpointData>> {
         let blobs = self
             .stream_blobs_for_range(checkpoint_range.clone())
@@ -211,7 +209,7 @@ impl HistoricalReader {
     }
 
     /// Return latest available checkpoint in archive.
-    pub async fn latest_available_checkpoint(&self) -> Result<CheckpointSequenceNumber> {
+    pub async fn latest_available_checkpoint(&self) -> Result<Version> {
         self.manifest
             .lock()
             .await
@@ -259,7 +257,7 @@ impl HistoricalReader {
     /// manifest fails to verify.
     async fn get_files_for_range(
         &self,
-        checkpoint_range: Range<CheckpointSequenceNumber>,
+        checkpoint_range: Range<Version>,
     ) -> Result<impl Iterator<Item = FileMetadata>> {
         let manifest = self.get_manifest().await;
 
@@ -337,7 +335,7 @@ fn make_blob_iterator(blob: Bytes) -> Result<impl Iterator<Item = CheckpointData
 /// The function fails if the blob is corrupted and fails to decode.
 pub fn make_blob_iterator_for_range(
     blob: Bytes,
-    range: Range<CheckpointSequenceNumber>,
+    range: Range<Version>,
 ) -> Result<impl Iterator<Item = CheckpointData>> {
     Ok(make_blob_iterator(blob)?
         .filter(move |data| range.contains(&data.checkpoint_summary.sequence_number)))

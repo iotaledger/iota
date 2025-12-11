@@ -2,6 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use iota_sdk_2::types::Address;
 use move_core_types::{
     account_address::AccountAddress,
     ident_str,
@@ -10,14 +11,14 @@ use move_core_types::{
 };
 use serde::{Deserialize, Serialize};
 
-use crate::{IOTA_FRAMEWORK_ADDRESS, MoveTypeTagTrait, base_types::EpochId, id::UID};
+use crate::{MoveTypeTagTrait, base_types::EpochId, id::UID};
 
 pub const CONFIG_MODULE_NAME: &IdentStr = ident_str!("config");
 pub const CONFIG_STRUCT_NAME: &IdentStr = ident_str!("Config");
 pub const SETTING_STRUCT_NAME: &IdentStr = ident_str!("Setting");
 pub const SETTING_DATA_STRUCT_NAME: &IdentStr = ident_str!("SettingData");
 pub const RESOLVED_IOTA_CONFIG: (&AccountAddress, &IdentStr, &IdentStr) = (
-    &IOTA_FRAMEWORK_ADDRESS,
+    &AccountAddress::new(Address::FRAMEWORK.into_bytes()),
     CONFIG_MODULE_NAME,
     CONFIG_STRUCT_NAME,
 );
@@ -45,7 +46,7 @@ pub struct SettingData<V> {
 impl Config {
     pub fn type_() -> StructTag {
         StructTag {
-            address: IOTA_FRAMEWORK_ADDRESS,
+            address: AccountAddress::new(Address::FRAMEWORK.into_bytes()),
             module: CONFIG_MODULE_NAME.to_owned(),
             name: CONFIG_STRUCT_NAME.to_owned(),
             type_params: vec![],
@@ -55,7 +56,7 @@ impl Config {
 
 pub fn setting_type(value_tag: TypeTag) -> StructTag {
     StructTag {
-        address: IOTA_FRAMEWORK_ADDRESS,
+        address: AccountAddress::new(Address::FRAMEWORK.into_bytes()),
         module: CONFIG_MODULE_NAME.to_owned(),
         name: SETTING_STRUCT_NAME.to_owned(),
         type_params: vec![value_tag],
@@ -81,7 +82,7 @@ pub fn is_setting(tag: &StructTag) -> bool {
         name,
         type_params,
     } = tag;
-    *address == IOTA_FRAMEWORK_ADDRESS
+    *address == AccountAddress::new(Address::FRAMEWORK.into_bytes())
         && module.as_ident_str() == CONFIG_MODULE_NAME
         && name.as_ident_str() == SETTING_STRUCT_NAME
         && type_params.len() == 1

@@ -42,12 +42,12 @@ export {
     IOTA_DECIMALS,
     NANOS_PER_IOTA,
     MOVE_STDLIB_ADDRESS,
-    IOTA_FRAMEWORK_ADDRESS,
-    IOTA_SYSTEM_ADDRESS,
-    IOTA_CLOCK_OBJECT_ID,
+    Address::FRAMEWORK,
+    Address::SYSTEM,
+    ObjectId::CLOCK,
     IOTA_SYSTEM_MODULE_NAME,
     IOTA_TYPE_ARG,
-    IOTA_SYSTEM_STATE_OBJECT_ID,
+    ObjectId::SYSTEM,
 } from './constants.js';
 
 export { deriveDynamicFieldID } from './dynamic-fields.js';

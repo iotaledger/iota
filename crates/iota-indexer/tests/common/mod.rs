@@ -32,7 +32,7 @@ use iota_json_rpc_types::{
 use iota_metrics::init_metrics;
 use iota_move_build::BuildConfig;
 use iota_types::{
-    base_types::{IotaAddress, ObjectID, ObjectRef, SequenceNumber},
+    base_types::{Address, ObjectId, ObjectReference, Version},
     crypto::{IotaKeyPair, Signature},
     digests::TransactionDigest,
     quorum_driver_types::ExecuteTransactionRequestType,
@@ -204,8 +204,8 @@ pub async fn indexer_wait_for_latest_checkpoint(pg_store: &PgIndexerStore, clust
 
 async fn wait_for_object(
     client: &HttpClient,
-    object_id: ObjectID,
-    sequence_number: SequenceNumber,
+    object_id: ObjectId,
+    sequence_number: Version,
 ) -> anyhow::Result<()> {
     tokio::time::timeout(Duration::from_secs(30), async {
         loop {
@@ -232,8 +232,8 @@ async fn wait_for_object(
 /// Wait for the indexer to catch up to the given object sequence number
 pub async fn indexer_wait_for_object(
     client: &HttpClient,
-    object_id: ObjectID,
-    sequence_number: SequenceNumber,
+    object_id: ObjectId,
+    sequence_number: Version,
 ) {
     wait_for_object(client, object_id, sequence_number)
         .await
@@ -242,8 +242,8 @@ pub async fn indexer_wait_for_object(
 
 pub async fn node_wait_for_object(
     cluster: &TestCluster,
-    object_id: ObjectID,
-    sequence_number: SequenceNumber,
+    object_id: ObjectId,
+    sequence_number: Version,
 ) {
     wait_for_object(cluster.rpc_client(), object_id, sequence_number)
         .await
@@ -511,10 +511,10 @@ pub async fn wait_for_objects_snapshot(
 
 pub async fn publish_test_move_package(
     client: &HttpClient,
-    address: IotaAddress,
+    address: Address,
     account_keypair: &IotaKeyPair,
     test_package_name: &str,
-) -> Result<(ObjectRef, IotaTransactionBlockResponse), anyhow::Error> {
+) -> Result<(ObjectReference, IotaTransactionBlockResponse), anyhow::Error> {
     let _lock = PACKAGE_PUBLISH_LOCK
         .get_or_init(async || Arc::new(tokio::sync::Mutex::new(0)))
         .await

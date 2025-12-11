@@ -19,9 +19,9 @@ use iota_storage::{
     compress,
 };
 use iota_types::{
-    base_types::{EpochId, ExecutionData},
+    base_types::{EpochId, ExecutionData, Version},
     full_checkpoint_content::CheckpointData,
-    messages_checkpoint::{CheckpointSequenceNumber, FullCheckpointContents},
+    messages_checkpoint::FullCheckpointContents,
 };
 use object_store::{ObjectStore, path::Path};
 use serde::{Deserialize, Serialize};
@@ -56,8 +56,8 @@ impl ArchivalReducer {
     async fn upload(
         &self,
         epoch: EpochId,
-        start: CheckpointSequenceNumber,
-        end: CheckpointSequenceNumber,
+        start: Version,
+        end: Version,
         summary_buffer: Vec<u8>,
         buffer: Vec<u8>,
     ) -> anyhow::Result<()> {
@@ -119,7 +119,7 @@ impl ArchivalReducer {
         Ok(Bytes::from(compressed_buffer))
     }
 
-    pub async fn get_watermark(&self) -> anyhow::Result<CheckpointSequenceNumber> {
+    pub async fn get_watermark(&self) -> anyhow::Result<Version> {
         let manifest = Self::read_manifest(&self.remote_store).await?;
         Ok(manifest.next_checkpoint_seq_num())
     }

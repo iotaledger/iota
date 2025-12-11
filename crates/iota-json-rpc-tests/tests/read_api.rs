@@ -18,11 +18,9 @@ use iota_json_rpc_types::{
 use iota_macros::sim_test;
 use iota_move_build::BuildConfig;
 use iota_types::{
-    IOTA_FRAMEWORK_ADDRESS,
-    base_types::{IotaAddress, ObjectID, SequenceNumber},
+    base_types::{Address, ObjectId, ObjectReference, Version},
     digests::TransactionDigest,
     error::IotaObjectResponseError,
-    messages_checkpoint::CheckpointSequenceNumber,
     quorum_driver_types::ExecuteTransactionRequestType,
     transaction::CallArg,
 };
@@ -121,8 +119,8 @@ fn is_descending(vec: &[u64]) -> bool {
 
 async fn get_objects_to_mutate(
     cluster: &TestCluster,
-    address: IotaAddress,
-) -> (Vec<ObjectID>, ObjectID) {
+    address: Address,
+) -> (Vec<ObjectId>, ObjectId) {
     let owned_objects = cluster.get_owned_objects(address, None).await.unwrap();
 
     let gas = owned_objects.last().unwrap().object_id().unwrap();
@@ -222,7 +220,7 @@ async fn multi_get_objects_with_options(options: IotaObjectDataOptions) {
     let object_ids = objects
         .into_iter()
         .map(|obj| obj.data.as_ref().unwrap().object_id)
-        .collect::<Vec<ObjectID>>();
+        .collect::<Vec<ObjectId>>();
 
     let rpc_objects_response = http_client
         .multi_get_objects(object_ids, Some(options.clone()))
@@ -279,10 +277,14 @@ async fn try_get_past_object_with_options(options: IotaObjectDataOptions) {
 
     assert_eq!(transaction.status_ok(), Some(true));
 
-    let (mutated_obj_id, mutated_obj_version, _) = transaction.mutated_objects().next().unwrap();
+    let mutated_obj = transaction.mutated_objects().next().unwrap();
 
     let rpc_past_obj = http_client
-        .try_get_past_object(mutated_obj_id, mutated_obj_version, Some(options.clone()))
+        .try_get_past_object(
+            mutated_obj.object_id,
+            mutated_obj.version,
+            Some(options.clone()),
+        )
         .await
         .unwrap();
 
@@ -290,8 +292,8 @@ async fn try_get_past_object_with_options(options: IotaObjectDataOptions) {
 
     let obj_data = rpc_past_obj.into_object().unwrap();
 
-    assert_eq!(obj_data.object_id, mutated_obj_id);
-    assert_eq!(obj_data.version, mutated_obj_version);
+    assert_eq!(obj_data.object_id, mutated_obj.object_id);
+    assert_eq!(obj_data.version, mutated_obj.version);
 }
 
 async fn try_multi_get_past_objects_with_options(options: IotaObjectDataOptions) {
@@ -340,7 +342,11 @@ async fn try_multi_get_past_objects_with_options(options: IotaObjectDataOptions)
         .flat_map(|tx| {
             assert_eq!(tx.status_ok(), Some(true));
             tx.mutated_objects()
-                .map(|(object_id, version, _)| IotaGetPastObjectRequest { object_id, version })
+                .map(
+                    |ObjectReference {
+                         object_id, version, ..
+                     }| IotaGetPastObjectRequest { object_id, version },
+                )
                 .collect::<Vec<IotaGetPastObjectRequest>>()
         })
         .collect::<Vec<_>>();
@@ -416,7 +422,7 @@ async fn get_package_with_display_should_not_fail() -> Result<(), anyhow::Error>
 
     let response = http_client
         .get_object(
-            ObjectID::from(IOTA_FRAMEWORK_ADDRESS),
+            ObjectId::from(Address::FRAMEWORK),
             Some(IotaObjectDataOptions::new().with_display()),
         )
         .await;
@@ -505,7 +511,7 @@ async fn get_object_not_found() {
 
     let rpc_obj_resp = http_client
         .get_object(
-            ObjectID::from_str(
+            ObjectId::from_str(
                 "0x9a934a2644c4ca2decbe3d126d80720429c5e31896aa756765afa23ae2cb4b99",
             )
             .unwrap(),
@@ -787,9 +793,9 @@ async fn multi_get_objects_not_found() {
     let http_client = cluster.rpc_client();
 
     let object_ids = vec![
-        ObjectID::from_str("0x9a934a2644c4ca2decbe3d126d80720429c5e31896aa756765afa23ae2cb4b99")
+        ObjectId::from_str("0x9a934a2644c4ca2decbe3d126d80720429c5e31896aa756765afa23ae2cb4b99")
             .unwrap(),
-        ObjectID::from_str("0x1a934a7644c4cf2decbe3d126d80720429c5e30896aa756765afa23af3cb4b82")
+        ObjectId::from_str("0x1a934a7644c4cf2decbe3d126d80720429c5e30896aa756765afa23af3cb4b82")
             .unwrap(),
     ];
 
@@ -889,9 +895,7 @@ async fn get_checkpoint_by_seq_number() {
         .with_async(|node| async {
             node.state()
                 .get_checkpoint_store()
-                .multi_get_checkpoint_by_sequence_number(
-                    &(0..=5).collect::<Vec<CheckpointSequenceNumber>>(),
-                )
+                .multi_get_checkpoint_by_sequence_number(&(0..=5).collect::<Vec<Version>>())
                 .unwrap()
         })
         .await;
@@ -957,9 +961,7 @@ async fn get_checkpoint_by_digest() {
         .with_async(|node| async {
             node.state()
                 .get_checkpoint_store()
-                .multi_get_checkpoint_by_sequence_number(
-                    &(0..=5).collect::<Vec<CheckpointSequenceNumber>>(),
-                )
+                .multi_get_checkpoint_by_sequence_number(&(0..=5).collect::<Vec<Version>>())
                 .unwrap()
         })
         .await;
@@ -1435,12 +1437,12 @@ async fn try_get_past_object_not_exists() {
     let http_client = cluster.rpc_client();
 
     let rpc_past_obj = http_client
-        .try_get_past_object(ObjectID::ZERO, SequenceNumber::from_u64(1), None)
+        .try_get_past_object(ObjectId::ZERO, 1, None)
         .await
         .unwrap();
 
     assert!(
-        matches!(rpc_past_obj, IotaPastObjectResponse::ObjectNotExists(ref obj_id) if obj_id == &ObjectID::ZERO)
+        matches!(rpc_past_obj, IotaPastObjectResponse::ObjectNotExists(ref obj_id) if obj_id == &ObjectId::ZERO)
     );
 }
 
@@ -1452,7 +1454,7 @@ async fn try_get_past_object_version_too_high() {
 
     let fullnode_objects = cluster.get_owned_objects(address, None).await.unwrap();
 
-    let seq_num = SequenceNumber::from_u64(5);
+    let seq_num = 5;
     for object in fullnode_objects.iter() {
         let object_id = object.object_id().unwrap();
 
@@ -1462,7 +1464,7 @@ async fn try_get_past_object_version_too_high() {
             .unwrap();
 
         assert!(
-            matches!(rpc_past_obj, IotaPastObjectResponse::VersionTooHigh{object_id: obj_id, asked_version, latest_version} if obj_id == object_id && asked_version == seq_num && latest_version == SequenceNumber::from_u64(1))
+            matches!(rpc_past_obj, IotaPastObjectResponse::VersionTooHigh{object_id: obj_id, asked_version, latest_version} if obj_id == object_id && asked_version == seq_num && latest_version == 1)
         );
     }
 }
@@ -1495,13 +1497,13 @@ async fn try_get_past_object_version_not_found() {
         .flat_map(|tx| {
             assert_eq!(tx.status_ok(), Some(true));
             tx.mutated_objects()
-                .filter(|(_, seq_num, _)| seq_num > &SequenceNumber::from_u64(2))
-                .map(|(object_id, _, _)| object_id)
-                .collect::<Vec<ObjectID>>()
+                .filter(|oref| oref.version > 2)
+                .map(|oref| oref.object_id)
+                .collect::<Vec<ObjectId>>()
         })
         .collect::<Vec<_>>();
 
-    let seq_num = SequenceNumber::from_u64(2);
+    let seq_num = 2;
     let mut at_least_one_version_not_found = false;
 
     for mutated_obj_id in mutated_objects {
@@ -1553,7 +1555,7 @@ async fn try_get_past_object_deleted() {
             ObjectChange::Published { package_id, .. } => Some(*package_id),
             _ => None,
         })
-        .collect::<Vec<ObjectID>>()[0];
+        .collect::<Vec<ObjectId>>()[0];
 
     let tx_block_response = cluster
         .sign_and_execute_transaction(
@@ -1564,7 +1566,7 @@ async fn try_get_past_object_deleted() {
                     package_id,
                     "object_basics",
                     "create",
-                    vec![1u64.into(), CallArg::Pure(address.to_vec())],
+                    vec![1u64.into(), CallArg::Pure(address.as_bytes().to_vec())],
                 )
                 .build(),
         )
@@ -1578,7 +1580,7 @@ async fn try_get_past_object_deleted() {
             ObjectChange::Created { object_id, .. } => Some(*object_id),
             _ => None,
         })
-        .collect::<Vec<ObjectID>>()[0];
+        .collect::<Vec<ObjectId>>()[0];
 
     let objects = cluster
         .get_owned_objects(address, Some(IotaObjectDataOptions::full_content()))
@@ -1588,7 +1590,7 @@ async fn try_get_past_object_deleted() {
     let object_ids = objects
         .iter()
         .map(|a| a.object_id().unwrap())
-        .collect::<Vec<ObjectID>>();
+        .collect::<Vec<ObjectId>>();
 
     assert_eq!(7, objects.len());
     assert!(object_ids.contains(&created_object_id));
@@ -1600,11 +1602,13 @@ async fn try_get_past_object_deleted() {
         .data
         .unwrap();
 
-    let arg = CallArg::Object(iota_types::transaction::ObjectArg::ImmOrOwnedObject((
-        created_object.object_id,
-        created_object.version,
-        created_object.digest,
-    )));
+    let arg = CallArg::Object(iota_types::transaction::ObjectArg::ImmOrOwnedObject(
+        ObjectReference::new(
+            created_object.object_id,
+            created_object.version,
+            created_object.digest,
+        ),
+    ));
 
     let tx_block_response = cluster
         .sign_and_execute_transaction(
@@ -1621,7 +1625,7 @@ async fn try_get_past_object_deleted() {
         1
     );
 
-    let seq_num = SequenceNumber::from_u64(4);
+    let seq_num = 4;
     let rpc_past_obj = http_client
         .try_get_past_object(created_object_id, seq_num, None)
         .await
@@ -1674,18 +1678,18 @@ async fn try_get_object_before_version() {
 
     assert_eq!(transaction.status_ok(), Some(true));
 
-    let (mutated_obj_id, mutated_obj_version, _) = transaction.mutated_objects().next().unwrap();
+    let mutated = transaction.mutated_objects().next().unwrap();
 
     let rpc_obj_before_ver = http_client
-        .try_get_object_before_version(mutated_obj_id, mutated_obj_version)
+        .try_get_object_before_version(mutated.object_id, mutated.version)
         .await
         .unwrap();
 
     assert!(rpc_obj_before_ver.matches_response_options(&options));
 
     let rpc_obj_before_ver_obj = rpc_obj_before_ver.object().unwrap();
-    assert_eq!(rpc_obj_before_ver_obj.object_id, mutated_obj_id);
-    assert_eq!(rpc_obj_before_ver_obj.version, mutated_obj_version);
+    assert_eq!(rpc_obj_before_ver_obj.object_id, mutated.object_id);
+    assert_eq!(rpc_obj_before_ver_obj.version, mutated.version);
 }
 
 #[sim_test]
@@ -1694,12 +1698,12 @@ async fn try_get_object_before_version_not_exists() {
     let http_client = cluster.rpc_client();
 
     let rpc_obj_before_ver = http_client
-        .try_get_object_before_version(ObjectID::ZERO, SequenceNumber::from_u64(1))
+        .try_get_object_before_version(ObjectId::ZERO, 1)
         .await
         .unwrap();
 
     assert!(
-        matches!(rpc_obj_before_ver, IotaPastObjectResponse::ObjectNotExists(ref obj_id) if obj_id == &ObjectID::ZERO)
+        matches!(rpc_obj_before_ver, IotaPastObjectResponse::ObjectNotExists(ref obj_id) if obj_id == &ObjectId::ZERO)
     );
 }
 

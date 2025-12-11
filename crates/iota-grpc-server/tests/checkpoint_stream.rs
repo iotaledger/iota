@@ -14,20 +14,19 @@ use iota_grpc_server::{
     GrpcServerHandle, start_grpc_server,
 };
 use iota_types::{
-    base_types::ObjectID,
+    base_types::{ObjectId, Version},
     committee::EpochId,
     crypto::AuthorityStrongQuorumSignInfo,
     full_checkpoint_content::CheckpointData,
     messages_checkpoint::{
-        CertifiedCheckpointSummary, CheckpointContents, CheckpointSequenceNumber,
-        CheckpointSummary, VerifiedCheckpoint,
+        CertifiedCheckpointSummary, CheckpointContents, CheckpointSummary, VerifiedCheckpoint,
     },
     storage::{RestIndexes, RestStateReader, error::Result as StorageResult},
 };
 use tokio_stream::StreamExt;
 
 struct MockRestStateReader {
-    checkpoints: Arc<Mutex<HashSet<CheckpointSequenceNumber>>>,
+    checkpoints: Arc<Mutex<HashSet<Version>>>,
 }
 impl MockRestStateReader {
     fn new_from_iter<I: Iterator<Item = u64>>(iter: I) -> Self {
@@ -79,27 +78,27 @@ fn mock_summary_data(sequence_number: u64) -> (CertifiedCheckpointSummary, Check
 impl iota_types::storage::ObjectStore for MockRestStateReader {
     fn try_get_object(
         &self,
-        _id: &ObjectID,
+        _id: &ObjectId,
     ) -> iota_types::storage::error::Result<Option<iota_types::object::Object>> {
         unimplemented!()
     }
 
     fn try_get_object_by_key(
         &self,
-        _id: &ObjectID,
-        _version: iota_types::base_types::SequenceNumber,
+        _id: &ObjectId,
+        _version: Version,
     ) -> iota_types::storage::error::Result<Option<iota_types::object::Object>> {
         unimplemented!()
     }
 
-    fn get_object(&self, id: &ObjectID) -> Option<iota_types::object::Object> {
+    fn get_object(&self, id: &ObjectId) -> Option<iota_types::object::Object> {
         self.try_get_object(id).expect("storage access failed")
     }
 
     fn get_object_by_key(
         &self,
-        id: &ObjectID,
-        version: iota_types::base_types::SequenceNumber,
+        id: &ObjectId,
+        version: Version,
     ) -> Option<iota_types::object::Object> {
         self.try_get_object_by_key(id, version)
             .expect("storage access failed")
@@ -190,7 +189,7 @@ impl iota_types::storage::ReadStore for MockRestStateReader {
 
     fn try_get_checkpoint_by_sequence_number(
         &self,
-        seq: CheckpointSequenceNumber,
+        seq: Version,
     ) -> iota_types::storage::error::Result<Option<VerifiedCheckpoint>> {
         let guard = self.checkpoints.lock().unwrap();
         if seq == u64::MAX {
@@ -208,10 +207,7 @@ impl iota_types::storage::ReadStore for MockRestStateReader {
             .map(|_| VerifiedCheckpoint::new_unchecked(mock_summary(seq))))
     }
 
-    fn get_checkpoint_by_sequence_number(
-        &self,
-        seq: CheckpointSequenceNumber,
-    ) -> Option<VerifiedCheckpoint> {
+    fn get_checkpoint_by_sequence_number(&self, seq: Version) -> Option<VerifiedCheckpoint> {
         self.try_get_checkpoint_by_sequence_number(seq)
             .expect("storage access failed")
     }
@@ -233,7 +229,7 @@ impl iota_types::storage::ReadStore for MockRestStateReader {
 
     fn try_get_checkpoint_contents_by_sequence_number(
         &self,
-        seq: CheckpointSequenceNumber,
+        seq: Version,
     ) -> iota_types::storage::error::Result<Option<CheckpointContents>> {
         let guard = self.checkpoints.lock().unwrap();
         Ok(guard.get(&seq).map(|_| MOCK_CHECKPOINT_CONTENTS.clone()))
@@ -241,7 +237,7 @@ impl iota_types::storage::ReadStore for MockRestStateReader {
 
     fn get_checkpoint_contents_by_sequence_number(
         &self,
-        seq: CheckpointSequenceNumber,
+        seq: Version,
     ) -> Option<CheckpointContents> {
         self.try_get_checkpoint_contents_by_sequence_number(seq)
             .expect("storage access failed")
@@ -309,7 +305,7 @@ impl iota_types::storage::ReadStore for MockRestStateReader {
 
     fn try_get_full_checkpoint_contents_by_sequence_number(
         &self,
-        _seq: CheckpointSequenceNumber,
+        _seq: Version,
     ) -> iota_types::storage::error::Result<
         Option<iota_types::messages_checkpoint::FullCheckpointContents>,
     > {
@@ -318,7 +314,7 @@ impl iota_types::storage::ReadStore for MockRestStateReader {
 
     fn get_full_checkpoint_contents_by_sequence_number(
         &self,
-        seq: CheckpointSequenceNumber,
+        seq: Version,
     ) -> Option<iota_types::messages_checkpoint::FullCheckpointContents> {
         self.try_get_full_checkpoint_contents_by_sequence_number(seq)
             .expect("storage access failed")
@@ -343,7 +339,7 @@ impl iota_types::storage::ReadStore for MockRestStateReader {
 }
 
 impl RestStateReader for MockRestStateReader {
-    fn get_lowest_available_checkpoint_objects(&self) -> StorageResult<CheckpointSequenceNumber> {
+    fn get_lowest_available_checkpoint_objects(&self) -> StorageResult<Version> {
         Ok(0)
     }
 
@@ -369,7 +365,7 @@ async fn test_server_and_client_setup<I: Iterator<Item = u64>>(
 ) -> (
     GrpcServerHandle,
     CheckpointClient,
-    Arc<Mutex<HashSet<CheckpointSequenceNumber>>>,
+    Arc<Mutex<HashSet<Version>>>,
 ) {
     let mock = Arc::new(MockRestStateReader::new_from_iter(checkpoint_range));
     let checkpoints = mock.checkpoints.clone();

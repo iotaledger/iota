@@ -9,7 +9,7 @@ use anyhow::anyhow;
 use iota_sdk::{
     IotaClientBuilder,
     rpc_types::{IotaData, IotaObjectDataOptions},
-    types::{base_types::ObjectID, stardust::output::BasicOutput},
+    types::{base_types::ObjectId, stardust::output::BasicOutput},
 };
 
 #[tokio::main]
@@ -19,7 +19,7 @@ async fn main() -> Result<(), anyhow::Error> {
 
     // This object id was fetched manually. It refers to a Basic Output object that
     // contains some Native Tokens.
-    let basic_output_object_id = ObjectID::from_hex_literal(
+    let basic_output_object_id = ObjectId::from_hex(
         "0xde09139ed46b9f5f876671e4403f312fad867c5ae5d300a252e4b6a6f1fa1fbd",
     )?;
     // Get Basic Output object

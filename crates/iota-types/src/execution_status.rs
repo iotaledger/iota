@@ -10,7 +10,7 @@ use move_core_types::language_storage::ModuleId;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-use crate::{ObjectID, base_types::IotaAddress};
+use crate::{ObjectId, base_types::Address};
 
 #[cfg(test)]
 #[path = "unit_tests/execution_status_tests.rs"]
@@ -29,7 +29,7 @@ pub enum ExecutionStatus {
 }
 
 #[derive(Eq, PartialEq, Clone, Debug, Serialize, Deserialize)]
-pub struct CongestedObjects(pub Vec<ObjectID>);
+pub struct CongestedObjects(pub Vec<ObjectId>);
 
 impl fmt::Display for CongestedObjects {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
@@ -68,7 +68,7 @@ pub enum ExecutionFailureStatus {
         max_object_size: u64,
     },
     #[error("Circular Object Ownership, including object {object}.")]
-    CircularObjectOwnership { object: ObjectID },
+    CircularObjectOwnership { object: ObjectId },
 
     // Coin errors
     #[error("Insufficient coin balance for operation.")]
@@ -199,7 +199,7 @@ pub enum ExecutionFailureStatus {
 
     #[error("Address {address:?} is denied for coin {coin_type}")]
     AddressDeniedForCoin {
-        address: IotaAddress,
+        address: Address,
         coin_type: String,
     },
 
@@ -294,9 +294,9 @@ pub enum CommandArgumentError {
 #[derive(Eq, PartialEq, Clone, Debug, Serialize, Deserialize, Hash, Error)]
 pub enum PackageUpgradeError {
     #[error("Unable to fetch package at {package_id}")]
-    UnableToFetchPackage { package_id: ObjectID },
+    UnableToFetchPackage { package_id: ObjectId },
     #[error("Object {object_id} is not a package")]
-    NotAPackage { object_id: ObjectID },
+    NotAPackage { object_id: ObjectId },
     #[error("New package is incompatible with previous version")]
     IncompatibleUpgrade,
     #[error("Digest in upgrade ticket and computed digest disagree")]
@@ -305,8 +305,8 @@ pub enum PackageUpgradeError {
     UnknownUpgradePolicy { policy: u8 },
     #[error("Package ID {package_id} does not match package ID in upgrade ticket {ticket_id}")]
     PackageIDDoesNotMatch {
-        package_id: ObjectID,
-        ticket_id: ObjectID,
+        package_id: ObjectId,
+        ticket_id: ObjectId,
     },
 }
 

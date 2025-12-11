@@ -4,7 +4,7 @@
 
 use anyhow::{anyhow, bail};
 use iota_types::{
-    base_types::ObjectRef,
+    base_types::ObjectReference,
     committee::Committee,
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
     event::{Event, EventID},
@@ -33,7 +33,7 @@ pub struct Proof {
 #[derive(Default, Debug, Serialize, Deserialize)]
 pub struct ProofTargets {
     /// Objects that need to be certified.
-    pub objects: Vec<(ObjectRef, Object)>,
+    pub objects: Vec<(ObjectReference, Object)>,
 
     /// Events that need to be certified.
     pub events: Vec<(EventID, Event)>,
@@ -53,7 +53,7 @@ impl ProofTargets {
     /// verified proof will ensure that both the reference and content are
     /// correct. Note that some content is metadata such as the transaction
     /// that created this object.
-    pub fn add_object(mut self, object_ref: ObjectRef, object: Object) -> Self {
+    pub fn add_object(mut self, object_ref: ObjectReference, object: Object) -> Self {
         self.objects.push((object_ref, object));
         self
     }

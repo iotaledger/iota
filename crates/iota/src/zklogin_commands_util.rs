@@ -18,8 +18,9 @@ use fastcrypto_zkp::bn254::{
 use iota_json_rpc_types::IotaTransactionBlockResponseOptions;
 use iota_keys::keystore::{AccountKeystore, Keystore};
 use iota_sdk::IotaClientBuilder;
+use iota_sdk_2::types::crypto::Intent;
 use iota_types::{
-    base_types::IotaAddress,
+    base_types::Address,
     committee::EpochId,
     crypto::{IotaKeyPair, PublicKey},
     multisig::{MultiSig, MultiSigPublicKey},
@@ -27,11 +28,10 @@ use iota_types::{
     transaction::Transaction,
     zk_login_authenticator::ZkLoginAuthenticator,
 };
-use rand::{rngs::StdRng, SeedableRng};
+use rand::{SeedableRng, rngs::StdRng};
 use regex::Regex;
 use reqwest::Client;
 use serde_json::json;
-use iota_sdk_2::types::crypto::Intent;
 
 /// Read a line from stdin, parse the id_token field and return.
 pub fn read_cli_line() -> Result<String, anyhow::Error> {
@@ -51,7 +51,7 @@ pub fn read_cli_line() -> Result<String, anyhow::Error> {
 
 /// A util function to request gas token from faucet for the given address.
 pub(crate) async fn request_tokens_from_faucet(
-    address: IotaAddress,
+    address: Address,
     gas_url: &str,
 ) -> Result<(), anyhow::Error> {
     let client = Client::new();
@@ -75,7 +75,7 @@ pub async fn perform_zk_login_test_tx(
     max_epoch: EpochId,
     jwt_randomness: &str,
     kp_bigint: &str,
-    ephemeral_key_identifier: IotaAddress,
+    ephemeral_key_identifier: Address,
     keystore: &mut Keystore,
     network: &str,
     test_multisig: bool, /* if true, put zklogin in a multisig address with another traditional
@@ -118,10 +118,10 @@ pub async fn perform_zk_login_test_tx(
     let sender = if test_multisig {
         keystore.add_key(None, skp1)?;
         println!("Use multisig address as sender");
-        IotaAddress::from(&multisig_pk)
+        Address::from(&multisig_pk)
     } else {
         println!("Use single zklogin address as sender");
-        IotaAddress::try_from_unpadded(&zk_login_inputs)?
+        Iotaaddress_from_unpadded_zklogin_inputs(&zk_login_inputs)?
     };
     println!("Sender: {:?}", sender);
 
@@ -150,7 +150,7 @@ pub async fn perform_zk_login_test_tx(
             transfer_coin,
             Some(gas_coin),
             5000000,
-            IotaAddress::ZERO, // as a demo, send to a dummy address
+            Address::ZERO, // as a demo, send to a dummy address
         )
         .await?;
     println!(
@@ -211,7 +211,7 @@ pub async fn perform_zk_login_test_tx(
             None,
         )
         .await?;
-    Ok(transaction_response.digest.base58_encode())
+    Ok(transaction_response.digest.to_base58())
 }
 
 fn get_config(network: &str) -> (&str, &str) {

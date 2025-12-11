@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 use tap::Pipe;
 
 use crate::{
-    base_types::{ObjectID, ObjectRef},
+    base_types::{ObjectId, ObjectReference},
     effects::{
         IDOperation, ObjectIn, ObjectOut, TransactionEffects, TransactionEffectsAPI,
         TransactionEvents,
@@ -36,7 +36,7 @@ impl CheckpointData {
                 latest_live_objects.insert(obj.id(), obj);
             }
             for obj_ref in tx.removed_object_refs_post_version() {
-                latest_live_objects.remove(&(obj_ref.0));
+                latest_live_objects.remove(&(obj_ref.object_id));
             }
         }
         latest_live_objects.into_values().collect()
@@ -44,11 +44,11 @@ impl CheckpointData {
 
     // returns the object refs that are eventually deleted or wrapped in the current
     // checkpoint
-    pub fn eventually_removed_object_refs_post_version(&self) -> Vec<ObjectRef> {
+    pub fn eventually_removed_object_refs_post_version(&self) -> Vec<ObjectReference> {
         let mut eventually_removed_object_refs = BTreeMap::new();
         for tx in self.transactions.iter() {
             for obj_ref in tx.removed_object_refs_post_version() {
-                eventually_removed_object_refs.insert(obj_ref.0, obj_ref);
+                eventually_removed_object_refs.insert(obj_ref.object_id, obj_ref);
             }
             for obj in tx.output_objects.iter() {
                 eventually_removed_object_refs.remove(&(obj.id()));
@@ -59,7 +59,7 @@ impl CheckpointData {
 
     /// Returns all objects that are used as input to the transactions in the
     /// checkpoint, and already exist prior to the checkpoint.
-    pub fn checkpoint_input_objects(&self) -> BTreeMap<ObjectID, &Object> {
+    pub fn checkpoint_input_objects(&self) -> BTreeMap<ObjectId, &Object> {
         let mut output_objects_seen = HashSet::new();
         let mut checkpoint_input_objects = BTreeMap::new();
         for tx in self.transactions.iter() {
@@ -143,7 +143,7 @@ impl CheckpointTransaction {
         })
     }
 
-    pub fn removed_object_refs_post_version(&self) -> impl Iterator<Item = ObjectRef> {
+    pub fn removed_object_refs_post_version(&self) -> impl Iterator<Item = ObjectReference> {
         let deleted = self.effects.deleted().into_iter();
         let wrapped = self.effects.wrapped().into_iter();
         let unwrapped_then_deleted = self.effects.unwrapped_then_deleted().into_iter();
@@ -247,7 +247,7 @@ impl CheckpointTransaction {
 impl BackingPackageStore for CheckpointData {
     fn get_package_object(
         &self,
-        package_id: &crate::base_types::ObjectID,
+        package_id: &crate::base_types::ObjectId,
     ) -> crate::error::IotaResult<Option<crate::storage::PackageObject>> {
         self.transactions
             .iter()

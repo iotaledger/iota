@@ -8,13 +8,12 @@ use futures::{FutureExt, future::BoxFuture};
 use iota_config::node::ExecutionCacheTypeAtomicU8;
 use iota_types::{
     accumulator::Accumulator,
-    base_types::{EpochId, ObjectID, ObjectRef, SequenceNumber, VerifiedExecutionData},
+    base_types::{EpochId, ObjectId, ObjectReference, VerifiedExecutionData, Version},
     digests::{TransactionDigest, TransactionEffectsDigest, TransactionEventsDigest},
     effects::{TransactionEffects, TransactionEvents},
     error::{IotaError, IotaResult},
     executable_transaction::VerifiedExecutableTransaction,
     iota_system_state::IotaSystemState,
-    messages_checkpoint::CheckpointSequenceNumber,
     object::Object,
     storage::{MarkerValue, ObjectKey, ObjectOrTombstone, PackageObject},
     transaction::{VerifiedSignedTransaction, VerifiedTransaction},
@@ -112,22 +111,22 @@ impl ProxyCache {
 }
 
 impl ObjectCacheRead for ProxyCache {
-    fn try_get_package_object(&self, package_id: &ObjectID) -> IotaResult<Option<PackageObject>> {
+    fn try_get_package_object(&self, package_id: &ObjectId) -> IotaResult<Option<PackageObject>> {
         delegate_method!(self.try_get_package_object(package_id))
     }
 
-    fn force_reload_system_packages(&self, system_package_ids: &[ObjectID]) {
+    fn force_reload_system_packages(&self, system_package_ids: &[ObjectId]) {
         delegate_method!(self.force_reload_system_packages(system_package_ids))
     }
 
-    fn try_get_object(&self, id: &ObjectID) -> IotaResult<Option<Object>> {
+    fn try_get_object(&self, id: &ObjectId) -> IotaResult<Option<Object>> {
         delegate_method!(self.try_get_object(id))
     }
 
     fn try_get_object_by_key(
         &self,
-        object_id: &ObjectID,
-        version: SequenceNumber,
+        object_id: &ObjectId,
+        version: Version,
     ) -> IotaResult<Option<Object>> {
         delegate_method!(self.try_get_object_by_key(object_id, version))
     }
@@ -139,11 +138,7 @@ impl ObjectCacheRead for ProxyCache {
         delegate_method!(self.try_multi_get_objects_by_key(object_keys))
     }
 
-    fn try_object_exists_by_key(
-        &self,
-        object_id: &ObjectID,
-        version: SequenceNumber,
-    ) -> IotaResult<bool> {
+    fn try_object_exists_by_key(&self, object_id: &ObjectId, version: Version) -> IotaResult<bool> {
         delegate_method!(self.try_object_exists_by_key(object_id, version))
     }
 
@@ -153,39 +148,42 @@ impl ObjectCacheRead for ProxyCache {
 
     fn try_get_latest_object_ref_or_tombstone(
         &self,
-        object_id: ObjectID,
-    ) -> IotaResult<Option<ObjectRef>> {
+        object_id: ObjectId,
+    ) -> IotaResult<Option<ObjectReference>> {
         delegate_method!(self.try_get_latest_object_ref_or_tombstone(object_id))
     }
 
     fn try_get_latest_object_or_tombstone(
         &self,
-        object_id: ObjectID,
+        object_id: ObjectId,
     ) -> Result<Option<(ObjectKey, ObjectOrTombstone)>, IotaError> {
         delegate_method!(self.try_get_latest_object_or_tombstone(object_id))
     }
 
     fn try_find_object_lt_or_eq_version(
         &self,
-        object_id: ObjectID,
-        version: SequenceNumber,
+        object_id: ObjectId,
+        version: Version,
     ) -> IotaResult<Option<Object>> {
         delegate_method!(self.try_find_object_lt_or_eq_version(object_id, version))
     }
 
     fn try_get_lock(
         &self,
-        obj_ref: ObjectRef,
+        obj_ref: ObjectReference,
         epoch_store: &AuthorityPerEpochStore,
     ) -> IotaLockResult {
         delegate_method!(self.try_get_lock(obj_ref, epoch_store))
     }
 
-    fn _try_get_live_objref(&self, object_id: ObjectID) -> IotaResult<ObjectRef> {
+    fn _try_get_live_objref(&self, object_id: ObjectId) -> IotaResult<ObjectReference> {
         delegate_method!(self._try_get_live_objref(object_id))
     }
 
-    fn try_check_owned_objects_are_live(&self, owned_object_refs: &[ObjectRef]) -> IotaResult {
+    fn try_check_owned_objects_are_live(
+        &self,
+        owned_object_refs: &[ObjectReference],
+    ) -> IotaResult {
         delegate_method!(self.try_check_owned_objects_are_live(owned_object_refs))
     }
 
@@ -195,8 +193,8 @@ impl ObjectCacheRead for ProxyCache {
 
     fn try_get_marker_value(
         &self,
-        object_id: &ObjectID,
-        version: SequenceNumber,
+        object_id: &ObjectId,
+        version: Version,
         epoch_id: EpochId,
     ) -> IotaResult<Option<MarkerValue>> {
         delegate_method!(self.try_get_marker_value(object_id, version, epoch_id))
@@ -204,13 +202,13 @@ impl ObjectCacheRead for ProxyCache {
 
     fn try_get_latest_marker(
         &self,
-        object_id: &ObjectID,
+        object_id: &ObjectId,
         epoch_id: EpochId,
-    ) -> IotaResult<Option<(SequenceNumber, MarkerValue)>> {
+    ) -> IotaResult<Option<(Version, MarkerValue)>> {
         delegate_method!(self.try_get_latest_marker(object_id, epoch_id))
     }
 
-    fn try_get_highest_pruned_checkpoint(&self) -> IotaResult<CheckpointSequenceNumber> {
+    fn try_get_highest_pruned_checkpoint(&self) -> IotaResult<Version> {
         delegate_method!(self.try_get_highest_pruned_checkpoint())
     }
 }
@@ -270,7 +268,7 @@ impl ExecutionCacheWrite for ProxyCache {
     fn try_acquire_transaction_locks<'a>(
         &'a self,
         epoch_store: &'a AuthorityPerEpochStore,
-        owned_input_objects: &'a [ObjectRef],
+        owned_input_objects: &'a [ObjectReference],
         transaction: VerifiedSignedTransaction,
     ) -> IotaResult {
         delegate_method!(self.try_acquire_transaction_locks(
@@ -285,20 +283,20 @@ impl AccumulatorStore for ProxyCache {
     fn get_root_state_accumulator_for_epoch(
         &self,
         epoch: EpochId,
-    ) -> IotaResult<Option<(CheckpointSequenceNumber, Accumulator)>> {
+    ) -> IotaResult<Option<(Version, Accumulator)>> {
         delegate_method!(self.get_root_state_accumulator_for_epoch(epoch))
     }
 
     fn get_root_state_accumulator_for_highest_epoch(
         &self,
-    ) -> IotaResult<Option<(EpochId, (CheckpointSequenceNumber, Accumulator))>> {
+    ) -> IotaResult<Option<(EpochId, (Version, Accumulator))>> {
         delegate_method!(self.get_root_state_accumulator_for_highest_epoch())
     }
 
     fn insert_state_accumulator_for_epoch(
         &self,
         epoch: EpochId,
-        checkpoint_seq_num: &CheckpointSequenceNumber,
+        checkpoint_seq_num: &Version,
         acc: &Accumulator,
     ) -> IotaResult {
         delegate_method!(self.insert_state_accumulator_for_epoch(epoch, checkpoint_seq_num, acc))
@@ -339,14 +337,14 @@ impl CheckpointCache for ProxyCache {
     fn try_get_transaction_perpetual_checkpoint(
         &self,
         digest: &TransactionDigest,
-    ) -> IotaResult<Option<(EpochId, CheckpointSequenceNumber)>> {
+    ) -> IotaResult<Option<(EpochId, Version)>> {
         delegate_method!(self.try_get_transaction_perpetual_checkpoint(digest))
     }
 
     fn try_multi_get_transactions_perpetual_checkpoints(
         &self,
         digests: &[TransactionDigest],
-    ) -> IotaResult<Vec<Option<(EpochId, CheckpointSequenceNumber)>>> {
+    ) -> IotaResult<Vec<Option<(EpochId, Version)>>> {
         delegate_method!(self.try_multi_get_transactions_perpetual_checkpoints(digests))
     }
 
@@ -354,7 +352,7 @@ impl CheckpointCache for ProxyCache {
         &self,
         digests: &[TransactionDigest],
         epoch: EpochId,
-        sequence: CheckpointSequenceNumber,
+        sequence: Version,
     ) -> IotaResult {
         delegate_method!(
             self.try_insert_finalized_transactions_perpetual_checkpoints(digests, epoch, sequence)

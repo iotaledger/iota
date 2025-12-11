@@ -343,12 +343,12 @@ impl TransactionInput {
             }),
 
             N::Object(O::SharedObject {
-                id,
+                object_id,
                 initial_shared_version,
                 mutable,
             }) => I::SharedInput(SharedInput {
-                address: id.into(),
-                initial_shared_version: initial_shared_version.value().into(),
+                address: object_id.into(),
+                initial_shared_version: initial_shared_version.into(),
                 mutable,
             }),
 

@@ -10,7 +10,7 @@ use std::{
 };
 
 use iota_common::debug_fatal;
-use iota_types::base_types::SequenceNumber;
+use iota_types::base_types::Version;
 use moka::sync::Cache as MokaCache;
 use parking_lot::Mutex;
 
@@ -25,8 +25,8 @@ pub enum CacheResult<T> {
 
 /// CachedVersionMap is a map from version to value, with the additional
 /// constraints:
-/// - The key (SequenceNumber) must be monotonically increasing for each insert.
-///   If a key is inserted that is less than the previous key, it results in an
+/// - The key (Version) must be monotonically increasing for each insert. If a
+///   key is inserted that is less than the previous key, it results in an
 ///   assertion failure.
 /// - Similarly, only the item with the least key can be removed.
 /// - The intent of these constraints is to ensure that there are never gaps in
@@ -34,7 +34,7 @@ pub enum CacheResult<T> {
 ///   to both the highest and lowest (first and last) entries.
 #[derive(Debug)]
 pub struct CachedVersionMap<V> {
-    values: VecDeque<(SequenceNumber, V)>,
+    values: VecDeque<(Version, V)>,
 }
 
 impl<V> Default for CachedVersionMap<V> {
@@ -50,7 +50,7 @@ impl<V> CachedVersionMap<V> {
         self.values.is_empty()
     }
 
-    pub fn insert(&mut self, version: SequenceNumber, value: V) {
+    pub fn insert(&mut self, version: Version, value: V) {
         if !self.values.is_empty() {
             let back = self.values.back().unwrap().0;
             assert!(
@@ -63,12 +63,12 @@ impl<V> CachedVersionMap<V> {
 
     pub fn all_versions_lt_or_eq_descending<'a>(
         &'a self,
-        version: &'a SequenceNumber,
-    ) -> impl Iterator<Item = &'a (SequenceNumber, V)> {
+        version: &'a Version,
+    ) -> impl Iterator<Item = &'a (Version, V)> {
         self.values.iter().rev().filter(move |(v, _)| v <= version)
     }
 
-    pub fn get(&self, version: &SequenceNumber) -> Option<&V> {
+    pub fn get(&self, version: &Version) -> Option<&V> {
         for (v, value) in self.values.iter().rev() {
             match v.cmp(version) {
                 Ordering::Less => return None,
@@ -81,12 +81,12 @@ impl<V> CachedVersionMap<V> {
     }
 
     /// returns the newest (highest) version in the map
-    pub fn get_highest(&self) -> Option<&(SequenceNumber, V)> {
+    pub fn get_highest(&self) -> Option<&(Version, V)> {
         self.values.back()
     }
 
     /// returns the oldest (lowest) version in the map
-    pub fn get_least(&self) -> Option<&(SequenceNumber, V)> {
+    pub fn get_least(&self) -> Option<&(Version, V)> {
         self.values.front()
     }
 
@@ -98,7 +98,7 @@ impl<V> CachedVersionMap<V> {
     }
 
     // remove the value if it is the first element in values.
-    pub fn pop_oldest(&mut self, version: &SequenceNumber) -> Option<V> {
+    pub fn pop_oldest(&mut self, version: &Version) -> Option<V> {
         let oldest = self.values.pop_front()?;
         // if this assert fails it indicates we are committing transaction data out
         // of causal order
@@ -299,20 +299,13 @@ where
 
 #[cfg(test)]
 mod tests {
-    use iota_types::base_types::SequenceNumber;
-
     use super::*;
-
-    // Helper function to create a SequenceNumber for simplicity
-    fn seq(num: u64) -> SequenceNumber {
-        SequenceNumber::from(num)
-    }
 
     #[test]
     fn insert_and_get_last() {
         let mut map = CachedVersionMap::default();
-        let version1 = seq(1);
-        let version2 = seq(2);
+        let version1 = 1;
+        let version2 = 2;
         map.insert(version1, "First");
         map.insert(version2, "Second");
 
@@ -324,8 +317,8 @@ mod tests {
     #[should_panic(expected = "version must be monotonically increasing")]
     fn insert_with_non_monotonic_version() {
         let mut map = CachedVersionMap::default();
-        let version1 = seq(2);
-        let version2 = seq(1);
+        let version1 = 2;
+        let version2 = 1;
         map.insert(version1, "First");
         map.insert(version2, "Second"); // This should panic
     }
@@ -333,8 +326,8 @@ mod tests {
     #[test]
     fn remove_first_item() {
         let mut map = CachedVersionMap::default();
-        let version1 = seq(1);
-        let version2 = seq(2);
+        let version1 = 1;
+        let version2 = 2;
         map.insert(version1, "First");
         map.insert(version2, "Second");
 
@@ -347,8 +340,8 @@ mod tests {
     #[should_panic(expected = "version must be the oldest in the map")]
     fn remove_second_item_panics() {
         let mut map = CachedVersionMap::default();
-        let version1 = seq(1);
-        let version2 = seq(2);
+        let version1 = 1;
+        let version2 = 2;
         map.insert(version1, "First");
         map.insert(version2, "Second");
 
@@ -360,65 +353,65 @@ mod tests {
     #[test]
     fn insert_into_empty_map() {
         let mut map = CachedVersionMap::default();
-        map.insert(seq(1), "First");
+        map.insert(1, "First");
         assert_eq!(map.values.len(), 1);
     }
 
     #[test]
     fn remove_from_empty_map_returns_none() {
         let mut map: CachedVersionMap<&str> = CachedVersionMap::default();
-        assert_eq!(map.pop_oldest(&seq(1)), None);
+        assert_eq!(map.pop_oldest(&1), None);
     }
 
     #[test]
     #[should_panic(expected = "version must be the oldest in the map")]
     fn remove_nonexistent_item() {
         let mut map = CachedVersionMap::default();
-        map.insert(seq(1), "First");
-        assert_eq!(map.pop_oldest(&seq(2)), None);
+        map.insert(1, "First");
+        assert_eq!(map.pop_oldest(&2), None);
     }
 
     #[test]
     fn all_versions_lt_or_eq_descending_with_existing_version() {
         let mut map = CachedVersionMap::default();
-        map.insert(seq(1), "First");
-        map.insert(seq(2), "Second");
-        let two = seq(2);
+        map.insert(1, "First");
+        map.insert(2, "Second");
+        let two = 2;
         let result: Vec<_> = map.all_versions_lt_or_eq_descending(&two).collect();
         assert_eq!(result.len(), 2);
-        assert_eq!(result[0].0, seq(2));
-        assert_eq!(result[1].0, seq(1));
+        assert_eq!(result[0].0, 2);
+        assert_eq!(result[1].0, 1);
 
-        let one = seq(1);
+        let one = 1;
         let result: Vec<_> = map.all_versions_lt_or_eq_descending(&one).collect();
         assert_eq!(result.len(), 1);
-        assert_eq!(result[0].0, seq(1));
+        assert_eq!(result[0].0, 1);
     }
 
     #[test]
     fn get_existing_item() {
         let mut map = CachedVersionMap::default();
-        map.insert(seq(1), "First");
-        let item = map.get(&seq(1));
+        map.insert(1, "First");
+        let item = map.get(&1);
         assert_eq!(item, Some(&"First"));
     }
 
     #[test]
     fn get_item_not_in_map_returns_none() {
         let mut map = CachedVersionMap::default();
-        map.insert(seq(1), "First");
-        assert_eq!(map.get(&seq(2)), None);
+        map.insert(1, "First");
+        assert_eq!(map.get(&2), None);
     }
 
     #[test]
     fn truncate_map_to_smaller_size() {
         let mut map = CachedVersionMap::default();
         for i in 1..=5 {
-            map.insert(seq(i), format!("Item {i}"));
+            map.insert(i, format!("Item {i}"));
         }
         map.truncate_to(3);
         assert_eq!(map.values.len(), 3);
-        assert_eq!(map.values.front().unwrap().0, seq(3));
+        assert_eq!(map.values.front().unwrap().0, 3);
     }
 
     #[test]

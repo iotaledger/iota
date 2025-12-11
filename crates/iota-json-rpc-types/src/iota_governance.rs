@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use iota_types::{
-    base_types::{AuthorityName, EpochId, IotaAddress, ObjectID},
+    base_types::{Address, AuthorityName, EpochId, ObjectId},
     committee::{Committee, StakeUnit},
     iota_serde::BigInt,
 };
@@ -37,17 +37,17 @@ impl From<Committee> for IotaCommittee {
 #[serde(rename_all = "camelCase")]
 pub struct DelegatedStake {
     /// Validator's Address.
-    pub validator_address: IotaAddress,
+    pub validator_address: Address,
     /// Staking pool object id.
-    pub staking_pool: ObjectID,
+    pub staking_pool: ObjectId,
     pub stakes: Vec<Stake>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct DelegatedTimelockedStake {
-    pub validator_address: IotaAddress,
-    pub staking_pool: ObjectID,
+    pub validator_address: Address,
+    pub staking_pool: ObjectId,
     pub stakes: Vec<TimelockedStake>,
 }
 
@@ -70,7 +70,7 @@ pub enum StakeStatus {
 #[serde(rename_all = "camelCase")]
 pub struct Stake {
     /// ID of the StakedIota receipt object.
-    pub staked_iota_id: ObjectID,
+    pub staked_iota_id: ObjectId,
     #[schemars(with = "BigInt<u64>")]
     #[serde_as(as = "BigInt<u64>")]
     pub stake_request_epoch: EpochId,
@@ -88,7 +88,7 @@ pub struct Stake {
 #[derive(Debug, Serialize, Deserialize, Clone, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct TimelockedStake {
-    pub timelocked_staked_iota_id: ObjectID,
+    pub timelocked_staked_iota_id: ObjectId,
     #[schemars(with = "BigInt<u64>")]
     #[serde_as(as = "BigInt<u64>")]
     pub stake_request_epoch: EpochId,
@@ -118,6 +118,6 @@ pub struct ValidatorApys {
 #[serde_as]
 #[derive(Debug, Serialize, Deserialize, Clone, JsonSchema)]
 pub struct ValidatorApy {
-    pub address: IotaAddress,
+    pub address: Address,
     pub apy: f64,
 }

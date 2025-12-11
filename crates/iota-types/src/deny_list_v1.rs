@@ -8,6 +8,7 @@ use std::{
 };
 
 use move_core_types::{
+    account_address::AccountAddress,
     ident_str,
     identifier::IdentStr,
     language_storage::{StructTag, TypeTag},
@@ -16,8 +17,8 @@ use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use tracing::{error, instrument};
 
 use crate::{
-    IOTA_DENY_LIST_OBJECT_ID, IOTA_FRAMEWORK_PACKAGE_ID, MoveTypeTagTrait,
-    base_types::{EpochId, IotaAddress, ObjectID, SequenceNumber},
+    MoveTypeTagTrait,
+    base_types::{Address, EpochId, ObjectId, Version},
     config::{Config, Setting},
     dynamic_field::{DOFWrapper, get_dynamic_field_from_store},
     error::{ExecutionError, ExecutionErrorKind, UserInputError, UserInputResult},
@@ -59,7 +60,7 @@ struct ConfigKey {
 impl ConfigKey {
     pub fn type_() -> StructTag {
         StructTag {
-            address: IOTA_FRAMEWORK_PACKAGE_ID.into(),
+            address: AccountAddress::new(Address::FRAMEWORK.into_bytes()),
             module: DENY_LIST_MODULE.to_owned(),
             name: ident_str!("ConfigKey").to_owned(),
             type_params: vec![],
@@ -75,12 +76,12 @@ impl MoveTypeTagTrait for ConfigKey {
 
 /// Rust representation of the Move type 0x2::deny_list::AddressKey.
 #[derive(Debug, Serialize, Deserialize, Clone)]
-struct AddressKey(IotaAddress);
+struct AddressKey(Address);
 
 impl AddressKey {
     pub fn type_() -> StructTag {
         StructTag {
-            address: IOTA_FRAMEWORK_PACKAGE_ID.into(),
+            address: AccountAddress::new(Address::FRAMEWORK.into_bytes()),
             module: DENY_LIST_MODULE.to_owned(),
             name: ident_str!("AddressKey").to_owned(),
             type_params: vec![],
@@ -106,7 +107,7 @@ impl GlobalPauseKey {
     }
     pub fn type_() -> StructTag {
         StructTag {
-            address: IOTA_FRAMEWORK_PACKAGE_ID.into(),
+            address: AccountAddress::new(Address::FRAMEWORK.into_bytes()),
             module: DENY_LIST_MODULE.to_owned(),
             name: ident_str!("GlobalPauseKey").to_owned(),
             type_params: vec![],
@@ -122,7 +123,7 @@ impl MoveTypeTagTrait for GlobalPauseKey {
 
 #[instrument(level = "trace", skip_all)]
 pub fn check_coin_deny_list_v1_during_signing(
-    address: IotaAddress,
+    address: Address,
     input_objects: &CheckedInputObjects,
     receiving_objects: &ReceivingObjects,
     object_store: &dyn ObjectStore,
@@ -146,7 +147,7 @@ pub fn check_coin_deny_list_v1_during_signing(
 ///         2) the deny lists checked
 ///         2) the number of regulated coin owners checked.
 pub fn check_coin_deny_list_v1_during_execution(
-    written_objects: &BTreeMap<ObjectID, Object>,
+    written_objects: &BTreeMap<ObjectId, Object>,
     cur_epoch: EpochId,
     object_store: &dyn ObjectStore,
 ) -> DenyListResult {
@@ -190,7 +191,7 @@ pub fn check_coin_deny_list_v1_during_execution(
 }
 
 fn check_new_regulated_coin_owners(
-    new_regulated_coin_owners: BTreeMap<String, (Config, BTreeSet<IotaAddress>)>,
+    new_regulated_coin_owners: BTreeMap<String, (Config, BTreeSet<Address>)>,
     cur_epoch: EpochId,
     object_store: &dyn ObjectStore,
 ) -> Result<(), ExecutionError> {
@@ -229,14 +230,14 @@ pub fn get_per_type_coin_deny_list_v1(
     };
     // TODO: Consider caching the config object UID to avoid repeat deserialization.
     let config: Config =
-        get_dynamic_field_from_store(object_store, IOTA_DENY_LIST_OBJECT_ID, &config_key).ok()?;
+        get_dynamic_field_from_store(object_store, ObjectId::DENY_LIST, &config_key).ok()?;
     Some(config)
 }
 
 #[instrument(level = "trace", skip_all)]
 pub fn check_address_denied_by_config(
     deny_config: &Config,
-    address: IotaAddress,
+    address: Address,
     object_store: &dyn ObjectStore,
     cur_epoch: Option<EpochId>,
 ) -> bool {
@@ -255,7 +256,7 @@ pub fn check_global_pause(
 }
 
 pub fn get_deny_list_root_object(object_store: &dyn ObjectStore) -> Option<Object> {
-    match object_store.get_object(&IOTA_DENY_LIST_OBJECT_ID) {
+    match object_store.get_object(&ObjectId::DENY_LIST) {
         Some(obj) => Some(obj),
         None => {
             error!("Deny list object not found");
@@ -264,7 +265,7 @@ pub fn get_deny_list_root_object(object_store: &dyn ObjectStore) -> Option<Objec
     }
 }
 
-pub fn get_deny_list_obj_initial_shared_version(object_store: &dyn ObjectStore) -> SequenceNumber {
+pub fn get_deny_list_obj_initial_shared_version(object_store: &dyn ObjectStore) -> Version {
     get_deny_list_root_object(object_store)
         .map(|obj| match obj.owner {
             Owner::Shared {

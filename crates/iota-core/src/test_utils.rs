@@ -8,7 +8,7 @@ use fastcrypto::{hash::MultisetHash, traits::KeyPair};
 use iota_sdk_2::types::crypto::{Intent, IntentScope};
 use iota_types::{
     base_types::{
-        AuthorityName, ExecutionDigests, IotaAddress, ObjectID, ObjectRef, TransactionDigest,
+        Address, AuthorityName, ExecutionDigests, ObjectId, ObjectReference, TransactionDigest,
         random_object_ref,
     },
     committee::Committee,
@@ -26,7 +26,7 @@ use iota_types::{
     },
     utils::{create_fake_transaction, to_sender_signed_transaction},
 };
-use move_core_types::{account_address::AccountAddress, ident_str};
+use move_core_types::ident_str;
 use tokio::time::timeout;
 use tracing::{info, warn};
 
@@ -165,10 +165,10 @@ pub fn create_fake_cert_and_effect_digest<'a>(
 }
 
 pub fn make_transfer_iota_transaction(
-    gas_object: ObjectRef,
-    recipient: IotaAddress,
+    gas_object: ObjectReference,
+    recipient: Address,
     amount: Option<u64>,
-    sender: IotaAddress,
+    sender: Address,
     keypair: &AccountKeyPair,
     gas_price: u64,
 ) -> Transaction {
@@ -184,11 +184,11 @@ pub fn make_transfer_iota_transaction(
 }
 
 pub fn make_pay_iota_transaction(
-    gas_object: ObjectRef,
-    coins: Vec<ObjectRef>,
-    recipients: Vec<IotaAddress>,
+    gas_object: ObjectReference,
+    coins: Vec<ObjectReference>,
+    recipients: Vec<Address>,
     amounts: Vec<u64>,
-    sender: IotaAddress,
+    sender: Address,
     keypair: &AccountKeyPair,
     gas_price: u64,
     gas_budget: u64,
@@ -201,11 +201,11 @@ pub fn make_pay_iota_transaction(
 }
 
 pub fn make_transfer_object_transaction(
-    object_ref: ObjectRef,
-    gas_object: ObjectRef,
-    sender: IotaAddress,
+    object_ref: ObjectReference,
+    gas_object: ObjectReference,
+    sender: Address,
     keypair: &AccountKeyPair,
-    recipient: IotaAddress,
+    recipient: Address,
     gas_price: u64,
 ) -> Transaction {
     let data = TransactionData::new_transfer(
@@ -220,18 +220,18 @@ pub fn make_transfer_object_transaction(
 }
 
 pub fn make_transfer_object_move_transaction(
-    src: IotaAddress,
+    src: Address,
     keypair: &AccountKeyPair,
-    dest: IotaAddress,
-    object_ref: ObjectRef,
-    framework_obj_id: ObjectID,
-    gas_object_ref: ObjectRef,
+    dest: Address,
+    object_ref: ObjectReference,
+    framework_obj_id: ObjectId,
+    gas_object_ref: ObjectReference,
     gas_budget_in_units: u64,
     gas_price: u64,
 ) -> Transaction {
     let args = vec![
         CallArg::Object(ObjectArg::ImmOrOwnedObject(object_ref)),
-        CallArg::Pure(bcs::to_bytes(&AccountAddress::from(dest)).unwrap()),
+        CallArg::Pure(bcs::to_bytes(&dest).unwrap()),
     ];
 
     to_sender_signed_transaction(
@@ -253,8 +253,8 @@ pub fn make_transfer_object_move_transaction(
 
 /// Make a dummy tx that uses random object refs.
 pub fn make_dummy_tx(
-    receiver: IotaAddress,
-    sender: IotaAddress,
+    receiver: Address,
+    sender: Address,
     sender_sec: &AccountKeyPair,
 ) -> Transaction {
     Transaction::from_data_and_signer(

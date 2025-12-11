@@ -14,7 +14,7 @@ pub use iota_move::*;
 pub use iota_object::*;
 pub use iota_protocol::*;
 pub use iota_transaction::*;
-use iota_types::base_types::ObjectID;
+use iota_types::base_types::ObjectId;
 pub use object_changes::*;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -38,7 +38,7 @@ mod iota_protocol;
 mod iota_transaction;
 mod object_changes;
 
-pub type DynamicFieldPage = Page<DynamicFieldInfo, ObjectID>;
+pub type DynamicFieldPage = Page<DynamicFieldInfo, ObjectId>;
 /// `next_cursor` points to the last item in the page;
 /// Reading with `next_cursor` will start from the next item after `next_cursor`
 /// if `next_cursor` is `Some`, otherwise it will start from the first item.
@@ -69,8 +69,8 @@ pub struct DynamicFieldInfo {
     pub bcs_name: BcsName,
     pub type_: iota_types::dynamic_field::DynamicFieldType,
     pub object_type: String,
-    pub object_id: ObjectID,
-    pub version: iota_types::base_types::SequenceNumber,
+    pub object_id: ObjectId,
+    pub version: iota_types::base_types::Version,
     pub digest: iota_types::digests::ObjectDigest,
 }
 

@@ -49,7 +49,7 @@ use iota_swarm_config::{
     node_config_builder::FullnodeConfigBuilder,
 };
 use iota_types::{
-    base_types::IotaAddress,
+    base_types::{Address, address_from_iota_pub_key},
     crypto::{IotaKeyPair, SignatureScheme},
 };
 use move_analyzer::analyzer;
@@ -249,7 +249,7 @@ pub enum IotaCommand {
         #[arg(long, name = "iota|<full-url>", num_args(0..))]
         remote_migration_snapshots: Vec<SnapshotUrl>,
         #[arg(long, help = "Specify the delegator address")]
-        delegator: Option<IotaAddress>,
+        delegator: Option<Address>,
     },
     /// Bootstrap and initialize a new IOTA network
     Genesis {
@@ -295,7 +295,7 @@ pub enum IotaCommand {
         #[arg(long, name = "iota|<full-url>", num_args(0..))]
         remote_migration_snapshots: Vec<SnapshotUrl>,
         #[arg(long, help = "Specify the delegator address")]
-        delegator: Option<IotaAddress>,
+        delegator: Option<Address>,
     },
     /// Create an IOTA Genesis Ceremony with multiple remote validators.
     GenesisCeremony(Ceremony),
@@ -650,7 +650,7 @@ async fn start(
     committee_size: Option<usize>,
     local_migration_snapshots: Vec<PathBuf>,
     remote_migration_snapshots: Vec<SnapshotUrl>,
-    delegator: Option<IotaAddress>,
+    delegator: Option<Address>,
 ) -> Result<(), anyhow::Error> {
     if force_regenesis {
         ensure!(
@@ -956,7 +956,7 @@ async fn start(
             let kp = swarm.config_mut().account_keys.swap_remove(0);
             let keystore_path = faucet_config_dir.join(IOTA_KEYSTORE_FILENAME);
             let mut keystore = Keystore::from(FileBasedKeystore::new(&keystore_path).unwrap());
-            let address: IotaAddress = kp.public().into();
+            let address: Address = address_from_iota_pub_key(kp.public());
             keystore.add_key(None, IotaKeyPair::Ed25519(kp)).unwrap();
             IotaClientConfig::new(keystore)
                 .with_envs([IotaEnv::new("localnet", fullnode_url)])
@@ -1018,7 +1018,7 @@ async fn genesis(
     committee_size: usize,
     local_migration_snapshots: Vec<PathBuf>,
     remote_migration_snapshots: Vec<SnapshotUrl>,
-    delegator: Option<IotaAddress>,
+    delegator: Option<Address>,
 ) -> Result<(), anyhow::Error> {
     let iota_config_dir = &match working_dir {
         // if a directory is specified, it must exist (it

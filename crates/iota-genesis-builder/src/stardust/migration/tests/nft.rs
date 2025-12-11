@@ -24,7 +24,7 @@ use iota_sdk::types::block::{
 };
 use iota_types::{
     TypeTag,
-    base_types::{IotaAddress, ObjectID},
+    base_types::{Address, ObjectId},
     collection_types::VecMap,
     dynamic_field::{DynamicFieldInfo, derive_dynamic_field_id},
     id::UID,
@@ -52,7 +52,7 @@ fn migrate_nft(
     header: OutputHeader,
     stardust_nft: StardustNft,
     coin_type: CoinType,
-) -> anyhow::Result<(ObjectID, Nft, NftOutput, Object, Object)> {
+) -> anyhow::Result<(ObjectId, Nft, NftOutput, Object, Object)> {
     let output_id = header.output_id();
     let nft_id: NftId = stardust_nft
         .nft_id()
@@ -66,7 +66,7 @@ fn migrate_nft(
     )?;
 
     // Ensure the migrated objects exist under the expected identifiers.
-    let nft_object_id = ObjectID::new(*nft_id);
+    let nft_object_id = ObjectId::new(*nft_id);
     let created_objects = objects_map
         .get(&output_id)
         .ok_or_else(|| anyhow!("nft output should have created objects"))?;
@@ -99,11 +99,11 @@ fn migrate_nft(
     // timestamp. When the nft is attached to the nft output, the version should
     // be incremented.
     assert!(
-        nft_object.version().value() > 1,
+        nft_object.version() > 1,
         "nft object version should have been incremented"
     );
     assert!(
-        nft_output_object.version().value() > 1,
+        nft_output_object.version() > 1,
         "nft output object version should have been incremented"
     );
 
@@ -161,10 +161,10 @@ fn nft_migration_with_full_features() {
     assert_eq!(stardust_nft.amount(), nft_output.balance.value());
     // The ID is newly generated, so we don't know the exact value, but it should
     // not be zero.
-    assert_ne!(nft_output.id, UID::new(ObjectID::ZERO));
+    assert_ne!(nft_output.id, UID::new(ObjectId::ZERO));
     assert_ne!(
         nft_output.id,
-        UID::new(ObjectID::new(
+        UID::new(ObjectId::new(
             stardust_nft.nft_id().as_slice().try_into().unwrap()
         ))
     );
@@ -387,7 +387,7 @@ fn nft_migration_with_valid_irc27_metadata() {
         .iter()
         .map(|entry| {
             (
-                IotaAddress::from_bytes(entry.0.as_ed25519().as_slice()).unwrap(),
+                Address::from_bytes(entry.0.as_ed25519().as_slice()).unwrap(),
                 FixedPoint32::try_from(*entry.1).unwrap(),
             )
         })
@@ -555,7 +555,7 @@ fn nft_migration_with_timelock_unlocked() {
         1_000_000,
         [(header, stardust_nft.into())],
         // Sender is not important for this test.
-        &IotaAddress::ZERO,
+        &Address::ZERO,
         NFT_OUTPUT_MODULE_NAME,
         epoch_start_timestamp_ms as u64,
         UnlockObjectTestResult::Success,
@@ -586,7 +586,7 @@ fn nft_migration_with_timelock_still_locked() {
         1_000_000,
         [(header, stardust_nft.into())],
         // Sender is not important for this test.
-        &IotaAddress::ZERO,
+        &Address::ZERO,
         NFT_OUTPUT_MODULE_NAME,
         epoch_start_timestamp_ms as u64,
         UnlockObjectTestResult::ERROR_TIMELOCK_NOT_EXPIRED_FAILURE,
@@ -724,7 +724,7 @@ fn nft_migration_with_storage_deposit_return_unlock_condition() {
         1_000_000,
         [(header.clone(), stardust_nft.clone().into())],
         // Sender is not important for this test.
-        &IotaAddress::ZERO,
+        &Address::ZERO,
         NFT_OUTPUT_MODULE_NAME,
         // Epoch start time is not important for this test.
         0,

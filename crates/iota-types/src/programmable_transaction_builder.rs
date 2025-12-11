@@ -11,15 +11,14 @@ use move_core_types::{ident_str, identifier::Identifier, language_storage::TypeT
 use serde::Serialize;
 
 use crate::{
-    IOTA_FRAMEWORK_PACKAGE_ID,
-    base_types::{IotaAddress, ObjectID, ObjectRef},
+    base_types::{Address, ObjectId, ObjectReference},
     move_package::PACKAGE_MODULE_NAME,
     transaction::{Argument, CallArg, Command, ObjectArg, ProgrammableTransaction},
 };
 
 #[derive(PartialEq, Eq, Hash)]
 enum BuilderArg {
-    Object(ObjectID),
+    Object(ObjectId),
     Pure(Vec<u8>),
     ForcedNonUniquePure(usize),
 }
@@ -78,12 +77,12 @@ impl ProgrammableTransactionBuilder {
             match (old_obj_arg, obj_arg) {
                 (
                     ObjectArg::SharedObject {
-                        id: id1,
+                        object_id: id1,
                         initial_shared_version: v1,
                         mutable: mut1,
                     },
                     ObjectArg::SharedObject {
-                        id: id2,
+                        object_id: id2,
                         initial_shared_version: v2,
                         mutable: mut2,
                     },
@@ -93,7 +92,7 @@ impl ProgrammableTransactionBuilder {
                         "invariant violation! object has id does not match call arg"
                     );
                     ObjectArg::SharedObject {
-                        id,
+                        object_id: id,
                         initial_shared_version: v2,
                         mutable: *mut1 || mut2,
                     }
@@ -143,7 +142,7 @@ impl ProgrammableTransactionBuilder {
     /// Will fail to generate if given an empty ObjVec
     pub fn move_call(
         &mut self,
-        package: ObjectID,
+        package: ObjectId,
         module: Identifier,
         function: Identifier,
         type_arguments: Vec<TypeTag>,
@@ -165,7 +164,7 @@ impl ProgrammableTransactionBuilder {
 
     pub fn programmable_move_call(
         &mut self,
-        package: ObjectID,
+        package: ObjectId,
         module: Identifier,
         function: Identifier,
         type_arguments: Vec<TypeTag>,
@@ -183,15 +182,15 @@ impl ProgrammableTransactionBuilder {
     pub fn publish_upgradeable(
         &mut self,
         modules: Vec<Vec<u8>>,
-        dep_ids: Vec<ObjectID>,
+        dep_ids: Vec<ObjectId>,
     ) -> Argument {
         self.command(Command::Publish(modules, dep_ids))
     }
 
-    pub fn publish_immutable(&mut self, modules: Vec<Vec<u8>>, dep_ids: Vec<ObjectID>) {
+    pub fn publish_immutable(&mut self, modules: Vec<Vec<u8>>, dep_ids: Vec<ObjectId>) {
         let cap = self.publish_upgradeable(modules, dep_ids);
         self.commands.push(Command::move_call(
-            IOTA_FRAMEWORK_PACKAGE_ID,
+            ObjectId::from(Address::FRAMEWORK),
             PACKAGE_MODULE_NAME.to_owned(),
             ident_str!("make_immutable").to_owned(),
             vec![],
@@ -201,9 +200,9 @@ impl ProgrammableTransactionBuilder {
 
     pub fn upgrade(
         &mut self,
-        current_package_object_id: ObjectID,
+        current_package_object_id: ObjectId,
         upgrade_ticket: Argument,
-        transitive_deps: Vec<ObjectID>,
+        transitive_deps: Vec<ObjectId>,
         modules: Vec<Vec<u8>>,
     ) -> Argument {
         self.command(Command::Upgrade(
@@ -214,19 +213,19 @@ impl ProgrammableTransactionBuilder {
         ))
     }
 
-    pub fn transfer_arg(&mut self, recipient: IotaAddress, arg: Argument) {
+    pub fn transfer_arg(&mut self, recipient: Address, arg: Argument) {
         self.transfer_args(recipient, vec![arg])
     }
 
-    pub fn transfer_args(&mut self, recipient: IotaAddress, args: Vec<Argument>) {
+    pub fn transfer_args(&mut self, recipient: Address, args: Vec<Argument>) {
         let rec_arg = self.pure(recipient).unwrap();
         self.commands.push(Command::TransferObjects(args, rec_arg));
     }
 
     pub fn transfer_object(
         &mut self,
-        recipient: IotaAddress,
-        object_ref: ObjectRef,
+        recipient: Address,
+        object_ref: ObjectReference,
     ) -> anyhow::Result<()> {
         let rec_arg = self.pure(recipient).unwrap();
         let obj_arg = self.obj(ObjectArg::ImmOrOwnedObject(object_ref));
@@ -235,7 +234,7 @@ impl ProgrammableTransactionBuilder {
         Ok(())
     }
 
-    pub fn transfer_iota(&mut self, recipient: IotaAddress, amount: Option<u64>) {
+    pub fn transfer_iota(&mut self, recipient: Address, amount: Option<u64>) {
         let rec_arg = self.pure(recipient).unwrap();
         let coin_arg = if let Some(amount) = amount {
             let amt_arg = self.pure(amount).unwrap();
@@ -246,22 +245,18 @@ impl ProgrammableTransactionBuilder {
         self.command(Command::TransferObjects(vec![coin_arg], rec_arg));
     }
 
-    pub fn pay_all_iota(&mut self, recipient: IotaAddress) {
+    pub fn pay_all_iota(&mut self, recipient: Address) {
         let rec_arg = self.pure(recipient).unwrap();
         self.command(Command::TransferObjects(vec![Argument::GasCoin], rec_arg));
     }
 
     /// Will fail to generate if recipients and amounts do not have the same
     /// lengths
-    pub fn pay_iota(
-        &mut self,
-        recipients: Vec<IotaAddress>,
-        amounts: Vec<u64>,
-    ) -> anyhow::Result<()> {
+    pub fn pay_iota(&mut self, recipients: Vec<Address>, amounts: Vec<u64>) -> anyhow::Result<()> {
         self.pay_impl(recipients, amounts, Argument::GasCoin)
     }
 
-    pub fn split_coin(&mut self, recipient: IotaAddress, coin: ObjectRef, amounts: Vec<u64>) {
+    pub fn split_coin(&mut self, recipient: Address, coin: ObjectReference, amounts: Vec<u64>) {
         let coin_arg = self.obj(ObjectArg::ImmOrOwnedObject(coin)).unwrap();
         let amounts_len = amounts.len();
         let amt_args = amounts.into_iter().map(|a| self.pure(a).unwrap()).collect();
@@ -283,8 +278,8 @@ impl ProgrammableTransactionBuilder {
     /// lengths. Or if coins is empty
     pub fn pay(
         &mut self,
-        coins: Vec<ObjectRef>,
-        recipients: Vec<IotaAddress>,
+        coins: Vec<ObjectReference>,
+        recipients: Vec<Address>,
         amounts: Vec<u64>,
     ) -> anyhow::Result<()> {
         let mut coins = coins.into_iter();
@@ -303,7 +298,7 @@ impl ProgrammableTransactionBuilder {
 
     fn pay_impl(
         &mut self,
-        recipients: Vec<IotaAddress>,
+        recipients: Vec<Address>,
         amounts: Vec<u64>,
         coin: Argument,
     ) -> anyhow::Result<()> {
@@ -320,7 +315,7 @@ impl ProgrammableTransactionBuilder {
 
         // collect recipients in the case where they are non-unique in order
         // to minimize the number of transfers that must be performed
-        let mut recipient_map: IndexMap<IotaAddress, Vec<usize>> = IndexMap::new();
+        let mut recipient_map: IndexMap<Address, Vec<usize>> = IndexMap::new();
         let mut amt_args = Vec::with_capacity(recipients.len());
         for (i, (recipient, amount)) in recipients.into_iter().zip(amounts).enumerate() {
             recipient_map.entry(recipient).or_default().push(i);

@@ -9,7 +9,7 @@ use iota_json_rpc_types::{
 };
 use iota_open_rpc_macros::open_rpc;
 use iota_types::{
-    base_types::{ObjectID, SequenceNumber, TransactionDigest},
+    base_types::{ObjectId, TransactionDigest, Version},
     iota_serde::BigInt,
 };
 use jsonrpsee::{core::RpcResult, proc_macros::rpc};
@@ -60,7 +60,7 @@ pub trait ReadApi {
     async fn get_object(
         &self,
         /// the ID of the queried object
-        object_id: ObjectID,
+        object_id: ObjectId,
         /// options for specifying the content to be returned
         options: Option<IotaObjectDataOptions>,
     ) -> RpcResult<IotaObjectResponse>;
@@ -71,7 +71,7 @@ pub trait ReadApi {
     async fn multi_get_objects(
         &self,
         /// the IDs of the queried objects
-        object_ids: Vec<ObjectID>,
+        object_ids: Vec<ObjectId>,
         /// options for specifying the content to be returned
         options: Option<IotaObjectDataOptions>,
     ) -> RpcResult<Vec<IotaObjectResponse>>;
@@ -85,9 +85,9 @@ pub trait ReadApi {
     async fn try_get_past_object(
         &self,
         /// the ID of the queried object
-        object_id: ObjectID,
+        object_id: ObjectId,
         /// the version of the queried object. If None, default to the latest known version
-        version: SequenceNumber,
+        version: Version,
         /// options for specifying the content to be returned
         options: Option<IotaObjectDataOptions>,
     ) -> RpcResult<IotaPastObjectResponse>;
@@ -108,9 +108,9 @@ pub trait ReadApi {
     async fn try_get_object_before_version(
         &self,
         /// the ID of the queried object
-        object_id: ObjectID,
+        object_id: ObjectId,
         /// the version of the queried object
-        version: SequenceNumber,
+        version: Version,
     ) -> RpcResult<IotaPastObjectResponse>;
 
     /// Note there is no software-level guarantee/SLA that objects with past
@@ -163,7 +163,7 @@ pub trait ReadApi {
 
     /// Return the sequence number of the latest checkpoint that has been
     /// executed
-    #[method(name = "getLatestCheckpointSequenceNumber")]
+    #[method(name = "getLatestCheckpointVersion")]
     async fn get_latest_checkpoint_sequence_number(&self) -> RpcResult<BigInt<u64>>;
 
     /// Return the protocol config table for the given version number.

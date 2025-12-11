@@ -15,8 +15,8 @@ use iota_sdk::{
     IotaClientBuilder,
     rpc_types::{IotaObjectDataOptions, IotaTransactionBlockResponseOptions},
     types::{
-        IOTA_FRAMEWORK_ADDRESS, STARDUST_ADDRESS,
-        base_types::ObjectID,
+        Address::FRAMEWORK, STARDUST_ADDRESS,
+        base_types::ObjectId,
         crypto::SignatureScheme::ED25519,
         gas_coin::GAS,
         programmable_transaction_builder::ProgrammableTransactionBuilder,
@@ -68,7 +68,7 @@ async fn main() -> Result<(), anyhow::Error> {
 
     // This object id was fetched manually. It refers to a Basic Output object that
     // contains some Native Tokens.
-    let basic_output_object_id = ObjectID::from_hex_literal(
+    let basic_output_object_id = ObjectId::from_hex(
         "0xd0ed7f2c50366202585ebd52a38cde6a7a7282ef3f52db52c3ba87042bca6fba",
     )?;
     // Get Basic Output object
@@ -109,7 +109,7 @@ async fn main() -> Result<(), anyhow::Error> {
             ////// Command #2: delete the empty native tokens bag
             let arguments = vec![extracted_native_tokens_bag];
             builder.programmable_move_call(
-                IOTA_FRAMEWORK_ADDRESS.into(),
+                Address::FRAMEWORK.into(),
                 ident_str!("bag").to_owned(),
                 ident_str!("destroy_empty").to_owned(),
                 vec![],
@@ -121,7 +121,7 @@ async fn main() -> Result<(), anyhow::Error> {
             let type_arguments = vec![GAS::type_tag()];
             let arguments = vec![extracted_base_token];
             let new_iota_coin = builder.programmable_move_call(
-                IOTA_FRAMEWORK_ADDRESS.into(),
+                Address::FRAMEWORK.into(),
                 ident_str!("coin").to_owned(),
                 ident_str!("from_balance").to_owned(),
                 type_arguments,

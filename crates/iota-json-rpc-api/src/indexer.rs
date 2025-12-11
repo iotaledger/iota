@@ -10,7 +10,7 @@ use iota_json_rpc_types::{
 };
 use iota_open_rpc_macros::open_rpc;
 use iota_types::{
-    base_types::{IotaAddress, ObjectID},
+    base_types::{Address, ObjectId},
     digests::TransactionDigest,
     dynamic_field::DynamicFieldName,
     event::EventID,
@@ -35,11 +35,11 @@ pub trait IndexerApi {
     async fn get_owned_objects(
         &self,
         /// the owner's IOTA address
-        address: IotaAddress,
+        address: Address,
         /// the objects query criteria.
         query: Option<IotaObjectResponseQuery>,
         /// An optional paging cursor. If provided, the query will start from the next item after the specified cursor. Default to start from the first item if not specified.
-        cursor: Option<ObjectID>,
+        cursor: Option<ObjectId>,
         /// Max number of items returned per page, default to [QUERY_MAX_RESULT_LIMIT] if not specified.
         limit: Option<usize>,
     ) -> RpcResult<ObjectsPage>;
@@ -108,9 +108,9 @@ pub trait IndexerApi {
     async fn get_dynamic_fields(
         &self,
         /// The ID of the parent object
-        parent_object_id: ObjectID,
+        parent_object_id: ObjectId,
         /// An optional paging cursor. If provided, the query will start from the next item after the specified cursor. Default to start from the first item if not specified.
-        cursor: Option<ObjectID>,
+        cursor: Option<ObjectId>,
         /// Maximum item returned per page, default to [QUERY_MAX_RESULT_LIMIT] if not specified.
         limit: Option<usize>,
     ) -> RpcResult<DynamicFieldPage>;
@@ -121,7 +121,7 @@ pub trait IndexerApi {
     async fn get_dynamic_field_object(
         &self,
         /// The ID of the queried parent object
-        parent_object_id: ObjectID,
+        parent_object_id: ObjectId,
         /// The Name of the dynamic field
         name: DynamicFieldName,
     ) -> RpcResult<IotaObjectResponse>;
@@ -133,7 +133,7 @@ pub trait IndexerApi {
     async fn get_dynamic_field_object_v2(
         &self,
         /// The ID of the queried parent object
-        parent_object_id: ObjectID,
+        parent_object_id: ObjectId,
         /// The Name of the dynamic field
         name: DynamicFieldName,
         /// Options for specifying the content to be returned
@@ -153,15 +153,15 @@ pub trait IndexerApi {
     async fn iota_names_reverse_lookup(
         &self,
         /// The address to resolve.
-        address: IotaAddress,
+        address: Address,
     ) -> RpcResult<Option<String>>;
 
     /// Find all registration NFTs for the given address.
     #[method(name = "iotaNamesFindAllRegistrationNFTs")]
     async fn iota_names_find_all_registration_nfts(
         &self,
-        address: IotaAddress,
-        cursor: Option<ObjectID>,
+        address: Address,
+        cursor: Option<ObjectId>,
         limit: Option<usize>,
         options: Option<IotaObjectDataOptions>,
     ) -> RpcResult<ObjectsPage>;

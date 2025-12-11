@@ -8,7 +8,7 @@ use enum_dispatch::enum_dispatch;
 use iota_config::{ExecutionCacheType, NodeConfig};
 use iota_types::{
     authenticator_state::get_authenticator_state_obj_initial_shared_version,
-    base_types::SequenceNumber,
+    base_types::Version,
     deny_list_v1::get_deny_list_obj_initial_shared_version,
     epoch_data::EpochData,
     error::IotaResult,
@@ -26,9 +26,9 @@ pub trait EpochStartConfigTrait {
     fn epoch_digest(&self) -> CheckpointDigest;
     fn epoch_start_state(&self) -> &EpochStartSystemState;
     fn flags(&self) -> &[EpochFlag];
-    fn authenticator_obj_initial_shared_version(&self) -> Option<SequenceNumber>;
-    fn randomness_obj_initial_shared_version(&self) -> SequenceNumber;
-    fn coin_deny_list_obj_initial_shared_version(&self) -> SequenceNumber;
+    fn authenticator_obj_initial_shared_version(&self) -> Option<Version>;
+    fn randomness_obj_initial_shared_version(&self) -> Version;
+    fn coin_deny_list_obj_initial_shared_version(&self) -> Version;
 
     fn execution_cache_type(&self) -> ExecutionCacheType {
         if self.flags().contains(&EpochFlag::WritebackCacheEnabled) {
@@ -184,10 +184,10 @@ pub struct EpochStartConfigurationV1 {
     epoch_digest: CheckpointDigest,
     flags: Vec<EpochFlag>,
     /// Do the state objects exist at the beginning of the epoch?
-    authenticator_obj_initial_shared_version: Option<SequenceNumber>,
-    randomness_obj_initial_shared_version: SequenceNumber,
-    coin_deny_list_obj_initial_shared_version: SequenceNumber,
-    bridge_obj_initial_shared_version: Option<SequenceNumber>,
+    authenticator_obj_initial_shared_version: Option<Version>,
+    randomness_obj_initial_shared_version: Version,
+    coin_deny_list_obj_initial_shared_version: Version,
+    bridge_obj_initial_shared_version: Option<Version>,
     bridge_committee_initiated: bool,
 }
 
@@ -204,15 +204,15 @@ impl EpochStartConfigTrait for EpochStartConfigurationV1 {
         &self.flags
     }
 
-    fn authenticator_obj_initial_shared_version(&self) -> Option<SequenceNumber> {
+    fn authenticator_obj_initial_shared_version(&self) -> Option<Version> {
         self.authenticator_obj_initial_shared_version
     }
 
-    fn randomness_obj_initial_shared_version(&self) -> SequenceNumber {
+    fn randomness_obj_initial_shared_version(&self) -> Version {
         self.randomness_obj_initial_shared_version
     }
 
-    fn coin_deny_list_obj_initial_shared_version(&self) -> SequenceNumber {
+    fn coin_deny_list_obj_initial_shared_version(&self) -> Version {
         self.coin_deny_list_obj_initial_shared_version
     }
 }
@@ -223,9 +223,9 @@ pub struct EpochStartConfigurationV2 {
     epoch_digest: CheckpointDigest,
     flags: Vec<EpochFlag>,
     /// Do the state objects exist at the beginning of the epoch?
-    authenticator_obj_initial_shared_version: Option<SequenceNumber>,
-    randomness_obj_initial_shared_version: SequenceNumber,
-    coin_deny_list_obj_initial_shared_version: SequenceNumber,
+    authenticator_obj_initial_shared_version: Option<Version>,
+    randomness_obj_initial_shared_version: Version,
+    coin_deny_list_obj_initial_shared_version: Version,
 }
 
 impl EpochStartConfigTrait for EpochStartConfigurationV2 {
@@ -241,15 +241,15 @@ impl EpochStartConfigTrait for EpochStartConfigurationV2 {
         &self.flags
     }
 
-    fn authenticator_obj_initial_shared_version(&self) -> Option<SequenceNumber> {
+    fn authenticator_obj_initial_shared_version(&self) -> Option<Version> {
         self.authenticator_obj_initial_shared_version
     }
 
-    fn randomness_obj_initial_shared_version(&self) -> SequenceNumber {
+    fn randomness_obj_initial_shared_version(&self) -> Version {
         self.randomness_obj_initial_shared_version
     }
 
-    fn coin_deny_list_obj_initial_shared_version(&self) -> SequenceNumber {
+    fn coin_deny_list_obj_initial_shared_version(&self) -> Version {
         self.coin_deny_list_obj_initial_shared_version
     }
 }

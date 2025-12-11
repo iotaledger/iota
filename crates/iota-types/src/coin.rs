@@ -2,7 +2,9 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use iota_sdk_2::types::Address;
 use move_core_types::{
+    account_address::AccountAddress,
     annotated_value::{MoveFieldLayout, MoveStructLayout, MoveTypeLayout},
     ident_str,
     identifier::IdentStr,
@@ -12,9 +14,8 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    IOTA_FRAMEWORK_ADDRESS,
     balance::{Balance, Supply},
-    base_types::ObjectID,
+    base_types::ObjectId,
     error::{ExecutionError, ExecutionErrorKind, IotaError},
     id::UID,
     object::{Data, Object},
@@ -38,7 +39,7 @@ pub struct Coin {
 }
 
 impl Coin {
-    pub fn new(id: ObjectID, value: u64) -> Self {
+    pub fn new(id: ObjectId, value: u64) -> Self {
         Self {
             id: UID::new(id),
             balance: Balance::new(value),
@@ -47,7 +48,7 @@ impl Coin {
 
     pub fn type_(type_param: TypeTag) -> StructTag {
         StructTag {
-            address: IOTA_FRAMEWORK_ADDRESS,
+            address: AccountAddress::new(Address::FRAMEWORK.into_bytes()),
             name: COIN_STRUCT_NAME.to_owned(),
             module: COIN_MODULE_NAME.to_owned(),
             type_params: vec![type_param],
@@ -56,7 +57,7 @@ impl Coin {
 
     /// Is this other StructTag representing a Coin?
     pub fn is_coin(other: &StructTag) -> bool {
-        other.address == IOTA_FRAMEWORK_ADDRESS
+        other.address == AccountAddress::new(Address::FRAMEWORK.into_bytes())
             && other.module.as_ident_str() == COIN_MODULE_NAME
             && other.name.as_ident_str() == COIN_STRUCT_NAME
     }
@@ -84,7 +85,7 @@ impl Coin {
         }
     }
 
-    pub fn id(&self) -> &ObjectID {
+    pub fn id(&self) -> &ObjectId {
         self.id.object_id()
     }
 
@@ -128,7 +129,7 @@ impl Coin {
     // Related coin objects need to be updated in temporary_store to persist the
     // changes, including creating the coin object related to the newly created
     // coin.
-    pub fn split(&mut self, amount: u64, new_coin_id: ObjectID) -> Result<Coin, ExecutionError> {
+    pub fn split(&mut self, amount: u64, new_coin_id: ObjectId) -> Result<Coin, ExecutionError> {
         self.balance.withdraw(amount)?;
         Ok(Coin::new(new_coin_id, amount))
     }
@@ -143,7 +144,7 @@ pub struct TreasuryCap {
 
 impl TreasuryCap {
     pub fn is_treasury_type(other: &StructTag) -> bool {
-        other.address == IOTA_FRAMEWORK_ADDRESS
+        other.address == AccountAddress::new(Address::FRAMEWORK.into_bytes())
             && other.module.as_ident_str() == COIN_MODULE_NAME
             && other.name.as_ident_str() == COIN_TREASURE_CAP_NAME
     }
@@ -157,7 +158,7 @@ impl TreasuryCap {
 
     pub fn type_(type_param: StructTag) -> StructTag {
         StructTag {
-            address: IOTA_FRAMEWORK_ADDRESS,
+            address: AccountAddress::new(Address::FRAMEWORK.into_bytes()),
             name: COIN_TREASURE_CAP_NAME.to_owned(),
             module: COIN_MODULE_NAME.to_owned(),
             type_params: vec![TypeTag::Struct(Box::new(type_param))],
@@ -215,7 +216,7 @@ pub struct CoinMetadata {
 impl CoinMetadata {
     /// Is this other StructTag representing a CoinMetadata?
     pub fn is_coin_metadata(other: &StructTag) -> bool {
-        other.address == IOTA_FRAMEWORK_ADDRESS
+        other.address == AccountAddress::new(Address::FRAMEWORK.into_bytes())
             && other.module.as_ident_str() == COIN_MODULE_NAME
             && other.name.as_ident_str() == COIN_METADATA_STRUCT_NAME
     }
@@ -229,7 +230,7 @@ impl CoinMetadata {
 
     pub fn type_(type_param: StructTag) -> StructTag {
         StructTag {
-            address: IOTA_FRAMEWORK_ADDRESS,
+            address: AccountAddress::new(Address::FRAMEWORK.into_bytes()),
             name: COIN_METADATA_STRUCT_NAME.to_owned(),
             module: COIN_MODULE_NAME.to_owned(),
             type_params: vec![TypeTag::Struct(Box::new(type_param))],

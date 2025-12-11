@@ -14,8 +14,7 @@ use iota_macros::*;
 use iota_swarm_config::genesis_config::{AccountConfig, DEFAULT_GAS_AMOUNT};
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
-    IOTA_SYSTEM_PACKAGE_ID,
-    base_types::{IotaAddress, ObjectID, ObjectRef},
+    base_types::{Address, ObjectId, ObjectReference},
     effects::{TransactionEffects, TransactionEffectsAPI},
     iota_system_state::{
         IotaSystemStateTrait,
@@ -71,14 +70,14 @@ trait StatePredicate {
 struct StressTestRunner {
     pub post_epoch_predicates: Vec<Box<dyn StatePredicate + Send + Sync>>,
     pub test_cluster: TestCluster,
-    pub accounts: Vec<IotaAddress>,
-    pub active_validators: BTreeSet<IotaAddress>,
-    pub preactive_validators: BTreeMap<IotaAddress, u64>,
-    pub removed_validators: BTreeSet<IotaAddress>,
-    pub delegation_requests_this_epoch: BTreeMap<ObjectID, IotaAddress>,
+    pub accounts: Vec<Address>,
+    pub active_validators: BTreeSet<Address>,
+    pub preactive_validators: BTreeMap<Address, u64>,
+    pub removed_validators: BTreeSet<Address>,
+    pub delegation_requests_this_epoch: BTreeMap<ObjectId, Address>,
     pub delegation_withdraws_this_epoch: u64,
-    pub delegations: BTreeMap<ObjectID, IotaAddress>,
-    pub reports: BTreeMap<IotaAddress, BTreeSet<IotaAddress>>,
+    pub delegations: BTreeMap<ObjectId, Address>,
+    pub reports: BTreeMap<Address, BTreeSet<Address>>,
     pub rng: StdRng,
 }
 
@@ -110,7 +109,7 @@ impl StressTestRunner {
         }
     }
 
-    pub fn pick_random_sender(&mut self) -> IotaAddress {
+    pub fn pick_random_sender(&mut self) -> Address {
         self.accounts[self.rng.gen_range(0..self.accounts.len())]
     }
 
@@ -133,11 +132,7 @@ impl StressTestRunner {
         random_committee_member
     }
 
-    pub async fn run(
-        &self,
-        sender: IotaAddress,
-        pt: ProgrammableTransaction,
-    ) -> TransactionEffects {
+    pub async fn run(&self, sender: Address, pt: ProgrammableTransaction) -> TransactionEffects {
         let rgp = self.test_cluster.get_reference_gas_price().await;
         let gas_object = self
             .test_cluster
@@ -174,7 +169,7 @@ impl StressTestRunner {
         for (obj_ref, _) in effects.created() {
             let object_opt = state
                 .get_object_store()
-                .get_object_by_key(&obj_ref.0, obj_ref.1);
+                .get_object_by_key(&obj_ref.object_id, obj_ref.version);
             let Some(object) = object_opt else { continue };
             let struct_tag = object.struct_tag().unwrap();
             let total_iota =
@@ -186,7 +181,7 @@ impl StressTestRunner {
         for (obj_ref, _) in effects.mutated() {
             let object = state
                 .get_object_store()
-                .get_object_by_key(&obj_ref.0, obj_ref.1)
+                .get_object_by_key(&obj_ref.object_id, obj_ref.version)
                 .unwrap();
             let struct_tag = object.struct_tag().unwrap();
             let total_iota =
@@ -256,12 +251,18 @@ impl StressTestRunner {
         builder.command(Command::SplitCoins(Argument::GasCoin, vec![amt_arg]))
     }
 
-    async fn get_from_effects(&self, effects: &[(ObjectRef, Owner)], name: &str) -> Option<Object> {
+    async fn get_from_effects(
+        &self,
+        effects: &[(ObjectReference, Owner)],
+        name: &str,
+    ) -> Option<Object> {
         let db = self.state().get_object_store().clone();
         let found: Vec<_> = effects
             .iter()
             .filter_map(|(obj_ref, _)| {
-                let object = db.get_object_by_key(&obj_ref.0, obj_ref.1).unwrap();
+                let object = db
+                    .get_object_by_key(&obj_ref.object_id, obj_ref.version)
+                    .unwrap();
                 let struct_tag = object.struct_tag().unwrap();
                 if struct_tag.name.to_string() == name {
                     Some(object)
@@ -283,9 +284,9 @@ mod add_stake {
     pub struct RequestAddStakeGen;
 
     pub struct RequestAddStake {
-        sender: IotaAddress,
+        sender: Address,
         stake_amount: u64,
-        staked_with: IotaAddress,
+        staked_with: Address,
     }
 
     impl GenStateChange for RequestAddStakeGen {
@@ -313,9 +314,10 @@ mod add_stake {
                 builder.obj(ObjectArg::IOTA_SYSTEM_MUT).unwrap();
                 builder.pure(self.staked_with).unwrap();
                 let coin = StressTestRunner::split_off(&mut builder, self.stake_amount);
+                let package = ObjectId::from_address(Address::SYSTEM);
                 move_call! {
                     builder,
-                    (IOTA_SYSTEM_PACKAGE_ID)::iota_system::request_add_stake(Argument::Input(0), coin, Argument::Input(1))
+                    (package)::iota_system::request_add_stake(Argument::Input(0), coin, Argument::Input(1))
                 };
                 builder.finish()
             };

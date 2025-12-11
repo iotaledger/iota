@@ -7,7 +7,7 @@ use std::{fmt, fmt::Display, str::FromStr};
 use fastcrypto::encoding::{Base58, Base64};
 use iota_metrics::monitored_scope;
 use iota_types::{
-    base_types::{IotaAddress, ObjectID, TransactionDigest},
+    base_types::{Address, ObjectId, TransactionDigest},
     error::IotaResult,
     event::{Event, EventEnvelope, EventID},
     iota_serde::{BigInt, IotaStructTag},
@@ -37,13 +37,13 @@ pub struct IotaEvent {
     /// This ID is the "cursor" for event querying.
     pub id: EventID,
     /// Move package where this event was emitted.
-    pub package_id: ObjectID,
+    pub package_id: ObjectId,
     #[schemars(with = "String")]
     #[serde_as(as = "DisplayFromStr")]
     /// Move module where this event was emitted.
     pub transaction_module: Identifier,
     /// Sender's IOTA address.
-    pub sender: IotaAddress,
+    pub sender: Address,
     #[schemars(with = "String")]
     #[serde_as(as = "IotaStructTag")]
     /// Move event type.
@@ -243,12 +243,12 @@ impl IotaEvent {
     pub fn random_for_testing() -> Self {
         Self {
             id: EventID {
-                tx_digest: TransactionDigest::random(),
+                tx_digest: TransactionDigest::new(rand::random()),
                 event_seq: 0,
             },
-            package_id: ObjectID::random(),
+            package_id: ObjectId::new(rand::random()),
             transaction_module: Identifier::from_str("random_for_testing").unwrap(),
-            sender: IotaAddress::random_for_testing_only(),
+            sender: Address::new(rand::random()),
             type_: StructTag::from_str("0x6666::random_for_testing::RandomForTesting").unwrap(),
             parsed_json: json!({}),
             bcs: BcsEvent::new(vec![]),
@@ -288,21 +288,21 @@ fn try_into_byte(v: &Value) -> Option<u8> {
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
 pub enum EventFilter {
     /// Query by sender address.
-    Sender(IotaAddress),
+    Sender(Address),
     /// Return events emitted by the given transaction.
     Transaction(
         /// digest of the transaction, as base-64 encoded string
         TransactionDigest,
     ),
     /// Return events emitted in a specified Package.
-    Package(ObjectID),
+    Package(ObjectId),
     /// Return events emitted in a specified Move module.
     /// If the event is defined in Module A but emitted in a tx with Module B,
     /// query `MoveModule` by module B returns the event.
     /// Query `MoveEventModule` by module A returns the event too.
     MoveModule {
         /// the Move package ID
-        package: ObjectID,
+        package: ObjectId,
         /// the module name
         #[schemars(with = "String")]
         #[serde_as(as = "DisplayFromStr")]
@@ -322,7 +322,7 @@ pub enum EventFilter {
     /// event. Query `MoveModule` by module B returns the event too.
     MoveEventModule {
         /// the Move package ID
-        package: ObjectID,
+        package: ObjectId,
         /// the module name
         #[schemars(with = "String")]
         #[serde_as(as = "DisplayFromStr")]
@@ -384,7 +384,8 @@ impl EventFilter {
                 }
             }
             EventFilter::MoveEventModule { package, module } => {
-                &item.type_.module == module && &ObjectID::from(item.type_.address) == package
+                &item.type_.module == module
+                    && &ObjectId::new(item.type_.address.into_bytes()) == package
             }
         })
     }

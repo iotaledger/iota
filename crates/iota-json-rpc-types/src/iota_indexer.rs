@@ -4,7 +4,7 @@
 use std::collections::BTreeMap;
 
 use iota_names::registry::NameRecord;
-use iota_types::base_types::{IotaAddress, ObjectID};
+use iota_types::base_types::{Address, ObjectId};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
@@ -21,11 +21,11 @@ pub struct IotaNameRecord {
     ///
     /// It is possible that the ID changes if the record expires and is
     /// purchased by someone else.
-    pub nft_id: ObjectID,
+    pub nft_id: ObjectId,
     /// Timestamp in milliseconds when the record expires.
     pub expiration_timestamp_ms: u64,
     /// The target address that this name points to
-    pub target_address: Option<IotaAddress>,
+    pub target_address: Option<Address>,
     /// Additional data which may be stored in a record
     pub data: BTreeMap<String, String>,
 }

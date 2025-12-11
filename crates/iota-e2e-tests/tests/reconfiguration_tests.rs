@@ -22,7 +22,7 @@ use iota_sdk_2::types::crypto::{Intent, IntentMessage, IntentScope};
 use iota_swarm_config::genesis_config::{ValidatorGenesisConfig, ValidatorGenesisConfigBuilder};
 use iota_test_transaction_builder::{TestTransactionBuilder, make_transfer_iota_transaction};
 use iota_types::{
-    base_types::{AuthorityName, EpochId, IotaAddress},
+    base_types::{Address, AuthorityName, EpochId, address_from_pub_key},
     crypto::{AuthorityKeyPair, AuthoritySignature, IotaAuthoritySignature},
     effects::TransactionEffectsAPI,
     error::IotaError,
@@ -206,14 +206,14 @@ async fn reconfig_with_revert_end_to_end_test() {
         .with_async(|node| async {
             let object = node
                 .state()
-                .get_objects(&[gas2.0])
+                .get_objects(&[gas2.object_id])
                 .await
                 .into_iter()
                 .next()
                 .unwrap()
                 .unwrap();
             // verify that authority 0 advanced object version
-            assert_eq!(2, object.version().value());
+            assert_eq!(2, object.version());
         })
         .await;
 
@@ -239,13 +239,13 @@ async fn reconfig_with_revert_end_to_end_test() {
             .with_async(|node| async {
                 let object = node
                     .state()
-                    .get_objects(&[gas1.0])
+                    .get_objects(&[gas1.object_id])
                     .await
                     .into_iter()
                     .next()
                     .unwrap()
                     .unwrap();
-                assert_eq!(2, object.version().value());
+                assert_eq!(2, object.version());
                 // Due to race conditions, it's possible that tx2 went in
                 // before 2f+1 validators sent EndOfPublish messages and close
                 // the curtain of epoch 0. So, we are asserting that
@@ -254,13 +254,13 @@ async fn reconfig_with_revert_end_to_end_test() {
                 // Note that previously test checked that object version == 2 on authority 0
                 let object = node
                     .state()
-                    .get_objects(&[gas2.0])
+                    .get_objects(&[gas2.object_id])
                     .await
                     .into_iter()
                     .next()
                     .unwrap()
                     .unwrap();
-                let object_version = object.version().value();
+                let object_version = object.version();
                 if epoch.is_none() {
                     assert!(object_version == 1 || object_version == 2);
                     epoch.replace(object_version);
@@ -532,7 +532,7 @@ async fn test_validator_resign_effects() {
 #[sim_test]
 async fn test_validator_candidate_pool_read() {
     let new_validator = ValidatorGenesisConfigBuilder::new().build(&mut OsRng);
-    let address: IotaAddress = (&new_validator.account_key_pair.public()).into();
+    let address: Address = address_from_pub_key(&new_validator.account_key_pair.public());
     let test_cluster = TestClusterBuilder::new()
         .with_validator_candidates([address])
         .build()
@@ -651,7 +651,7 @@ async fn test_reconfig_with_committee_change_basic() {
 
     let new_validator = ValidatorGenesisConfigBuilder::new().build(&mut OsRng);
     let new_authority_name = new_validator.authority_key_pair.public().into();
-    let address = (&new_validator.account_key_pair.public()).into();
+    let address = address_from_pub_key(&new_validator.account_key_pair.public());
     let mut test_cluster = TestClusterBuilder::new()
         .with_validator_candidates([address])
         .build()
@@ -801,7 +801,7 @@ async fn test_reconfig_with_same_validator() {
     // the node that will re-join committee
     let node_config = build_node_config();
     let node_name: AuthorityPublicKeyBytes = node_config.authority_key_pair.public().into();
-    let node_address = (&node_config.account_key_pair.public()).into();
+    let node_address = address_from_pub_key(&node_config.account_key_pair.public());
     let mut node_handle = None;
 
     // add coins to the node at the genesis to avoid dealing with faucet
@@ -905,8 +905,8 @@ async fn do_test_reconfig_with_committee_change_stress() {
         .collect::<Vec<_>>();
     let addresses = candidates
         .iter()
-        .map(|c| (&c.account_key_pair.public()).into())
-        .collect::<Vec<IotaAddress>>();
+        .map(|c| address_from_pub_key(&c.account_key_pair.public()))
+        .collect::<Vec<Address>>();
     let mut test_cluster = TestClusterBuilder::new()
         .with_num_validators(7)
         .with_validator_candidates(addresses)
@@ -1214,7 +1214,7 @@ async fn test_authority_capabilities_incorrect_epoch_rejection() {
     // is rejected by the committee
     let new_validator = ValidatorGenesisConfigBuilder::new().build(&mut OsRng);
     let new_authority_name = new_validator.authority_key_pair.public().into();
-    let address = (&new_validator.account_key_pair.public()).into();
+    let address = address_from_pub_key(&new_validator.account_key_pair.public());
     let test_cluster = TestClusterBuilder::new()
         .with_validator_candidates([address])
         .build()
@@ -1299,7 +1299,7 @@ async fn add_validator_candidate(
             _ => panic!("unsupported IotaSystemStateSummary"),
         }
     });
-    let address = (&new_validator.account_key_pair.public()).into();
+    let address = address_from_pub_key(&new_validator.account_key_pair.public());
     let gas = test_cluster
         .wallet
         .get_one_gas_object_owned_by_address(address)
@@ -1396,7 +1396,7 @@ async fn execute_add_validator_transactions(
     });
     add_validator_candidate(test_cluster, new_validator).await;
 
-    let address = (&new_validator.account_key_pair.public()).into();
+    let address = address_from_pub_key(&new_validator.account_key_pair.public());
     let stake_coin = test_cluster
         .wallet
         .gas_for_owner_budget(
@@ -1410,7 +1410,7 @@ async fn execute_add_validator_transactions(
         .object_ref();
     let gas = test_cluster
         .wallet
-        .gas_for_owner_budget(address, 0, BTreeSet::from([stake_coin.0]))
+        .gas_for_owner_budget(address, 0, BTreeSet::from([stake_coin.object_id]))
         .await
         .unwrap()
         .1
@@ -1422,7 +1422,11 @@ async fn execute_add_validator_transactions(
         .build_and_sign(&new_validator.account_key_pair);
     test_cluster.execute_transaction(stake_tx).await;
 
-    let gas = test_cluster.wallet.get_object_ref(gas.0).await.unwrap();
+    let gas = test_cluster
+        .wallet
+        .get_object_ref(gas.object_id)
+        .await
+        .unwrap();
     let tx = TestTransactionBuilder::new(address, gas, rgp)
         .call_request_add_validator()
         .build_and_sign(&new_validator.account_key_pair);

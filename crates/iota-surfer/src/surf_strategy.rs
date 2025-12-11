@@ -5,7 +5,7 @@
 use std::time::Duration;
 
 use iota_types::{
-    base_types::ObjectRef,
+    base_types::ObjectReference,
     transaction::{CallArg, ObjectArg},
 };
 use move_binary_format::normalized;
@@ -135,7 +135,7 @@ impl SurfStrategy {
         state: &mut SurferState,
         kind: InputObjectPassKind,
         arg_type: Type,
-        chosen_owned_objects: &mut Vec<(StructTag, ObjectRef)>,
+        chosen_owned_objects: &mut Vec<(StructTag, ObjectReference)>,
     ) -> Option<CallArg> {
         let pool = state.pool.read().await;
         let type_tag = match arg_type {
@@ -167,7 +167,7 @@ impl SurfStrategy {
         if n < shared {
             let (id, initial_shared_version) = state.choose_nth_shared_object(&type_tag, n).await;
             return Some(CallArg::Object(ObjectArg::SharedObject {
-                id,
+                object_id: id,
                 initial_shared_version,
                 mutable: matches!(kind, InputObjectPassKind::MutRef),
             }));

@@ -11,8 +11,8 @@ import {
     parseStructTag,
 } from '@iota/iota-sdk/utils';
 
-const IOTA_FRAMEWORK_ADDRESS = normalizeIotaAddress('0x2');
-const IOTA_SYSTEM_ADDRESS = normalizeIotaAddress('0x3');
+const Address::FRAMEWORK = normalizeIotaAddress('0x2');
+const Address::SYSTEM = normalizeIotaAddress('0x3');
 
 const MoveObjectType = bcs.enum('MoveObjectType', {
     Other: bcs.StructTag,
@@ -29,14 +29,14 @@ export const IotaMoveObject = bcs.struct('IotaMoveObject', {
                     const structTag = parseStructTag(objectType);
 
                     if (
-                        structTag.address === IOTA_FRAMEWORK_ADDRESS &&
+                        structTag.address === Address::FRAMEWORK &&
                         structTag.module === 'coin' &&
                         structTag.name === 'Coin' &&
                         typeof structTag.typeParams[0] === 'object'
                     ) {
                         const innerStructTag = structTag.typeParams[0];
                         if (
-                            innerStructTag.address === IOTA_FRAMEWORK_ADDRESS &&
+                            innerStructTag.address === Address::FRAMEWORK &&
                             innerStructTag.module === 'iota' &&
                             innerStructTag.name === 'IOTA'
                         ) {
@@ -44,7 +44,7 @@ export const IotaMoveObject = bcs.struct('IotaMoveObject', {
                         }
                         return { Coin: normalizeStructTag(innerStructTag), $kind: 'Coin' };
                     } else if (
-                        structTag.address === IOTA_SYSTEM_ADDRESS &&
+                        structTag.address === Address::SYSTEM &&
                         structTag.module === 'staking_pool' &&
                         structTag.name === 'StakedIota'
                     ) {

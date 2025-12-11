@@ -17,7 +17,7 @@ use iota_protocol_config::ProtocolConfig;
 use iota_rest_api::CheckpointTransaction;
 use iota_storage::blob::{Blob, BlobEncoding};
 use iota_types::{
-    base_types::{IotaAddress, ObjectID, SequenceNumber},
+    base_types::{Address, ObjectId, ObjectReference, Version},
     committee::EpochId,
     crypto::{KeypairTraits, RandomnessRound},
     digests::ObjectDigest,
@@ -25,8 +25,7 @@ use iota_types::{
     full_checkpoint_content::CheckpointData,
     gas::GasCostSummary,
     messages_checkpoint::{
-        CertifiedCheckpointSummary, CheckpointContents, CheckpointSequenceNumber,
-        CheckpointSummary, SignedCheckpointSummary,
+        CertifiedCheckpointSummary, CheckpointContents, CheckpointSummary, SignedCheckpointSummary,
     },
     transaction::{RandomnessStateUpdate, Transaction, TransactionData, TransactionKind},
     utils::make_committee_key,
@@ -409,10 +408,10 @@ async fn basic_flow_with_custom_callback() {
             epoch: 0,
             randomness_round: RandomnessRound::new(0),
             random_bytes: vec![],
-            randomness_obj_initial_shared_version: SequenceNumber::new(),
+            randomness_obj_initial_shared_version: Version::default(),
         }),
-        IotaAddress::random_for_testing_only(),
-        (ObjectID::ZERO, SequenceNumber::default(), ObjectDigest::MIN),
+        Address::new(rand::random()),
+        ObjectReference::new(ObjectId::ZERO, Version::default(), ObjectDigest::MIN),
         0,
         0,
     );
@@ -663,12 +662,12 @@ const RNG_SEED: [u8; 32] = [
     179, 179, 65, 9, 31, 249, 221, 123, 225, 112, 199, 247,
 ];
 
-fn mock_checkpoint_data_bytes(seq_number: CheckpointSequenceNumber) -> Vec<u8> {
+fn mock_checkpoint_data_bytes(seq_number: Version) -> Vec<u8> {
     mock_checkpoint_data_bytes_with_opt(seq_number, 0, vec![])
 }
 
 fn mock_checkpoint_data_bytes_with_opt(
-    seq_number: CheckpointSequenceNumber,
+    seq_number: Version,
     epoch: EpochId,
     transactions: Vec<CheckpointTransaction>,
 ) -> Vec<u8> {

@@ -5,7 +5,7 @@
 use std::fmt;
 
 use async_graphql::*;
-use iota_types::{base_types::SequenceNumber, iota_serde::BigInt};
+use iota_types::iota_serde::BigInt;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd)]
 pub(crate) struct UInt53(u64);
@@ -41,12 +41,6 @@ impl fmt::Display for UInt53 {
 impl From<u64> for UInt53 {
     fn from(value: u64) -> Self {
         Self(value)
-    }
-}
-
-impl From<UInt53> for SequenceNumber {
-    fn from(value: UInt53) -> Self {
-        SequenceNumber::from(value.0)
     }
 }
 

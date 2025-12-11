@@ -25,7 +25,7 @@ use iota_sdk::{
 use iota_sdk_2::types::crypto::Intent;
 use iota_types::{
     TypeTag,
-    base_types::{IotaAddress, ObjectID, ObjectRef},
+    base_types::{Address, ObjectId, ObjectReference},
     gas_coin::GasCoin,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     quorum_driver_types::ExecuteTransactionRequestType,
@@ -245,7 +245,7 @@ async fn test_split_coin() {
     let coin = get_random_iota(&client, sender, vec![]).await;
     let tx = client
         .transaction_builder()
-        .split_coin(sender, coin.0, vec![100000], None, 10000)
+        .split_coin(sender, coin.object_id, vec![100000], None, 10000)
         .await
         .unwrap();
     let pt = match tx.into_kind() {
@@ -276,10 +276,10 @@ async fn test_merge_coin() {
     // Test merge coin
     let sender = get_random_address(&network.get_addresses(), vec![]);
     let coin = get_random_iota(&client, sender, vec![]).await;
-    let coin2 = get_random_iota(&client, sender, vec![coin.0]).await;
+    let coin2 = get_random_iota(&client, sender, vec![coin.object_id]).await;
     let tx = client
         .transaction_builder()
-        .merge_coins(sender, coin.0, coin2.0, None, 10000)
+        .merge_coins(sender, coin.object_id, coin2.object_id, None, 10000)
         .await
         .unwrap();
     let pt = match tx.into_kind() {
@@ -346,7 +346,7 @@ async fn test_pay_multiple_coin_multiple_recipient() {
     let recipient1 = get_random_address(&addresses, vec![sender]);
     let recipient2 = get_random_address(&addresses, vec![sender, recipient1]);
     let coin1 = get_random_iota(&client, sender, vec![]).await;
-    let coin2 = get_random_iota(&client, sender, vec![coin1.0]).await;
+    let coin2 = get_random_iota(&client, sender, vec![coin1.object_id]).await;
     let pt = {
         let mut builder = ProgrammableTransactionBuilder::new();
         builder
@@ -384,7 +384,7 @@ async fn test_pay_iota_multiple_coin_same_recipient() {
     let sender = get_random_address(&addresses, vec![]);
     let recipient1 = get_random_address(&addresses, vec![sender]);
     let coin1 = get_random_iota(&client, sender, vec![]).await;
-    let coin2 = get_random_iota(&client, sender, vec![coin1.0]).await;
+    let coin2 = get_random_iota(&client, sender, vec![coin1.object_id]).await;
     let pt = {
         let mut builder = ProgrammableTransactionBuilder::new();
         builder
@@ -422,7 +422,7 @@ async fn test_pay_iota() {
     let recipient1 = get_random_address(&addresses, vec![sender]);
     let recipient2 = get_random_address(&addresses, vec![sender, recipient1]);
     let coin1 = get_random_iota(&client, sender, vec![]).await;
-    let coin2 = get_random_iota(&client, sender, vec![coin1.0]).await;
+    let coin2 = get_random_iota(&client, sender, vec![coin1.object_id]).await;
     let pt = {
         let mut builder = ProgrammableTransactionBuilder::new();
         builder
@@ -457,7 +457,7 @@ async fn test_failed_pay_iota() {
     let recipient1 = get_random_address(&addresses, vec![sender]);
     let recipient2 = get_random_address(&addresses, vec![sender, recipient1]);
     let coin1 = get_random_iota(&client, sender, vec![]).await;
-    let coin2 = get_random_iota(&client, sender, vec![coin1.0]).await;
+    let coin2 = get_random_iota(&client, sender, vec![coin1.object_id]).await;
     let pt = {
         let mut builder = ProgrammableTransactionBuilder::new();
         builder
@@ -489,7 +489,7 @@ async fn test_stake_iota() {
     // Test Delegate IOTA
     let sender = get_random_address(&network.get_addresses(), vec![]);
     let coin1 = get_random_iota(&client, sender, vec![]).await;
-    let coin2 = get_random_iota(&client, sender, vec![coin1.0]).await;
+    let coin2 = get_random_iota(&client, sender, vec![coin1.object_id]).await;
 
     // We test the staking transaction to a committee member.
     let committee_member_address = client
@@ -505,7 +505,7 @@ async fn test_stake_iota() {
         .transaction_builder()
         .request_add_stake(
             sender,
-            vec![coin1.0, coin2.0],
+            vec![coin1.object_id, coin2.object_id],
             Some(1000000000),
             committee_member_address,
             None,
@@ -541,7 +541,7 @@ async fn test_stake_iota_with_none_amount() {
     // Test Staking IOTA
     let sender = get_random_address(&network.get_addresses(), vec![]);
     let coin1 = get_random_iota(&client, sender, vec![]).await;
-    let coin2 = get_random_iota(&client, sender, vec![coin1.0]).await;
+    let coin2 = get_random_iota(&client, sender, vec![coin1.object_id]).await;
 
     // We test the staking transaction to a committee member with none amount.
     let committee_member_address = client
@@ -557,7 +557,7 @@ async fn test_stake_iota_with_none_amount() {
         .transaction_builder()
         .request_add_stake(
             sender,
-            vec![coin1.0, coin2.0],
+            vec![coin1.object_id, coin2.object_id],
             None,
             committee_member_address,
             None,
@@ -595,7 +595,7 @@ async fn test_pay_all_iota() {
     let sender = get_random_address(&addresses, vec![]);
     let recipient = get_random_address(&addresses, vec![sender]);
     let coin1 = get_random_iota(&client, sender, vec![]).await;
-    let coin2 = get_random_iota(&client, sender, vec![coin1.0]).await;
+    let coin2 = get_random_iota(&client, sender, vec![coin1.object_id]).await;
     let pt = {
         let mut builder = ProgrammableTransactionBuilder::new();
         builder.pay_all_iota(recipient);
@@ -699,10 +699,10 @@ fn find_module_object(
 async fn test_transaction(
     client: &IotaClient,
     keystore: &Keystore,
-    addr_to_check: Vec<IotaAddress>,
-    sender: IotaAddress,
+    addr_to_check: Vec<Address>,
+    sender: Address,
     tx: ProgrammableTransaction,
-    gas: Vec<ObjectRef>,
+    gas: Vec<ObjectReference>,
     gas_budget: u64,
     gas_price: u64,
     expect_fail: bool,
@@ -715,8 +715,11 @@ async fn test_transaction(
             .unwrap_or_default()
             .iter()
             .flat_map(|obj| {
-                if let InputObjectKind::ImmOrOwnedMoveObject((id, ..)) = obj {
-                    Some(*id)
+                if let InputObjectKind::ImmOrOwnedMoveObject(ObjectReference {
+                    object_id, ..
+                }) = obj
+                {
+                    Some(*object_id)
                 } else {
                     None
                 }
@@ -788,9 +791,9 @@ async fn test_transaction(
     response
 }
 
-fn extract_balance_changes_from_ops(ops: Operations) -> HashMap<IotaAddress, i128> {
+fn extract_balance_changes_from_ops(ops: Operations) -> HashMap<Address, i128> {
     ops.into_iter()
-        .fold(HashMap::<IotaAddress, i128>::new(), |mut changes, op| {
+        .fold(HashMap::<Address, i128>::new(), |mut changes, op| {
             if let Some(OperationStatus::Success) = op.status {
                 match op.type_ {
                     OperationType::IotaBalanceChange
@@ -812,9 +815,9 @@ fn extract_balance_changes_from_ops(ops: Operations) -> HashMap<IotaAddress, i12
 
 async fn get_random_iota(
     client: &IotaClient,
-    sender: IotaAddress,
-    except: Vec<ObjectID>,
-) -> ObjectRef {
+    sender: Address,
+    except: Vec<ObjectId>,
+) -> ObjectReference {
     let coins = client
         .read_api()
         .get_owned_objects(
@@ -844,10 +847,10 @@ async fn get_random_iota(
         .unwrap();
 
     let coin = coin_resp.object().unwrap();
-    (coin.object_id, coin.version, coin.digest)
+    ObjectReference::new(coin.object_id, coin.version, coin.digest)
 }
 
-fn get_random_address(addresses: &[IotaAddress], except: Vec<IotaAddress>) -> IotaAddress {
+fn get_random_address(addresses: &[Address], except: Vec<Address>) -> Address {
     *addresses
         .iter()
         .filter(|addr| !except.contains(*addr))
@@ -855,7 +858,7 @@ fn get_random_address(addresses: &[IotaAddress], except: Vec<IotaAddress>) -> Io
         .unwrap()
 }
 
-async fn get_balance(client: &IotaClient, address: IotaAddress) -> u64 {
+async fn get_balance(client: &IotaClient, address: Address) -> u64 {
     let coins = client
         .read_api()
         .get_owned_objects(

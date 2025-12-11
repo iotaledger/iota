@@ -6,11 +6,12 @@ use std::sync::Arc;
 
 use async_graphql::*;
 use im::hashmap::HashMap as ImHashMap;
-use iota_sdk_2::types::crypto::{
-    Intent, IntentAppId, IntentMessage, IntentScope, IntentVersion, PersonalMessage,
+use iota_sdk_2::types::{
+    ObjectId,
+    crypto::{Intent, IntentAppId, IntentMessage, IntentScope, IntentVersion, PersonalMessage},
 };
 use iota_types::{
-    IOTA_AUTHENTICATOR_STATE_ADDRESS, TypeTag,
+    TypeTag,
     authenticator_state::{ActiveJwk, AuthenticatorStateInner},
     crypto::ToFromBytes,
     dynamic_field::{DynamicFieldType, Field},
@@ -89,7 +90,7 @@ pub(crate) async fn verify_zklogin_signature(
     // fetch on-chain JWKs from dynamic field of system object.
     let df = DynamicField::query(
         ctx,
-        IOTA_AUTHENTICATOR_STATE_ADDRESS.into(),
+        ObjectId::AUTHENTICATOR_STATE.into(),
         None,
         DynamicFieldName {
             type_: ExactTypeFilter(TypeTag::U64),

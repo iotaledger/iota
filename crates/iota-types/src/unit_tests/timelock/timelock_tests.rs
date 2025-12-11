@@ -15,7 +15,7 @@ use iota_stardust_sdk::types::block::{
 
 use crate::{
     balance::Balance,
-    base_types::ObjectID,
+    base_types::ObjectId,
     id::UID,
     timelock::{
         label::label_struct_tag_to_string,
@@ -39,7 +39,7 @@ fn vested_reward_output(amount: u64, expiration_time_sec: u32) -> BasicOutput {
 
 #[test]
 fn timelock_ser_deser_roundtrip() {
-    let id = UID::new(ObjectID::random());
+    let id = UID::new(ObjectId::new(rand::random()));
     let balance = Balance::new(100);
     let expiration_timestamp_ms = 10;
     let label = Option::Some(label_struct_tag_to_string(stardust_upgrade_label_type()));

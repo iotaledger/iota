@@ -16,7 +16,7 @@ use iota_macros::{fail_point, fail_point_if};
 use iota_metrics::{monitored_mpsc::UnboundedReceiver, monitored_scope, spawn_monitored_task};
 use iota_types::{
     authenticator_state::ActiveJwk,
-    base_types::{AuthorityName, EpochId, ObjectID, SequenceNumber, TransactionDigest},
+    base_types::{AuthorityName, EpochId, ObjectId, TransactionDigest, Version},
     digests::ConsensusCommitDigest,
     executable_transaction::{TrustedExecutableTransaction, VerifiedExecutableTransaction},
     iota_system_state::epoch_start_iota_system_state::EpochStartSystemStateTrait,
@@ -832,7 +832,7 @@ impl ConsensusCommitInfo {
     fn consensus_commit_prologue_v1_transaction(
         &self,
         epoch: u64,
-        cancelled_txn_version_assignment: Vec<(TransactionDigest, Vec<(ObjectID, SequenceNumber)>)>,
+        cancelled_txn_version_assignment: Vec<(TransactionDigest, Vec<(ObjectId, Version)>)>,
     ) -> VerifiedExecutableTransaction {
         let transaction = VerifiedTransaction::new_consensus_commit_prologue_v1(
             epoch,
@@ -847,7 +847,7 @@ impl ConsensusCommitInfo {
     pub fn create_consensus_commit_prologue_transaction(
         &self,
         epoch: u64,
-        cancelled_txn_version_assignment: Vec<(TransactionDigest, Vec<(ObjectID, SequenceNumber)>)>,
+        cancelled_txn_version_assignment: Vec<(TransactionDigest, Vec<(ObjectId, Version)>)>,
     ) -> VerifiedExecutableTransaction {
         self.consensus_commit_prologue_v1_transaction(epoch, cancelled_txn_version_assignment)
     }
@@ -861,7 +861,7 @@ mod tests {
     use futures::pin_mut;
     use iota_protocol_config::{Chain, ConsensusTransactionOrdering};
     use iota_types::{
-        base_types::{AuthorityName, IotaAddress, random_object_ref},
+        base_types::{Address, AuthorityName, random_object_ref},
         committee::Committee,
         messages_consensus::{
             AuthorityCapabilitiesV1, ConsensusTransaction, ConsensusTransactionKind,
@@ -1124,9 +1124,9 @@ mod tests {
         let (committee, keypairs) = Committee::new_simple_test_committee();
         let data = SenderSignedData::new(
             TransactionData::new_transfer(
-                IotaAddress::default(),
+                Address::ZERO,
                 random_object_ref(),
-                IotaAddress::default(),
+                Address::ZERO,
                 random_object_ref(),
                 1000 * gas_price,
                 gas_price,

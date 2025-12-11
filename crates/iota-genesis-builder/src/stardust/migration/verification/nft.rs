@@ -8,7 +8,7 @@ use iota_sdk::types::block::output::{NftOutput, OutputId, TokenId};
 use iota_types::{
     TypeTag,
     balance::Balance,
-    base_types::ObjectID,
+    base_types::ObjectId,
     dynamic_field::{DynamicFieldInfo, Field, derive_dynamic_field_id},
     in_memory_storage::InMemoryStorage,
     object::Owner,
@@ -50,7 +50,7 @@ pub(super) fn verify_nft_output(
         .ok_or_else(|| anyhow!("invalid nft output object for {output_id}"))?;
 
     let created_nft_obj = storage
-        .get_object(&ObjectID::new(*output.nft_id_non_null(&output_id)))
+        .get_object(&ObjectId::new(*output.nft_id_non_null(&output_id)))
         .ok_or_else(|| anyhow!("missing nft object for {output_id}"))?;
     let created_nft = created_nft_obj
         .to_rust::<iota_types::stardust::output::Nft>()

@@ -5,14 +5,14 @@
 use std::sync::Arc;
 
 use iota_types::{
-    base_types::{IotaAddress, ObjectID, TransactionDigest},
+    base_types::{Address, ObjectId, TransactionDigest, Version},
     committee::{Committee, EpochId},
     digests::TransactionEventsDigest,
     effects::{TransactionEffects, TransactionEvents},
     error::IotaError,
     messages_checkpoint::{
-        CheckpointContentsDigest, CheckpointDigest, CheckpointSequenceNumber, EndOfEpochData,
-        FullCheckpointContents, VerifiedCheckpoint, VerifiedCheckpointContents,
+        CheckpointContentsDigest, CheckpointDigest, EndOfEpochData, FullCheckpointContents,
+        VerifiedCheckpoint, VerifiedCheckpointContents,
     },
     object::Object,
     storage::{
@@ -84,7 +84,7 @@ impl ReadStore for RocksDbStore {
 
     fn try_get_checkpoint_by_sequence_number(
         &self,
-        sequence_number: CheckpointSequenceNumber,
+        sequence_number: Version,
     ) -> Result<Option<VerifiedCheckpoint>, StorageError> {
         self.checkpoint_store
             .get_checkpoint_by_sequence_number(sequence_number)
@@ -111,9 +111,7 @@ impl ReadStore for RocksDbStore {
             .map_err(Into::into)
     }
 
-    fn try_get_lowest_available_checkpoint(
-        &self,
-    ) -> Result<CheckpointSequenceNumber, StorageError> {
+    fn try_get_lowest_available_checkpoint(&self) -> Result<Version, StorageError> {
         let highest_pruned_cp = self
             .checkpoint_store
             .get_highest_pruned_checkpoint_seq_number()
@@ -128,7 +126,7 @@ impl ReadStore for RocksDbStore {
 
     fn try_get_full_checkpoint_contents_by_sequence_number(
         &self,
-        sequence_number: CheckpointSequenceNumber,
+        sequence_number: Version,
     ) -> Result<Option<FullCheckpointContents>, StorageError> {
         self.checkpoint_store
             .get_full_checkpoint_contents_by_sequence_number(sequence_number)
@@ -255,7 +253,7 @@ impl ReadStore for RocksDbStore {
 
     fn try_get_checkpoint_contents_by_sequence_number(
         &self,
-        sequence_number: CheckpointSequenceNumber,
+        sequence_number: Version,
     ) -> iota_types::storage::error::Result<
         Option<iota_types::messages_checkpoint::CheckpointContents>,
     > {
@@ -272,15 +270,15 @@ impl ReadStore for RocksDbStore {
 impl ObjectStore for RocksDbStore {
     fn try_get_object(
         &self,
-        object_id: &iota_types::base_types::ObjectID,
+        object_id: &iota_types::base_types::ObjectId,
     ) -> iota_types::storage::error::Result<Option<Object>> {
         self.cache_traits.object_store.try_get_object(object_id)
     }
 
     fn try_get_object_by_key(
         &self,
-        object_id: &iota_types::base_types::ObjectID,
-        version: iota_types::base_types::VersionNumber,
+        object_id: &iota_types::base_types::ObjectId,
+        version: iota_types::base_types::Version,
     ) -> iota_types::storage::error::Result<Option<Object>> {
         self.cache_traits
             .object_store
@@ -385,15 +383,15 @@ impl RestReadStore {
 impl ObjectStore for RestReadStore {
     fn try_get_object(
         &self,
-        object_id: &iota_types::base_types::ObjectID,
+        object_id: &iota_types::base_types::ObjectId,
     ) -> iota_types::storage::error::Result<Option<Object>> {
         self.rocks.try_get_object(object_id)
     }
 
     fn try_get_object_by_key(
         &self,
-        object_id: &iota_types::base_types::ObjectID,
-        version: iota_types::base_types::VersionNumber,
+        object_id: &iota_types::base_types::ObjectId,
+        version: iota_types::base_types::Version,
     ) -> iota_types::storage::error::Result<Option<Object>> {
         self.rocks.try_get_object_by_key(object_id, version)
     }
@@ -423,9 +421,7 @@ impl ReadStore for RestReadStore {
         self.rocks.try_get_highest_synced_checkpoint()
     }
 
-    fn try_get_lowest_available_checkpoint(
-        &self,
-    ) -> iota_types::storage::error::Result<CheckpointSequenceNumber> {
+    fn try_get_lowest_available_checkpoint(&self) -> iota_types::storage::error::Result<Version> {
         self.rocks.try_get_lowest_available_checkpoint()
     }
 
@@ -438,7 +434,7 @@ impl ReadStore for RestReadStore {
 
     fn try_get_checkpoint_by_sequence_number(
         &self,
-        sequence_number: CheckpointSequenceNumber,
+        sequence_number: Version,
     ) -> iota_types::storage::error::Result<Option<VerifiedCheckpoint>> {
         self.rocks
             .try_get_checkpoint_by_sequence_number(sequence_number)
@@ -455,7 +451,7 @@ impl ReadStore for RestReadStore {
 
     fn try_get_checkpoint_contents_by_sequence_number(
         &self,
-        sequence_number: CheckpointSequenceNumber,
+        sequence_number: Version,
     ) -> iota_types::storage::error::Result<
         Option<iota_types::messages_checkpoint::CheckpointContents>,
     > {
@@ -486,7 +482,7 @@ impl ReadStore for RestReadStore {
 
     fn try_get_full_checkpoint_contents_by_sequence_number(
         &self,
-        sequence_number: CheckpointSequenceNumber,
+        sequence_number: Version,
     ) -> iota_types::storage::error::Result<Option<FullCheckpointContents>> {
         self.rocks
             .try_get_full_checkpoint_contents_by_sequence_number(sequence_number)
@@ -503,7 +499,7 @@ impl ReadStore for RestReadStore {
 impl RestStateReader for RestReadStore {
     fn get_lowest_available_checkpoint_objects(
         &self,
-    ) -> iota_types::storage::error::Result<CheckpointSequenceNumber> {
+    ) -> iota_types::storage::error::Result<Version> {
         let highest_pruned_cp = self
             .state
             .get_object_cache_reader()
@@ -540,7 +536,7 @@ impl RestIndexes for RestIndexStore {
     fn get_transaction_checkpoint(
         &self,
         digest: &TransactionDigest,
-    ) -> iota_types::storage::error::Result<Option<CheckpointSequenceNumber>> {
+    ) -> iota_types::storage::error::Result<Option<Version>> {
         self.get_transaction_info(digest)
             .map(|maybe_info| maybe_info.map(|info| info.checkpoint))
             .map_err(StorageError::custom)
@@ -548,8 +544,8 @@ impl RestIndexes for RestIndexStore {
 
     fn account_owned_objects_info_iter(
         &self,
-        owner: IotaAddress,
-        cursor: Option<ObjectID>,
+        owner: Address,
+        cursor: Option<ObjectId>,
     ) -> Result<Box<dyn Iterator<Item = AccountOwnedObjectInfo> + '_>> {
         let iter = self.owner_iter(owner, cursor)?.map(
             |(OwnerIndexKey { owner, object_id }, OwnerIndexInfo { version, type_ })| {
@@ -567,8 +563,8 @@ impl RestIndexes for RestIndexStore {
 
     fn dynamic_field_iter(
         &self,
-        parent: ObjectID,
-        cursor: Option<ObjectID>,
+        parent: ObjectId,
+        cursor: Option<ObjectId>,
     ) -> iota_types::storage::error::Result<
         Box<dyn Iterator<Item = (DynamicFieldKey, DynamicFieldIndexInfo)> + '_>,
     > {

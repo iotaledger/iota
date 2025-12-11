@@ -11,7 +11,7 @@ use iota_protocol_config::ProtocolConfig;
 use iota_sdk_2::types::crypto::{Intent, IntentMessage};
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
-    base_types::IotaAddress,
+    base_types::{Address, address_from_generic_sig, address_from_multisig_pub_key},
     crypto::{
         CompressedSignature, IotaKeyPair, PublicKey, Signature, SignatureScheme, ToFromBytes,
         ZkLoginAuthenticatorAsBytes, ZkLoginPublicIdentifier, get_key_pair,
@@ -59,7 +59,7 @@ async fn do_upgraded_multisig_test() -> IotaResult {
 
 async fn create_credential_and_sign_test_tx_with_passkey_multisig(
     test_cluster: &TestCluster,
-    sender: Option<IotaAddress>,
+    sender: Option<Address>,
     change_intent: bool,
     change_tx: bool,
 ) -> Transaction {
@@ -148,7 +148,7 @@ async fn create_credential_and_sign_test_tx_with_passkey_multisig(
     // Compute iota address as sender, fund gas and make a test transaction.
     let sender = match sender {
         Some(s) => s,
-        None => IotaAddress::from(&multisig_pk),
+        None => address_from_multisig_pub_key(&multisig_pk),
     };
 
     let rgp = test_cluster.get_reference_gas_price().await;
@@ -156,7 +156,7 @@ async fn create_credential_and_sign_test_tx_with_passkey_multisig(
         .fund_address_and_return_gas(rgp, Some(20000000000), sender)
         .await;
     let tx_data = TestTransactionBuilder::new(sender, gas, rgp)
-        .transfer_iota(None, IotaAddress::ZERO)
+        .transfer_iota(None, Address::ZERO)
         .build();
     let intent_msg = IntentMessage::new(Intent::iota_transaction(), tx_data.clone());
 
@@ -233,12 +233,12 @@ async fn construct_simple_zklogin_multisig_tx(test_cluster: &TestCluster) -> Tra
     let multisig_pk = MultiSigPublicKey::insecure_new(vec![(zklogin_pk, 1)], 1);
     let rgp = test_cluster.get_reference_gas_price().await;
 
-    let multisig_addr = IotaAddress::from(&multisig_pk);
+    let multisig_addr = address_from_multisig_pub_key(&multisig_pk);
     let gas = test_cluster
         .fund_address_and_return_gas(rgp, Some(20000000000), multisig_addr)
         .await;
     let tx_data = TestTransactionBuilder::new(multisig_addr, gas, rgp)
-        .transfer_iota(None, IotaAddress::ZERO)
+        .transfer_iota(None, Address::ZERO)
         .build();
     let intent_msg = IntentMessage::new(Intent::iota_transaction(), tx_data.clone());
     let sig_4: GenericSignature = ZkLoginAuthenticator::new(
@@ -302,7 +302,7 @@ async fn test_multisig_e2e() {
         vec![(pk0.clone(), 1), (pk1.clone(), 1), (pk2.clone(), 1)],
         2,
     );
-    let multisig_addr = IotaAddress::from(&multisig_pk);
+    let multisig_addr = address_from_multisig_pub_key(&multisig_pk);
 
     // fund wallet and get a gas object to use later.
     let gas = test_cluster
@@ -311,7 +311,7 @@ async fn test_multisig_e2e() {
 
     // 1. sign with key 0 and 1 executes successfully.
     let tx1 = TestTransactionBuilder::new(multisig_addr, gas, rgp)
-        .transfer_iota(None, IotaAddress::ZERO)
+        .transfer_iota(None, Address::ZERO)
         .build_and_sign_multisig(multisig_pk.clone(), &[&keys[0], &keys[1]], 0b011);
     let res = context.execute_transaction_must_succeed(tx1).await;
     assert!(res.status_ok().unwrap());
@@ -321,7 +321,7 @@ async fn test_multisig_e2e() {
         .fund_address_and_return_gas(rgp, Some(20000000000), multisig_addr)
         .await;
     let tx2 = TestTransactionBuilder::new(multisig_addr, gas, rgp)
-        .transfer_iota(None, IotaAddress::ZERO)
+        .transfer_iota(None, Address::ZERO)
         .build_and_sign_multisig(multisig_pk.clone(), &[&keys[1], &keys[2]], 0b110);
     let res = context.execute_transaction_must_succeed(tx2).await;
     assert!(res.status_ok().unwrap());
@@ -331,7 +331,7 @@ async fn test_multisig_e2e() {
         .fund_address_and_return_gas(rgp, Some(20000000000), multisig_addr)
         .await;
     let tx3 = TestTransactionBuilder::new(multisig_addr, gas, rgp)
-        .transfer_iota(None, IotaAddress::ZERO)
+        .transfer_iota(None, Address::ZERO)
         .build_and_sign_multisig(multisig_pk.clone(), &[&keys[2], &keys[1]], 0b110);
     let res = context.execute_transaction_may_fail(tx3).await;
     assert!(
@@ -342,7 +342,7 @@ async fn test_multisig_e2e() {
 
     // 4. sign with key 0 only is below threshold, fails to execute.
     let tx4 = TestTransactionBuilder::new(multisig_addr, gas, rgp)
-        .transfer_iota(None, IotaAddress::ZERO)
+        .transfer_iota(None, Address::ZERO)
         .build_and_sign_multisig(multisig_pk.clone(), &[&keys[0]], 0b001);
     let res = context.execute_transaction_may_fail(tx4).await;
     assert!(
@@ -353,7 +353,7 @@ async fn test_multisig_e2e() {
 
     // 5. multisig with no single sig fails to execute.
     let tx5 = TestTransactionBuilder::new(multisig_addr, gas, rgp)
-        .transfer_iota(None, IotaAddress::ZERO)
+        .transfer_iota(None, Address::ZERO)
         .build_and_sign_multisig(multisig_pk.clone(), &[], 0b001);
     let res = context.execute_transaction_may_fail(tx5).await;
     assert!(
@@ -364,7 +364,7 @@ async fn test_multisig_e2e() {
 
     // 6. multisig two dup sigs fails to execute.
     let tx6 = TestTransactionBuilder::new(multisig_addr, gas, rgp)
-        .transfer_iota(None, IotaAddress::ZERO)
+        .transfer_iota(None, Address::ZERO)
         .build_and_sign_multisig(multisig_pk.clone(), &[&keys[0], &keys[0]], 0b011);
     let res = context.execute_transaction_may_fail(tx6).await;
     assert!(
@@ -389,12 +389,12 @@ async fn test_multisig_e2e() {
         2,
     )
     .unwrap();
-    let wrong_sender = IotaAddress::from(&wrong_multisig_pk);
+    let wrong_sender = address_from_multisig_pub_key(&wrong_multisig_pk);
     let gas = test_cluster
         .fund_address_and_return_gas(rgp, Some(20000000000), wrong_sender)
         .await;
     let tx7 = TestTransactionBuilder::new(wrong_sender, gas, rgp)
-        .transfer_iota(None, IotaAddress::ZERO)
+        .transfer_iota(None, Address::ZERO)
         .build_and_sign_multisig(wrong_multisig_pk.clone(), &[&keys[0], &keys[2]], 0b101);
     let res = context.execute_transaction_may_fail(tx7).await;
     assert!(
@@ -446,12 +446,12 @@ async fn test_multisig_with_zklogin_scenarios() {
     .unwrap();
 
     // fund the multisig address.
-    let multisig_addr = IotaAddress::from(&multisig_pk);
+    let multisig_addr = address_from_multisig_pub_key(&multisig_pk);
     let gas = test_cluster
         .fund_address_and_return_gas(rgp, Some(20000000000), multisig_addr)
         .await;
     let tx_data = TestTransactionBuilder::new(multisig_addr, gas, rgp)
-        .transfer_iota(None, IotaAddress::ZERO)
+        .transfer_iota(None, Address::ZERO)
         .build();
     let intent_msg = IntentMessage::new(Intent::iota_transaction(), tx_data.clone());
     let wrong_intent_msg = IntentMessage::new(Intent::personal_message(), tx_data.clone());
@@ -555,7 +555,7 @@ async fn test_multisig_with_zklogin_scenarios() {
     );
 
     // 7. a multisig with the wrong sender fails to execute.
-    let wrong_multisig_addr = IotaAddress::from(
+    let wrong_multisig_addr = address_from_multisig_pub_key(
         &MultiSigPublicKey::new(
             vec![pk0.clone(), pk1.clone(), pk2.clone()],
             vec![1, 1, 1],
@@ -567,7 +567,7 @@ async fn test_multisig_with_zklogin_scenarios() {
         .fund_address_and_return_gas(rgp, Some(20000000000), wrong_multisig_addr)
         .await;
     let tx_data = TestTransactionBuilder::new(wrong_multisig_addr, gas, rgp)
-        .transfer_iota(None, IotaAddress::ZERO)
+        .transfer_iota(None, Address::ZERO)
         .build();
     let intent_msg = IntentMessage::new(Intent::iota_transaction(), tx_data.clone());
     let sig_4: GenericSignature = ZkLoginAuthenticator::new(
@@ -595,9 +595,9 @@ async fn test_multisig_with_zklogin_scenarios() {
         0b1000,
         multisig_pk.clone(),
     ));
-    let sender = IotaAddress::try_from(&multisig).unwrap();
+    let sender = address_from_generic_sig(&multisig).unwrap();
     let tx_data = TestTransactionBuilder::new(sender, gas, rgp)
-        .transfer_iota(None, IotaAddress::ZERO)
+        .transfer_iota(None, Address::ZERO)
         .build();
 
     let tx_7 = Transaction::from_generic_sig_data(tx_data.clone(), vec![multisig]);
@@ -614,7 +614,7 @@ async fn test_multisig_with_zklogin_scenarios() {
         .fund_address_and_return_gas(rgp, Some(20000000000), multisig_addr)
         .await;
     let tx_data = TestTransactionBuilder::new(multisig_addr, gas, rgp)
-        .transfer_iota(None, IotaAddress::ZERO)
+        .transfer_iota(None, Address::ZERO)
         .build();
     let intent_msg = IntentMessage::new(Intent::iota_transaction(), tx_data.clone());
     let sig_0: GenericSignature = Signature::new_secure(&intent_msg, &keys[0]).into();
@@ -628,7 +628,7 @@ async fn test_multisig_with_zklogin_scenarios() {
         .fund_address_and_return_gas(rgp, Some(20000000000), multisig_addr)
         .await;
     let tx_data = TestTransactionBuilder::new(multisig_addr, gas, rgp)
-        .transfer_iota(None, IotaAddress::ZERO)
+        .transfer_iota(None, Address::ZERO)
         .build();
     let intent_msg = IntentMessage::new(Intent::iota_transaction(), tx_data.clone());
     let sig_1: GenericSignature = Signature::new_secure(&intent_msg, &keys[1]).into();
@@ -642,7 +642,7 @@ async fn test_multisig_with_zklogin_scenarios() {
         .fund_address_and_return_gas(rgp, Some(20000000000), multisig_addr)
         .await;
     let tx_data = TestTransactionBuilder::new(multisig_addr, gas, rgp)
-        .transfer_iota(None, IotaAddress::ZERO)
+        .transfer_iota(None, Address::ZERO)
         .build();
     let intent_msg = IntentMessage::new(Intent::iota_transaction(), tx_data.clone());
     let sig_2: GenericSignature = Signature::new_secure(&intent_msg, &keys[2]).into();
@@ -656,7 +656,7 @@ async fn test_multisig_with_zklogin_scenarios() {
         .fund_address_and_return_gas(rgp, Some(20000000000), multisig_addr)
         .await;
     let tx_data = TestTransactionBuilder::new(multisig_addr, gas, rgp)
-        .transfer_iota(None, IotaAddress::ZERO)
+        .transfer_iota(None, Address::ZERO)
         .build();
     let intent_msg = IntentMessage::new(Intent::iota_transaction(), tx_data.clone());
     let sig_4: GenericSignature = ZkLoginAuthenticator::new(
@@ -676,7 +676,7 @@ async fn test_multisig_with_zklogin_scenarios() {
         .fund_address_and_return_gas(rgp, Some(20000000000), multisig_addr)
         .await;
     let tx_data = TestTransactionBuilder::new(multisig_addr, gas, rgp)
-        .transfer_iota(None, IotaAddress::ZERO)
+        .transfer_iota(None, Address::ZERO)
         .build();
     let intent_msg = IntentMessage::new(Intent::iota_transaction(), tx_data.clone());
     let sig: GenericSignature = Signature::new_secure(&intent_msg, &keys[0]).into();
@@ -697,7 +697,7 @@ async fn test_multisig_with_zklogin_scenarios() {
         .fund_address_and_return_gas(rgp, Some(20000000000), multisig_addr)
         .await;
     let tx_data = TestTransactionBuilder::new(multisig_addr, gas, rgp)
-        .transfer_iota(None, IotaAddress::ZERO)
+        .transfer_iota(None, Address::ZERO)
         .build();
     let intent_msg = IntentMessage::new(Intent::iota_transaction(), tx_data.clone());
     let sig: GenericSignature = Signature::new_secure(&intent_msg, &keys[0]).into();
@@ -741,12 +741,12 @@ async fn test_multisig_with_zklogin_scenarios() {
         vec![(pk0.clone(), 1), (pk1.clone(), 1), (pk2.clone(), 1)],
         0,
     );
-    let bad_multisig_addr = IotaAddress::from(&bad_multisig_pk);
+    let bad_multisig_addr = address_from_multisig_pub_key(&bad_multisig_pk);
     let gas = test_cluster
         .fund_address_and_return_gas(rgp, Some(20000000000), bad_multisig_addr)
         .await;
     let tx_data = TestTransactionBuilder::new(bad_multisig_addr, gas, rgp)
-        .transfer_iota(None, IotaAddress::ZERO)
+        .transfer_iota(None, Address::ZERO)
         .build();
     let intent_msg = IntentMessage::new(Intent::iota_transaction(), tx_data.clone());
     let sig: GenericSignature = Signature::new_secure(&intent_msg, &keys[0]).into();
@@ -768,12 +768,12 @@ async fn test_multisig_with_zklogin_scenarios() {
         vec![(pk0.clone(), 1), (pk1.clone(), 1), (pk2.clone(), 0)],
         1,
     );
-    let bad_multisig_addr_2 = IotaAddress::from(&bad_multisig_pk_2);
+    let bad_multisig_addr_2 = address_from_multisig_pub_key(&bad_multisig_pk_2);
     let gas = test_cluster
         .fund_address_and_return_gas(rgp, Some(20000000000), bad_multisig_addr_2)
         .await;
     let tx_data = TestTransactionBuilder::new(bad_multisig_addr_2, gas, rgp)
-        .transfer_iota(None, IotaAddress::ZERO)
+        .transfer_iota(None, Address::ZERO)
         .build();
     let sig: GenericSignature = Signature::new_secure(&intent_msg, &keys[0]).into();
     let multisig = GenericSignature::MultiSig(MultiSig::insecure_new(
@@ -791,12 +791,12 @@ async fn test_multisig_with_zklogin_scenarios() {
 
     // 13. pass in 2 sigs when only 1 pk in multisig_pk, fails to execute.
     let small_multisig_pk = MultiSigPublicKey::insecure_new(vec![(pk0.clone(), 1)], 1);
-    let bad_multisig_addr_3 = IotaAddress::from(&small_multisig_pk);
+    let bad_multisig_addr_3 = address_from_multisig_pub_key(&small_multisig_pk);
     let gas = test_cluster
         .fund_address_and_return_gas(rgp, Some(20000000000), bad_multisig_addr_3)
         .await;
     let tx_data = TestTransactionBuilder::new(bad_multisig_addr_3, gas, rgp)
-        .transfer_iota(None, IotaAddress::ZERO)
+        .transfer_iota(None, Address::ZERO)
         .build();
     let intent_msg = IntentMessage::new(Intent::iota_transaction(), tx_data.clone());
     let sig: GenericSignature = Signature::new_secure(&intent_msg, &keys[0]).into();
@@ -816,12 +816,12 @@ async fn test_multisig_with_zklogin_scenarios() {
     // 14. pass a multisig where there is dup pk in multisig_pk, fails to execute.
     let multisig_pk_with_dup =
         MultiSigPublicKey::insecure_new(vec![(pk0.clone(), 1), (pk0.clone(), 1)], 1);
-    let bad_multisig_addr_4 = IotaAddress::from(&multisig_pk_with_dup);
+    let bad_multisig_addr_4 = address_from_multisig_pub_key(&multisig_pk_with_dup);
     let gas = test_cluster
         .fund_address_and_return_gas(rgp, Some(20000000000), bad_multisig_addr_4)
         .await;
     let tx_data = TestTransactionBuilder::new(bad_multisig_addr_4, gas, rgp)
-        .transfer_iota(None, IotaAddress::ZERO)
+        .transfer_iota(None, Address::ZERO)
         .build();
     let intent_msg = IntentMessage::new(Intent::iota_transaction(), tx_data.clone());
     let sig: GenericSignature = Signature::new_secure(&intent_msg, &keys[0]).into();
@@ -840,12 +840,12 @@ async fn test_multisig_with_zklogin_scenarios() {
 
     // 15. a sig with 11 pks fails to execute.
     let multisig_pk_11 = MultiSigPublicKey::insecure_new(vec![(pk0.clone(), 1); 11], 1);
-    let bad_multisig_addr_11 = IotaAddress::from(&multisig_pk_11);
+    let bad_multisig_addr_11 = address_from_multisig_pub_key(&multisig_pk_11);
     let gas = test_cluster
         .fund_address_and_return_gas(rgp, Some(20000000000), bad_multisig_addr_11)
         .await;
     let tx_data = TestTransactionBuilder::new(bad_multisig_addr_11, gas, rgp)
-        .transfer_iota(None, IotaAddress::ZERO)
+        .transfer_iota(None, Address::ZERO)
         .build();
     let intent_msg = IntentMessage::new(Intent::iota_transaction(), tx_data.clone());
     let sig: GenericSignature = Signature::new_secure(&intent_msg, &keys[0]).into();
@@ -865,12 +865,12 @@ async fn test_multisig_with_zklogin_scenarios() {
     // 16. total weight of all pks < threshold fails to execute.
     let multisig_pk_12 =
         MultiSigPublicKey::insecure_new(vec![(pk0.clone(), 1), (pk0.clone(), 1)], 3);
-    let bad_multisig_addr = IotaAddress::from(&multisig_pk_12);
+    let bad_multisig_addr = address_from_multisig_pub_key(&multisig_pk_12);
     let gas = test_cluster
         .fund_address_and_return_gas(rgp, Some(20000000000), bad_multisig_addr)
         .await;
     let tx_data = TestTransactionBuilder::new(bad_multisig_addr, gas, rgp)
-        .transfer_iota(None, IotaAddress::ZERO)
+        .transfer_iota(None, Address::ZERO)
         .build();
     let intent_msg = IntentMessage::new(Intent::iota_transaction(), tx_data.clone());
     let sig: GenericSignature = Signature::new_secure(&intent_msg, &keys[0]).into();
@@ -889,12 +889,12 @@ async fn test_multisig_with_zklogin_scenarios() {
 
     // 17. multisig with empty pk map fails to execute.
     let bad_multisig_empty_pk = MultiSigPublicKey::insecure_new(vec![], 1);
-    let bad_multisig_addr = IotaAddress::from(&bad_multisig_empty_pk);
+    let bad_multisig_addr = address_from_multisig_pub_key(&bad_multisig_empty_pk);
     let gas = test_cluster
         .fund_address_and_return_gas(rgp, Some(20000000000), bad_multisig_addr)
         .await;
     let tx_data = TestTransactionBuilder::new(bad_multisig_addr, gas, rgp)
-        .transfer_iota(None, IotaAddress::ZERO)
+        .transfer_iota(None, Address::ZERO)
         .build();
     let intent_msg = IntentMessage::new(Intent::iota_transaction(), tx_data.clone());
     let sig: GenericSignature = Signature::new_secure(&intent_msg, &keys[0]).into();
@@ -978,12 +978,12 @@ async fn test_random_zklogin_in_multisig() {
     // create a multisig with 10 zklogin pks.
     let pks = test_vectors.iter().map(|(_, pk, _)| pk.clone()).collect();
     let multisig_pk = MultiSigPublicKey::new(pks, vec![1; 10], 10).unwrap();
-    let multisig_addr = IotaAddress::from(&multisig_pk);
+    let multisig_addr = address_from_multisig_pub_key(&multisig_pk);
     let gas = test_cluster
         .fund_address_and_return_gas(rgp, Some(20000000000), multisig_addr)
         .await;
     let tx_data = TestTransactionBuilder::new(multisig_addr, gas, rgp)
-        .transfer_iota(None, IotaAddress::ZERO)
+        .transfer_iota(None, Address::ZERO)
         .build();
     let intent_msg = IntentMessage::new(Intent::iota_transaction(), tx_data.clone());
     let mut zklogin_sigs = vec![];
@@ -1086,7 +1086,7 @@ async fn test_multisig_passkey_scenarios() {
     // wrong sender fails to verify
     let tx2 = create_credential_and_sign_test_tx_with_passkey_multisig(
         &test_cluster,
-        Some(IotaAddress::ZERO),
+        Some(Address::ZERO),
         false,
         false,
     )

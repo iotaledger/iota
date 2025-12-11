@@ -2,9 +2,9 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{collections::VecDeque, convert::TryFrom};
+use std::collections::VecDeque;
 
-use iota_types::base_types::{ObjectID, TransactionDigest};
+use iota_types::base_types::{ObjectId, TransactionDigest};
 use move_binary_format::errors::PartialVMResult;
 use move_core_types::{account_address::AccountAddress, gas_algebra::InternalGas};
 use move_vm_runtime::{native_charge_gas_early_exit, native_functions::NativeContext};
@@ -49,10 +49,10 @@ pub fn derive_id(
 
     // unwrap safe because all digests in Move are serialized from the Rust
     // `TransactionDigest`
-    let digest = TransactionDigest::try_from(tx_hash.as_slice()).unwrap();
-    let address = AccountAddress::from(ObjectID::derive_id(digest, ids_created));
+    let digest = TransactionDigest::from_bytes(tx_hash.as_slice()).unwrap();
+    let address = AccountAddress::new(ObjectId::derive_id(digest, ids_created).into_bytes());
     let obj_runtime: &mut ObjectRuntime = context.extensions_mut().get_mut()?;
-    obj_runtime.new_id(address.into())?;
+    obj_runtime.new_id(ObjectId::new(address.into_bytes()))?;
 
     Ok(NativeResult::ok(
         context.gas_used(),

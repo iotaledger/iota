@@ -7,7 +7,7 @@ use iota_data_ingestion_core::IngestionError;
 use iota_json_rpc_api::{error_object_from_rpc, internal_error};
 use iota_names::error::IotaNamesError;
 use iota_types::{
-    base_types::ObjectIDParseError,
+    base_types::ObjectIdParseError,
     error::{IotaError, IotaObjectResponseError, UserInputError},
 };
 use jsonrpsee::{core::ClientError as RpcError, types::ErrorObjectOwned};
@@ -107,7 +107,7 @@ pub enum IndexerError {
     Uncategorized(#[from] anyhow::Error),
 
     #[error(transparent)]
-    ObjectIdParse(#[from] ObjectIDParseError),
+    ObjectIdParse(#[from] ObjectIdParseError),
 
     #[error("Invalid transaction digest with error: `{0}`")]
     InvalidTransactionDigest(String),

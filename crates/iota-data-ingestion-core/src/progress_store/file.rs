@@ -5,7 +5,7 @@
 use std::{io::SeekFrom, path::PathBuf};
 
 use async_trait::async_trait;
-use iota_types::messages_checkpoint::CheckpointSequenceNumber;
+use iota_types::base_types::Version;
 use serde_json::{Number, Value};
 use tokio::{
     fs::File,
@@ -130,7 +130,7 @@ impl FileProgressStore {
 impl ProgressStore for FileProgressStore {
     type Error = IngestionError;
 
-    async fn load(&mut self, task_name: String) -> Result<CheckpointSequenceNumber, Self::Error> {
+    async fn load(&mut self, task_name: String) -> Result<Version, Self::Error> {
         let content = self.read_file_to_json_value().await?;
         Ok(content
             .get(&task_name)
@@ -140,7 +140,7 @@ impl ProgressStore for FileProgressStore {
     async fn save(
         &mut self,
         task_name: String,
-        checkpoint_number: CheckpointSequenceNumber,
+        checkpoint_number: Version,
     ) -> Result<(), Self::Error> {
         let mut content = self.read_file_to_json_value().await?;
         content[task_name] = Value::Number(Number::from(checkpoint_number));

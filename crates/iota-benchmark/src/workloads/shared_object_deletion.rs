@@ -8,7 +8,7 @@ use async_trait::async_trait;
 use futures::future::join_all;
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
-    base_types::{ObjectDigest, ObjectID, SequenceNumber},
+    base_types::{ObjectId, ObjectReference, Version},
     crypto::get_key_pair,
     transaction::Transaction,
 };
@@ -35,9 +35,9 @@ pub const MAX_GAS_IN_UNIT: u64 = 1_000_000_000;
 
 #[derive(Debug)]
 pub struct SharedCounterDeletionTestPayload {
-    package_id: ObjectID,
-    counter_id: ObjectID,
-    counter_initial_shared_version: SequenceNumber,
+    package_id: ObjectId,
+    counter_id: ObjectId,
+    counter_initial_shared_version: Version,
     gas: Gas,
     max_tip_amount: u64,
     system_state_observer: Arc<SystemStateObserver>,
@@ -63,16 +63,20 @@ impl Payload for SharedCounterDeletionTestPayload {
 
         self.gas.0 = effects.gas_object().0;
 
-        if effects.deleted().iter().any(|o| o.0 == self.counter_id) {
+        if effects
+            .deleted()
+            .iter()
+            .any(|o| o.object_id == self.counter_id)
+        {
             self.is_counter_deleted = true;
         }
 
         if self.create_sent {
-            let ((oid, initial_version, _), _) = *effects.created().first().unwrap();
+            let (oref, _) = *effects.created().first().unwrap();
             self.is_counter_deleted = false;
             self.create_sent = false;
-            self.counter_id = oid;
-            self.counter_initial_shared_version = initial_version;
+            self.counter_id = oref.object_id;
+            self.counter_initial_shared_version = oref.version;
         }
     }
 
@@ -238,8 +242,8 @@ impl WorkloadBuilder<dyn Payload> for SharedCounterDeletionWorkloadBuilder {
 
 #[derive(Debug)]
 pub struct SharedCounterDeletionWorkload {
-    pub basics_package_id: Option<ObjectID>,
-    pub counters: Vec<(ObjectID, SequenceNumber, ObjectDigest)>,
+    pub basics_package_id: Option<ObjectId>,
+    pub counters: Vec<ObjectReference>,
     pub init_gas: Vec<Gas>,
     pub payload_gas: Vec<Gas>,
     pub max_tip_amount: u64,
@@ -266,7 +270,7 @@ impl Workload<dyn Payload> for SharedCounterDeletionWorkload {
         self.basics_package_id = Some(
             publish_basics_package(head.0, proxy.clone(), head.1, &head.2, gas_price)
                 .await
-                .0,
+                .object_id,
         );
         if !self.counters.is_empty() {
             // We already initialized the workload with some counters
@@ -310,8 +314,8 @@ impl Workload<dyn Payload> for SharedCounterDeletionWorkload {
                 .expect("Failed to get a random counter from the pool");
             shared_payloads.push(Box::new(SharedCounterDeletionTestPayload {
                 package_id: self.basics_package_id.unwrap(),
-                counter_id: counter_ref.0,
-                counter_initial_shared_version: counter_ref.1,
+                counter_id: counter_ref.object_id,
+                counter_initial_shared_version: counter_ref.version,
                 gas: g.clone(),
                 system_state_observer: system_state_observer.clone(),
                 max_tip_amount: self.max_tip_amount,

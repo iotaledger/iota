@@ -24,7 +24,7 @@ use iota_test_transaction_builder::{
 };
 use iota_tool::restore_from_db_checkpoint;
 use iota_types::{
-    base_types::{IotaAddress, ObjectID, ObjectRef, SequenceNumber, TransactionDigest},
+    base_types::{Address, ObjectId, ObjectReference, TransactionDigest, Version, VersionExt},
     crypto::{IotaKeyPair, get_key_pair},
     error::{IotaError, UserInputError},
     message_envelope::Message,
@@ -103,9 +103,9 @@ async fn test_full_node_shared_objects() -> Result<(), anyhow::Error> {
         context,
         sender,
         None,
-        package_ref.0,
-        counter_ref.0,
-        counter_ref.1,
+        package_ref.object_id,
+        counter_ref.object_id,
+        counter_ref.version,
     )
     .await;
     let digest = response.digest;
@@ -134,7 +134,10 @@ async fn test_sponsored_transaction() -> Result<(), anyhow::Error> {
         transfer_coin(&test_cluster.wallet).await.unwrap();
     assert_eq!(sender, sender_);
     assert_eq!(sponsor, receiver);
-    let object_ref = test_cluster.wallet.get_object_ref(object_ref.0).await?;
+    let object_ref = test_cluster
+        .wallet
+        .get_object_ref(object_ref.object_id)
+        .await?;
     let gas_obj = test_cluster.wallet.get_object_ref(sent_coin).await?;
     info!("updated obj ref: {:?}", object_ref);
     info!("updated gas ref: {:?}", gas_obj);
@@ -203,9 +206,9 @@ async fn test_full_node_move_function_index() -> Result<(), anyhow::Error> {
         context,
         sender,
         None,
-        package_ref.0,
-        counter_ref.0,
-        counter_ref.1,
+        package_ref.object_id,
+        counter_ref.object_id,
+        counter_ref.version,
     )
     .await;
     let digest = response.digest;
@@ -214,7 +217,7 @@ async fn test_full_node_move_function_index() -> Result<(), anyhow::Error> {
         .state()
         .get_transactions_for_tests(
             Some(TransactionFilter::MoveFunction {
-                package: package_ref.0,
+                package: package_ref.object_id,
                 module: Some("counter".to_string()),
                 function: Some("increment".to_string()),
             }),
@@ -231,7 +234,7 @@ async fn test_full_node_move_function_index() -> Result<(), anyhow::Error> {
         .state()
         .get_transactions_for_tests(
             Some(TransactionFilter::MoveFunction {
-                package: package_ref.0,
+                package: package_ref.object_id,
                 module: None,
                 function: None,
             }),
@@ -250,7 +253,7 @@ async fn test_full_node_move_function_index() -> Result<(), anyhow::Error> {
         .state()
         .get_transactions_for_tests(
             Some(TransactionFilter::MoveFunction {
-                package: package_ref.0,
+                package: package_ref.object_id,
                 module: Some("counter".to_string()),
                 function: None,
             }),
@@ -547,7 +550,7 @@ async fn do_test_full_node_sync_flood() {
 
             let mut owned_tx_digest = None;
             let mut shared_tx_digest = None;
-            let gas_object_id = gas_obj.0;
+            let gas_object_id = gas_obj.object_id;
             for _ in 0..10 {
                 let test_cluster = test_cluster.read().await;
                 let res = {
@@ -569,9 +572,9 @@ async fn do_test_full_node_sync_flood() {
                         &test_cluster.wallet,
                         sender,
                         Some(gas_object_id),
-                        package_ref.0,
-                        counter_ref.0,
-                        counter_ref.1,
+                        package_ref.object_id,
+                        counter_ref.object_id,
+                        counter_ref.version,
                     )
                     .await
                     .digest,
@@ -914,8 +917,8 @@ async fn test_full_node_transaction_orchestrator_rpc_ok() -> Result<(), anyhow::
 
 async fn get_obj_read_from_node(
     node: &IotaNodeHandle,
-    object_id: ObjectID,
-) -> Result<(ObjectRef, Object, Option<MoveStructLayout>), anyhow::Error> {
+    object_id: ObjectId,
+) -> Result<(ObjectReference, Object, Option<MoveStructLayout>), anyhow::Error> {
     if let ObjectRead::Exists(obj_ref, object, layout) = node.state().get_object_read(&object_id)? {
         Ok((obj_ref, object, layout))
     } else {
@@ -925,9 +928,9 @@ async fn get_obj_read_from_node(
 
 async fn get_past_obj_read_from_node(
     node: &IotaNodeHandle,
-    object_id: ObjectID,
-    seq_num: SequenceNumber,
-) -> Result<(ObjectRef, Object, Option<MoveStructLayout>), anyhow::Error> {
+    object_id: ObjectId,
+    seq_num: Version,
+) -> Result<(ObjectReference, Object, Option<MoveStructLayout>), anyhow::Error> {
     if let PastObjectRead::VersionFound(obj_ref, object, layout) =
         node.state().get_past_object_read(&object_id, seq_num)?
     {
@@ -992,7 +995,7 @@ async fn test_get_objects_read() -> Result<(), anyhow::Error> {
 
     let read_ref_v3 = match node
         .state()
-        .get_past_object_read(&object_id, object_ref_v3.1)?
+        .get_past_object_read(&object_id, object_ref_v3.version)?
     {
         PastObjectRead::ObjectDeleted(obj_ref) => obj_ref,
         other => anyhow::bail!("Expect object {object_id:?} deleted but got {other:?}."),
@@ -1000,18 +1003,18 @@ async fn test_get_objects_read() -> Result<(), anyhow::Error> {
     assert_eq!(object_ref_v3, read_ref_v3);
 
     let (read_ref_v2, read_obj_v2, _) =
-        get_past_obj_read_from_node(node, object_id, object_ref_v2.1).await?;
+        get_past_obj_read_from_node(node, object_id, object_ref_v2.version).await?;
     assert_eq!(read_ref_v2, object_ref_v2);
     assert_eq!(read_obj_v2, object_v2);
     assert_eq!(read_obj_v2.owner, Owner::AddressOwner(recipient));
 
     let (read_ref_v1, read_obj_v1, _) =
-        get_past_obj_read_from_node(node, object_id, object_ref_v1.1).await?;
+        get_past_obj_read_from_node(node, object_id, object_ref_v1.version).await?;
     assert_eq!(read_ref_v1, object_ref_v1);
     assert_eq!(read_obj_v1, object_v1);
     assert_eq!(read_obj_v1.owner, Owner::AddressOwner(sender));
 
-    let too_high_version = SequenceNumber::lamport_increment([object_ref_v3.1]);
+    let too_high_version = Version::lamport_increment([object_ref_v3.version]);
 
     match node
         .state()
@@ -1024,11 +1027,9 @@ async fn test_get_objects_read() -> Result<(), anyhow::Error> {
         } => {
             assert_eq!(obj_id, object_id);
             assert_eq!(asked_version, too_high_version);
-            assert_eq!(latest_version, object_ref_v3.1);
+            assert_eq!(latest_version, object_ref_v3.version);
         }
-        other => anyhow::bail!(
-            "Expect SequenceNumberTooHigh for object {object_id:?} but got {other:?}."
-        ),
+        other => anyhow::bail!("Expect VersionTooHigh for object {object_id:?} but got {other:?}."),
     };
 
     Ok(())
@@ -1139,7 +1140,7 @@ async fn test_pass_back_no_object() -> Result<(), anyhow::Error> {
 
     let tx_data = TransactionData::new_move_call(
         sender,
-        package_ref.0,
+        package_ref.object_id,
         ident_str!("object_basics").to_owned(),
         ident_str!("use_clock").to_owned(),
         // type_args
@@ -1226,7 +1227,7 @@ async fn test_access_old_object_pruned() {
                 assert!(
                     state
                         .database_for_testing()
-                        .get_object_by_key(&gas_object.0, gas_object.1)
+                        .get_object_by_key(&gas_object.object_id, gas_object.version)
                         .is_none()
                 );
                 let epoch_store = state.epoch_store_for_testing();
@@ -1266,11 +1267,11 @@ async fn transfer_coin(
     context: &WalletContext,
 ) -> Result<
     (
-        ObjectID,
-        IotaAddress,
-        IotaAddress,
+        ObjectId,
+        Address,
+        Address,
         TransactionDigest,
-        ObjectRef,
+        ObjectReference,
     ),
     anyhow::Error,
 > {
@@ -1286,7 +1287,13 @@ async fn transfer_coin(
             .build(),
     );
     let resp = context.execute_transaction_must_succeed(txn).await;
-    Ok((object_to_send.0, sender, receiver, resp.digest, gas_object))
+    Ok((
+        object_to_send.object_id,
+        sender,
+        receiver,
+        resp.digest,
+        gas_object,
+    ))
 }
 
 #[sim_test]

@@ -4,14 +4,14 @@
 
 pub mod sdk;
 
-use iota_sdk_2::types::EpochId;
+use iota_sdk_2::types::{EpochId, Version};
 use iota_types::{
     TypeTag,
-    base_types::{IotaAddress, ObjectID, SequenceNumber},
+    base_types::{Address, ObjectId},
     crypto::AuthorityStrongQuorumSignInfo,
     effects::{TransactionEffects, TransactionEvents},
     full_checkpoint_content::CheckpointData,
-    messages_checkpoint::{CertifiedCheckpointSummary, CheckpointSequenceNumber},
+    messages_checkpoint::CertifiedCheckpointSummary,
     object::Object,
     transaction::Transaction,
 };
@@ -47,7 +47,7 @@ impl Client {
 
     pub async fn get_full_checkpoint(
         &self,
-        checkpoint_sequence_number: CheckpointSequenceNumber,
+        checkpoint_sequence_number: Version,
     ) -> Result<CheckpointData> {
         let url = self
             .inner
@@ -67,7 +67,7 @@ impl Client {
 
     pub async fn get_checkpoint_summary(
         &self,
-        checkpoint_sequence_number: CheckpointSequenceNumber,
+        checkpoint_sequence_number: Version,
     ) -> Result<CertifiedCheckpointSummary> {
         self.inner
             .get_checkpoint(checkpoint_sequence_number)
@@ -83,7 +83,7 @@ impl Client {
             })
     }
 
-    pub async fn get_object(&self, object_id: ObjectID) -> Result<Object> {
+    pub async fn get_object(&self, object_id: ObjectId) -> Result<Object> {
         self.inner
             .get_object(object_id.into())
             .await
@@ -93,8 +93,8 @@ impl Client {
 
     pub async fn get_object_with_version(
         &self,
-        object_id: ObjectID,
-        version: SequenceNumber,
+        object_id: ObjectId,
+        version: Version,
     ) -> Result<Object> {
         self.inner
             .get_object_with_version(object_id.into(), version.into())
@@ -163,14 +163,14 @@ pub enum EffectsFinality {
         signature: AuthorityStrongQuorumSignInfo,
     },
     Checkpointed {
-        checkpoint: CheckpointSequenceNumber,
+        checkpoint: Version,
     },
 }
 
 #[derive(PartialEq, Eq, Debug, serde::Serialize, serde::Deserialize)]
 pub struct BalanceChange {
     /// Owner of the balance change
-    pub address: IotaAddress,
+    pub address: Address,
     /// Type of the Coin
     pub coin_type: TypeTag,
     /// The amount indicate the balance value changes,

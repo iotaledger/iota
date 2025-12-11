@@ -15,7 +15,7 @@ use iota_swarm_config::{
 };
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
-    base_types::{IotaAddress, ObjectID, ObjectRef},
+    base_types::{Address, ObjectId, ObjectReference, address_from_iota_pub_key},
     effects::TransactionEffectsAPI,
     error::{IotaError, IotaResult, UserInputError},
     execution_status::{ExecutionFailureStatus, ExecutionStatus},
@@ -77,7 +77,7 @@ async fn reload_state_with_new_deny_config(
         .await
 }
 
-type Account = (IotaAddress, Ed25519KeyPair, Vec<ObjectRef>);
+type Account = (Address, Ed25519KeyPair, Vec<ObjectReference>);
 
 fn get_accounts_and_coins(
     network_config: &NetworkConfig,
@@ -87,7 +87,7 @@ fn get_accounts_and_coins(
         .account_keys
         .iter()
         .map(|account| {
-            let address: IotaAddress = account.public().into();
+            let address: Address = address_from_iota_pub_key(account.public());
             let objects: Vec<_> = state
                 .get_owner_objects(address, None, GAS_OBJECT_COUNT, None)
                 .unwrap()
@@ -143,7 +143,7 @@ async fn transfer_with_account(
 
 async fn handle_move_call_transaction(
     state: &Arc<AuthorityState>,
-    package: ObjectID,
+    package: ObjectId,
     module_name: &'static str,
     function_name: &'static str,
     args: Vec<CallArg>,
@@ -225,7 +225,7 @@ async fn test_object_denied() {
         &network_config,
         state,
         TransactionDenyConfigBuilder::new()
-            .add_denied_object(obj_ref.0)
+            .add_denied_object(obj_ref.object_id)
             .build(),
     )
     .await;
@@ -267,7 +267,7 @@ async fn test_shared_object_transaction_disabled() {
     let gas_price = state.reference_gas_price_for_testing().unwrap();
     let account = &accounts[0];
     let tx = TestTransactionBuilder::new(account.0, account.2[0], gas_price)
-        .call_staking(account.2[1], IotaAddress::default())
+        .call_staking(account.2[1], Address::ZERO)
         .build_and_sign(&account.1);
     let epoch_store = state.epoch_store_for_testing();
     let tx = epoch_store.verify_transaction(tx).unwrap();
@@ -310,7 +310,7 @@ async fn test_package_denied() {
         accounts[0].0,
         &accounts[0].1,
         accounts[0].2[0],
-        [("c", ObjectID::ZERO)],
+        [("c", ObjectId::ZERO)],
         vec![],
         &state,
     )
@@ -321,7 +321,7 @@ async fn test_package_denied() {
         accounts[0].0,
         &accounts[0].1,
         accounts[0].2[1],
-        [("b", ObjectID::ZERO), ("c", package_c)],
+        [("b", ObjectId::ZERO), ("c", package_c)],
         vec![package_c],
         &state,
     )
@@ -345,7 +345,7 @@ async fn test_package_denied() {
         accounts[0].2[3],
         package_c,
         cap_c,
-        [("c", ObjectID::ZERO)],
+        [("c", ObjectId::ZERO)],
         vec![],
         &state,
     )
@@ -358,7 +358,7 @@ async fn test_package_denied() {
         accounts[0].2[4],
         package_b,
         cap_b,
-        [("b", ObjectID::ZERO), ("c", package_c)],
+        [("b", ObjectId::ZERO), ("c", package_c)],
         [("C", package_c_prime)],
         &state,
     )

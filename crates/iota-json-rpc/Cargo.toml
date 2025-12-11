@@ -65,6 +65,7 @@ move-package.workspace = true
 # external dependencies
 expect-test.workspace = true
 mockall.workspace = true
+rand.workspace = true
 
 # internal dependencies
 telemetry-subscribers.workspace = true

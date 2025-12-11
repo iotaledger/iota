@@ -7,7 +7,7 @@ use iota_sdk::{
     IotaClient,
     rpc_types::{IotaObjectData, IotaObjectDataOptions, IotaObjectResponse},
     types::{
-        base_types::{ObjectID, ObjectType},
+        base_types::{ObjectId, ObjectType},
         object::{MoveObject, Object},
         transaction::{InputObjectKind, TransactionData, TransactionDataAPI},
     },
@@ -40,18 +40,18 @@ pub(crate) async fn load_objects_with_client(
 
 fn object_ids_from_transaction(
     transaction: &TransactionData,
-) -> Result<Vec<ObjectID>, LedgerSignerError> {
+) -> Result<Vec<ObjectId>, LedgerSignerError> {
     let object_ids = transaction
         .gas_data()
         .payment
         .iter()
-        .map(|payment| payment.0);
+        .map(|payment| payment.object_id);
 
     let input_objects = transaction
         .input_objects()?
         .into_iter()
         .filter_map(|input| match input {
-            InputObjectKind::ImmOrOwnedMoveObject(id) => Some(id.0),
+            InputObjectKind::ImmOrOwnedMoveObject(id) => Some(id.object_id),
             _ => None,
         });
 

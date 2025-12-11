@@ -11,9 +11,8 @@ use iota_data_ingestion_core::{
 };
 use iota_metrics::{metered_channel, spawn_monitored_task};
 use iota_types::{
-    base_types::TransactionDigest,
+    base_types::{TransactionDigest, Version},
     full_checkpoint_content::{CheckpointData as IotaCheckpointData, CheckpointTransaction},
-    messages_checkpoint::CheckpointSequenceNumber,
 };
 use tokio::task::JoinHandle;
 use tokio_util::sync::CancellationToken;
@@ -63,7 +62,7 @@ impl Datasource<CheckpointTxnData> for IotaCheckpointDatasource {
         let worker = IndexerWorker::new(data_sender);
         let worker_pool = WorkerPool::new(
             worker,
-            TransactionDigest::random().to_string(),
+            TransactionDigest::new(rand::random()).to_string(),
             self.concurrency,
             Default::default(),
         );
@@ -94,14 +93,14 @@ struct PerTaskInMemProgressStore {
 impl ProgressStore for PerTaskInMemProgressStore {
     type Error = anyhow::Error;
 
-    async fn load(&mut self, _task_name: String) -> Result<CheckpointSequenceNumber, Self::Error> {
+    async fn load(&mut self, _task_name: String) -> Result<Version, Self::Error> {
         Ok(self.current_checkpoint)
     }
 
     async fn save(
         &mut self,
         _task_name: String,
-        checkpoint_number: CheckpointSequenceNumber,
+        checkpoint_number: Version,
     ) -> Result<(), Self::Error> {
         if checkpoint_number >= self.exit_checkpoint {
             if let Some(token) = self.token.take() {

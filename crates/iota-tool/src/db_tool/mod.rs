@@ -14,10 +14,10 @@ use iota_core::{
     checkpoints::CheckpointStore,
 };
 use iota_types::{
-    base_types::{EpochId, ObjectID},
+    base_types::{EpochId, ObjectId, Version},
     digests::{CheckpointContentsDigest, TransactionDigest},
     effects::TransactionEffectsAPI,
-    messages_checkpoint::{CheckpointDigest, CheckpointSequenceNumber},
+    messages_checkpoint::CheckpointDigest,
     storage::ObjectStore,
 };
 use typed_store::rocks::MetricConf;
@@ -104,7 +104,7 @@ pub struct PrintTransactionOptions {
 #[derive(Parser)]
 pub struct PrintObjectOptions {
     #[arg(long, help = "The object id to print")]
-    id: ObjectID,
+    id: ObjectId,
     #[arg(long, help = "The object version to print")]
     version: Option<u64>,
 }
@@ -141,7 +141,7 @@ pub struct RemoveTransactionOptions {
 #[derive(Parser)]
 pub struct RemoveObjectLockOptions {
     #[arg(long, help = "The object ID to remove")]
-    id: ObjectID,
+    id: ObjectId,
 
     #[arg(long, help = "The object version to remove")]
     version: u64,
@@ -162,10 +162,10 @@ pub struct RewindCheckpointExecutionOptions {
 #[derive(Parser)]
 pub struct SetCheckpointWatermarkOptions {
     #[arg(long)]
-    highest_verified: Option<CheckpointSequenceNumber>,
+    highest_verified: Option<Version>,
 
     #[arg(long)]
-    highest_synced: Option<CheckpointSequenceNumber>,
+    highest_synced: Option<Version>,
 }
 
 pub async fn execute_db_tool_command(db_path: PathBuf, cmd: DbToolCommand) -> anyhow::Result<()> {

@@ -41,7 +41,7 @@ use iota_storage::{
 };
 use iota_types::{
     accumulator::Accumulator,
-    base_types::{ObjectDigest, ObjectID, ObjectRef, SequenceNumber},
+    base_types::{ObjectDigest, ObjectId, ObjectReference},
 };
 use object_store::path::Path;
 use tokio::{
@@ -121,8 +121,8 @@ impl StateSnapshotReaderV1 {
         if snapshot_version != 1u8 {
             bail!("Unexpected snapshot version: {}", snapshot_version);
         }
-        if manifest.address_length() as usize > ObjectID::LENGTH {
-            bail!("Max possible address length is: {}", ObjectID::LENGTH);
+        if manifest.address_length() as usize > ObjectId::LENGTH {
+            bail!("Max possible address length is: {}", ObjectId::LENGTH);
         }
         if manifest.epoch() != epoch {
             bail!("Download manifest is not for epoch: {}", epoch,);
@@ -279,7 +279,7 @@ impl StateSnapshotReaderV1 {
                         .context(format!("No part exists for bucket: {bucket}, part: {part}"))?;
 
                     for object_ref in ref_iter {
-                        hasher.update(object_ref.2.inner());
+                        hasher.update(object_ref.digest.inner());
                         empty = false;
                     }
 
@@ -367,7 +367,7 @@ impl StateSnapshotReaderV1 {
                         // materializing too many refs into memory at once.
 
                         // Takes the sha3 digests of every object in the partition
-                        // This is only done because ObjectRefIter is not Send
+                        // This is only done because ObjectReferenceIter is not Send
                         let obj_digests = {
                             // TODO: Make sure that we can remove this getter, just take _part_files
                             // here
@@ -378,14 +378,14 @@ impl StateSnapshotReaderV1 {
                                 .expect(
                                     "No ref files found for bucket: {bucket_num}, part: {part_num}",
                                 );
-                            ObjectRefIter::new(
+                            ObjectReferenceIter::new(
                                 file_metadata,
                                 local_staging_dir_root_clone.clone(),
                                 epoch_dir_clone.clone(),
                             )
                             .expect("Failed to create object ref iter")
                         }
-                        .map(|obj_ref| obj_ref.2)
+                        .map(|obj_ref| obj_ref.digest)
                         .collect::<Vec<ObjectDigest>>();
 
                         // Spawns a task to accumulate the sha3 digests and send the accumulator
@@ -548,7 +548,7 @@ impl StateSnapshotReaderV1 {
     }
 
     /// Returns an iterator over all references in a .ref file.
-    pub fn ref_iter(&self, bucket_num: u32, part_num: u32) -> Result<ObjectRefIter> {
+    pub fn ref_iter(&self, bucket_num: u32, part_num: u32) -> Result<ObjectReferenceIter> {
         // Gets the reference file metadata for the {bucket_num}_{part_num}
         let file_metadata = self
             .ref_files
@@ -558,7 +558,7 @@ impl StateSnapshotReaderV1 {
             .context(format!(
                 "No ref files found for bucket: {bucket_num}, part: {part_num}"
             ))?;
-        ObjectRefIter::new(
+        ObjectReferenceIter::new(
             file_metadata,
             self.local_staging_dir_root.clone(),
             self.epoch_dir(),
@@ -614,11 +614,11 @@ impl StateSnapshotReaderV1 {
 }
 
 /// An iterator over all object refs in a .ref file.
-pub struct ObjectRefIter {
+pub struct ObjectReferenceIter {
     reader: Box<dyn Read>,
 }
 
-impl ObjectRefIter {
+impl ObjectReferenceIter {
     pub fn new(file_metadata: &FileMetadata, root_path: PathBuf, dir_path: Path) -> Result<Self> {
         let file_path = file_metadata.local_file_path(&root_path, &dir_path)?;
         let mut reader = file_metadata.file_compression.decompress(&file_path)?;
@@ -626,11 +626,11 @@ impl ObjectRefIter {
         if magic != REFERENCE_FILE_MAGIC {
             bail!("Unexpected magic string in REFERENCE file: {:?}", magic)
         } else {
-            Ok(ObjectRefIter { reader })
+            Ok(ObjectReferenceIter { reader })
         }
     }
 
-    fn next_ref(&mut self) -> Result<ObjectRef> {
+    fn next_ref(&mut self) -> Result<ObjectReference> {
         let mut buf = [0u8; OBJECT_REF_BYTES];
         self.reader.read_exact(&mut buf)?;
         let object_id = &buf[0..OBJECT_ID_BYTES];
@@ -638,17 +638,17 @@ impl ObjectRefIter {
             .reader()
             .read_u64::<BigEndian>()?;
         let sha3_digest = &buf[OBJECT_ID_BYTES + SEQUENCE_NUM_BYTES..OBJECT_REF_BYTES];
-        let object_ref: ObjectRef = (
-            ObjectID::from_bytes(object_id)?,
-            SequenceNumber::from_u64(*sequence_number),
-            ObjectDigest::try_from(sha3_digest)?,
+        let object_ref = ObjectReference::new(
+            ObjectId::from_bytes(object_id)?,
+            *sequence_number,
+            ObjectDigest::from_bytes(sha3_digest)?,
         );
         Ok(object_ref)
     }
 }
 
-impl Iterator for ObjectRefIter {
-    type Item = ObjectRef;
+impl Iterator for ObjectReferenceIter {
+    type Item = ObjectReference;
     fn next(&mut self) -> Option<Self::Item> {
         self.next_ref().ok()
     }

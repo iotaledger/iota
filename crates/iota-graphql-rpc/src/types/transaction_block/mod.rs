@@ -15,7 +15,7 @@ use iota_indexer::{
 };
 use iota_json_rpc_api::ReadApiClient;
 use iota_types::{
-    base_types::IotaAddress as NativeIotaAddress,
+    base_types::Address as NativeIotaAddress,
     effects::TransactionEffects as NativeTransactionEffects,
     event::Event as NativeEvent,
     message_envelope::Message,

@@ -23,8 +23,8 @@ pub struct StoredObjectVersion {
 impl From<&IndexedObject> for StoredObjectVersion {
     fn from(o: &IndexedObject) -> Self {
         Self {
-            object_id: o.object.id().to_vec(),
-            object_version: o.object.version().value() as i64,
+            object_id: o.object.id().as_bytes().to_vec(),
+            object_version: o.object.version() as i64,
             cp_sequence_number: o.checkpoint_sequence_number as i64,
         }
     }
@@ -33,7 +33,7 @@ impl From<&IndexedObject> for StoredObjectVersion {
 impl From<&IndexedDeletedObject> for StoredObjectVersion {
     fn from(o: &IndexedDeletedObject) -> Self {
         Self {
-            object_id: o.object_id.to_vec(),
+            object_id: o.object_id.as_bytes().to_vec(),
             object_version: o.object_version as i64,
             cp_sequence_number: o.checkpoint_sequence_number as i64,
         }

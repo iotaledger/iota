@@ -13,7 +13,7 @@ use backoff::{ExponentialBackoff, backoff::Backoff};
 use futures::StreamExt;
 use iota_metrics::spawn_monitored_task;
 use iota_rest_api::CheckpointData;
-use iota_types::messages_checkpoint::CheckpointSequenceNumber;
+use iota_types::base_types::Version;
 use tokio::{sync::mpsc, task::JoinHandle};
 use tokio_stream::wrappers::ReceiverStream;
 use tokio_util::sync::CancellationToken;
@@ -33,7 +33,7 @@ type WorkerID = usize;
 pub enum WorkerPoolStatus {
     /// Message with information (e.g. `(<task-name>,
     /// checkpoint_sequence_number)`) about the ingestion progress.
-    Running((TaskName, CheckpointSequenceNumber)),
+    Running((TaskName, Version)),
     /// Message with information (e.g. `<task-name>`) about shutdown status.
     Shutdown(String),
 }
@@ -45,7 +45,7 @@ enum WorkerStatus<M> {
     /// Message with information (e.g. `(<worker-id>`,
     /// `checkpoint_sequence_number`, [`Worker::Message`]) about the ingestion
     /// progress.
-    Running((WorkerID, CheckpointSequenceNumber, M)),
+    Running((WorkerID, Version, M)),
     /// Message with information (e.g. `<worker-id>`) about shutdown status.
     Shutdown(WorkerID),
 }
@@ -261,7 +261,7 @@ impl<W: Worker + 'static> WorkerPool<W> {
     /// Runs the worker pool main logic.
     pub async fn run(
         mut self,
-        watermark: CheckpointSequenceNumber,
+        watermark: Version,
         mut checkpoint_receiver: mpsc::Receiver<Arc<CheckpointData>>,
         pool_status_sender: mpsc::Sender<WorkerPoolStatus>,
         token: CancellationToken,
@@ -489,8 +489,8 @@ impl<W: Worker + 'static> WorkerPool<W> {
     ///      [`should_close_batch`](Reducer::should_close_batch) policy.
     fn spawn_watermark_tracking(
         &mut self,
-        watermark: CheckpointSequenceNumber,
-        watermark_receiver: mpsc::Receiver<(CheckpointSequenceNumber, W::Message)>,
+        watermark: Version,
+        watermark_receiver: mpsc::Receiver<(Version, W::Message)>,
         executor_progress_sender: mpsc::Sender<WorkerPoolStatus>,
         token: CancellationToken,
     ) -> JoinHandle<Result<(), IngestionError>> {
@@ -554,8 +554,8 @@ impl<W: Worker + 'static> WorkerPool<W> {
 /// 3. Reporting progress to the executor after each chunk from the stream.
 async fn simple_watermark_tracking<W: Worker>(
     task_name: String,
-    mut current_checkpoint_number: CheckpointSequenceNumber,
-    watermark_receiver: mpsc::Receiver<(CheckpointSequenceNumber, W::Message)>,
+    mut current_checkpoint_number: Version,
+    watermark_receiver: mpsc::Receiver<(Version, W::Message)>,
     executor_progress_sender: mpsc::Sender<WorkerPoolStatus>,
 ) -> IngestionResult<()> {
     // convert to a stream of MAX_CHECKPOINTS_IN_PROGRESS size. This way, each

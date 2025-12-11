@@ -17,9 +17,9 @@ async fn test_notify_read_executed_transactions_to_checkpoint() {
     let checkpoint_sequence_2 = 12;
 
     let txes_to_be_notified = vec![
-        TransactionDigest::random(),
-        TransactionDigest::random(),
-        TransactionDigest::random(),
+        TransactionDigest::new(rand::random()),
+        TransactionDigest::new(rand::random()),
+        TransactionDigest::new(rand::random()),
     ];
 
     // Insert only the first transaction already

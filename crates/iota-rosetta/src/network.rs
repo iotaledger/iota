@@ -7,7 +7,7 @@
 use axum::{Extension, Json, extract::State};
 use axum_extra::extract::WithRejection;
 use fastcrypto::encoding::Hex;
-use iota_types::base_types::ObjectID;
+use iota_types::base_types::ObjectId;
 use serde_json::json;
 use strum::IntoEnumIterator;
 
@@ -52,7 +52,7 @@ pub async fn status(
         .await?
         .iter_committee_members()
         .map(|committee_member| Peer {
-            peer_id: ObjectID::from(committee_member.iota_address).into(),
+            peer_id: ObjectId::from(committee_member.iota_address).into(),
             metadata: Some(json!({
                 "public_key": Hex::from_bytes(&committee_member.authority_pubkey_bytes),
                 "stake_amount": committee_member.staking_pool_iota_balance,

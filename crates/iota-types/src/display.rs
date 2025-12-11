@@ -2,11 +2,13 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use move_core_types::{ident_str, identifier::IdentStr, language_storage::StructTag};
+use iota_sdk_2::types::Address;
+use move_core_types::{
+    account_address::AccountAddress, ident_str, identifier::IdentStr, language_storage::StructTag,
+};
 use serde::Deserialize;
 
 use crate::{
-    IOTA_FRAMEWORK_ADDRESS,
     collection_types::VecMap,
     event::Event,
     id::{ID, UID},
@@ -37,7 +39,7 @@ pub struct DisplayVersionUpdatedEvent {
 impl DisplayVersionUpdatedEvent {
     pub fn type_(inner: &StructTag) -> StructTag {
         StructTag {
-            address: IOTA_FRAMEWORK_ADDRESS,
+            address: AccountAddress::new(Address::FRAMEWORK.into_bytes()),
             name: DISPLAY_VERSION_UPDATED_EVENT_NAME.to_owned(),
             module: DISPLAY_MODULE_NAME.to_owned(),
             type_params: vec![inner.clone().into()],
@@ -46,7 +48,7 @@ impl DisplayVersionUpdatedEvent {
 
     // Checks if the provided `StructTag` is a DisplayVersionUpdatedEvent<T>
     pub fn is_display_updated_event(inner: &StructTag) -> bool {
-        inner.address == IOTA_FRAMEWORK_ADDRESS
+        inner.address == AccountAddress::new(Address::FRAMEWORK.into_bytes())
             && inner.module.as_ident_str() == DISPLAY_MODULE_NAME
             && inner.name.as_ident_str() == DISPLAY_VERSION_UPDATED_EVENT_NAME
     }
@@ -84,7 +86,7 @@ pub struct DisplayCreatedEvent {
 impl DisplayCreatedEvent {
     pub fn type_(inner: &StructTag) -> StructTag {
         StructTag {
-            address: IOTA_FRAMEWORK_ADDRESS,
+            address: AccountAddress::new(Address::FRAMEWORK.into_bytes()),
             name: DISPLAY_CREATED_EVENT_NAME.to_owned(),
             module: DISPLAY_MODULE_NAME.to_owned(),
             type_params: vec![inner.clone().into()],

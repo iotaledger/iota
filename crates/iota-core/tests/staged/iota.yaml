@@ -30,7 +30,7 @@ AuthenticatorStateExpire:
   STRUCT:
     - min_epoch: U64
     - authenticator_obj_initial_shared_version:
-        TYPENAME: SequenceNumber
+        TYPENAME: Version
 AuthenticatorStateUpdateV1:
   STRUCT:
     - epoch: U64
@@ -39,7 +39,7 @@ AuthenticatorStateUpdateV1:
         SEQ:
           TYPENAME: ActiveJwk
     - authenticator_obj_initial_shared_version:
-        TYPENAME: SequenceNumber
+        TYPENAME: Version
 AuthorityPublicKeyBytes:
   NEWTYPESTRUCT: BYTES
 AuthorityQuorumSignInfo:
@@ -73,7 +73,7 @@ ChangeEpoch:
     - system_packages:
         SEQ:
           TUPLE:
-            - TYPENAME: SequenceNumber
+            - TYPENAME: Version
             - SEQ:
                 SEQ: U8
             - SEQ:
@@ -92,7 +92,7 @@ ChangeEpochV2:
     - system_packages:
         SEQ:
           TUPLE:
-            - TYPENAME: SequenceNumber
+            - TYPENAME: Version
             - SEQ:
                 SEQ: U8
             - SEQ:
@@ -111,7 +111,7 @@ ChangeEpochV3:
     - system_packages:
         SEQ:
           TUPLE:
-            - TYPENAME: SequenceNumber
+            - TYPENAME: Version
             - SEQ:
                 SEQ: U8
             - SEQ:
@@ -325,7 +325,7 @@ ConsensusDeterminedVersionAssignments:
               - SEQ:
                   TUPLE:
                     - TYPENAME: ObjectID
-                    - TYPENAME: SequenceNumber
+                    - TYPENAME: Version
 Data:
   ENUM:
     0:
@@ -580,7 +580,7 @@ GasData:
         SEQ:
           TUPLE:
             - TYPENAME: ObjectID
-            - TYPENAME: SequenceNumber
+            - TYPENAME: Version
             - TYPENAME: ObjectDigest
     - owner:
         TYPENAME: IotaAddress
@@ -662,7 +662,7 @@ MoveObject:
     - type_:
         TYPENAME: MoveObjectType
     - version:
-        TYPENAME: SequenceNumber
+        TYPENAME: Version
     - contents: BYTES
 MoveObjectType:
   NEWTYPESTRUCT:
@@ -686,7 +686,7 @@ MovePackage:
     - id:
         TYPENAME: ObjectID
     - version:
-        TYPENAME: SequenceNumber
+        TYPENAME: Version
     - module_map:
         MAP:
           KEY: STR
@@ -732,7 +732,7 @@ ObjectArg:
         NEWTYPE:
           TUPLE:
             - TYPENAME: ObjectID
-            - TYPENAME: SequenceNumber
+            - TYPENAME: Version
             - TYPENAME: ObjectDigest
     1:
       SharedObject:
@@ -740,14 +740,14 @@ ObjectArg:
           - id:
               TYPENAME: ObjectID
           - initial_shared_version:
-              TYPENAME: SequenceNumber
+              TYPENAME: Version
           - mutable: BOOL
     2:
       Receiving:
         NEWTYPE:
           TUPLE:
             - TYPENAME: ObjectID
-            - TYPENAME: SequenceNumber
+            - TYPENAME: Version
             - TYPENAME: ObjectDigest
 ObjectDigest:
   NEWTYPESTRUCT:
@@ -764,7 +764,7 @@ ObjectIn:
         NEWTYPE:
           TUPLE:
             - TUPLE:
-                - TYPENAME: SequenceNumber
+                - TYPENAME: Version
                 - TYPENAME: ObjectDigest
             - TYPENAME: Owner
 ObjectInfoRequestKind:
@@ -774,7 +774,7 @@ ObjectInfoRequestKind:
     1:
       PastObjectInfoDebug:
         NEWTYPE:
-          TYPENAME: SequenceNumber
+          TYPENAME: Version
 ObjectOut:
   ENUM:
     0:
@@ -789,7 +789,7 @@ ObjectOut:
       PackageWrite:
         NEWTYPE:
           TUPLE:
-            - TYPENAME: SequenceNumber
+            - TYPENAME: Version
             - TYPENAME: ObjectDigest
 Owner:
   ENUM:
@@ -805,7 +805,7 @@ Owner:
       Shared:
         STRUCT:
           - initial_shared_version:
-              TYPENAME: SequenceNumber
+              TYPENAME: Version
     3:
       Immutable: UNIT
 PackageUpgradeError:
@@ -894,7 +894,7 @@ RandomnessStateUpdate:
     - random_bytes:
         SEQ: U8
     - randomness_obj_initial_shared_version:
-        TYPENAME: SequenceNumber
+        TYPENAME: Version
 SenderSignedData:
   NEWTYPESTRUCT:
     SEQ:
@@ -906,7 +906,7 @@ SenderSignedTransaction:
     - tx_signatures:
         SEQ:
           TYPENAME: GenericSignature
-SequenceNumber:
+Version:
   NEWTYPESTRUCT: U64
 StructInput:
   STRUCT:
@@ -972,7 +972,7 @@ TransactionEffectsV1:
         SEQ:
           TYPENAME: TransactionDigest
     - lamport_version:
-        TYPENAME: SequenceNumber
+        TYPENAME: Version
     - changed_objects:
         SEQ:
           TUPLE:
@@ -1119,20 +1119,20 @@ UnchangedSharedKind:
       ReadOnlyRoot:
         NEWTYPE:
           TUPLE:
-            - TYPENAME: SequenceNumber
+            - TYPENAME: Version
             - TYPENAME: ObjectDigest
     1:
       MutateDeleted:
         NEWTYPE:
-          TYPENAME: SequenceNumber
+          TYPENAME: Version
     2:
       ReadDeleted:
         NEWTYPE:
-          TYPENAME: SequenceNumber
+          TYPENAME: Version
     3:
       Cancelled:
         NEWTYPE:
-          TYPENAME: SequenceNumber
+          TYPENAME: Version
     4:
       PerEpochConfig: UNIT
 UpgradeInfo:
@@ -1140,7 +1140,7 @@ UpgradeInfo:
     - upgraded_id:
         TYPENAME: ObjectID
     - upgraded_version:
-        TYPENAME: SequenceNumber
+        TYPENAME: Version
 ZkLoginAuthenticatorAsBytes:
   NEWTYPESTRUCT:
     SEQ: U8
@@ -1159,4 +1159,3 @@ ZkLoginPublicIdentifier:
         TYPENAME: SenderSignedData
     - auth_signature:
         TYPENAME: EmptySignInfo
-

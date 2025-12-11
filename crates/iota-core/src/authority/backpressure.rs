@@ -5,7 +5,7 @@
 use std::sync::Arc;
 
 use iota_metrics::monitored_scope;
-use iota_types::messages_checkpoint::CheckpointSequenceNumber;
+use iota_sdk_2::types::Version;
 use tokio::sync::watch;
 use tracing::{debug, info};
 
@@ -13,8 +13,8 @@ use crate::checkpoints::CheckpointStore;
 
 #[derive(Debug, Default, Copy, Clone)]
 struct Watermarks {
-    executed: CheckpointSequenceNumber,
-    certified: CheckpointSequenceNumber,
+    executed: Version,
+    certified: Version,
 }
 
 impl Watermarks {
@@ -79,7 +79,7 @@ impl BackpressureManager {
         })
     }
 
-    pub fn update_highest_certified_checkpoint(&self, seq: CheckpointSequenceNumber) {
+    pub fn update_highest_certified_checkpoint(&self, seq: Version) {
         self.watermarks_sender.send_if_modified(|watermarks| {
             if seq > watermarks.certified {
                 watermarks.certified = seq;
@@ -91,7 +91,7 @@ impl BackpressureManager {
         });
     }
 
-    pub fn update_highest_executed_checkpoint(&self, seq: CheckpointSequenceNumber) {
+    pub fn update_highest_executed_checkpoint(&self, seq: Version) {
         self.watermarks_sender.send_if_modified(|watermarks| {
             if seq > watermarks.executed {
                 debug_assert_eq!(seq, watermarks.executed + 1);

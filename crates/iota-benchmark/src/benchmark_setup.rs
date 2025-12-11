@@ -7,7 +7,7 @@ use std::{path::PathBuf, sync::Arc, thread::JoinHandle, time::Duration};
 use anyhow::{Context, Result, anyhow, bail};
 use iota_swarm_config::genesis_config::AccountConfig;
 use iota_types::{
-    base_types::{ConciseableName, IotaAddress, ObjectID},
+    base_types::{Address, ConciseableName, ObjectId},
     crypto::{AccountKeyPair, deterministic_random_account_key},
     gas_coin::NANOS_PER_IOTA,
     object::Owner,
@@ -85,7 +85,7 @@ impl Env {
         num_server_threads: u64,
     ) -> Result<BenchmarkSetup> {
         info!("Running benchmark setup in local mode..");
-        let (primary_gas_owner, keypair): (IotaAddress, AccountKeyPair) =
+        let (primary_gas_owner, keypair): (Address, AccountKeyPair) =
             deterministic_random_account_key();
         let keypair = Arc::new(keypair);
 
@@ -210,7 +210,7 @@ impl Env {
             proxy.get_current_epoch(),
         );
 
-        let primary_gas_owner_addr = ObjectID::from_hex_literal(primary_gas_owner_id)?;
+        let primary_gas_owner_addr = ObjectId::from_hex(primary_gas_owner_id)?;
         let keystore_path = Some(&keystore_path)
             .filter(|s| !s.is_empty())
             .map(PathBuf::from)

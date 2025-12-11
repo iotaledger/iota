@@ -22,7 +22,7 @@ use schemars::JsonSchema;
 use serde::Serialize;
 
 use crate::{
-    base_types::IotaAddress,
+    base_types::Address,
     committee::EpochId,
     crypto::{
         CompressedSignature, IotaSignature, PasskeyAuthenticatorAsBytes, PublicKey, Signature,
@@ -78,7 +78,7 @@ pub trait AuthenticatorTrait {
     fn verify_claims<T>(
         &self,
         value: &IntentMessage<T>,
-        author: IotaAddress,
+        author: Address,
         aux_verify_data: &VerifyParams,
         zklogin_inputs_cache: Arc<VerifiedDigestCache<ZKLoginInputsDigest>>,
     ) -> IotaResult
@@ -115,7 +115,7 @@ impl GenericSignature {
     pub fn verify_authenticator<T>(
         &self,
         value: &IntentMessage<T>,
-        author: IotaAddress,
+        author: Address,
         epoch: EpochId,
         verify_params: &VerifyParams,
         zklogin_inputs_cache: Arc<VerifiedDigestCache<ZKLoginInputsDigest>>,
@@ -309,7 +309,7 @@ impl AuthenticatorTrait for Signature {
     fn verify_claims<T>(
         &self,
         value: &IntentMessage<T>,
-        author: IotaAddress,
+        author: Address,
         _aux_verify_data: &VerifyParams,
         _zklogin_inputs_cache: Arc<VerifiedDigestCache<ZKLoginInputsDigest>>,
     ) -> IotaResult

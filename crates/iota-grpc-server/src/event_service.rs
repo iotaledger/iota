@@ -7,10 +7,12 @@ use futures::StreamExt;
 use iota_grpc_types::v0::{common as grpc_common, events as grpc_events};
 use iota_json_rpc_types::EventFilter;
 use iota_types::{
-    base_types::{IotaAddress, ObjectID},
+    base_types::{Address, ObjectId},
     digests::TransactionDigest,
 };
-use move_core_types::{identifier::Identifier, language_storage::StructTag};
+use move_core_types::{
+    account_address::AccountAddress, identifier::Identifier, language_storage::StructTag,
+};
 use tokio_util::sync::CancellationToken;
 use tonic::{Request, Response, Status};
 use tracing::debug;
@@ -123,7 +125,7 @@ fn create_event_filter(proto_filter: &grpc_events::EventFilter) -> Result<EventF
         Some(Filter::MoveEventType(f)) => {
             let object_id = parse_object_id(&f.package_id, "Package ID")?;
             let struct_tag = StructTag {
-                address: *object_id,
+                address: AccountAddress::new(object_id.into_bytes()),
                 module: parse_identifier(&f.module, "module name")?,
                 name: parse_identifier(&f.name, "event name")?,
                 type_params: vec![],
@@ -149,11 +151,11 @@ fn create_event_filter(proto_filter: &grpc_events::EventFilter) -> Result<EventF
 fn parse_object_id(
     address: &Option<grpc_common::Address>,
     field_name: &str,
-) -> Result<ObjectID, Status> {
+) -> Result<ObjectId, Status> {
     let address = address
         .as_ref()
         .ok_or_else(|| Status::invalid_argument(format!("{field_name} is required")))?;
-    ObjectID::from_bytes(&address.address)
+    ObjectId::from_bytes(&address.address)
         .map_err(|e| Status::invalid_argument(format!("Invalid {field_name}: {e}")))
 }
 
@@ -165,11 +167,11 @@ fn parse_identifier(id_str: &str, field_name: &str) -> Result<Identifier, Status
 fn parse_iota_address(
     address: &Option<grpc_common::Address>,
     field_name: &str,
-) -> Result<IotaAddress, Status> {
+) -> Result<Address, Status> {
     let address = address
         .as_ref()
         .ok_or_else(|| Status::invalid_argument(format!("{field_name} is required")))?;
-    IotaAddress::from_bytes(&address.address)
+    Address::from_bytes(&address.address)
         .map_err(|e| Status::invalid_argument(format!("Invalid {field_name}: {e}")))
 }
 
@@ -180,6 +182,6 @@ fn parse_tx_digest(
     let digest = digest
         .as_ref()
         .ok_or_else(|| Status::invalid_argument(format!("{field_name} is required")))?;
-    TransactionDigest::try_from(digest.digest.as_slice())
+    TransactionDigest::from_bytes(digest.digest.as_slice())
         .map_err(|e| Status::invalid_argument(format!("Invalid {field_name}: {e}")))
 }

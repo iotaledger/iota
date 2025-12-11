@@ -8,6 +8,7 @@ use iota_core::{
     authority_client::NetworkAuthorityClient, transaction_orchestrator::TransactionOrchestrator,
 };
 use iota_macros::sim_test;
+use iota_sdk_2::types::ObjectReference;
 use iota_storage::{
     key_value_store::TransactionKeyValueStore, key_value_store_metrics::KeyValueStoreMetrics,
 };
@@ -334,7 +335,7 @@ async fn execute_transaction_v1() -> Result<(), anyhow::Error> {
         .into_iter()
         .map(|(object_ref, _, _)| object_ref)
         .collect::<Vec<_>>();
-    expected_output_objects.sort_by_key(|&(id, _version, _digest)| id);
+    expected_output_objects.sort_by_key(|oref| oref.object_id);
 
     let mut actual_input_objects_received = response
         .input_objects
@@ -349,9 +350,9 @@ async fn execute_transaction_v1() -> Result<(), anyhow::Error> {
         .output_objects
         .unwrap()
         .iter()
-        .map(|object| (object.id(), object.version(), object.digest()))
+        .map(|object| ObjectReference::new(object.id(), object.version(), object.digest()))
         .collect::<Vec<_>>();
-    actual_output_objects_received.sort_by_key(|&(id, _version, _digest)| id);
+    actual_output_objects_received.sort_by_key(|oref| oref.object_id);
     assert_eq!(expected_output_objects, actual_output_objects_received);
 
     Ok(())
@@ -395,7 +396,7 @@ async fn execute_transaction_v1_staking_transaction() -> Result<(), anyhow::Erro
         .into_iter()
         .map(|(object_ref, _, _)| object_ref)
         .collect::<Vec<_>>();
-    expected_output_objects.sort_by_key(|&(id, _version, _digest)| id);
+    expected_output_objects.sort_by_key(|oref| oref.object_id);
 
     let mut actual_input_objects_received = response
         .input_objects
@@ -410,9 +411,9 @@ async fn execute_transaction_v1_staking_transaction() -> Result<(), anyhow::Erro
         .output_objects
         .unwrap()
         .iter()
-        .map(|object| (object.id(), object.version(), object.digest()))
+        .map(|object| ObjectReference::new(object.id(), object.version(), object.digest()))
         .collect::<Vec<_>>();
-    actual_output_objects_received.sort_by_key(|&(id, _version, _digest)| id);
+    actual_output_objects_received.sort_by_key(|oref| oref.object_id);
     assert_eq!(expected_output_objects, actual_output_objects_received);
 
     Ok(())

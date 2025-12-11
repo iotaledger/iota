@@ -10,7 +10,7 @@ use axum::{Extension, Json, extract::State};
 use axum_extra::extract::WithRejection;
 use futures::StreamExt;
 use iota_sdk::{IOTA_COIN_TYPE, IotaClient, rpc_types::StakeStatus};
-use iota_types::base_types::IotaAddress;
+use iota_types::base_types::Address;
 use tracing::info;
 
 use crate::{
@@ -138,7 +138,7 @@ pub async fn balance(
 async fn get_sub_account_balances(
     account_type: SubAccountType,
     client: &IotaClient,
-    address: IotaAddress,
+    address: Address,
 ) -> Result<Vec<Amount>, Error> {
     let amounts = match account_type {
         SubAccountType::Stake => {

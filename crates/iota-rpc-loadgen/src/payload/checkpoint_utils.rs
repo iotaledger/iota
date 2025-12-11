@@ -6,14 +6,14 @@ use std::{fmt, fmt::Display};
 
 use futures::future::join_all;
 use iota_sdk::IotaClient;
-use iota_types::messages_checkpoint::CheckpointSequenceNumber;
+use iota_types::base_types::Version;
 
 pub(crate) struct CheckpointStats {
-    pub latest_checkpoints: Vec<CheckpointSequenceNumber>,
+    pub latest_checkpoints: Vec<Version>,
 }
 
 impl CheckpointStats {
-    pub fn max_latest_checkpoint(&self) -> CheckpointSequenceNumber {
+    pub fn max_latest_checkpoint(&self) -> Version {
         *self
             .latest_checkpoints
             .iter()
@@ -21,7 +21,7 @@ impl CheckpointStats {
             .expect("get_latest_checkpoint_sequence_number should not return empty")
     }
 
-    pub fn min_latest_checkpoint(&self) -> CheckpointSequenceNumber {
+    pub fn min_latest_checkpoint(&self) -> Version {
         *self
             .latest_checkpoints
             .iter()
@@ -49,20 +49,19 @@ impl Display for CheckpointStats {
 
 pub(crate) async fn get_latest_checkpoint_stats(
     clients: &[IotaClient],
-    end_checkpoint: Option<CheckpointSequenceNumber>,
+    end_checkpoint: Option<Version>,
 ) -> CheckpointStats {
-    let latest_checkpoints: Vec<CheckpointSequenceNumber> =
-        join_all(clients.iter().map(|client| async {
-            match end_checkpoint {
-                Some(e) => e,
-                None => client
-                    .read_api()
-                    .get_latest_checkpoint_sequence_number()
-                    .await
-                    .expect("get_latest_checkpoint_sequence_number should not fail"),
-            }
-        }))
-        .await;
+    let latest_checkpoints: Vec<Version> = join_all(clients.iter().map(|client| async {
+        match end_checkpoint {
+            Some(e) => e,
+            None => client
+                .read_api()
+                .get_latest_checkpoint_sequence_number()
+                .await
+                .expect("get_latest_checkpoint_sequence_number should not fail"),
+        }
+    }))
+    .await;
 
     CheckpointStats { latest_checkpoints }
 }

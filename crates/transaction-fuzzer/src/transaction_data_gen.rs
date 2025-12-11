@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use iota_types::{
-    base_types::{IotaAddress, ObjectID, ObjectRef, SequenceNumber},
+    base_types::{Address, ObjectId, ObjectReference, Version},
     digests::ObjectDigest,
     transaction::{
         GasData, TransactionData, TransactionDataV1, TransactionExpiration, TransactionKind,
@@ -35,18 +35,19 @@ pub fn gen_transaction_expiration() -> impl Strategy<Value = TransactionExpirati
     ]
 }
 
-pub fn gen_object_ref() -> impl Strategy<Value = ObjectRef> {
-    (
-        any::<AccountAddress>(),
-        any::<SequenceNumber>(),
-        any::<[u8; 32]>(),
+pub fn gen_object_ref() -> impl Strategy<Value = ObjectReference> {
+    (any::<AccountAddress>(), any::<Version>(), any::<[u8; 32]>()).prop_map(
+        move |(addr, seq, seed)| {
+            ObjectReference::new(
+                ObjectId::new(addr.into_bytes()),
+                seq,
+                ObjectDigest::new(seed),
+            )
+        },
     )
-        .prop_map(move |(addr, seq, seed)| {
-            (ObjectID::from_address(addr), seq, ObjectDigest::new(seed))
-        })
 }
 
-pub fn gen_gas_data(sender: IotaAddress) -> impl Strategy<Value = GasData> {
+pub fn gen_gas_data(sender: Address) -> impl Strategy<Value = GasData> {
     (
         vec(gen_object_ref(), 0..MAX_NUM_GAS_OBJS),
         gas_price_selection_strategy(),
@@ -66,7 +67,7 @@ pub fn gen_transaction_kind() -> impl Strategy<Value = TransactionKind> {
         .prop_map(TransactionKind::ProgrammableTransaction)
 }
 
-pub fn transaction_data_gen(sender: IotaAddress) -> impl Strategy<Value = TransactionData> {
+pub fn transaction_data_gen(sender: Address) -> impl Strategy<Value = TransactionData> {
     TransactionDataGenBuilder::new(sender)
         .kind(gen_transaction_kind())
         .gas_data(gen_gas_data(sender))
@@ -80,7 +81,7 @@ pub struct TransactionDataGenBuilder<
     E: Strategy<Value = TransactionExpiration>,
 > {
     pub kind: Option<K>,
-    pub sender: IotaAddress,
+    pub sender: Address,
     pub gas_data: Option<G>,
     pub expiration: Option<E>,
 }
@@ -91,7 +92,7 @@ impl<
     E: Strategy<Value = TransactionExpiration>,
 > TransactionDataGenBuilder<K, G, E>
 {
-    pub fn new(sender: IotaAddress) -> Self {
+    pub fn new(sender: Address) -> Self {
         Self {
             kind: None,
             sender,

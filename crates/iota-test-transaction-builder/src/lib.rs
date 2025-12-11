@@ -15,8 +15,8 @@ use iota_sdk::{
 };
 use iota_sdk_2::types::crypto::{Intent, IntentMessage};
 use iota_types::{
-    IOTA_RANDOMNESS_STATE_OBJECT_ID, IOTA_SYSTEM_PACKAGE_ID, TypeTag,
-    base_types::{IotaAddress, ObjectID, ObjectRef, SequenceNumber},
+    TypeTag,
+    base_types::{Address, ObjectId, ObjectReference, Version},
     crypto::{AccountKeyPair, Signature, Signer, get_key_pair},
     digests::TransactionDigest,
     iota_system_state::IOTA_SYSTEM_MODULE_NAME,
@@ -34,14 +34,14 @@ use move_core_types::ident_str;
 
 pub struct TestTransactionBuilder {
     test_data: TestTransactionData,
-    sender: IotaAddress,
-    gas_object: ObjectRef,
+    sender: Address,
+    gas_object: ObjectReference,
     gas_price: u64,
     gas_budget: Option<u64>,
 }
 
 impl TestTransactionBuilder {
-    pub fn new(sender: IotaAddress, gas_object: ObjectRef, gas_price: u64) -> Self {
+    pub fn new(sender: Address, gas_object: ObjectReference, gas_price: u64) -> Self {
         Self {
             test_data: TestTransactionData::Empty,
             sender,
@@ -51,18 +51,18 @@ impl TestTransactionBuilder {
         }
     }
 
-    pub fn sender(&self) -> IotaAddress {
+    pub fn sender(&self) -> Address {
         self.sender
     }
 
-    pub fn gas_object(&self) -> ObjectRef {
+    pub fn gas_object(&self) -> ObjectReference {
         self.gas_object
     }
 
     // Use `with_type_args` below to provide type args if any
     pub fn move_call(
         mut self,
-        package_id: ObjectID,
+        package_id: ObjectId,
         module: &'static str,
         function: &'static str,
         args: Vec<CallArg>,
@@ -93,22 +93,22 @@ impl TestTransactionBuilder {
         self
     }
 
-    pub fn call_counter_create(self, package_id: ObjectID) -> Self {
+    pub fn call_counter_create(self, package_id: ObjectId) -> Self {
         self.move_call(package_id, "counter", "create", vec![])
     }
 
     pub fn call_counter_increment(
         self,
-        package_id: ObjectID,
-        counter_id: ObjectID,
-        counter_initial_shared_version: SequenceNumber,
+        package_id: ObjectId,
+        counter_id: ObjectId,
+        counter_initial_shared_version: Version,
     ) -> Self {
         self.move_call(
             package_id,
             "counter",
             "increment",
             vec![CallArg::Object(ObjectArg::SharedObject {
-                id: counter_id,
+                object_id: counter_id,
                 initial_shared_version: counter_initial_shared_version,
                 mutable: true,
             })],
@@ -117,16 +117,16 @@ impl TestTransactionBuilder {
 
     pub fn call_counter_read(
         self,
-        package_id: ObjectID,
-        counter_id: ObjectID,
-        counter_initial_shared_version: SequenceNumber,
+        package_id: ObjectId,
+        counter_id: ObjectId,
+        counter_initial_shared_version: Version,
     ) -> Self {
         self.move_call(
             package_id,
             "counter",
             "value",
             vec![CallArg::Object(ObjectArg::SharedObject {
-                id: counter_id,
+                object_id: counter_id,
                 initial_shared_version: counter_initial_shared_version,
                 mutable: false,
             })],
@@ -135,23 +135,23 @@ impl TestTransactionBuilder {
 
     pub fn call_counter_delete(
         self,
-        package_id: ObjectID,
-        counter_id: ObjectID,
-        counter_initial_shared_version: SequenceNumber,
+        package_id: ObjectId,
+        counter_id: ObjectId,
+        counter_initial_shared_version: Version,
     ) -> Self {
         self.move_call(
             package_id,
             "counter",
             "delete",
             vec![CallArg::Object(ObjectArg::SharedObject {
-                id: counter_id,
+                object_id: counter_id,
                 initial_shared_version: counter_initial_shared_version,
                 mutable: true,
             })],
         )
     }
 
-    pub fn call_nft_create(self, package_id: ObjectID) -> Self {
+    pub fn call_nft_create(self, package_id: ObjectId) -> Self {
         self.move_call(
             package_id,
             "testnet_nft",
@@ -166,7 +166,7 @@ impl TestTransactionBuilder {
         )
     }
 
-    pub fn call_nft_delete(self, package_id: ObjectID, nft_to_delete: ObjectRef) -> Self {
+    pub fn call_nft_delete(self, package_id: ObjectId, nft_to_delete: ObjectReference) -> Self {
         self.move_call(
             package_id,
             "testnet_nft",
@@ -175,9 +175,9 @@ impl TestTransactionBuilder {
         )
     }
 
-    pub fn call_staking(self, stake_coin: ObjectRef, validator: IotaAddress) -> Self {
+    pub fn call_staking(self, stake_coin: ObjectReference, validator: Address) -> Self {
         self.move_call(
-            IOTA_SYSTEM_PACKAGE_ID,
+            Address::SYSTEM.into(),
             IOTA_SYSTEM_MODULE_NAME.as_str(),
             "request_add_stake",
             vec![
@@ -190,15 +190,15 @@ impl TestTransactionBuilder {
 
     pub fn call_emit_random(
         self,
-        package_id: ObjectID,
-        randomness_initial_shared_version: SequenceNumber,
+        package_id: ObjectId,
+        randomness_initial_shared_version: Version,
     ) -> Self {
         self.move_call(
             package_id,
             "random",
             "new",
             vec![CallArg::Object(ObjectArg::SharedObject {
-                id: IOTA_RANDOMNESS_STATE_OBJECT_ID,
+                object_id: ObjectId::RANDOMNESS_STATE,
                 initial_shared_version: randomness_initial_shared_version,
                 mutable: false,
             })],
@@ -207,7 +207,7 @@ impl TestTransactionBuilder {
 
     pub fn call_request_add_validator(self) -> Self {
         self.move_call(
-            IOTA_SYSTEM_PACKAGE_ID,
+            Address::SYSTEM.into(),
             IOTA_SYSTEM_MODULE_NAME.as_str(),
             "request_add_validator",
             vec![CallArg::IOTA_SYSTEM_MUT],
@@ -219,7 +219,7 @@ impl TestTransactionBuilder {
         validator: &GenesisValidatorMetadata,
     ) -> Self {
         self.move_call(
-            IOTA_SYSTEM_PACKAGE_ID,
+            Address::SYSTEM.into(),
             IOTA_SYSTEM_MODULE_NAME.as_str(),
             "request_add_validator_candidate",
             vec![
@@ -243,24 +243,24 @@ impl TestTransactionBuilder {
 
     pub fn call_request_remove_validator(self) -> Self {
         self.move_call(
-            IOTA_SYSTEM_PACKAGE_ID,
+            Address::SYSTEM.into(),
             IOTA_SYSTEM_MODULE_NAME.as_str(),
             "request_remove_validator",
             vec![CallArg::IOTA_SYSTEM_MUT],
         )
     }
 
-    pub fn transfer(mut self, object: ObjectRef, recipient: IotaAddress) -> Self {
+    pub fn transfer(mut self, object: ObjectReference, recipient: Address) -> Self {
         self.test_data = TestTransactionData::Transfer(TransferData { object, recipient });
         self
     }
 
-    pub fn transfer_iota(mut self, amount: Option<u64>, recipient: IotaAddress) -> Self {
+    pub fn transfer_iota(mut self, amount: Option<u64>, recipient: Address) -> Self {
         self.test_data = TestTransactionData::TransferIota(TransferIotaData { amount, recipient });
         self
     }
 
-    pub fn split_coin(mut self, coin: ObjectRef, amounts: Vec<u64>) -> Self {
+    pub fn split_coin(mut self, coin: ObjectReference, amounts: Vec<u64>) -> Self {
         self.test_data = TestTransactionData::SplitCoin(SplitCoinData { coin, amounts });
         self
     }
@@ -426,7 +426,7 @@ enum TestTransactionData {
 }
 
 struct MoveData {
-    package_id: ObjectID,
+    package_id: ObjectId,
     module: &'static str,
     function: &'static str,
     args: Vec<CallArg>,
@@ -444,17 +444,17 @@ pub enum PublishData {
 }
 
 struct TransferData {
-    object: ObjectRef,
-    recipient: IotaAddress,
+    object: ObjectReference,
+    recipient: Address,
 }
 
 struct TransferIotaData {
     amount: Option<u64>,
-    recipient: IotaAddress,
+    recipient: Address,
 }
 
 struct SplitCoinData {
-    coin: ObjectRef,
+    coin: ObjectReference,
     amounts: Vec<u64>,
 }
 
@@ -500,7 +500,7 @@ pub async fn batch_make_transfer_transactions(
 
 pub async fn make_transfer_iota_transaction(
     context: &WalletContext,
-    recipient: Option<IotaAddress>,
+    recipient: Option<Address>,
     amount: Option<u64>,
 ) -> Transaction {
     let (sender, gas_object) = context.get_one_gas_object().await.unwrap().unwrap();
@@ -514,7 +514,7 @@ pub async fn make_transfer_iota_transaction(
 
 pub async fn make_staking_transaction(
     context: &WalletContext,
-    validator_address: IotaAddress,
+    validator_address: Address,
 ) -> Transaction {
     let accounts_and_objs = context.get_all_accounts_and_gas_objects().await.unwrap();
     let sender = accounts_and_objs[0].0;
@@ -551,7 +551,7 @@ pub async fn make_publish_transaction_with_deps(
     )
 }
 
-pub async fn publish_package(context: &WalletContext, path: PathBuf) -> ObjectRef {
+pub async fn publish_package(context: &WalletContext, path: PathBuf) -> ObjectReference {
     let (sender, gas_object) = context.get_one_gas_object().await.unwrap().unwrap();
     let gas_price = context.get_reference_gas_price().await.unwrap();
     let txn = context.sign_transaction(
@@ -565,7 +565,7 @@ pub async fn publish_package(context: &WalletContext, path: PathBuf) -> ObjectRe
 
 /// Executes a transaction to publish the `basics` package and returns the
 /// package object ref.
-pub async fn publish_basics_package(context: &WalletContext) -> ObjectRef {
+pub async fn publish_basics_package(context: &WalletContext) -> ObjectReference {
     let (sender, gas_object) = context.get_one_gas_object().await.unwrap().unwrap();
     let gas_price = context.get_reference_gas_price().await.unwrap();
     let txn = context.sign_transaction(
@@ -581,13 +581,13 @@ pub async fn publish_basics_package(context: &WalletContext) -> ObjectRef {
 /// create a counter. Returns the package object ref and the counter object ref.
 pub async fn publish_basics_package_and_make_counter(
     context: &WalletContext,
-) -> (ObjectRef, ObjectRef) {
+) -> (ObjectReference, ObjectReference) {
     let package_ref = publish_basics_package(context).await;
     let (sender, gas_object) = context.get_one_gas_object().await.unwrap().unwrap();
     let gas_price = context.get_reference_gas_price().await.unwrap();
     let counter_creation_txn = context.sign_transaction(
         &TestTransactionBuilder::new(sender, gas_object, gas_price)
-            .call_counter_create(package_ref.0)
+            .call_counter_create(package_ref.object_id)
             .build(),
     );
     let resp = context
@@ -609,11 +609,11 @@ pub async fn publish_basics_package_and_make_counter(
 /// Must be called after calling `publish_basics_package_and_make_counter`.
 pub async fn increment_counter(
     context: &WalletContext,
-    sender: IotaAddress,
-    gas_object_id: Option<ObjectID>,
-    package_id: ObjectID,
-    counter_id: ObjectID,
-    initial_shared_version: SequenceNumber,
+    sender: Address,
+    gas_object_id: Option<ObjectId>,
+    package_id: ObjectId,
+    counter_id: ObjectId,
+    initial_shared_version: Version,
 ) -> IotaTransactionBlockResponse {
     let gas_object = if let Some(gas_object_id) = gas_object_id {
         context.get_object_ref(gas_object_id).await.unwrap()
@@ -637,7 +637,7 @@ pub async fn increment_counter(
 /// emits it as an event.
 pub async fn emit_new_random_u128(
     context: &WalletContext,
-    package_id: ObjectID,
+    package_id: ObjectId,
 ) -> IotaTransactionBlockResponse {
     let (sender, gas_object) = context.get_one_gas_object().await.unwrap().unwrap();
     let rgp = context.get_reference_gas_price().await.unwrap();
@@ -646,7 +646,7 @@ pub async fn emit_new_random_u128(
     let random_obj = client
         .read_api()
         .get_object_with_options(
-            IOTA_RANDOMNESS_STATE_OBJECT_ID,
+            ObjectId::RANDOMNESS_STATE,
             IotaObjectDataOptions::new().with_owner(),
         )
         .await
@@ -664,7 +664,7 @@ pub async fn emit_new_random_u128(
         panic!("Expect Randomness to be shared object")
     };
     let random_call_arg = CallArg::Object(ObjectArg::SharedObject {
-        id: IOTA_RANDOMNESS_STATE_OBJECT_ID,
+        object_id: ObjectId::RANDOMNESS_STATE,
         initial_shared_version,
         mutable: false,
     });
@@ -683,9 +683,9 @@ pub async fn publish_example_package(
     context: &WalletContext,
     example_subpath: &'static str,
     sender_key_pair: &AccountKeyPair,
-    sender: IotaAddress,
-    gas: ObjectRef,
-) -> (ObjectID, TransactionDigest) {
+    sender: Address,
+    gas: ObjectReference,
+) -> (ObjectId, TransactionDigest) {
     let gas_price = context.get_reference_gas_price().await.unwrap();
     let tx = to_sender_signed_transaction(
         TestTransactionBuilder::new(sender, gas, gas_price)
@@ -695,7 +695,7 @@ pub async fn publish_example_package(
     );
 
     let resp = context.execute_transaction_must_succeed(tx).await;
-    let package_id = get_new_package_obj_from_response(&resp).unwrap().0;
+    let package_id = get_new_package_obj_from_response(&resp).unwrap().object_id;
     (package_id, resp.digest)
 }
 
@@ -703,9 +703,9 @@ pub async fn publish_example_package(
 /// id, id of the gas object used, and the digest of the transaction.
 pub async fn publish_nfts_package(
     context: &WalletContext,
-) -> (ObjectID, ObjectID, TransactionDigest) {
+) -> (ObjectId, ObjectId, TransactionDigest) {
     let (sender, gas_object) = context.get_one_gas_object().await.unwrap().unwrap();
-    let gas_id = gas_object.0;
+    let gas_id = gas_object.object_id;
     let gas_price = context.get_reference_gas_price().await.unwrap();
     let txn = context.sign_transaction(
         &TestTransactionBuilder::new(sender, gas_object, gas_price)
@@ -713,7 +713,7 @@ pub async fn publish_nfts_package(
             .build(),
     );
     let resp = context.execute_transaction_must_succeed(txn).await;
-    let package_id = get_new_package_obj_from_response(&resp).unwrap().0;
+    let package_id = get_new_package_obj_from_response(&resp).unwrap().object_id;
     (package_id, gas_id, resp.digest)
 }
 
@@ -722,9 +722,9 @@ pub async fn publish_nfts_package(
 pub async fn publish_simple_warrior_package(
     context: &WalletContext,
     sender_key_pair: &AccountKeyPair,
-    sender: IotaAddress,
-    gas: ObjectRef,
-) -> (ObjectID, TransactionDigest) {
+    sender: Address,
+    gas: ObjectReference,
+) -> (ObjectId, TransactionDigest) {
     publish_example_package(context, "simple_warrior", sender_key_pair, sender, gas).await
 }
 
@@ -733,8 +733,8 @@ pub async fn publish_simple_warrior_package(
 /// object id of the NFT, and the digest of the transaction.
 pub async fn create_nft(
     context: &WalletContext,
-    package_id: ObjectID,
-) -> (IotaAddress, ObjectID, TransactionDigest) {
+    package_id: ObjectId,
+) -> (Address, ObjectId, TransactionDigest) {
     let (sender, gas_object) = context.get_one_gas_object().await.unwrap().unwrap();
     let rgp = context.get_reference_gas_price().await.unwrap();
 
@@ -761,9 +761,9 @@ pub async fn create_nft(
 /// Executes a transaction to delete the given NFT.
 pub async fn delete_nft(
     context: &WalletContext,
-    sender: IotaAddress,
-    package_id: ObjectID,
-    nft_to_delete: ObjectRef,
+    sender: Address,
+    package_id: ObjectId,
+    nft_to_delete: ObjectReference,
 ) -> IotaTransactionBlockResponse {
     let gas = context
         .get_one_gas_object_owned_by_address(sender)

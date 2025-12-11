@@ -5,7 +5,7 @@
 use std::collections::VecDeque;
 
 use iota_types::{
-    base_types::{MoveObjectType, ObjectID, SequenceNumber},
+    base_types::{Address, MoveObjectType, ObjectId, Version},
     object::Owner,
 };
 use move_binary_format::errors::{PartialVMError, PartialVMResult};
@@ -61,15 +61,17 @@ pub fn receive_object_internal(
         transfer_receive_object_internal_cost_params.transfer_receive_object_internal_cost_base
     );
     let child_ty = ty_args.pop().unwrap();
-    let child_receiver_sequence_number: SequenceNumber = pop_arg!(args, u64).into();
+    let child_receiver_sequence_number: Version = pop_arg!(args, u64).into();
     let child_receiver_object_id = args.pop_back().unwrap();
-    let parent = pop_arg!(args, AccountAddress).into();
+    let parent = ObjectId::new(pop_arg!(args, AccountAddress).into_bytes());
     assert!(args.is_empty());
-    let child_id: ObjectID = get_receiver_object_id(child_receiver_object_id.copy_value().unwrap())
-        .unwrap()
-        .value_as::<AccountAddress>()
-        .unwrap()
-        .into();
+    let child_id = ObjectId::new(
+        get_receiver_object_id(child_receiver_object_id.copy_value().unwrap())
+            .unwrap()
+            .value_as::<AccountAddress>()
+            .unwrap()
+            .into_bytes(),
+    );
     assert!(ty_args.is_empty());
 
     let Some((tag, layout, annotated_layout)) = get_tag_and_layouts(context, &child_ty)? else {
@@ -142,7 +144,7 @@ pub fn transfer_internal(
     let recipient = pop_arg!(args, AccountAddress);
     let obj = args.pop_back().unwrap();
 
-    let owner = Owner::AddressOwner(recipient.into());
+    let owner = Owner::AddressOwner(Address::new(recipient.into_bytes()));
     object_runtime_transfer(context, owner, ty, obj)?;
     let cost = context.gas_used();
     Ok(NativeResult::ok(cost, smallvec![]))
@@ -221,7 +223,7 @@ pub fn share_object(
         // Dummy version, to be filled with the correct initial version when the effects of the
         // transaction are written to storage.
         Owner::Shared {
-            initial_shared_version: SequenceNumber::new(),
+            initial_shared_version: Version::default(),
         },
         ty,
         obj,

@@ -17,7 +17,7 @@ use crate::{
     committee::{Committee, EpochId, StakeUnit},
     digests::CheckpointContentsDigest,
     execution_status::CommandArgumentError,
-    messages_checkpoint::CheckpointSequenceNumber,
+    messages_checkpoint::CheckpointVersion,
     object::Owner,
 };
 
@@ -91,7 +91,7 @@ macro_rules! assert_invariant {
 )]
 pub enum UserInputError {
     #[error("Mutable object {object_id} cannot appear more than once in one transaction")]
-    MutableObjectUsedMoreThanOnce { object_id: ObjectID },
+    MutableObjectUsedMoreThanOnce { object_id: ObjectId },
     #[error("Wrong number of parameters for the transaction")]
     ObjectInputArityViolation,
     #[error(
@@ -100,23 +100,23 @@ pub enum UserInputError {
         version
     )]
     ObjectNotFound {
-        object_id: ObjectID,
-        version: Option<SequenceNumber>,
+        object_id: ObjectId,
+        version: Option<Version>,
     },
     #[error(
         "Object ID {} Version {} Digest {} is not available for consumption, current version: {current_version}",
-        .provided_obj_ref.0, .provided_obj_ref.1, .provided_obj_ref.2
+        .provided_obj_ref.object_id, .provided_obj_ref.version, .provided_obj_ref.digest
     )]
     ObjectVersionUnavailableForConsumption {
-        provided_obj_ref: ObjectRef,
-        current_version: SequenceNumber,
+        provided_obj_ref: ObjectReference,
+        current_version: Version,
     },
     #[error("Package verification failed: {err:?}")]
     PackageVerificationTimedout { err: String },
     #[error("Dependent package not found on-chain: {package_id:?}")]
-    DependentPackageNotFound { package_id: ObjectID },
+    DependentPackageNotFound { package_id: ObjectId },
     #[error("Mutable parameter provided, immutable parameter expected")]
-    ImmutableParameterExpected { object_id: ObjectID },
+    ImmutableParameterExpected { object_id: ObjectId },
     #[error("Size limit exceeded: {limit} is {value}")]
     SizeLimitExceeded { limit: String, value: String },
     #[error(
@@ -124,29 +124,29 @@ pub enum UserInputError {
         Objects owned by other objects cannot be used as input arguments"
     )]
     InvalidChildObjectArgument {
-        child_id: ObjectID,
-        parent_id: ObjectID,
+        child_id: ObjectId,
+        parent_id: ObjectId,
     },
     #[error(
         "Invalid Object digest for object {object_id:?}. Expected digest : {expected_digest:?}"
     )]
     InvalidObjectDigest {
-        object_id: ObjectID,
+        object_id: ObjectId,
         expected_digest: ObjectDigest,
     },
     #[error("Sequence numbers above the maximal value are not usable for transfers")]
-    InvalidSequenceNumber,
+    InvalidVersion,
     #[error("A move object is expected, instead a move package is passed: {object_id}")]
-    MovePackageAsObject { object_id: ObjectID },
+    MovePackageAsObject { object_id: ObjectId },
     #[error("A move package is expected, instead a move object is passed: {object_id}")]
-    MoveObjectAsPackage { object_id: ObjectID },
+    MoveObjectAsPackage { object_id: ObjectId },
     #[error("Transaction was not signed by the correct sender: {}", error)]
     IncorrectUserSignature { error: String },
 
     #[error("Object used as shared is not shared")]
     NotSharedObject,
-    #[error("The transaction inputs contain duplicated ObjectRef's")]
-    DuplicateObjectRefInput,
+    #[error("The transaction inputs contain duplicated ObjectReference's")]
+    DuplicateObjectReferenceInput,
 
     // Gas related errors
     #[error("Transaction gas payment missing")]
@@ -180,7 +180,7 @@ pub enum UserInputError {
     #[error("Gas price cannot exceed {:?} nanos", max_gas_price)]
     GasPriceTooHigh { max_gas_price: u64 },
     #[error("Object {object_id} is not a gas object")]
-    InvalidGasObject { object_id: ObjectID },
+    InvalidGasObject { object_id: ObjectId },
     #[error("Gas object does not have enough balance to cover minimal gas spend")]
     InsufficientBalanceToCoverMinimalGas,
 
@@ -190,13 +190,13 @@ pub enum UserInputError {
         asked_version,
         latest_version
     )]
-    ObjectSequenceNumberTooHigh {
-        object_id: ObjectID,
-        asked_version: SequenceNumber,
-        latest_version: SequenceNumber,
+    ObjectVersionTooHigh {
+        object_id: ObjectId,
+        asked_version: Version,
+        latest_version: Version,
     },
     #[error("Object deleted at reference {:?}", object_ref)]
-    ObjectDeleted { object_ref: ObjectRef },
+    ObjectDeleted { object_ref: ObjectReference },
     #[error("Invalid Batch Transaction: {}", error)]
     InvalidBatchTransaction { error: String },
     #[error("This Move function is currently disabled and not available for call")]
@@ -217,7 +217,7 @@ pub enum UserInputError {
     #[error(
         "Attempt to transfer object {object_id} that does not have public transfer. Object transfer must be done instead using a distinct Move function call"
     )]
-    TransferObjectWithoutPublicTransfer { object_id: ObjectID },
+    TransferObjectWithoutPublicTransfer { object_id: ObjectId },
 
     #[error(
         "TransferObjects, MergeCoin, and Publish cannot have empty arguments. \
@@ -235,13 +235,13 @@ pub enum UserInputError {
     MoveFunctionInput(String),
 
     #[error("Verified checkpoint not found for sequence number: {0}")]
-    VerifiedCheckpointNotFound(CheckpointSequenceNumber),
+    VerifiedCheckpointNotFound(CheckpointVersion),
 
     #[error("Verified checkpoint not found for digest: {0}")]
     VerifiedCheckpointDigestNotFound(String),
 
     #[error("Latest checkpoint sequence number not found")]
-    LatestCheckpointSequenceNumberNotFound,
+    LatestCheckpointVersionNotFound,
 
     #[error("Checkpoint contents not found for digest: {0}")]
     CheckpointContentsNotFound(CheckpointContentsDigest),
@@ -256,7 +256,7 @@ pub enum UserInputError {
         "Object {:?} is a system object and cannot be accessed by user transactions",
         object_id
     )]
-    InaccessibleSystemObject { object_id: ObjectID },
+    InaccessibleSystemObject { object_id: ObjectId },
     #[error(
         "{max_publish_commands} max publish/upgrade commands allowed, {publish_count} provided"
     )]
@@ -266,13 +266,10 @@ pub enum UserInputError {
     },
 
     #[error("Immutable parameter provided, mutable parameter expected")]
-    MutableParameterExpected { object_id: ObjectID },
+    MutableParameterExpected { object_id: ObjectId },
 
     #[error("Address {address:?} is denied for coin {coin_type}")]
-    AddressDeniedForCoin {
-        address: IotaAddress,
-        coin_type: String,
-    },
+    AddressDeniedForCoin { address: Address, coin_type: String },
 
     #[error("Commands following a command with Random can only be TransferObjects or MergeCoins")]
     PostRandomCommandRestrictions,
@@ -330,9 +327,9 @@ pub enum UserInputError {
 #[serde(tag = "code", rename = "ObjectResponseError", rename_all = "camelCase")]
 pub enum IotaObjectResponseError {
     #[error("Object {:?} does not exist", object_id)]
-    NotExists { object_id: ObjectID },
+    NotExists { object_id: ObjectId },
     #[error("Cannot find dynamic field for parent object {:?}", parent_object_id)]
-    DynamicFieldNotFound { parent_object_id: ObjectID },
+    DynamicFieldNotFound { parent_object_id: ObjectId },
     #[error(
         "Object has been deleted object_id: {:?} at version: {:?} in digest {:?}",
         object_id,
@@ -340,9 +337,9 @@ pub enum IotaObjectResponseError {
         digest
     )]
     Deleted {
-        object_id: ObjectID,
+        object_id: ObjectId,
         /// Object version.
-        version: SequenceNumber,
+        version: Version,
         /// Base64 string representing the object digest
         digest: ObjectDigest,
     },
@@ -377,7 +374,7 @@ pub enum IotaError {
         "Input {object_id} already has {queue_len} transactions pending, above threshold of {threshold}"
     )]
     TooManyTransactionsPendingOnObject {
-        object_id: ObjectID,
+        object_id: ObjectId,
         queue_len: usize,
         threshold: usize,
     },
@@ -386,7 +383,7 @@ pub enum IotaError {
         "Input {object_id} has a transaction {txn_age_sec} seconds old pending, above threshold of {threshold} seconds"
     )]
     TooOldTransactionPendingOnObject {
-        object_id: ObjectID,
+        object_id: ObjectId,
         txn_age_sec: u64,
         threshold: u64,
     },
@@ -500,19 +497,19 @@ pub enum IotaError {
 
     // Internal state errors
     #[error("Attempt to re-initialize a transaction lock for objects {:?}.", refs)]
-    ObjectLockAlreadyInitialized { refs: Vec<ObjectRef> },
+    ObjectLockAlreadyInitialized { refs: Vec<ObjectReference> },
     #[error(
         "Object {obj_ref:?} already locked by a different transaction: {pending_transaction:?}"
     )]
     ObjectLockConflict {
-        obj_ref: ObjectRef,
+        obj_ref: ObjectReference,
         pending_transaction: TransactionDigest,
     },
     #[error(
         "Objects {obj_refs:?} are already locked by a transaction from a future epoch {locked_epoch:?}), attempt to override with a transaction from epoch {new_epoch:?}"
     )]
     ObjectLockedAtFutureEpoch {
-        obj_refs: Vec<ObjectRef>,
+        obj_refs: Vec<ObjectReference>,
         locked_epoch: EpochId,
         new_epoch: EpochId,
         locked_by_tx: TransactionDigest,
@@ -545,8 +542,8 @@ pub enum IotaError {
         but it's actual parent is {actual_owner}"
     )]
     InvalidChildObjectAccess {
-        object: ObjectID,
-        given_parent: ObjectID,
+        object: ObjectId,
+        given_parent: ObjectId,
         actual_owner: Owner,
     },
 

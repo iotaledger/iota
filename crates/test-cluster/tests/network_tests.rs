@@ -7,15 +7,17 @@ use iota_json_rpc_api::ReadApiClient;
 use iota_json_rpc_types::IotaObjectResponse;
 use iota_macros::sim_test;
 use iota_types::{
-    IOTA_FRAMEWORK_PACKAGE_ID, IOTA_SYSTEM_ADDRESS, IOTA_SYSTEM_PACKAGE_ID, MOVE_STDLIB_PACKAGE_ID,
-    base_types::ObjectID, digests::TransactionDigest, object::Object,
+    base_types::{Address, ObjectId},
+    digests::TransactionDigest,
+    object::Object,
 };
+use move_core_types::account_address::AccountAddress;
 use test_cluster::TestClusterBuilder;
 
 #[sim_test]
 async fn test_additional_objects() {
     // Test the ability to add additional objects into genesis for test clusters
-    let id = ObjectID::random();
+    let id = ObjectId::new(rand::random());
     let cluster = TestClusterBuilder::new()
         .with_objects([Object::immutable_with_id_for_testing(id)])
         .build()
@@ -33,7 +35,7 @@ async fn test_package_override() {
         let default_cluster = TestClusterBuilder::new().build().await;
         let client = default_cluster.rpc_client();
         let obj = client
-            .get_object(IOTA_SYSTEM_PACKAGE_ID, None)
+            .get_object(ObjectId::from_address(Address::SYSTEM), None)
             .await
             .unwrap();
 
@@ -45,14 +47,16 @@ async fn test_package_override() {
     };
 
     let modified_ref = {
-        let mut framework_modules = BuiltInFramework::get_package_by_id(&IOTA_SYSTEM_PACKAGE_ID)
-            .modules()
-            .to_vec();
+        let mut framework_modules =
+            BuiltInFramework::get_package_by_id(&ObjectId::from_address(Address::SYSTEM))
+                .modules()
+                .to_vec();
 
         // Create an empty module that is pretending to be part of the iota framework.
         let mut test_module = move_binary_format::file_format::empty_module();
         let address_idx = test_module.self_handle().address.0 as usize;
-        test_module.address_identifiers[address_idx] = IOTA_SYSTEM_ADDRESS;
+        test_module.address_identifiers[address_idx] =
+            AccountAddress::new(Address::SYSTEM.into_bytes());
 
         // Add the dummy module to the rest of the iota-frameworks.  We can't replace
         // the framework entirely because we will call into it for genesis.
@@ -60,10 +64,11 @@ async fn test_package_override() {
 
         let package_override = Object::new_package_for_testing(
             &framework_modules,
-            TransactionDigest::genesis_marker(),
+            TransactionDigest::GENESIS_MARKER,
             [
-                BuiltInFramework::get_package_by_id(&MOVE_STDLIB_PACKAGE_ID).genesis_move_package(),
-                BuiltInFramework::get_package_by_id(&IOTA_FRAMEWORK_PACKAGE_ID)
+                BuiltInFramework::get_package_by_id(&ObjectId::from(Address::STD_LIB))
+                    .genesis_move_package(),
+                BuiltInFramework::get_package_by_id(&ObjectId::from(Address::FRAMEWORK))
                     .genesis_move_package(),
             ],
         )
@@ -76,7 +81,7 @@ async fn test_package_override() {
 
         let client = modified_cluster.rpc_client();
         let obj = client
-            .get_object(IOTA_SYSTEM_PACKAGE_ID, None)
+            .get_object(ObjectId::from_address(Address::SYSTEM), None)
             .await
             .unwrap();
 

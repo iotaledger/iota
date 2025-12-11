@@ -14,7 +14,7 @@ use fastcrypto::{ed25519::Ed25519PublicKey, traits::ToFromBytes};
 use iota_sdk::{IotaClient, IotaClientBuilder, rpc_types::IotaObjectDataOptions};
 use iota_tls::Allower;
 use iota_types::{
-    base_types::ObjectID,
+    base_types::ObjectId,
     dynamic_field::Field,
     iota_system_state::{
         iota_system_state_inner_v1::ValidatorV1,
@@ -156,7 +156,7 @@ impl IotaNodeProvider {
 
     async fn get_pending_validators(
         iota_client: &IotaClient,
-        pending_active_validators_id: ObjectID,
+        pending_active_validators_id: ObjectId,
     ) -> Result<Vec<ValidatorV1>> {
         let pending_validators_ids = iota_client
             .read_api()

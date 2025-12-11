@@ -18,7 +18,7 @@ use iota_rest_api::{
 use iota_sdk_2::types::{Argument, Command, TransactionExpiration, crypto::Intent};
 use iota_test_transaction_builder::make_transfer_iota_transaction;
 use iota_types::{
-    base_types::IotaAddress, effects::TransactionEffectsAPI, transaction::TransactionDataAPI,
+    base_types::Address, effects::TransactionEffectsAPI, transaction::TransactionDataAPI,
 };
 use test_cluster::TestClusterBuilder;
 
@@ -27,7 +27,7 @@ async fn execute_transaction_transfer() {
     let test_cluster = TestClusterBuilder::new().build().await;
 
     let client = Client::new(test_cluster.rpc_url());
-    let address = IotaAddress::random_for_testing_only();
+    let address = Address::new(rand::random());
     let amount = 9;
 
     let txn =
@@ -70,11 +70,11 @@ async fn resolve_transaction_simple_transfer() {
     let test_cluster = TestClusterBuilder::new().build().await;
 
     let client = Client::new(test_cluster.rpc_url());
-    let recipient = IotaAddress::random_for_testing_only();
+    let recipient = Address::new(rand::random());
 
     let (sender, mut gas) = test_cluster.wallet.get_one_account().await.unwrap();
-    gas.sort_by_key(|object_ref| object_ref.0);
-    let obj_to_send = gas.first().unwrap().0;
+    gas.sort_by_key(|object_ref| object_ref.object_id);
+    let obj_to_send = gas.first().unwrap().object_id;
 
     let unresolved_transaction = UnresolvedTransaction {
         ptb: UnresolvedProgrammableTransaction {
@@ -137,10 +137,10 @@ async fn resolve_transaction_transfer_with_sponsor() {
     let test_cluster = TestClusterBuilder::new().build().await;
 
     let client = Client::new(test_cluster.rpc_url());
-    let recipient = IotaAddress::random_for_testing_only();
+    let recipient = Address::new(rand::random());
 
     let (sender, gas) = test_cluster.wallet.get_one_account().await.unwrap();
-    let obj_to_send = gas.first().unwrap().0;
+    let obj_to_send = gas.first().unwrap().object_id;
     let sponsor = test_cluster.wallet.get_addresses()[1];
 
     let unresolved_transaction = UnresolvedTransaction {
@@ -282,8 +282,8 @@ async fn resolve_transaction_mutable_shared_object() {
     let client = Client::new(test_cluster.rpc_url());
 
     let (sender, mut gas) = test_cluster.wallet.get_one_account().await.unwrap();
-    gas.sort_by_key(|object_ref| object_ref.0);
-    let obj_to_stake = gas.first().unwrap().0;
+    gas.sort_by_key(|object_ref| object_ref.object_id);
+    let obj_to_stake = gas.first().unwrap().object_id;
     let validator_address = client
         .inner()
         .get_system_state_summary()
@@ -378,7 +378,7 @@ async fn resolve_transaction_insufficient_gas() {
                 arguments: vec![Argument::Input(0)],
             })],
         },
-        sender: IotaAddress::random_for_testing_only().into(), // random account with no gas
+        sender: Address::new(rand::random()).into(), // random account with no gas
         gas_payment: None,
         expiration: TransactionExpiration::None,
     };

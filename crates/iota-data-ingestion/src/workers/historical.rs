@@ -22,9 +22,7 @@ use iota_storage::{
     blob::{Blob, BlobEncoding},
     compress,
 };
-use iota_types::{
-    full_checkpoint_content::CheckpointData, messages_checkpoint::CheckpointSequenceNumber,
-};
+use iota_types::{base_types::Version, full_checkpoint_content::CheckpointData};
 use object_store::{DynObjectStore, Error as ObjectStoreError, ObjectStore};
 use serde::{Deserialize, Serialize};
 
@@ -52,11 +50,7 @@ impl HistoricalReducer {
         })
     }
 
-    async fn upload(
-        &self,
-        checkpoint_range: Range<CheckpointSequenceNumber>,
-        data: Bytes,
-    ) -> anyhow::Result<()> {
+    async fn upload(&self, checkpoint_range: Range<Version>, data: Bytes) -> anyhow::Result<()> {
         let file_metadata =
             create_file_metadata_from_bytes(data.clone(), checkpoint_range.clone())?;
         self.remote_store
@@ -84,7 +78,7 @@ impl HistoricalReducer {
         Ok(Bytes::from(compressed_buffer))
     }
 
-    pub async fn get_watermark(&self) -> anyhow::Result<CheckpointSequenceNumber> {
+    pub async fn get_watermark(&self) -> anyhow::Result<Version> {
         let manifest = Self::read_manifest(&self.remote_store).await?;
         Ok(manifest.next_checkpoint_seq_num())
     }

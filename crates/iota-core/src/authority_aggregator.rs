@@ -251,7 +251,7 @@ pub enum AggregatorProcessTransactionError {
     FatalConflictingTransaction {
         errors: GroupedErrors,
         conflicting_tx_digests:
-            BTreeMap<TransactionDigest, (Vec<(AuthorityName, ObjectRef)>, StakeUnit)>,
+            BTreeMap<TransactionDigest, (Vec<(AuthorityName, ObjectReference)>, StakeUnit)>,
     },
 
     #[error(
@@ -389,7 +389,7 @@ struct ProcessTransactionState {
     retryable_overload_info: RetryableOverloadInfo,
     // If there are conflicting transactions, we note them down to report to user.
     conflicting_tx_digests:
-        BTreeMap<TransactionDigest, (Vec<(AuthorityName, ObjectRef)>, StakeUnit)>,
+        BTreeMap<TransactionDigest, (Vec<(AuthorityName, ObjectReference)>, StakeUnit)>,
     // As long as none of the exit criteria are met we consider the state retryable
     // 1) >= 2f+1 signatures
     // 2) >= f+1 non-retryable errors
@@ -939,7 +939,7 @@ where
     /// benchmarking.
     pub async fn get_latest_object_version_for_testing(
         &self,
-        object_id: ObjectID,
+        object_id: ObjectId,
     ) -> IotaResult<Object> {
         #[derive(Debug, Default)]
         struct State {

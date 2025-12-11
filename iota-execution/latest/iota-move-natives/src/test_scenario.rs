@@ -13,7 +13,7 @@ use better_any::{Tid, TidAble};
 use indexmap::{IndexMap, IndexSet};
 use iota_types::{
     TypeTag,
-    base_types::{IotaAddress, ObjectID, SequenceNumber},
+    base_types::{Address, ObjectId, Version},
     config,
     digests::{ObjectDigest, TransactionDigest},
     dynamic_field::DynamicFieldInfo,
@@ -64,9 +64,9 @@ impl<'a> NativeExtensionMarker<'a> for &'a InMemoryTestStore {}
 impl ChildObjectResolver for InMemoryTestStore {
     fn read_child_object(
         &self,
-        parent: &ObjectID,
-        child: &ObjectID,
-        child_version_upper_bound: SequenceNumber,
+        parent: &ObjectId,
+        child: &ObjectId,
+        child_version_upper_bound: Version,
     ) -> iota_types::error::IotaResult<Option<Object>> {
         let l: &'static LocalKey<RefCell<InMemoryStorage>> = self.0;
         l.with_borrow(|store| store.read_child_object(parent, child, child_version_upper_bound))
@@ -74,9 +74,9 @@ impl ChildObjectResolver for InMemoryTestStore {
 
     fn get_object_received_at_version(
         &self,
-        owner: &ObjectID,
-        receiving_object_id: &ObjectID,
-        receive_object_at_version: SequenceNumber,
+        owner: &ObjectId,
+        receiving_object_id: &ObjectId,
+        receive_object_at_version: Version,
         epoch_id: iota_types::committee::EpochId,
     ) -> iota_types::error::IotaResult<Option<Object>> {
         self.0.with_borrow(|store| {
@@ -209,9 +209,9 @@ pub fn end_transaction(
                 .map(|shared_or_imm_owner| shared_or_imm_owner != &owner)
                 .unwrap_or(/* not incorrect */ false);
         if created_object_ids.contains(&id) {
-            created.push(id);
+            created.push(AccountAddress::new(id.into_bytes()));
         } else {
-            written.push(id);
+            written.push(AccountAddress::new(id.into_bytes()));
         }
         match owner {
             Owner::AddressOwner(a) => {
@@ -264,7 +264,7 @@ pub fn end_transaction(
             || taken_shared_or_imm
                 .get(&id)
                 .is_some_and(|owner| matches!(owner, Owner::Immutable));
-        deleted.push(id);
+        deleted.push(AccountAddress::new(id.into_bytes()));
     }
     // find all wrapped objects
     let mut all_wrapped = BTreeSet::new();
@@ -298,7 +298,7 @@ pub fn end_transaction(
 
     // mark all wrapped as deleted
     for wrapped in all_wrapped {
-        deleted.push(wrapped)
+        deleted.push(AccountAddress::new(wrapped.into_bytes()))
     }
 
     // new input objects are remaining taken objects not written/deleted
@@ -350,7 +350,10 @@ pub fn end_transaction(
     }
     // remove deleted
     for id in &deleted {
-        object_runtime_ref.test_inventories.objects.remove(id);
+        object_runtime_ref
+            .test_inventories
+            .objects
+            .remove(&ObjectId::new(id.into_bytes()));
     }
     // remove active child objects
     for id in all_active_child_objects_with_values {
@@ -375,7 +378,7 @@ pub fn take_from_address_by_id(
 ) -> PartialVMResult<NativeResult> {
     let specified_ty = get_specified_ty(ty_args);
     let id = pop_id(&mut args)?;
-    let account: IotaAddress = pop_arg!(args, AccountAddress).into();
+    let account = Address::new(pop_arg!(args, AccountAddress).into_bytes());
     pop_arg!(args, StructRef);
     assert!(args.is_empty());
     let object_runtime: &mut ObjectRuntime = context.extensions_mut().get_mut()?;
@@ -408,7 +411,7 @@ pub fn ids_for_address(
     mut args: VecDeque<Value>,
 ) -> PartialVMResult<NativeResult> {
     let specified_ty = get_specified_ty(ty_args);
-    let account: IotaAddress = pop_arg!(args, AccountAddress).into();
+    let account = Address::new(pop_arg!(args, AccountAddress).into_bytes());
     assert!(args.is_empty());
     let object_runtime: &mut ObjectRuntime = context.extensions_mut().get_mut()?;
     let inventories = &mut object_runtime.test_inventories;
@@ -416,7 +419,11 @@ pub fn ids_for_address(
         .address_inventories
         .get(&account)
         .and_then(|inv| inv.get(&specified_ty))
-        .map(|s| s.iter().map(|id| pack_id(*id)).collect::<Vec<Value>>())
+        .map(|s| {
+            s.iter()
+                .map(|id| pack_id(AccountAddress::new(id.into_bytes())))
+                .collect::<Vec<Value>>()
+        })
         .unwrap_or_default();
     let ids_vector = Value::vector_for_testing_only(ids);
     Ok(NativeResult::ok(legacy_test_cost(), smallvec![ids_vector]))
@@ -429,7 +436,7 @@ pub fn most_recent_id_for_address(
     mut args: VecDeque<Value>,
 ) -> PartialVMResult<NativeResult> {
     let specified_ty = get_specified_ty(ty_args);
-    let account: IotaAddress = pop_arg!(args, AccountAddress).into();
+    let account = Address::new(pop_arg!(args, AccountAddress).into_bytes());
     assert!(args.is_empty());
     let object_runtime: &mut ObjectRuntime = context.extensions_mut().get_mut()?;
     let inventories = &mut object_runtime.test_inventories;
@@ -451,7 +458,7 @@ pub fn was_taken_from_address(
 ) -> PartialVMResult<NativeResult> {
     assert!(ty_args.is_empty());
     let id = pop_id(&mut args)?;
-    let account: IotaAddress = pop_arg!(args, AccountAddress).into();
+    let account = Address::new(pop_arg!(args, AccountAddress).into_bytes());
     assert!(args.is_empty());
     let object_runtime: &mut ObjectRuntime = context.extensions_mut().get_mut()?;
     let inventories = &mut object_runtime.test_inventories;
@@ -572,7 +579,7 @@ pub fn take_shared_by_id(
         &mut inventories.taken,
         &mut object_runtime.state.input_objects,
         id,
-        Owner::Shared { initial_shared_version: /* dummy */ SequenceNumber::new() },
+        Owner::Shared { initial_shared_version: /* dummy */ Version::default() },
     );
     Ok(match res {
         Ok(value) => NativeResult::ok(legacy_test_cost(), smallvec![value]),
@@ -638,7 +645,7 @@ pub fn allocate_receiving_ticket_for_object(
         ));
     };
     let object_runtime: &mut ObjectRuntime = context.extensions_mut().get_mut()?;
-    let object_version = SequenceNumber::new();
+    let object_version = Version::default();
     let inventories = &mut object_runtime.test_inventories;
     if inventories.allocated_tickets.contains_key(&id) {
         return Ok(NativeResult::err(
@@ -674,7 +681,7 @@ pub fn allocate_receiving_ticket_for_object(
         id,
         (
             DynamicallyLoadedObjectMetadata {
-                version: SequenceNumber::new(),
+                version: Version::default(),
                 digest: ObjectDigest::MIN,
                 owner: Owner::AddressOwner(*owner),
                 storage_rebate: 0,
@@ -697,7 +704,7 @@ pub fn allocate_receiving_ticket_for_object(
 
     Ok(NativeResult::ok(
         legacy_test_cost(),
-        smallvec![Value::u64(object_version.value())],
+        smallvec![Value::u64(object_version)],
     ))
 }
 
@@ -740,11 +747,11 @@ pub fn deallocate_receiving_ticket_for_object(
 // impls
 
 fn take_from_inventory(
-    is_in_inventory: impl FnOnce(&ObjectID) -> bool,
-    objects: &BTreeMap<ObjectID, Value>,
-    taken: &mut BTreeMap<ObjectID, Owner>,
-    input_objects: &mut BTreeMap<ObjectID, Owner>,
-    id: ObjectID,
+    is_in_inventory: impl FnOnce(&ObjectId) -> bool,
+    objects: &BTreeMap<ObjectId, Value>,
+    taken: &mut BTreeMap<ObjectId, Owner>,
+    input_objects: &mut BTreeMap<ObjectId, Owner>,
+    id: ObjectId,
     owner: Owner,
 ) -> Result<Value, NativeResult> {
     let obj_opt = objects.get(&id);
@@ -762,21 +769,21 @@ fn take_from_inventory(
 }
 
 fn most_recent_at_ty(
-    taken: &BTreeMap<ObjectID, Owner>,
-    inv: &BTreeMap<Type, Set<ObjectID>>,
+    taken: &BTreeMap<ObjectId, Owner>,
+    inv: &BTreeMap<Type, Set<ObjectId>>,
     ty: Type,
 ) -> Value {
     pack_option(most_recent_at_ty_opt(taken, inv, ty))
 }
 
 fn most_recent_at_ty_opt(
-    taken: &BTreeMap<ObjectID, Owner>,
-    inv: &BTreeMap<Type, Set<ObjectID>>,
+    taken: &BTreeMap<ObjectId, Owner>,
+    inv: &BTreeMap<Type, Set<ObjectId>>,
     ty: Type,
 ) -> Option<Value> {
     let s = inv.get(&ty)?;
     let most_recent_id = s.iter().filter(|id| !taken.contains_key(id)).next_back()?;
-    Some(pack_id(*most_recent_id))
+    Some(pack_id(AccountAddress::new(most_recent_id.into_bytes())))
 }
 
 fn get_specified_ty(mut ty_args: Vec<Type>) -> Type {
@@ -785,7 +792,7 @@ fn get_specified_ty(mut ty_args: Vec<Type>) -> Type {
 }
 
 // helpers
-fn pop_id(args: &mut VecDeque<Value>) -> PartialVMResult<ObjectID> {
+fn pop_id(args: &mut VecDeque<Value>) -> PartialVMResult<ObjectId> {
     let v = match args.pop_back() {
         None => {
             return Err(PartialVMError::new(
@@ -794,9 +801,11 @@ fn pop_id(args: &mut VecDeque<Value>) -> PartialVMResult<ObjectID> {
         }
         Some(v) => v,
     };
-    Ok(get_nth_struct_field(v, 0)?
-        .value_as::<AccountAddress>()?
-        .into())
+    Ok(ObjectId::new(
+        get_nth_struct_field(v, 0)?
+            .value_as::<AccountAddress>()?
+            .into_bytes(),
+    ))
 }
 
 fn pack_id(a: impl Into<AccountAddress>) -> Value {
@@ -819,7 +828,7 @@ fn transaction_effects(
     created: impl IntoIterator<Item = impl Into<AccountAddress>>,
     written: impl IntoIterator<Item = impl Into<AccountAddress>>,
     deleted: impl IntoIterator<Item = impl Into<AccountAddress>>,
-    transferred: impl IntoIterator<Item = (ObjectID, Owner)>,
+    transferred: impl IntoIterator<Item = (ObjectId, Owner)>,
     num_events: u64,
 ) -> Value {
     let mut transferred_to_account = vec![];
@@ -828,12 +837,16 @@ fn transaction_effects(
     let mut frozen = vec![];
     for (id, owner) in transferred {
         match owner {
-            Owner::AddressOwner(a) => {
-                transferred_to_account.push((pack_id(id), Value::address(a.into())))
-            }
-            Owner::ObjectOwner(o) => transferred_to_object.push((pack_id(id), pack_id(o))),
-            Owner::Shared { .. } => shared.push(id),
-            Owner::Immutable => frozen.push(id),
+            Owner::AddressOwner(a) => transferred_to_account.push((
+                pack_id(AccountAddress::new(id.into_bytes())),
+                Value::address(AccountAddress::new(a.into_bytes())),
+            )),
+            Owner::ObjectOwner(o) => transferred_to_object.push((
+                pack_id(AccountAddress::new(id.into_bytes())),
+                pack_id(AccountAddress::new(o.into_bytes())),
+            )),
+            Owner::Shared { .. } => shared.push(AccountAddress::new(id.into_bytes())),
+            Owner::Immutable => frozen.push(AccountAddress::new(id.into_bytes())),
         }
     }
 
@@ -869,8 +882,8 @@ fn pack_option(opt: Option<Value>) -> Value {
 
 fn find_all_wrapped_objects<'a, 'i>(
     context: &NativeContext,
-    ids: &'i mut BTreeSet<ObjectID>,
-    new_object_values: impl IntoIterator<Item = (&'a ObjectID, &'a Type, impl Borrow<Value>)>,
+    ids: &'i mut BTreeSet<ObjectId>,
+    new_object_values: impl IntoIterator<Item = (&'a ObjectId, &'a Type, impl Borrow<Value>)>,
 ) {
     #[derive(Copy, Clone)]
     enum LookingFor {
@@ -881,7 +894,7 @@ fn find_all_wrapped_objects<'a, 'i>(
 
     struct Traversal<'i, 'u> {
         state: LookingFor,
-        ids: &'i mut BTreeSet<ObjectID>,
+        ids: &'i mut BTreeSet<ObjectId>,
         uid: &'u MoveStructLayout,
     }
 
@@ -938,7 +951,7 @@ fn find_all_wrapped_objects<'a, 'i>(
         ) -> Result<(), Self::Error> {
             // If we're looking for addresses, and we found one, then save it.
             if matches!(self.state, LookingFor::Address) {
-                self.ids.insert(address.into());
+                self.ids.insert(ObjectId::new(address.into_bytes()));
             }
             Ok(())
         }

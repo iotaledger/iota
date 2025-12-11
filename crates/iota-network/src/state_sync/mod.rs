@@ -72,11 +72,12 @@ use anyhow::{anyhow, bail};
 use futures::{FutureExt, StreamExt, stream::FuturesOrdered};
 use iota_config::p2p::StateSyncConfig;
 use iota_types::{
+    base_types::Version,
     committee::Committee,
     digests::CheckpointDigest,
     messages_checkpoint::{
-        CertifiedCheckpointSummary as Checkpoint, CheckpointSequenceNumber, EndOfEpochData,
-        FullCheckpointContents, VerifiedCheckpoint, VerifiedCheckpointContents,
+        CertifiedCheckpointSummary as Checkpoint, EndOfEpochData, FullCheckpointContents,
+        VerifiedCheckpoint, VerifiedCheckpointContents,
     },
     storage::WriteStore,
 };
@@ -147,7 +148,7 @@ struct PeerHeights {
     /// Table used to track the highest checkpoint for each of our peers.
     peers: HashMap<PeerId, PeerStateSyncInfo>,
     unprocessed_checkpoints: HashMap<CheckpointDigest, Checkpoint>,
-    sequence_number_to_digest: HashMap<CheckpointSequenceNumber, CheckpointDigest>,
+    sequence_number_to_digest: HashMap<Version, CheckpointDigest>,
 
     // The amount of time to wait before retry if there are no peers to sync content from.
     wait_interval_when_no_peer_to_sync_content: Duration,
@@ -160,10 +161,10 @@ struct PeerStateSyncInfo {
     /// Indicates if this Peer is on the same chain as us.
     on_same_chain_as_us: bool,
     /// Highest checkpoint sequence number we know of for this Peer.
-    height: CheckpointSequenceNumber,
+    height: Version,
     /// lowest available checkpoint watermark for this Peer.
     /// This defaults to 0 for now.
-    lowest: CheckpointSequenceNumber,
+    lowest: Version,
 }
 
 impl PeerHeights {
@@ -173,7 +174,7 @@ impl PeerHeights {
             .and_then(|digest| self.unprocessed_checkpoints.get(digest))
     }
 
-    pub fn highest_known_checkpoint_sequence_number(&self) -> Option<CheckpointSequenceNumber> {
+    pub fn highest_known_checkpoint_sequence_number(&self) -> Option<Version> {
         self.peers
             .values()
             .filter_map(|info| info.on_same_chain_as_us.then_some(info.height))
@@ -195,7 +196,7 @@ impl PeerHeights {
         &mut self,
         peer_id: PeerId,
         checkpoint: Checkpoint,
-        low_watermark: Option<CheckpointSequenceNumber>,
+        low_watermark: Option<Version>,
     ) -> bool {
         debug!("Update peer info");
 
@@ -242,7 +243,7 @@ impl PeerHeights {
         }
     }
 
-    pub fn cleanup_old_checkpoints(&mut self, sequence_number: CheckpointSequenceNumber) {
+    pub fn cleanup_old_checkpoints(&mut self, sequence_number: Version) {
         self.unprocessed_checkpoints
             .retain(|_digest, checkpoint| *checkpoint.sequence_number() > sequence_number);
         self.sequence_number_to_digest
@@ -268,7 +269,7 @@ impl PeerHeights {
 
     pub fn get_checkpoint_by_sequence_number(
         &self,
-        sequence_number: CheckpointSequenceNumber,
+        sequence_number: Version,
     ) -> Option<&Checkpoint> {
         self.sequence_number_to_digest
             .get(&sequence_number)
@@ -294,7 +295,7 @@ impl PeerHeights {
 #[derive(Clone)]
 struct PeerBalancer {
     peers: VecDeque<(anemo::Peer, PeerStateSyncInfo)>,
-    requested_checkpoint: Option<CheckpointSequenceNumber>,
+    requested_checkpoint: Option<Version>,
     request_type: PeerCheckpointRequestType,
 }
 
@@ -332,7 +333,7 @@ impl PeerBalancer {
         }
     }
 
-    pub fn with_checkpoint(mut self, checkpoint: CheckpointSequenceNumber) -> Self {
+    pub fn with_checkpoint(mut self, checkpoint: Version) -> Self {
         self.requested_checkpoint = Some(checkpoint);
         self
     }
@@ -772,7 +773,7 @@ where
     /// highest_synced_checkpoint.
     fn maybe_trigger_checkpoint_contents_sync_task(
         &mut self,
-        target_sequence_channel: &watch::Sender<CheckpointSequenceNumber>,
+        target_sequence_channel: &watch::Sender<Version>,
     ) {
         let highest_verified_checkpoint = self
             .store
@@ -878,14 +879,14 @@ async fn get_latest_from_peer(
                         genesis_checkpoint_digest: digest,
                         on_same_chain_as_us: our_genesis_checkpoint_digest == digest,
                         height: *checkpoint.sequence_number(),
-                        lowest: CheckpointSequenceNumber::default(),
+                        lowest: Version::default(),
                     }
                 }
                 Ok(None) => PeerStateSyncInfo {
                     genesis_checkpoint_digest: CheckpointDigest::default(),
                     on_same_chain_as_us: false,
-                    height: CheckpointSequenceNumber::default(),
-                    lowest: CheckpointSequenceNumber::default(),
+                    height: Version::default(),
+                    lowest: Version::default(),
                 },
                 Err(status) => {
                     trace!("get_latest_checkpoint_summary request failed: {status:?}");
@@ -921,7 +922,7 @@ async fn get_latest_from_peer(
 async fn query_peer_for_latest_info(
     client: &mut StateSyncClient<anemo::Peer>,
     timeout: Duration,
-) -> Option<(Checkpoint, Option<CheckpointSequenceNumber>)> {
+) -> Option<(Checkpoint, Option<Version>)> {
     let request = Request::new(()).with_timeout(timeout);
     let response = client
         .get_checkpoint_availability(request)
@@ -1034,7 +1035,7 @@ async fn sync_to_checkpoint<S>(
     store: S,
     peer_heights: Arc<RwLock<PeerHeights>>,
     metrics: Metrics,
-    pinned_checkpoints: Vec<(CheckpointSequenceNumber, CheckpointDigest)>,
+    pinned_checkpoints: Vec<(Version, CheckpointDigest)>,
     checkpoint_header_download_concurrency: usize,
     timeout: Duration,
     checkpoint: Checkpoint,
@@ -1283,7 +1284,7 @@ async fn sync_checkpoint_contents<S>(
     checkpoint_content_download_concurrency: usize,
     checkpoint_content_download_tx_concurrency: u64,
     timeout: Duration,
-    mut target_sequence_channel: watch::Receiver<CheckpointSequenceNumber>,
+    mut target_sequence_channel: watch::Receiver<Version>,
 ) where
     S: WriteStore + Clone,
 {

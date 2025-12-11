@@ -6,7 +6,7 @@ use std::collections::BTreeMap;
 
 use iota_json_rpc_types::ObjectChange;
 use iota_types::{
-    base_types::{IotaAddress, ObjectID, ObjectRef, SequenceNumber},
+    base_types::{Address, ObjectId, ObjectReference, Version},
     effects::ObjectRemoveKind,
     object::Owner,
     storage::WriteKind,
@@ -16,16 +16,25 @@ use crate::ObjectProvider;
 
 pub async fn get_object_changes<P: ObjectProvider<Error = E>, E>(
     object_provider: &P,
-    sender: IotaAddress,
-    modified_at_versions: Vec<(ObjectID, SequenceNumber)>,
-    all_changed_objects: Vec<(ObjectRef, Owner, WriteKind)>,
-    all_removed_objects: Vec<(ObjectRef, ObjectRemoveKind)>,
+    sender: Address,
+    modified_at_versions: Vec<(ObjectId, Version)>,
+    all_changed_objects: Vec<(ObjectReference, Owner, WriteKind)>,
+    all_removed_objects: Vec<(ObjectReference, ObjectRemoveKind)>,
 ) -> Result<Vec<ObjectChange>, E> {
     let mut object_changes = vec![];
 
     let modify_at_version = modified_at_versions.into_iter().collect::<BTreeMap<_, _>>();
 
-    for ((object_id, version, digest), owner, kind) in all_changed_objects {
+    for (
+        ObjectReference {
+            object_id,
+            version,
+            digest,
+        },
+        owner,
+        kind,
+    ) in all_changed_objects
+    {
         let o = object_provider.get_object(&object_id, &version).await?;
         if let Some(type_) = o.type_() {
             let object_type = type_.clone().into();
@@ -66,9 +75,15 @@ pub async fn get_object_changes<P: ObjectProvider<Error = E>, E>(
         };
     }
 
-    for ((id, version, _), kind) in all_removed_objects {
+    for (
+        ObjectReference {
+            object_id, version, ..
+        },
+        kind,
+    ) in all_removed_objects
+    {
         let o = object_provider
-            .find_object_lt_or_eq_version(&id, &version)
+            .find_object_lt_or_eq_version(&object_id, &version)
             .await?;
         if let Some(o) = o {
             if let Some(type_) = o.type_() {
@@ -77,13 +92,13 @@ pub async fn get_object_changes<P: ObjectProvider<Error = E>, E>(
                     ObjectRemoveKind::Delete => object_changes.push(ObjectChange::Deleted {
                         sender,
                         object_type,
-                        object_id: id,
+                        object_id,
                         version,
                     }),
                     ObjectRemoveKind::Wrap => object_changes.push(ObjectChange::Wrapped {
                         sender,
                         object_type,
-                        object_id: id,
+                        object_id,
                         version,
                     }),
                 }

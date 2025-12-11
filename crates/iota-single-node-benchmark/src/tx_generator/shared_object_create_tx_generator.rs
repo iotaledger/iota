@@ -4,18 +4,18 @@
 
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
-    base_types::ObjectID,
+    base_types::ObjectId,
     transaction::{DEFAULT_VALIDATOR_GAS_PRICE, Transaction},
 };
 
 use crate::{mock_account::Account, tx_generator::TxGenerator};
 
 pub struct SharedObjectCreateTxGenerator {
-    move_package: ObjectID,
+    move_package: ObjectId,
 }
 
 impl SharedObjectCreateTxGenerator {
-    pub fn new(move_package: ObjectID) -> Self {
+    pub fn new(move_package: ObjectId) -> Self {
         Self { move_package }
     }
 }

@@ -8,7 +8,7 @@ use diesel::prelude::*;
 use iota_json_rpc_types::{BcsEvent, IotaEvent, type_and_fields_from_move_event_data};
 use iota_package_resolver::{PackageStore, Resolver};
 use iota_types::{
-    base_types::{IotaAddress, ObjectID},
+    base_types::{Address, ObjectId},
     digests::TransactionDigest,
     event::EventID,
     object::bounded_visitor::BoundedVisitor,
@@ -60,9 +60,9 @@ impl From<IndexedEvent> for StoredEvent {
             senders: event
                 .senders
                 .into_iter()
-                .map(|sender| Some(sender.to_vec()))
+                .map(|sender| Some(sender.as_bytes().to_vec()))
                 .collect(),
-            package: event.package.to_vec(),
+            package: event.package.as_bytes().to_vec(),
             module: event.module.clone(),
             event_type: event.event_type.clone(),
             bcs: event.bcs.clone(),
@@ -76,7 +76,7 @@ impl StoredEvent {
         self,
         package_resolver: Arc<Resolver<impl PackageStore>>,
     ) -> Result<IotaEvent, IndexerError> {
-        let package_id = ObjectID::from_bytes(self.package.clone()).map_err(|_e| {
+        let package_id = ObjectId::from_bytes(self.package.clone()).map_err(|_e| {
             IndexerError::PersistentStorageDataCorruption(format!(
                 "Failed to parse event package ID: {:?}",
                 self.package
@@ -93,7 +93,7 @@ impl StoredEvent {
             }
         };
         let sender = match sender {
-            Some(ref s) => IotaAddress::from_bytes(s).map_err(|_e| {
+            Some(ref s) => Address::from_bytes(s).map_err(|_e| {
                 IndexerError::PersistentStorageDataCorruption(format!(
                     "Failed to parse event sender address: {sender:?}"
                 ))
@@ -118,13 +118,12 @@ impl StoredEvent {
             .map_err(|e| IndexerError::Serde(e.to_string()))?;
         let (_, parsed_json) = type_and_fields_from_move_event_data(move_object)
             .map_err(|e| IndexerError::Serde(e.to_string()))?;
-        let tx_digest =
-            TransactionDigest::try_from(self.transaction_digest.as_slice()).map_err(|e| {
-                IndexerError::Serde(format!(
-                    "Failed to parse transaction digest: {:?}, error: {}",
-                    self.transaction_digest, e
-                ))
-            })?;
+        let tx_digest = TransactionDigest::from_bytes(&self.transaction_digest).map_err(|e| {
+            IndexerError::Serde(format!(
+                "Failed to parse transaction digest: {:?}, error: {}",
+                self.transaction_digest, e
+            ))
+        })?;
         Ok(IotaEvent {
             id: EventID {
                 tx_digest,
@@ -152,9 +151,9 @@ mod tests {
     fn test_canonical_string_of_event_type() {
         let tx_digest = TransactionDigest::default();
         let event = Event {
-            package_id: ObjectID::random(),
+            package_id: ObjectId::new(rand::random()),
             transaction_module: Identifier::new("test").unwrap(),
-            sender: AccountAddress::random().into(),
+            sender: Address::new(rand::random()),
             type_: StructTag {
                 address: AccountAddress::TWO,
                 module: Identifier::new("test").unwrap(),

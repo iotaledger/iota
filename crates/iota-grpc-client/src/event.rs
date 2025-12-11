@@ -6,7 +6,7 @@ use futures::{Stream, StreamExt};
 use iota_grpc_types::v0::events as grpc_events;
 use iota_json_rpc_types::{BcsEvent, IotaEvent};
 use iota_types::{
-    base_types::{IotaAddress, ObjectID, TransactionDigest},
+    base_types::{Address, ObjectId, TransactionDigest},
     event::EventID,
 };
 use move_core_types::{identifier::Identifier, language_storage::StructTag};
@@ -102,11 +102,11 @@ impl EventClient {
                 ),
                 event_seq: event_id.event_seq,
             },
-            package_id: ObjectID::from_bytes(&package_id.address)
+            package_id: ObjectId::from_bytes(&package_id.address)
                 .map_err(|e| anyhow!("Invalid package ID: {e}"))?,
             transaction_module: Identifier::new(event.transaction_module.clone())
                 .map_err(|e| anyhow!("Invalid transaction module: {e}"))?,
-            sender: IotaAddress::from_bytes(&sender.address)
+            sender: Address::from_bytes(&sender.address)
                 .map_err(|e| anyhow!("Invalid sender address: {e}"))?,
             type_: type_tag,
             parsed_json,

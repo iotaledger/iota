@@ -7,7 +7,7 @@ use std::sync::Arc;
 use anyhow::Result;
 use iota_data_ingestion_core::Worker;
 use iota_types::{
-    base_types::ObjectID, full_checkpoint_content::CheckpointData, transaction::TransactionDataAPI,
+    base_types::ObjectId, full_checkpoint_content::CheckpointData, transaction::TransactionDataAPI,
 };
 use tokio::sync::Mutex;
 
@@ -45,7 +45,7 @@ impl Worker for MoveCallHandler {
                 checkpoint_summary.epoch,
                 checkpoint_summary.sequence_number,
                 checkpoint_summary.timestamp_ms,
-                checkpoint_transaction.transaction.digest().base58_encode(),
+                checkpoint_transaction.transaction.digest().to_base58(),
                 &move_calls,
                 &mut state,
             );
@@ -85,7 +85,7 @@ impl MoveCallHandler {
         checkpoint: u64,
         timestamp_ms: u64,
         transaction_digest: String,
-        move_calls: &[(&ObjectID, &str, &str)],
+        move_calls: &[(&ObjectId, &str, &str)],
         state: &mut State,
     ) {
         for (package, module, function) in move_calls.iter() {

@@ -13,7 +13,7 @@ use iota_common::fatal;
 use iota_config::node::AuthorityOverloadConfig;
 use iota_metrics::monitored_scope;
 use iota_types::{
-    base_types::{ObjectID, SequenceNumber, TransactionDigest},
+    base_types::{ObjectId, TransactionDigest, Version},
     committee::EpochId,
     digests::TransactionEffectsDigest,
     error::{IotaError, IotaResult},
@@ -86,10 +86,10 @@ pub struct PendingCertificate {
 }
 
 struct CacheInner {
-    versioned_cache: LruCache<ObjectID, SequenceNumber>,
+    versioned_cache: LruCache<ObjectId, Version>,
     // we cache packages separately, because they are more expensive to look up in the db, so we
     // don't want to evict packages in favor of mutable objects.
-    unversioned_cache: LruCache<ObjectID, ()>,
+    unversioned_cache: LruCache<ObjectId, ()>,
 
     max_size: usize,
     metrics: Arc<AuthorityMetrics>,
@@ -231,7 +231,7 @@ struct Inner {
     // Stores age info for all transactions depending on each object.
     // Used for throttling signing and submitting transactions depending on hot objects.
     // A `TransactionQueue` is used to ensure that the insertion order is preserved.
-    input_objects: HashMap<ObjectID, TransactionQueue>,
+    input_objects: HashMap<ObjectId, TransactionQueue>,
 
     // Maps object IDs to the highest observed sequence number of the object. When the value is
     // None, indicates that the object is immutable, corresponding to an InputKey with no sequence
@@ -484,8 +484,8 @@ impl TransactionManager {
                         cert.data().intent_message().value.receiving_objects();
                     for entry in receiving_object_entries {
                         let key = InputKey::VersionedObject {
-                            id: entry.0,
-                            version: entry.1,
+                            id: entry.object_id,
+                            version: entry.version,
                         };
                         receiving_objects.insert(key);
                         input_object_keys.insert(key);
@@ -818,8 +818,8 @@ impl TransactionManager {
     // age of the oldest transaction in the queue.
     pub(crate) fn objects_queue_len_and_age(
         &self,
-        keys: Vec<ObjectID>,
-    ) -> Vec<(ObjectID, usize, Option<Duration>)> {
+        keys: Vec<ObjectId>,
+    ) -> Vec<(ObjectId, usize, Option<Duration>)> {
         let reconfig_lock = self.inner.read();
         let inner = reconfig_lock.read();
         keys.into_iter()
@@ -1061,7 +1061,7 @@ mod test {
 
         // insert 10 unique unversioned objects
         for i in 0..10 {
-            let object = ObjectID::new([i; 32]);
+            let object = ObjectId::new([i; 32]);
             let input_key = InputKey::Package { id: object };
             assert_eq!(cache.is_object_available(&input_key), None);
             cache.insert(&input_key);
@@ -1070,14 +1070,14 @@ mod test {
 
         // first 5 have been evicted
         for i in 0..5 {
-            let object = ObjectID::new([i; 32]);
+            let object = ObjectId::new([i; 32]);
             let input_key = InputKey::Package { id: object };
             assert_eq!(cache.is_object_available(&input_key), None);
         }
 
         // insert 10 unique versioned objects
         for i in 0..10 {
-            let object = ObjectID::new([i; 32]);
+            let object = ObjectId::new([i; 32]);
             let input_key = InputKey::VersionedObject {
                 id: object,
                 version: (i as u64).into(),
@@ -1089,7 +1089,7 @@ mod test {
 
         // first 5 versioned objects have been evicted
         for i in 0..5 {
-            let object = ObjectID::new([i; 32]);
+            let object = ObjectId::new([i; 32]);
             let input_key = InputKey::VersionedObject {
                 id: object,
                 version: (i as u64).into(),
@@ -1099,29 +1099,29 @@ mod test {
 
         // but versioned objects do not cause evictions of unversioned objects
         for i in 5..10 {
-            let object = ObjectID::new([i; 32]);
+            let object = ObjectId::new([i; 32]);
             let input_key = InputKey::Package { id: object };
             assert_eq!(cache.is_object_available(&input_key), Some(true));
         }
 
         // object 9 is available at version 9
-        let object = ObjectID::new([9; 32]);
+        let object = ObjectId::new([9; 32]);
         let input_key = InputKey::VersionedObject {
             id: object,
-            version: 9.into(),
+            version: 9,
         };
         assert_eq!(cache.is_object_available(&input_key), Some(true));
         // but not at version 10
         let input_key = InputKey::VersionedObject {
             id: object,
-            version: 10.into(),
+            version: 10,
         };
         assert_eq!(cache.is_object_available(&input_key), Some(false));
         // it is available at version 8 (this case can be used by readonly shared
         // objects)
         let input_key = InputKey::VersionedObject {
             id: object,
-            version: 8.into(),
+            version: 8,
         };
         assert_eq!(cache.is_object_available(&input_key), Some(true));
     }

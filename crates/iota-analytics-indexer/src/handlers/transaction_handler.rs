@@ -102,7 +102,7 @@ impl TransactionHandler {
             .map(|s| s.as_str())
             .collect::<Vec<_>>()
             .join("-");
-        let transaction_digest = transaction.digest().base58_encode();
+        let transaction_digest = transaction.digest().to_base58();
 
         let mut transfers: u64 = 0;
         let mut split_coins: u64 = 0;
@@ -174,9 +174,9 @@ impl TransactionHandler {
             move_calls,
             packages,
             gas_owner: txn_data.gas_owner().to_string(),
-            gas_object_id: gas_object.0.0.to_string(),
-            gas_object_sequence: gas_object.0.1.value(),
-            gas_object_digest: gas_object.0.2.to_string(),
+            gas_object_id: gas_object.0.object_id.to_string(),
+            gas_object_sequence: gas_object.0.version,
+            gas_object_digest: gas_object.0.digest.to_string(),
             gas_budget: txn_data.gas_budget(),
             total_gas_cost: gas_summary.net_gas_usage(),
             computation_cost: gas_summary.computation_cost,
@@ -205,7 +205,7 @@ mod tests {
 
     use fastcrypto::encoding::{Base64, Encoding};
     use iota_data_ingestion_core::Worker;
-    use iota_types::{base_types::IotaAddress, storage::ReadStore};
+    use iota_types::{base_types::Address, storage::ReadStore};
     use simulacrum::Simulacrum;
 
     use crate::handlers::transaction_handler::TransactionHandler;
@@ -215,7 +215,7 @@ mod tests {
         let mut sim = Simulacrum::new();
 
         // Execute a simple transaction.
-        let transfer_recipient = IotaAddress::random_for_testing_only();
+        let transfer_recipient = Address::new(rand::random());
         let (transaction, _) = sim.transfer_txn(transfer_recipient);
         let (_effects, err) = sim.execute_transaction(transaction.clone()).unwrap();
         assert!(err.is_none());

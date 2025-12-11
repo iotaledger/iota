@@ -9,11 +9,10 @@ use iota_config::genesis::Genesis;
 use iota_json_rpc_types::{IotaObjectDataOptions, IotaTransactionBlockResponseOptions};
 use iota_sdk::IotaClientBuilder;
 use iota_types::{
-    base_types::{ObjectID, TransactionDigest},
+    base_types::{ObjectId, TransactionDigest, Version},
     committee::Committee,
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
     full_checkpoint_content::CheckpointData,
-    messages_checkpoint::CheckpointSequenceNumber,
     object::Object,
 };
 use tracing::info;
@@ -58,7 +57,7 @@ pub fn extract_verified_effects_and_events(
     Ok((matching_tx.effects.clone(), matching_tx.events.clone()))
 }
 
-pub async fn get_verified_object(config: &Config, object_id: ObjectID) -> Result<Object> {
+pub async fn get_verified_object(config: &Config, object_id: ObjectId) -> Result<Object> {
     let iota_client = Arc::new(
         IotaClientBuilder::default()
             .build(config.rpc_url.as_str())
@@ -178,10 +177,7 @@ pub async fn get_verified_effects_and_events(
 /// and that the checkpoint is signed by the committee
 /// and the committee is read from the verified checkpoint summary
 /// which is signed by the previous committee.
-pub async fn get_verified_checkpoint(
-    config: &Config,
-    object_id: ObjectID,
-) -> Result<CheckpointSequenceNumber> {
+pub async fn get_verified_checkpoint(config: &Config, object_id: ObjectId) -> Result<Version> {
     let iota_client = IotaClientBuilder::default()
         .build(config.rpc_url.as_str())
         .await?;

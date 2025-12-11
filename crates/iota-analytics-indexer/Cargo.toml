@@ -47,6 +47,7 @@ telemetry-subscribers.workspace = true
 typed-store.workspace = true
 
 [dev-dependencies]
+rand.workspace = true
 simulacrum.workspace = true
 
 [[bin]]

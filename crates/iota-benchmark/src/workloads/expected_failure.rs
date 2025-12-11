@@ -7,7 +7,7 @@ use std::{collections::HashMap, fmt, sync::Arc};
 use async_trait::async_trait;
 use iota_core::test_utils::make_transfer_object_transaction;
 use iota_types::{
-    base_types::{IotaAddress, ObjectRef},
+    base_types::{Address, ObjectReference},
     crypto::{AccountKeyPair, Ed25519IotaSignature, get_key_pair},
     signature::GenericSignature,
     transaction::Transaction,
@@ -32,9 +32,9 @@ use crate::{
 #[derive(Debug, Clone)]
 pub struct ExpectedFailurePayload {
     failure_type: ExpectedFailureType,
-    transfer_object: ObjectRef,
-    transfer_from: IotaAddress,
-    transfer_to: IotaAddress,
+    transfer_object: ObjectReference,
+    transfer_from: Address,
+    transfer_to: Address,
     gas: Vec<Gas>,
     system_state_observer: Arc<SystemStateObserver>,
 }
@@ -231,7 +231,7 @@ impl Workload<dyn Payload> for ExpectedFailureWorkload {
         system_state_observer: Arc<SystemStateObserver>,
     ) -> Vec<Box<dyn Payload>> {
         let (transfer_tokens, payload_gas) = self.payload_gas.split_at(self.num_tokens as usize);
-        let mut gas_by_address: HashMap<IotaAddress, Vec<Gas>> = HashMap::new();
+        let mut gas_by_address: HashMap<Address, Vec<Gas>> = HashMap::new();
         for gas in payload_gas.iter() {
             gas_by_address
                 .entry(gas.1)
@@ -239,7 +239,7 @@ impl Workload<dyn Payload> for ExpectedFailureWorkload {
                 .push(gas.clone());
         }
 
-        let addresses: Vec<IotaAddress> = gas_by_address.keys().cloned().collect();
+        let addresses: Vec<Address> = gas_by_address.keys().cloned().collect();
         let mut transfer_gas: Vec<Vec<Gas>> = vec![];
         for i in 0..self.num_tokens {
             let mut account_transfer_gas = vec![];

@@ -14,7 +14,7 @@ use super::{
 };
 use crate::{
     balance::Balance,
-    base_types::IotaAddress,
+    base_types::Address,
     collection_types::{Bag, Table, TableVec, VecMap, VecSet},
     committee::{CommitteeWithNetworkMetadata, NetworkMetadata},
     error::IotaError,
@@ -52,7 +52,7 @@ pub struct ValidatorSetV2 {
     pub staking_pool_mappings: Table,
     pub inactive_validators: Table,
     pub validator_candidates: Table,
-    pub at_risk_validators: VecMap<IotaAddress, u64>,
+    pub at_risk_validators: VecMap<Address, u64>,
     pub extra_fields: Bag,
 }
 
@@ -82,7 +82,7 @@ pub struct IotaSystemStateV2 {
     pub parameters: SystemParametersV1,
     pub iota_system_admin_cap: IotaSystemAdminCap,
     pub reference_gas_price: u64,
-    pub validator_report_records: VecMap<IotaAddress, VecSet<IotaAddress>>,
+    pub validator_report_records: VecMap<Address, VecSet<Address>>,
     pub safe_mode: bool,
     pub safe_mode_storage_charges: Balance,
     pub safe_mode_computation_charges: Balance,

@@ -760,7 +760,7 @@ mod tests {
         for rejection_percentage in 0..=100 {
             let mut reject_count = 0;
             for _ in 0..10000 {
-                let digest = TransactionDigest::random();
+                let digest = TransactionDigest::new(rand::random());
                 if should_reject_tx(rejection_percentage, digest, 28455473) {
                     reject_count += 1;
                 }
@@ -781,7 +781,7 @@ mod tests {
     #[sim_test]
     async fn test_txn_rejection_over_time() {
         let start_time = Instant::now();
-        let mut digest = TransactionDigest::random();
+        let mut digest = TransactionDigest::new(rand::random());
         let mut temporal_seed = 1708108277 / SEED_UPDATE_DURATION_SECS;
         let load_shedding_percentage = 50;
 
@@ -789,7 +789,7 @@ mod tests {
         while !should_reject_tx(load_shedding_percentage, digest, temporal_seed)
             && start_time.elapsed() < Duration::from_secs(30)
         {
-            digest = TransactionDigest::random();
+            digest = TransactionDigest::new(rand::random());
         }
 
         // It should always be rejected using the current temporal_seed.

@@ -54,7 +54,7 @@ use iota_storage::{
 #[cfg(msim)]
 use iota_types::committee::CommitteeTrait;
 use iota_types::{
-    IOTA_SYSTEM_ADDRESS, TypeTag,
+    TypeTag,
     authenticator_state::get_authenticator_state,
     base_types::*,
     committee::{Committee, EpochId, ProtocolVersion},
@@ -84,14 +84,13 @@ use iota_types::{
         IotaSystemState, IotaSystemStateTrait,
         epoch_start_iota_system_state::EpochStartSystemStateTrait, get_iota_system_state,
     },
-    is_system_package,
     layout_resolver::{LayoutResolver, into_struct_layout},
     message_envelope::Message,
     messages_checkpoint::{
         CertifiedCheckpointSummary, CheckpointCommitment, CheckpointContents,
         CheckpointContentsDigest, CheckpointDigest, CheckpointRequest, CheckpointResponse,
-        CheckpointSequenceNumber, CheckpointSummary, CheckpointSummaryResponse,
-        CheckpointTimestamp, ECMHLiveObjectSetDigest, VerifiedCheckpoint,
+        CheckpointSummary, CheckpointSummaryResponse, CheckpointTimestamp, ECMHLiveObjectSetDigest,
+        VerifiedCheckpoint,
     },
     messages_consensus::AuthorityCapabilitiesV1,
     messages_grpc::{
@@ -115,7 +114,9 @@ use iota_types::{
 };
 use itertools::Itertools;
 use move_binary_format::{CompiledModule, binary_config::BinaryConfig};
-use move_core_types::{annotated_value::MoveStructLayout, language_storage::ModuleId};
+use move_core_types::{
+    account_address::AccountAddress, annotated_value::MoveStructLayout, language_storage::ModuleId,
+};
 use parking_lot::Mutex;
 use prometheus::{
     Histogram, HistogramVec, IntCounter, IntCounterVec, IntGauge, IntGaugeVec, Registry,
@@ -1219,7 +1220,7 @@ impl AuthorityState {
             .map(|mut r| r.pop().expect("must return correct number of effects"))
     }
 
-    fn check_owned_locks(&self, owned_object_refs: &[ObjectRef]) -> IotaResult {
+    fn check_owned_locks(&self, owned_object_refs: &[ObjectReference]) -> IotaResult {
         self.get_object_cache_reader()
             .try_check_owned_objects_are_live(owned_object_refs)
     }
@@ -1629,9 +1630,9 @@ impl AuthorityState {
         transaction_digest: TransactionDigest,
     ) -> IotaResult<(
         DryRunTransactionBlockResponse,
-        BTreeMap<ObjectID, (ObjectRef, Object, WriteKind)>,
+        BTreeMap<ObjectId, (ObjectReference, Object, WriteKind)>,
         TransactionEffects,
-        Option<ObjectID>,
+        Option<ObjectId>,
     )> {
         let epoch_store = self.load_epoch_store_one_call_per_task();
         if !self.is_fullnode(&epoch_store) {
@@ -1656,9 +1657,9 @@ impl AuthorityState {
         transaction_digest: TransactionDigest,
     ) -> IotaResult<(
         DryRunTransactionBlockResponse,
-        BTreeMap<ObjectID, (ObjectRef, Object, WriteKind)>,
+        BTreeMap<ObjectId, (ObjectReference, Object, WriteKind)>,
         TransactionEffects,
-        Option<ObjectID>,
+        Option<ObjectId>,
     )> {
         let epoch_store = self.load_epoch_store_one_call_per_task();
         self.dry_exec_transaction_impl(&epoch_store, transaction, transaction_digest)
@@ -1673,9 +1674,9 @@ impl AuthorityState {
         transaction_digest: TransactionDigest,
     ) -> IotaResult<(
         DryRunTransactionBlockResponse,
-        BTreeMap<ObjectID, (ObjectRef, Object, WriteKind)>,
+        BTreeMap<ObjectId, (ObjectReference, Object, WriteKind)>,
         TransactionEffects,
-        Option<ObjectID>,
+        Option<ObjectId>,
     )> {
         // Cheap validity checks for a transaction, including input size limits.
         transaction.validity_check_no_gas_check(epoch_store.protocol_config())?;
@@ -1706,7 +1707,7 @@ impl AuthorityState {
         let reference_gas_price = epoch_store.reference_gas_price();
         let ((gas_status, checked_input_objects), mock_gas) = if transaction.gas().is_empty() {
             let sender = transaction.gas_owner();
-            let gas_object_id = ObjectID::random();
+            let gas_object_id = ObjectId::new(rand::random());
             let gas_object = Object::new_move(
                 MoveObject::new_gas_coin(
                     OBJECT_START_VERSION,
@@ -1714,7 +1715,7 @@ impl AuthorityState {
                     SIMULATION_GAS_COIN_VALUE,
                 ),
                 Owner::AddressOwner(sender),
-                TransactionDigest::genesis_marker(),
+                TransactionDigest::GENESIS_MARKER,
             );
             let gas_object_ref = gas_object.compute_object_reference();
             gas_object_refs = vec![gas_object_ref];
@@ -1811,9 +1812,9 @@ impl AuthorityState {
                     .map(|(oref, _)| (oref, WriteKind::Mutate)),
             )
             .map(|(oref, kind)| {
-                let obj = inner_temp_store.written.get(&oref.0).unwrap();
+                let obj = inner_temp_store.written.get(&oref.object_id).unwrap();
                 // TODO: Avoid clones.
-                (oref.0, (oref, obj.clone(), kind))
+                (oref.object_id, (oref, obj.clone(), kind))
             })
             .collect();
 
@@ -1896,11 +1897,11 @@ impl AuthorityState {
             let mock_gas_object = Object::new_move(
                 MoveObject::new_gas_coin(
                     OBJECT_START_VERSION,
-                    ObjectID::MAX,
+                    ObjectId::new([u8::MAX; _]),
                     SIMULATION_GAS_COIN_VALUE,
                 ),
                 Owner::AddressOwner(transaction.gas_data().owner),
-                TransactionDigest::genesis_marker(),
+                TransactionDigest::GENESIS_MARKER,
             );
             let mock_gas_object_ref = mock_gas_object.compute_object_reference();
             transaction.gas_data_mut().payment = vec![mock_gas_object_ref];
@@ -1990,12 +1991,12 @@ impl AuthorityState {
     #[instrument("dev_inspect_tx", level = "trace", skip_all)]
     pub async fn dev_inspect_transaction_block(
         &self,
-        sender: IotaAddress,
+        sender: Address,
         transaction_kind: TransactionKind,
         gas_price: Option<u64>,
         gas_budget: Option<u64>,
-        gas_sponsor: Option<IotaAddress>,
-        gas_objects: Option<Vec<ObjectRef>>,
+        gas_sponsor: Option<Address>,
+        gas_objects: Option<Vec<ObjectReference>>,
         show_raw_txn_data_and_effects: Option<bool>,
         skip_checks: Option<bool>,
     ) -> IotaResult<DevInspectResults> {
@@ -2310,7 +2311,9 @@ impl AuthorityState {
         let tx_digest = effects.transaction_digest();
         let mut deleted_owners = vec![];
         let mut deleted_dynamic_fields = vec![];
-        for (id, _, _) in effects.deleted().into_iter().chain(effects.wrapped()) {
+        for ObjectReference { object_id: id, .. } in
+            effects.deleted().into_iter().chain(effects.wrapped())
+        {
             let old_version = modified_at_version.get(&id).unwrap();
             // When we process the index, the latest object hasn't been written yet so
             // the old object must be present.
@@ -2319,7 +2322,7 @@ impl AuthorityState {
             ) {
                 Owner::AddressOwner(addr) => deleted_owners.push((addr, id)),
                 Owner::ObjectOwner(object_id) => {
-                    deleted_dynamic_fields.push((ObjectID::from(object_id), id))
+                    deleted_dynamic_fields.push((ObjectId::from(object_id), id))
                 }
                 _ => {}
             }
@@ -2329,7 +2332,7 @@ impl AuthorityState {
         let mut new_dynamic_fields = vec![];
 
         for (oref, owner, kind) in effects.all_changed_objects() {
-            let id = &oref.0;
+            let id = &oref.object_id;
             // For mutated objects, retrieve old owner and delete old index if there is a
             // owner change.
             if let WriteKind::Mutate = kind {
@@ -2354,7 +2357,7 @@ impl AuthorityState {
                             deleted_owners.push((addr, *id));
                         }
                         Owner::ObjectOwner(object_id) => {
-                            deleted_dynamic_fields.push((ObjectID::from(object_id), *id))
+                            deleted_dynamic_fields.push((ObjectId::from(object_id), *id))
                         }
                         _ => {}
                     }
@@ -2370,12 +2373,12 @@ impl AuthorityState {
                     );
                     assert_eq!(
                         new_object.version(),
-                        oref.1,
+                        oref.version,
                         "tx_digest={:?} error processing object owner index, object {:?} from written has mismatched version. Actual: {}, expected: {}",
                         tx_digest,
                         id,
                         new_object.version(),
-                        oref.1
+                        oref.version
                     );
 
                     let type_ = new_object
@@ -2387,8 +2390,8 @@ impl AuthorityState {
                         (addr, *id),
                         ObjectInfo {
                             object_id: *id,
-                            version: oref.1,
-                            digest: oref.2,
+                            version: oref.version,
+                            digest: oref.digest,
                             type_,
                             owner,
                             previous_transaction: *effects.transaction_digest(),
@@ -2401,12 +2404,12 @@ impl AuthorityState {
                     );
                     assert_eq!(
                         new_object.version(),
-                        oref.1,
+                        oref.version,
                         "tx_digest={:?} error processing object owner index, object {:?} from written has mismatched version. Actual: {}, expected: {}",
                         tx_digest,
                         id,
                         new_object.version(),
-                        oref.1
+                        oref.version
                     );
 
                     let Some(df_info) = self
@@ -2420,7 +2423,7 @@ impl AuthorityState {
                             // Skip indexing for non dynamic field objects.
                             continue;
                         };
-                    new_dynamic_fields.push(((ObjectID::from(owner), *id), df_info))
+                    new_dynamic_fields.push(((ObjectId::from(owner), *id), df_info))
                 }
                 _ => {}
             }
@@ -2677,7 +2680,7 @@ impl AuthorityState {
 
         let requested_object_seq = match request.request_kind {
             ObjectInfoRequestKind::LatestObjectInfo => {
-                let (_, seq, _) = self
+                let ObjectReference { version, .. } = self
                     .try_get_object_or_tombstone(request.object_id)
                     .await?
                     .ok_or_else(|| {
@@ -2686,7 +2689,7 @@ impl AuthorityState {
                             version: None,
                         })
                     })?;
-                seq
+                version
             }
             ObjectInfoRequestKind::PastObjectInfoDebug(seq) => seq,
         };
@@ -3021,7 +3024,7 @@ impl AuthorityState {
                     else {
                         continue;
                     };
-                    new_dynamic_fields.push(((ObjectID::from(object_id), id), info));
+                    new_dynamic_fields.push(((ObjectId::from(object_id), id), info));
                 }
                 _ => {}
             }
@@ -3081,7 +3084,7 @@ impl AuthorityState {
         accumulator: Arc<StateAccumulator>,
         expensive_safety_check_config: &ExpensiveSafetyCheckConfig,
         epoch_supply_change: i64,
-        epoch_last_checkpoint: CheckpointSequenceNumber,
+        epoch_last_checkpoint: Version,
     ) -> IotaResult<Arc<AuthorityPerEpochStore>> {
         Self::check_protocol_version(
             supported_protocol_versions,
@@ -3370,22 +3373,22 @@ impl AuthorityState {
     }
 
     #[instrument(level = "trace", skip_all)]
-    pub async fn try_get_object(&self, object_id: &ObjectID) -> IotaResult<Option<Object>> {
+    pub async fn try_get_object(&self, object_id: &ObjectId) -> IotaResult<Option<Object>> {
         self.get_object_store()
             .try_get_object(object_id)
             .map_err(Into::into)
     }
 
     /// Non-fallible version of `try_get_object`.
-    pub async fn get_object(&self, object_id: &ObjectID) -> Option<Object> {
+    pub async fn get_object(&self, object_id: &ObjectId) -> Option<Object> {
         self.try_get_object(object_id)
             .await
             .expect("storage access failed")
     }
 
-    pub async fn get_iota_system_package_object_ref(&self) -> IotaResult<ObjectRef> {
+    pub async fn get_iota_system_package_object_ref(&self) -> IotaResult<ObjectReference> {
         Ok(self
-            .try_get_object(&IOTA_SYSTEM_ADDRESS.into())
+            .try_get_object(&Address::SYSTEM.into())
             .await?
             .expect("framework object should always exist")
             .compute_object_reference())
@@ -3400,7 +3403,7 @@ impl AuthorityState {
     #[instrument(level = "trace", skip_all)]
     pub fn get_checkpoint_by_sequence_number(
         &self,
-        sequence_number: CheckpointSequenceNumber,
+        sequence_number: Version,
     ) -> IotaResult<Option<VerifiedCheckpoint>> {
         Ok(self
             .checkpoint_store
@@ -3424,7 +3427,7 @@ impl AuthorityState {
     }
 
     #[instrument(level = "trace", skip_all)]
-    pub fn get_object_read(&self, object_id: &ObjectID) -> IotaResult<ObjectRead> {
+    pub fn get_object_read(&self, object_id: &ObjectId) -> IotaResult<ObjectRead> {
         Ok(
             match self
                 .get_object_cache_reader()
@@ -3446,7 +3449,7 @@ impl AuthorityState {
     }
 
     #[instrument(level = "trace", skip_all)]
-    pub fn get_move_object<T>(&self, object_id: &ObjectID) -> IotaResult<T>
+    pub fn get_move_object<T>(&self, object_id: &ObjectId) -> IotaResult<T>
     where
         T: DeserializeOwned,
     {
@@ -3472,8 +3475,8 @@ impl AuthorityState {
     #[instrument(level = "trace", skip_all)]
     pub fn get_past_object_read(
         &self,
-        object_id: &ObjectID,
-        version: SequenceNumber,
+        object_id: &ObjectId,
+        version: Version,
     ) -> IotaResult<PastObjectRead> {
         // Firstly we see if the object ever existed by getting its latest data
         let Some(obj_ref) = self
@@ -3483,15 +3486,15 @@ impl AuthorityState {
             return Ok(PastObjectRead::ObjectNotExists(*object_id));
         };
 
-        if version > obj_ref.1 {
+        if version > obj_ref.version {
             return Ok(PastObjectRead::VersionTooHigh {
                 object_id: *object_id,
                 asked_version: version,
-                latest_version: obj_ref.1,
+                latest_version: obj_ref.version,
             });
         }
 
-        if version < obj_ref.1 {
+        if version < obj_ref.version {
             // Read past objects
             return Ok(match self.read_object_at_version(object_id, version)? {
                 Some((object, layout)) => {
@@ -3503,11 +3506,11 @@ impl AuthorityState {
             });
         }
 
-        if !obj_ref.2.is_alive() {
+        if !obj_ref.digest.is_alive() {
             return Ok(PastObjectRead::ObjectDeleted(obj_ref));
         }
 
-        match self.read_object_at_version(object_id, obj_ref.1)? {
+        match self.read_object_at_version(object_id, obj_ref.version)? {
             Some((object, layout)) => Ok(PastObjectRead::VersionFound(obj_ref, object, layout)),
             None => {
                 error!(
@@ -3516,7 +3519,7 @@ impl AuthorityState {
                 );
                 Err(UserInputError::ObjectNotFound {
                     object_id: *object_id,
-                    version: Some(obj_ref.1),
+                    version: Some(obj_ref.version),
                 }
                 .into())
             }
@@ -3526,8 +3529,8 @@ impl AuthorityState {
     #[instrument(level = "trace", skip_all)]
     fn read_object_at_version(
         &self,
-        object_id: &ObjectID,
-        version: SequenceNumber,
+        object_id: &ObjectId,
+        version: Version,
     ) -> IotaResult<Option<(Object, Option<MoveStructLayout>)>> {
         let Some(object) = self
             .get_object_cache_reader()
@@ -3557,11 +3560,7 @@ impl AuthorityState {
         Ok(layout)
     }
 
-    fn get_owner_at_version(
-        &self,
-        object_id: &ObjectID,
-        version: SequenceNumber,
-    ) -> IotaResult<Owner> {
+    fn get_owner_at_version(&self, object_id: &ObjectId, version: Version) -> IotaResult<Owner> {
         self.get_object_store()
             .try_get_object_by_key(object_id, version)?
             .ok_or_else(|| {
@@ -3576,9 +3575,9 @@ impl AuthorityState {
     #[instrument(level = "trace", skip_all)]
     pub fn get_owner_objects(
         &self,
-        owner: IotaAddress,
+        owner: Address,
         // If `Some`, the query will start from the next item after the specified cursor
-        cursor: Option<ObjectID>,
+        cursor: Option<ObjectId>,
         limit: usize,
         filter: Option<IotaObjectDataFilter>,
     ) -> IotaResult<Vec<ObjectInfo>> {
@@ -3592,12 +3591,12 @@ impl AuthorityState {
     #[instrument(level = "trace", skip_all)]
     pub fn get_owned_coins_iterator_with_cursor(
         &self,
-        owner: IotaAddress,
+        owner: Address,
         // If `Some`, the query will start from the next item after the specified cursor
-        cursor: (String, ObjectID),
+        cursor: (String, ObjectId),
         limit: usize,
         one_coin_type_only: bool,
-    ) -> IotaResult<impl Iterator<Item = (String, ObjectID, CoinInfo)> + '_> {
+    ) -> IotaResult<impl Iterator<Item = (String, ObjectId, CoinInfo)> + '_> {
         if let Some(indexes) = &self.indexes {
             indexes.get_owned_coins_iterator_with_cursor(owner, cursor, limit, one_coin_type_only)
         } else {
@@ -3608,12 +3607,12 @@ impl AuthorityState {
     #[instrument(level = "trace", skip_all)]
     pub fn get_owner_objects_iterator(
         &self,
-        owner: IotaAddress,
+        owner: Address,
         // If `Some`, the query will start from the next item after the specified cursor
-        cursor: Option<ObjectID>,
+        cursor: Option<ObjectId>,
         filter: Option<IotaObjectDataFilter>,
     ) -> IotaResult<impl Iterator<Item = ObjectInfo> + '_> {
-        let cursor_u = cursor.unwrap_or(ObjectID::ZERO);
+        let cursor_u = cursor.unwrap_or(ObjectId::ZERO);
         if let Some(indexes) = &self.indexes {
             indexes.get_owner_objects_iterator(owner, cursor_u, filter)
         } else {
@@ -3624,7 +3623,7 @@ impl AuthorityState {
     #[instrument(level = "trace", skip_all)]
     pub async fn get_move_objects<T>(
         &self,
-        owner: IotaAddress,
+        owner: Address,
         type_: MoveObjectType,
     ) -> IotaResult<Vec<T>>
     where
@@ -3666,11 +3665,11 @@ impl AuthorityState {
     #[instrument(level = "trace", skip_all)]
     pub fn get_dynamic_fields(
         &self,
-        owner: ObjectID,
+        owner: ObjectId,
         // If `Some`, the query will start from the next item after the specified cursor
-        cursor: Option<ObjectID>,
+        cursor: Option<ObjectId>,
         limit: usize,
-    ) -> IotaResult<Vec<(ObjectID, DynamicFieldInfo)>> {
+    ) -> IotaResult<Vec<(ObjectId, DynamicFieldInfo)>> {
         Ok(self
             .get_dynamic_fields_iterator(owner, cursor)?
             .take(limit)
@@ -3679,10 +3678,10 @@ impl AuthorityState {
 
     fn get_dynamic_fields_iterator(
         &self,
-        owner: ObjectID,
+        owner: ObjectId,
         // If `Some`, the query will start from the next item after the specified cursor
-        cursor: Option<ObjectID>,
-    ) -> IotaResult<impl Iterator<Item = Result<(ObjectID, DynamicFieldInfo), TypedStoreError>> + '_>
+        cursor: Option<ObjectId>,
+    ) -> IotaResult<impl Iterator<Item = Result<(ObjectId, DynamicFieldInfo), TypedStoreError>> + '_>
     {
         if let Some(indexes) = &self.indexes {
             indexes.get_dynamic_fields_iterator(owner, cursor)
@@ -3694,10 +3693,10 @@ impl AuthorityState {
     #[instrument(level = "trace", skip_all)]
     pub fn get_dynamic_field_object_id(
         &self,
-        owner: ObjectID,
+        owner: ObjectId,
         name_type: TypeTag,
         name_bcs_bytes: &[u8],
-    ) -> IotaResult<Option<ObjectID>> {
+    ) -> IotaResult<Option<ObjectId>> {
         if let Some(indexes) = &self.indexes {
             indexes.get_dynamic_field_object_id(owner, name_type, name_bcs_bytes)
         } else {
@@ -3724,7 +3723,7 @@ impl AuthorityState {
     #[instrument(level = "trace", skip_all)]
     pub fn multi_get_checkpoint_by_sequence_number(
         &self,
-        sequence_numbers: &[CheckpointSequenceNumber],
+        sequence_numbers: &[Version],
     ) -> IotaResult<Vec<Option<VerifiedCheckpoint>>> {
         Ok(self
             .checkpoint_store
@@ -3857,18 +3856,16 @@ impl AuthorityState {
         &self.checkpoint_store
     }
 
-    pub fn get_latest_checkpoint_sequence_number(&self) -> IotaResult<CheckpointSequenceNumber> {
+    pub fn get_latest_checkpoint_sequence_number(&self) -> IotaResult<Version> {
         self.get_checkpoint_store()
             .get_highest_executed_checkpoint_seq_number()?
             .ok_or(IotaError::UserInput {
-                error: UserInputError::LatestCheckpointSequenceNumberNotFound,
+                error: UserInputError::LatestCheckpointVersionNotFound,
             })
     }
 
     #[cfg(msim)]
-    pub fn get_highest_pruned_checkpoint_for_testing(
-        &self,
-    ) -> IotaResult<CheckpointSequenceNumber> {
+    pub fn get_highest_pruned_checkpoint_for_testing(&self) -> IotaResult<Version> {
         self.database_for_testing()
             .perpetual_tables
             .get_highest_pruned_checkpoint()
@@ -3877,7 +3874,7 @@ impl AuthorityState {
     #[instrument(level = "trace", skip_all)]
     pub fn get_checkpoint_summary_by_sequence_number(
         &self,
-        sequence_number: CheckpointSequenceNumber,
+        sequence_number: Version,
     ) -> IotaResult<CheckpointSummary> {
         let verified_checkpoint = self
             .get_checkpoint_store()
@@ -3907,8 +3904,8 @@ impl AuthorityState {
     }
 
     #[instrument(level = "trace", skip_all)]
-    pub fn find_publish_txn_digest(&self, package_id: ObjectID) -> IotaResult<TransactionDigest> {
-        if is_system_package(package_id) {
+    pub fn find_publish_txn_digest(&self, package_id: ObjectId) -> IotaResult<TransactionDigest> {
+        if Address::from_object_id(package_id).is_system_package() {
             return self.find_genesis_txn_digest();
         }
         Ok(self
@@ -3935,7 +3932,7 @@ impl AuthorityState {
     #[instrument(level = "trace", skip_all)]
     pub fn get_verified_checkpoint_by_sequence_number(
         &self,
-        sequence_number: CheckpointSequenceNumber,
+        sequence_number: Version,
     ) -> IotaResult<VerifiedCheckpoint> {
         let verified_checkpoint = self
             .get_checkpoint_store()
@@ -3979,7 +3976,7 @@ impl AuthorityState {
     #[instrument(level = "trace", skip_all)]
     pub fn get_checkpoint_contents_by_sequence_number(
         &self,
-        sequence_number: CheckpointSequenceNumber,
+        sequence_number: Version,
     ) -> IotaResult<CheckpointContents> {
         let verified_checkpoint = self
             .get_checkpoint_store()
@@ -4039,7 +4036,7 @@ impl AuthorityState {
                 index_store.events_by_transaction(&digest, tx_num, event_num, limit, descending)?
             }
             EventFilter::MoveModule { package, module } => {
-                let module_id = ModuleId::new(package.into(), module);
+                let module_id = ModuleId::new(AccountAddress::new(package.into_bytes()), module);
                 index_store.events_by_module_id(&module_id, tx_num, event_num, limit, descending)?
             }
             EventFilter::MoveEventType(struct_name) => index_store
@@ -4060,7 +4057,7 @@ impl AuthorityState {
                 .event_iterator(start_time, end_time, tx_num, event_num, limit, descending)?,
             EventFilter::MoveEventModule { package, module } => index_store
                 .events_by_move_event_module(
-                    &ModuleId::new(package.into(), module),
+                    &ModuleId::new(AccountAddress::new(package.into_bytes()), module),
                     tx_num,
                     event_num,
                     limit,
@@ -4323,15 +4320,15 @@ impl AuthorityState {
     /// no lock records for the given object can be found.
     /// Returns UserInputError::ObjectVersionUnavailableForConsumption if the
     /// object record is at a different version.
-    /// Returns Some(VerifiedEnvelope) if the given ObjectRef is locked by a
-    /// certain transaction. Returns None if the a lock record is
-    /// initialized for the given ObjectRef but not yet locked by any
-    /// transaction,     or cannot find the transaction in transaction
-    /// table, because of data race etc.
+    /// Returns Some(VerifiedEnvelope) if the given ObjectReference is
+    /// locked by a certain transaction. Returns None if the a lock record
+    /// is initialized for the given ObjectReference but not yet
+    /// locked by any transaction,     or cannot find the transaction in
+    /// transaction table, because of data race etc.
     #[instrument(level = "trace", skip_all)]
     pub async fn get_transaction_lock(
         &self,
-        object_ref: &ObjectRef,
+        object_ref: &ObjectReference,
         epoch_store: &AuthorityPerEpochStore,
     ) -> IotaResult<Option<VerifiedSignedTransaction>> {
         let lock_info = self
@@ -4341,7 +4338,7 @@ impl AuthorityState {
             ObjectLockStatus::LockedAtDifferentVersion { locked_ref } => {
                 return Err(UserInputError::ObjectVersionUnavailableForConsumption {
                     provided_obj_ref: *object_ref,
-                    current_version: locked_ref.1,
+                    current_version: locked_ref.version,
                 }
                 .into());
             }
@@ -4354,12 +4351,12 @@ impl AuthorityState {
         epoch_store.get_signed_transaction(&lock_info)
     }
 
-    pub async fn try_get_objects(&self, objects: &[ObjectID]) -> IotaResult<Vec<Option<Object>>> {
+    pub async fn try_get_objects(&self, objects: &[ObjectId]) -> IotaResult<Vec<Option<Object>>> {
         self.get_object_cache_reader().try_get_objects(objects)
     }
 
     /// Non-fallible version of `try_get_objects`.
-    pub async fn get_objects(&self, objects: &[ObjectID]) -> Vec<Option<Object>> {
+    pub async fn get_objects(&self, objects: &[ObjectId]) -> Vec<Option<Object>> {
         self.try_get_objects(objects)
             .await
             .expect("storage access failed")
@@ -4367,14 +4364,14 @@ impl AuthorityState {
 
     pub async fn try_get_object_or_tombstone(
         &self,
-        object_id: ObjectID,
-    ) -> IotaResult<Option<ObjectRef>> {
+        object_id: ObjectId,
+    ) -> IotaResult<Option<ObjectReference>> {
         self.get_object_cache_reader()
             .try_get_latest_object_ref_or_tombstone(object_id)
     }
 
     /// Non-fallible version of `try_get_object_or_tombstone`.
-    pub async fn get_object_or_tombstone(&self, object_id: ObjectID) -> Option<ObjectRef> {
+    pub async fn get_object_or_tombstone(&self, object_id: ObjectId) -> Option<ObjectReference> {
         self.try_get_object_or_tombstone(object_id)
             .await
             .expect("storage access failed")
@@ -4428,7 +4425,7 @@ impl AuthorityState {
     pub async fn get_available_system_packages(
         &self,
         binary_config: &BinaryConfig,
-    ) -> Vec<ObjectRef> {
+    ) -> Vec<ObjectReference> {
         let mut results = vec![];
 
         let system_packages = BuiltInFramework::iter_system_packages();
@@ -4481,10 +4478,10 @@ impl AuthorityState {
     /// this authority cannot run the upgrade that the network voted on.
     async fn get_system_package_bytes(
         &self,
-        system_packages: Vec<ObjectRef>,
+        system_packages: Vec<ObjectReference>,
         binary_config: &BinaryConfig,
-    ) -> Option<Vec<(SequenceNumber, Vec<Vec<u8>>, Vec<ObjectID>)>> {
-        let ids: Vec<_> = system_packages.iter().map(|(id, _, _)| *id).collect();
+    ) -> Option<Vec<(Version, Vec<Vec<u8>>, Vec<ObjectId>)>> {
+        let ids: Vec<_> = system_packages.iter().map(|oref| oref.object_id).collect();
         let objects = self.get_objects(&ids).await;
 
         let mut res = Vec::with_capacity(system_packages.len());
@@ -4492,12 +4489,15 @@ impl AuthorityState {
             let prev_transaction = match object {
                 Some(cur_object) if cur_object.compute_object_reference() == system_package_ref => {
                     // Skip this one because it doesn't need to be upgraded.
-                    info!("Framework {} does not need updating", system_package_ref.0);
+                    info!(
+                        "Framework {} does not need updating",
+                        system_package_ref.object_id
+                    );
                     continue;
                 }
 
                 Some(cur_object) => cur_object.previous_transaction,
-                None => TransactionDigest::genesis_marker(),
+                None => TransactionDigest::GENESIS_MARKER,
             };
 
             #[cfg(msim)]
@@ -4515,7 +4515,7 @@ impl AuthorityState {
                 id: _,
                 bytes,
                 dependencies,
-            } = BuiltInFramework::get_package_by_id(&system_package_ref.0).clone();
+            } = BuiltInFramework::get_package_by_id(&system_package_ref.object_id).clone();
 
             let modules: Vec<_> = bytes
                 .iter()
@@ -4524,7 +4524,7 @@ impl AuthorityState {
 
             let new_object = Object::new_system_package(
                 &modules,
-                system_package_ref.1,
+                system_package_ref.version,
                 dependencies.clone(),
                 prev_transaction,
             );
@@ -4537,7 +4537,7 @@ impl AuthorityState {
                 return None;
             }
 
-            res.push((system_package_ref.1, bytes, dependencies));
+            res.push((system_package_ref.version, bytes, dependencies));
         }
 
         Some(res)
@@ -4551,7 +4551,7 @@ impl AuthorityState {
         committee: &Committee,
         capabilities: Vec<AuthorityCapabilitiesV1>,
         mut buffer_stake_bps: u64,
-    ) -> Option<(ProtocolVersion, Digest, Vec<ObjectRef>)> {
+    ) -> Option<(ProtocolVersion, Digest, Vec<ObjectReference>)> {
         if buffer_stake_bps > 10000 {
             warn!("clamping buffer_stake_bps to 10000");
             buffer_stake_bps = 10000;
@@ -4632,7 +4632,7 @@ impl AuthorityState {
         committee: &Committee,
         capabilities: Vec<AuthorityCapabilitiesV1>,
         buffer_stake_bps: u64,
-    ) -> (ProtocolVersion, Digest, Vec<ObjectRef>) {
+    ) -> (ProtocolVersion, Digest, Vec<ObjectReference>) {
         let mut next_protocol_version = current_protocol_version;
         let mut system_packages = vec![];
         let mut protocol_version_digest = current_protocol_digest;
@@ -4771,7 +4771,7 @@ impl AuthorityState {
         &self,
         epoch_store: &Arc<AuthorityPerEpochStore>,
         gas_cost_summary: &GasCostSummary,
-        checkpoint: CheckpointSequenceNumber,
+        checkpoint: Version,
         epoch_start_timestamp_ms: CheckpointTimestamp,
     ) -> anyhow::Result<(
         IotaSystemState,
@@ -5047,7 +5047,7 @@ impl AuthorityState {
         new_committee: Committee,
         epoch_start_configuration: EpochStartConfiguration,
         expensive_safety_check_config: &ExpensiveSafetyCheckConfig,
-        epoch_last_checkpoint: CheckpointSequenceNumber,
+        epoch_last_checkpoint: Version,
     ) -> IotaResult<Arc<AuthorityPerEpochStore>> {
         let new_epoch = new_committee.epoch;
         info!(new_epoch = ?new_epoch, "re-opening AuthorityEpochTables for new epoch");
@@ -5252,8 +5252,8 @@ impl TransactionKeyValueStoreTrait for AuthorityState {
 
     async fn multi_get_checkpoints(
         &self,
-        checkpoint_summaries: &[CheckpointSequenceNumber],
-        checkpoint_contents: &[CheckpointSequenceNumber],
+        checkpoint_summaries: &[Version],
+        checkpoint_contents: &[Version],
         checkpoint_summaries_by_digest: &[CheckpointDigest],
     ) -> IotaResult<(
         Vec<Option<CertifiedCheckpointSummary>>,
@@ -5297,7 +5297,7 @@ impl TransactionKeyValueStoreTrait for AuthorityState {
     async fn get_transaction_perpetual_checkpoint(
         &self,
         digest: TransactionDigest,
-    ) -> IotaResult<Option<CheckpointSequenceNumber>> {
+    ) -> IotaResult<Option<Version>> {
         self.get_checkpoint_cache()
             .try_get_transaction_perpetual_checkpoint(&digest)
             .map(|res| res.map(|(_epoch, checkpoint)| checkpoint))
@@ -5305,8 +5305,8 @@ impl TransactionKeyValueStoreTrait for AuthorityState {
 
     async fn get_object(
         &self,
-        object_id: ObjectID,
-        version: VersionNumber,
+        object_id: ObjectId,
+        version: Version,
     ) -> IotaResult<Option<Object>> {
         self.get_object_cache_reader()
             .try_get_object_by_key(&object_id, version)
@@ -5315,7 +5315,7 @@ impl TransactionKeyValueStoreTrait for AuthorityState {
     async fn multi_get_transactions_perpetual_checkpoints(
         &self,
         digests: &[TransactionDigest],
-    ) -> IotaResult<Vec<Option<CheckpointSequenceNumber>>> {
+    ) -> IotaResult<Vec<Option<Version>>> {
         let res = self
             .get_checkpoint_cache()
             .try_multi_get_transactions_perpetual_checkpoints(digests)?;
@@ -5361,12 +5361,12 @@ pub mod framework_injection {
 
     use iota_framework::{BuiltInFramework, SystemPackage};
     use iota_types::{
-        base_types::{AuthorityName, ObjectID},
+        base_types::{AuthorityName, ObjectId},
         is_system_package,
     };
     use move_binary_format::CompiledModule;
 
-    type FrameworkOverrideConfig = BTreeMap<ObjectID, PackageOverrideConfig>;
+    type FrameworkOverrideConfig = BTreeMap<ObjectId, PackageOverrideConfig>;
 
     // Thread local cache because all simtests run in a single unique thread.
     thread_local! {
@@ -5394,21 +5394,21 @@ pub mod framework_injection {
             .collect()
     }
 
-    pub fn set_override(package_id: ObjectID, modules: Vec<CompiledModule>) {
+    pub fn set_override(package_id: ObjectId, modules: Vec<CompiledModule>) {
         OVERRIDE.with(|bs| {
             bs.borrow_mut()
                 .insert(package_id, PackageOverrideConfig::Global(modules))
         });
     }
 
-    pub fn set_override_cb(package_id: ObjectID, func: PackageUpgradeCallback) {
+    pub fn set_override_cb(package_id: ObjectId, func: PackageUpgradeCallback) {
         OVERRIDE.with(|bs| {
             bs.borrow_mut()
                 .insert(package_id, PackageOverrideConfig::PerValidator(func))
         });
     }
 
-    pub fn get_override_bytes(package_id: &ObjectID, name: AuthorityName) -> Option<Vec<Vec<u8>>> {
+    pub fn get_override_bytes(package_id: &ObjectId, name: AuthorityName) -> Option<Vec<Vec<u8>>> {
         OVERRIDE.with(|cfg| {
             cfg.borrow().get(package_id).and_then(|entry| match entry {
                 PackageOverrideConfig::Global(framework) => {
@@ -5422,7 +5422,7 @@ pub mod framework_injection {
     }
 
     pub fn get_override_modules(
-        package_id: &ObjectID,
+        package_id: &ObjectId,
         name: AuthorityName,
     ) -> Option<Vec<CompiledModule>> {
         OVERRIDE.with(|cfg| {
@@ -5434,7 +5434,7 @@ pub mod framework_injection {
     }
 
     pub fn get_override_system_package(
-        package_id: &ObjectID,
+        package_id: &ObjectId,
         name: AuthorityName,
     ) -> Option<SystemPackage> {
         let bytes = get_override_bytes(package_id, name)?;
@@ -5456,7 +5456,7 @@ pub mod framework_injection {
 
     pub fn get_extra_packages(name: AuthorityName) -> Vec<SystemPackage> {
         let built_in = BTreeSet::from_iter(BuiltInFramework::all_package_ids());
-        let extra: Vec<ObjectID> = OVERRIDE.with(|cfg| {
+        let extra: Vec<ObjectId> = OVERRIDE.with(|cfg| {
             cfg.borrow()
                 .keys()
                 .filter_map(|package| (!built_in.contains(package)).then_some(*package))
@@ -5476,8 +5476,8 @@ pub mod framework_injection {
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct ObjDumpFormat {
-    pub id: ObjectID,
-    pub version: VersionNumber,
+    pub id: ObjectId,
+    pub version: Version,
     pub digest: ObjectDigest,
     pub object: Object,
 }
@@ -5486,9 +5486,9 @@ impl ObjDumpFormat {
     fn new(object: Object) -> Self {
         let oref = object.compute_object_reference();
         Self {
-            id: oref.0,
-            version: oref.1,
-            digest: oref.2,
+            id: oref.object_id,
+            version: oref.version,
+            digest: oref.digest,
             object,
         }
     }
@@ -5542,7 +5542,9 @@ impl NodeStateDump {
         for kind in effects.input_shared_objects() {
             match kind {
                 InputSharedObject::Mutate(obj_ref) | InputSharedObject::ReadOnly(obj_ref) => {
-                    if let Some(w) = object_store.try_get_object_by_key(&obj_ref.0, obj_ref.1)? {
+                    if let Some(w) =
+                        object_store.try_get_object_by_key(&obj_ref.object_id, obj_ref.version)?
+                    {
                         shared_objects.push(ObjDumpFormat::new(w))
                     }
                 }

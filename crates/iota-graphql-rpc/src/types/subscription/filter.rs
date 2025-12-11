@@ -4,7 +4,7 @@
 use async_graphql::OneofObject;
 use iota_indexer::models::{events::StoredEvent, transactions::StoredTransaction};
 use iota_json_rpc_types::{Filter, IotaTransactionKind};
-use iota_types::{base_types::ObjectID, transaction::TransactionDataAPI};
+use iota_types::{base_types::ObjectId, transaction::TransactionDataAPI};
 
 use crate::types::{
     iota_address::IotaAddress,
@@ -113,13 +113,13 @@ struct ModuleFunction<'a> {
 /// types implementing [`TransactionDataAPI`].
 struct MoveCall<'a> {
     /// Package ID of the move call.
-    package: ObjectID,
+    package: ObjectId,
     /// Module information of the move call.
     module_function: Option<ModuleFunction<'a>>,
 }
 
 impl<'a> MoveCall<'a> {
-    fn new(package: ObjectID, module_function: impl Into<Option<ModuleFunction<'a>>>) -> Self {
+    fn new(package: ObjectId, module_function: impl Into<Option<ModuleFunction<'a>>>) -> Self {
         MoveCall {
             package,
             module_function: module_function.into(),
@@ -134,7 +134,7 @@ impl<'a> MoveCall<'a> {
     /// 3. if a function name is specified, it must match
     fn matches_transaction_move_call(
         &self,
-        package: &ObjectID,
+        package: &ObjectId,
         module: &str,
         function: &str,
     ) -> bool {

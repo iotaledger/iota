@@ -28,7 +28,7 @@ pub struct IotaClientConfig {
     pub(crate) keystore: Keystore,
     pub(crate) envs: Vec<IotaEnv>,
     pub(crate) active_env: Option<String>,
-    pub(crate) active_address: Option<IotaAddress>,
+    pub(crate) active_address: Option<Address>,
 }
 
 impl IotaClientConfig {
@@ -80,14 +80,14 @@ impl IotaClientConfig {
         self.active_env = env.into();
     }
 
-    /// Set the active [`IotaAddress`].
-    pub fn with_active_address(mut self, address: impl Into<Option<IotaAddress>>) -> Self {
+    /// Set the active [`Address`].
+    pub fn with_active_address(mut self, address: impl Into<Option<Address>>) -> Self {
         self.set_active_address(address);
         self
     }
 
-    /// Set the active [`IotaAddress`].
-    pub fn set_active_address(&mut self, address: impl Into<Option<IotaAddress>>) {
+    /// Set the active [`Address`].
+    pub fn set_active_address(&mut self, address: impl Into<Option<Address>>) {
         self.active_address = address.into();
     }
 

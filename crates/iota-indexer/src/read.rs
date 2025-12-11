@@ -33,7 +33,7 @@ use iota_transaction_builder::DataReader;
 use iota_types::{
     TypeTag,
     balance::Supply,
-    base_types::{IotaAddress, ObjectID, ObjectInfo, SequenceNumber, VersionNumber},
+    base_types::{Address, ObjectId, ObjectInfo, Version},
     coin::{CoinMetadata, TreasuryCap},
     coin_manager::CoinManager,
     committee::EpochId,
@@ -50,7 +50,9 @@ use iota_types::{
     object::{Object, ObjectRead, PastObjectRead, bounded_visitor::BoundedVisitor},
 };
 use itertools::Itertools;
-use move_core_types::{annotated_value::MoveStructLayout, language_storage::StructTag};
+use move_core_types::{
+    account_address::AccountAddress, annotated_value::MoveStructLayout, language_storage::StructTag,
+};
 use tap::TapFallible;
 
 use crate::{
@@ -100,7 +102,7 @@ pub const EVENT_SEQUENCE_NUMBER_STR: &str = "event_sequence_number";
 pub struct IndexerReader {
     pool: ConnectionPool,
     package_resolver: PackageResolver,
-    obj_type_cache: Arc<Mutex<SizedCache<String, Option<ObjectID>>>>,
+    obj_type_cache: Arc<Mutex<SizedCache<String, Option<ObjectId>>>>,
 }
 
 pub type PackageResolver = Arc<Resolver<PackageStoreWithLruCache<IndexerStorePackageResolver>>>;
@@ -166,16 +168,16 @@ impl IndexerReader {
 impl IndexerReader {
     fn get_object_from_db(
         &self,
-        object_id: &ObjectID,
-        version: Option<VersionNumber>,
+        object_id: &ObjectId,
+        version: Option<Version>,
     ) -> Result<Option<StoredObject>, IndexerError> {
-        let object_id = object_id.to_vec();
+        let object_id = object_id.as_bytes().to_vec();
 
         let stored_object = run_query!(&self.pool, |conn| {
             if let Some(version) = version {
                 objects::dsl::objects
                     .filter(objects::dsl::object_id.eq(object_id))
-                    .filter(objects::dsl::object_version.eq(version.value() as i64))
+                    .filter(objects::dsl::object_version.eq(version as i64))
                     .first::<StoredObject>(conn)
                     .optional()
             } else {
@@ -190,8 +192,8 @@ impl IndexerReader {
 
     fn get_object(
         &self,
-        object_id: &ObjectID,
-        version: Option<VersionNumber>,
+        object_id: &ObjectId,
+        version: Option<Version>,
     ) -> Result<Option<Object>, IndexerError> {
         let Some(stored_package) = self.get_object_from_db(object_id, version)? else {
             return Ok(None);
@@ -203,7 +205,7 @@ impl IndexerReader {
 
     pub async fn get_object_in_blocking_task(
         &self,
-        object_id: ObjectID,
+        object_id: ObjectId,
     ) -> Result<Option<Object>, IndexerError> {
         self.spawn_blocking(move |this| this.get_object(&object_id, None))
             .await
@@ -211,7 +213,7 @@ impl IndexerReader {
 
     pub async fn get_object_read_in_blocking_task(
         &self,
-        object_id: ObjectID,
+        object_id: ObjectId,
     ) -> Result<ObjectRead, IndexerError> {
         let stored_object = self
             .spawn_blocking(move |this| this.get_object_raw(object_id))
@@ -226,8 +228,8 @@ impl IndexerReader {
         }
     }
 
-    fn get_object_raw(&self, object_id: ObjectID) -> Result<Option<StoredObject>, IndexerError> {
-        let id = object_id.to_vec();
+    fn get_object_raw(&self, object_id: ObjectId) -> Result<Option<StoredObject>, IndexerError> {
+        let id = object_id.as_bytes().to_vec();
         let stored_object = run_query!(&self.pool, |conn| {
             objects::dsl::objects
                 .filter(objects::dsl::object_id.eq(id))
@@ -247,16 +249,16 @@ impl IndexerReader {
     /// `objects_history`.
     pub(crate) async fn get_past_object_read(
         &self,
-        object_id: ObjectID,
-        object_version: SequenceNumber,
+        object_id: ObjectId,
+        object_version: Version,
         before_version: bool,
     ) -> Result<PastObjectRead, IndexerError> {
-        let object_version_num = object_version.value() as i64;
+        let object_version_num = object_version as i64;
 
         // Query objects_version to find the requested version and relevant
         // checkpoint sequence number considering the `before_version` flag.
         let pool = self.get_pool();
-        let object_id_bytes = object_id.to_vec();
+        let object_id_bytes = object_id.as_bytes().to_vec();
         let object_version_info: Option<StoredObjectVersion> =
             run_query_async!(&pool, move |conn| {
                 let mut query = objects_version::dsl::objects_version
@@ -279,7 +281,7 @@ impl IndexerReader {
         let Some(object_version_info) = object_version_info else {
             // Check if the object ever existed.
             let pool = self.get_pool();
-            let object_id_bytes = object_id.to_vec();
+            let object_id_bytes = object_id.as_bytes().to_vec();
             let latest_existing_version: Option<i64> = run_query_async!(&pool, move |conn| {
                 objects_version::dsl::objects_version
                     .filter(objects_version::object_id.eq(&object_id_bytes))
@@ -294,7 +296,7 @@ impl IndexerReader {
                 Some(latest) if object_version_num > latest => Ok(PastObjectRead::VersionTooHigh {
                     object_id,
                     asked_version: object_version,
-                    latest_version: SequenceNumber::from(latest as u64),
+                    latest_version: Version::from(latest as u64),
                 }),
                 Some(_) => Ok(PastObjectRead::VersionNotFound(object_id, object_version)),
                 None => Ok(PastObjectRead::ObjectNotExists(object_id)),
@@ -324,12 +326,12 @@ impl IndexerReader {
 
     pub async fn get_stored_history_object(
         &self,
-        object_id: ObjectID,
+        object_id: ObjectId,
         object_version: i64,
         checkpoint_sequence_number: i64,
     ) -> Result<Option<StoredHistoryObject>, IndexerError> {
         let pool = self.get_pool();
-        let object_id_bytes = object_id.to_vec();
+        let object_id_bytes = object_id.as_bytes().to_vec();
         run_query_async!(&pool, move |conn| {
             // Match on the primary key.
             let query = objects_history::dsl::objects_history
@@ -346,10 +348,10 @@ impl IndexerReader {
         })
     }
 
-    pub async fn get_package(&self, package_id: ObjectID) -> Result<Package, IndexerError> {
+    pub async fn get_package(&self, package_id: ObjectId) -> Result<Package, IndexerError> {
         let store = self.package_resolver.package_store();
         let pkg = store
-            .fetch(package_id.into())
+            .fetch(AccountAddress::new(package_id.into_bytes()))
             .await
             .map_err(|e| {
                 IndexerError::PostgresRead(format!(
@@ -487,12 +489,14 @@ impl IndexerReader {
             "chain identifier not found".to_string(),
         ))?;
 
-        let checkpoint_digest =
-            CheckpointDigest::try_from(stored_chain_identifier.checkpoint_digest).map_err(|e| {
-                IndexerError::PersistentStorageDataCorruption(format!(
-                    "failed to decode chain identifier with err: {e:?}"
-                ))
-            })?;
+        let checkpoint_digest = CheckpointDigest::from_bytes(
+            &stored_chain_identifier.checkpoint_digest,
+        )
+        .map_err(|e| {
+            IndexerError::PersistentStorageDataCorruption(format!(
+                "failed to decode chain identifier with err: {e:?}"
+            ))
+        })?;
 
         Ok(checkpoint_digest.into())
     }
@@ -888,9 +892,9 @@ impl IndexerReader {
 
     pub async fn get_owned_objects_in_blocking_task(
         &self,
-        address: IotaAddress,
+        address: Address,
         filter: Option<IotaObjectDataFilter>,
-        cursor: Option<ObjectID>,
+        cursor: Option<ObjectId>,
         limit: usize,
     ) -> Result<Vec<StoredObject>, IndexerError> {
         self.spawn_blocking(move |this| this.get_owned_objects_impl(address, filter, cursor, limit))
@@ -899,15 +903,15 @@ impl IndexerReader {
 
     fn get_owned_objects_impl(
         &self,
-        address: IotaAddress,
+        address: Address,
         filter: Option<IotaObjectDataFilter>,
-        cursor: Option<ObjectID>,
+        cursor: Option<ObjectId>,
         limit: usize,
     ) -> Result<Vec<StoredObject>, IndexerError> {
         run_query!(&self.pool, |conn| {
             let mut query = objects::dsl::objects
                 .filter(objects::dsl::owner_type.eq(OwnerType::Address as i16))
-                .filter(objects::dsl::owner_id.eq(address.to_vec()))
+                .filter(objects::dsl::owner_id.eq(address.as_bytes().to_vec()))
                 .order(objects::dsl::object_id.asc())
                 .limit(limit as i64)
                 .into_boxed();
@@ -966,7 +970,7 @@ impl IndexerReader {
             }
 
             if let Some(object_cursor) = cursor {
-                query = query.filter(objects::dsl::object_id.gt(object_cursor.to_vec()));
+                query = query.filter(objects::dsl::object_id.gt(object_cursor.as_bytes().to_vec()));
             }
 
             query
@@ -998,7 +1002,7 @@ impl IndexerReader {
 
     pub async fn multi_get_objects_in_blocking_task(
         &self,
-        object_ids: Vec<ObjectID>,
+        object_ids: Vec<ObjectId>,
     ) -> Result<Vec<StoredObject>, IndexerError> {
         self.spawn_blocking(move |this| this.multi_get_objects_impl(object_ids))
             .await
@@ -1006,9 +1010,12 @@ impl IndexerReader {
 
     fn multi_get_objects_impl(
         &self,
-        object_ids: Vec<ObjectID>,
+        object_ids: Vec<ObjectId>,
     ) -> Result<Vec<StoredObject>, IndexerError> {
-        let object_ids = object_ids.into_iter().map(|id| id.to_vec()).collect_vec();
+        let object_ids = object_ids
+            .into_iter()
+            .map(|id| id.as_bytes().to_vec())
+            .collect_vec();
         run_query!(&self.pool, |conn| {
             objects::dsl::objects
                 .filter(objects::object_id.eq_any(object_ids))
@@ -1156,7 +1163,7 @@ impl IndexerReader {
                 module,
                 function,
             })) => {
-                let package = Hex::encode(package.to_vec());
+                let package = Hex::encode(package.as_bytes().to_vec());
                 match (module, function) {
                     (Some(module), Some(function)) => (
                         "tx_calls_fun".into(),
@@ -1181,7 +1188,7 @@ impl IndexerReader {
             }
             Some(TransactionFilterKind::V1(TransactionFilter::InputObject(object_id)))
             | Some(TransactionFilterKind::V2(TransactionFilterV2::InputObject(object_id))) => {
-                let object_id = Hex::encode(object_id.to_vec());
+                let object_id = Hex::encode(object_id.as_bytes().to_vec());
                 (
                     "tx_input_objects".into(),
                     format!("object_id = '\\x{object_id}'::bytea"),
@@ -1189,7 +1196,7 @@ impl IndexerReader {
             }
             Some(TransactionFilterKind::V1(TransactionFilter::ChangedObject(object_id)))
             | Some(TransactionFilterKind::V2(TransactionFilterV2::ChangedObject(object_id))) => {
-                let object_id = Hex::encode(object_id.to_vec());
+                let object_id = Hex::encode(object_id.as_bytes().to_vec());
                 (
                     "tx_changed_objects".into(),
                     format!("object_id = '\\x{object_id}'::bytea"),
@@ -1198,7 +1205,7 @@ impl IndexerReader {
             Some(TransactionFilterKind::V2(TransactionFilterV2::WrappedOrDeletedObject(
                 object_id,
             ))) => {
-                let object_id = Hex::encode(object_id.to_vec());
+                let object_id = Hex::encode(object_id.as_bytes().to_vec());
                 (
                     "tx_wrapped_or_deleted_objects".into(),
                     format!("object_id = '\\x{object_id}'::bytea"),
@@ -1206,7 +1213,7 @@ impl IndexerReader {
             }
             Some(TransactionFilterKind::V1(TransactionFilter::FromAddress(from_address)))
             | Some(TransactionFilterKind::V2(TransactionFilterV2::FromAddress(from_address))) => {
-                let from_address = Hex::encode(from_address.to_vec());
+                let from_address = Hex::encode(from_address.as_bytes().to_vec());
                 (
                     "tx_senders".into(),
                     format!("sender = '\\x{from_address}'::bytea"),
@@ -1214,7 +1221,7 @@ impl IndexerReader {
             }
             Some(TransactionFilterKind::V1(TransactionFilter::ToAddress(to_address)))
             | Some(TransactionFilterKind::V2(TransactionFilterV2::ToAddress(to_address))) => {
-                let to_address = Hex::encode(to_address.to_vec());
+                let to_address = Hex::encode(to_address.as_bytes().to_vec());
                 (
                     "tx_recipients".into(),
                     format!("recipient = '\\x{to_address}'::bytea"),
@@ -1223,8 +1230,8 @@ impl IndexerReader {
             Some(TransactionFilterKind::V1(TransactionFilter::FromAndToAddress { from, to }))
             | Some(TransactionFilterKind::V2(TransactionFilterV2::FromAndToAddress { from, to })) =>
             {
-                let from_address = Hex::encode(from.to_vec());
-                let to_address = Hex::encode(to.to_vec());
+                let from_address = Hex::encode(from.as_bytes().to_vec());
+                let to_address = Hex::encode(to.as_bytes().to_vec());
                 // Need to remove ambiguities for tx_sequence_number column
                 let cursor_clause = if let Some(cursor_tx_seq) = cursor_tx_seq {
                     if is_descending {
@@ -1251,7 +1258,7 @@ impl IndexerReader {
             }
             Some(TransactionFilterKind::V1(TransactionFilter::FromOrToAddress { addr }))
             | Some(TransactionFilterKind::V2(TransactionFilterV2::FromOrToAddress { addr })) => {
-                let address = Hex::encode(addr.to_vec());
+                let address = Hex::encode(addr.as_bytes().to_vec());
                 let inner_query = format!(
                     "( \
                         ( \
@@ -1661,7 +1668,7 @@ impl IndexerReader {
                     ORDER BY {} \
                     LIMIT {}
                 )",
-                Hex::encode(sender.to_vec()),
+                Hex::encode(sender.as_bytes().to_vec()),
                 cursor_clause,
                 order_clause,
                 limit,
@@ -1692,7 +1699,7 @@ impl IndexerReader {
                     format!("event_type = '{formatted_struct_tag}'")
                 }
                 EventFilter::MoveEventModule { package, module } => {
-                    let package_module_prefix = format!("{}::{}", package.to_hex_literal(), module);
+                    let package_module_prefix = format!("{}::{}", package.to_hex(), module);
                     format!("event_type LIKE '{package_module_prefix}::%'")
                 }
                 EventFilter::Sender(_) => {
@@ -1762,8 +1769,8 @@ impl IndexerReader {
 
     pub async fn get_dynamic_fields_in_blocking_task(
         &self,
-        parent_object_id: ObjectID,
-        cursor: Option<ObjectID>,
+        parent_object_id: ObjectId,
+        cursor: Option<ObjectId>,
         limit: usize,
     ) -> Result<Vec<DynamicFieldInfo>, IndexerError> {
         let stored_objects = self
@@ -1798,8 +1805,8 @@ impl IndexerReader {
 
     pub async fn get_dynamic_fields_raw_in_blocking_task(
         &self,
-        parent_object_id: ObjectID,
-        cursor: Option<ObjectID>,
+        parent_object_id: ObjectId,
+        cursor: Option<ObjectId>,
         limit: usize,
     ) -> Result<Vec<StoredObject>, IndexerError> {
         self.spawn_blocking(move |this| {
@@ -1810,19 +1817,19 @@ impl IndexerReader {
 
     fn get_dynamic_fields_raw(
         &self,
-        parent_object_id: ObjectID,
-        cursor: Option<ObjectID>,
+        parent_object_id: ObjectId,
+        cursor: Option<ObjectId>,
         limit: usize,
     ) -> Result<Vec<StoredObject>, IndexerError> {
         let objects: Vec<StoredObject> = run_query!(&self.pool, |conn| {
             let mut query = objects::dsl::objects
                 .filter(objects::dsl::owner_type.eq(OwnerType::Object as i16))
-                .filter(objects::dsl::owner_id.eq(parent_object_id.to_vec()))
+                .filter(objects::dsl::owner_id.eq(parent_object_id.as_bytes().to_vec()))
                 .order(objects::dsl::object_id.asc())
                 .limit(limit as i64)
                 .into_boxed();
             if let Some(object_cursor) = cursor {
-                query = query.filter(objects::dsl::object_id.gt(object_cursor.to_vec()));
+                query = query.filter(objects::dsl::object_id.gt(object_cursor.as_bytes().to_vec()));
             }
             query.load::<StoredObject>(conn)
         })?;
@@ -1894,7 +1901,7 @@ impl IndexerReader {
                     .ok_or_else(|| {
                         IndexerError::Uncategorized(anyhow!(
                             "Failed to find object_id {} when trying to create dynamic field info",
-                            object_id.to_canonical_display(/* with_prefix */ true),
+                            object_id.to_canonical_string(/* with_prefix */ true),
                         ))
                     })?;
 
@@ -1963,9 +1970,9 @@ impl IndexerReader {
 
     pub async fn get_owned_coins_in_blocking_task(
         &self,
-        owner: IotaAddress,
+        owner: Address,
         coin_type: Option<String>,
-        cursor: ObjectID,
+        cursor: ObjectId,
         limit: usize,
     ) -> Result<Vec<IotaCoin>, IndexerError> {
         self.spawn_blocking(move |this| this.get_owned_coins(owner, coin_type, cursor, limit))
@@ -1974,16 +1981,16 @@ impl IndexerReader {
 
     fn get_owned_coins(
         &self,
-        owner: IotaAddress,
+        owner: Address,
         // If coin_type is None, look for all coins.
         coin_type: Option<String>,
-        cursor: ObjectID,
+        cursor: ObjectId,
         limit: usize,
     ) -> Result<Vec<IotaCoin>, IndexerError> {
         let mut query = objects::dsl::objects
             .filter(objects::dsl::owner_type.eq(OwnerType::Address as i16))
-            .filter(objects::dsl::owner_id.eq(owner.to_vec()))
-            .filter(objects::dsl::object_id.gt(cursor.to_vec()))
+            .filter(objects::dsl::owner_id.eq(owner.as_bytes().to_vec()))
+            .filter(objects::dsl::object_id.gt(cursor.as_bytes().to_vec()))
             .into_boxed();
         if let Some(coin_type) = coin_type {
             query = query.filter(objects::dsl::coin_type.eq(Some(coin_type)));
@@ -2004,7 +2011,7 @@ impl IndexerReader {
 
     pub async fn get_coin_balances_in_blocking_task(
         &self,
-        owner: IotaAddress,
+        owner: Address,
         // If coin_type is None, look for all coins.
         coin_type: Option<String>,
     ) -> Result<Vec<Balance>, IndexerError> {
@@ -2014,7 +2021,7 @@ impl IndexerReader {
 
     fn get_coin_balances(
         &self,
-        owner: IotaAddress,
+        owner: Address,
         // If coin_type is None, look for all coins.
         coin_type: Option<String>,
     ) -> Result<Vec<Balance>, IndexerError> {
@@ -2037,7 +2044,7 @@ impl IndexerReader {
             ORDER BY coin_type ASC
         ",
             OwnerType::Address as i16,
-            Hex::encode(owner.to_vec()),
+            Hex::encode(owner.as_bytes().to_vec()),
             coin_type_filter,
         );
 
@@ -2372,7 +2379,7 @@ impl IndexerReader {
 impl iota_types::storage::ObjectStore for IndexerReader {
     fn try_get_object(
         &self,
-        object_id: &ObjectID,
+        object_id: &ObjectId,
     ) -> Result<Option<iota_types::object::Object>, iota_types::storage::error::Error> {
         self.get_object(object_id, None)
             .map_err(iota_types::storage::error::Error::custom)
@@ -2380,8 +2387,8 @@ impl iota_types::storage::ObjectStore for IndexerReader {
 
     fn try_get_object_by_key(
         &self,
-        object_id: &ObjectID,
-        version: iota_types::base_types::VersionNumber,
+        object_id: &ObjectId,
+        version: iota_types::base_types::Version,
     ) -> Result<Option<iota_types::object::Object>, iota_types::storage::error::Error> {
         self.get_object(object_id, Some(version))
             .map_err(iota_types::storage::error::Error::custom)
@@ -2392,7 +2399,7 @@ impl iota_types::storage::ObjectStore for IndexerReader {
 impl DataReader for IndexerReader {
     async fn get_owned_objects(
         &self,
-        address: IotaAddress,
+        address: Address,
         object_type: StructTag,
     ) -> Result<Vec<ObjectInfo>, anyhow::Error> {
         let stored_objects = self
@@ -2417,7 +2424,7 @@ impl DataReader for IndexerReader {
 
     async fn get_object_with_options(
         &self,
-        object_id: ObjectID,
+        object_id: ObjectId,
         options: IotaObjectDataOptions,
     ) -> Result<IotaObjectResponse, anyhow::Error> {
         let result = self.get_object_read_in_blocking_task(object_id).await?;

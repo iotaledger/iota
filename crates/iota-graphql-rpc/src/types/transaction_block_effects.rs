@@ -112,7 +112,7 @@ impl TransactionBlockEffects {
     /// created or modified by this transaction, immediately following this
     /// transaction.
     async fn lamport_version(&self) -> UInt53 {
-        self.native().lamport_version().value().into()
+        self.native().lamport_version().into()
     }
 
     /// The reason for a transaction failure, if it did fail.

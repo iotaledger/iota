@@ -2,6 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use iota_sdk_2::types::Address;
 use move_binary_format::{CompiledModule, file_format::SignatureToken};
 use move_bytecode_utils::resolve_struct;
 use move_core_types::{
@@ -9,12 +10,12 @@ use move_core_types::{
 };
 use serde::{Deserialize, Serialize};
 
-use crate::{IOTA_FRAMEWORK_ADDRESS, id::UID};
+use crate::id::UID;
 
 pub const CLOCK_MODULE_NAME: &IdentStr = ident_str!("clock");
 pub const CLOCK_STRUCT_NAME: &IdentStr = ident_str!("Clock");
 pub const RESOLVED_IOTA_CLOCK: (&AccountAddress, &IdentStr, &IdentStr) = (
-    &IOTA_FRAMEWORK_ADDRESS,
+    &AccountAddress::new(Address::FRAMEWORK.into_bytes()),
     CLOCK_MODULE_NAME,
     CLOCK_STRUCT_NAME,
 );
@@ -34,7 +35,7 @@ impl Clock {
 
     pub fn type_() -> StructTag {
         StructTag {
-            address: IOTA_FRAMEWORK_ADDRESS,
+            address: AccountAddress::new(Address::FRAMEWORK.into_bytes()),
             module: CLOCK_MODULE_NAME.to_owned(),
             name: CLOCK_STRUCT_NAME.to_owned(),
             type_params: vec![],

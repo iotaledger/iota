@@ -30,7 +30,7 @@ use iota_move::manage_package::resolve_lock_file_path;
 use iota_move_build::{BuildConfig, IotaPackageHooks, implicit_deps};
 use iota_package_management::system_package_versions::latest_system_packages;
 use iota_sdk::{
-    IotaClientBuilder, rpc_types::IotaTransactionBlockEffects, types::base_types::ObjectID,
+    IotaClientBuilder, rpc_types::IotaTransactionBlockEffects, types::base_types::ObjectId,
 };
 use iota_source_validation::{BytecodeSourceVerifier, ValidationMode};
 use move_core_types::account_address::AccountAddress;
@@ -106,7 +106,7 @@ pub struct Package {
     /// Optional object ID to watch for upgrades. For framework packages, this
     /// is an address like 0x2. For non-framework packages this is an
     /// upgrade cap (possibly wrapped).
-    pub watch: Option<ObjectID>,
+    pub watch: Option<ObjectId>,
 }
 
 #[derive(Clone, Serialize, Debug)]
@@ -190,7 +190,7 @@ pub async fn verify_package(
     let address = compiled_package
         .published_at
         .as_ref()
-        .map(|id| **id)
+        .map(|id| AccountAddress::new(id.into_bytes()))
         .map_err(|_| anyhow!("could not resolve published-at field in package manifest"))?;
     info!("verifying {} at {address}", package_path.as_ref().display());
     for v in &compiled_package.package.root_compiled_units {

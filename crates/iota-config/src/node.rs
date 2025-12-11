@@ -16,13 +16,12 @@ use consensus_config::Parameters as ConsensusParameters;
 use iota_keys::keypair_file::{read_authority_keypair_from_file, read_keypair_from_file};
 use iota_names::config::IotaNamesConfig;
 use iota_types::{
-    base_types::IotaAddress,
+    base_types::{Address, Version, address_from_pub_key},
     committee::EpochId,
     crypto::{
         AccountKeyPair, AuthorityKeyPair, AuthorityPublicKeyBytes, IotaKeyPair, KeypairTraits,
         NetworkKeyPair, get_key_pair_from_rng,
     },
-    messages_checkpoint::CheckpointSequenceNumber,
     multiaddr::Multiaddr,
     supported_protocol_versions::{Chain, SupportedProtocolVersions},
     traffic_control::{PolicyConfig, RemoteFirewallConfig},
@@ -714,8 +713,8 @@ impl NodeConfig {
         Ok(migration_tx_data)
     }
 
-    pub fn iota_address(&self) -> IotaAddress {
-        (&self.account_key_pair.keypair().public()).into()
+    pub fn iota_address(&self) -> Address {
+        address_from_pub_key(&self.account_key_pair.keypair().public())
     }
 
     pub fn archive_reader_config(&self) -> Vec<ArchiveReaderConfig> {
@@ -1518,7 +1517,7 @@ mod tests {
 #[derive(Clone, Copy, PartialEq, Debug, Serialize, Deserialize)]
 pub enum RunWithRange {
     Epoch(EpochId),
-    Checkpoint(CheckpointSequenceNumber),
+    Checkpoint(Version),
 }
 
 impl RunWithRange {
@@ -1527,11 +1526,11 @@ impl RunWithRange {
         matches!(self, RunWithRange::Epoch(e) if epoch_id > *e)
     }
 
-    pub fn matches_checkpoint(&self, seq_num: CheckpointSequenceNumber) -> bool {
+    pub fn matches_checkpoint(&self, seq_num: Version) -> bool {
         matches!(self, RunWithRange::Checkpoint(seq) if *seq == seq_num)
     }
 
-    pub fn into_checkpoint_bound(self) -> Option<CheckpointSequenceNumber> {
+    pub fn into_checkpoint_bound(self) -> Option<Version> {
         match self {
             RunWithRange::Epoch(_) => None,
             RunWithRange::Checkpoint(seq) => Some(seq),

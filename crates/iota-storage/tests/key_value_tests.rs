@@ -10,15 +10,14 @@ use iota_protocol_config::ProtocolConfig;
 use iota_storage::{key_value_store::*, key_value_store_metrics::KeyValueStoreMetrics};
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
-    base_types::{ExecutionDigests, ObjectID, VersionNumber, random_object_ref},
+    base_types::{ExecutionDigests, ObjectId, Version, random_object_ref},
     committee::Committee,
     crypto::{AccountKeyPair, KeypairTraits, get_key_pair},
     digests::{CheckpointContentsDigest, CheckpointDigest, TransactionDigest},
     effects::{TestEffectsBuilder, TransactionEffects, TransactionEffectsAPI, TransactionEvents},
     error::IotaResult,
     messages_checkpoint::{
-        CertifiedCheckpointSummary, CheckpointContents, CheckpointSequenceNumber,
-        CheckpointSummary, SignedCheckpointSummary,
+        CertifiedCheckpointSummary, CheckpointContents, CheckpointSummary, SignedCheckpointSummary,
     },
     object::Object,
     storage::ObjectKey,
@@ -42,11 +41,11 @@ fn random_fx() -> TransactionEffects {
 struct MockTxStore {
     txs: HashMap<TransactionDigest, Transaction>,
     fxs: HashMap<TransactionDigest, TransactionEffects>,
-    checkpoint_summaries: HashMap<CheckpointSequenceNumber, CertifiedCheckpointSummary>,
-    checkpoint_contents: HashMap<CheckpointSequenceNumber, CheckpointContents>,
+    checkpoint_summaries: HashMap<Version, CertifiedCheckpointSummary>,
+    checkpoint_contents: HashMap<Version, CheckpointContents>,
     checkpoint_summaries_by_digest: HashMap<CheckpointDigest, CertifiedCheckpointSummary>,
     checkpoint_contents_by_digest: HashMap<CheckpointContentsDigest, CheckpointContents>,
-    tx_to_checkpoint: HashMap<TransactionDigest, CheckpointSequenceNumber>,
+    tx_to_checkpoint: HashMap<TransactionDigest, Version>,
     objects: HashMap<ObjectKey, Object>,
 
     next_seq_number: u64,
@@ -153,8 +152,8 @@ impl TransactionKeyValueStoreTrait for MockTxStore {
 
     async fn multi_get_checkpoints(
         &self,
-        checkpoint_summaries: &[CheckpointSequenceNumber],
-        checkpoint_contents: &[CheckpointSequenceNumber],
+        checkpoint_summaries: &[Version],
+        checkpoint_contents: &[Version],
         checkpoint_summaries_by_digest: &[CheckpointDigest],
     ) -> IotaResult<(
         Vec<Option<CertifiedCheckpointSummary>>,
@@ -182,14 +181,14 @@ impl TransactionKeyValueStoreTrait for MockTxStore {
     async fn get_transaction_perpetual_checkpoint(
         &self,
         digest: TransactionDigest,
-    ) -> IotaResult<Option<CheckpointSequenceNumber>> {
+    ) -> IotaResult<Option<Version>> {
         Ok(self.tx_to_checkpoint.get(&digest).cloned())
     }
 
     async fn get_object(
         &self,
-        object_id: ObjectID,
-        version: VersionNumber,
+        object_id: ObjectId,
+        version: Version,
     ) -> IotaResult<Option<Object>> {
         Ok(self.objects.get(&ObjectKey(object_id, version)).cloned())
     }
@@ -197,7 +196,7 @@ impl TransactionKeyValueStoreTrait for MockTxStore {
     async fn multi_get_transactions_perpetual_checkpoints(
         &self,
         digests: &[TransactionDigest],
-    ) -> IotaResult<Vec<Option<CheckpointSequenceNumber>>> {
+    ) -> IotaResult<Vec<Option<Version>>> {
         Ok(digests
             .iter()
             .map(|digest| self.tx_to_checkpoint.get(digest).cloned())
@@ -224,7 +223,7 @@ async fn test_get_tx() {
     assert_eq!(result.unwrap(), vec![Some(tx)]);
 
     let result = store
-        .multi_get_tx(&[TransactionDigest::random()])
+        .multi_get_tx(&[TransactionDigest::new(rand::random())])
         .now_or_never()
         .unwrap();
     assert_eq!(result.unwrap(), vec![None]);
@@ -244,7 +243,7 @@ async fn test_get_fx() {
     assert_eq!(result.unwrap(), vec![Some(fx)]);
 
     let result = store
-        .multi_get_fx_by_tx_digest(&[TransactionDigest::random()])
+        .multi_get_fx_by_tx_digest(&[TransactionDigest::new(rand::random())])
         .now_or_never()
         .unwrap();
     assert_eq!(result.unwrap(), vec![None]);
@@ -333,7 +332,7 @@ async fn test_get_tx_from_fallback() {
     assert_eq!(result.unwrap(), vec![Some(fallback_tx.clone())]);
 
     let result = fallback
-        .multi_get_tx(&[TransactionDigest::random()])
+        .multi_get_tx(&[TransactionDigest::new(rand::random())])
         .now_or_never()
         .unwrap();
     assert_eq!(result.unwrap(), vec![None]);
@@ -436,7 +435,7 @@ mod simtests {
 
         let tx = random_tx();
         let tx_digest = *tx.digest();
-        let random_digest = TransactionDigest::random();
+        let random_digest = TransactionDigest::new(rand::random());
         let fx = random_fx();
         let ev = random_events();
 

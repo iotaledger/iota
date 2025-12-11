@@ -42,7 +42,7 @@ use crate::{
     transaction::{Transaction, TransactionData},
 };
 
-pub type CheckpointSequenceNumber = u64;
+pub type CheckpointVersion = u64;
 pub type CheckpointTimestamp = u64;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -51,7 +51,7 @@ pub struct CheckpointRequest {
     /// sequence number; otherwise if None returns the latest checkpoint
     /// stored (authenticated or pending, depending on the value of
     /// `certified` flag)
-    pub sequence_number: Option<CheckpointSequenceNumber>,
+    pub sequence_number: Option<CheckpointVersion>,
     // A flag, if true also return the contents of the
     // checkpoint besides the meta-data.
     pub request_content: bool,
@@ -150,7 +150,7 @@ pub struct EndOfEpochData {
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub struct CheckpointSummary {
     pub epoch: EpochId,
-    pub sequence_number: CheckpointSequenceNumber,
+    pub sequence_number: CheckpointVersion,
     /// Total number of transactions committed since genesis, including those in
     /// this checkpoint.
     pub network_total_transactions: u64,
@@ -196,7 +196,7 @@ impl CheckpointSummary {
     pub fn new(
         protocol_config: &ProtocolConfig,
         epoch: EpochId,
-        sequence_number: CheckpointSequenceNumber,
+        sequence_number: CheckpointVersion,
         network_total_transactions: u64,
         transactions: &CheckpointContents,
         previous_digest: Option<CheckpointDigest>,
@@ -243,7 +243,7 @@ impl CheckpointSummary {
         Ok(())
     }
 
-    pub fn sequence_number(&self) -> &CheckpointSequenceNumber {
+    pub fn sequence_number(&self) -> &CheckpointVersion {
         &self.sequence_number
     }
 
@@ -357,7 +357,7 @@ impl CertifiedCheckpointSummary {
         Ok(())
     }
 
-    pub fn into_summary_and_sequence(self) -> (CheckpointSequenceNumber, CheckpointSummary) {
+    pub fn into_summary_and_sequence(self) -> (CheckpointVersion, CheckpointSummary) {
         let summary = self.into_data();
         (summary.sequence_number, summary)
     }
@@ -387,7 +387,7 @@ impl SignedCheckpointSummary {
 }
 
 impl VerifiedCheckpoint {
-    pub fn into_summary_and_sequence(self) -> (CheckpointSequenceNumber, CheckpointSummary) {
+    pub fn into_summary_and_sequence(self) -> (CheckpointVersion, CheckpointSummary) {
         self.into_inner().into_summary_and_sequence()
     }
 }
@@ -982,7 +982,7 @@ mod tests {
                 1,
                 2,
                 100,
-                ConsensusCommitDigest::random(),
+                ConsensusCommitDigest::new(rand::random()),
                 Vec::new(),
             );
             let c1 = generate_test_checkpoint_summary_from_digest(*t1.digest());

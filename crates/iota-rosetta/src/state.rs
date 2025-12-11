@@ -7,7 +7,7 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use iota_json_rpc_types::IotaTransactionBlockResponseOptions;
 use iota_sdk::{IotaClient, rpc_types::Checkpoint};
-use iota_types::messages_checkpoint::CheckpointSequenceNumber;
+use iota_types::base_types::Version;
 
 use crate::{
     Error,
@@ -46,10 +46,7 @@ pub trait BlockProvider {
     async fn genesis_block_identifier(&self) -> Result<BlockIdentifier, Error>;
     async fn oldest_block_identifier(&self) -> Result<BlockIdentifier, Error>;
     async fn current_block_identifier(&self) -> Result<BlockIdentifier, Error>;
-    async fn create_block_identifier(
-        &self,
-        checkpoint: CheckpointSequenceNumber,
-    ) -> Result<BlockIdentifier, Error>;
+    async fn create_block_identifier(&self, checkpoint: Version) -> Result<BlockIdentifier, Error>;
 }
 
 #[derive(Clone)]
@@ -96,10 +93,7 @@ impl BlockProvider for CheckpointBlockProvider {
         self.create_block_identifier(checkpoint).await
     }
 
-    async fn create_block_identifier(
-        &self,
-        checkpoint: CheckpointSequenceNumber,
-    ) -> Result<BlockIdentifier, Error> {
+    async fn create_block_identifier(&self, checkpoint: Version) -> Result<BlockIdentifier, Error> {
         self.create_block_identifier(checkpoint).await
     }
 }
@@ -163,10 +157,7 @@ impl CheckpointBlockProvider {
         })
     }
 
-    async fn create_block_identifier(
-        &self,
-        seq_number: CheckpointSequenceNumber,
-    ) -> Result<BlockIdentifier, Error> {
+    async fn create_block_identifier(&self, seq_number: Version) -> Result<BlockIdentifier, Error> {
         let checkpoint = self
             .client
             .read_api()

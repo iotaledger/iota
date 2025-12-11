@@ -18,8 +18,8 @@ use iota_sdk::{
         IotaTransactionBlockResponseOptions,
     },
     types::{
-        IOTA_FRAMEWORK_ADDRESS, STARDUST_ADDRESS, TypeTag,
-        base_types::ObjectID,
+        Address::FRAMEWORK, STARDUST_ADDRESS, TypeTag,
+        base_types::ObjectId,
         crypto::SignatureScheme::ED25519,
         dynamic_field::DynamicFieldName,
         gas_coin::GAS,
@@ -73,7 +73,7 @@ async fn main() -> Result<(), anyhow::Error> {
 
     // This object id was fetched manually. It refers to an Alias Output object that
     // owns a NftOutput.
-    let alias_output_object_id = ObjectID::from_hex_literal(
+    let alias_output_object_id = ObjectId::from_hex(
         "0x3b35e67750b8e4ccb45b2fc4a6a26a6d97e74c37a532f17177e6324ab93eaca6",
     )?;
 
@@ -154,7 +154,7 @@ async fn main() -> Result<(), anyhow::Error> {
 
             // Extract the IOTA balance.
             let iota_coin = builder.programmable_move_call(
-                IOTA_FRAMEWORK_ADDRESS.into(),
+                Address::FRAMEWORK.into(),
                 ident_str!("coin").to_owned(),
                 ident_str!("from_balance").to_owned(),
                 type_arguments,
@@ -167,7 +167,7 @@ async fn main() -> Result<(), anyhow::Error> {
             // Cleanup the bag.
             let arguments = vec![extracted_native_tokens_bag];
             builder.programmable_move_call(
-                IOTA_FRAMEWORK_ADDRESS.into(),
+                Address::FRAMEWORK.into(),
                 ident_str!("bag").to_owned(),
                 ident_str!("destroy_empty").to_owned(),
                 vec![],
@@ -215,7 +215,7 @@ async fn main() -> Result<(), anyhow::Error> {
 
                 // Extract the IOTA balance.
                 let iota_coin = builder.programmable_move_call(
-                    IOTA_FRAMEWORK_ADDRESS.into(),
+                    Address::FRAMEWORK.into(),
                     ident_str!("coin").to_owned(),
                     ident_str!("from_balance").to_owned(),
                     type_arguments,
@@ -228,7 +228,7 @@ async fn main() -> Result<(), anyhow::Error> {
                 // Cleanup the bag because it is empty.
                 let arguments = vec![extracted_native_tokens_bag];
                 builder.programmable_move_call(
-                    IOTA_FRAMEWORK_ADDRESS.into(),
+                    Address::FRAMEWORK.into(),
                     ident_str!("bag").to_owned(),
                     ident_str!("destroy_empty").to_owned(),
                     vec![],

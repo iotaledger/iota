@@ -6,9 +6,7 @@ use std::sync::Arc;
 
 use dashmap::DashMap;
 use iota_data_ingestion_core::Worker;
-use iota_types::{
-    full_checkpoint_content::CheckpointData, messages_checkpoint::CheckpointSequenceNumber,
-};
+use iota_types::{base_types::Version, full_checkpoint_content::CheckpointData};
 use tokio::sync::Notify;
 
 use crate::{backfill::ingestion::IngestionBackfill, errors::IndexerError};
@@ -16,7 +14,7 @@ use crate::{backfill::ingestion::IngestionBackfill, errors::IndexerError};
 /// Bridge between the ingestion engine and the backfill task.
 #[derive(Clone)]
 pub(crate) struct Adapter<T: IngestionBackfill> {
-    pub(crate) ready_checkpoints: Arc<DashMap<CheckpointSequenceNumber, Vec<T::ProcessedType>>>,
+    pub(crate) ready_checkpoints: Arc<DashMap<Version, Vec<T::ProcessedType>>>,
     pub(crate) notify: Arc<Notify>,
 }
 

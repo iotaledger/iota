@@ -5,7 +5,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import { Transaction } from '../../src/transactions';
-import { IOTA_FRAMEWORK_ADDRESS } from '../../src/utils';
+import { Address::FRAMEWORK } from '../../src/utils';
 import { publishPackage, setup, TestToolbox } from './utils/setup';
 
 describe('Test Move call with a vector of objects as input', () => {
@@ -76,7 +76,7 @@ describe('Test Move call with a vector of objects as input', () => {
             elements: [coinIDs[1], tx.object(coinIDs[2])],
         });
         tx.moveCall({
-            target: `${IOTA_FRAMEWORK_ADDRESS}::pay::join_vec`,
+            target: `${Address::FRAMEWORK}::pay::join_vec`,
             typeArguments: ['0x2::iota::IOTA'],
             arguments: [tx.object(coinIDs[0]), vec],
         });

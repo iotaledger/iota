@@ -9,6 +9,7 @@ use fastcrypto::encoding::{Base64, Encoding};
 use iota_json::IotaJsonValue;
 use iota_json_rpc_api::{ReadApiClient, WriteApiServer};
 use iota_json_rpc_types::{DevInspectArgs, IotaTypeTag};
+use iota_sdk_2::types::ObjectReference;
 use iota_types::{
     TypeTag,
     gas_coin::GAS,
@@ -178,7 +179,13 @@ impl Query {
 
                 let gas_objects = gas_objects.map(|objs| {
                     objs.into_iter()
-                        .map(|obj| (obj.address.into(), obj.version.into(), obj.digest.into()))
+                        .map(|obj| {
+                            ObjectReference::new(
+                                obj.address.into(),
+                                obj.version.into(),
+                                obj.digest.into(),
+                            )
+                        })
                         .collect()
                 });
 

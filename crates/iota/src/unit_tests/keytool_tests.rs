@@ -11,9 +11,12 @@ use fastcrypto::{
     traits::ToFromBytes,
 };
 use iota_keys::keystore::{AccountKeystore, FileBasedKeystore, InMemKeystore, Keystore, StoredKey};
-use iota_sdk_2::types::crypto::{Intent, IntentScope};
+use iota_sdk_2::types::{
+    ObjectReference,
+    crypto::{Intent, IntentScope},
+};
 use iota_types::{
-    base_types::{IotaAddress, ObjectDigest, ObjectID, SequenceNumber},
+    base_types::{Address, ObjectDigest, ObjectId, Version, address_from_pub_key},
     crypto::{
         AuthorityKeyPair, Ed25519IotaSignature, EncodeDecodeBase64, IotaKeyPair,
         IotaSignatureInner, PublicKey, Secp256k1IotaSignature, Secp256r1IotaSignature, Signature,
@@ -109,7 +112,7 @@ async fn test_read_write_keystore_with_flag() {
 
     // create Secp256k1 keypair
     let kp_secp = IotaKeyPair::Secp256k1(get_key_pair().1);
-    let addr_secp: IotaAddress = (&kp_secp.public()).into();
+    let addr_secp: Address = address_from_pub_key(&kp_secp.public());
     let fp_secp = dir.path().join(format!("{addr_secp}.key"));
     let fp_secp_2 = fp_secp.clone();
 
@@ -133,7 +136,7 @@ async fn test_read_write_keystore_with_flag() {
 
     // create Ed25519 keypair
     let kp_ed = IotaKeyPair::Ed25519(get_key_pair().1);
-    let addr_ed: IotaAddress = (&kp_ed.public()).into();
+    let addr_ed: Address = address_from_pub_key(&kp_ed.public());
     let fp_ed = dir.path().join(format!("{addr_ed}.key"));
     let fp_ed_2 = fp_ed.clone();
 
@@ -174,7 +177,7 @@ async fn test_iota_operations_config() {
     let read = FileBasedKeystore::new(&path1);
     assert!(read.is_ok());
     assert_eq!(
-        IotaAddress::from_str("bc14937ffd5874a57afa10edf2d267d8eaaaf61081d718d9ba19cae85c00c6e8")
+        Address::from_str("bc14937ffd5874a57afa10edf2d267d8eaaaf61081d718d9ba19cae85c00c6e8")
             .unwrap(),
         read.unwrap().addresses()[0]
     );
@@ -193,7 +196,7 @@ async fn test_iota_operations_config() {
     assert!(res.is_ok());
     let read = FileBasedKeystore::new(&path3);
     assert_eq!(
-        IotaAddress::from_str("e988a8fb85944173237d287e98e542ae50c119c02644856ed8db17fe9f528b13")
+        Address::from_str("e988a8fb85944173237d287e98e542ae50c119c02644856ed8db17fe9f528b13")
             .unwrap(),
         read.unwrap().addresses()[0]
     );
@@ -259,8 +262,8 @@ async fn test_private_keys_import_export() -> Result<(), anyhow::Error> {
         let kp_from_base64 = IotaKeyPair::decode_base64(private_key_base64).unwrap();
         assert_eq!(kp, kp_from_base64);
 
-        let addr = IotaAddress::from_str(address).unwrap();
-        assert_eq!(IotaAddress::from(&kp.public()), addr);
+        let addr = Address::from_str(address).unwrap();
+        assert_eq!(address_from_pub_key(&kp.public()), addr);
         assert!(keystore.addresses().contains(&addr));
 
         // Export output shows the private key in Bech32
@@ -339,8 +342,8 @@ async fn test_mnemonics_ed25519() -> Result<(), anyhow::Error> {
         .execute(&mut keystore)
         .await?;
         let kp = IotaKeyPair::decode(t[1]).unwrap();
-        let addr = IotaAddress::from_str(t[2]).unwrap();
-        assert_eq!(IotaAddress::from(&kp.public()), addr);
+        let addr = Address::from_str(t[2]).unwrap();
+        assert_eq!(address_from_pub_key(&kp.public()), addr);
         assert!(keystore.addresses().contains(&addr));
     }
     Ok(())
@@ -380,8 +383,8 @@ async fn test_mnemonics_secp256k1() -> Result<(), anyhow::Error> {
         .execute(&mut keystore)
         .await?;
         let kp = IotaKeyPair::decode(t[1]).unwrap();
-        let addr = IotaAddress::from_str(t[2]).unwrap();
-        assert_eq!(IotaAddress::from(&kp.public()), addr);
+        let addr = Address::from_str(t[2]).unwrap();
+        assert_eq!(address_from_pub_key(&kp.public()), addr);
         assert!(keystore.addresses().contains(&addr));
     }
     Ok(())
@@ -422,8 +425,8 @@ async fn test_mnemonics_secp256r1() -> Result<(), anyhow::Error> {
         .await?;
 
         let kp = IotaKeyPair::decode(sk).unwrap();
-        let addr = IotaAddress::from_str(address).unwrap();
-        assert_eq!(IotaAddress::from(&kp.public()), addr);
+        let addr = Address::from_str(address).unwrap();
+        assert_eq!(address_from_pub_key(&kp.public()), addr);
         assert!(keystore.addresses().contains(&addr));
     }
 
@@ -583,16 +586,16 @@ async fn test_sign_command() -> Result<(), anyhow::Error> {
     let alias = keystore.get_alias_by_address(sender).unwrap();
 
     // Create a dummy TransactionData
-    let gas = (
-        ObjectID::random(),
-        SequenceNumber::new(),
-        ObjectDigest::random(),
+    let gas = ObjectReference::new(
+        ObjectId::new(rand::random()),
+        Version::default(),
+        ObjectDigest::new(rand::random()),
     );
     let gas_price = 1;
     let tx_data = TransactionData::new_pay_iota(
         *sender,
         vec![gas],
-        vec![IotaAddress::random_for_testing_only()],
+        vec![Address::new(rand::random())],
         vec![10000],
         gas,
         gas_price * TEST_ONLY_GAS_UNIT_FOR_TRANSFER,

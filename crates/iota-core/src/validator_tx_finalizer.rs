@@ -296,7 +296,7 @@ mod tests {
     use iota_swarm_config::network_config_builder::ConfigBuilder;
     use iota_test_transaction_builder::TestTransactionBuilder;
     use iota_types::{
-        base_types::{AuthorityName, IotaAddress, ObjectID, TransactionDigest},
+        base_types::{Address, AuthorityName, ObjectId, TransactionDigest},
         committee::{CommitteeTrait, StakeUnit},
         crypto::{AccountKeyPair, get_account_key_pair},
         effects::{TransactionEffectsAPI, TransactionEvents},
@@ -603,7 +603,7 @@ mod tests {
             .collect::<Vec<_>>();
         let config = finalizers[0].config.clone();
         for _ in 0..100 {
-            let tx_digest = TransactionDigest::random();
+            let tx_digest = TransactionDigest::new(rand::random());
             let mut delays: Vec<_> = finalizers
                 .iter()
                 .map(|finalizer| {
@@ -670,9 +670,9 @@ mod tests {
     async fn create_tx(
         clients: &BTreeMap<AuthorityName, MockAuthorityClient>,
         state: &Arc<AuthorityState>,
-        sender: IotaAddress,
+        sender: Address,
         keypair: &AccountKeyPair,
-        gas_object_id: ObjectID,
+        gas_object_id: ObjectId,
     ) -> VerifiedSignedTransaction {
         let gas_object_ref = state
             .get_object(&gas_object_id)

@@ -348,8 +348,8 @@ function mapTransactionArgument(arg: typeof bcs.Argument.$inferType): IotaArgume
     throw new Error(`Unknown argument type ${arg}`);
 }
 
-const OBJECT_DIGEST_DELETED = toBase58(Uint8Array.from({ length: 32 }, () => 99));
-const OBJECT_DIGEST_WRAPPED = toBase58(Uint8Array.from({ length: 32 }, () => 88));
+const OBJECT_DELETED = toBase58(Uint8Array.from({ length: 32 }, () => 99));
+const OBJECT_WRAPPED = toBase58(Uint8Array.from({ length: 32 }, () => 88));
 const OBJECT_DIGEST_ZERO = toBase58(Uint8Array.from({ length: 32 }, () => 0));
 const ADDRESS_ZERO = normalizeIotaAddress('0x0');
 
@@ -370,13 +370,13 @@ export function mapEffects(data: string): IotaTransactionBlockResponse['effects'
                 return {
                     objectId: id,
                     version: Number(sharedObject.MutateDeleted) as unknown as string,
-                    digest: OBJECT_DIGEST_DELETED,
+                    digest: OBJECT_DELETED,
                 };
             case 'ReadDeleted':
                 return {
                     objectId: id,
                     version: Number(sharedObject.ReadDeleted) as unknown as string,
-                    digest: OBJECT_DIGEST_DELETED,
+                    digest: OBJECT_DELETED,
                 };
             default:
                 throw new Error(`Unknown shared object type: ${sharedObject}`);
@@ -473,7 +473,7 @@ export function mapEffects(data: string): IotaTransactionBlockResponse['effects'
         .map(([objectId, _change]) => ({
             objectId,
             version: Number(effects.V1.lamportVersion) as unknown as string,
-            digest: OBJECT_DIGEST_DELETED,
+            digest: OBJECT_DELETED,
         }));
 
     const unwrappedThenDeleted = effects.V1.changedObjects
@@ -486,7 +486,7 @@ export function mapEffects(data: string): IotaTransactionBlockResponse['effects'
         .map(([objectId, _change]) => ({
             objectId,
             version: Number(effects.V1.lamportVersion) as unknown as string,
-            digest: OBJECT_DIGEST_DELETED,
+            digest: OBJECT_DELETED,
         }));
 
     const wrapped = effects.V1.changedObjects
@@ -497,7 +497,7 @@ export function mapEffects(data: string): IotaTransactionBlockResponse['effects'
         .map(([objectId, _change]) => ({
             objectId,
             version: Number(effects.V1.lamportVersion) as unknown as string,
-            digest: OBJECT_DIGEST_WRAPPED,
+            digest: OBJECT_WRAPPED,
         }));
 
     const gasObjectFromV1 =

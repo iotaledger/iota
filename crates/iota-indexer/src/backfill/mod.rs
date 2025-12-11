@@ -6,7 +6,7 @@ use std::{ops::RangeInclusive, sync::Arc};
 
 use async_trait::async_trait;
 use clap::{Subcommand, ValueEnum};
-use iota_types::messages_checkpoint::CheckpointSequenceNumber;
+use iota_types::base_types::Version;
 
 use crate::{
     backfill::{
@@ -90,7 +90,7 @@ pub(crate) async fn get_backfill(
             IngestionBackfillKind::TxWrappedOrDeletedObjects => Ok(Arc::new(
                 IngestionBackfillTask::<TxWrappedOrDeletedObjectsBackfill>::new(
                     config,
-                    range_start as CheckpointSequenceNumber,
+                    range_start as Version,
                 )
                 .await?,
             )),

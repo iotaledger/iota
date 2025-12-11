@@ -10,7 +10,7 @@ use std::{
 };
 
 use iota_types::{
-    base_types::{IotaAddress, MoveObjectType, ObjectID, SequenceNumber},
+    base_types::{Address, MoveObjectType, ObjectId, Version},
     digests::TransactionDigest,
     dynamic_field::visitor as DFV,
     full_checkpoint_content::CheckpointData,
@@ -47,12 +47,12 @@ struct MetadataInfo {
 
 #[derive(Clone, Copy, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Debug)]
 pub struct OwnerIndexKey {
-    pub owner: IotaAddress,
-    pub object_id: ObjectID,
+    pub owner: Address,
+    pub object_id: ObjectId,
 }
 
 impl OwnerIndexKey {
-    fn new(owner: IotaAddress, object_id: ObjectID) -> Self {
+    fn new(owner: Address, object_id: ObjectId) -> Self {
         Self { owner, object_id }
     }
 }
@@ -60,7 +60,7 @@ impl OwnerIndexKey {
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub struct OwnerIndexInfo {
     // object_id of the object is a part of the Key
-    pub version: SequenceNumber,
+    pub version: Version,
     pub type_: MoveObjectType,
 }
 
@@ -85,8 +85,8 @@ pub struct CoinIndexKey {
 
 #[derive(Clone, Serialize, Deserialize, PartialEq, Eq, Debug)]
 pub struct CoinIndexInfo {
-    pub coin_metadata_object_id: Option<ObjectID>,
-    pub treasury_object_id: Option<ObjectID>,
+    pub coin_metadata_object_id: Option<ObjectId>,
+    pub treasury_object_id: Option<ObjectId>,
 }
 
 impl CoinIndexInfo {
@@ -135,13 +135,13 @@ struct IndexStoreTables {
     /// An index of dynamic fields (children objects).
     ///
     /// Allows an efficient iterator to list all of the dynamic fields owned by
-    /// a particular ObjectID.
+    /// a particular ObjectId.
     dynamic_field: DBMap<DynamicFieldKey, DynamicFieldIndexInfo>,
 
     /// An index of Coin Types
     ///
     /// Allows looking up information related to published Coins, like the
-    /// ObjectID of its coorisponding CoinMetadata.
+    /// ObjectId of its coorisponding CoinMetadata.
     coin: DBMap<CoinIndexKey, CoinIndexInfo>,
     // NOTE: Authors and Reviewers before adding any new tables ensure that they are either:
     // - bounded in size by the live object set
@@ -403,11 +403,11 @@ impl IndexStoreTables {
 
     fn owner_iter(
         &self,
-        owner: IotaAddress,
-        cursor: Option<ObjectID>,
+        owner: Address,
+        cursor: Option<ObjectId>,
     ) -> Result<impl Iterator<Item = (OwnerIndexKey, OwnerIndexInfo)> + '_, TypedStoreError> {
-        let lower_bound = OwnerIndexKey::new(owner, cursor.unwrap_or(ObjectID::ZERO));
-        let upper_bound = OwnerIndexKey::new(owner, ObjectID::MAX);
+        let lower_bound = OwnerIndexKey::new(owner, cursor.unwrap_or(ObjectId::ZERO));
+        let upper_bound = OwnerIndexKey::new(owner, ObjectId::new([u8::MAX; _]));
         Ok(self
             .owner
             .iter_with_bounds(Some(lower_bound), Some(upper_bound)))
@@ -415,12 +415,12 @@ impl IndexStoreTables {
 
     fn dynamic_field_iter(
         &self,
-        parent: ObjectID,
-        cursor: Option<ObjectID>,
+        parent: ObjectId,
+        cursor: Option<ObjectId>,
     ) -> Result<impl Iterator<Item = (DynamicFieldKey, DynamicFieldIndexInfo)> + '_, TypedStoreError>
     {
-        let lower_bound = DynamicFieldKey::new(parent, cursor.unwrap_or(ObjectID::ZERO));
-        let upper_bound = DynamicFieldKey::new(parent, ObjectID::MAX);
+        let lower_bound = DynamicFieldKey::new(parent, cursor.unwrap_or(ObjectId::ZERO));
+        let upper_bound = DynamicFieldKey::new(parent, ObjectId::new([u8::MAX; _]));
         let iter = self
             .dynamic_field
             .iter_with_bounds(Some(lower_bound), Some(upper_bound));
@@ -548,16 +548,16 @@ impl RestIndexStore {
 
     pub fn owner_iter(
         &self,
-        owner: IotaAddress,
-        cursor: Option<ObjectID>,
+        owner: Address,
+        cursor: Option<ObjectId>,
     ) -> Result<impl Iterator<Item = (OwnerIndexKey, OwnerIndexInfo)> + '_, TypedStoreError> {
         self.tables.owner_iter(owner, cursor)
     }
 
     pub fn dynamic_field_iter(
         &self,
-        parent: ObjectID,
-        cursor: Option<ObjectID>,
+        parent: ObjectId,
+        cursor: Option<ObjectId>,
     ) -> Result<impl Iterator<Item = (DynamicFieldKey, DynamicFieldIndexInfo)> + '_, TypedStoreError>
     {
         self.tables.dynamic_field_iter(parent, cursor)

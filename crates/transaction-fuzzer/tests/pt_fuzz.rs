@@ -3,8 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use iota_types::{
-    IOTA_FRAMEWORK_PACKAGE_ID, MOVE_STDLIB_PACKAGE_ID,
-    base_types::ObjectRef,
+    base_types::{Address, ObjectId, ObjectReference},
     effects::TransactionEffectsAPI,
     execution_status::{ExecutionFailureStatus, ExecutionStatus},
     object::Owner,
@@ -36,10 +35,13 @@ fn invalid_pt_fuzz() {
 fn publish_coin_factory(
     exec: &mut Executor,
     account: &mut AccountCurrent,
-) -> (ObjectRef, ObjectRef) {
+) -> (ObjectReference, ObjectReference) {
     let effects = exec.publish(
         "coin_factory",
-        vec![MOVE_STDLIB_PACKAGE_ID, IOTA_FRAMEWORK_PACKAGE_ID],
+        vec![
+            ObjectId::from(Address::STD_LIB),
+            ObjectId::from(Address::FRAMEWORK),
+        ],
         account,
     );
     let package = effects
@@ -53,7 +55,7 @@ fn publish_coin_factory(
         .find(|(obj_ref, _)| {
             if let Some(stag) = exec
                 .rt
-                .block_on(exec.state.get_object(&obj_ref.0))
+                .block_on(exec.state.get_object(&obj_ref.object_id))
                 .unwrap()
                 .data
                 .struct_tag()
@@ -77,11 +79,11 @@ pub fn run_pt_success(
     account: &mut AccountCurrent,
     exec: &mut Executor,
     mut pt: ProgrammableTransaction,
-    cap: ObjectRef,
-) -> ObjectRef {
+    cap: ObjectReference,
+) -> ObjectReference {
     for i in 0..pt.inputs.len() {
         if let CallArg::Object(ObjectArg::ImmOrOwnedObject(obj_ref)) = pt.inputs[i] {
-            if obj_ref.0 == cap.0 {
+            if obj_ref.object_id == cap.object_id {
                 pt.inputs[i] = CallArg::Object(ObjectArg::ImmOrOwnedObject(cap));
             }
         }
@@ -110,7 +112,7 @@ pub fn run_pt_success(
         .find(|(obj_ref, _)| {
             if let Some(stag) = exec
                 .rt
-                .block_on(exec.state.get_object(&obj_ref.0))
+                .block_on(exec.state.get_object(&obj_ref.object_id))
                 .unwrap()
                 .data
                 .struct_tag()
@@ -133,7 +135,8 @@ fn pt_fuzz_input_match() {
     let mut account = AccountCurrent::new(AccountData::new_random());
     let (package, cap) = publish_coin_factory(&mut exec, &mut account);
 
-    let strategy = gen_many_input_match(account.initial_data.account.address, package.0, cap);
+    let strategy =
+        gen_many_input_match(account.initial_data.account.address, package.object_id, cap);
     let mut new_cap = cap;
     for _ in 0..MAX_ITERATIONS_INPUT_MATCH {
         let pt = strategy.new_tree(&mut runner).unwrap().current();

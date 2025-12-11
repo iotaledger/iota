@@ -25,7 +25,7 @@ use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 
 use crate::{
-    base_types::{EpochId, IotaAddress},
+    base_types::{Address, EpochId, address_from_multisig_pub_key, address_from_pub_key},
     crypto::{CompressedSignature, DefaultHash, PublicKey, SignatureScheme},
     digests::ZKLoginInputsDigest,
     error::IotaError,
@@ -98,7 +98,7 @@ impl AuthenticatorTrait for MultiSig {
     fn verify_claims<T>(
         &self,
         value: &IntentMessage<T>,
-        multisig_address: IotaAddress,
+        multisig_address: Address,
         verify_params: &VerifyParams,
         zklogin_inputs_cache: Arc<VerifiedDigestCache<ZKLoginInputsDigest>>,
     ) -> Result<(), IotaError>
@@ -111,7 +111,7 @@ impl AuthenticatorTrait for MultiSig {
                 error: "Invalid multisig pubkey".to_string(),
             })?;
 
-        if IotaAddress::from(&self.multisig_pk) != multisig_address {
+        if address_from_multisig_pub_key(&self.multisig_pk) != multisig_address {
             return Err(IotaError::InvalidSignature {
                 error: "Invalid address derived from pks".to_string(),
             });
@@ -154,7 +154,7 @@ impl AuthenticatorTrait for MultiSig {
                             error: format!(
                                 "Invalid sig for pk={} address={:?} error=signature/pubkey type mismatch",
                                 subsig_pubkey.encode_base64(),
-                                IotaAddress::from(subsig_pubkey)
+                                address_from_pub_key(subsig_pubkey)
                             ),
                         });
                     }
@@ -179,7 +179,7 @@ impl AuthenticatorTrait for MultiSig {
                             error: format!(
                                 "Invalid sig for pk={} address={:?} error=signature/pubkey type mismatch",
                                 subsig_pubkey.encode_base64(),
-                                IotaAddress::from(subsig_pubkey)
+                                address_from_pub_key(subsig_pubkey)
                             ),
                         });
                     }
@@ -204,7 +204,7 @@ impl AuthenticatorTrait for MultiSig {
                             error: format!(
                                 "Invalid sig for pk={} address={:?} error=signature/pubkey type mismatch",
                                 subsig_pubkey.encode_base64(),
-                                IotaAddress::from(subsig_pubkey)
+                                address_from_pub_key(subsig_pubkey)
                             ),
                         });
                     }
@@ -232,7 +232,7 @@ impl AuthenticatorTrait for MultiSig {
                             error: format!(
                                 "Invalid sig for pk={} address={:?} error=signature/pubkey type mismatch",
                                 subsig_pubkey.encode_base64(),
-                                IotaAddress::from(subsig_pubkey)
+                                address_from_pub_key(subsig_pubkey)
                             ),
                         });
                     }
@@ -244,7 +244,7 @@ impl AuthenticatorTrait for MultiSig {
                     authenticator
                         .verify_claims(
                             value,
-                            IotaAddress::from(subsig_pubkey),
+                            address_from_pub_key(subsig_pubkey),
                             verify_params,
                             zklogin_inputs_cache.clone(),
                         )
@@ -260,7 +260,7 @@ impl AuthenticatorTrait for MultiSig {
                     authenticator
                         .verify_claims(
                             value,
-                            IotaAddress::from(subsig_pubkey),
+                            address_from_pub_key(subsig_pubkey),
                             verify_params,
                             zklogin_inputs_cache.clone(),
                         )
@@ -274,7 +274,7 @@ impl AuthenticatorTrait for MultiSig {
                     error: format!(
                         "Invalid sig for pk={} address={:?} error={:?}",
                         subsig_pubkey.encode_base64(),
-                        IotaAddress::from(subsig_pubkey),
+                        address_from_pub_key(subsig_pubkey),
                         e.to_string()
                     ),
                 });

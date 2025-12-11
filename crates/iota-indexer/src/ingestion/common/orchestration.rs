@@ -5,18 +5,18 @@ use std::collections::HashMap;
 
 use async_trait::async_trait;
 use iota_data_ingestion_core::{DataIngestionMetrics, IndexerExecutor, ProgressStore};
-use iota_types::messages_checkpoint::CheckpointSequenceNumber;
+use iota_types::base_types::Version;
 use prometheus::Registry;
 use tokio_util::sync::CancellationToken;
 
 use crate::IndexerError;
 
 pub(crate) struct ShimIndexerProgressStore {
-    watermarks: HashMap<String, CheckpointSequenceNumber>,
+    watermarks: HashMap<String, Version>,
 }
 
 impl ShimIndexerProgressStore {
-    pub fn new(watermarks: Vec<(String, CheckpointSequenceNumber)>) -> Self {
+    pub fn new(watermarks: Vec<(String, Version)>) -> Self {
         Self {
             watermarks: watermarks.into_iter().collect(),
         }
@@ -27,16 +27,12 @@ impl ShimIndexerProgressStore {
 impl ProgressStore for ShimIndexerProgressStore {
     type Error = IndexerError;
 
-    async fn load(&mut self, task_name: String) -> Result<CheckpointSequenceNumber, Self::Error> {
+    async fn load(&mut self, task_name: String) -> Result<Version, Self::Error> {
         let err_msg = format!("missing watermark for {task_name}");
         Ok(*self.watermarks.get(&task_name).expect(&err_msg))
     }
 
-    async fn save(
-        &mut self,
-        task_name: String,
-        checkpoint: CheckpointSequenceNumber,
-    ) -> Result<(), Self::Error> {
+    async fn save(&mut self, task_name: String, checkpoint: Version) -> Result<(), Self::Error> {
         self.watermarks.insert(task_name, checkpoint);
         Ok(())
     }
@@ -44,7 +40,7 @@ impl ProgressStore for ShimIndexerProgressStore {
 
 pub(crate) fn new_executor(
     task_name: String,
-    watermark: CheckpointSequenceNumber,
+    watermark: Version,
     cancel: CancellationToken,
 ) -> IndexerExecutor<ShimIndexerProgressStore> {
     let progress_store = ShimIndexerProgressStore::new(vec![(task_name, watermark)]);

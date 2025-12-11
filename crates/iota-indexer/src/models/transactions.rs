@@ -326,13 +326,12 @@ impl StoredTransaction {
         package_resolver: Arc<Resolver<impl PackageStore>>,
     ) -> IndexerResult<IotaTransactionBlockResponse> {
         let options = options.clone();
-        let tx_digest =
-            TransactionDigest::try_from(self.transaction_digest.as_slice()).map_err(|e| {
-                IndexerError::PersistentStorageDataCorruption(format!(
-                    "Can't convert {:?} as tx_digest. Error: {e}",
-                    self.transaction_digest
-                ))
-            })?;
+        let tx_digest = TransactionDigest::from_bytes(&self.transaction_digest).map_err(|e| {
+            IndexerError::PersistentStorageDataCorruption(format!(
+                "Can't convert {:?} as tx_digest. Error: {e}",
+                self.transaction_digest
+            ))
+        })?;
 
         let timestamp_ms = self
             .is_checkpointed_transaction()

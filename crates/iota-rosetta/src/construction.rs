@@ -20,7 +20,7 @@ use iota_json_rpc_types::{
 use iota_sdk::rpc_types::IotaExecutionStatus;
 use iota_sdk_2::types::crypto::{Intent, IntentMessage};
 use iota_types::{
-    base_types::IotaAddress,
+    base_types::Address,
     crypto::{DefaultHash, SignatureScheme, ToFromBytes},
     error::IotaError,
     signature::{GenericSignature, VerifyParams},
@@ -51,7 +51,7 @@ pub async fn derive(
     WithRejection(Json(request), _): WithRejection<Json<ConstructionDeriveRequest>, Error>,
 ) -> Result<ConstructionDeriveResponse, Error> {
     env.check_network_identifier(&request.network_identifier)?;
-    let address: IotaAddress = request.public_key.try_into()?;
+    let address: Address = request.public_key.try_into()?;
     Ok(ConstructionDeriveResponse {
         account_identifier: address.into(),
     })

@@ -6,9 +6,9 @@ use iota_json_rpc_api::WriteApiClient;
 use iota_json_rpc_types::{IotaExecutionStatus, IotaTransactionBlockEffectsAPI};
 use iota_macros::sim_test;
 use iota_protocol_config::ProtocolVersion;
-use iota_types::{
-    IOTA_FRAMEWORK_PACKAGE_ID,
-    transaction::{CallArg, ProgrammableMoveCall, ProgrammableTransaction, TransactionKind},
+use iota_sdk_2::types::{Address, ObjectId};
+use iota_types::transaction::{
+    CallArg, ProgrammableMoveCall, ProgrammableTransaction, TransactionKind,
 };
 use jsonrpsee::{core::ClientError, types::ErrorCode};
 use test_cluster::TestClusterBuilder;
@@ -40,7 +40,7 @@ fn build_faulty_transaction_byte_sequence() -> Base64 {
     // bytes.
     let commands = vec![iota_types::transaction::Command::MoveCall(Box::new(
         ProgrammableMoveCall {
-            package: IOTA_FRAMEWORK_PACKAGE_ID,
+            package: ObjectId::from(Address::FRAMEWORK),
             module: "_".into(),
             function: "timestamp_ms".into(),
             type_arguments: vec![],

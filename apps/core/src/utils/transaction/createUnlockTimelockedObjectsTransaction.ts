@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { Transaction } from '@iota/iota-sdk/transactions';
-import { IOTA_TYPE_ARG, IOTA_FRAMEWORK_ADDRESS, IOTA_CLOCK_OBJECT_ID } from '@iota/iota-sdk/utils';
+import { IOTA_TYPE_ARG, Address::FRAMEWORK, ObjectId::CLOCK } from '@iota/iota-sdk/utils';
 
 interface CreateUnlockTimelockedObjectTransactionOptions {
     address: string;
@@ -18,14 +18,14 @@ export function createUnlockTimelockedObjectsTransaction({
 
     for (const objectId of objectIds) {
         const [unlock] = ptb.moveCall({
-            target: `${IOTA_FRAMEWORK_ADDRESS}::timelock::unlock_with_clock`,
-            typeArguments: [`${IOTA_FRAMEWORK_ADDRESS}::balance::Balance<${IOTA_TYPE_ARG}>`],
-            arguments: [ptb.object(objectId), ptb.object(IOTA_CLOCK_OBJECT_ID)],
+            target: `${Address::FRAMEWORK}::timelock::unlock_with_clock`,
+            typeArguments: [`${Address::FRAMEWORK}::balance::Balance<${IOTA_TYPE_ARG}>`],
+            arguments: [ptb.object(objectId), ptb.object(ObjectId::CLOCK)],
         });
 
         // Convert Balance to Coin
         const [coin] = ptb.moveCall({
-            target: `${IOTA_FRAMEWORK_ADDRESS}::coin::from_balance`,
+            target: `${Address::FRAMEWORK}::coin::from_balance`,
             typeArguments: [IOTA_TYPE_ARG],
             arguments: [ptb.object(unlock)],
         });

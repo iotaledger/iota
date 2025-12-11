@@ -15,8 +15,8 @@ use iota_sdk::{
     IotaClientBuilder,
     rpc_types::{IotaData, IotaObjectDataOptions, IotaTransactionBlockResponseOptions},
     types::{
-        IOTA_FRAMEWORK_PACKAGE_ID, STARDUST_PACKAGE_ID, TypeTag,
-        base_types::ObjectID,
+        ObjectId::from(Address::FRAMEWORK), STARDUST_PACKAGE_ID, TypeTag,
+        base_types::ObjectId,
         crypto::SignatureScheme::ED25519,
         gas_coin::GAS,
         programmable_transaction_builder::ProgrammableTransactionBuilder,
@@ -61,7 +61,7 @@ async fn main() -> Result<(), anyhow::Error> {
         .ok_or(anyhow!("No coins found"))?;
 
     // Get an AliasOutput object id
-    let alias_output_object_id = ObjectID::from_hex_literal(
+    let alias_output_object_id = ObjectId::from_hex(
         "0x354a1864c8af23fde393f7603bc133f755a9405353b30878e41b929eb7e37554",
     )?;
 
@@ -174,7 +174,7 @@ async fn main() -> Result<(), anyhow::Error> {
                 .input(CallArg::Pure(bcs::to_bytes("NFT URL").unwrap()))
                 .unwrap();
             let nft_url = builder.programmable_move_call(
-                IOTA_FRAMEWORK_PACKAGE_ID,
+                ObjectId::from(Address::FRAMEWORK),
                 ident_str!("url").to_owned(),
                 ident_str!("new_unsafe").to_owned(),
                 vec![],
@@ -206,7 +206,7 @@ async fn main() -> Result<(), anyhow::Error> {
 
             // Extract IOTA balance
             let iota_coin = builder.programmable_move_call(
-                IOTA_FRAMEWORK_PACKAGE_ID,
+                ObjectId::from(Address::FRAMEWORK),
                 ident_str!("coin").to_owned(),
                 ident_str!("from_balance").to_owned(),
                 vec![GAS::type_tag()],
@@ -232,7 +232,7 @@ async fn main() -> Result<(), anyhow::Error> {
 
             // Cleanup bag.
             builder.programmable_move_call(
-                IOTA_FRAMEWORK_PACKAGE_ID,
+                ObjectId::from(Address::FRAMEWORK),
                 ident_str!("bag").to_owned(),
                 ident_str!("destroy_empty").to_owned(),
                 vec![],

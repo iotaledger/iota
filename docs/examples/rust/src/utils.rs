@@ -15,7 +15,7 @@ use iota_sdk::{
     IotaClient,
     rpc_types::{IotaTransactionBlockEffectsAPI, IotaTransactionBlockResponseOptions},
     types::{
-        base_types::{IotaAddress, ObjectID},
+        base_types::{Address, ObjectId},
         crypto::SignatureScheme::ED25519,
         programmable_transaction_builder::ProgrammableTransactionBuilder,
         quorum_driver_types::ExecuteTransactionRequestType,
@@ -53,7 +53,7 @@ pub fn clean_keystore() -> Result<(), anyhow::Error> {
 pub async fn fund_address(
     iota_client: &IotaClient,
     keystore: &mut FileBasedKeystore,
-    recipient: IotaAddress,
+    recipient: Address,
 ) -> Result<(), anyhow::Error> {
     // Derive the address of the sponsor.
     let sponsor = keystore.import_from_mnemonic(SPONSOR_ADDRESS_MNEMONIC, ED25519, None, None)?;
@@ -115,10 +115,10 @@ pub async fn fund_address(
 /// Utility function for publishing a custom NFT package found in the Move
 /// examples.
 pub async fn publish_custom_nft_package(
-    sender: IotaAddress,
+    sender: Address,
     keystore: &mut FileBasedKeystore,
     iota_client: &IotaClient,
-) -> Result<ObjectID> {
+) -> Result<ObjectId> {
     // Get a gas coin
     let gas_coin = iota_client
         .coin_read_api()

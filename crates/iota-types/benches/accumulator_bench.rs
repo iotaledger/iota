@@ -8,7 +8,7 @@ use iota_types::{accumulator::Accumulator, base_types::ObjectDigest};
 
 fn accumulator_benchmark(c: &mut Criterion) {
     {
-        let digests: Vec<_> = (0..1_000).map(|_| ObjectDigest::random()).collect();
+        let digests: Vec<_> = (0..1_000).map(|_| ObjectDigest::new(rand::random())).collect();
         let mut accumulator = Accumulator::default();
 
         let mut group = c.benchmark_group("accumulator");
@@ -25,7 +25,7 @@ fn accumulator_benchmark(c: &mut Criterion) {
 
         let mut accumulator = Accumulator::default();
         let point = {
-            let digest = ObjectDigest::random();
+            let digest = ObjectDigest::new(rand::random());
             let mut accumulator = Accumulator::default();
             accumulator.insert(digest);
             accumulator

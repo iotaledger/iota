@@ -16,9 +16,8 @@ use move_core_types::{
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    IOTA_FRAMEWORK_ADDRESS,
     balance::{Balance, Supply},
-    base_types::{ObjectID, SequenceNumber},
+    base_types::{ObjectId, Version},
     coin::{Coin, TreasuryCap},
     error::{ExecutionError, ExecutionErrorKind},
     object::{Data, MoveObject, Object},
@@ -45,13 +44,16 @@ pub use checked::*;
 
 #[iota_macros::with_checked_arithmetic]
 mod checked {
+    use iota_sdk_2::types::Address;
+    use move_core_types::account_address::AccountAddress;
+
     use super::*;
 
     pub struct GAS {}
     impl GAS {
         pub fn type_() -> StructTag {
             StructTag {
-                address: IOTA_FRAMEWORK_ADDRESS,
+                address: AccountAddress::new(Address::FRAMEWORK.into_bytes()),
                 name: GAS_STRUCT_NAME.to_owned(),
                 module: GAS_MODULE_NAME.to_owned(),
                 type_params: Vec::new(),
@@ -79,7 +81,7 @@ mod checked {
     pub struct GasCoin(pub Coin);
 
     impl GasCoin {
-        pub fn new(id: ObjectID, value: u64) -> Self {
+        pub fn new(id: ObjectId, value: u64) -> Self {
             Self(Coin::new(id, value))
         }
 
@@ -105,7 +107,7 @@ mod checked {
                 && GAS::is_gas_type(&s.type_params[0])
         }
 
-        pub fn id(&self) -> &ObjectID {
+        pub fn id(&self) -> &ObjectId {
             self.0.id()
         }
 
@@ -113,7 +115,7 @@ mod checked {
             bcs::to_bytes(&self).unwrap()
         }
 
-        pub fn to_object(&self, version: SequenceNumber) -> MoveObject {
+        pub fn to_object(&self, version: Version) -> MoveObject {
             MoveObject::new_gas_coin(version, *self.id(), self.value())
         }
 
@@ -122,10 +124,10 @@ mod checked {
         }
 
         pub fn new_for_testing(value: u64) -> Self {
-            Self::new(ObjectID::random(), value)
+            Self::new(ObjectId::new(rand::random()), value)
         }
 
-        pub fn new_for_testing_with_id(id: ObjectID, value: u64) -> Self {
+        pub fn new_for_testing_with_id(id: ObjectId, value: u64) -> Self {
             Self::new(id, value)
         }
     }
@@ -179,7 +181,7 @@ mod checked {
     impl IotaTreasuryCap {
         pub fn type_() -> StructTag {
             StructTag {
-                address: IOTA_FRAMEWORK_ADDRESS,
+                address: AccountAddress::new(Address::FRAMEWORK.into_bytes()),
                 module: GAS_MODULE_NAME.to_owned(),
                 name: GAS_TREASURY_CAP_STRUCT_NAME.to_owned(),
                 type_params: Vec::new(),
@@ -187,7 +189,7 @@ mod checked {
         }
 
         /// Returns the `TreasuryCap<IOTA>` object ID.
-        pub fn id(&self) -> &ObjectID {
+        pub fn id(&self) -> &ObjectId {
             self.inner.id.object_id()
         }
 

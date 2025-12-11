@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_types::base_types::{CommitRound, ObjectID};
+use iota_types::base_types::{CommitRound, ObjectId};
 use serde::{Deserialize, Serialize};
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq, PartialOrd, Ord, Serialize, Deserialize)]
@@ -83,7 +83,7 @@ pub enum DeferralReason {
     RandomnessNotReady,
 
     // The list of objects are congested objects.
-    SharedObjectCongestion(Vec<ObjectID>),
+    SharedObjectCongestion(Vec<ObjectId>),
 }
 
 pub fn transaction_deferral_within_limit(

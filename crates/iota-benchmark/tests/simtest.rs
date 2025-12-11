@@ -52,7 +52,7 @@ mod test {
     use iota_surfer::surf_strategy::SurfStrategy;
     use iota_swarm_config::network_config_builder::ConfigBuilder;
     use iota_types::{
-        base_types::{ConciseableName, ObjectID, SequenceNumber},
+        base_types::{ConciseableName, ObjectId, Version, VersionExt},
         digests::TransactionDigest,
         full_checkpoint_content::CheckpointData,
         messages_checkpoint::VerifiedCheckpoint,
@@ -701,11 +701,14 @@ mod test {
             let mut assigned_object_versions = Vec::new();
             for _ in 0..num_objs {
                 assigned_object_versions.push((
-                    ObjectID::random(),
-                    SequenceNumber::new_congested_with_suggested_gas_price(1_000),
+                    ObjectId::new(rand::random()),
+                    Version::new_congested_with_suggested_gas_price(1_000),
                 ));
             }
-            additional_cancelled_txns.push((TransactionDigest::random(), assigned_object_versions));
+            additional_cancelled_txns.push((
+                TransactionDigest::new(rand::random()),
+                assigned_object_versions,
+            ));
         }
 
         register_fail_point_arg("additional_cancelled_txns_for_tests", move || {

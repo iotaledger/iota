@@ -6,7 +6,7 @@ use anyhow::bail;
 use iota_json_rpc_types::{BalanceChange, IotaData, IotaObjectData, IotaObjectDataOptions};
 use iota_sdk::IotaClient;
 use iota_types::{
-    base_types::ObjectID, error::IotaObjectResponseError, gas_coin::GasCoin, object::Owner,
+    base_types::ObjectId, error::IotaObjectResponseError, gas_coin::GasCoin, object::Owner,
     parse_iota_type_tag,
 };
 use move_core_types::language_storage::TypeTag;
@@ -21,14 +21,14 @@ use tracing::{debug, trace};
 /// respectfully.
 #[derive(Debug)]
 pub struct ObjectChecker {
-    object_id: ObjectID,
+    object_id: ObjectId,
     owner: Option<Owner>,
     is_deleted: bool,
     is_iota_coin: Option<bool>,
 }
 
 impl ObjectChecker {
-    pub fn new(object_id: ObjectID) -> ObjectChecker {
+    pub fn new(object_id: ObjectId) -> ObjectChecker {
         Self {
             object_id,
             owner: None,

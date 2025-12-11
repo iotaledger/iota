@@ -15,7 +15,7 @@ mod utils;
 
 use iota_sdk::{
     rpc_types::{IotaGetPastObjectRequest, IotaObjectDataOptions},
-    types::base_types::ObjectID,
+    types::base_types::ObjectId,
 };
 use utils::setup_for_write;
 
@@ -33,7 +33,7 @@ async fn main() -> Result<(), anyhow::Error> {
     println!(" *** Owned Objects ***\n");
 
     // Dynamic Fields
-    let parent_object_id = ObjectID::from_address(active_address.into());
+    let parent_object_id = ObjectId::from_address(active_address.into());
     let dynamic_fields = client
         .read_api()
         .get_dynamic_fields(parent_object_id, None, None)

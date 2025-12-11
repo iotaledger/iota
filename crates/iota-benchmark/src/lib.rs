@@ -35,7 +35,7 @@ use iota_json_rpc_types::{
 };
 use iota_sdk::{IotaClient, IotaClientBuilder, PagedFn};
 use iota_types::{
-    base_types::{AuthorityName, IotaAddress, ObjectID, ObjectRef, SequenceNumber},
+    base_types::{Address, AuthorityName, ObjectId, ObjectReference, Version},
     committee::{Committee, EpochId},
     crypto::AuthorityStrongQuorumSignInfo,
     effects::{CertifiedTransactionEffects, TransactionEffectsAPI, TransactionEvents},
@@ -61,7 +61,7 @@ pub enum ExecutionEffects {
 }
 
 impl ExecutionEffects {
-    pub fn mutated(&self) -> Vec<(ObjectRef, Owner)> {
+    pub fn mutated(&self) -> Vec<(ObjectReference, Owner)> {
         match self {
             ExecutionEffects::CertifiedTransactionEffects(certified_effects, ..) => {
                 certified_effects.data().mutated().to_vec()
@@ -74,7 +74,7 @@ impl ExecutionEffects {
         }
     }
 
-    pub fn created(&self) -> Vec<(ObjectRef, Owner)> {
+    pub fn created(&self) -> Vec<(ObjectReference, Owner)> {
         match self {
             ExecutionEffects::CertifiedTransactionEffects(certified_effects, ..) => {
                 certified_effects.data().created()
@@ -87,7 +87,7 @@ impl ExecutionEffects {
         }
     }
 
-    pub fn deleted(&self) -> Vec<ObjectRef> {
+    pub fn deleted(&self) -> Vec<ObjectReference> {
         match self {
             ExecutionEffects::CertifiedTransactionEffects(certified_effects, ..) => {
                 certified_effects.data().deleted().to_vec()
@@ -109,7 +109,7 @@ impl ExecutionEffects {
         }
     }
 
-    pub fn gas_object(&self) -> (ObjectRef, Owner) {
+    pub fn gas_object(&self) -> (ObjectReference, Owner) {
         match self {
             ExecutionEffects::CertifiedTransactionEffects(certified_effects, ..) => {
                 certified_effects.data().gas_object()
@@ -121,7 +121,7 @@ impl ExecutionEffects {
         }
     }
 
-    pub fn sender(&self) -> IotaAddress {
+    pub fn sender(&self) -> Address {
         match self.gas_object().1 {
             Owner::AddressOwner(a) => a,
             Owner::ObjectOwner(_) | Owner::Shared { .. } | Owner::Immutable => unreachable!(), /* owner of gas object is always an address */
@@ -191,11 +191,11 @@ impl ExecutionEffects {
 
 #[async_trait]
 pub trait ValidatorProxy {
-    async fn get_object(&self, object_id: ObjectID) -> Result<Object, anyhow::Error>;
+    async fn get_object(&self, object_id: ObjectId) -> Result<Object, anyhow::Error>;
 
     async fn get_owned_objects(
         &self,
-        account_address: IotaAddress,
+        account_address: Address,
     ) -> Result<Vec<(u64, Object)>, anyhow::Error>;
 
     async fn get_latest_system_state_object(&self)
@@ -212,7 +212,7 @@ pub trait ValidatorProxy {
     /// This crate benchmarks committee performance, such as
     /// transaction execution (`execute_bench_transaction`).
     /// Therefore, we return the committee members here.
-    async fn get_committee(&self) -> Result<Vec<IotaAddress>, anyhow::Error>;
+    async fn get_committee(&self) -> Result<Vec<Address>, anyhow::Error>;
 }
 
 // TODO: Eventually remove this proxy because we shouldn't rely on validators to
@@ -299,7 +299,7 @@ impl LocalValidatorAggregatorProxy {
 
 #[async_trait]
 impl ValidatorProxy for LocalValidatorAggregatorProxy {
-    async fn get_object(&self, object_id: ObjectID) -> Result<Object, anyhow::Error> {
+    async fn get_object(&self, object_id: ObjectId) -> Result<Object, anyhow::Error> {
         let auth_agg = self.qd.authority_aggregator().load();
         Ok(auth_agg
             .get_latest_object_version_for_testing(object_id)
@@ -308,7 +308,7 @@ impl ValidatorProxy for LocalValidatorAggregatorProxy {
 
     async fn get_owned_objects(
         &self,
-        _account_address: IotaAddress,
+        _account_address: Address,
     ) -> Result<Vec<(u64, Object)>, anyhow::Error> {
         unimplemented!("Not available for local proxy");
     }
@@ -391,7 +391,7 @@ impl ValidatorProxy for LocalValidatorAggregatorProxy {
         })
     }
 
-    async fn get_committee(&self) -> Result<Vec<IotaAddress>, anyhow::Error> {
+    async fn get_committee(&self) -> Result<Vec<Address>, anyhow::Error> {
         Ok(self
             .get_latest_system_state_object()
             .await?
@@ -433,7 +433,7 @@ impl FullNodeProxy {
 
 #[async_trait]
 impl ValidatorProxy for FullNodeProxy {
-    async fn get_object(&self, object_id: ObjectID) -> Result<Object, anyhow::Error> {
+    async fn get_object(&self, object_id: ObjectId) -> Result<Object, anyhow::Error> {
         let response = self
             .iota_client
             .read_api()
@@ -451,7 +451,7 @@ impl ValidatorProxy for FullNodeProxy {
 
     async fn get_owned_objects(
         &self,
-        account_address: IotaAddress,
+        account_address: Address,
     ) -> Result<Vec<(u64, Object)>, anyhow::Error> {
         let mut stream = PagedFn::stream(async |cursor| {
             self.iota_client
@@ -539,7 +539,7 @@ impl ValidatorProxy for FullNodeProxy {
         })
     }
 
-    async fn get_committee(&self) -> Result<Vec<IotaAddress>, anyhow::Error> {
+    async fn get_committee(&self) -> Result<Vec<Address>, anyhow::Error> {
         Ok(self
             .iota_client
             .governance_api()
@@ -554,10 +554,10 @@ impl ValidatorProxy for FullNodeProxy {
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
 pub enum BenchMoveCallArg {
     Pure(Vec<u8>),
-    Shared((ObjectID, SequenceNumber, bool)),
-    ImmOrOwnedObject(ObjectRef),
-    ImmOrOwnedObjectVec(Vec<ObjectRef>),
-    SharedObjectVec(Vec<(ObjectID, SequenceNumber, bool)>),
+    Shared((ObjectId, Version, bool)),
+    ImmOrOwnedObject(ObjectReference),
+    ImmOrOwnedObjectVec(Vec<ObjectReference>),
+    SharedObjectVec(Vec<(ObjectId, Version, bool)>),
 }
 
 impl From<bool> for BenchMoveCallArg {
@@ -609,8 +609,8 @@ impl From<&Vec<u8>> for BenchMoveCallArg {
     }
 }
 
-impl From<ObjectRef> for BenchMoveCallArg {
-    fn from(obj: ObjectRef) -> Self {
+impl From<ObjectReference> for BenchMoveCallArg {
+    fn from(obj: ObjectReference) -> Self {
         BenchMoveCallArg::ImmOrOwnedObject(obj)
     }
 }
@@ -622,7 +622,7 @@ impl From<CallArg> for BenchMoveCallArg {
             CallArg::Object(obj) => match obj {
                 ObjectArg::ImmOrOwnedObject(imo) => BenchMoveCallArg::ImmOrOwnedObject(imo),
                 ObjectArg::SharedObject {
-                    id,
+                    object_id: id,
                     initial_shared_version,
                     mutable,
                 } => BenchMoveCallArg::Shared((id, initial_shared_version, mutable)),
@@ -646,7 +646,7 @@ pub fn convert_move_call_args(
             }
             BenchMoveCallArg::Shared((id, initial_shared_version, mutable)) => pt_builder
                 .input(CallArg::Object(ObjectArg::SharedObject {
-                    id: *id,
+                    object_id: *id,
                     initial_shared_version: *initial_shared_version,
                     mutable: *mutable,
                 }))
@@ -663,7 +663,7 @@ pub fn convert_move_call_args(
                         .iter()
                         .map(
                             |(id, initial_shared_version, mutable)| ObjectArg::SharedObject {
-                                id: *id,
+                                object_id: *id,
                                 initial_shared_version: *initial_shared_version,
                                 mutable: *mutable,
                             },

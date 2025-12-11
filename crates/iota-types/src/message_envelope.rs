@@ -22,7 +22,7 @@ use crate::{
     },
     error::IotaResult,
     executable_transaction::CertificateProof,
-    messages_checkpoint::CheckpointSequenceNumber,
+    messages_checkpoint::CheckpointVersion,
     transaction::SenderSignedData,
 };
 
@@ -414,7 +414,7 @@ impl<T: Message> VerifiedEnvelope<T, CertificateProof> {
     pub fn new_from_checkpoint(
         transaction: VerifiedEnvelope<T, EmptySignInfo>,
         epoch: EpochId,
-        checkpoint: CheckpointSequenceNumber,
+        checkpoint: CheckpointVersion,
     ) -> Self {
         let inner = transaction.into_inner();
         let Envelope {

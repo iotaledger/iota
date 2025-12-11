@@ -4,6 +4,7 @@
 
 use std::fmt;
 
+use iota_sdk_2::types::Address;
 use move_core_types::{
     account_address::AccountAddress,
     annotated_value::{MoveFieldLayout, MoveStructLayout, MoveTypeLayout},
@@ -14,14 +15,17 @@ use move_core_types::{
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use crate::{IOTA_FRAMEWORK_ADDRESS, MoveTypeTagTrait, base_types::ObjectID};
+use crate::{MoveTypeTagTrait, base_types::ObjectId};
 
 pub const OBJECT_MODULE_NAME_STR: &str = "object";
 pub const OBJECT_MODULE_NAME: &IdentStr = ident_str!(OBJECT_MODULE_NAME_STR);
 pub const UID_STRUCT_NAME: &IdentStr = ident_str!("UID");
 pub const ID_STRUCT_NAME: &IdentStr = ident_str!("ID");
-pub const RESOLVED_IOTA_ID: (&AccountAddress, &IdentStr, &IdentStr) =
-    (&IOTA_FRAMEWORK_ADDRESS, OBJECT_MODULE_NAME, ID_STRUCT_NAME);
+pub const RESOLVED_IOTA_ID: (&AccountAddress, &IdentStr, &IdentStr) = (
+    &AccountAddress::new(Address::FRAMEWORK.into_bytes()),
+    OBJECT_MODULE_NAME,
+    ID_STRUCT_NAME,
+);
 
 /// Rust version of the Move iota::object::Info type
 #[derive(Debug, Serialize, Deserialize, JsonSchema, Clone, Eq, PartialEq)]
@@ -33,11 +37,11 @@ pub struct UID {
 #[derive(Debug, Serialize, Deserialize, JsonSchema, Clone, Eq, PartialEq)]
 #[serde(transparent)]
 pub struct ID {
-    pub bytes: ObjectID,
+    pub bytes: ObjectId,
 }
 
 impl UID {
-    pub fn new(bytes: ObjectID) -> Self {
+    pub fn new(bytes: ObjectId) -> Self {
         Self {
             id: { ID::new(bytes) },
         }
@@ -45,14 +49,14 @@ impl UID {
 
     pub fn type_() -> StructTag {
         StructTag {
-            address: IOTA_FRAMEWORK_ADDRESS,
+            address: AccountAddress::new(Address::FRAMEWORK.into_bytes()),
             module: OBJECT_MODULE_NAME.to_owned(),
             name: UID_STRUCT_NAME.to_owned(),
             type_params: Vec::new(),
         }
     }
 
-    pub fn object_id(&self) -> &ObjectID {
+    pub fn object_id(&self) -> &ObjectId {
         &self.id.bytes
     }
 
@@ -78,13 +82,13 @@ impl fmt::Display for UID {
 }
 
 impl ID {
-    pub fn new(object_id: ObjectID) -> Self {
+    pub fn new(object_id: ObjectId) -> Self {
         Self { bytes: object_id }
     }
 
     pub fn type_() -> StructTag {
         StructTag {
-            address: IOTA_FRAMEWORK_ADDRESS,
+            address: AccountAddress::new(Address::FRAMEWORK.into_bytes()),
             module: OBJECT_MODULE_NAME.to_owned(),
             name: ID_STRUCT_NAME.to_owned(),
             type_params: Vec::new(),

@@ -5,10 +5,10 @@
 use std::path::PathBuf;
 
 use iota_macros::*;
+use iota_sdk_2::types::Address;
 use iota_test_transaction_builder::publish_package;
 use iota_types::{
-    IOTA_FRAMEWORK_ADDRESS,
-    base_types::{ObjectID, ObjectRef, SequenceNumber},
+    base_types::{ObjectId, ObjectReference, Version},
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
     execution_status::{ExecutionFailureStatus, ExecutionStatus},
     object::{OBJECT_START_VERSION, Owner},
@@ -19,8 +19,8 @@ use test_cluster::{TestCluster, TestClusterBuilder};
 #[sim_test]
 async fn fresh_shared_object_initial_version_matches_current() {
     let env = TestEnvironment::new().await;
-    let ((_, curr, _), owner) = env.create_shared_counter().await;
-    assert!(is_shared_at(&owner, curr));
+    let (curr, owner) = env.create_shared_counter().await;
+    assert!(is_shared_at(&owner, curr.version));
 }
 
 #[sim_test]
@@ -29,14 +29,17 @@ async fn objects_transitioning_to_shared_remember_their_previous_version() {
     let (counter, _) = env.create_counter().await;
 
     let (counter, _) = env.increment_owned_counter(counter).await;
-    assert_ne!(counter.1, OBJECT_START_VERSION);
+    assert_ne!(counter.version, OBJECT_START_VERSION);
 
     let ExecutionFailureStatus::MoveAbort(location, code) =
         env.share_counter(counter).await.unwrap_err()
     else {
         panic!()
     };
-    assert_eq!(location.module.address(), &IOTA_FRAMEWORK_ADDRESS);
+    assert_eq!(
+        location.module.address().as_ref(),
+        Address::FRAMEWORK.as_bytes()
+    );
     assert_eq!(location.module.name().as_str(), "transfer");
     assert_eq!(code, 0 /* ESharedNonNewObject */);
 }
@@ -52,7 +55,10 @@ async fn shared_object_owner_doesnt_change_on_write() {
     else {
         panic!()
     };
-    assert_eq!(location.module.address(), &IOTA_FRAMEWORK_ADDRESS);
+    assert_eq!(
+        location.module.address().as_ref(),
+        Address::FRAMEWORK.as_bytes()
+    );
     assert_eq!(location.module.name().as_str(), "transfer");
     assert_eq!(code, 0 /* ESharedNonNewObject */);
 }
@@ -68,7 +74,10 @@ async fn initial_shared_version_mismatch_start_version() {
     else {
         panic!()
     };
-    assert_eq!(location.module.address(), &IOTA_FRAMEWORK_ADDRESS);
+    assert_eq!(
+        location.module.address().as_ref(),
+        Address::FRAMEWORK.as_bytes()
+    );
     assert_eq!(location.module.name().as_str(), "transfer");
     assert_eq!(code, 0 /* ESharedNonNewObject */);
 }
@@ -83,7 +92,10 @@ async fn initial_shared_version_mismatch_current_version() {
     else {
         panic!()
     };
-    assert_eq!(location.module.address(), &IOTA_FRAMEWORK_ADDRESS);
+    assert_eq!(
+        location.module.address().as_ref(),
+        Address::FRAMEWORK.as_bytes()
+    );
     assert_eq!(location.module.name().as_str(), "transfer");
     assert_eq!(code, 0 /* ESharedNonNewObject */);
 }
@@ -91,8 +103,8 @@ async fn initial_shared_version_mismatch_current_version() {
 #[sim_test]
 async fn shared_object_not_found() {
     let env = TestEnvironment::new().await;
-    let nonexistent_id = ObjectID::random();
-    let initial_shared_seq = SequenceNumber::from_u64(42);
+    let nonexistent_id = ObjectId::new(rand::random());
+    let initial_shared_seq = 42;
     assert!(
         env.increment_shared_counter(nonexistent_id, initial_shared_seq)
             .await
@@ -100,7 +112,7 @@ async fn shared_object_not_found() {
     );
 }
 
-fn is_shared_at(owner: &Owner, version: SequenceNumber) -> bool {
+fn is_shared_at(owner: &Owner, version: Version) -> bool {
     if let Owner::Shared {
         initial_shared_version,
     } = owner
@@ -113,14 +125,14 @@ fn is_shared_at(owner: &Owner, version: SequenceNumber) -> bool {
 
 struct TestEnvironment {
     test_cluster: TestCluster,
-    move_package: ObjectID,
+    move_package: ObjectId,
 }
 
 impl TestEnvironment {
     async fn new() -> Self {
         let test_cluster = TestClusterBuilder::new().build().await;
 
-        let move_package = publish_move_package(&test_cluster).await.0;
+        let move_package = publish_move_package(&test_cluster).await.object_id;
 
         Self {
             test_cluster,
@@ -150,7 +162,7 @@ impl TestEnvironment {
             .await
     }
 
-    async fn create_counter(&self) -> (ObjectRef, Owner) {
+    async fn create_counter(&self) -> (ObjectReference, Owner) {
         let (fx, _) = self.move_call("create_counter", vec![]).await.unwrap();
         assert!(fx.status().is_ok());
 
@@ -160,7 +172,7 @@ impl TestEnvironment {
             .expect("Owned object created")
     }
 
-    async fn create_shared_counter(&self) -> (ObjectRef, Owner) {
+    async fn create_shared_counter(&self) -> (ObjectReference, Owner) {
         let (fx, _) = self
             .move_call("create_shared_counter", vec![])
             .await
@@ -175,8 +187,8 @@ impl TestEnvironment {
 
     async fn share_counter(
         &self,
-        counter: ObjectRef,
-    ) -> Result<(ObjectRef, Owner), ExecutionFailureStatus> {
+        counter: ObjectReference,
+    ) -> Result<(ObjectReference, Owner), ExecutionFailureStatus> {
         let (fx, _) = self
             .move_call(
                 "share_counter",
@@ -192,11 +204,11 @@ impl TestEnvironment {
         Ok(*fx
             .mutated()
             .iter()
-            .find(|(obj, _)| obj.0 == counter.0)
+            .find(|(obj, _)| obj.object_id == counter.object_id)
             .expect("Counter mutated"))
     }
 
-    async fn increment_owned_counter(&self, counter: ObjectRef) -> (ObjectRef, Owner) {
+    async fn increment_owned_counter(&self, counter: ObjectReference) -> (ObjectReference, Owner) {
         let (fx, _) = self
             .move_call(
                 "increment_counter",
@@ -207,20 +219,20 @@ impl TestEnvironment {
 
         *fx.mutated()
             .iter()
-            .find(|(obj, _)| obj.0 == counter.0)
+            .find(|(obj, _)| obj.object_id == counter.object_id)
             .expect("Counter modified")
     }
 
     async fn increment_shared_counter(
         &self,
-        counter: ObjectID,
-        initial_shared_version: SequenceNumber,
-    ) -> anyhow::Result<(ObjectRef, Owner)> {
+        counter: ObjectId,
+        initial_shared_version: Version,
+    ) -> anyhow::Result<(ObjectReference, Owner)> {
         let (fx, _) = self
             .move_call(
                 "increment_counter",
                 vec![CallArg::Object(ObjectArg::SharedObject {
-                    id: counter,
+                    object_id: counter,
                     initial_shared_version,
                     mutable: true,
                 })],
@@ -230,12 +242,12 @@ impl TestEnvironment {
         Ok(*fx
             .mutated()
             .iter()
-            .find(|(obj, _)| obj.0 == counter)
+            .find(|(obj, _)| obj.object_id == counter)
             .expect("Counter modified"))
     }
 }
 
-async fn publish_move_package(test_cluster: &TestCluster) -> ObjectRef {
+async fn publish_move_package(test_cluster: &TestCluster) -> ObjectReference {
     let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     path.push("tests/move_test_code");
     publish_package(&test_cluster.wallet, path).await

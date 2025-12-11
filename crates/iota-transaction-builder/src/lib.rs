@@ -15,8 +15,7 @@ use iota_json_rpc_types::{
     IotaObjectDataOptions, IotaObjectResponse, IotaTypeTag, PtbInput, RPCTransactionRequestParams,
 };
 use iota_types::{
-    IOTA_FRAMEWORK_PACKAGE_ID,
-    base_types::{IotaAddress, ObjectID, ObjectInfo},
+    base_types::{Address, ObjectId, ObjectInfo, ObjectReference},
     coin,
     error::UserInputError,
     fp_ensure,
@@ -30,13 +29,13 @@ use move_core_types::{identifier::Identifier, language_storage::StructTag};
 pub trait DataReader {
     async fn get_owned_objects(
         &self,
-        address: IotaAddress,
+        address: Address,
         object_type: StructTag,
     ) -> Result<Vec<ObjectInfo>, anyhow::Error>;
 
     async fn get_object_with_options(
         &self,
-        object_id: ObjectID,
+        object_id: ObjectId,
         options: IotaObjectDataOptions,
     ) -> Result<IotaObjectResponse, anyhow::Error>;
 
@@ -54,12 +53,12 @@ impl TransactionBuilder {
     /// Construct the transaction data for a dry run
     pub async fn tx_data_for_dry_run(
         &self,
-        sender: IotaAddress,
+        sender: Address,
         kind: TransactionKind,
         gas_budget: u64,
         gas_price: u64,
-        gas_payment: impl Into<Option<Vec<ObjectID>>>,
-        gas_sponsor: impl Into<Option<IotaAddress>>,
+        gas_payment: impl Into<Option<Vec<ObjectId>>>,
+        gas_sponsor: impl Into<Option<Address>>,
     ) -> TransactionData {
         let gas_payment = self
             .input_refs(gas_payment.into().unwrap_or_default().as_ref())
@@ -82,19 +81,21 @@ impl TransactionBuilder {
     /// the input coins.
     pub async fn tx_data(
         &self,
-        sender: IotaAddress,
+        sender: Address,
         kind: TransactionKind,
         gas_budget: u64,
         gas_price: u64,
-        gas_payment: Vec<ObjectID>,
-        gas_sponsor: impl Into<Option<IotaAddress>>,
+        gas_payment: Vec<ObjectId>,
+        gas_sponsor: impl Into<Option<Address>>,
     ) -> Result<TransactionData, anyhow::Error> {
         let gas_payment = if gas_payment.is_empty() {
             let input_objs = kind
                 .input_objects()?
                 .iter()
                 .flat_map(|obj| match obj {
-                    InputObjectKind::ImmOrOwnedMoveObject((id, _, _)) => Some(*id),
+                    InputObjectKind::ImmOrOwnedMoveObject(ObjectReference {
+                        object_id, ..
+                    }) => Some(*object_id),
                     _ => None,
                 })
                 .collect();
@@ -119,8 +120,8 @@ impl TransactionBuilder {
     /// [`Command::TransferObjects`].
     pub async fn transfer_object_tx_kind(
         &self,
-        object_id: ObjectID,
-        recipient: IotaAddress,
+        object_id: ObjectId,
+        recipient: Address,
     ) -> Result<TransactionKind, anyhow::Error> {
         let obj_ref = self.get_object_ref(object_id).await?;
         let mut builder = ProgrammableTransactionBuilder::new();
@@ -131,11 +132,11 @@ impl TransactionBuilder {
     /// Transfer an object to the specified recipient address.
     pub async fn transfer_object(
         &self,
-        signer: IotaAddress,
-        object_id: ObjectID,
-        gas: impl Into<Option<ObjectID>>,
+        signer: Address,
+        object_id: ObjectId,
+        gas: impl Into<Option<ObjectId>>,
         gas_budget: u64,
-        recipient: IotaAddress,
+        recipient: Address,
     ) -> anyhow::Result<TransactionData> {
         let mut builder = ProgrammableTransactionBuilder::new();
         self.single_transfer_object(&mut builder, object_id, recipient)
@@ -159,8 +160,8 @@ impl TransactionBuilder {
     async fn single_transfer_object(
         &self,
         builder: &mut ProgrammableTransactionBuilder,
-        object_id: ObjectID,
-        recipient: IotaAddress,
+        object_id: ObjectId,
+        recipient: Address,
     ) -> anyhow::Result<()> {
         builder.transfer_object(recipient, self.get_object_ref(object_id).await?)?;
         Ok(())
@@ -172,7 +173,7 @@ impl TransactionBuilder {
     /// [`Command::TransferObjects`] to the recipient.
     pub fn transfer_iota_tx_kind(
         &self,
-        recipient: IotaAddress,
+        recipient: Address,
         amount: impl Into<Option<u64>>,
     ) -> TransactionKind {
         let mut builder = ProgrammableTransactionBuilder::new();
@@ -185,10 +186,10 @@ impl TransactionBuilder {
     /// The provided coin object is also used for the gas payment.
     pub async fn transfer_iota(
         &self,
-        signer: IotaAddress,
-        iota_object_id: ObjectID,
+        signer: Address,
+        iota_object_id: ObjectId,
         gas_budget: u64,
-        recipient: IotaAddress,
+        recipient: Address,
         amount: impl Into<Option<u64>>,
     ) -> anyhow::Result<TransactionData> {
         let object = self.get_object_ref(iota_object_id).await?;
@@ -210,8 +211,8 @@ impl TransactionBuilder {
     /// The length of the vectors for recipients and amounts must be the same.
     pub async fn pay_tx_kind(
         &self,
-        input_coins: Vec<ObjectID>,
-        recipients: Vec<IotaAddress>,
+        input_coins: Vec<ObjectId>,
+        recipients: Vec<Address>,
         amounts: Vec<u64>,
     ) -> Result<TransactionKind, anyhow::Error> {
         let mut builder = ProgrammableTransactionBuilder::new();
@@ -230,11 +231,11 @@ impl TransactionBuilder {
     /// generalized version of `split_coin` and `merge_coin`.
     pub async fn pay(
         &self,
-        signer: IotaAddress,
-        input_coins: Vec<ObjectID>,
-        recipients: Vec<IotaAddress>,
+        signer: Address,
+        input_coins: Vec<ObjectId>,
+        recipients: Vec<Address>,
         amounts: Vec<u64>,
-        gas: impl Into<Option<ObjectID>>,
+        gas: impl Into<Option<ObjectId>>,
         gas_budget: u64,
     ) -> anyhow::Result<TransactionData> {
         let gas = gas.into();
@@ -265,7 +266,7 @@ impl TransactionBuilder {
     /// The length of the vectors must be the same.
     pub fn pay_iota_tx_kind(
         &self,
-        recipients: Vec<IotaAddress>,
+        recipients: Vec<Address>,
         amounts: Vec<u64>,
     ) -> Result<TransactionKind, anyhow::Error> {
         let mut builder = ProgrammableTransactionBuilder::new();
@@ -286,9 +287,9 @@ impl TransactionBuilder {
     /// gas budget and the amounts to be transferred.
     pub async fn pay_iota(
         &self,
-        signer: IotaAddress,
-        input_coins: Vec<ObjectID>,
-        recipients: Vec<IotaAddress>,
+        signer: Address,
+        input_coins: Vec<ObjectId>,
+        recipients: Vec<Address>,
         amounts: Vec<u64>,
         gas_budget: u64,
     ) -> anyhow::Result<TransactionData> {
@@ -315,7 +316,7 @@ impl TransactionBuilder {
 
     /// Build a [`TransactionKind::ProgrammableTransaction`] that contains a
     /// [`Command::TransferObjects`] that sends the gas coin to the recipient.
-    pub fn pay_all_iota_tx_kind(&self, recipient: IotaAddress) -> TransactionKind {
+    pub fn pay_all_iota_tx_kind(&self, recipient: Address) -> TransactionKind {
         let mut builder = ProgrammableTransactionBuilder::new();
         builder.pay_all_iota(recipient);
         let pt = builder.finish();
@@ -334,9 +335,9 @@ impl TransactionBuilder {
     /// transaction type.
     pub async fn pay_all_iota(
         &self,
-        signer: IotaAddress,
-        input_coins: Vec<ObjectID>,
-        recipient: IotaAddress,
+        signer: Address,
+        input_coins: Vec<ObjectId>,
+        recipient: Address,
         gas_budget: u64,
     ) -> anyhow::Result<TransactionData> {
         fp_ensure!(
@@ -363,7 +364,7 @@ impl TransactionBuilder {
     /// [`Command::MoveCall`].
     pub async fn move_call_tx_kind(
         &self,
-        package_object_id: ObjectID,
+        package_object_id: ObjectId,
         module: &str,
         function: &str,
         type_args: Vec<IotaTypeTag>,
@@ -389,7 +390,7 @@ impl TransactionBuilder {
     /// complies with the Move View Function definition.
     pub async fn move_view_call_tx_kind(
         &self,
-        package_object_id: ObjectID,
+        package_object_id: ObjectId,
         module: &str,
         function: &str,
         type_args: Vec<IotaTypeTag>,
@@ -412,13 +413,13 @@ impl TransactionBuilder {
     /// Call a move function from a published package.
     pub async fn move_call(
         &self,
-        signer: IotaAddress,
-        package_object_id: ObjectID,
+        signer: Address,
+        package_object_id: ObjectId,
         module: &str,
         function: &str,
         type_args: Vec<IotaTypeTag>,
         call_args: Vec<IotaJsonValue>,
-        gas: impl Into<Option<ObjectID>>,
+        gas: impl Into<Option<ObjectId>>,
         gas_budget: u64,
         gas_price: impl Into<Option<u64>>,
     ) -> anyhow::Result<TransactionData> {
@@ -439,7 +440,9 @@ impl TransactionBuilder {
             .input_objects()?
             .iter()
             .flat_map(|obj| match obj {
-                InputObjectKind::ImmOrOwnedMoveObject((id, _, _)) => Some(*id),
+                InputObjectKind::ImmOrOwnedMoveObject(ObjectReference { object_id, .. }) => {
+                    Some(*object_id)
+                }
                 _ => None,
             })
             .collect();
@@ -466,7 +469,7 @@ impl TransactionBuilder {
     pub async fn single_move_call(
         &self,
         builder: &mut ProgrammableTransactionBuilder,
-        package: ObjectID,
+        package: ObjectId,
         module: &str,
         function: &str,
         type_args: Vec<IotaTypeTag>,
@@ -500,7 +503,7 @@ impl TransactionBuilder {
     pub async fn single_move_call_with_ptb_inputs(
         &self,
         builder: &mut ProgrammableTransactionBuilder,
-        package: ObjectID,
+        package: ObjectId,
         module: &str,
         function: &str,
         type_args: Vec<IotaTypeTag>,
@@ -532,7 +535,7 @@ impl TransactionBuilder {
     pub async fn single_move_view_call(
         &self,
         builder: &mut ProgrammableTransactionBuilder,
-        package: ObjectID,
+        package: ObjectId,
         module: &str,
         function: &str,
         type_args: Vec<IotaTypeTag>,
@@ -563,7 +566,7 @@ impl TransactionBuilder {
     /// provided If both are provided, it will use split_amounts.
     pub async fn split_coin_tx_kind(
         &self,
-        coin_object_id: ObjectID,
+        coin_object_id: ObjectId,
         split_amounts: impl Into<Option<Vec<u64>>>,
         split_count: impl Into<Option<u64>>,
     ) -> Result<TransactionKind, anyhow::Error> {
@@ -583,7 +586,7 @@ impl TransactionBuilder {
         let coin_object_ref = coin.object_ref();
         let coin: Object = coin.try_into()?;
         let type_args = vec![coin.get_move_template_type()?];
-        let package = IOTA_FRAMEWORK_PACKAGE_ID;
+        let package = Address::FRAMEWORK.into();
         let module = coin::PAY_MODULE_NAME.to_owned();
 
         let (arguments, function) = if let Some(split_amounts) = split_amounts {
@@ -613,10 +616,10 @@ impl TransactionBuilder {
     // TODO: consolidate this with Pay transactions
     pub async fn split_coin(
         &self,
-        signer: IotaAddress,
-        coin_object_id: ObjectID,
+        signer: Address,
+        coin_object_id: ObjectId,
         split_amounts: Vec<u64>,
-        gas: impl Into<Option<ObjectID>>,
+        gas: impl Into<Option<ObjectId>>,
         gas_budget: u64,
     ) -> anyhow::Result<TransactionData> {
         let coin = self
@@ -634,7 +637,7 @@ impl TransactionBuilder {
 
         TransactionData::new_move_call(
             signer,
-            IOTA_FRAMEWORK_PACKAGE_ID,
+            Address::FRAMEWORK.into(),
             coin::PAY_MODULE_NAME.to_owned(),
             coin::PAY_SPLIT_VEC_FUNC_NAME.to_owned(),
             type_args,
@@ -651,10 +654,10 @@ impl TransactionBuilder {
     // TODO: consolidate this with Pay transactions
     pub async fn split_coin_equal(
         &self,
-        signer: IotaAddress,
-        coin_object_id: ObjectID,
+        signer: Address,
+        coin_object_id: ObjectId,
         split_count: u64,
-        gas: impl Into<Option<ObjectID>>,
+        gas: impl Into<Option<ObjectId>>,
         gas_budget: u64,
     ) -> anyhow::Result<TransactionData> {
         let coin = self
@@ -672,7 +675,7 @@ impl TransactionBuilder {
 
         TransactionData::new_move_call(
             signer,
-            IOTA_FRAMEWORK_PACKAGE_ID,
+            Address::FRAMEWORK.into(),
             coin::PAY_MODULE_NAME.to_owned(),
             coin::PAY_SPLIT_N_FUNC_NAME.to_owned(),
             type_args,
@@ -690,8 +693,8 @@ impl TransactionBuilder {
     /// [`Command::MergeCoins`] with the provided coins.
     pub async fn merge_coins_tx_kind(
         &self,
-        primary_coin: ObjectID,
-        coin_to_merge: ObjectID,
+        primary_coin: ObjectId,
+        coin_to_merge: ObjectId,
     ) -> Result<TransactionKind, anyhow::Error> {
         let coin = self
             .0
@@ -702,7 +705,7 @@ impl TransactionBuilder {
         let coin_to_merge_ref = self.get_object_ref(coin_to_merge).await?;
         let coin: Object = coin.try_into()?;
         let type_arguments = vec![coin.get_move_template_type()?];
-        let package = IOTA_FRAMEWORK_PACKAGE_ID;
+        let package = Address::FRAMEWORK.into();
         let module = coin::COIN_MODULE_NAME.to_owned();
         let function = coin::COIN_JOIN_FUNC_NAME.to_owned();
         let arguments = vec![
@@ -721,10 +724,10 @@ impl TransactionBuilder {
     // TODO: consolidate this with Pay transactions
     pub async fn merge_coins(
         &self,
-        signer: IotaAddress,
-        primary_coin: ObjectID,
-        coin_to_merge: ObjectID,
-        gas: impl Into<Option<ObjectID>>,
+        signer: Address,
+        primary_coin: ObjectId,
+        coin_to_merge: ObjectId,
+        gas: impl Into<Option<ObjectId>>,
         gas_budget: u64,
     ) -> anyhow::Result<TransactionData> {
         let coin = self
@@ -749,7 +752,7 @@ impl TransactionBuilder {
 
         TransactionData::new_move_call(
             signer,
-            IOTA_FRAMEWORK_PACKAGE_ID,
+            Address::FRAMEWORK.into(),
             coin::COIN_MODULE_NAME.to_owned(),
             coin::COIN_JOIN_FUNC_NAME.to_owned(),
             type_args,
@@ -766,9 +769,9 @@ impl TransactionBuilder {
     /// Create an unsigned batched transaction, useful for the JSON RPC.
     pub async fn batch_transaction(
         &self,
-        signer: IotaAddress,
+        signer: Address,
         single_transaction_params: Vec<RPCTransactionRequestParams>,
-        gas: impl Into<Option<ObjectID>>,
+        gas: impl Into<Option<ObjectId>>,
         gas_budget: u64,
     ) -> anyhow::Result<TransactionData> {
         fp_ensure!(
@@ -803,7 +806,9 @@ impl TransactionBuilder {
         let inputs = all_inputs
             .iter()
             .flat_map(|obj| match obj {
-                InputObjectKind::ImmOrOwnedMoveObject((id, _, _)) => Some(*id),
+                InputObjectKind::ImmOrOwnedMoveObject(ObjectReference { object_id, .. }) => {
+                    Some(*object_id)
+                }
                 _ => None,
             })
             .collect();

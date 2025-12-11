@@ -5,8 +5,7 @@
 use std::{net::SocketAddr, num::NonZeroU32, time::Duration};
 
 use iota_types::{
-    messages_checkpoint::{CheckpointDigest, CheckpointSequenceNumber},
-    multiaddr::Multiaddr,
+    base_types::Version, messages_checkpoint::CheckpointDigest, multiaddr::Multiaddr,
 };
 use serde::{Deserialize, Serialize};
 
@@ -104,7 +103,7 @@ pub struct StateSyncConfig {
     /// - in case of a network stall, to force the node to proceed with a
     ///   manually-injected checkpoint.
     #[serde(skip_serializing_if = "Vec::is_empty", default)]
-    pub pinned_checkpoints: Vec<(CheckpointSequenceNumber, CheckpointDigest)>,
+    pub pinned_checkpoints: Vec<(Version, CheckpointDigest)>,
 
     /// Query peers for their latest checkpoint every interval period.
     ///

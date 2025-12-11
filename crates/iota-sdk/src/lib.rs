@@ -108,7 +108,7 @@ use iota_json_rpc_types::{
 };
 use iota_transaction_builder::{DataReader, TransactionBuilder};
 pub use iota_types as types;
-use iota_types::base_types::{IotaAddress, ObjectID, ObjectInfo};
+use iota_types::base_types::{Address, ObjectId, ObjectInfo};
 use jsonrpsee::{
     core::client::ClientT,
     http_client::{HeaderMap, HeaderValue, HttpClient, HttpClientBuilder},
@@ -493,7 +493,7 @@ impl IotaClientBuilder {
 /// ```rust,no_run
 /// use std::str::FromStr;
 ///
-/// use iota_sdk::{IotaClientBuilder, types::base_types::IotaAddress};
+/// use iota_sdk::{IotaClientBuilder, types::base_types::Address};
 ///
 /// #[tokio::main]
 /// async fn main() -> Result<(), anyhow::Error> {
@@ -505,7 +505,7 @@ impl IotaClientBuilder {
 ///     println!("{:?}", iota.available_subscriptions());
 ///     println!("{:?}", iota.api_version());
 ///
-///     let address = IotaAddress::from_str("0x0000....0000")?;
+///     let address = Address::from_str("0x0000....0000")?;
 ///     let owned_objects = iota
 ///         .read_api()
 ///         .get_owned_objects(address, None, None, None)
@@ -633,7 +633,7 @@ impl IotaClient {
 impl DataReader for ReadApi {
     async fn get_owned_objects(
         &self,
-        address: IotaAddress,
+        address: Address,
         object_type: StructTag,
     ) -> Result<Vec<ObjectInfo>, anyhow::Error> {
         let query = Some(IotaObjectResponseQuery {
@@ -659,7 +659,7 @@ impl DataReader for ReadApi {
 
     async fn get_object_with_options(
         &self,
-        object_id: ObjectID,
+        object_id: ObjectId,
         options: IotaObjectDataOptions,
     ) -> Result<IotaObjectResponse, anyhow::Error> {
         Ok(self.get_object_with_options(object_id, options).await?)

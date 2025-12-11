@@ -14,7 +14,6 @@ use iota_macros::sim_test;
 use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
 use iota_sdk_2::types::crypto::{Intent, IntentMessage};
 use iota_types::{
-    IOTA_SYSTEM_PACKAGE_ID,
     authenticator_state::ActiveJwk,
     base_types::dbg_addr,
     crypto::{
@@ -270,11 +269,11 @@ async fn test_user_sends_system_transaction_impl(transaction_kind: TransactionKi
 
 pub fn init_transfer_transaction(
     pre_sign_mutations: impl Fn(&mut TransactionData),
-    sender: IotaAddress,
+    sender: Address,
     secret: &AccountKeyPair,
-    recipient: IotaAddress,
-    object_ref: ObjectRef,
-    gas_object_ref: ObjectRef,
+    recipient: Address,
+    object_ref: ObjectReference,
+    gas_object_ref: ObjectReference,
     gas_budget: u64,
     gas_price: u64,
 ) -> Transaction {
@@ -292,15 +291,15 @@ pub fn init_transfer_transaction(
 
 pub fn init_move_call_transaction(
     pre_sign_mutations: impl Fn(&mut TransactionData),
-    sender: IotaAddress,
+    sender: Address,
     secret: &AccountKeyPair,
-    gas_object_ref: ObjectRef,
+    gas_object_ref: ObjectReference,
     gas_budget: u64,
     gas_price: u64,
 ) -> Transaction {
     let mut data = TransactionData::new_move_call(
         sender,
-        IOTA_SYSTEM_PACKAGE_ID,
+        ObjectId::from_address(Address::SYSTEM),
         IOTA_SYSTEM_MODULE_NAME.into(),
         ident_str!("request_add_validator").to_owned(),
         vec![],
@@ -357,9 +356,9 @@ async fn do_transaction_test_impl(
     let (sender1, sender_key1): (_, AccountKeyPair) = get_key_pair();
     let (sender2, sender_key2): (_, AccountKeyPair) = get_key_pair();
     let recipient = dbg_addr(2);
-    let object_id = ObjectID::random();
-    let gas_object_id1 = ObjectID::random();
-    let gas_object_id2 = ObjectID::random();
+    let object_id = ObjectId::new(rand::random());
+    let gas_object_id1 = ObjectId::new(rand::random());
+    let gas_object_id2 = ObjectId::new(rand::random());
     let authority_state = init_state_with_ids(vec![
         (sender1, object_id),
         (sender1, gas_object_id1),
@@ -536,7 +535,7 @@ async fn test_zklogin_transfer_with_large_address_seed() {
     let large_address_seed =
         num_bigint::BigInt::from_bytes_be(num_bigint::Sign::Plus, &[1; 33]).to_string();
     let zklogin = ZkLoginInputs::from_json("{\"proofPoints\":{\"a\":[\"7351610957585487046328875967050889651854514987235893782501043846344306437586\",\"15901581830174345085102528605366245320934422564305327249129736514949843983391\",\"1\"],\"b\":[[\"8511334686125322419369086121569737536249817670014553268281989325333085952301\",\"4879445774811020644521006463993914729416121646921376735430388611804034116132\"],[\"17435652898871739253945717312312680537810513841582909477368887889905134847157\",\"14885460127400879557124294989610467103783286587437961743305395373299049315863\"],[\"1\",\"0\"]],\"c\":[\"18935582624804960299209074901817240117999581542763303721451852621662183299378\",\"5367019427921492326304024952457820199970536888356564030410757345854117465786\",\"1\"]},\"issBase64Details\":{\"value\":\"wiaXNzIjoiaHR0cHM6Ly9pZC50d2l0Y2gudHYvb2F1dGgyIiw\",\"indexMod4\":2},\"headerBase64\":\"eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6IjEifQ\"}", &large_address_seed).unwrap();
-    let sender = IotaAddress::generate(StdRng::from_seed([3; 32]));
+    let sender = Address::generate(StdRng::from_seed([3; 32]));
     let recipient = dbg_addr(2);
 
     let tx = init_zklogin_transfer(
@@ -842,7 +841,7 @@ async fn test_zklogin_caching_scenarios() {
     let zklogin_json_string =
         &get_one_zklogin_inputs("../iota-types/src/unit_tests/zklogin_test_vectors.json");
     let bad_zklogin_inputs = ZkLoginInputs::from_json(zklogin_json_string, "111").unwrap();
-    let sender = IotaAddress::try_from_unpadded(&bad_zklogin_inputs).unwrap();
+    let sender = address_from_unpadded_zklogin_inputs(&bad_zklogin_inputs).unwrap();
 
     let mut txn4 = init_zklogin_transfer(
         &authority_state,
@@ -924,7 +923,7 @@ async fn do_zklogin_transaction_test(
     Ok(())
 }
 
-async fn check_locks(authority_state: Arc<AuthorityState>, object_ids: Vec<ObjectID>) {
+async fn check_locks(authority_state: Arc<AuthorityState>, object_ids: Vec<ObjectId>) {
     for object_id in object_ids {
         let object = authority_state.get_object(&object_id).await.unwrap();
         assert!(
@@ -943,15 +942,15 @@ async fn check_locks(authority_state: Arc<AuthorityState>, object_ids: Vec<Objec
 async fn setup_zklogin_network(
     pre_sign_mutations: impl FnOnce(&mut TransactionData),
 ) -> eyre::Result<(
-    Vec<ObjectID>, // objects
-    Vec<ObjectID>, // gas objects
+    Vec<ObjectId>, // objects
+    Vec<ObjectId>, // gas objects
     Arc<AuthorityState>,
     Guard<Arc<AuthorityPerEpochStore>>,
     iota_types::message_envelope::Envelope<SenderSignedData, iota_types::crypto::EmptySignInfo>,
     Arc<crate::authority_server::ValidatorServiceMetrics>,
     AuthorityServerHandle,
     NetworkAuthorityClient,
-    Vec<IotaAddress>,
+    Vec<Address>,
     MultiSigPublicKey,
 )> {
     let (ikp, _eph_pk, zklogin) =
@@ -962,7 +961,7 @@ async fn setup_zklogin_network(
     };
 
     // a single zklogin address.
-    let sender = IotaAddress::try_from_unpadded(zklogin)?;
+    let sender = address_from_unpadded_zklogin_inputs(zklogin)?;
 
     // a 1-out-2 multisig address.
     let zklogin_pk = PublicKey::ZkLogin(ZkLoginPublicIdentifier::new(
@@ -971,19 +970,19 @@ async fn setup_zklogin_network(
     )?);
     let regular_pk = ikp.public();
     let multisig_pk = MultiSigPublicKey::new(vec![zklogin_pk, regular_pk], vec![1, 1], 1)?;
-    let sender_2 = IotaAddress::from(&multisig_pk);
+    let sender_2 = address_from_multisig_pub_key(&multisig_pk);
 
     let recipient = dbg_addr(2);
     let objects: Vec<_> = (0..20)
         .map(|i| match i < 10 {
-            true => (sender, ObjectID::random()),
-            false => (sender_2, ObjectID::random()),
+            true => (sender, ObjectId::new(rand::random())),
+            false => (sender_2, ObjectId::new(rand::random())),
         })
         .collect();
     let gas_objects: Vec<_> = (0..20)
         .map(|i| match i < 10 {
-            true => (sender, ObjectID::random()),
-            false => (sender_2, ObjectID::random()),
+            true => (sender, ObjectId::new(rand::random())),
+            false => (sender_2, ObjectId::new(rand::random())),
         })
         .collect();
     let object_ids: Vec<_> = objects.iter().map(|(_, id)| *id).collect();
@@ -1007,7 +1006,7 @@ async fn setup_zklogin_network(
                 epoch: 0,
             })
             .collect(),
-        authenticator_obj_initial_shared_version: 1.into(),
+        authenticator_obj_initial_shared_version: 1,
     });
 
     let transfer_transaction = init_zklogin_transfer(
@@ -1055,10 +1054,10 @@ async fn setup_zklogin_network(
 
 async fn init_zklogin_transfer(
     authority_state: &Arc<AuthorityState>,
-    object_id: ObjectID,
-    gas_object_id: ObjectID,
-    recipient: IotaAddress,
-    sender: IotaAddress,
+    object_id: ObjectId,
+    gas_object_id: ObjectId,
+    recipient: Address,
+    sender: Address,
     pre_sign_mutations: impl FnOnce(&mut TransactionData),
     ephemeral_key: &Ed25519KeyPair,
     zklogin: &ZkLoginInputs,
@@ -1095,10 +1094,10 @@ async fn init_zklogin_transfer(
 
 async fn sign_with_zklogin_inside_multisig(
     authority_state: &Arc<AuthorityState>,
-    object_id: ObjectID,
-    gas_object_id: ObjectID,
-    recipient: IotaAddress,
-    sender: IotaAddress,
+    object_id: ObjectId,
+    gas_object_id: ObjectId,
+    recipient: Address,
+    sender: Address,
     pre_sign_mutations: impl FnOnce(&mut TransactionData),
     ephemeral_key: &Ed25519KeyPair,
     zklogin: &ZkLoginInputs,
@@ -1154,10 +1153,14 @@ async fn test_zklogin_txn_fail_if_missing_jwk() {
         IotaKeyPair::Ed25519(kp) => kp,
         _ => panic!(),
     };
-    let sender = IotaAddress::try_from_unpadded(zklogin).unwrap();
+    let sender = address_from_unpadded_zklogin_inputs(zklogin).unwrap();
     let recipient = dbg_addr(2);
-    let objects: Vec<_> = (0..10).map(|_| (sender, ObjectID::random())).collect();
-    let gas_objects: Vec<_> = (0..10).map(|_| (sender, ObjectID::random())).collect();
+    let objects: Vec<_> = (0..10)
+        .map(|_| (sender, ObjectId::new(rand::random())))
+        .collect();
+    let gas_objects: Vec<_> = (0..10)
+        .map(|_| (sender, ObjectId::new(rand::random())))
+        .collect();
     let object_ids: Vec<_> = objects.iter().map(|(_, id)| *id).collect();
     let gas_object_ids: Vec<_> = gas_objects.iter().map(|(_, id)| *id).collect();
     let authority_state =
@@ -1177,7 +1180,7 @@ async fn test_zklogin_txn_fail_if_missing_jwk() {
                 epoch: 0,
             })
             .collect(),
-        authenticator_obj_initial_shared_version: 1.into(),
+        authenticator_obj_initial_shared_version: 1,
     });
 
     // Case 1: Submit a transaction with zklogin signature derived from a Twitch JWT
@@ -1209,7 +1212,7 @@ async fn test_zklogin_txn_fail_if_missing_jwk() {
                 epoch: 0,
             })
             .collect(),
-        authenticator_obj_initial_shared_version: 1.into(),
+        authenticator_obj_initial_shared_version: 1,
     });
 
     // Case 2: Submit a transaction with zklogin signature derived from a Twitch JWT
@@ -1233,11 +1236,11 @@ async fn test_zklogin_multisig() {
         2,
     )
     .unwrap();
-    let victim_addr = IotaAddress::from(&multisig_pk);
+    let victim_addr = address_from_multisig_pub_key(&multisig_pk);
 
     let recipient = dbg_addr(2);
-    let object_id = ObjectID::random();
-    let gas_object_id = ObjectID::random();
+    let object_id = ObjectId::new(rand::random());
+    let gas_object_id = ObjectId::new(rand::random());
     let authority_state =
         init_state_with_ids(vec![(victim_addr, object_id), (victim_addr, gas_object_id)]).await;
 
@@ -1254,7 +1257,7 @@ async fn test_zklogin_multisig() {
                 epoch: 0,
             })
             .collect(),
-        authenticator_obj_initial_shared_version: 1.into(),
+        authenticator_obj_initial_shared_version: 1,
     });
 
     let rgp = authority_state.reference_gas_price_for_testing().unwrap();
@@ -1303,7 +1306,7 @@ async fn test_zklogin_multisig() {
 async fn execute_transaction_assert_err(
     authority_state: Arc<AuthorityState>,
     txn: Transaction,
-    object_ids: Vec<ObjectID>,
+    object_ids: Vec<ObjectId>,
 ) {
     let server = AuthorityServer::new_for_test(authority_state.clone());
 
@@ -1335,7 +1338,7 @@ async fn test_oversized_txn() {
     telemetry_subscribers::init_for_testing();
     let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
     let recipient = dbg_addr(2);
-    let object_id = ObjectID::random();
+    let object_id = ObjectId::new(rand::random());
     let authority_state = init_state_with_ids(vec![(sender, object_id)]).await;
     let max_txn_size = authority_state
         .epoch_store_for_testing()
@@ -1396,8 +1399,8 @@ async fn test_very_large_certificate() {
     telemetry_subscribers::init_for_testing();
     let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
     let recipient = dbg_addr(2);
-    let object_id = ObjectID::random();
-    let gas_object_id = ObjectID::random();
+    let object_id = ObjectId::new(rand::random());
+    let gas_object_id = ObjectId::new(rand::random());
     let authority_state =
         init_state_with_ids(vec![(sender, object_id), (sender, gas_object_id)]).await;
     let rgp = authority_state.reference_gas_price_for_testing().unwrap();
@@ -1487,8 +1490,8 @@ async fn test_handle_certificate_errors() {
     telemetry_subscribers::init_for_testing();
     let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
     let recipient = dbg_addr(2);
-    let object_id = ObjectID::random();
-    let gas_object_id = ObjectID::random();
+    let object_id = ObjectId::new(rand::random());
+    let gas_object_id = ObjectId::new(rand::random());
     let authority_state =
         init_state_with_ids(vec![(sender, object_id), (sender, gas_object_id)]).await;
     let rgp = authority_state.reference_gas_price_for_testing().unwrap();
@@ -1663,7 +1666,7 @@ async fn test_handle_soft_bundle_certificates() {
     let mut gas_object_ids = Vec::new();
     for _i in 0..4 {
         let (address, keypair): (_, AccountKeyPair) = get_key_pair();
-        let gas_object_id = ObjectID::random();
+        let gas_object_id = ObjectId::new(rand::random());
 
         let obj = Object::with_id_owner_for_testing(gas_object_id, address);
         authority.insert_genesis_object(obj).await;
@@ -1681,7 +1684,7 @@ async fn test_handle_soft_bundle_certificates() {
             &gas_object_ids[0],
             &senders[0].0,
             &senders[0].1,
-            &package.0,
+            &package.object_id,
             "object_basics",
             "share",
             vec![],
@@ -1691,7 +1694,7 @@ async fn test_handle_soft_bundle_certificates() {
         .await
         .unwrap();
         effects.status().unwrap();
-        let shared_object_id = effects.created()[0].0.0;
+        let shared_object_id = effects.created()[0].0.object_id;
         authority.get_object(&shared_object_id).await.unwrap()
     };
     let initial_shared_version = shared_object.version();
@@ -1747,7 +1750,7 @@ async fn test_handle_soft_bundle_certificates() {
                 .compute_object_reference();
             let data = TransactionData::new_move_call(
                 senders[i].0,
-                package.0,
+                package.object_id,
                 ident_str!("object_basics").to_owned(),
                 ident_str!("set_value").to_owned(),
                 // type_args
@@ -1756,7 +1759,7 @@ async fn test_handle_soft_bundle_certificates() {
                 // args
                 vec![
                     CallArg::Object(ObjectArg::SharedObject {
-                        id: shared_object.id(),
+                        object_id: shared_object.id(),
                         initial_shared_version,
                         mutable: true,
                     }),
@@ -1845,7 +1848,7 @@ async fn test_handle_soft_bundle_certificates_errors() {
             &gas_objects[3].id(),
             &senders[3].0,
             &senders[3].1,
-            &package.0,
+            &package.object_id,
             "object_basics",
             "share",
             vec![],
@@ -1855,7 +1858,7 @@ async fn test_handle_soft_bundle_certificates_errors() {
         .await
         .unwrap();
         effects.status().unwrap();
-        let shared_object_id = effects.created()[0].0.0;
+        let shared_object_id = effects.created()[0].0.object_id;
         authority.get_object(&shared_object_id).await.unwrap()
     };
     let initial_shared_version = shared_object.version();
@@ -2022,7 +2025,7 @@ async fn test_handle_soft_bundle_certificates_errors() {
                 .compute_object_reference();
             let data = TransactionData::new_move_call(
                 senders[6].0,
-                package.0,
+                package.object_id,
                 ident_str!("object_basics").to_owned(),
                 ident_str!("set_value").to_owned(),
                 // type_args
@@ -2031,7 +2034,7 @@ async fn test_handle_soft_bundle_certificates_errors() {
                 // args
                 vec![
                     CallArg::Object(ObjectArg::SharedObject {
-                        id: shared_object.id(),
+                        object_id: shared_object.id(),
                         initial_shared_version,
                         mutable: true,
                     }),
@@ -2052,7 +2055,7 @@ async fn test_handle_soft_bundle_certificates_errors() {
                 .compute_object_reference();
             let data = TransactionData::new_move_call(
                 senders[7].0,
-                package.0,
+                package.object_id,
                 ident_str!("object_basics").to_owned(),
                 ident_str!("set_value").to_owned(),
                 // type_args
@@ -2061,7 +2064,7 @@ async fn test_handle_soft_bundle_certificates_errors() {
                 // args
                 vec![
                     CallArg::Object(ObjectArg::SharedObject {
-                        id: shared_object.id(),
+                        object_id: shared_object.id(),
                         initial_shared_version,
                         mutable: true,
                     }),
@@ -2108,7 +2111,7 @@ async fn test_handle_soft_bundle_certificates_errors() {
                 .compute_object_reference();
             let data = TransactionData::new_move_call(
                 senders[8].0,
-                package.0,
+                package.object_id,
                 ident_str!("object_basics").to_owned(),
                 ident_str!("set_value").to_owned(),
                 // type_args
@@ -2117,7 +2120,7 @@ async fn test_handle_soft_bundle_certificates_errors() {
                 // args
                 vec![
                     CallArg::Object(ObjectArg::SharedObject {
-                        id: shared_object.id(),
+                        object_id: shared_object.id(),
                         initial_shared_version,
                         mutable: true,
                     }),
@@ -2138,7 +2141,7 @@ async fn test_handle_soft_bundle_certificates_errors() {
                 .compute_object_reference();
             let data = TransactionData::new_move_call(
                 senders[9].0,
-                package.0,
+                package.object_id,
                 ident_str!("object_basics").to_owned(),
                 ident_str!("set_value").to_owned(),
                 // type_args
@@ -2147,7 +2150,7 @@ async fn test_handle_soft_bundle_certificates_errors() {
                 // args
                 vec![
                     CallArg::Object(ObjectArg::SharedObject {
-                        id: shared_object.id(),
+                        object_id: shared_object.id(),
                         initial_shared_version,
                         mutable: true,
                     }),
@@ -2257,9 +2260,9 @@ async fn test_handle_soft_bundle_certificates_errors() {
 fn sender_signed_data_serialized_intent() {
     let mut txn = SenderSignedData::new(
         TransactionData::new_transfer(
-            IotaAddress::default(),
+            Address::ZERO,
             random_object_ref(),
-            IotaAddress::default(),
+            Address::ZERO,
             random_object_ref(),
             0,
             0,

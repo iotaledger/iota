@@ -15,7 +15,7 @@ use iota_json_rpc_types::{
 use iota_open_rpc::Module;
 use iota_types::{
     MoveTypeTagTrait,
-    base_types::{IotaAddress, MoveObjectType, ObjectID},
+    base_types::{Address, MoveObjectType, ObjectId},
     committee::EpochId,
     dynamic_field::DynamicFieldInfo,
     governance::StakedIota,
@@ -36,13 +36,13 @@ use crate::{errors::IndexerError, read::IndexerReader};
 /// Maximum amount of staked objects for querying.
 const MAX_QUERY_STAKED_OBJECTS: usize = 1000;
 
-type ValidatorTable = (IotaAddress, ObjectID, ObjectID, u64, bool);
+type ValidatorTable = (Address, ObjectId, ObjectId, u64, bool);
 
 #[derive(Clone)]
 pub struct GovernanceReadApi {
     inner: IndexerReader,
     exchange_rates_cache: Arc<Mutex<SizedCache<EpochId, Vec<ValidatorExchangeRates>>>>,
-    validators_apys_cache: Arc<Mutex<SizedCache<EpochId, BTreeMap<IotaAddress, f64>>>>,
+    validators_apys_cache: Arc<Mutex<SizedCache<EpochId, BTreeMap<Address, f64>>>>,
 }
 
 impl GovernanceReadApi {
@@ -57,7 +57,7 @@ impl GovernanceReadApi {
     /// Get a validator's APY by its address
     pub async fn get_validator_apy(
         &self,
-        address: &IotaAddress,
+        address: &Address,
     ) -> Result<Option<f64>, IndexerError> {
         let apys = self
             .validators_apys_map(self.get_validators_apy().await?)
@@ -98,7 +98,7 @@ impl GovernanceReadApi {
 
     async fn get_stakes_by_ids(
         &self,
-        ids: Vec<ObjectID>,
+        ids: Vec<ObjectId>,
     ) -> Result<Vec<DelegatedStake>, IndexerError> {
         let mut stakes = vec![];
         for stored_object in self.inner.multi_get_objects_in_blocking_task(ids).await? {
@@ -112,7 +112,7 @@ impl GovernanceReadApi {
 
     async fn get_staked_by_owner(
         &self,
-        owner: IotaAddress,
+        owner: Address,
     ) -> Result<Vec<DelegatedStake>, IndexerError> {
         let mut stakes = vec![];
         for stored_object in self
@@ -137,7 +137,7 @@ impl GovernanceReadApi {
 
     async fn get_timelocked_staked_by_owner(
         &self,
-        owner: IotaAddress,
+        owner: Address,
     ) -> Result<Vec<DelegatedTimelockedStake>, IndexerError> {
         let mut stakes = vec![];
         for stored_object in self
@@ -288,7 +288,7 @@ impl GovernanceReadApi {
     }
 
     /// Cache a map representing the validators' APYs for this epoch
-    async fn validators_apys_map(&self, apys: ValidatorApys) -> BTreeMap<IotaAddress, f64> {
+    async fn validators_apys_map(&self, apys: ValidatorApys) -> BTreeMap<Address, f64> {
         // check if the apys are already in the cache
         if let Some(cached_apys) = self
             .validators_apys_cache
@@ -474,7 +474,7 @@ impl GovernanceReadApi {
             .validator_summary_from_system_state(
                 system_state_summary.validator_candidates_id(),
                 system_state_summary.validator_candidates_size(),
-                |df| bcs::from_bytes::<IotaAddress>(&df.bcs_name).map_err(Into::into),
+                |df| bcs::from_bytes::<Address>(&df.bcs_name).map_err(Into::into),
             )
             .await?;
 
@@ -490,7 +490,7 @@ impl GovernanceReadApi {
     /// dynamic fields within specific Move tables.
     ///
     /// To retrieve validator status information, this function utilizes the
-    /// corresponding `table_id` (an `ObjectID` value) and a `limit` to specify
+    /// corresponding `table_id` (an `ObjectId` value) and a `limit` to specify
     /// the number of records to fetch. Both the `table_id` and `limit` can
     /// be obtained from `IotaSystemStateSummary` in the caller.
     /// Additionally, keys are extracted from the table `DynamicFieldInfo`
@@ -522,13 +522,13 @@ impl GovernanceReadApi {
     ///        system_state_summary.validator_candidates_id(),
     ///        // Number of preactive validators
     ///        system_state_summary.validator_candidates_size(),
-    ///        // Extract the `IotaAddress` of the `Candidate` validator from the `DynamicFieldInfo` in the `system_state_summary.validator_candidates_id` table
-    ///        |df| bcs::from_bytes::<IotaAddress>(&df.bcs_name).map_err(Into::into),
+    ///        // Extract the `Address` of the `Candidate` validator from the `DynamicFieldInfo` in the `system_state_summary.validator_candidates_id` table
+    ///        |df| bcs::from_bytes::<Address>(&df.bcs_name).map_err(Into::into),
     /// ).await?;
     /// ```
     async fn validator_summary_from_system_state<K, F>(
         &self,
-        table_id: ObjectID,
+        table_id: ObjectId,
         validator_size: u64,
         key: F,
     ) -> Result<Vec<ValidatorTable>, IndexerError>
@@ -640,20 +640,20 @@ fn stake_status(
 impl GovernanceReadApiServer for GovernanceReadApi {
     async fn get_stakes_by_ids(
         &self,
-        staked_iota_ids: Vec<ObjectID>,
+        staked_iota_ids: Vec<ObjectId>,
     ) -> RpcResult<Vec<DelegatedStake>> {
         self.get_stakes_by_ids(staked_iota_ids)
             .await
             .map_err(Into::into)
     }
 
-    async fn get_stakes(&self, owner: IotaAddress) -> RpcResult<Vec<DelegatedStake>> {
+    async fn get_stakes(&self, owner: Address) -> RpcResult<Vec<DelegatedStake>> {
         self.get_staked_by_owner(owner).await.map_err(Into::into)
     }
 
     async fn get_timelocked_stakes_by_ids(
         &self,
-        timelocked_staked_iota_ids: Vec<ObjectID>,
+        timelocked_staked_iota_ids: Vec<ObjectId>,
     ) -> RpcResult<Vec<DelegatedTimelockedStake>> {
         let stakes = self
             .inner
@@ -673,7 +673,7 @@ impl GovernanceReadApiServer for GovernanceReadApi {
 
     async fn get_timelocked_stakes(
         &self,
-        owner: IotaAddress,
+        owner: Address,
     ) -> RpcResult<Vec<DelegatedTimelockedStake>> {
         self.get_timelocked_staked_by_owner(owner)
             .await

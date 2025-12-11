@@ -14,9 +14,8 @@ use iota_json::{IotaJsonValue, primitive_type};
 use iota_metrics::monitored_scope;
 use iota_package_resolver::{PackageStore, Resolver};
 use iota_types::{
-    IOTA_FRAMEWORK_ADDRESS,
     authenticator_state::ActiveJwk,
-    base_types::{EpochId, IotaAddress, ObjectID, ObjectRef, SequenceNumber, TransactionDigest},
+    base_types::{Address, EpochId, ObjectId, ObjectReference, TransactionDigest, Version},
     crypto::IotaSignature,
     digests::{ConsensusCommitDigest, ObjectDigest, TransactionEventsDigest},
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
@@ -24,11 +23,8 @@ use iota_types::{
     event::EventID,
     execution_status::ExecutionStatus,
     gas::GasCostSummary,
-    iota_serde::{
-        BigInt, IotaTypeTag as AsIotaTypeTag, Readable, SequenceNumber as AsSequenceNumber,
-    },
+    iota_serde::{BigInt, IotaTypeTag as AsIotaTypeTag, Readable, Version as AsVersion},
     layout_resolver::{LayoutResolver, get_layout_from_struct_tag},
-    messages_checkpoint::CheckpointSequenceNumber,
     messages_consensus::ConsensusDeterminedVersionAssignments,
     object::{Owner, bounded_visitor::BoundedVisitor},
     parse_iota_type_tag,
@@ -45,6 +41,7 @@ use iota_types::{
 use move_binary_format::CompiledModule;
 use move_bytecode_utils::module_cache::GetModule;
 use move_core_types::{
+    account_address::AccountAddress,
     annotated_value::MoveTypeLayout,
     identifier::{IdentStr, Identifier},
     language_storage::{ModuleId, StructTag, TypeTag},
@@ -268,7 +265,7 @@ pub struct IotaTransactionBlockResponse {
     #[schemars(with = "Option<BigInt<u64>>")]
     #[serde_as(as = "Option<BigInt<u64>>")]
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub checkpoint: Option<CheckpointSequenceNumber>,
+    pub checkpoint: Option<Version>,
     #[serde(skip_serializing_if = "Vec::is_empty", default)]
     pub errors: Vec<String>,
     #[serde(skip_serializing_if = "Vec::is_empty", default)]
@@ -288,7 +285,7 @@ impl IotaTransactionBlockResponse {
     }
 
     /// Get mutated objects if any
-    pub fn mutated_objects(&self) -> impl Iterator<Item = ObjectRef> + '_ {
+    pub fn mutated_objects(&self) -> impl Iterator<Item = ObjectReference> + '_ {
         self.object_changes.iter().flat_map(|obj_changes| {
             obj_changes
                 .iter()
@@ -405,7 +402,7 @@ fn write_obj_changes<T: Display>(
 
 pub fn get_new_package_obj_from_response(
     response: &IotaTransactionBlockResponse,
-) -> Option<ObjectRef> {
+) -> Option<ObjectReference> {
     response.object_changes.as_ref().and_then(|changes| {
         changes
             .iter()
@@ -416,7 +413,7 @@ pub fn get_new_package_obj_from_response(
 
 pub fn get_new_package_upgrade_cap_from_response(
     response: &IotaTransactionBlockResponse,
-) -> Option<ObjectRef> {
+) -> Option<ObjectReference> {
     response.object_changes.as_ref().and_then(|changes| {
         changes
             .iter()
@@ -424,13 +421,14 @@ pub fn get_new_package_upgrade_cap_from_response(
                 matches!(change, ObjectChange::Created {
                     owner: Owner::AddressOwner(_),
                     object_type: StructTag {
-                        address: IOTA_FRAMEWORK_ADDRESS,
+                        address,
                         module,
                         name,
                         ..
                     },
                     ..
-                } if module.as_str() == "package" && name.as_str() == "UpgradeCap")
+                } if module.as_str() == "package" && name.as_str() == "UpgradeCap"
+                    && *address == AccountAddress::new(Address::FRAMEWORK.into_bytes()))
             })
             .map(|change| change.object_ref())
     })
@@ -792,7 +790,7 @@ pub trait IotaTransactionBlockEffectsAPI {
 
     /// Return an iterator of mutated objects, but excluding the gas object.
     fn mutated_excluding_gas(&self) -> Vec<OwnedObjectRef>;
-    fn modified_at_versions(&self) -> Vec<(ObjectID, SequenceNumber)>;
+    fn modified_at_versions(&self) -> Vec<(ObjectId, Version)>;
     fn all_changed_objects(&self) -> Vec<(&OwnedObjectRef, WriteKind)>;
     fn all_deleted_objects(&self) -> Vec<(&IotaObjectRef, DeleteKind)>;
 }
@@ -804,10 +802,10 @@ pub trait IotaTransactionBlockEffectsAPI {
     rename_all = "camelCase"
 )]
 pub struct IotaTransactionBlockEffectsModifiedAtVersions {
-    object_id: ObjectID,
-    #[schemars(with = "AsSequenceNumber")]
-    #[serde_as(as = "AsSequenceNumber")]
-    sequence_number: SequenceNumber,
+    object_id: ObjectId,
+    #[schemars(with = "AsVersion")]
+    #[serde_as(as = "AsVersion")]
+    sequence_number: Version,
 }
 
 /// The response from processing a transaction or a certified transaction
@@ -923,7 +921,7 @@ impl IotaTransactionBlockEffectsAPI for IotaTransactionBlockEffectsV1 {
             .collect()
     }
 
-    fn modified_at_versions(&self) -> Vec<(ObjectID, SequenceNumber)> {
+    fn modified_at_versions(&self) -> Vec<(ObjectId, Version)> {
         self.modified_at_versions
             .iter()
             .map(|v| (v.object_id, v.sequence_number))
@@ -970,7 +968,7 @@ impl IotaTransactionBlockEffects {
             transaction_digest,
             status,
             gas_object: OwnedObjectRef {
-                owner: Owner::AddressOwner(IotaAddress::random_for_testing_only()),
+                owner: Owner::AddressOwner(Address::new(rand::random())),
                 reference: iota_types::base_types::random_object_ref().into(),
             },
             executed_epoch: 0,
@@ -1241,11 +1239,11 @@ impl Display for IotaTransactionBlockEvents {
 pub struct DevInspectArgs {
     /// The sponsor of the gas for the transaction, might be different from the
     /// sender.
-    pub gas_sponsor: Option<IotaAddress>,
+    pub gas_sponsor: Option<Address>,
     /// The gas budget for the transaction.
     pub gas_budget: Option<BigInt<u64>>,
     /// The gas objects used to pay for the transaction.
-    pub gas_objects: Option<Vec<ObjectRef>>,
+    pub gas_objects: Option<Vec<ObjectReference>>,
     /// Whether to skip transaction checks for the transaction.
     pub skip_checks: Option<bool>,
     /// Whether to return the raw transaction data and effects.
@@ -1475,11 +1473,11 @@ impl From<ExecutionStatus> for IotaExecutionStatus {
     }
 }
 
-fn to_iota_object_ref(refs: Vec<ObjectRef>) -> Vec<IotaObjectRef> {
+fn to_iota_object_ref(refs: Vec<ObjectReference>) -> Vec<IotaObjectRef> {
     refs.into_iter().map(IotaObjectRef::from).collect()
 }
 
-fn to_owned_ref(owned_refs: Vec<(ObjectRef, Owner)>) -> Vec<OwnedObjectRef> {
+fn to_owned_ref(owned_refs: Vec<(ObjectReference, Owner)>) -> Vec<OwnedObjectRef> {
     owned_refs
         .into_iter()
         .map(|(oref, owner)| OwnedObjectRef {
@@ -1494,7 +1492,7 @@ fn to_owned_ref(owned_refs: Vec<(ObjectRef, Owner)>) -> Vec<OwnedObjectRef> {
 #[serde(rename = "GasData", rename_all = "camelCase")]
 pub struct IotaGasData {
     pub payment: Vec<IotaObjectRef>,
-    pub owner: IotaAddress,
+    pub owner: Address,
     #[schemars(with = "BigInt<u64>")]
     #[serde_as(as = "BigInt<u64>")]
     pub price: u64,
@@ -1530,7 +1528,7 @@ pub enum IotaTransactionBlockData {
 #[enum_dispatch]
 pub trait IotaTransactionBlockDataAPI {
     fn transaction(&self) -> &IotaTransactionBlockKind;
-    fn sender(&self) -> &IotaAddress;
+    fn sender(&self) -> &Address;
     fn gas_data(&self) -> &IotaGasData;
 }
 
@@ -1538,7 +1536,7 @@ pub trait IotaTransactionBlockDataAPI {
 #[serde(rename = "TransactionBlockDataV1", rename_all = "camelCase")]
 pub struct IotaTransactionBlockDataV1 {
     pub transaction: IotaTransactionBlockKind,
-    pub sender: IotaAddress,
+    pub sender: Address,
     pub gas_data: IotaGasData,
 }
 
@@ -1546,7 +1544,7 @@ impl IotaTransactionBlockDataAPI for IotaTransactionBlockDataV1 {
     fn transaction(&self) -> &IotaTransactionBlockKind {
         &self.transaction
     }
-    fn sender(&self) -> &IotaAddress {
+    fn sender(&self) -> &Address {
         &self.sender
     }
     fn gas_data(&self) -> &IotaGasData {
@@ -1727,7 +1725,7 @@ impl Display for IotaTransactionBlock {
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
 pub struct IotaGenesisTransaction {
-    pub objects: Vec<ObjectID>,
+    pub objects: Vec<ObjectId>,
     pub events: Vec<EventID>,
 }
 
@@ -1849,15 +1847,15 @@ pub struct IotaJWK {
 #[serde(rename = "InputObjectKind")]
 pub enum IotaInputObjectKind {
     // A Move package, must be immutable.
-    MovePackage(ObjectID),
+    MovePackage(ObjectId),
     // A Move object, either immutable, or owned mutable.
     ImmOrOwnedMoveObject(IotaObjectRef),
     // A Move object that's shared and mutable.
     SharedMoveObject {
-        id: ObjectID,
-        #[schemars(with = "AsSequenceNumber")]
-        #[serde_as(as = "AsSequenceNumber")]
-        initial_shared_version: SequenceNumber,
+        id: ObjectId,
+        #[schemars(with = "AsVersion")]
+        #[serde_as(as = "AsVersion")]
+        initial_shared_version: Version,
         #[serde(default = "default_shared_object_mutability")]
         mutable: bool,
     },
@@ -1947,7 +1945,7 @@ impl IotaProgrammableTransactionBlock {
                         return result_types;
                     };
 
-                    let id = ModuleId::new(c.package.into(), module);
+                    let id = ModuleId::new(AccountAddress::new(c.package.into_bytes()), module);
                     let Some(types) =
                         get_signature_types(id, function.as_ident_str(), module_cache)
                     else {
@@ -2026,9 +2024,9 @@ pub enum IotaCommand {
     MergeCoins(IotaArgument, Vec<IotaArgument>),
     /// Publishes a Move package. It takes the package bytes and a list of the
     /// package's transitive dependencies to link against on-chain.
-    Publish(Vec<ObjectID>),
+    Publish(Vec<ObjectId>),
     /// Upgrades a Move package
-    Upgrade(Vec<ObjectID>, ObjectID, IotaArgument),
+    Upgrade(Vec<ObjectId>, ObjectId, IotaArgument),
     /// `forall T: Vec<T> -> vector<T>`
     /// Given n-values of the same type, it constructs a vector. For non objects
     /// or an empty vector, the type tag must be specified.
@@ -2162,7 +2160,7 @@ pub enum PtbInput {
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
 pub struct IotaProgrammableMoveCall {
     /// The package containing the module and function.
-    pub package: ObjectID,
+    pub package: ObjectId,
     /// The specific module in the package containing the function.
     pub module: String,
     /// The function to be called.
@@ -2240,7 +2238,7 @@ impl From<InputObjectKind> for IotaInputObjectKind {
             InputObjectKind::MovePackage(id) => Self::MovePackage(id),
             InputObjectKind::ImmOrOwnedMoveObject(oref) => Self::ImmOrOwnedMoveObject(oref.into()),
             InputObjectKind::SharedMoveObject {
-                id,
+                object_id: id,
                 initial_shared_version,
                 mutable,
             } => Self::SharedMoveObject {
@@ -2291,14 +2289,14 @@ pub enum RPCTransactionRequestParams {
 #[derive(Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct TransferObjectParams {
-    pub recipient: IotaAddress,
-    pub object_id: ObjectID,
+    pub recipient: Address,
+    pub object_id: ObjectId,
 }
 
 #[derive(Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct MoveCallParams {
-    pub package_object_id: ObjectID,
+    pub package_object_id: ObjectId,
     pub module: String,
     pub function: String,
     #[serde(default)]
@@ -2350,10 +2348,10 @@ pub struct OwnedObjectRef {
 }
 
 impl OwnedObjectRef {
-    pub fn object_id(&self) -> ObjectID {
+    pub fn object_id(&self) -> ObjectId {
         self.reference.object_id
     }
-    pub fn version(&self) -> SequenceNumber {
+    pub fn version(&self) -> Version {
         self.reference.version
     }
 }
@@ -2377,15 +2375,17 @@ impl IotaCallArg {
                 value_type: layout.map(|l| l.into()),
                 value: IotaJsonValue::from_bcs_bytes(layout, &p)?,
             }),
-            CallArg::Object(ObjectArg::ImmOrOwnedObject((id, version, digest))) => {
-                IotaCallArg::Object(IotaObjectArg::ImmOrOwnedObject {
-                    object_id: id,
-                    version,
-                    digest,
-                })
-            }
+            CallArg::Object(ObjectArg::ImmOrOwnedObject(ObjectReference {
+                object_id,
+                version,
+                digest,
+            })) => IotaCallArg::Object(IotaObjectArg::ImmOrOwnedObject {
+                object_id,
+                version,
+                digest,
+            }),
             CallArg::Object(ObjectArg::SharedObject {
-                id,
+                object_id: id,
                 initial_shared_version,
                 mutable,
             }) => IotaCallArg::Object(IotaObjectArg::SharedObject {
@@ -2393,13 +2393,15 @@ impl IotaCallArg {
                 initial_shared_version,
                 mutable,
             }),
-            CallArg::Object(ObjectArg::Receiving((object_id, version, digest))) => {
-                IotaCallArg::Object(IotaObjectArg::Receiving {
-                    object_id,
-                    version,
-                    digest,
-                })
-            }
+            CallArg::Object(ObjectArg::Receiving(ObjectReference {
+                object_id,
+                version,
+                digest,
+            })) => IotaCallArg::Object(IotaObjectArg::Receiving {
+                object_id,
+                version,
+                digest,
+            }),
         })
     }
 
@@ -2410,7 +2412,7 @@ impl IotaCallArg {
         }
     }
 
-    pub fn object(&self) -> Option<&ObjectID> {
+    pub fn object(&self) -> Option<&ObjectId> {
         match self {
             IotaCallArg::Object(IotaObjectArg::SharedObject { object_id, .. })
             | IotaCallArg::Object(IotaObjectArg::ImmOrOwnedObject { object_id, .. })
@@ -2447,10 +2449,10 @@ pub enum IotaObjectArg {
     // A Move object, either immutable, or owned mutable.
     #[serde(rename_all = "camelCase")]
     ImmOrOwnedObject {
-        object_id: ObjectID,
-        #[schemars(with = "AsSequenceNumber")]
-        #[serde_as(as = "AsSequenceNumber")]
-        version: SequenceNumber,
+        object_id: ObjectId,
+        #[schemars(with = "AsVersion")]
+        #[serde_as(as = "AsVersion")]
+        version: Version,
         digest: ObjectDigest,
     },
     // A Move object that's shared.
@@ -2458,19 +2460,19 @@ pub enum IotaObjectArg {
     // object.
     #[serde(rename_all = "camelCase")]
     SharedObject {
-        object_id: ObjectID,
-        #[schemars(with = "AsSequenceNumber")]
-        #[serde_as(as = "AsSequenceNumber")]
-        initial_shared_version: SequenceNumber,
+        object_id: ObjectId,
+        #[schemars(with = "AsVersion")]
+        #[serde_as(as = "AsVersion")]
+        initial_shared_version: Version,
         mutable: bool,
     },
     // A reference to a Move object that's going to be received in the transaction.
     #[serde(rename_all = "camelCase")]
     Receiving {
-        object_id: ObjectID,
-        #[schemars(with = "AsSequenceNumber")]
-        #[serde_as(as = "AsSequenceNumber")]
-        version: SequenceNumber,
+        object_id: ObjectId,
+        #[schemars(with = "AsVersion")]
+        #[serde_as(as = "AsVersion")]
+        version: Version,
         digest: ObjectDigest,
     },
 }
@@ -2494,27 +2496,27 @@ pub enum TransactionFilter {
     Checkpoint(
         #[schemars(with = "BigInt<u64>")]
         #[serde_as(as = "Readable<BigInt<u64>, _>")]
-        CheckpointSequenceNumber,
+        Version,
     ),
     /// Query by move function.
     MoveFunction {
-        package: ObjectID,
+        package: ObjectId,
         module: Option<String>,
         function: Option<String>,
     },
     /// Query by input object.
-    InputObject(ObjectID),
+    InputObject(ObjectId),
     /// Query by changed object, including created, mutated and unwrapped
     /// objects.
-    ChangedObject(ObjectID),
+    ChangedObject(ObjectId),
     /// Query by sender address.
-    FromAddress(IotaAddress),
+    FromAddress(Address),
     /// Query by recipient address.
-    ToAddress(IotaAddress),
+    ToAddress(Address),
     /// Query by sender and recipient address.
-    FromAndToAddress { from: IotaAddress, to: IotaAddress },
+    FromAndToAddress { from: Address, to: Address },
     /// Query txs that have a given address as sender or recipient.
-    FromOrToAddress { addr: IotaAddress },
+    FromOrToAddress { addr: Address },
     /// Query by transaction kind
     TransactionKind(IotaTransactionKind),
     /// Query transactions of any given kind in the input.
@@ -2614,31 +2616,31 @@ pub enum TransactionFilterV2 {
     Checkpoint(
         #[schemars(with = "BigInt<u64>")]
         #[serde_as(as = "Readable<BigInt<u64>, _>")]
-        CheckpointSequenceNumber,
+        Version,
     ),
     /// Query by move function.
     MoveFunction {
-        package: ObjectID,
+        package: ObjectId,
         module: Option<String>,
         function: Option<String>,
     },
     /// Query by input object.
-    InputObject(ObjectID),
+    InputObject(ObjectId),
     /// Query by changed object, including created, mutated and unwrapped
     /// objects.
-    ChangedObject(ObjectID),
+    ChangedObject(ObjectId),
     /// Query transactions that wrapped or deleted the specified object.
     /// Includes transactions that either created and immediately wrapped
     /// the object or unwrapped and immediately deleted it.
-    WrappedOrDeletedObject(ObjectID),
+    WrappedOrDeletedObject(ObjectId),
     /// Query by sender address.
-    FromAddress(IotaAddress),
+    FromAddress(Address),
     /// Query by recipient address.
-    ToAddress(IotaAddress),
+    ToAddress(Address),
     /// Query by sender and recipient address.
-    FromAndToAddress { from: IotaAddress, to: IotaAddress },
+    FromAndToAddress { from: Address, to: Address },
     /// Query txs that have a given address as sender or recipient.
-    FromOrToAddress { addr: IotaAddress },
+    FromOrToAddress { addr: Address },
     /// Query by transaction kind
     TransactionKind(IotaTransactionKind),
     /// Query transactions of any given kind in the input.

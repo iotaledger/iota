@@ -23,6 +23,7 @@ move-core-types.workspace = true
 
 [dev-dependencies]
 # external dependencies
+rand.workspace = true
 test-fuzz.workspace = true
 
 # internal dependencies

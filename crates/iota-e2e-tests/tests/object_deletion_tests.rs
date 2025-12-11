@@ -11,7 +11,7 @@ mod sim_only_tests {
     use iota_node::IotaNode;
     use iota_test_transaction_builder::publish_package;
     use iota_types::{
-        base_types::ObjectID, digests::TransactionDigest,
+        base_types::ObjectId, digests::TransactionDigest,
         messages_checkpoint::CheckpointSequenceNumber,
     };
     use test_cluster::{TestCluster, TestClusterBuilder};
@@ -135,7 +135,7 @@ mod sim_only_tests {
 
     async fn publish_package_and_create_parent_object(
         test_cluster: &TestCluster,
-    ) -> (ObjectID, ObjectID) {
+    ) -> (ObjectId, ObjectId) {
         let package_id = publish_package(
             &test_cluster.wallet,
             PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -162,7 +162,7 @@ mod sim_only_tests {
         (package_id, object_id)
     }
 
-    async fn create_owned_child(test_cluster: &TestCluster, package_id: ObjectID) -> ObjectID {
+    async fn create_owned_child(test_cluster: &TestCluster, package_id: ObjectId) -> ObjectId {
         test_cluster
             .sign_and_execute_transaction(
                 &test_cluster
@@ -182,9 +182,9 @@ mod sim_only_tests {
 
     async fn wrap_child(
         test_cluster: &TestCluster,
-        package_id: ObjectID,
-        object_id: ObjectID,
-        child_id: ObjectID,
+        package_id: ObjectId,
+        object_id: ObjectId,
+        child_id: ObjectId,
     ) -> IotaTransactionBlockEffects {
         let object = test_cluster.wallet.get_object_ref(object_id).await.unwrap();
         let child = test_cluster.wallet.get_object_ref(child_id).await.unwrap();
@@ -217,8 +217,8 @@ mod sim_only_tests {
 
     async fn unwrap_and_delete_child(
         test_cluster: &TestCluster,
-        package_id: ObjectID,
-        object_id: ObjectID,
+        package_id: ObjectId,
+        object_id: ObjectId,
     ) -> IotaTransactionBlockEffects {
         let object = test_cluster.wallet.get_object_ref(object_id).await.unwrap();
         let effects = test_cluster
@@ -243,8 +243,8 @@ mod sim_only_tests {
 
     async fn delete_object(
         test_cluster: &TestCluster,
-        package_id: ObjectID,
-        object_id: ObjectID,
+        package_id: ObjectId,
+        object_id: ObjectId,
     ) -> IotaTransactionBlockEffects {
         let object = test_cluster.wallet.get_object_ref(object_id).await.unwrap();
         let effects = test_cluster

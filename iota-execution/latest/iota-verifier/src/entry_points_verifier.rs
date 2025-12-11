@@ -3,8 +3,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use iota_types::{
-    IOTA_FRAMEWORK_ADDRESS,
-    base_types::{TX_CONTEXT_MODULE_NAME, TX_CONTEXT_STRUCT_NAME, TxContext, TxContextKind},
+    base_types::{
+        Address, TX_CONTEXT_MODULE_NAME, TX_CONTEXT_STRUCT_NAME, TxContext, TxContextKind,
+    },
     clock::Clock,
     error::ExecutionError,
     is_object, is_object_vector, is_primitive,
@@ -163,7 +164,7 @@ fn verify_init_function(module: &CompiledModule, fdef: &FunctionDefinition) -> R
             but found {5}",
             module.self_id(),
             INIT_FN_NAME,
-            IOTA_FRAMEWORK_ADDRESS,
+            Address::FRAMEWORK,
             TX_CONTEXT_MODULE_NAME,
             TX_CONTEXT_STRUCT_NAME,
             format_signature_token(module, &parameters[0]),

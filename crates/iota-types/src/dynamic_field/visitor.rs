@@ -11,7 +11,7 @@ use move_core_types::{
 };
 
 use super::{DynamicFieldInfo, DynamicFieldType};
-use crate::{base_types::ObjectID, id::UID};
+use crate::{base_types::ObjectId, id::UID};
 
 /// Visitor to deserialize the outer structure of a `0x2::dynamic_field::Field`
 /// while leaving its name and value untouched.
@@ -19,7 +19,7 @@ pub struct FieldVisitor;
 
 #[derive(Debug, Clone)]
 pub struct Field<'b, 'l> {
-    pub id: ObjectID,
+    pub id: ObjectId,
     pub kind: DynamicFieldType,
     pub name_layout: &'l A::MoveTypeLayout,
     pub name_bytes: &'b [u8],
@@ -29,7 +29,7 @@ pub struct Field<'b, 'l> {
 
 pub enum ValueMetadata {
     DynamicField(TypeTag),
-    DynamicObjectField(ObjectID),
+    DynamicObjectField(ObjectId),
 }
 
 #[derive(thiserror::Error, Debug)]
@@ -67,7 +67,7 @@ impl Field<'_, '_> {
             ))),
 
             DynamicFieldType::DynamicObject => {
-                let id: ObjectID =
+                let id: ObjectId =
                     bcs::from_bytes(self.value_bytes).map_err(|_| Error::NotADynamicObjectField)?;
                 Ok(ValueMetadata::DynamicObjectField(id))
             }
@@ -107,7 +107,9 @@ impl<'b, 'l> Visitor<'b, 'l> for FieldVisitor {
 
                     // HACK: Bypassing `id`'s layout to deserialize its bytes as a Rust type.
                     let bytes = &driver.bytes()[lo..hi];
-                    id = Some(ObjectID::from_bytes(bytes).map_err(|_| Error::NotADynamicField)?);
+                    id = Some(ObjectId::new(
+                        bytes.try_into().map_err(|_| Error::NotADynamicField)?,
+                    ));
                 }
 
                 "name" => {
@@ -242,7 +244,7 @@ mod tests {
 
     use super::*;
     use crate::{
-        base_types::ObjectID,
+        base_types::ObjectId,
         dynamic_field,
         id::UID,
         object::bounded_visitor::tests::{enum_, layout_, value_, variant_},
@@ -491,8 +493,8 @@ mod tests {
         (value, layout, bytes)
     }
 
-    fn oid_(rep: &str) -> ObjectID {
-        ObjectID::from_str(rep).unwrap()
+    fn oid_(rep: &str) -> ObjectId {
+        ObjectId::from_str(rep).unwrap()
     }
 
     fn serialized_df(id: &str, name: A::MoveValue, value: A::MoveValue) -> Vec<u8> {

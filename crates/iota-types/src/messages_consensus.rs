@@ -20,12 +20,12 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     base_types::{
-        AuthorityName, ConciseableName, ObjectID, ObjectRef, SequenceNumber, TransactionDigest,
+        AuthorityName, ConciseableName, ObjectId, ObjectReference, TransactionDigest, Version,
     },
     crypto::{AuthoritySignature, DefaultHash},
     digests::{ConsensusCommitDigest, Digest},
     message_envelope::{Envelope, Message, VerifiedEnvelope},
-    messages_checkpoint::{CheckpointSequenceNumber, CheckpointSignatureMessage},
+    messages_checkpoint::{CheckpointSignatureMessage, CheckpointVersion},
     supported_protocol_versions::{
         Chain, SupportedProtocolVersions, SupportedProtocolVersionsWithHashes,
     },
@@ -40,7 +40,7 @@ pub type TimestampMs = u64;
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Serialize, Deserialize, JsonSchema)]
 pub enum ConsensusDeterminedVersionAssignments {
     // Cancelled transaction version assignment.
-    CancelledTransactions(Vec<(TransactionDigest, Vec<(ObjectID, SequenceNumber)>)>),
+    CancelledTransactions(Vec<(TransactionDigest, Vec<(ObjectId, Version)>)>),
 }
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Serialize, Deserialize)]
@@ -82,7 +82,7 @@ pub struct ConsensusTransaction {
 #[derive(Serialize, Deserialize, Clone, Hash, PartialEq, Eq, Ord, PartialOrd)]
 pub enum ConsensusTransactionKey {
     Certificate(TransactionDigest),
-    CheckpointSignature(AuthorityName, CheckpointSequenceNumber),
+    CheckpointSignature(AuthorityName, CheckpointVersion),
     EndOfPublish(AuthorityName),
     CapabilityNotification(AuthorityName, u64 /* generation */),
     // Key must include both id and jwk, because honest validators could be given multiple jwks
@@ -169,10 +169,10 @@ pub struct AuthorityCapabilitiesV1 {
     /// serialized ProtocolConfig of that authority per version.
     pub supported_protocol_versions: SupportedProtocolVersionsWithHashes,
 
-    /// The ObjectRefs of all versions of system packages that the validator
-    /// possesses. Used to determine whether to do a framework/movestdlib
-    /// upgrade.
-    pub available_system_packages: Vec<ObjectRef>,
+    /// The ObjectReferences of all versions of system packages that the
+    /// validator possesses. Used to determine whether to do a
+    /// framework/movestdlib upgrade.
+    pub available_system_packages: Vec<ObjectReference>,
 }
 
 impl Message for AuthorityCapabilitiesV1 {
@@ -207,7 +207,7 @@ impl AuthorityCapabilitiesV1 {
         authority: AuthorityName,
         chain: Chain,
         supported_protocol_versions: SupportedProtocolVersions,
-        available_system_packages: Vec<ObjectRef>,
+        available_system_packages: Vec<ObjectReference>,
     ) -> Self {
         let generation = SystemTime::now()
             .duration_since(UNIX_EPOCH)

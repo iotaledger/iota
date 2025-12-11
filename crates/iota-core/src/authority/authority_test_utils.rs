@@ -183,7 +183,7 @@ pub async fn init_state_with_committee(
         .await
 }
 
-pub async fn init_state_with_ids<I: IntoIterator<Item = (IotaAddress, ObjectID)>>(
+pub async fn init_state_with_ids<I: IntoIterator<Item = (Address, ObjectId)>>(
     objects: I,
 ) -> Arc<AuthorityState> {
     let state = TestAuthorityBuilder::new().build().await;
@@ -196,7 +196,7 @@ pub async fn init_state_with_ids<I: IntoIterator<Item = (IotaAddress, ObjectID)>
 }
 
 pub async fn init_state_with_ids_and_versions<
-    I: IntoIterator<Item = (IotaAddress, ObjectID, SequenceNumber)>,
+    I: IntoIterator<Item = (Address, ObjectId, Version)>,
 >(
     objects: I,
 ) -> Arc<AuthorityState> {
@@ -237,15 +237,12 @@ pub async fn init_state_with_objects_and_committee<I: IntoIterator<Item = Object
     state
 }
 
-pub async fn init_state_with_object_id(
-    address: IotaAddress,
-    object: ObjectID,
-) -> Arc<AuthorityState> {
+pub async fn init_state_with_object_id(address: Address, object: ObjectId) -> Arc<AuthorityState> {
     init_state_with_ids(std::iter::once((address, object))).await
 }
 
 pub async fn init_state_with_ids_and_expensive_checks<
-    I: IntoIterator<Item = (IotaAddress, ObjectID)>,
+    I: IntoIterator<Item = (Address, ObjectId)>,
 >(
     objects: I,
     config: ExpensiveSafetyCheckConfig,
@@ -264,11 +261,11 @@ pub async fn init_state_with_ids_and_expensive_checks<
 
 pub fn init_transfer_transaction(
     authority_state: &AuthorityState,
-    sender: IotaAddress,
+    sender: Address,
     secret: &AccountKeyPair,
-    recipient: IotaAddress,
-    object_ref: ObjectRef,
-    gas_object_ref: ObjectRef,
+    recipient: Address,
+    object_ref: ObjectReference,
+    gas_object_ref: ObjectReference,
     gas_budget: u64,
     gas_price: u64,
 ) -> VerifiedTransaction {
@@ -288,11 +285,11 @@ pub fn init_transfer_transaction(
 }
 
 pub fn init_certified_transfer_transaction(
-    sender: IotaAddress,
+    sender: Address,
     secret: &AccountKeyPair,
-    recipient: IotaAddress,
-    object_ref: ObjectRef,
-    gas_object_ref: ObjectRef,
+    recipient: Address,
+    object_ref: ObjectReference,
+    gas_object_ref: ObjectReference,
     authority_state: &AuthorityState,
 ) -> VerifiedCertificate {
     let rgp = authority_state.reference_gas_price_for_testing().unwrap();

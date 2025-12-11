@@ -4,7 +4,7 @@
 
 use std::sync::Arc;
 
-use iota_types::messages_checkpoint::CheckpointSequenceNumber;
+use iota_types::base_types::Version;
 use prometheus::{
     Histogram, IntGauge, Registry, register_histogram_with_registry,
     register_int_gauge_with_registry,
@@ -29,13 +29,13 @@ impl Metrics {
         Metrics(None)
     }
 
-    pub fn set_highest_known_checkpoint(&self, sequence_number: CheckpointSequenceNumber) {
+    pub fn set_highest_known_checkpoint(&self, sequence_number: Version) {
         if let Some(inner) = &self.0 {
             inner.highest_known_checkpoint.set(sequence_number as i64);
         }
     }
 
-    pub fn set_highest_verified_checkpoint(&self, sequence_number: CheckpointSequenceNumber) {
+    pub fn set_highest_verified_checkpoint(&self, sequence_number: Version) {
         if let Some(inner) = &self.0 {
             inner
                 .highest_verified_checkpoint
@@ -43,7 +43,7 @@ impl Metrics {
         }
     }
 
-    pub fn set_highest_synced_checkpoint(&self, sequence_number: CheckpointSequenceNumber) {
+    pub fn set_highest_synced_checkpoint(&self, sequence_number: Version) {
         if let Some(inner) = &self.0 {
             inner.highest_synced_checkpoint.set(sequence_number as i64);
         }

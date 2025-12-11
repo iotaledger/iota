@@ -15,11 +15,11 @@ use iota_archival::reader::ArchiveReaderBalancer;
 use iota_config::node::AuthorityStorePruningConfig;
 use iota_metrics::{monitored_scope, spawn_monitored_task};
 use iota_types::{
-    base_types::{ObjectID, SequenceNumber, VersionNumber},
+    base_types::{ObjectId, Version, VersionExt},
     committee::EpochId,
     effects::{TransactionEffects, TransactionEffectsAPI},
     message_envelope::Message,
-    messages_checkpoint::{CheckpointContents, CheckpointDigest, CheckpointSequenceNumber},
+    messages_checkpoint::{CheckpointContents, CheckpointDigest},
     storage::ObjectKey,
 };
 use once_cell::sync::Lazy;
@@ -145,7 +145,7 @@ impl AuthorityStorePruner {
         transaction_effects: Vec<TransactionEffects>,
         perpetual_db: &Arc<AuthorityPerpetualTables>,
         pruner_db: Option<&Arc<AuthorityPrunerTables>>,
-        checkpoint_number: CheckpointSequenceNumber,
+        checkpoint_number: Version,
         metrics: Arc<AuthorityStorePruningMetrics>,
     ) -> anyhow::Result<()> {
         let _scope = monitored_scope("ObjectsLivePruner");
@@ -173,7 +173,7 @@ impl AuthorityStorePruner {
             .num_pruned_tombstones
             .inc_by(object_tombstones_to_prune.len() as u64);
 
-        let mut updates: HashMap<ObjectID, (VersionNumber, VersionNumber)> = HashMap::new();
+        let mut updates: HashMap<ObjectId, (Version, Version)> = HashMap::new();
         for ObjectKey(object_id, seq_number) in live_object_keys_to_prune {
             updates
                 .entry(object_id)
@@ -195,7 +195,7 @@ impl AuthorityStorePruner {
                 }
                 None => {
                     let start_range = ObjectKey(object_id, min_version);
-                    let end_range = ObjectKey(object_id, (max_version.value() + 1).into());
+                    let end_range = ObjectKey(object_id, (max_version + 1).into());
                     wb.schedule_delete_range(&perpetual_db.objects, &start_range, &end_range)?;
                 }
             }
@@ -213,8 +213,8 @@ impl AuthorityStorePruner {
             let mut object_keys_to_delete = vec![];
             for ObjectKey(object_id, seq_number) in object_tombstones_to_prune {
                 for result in perpetual_db.objects.safe_iter_with_bounds(
-                    Some(ObjectKey(object_id, VersionNumber::MIN_VALID_INCL)),
-                    Some(ObjectKey(object_id, seq_number.next())),
+                    Some(ObjectKey(object_id, Version::MIN_VALID_INCL)),
+                    Some(ObjectKey(object_id, seq_number + 1)),
                 ) {
                     let (object_key, _) = result?;
                     assert_eq!(object_key.0, object_id);
@@ -244,7 +244,7 @@ impl AuthorityStorePruner {
         perpetual_db: &Arc<AuthorityPerpetualTables>,
         checkpoint_db: &Arc<CheckpointStore>,
         rest_index: Option<&RestIndexStore>,
-        checkpoint_number: CheckpointSequenceNumber,
+        checkpoint_number: Version,
         checkpoints_to_prune: Vec<CheckpointDigest>,
         checkpoint_content_to_prune: Vec<CheckpointContents>,
         effects_to_prune: &Vec<TransactionEffects>,
@@ -272,13 +272,12 @@ impl AuthorityStorePruner {
             effect_digests.push(effects_digest);
 
             if let Some(event_digest) = effects.events_digest() {
-                if let Some(next_digest) = event_digest.next_lexicographical() {
-                    perpetual_batch.schedule_delete_range(
-                        &perpetual_db.events,
-                        &(*event_digest, 0),
-                        &(next_digest, 0),
-                    )?;
-                }
+                let next_digest = event_digest.next_lexicographical();
+                perpetual_batch.schedule_delete_range(
+                    &perpetual_db.events,
+                    &(*event_digest, 0),
+                    &(next_digest, 0),
+                )?;
             }
         }
         perpetual_batch.delete_batch(&perpetual_db.effects, effect_digests)?;
@@ -305,7 +304,7 @@ impl AuthorityStorePruner {
             &checkpoint_db.tables.watermarks,
             [(
                 &CheckpointWatermark::HighestPruned,
-                &(checkpoint_number, CheckpointDigest::random()),
+                &(checkpoint_number, CheckpointDigest::new(rand::random())),
             )],
         )?;
 
@@ -437,8 +436,8 @@ impl AuthorityStorePruner {
         pruner_db: Option<&Arc<AuthorityPrunerTables>>,
         mode: PruningMode,
         num_epochs_to_retain: u64,
-        starting_checkpoint_number: CheckpointSequenceNumber,
-        max_eligible_checkpoint: CheckpointSequenceNumber,
+        starting_checkpoint_number: Version,
+        max_eligible_checkpoint: Version,
         config: AuthorityStorePruningConfig,
         metrics: Arc<AuthorityStorePruningMetrics>,
     ) -> anyhow::Result<()> {
@@ -616,12 +615,12 @@ impl AuthorityStorePruner {
     /// balancing the pruning operation over the epoch's duration.
     fn smoothed_max_eligible_checkpoint_number(
         checkpoint_store: &Arc<CheckpointStore>,
-        mut max_eligible_checkpoint: CheckpointSequenceNumber,
-        pruned_checkpoint: CheckpointSequenceNumber,
+        mut max_eligible_checkpoint: Version,
+        pruned_checkpoint: Version,
         epoch_id: EpochId,
         epoch_duration_ms: u64,
         num_epochs_to_retain: u64,
-    ) -> anyhow::Result<CheckpointSequenceNumber> {
+    ) -> anyhow::Result<Version> {
         if epoch_id < num_epochs_to_retain {
             return Ok(0);
         }
@@ -770,8 +769,8 @@ impl AuthorityStorePruner {
     /// invoking a range compaction on the database.
     pub fn compact(perpetual_db: &Arc<AuthorityPerpetualTables>) -> Result<(), TypedStoreError> {
         perpetual_db.objects.compact_range(
-            &ObjectKey(ObjectID::ZERO, SequenceNumber::MIN_VALID_INCL),
-            &ObjectKey(ObjectID::MAX, SequenceNumber::MAX_VALID_EXCL),
+            &ObjectKey(ObjectId::ZERO, Version::MIN_VALID_INCL),
+            &ObjectKey(ObjectId::new([u8::MAX; _]), Version::MAX_VALID_EXCL),
         )
     }
 }
@@ -848,8 +847,9 @@ impl ObjectCompactionMetrics {
 mod tests {
     use std::{collections::HashSet, path::Path, sync::Arc, time::Duration};
 
+    use iota_sdk_2::types::ObjectReference;
     use iota_types::{
-        base_types::{ObjectDigest, ObjectID, SequenceNumber},
+        base_types::{ObjectDigest, ObjectId, Version},
         effects::{TransactionEffects, TransactionEffectsAPI},
         object::Object,
         storage::ObjectKey,
@@ -868,6 +868,18 @@ mod tests {
         authority_store_tables::AuthorityPerpetualTables,
         authority_store_types::{StoreObject, StoreObjectWrapper, get_store_object},
     };
+
+    fn ids_in_range(start: ObjectId, count: usize) -> Vec<ObjectId> {
+        let mut prev = start;
+        let mut ret = vec![prev];
+        if count > 0 {
+            for _ in 0..count - 1 {
+                prev = prev.next_lexicographical();
+                ret.push(prev);
+            }
+        }
+        ret
+    }
 
     fn get_keys_after_pruning(path: &Path) -> anyhow::Result<HashSet<ObjectKey>> {
         let perpetual_db_path = path.join(Path::new("perpetual"));
@@ -909,10 +921,10 @@ mod tests {
         let (mut to_keep, mut to_delete, mut tombstones) = (vec![], vec![], vec![]);
         let mut batch = db.objects.batch();
 
-        let ids = ObjectID::in_range(ObjectID::ZERO, total_unique_object_ids.into())?;
+        let ids = ids_in_range(ObjectId::ZERO, total_unique_object_ids as _);
         for id in ids {
             for (counter, seq) in (0..num_versions_per_object).rev().enumerate() {
-                let object_key = ObjectKey(id, SequenceNumber::from_u64(seq));
+                let object_key = ObjectKey(id, seq);
                 if counter < num_object_versions_to_retain.try_into().unwrap() {
                     // latest `num_object_versions_to_retain` should not have been pruned
                     to_keep.push(object_key);
@@ -920,15 +932,12 @@ mod tests {
                     to_delete.push(object_key);
                 }
                 let obj = get_store_object(Object::immutable_with_id_for_testing(id));
-                batch.insert_batch(
-                    &db.objects,
-                    [(ObjectKey(id, SequenceNumber::from(seq)), obj.clone())],
-                )?;
+                batch.insert_batch(&db.objects, [(ObjectKey(id, seq), obj.clone())])?;
             }
 
             // Adding a tombstone for deleted object.
             if num_object_versions_to_retain == 0 {
-                let tombstone_key = ObjectKey(id, SequenceNumber::from(num_versions_per_object));
+                let tombstone_key = ObjectKey(id, num_versions_per_object);
                 println!("Adding tombstone object {tombstone_key:?}");
                 batch.insert_batch(
                     &db.objects,
@@ -973,14 +982,14 @@ mod tests {
             .unwrap();
             let mut effects = TransactionEffects::default();
             for object in to_delete {
-                effects.unsafe_add_deleted_live_object_for_testing((
+                effects.unsafe_add_deleted_live_object_for_testing(ObjectReference::new(
                     object.0,
                     object.1,
                     ObjectDigest::MIN,
                 ));
             }
             for object in tombstones {
-                effects.unsafe_add_object_tombstone_for_testing((
+                effects.unsafe_add_object_tombstone_for_testing(ObjectReference::new(
                     object.0,
                     object.1,
                     ObjectDigest::MIN,
@@ -1024,21 +1033,21 @@ mod tests {
     #[cfg(not(target_env = "msvc"))]
     #[tokio::test]
     async fn test_db_size_after_compaction() -> Result<(), anyhow::Error> {
+        use iota_types::base_types::VersionExt;
+
         let primary_path = tempfile::tempdir()?.keep();
         let perpetual_db = Arc::new(AuthorityPerpetualTables::open(&primary_path, None));
         let total_unique_object_ids = 10_000;
         let num_versions_per_object = 10;
-        let ids = ObjectID::in_range(ObjectID::ZERO, total_unique_object_ids)?;
+        let ids = ids_in_range(ObjectId::ZERO, total_unique_object_ids);
         let mut to_delete = vec![];
         for id in ids {
             for i in (0..num_versions_per_object).rev() {
                 if i < num_versions_per_object - 2 {
-                    to_delete.push((id, SequenceNumber::from(i)));
+                    to_delete.push((id, i));
                 }
                 let obj = get_store_object(Object::immutable_with_id_for_testing(id));
-                perpetual_db
-                    .objects
-                    .insert(&ObjectKey(id, SequenceNumber::from(i)), &obj)?;
+                perpetual_db.objects.insert(&ObjectKey(id, i), &obj)?;
             }
         }
 
@@ -1058,8 +1067,8 @@ mod tests {
         }
 
         let db_path = primary_path.clone().join("perpetual");
-        let start = ObjectKey(ObjectID::ZERO, SequenceNumber::MIN_VALID_INCL);
-        let end = ObjectKey(ObjectID::MAX, SequenceNumber::MAX_VALID_EXCL);
+        let start = ObjectKey(ObjectId::ZERO, Version::MIN_VALID_INCL);
+        let end = ObjectKey(ObjectId::new([u8::MAX; _]), Version::MAX_VALID_EXCL);
 
         perpetual_db.objects.rocksdb.flush()?;
         perpetual_db.objects.compact_range_to_bottom(&start, &end)?;
@@ -1067,7 +1076,7 @@ mod tests {
 
         let mut effects = TransactionEffects::default();
         for object in to_delete {
-            effects.unsafe_add_deleted_live_object_for_testing((
+            effects.unsafe_add_deleted_live_object_for_testing(ObjectReference::new(
                 object.0,
                 object.1,
                 ObjectDigest::MIN,

@@ -16,7 +16,7 @@ const MAIN_ADDRESS_MNEMONIC = "few hood high omit camp keep burger give happy ir
 const STARDUST_PACKAGE_ID = "0x107a";
 const COIN_MANAGER_MODULE_NAME = "coin_manager";
 const COIN_MANAGER_TREASURY_CAP_STRUCT_NAME = "CoinManagerTreasuryCap";
-const IOTA_FRAMEWORK_ADDRESS = "0x2";
+const Address::FRAMEWORK = "0x2";
 
 async function main() {
     // Build a client to connect to the local IOTA network.
@@ -159,7 +159,7 @@ async function main() {
 function isCoinManagerTreasuryCap(object: IotaObjectData): boolean {
     const splitType = object.type?.split("::");
     return splitType !== undefined &&
-        splitType[0] === IOTA_FRAMEWORK_ADDRESS &&
+        splitType[0] === Address::FRAMEWORK &&
         splitType[1] === COIN_MANAGER_MODULE_NAME &&
         splitType[2].split("<")[0] === COIN_MANAGER_TREASURY_CAP_STRUCT_NAME;
 }

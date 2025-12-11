@@ -7,11 +7,13 @@ use std::net::SocketAddr;
 
 use iota_core::authority_client::AuthorityAPI;
 use iota_macros::sim_test;
-use iota_sdk_2::types::crypto::{Intent, IntentMessage};
+use iota_sdk_2::types::{
+    ObjectId,
+    crypto::{Intent, IntentMessage},
+};
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
-    IOTA_AUTHENTICATOR_STATE_OBJECT_ID,
-    base_types::IotaAddress,
+    base_types::{Address, address_from_pub_key},
     committee::EpochId,
     crypto::Signature,
     error::{IotaError, IotaResult, UserInputError},
@@ -22,7 +24,7 @@ use iota_types::{
 };
 use test_cluster::{TestCluster, TestClusterBuilder};
 
-async fn do_zklogin_test(address: IotaAddress, legacy: bool) -> IotaResult {
+async fn do_zklogin_test(address: Address, legacy: bool) -> IotaResult {
     let test_cluster = TestClusterBuilder::new().build().await;
     let (_, tx, _) = make_zklogin_tx(address, legacy);
 
@@ -42,14 +44,14 @@ async fn build_zklogin_tx(test_cluster: &TestCluster, max_epoch: EpochId) -> Tra
     // load test vectors
     let (kp, pk_zklogin, inputs) =
         &load_test_vectors("../iota-types/src/unit_tests/zklogin_test_vectors.json").unwrap()[1];
-    let zklogin_addr = (pk_zklogin).into();
+    let zklogin_addr = address_from_pub_key(pk_zklogin);
 
     let rgp = test_cluster.get_reference_gas_price().await;
     let gas = test_cluster
         .fund_address_and_return_gas(rgp, Some(20000000000), zklogin_addr)
         .await;
     let tx_data = TestTransactionBuilder::new(zklogin_addr, gas, rgp)
-        .transfer_iota(None, IotaAddress::ZERO)
+        .transfer_iota(None, Address::ZERO)
         .build();
 
     let msg = IntentMessage::new(Intent::iota_transaction(), tx_data.clone());
@@ -156,7 +158,7 @@ async fn test_zklogin_expired_zklogin_sig() {
     // load one test vector, the zklogin inputs corresponds to max_epoch = 1
     let (kp, pk_zklogin, inputs) =
         &load_test_vectors("../iota-types/src/unit_tests/zklogin_test_vectors.json").unwrap()[1];
-    let zklogin_addr = (pk_zklogin).into();
+    let zklogin_addr = address_from_pub_key(pk_zklogin);
 
     let rgp = test_cluster.get_reference_gas_price().await;
     let gas = test_cluster
@@ -165,7 +167,7 @@ async fn test_zklogin_expired_zklogin_sig() {
     let context = &test_cluster.wallet;
 
     let tx_data = TestTransactionBuilder::new(zklogin_addr, gas, rgp)
-        .transfer_iota(None, IotaAddress::ZERO)
+        .transfer_iota(None, Address::ZERO)
         .build();
 
     let msg = IntentMessage::new(Intent::iota_transaction(), tx_data.clone());
@@ -224,7 +226,7 @@ async fn test_zklogin_create_authenticator_state_object() {
             assert!(
                 node.state()
                     .get_object_cache_reader()
-                    .get_latest_object_ref_or_tombstone(IOTA_AUTHENTICATOR_STATE_OBJECT_ID)
+                    .get_latest_object_ref_or_tombstone(ObjectId::AUTHENTICATOR_STATE)
                     .is_none()
             );
         });
@@ -240,7 +242,7 @@ async fn test_zklogin_create_authenticator_state_object() {
         h.with(|node| {
             node.state()
                 .get_object_cache_reader()
-                .get_latest_object_ref_or_tombstone(IOTA_AUTHENTICATOR_STATE_OBJECT_ID)
+                .get_latest_object_ref_or_tombstone(ObjectId::AUTHENTICATOR_STATE)
                 .expect("auth state object should exist");
         });
     }
@@ -260,7 +262,7 @@ async fn test_zklogin_conflicting_jwks() {
     use futures::StreamExt;
     use iota_json_rpc_types::{IotaTransactionBlockEffectsAPI, TransactionFilter};
     use iota_types::{
-        base_types::ObjectID,
+        base_types::ObjectId,
         transaction::{TransactionDataAPI, TransactionKind},
     };
     use tokio::time::Duration;
@@ -276,7 +278,7 @@ async fn test_zklogin_conflicting_jwks() {
 
     test_cluster.fullnode_handle.iota_node.with(|node| {
         let mut txns = node.state().subscription_handler.subscribe_transactions(
-            TransactionFilter::ChangedObject(ObjectID::from_hex_literal("0x7").unwrap()),
+            TransactionFilter::ChangedObject(ObjectId::from_hex("0x7").unwrap()),
         );
         let state = node.state();
 

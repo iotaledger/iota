@@ -30,7 +30,7 @@ use iota_swarm_config::{
     network_config_builder::ConfigBuilder,
 };
 use iota_types::{
-    base_types::{AuthorityName, IotaAddress, ObjectID, VersionNumber},
+    base_types::{Address, AuthorityName, ObjectId, Version},
     committee::Committee,
     crypto::AuthoritySignature,
     digests::ConsensusCommitDigest,
@@ -39,9 +39,7 @@ use iota_types::{
     gas_coin::{GasCoin, NANOS_PER_IOTA},
     inner_temporary_store::InnerTemporaryStore,
     iota_system_state::epoch_start_iota_system_state::EpochStartSystemState,
-    messages_checkpoint::{
-        CheckpointContents, CheckpointSequenceNumber, EndOfEpochData, VerifiedCheckpoint,
-    },
+    messages_checkpoint::{CheckpointContents, EndOfEpochData, VerifiedCheckpoint},
     mock_checkpoint_builder::{MockCheckpointBuilder, ValidatorKeypairProvider},
     object::Object,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
@@ -329,19 +327,19 @@ impl<R, S: store::SimulatorStore> Simulacrum<R, S> {
     /// Request that `amount` Nanos be sent to `address` from a faucet account.
     ///
     /// ```
-    /// use iota_types::{base_types::IotaAddress, gas_coin::NANOS_PER_IOTA};
+    /// use iota_types::{base_types::Address, gas_coin::NANOS_PER_IOTA};
     /// use simulacrum::Simulacrum;
     ///
     /// # fn main() {
     /// let mut simulacrum = Simulacrum::new();
-    /// let address = IotaAddress::generate(simulacrum.rng());
+    /// let address = Address::generate(simulacrum.rng());
     /// simulacrum.request_gas(address, NANOS_PER_IOTA).unwrap();
     ///
     /// // `account` now has a Coin<IOTA> object with single IOTA in it.
     /// // ...
     /// # }
     /// ```
-    pub fn request_gas(&mut self, address: IotaAddress, amount: u64) -> Result<TransactionEffects> {
+    pub fn request_gas(&mut self, address: Address, amount: u64) -> Result<TransactionEffects> {
         // For right now we'll just use the first account as the `faucet` account. We
         // may want to explicitly cordon off the faucet account from the rest of
         // the accounts though.
@@ -393,7 +391,7 @@ impl<R, S: store::SimulatorStore> Simulacrum<R, S> {
     /// generated checkpoint has the exact sequence number provided. This
     /// can be useful to generate checkpoints with specific sequence
     /// numbers. Monotonicity of checkpoint numbers is enforced strictly.
-    pub fn override_next_checkpoint_number(&mut self, number: CheckpointSequenceNumber) {
+    pub fn override_next_checkpoint_number(&mut self, number: Version) {
         let committee = CommitteeWithKeys::new(&self.keystore, self.epoch_state.committee());
         self.checkpoint_builder
             .override_next_checkpoint_number(number, &committee);
@@ -446,15 +444,15 @@ impl ValidatorKeypairProvider for CommitteeWithKeys<'_> {
 impl<T, V: store::SimulatorStore> ObjectStore for Simulacrum<T, V> {
     fn try_get_object(
         &self,
-        object_id: &ObjectID,
+        object_id: &ObjectId,
     ) -> Result<Option<Object>, iota_types::storage::error::Error> {
         Ok(store::SimulatorStore::get_object(&self.store, object_id))
     }
 
     fn try_get_object_by_key(
         &self,
-        object_id: &ObjectID,
-        version: VersionNumber,
+        object_id: &ObjectId,
+        version: Version,
     ) -> Result<Option<Object>, iota_types::storage::error::Error> {
         self.store.try_get_object_by_key(object_id, version)
     }
@@ -484,10 +482,7 @@ impl<T, V: store::SimulatorStore> ReadStore for Simulacrum<T, V> {
         todo!()
     }
 
-    fn try_get_lowest_available_checkpoint(
-        &self,
-    ) -> iota_types::storage::error::Result<iota_types::messages_checkpoint::CheckpointSequenceNumber>
-    {
+    fn try_get_lowest_available_checkpoint(&self) -> iota_types::storage::error::Result<Version> {
         // TODO wire this up to the underlying sim store, for now this will work since
         // we never prune the sim store
         Ok(0)
@@ -502,7 +497,7 @@ impl<T, V: store::SimulatorStore> ReadStore for Simulacrum<T, V> {
 
     fn try_get_checkpoint_by_sequence_number(
         &self,
-        sequence_number: iota_types::messages_checkpoint::CheckpointSequenceNumber,
+        sequence_number: Version,
     ) -> iota_types::storage::error::Result<Option<VerifiedCheckpoint>> {
         Ok(self
             .store()
@@ -520,7 +515,7 @@ impl<T, V: store::SimulatorStore> ReadStore for Simulacrum<T, V> {
 
     fn try_get_checkpoint_contents_by_sequence_number(
         &self,
-        _sequence_number: iota_types::messages_checkpoint::CheckpointSequenceNumber,
+        _sequence_number: Version,
     ) -> iota_types::storage::error::Result<
         Option<iota_types::messages_checkpoint::CheckpointContents>,
     > {
@@ -550,7 +545,7 @@ impl<T, V: store::SimulatorStore> ReadStore for Simulacrum<T, V> {
 
     fn try_get_full_checkpoint_contents_by_sequence_number(
         &self,
-        _sequence_number: iota_types::messages_checkpoint::CheckpointSequenceNumber,
+        _sequence_number: Version,
     ) -> iota_types::storage::error::Result<
         Option<iota_types::messages_checkpoint::FullCheckpointContents>,
     > {
@@ -570,7 +565,7 @@ impl<T, V: store::SimulatorStore> ReadStore for Simulacrum<T, V> {
 impl<T: Send + Sync, V: store::SimulatorStore + Send + Sync> RestStateReader for Simulacrum<T, V> {
     fn get_lowest_available_checkpoint_objects(
         &self,
-    ) -> iota_types::storage::error::Result<CheckpointSequenceNumber> {
+    ) -> iota_types::storage::error::Result<Version> {
         Ok(0)
     }
 
@@ -605,7 +600,7 @@ impl Simulacrum {
     /// iota-test-transaction-builder by defining a trait
     /// that both WalletContext and Simulacrum implement. Then we can remove
     /// this function.
-    pub fn transfer_txn(&mut self, recipient: IotaAddress) -> (Transaction, u64) {
+    pub fn transfer_txn(&mut self, recipient: Address) -> (Transaction, u64) {
         let (sender, key) = self.keystore().accounts().next().unwrap();
         let sender = *sender;
 
@@ -641,7 +636,7 @@ mod tests {
     use std::time::Duration;
 
     use iota_types::{
-        base_types::IotaAddress, effects::TransactionEffectsAPI, gas_coin::GasCoin,
+        base_types::Address, effects::TransactionEffectsAPI, gas_coin::GasCoin,
         transaction::TransactionDataAPI,
     };
     use rand::{SeedableRng, rngs::StdRng};
@@ -717,10 +712,10 @@ mod tests {
     #[test]
     fn transfer() {
         let mut sim = Simulacrum::new();
-        let recipient = IotaAddress::random_for_testing_only();
+        let recipient = Address::new(rand::random());
         let (tx, transfer_amount) = sim.transfer_txn(recipient);
 
-        let gas_id = tx.data().transaction_data().gas_data().payment[0].0;
+        let gas_id = tx.data().transaction_data().gas_data().payment[0].object_id;
         let effects = sim.execute_transaction(tx).unwrap().0;
         let gas_summary = effects.gas_cost_summary();
         let gas_paid = gas_summary.net_gas_usage();

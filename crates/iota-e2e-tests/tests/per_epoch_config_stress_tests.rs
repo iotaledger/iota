@@ -7,8 +7,7 @@ use std::{future::Future, path::PathBuf, sync::Arc, time::Duration};
 use iota_json_rpc_types::IotaTransactionBlockEffectsAPI;
 use iota_macros::sim_test;
 use iota_types::{
-    IOTA_DENY_LIST_OBJECT_ID, IOTA_FRAMEWORK_PACKAGE_ID,
-    base_types::{EpochId, IotaAddress, ObjectID, ObjectRef, SequenceNumber},
+    base_types::{Address, EpochId, ObjectId, ObjectReference, Version},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     transaction::{CallArg, ObjectArg, TransactionData},
 };
@@ -17,7 +16,7 @@ use rand::random;
 use test_cluster::{TestCluster, TestClusterBuilder};
 use tracing::info;
 
-const DENY_ADDRESS: IotaAddress = IotaAddress::ZERO;
+const DENY_ADDRESS: Address = Address::ZERO;
 
 #[sim_test]
 async fn per_epoch_config_stress_test() {
@@ -34,13 +33,29 @@ async fn per_epoch_config_stress_test() {
     let handle1 = {
         let test_env = test_env.clone();
         tokio::spawn(async move {
-            run_thread(1, test_env, target_epoch, gas1.0, create_transfer_tx, true).await
+            run_thread(
+                1,
+                test_env,
+                target_epoch,
+                gas1.object_id,
+                create_transfer_tx,
+                true,
+            )
+            .await
         })
     };
     let handle2 = {
         let test_env = test_env.clone();
         tokio::spawn(async move {
-            run_thread(2, test_env, target_epoch, gas2.0, create_deny_tx, false).await
+            run_thread(
+                2,
+                test_env,
+                target_epoch,
+                gas2.object_id,
+                create_deny_tx,
+                false,
+            )
+            .await
         })
     };
     tokio::time::timeout(Duration::from_secs(600), async {
@@ -55,11 +70,11 @@ async fn run_thread<F, Fut>(
     thread_id: u64,
     test_env: Arc<TestEnv>,
     target_epoch: EpochId,
-    gas_id: ObjectID,
+    gas_id: ObjectId,
     tx_creation_func: F,
     tx_may_fail: bool,
 ) where
-    F: Fn(Arc<TestEnv>, ObjectRef) -> Fut,
+    F: Fn(Arc<TestEnv>, ObjectReference) -> Fut,
     Fut: Future<Output = TransactionData>,
 {
     info!(?thread_id, "Thread started");
@@ -111,14 +126,14 @@ async fn run_thread<F, Fut>(
     );
 }
 
-async fn create_deny_tx(test_env: Arc<TestEnv>, gas: ObjectRef) -> TransactionData {
+async fn create_deny_tx(test_env: Arc<TestEnv>, gas: ObjectReference) -> TransactionData {
     let deny: bool = random();
     test_env
         .test_cluster
         .test_transaction_builder_with_gas_object(test_env.regulated_coin_owner, gas)
         .await
         .move_call(
-            IOTA_FRAMEWORK_PACKAGE_ID,
+            ObjectId::from(Address::FRAMEWORK),
             "coin",
             if deny {
                 "deny_list_v1_add"
@@ -127,7 +142,7 @@ async fn create_deny_tx(test_env: Arc<TestEnv>, gas: ObjectRef) -> TransactionDa
             },
             vec![
                 CallArg::Object(ObjectArg::SharedObject {
-                    id: IOTA_DENY_LIST_OBJECT_ID,
+                    object_id: ObjectId::DENY_LIST,
                     initial_shared_version: test_env.deny_list_object_init_version,
                     mutable: true,
                 }),
@@ -141,7 +156,7 @@ async fn create_deny_tx(test_env: Arc<TestEnv>, gas: ObjectRef) -> TransactionDa
         .build()
 }
 
-async fn create_transfer_tx(test_env: Arc<TestEnv>, gas: ObjectRef) -> TransactionData {
+async fn create_transfer_tx(test_env: Arc<TestEnv>, gas: ObjectReference) -> TransactionData {
     let use_move: bool = random();
     if use_move {
         create_move_transfer_tx(test_env, gas).await
@@ -150,13 +165,13 @@ async fn create_transfer_tx(test_env: Arc<TestEnv>, gas: ObjectRef) -> Transacti
     }
 }
 
-async fn create_move_transfer_tx(test_env: Arc<TestEnv>, gas: ObjectRef) -> TransactionData {
+async fn create_move_transfer_tx(test_env: Arc<TestEnv>, gas: ObjectReference) -> TransactionData {
     test_env
         .test_cluster
         .test_transaction_builder_with_gas_object(test_env.regulated_coin_owner, gas)
         .await
         .move_call(
-            IOTA_FRAMEWORK_PACKAGE_ID,
+            ObjectId::from(Address::FRAMEWORK),
             "pay",
             "split_and_transfer",
             vec![
@@ -173,7 +188,10 @@ async fn create_move_transfer_tx(test_env: Arc<TestEnv>, gas: ObjectRef) -> Tran
         .build()
 }
 
-async fn create_native_transfer_tx(test_env: Arc<TestEnv>, gas: ObjectRef) -> TransactionData {
+async fn create_native_transfer_tx(
+    test_env: Arc<TestEnv>,
+    gas: ObjectReference,
+) -> TransactionData {
     let mut pt_builder = ProgrammableTransactionBuilder::new();
     let coin_input = pt_builder
         .obj(ObjectArg::ImmOrOwnedObject(
@@ -184,7 +202,7 @@ async fn create_native_transfer_tx(test_env: Arc<TestEnv>, gas: ObjectRef) -> Tr
         .unwrap();
     let amount_input = pt_builder.pure(1u64).unwrap();
     let split_coin = pt_builder.programmable_move_call(
-        IOTA_FRAMEWORK_PACKAGE_ID,
+        ObjectId::from(Address::FRAMEWORK),
         ident_str!("coin").to_owned(),
         ident_str!("split").to_owned(),
         vec![test_env.regulated_coin_type.clone()],
@@ -202,15 +220,15 @@ async fn create_native_transfer_tx(test_env: Arc<TestEnv>, gas: ObjectRef) -> Tr
 
 struct TestEnv {
     test_cluster: TestCluster,
-    regulated_coin_id: ObjectID,
+    regulated_coin_id: ObjectId,
     regulated_coin_type: TypeTag,
-    regulated_coin_owner: IotaAddress,
-    deny_cap_id: ObjectID,
-    deny_list_object_init_version: SequenceNumber,
+    regulated_coin_owner: Address,
+    deny_cap_id: ObjectId,
+    deny_list_object_init_version: Version,
 }
 
 impl TestEnv {
-    async fn get_latest_object_ref(&self, object_id: &ObjectID) -> ObjectRef {
+    async fn get_latest_object_ref(&self, object_id: &ObjectId) -> ObjectReference {
         self.test_cluster
             .get_object_from_fullnode_store(object_id)
             .await
@@ -226,7 +244,7 @@ async fn create_test_env() -> TestEnv {
         .build()
         .await;
     let deny_list_object_init_version = test_cluster
-        .get_object_from_fullnode_store(&IOTA_DENY_LIST_OBJECT_ID)
+        .get_object_from_fullnode_store(&ObjectId::DENY_LIST)
         .await
         .unwrap()
         .version();

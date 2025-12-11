@@ -6,7 +6,7 @@ use std::{cmp::Ordering, collections::HashMap};
 
 use iota_protocol_config::{PerObjectCongestionControlMode, ProtocolConfig};
 use iota_types::{
-    base_types::{CommitRound, ObjectID},
+    base_types::{CommitRound, ObjectId},
     executable_transaction::VerifiedExecutableTransaction,
     transaction::{SharedInputObject, TransactionDataAPI},
 };
@@ -31,7 +31,7 @@ pub enum SequencingResult {
 
     /// Sequencing result indicating that a transaction is deferred.
     /// The list of objects are congested objects.
-    Defer(DeferralKey, Vec<ObjectID>),
+    Defer(DeferralKey, Vec<ObjectId>),
 }
 
 /// An execution slot represents the allocated time slot for a transaction to be
@@ -215,14 +215,14 @@ impl ObjectExecutionSlots {
 // transaction over all its shared objects.
 #[derive(PartialEq, Eq, Clone, Debug)]
 pub(crate) struct SharedObjectCongestionTracker {
-    object_execution_slots: HashMap<ObjectID, ObjectExecutionSlots>,
+    object_execution_slots: HashMap<ObjectId, ObjectExecutionSlots>,
     mode: PerObjectCongestionControlMode,
     assign_min_free_execution_slot: bool,
 }
 
 impl SharedObjectCongestionTracker {
     pub fn new(
-        initial_object_debts: impl IntoIterator<Item = (ObjectID, u64)>,
+        initial_object_debts: impl IntoIterator<Item = (ObjectId, u64)>,
         protocol_config: &ProtocolConfig,
     ) -> Self {
         let object_execution_slots = initial_object_debts
@@ -248,7 +248,7 @@ impl SharedObjectCongestionTracker {
 
     #[cfg(test)]
     pub(crate) fn new_for_test(
-        initial_object_debts: impl IntoIterator<Item = (ObjectID, u64)>,
+        initial_object_debts: impl IntoIterator<Item = (ObjectId, u64)>,
         mode: PerObjectCongestionControlMode,
         assign_min_free_execution_slot: bool,
     ) -> Self {
@@ -462,7 +462,7 @@ impl SharedObjectCongestionTracker {
 
         // The transaction cannot be scheduled. We need to defer it and return a list
         // of the IDs of shared input objects to explain the congestion reason.
-        let congested_objects: Vec<ObjectID> = if self.assign_min_free_execution_slot {
+        let congested_objects: Vec<ObjectId> = if self.assign_min_free_execution_slot {
             // if `assign_min_free_execution_slot` is true, we return all the shared input
             // objects as no individual object can be identified as the cause of congestion.
             shared_input_objects.iter().map(|obj| obj.id).collect()
@@ -542,7 +542,7 @@ impl SharedObjectCongestionTracker {
     // Returns accumulated debts for objects whose budgets have been exceeded over
     // the course of the commit. Consumes the tracker object, since this should
     // only be called once after all txs have been processed.
-    pub fn accumulated_debts(self, max_execution_duration_per_commit: u64) -> Vec<(ObjectID, u64)> {
+    pub fn accumulated_debts(self, max_execution_duration_per_commit: u64) -> Vec<(ObjectId, u64)> {
         self.object_execution_slots
             .into_iter()
             .filter_map(|(obj_id, slots)| {
@@ -704,7 +704,7 @@ pub mod shared_object_test_utils {
     use iota_protocol_config::PerObjectCongestionControlMode;
     use iota_test_transaction_builder::TestTransactionBuilder;
     use iota_types::{
-        base_types::{ObjectID, SequenceNumber, random_object_ref},
+        base_types::{ObjectId, Version, random_object_ref},
         crypto::{AccountKeyPair, get_key_pair},
         executable_transaction::VerifiedExecutableTransaction,
         transaction::{CallArg, ObjectArg, VerifiedTransaction},
@@ -719,7 +719,7 @@ pub mod shared_object_test_utils {
     // functions, therefore the content other than shared inputs, gas budget
     // and gas price are not important.
     pub fn build_transaction(
-        objects: &[(ObjectID, bool)],
+        objects: &[(ObjectId, bool)],
         gas_budget: u64,
         gas_price: u64,
     ) -> VerifiedExecutableTransaction {
@@ -730,15 +730,15 @@ pub mod shared_object_test_utils {
                 TestTransactionBuilder::new(sender, gas_object, gas_price)
                     .with_gas_budget(gas_budget)
                     .move_call(
-                        ObjectID::random(),
+                        ObjectId::new(rand::random()),
                         "unimportant_module",
                         "unimportant_function",
                         objects
                             .iter()
                             .map(|(id, mutable)| {
                                 CallArg::Object(ObjectArg::SharedObject {
-                                    id: *id,
-                                    initial_shared_version: SequenceNumber::new(),
+                                    object_id: *id,
+                                    initial_shared_version: Version::default(),
                                     mutable: *mutable,
                                 })
                             })
@@ -785,7 +785,7 @@ pub mod shared_object_test_utils {
     }
 
     pub(crate) fn new_congestion_tracker_with_initial_value_for_test(
-        init_values: &[(ObjectID, ExecutionTime)],
+        init_values: &[(ObjectId, ExecutionTime)],
         mode: PerObjectCongestionControlMode,
         assign_min_free_execution_slot: bool,
     ) -> SharedObjectCongestionTracker {
@@ -796,12 +796,12 @@ pub mod shared_object_test_utils {
         )
     }
 
-    pub fn construct_shared_input_objects(objects: &[(ObjectID, bool)]) -> Vec<SharedInputObject> {
+    pub fn construct_shared_input_objects(objects: &[(ObjectId, bool)]) -> Vec<SharedInputObject> {
         objects
             .iter()
             .map(|(id, mutable)| SharedInputObject {
                 id: *id,
-                initial_shared_version: SequenceNumber::new(),
+                initial_shared_version: Version::default(),
                 mutable: *mutable,
             })
             .collect()
@@ -817,10 +817,10 @@ mod object_cost_tests {
 
     #[rstest]
     fn test_compute_tx_start_at_time(#[values(true, false)] assign_min_free_execution_slot: bool) {
-        let object_id_0 = ObjectID::random();
-        let object_id_1 = ObjectID::random();
-        let object_id_2 = ObjectID::random();
-        let object_id_3 = ObjectID::random();
+        let object_id_0 = ObjectId::new(rand::random());
+        let object_id_1 = ObjectId::new(rand::random());
+        let object_id_2 = ObjectId::new(rand::random());
+        let object_id_3 = ObjectId::new(rand::random());
 
         // initialise a new shared object congestion tracker.
         let mut shared_object_congestion_tracker =
@@ -1002,8 +1002,8 @@ mod object_cost_tests {
     ) {
         // Creates two shared objects and three transactions that operate on these
         // objects.
-        let shared_obj_0 = ObjectID::random();
-        let shared_obj_1 = ObjectID::random();
+        let shared_obj_0 = ObjectId::new(rand::random());
+        let shared_obj_1 = ObjectId::new(rand::random());
 
         let (max_execution_duration_per_commit, max_overshoot_per_commit) = match mode {
             PerObjectCongestionControlMode::None => unreachable!(),
@@ -1167,7 +1167,7 @@ mod object_cost_tests {
         )]
         mode: PerObjectCongestionControlMode,
     ) {
-        let shared_obj_0 = ObjectID::random();
+        let shared_obj_0 = ObjectId::new(rand::random());
         let tx = build_transaction(&[(shared_obj_0, true)], 100, TEST_ONLY_GAS_PRICE);
         // Make try_schedule always defers transactions.
         let max_execution_duration_per_commit = 0;
@@ -1178,7 +1178,7 @@ mod object_cost_tests {
         // Insert a random pre-existing transaction.
         let mut previously_deferred_tx_digests = PreviouslyDeferredTransactions::new();
         previously_deferred_tx_digests.insert(
-            TransactionDigest::random(),
+            TransactionDigest::new(rand::random()),
             (
                 DeferralKey::ConsensusRound {
                     future_round: 10,
@@ -1286,9 +1286,9 @@ mod object_cost_tests {
         mode: PerObjectCongestionControlMode,
         #[values(true, false)] assign_min_free_execution_slot: bool,
     ) {
-        let object_id_0 = ObjectID::random();
-        let object_id_1 = ObjectID::random();
-        let object_id_2 = ObjectID::random();
+        let object_id_0 = ObjectId::new(rand::random());
+        let object_id_1 = ObjectId::new(rand::random());
+        let object_id_2 = ObjectId::new(rand::random());
 
         let mut shared_object_congestion_tracker =
             new_congestion_tracker_with_initial_value_for_test(
@@ -1444,9 +1444,9 @@ mod object_cost_tests {
 
     #[rstest]
     fn test_slots_overflow(#[values(true, false)] assign_min_free_execution_slot: bool) {
-        let object_id_0 = ObjectID::random();
-        let object_id_1 = ObjectID::random();
-        let object_id_2 = ObjectID::random();
+        let object_id_0 = ObjectId::new(rand::random());
+        let object_id_1 = ObjectId::new(rand::random());
+        let object_id_2 = ObjectId::new(rand::random());
         // edge case: max value is saturated
         let max_execution_duration_per_commit = u64::MAX;
         let max_overshoot_per_commit = u64::MAX;
@@ -1656,8 +1656,8 @@ mod object_cost_tests {
         mode: PerObjectCongestionControlMode,
         #[values(true, false)] assign_min_free_execution_slot: bool,
     ) {
-        let shared_obj_0 = ObjectID::random();
-        let shared_obj_1 = ObjectID::random();
+        let shared_obj_0 = ObjectId::new(rand::random());
+        let shared_obj_1 = ObjectId::new(rand::random());
 
         let tx_gas_budget = 100;
 
@@ -1800,8 +1800,8 @@ mod object_cost_tests {
         #[values(true, false)] assign_min_free_execution_slot: bool,
     ) {
         // Creates two shared objects to operate on them in transactions.
-        let shared_obj_0 = ObjectID::random();
-        let shared_obj_1 = ObjectID::random();
+        let shared_obj_0 = ObjectId::new(rand::random());
+        let shared_obj_1 = ObjectId::new(rand::random());
 
         let tx_gas_budget = 100;
 

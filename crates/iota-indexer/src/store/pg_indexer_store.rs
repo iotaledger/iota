@@ -19,9 +19,8 @@ use diesel::{
 use downcast::Any;
 use iota_protocol_config::ProtocolConfig;
 use iota_types::{
-    base_types::ObjectID,
+    base_types::{ObjectId, Version},
     digests::{ChainIdentifier, CheckpointDigest},
-    messages_checkpoint::CheckpointSequenceNumber,
 };
 use itertools::Itertools;
 use strum::IntoEnumIterator;
@@ -429,12 +428,12 @@ impl PgIndexerStore {
 
     fn get_latest_object_snapshot_checkpoint_sequence_number(
         &self,
-    ) -> Result<Option<CheckpointSequenceNumber>, IndexerError> {
+    ) -> Result<Option<Version>, IndexerError> {
         read_only_blocking!(&self.blocking_cp, |conn| {
             objects_snapshot::table
                 .select(max(objects_snapshot::checkpoint_sequence_number))
                 .first::<Option<i64>>(conn)
-                .map(|v| v.map(|v| v as CheckpointSequenceNumber))
+                .map(|v| v.map(|v| v as Version))
         })
         .context("Failed reading latest object snapshot checkpoint sequence number from PostgresDB")
     }
@@ -588,7 +587,7 @@ impl PgIndexerStore {
             .into_iter()
             .map(|removed_object| {
                 (
-                    removed_object.object_id().to_vec(),
+                    removed_object.object_id().as_bytes().to_vec(),
                     removed_object.transaction_digest.into_inner().to_vec(),
                 )
             })
@@ -1815,7 +1814,7 @@ impl IndexerStore for PgIndexerStore {
 
     async fn get_latest_object_snapshot_checkpoint_sequence_number(
         &self,
-    ) -> Result<Option<CheckpointSequenceNumber>, IndexerError> {
+    ) -> Result<Option<Version>, IndexerError> {
         self.execute_in_blocking_worker(|this| {
             this.get_latest_object_snapshot_checkpoint_sequence_number()
         })
@@ -2257,7 +2256,7 @@ impl IndexerStore for PgIndexerStore {
         chain_id: Vec<u8>,
     ) -> Result<(), IndexerError> {
         let chain_id = ChainIdentifier::from(
-            CheckpointDigest::try_from(chain_id).expect("unable to convert chain id"),
+            CheckpointDigest::from_bytes(&chain_id).expect("unable to convert chain id"),
         );
 
         let mut all_configs = vec![];
@@ -2512,8 +2511,8 @@ fn retain_latest_indexed_objects(
 ) -> (Vec<IndexedObject>, Vec<IndexedDeletedObject>) {
     use std::collections::HashMap;
 
-    let mut mutations = HashMap::<ObjectID, IndexedObject>::new();
-    let mut deletions = HashMap::<ObjectID, IndexedDeletedObject>::new();
+    let mut mutations = HashMap::<ObjectId, IndexedObject>::new();
+    let mut deletions = HashMap::<ObjectId, IndexedDeletedObject>::new();
 
     for change in tx_object_changes {
         // Remove mutation / deletion with a following deletion / mutation,
@@ -2525,7 +2524,7 @@ fn retain_latest_indexed_objects(
 
             if let Some(existing) = deletions.remove(&id) {
                 assert!(
-                    existing.object_version < version.value(),
+                    existing.object_version < version,
                     "mutation version ({version:?}) should be greater than existing deletion version ({:?}) for object {id:?}",
                     existing.object_version
                 );
@@ -2546,7 +2545,7 @@ fn retain_latest_indexed_objects(
 
             if let Some(existing) = mutations.remove(&id) {
                 assert!(
-                    existing.object.version().value() < version,
+                    existing.object.version() < version,
                     "deletion version ({version:?}) should be greater than existing mutation version ({:?}) for object {id:?}",
                     existing.object.version(),
                 );

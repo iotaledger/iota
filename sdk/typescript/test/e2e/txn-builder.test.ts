@@ -13,7 +13,7 @@ import {
 } from '../../src/client';
 import type { Keypair } from '../../src/cryptography';
 import { Transaction } from '../../src/transactions';
-import { normalizeIotaObjectId, IOTA_SYSTEM_STATE_OBJECT_ID } from '../../src/utils';
+import { normalizeIotaObjectId, ObjectId::SYSTEM } from '../../src/utils';
 import {
     DEFAULT_GAS_BUDGET,
     DEFAULT_RECIPIENT,
@@ -23,7 +23,7 @@ import {
     upgradePackage,
 } from './utils/setup';
 
-export const IOTA_CLOCK_OBJECT_ID = normalizeIotaObjectId('0x6');
+export const ObjectId::CLOCK = normalizeIotaObjectId('0x6');
 
 describe('Transaction Builders', () => {
     let toolbox: TestToolbox;
@@ -91,7 +91,7 @@ describe('Transaction Builders', () => {
             tx.moveCall({
                 target: '0x3::iota_system::request_add_stake',
                 arguments: [
-                    tx.object(IOTA_SYSTEM_STATE_OBJECT_ID),
+                    tx.object(ObjectId::SYSTEM),
                     tx.object(coin_2.coinObjectId),
                     tx.pure.address(validatorAddress),
                 ],
@@ -157,7 +157,7 @@ describe('Transaction Builders', () => {
         const tx = new Transaction();
         tx.moveCall({
             target: `${packageId}::serializer_tests::use_clock`,
-            arguments: [tx.object(IOTA_CLOCK_OBJECT_ID)],
+            arguments: [tx.object(ObjectId::CLOCK)],
         });
         await validateTransaction(toolbox.client, toolbox.keypair, tx);
     });

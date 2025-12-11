@@ -11,7 +11,7 @@ use std::{
 use colored::Colorize;
 use iota_macros::EnumVariantOrder;
 use iota_types::{
-    base_types::{IotaAddress, ObjectID},
+    base_types::{Address, ObjectId},
     error::{IotaError, UserInputError},
     iota_serde::IotaStructTag,
 };
@@ -141,7 +141,7 @@ pub struct IotaMoveModuleId {
 #[serde(rename_all = "camelCase")]
 pub struct MoveFunctionName {
     /// The package ID to which the function belongs.
-    pub package: ObjectID,
+    pub package: ObjectId,
     /// The module name to which the function belongs.
     pub module: String,
     /// The function name.
@@ -156,7 +156,7 @@ impl FromStr for MoveFunctionName {
             iota_types::parse_iota_fq_name(s).map_err(|e| UserInputError::InvalidIdentifier {
                 error: e.to_string(),
             })?;
-        let package = ObjectID::from_address(*module.address());
+        let package = ObjectId::new(module.address().into_bytes());
         Ok(Self {
             package,
             module: module.name().to_string(),
@@ -417,10 +417,10 @@ pub enum IotaMoveValue {
     // u64 and u128 are converted to String to avoid overflow
     Number(u32),
     Bool(bool),
-    Address(IotaAddress),
+    Address(Address),
     Vector(Vec<IotaMoveValue>),
     String(String),
-    UID { id: ObjectID },
+    UID { id: ObjectId },
     Struct(IotaMoveStruct),
     Option(Box<Option<IotaMoveValue>>),
     Variant(IotaMoveVariant),
@@ -489,7 +489,7 @@ impl From<MoveValue> for IotaMoveValue {
                 IotaMoveValue::Struct(value.into())
             }
             MoveValue::Signer(value) | MoveValue::Address(value) => {
-                IotaMoveValue::Address(IotaAddress::from(ObjectID::from(value)))
+                IotaMoveValue::Address(Address::new(value.into_bytes()))
             }
             MoveValue::Variant(MoveVariant {
                 type_,
@@ -694,7 +694,7 @@ fn try_convert_type(
             let id = values.remove("id").cloned().map(IotaMoveValue::from);
             if let Some(IotaMoveValue::Address(address)) = id {
                 return Some(IotaMoveValue::UID {
-                    id: ObjectID::from(address),
+                    id: ObjectId::from(address),
                 });
             }
         }

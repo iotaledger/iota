@@ -15,15 +15,15 @@ use super::{authority_test_utils::*, *};
 
 pub fn build_test_modules_with_dep_addr(
     path: &Path,
-    dep_original_addresses: impl IntoIterator<Item = (&'static str, ObjectID)>,
-    dep_ids: impl IntoIterator<Item = (&'static str, ObjectID)>,
+    dep_original_addresses: impl IntoIterator<Item = (&'static str, ObjectId)>,
+    dep_ids: impl IntoIterator<Item = (&'static str, ObjectId)>,
 ) -> CompiledPackage {
     let mut build_config = BuildConfig::new_for_testing();
     for (addr_name, obj_id) in dep_original_addresses {
-        build_config
-            .config
-            .additional_named_addresses
-            .insert(addr_name.to_string(), AccountAddress::from(obj_id));
+        build_config.config.additional_named_addresses.insert(
+            addr_name.to_string(),
+            AccountAddress::new(obj_id.into_bytes()),
+        );
     }
     let mut package = build_config.build(path).unwrap();
 
@@ -60,19 +60,19 @@ pub fn build_test_modules_with_dep_addr(
 /// version (if there were upgrades).
 pub async fn publish_package_on_single_authority(
     path: &Path,
-    sender: IotaAddress,
+    sender: Address,
     sender_key: &dyn Signer<Signature>,
-    gas_payment: ObjectRef,
-    dep_original_addresses: impl IntoIterator<Item = (&'static str, ObjectID)>,
-    dep_ids: Vec<ObjectID>,
+    gas_payment: ObjectReference,
+    dep_original_addresses: impl IntoIterator<Item = (&'static str, ObjectId)>,
+    dep_ids: Vec<ObjectId>,
     state: &Arc<AuthorityState>,
-) -> IotaResult<(TransactionDigest, (ObjectID, ObjectRef))> {
+) -> IotaResult<(TransactionDigest, (ObjectId, ObjectReference))> {
     let mut build_config = BuildConfig::new_for_testing();
     for (addr_name, obj_id) in dep_original_addresses {
-        build_config
-            .config
-            .additional_named_addresses
-            .insert(addr_name.to_string(), AccountAddress::from(obj_id));
+        build_config.config.additional_named_addresses.insert(
+            addr_name.to_string(),
+            AccountAddress::new(obj_id.into_bytes()),
+        );
     }
     let modules = build_config.build(path).unwrap().get_package_bytes(false);
 
@@ -100,7 +100,7 @@ pub async fn publish_package_on_single_authority(
         .find(|c| c.1 == Owner::Immutable)
         .unwrap()
         .0
-        .0;
+        .object_id;
     let cap_object = effects
         .data()
         .created()
@@ -113,15 +113,15 @@ pub async fn publish_package_on_single_authority(
 
 pub async fn upgrade_package_on_single_authority(
     path: &Path,
-    sender: IotaAddress,
+    sender: Address,
     sender_key: &dyn Signer<Signature>,
-    gas_payment: ObjectRef,
-    package_id: ObjectID,
-    upgrade_cap: ObjectRef,
-    dep_original_addresses: impl IntoIterator<Item = (&'static str, ObjectID)>,
-    dep_id_mapping: impl IntoIterator<Item = (&'static str, ObjectID)>,
+    gas_payment: ObjectReference,
+    package_id: ObjectId,
+    upgrade_cap: ObjectReference,
+    dep_original_addresses: impl IntoIterator<Item = (&'static str, ObjectId)>,
+    dep_id_mapping: impl IntoIterator<Item = (&'static str, ObjectId)>,
     state: &Arc<AuthorityState>,
-) -> IotaResult<(TransactionDigest, ObjectID)> {
+) -> IotaResult<(TransactionDigest, ObjectId)> {
     let package = build_test_modules_with_dep_addr(path, dep_original_addresses, dep_id_mapping);
 
     let with_unpublished_deps = false;
@@ -152,6 +152,6 @@ pub async fn upgrade_package_on_single_authority(
         .find(|c| c.1 == Owner::Immutable)
         .unwrap()
         .0
-        .0;
+        .object_id;
     Ok((*effects.transaction_digest(), package_id))
 }

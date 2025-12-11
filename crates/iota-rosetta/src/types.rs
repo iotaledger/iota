@@ -11,8 +11,7 @@ use axum::{
 use fastcrypto::encoding::Hex;
 use iota_sdk::rpc_types::{IotaExecutionStatus, IotaTransactionBlockKind};
 use iota_types::{
-    IOTA_SYSTEM_PACKAGE_ID,
-    base_types::{IotaAddress, ObjectID, ObjectRef, SequenceNumber, TransactionDigest},
+    base_types::{Address, ObjectId, ObjectReference, TransactionDigest, address_from_pub_key},
     crypto::{PublicKey as IotaPublicKey, SignatureScheme},
     governance::{ADD_STAKE_FUN_NAME, WITHDRAW_STAKE_FUN_NAME},
     iota_system_state::IOTA_SYSTEM_MODULE_NAME,
@@ -69,7 +68,7 @@ impl IotaEnv {
 
 #[derive(Serialize, Deserialize, Clone, Debug, Eq, PartialEq)]
 pub struct AccountIdentifier {
-    pub address: IotaAddress,
+    pub address: Address,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub sub_account: Option<SubAccount>,
 }
@@ -87,8 +86,8 @@ pub enum SubAccountType {
     EstimatedReward,
 }
 
-impl From<IotaAddress> for AccountIdentifier {
-    fn from(address: IotaAddress) -> Self {
+impl From<Address> for AccountIdentifier {
+    fn from(address: Address) -> Self {
         AccountIdentifier {
             address,
             sub_account: None,
@@ -146,8 +145,8 @@ pub struct AmountMetadata {
 
 #[derive(Serialize, Deserialize, Clone, Debug, Eq, PartialEq)]
 pub struct SubBalance {
-    pub stake_id: ObjectID,
-    pub validator: IotaAddress,
+    pub stake_id: ObjectId,
+    pub validator: Address,
     #[serde(with = "str_format")]
     pub value: i128,
 }
@@ -239,8 +238,8 @@ pub struct CoinIdentifier {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct CoinID {
-    pub id: ObjectID,
-    pub version: SequenceNumber,
+    pub id: ObjectId,
+    pub version: iota_types::base_types::Version,
 }
 
 impl Serialize for CoinID {
@@ -248,7 +247,7 @@ impl Serialize for CoinID {
     where
         S: Serializer,
     {
-        format!("{}:{}", self.id, self.version.value()).serialize(serializer)
+        format!("{}:{}", self.id, self.version).serialize(serializer)
     }
 }
 
@@ -264,8 +263,8 @@ impl<'de> Deserialize<'de> for CoinID {
                 .ok_or_else(|| D::Error::custom(format!("Malformed Coin id [{s}].")))?,
         );
         let version = version.trim_start_matches(':');
-        let id = ObjectID::from_hex_literal(id).map_err(D::Error::custom)?;
-        let version = SequenceNumber::from_u64(u64::from_str(version).map_err(D::Error::custom)?);
+        let id = ObjectId::from_hex(id).map_err(D::Error::custom)?;
+        let version = u64::from_str(version).map_err(D::Error::custom)?;
 
         Ok(Self { id, version })
     }
@@ -273,23 +272,27 @@ impl<'de> Deserialize<'de> for CoinID {
 
 #[test]
 fn test_coin_id_serde() {
-    let id = ObjectID::random();
-    let coin_id = CoinID {
-        id,
-        version: SequenceNumber::from_u64(10),
-    };
+    let id = ObjectId::new(rand::random());
+    let coin_id = CoinID { id, version: 10 };
     let s = serde_json::to_string(&coin_id).unwrap();
     assert_eq!(format!("\"{}:{}\"", id, 10), s);
 
     let deserialized: CoinID = serde_json::from_str(&s).unwrap();
 
     assert_eq!(id, deserialized.id);
-    assert_eq!(SequenceNumber::from_u64(10), deserialized.version)
+    assert_eq!(10, deserialized.version)
 }
 
-impl From<ObjectRef> for CoinID {
-    fn from((id, version, _): ObjectRef) -> Self {
-        Self { id, version }
+impl From<ObjectReference> for CoinID {
+    fn from(
+        ObjectReference {
+            object_id, version, ..
+        }: ObjectReference,
+    ) -> Self {
+        Self {
+            id: object_id,
+            version,
+        }
     }
 }
 
@@ -349,13 +352,13 @@ impl From<IotaPublicKey> for PublicKey {
     }
 }
 
-impl TryInto<IotaAddress> for PublicKey {
+impl TryFrom<PublicKey> for Address {
     type Error = Error;
 
-    fn try_into(self) -> Result<IotaAddress, Self::Error> {
-        let key_bytes = self.hex_bytes.to_vec()?;
-        let pub_key = IotaPublicKey::try_from_bytes(self.curve_type.into(), &key_bytes)?;
-        Ok((&pub_key).into())
+    fn try_from(value: PublicKey) -> Result<Self, Self::Error> {
+        let key_bytes = value.hex_bytes.to_vec()?;
+        let pub_key = IotaPublicKey::try_from_bytes(value.curve_type.into(), &key_bytes)?;
+        Ok(address_from_pub_key(&pub_key))
     }
 }
 
@@ -608,9 +611,9 @@ pub struct ConstructionMetadataResponse {
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct ConstructionMetadata {
-    pub sender: IotaAddress,
-    pub coins: Vec<ObjectRef>,
-    pub objects: Vec<ObjectRef>,
+    pub sender: Address,
+    pub coins: Vec<ObjectReference>,
+    pub objects: Vec<ObjectReference>,
     pub total_coin_value: u64,
     pub gas_price: u64,
     pub budget: u64,
@@ -681,7 +684,7 @@ pub struct SyncStatus {
 }
 #[derive(Serialize)]
 pub struct Peer {
-    pub peer_id: IotaAddress,
+    pub peer_id: Address,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub metadata: Option<Value>,
 }
@@ -857,24 +860,24 @@ pub struct PrefundedAccount {
 #[derive(Serialize, Deserialize, Debug)]
 pub enum InternalOperation {
     PayIota {
-        sender: IotaAddress,
-        recipients: Vec<IotaAddress>,
+        sender: Address,
+        recipients: Vec<Address>,
         amounts: Vec<u64>,
     },
     Stake {
-        sender: IotaAddress,
-        validator: IotaAddress,
+        sender: Address,
+        validator: Address,
         amount: Option<u64>,
     },
     WithdrawStake {
-        sender: IotaAddress,
+        sender: Address,
         #[serde(default, skip_serializing_if = "Vec::is_empty")]
-        stake_ids: Vec<ObjectID>,
+        stake_ids: Vec<ObjectId>,
     },
 }
 
 impl InternalOperation {
-    pub fn sender(&self) -> IotaAddress {
+    pub fn sender(&self) -> Address {
         match self {
             InternalOperation::PayIota { sender, .. }
             | InternalOperation::Stake { sender, .. }
@@ -917,7 +920,7 @@ impl InternalOperation {
                 let arguments = vec![system_state, coin, validator];
 
                 builder.command(Command::move_call(
-                    IOTA_SYSTEM_PACKAGE_ID,
+                    ObjectId::from_address(Address::SYSTEM),
                     IOTA_SYSTEM_MODULE_NAME.to_owned(),
                     ADD_STAKE_FUN_NAME.to_owned(),
                     vec![],
@@ -945,7 +948,7 @@ impl InternalOperation {
 
                     let arguments = vec![system_state, id];
                     builder.command(Command::move_call(
-                        IOTA_SYSTEM_PACKAGE_ID,
+                        ObjectId::from_address(Address::SYSTEM),
                         IOTA_SYSTEM_MODULE_NAME.to_owned(),
                         WITHDRAW_STAKE_FUN_NAME.to_owned(),
                         vec![],

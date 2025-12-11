@@ -7,7 +7,7 @@ use std::collections::HashMap;
 use anyhow::Context;
 use iota_data_ingestion_core::{IndexerExecutor, WorkerPool};
 use iota_metrics::get_metrics;
-use iota_types::messages_checkpoint::CheckpointSequenceNumber;
+use iota_types::base_types::Version;
 use tokio::task::JoinHandle;
 use tokio_util::sync::CancellationToken;
 use tracing::info;
@@ -28,7 +28,7 @@ const CHECKPOINT_QUEUE_SIZE: usize = 100;
 pub(crate) struct PrimaryPipeline {
     pub executor: IndexerExecutor<ShimIndexerProgressStore>,
     writer: PrimaryWriter,
-    watermark: CheckpointSequenceNumber,
+    watermark: Version,
     cancel: CancellationToken,
 }
 
@@ -126,7 +126,7 @@ impl PrimaryPipeline {
 
 async fn start_writer_task(
     mut writer: PrimaryWriter,
-    mut next_checkpoint_sequence_number: CheckpointSequenceNumber,
+    mut next_checkpoint_sequence_number: Version,
     cancel: CancellationToken,
 ) -> IndexerResult<()> {
     use futures::StreamExt;

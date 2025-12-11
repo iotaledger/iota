@@ -3,9 +3,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use iota_json_rpc_types::IotaMoveStruct;
+use iota_sdk_2::types::Address;
 use iota_types::{
-    IOTA_FRAMEWORK_ADDRESS, MOVE_STDLIB_ADDRESS, base_types::ObjectID, gas_coin::GasCoin,
-    object::bounded_visitor::BoundedVisitor,
+    base_types::ObjectId, gas_coin::GasCoin, object::bounded_visitor::BoundedVisitor,
 };
 use move_core_types::{
     account_address::AccountAddress,
@@ -24,9 +24,9 @@ fn test_to_json_value() {
         name: "test_event".into(),
         data: vec![100, 200, 300],
         coins: vec![
-            GasCoin::new(ObjectID::random(), 1000000),
-            GasCoin::new(ObjectID::random(), 2000000),
-            GasCoin::new(ObjectID::random(), 3000000),
+            GasCoin::new(ObjectId::new(rand::random()), 1000000),
+            GasCoin::new(ObjectId::new(rand::random()), 2000000),
+            GasCoin::new(ObjectId::new(rand::random()), 3000000),
         ],
     };
     let event_bytes = bcs::to_bytes(&move_event).unwrap();
@@ -72,7 +72,7 @@ pub struct TestEvent {
 impl TestEvent {
     fn type_() -> StructTag {
         StructTag {
-            address: IOTA_FRAMEWORK_ADDRESS,
+            address: AccountAddress::new(Address::FRAMEWORK.into_bytes()),
             module: ident_str!("IOTA").to_owned(),
             name: ident_str!("new_foobar").to_owned(),
             type_params: vec![],
@@ -121,7 +121,7 @@ impl From<&str> for UTF8String {
 impl UTF8String {
     fn type_() -> StructTag {
         StructTag {
-            address: MOVE_STDLIB_ADDRESS,
+            address: AccountAddress::new(Address::STD_LIB.into_bytes()),
             name: Identifier::new("String").unwrap(),
             module: Identifier::new("string").unwrap(),
             type_params: vec![],

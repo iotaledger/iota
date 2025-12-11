@@ -12,7 +12,7 @@ use std::{
 
 use iota_rest_api::{CheckpointData, Client};
 use iota_storage::blob::Blob;
-use iota_types::messages_checkpoint::CheckpointSequenceNumber;
+use iota_types::base_types::Version;
 #[cfg(not(target_os = "macos"))]
 use notify::{RecommendedWatcher, RecursiveMode};
 use object_store::{ObjectStore, path::Path as ObjectStorePath};
@@ -30,13 +30,13 @@ pub(crate) trait LocalRead {
     fn path(&self) -> &Path;
 
     /// Returns the current checkpoint sequence number.
-    fn current_checkpoint_number(&self) -> CheckpointSequenceNumber;
+    fn current_checkpoint_number(&self) -> Version;
 
-    fn update_last_pruned_watermark(&mut self, watermark: CheckpointSequenceNumber);
+    fn update_last_pruned_watermark(&mut self, watermark: Version);
 
     /// Returns `true` if the given checkpoint sequence number exceeds the
     /// allowed capacity.
-    fn exceeds_capacity(&self, checkpoint_number: CheckpointSequenceNumber) -> bool;
+    fn exceeds_capacity(&self, checkpoint_number: Version) -> bool;
 
     /// Returns `true` if the checkpoint's sequence number is ahead of the
     /// expected sequence number, indicating a gap in the processed
@@ -44,7 +44,7 @@ pub(crate) trait LocalRead {
     fn is_checkpoint_ahead(
         &self,
         checkpoint: &CheckpointData,
-        expected_sequence_number: CheckpointSequenceNumber,
+        expected_sequence_number: Version,
     ) -> bool {
         checkpoint.checkpoint_summary.sequence_number > expected_sequence_number
     }
@@ -54,9 +54,7 @@ pub(crate) trait LocalRead {
     /// Scans the checkpoint directory for files whose sequence number is
     /// greater than or equal to the current checkpoint number. Returns a
     /// map of sequence numbers to file paths, sorted in ascending order.
-    fn list_unprocessed_checkpoint_files(
-        &self,
-    ) -> IngestionResult<BTreeMap<CheckpointSequenceNumber, PathBuf>> {
+    fn list_unprocessed_checkpoint_files(&self) -> IngestionResult<BTreeMap<Version, PathBuf>> {
         let mut files = BTreeMap::new();
         for entry in fs::read_dir(self.path())? {
             let entry = entry?;
@@ -117,10 +115,7 @@ pub(crate) trait LocalRead {
             .map_err(|err| IngestionError::DeserializeCheckpoint(err.to_string()))
     }
 
-    fn checkpoint_number_from_file_path(
-        &self,
-        file_name: &OsString,
-    ) -> Option<CheckpointSequenceNumber> {
+    fn checkpoint_number_from_file_path(&self, file_name: &OsString) -> Option<Version> {
         file_name
             .to_str()
             .and_then(|s| s.rfind('.').map(|pos| &s[..pos]))
@@ -128,7 +123,7 @@ pub(crate) trait LocalRead {
     }
 
     /// Cleans the local directory by removing all processed checkpoint files.
-    fn gc_processed_files(&mut self, watermark: CheckpointSequenceNumber) -> IngestionResult<()> {
+    fn gc_processed_files(&mut self, watermark: Version) -> IngestionResult<()> {
         info!("cleaning processed files, watermark is {watermark}");
         self.update_last_pruned_watermark(watermark);
         for entry in fs::read_dir(self.path())? {
@@ -187,7 +182,7 @@ impl Display for ReadSource {
 /// Fetches and deserializes a checkpoint from an object store.
 pub async fn fetch_from_object_store(
     store: &dyn ObjectStore,
-    checkpoint_number: CheckpointSequenceNumber,
+    checkpoint_number: Version,
 ) -> CheckpointResult {
     let path = ObjectStorePath::from(format!("{checkpoint_number}.{CHECKPOINT_FILE_SUFFIX}"));
     debug!("fetch {path} from live");
@@ -201,10 +196,7 @@ pub async fn fetch_from_object_store(
 }
 
 /// Fetches and deserializes a checkpoint from a full node via REST API.
-pub async fn fetch_from_full_node(
-    client: &Client,
-    checkpoint_number: CheckpointSequenceNumber,
-) -> CheckpointResult {
+pub async fn fetch_from_full_node(client: &Client, checkpoint_number: Version) -> CheckpointResult {
     let checkpoint = client.get_full_checkpoint(checkpoint_number).await?;
     let size = bcs::serialized_size(&checkpoint)?;
     Ok((Arc::new(checkpoint), size))

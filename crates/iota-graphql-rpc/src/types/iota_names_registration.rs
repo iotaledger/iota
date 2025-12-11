@@ -10,7 +10,7 @@ use iota_names::{
     IotaNamesNft, config::IotaNamesConfig, error::IotaNamesError, name::Name as NativeName,
     registry::NameRecord,
 };
-use iota_types::{base_types::IotaAddress as NativeIotaAddress, dynamic_field::Field, id::UID};
+use iota_types::{base_types::Address as NativeIotaAddress, dynamic_field::Field, id::UID};
 use move_core_types::language_storage::StructTag;
 use serde::{Deserialize, Serialize};
 

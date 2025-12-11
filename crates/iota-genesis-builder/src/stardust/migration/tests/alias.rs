@@ -17,7 +17,7 @@ use iota_sdk::types::block::{
 };
 use iota_types::{
     TypeTag,
-    base_types::ObjectID,
+    base_types::ObjectId,
     dynamic_field::{DynamicFieldInfo, derive_dynamic_field_id},
     id::UID,
     object::{Object, Owner},
@@ -44,7 +44,7 @@ fn migrate_alias(
     header: OutputHeader,
     stardust_alias: StardustAlias,
     coin_type: CoinType,
-) -> anyhow::Result<(ObjectID, Alias, AliasOutput, Object, Object)> {
+) -> anyhow::Result<(ObjectId, Alias, AliasOutput, Object, Object)> {
     let output_id = header.output_id();
     let alias_id: AliasId = stardust_alias
         .alias_id()
@@ -58,7 +58,7 @@ fn migrate_alias(
     )?;
 
     // Ensure the migrated objects exist under the expected identifiers.
-    let alias_object_id = ObjectID::new(*alias_id);
+    let alias_object_id = ObjectId::new(*alias_id);
     let created_objects = objects_map
         .get(&output_id)
         .expect("alias output should have created objects");
@@ -84,11 +84,11 @@ fn migrate_alias(
     // timestamp. When the alias is attached to the alias output, the version
     // should be incremented.
     assert!(
-        alias_object.version().value() > 1,
+        alias_object.version() > 1,
         "alias object version should have been incremented"
     );
     assert!(
-        alias_output_object.version().value() > 1,
+        alias_output_object.version() > 1,
         "alias output object version should have been incremented"
     );
 
@@ -138,10 +138,10 @@ fn alias_migration_with_full_features() {
     assert_eq!(stardust_alias.amount(), alias_output.balance.value());
     // The ID is newly generated, so we don't know the exact value, but it should
     // not be zero.
-    assert_ne!(alias_output.id, UID::new(ObjectID::ZERO));
+    assert_ne!(alias_output.id, UID::new(ObjectId::ZERO));
     assert_ne!(
         alias_output.id,
-        UID::new(ObjectID::new(
+        UID::new(ObjectId::new(
             stardust_alias.alias_id().as_slice().try_into().unwrap()
         ))
     );

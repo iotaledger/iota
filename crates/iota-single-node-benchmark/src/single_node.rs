@@ -22,7 +22,7 @@ use iota_core::{
 };
 use iota_test_transaction_builder::{PublishData, TestTransactionBuilder};
 use iota_types::{
-    base_types::{AuthorityName, IotaAddress, ObjectRef, TransactionDigest},
+    base_types::{Address, AuthorityName, ObjectReference, TransactionDigest},
     committee::Committee,
     crypto::{AccountKeyPair, AuthoritySignature, Signer},
     effects::{TransactionEffects, TransactionEffectsAPI},
@@ -100,10 +100,10 @@ impl SingleValidator {
     pub async fn publish_package(
         &self,
         publish_data: PublishData,
-        sender: IotaAddress,
+        sender: Address,
         keypair: &AccountKeyPair,
-        gas: ObjectRef,
-    ) -> (ObjectRef, ObjectRef) {
+        gas: ObjectReference,
+    ) -> (ObjectReference, ObjectReference) {
         let tx_builder = TestTransactionBuilder::new(sender, gas, DEFAULT_VALIDATOR_GAS_PRICE)
             .publish_with_data(publish_data);
         let transaction = tx_builder.build_and_sign(keypair);

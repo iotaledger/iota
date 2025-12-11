@@ -28,9 +28,9 @@ use iota_macros::sim_test;
 use iota_sdk::IotaClient;
 use iota_sdk_2::types::crypto::Intent;
 use iota_types::{
-    IOTA_FRAMEWORK_ADDRESS, STARDUST_ADDRESS, TypeTag,
+    TypeTag,
     balance::Balance,
-    base_types::{IotaAddress, MoveObjectType, ObjectID},
+    base_types::{Address, MoveObjectType, ObjectId},
     crypto::SignatureScheme::ED25519,
     dynamic_field::DynamicFieldName,
     gas_coin::GAS,
@@ -82,7 +82,7 @@ async fn test_full_node_load_migration_data_with_address_swap() -> Result<(), an
     // A new test cluster can be spawn with the stardust object snapshot
     let test_cluster = TestClusterBuilder::new()
         .with_migration_data(vec![snapshot_source])
-        .with_delegator(IotaAddress::from_str(DELEGATOR).unwrap())
+        .with_delegator(Address::from_str(DELEGATOR).unwrap())
         .build()
         .await;
 
@@ -127,7 +127,7 @@ async fn test_full_node_load_migration_data_with_address_swap_split() -> Result<
     // A new test cluster can be spawn with the stardust object snapshot
     let test_cluster = TestClusterBuilder::new()
         .with_migration_data(vec![snapshot_source])
-        .with_delegator(IotaAddress::from_str(DELEGATOR).unwrap())
+        .with_delegator(Address::from_str(DELEGATOR).unwrap())
         .build()
         .await;
 
@@ -203,9 +203,8 @@ async fn address_unlock_condition(
 
     // This object id was fetched manually. It refers to an Alias Output object that
     // owns a NftOutput.
-    let alias_output_object_id = ObjectID::from_hex_literal(
-        "0xe6bf3ef78d57eb36d7959b64a272c3581cdaeb93a1f1bf1068651901e3b1e91a",
-    )?;
+    let alias_output_object_id =
+        ObjectId::from_hex("0xe6bf3ef78d57eb36d7959b64a272c3581cdaeb93a1f1bf1068651901e3b1e91a")?;
 
     let alias_output_object = iota_client
         .read_api()
@@ -234,7 +233,7 @@ async fn address_unlock_condition(
         .await?
         .data
         .ok_or(anyhow!("alias not found"))?;
-    let alias_object_address = alias_object.object_ref().0;
+    let alias_object_address = alias_object.object_ref().object_id;
 
     // Some objects are owned by the Alias object. In this case we filter them by
     // type using the NftOutput type.
@@ -268,7 +267,7 @@ async fn address_unlock_condition(
         let type_arguments = vec![GAS::type_tag()];
         let arguments = vec![builder.obj(ObjectArg::ImmOrOwnedObject(alias_output_object_ref))?];
         if let Argument::Result(extracted_alias_output_assets) = builder.programmable_move_call(
-            STARDUST_ADDRESS.into(),
+            Address::STARDUST.into(),
             ident_str!("alias_output").to_owned(),
             ident_str!("extract_assets").to_owned(),
             type_arguments,
@@ -284,7 +283,7 @@ async fn address_unlock_condition(
 
             // Extract the IOTA balance.
             let iota_coin = builder.programmable_move_call(
-                IOTA_FRAMEWORK_ADDRESS.into(),
+                Address::FRAMEWORK.into(),
                 ident_str!("coin").to_owned(),
                 ident_str!("from_balance").to_owned(),
                 type_arguments,
@@ -297,7 +296,7 @@ async fn address_unlock_condition(
             // Cleanup the bag.
             let arguments = vec![extracted_native_tokens_bag];
             builder.programmable_move_call(
-                IOTA_FRAMEWORK_ADDRESS.into(),
+                Address::FRAMEWORK.into(),
                 ident_str!("bag").to_owned(),
                 ident_str!("destroy_empty").to_owned(),
                 vec![],
@@ -312,7 +311,7 @@ async fn address_unlock_condition(
             ];
 
             let nft_output = builder.programmable_move_call(
-                STARDUST_ADDRESS.into(),
+                Address::STARDUST.into(),
                 ident_str!("address_unlock_condition").to_owned(),
                 ident_str!("unlock_alias_address_owned_nft").to_owned(),
                 type_arguments,
@@ -327,7 +326,7 @@ async fn address_unlock_condition(
             let arguments = vec![nft_output];
             // Finally call the nft_output::extract_assets function
             if let Argument::Result(extracted_assets) = builder.programmable_move_call(
-                STARDUST_ADDRESS.into(),
+                Address::STARDUST.into(),
                 ident_str!("nft_output").to_owned(),
                 ident_str!("extract_assets").to_owned(),
                 type_arguments,
@@ -345,7 +344,7 @@ async fn address_unlock_condition(
 
                 // Extract the IOTA balance.
                 let iota_coin = builder.programmable_move_call(
-                    IOTA_FRAMEWORK_ADDRESS.into(),
+                    Address::FRAMEWORK.into(),
                     ident_str!("coin").to_owned(),
                     ident_str!("from_balance").to_owned(),
                     type_arguments,
@@ -358,7 +357,7 @@ async fn address_unlock_condition(
                 // Cleanup the bag because it is empty.
                 let arguments = vec![extracted_native_tokens_bag];
                 builder.programmable_move_call(
-                    IOTA_FRAMEWORK_ADDRESS.into(),
+                    Address::FRAMEWORK.into(),
                     ident_str!("bag").to_owned(),
                     ident_str!("destroy_empty").to_owned(),
                     vec![],
@@ -405,7 +404,7 @@ async fn address_unlock_condition(
 pub async fn fund_address(
     iota_client: &IotaClient,
     keystore: &mut FileBasedKeystore,
-    recipient: IotaAddress,
+    recipient: Address,
 ) -> Result<(), anyhow::Error> {
     // Derive the address of the sponsor.
     let sponsor = keystore.import_from_mnemonic(SPONSOR_ADDRESS_MNEMONIC, ED25519, None, None)?;

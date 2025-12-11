@@ -18,8 +18,7 @@ use iota_json_rpc_types::{
 use iota_macros::sim_test;
 use iota_move_build::BuildConfig;
 use iota_types::{
-    IOTA_FRAMEWORK_ADDRESS,
-    base_types::{ObjectID, SequenceNumber},
+    base_types::{Address, ObjectId, Version, VersionExt},
     coin::Coin,
     digests::ObjectDigest,
     gas_coin::GAS,
@@ -35,13 +34,13 @@ fn assert_same_object_changes_ignoring_version_and_digest(
 ) {
     fn collect_changes_mask_version_and_digest(
         changes: Vec<ObjectChange>,
-    ) -> BTreeMap<ObjectID, ObjectChange> {
+    ) -> BTreeMap<ObjectId, ObjectChange> {
         changes
             .into_iter()
             .map(|mut change| {
                 let object_id = change.object_id();
                 // ignore the version and digest for comparison
-                change.mask_for_test(SequenceNumber::MAX_VALID_EXCL, ObjectDigest::MAX);
+                change.mask_for_test(Version::MAX_VALID_EXCL, ObjectDigest::MAX);
                 (object_id, change)
             })
             .collect()
@@ -109,7 +108,7 @@ async fn test_transfer_iota() -> Result<(), anyhow::Error> {
     let address = cluster.get_address_0();
     let other_address = cluster.get_address_1();
 
-    let (gas, _, _) = cluster
+    let gas = cluster
         .wallet
         .get_one_gas_object_owned_by_address(address)
         .await?
@@ -119,7 +118,7 @@ async fn test_transfer_iota() -> Result<(), anyhow::Error> {
     let transaction_bytes: TransactionBlockBytes = http_client
         .transfer_iota(
             address,
-            gas,
+            gas.object_id,
             10_000_000.into(),
             other_address,
             Some(u64::try_from(amount_to_transfer).unwrap().into()),
@@ -159,17 +158,17 @@ async fn test_pay() -> Result<(), anyhow::Error> {
         .wallet
         .get_gas_objects_owned_by_address(address, Some(2))
         .await?;
-    let (gas_to_send, _, _) = gas_objs[0];
-    let (gas_to_pay_for_tx, _, _) = gas_objs[1];
+    let gas_to_send = gas_objs[0];
+    let gas_to_pay_for_tx = gas_objs[1];
 
     let amount_to_transfer: i128 = 123;
     let transaction_bytes: TransactionBlockBytes = http_client
         .pay(
             address,
-            vec![gas_to_send],
+            vec![gas_to_send.object_id],
             vec![other_address],
             vec![u64::try_from(amount_to_transfer).unwrap().into()],
-            Some(gas_to_pay_for_tx),
+            Some(gas_to_pay_for_tx.object_id),
             10_000_000.into(),
         )
         .await?;
@@ -218,7 +217,10 @@ async fn test_pay_iota() -> Result<(), anyhow::Error> {
     let transaction_bytes: TransactionBlockBytes = http_client
         .pay_iota(
             address,
-            coins.iter().map(|coin| coin.object_ref().0).collect(),
+            coins
+                .iter()
+                .map(|coin| coin.object_ref().object_id)
+                .collect(),
             vec![recipient_1, recipient_2],
             vec![recipient_1_amount.into(), recipient_2_amount.into()],
             budget.into(),
@@ -273,7 +275,10 @@ async fn test_pay_all_iota() -> Result<(), anyhow::Error> {
     let transaction_bytes: TransactionBlockBytes = http_client
         .pay_all_iota(
             address,
-            coins.iter().map(|coin| coin.object_ref().0).collect(),
+            coins
+                .iter()
+                .map(|coin| coin.object_ref().object_id)
+                .collect(),
             recipient,
             budget.into(),
         )
@@ -376,7 +381,7 @@ async fn test_split_coin() -> Result<(), anyhow::Error> {
         .await
         .unwrap();
 
-    let new_coin_ids: Vec<ObjectID> = tx_response
+    let new_coin_ids: Vec<ObjectId> = tx_response
         .effects
         .unwrap()
         .created()
@@ -442,7 +447,7 @@ async fn test_split_coin_equal() -> Result<(), anyhow::Error> {
         .await
         .unwrap();
 
-    let new_coin_ids: Vec<ObjectID> = tx_response
+    let new_coin_ids: Vec<ObjectId> = tx_response
         .effects
         .unwrap()
         .created()
@@ -518,7 +523,7 @@ async fn test_merge_coin() -> Result<(), anyhow::Error> {
         .await
         .unwrap();
 
-    let deleted_coin_ids: Vec<ObjectID> = tx_response
+    let deleted_coin_ids: Vec<ObjectId> = tx_response
         .effects
         .unwrap()
         .deleted()
@@ -565,7 +570,7 @@ async fn test_batch_transaction() -> Result<(), anyhow::Error> {
             address,
             vec![
                 RPCTransactionRequestParams::MoveCallRequestParams(MoveCallParams {
-                    package_object_id: ObjectID::new(IOTA_FRAMEWORK_ADDRESS.into_bytes()),
+                    package_object_id: ObjectId::from_address(Address::FRAMEWORK),
                     module: "pay".to_string(),
                     function: "split".to_string(),
                     type_arguments: type_args![GAS::type_tag()]?,
@@ -591,7 +596,7 @@ async fn test_batch_transaction() -> Result<(), anyhow::Error> {
 
     // Assert results of the move call
     {
-        let created_coin_ids: Vec<ObjectID> = tx_response
+        let created_coin_ids: Vec<ObjectId> = tx_response
             .effects
             .unwrap()
             .created()
@@ -658,7 +663,7 @@ async fn test_batch_transaction_with_result() -> Result<(), anyhow::Error> {
             address,
             vec![
                 RPCTransactionRequestParams::MoveCallRequestParams(MoveCallParams {
-                    package_object_id: ObjectID::new(IOTA_FRAMEWORK_ADDRESS.into_bytes()),
+                    package_object_id: ObjectId::from_address(Address::FRAMEWORK),
                     module: "coin".to_string(),
                     function: "split".to_string(),
                     type_arguments: type_args![GAS::type_tag()]?,
@@ -668,7 +673,7 @@ async fn test_batch_transaction_with_result() -> Result<(), anyhow::Error> {
                         .collect(),
                 }),
                 RPCTransactionRequestParams::MoveCallRequestParams(MoveCallParams {
-                    package_object_id: ObjectID::new(IOTA_FRAMEWORK_ADDRESS.into_bytes()),
+                    package_object_id: ObjectId::from_address(Address::FRAMEWORK),
                     module: "transfer".to_string(),
                     function: "public_transfer".to_string(),
                     type_arguments: type_args![Coin::type_(GAS::type_tag())]?,
@@ -690,7 +695,7 @@ async fn test_batch_transaction_with_result() -> Result<(), anyhow::Error> {
 
     // Assert results of the move call
     {
-        let created_coin_ids: Vec<ObjectID> = tx_response
+        let created_coin_ids: Vec<ObjectId> = tx_response
             .effects
             .unwrap()
             .created()
@@ -751,7 +756,7 @@ async fn test_move_call() -> Result<(), anyhow::Error> {
     let coin = &objects[1].object()?;
 
     // now do the call
-    let package_id = ObjectID::new(IOTA_FRAMEWORK_ADDRESS.into_bytes());
+    let package_id = ObjectId::from_address(Address::FRAMEWORK);
     let module = "pay".to_string();
     let function = "split".to_string();
 

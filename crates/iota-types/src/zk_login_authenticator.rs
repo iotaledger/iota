@@ -19,7 +19,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    base_types::{EpochId, IotaAddress},
+    base_types::{Address, EpochId, address_from_unpadded_zklogin_inputs},
     crypto::{DefaultHash, IotaSignature, PublicKey, Signature, SignatureScheme},
     digests::ZKLoginInputsDigest,
     error::{IotaError, IotaResult},
@@ -166,7 +166,7 @@ impl AuthenticatorTrait for ZkLoginAuthenticator {
     fn verify_claims<T>(
         &self,
         intent_msg: &IntentMessage<T>,
-        author: IotaAddress,
+        author: Address,
         aux_verify_data: &VerifyParams,
         zklogin_inputs_cache: Arc<VerifiedDigestCache<ZKLoginInputsDigest>>,
     ) -> IotaResult
@@ -174,7 +174,7 @@ impl AuthenticatorTrait for ZkLoginAuthenticator {
         T: Serialize,
     {
         // Always evaluate the unpadded address derivation.
-        if author != IotaAddress::try_from_unpadded(&self.inputs)? {
+        if author != address_from_unpadded_zklogin_inputs(&self.inputs)? {
             return Err(IotaError::InvalidAddress);
         }
 
