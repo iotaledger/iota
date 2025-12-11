@@ -2555,7 +2555,7 @@ impl ProtocolConfig {
         self.feature_flags.publish_package_metadata = val;
     }
 
-    pub fn set_move_auth_for_testing(&mut self, val: bool) {
+    pub fn set_enable_move_authentication_for_testing(&mut self, val: bool) {
         self.feature_flags.enable_move_authentication = val;
     }
 }
