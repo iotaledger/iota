@@ -902,8 +902,10 @@ impl IotaClientCommands {
                     .addresses_with_alias()
                     .into_iter()
                     .map(|(address, alias)| {
+                        // Unwrap is safe here because the address comes from iterating the keystore
                         let source = match context.config().keystore().get_key(address).unwrap() {
                             StoredKey::KeyPair(_) => "keypair".to_string(),
+                            StoredKey::Account(_) => "account".to_string(),
                             StoredKey::External { source, .. } => source.to_string(),
                         };
                         (alias.alias.to_string(), *address, source)
