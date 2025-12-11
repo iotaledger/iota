@@ -1,6 +1,8 @@
 // Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use std::fs;
+
 use iota_test_transaction_builder::make_transfer_iota_transaction;
 use test_cluster::TestClusterBuilder;
 use tracing::Instrument as _;
@@ -34,15 +36,16 @@ async fn main() {
         .unwrap()
     );
     println!();
-    println!(
-        "{}",
-        sub.get_combined_svg(
+
+    let svg = sub
+        .get_combined_svg(
             "iota-benchmark::flamegraph",
             true,
             true,
-            &Default::default()
+            &Default::default(),
         )
         .unwrap()
-        .into_string()
-    );
+        .into_string();
+    fs::write("flamegraph.svg", &svg).expect("Failed to write flamegraph.svg");
+    println!("Flamegraph written to flamegraph.svg");
 }

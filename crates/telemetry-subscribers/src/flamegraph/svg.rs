@@ -35,7 +35,7 @@ impl Default for Config {
     fn default() -> Config {
         Config {
             resolution_nanos_per_px: None,
-            width: Some(3600),
+            width: Some(1920),
             aspect_ratio: None,
             seed: 1,
         }
@@ -240,9 +240,36 @@ fn render(caption: &str, width: usize, height: usize, nodes: impl Iterator<Item 
     let mut svg = String::new();
     svg.push_str(svg_template::XML_HEADER);
     svg.push_str(&svg_template::svg_header(width, height));
-    svg.push_str(svg_template::SVG_PRELUDE);
-    svg.push_str(svg_template::SVG_SCRIPT);
-    svg.push_str(&svg_template::svg_controls(caption, width, height));
+    svg.push_str(&svg_template::svg_prelude(
+        "#eeeeee",
+        "#eeeeb0",
+        "Verdana",
+        12,
+        "rgb(0,0,0)",
+        "rgb(160,160,160)",
+        17,
+    ));
+    svg.push_str(&svg_template::svg_script(
+        "Span:",
+        12,
+        0.59,
+        10,
+        0,
+        "rgb(230,0,230)",
+    ));
+    svg.push_str(&svg_template::svg_controls(
+        caption,
+        "",
+        width,
+        height,
+        17,
+        12,
+        "Verdana",
+        "rgb(0,0,0)",
+        10,
+        30,
+    ));
+    svg.push_str(r#"<g id="frames">"#);
     nodes.for_each(|n| {
         let Node {
             title,
@@ -259,6 +286,7 @@ fn render(caption: &str, width: usize, height: usize, nodes: impl Iterator<Item 
             title, samples, dur, percent, x, y, node_width, height, rgb,
         ));
     });
+    svg.push_str("</g>\n");
     svg.push_str(svg_template::SVG_FOOTER);
     Svg { svg }
 }
