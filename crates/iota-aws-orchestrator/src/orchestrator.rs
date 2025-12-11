@@ -255,7 +255,7 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
             basic_commands.extend([
                 // The following dependencies:
                 // * build-essential: prevent the error: [error: linker `cc` not found].
-                "sudo apt-get -y install build-essential cmake clang lld protobuf-compiler pkg-config",
+                "sudo apt-get -y install build-essential cmake clang lld protobuf-compiler pkg-config nvme-cli",
                 // Install rust (non-interactive).
                 "curl --proto \"=https\" --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y",
                 "echo \"source $HOME/.cargo/env\" | tee -a ~/.bashrc",

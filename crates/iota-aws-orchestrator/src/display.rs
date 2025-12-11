@@ -2,7 +2,10 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{fmt::Display, io::stdout};
+use std::{
+    fmt::Display,
+    io::{self, Write, stdout},
+};
 
 use crossterm::{
     cursor::{RestorePosition, SavePosition},
@@ -42,6 +45,29 @@ pub fn config<N: Display, V: Display>(name: N, value: V) {
         Print(format!("{value}\n"))
     )
     .unwrap();
+}
+
+pub fn confirm<S: Display>(message: S) -> bool {
+    // Print the prompt
+    crossterm::execute!(
+        stdout(),
+        PrintStyledContent(format!("{message} ").bold()),
+        Print("[y/N]: ")
+    )
+    .unwrap();
+
+    // Make sure prompt is visible before waiting for input
+    stdout().flush().unwrap();
+
+    // Read input
+    let mut input = String::new();
+    match io::stdin().read_line(&mut input) {
+        Ok(_) => {
+            let normalized = input.trim().to_lowercase();
+            matches!(normalized.as_str(), "y" | "yes")
+        }
+        Err(_) => false,
+    }
 }
 
 pub fn action<S: Display>(message: S) {

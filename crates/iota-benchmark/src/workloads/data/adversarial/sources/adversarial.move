@@ -3,11 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 module adversarial::adversarial {
-    use std::vector;
     use iota::bcs;
-    use iota::object::{Self, UID};
-    use iota::tx_context::{Self, TxContext};
-    use iota::transfer;
     use iota::event;
     use iota::dynamic_field::{add, borrow};
     use std::string::Self;

@@ -15,6 +15,7 @@ use serde::{Deserialize, Serialize};
 
 use super::{ProtocolCommands, ProtocolMetrics};
 use crate::{
+    ConsensusProtocol,
     benchmark::{BenchmarkParameters, BenchmarkType},
     client::Instance,
     display,
@@ -214,14 +215,19 @@ impl ProtocolCommands<IotaBenchmarkType> for IotaProtocol {
                 let validator_config =
                     iota_config::validator_config_file(network_address.clone(), i);
                 let config_path: PathBuf = working_dir.join(validator_config);
-
+                let max_pipeline_delay = parameters.max_pipeline_delay;
                 let iota_node_command = self.run_binary_command(
                     "iota-node",
-                    &[if parameters.protocol_switch_each_epoch {
-                        "export CONSENSUS_PROTOCOL=swap_each_epoch"
-                    } else {
-                        "export CONSENSUS_PROTOCOL=starfish"
-                    }],
+                    &[
+                        match parameters.consensus_protocol {
+                            ConsensusProtocol::Starfish => "export CONSENSUS_PROTOCOL=starfish",
+                            ConsensusProtocol::Mysticeti => "export CONSENSUS_PROTOCOL=mysticeti",
+                            ConsensusProtocol::SwapEachEpoch => {
+                                "export CONSENSUS_PROTOCOL=swap_each_epoch"
+                            }
+                        },
+                        format!("export MAX_PIPELINE_DELAY={max_pipeline_delay}").as_str(),
+                    ],
                     &[&format!(
                         "--config-path {} --listen-address {}",
                         config_path.display(),

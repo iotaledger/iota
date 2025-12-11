@@ -29,13 +29,11 @@ COPY external-crates external-crates
 COPY iota-execution iota-execution
 COPY Cargo.toml Cargo.lock ./
 
-# Build the binaries
+# Build the binaries and copy them to the working directory
 RUN cargo build --profile ${PROFILE} \
       --bin iota-graphql-rpc \
-      --features ${CARGO_BUILD_FEATURES:=default}
-
-# Copy the built binaries to the working directory
-RUN cp $TARGET_FOLDER/iota-graphql-rpc ./iota-graphql-rpc
+      --features ${CARGO_BUILD_FEATURES:=default} && \
+    cp $TARGET_FOLDER/iota-graphql-rpc ./iota-graphql-rpc
 
 # Production image
 FROM debian:bookworm-slim AS runtime

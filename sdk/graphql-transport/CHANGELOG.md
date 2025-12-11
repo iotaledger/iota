@@ -1,5 +1,17 @@
 # @iota/graphql-transport
 
+## 0.12.0
+
+### Minor Changes
+
+-   ae1385d: Update dependencies.
+
+### Patch Changes
+
+-   Updated dependencies [ae1385d]
+    -   @iota/bcs@1.4.0
+    -   @iota/iota-sdk@1.9.0
+
 ## 0.11.0
 
 ### Minor Changes

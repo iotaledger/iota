@@ -3,15 +3,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 module move_building_blocks::objects {
-    use iota::object::UID;
-    use std::option::Option;
     use iota::table::Table;
-    use iota::tx_context::TxContext;
-    use iota::object;
-    use std::option;
     use iota::table;
-    use iota::transfer;
-    use iota::tx_context;
 
     public struct Object has key, store {
         id: UID,
