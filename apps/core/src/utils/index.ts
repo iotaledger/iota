@@ -37,4 +37,3 @@ export * from './validation';
 export * from './migration';
 export * from './legacy';
 export * from './vesting';
-export * from './amplitude';

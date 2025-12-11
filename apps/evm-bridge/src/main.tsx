@@ -4,7 +4,6 @@ import './globals.css';
 
 import React from 'react';
 import ReactDOM from 'react-dom/client';
-import { CookieManagerProvider } from '@boxfish-studio/react-cookie-manager';
 import {
     getDefaultConfig,
     darkTheme as rainbowDarkTheme,
@@ -27,19 +26,24 @@ import {
 } from './config/index.ts';
 import { EvmRpcClientProvider } from './providers/EvmRpcClientProvider.tsx';
 import { Toaster } from './components/index.ts';
-import { Disclaimer, IotaGraphQLClientProvider, setCookieAccepted } from '@iota/core';
+import { IotaGraphQLClientProvider, Disclaimer, handleConsentAccepted } from '@iota/core';
 import { growthbook, interceptProviderAnnouncements } from './lib/utils/index.ts';
 import { GrowthBookProvider } from '@growthbook/growthbook-react';
 import { getNetwork } from '@iota/iota-sdk/client';
 import { metaMaskWallet, walletConnectWallet } from '@rainbow-me/rainbowkit/wallets';
 import { USE_CONDITIONS_LINKS } from './lib/constants/routes.constants.ts';
 import { Link } from './components/link/Link.tsx';
+import { initAmplitude } from './shared/analytics';
+import { cookieConfig } from './config/cookieConfig.ts';
 
 // We intercept EIP-6963 announcements
 // to only allow certain wallets (metamask) to be discovered
 interceptProviderAnnouncements();
 
 growthbook.init();
+
+// Load Amplitude as early as we can (respects opt-out based on consent status):
+initAmplitude();
 
 const queryClient = new QueryClient();
 
@@ -80,34 +84,29 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
                                 >
                                     <ThemeProvider appId="IOTA-evm-bridge">
                                         <RainbowKit>
-                                            <CookieManagerProvider>
-                                                <App />
-                                                <Toaster />
-                                                <Disclaimer onClose={setCookieAccepted}>
-                                                    <div>
-                                                        By using this website, you agree with our{' '}
-                                                        {USE_CONDITIONS_LINKS.map(
-                                                            ({ text, url }, index) => {
-                                                                return (
-                                                                    <React.Fragment key={text}>
-                                                                        <Link
-                                                                            href={url}
-                                                                            isSecondary
-                                                                        >
-                                                                            {text}
-                                                                        </Link>
-                                                                        {index <
-                                                                        USE_CONDITIONS_LINKS.length -
-                                                                            1
-                                                                            ? ', '
-                                                                            : ''}
-                                                                    </React.Fragment>
-                                                                );
-                                                            },
-                                                        )}
-                                                    </div>
-                                                </Disclaimer>
-                                            </CookieManagerProvider>
+                                            <App />
+                                            <Toaster />
+                                            <Disclaimer
+                                                onClose={() => {
+                                                    handleConsentAccepted();
+                                                }}
+                                            >
+                                                <div className="text-body-md text-neutral-10 dark:text-neutral-92">
+                                                    We use cookies to improve your experience. By
+                                                    using this website, you agree with our{' '}
+                                                    {USE_CONDITIONS_LINKS.map(
+                                                        ({ text, url }, index) => (
+                                                            <React.Fragment key={text}>
+                                                                <Link href={url}>{text}</Link>
+                                                                {index <
+                                                                USE_CONDITIONS_LINKS.length - 1
+                                                                    ? ', '
+                                                                    : ''}
+                                                            </React.Fragment>
+                                                        ),
+                                                    )}
+                                                </div>
+                                            </Disclaimer>
                                         </RainbowKit>
                                     </ThemeProvider>
                                 </WalletProvider>

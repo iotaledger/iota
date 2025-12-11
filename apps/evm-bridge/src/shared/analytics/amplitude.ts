@@ -3,12 +3,13 @@
 
 import * as amplitude from '@amplitude/analytics-browser';
 import { LogLevel, type UserSession } from '@amplitude/analytics-types';
-import { PersistableStorage } from '@iota/core';
+import { getAmplitudeConsentStatus, PersistableStorage } from '@iota/core';
 
 import { ampli } from './ampli';
 import { getDefaultNetwork } from '../../config';
 
-const IS_ENABLED = import.meta.env.VITE_BUILD_ENV === 'production';
+// const IS_ENABLED = import.meta.env.VITE_BUILD_ENV === 'production';
+const IS_ENABLED = true;
 
 export const persistableStorage = new PersistableStorage<UserSession>();
 
@@ -27,7 +28,10 @@ const ApiKey = {
 };
 
 export async function initAmplitude() {
-    if (ampli.isLoaded) {
+    // Check consent status to determine initial opt-out state
+    const consentStatus = getAmplitudeConsentStatus();
+
+    if (ampli.isLoaded || consentStatus === 'declined') {
         return;
     }
 

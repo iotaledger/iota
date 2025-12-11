@@ -16,7 +16,7 @@ initSentry();
 
 import '@iota/dapp-kit/dist/index.css';
 import './index.css';
-import { Disclaimer, setCookieAccepted } from '@iota/core';
+import { Disclaimer, handleConsentAccepted } from '@iota/core';
 import { LEGAL_LINKS } from './lib';
 import { Link } from './components';
 
@@ -32,20 +32,18 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
             <QueryClientProvider client={queryClient}>
                 <CookieManagerProvider>
                     <RouterProvider router={router} />
-                    <Disclaimer onClose={setCookieAccepted}>
-                        <div>
-                            By using this website, you agree with our{' '}
-                            {LEGAL_LINKS.map((link, index) => (
-                                <React.Fragment key={link.href}>
-                                    <Link
-                                        href={link.href}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="underline hover:text-white"
-                                    >
-                                        {link.title}
-                                    </Link>
-                                    {index < LEGAL_LINKS.length - 1 && ' and '}
+                    <Disclaimer
+                        onClose={() => {
+                            handleConsentAccepted();
+                        }}
+                    >
+                        <div className="text-neutral-10 dark:text-neutral-92 text-body-md">
+                            We use cookies to improve your experience. By using this website, you
+                            agree with our{' '}
+                            {LEGAL_LINKS.map(({ title, href }, index) => (
+                                <React.Fragment key={title}>
+                                    <Link href={href}>{title}</Link>
+                                    {index < LEGAL_LINKS.length - 1 ? ', ' : ''}
                                 </React.Fragment>
                             ))}
                         </div>

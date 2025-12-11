@@ -4,6 +4,7 @@
 
 import * as amplitude from '@amplitude/analytics-browser';
 import { getNetwork, Network } from '@iota/iota-sdk/client';
+import { getAmplitudeConsentStatus } from '@iota/core';
 
 import { ampli } from './ampli';
 import { LogLevel } from '@amplitude/analytics-types';
@@ -11,6 +12,13 @@ import { LogLevel } from '@amplitude/analytics-types';
 const IS_ENABLED = import.meta.env.VITE_BUILD_ENV === 'production';
 
 export async function initAmplitude() {
+    // Check consent status to determine initial opt-out state
+    const consentStatus = getAmplitudeConsentStatus();
+
+    if (ampli.isLoaded || consentStatus === 'declined') {
+        return;
+    }
+
     await ampli.load({
         environment: 'iotaexplorer',
         // Flip this if you'd like to test Amplitude locally

@@ -4,24 +4,32 @@
 
 import * as amplitude from '@amplitude/analytics-browser';
 import { LogLevel } from '@amplitude/analytics-types';
+import { getAmplitudeConsentStatus } from '@iota/core';
 
 import { ampli } from './ampli';
 
-const IS_PROD_ENV = process.env.NEXT_PUBLIC_BUILD_ENV == 'production';
+const IS_ENABLED = process.env.NEXT_PUBLIC_BUILD_ENV == 'production';
 
 export async function initAmplitude() {
+    // Check consent status to determine initial opt-out state
+    const consentStatus = getAmplitudeConsentStatus();
+
+    if (ampli.isLoaded || consentStatus === 'declined') {
+        return;
+    }
+
     await ampli.load({
         environment: 'iotawalletdashboard',
         // Flip this if you'd like to test Amplitude locally
-        disabled: !IS_PROD_ENV,
+        disabled: !IS_ENABLED,
         client: {
             configuration: {
                 optOut: false,
                 autocapture: {
-                    pageViews: IS_PROD_ENV,
-                    sessions: IS_PROD_ENV,
+                    pageViews: IS_ENABLED,
+                    sessions: IS_ENABLED,
                 },
-                logLevel: IS_PROD_ENV ? LogLevel.Warn : LogLevel.None,
+                logLevel: IS_ENABLED ? LogLevel.Warn : LogLevel.None,
             },
         },
     }).promise;

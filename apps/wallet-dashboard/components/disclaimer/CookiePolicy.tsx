@@ -1,18 +1,38 @@
 // Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-import { CookieLibrary } from '@boxfish-studio/react-cookie-manager';
-import { handleConsentAccepted, handleConsentDeclined } from '@iota/core';
-import { ampli } from '../../lib/utils/analytics';
 
+import {
+    CookiePolicyContent,
+    AMP_COOKIES_KEY,
+    handleConsentAccepted,
+    handleConsentDeclined,
+} from '@iota/core';
+
+/**
+ * Cookie Policy page - displays information about cookies we use
+ * Purpose: Just render content showing how we use cookies
+ * No banner management - that's handled separately
+ */
 export function CookiePolicy(): React.JSX.Element {
     return (
-        <section className="cookie-policy-page mx-auto max-w-3xl py-16">
-            <CookieLibrary
-                configuration={{
-                    onAcceptCookies: () => handleConsentAccepted(ampli.client),
-                    onDeclineCookies: () => handleConsentDeclined(ampli.client),
-                }}
-            />
-        </section>
+        <CookiePolicyContent
+            consentKey={AMP_COOKIES_KEY}
+            necessaryCookies={[
+                {
+                    name: AMP_COOKIES_KEY,
+                    purpose: 'Session management cookie for IOTA applications',
+                    provider: 'IOTA',
+                    category: 'Necessary',
+                },
+                {
+                    name: 'AMP_*',
+                    purpose: 'Amplitude analytics cookies',
+                    provider: 'Amplitude',
+                    category: 'Analytics',
+                },
+            ]}
+            onAccept={handleConsentAccepted}
+            onReject={handleConsentDeclined}
+        />
     );
 }
