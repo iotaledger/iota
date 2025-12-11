@@ -14,7 +14,6 @@ use iota_types::{
     effects::TransactionEffects,
     event::{SystemEpochInfoEvent, SystemEpochInfoEventV1, SystemEpochInfoEventV2},
     iota_serde::IotaStructTag,
-    iota_system_state::iota_system_state_summary::{IotaSystemStateSummary, IotaValidatorSummary},
     messages_checkpoint::{
         CheckpointCommitment, CheckpointDigest, CheckpointSequenceNumber, EndOfEpochData,
     },
@@ -95,93 +94,6 @@ impl IndexedCheckpoint {
             checkpoint_commitments: checkpoint.checkpoint_commitments.clone(),
             min_tx_sequence_number,
             max_tx_sequence_number,
-        }
-    }
-}
-
-/// View on the common inner state-summary fields.
-///
-/// This exposes whatever makes sense to the scope of this
-/// library.
-pub(crate) trait IotaSystemStateSummaryView {
-    fn epoch(&self) -> u64;
-    fn epoch_start_timestamp_ms(&self) -> u64;
-    fn reference_gas_price(&self) -> u64;
-    fn protocol_version(&self) -> u64;
-    fn iota_total_supply(&self) -> u64;
-    fn active_validators(&self) -> &[IotaValidatorSummary];
-    fn inactive_pools_id(&self) -> ObjectID;
-    fn inactive_pools_size(&self) -> u64;
-    fn validator_candidates_id(&self) -> ObjectID;
-    fn validator_candidates_size(&self) -> u64;
-    fn to_committee_members(&self) -> Vec<u64>;
-}
-
-/// Access common fields of the inner variants wrapped by
-/// [`IotaSystemStateSummary`].
-///
-/// ## Panics
-///
-/// If the `field` identifier does not correspond to an existing field in any
-/// of the inner types wrapped in the variants.
-macro_rules! state_summary_get {
-    ($enum:expr, $field:ident) => {{
-        match $enum {
-            IotaSystemStateSummary::V1(ref inner) => &inner.$field,
-            IotaSystemStateSummary::V2(ref inner) => &inner.$field,
-            _ => unimplemented!(),
-        }
-    }};
-}
-
-impl IotaSystemStateSummaryView for IotaSystemStateSummary {
-    fn epoch(&self) -> u64 {
-        *state_summary_get!(self, epoch)
-    }
-
-    fn epoch_start_timestamp_ms(&self) -> u64 {
-        *state_summary_get!(self, epoch_start_timestamp_ms)
-    }
-
-    fn reference_gas_price(&self) -> u64 {
-        *state_summary_get!(self, reference_gas_price)
-    }
-
-    fn protocol_version(&self) -> u64 {
-        *state_summary_get!(self, protocol_version)
-    }
-
-    fn iota_total_supply(&self) -> u64 {
-        *state_summary_get!(self, iota_total_supply)
-    }
-
-    fn active_validators(&self) -> &[IotaValidatorSummary] {
-        state_summary_get!(self, active_validators)
-    }
-
-    fn inactive_pools_id(&self) -> ObjectID {
-        *state_summary_get!(self, inactive_pools_id)
-    }
-
-    fn inactive_pools_size(&self) -> u64 {
-        *state_summary_get!(self, inactive_pools_size)
-    }
-
-    fn validator_candidates_id(&self) -> ObjectID {
-        *state_summary_get!(self, validator_candidates_id)
-    }
-
-    fn validator_candidates_size(&self) -> u64 {
-        *state_summary_get!(self, validator_candidates_size)
-    }
-
-    fn to_committee_members(&self) -> Vec<u64> {
-        match self {
-            IotaSystemStateSummary::V1(inner) => (0..inner.active_validators.len())
-                .map(|i| i as u64)
-                .collect(),
-            IotaSystemStateSummary::V2(inner) => inner.committee_members.clone(),
-            _ => unimplemented!(),
         }
     }
 }

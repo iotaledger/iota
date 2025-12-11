@@ -11,7 +11,7 @@ Its architecture can thus be visualized as follows:
 
 To learn more about the GraphQL and how it works, check out the [official documentation](https://graphql.org/learn).
 
-The GraphQL server is built with the [async-graphql](https://async-graphql.github.io/async-graphql/docs/overview) library, which generates the GraphQL schema from Rust types, which you can find [here](schema).
+The GraphQL server is built with the [async-graphql](https://async-graphql.github.io/async-graphql/en/index.html) library, which generates the GraphQL schema from Rust types, which you can find [here](schema).
 To learn more about how the schema and types in GraphQL work, see the [official documentation](https://graphql.org/learn/schema/).
 
 `Query` and `Mutation` are types that provide the main entrypoints to the queries supported by the server.

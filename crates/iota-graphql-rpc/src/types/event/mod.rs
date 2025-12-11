@@ -266,6 +266,35 @@ impl Event {
         })
     }
 
+    pub(crate) fn try_from_stored_event(
+        stored: StoredEvent,
+        checkpoint_viewed_at: u64,
+    ) -> Result<Self, Error> {
+        let Some(Some(sender_bytes)) = stored.senders.first() else {
+            return Err(Error::Internal("No senders found for event".to_string()));
+        };
+        let sender = NativeIotaAddress::from_bytes(sender_bytes)
+            .map_err(|e| Error::Internal(e.to_string()))?;
+        let package_id =
+            ObjectID::from_bytes(&stored.package).map_err(|e| Error::Internal(e.to_string()))?;
+        let type_ = parse_iota_struct_tag(&stored.event_type)
+            .map_err(|e| Error::Internal(e.to_string()))?;
+        let transaction_module =
+            Identifier::from_str(&stored.module).map_err(|e| Error::Internal(e.to_string()))?;
+        let contents = stored.bcs.clone();
+        Ok(Event {
+            stored: Some(stored),
+            native: NativeEvent {
+                sender,
+                package_id,
+                transaction_module,
+                type_,
+                contents,
+            },
+            checkpoint_viewed_at,
+        })
+    }
+
     pub(crate) fn try_from_optimistic_transaction(
         optimistic_tx: &OptimisticTransaction,
         idx: usize,
@@ -301,35 +330,6 @@ impl Event {
         Ok(Self {
             stored: Some(stored_event),
             native: native_event,
-            checkpoint_viewed_at,
-        })
-    }
-
-    fn try_from_stored_event(
-        stored: StoredEvent,
-        checkpoint_viewed_at: u64,
-    ) -> Result<Self, Error> {
-        let Some(Some(sender_bytes)) = stored.senders.first() else {
-            return Err(Error::Internal("No senders found for event".to_string()));
-        };
-        let sender = NativeIotaAddress::from_bytes(sender_bytes)
-            .map_err(|e| Error::Internal(e.to_string()))?;
-        let package_id =
-            ObjectID::from_bytes(&stored.package).map_err(|e| Error::Internal(e.to_string()))?;
-        let type_ = parse_iota_struct_tag(&stored.event_type)
-            .map_err(|e| Error::Internal(e.to_string()))?;
-        let transaction_module =
-            Identifier::from_str(&stored.module).map_err(|e| Error::Internal(e.to_string()))?;
-        let contents = stored.bcs.clone();
-        Ok(Event {
-            stored: Some(stored),
-            native: NativeEvent {
-                sender,
-                package_id,
-                transaction_module,
-                type_,
-                contents,
-            },
             checkpoint_viewed_at,
         })
     }

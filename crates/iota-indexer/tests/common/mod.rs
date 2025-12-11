@@ -333,7 +333,7 @@ pub async fn indexer_wait_for_transaction(
     .expect("timeout waiting for indexer to catchup to given transaction");
 }
 
-pub async fn execute_tx_and_wait_for_indexer(
+pub async fn execute_tx_and_wait_for_indexer_checkpoint(
     indexer_client: &HttpClient,
     store: &PgIndexerStore,
     tx_bytes: TransactionBlockBytes,
@@ -495,9 +495,10 @@ pub async fn wait_for_objects_snapshot(
     tokio::time::timeout(Duration::from_secs(30), async {
         while {
             let cp_opt = pg_store
-                .get_latest_object_snapshot_checkpoint_sequence_number()
+                .get_latest_object_snapshot_watermark()
                 .await
-                .unwrap();
+                .unwrap()
+                .map(|watermark| watermark.checkpoint_hi_inclusive);
             cp_opt.is_none() || (cp_opt.unwrap() < checkpoint_sequence_number)
         } {
             tokio::time::sleep(Duration::from_millis(100)).await;

@@ -61,7 +61,7 @@ prices, forex, equities, and even Web3 data from other blockchains. Its feed get
 
 :::tip
 
-You can learn more about Supra Oracles in their [official documentation](https://supraoracles.com/docs/overview).
+You can learn more about Supra Oracles in their [official documentation](https://docs.supra.com/oracles).
 
 :::
 

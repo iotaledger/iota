@@ -21,6 +21,7 @@ fastcrypto.workspace = true
 futures.workspace = true
 http.workspace = true
 itertools.workspace = true
+lru.workspace = true
 nom = "7.1.3"
 parking_lot.workspace = true
 prometheus.workspace = true
@@ -49,8 +50,8 @@ iota-macros.workspace = true
 iota-metrics.workspace = true
 iota-network-stack.workspace = true
 iota-protocol-config.workspace = true
+iota-sdk-types.workspace = true
 iota-tls.workspace = true
-shared-crypto.workspace = true
 typed-store.workspace = true
 
 [dev-dependencies]

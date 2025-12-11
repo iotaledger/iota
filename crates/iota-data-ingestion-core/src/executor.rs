@@ -7,13 +7,14 @@ use std::{path::PathBuf, pin::Pin, sync::Arc};
 use futures::Future;
 use iota_metrics::spawn_monitored_task;
 use iota_rest_api::CheckpointData;
-use iota_types::messages_checkpoint::CheckpointSequenceNumber;
+use iota_types::{committee::EpochId, messages_checkpoint::CheckpointSequenceNumber};
 use prometheus::Registry;
 use tokio::{
     sync::{mpsc, oneshot},
     task::JoinHandle,
 };
 use tokio_util::sync::CancellationToken;
+use tracing::info;
 
 use crate::{
     DataIngestionMetrics, IngestionError, IngestionResult, ReaderOptions, Worker,
@@ -27,17 +28,82 @@ use crate::{
 
 pub const MAX_CHECKPOINTS_IN_PROGRESS: usize = 10000;
 
+/// Callback function invoked for each incoming checkpoint to determine the
+/// shutdown action if it exceeds the ingestion limit.
+type ShutdownCallback = Box<dyn Fn(&CheckpointData) -> ShutdownAction + Send>;
+
+/// Determines the shutdown action when a checkpoint reaches the ingestion
+/// limit.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum ShutdownAction {
+    /// Include the current checkpoint in the ingestion process, then initiate
+    /// the graceful shutdown process.
+    IncludeAndShutdown,
+    /// Exclude the current checkpoint from ingestion and immediately initiate
+    /// the graceful shutdown process.
+    ExcludeAndShutdown,
+    /// Continue processing the current checkpoint without shutting down.
+    Continue,
+}
+
+/// Common policies for upper limit checkpoint ingestion by the framework.
+///
+/// Once the limit is reached, the framework will start the graceful
+/// shutdown process.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[non_exhaustive]
+pub enum IngestionLimit {
+    /// Last checkpoint sequence number to process.
+    ///
+    /// After processing this checkpoint the framework will start the graceful
+    /// shutdown process.
+    MaxCheckpoint(CheckpointSequenceNumber),
+    /// Last checkpoint to process based on the given epoch.
+    ///
+    /// After processing this checkpoint the framework will start the graceful
+    /// shutdown process.
+    EndOfEpoch(EpochId),
+}
+
+impl IngestionLimit {
+    /// Evaluates whether the given checkpoint triggers a shutdown action based
+    /// on the ingestion limit.
+    fn matches(&self, checkpoint: &CheckpointData) -> ShutdownAction {
+        match self {
+            IngestionLimit::MaxCheckpoint(max) => {
+                if &checkpoint.checkpoint_summary.sequence_number > max {
+                    return ShutdownAction::ExcludeAndShutdown;
+                }
+                ShutdownAction::Continue
+            }
+            IngestionLimit::EndOfEpoch(max) => {
+                if &checkpoint.checkpoint_summary.epoch > max {
+                    return ShutdownAction::ExcludeAndShutdown;
+                }
+                ShutdownAction::Continue
+            }
+        }
+    }
+}
+
+/// Represents a common interface for checkpoint readers.
+///
+/// It manages the old checkpoint reader implementation for backwards
+/// compatibility and the new one.
 enum CheckpointReader {
+    /// The old checkpoint reader implementation.
     V1 {
         checkpoint_recv: mpsc::Receiver<Arc<CheckpointData>>,
         gc_sender: mpsc::Sender<CheckpointSequenceNumber>,
         exit_sender: oneshot::Sender<()>,
         handle: JoinHandle<IngestionResult<()>>,
     },
+    /// The new checkpoint reader implementation.
     V2(CheckpointReaderV2),
 }
 
 impl CheckpointReader {
+    /// Gets the next checkpoint from the reader.
     async fn get_checkpoint(&mut self) -> Option<Arc<CheckpointData>> {
         match self {
             Self::V1 {
@@ -47,6 +113,7 @@ impl CheckpointReader {
         }
     }
 
+    /// Sends a GC signal to the reader.
     async fn send_gc_signal(
         &mut self,
         seq_number: CheckpointSequenceNumber,
@@ -61,6 +128,7 @@ impl CheckpointReader {
         }
     }
 
+    /// Shuts down the reader.
     async fn shutdown(self) -> IngestionResult<()> {
         match self {
             Self::V1 {
@@ -152,6 +220,7 @@ pub struct IndexerExecutor<P> {
     pool_status_receiver: mpsc::Receiver<WorkerPoolStatus>,
     metrics: DataIngestionMetrics,
     token: CancellationToken,
+    shutdown_callback: Option<ShutdownCallback>,
 }
 
 impl<P: ProgressStore> IndexerExecutor<P> {
@@ -171,6 +240,7 @@ impl<P: ProgressStore> IndexerExecutor<P> {
             pool_status_receiver,
             metrics,
             token,
+            shutdown_callback: None,
         }
     }
 
@@ -189,6 +259,47 @@ impl<P: ProgressStore> IndexerExecutor<P> {
         )));
         self.pool_senders.push(sender);
         Ok(())
+    }
+
+    /// Registers a predicate callback that determines when the ingestion
+    /// process should stop.
+    ///
+    /// This function `f` will be called for every **incoming checkpoint**
+    /// before it’s sent to the worker pool.
+    ///
+    /// Based on the returned [`ShutdownAction`] the executor will evaluate
+    /// whether to continue or stop the ingestion process by initiating the
+    /// graceful shutdown process.
+    ///
+    /// Once a shutdown action is triggered, the executor will stop sending new
+    /// checkpoints and will wait for all previously sent checkpoints to be
+    /// processed by workers before initiating graceful shutdown process.
+    ///
+    /// Note:
+    ///
+    /// Calling this method after
+    /// [`with_ingestion_limit`](Self::with_ingestion_limit) replaces the
+    /// earlier predicate, and vice versa. They are not cumulative.
+    pub fn shutdown_when<F>(&mut self, f: F)
+    where
+        F: Fn(&CheckpointData) -> ShutdownAction + Send + 'static,
+    {
+        self.shutdown_callback = Some(Box::new(f));
+    }
+
+    /// Adds an upper‑limit policy that determines when the ingestion
+    /// process should stop.
+    ///
+    /// This is a convenience method, it internally uses
+    /// [`shutdown_when`](Self::shutdown_when) by registering a predicate
+    /// derived from the provided [`IngestionLimit`].
+    ///
+    /// Note:
+    ///
+    /// Calling this method after [`shutdown_when`](Self::shutdown_when)
+    /// replaces the earlier predicate, and vice versa. They are not cumulative.
+    pub fn with_ingestion_limit(&mut self, limit: IngestionLimit) {
+        self.shutdown_when(move |checkpoint| limit.matches(checkpoint));
     }
 
     pub async fn update_watermark(
@@ -255,7 +366,6 @@ impl<P: ProgressStore> IndexerExecutor<P> {
         config: CheckpointReaderConfig,
     ) -> IngestionResult<ExecutorProgress> {
         let reader_checkpoint_number = self.progress_store.min_watermark()?;
-
         let checkpoint_reader = CheckpointReaderV2::new(reader_checkpoint_number, config).await?;
 
         self.run_executor_loop(
@@ -277,8 +387,25 @@ impl<P: ProgressStore> IndexerExecutor<P> {
             .collect::<Vec<JoinHandle<()>>>();
 
         let mut worker_pools_shutdown_signals = vec![];
+        let mut checkpoint_limit_reached = None;
 
         loop {
+            // the min watermark represents the lowest watermark that
+            // has been processed by any worker pool. This guarantees that
+            // all worker pools have processed the checkpoint before the
+            // shutdown process starts.
+            if checkpoint_limit_reached.is_some_and(|ch_seq_num| {
+                self.progress_store
+                    .min_watermark()
+                    .map(|watermark| watermark > ch_seq_num)
+                    .unwrap_or_default()
+            }) {
+                info!(
+                    "checkpoint upper limit reached: last checkpoint was processed, shutdown process started"
+                );
+                self.token.cancel();
+            }
+
             tokio::select! {
                 Some(worker_pool_progress_msg) = self.pool_status_receiver.recv() => {
                     match worker_pool_progress_msg {
@@ -300,6 +427,11 @@ impl<P: ProgressStore> IndexerExecutor<P> {
                     }
                 }
                 Some(checkpoint) = checkpoint_reader.get_checkpoint(), if !self.token.is_cancelled() => {
+                    // once upper limit reached skip sending new checkpoints to workers.
+                    if self.should_shutdown(&checkpoint, &mut checkpoint_limit_reached) {
+                        continue;
+                    }
+
                     for sender in &self.pool_senders {
                         sender.send(checkpoint.clone()).await.map_err(|_| {
                             IngestionError::Channel(
@@ -325,6 +457,47 @@ impl<P: ProgressStore> IndexerExecutor<P> {
         }
 
         Ok(self.progress_store.stats())
+    }
+
+    /// Check if the current ingestion limit has been reached.
+    ///
+    /// Returns `true` if the ingestion limit has been reached.
+    /// If no ingestion limit is present or it has not been reached yet, the
+    /// function returns `false`.
+    fn should_shutdown(
+        &mut self,
+        checkpoint: &CheckpointData,
+        checkpoint_limit_reached: &mut Option<CheckpointSequenceNumber>,
+    ) -> bool {
+        if checkpoint_limit_reached.is_some() {
+            return true;
+        }
+
+        let Some(shutdown_action) = self
+            .shutdown_callback
+            .as_ref()
+            .map(|matches| matches(checkpoint))
+        else {
+            return false;
+        };
+
+        match shutdown_action {
+            ShutdownAction::IncludeAndShutdown => {
+                checkpoint_limit_reached
+                    .get_or_insert(checkpoint.checkpoint_summary.sequence_number);
+                false
+            }
+            ShutdownAction::ExcludeAndShutdown => {
+                checkpoint_limit_reached.get_or_insert(
+                    checkpoint
+                        .checkpoint_summary
+                        .sequence_number
+                        .saturating_sub(1),
+                );
+                true
+            }
+            ShutdownAction::Continue => false,
+        }
     }
 }
 

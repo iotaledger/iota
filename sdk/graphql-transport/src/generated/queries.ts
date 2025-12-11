@@ -199,7 +199,7 @@ export type Address = IOwner & {
   /**
    * Similar behavior to the `transactionBlocks` in Query but supporting the
    * additional `AddressTransactionBlockRelationship` filter, which
-   * defaults to `SIGN`.
+   * defaults to `SENT`.
    *
    * `scanLimit` restricts the number of candidate transactions scanned when
    * gathering a page of results. It is required for queries that apply
@@ -353,14 +353,21 @@ export type AddressOwner = {
   owner?: Maybe<Owner>;
 };
 
-/**
- * The possible relationship types for a transaction block: sign, sent,
- * received, or paid.
- */
+/** The possible relationship types for a transaction block: sent or received. */
 export enum AddressTransactionBlockRelationship {
   /** Transactions that sent objects to this address. */
   Recv = 'RECV',
-  /** Transactions this address has signed either as a sender or as a sponsor. */
+  /** Transactions this address has sent. */
+  Sent = 'SENT',
+  /**
+   * Transactions this address has sent. NOTE: this input filter has been
+   * deprecated in favor of `SENT` which behaves identically but is named
+   * more clearly. Both filters restrict transactions by their sender,
+   * only, not signers in general.
+   *
+   * This filter will be removed after 6 months with the 1.24.0 release.
+   * @deprecated Misleading semantics. Use `SENT` instead. This will be removed with the 1.24.0 release.
+   */
   Sign = 'SIGN'
 }
 
@@ -1422,7 +1429,7 @@ export type Epoch = {
    */
   fundSize?: Maybe<Scalars['BigInt']['output']>;
   /** The total IOTA supply. */
-  iotaTotalSupply?: Maybe<Scalars['Int']['output']>;
+  iotaTotalSupply?: Maybe<Scalars['BigInt']['output']>;
   /** The treasury-cap id. */
   iotaTreasuryCapId?: Maybe<Scalars['IotaAddress']['output']>;
   /**
@@ -1635,6 +1642,16 @@ export type EventFilter = {
    */
   transactionDigest?: InputMaybe<Scalars['String']['input']>;
 };
+
+/**
+ * Possible responses from a subscription.
+ *
+ * It could be one of the following:
+ * - A successful payload from the subscription stream.
+ * - A notice that the subscription has been lagged behind the network with the
+ * number of lost payloads.
+ */
+export type EventSubscriptionPayload = Event | Lagged;
 
 /**
  * The result of an execution, including errors that occurred during said
@@ -2067,6 +2084,16 @@ export type Input = {
   __typename?: 'Input';
   /** Index of the programmable transaction block input (0-indexed). */
   ix: Scalars['Int']['output'];
+};
+
+/**
+ * Notifies that the subscription consumer has fallen behind the live
+ * subscription stream and missed one or more payloads.
+ */
+export type Lagged = {
+  __typename?: 'Lagged';
+  /** Number of missed payloads since the previous emitted one. */
+  count: Scalars['Int']['output'];
 };
 
 /**
@@ -5215,6 +5242,57 @@ export type StorageFund = {
   totalObjectStorageRebates?: Maybe<Scalars['BigInt']['output']>;
 };
 
+export type Subscription = {
+  __typename?: 'Subscription';
+  /**
+   * Subscribe to incoming events from the IOTA network.
+   *
+   * If no filter is provided, all events will be returned.
+   */
+  events: EventSubscriptionPayload;
+  /**
+   * Subscribe to incoming transactions from the IOTA network.
+   *
+   * If no filter is provided, all transactions will be returned.
+   */
+  transactions: TransactionBlockSubscriptionPayload;
+};
+
+
+export type SubscriptionEventsArgs = {
+  filter?: InputMaybe<SubscriptionEventFilter>;
+};
+
+
+export type SubscriptionTransactionsArgs = {
+  filter?: InputMaybe<SubscriptionTransactionFilter>;
+};
+
+/** Filter incoming events in a subscription. */
+export type SubscriptionEventFilter =
+  /**
+   * Filter incoming events by emitting module.
+   *
+   * - Filter by package: "0x02"
+   * - Filter by module: "0x02::coin"
+   */
+  { emittingModule: Scalars['String']['input']; };
+
+/** Filter incoming transactions in a subscription. */
+export type SubscriptionTransactionFilter =
+  /**
+   * Filter incoming transactions by package, module, or function name.
+   *
+   * - Filter by package: "0x03"
+   * - Filter by module: "0x03::iota_system"
+   * - Filter by function: "0x03::iota_system::request_add_stake"
+   */
+  { function: Scalars['String']['input']; kind?: never; signingAddress?: never; }
+  |  /** Filter incoming transactions by kind. */
+  { function?: never; kind: TransactionBlockKindInput; signingAddress?: never; }
+  |  /** Filter incoming transactions by signing address. */
+  { function?: never; kind?: never; signingAddress: Scalars['IotaAddress']['input']; };
+
 /** Details of the system that are decided during genesis. */
 export type SystemParameters = {
   __typename?: 'SystemParameters';
@@ -5455,7 +5533,17 @@ export type TransactionBlockFilter = {
   kind?: InputMaybe<TransactionBlockKindInput>;
   /** Limit to transactions that sent an object to the given address. */
   recvAddress?: InputMaybe<Scalars['IotaAddress']['input']>;
-  /** Limit to transactions that were signed by the given address. */
+  /** Limit to transactions that were sent by the given address. */
+  sentAddress?: InputMaybe<Scalars['IotaAddress']['input']>;
+  /**
+   * Limit to transactions that were sent by the given address. NOTE: this
+   * input filter has been deprecated in favor of `sentAddress` which has
+   * clearer semantics. Both filters restrict transactions by their sender,
+   * only, not signers in general.
+   *
+   * This filter will be removed after 6 months with the 1.24.0 release.
+   * @deprecated Misleading semantics. Use `sentAddress` instead. This will be removed with the 1.24.0 release.
+   */
   signAddress?: InputMaybe<Scalars['IotaAddress']['input']>;
   /** Select transactions by their digest. */
   transactionIds?: InputMaybe<Array<Scalars['String']['input']>>;
@@ -5489,6 +5577,16 @@ export enum TransactionBlockKindInput {
    */
   SystemTx = 'SYSTEM_TX'
 }
+
+/**
+ * Possible responses from a subscription.
+ *
+ * It could be one of the following:
+ * - A successful payload from the subscription stream.
+ * - A notice that the subscription has been lagged behind the network with the
+ * number of lost payloads.
+ */
+export type TransactionBlockSubscriptionPayload = Lagged | TransactionBlock;
 
 export type TransactionInput = OwnedOrImmutable | Pure | Receiving | SharedInput;
 
@@ -5991,7 +6089,7 @@ export type GetLatestCheckpointSequenceNumberQuery = { __typename?: 'Query', che
 export type GetLatestIotaSystemStateQueryVariables = Exact<{ [key: string]: never; }>;
 
 
-export type GetLatestIotaSystemStateQuery = { __typename?: 'Query', epoch?: { __typename?: 'Epoch', epochId: any, startTimestamp: any, endTimestamp?: any | null, referenceGasPrice?: any | null, systemStateVersion?: any | null, iotaTotalSupply?: number | null, iotaTreasuryCapId?: any | null, safeMode?: { __typename?: 'SafeMode', enabled?: boolean | null, gasSummary?: { __typename?: 'GasCostSummary', computationCost?: any | null, computationCostBurned?: any | null, nonRefundableStorageFee?: any | null, storageCost?: any | null, storageRebate?: any | null } | null } | null, storageFund?: { __typename?: 'StorageFund', nonRefundableBalance?: any | null, totalObjectStorageRebates?: any | null } | null, systemParameters?: { __typename?: 'SystemParameters', minValidatorCount?: number | null, maxValidatorCount?: number | null, minValidatorJoiningStake?: any | null, durationMs?: any | null, validatorLowStakeThreshold?: any | null, validatorLowStakeGracePeriod?: any | null, validatorVeryLowStakeThreshold?: any | null } | null, protocolConfigs: { __typename?: 'ProtocolConfigs', protocolVersion: any }, validatorSet?: { __typename?: 'ValidatorSet', inactivePoolsSize?: number | null, pendingActiveValidatorsSize?: number | null, stakingPoolMappingsSize?: number | null, validatorCandidatesSize?: number | null, pendingRemovals?: Array<number> | null, totalStake?: any | null, stakingPoolMappingsId?: any | null, pendingActiveValidatorsId?: any | null, validatorCandidatesId?: any | null, inactivePoolsId?: any | null, activeValidators: { __typename?: 'ValidatorConnection', pageInfo: { __typename?: 'PageInfo', hasNextPage: boolean, endCursor?: string | null }, nodes: Array<{ __typename?: 'Validator', atRisk?: any | null, commissionRate?: number | null, exchangeRatesSize?: any | null, description?: string | null, gasPrice?: any | null, imageUrl?: string | null, name?: string | null, nextEpochCommissionRate?: number | null, nextEpochGasPrice?: any | null, nextEpochStake?: any | null, pendingPoolTokenWithdraw?: any | null, pendingStake?: any | null, pendingTotalIotaWithdraw?: any | null, poolTokenBalance?: any | null, projectUrl?: string | null, rewardsPool?: any | null, stakingPoolActivationEpoch?: any | null, stakingPoolIotaBalance?: any | null, votingPower?: number | null, exchangeRates?: { __typename?: 'MoveObject', address: any, contents?: { __typename?: 'MoveValue', json: any } | null } | null, credentials?: { __typename?: 'ValidatorCredentials', netAddress?: string | null, networkPubKey?: any | null, p2PAddress?: string | null, primaryAddress?: string | null, authorityPubKey?: any | null, proofOfPossession?: any | null, protocolPubKey?: any | null } | null, nextEpochCredentials?: { __typename?: 'ValidatorCredentials', netAddress?: string | null, networkPubKey?: any | null, p2PAddress?: string | null, primaryAddress?: string | null, authorityPubKey?: any | null, proofOfPossession?: any | null, protocolPubKey?: any | null } | null, operationCap?: { __typename?: 'MoveObject', address: any } | null, stakingPool?: { __typename?: 'MoveObject', address: any } | null, address: { __typename?: 'Address', address: any } }> }, committeeMembers: { __typename?: 'ValidatorConnection', pageInfo: { __typename?: 'PageInfo', hasNextPage: boolean, endCursor?: string | null }, nodes: Array<{ __typename?: 'Validator', atRisk?: any | null, commissionRate?: number | null, exchangeRatesSize?: any | null, description?: string | null, gasPrice?: any | null, imageUrl?: string | null, name?: string | null, nextEpochCommissionRate?: number | null, nextEpochGasPrice?: any | null, nextEpochStake?: any | null, pendingPoolTokenWithdraw?: any | null, pendingStake?: any | null, pendingTotalIotaWithdraw?: any | null, poolTokenBalance?: any | null, projectUrl?: string | null, rewardsPool?: any | null, stakingPoolActivationEpoch?: any | null, stakingPoolIotaBalance?: any | null, votingPower?: number | null, exchangeRates?: { __typename?: 'MoveObject', address: any, contents?: { __typename?: 'MoveValue', json: any } | null } | null, credentials?: { __typename?: 'ValidatorCredentials', netAddress?: string | null, networkPubKey?: any | null, p2PAddress?: string | null, primaryAddress?: string | null, authorityPubKey?: any | null, proofOfPossession?: any | null, protocolPubKey?: any | null } | null, nextEpochCredentials?: { __typename?: 'ValidatorCredentials', netAddress?: string | null, networkPubKey?: any | null, p2PAddress?: string | null, primaryAddress?: string | null, authorityPubKey?: any | null, proofOfPossession?: any | null, protocolPubKey?: any | null } | null, operationCap?: { __typename?: 'MoveObject', address: any } | null, stakingPool?: { __typename?: 'MoveObject', address: any } | null, address: { __typename?: 'Address', address: any } }> } } | null } | null };
+export type GetLatestIotaSystemStateQuery = { __typename?: 'Query', epoch?: { __typename?: 'Epoch', epochId: any, startTimestamp: any, endTimestamp?: any | null, referenceGasPrice?: any | null, systemStateVersion?: any | null, iotaTotalSupply?: any | null, iotaTreasuryCapId?: any | null, safeMode?: { __typename?: 'SafeMode', enabled?: boolean | null, gasSummary?: { __typename?: 'GasCostSummary', computationCost?: any | null, computationCostBurned?: any | null, nonRefundableStorageFee?: any | null, storageCost?: any | null, storageRebate?: any | null } | null } | null, storageFund?: { __typename?: 'StorageFund', nonRefundableBalance?: any | null, totalObjectStorageRebates?: any | null } | null, systemParameters?: { __typename?: 'SystemParameters', minValidatorCount?: number | null, maxValidatorCount?: number | null, minValidatorJoiningStake?: any | null, durationMs?: any | null, validatorLowStakeThreshold?: any | null, validatorLowStakeGracePeriod?: any | null, validatorVeryLowStakeThreshold?: any | null } | null, protocolConfigs: { __typename?: 'ProtocolConfigs', protocolVersion: any }, validatorSet?: { __typename?: 'ValidatorSet', inactivePoolsSize?: number | null, pendingActiveValidatorsSize?: number | null, stakingPoolMappingsSize?: number | null, validatorCandidatesSize?: number | null, pendingRemovals?: Array<number> | null, totalStake?: any | null, stakingPoolMappingsId?: any | null, pendingActiveValidatorsId?: any | null, validatorCandidatesId?: any | null, inactivePoolsId?: any | null, activeValidators: { __typename?: 'ValidatorConnection', pageInfo: { __typename?: 'PageInfo', hasNextPage: boolean, endCursor?: string | null }, nodes: Array<{ __typename?: 'Validator', atRisk?: any | null, commissionRate?: number | null, exchangeRatesSize?: any | null, description?: string | null, gasPrice?: any | null, imageUrl?: string | null, name?: string | null, nextEpochCommissionRate?: number | null, nextEpochGasPrice?: any | null, nextEpochStake?: any | null, pendingPoolTokenWithdraw?: any | null, pendingStake?: any | null, pendingTotalIotaWithdraw?: any | null, poolTokenBalance?: any | null, projectUrl?: string | null, rewardsPool?: any | null, stakingPoolActivationEpoch?: any | null, stakingPoolIotaBalance?: any | null, votingPower?: number | null, exchangeRates?: { __typename?: 'MoveObject', address: any, contents?: { __typename?: 'MoveValue', json: any } | null } | null, credentials?: { __typename?: 'ValidatorCredentials', netAddress?: string | null, networkPubKey?: any | null, p2PAddress?: string | null, primaryAddress?: string | null, authorityPubKey?: any | null, proofOfPossession?: any | null, protocolPubKey?: any | null } | null, nextEpochCredentials?: { __typename?: 'ValidatorCredentials', netAddress?: string | null, networkPubKey?: any | null, p2PAddress?: string | null, primaryAddress?: string | null, authorityPubKey?: any | null, proofOfPossession?: any | null, protocolPubKey?: any | null } | null, operationCap?: { __typename?: 'MoveObject', address: any } | null, stakingPool?: { __typename?: 'MoveObject', address: any } | null, address: { __typename?: 'Address', address: any } }> }, committeeMembers: { __typename?: 'ValidatorConnection', pageInfo: { __typename?: 'PageInfo', hasNextPage: boolean, endCursor?: string | null }, nodes: Array<{ __typename?: 'Validator', atRisk?: any | null, commissionRate?: number | null, exchangeRatesSize?: any | null, description?: string | null, gasPrice?: any | null, imageUrl?: string | null, name?: string | null, nextEpochCommissionRate?: number | null, nextEpochGasPrice?: any | null, nextEpochStake?: any | null, pendingPoolTokenWithdraw?: any | null, pendingStake?: any | null, pendingTotalIotaWithdraw?: any | null, poolTokenBalance?: any | null, projectUrl?: string | null, rewardsPool?: any | null, stakingPoolActivationEpoch?: any | null, stakingPoolIotaBalance?: any | null, votingPower?: number | null, exchangeRates?: { __typename?: 'MoveObject', address: any, contents?: { __typename?: 'MoveValue', json: any } | null } | null, credentials?: { __typename?: 'ValidatorCredentials', netAddress?: string | null, networkPubKey?: any | null, p2PAddress?: string | null, primaryAddress?: string | null, authorityPubKey?: any | null, proofOfPossession?: any | null, protocolPubKey?: any | null } | null, nextEpochCredentials?: { __typename?: 'ValidatorCredentials', netAddress?: string | null, networkPubKey?: any | null, p2PAddress?: string | null, primaryAddress?: string | null, authorityPubKey?: any | null, proofOfPossession?: any | null, protocolPubKey?: any | null } | null, operationCap?: { __typename?: 'MoveObject', address: any } | null, stakingPool?: { __typename?: 'MoveObject', address: any } | null, address: { __typename?: 'Address', address: any } }> } } | null } | null };
 
 export type GetMoveFunctionArgTypesQueryVariables = Exact<{
   packageId: Scalars['IotaAddress']['input'];

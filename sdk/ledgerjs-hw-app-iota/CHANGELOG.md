@@ -1,5 +1,17 @@
 # @iota/ledgerjs-hw-app-iota
 
+## 0.6.0
+
+### Minor Changes
+
+-   ae1385d: Update dependencies.
+
+## 0.5.0
+
+### Minor Changes
+
+-   147c97e: Update repository URLs.
+
 ## 0.4.0
 
 ### Minor Changes

@@ -23,6 +23,7 @@ use iota_config::{
     verifier_signing_config::VerifierSigningConfig,
 };
 use iota_names::config::IotaNamesConfig;
+use iota_protocol_config::Chain;
 use iota_types::{
     crypto::{AuthorityKeyPair, AuthorityPublicKeyBytes, IotaKeyPair, NetworkKeyPair},
     multiaddr::Multiaddr,
@@ -53,6 +54,7 @@ pub struct ValidatorConfigBuilder {
     max_submit_position: Option<usize>,
     submit_delay_step_override_millis: Option<u64>,
     discovery_config: Option<DiscoveryConfig>,
+    chain_override: Option<Chain>,
 }
 
 impl ValidatorConfigBuilder {
@@ -60,6 +62,12 @@ impl ValidatorConfigBuilder {
         Self {
             ..Default::default()
         }
+    }
+
+    pub fn with_chain_override(mut self, chain: Chain) -> Self {
+        assert!(self.chain_override.is_none(), "Chain override already set");
+        self.chain_override = Some(chain);
+        self
     }
 
     pub fn with_config_directory(mut self, config_directory: PathBuf) -> Self {
@@ -256,6 +264,7 @@ impl ValidatorConfigBuilder {
             iota_names_config: None,
             enable_grpc_api: false,
             grpc_api_config: None,
+            chain_override_for_testing: self.chain_override,
         }
     }
 
@@ -305,11 +314,18 @@ pub struct FullnodeConfigBuilder {
     iota_names_config: Option<IotaNamesConfig>,
     grpc_api_config: Option<GrpcApiConfig>,
     discovery_config: Option<DiscoveryConfig>,
+    chain_override: Option<Chain>,
 }
 
 impl FullnodeConfigBuilder {
     pub fn new() -> Self {
         Self::default()
+    }
+
+    pub fn with_chain_override(mut self, chain: Chain) -> Self {
+        assert!(self.chain_override.is_none(), "Chain override already set");
+        self.chain_override = Some(chain);
+        self
     }
 
     pub fn with_config_directory(mut self, config_directory: PathBuf) -> Self {
@@ -589,6 +605,7 @@ impl FullnodeConfigBuilder {
             iota_names_config: self.iota_names_config,
             enable_grpc_api: self.grpc_api_config.is_some(),
             grpc_api_config: self.grpc_api_config,
+            chain_override_for_testing: self.chain_override,
         }
     }
 

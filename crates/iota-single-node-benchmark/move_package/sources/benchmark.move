@@ -5,15 +5,9 @@
 module move_benchmark::benchmark {
     use std::ascii;
     use std::ascii::String;
-    use std::vector;
     use iota::coin::Coin;
     use iota::dynamic_field;
-    use iota::object;
-    use iota::object::UID;
     use iota::iota::IOTA;
-    use iota::transfer;
-    use iota::tx_context;
-    use iota::tx_context::TxContext;
 
     public fun transfer_coin(coin: Coin<IOTA>, ctx: &TxContext) {
         transfer::public_transfer(coin, tx_context::sender(ctx));

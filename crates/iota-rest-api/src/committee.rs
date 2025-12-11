@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use axum::extract::{Path, State};
-use iota_sdk2::types::{EpochId, ValidatorCommittee};
+use iota_sdk_types::{EpochId, ValidatorCommittee};
 use iota_types::storage::ReadStore;
 use tap::Pipe;
 

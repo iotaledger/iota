@@ -7,6 +7,7 @@ use std::{fs::File, io::Write, str::FromStr};
 
 use clap::*;
 use fastcrypto_zkp::{bn254::zk_login::OIDCProvider, zk_login_utils::Bn254FrElement};
+use iota_sdk_types::crypto::{Intent, IntentMessage, PersonalMessage};
 use iota_types::{
     base_types::{
         self, IotaAddress, MoveObjectType, MoveObjectType_, ObjectDigest, ObjectID,
@@ -54,7 +55,6 @@ use pretty_assertions::assert_str_eq;
 use rand::{SeedableRng, rngs::StdRng};
 use roaring::RoaringBitmap;
 use serde_reflection::{Registry, Result, Samples, Tracer, TracerConfig};
-use shared_crypto::intent::{Intent, IntentMessage, PersonalMessage};
 use typed_store::TypedStoreError;
 
 /// Generate a type format registry for IOTA types
@@ -134,9 +134,7 @@ fn get_registry() -> Result<Registry> {
 
     let msg = IntentMessage::new(
         Intent::iota_transaction(),
-        PersonalMessage {
-            message: "Message".as_bytes().to_vec(),
-        },
+        PersonalMessage("Message".as_bytes().to_vec().into()),
     );
 
     let sig1: GenericSignature = Signature::new_secure(&msg, &kp1).into();

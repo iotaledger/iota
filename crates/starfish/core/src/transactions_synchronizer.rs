@@ -577,7 +577,6 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
 
     /// Starts a task to fetch missing transactions from other authorities.
     async fn start_fetch_missing_transactions_task(&mut self) -> ConsensusResult<()> {
-        info!("Kick in periodic synchronizer to fetch missing transactions");
         // Get missing transactions from the core
         let missing_transactions = self
             .core_dispatcher
@@ -957,6 +956,12 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
         dag_state: Arc<RwLock<DagState>>,
         sync_method: SyncMethod,
     ) -> ConsensusResult<()> {
+        let _s = context
+            .metrics
+            .node_metrics
+            .scope_processing_time
+            .with_label_values(&["Synchronizer::process_fetched_transactions"])
+            .start_timer();
         // Ensure that all the returned transactions do not go over the total max
         // allowed returned transactions
         if serialized_transactions.len() > requested_transactions_guard.block_refs.len() {

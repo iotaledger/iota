@@ -62,24 +62,29 @@ To run the indexer as a standalone service with an existing fullnode, follow the
 - to run the indexer as a writer (Sync worker), which pulls data from a fullnode and writes data to the database
 
 ```sh
-# Change the RPC_CLIENT_URL to http://0.0.0.0:9000 to run indexer against local validator & fullnode
-
-# Old CLI
-cargo run --bin iota-indexer -- --db-url "postgres://postgres:postgrespw@localhost/iota_indexer" --rpc-client-url "https://api.devnet.iota.cafe:443" --fullnode-sync-worker --reset-db
-
-# New CLI
-cargo run --bin iota-indexer -- --db-url "postgres://postgres:postgrespw@localhost/iota_indexer" indexer --rpc-client-url "https://api.devnet.iota.cafe:443"  --reset-db
+cargo run --bin iota-indexer -- --db-url "postgres://postgres:postgrespw@localhost/iota_indexer" indexer --remote-store-url "http://0.0.0.0:9000/api/v1" --reset-db
 ```
 
 - to run indexer as a reader which exposes a JSON RPC service with following [APIs](https://docs.iota.org/iota-api-ref).
 
 ```sh
-# Old CLI
-cargo run --bin iota-indexer -- --db-url "postgres://postgres:postgrespw@localhost/iota_indexer" --rpc-client-url "https://api.devnet.iota.cafe:443" --rpc-server-worker
-
-# New CLI
-cargo run --bin iota-indexer -- --db-url "postgres://postgres:postgrespw@localhost/iota_indexer" json-rpc-service --rpc-client-url "https://api.devnet.iota.cafe:443"
+cargo run --bin iota-indexer -- --db-url "postgres://postgres:postgrespw@localhost/iota_indexer" json-rpc-service --rpc-client-url "http://0.0.0.0:9000" --rpc-address "0.0.0.0:9124"
 ```
+
+Then the JSON RPC can be accessed like this:
+
+```sh
+curl http://localhost:9124 \
+--header 'content-type: application/json' \
+--data '{
+    "jsonrpc": "2.0",
+    "id": 1,
+    "method": "iota_getChainIdentifier"
+}'
+```
+
+> [!NOTE]
+> To have a fully functional indexer that serves data via the JSON RPC interface at `--rpc-address`, you need to run both the writer (sync worker) instance to populate the database with data from the fullnode and the reader (RPC server worker) instance to expose the API. Running only the reader will not provide data unless the database has been populated by a writer.
 
 More available flags can be found in this [file](https://github.com/iotaledger/iota/blob/develop/crates/iota-indexer/src/lib.rs).
 

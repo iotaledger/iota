@@ -8,6 +8,7 @@ use std::{
     sync::Arc,
 };
 
+use iota_sdk_types::crypto::Intent;
 use iota_types::{
     base_types::{AuthorityName, ConciseableName},
     committee::{Committee, CommitteeTrait, StakeUnit},
@@ -16,7 +17,6 @@ use iota_types::{
     message_envelope::{Envelope, Message},
 };
 use serde::Serialize;
-use shared_crypto::intent::Intent;
 use tracing::warn;
 
 /// StakeAggregator allows us to keep track of the total stake of a set of

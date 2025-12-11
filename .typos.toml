@@ -17,6 +17,8 @@ extend-ignore-re = [
   # Block ignore for docs (e.g. { /* spellchecker:off */ } ... { /* spellchecker:on */ })
   # This can be expanded to other comment styles if needed
   "(?s)(\\{ /\\*)\\s*spellchecker:off.*?\\n\\s*(\\{ /\\*)\\s*spellchecker:on",
+  # BCS octet documentation
+  "[0-9]{2}OCTECT",
 ]
 
 [type.hex-move]

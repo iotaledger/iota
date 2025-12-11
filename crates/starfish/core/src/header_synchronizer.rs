@@ -583,6 +583,12 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
         if serialized_headers.is_empty() {
             return Ok(());
         }
+        let _s = context
+            .metrics
+            .node_metrics
+            .scope_processing_time
+            .with_label_values(&["Synchronizer::process_fetched_blocks"])
+            .start_timer();
         if serialized_headers.len() > context.parameters.max_headers_per_regular_sync_fetch {
             debug!(
                 "Truncating fetched headers from peer {} to max allowed {} blocks",
