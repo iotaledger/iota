@@ -36,6 +36,7 @@ use serde_with::serde_as;
 
 use crate::{
     IOTA_CLOCK_OBJECT_ID, IOTA_FRAMEWORK_ADDRESS, IOTA_SYSTEM_ADDRESS, MOVE_STDLIB_ADDRESS,
+    account::AuthenticatorInfoV1,
     balance::Balance,
     coin::{COIN_MODULE_NAME, COIN_STRUCT_NAME, Coin, CoinMetadata, TreasuryCap},
     coin_manager::CoinManager,
@@ -400,6 +401,15 @@ impl MoveObjectType {
                 false
             }
             MoveObjectType_::Other(s) => NftOutput::is_nft_output(s),
+        }
+    }
+
+    pub fn is_authenticator_info_v1(&self) -> bool {
+        match &self.0 {
+            MoveObjectType_::GasCoin | MoveObjectType_::StakedIota | MoveObjectType_::Coin(_) => {
+                false
+            }
+            MoveObjectType_::Other(s) => AuthenticatorInfoV1::is_authenticator_info_v1(s),
         }
     }
 
@@ -807,6 +817,7 @@ impl TryFrom<&GenericSignature> for IotaAddress {
                 IotaAddress::try_from_unpadded(&zklogin.inputs)
             }
             GenericSignature::PasskeyAuthenticator(s) => Ok(IotaAddress::from(&s.get_pk()?)),
+            GenericSignature::MoveAuthenticator(move_authenticator) => move_authenticator.address(),
         }
     }
 }
