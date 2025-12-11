@@ -136,7 +136,7 @@ kill_spammer_processes() {
     pkill -9 -f 'cargo run --release -- spammer spam' 2>/dev/null || true
     pkill -9 -f 'cargo run --release --.* stress' 2>/dev/null || true
     pkill -9 -f 'spamming_fuzz_test.sh' 2>/dev/null || true
-    pkill -9 -f 'network-fuzz-disruption.sh' 2>/dev/null || true
+    pkill -9 -f 'network-benchmark.sh' 2>/dev/null || true
 
     # also remove per-user and global lock files
     rm -f /tmp/spammer-*.lock 2>/dev/null || true
@@ -181,7 +181,7 @@ NETWORK_METRIC=$DEFAULT_NETWORK_METRIC
 SPAMMER_ENABLE=$DEFAULT_SPAMMER_ENABLE
 SPAMMER_TPS=$DEFAULT_SPAMMER_TPS
 SPAMMER_SIZE_PER_TX=$DEFAULT_SPAMMER_SIZE
-SPAMMER_TYPE=$DEFAULT_SPAMMER_SIZE
+SPAMMER_TYPE=$DEFAULT_SPAMMER_TYPE
 
 # --- Parse command-line arguments ---
 while getopts ":n:p:b:g:s:x:l:t:r:mS:T:Z:C:h" opt; do
@@ -227,7 +227,7 @@ log "Spammer enabled            : $SPAMMER_ENABLE"
 if [ "$SPAMMER_ENABLE" = true ]; then
   log "Spammer type               : $SPAMMER_TYPE"
   log "Spammer TPS                : $SPAMMER_TPS"
-  if [ "$SPAMMER_TYPE" = "iota-spammer"]; then
+  if [ "$SPAMMER_TYPE" = "iota-spammer" ]; then
     log "Spammer size per tx        : $SPAMMER_SIZE_PER_TX"
   fi
 fi
@@ -293,7 +293,7 @@ log "Grafana URL: http://localhost:3000/dashboards"
 cd - >/dev/null
 
 # --- 5) Launch combined latency + fuzz watcher in background ---
-./network-fuzz-disruption.sh \
+./network-benchmark.sh \
     -n "$NUM_VALIDATORS" \
     -s "$SEED" \
     -b "$PERCENT_BLOCK" \
@@ -387,16 +387,20 @@ TIMESTAMP=$(date +%Y%m%d-%H%M%S)
 for ((i=1; i<=NUM_VALIDATORS; i++)); do
   v="validator-$i"
 
-  # Save final validator log with timestamp
   docker logs "$v" &> "$LOG_DIR/experiment-${v}-${TIMESTAMP}.log"
-
-  # Keep the latest symlink-like copy updated
   cp "$LOG_DIR/experiment-${v}-${TIMESTAMP}.log" "$LOG_DIR/experiment-${v}-latest.log"
 
   log "Saved final log for $v to $LOG_DIR/experiment-${v}-${TIMESTAMP}.log"
 done
 
-# --- Copy main experiment log with timestamp ---
+# Copy main experiment log with timestamp
 cp "$LOG_FILE" "$LOG_DIR/experiment_script_${TIMESTAMP}.log"
+
+# Copy spammer log with timestamp (if enabled and present)
+if [ "$SPAMMER_ENABLE" = true ] && [ -f "$LOG_DIR/spammer.log" ]; then
+  cp "$LOG_DIR/spammer.log" "$LOG_DIR/experiment-spammer-${TIMESTAMP}.log"
+  cp "$LOG_DIR/spammer.log" "$LOG_DIR/experiment-spammer-latest.log"
+  log "Saved spammer log to $LOG_DIR/experiment-spammer-${TIMESTAMP}.log"
+fi
 
 log "All steps completed. Cleanup will run on script exit."

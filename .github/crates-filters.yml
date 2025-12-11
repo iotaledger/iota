@@ -14,6 +14,8 @@ iota-aws-orchestrator:
   - "crates/iota-aws-orchestrator/**"
 iota-benchmark:
   - "crates/iota-benchmark/**"
+iota-build-cache-server:
+  - "crates/iota-build-cache-server/**"
 iota-cluster-test:
   - "crates/iota-cluster-test/**"
 iota-common:
@@ -66,6 +68,8 @@ iota-indexer:
   - "crates/iota-indexer/**"
 iota-indexer-builder:
   - "crates/iota-indexer-builder/**"
+iota-indexer-streaming:
+  - "crates/iota-indexer-streaming/**"
 iota-json:
   - "crates/iota-json/**"
 iota-json-rpc:
@@ -180,8 +184,6 @@ iota-verifier-transactional-tests:
   - "crates/iota-verifier-transactional-tests/**"
 prometheus-closure-metric:
   - "crates/prometheus-closure-metric/**"
-shared-crypto:
-  - "crates/shared-crypto/**"
 simulacrum:
   - "crates/simulacrum/**"
 telemetry-subscribers:

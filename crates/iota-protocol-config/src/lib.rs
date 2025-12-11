@@ -19,7 +19,7 @@ use tracing::{info, warn};
 
 /// The minimum and maximum protocol versions supported by this build.
 const MIN_PROTOCOL_VERSION: u64 = 1;
-pub const MAX_PROTOCOL_VERSION: u64 = 15;
+pub const MAX_PROTOCOL_VERSION: u64 = 17;
 
 // Record history of protocol version allocations here:
 //
@@ -86,6 +86,12 @@ pub const MAX_PROTOCOL_VERSION: u64 = 15;
 //             AuthorityCapabilities notification in testnet.
 // Version 15: Enable shared object transaction bursts of 10 times average load
 //             on devnet.
+// Version 16: Enable selecting committee only from active validators that
+//             support the next epoch's version and issued valid
+//             AuthorityCapabilities notification.
+//             Enable committing transactions only for traversed headers in
+//             Starfish.
+// Version 17: Increase the committee size to 100 on all networks.
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
 
@@ -142,17 +148,14 @@ impl std::ops::Add<u64> for ProtocolVersion {
     }
 }
 
-#[derive(Clone, Serialize, Deserialize, Debug, PartialEq, Copy, PartialOrd, Ord, Eq, ValueEnum)]
+#[derive(
+    Clone, Serialize, Deserialize, Debug, PartialEq, Copy, PartialOrd, Ord, Eq, ValueEnum, Default,
+)]
 pub enum Chain {
     Mainnet,
     Testnet,
+    #[default]
     Unknown,
-}
-
-impl Default for Chain {
-    fn default() -> Self {
-        Self::Unknown
-    }
 }
 
 impl Chain {
@@ -364,6 +367,9 @@ struct FeatureFlags {
     // leader's ancestors, and (3) enforces checkpoint timestamps are non-decreasing.
     #[serde(skip_serializing_if = "is_false")]
     consensus_median_timestamp_with_checkpoint_enforcement: bool,
+    // If true, then transactions are committed only for traversed headers
+    #[serde(skip_serializing_if = "is_false")]
+    consensus_commit_transactions_only_for_traversed_headers: bool,
 }
 
 fn is_true(b: &bool) -> bool {
@@ -1433,6 +1439,10 @@ impl ProtocolConfig {
         );
         res
     }
+    pub fn consensus_commit_transactions_only_for_traversed_headers(&self) -> bool {
+        self.feature_flags
+            .consensus_commit_transactions_only_for_traversed_headers
+    }
 }
 
 #[cfg(not(msim))]
@@ -2294,6 +2304,19 @@ impl ProtocolConfig {
                         cfg.max_congestion_limit_overshoot_per_commit = Some(100);
                     }
                 }
+                16 => {
+                    // Enable selecting committee only from active validators that support the
+                    // next epoch's version and issued valid AuthorityCapabilities notification.
+                    cfg.feature_flags
+                        .select_committee_supporting_next_epoch_version = true;
+                    // Enable committing transactions only for traversed headers in Starfish
+                    cfg.feature_flags
+                        .consensus_commit_transactions_only_for_traversed_headers = true;
+                }
+                17 => {
+                    // Increase the committee size to 100 on all networks.
+                    cfg.max_committee_members_count = Some(100);
+                }
                 // Use this template when making changes:
                 //
                 //     // modify an existing constant.
@@ -2473,6 +2496,13 @@ impl ProtocolConfig {
     ) {
         self.feature_flags
             .consensus_median_timestamp_with_checkpoint_enforcement = val;
+    }
+    pub fn set_consensus_commit_transactions_only_for_traversed_headers_for_testing(
+        &mut self,
+        val: bool,
+    ) {
+        self.feature_flags
+            .consensus_commit_transactions_only_for_traversed_headers = val;
     }
 }
 

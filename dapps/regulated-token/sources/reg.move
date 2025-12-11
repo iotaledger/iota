@@ -3,9 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 module regulated_token::reg {
-    use std::option;
-    use iota::tx_context::{sender, TxContext};
-    use iota::transfer;
+    use iota::tx_context::sender;
     use iota::coin::{Self, TreasuryCap};
     use iota::token::{Self, Token, TokenPolicy};
 

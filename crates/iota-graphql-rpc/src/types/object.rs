@@ -133,11 +133,8 @@ pub(crate) struct ObjectRef {
 ///   `objectKeys`.
 #[derive(InputObject, Default, Debug, Clone, Eq, PartialEq)]
 pub(crate) struct ObjectFilter {
-    /// This field is used to specify the type of objects that should be
-    /// included in the query results.
-    ///
-    /// Objects can be filtered by their type's package, package::module, or
-    /// their fully qualified type name.
+    /// Filter objects by their type's `package`, `package::module`, or their
+    /// fully qualified type name.
     ///
     /// Generic types can be queried by either the generic type name, e.g.
     /// `0x2::coin::Coin`, or by the full type name, such as
@@ -1340,6 +1337,10 @@ impl Loader<HistoricalKey> for Db {
         use objects_history::dsl as h;
         use objects_version::dsl as v;
 
+        if keys.is_empty() {
+            return Ok(HashMap::new());
+        }
+
         let id_versions: BTreeSet<_> = keys
             .iter()
             .map(|key| (key.id.into_vec(), key.version as i64))
@@ -1407,6 +1408,10 @@ impl Loader<OptimisticKey> for Db {
 
     async fn load(&self, keys: &[OptimisticKey]) -> Result<HashMap<OptimisticKey, Object>, Error> {
         use objects::dsl as o;
+
+        if keys.is_empty() {
+            return Ok(HashMap::new());
+        }
 
         let id_versions: BTreeSet<_> = keys
             .iter()

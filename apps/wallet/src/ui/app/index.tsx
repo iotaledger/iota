@@ -62,6 +62,7 @@ import { AccountsFinderPage } from './pages/accounts/manage/accounts-finder/Acco
 import { AccountsFinderIntroPage } from './pages/accounts/manage/accounts-finder/AccountsFinderIntroPage';
 import { PasskeyAccountPage } from './pages/accounts/PasskeyAccountPage';
 import { ImportKeystone } from './pages/accounts/ImportKeystone';
+import { Feature, useFeatureEnabledByNetwork } from '@iota/core';
 
 const HIDDEN_MENU_PATHS = [
     '/nft-details',
@@ -160,6 +161,8 @@ export function App() {
             document.removeEventListener('keydown', sendUpdateThrottled);
         };
     }, [backgroundClient, autoLockEnabled]);
+    const network = useAppSelector(({ app }) => app.network);
+    const isPasskeysEnabled = useFeatureEnabledByNetwork(Feature.WalletPasskeys, network);
 
     // Placeholder check for storage migration.
     // currently hook useStorageMigrationStatus always returns 'ready'
@@ -194,7 +197,9 @@ export function App() {
                 <Route path="import-passphrase" element={<ImportPassphrasePage />} />
                 <Route path="import-private-key" element={<ImportPrivateKeyPage />} />
                 <Route path="import-seed" element={<ImportSeedPage />} />
-                <Route path="passkey-account" element={<PasskeyAccountPage />} />
+                {isPasskeysEnabled && (
+                    <Route path="passkey-account" element={<PasskeyAccountPage />} />
+                )}
                 <Route path="import-keystone" element={<ImportKeystone />} />
                 <Route path="manage" element={<ManageAccountsPage />} />
                 <Route path="manage/accounts-finder/intro" element={<AccountsFinderIntroPage />} />

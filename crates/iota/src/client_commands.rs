@@ -31,7 +31,7 @@ use iota_json_rpc_types::{
     IotaTransactionBlockEffectsAPI, IotaTransactionBlockResponse,
     IotaTransactionBlockResponseOptions,
 };
-use iota_keys::keystore::AccountKeystore;
+use iota_keys::keystore::{AccountKeystore, StoredKey};
 use iota_move::manage_package::resolve_lock_file_path;
 use iota_move_build::{
     BuildConfig, CompiledPackage, build_from_resolution_graph, check_invalid_dependencies,
@@ -875,15 +875,22 @@ impl IotaClientCommands {
             }
             IotaClientCommands::Addresses { sort_by_alias } => {
                 let active_address = context.active_address()?;
-                let mut addresses: Vec<(String, IotaAddress)> = context
+                let mut addresses = context
                     .config()
                     .keystore()
                     .addresses_with_alias()
                     .into_iter()
-                    .map(|(address, alias)| (alias.alias.to_string(), *address))
-                    .collect();
+                    .map(|(address, alias)| {
+                        let source = match context.config().keystore().get_key(address).unwrap() {
+                            StoredKey::KeyPair(_) => "keypair".to_string(),
+                            StoredKey::External { source, .. } => source.to_string(),
+                        };
+                        (alias.alias.to_string(), *address, source)
+                    })
+                    .collect::<Vec<_>>();
+
                 if sort_by_alias {
-                    addresses.sort();
+                    addresses.sort_by(|a, b| a.0.cmp(&b.0));
                 }
 
                 let output = AddressesOutput {
@@ -2331,14 +2338,19 @@ impl Display for IotaClientCommandResult {
         match self {
             IotaClientCommandResult::Addresses(addresses) => {
                 let mut builder = TableBuilder::default();
-                builder.set_header(vec!["alias", "address", "active address"]);
-                for (alias, address) in &addresses.addresses {
+                builder.set_header(vec!["alias", "address", "source", "active"]);
+                for (alias, address, source) in &addresses.addresses {
                     let active_address = if address == &addresses.active_address {
                         "*".to_string()
                     } else {
                         "".to_string()
                     };
-                    builder.push_record([alias.to_string(), address.to_string(), active_address]);
+                    builder.push_record([
+                        alias.to_string(),
+                        address.to_string(),
+                        source.to_string(),
+                        active_address,
+                    ]);
                 }
                 let mut table = builder.build();
                 let style = TableStyle::rounded();
@@ -2771,7 +2783,7 @@ impl PrintableResult for IotaClientCommandResult {}
 #[serde(rename_all = "camelCase")]
 pub struct AddressesOutput {
     pub active_address: IotaAddress,
-    pub addresses: Vec<(String, IotaAddress)>,
+    pub addresses: Vec<(String, IotaAddress, String)>,
 }
 
 #[derive(Serialize)]

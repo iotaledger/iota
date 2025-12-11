@@ -28,7 +28,7 @@ use iota_types::{
         QuorumDriverError, QuorumDriverResponse, QuorumDriverResult,
     },
     transaction::{TransactionData, VerifiedTransaction},
-    transaction_executor::SimulateTransactionResult,
+    transaction_executor::{SimulateTransactionResult, VmChecks},
 };
 use prometheus::{
     Histogram, Registry,
@@ -726,7 +726,9 @@ where
     fn simulate_transaction(
         &self,
         transaction: TransactionData,
+        checks: VmChecks,
     ) -> Result<SimulateTransactionResult, IotaError> {
-        self.validator_state.simulate_transaction(transaction)
+        self.validator_state
+            .simulate_transaction(transaction, checks)
     }
 }

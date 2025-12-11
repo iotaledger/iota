@@ -253,26 +253,22 @@ impl Core {
         // refs can be ignored as the missing transactions will be fetched by the
         // periodic transactions' synchronizer.
         self.try_commit().unwrap();
-        let last_proposed_block = match self.try_propose(ReasonToCreateBlock::Recover).unwrap() {
-            (Some(block), _) => Some(block),
-            (None, _) => {
-                let last_proposed_block = self.dag_state.read().recover_last_own_block();
-                if self.should_propose() {
-                    assert!(
-                        last_proposed_block.round() != GENESIS_ROUND,
-                        "At minimum a block of round higher than genesis should have been produced during recovery"
-                    );
+        let last_own_non_genesis_block =
+            match self.try_propose(ReasonToCreateBlock::Recover).unwrap() {
+                (Some(block), _) => Some(block),
+                (None, _) => {
+                    if let Some(last_proposed_block) =
+                        self.dag_state.read().get_last_own_non_genesis_block()
+                    {
+                        // if no new block proposed then just re-broadcast the last proposed one to
+                        // ensure liveness.
+                        self.signals.new_block(last_proposed_block.clone()).unwrap();
+                        Some(last_proposed_block)
+                    } else {
+                        None
+                    }
                 }
-                if last_proposed_block.round() != GENESIS_ROUND {
-                    // if no new block proposed then just re-broadcast the last proposed one to
-                    // ensure liveness.
-                    self.signals.new_block(last_proposed_block.clone()).unwrap();
-                    Some(last_proposed_block)
-                } else {
-                    None
-                }
-            }
-        };
+            };
 
         // Try to set up leader timeout if needed.
         // This needs to be called after try_commit() and try_propose(), which may
@@ -280,8 +276,8 @@ impl Core {
         self.try_signal_new_round();
 
         info!(
-            "Core recovery completed with last proposed block {:?}",
-            last_proposed_block.map(|b| b.verified_block_header)
+            "Core recovery completed with last proposed (non-genesis) block {:?}",
+            last_own_non_genesis_block.map(|b| b.verified_block_header)
         );
 
         self
@@ -441,7 +437,7 @@ impl Core {
         // Commit observer is called with an empty vector of new leaders to check if all
         // transactions are available for any currently pending subdags, without
         // creating any new commits.
-        self.commit_observer.handle_commit(Vec::new())?;
+        self.commit_observer.handle_committed_leaders(Vec::new())?;
 
         Ok(())
     }
@@ -483,6 +479,22 @@ impl Core {
         BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>,
     )> {
         let _scope = monitored_scope("Core::add_certified_commits");
+
+        // First, collect and add all transactions from certified commits.
+        // Transactions must be added before processing commits to ensure they are
+        // available when creating new commits.
+        let all_transactions: Vec<VerifiedTransactions> = certified_commits
+            .commits()
+            .iter()
+            .flat_map(|commit| commit.transactions())
+            .cloned()
+            .collect();
+
+        if !all_transactions.is_empty() {
+            self.add_transactions(all_transactions, TransactionSource::CommitSyncer)?;
+        }
+
+        // Then collect and add block headers.
         let block_headers = certified_commits
             .commits()
             .iter()
@@ -910,8 +922,9 @@ impl Core {
             );
 
             // TODO: refcount subdags
-            let (subdags, missing_transactions_refs) =
-                self.commit_observer.handle_commit(sequenced_leaders)?;
+            let (subdags, missing_transactions_refs) = self
+                .commit_observer
+                .handle_committed_leaders(sequenced_leaders)?;
 
             // Check for duplicates before extending
             assert!(
@@ -1323,6 +1336,7 @@ mod test {
     use iota_metrics::monitored_mpsc::unbounded_channel;
     use iota_protocol_config::ProtocolConfig;
     use rstest::rstest;
+    use serial_test::serial;
     use starfish_config::{AuthorityIndex, Parameters};
     use tokio::time::sleep;
 
@@ -2243,11 +2257,20 @@ mod test {
         }
     }
 
+    #[rstest]
     #[tokio::test]
-    async fn test_sequenced_transactions_no_headers() {
+    #[serial]
+    async fn test_sequenced_transactions_no_headers(
+        #[values(true, false)] commit_only_for_traversed_headers: bool,
+    ) {
         telemetry_subscribers::init_for_testing();
         let committee_size = 10;
-        let (context, _key_pairs) = Context::new_for_test(committee_size);
+        let (mut context, _key_pairs) = Context::new_for_test(committee_size);
+        context
+            .protocol_config
+            .set_consensus_commit_transactions_only_for_traversed_headers_for_testing(
+                commit_only_for_traversed_headers,
+            );
         let own_index = AuthorityIndex::new_for_test(0);
         let core_fixture_own = CoreTextFixture::new(
             context.clone(),
@@ -2325,7 +2348,8 @@ mod test {
                     );
                 } else {
                     assert!(
-                        !existing_headers.contains(&transaction.block_ref()),
+                        !existing_headers.contains(&transaction.block_ref())
+                            && !commit_only_for_traversed_headers,
                         "{}",
                         transaction.block_ref()
                     );
@@ -2337,7 +2361,7 @@ mod test {
             }
         }
         // Now the node that tries to catch up will sync the certified commits
-        // The commits contains only the headers
+        // The commits contain only the headers
         let certified_commits = sub_dags_and_commits
             .iter()
             .map(|(_, c)| c.clone())
@@ -2352,14 +2376,24 @@ mod test {
             .find(|(a, _)| a.author == authority_to_skip)
             .unwrap()
             .0;
+        if commit_only_for_traversed_headers {
+            assert_eq!(
+                first_missing_transaction_from_skipped.round,
+                num_rounds_with_skip_ancestors
+            );
+        } else {
+            assert_eq!(first_missing_transaction_from_skipped.round, 1);
+        }
         // Ensure that the block header corresponding to the
         // first_missing_transaction_from_skipped is not in dag_state
-        assert!(
+        // if commit_only_for_traversed_headers=false and in dag_state otherwise
+        assert_eq!(
             core_catch_up
                 .dag_state
                 .read()
                 .get_verified_block_headers(&[first_missing_transaction_from_skipped])[0]
-                .is_none()
+                .is_some(),
+            commit_only_for_traversed_headers
         );
         let last_solid_commit_round = core_catch_up
             .dag_state
@@ -2395,15 +2429,19 @@ mod test {
         // Flush to evict verified transactions from first rounds;
         core_catch_up.dag_state.write().flush();
         // Try to get a verified transaction from skipped authority. It should be
-        // impossible with get_verified_transactions() method since the header
-        // is not available
+        // impossible if commit_only_for_traversed_headers = false with
+        // get_verified_transactions() method since the header is not available;
+        // should be possible with commit_only_for_traversed_headers = true
         let opt_verified_transaction = core_catch_up
             .dag_state
             .read()
             .get_verified_transactions(&[first_missing_transaction_from_skipped]);
-        assert!(opt_verified_transaction[0].is_none());
+        assert_eq!(
+            opt_verified_transaction[0].is_some(),
+            commit_only_for_traversed_headers
+        );
         // Try to get a serialized transaction from skipped authority. It should now be
-        // impossible with get_serialized_transactions() method since it just
+        // possible with get_serialized_transactions() method since it just
         // reads bytes from storage
         let opt_serialized_transaction = core_catch_up
             .dag_state
@@ -2829,7 +2867,6 @@ mod test {
         *receiver.borrow_and_update()
     }
 
-    #[rstest]
     #[tokio::test]
     async fn test_commit_and_notify_for_block_status() {
         telemetry_subscribers::init_for_testing();

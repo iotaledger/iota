@@ -38,6 +38,16 @@ pub trait ProtocolCommands<T: BenchmarkType> {
     where
         I: IntoIterator<Item = Instance>;
 
+    /// The command to run a fullnode. The function returns a vector of commands
+    /// along with the associated instance on which to run the command.
+    fn fullnode_command<I>(
+        &self,
+        instances: I,
+        parameters: &BenchmarkParameters<T>,
+    ) -> Vec<(Instance, String)>
+    where
+        I: IntoIterator<Item = Instance>;
+
     fn monitor_command<I>(&self, instances: I) -> Vec<(Instance, String)>
     where
         I: IntoIterator<Item = Instance>;
