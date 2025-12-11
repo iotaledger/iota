@@ -47,7 +47,7 @@ use move_core_types::{
 use crate::{
     coin_api::execute_move_call,
     common::{
-        ApiTestSetup, execute_tx_and_wait_for_indexer, execute_tx_must_succeed,
+        ApiTestSetup, execute_tx_and_wait_for_indexer_checkpoint, execute_tx_must_succeed,
         indexer_wait_for_checkpoint, indexer_wait_for_latest_checkpoint, indexer_wait_for_object,
         indexer_wait_for_transaction, rpc_call_error_msg_matches,
         start_test_cluster_with_read_write_indexer,
@@ -902,7 +902,7 @@ fn test_query_transaction_blocks_from_and_to_address() -> Result<(), anyhow::Err
             )
             .await
             .unwrap();
-        execute_tx_and_wait_for_indexer(client, store, transfer_request, &keypair).await;
+        execute_tx_and_wait_for_indexer_checkpoint(client, store, transfer_request, &keypair).await;
 
         let query = IotaTransactionBlockResponseQuery::new_with_filter(
             TransactionFilter::FromAndToAddress {
@@ -979,7 +979,8 @@ fn test_query_by_recently_executed_tx_cursor() -> Result<(), anyhow::Error> {
             .await
             .unwrap();
         let digest_3 =
-            execute_tx_and_wait_for_indexer(client, store, transfer_request, &keypair).await;
+            execute_tx_and_wait_for_indexer_checkpoint(client, store, transfer_request, &keypair)
+                .await;
 
         assert_paginated_filtered_transactions(
             client,
@@ -1043,7 +1044,7 @@ fn test_query_transaction_blocks_from_or_to_address() -> Result<(), anyhow::Erro
             )
             .await
             .unwrap();
-        execute_tx_and_wait_for_indexer(client, store, transfer_request, &keypair).await;
+        execute_tx_and_wait_for_indexer_checkpoint(client, store, transfer_request, &keypair).await;
 
         let query = IotaTransactionBlockResponseQuery::new_with_filter(
             TransactionFilter::FromOrToAddress { addr: address },

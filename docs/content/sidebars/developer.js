@@ -516,6 +516,11 @@ const developer = [
                 id: 'developer/workshops/building-decentralized-applications-with-dapp-kit',
                 label: 'Building Decentralized Applications with dapp-kit Workshop',
             },
+            {
+                type: 'doc',
+                id: 'developer/workshops/hierarchy-workshop',
+                label: 'IOTA Hierarchy Workshop',
+            },
         ],
     },
     {

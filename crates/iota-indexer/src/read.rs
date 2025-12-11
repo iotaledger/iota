@@ -79,7 +79,10 @@ use crate::{
         objects, objects_history, objects_snapshot, objects_version, optimistic_transactions,
         packages, pruner_cp_watermark, transactions, tx_digests, tx_global_order,
     },
-    store::{diesel_macro::*, package_resolver::IndexerStorePackageResolver},
+    store::{
+        diesel_macro::{mark_in_blocking_pool, *},
+        package_resolver::IndexerStorePackageResolver,
+    },
     types::{IndexerResult, OwnerType},
 };
 
@@ -146,8 +149,7 @@ impl IndexerReader {
         let this = self.clone();
         let current_span = tracing::Span::current();
         tokio::task::spawn_blocking(move || {
-            CALLED_FROM_BLOCKING_POOL
-                .with(|in_blocking_pool| *in_blocking_pool.borrow_mut() = true);
+            mark_in_blocking_pool();
             let _guard = current_span.enter();
             f(this)
         })

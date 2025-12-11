@@ -1,6 +1,7 @@
 // Copyright (c) Mysten Labs, Inc.
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
+
 use core::result::Result::Ok;
 use std::{
     any::Any as StdAny,
@@ -74,7 +75,7 @@ use crate::{
         tx_global_order, tx_input_objects, tx_kinds, tx_recipients, tx_senders,
         tx_wrapped_or_deleted_objects, watermarks,
     },
-    store::IndexerStore,
+    store::{IndexerStore, diesel_macro::mark_in_blocking_pool},
     transactional_blocking_with_retry,
     types::{
         EventIndex, IndexedCheckpoint, IndexedDeletedObject, IndexedEvent, IndexedObject,
@@ -1744,6 +1745,7 @@ impl PgIndexerStore {
         let this = self.clone();
         let current_span = tracing::Span::current();
         tokio::task::spawn_blocking(move || {
+            mark_in_blocking_pool();
             let _guard = current_span.enter();
             f(this)
         })
@@ -1764,6 +1766,7 @@ impl PgIndexerStore {
         let current_span = tracing::Span::current();
         let guard = self.metrics.tokio_blocking_task_wait_latency.start_timer();
         tokio::task::spawn_blocking(move || {
+            mark_in_blocking_pool();
             let _guard = current_span.enter();
             let _elapsed = guard.stop_and_record();
             f(this)

@@ -28,12 +28,21 @@ pub(crate) struct Address {
     pub checkpoint_viewed_at: u64,
 }
 
-/// The possible relationship types for a transaction block: sign, sent,
-/// received, or paid.
+/// The possible relationship types for a transaction block: sent or received.
 #[derive(Enum, Copy, Clone, Eq, PartialEq)]
 pub(crate) enum AddressTransactionBlockRelationship {
-    /// Transactions this address has signed either as a sender or as a sponsor.
+    /// Transactions this address has sent. NOTE: this input filter has been
+    /// deprecated in favor of `SENT` which behaves identically but is named
+    /// more clearly. Both filters restrict transactions by their sender,
+    /// only, not signers in general.
+    ///
+    /// This filter will be removed after 6 months with the 1.24.0 release.
+    #[graphql(
+        deprecation = "Misleading semantics. Use `SENT` instead. This will be removed with the 1.24.0 release."
+    )]
     Sign,
+    /// Transactions this address has sent.
+    Sent,
     /// Transactions that sent objects to this address.
     Recv,
 }
@@ -146,7 +155,7 @@ impl Address {
 
     /// Similar behavior to the `transactionBlocks` in Query but supporting the
     /// additional `AddressTransactionBlockRelationship` filter, which
-    /// defaults to `SIGN`.
+    /// defaults to `SENT`.
     ///
     /// `scanLimit` restricts the number of candidate transactions scanned when
     /// gathering a page of results. It is required for queries that apply
@@ -187,8 +196,8 @@ impl Address {
 
         let Some(filter) = filter.unwrap_or_default().intersect(match relation {
             // Relationship defaults to "signer" if none is supplied.
-            Some(R::Sign) | None => TransactionBlockFilter {
-                sign_address: Some(self.address),
+            Some(R::Sign) | Some(R::Sent) | None => TransactionBlockFilter {
+                sent_address: Some(self.address),
                 ..Default::default()
             },
 
