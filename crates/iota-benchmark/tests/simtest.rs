@@ -44,7 +44,9 @@ mod test {
         clear_fail_point, nondeterministic, register_fail_point, register_fail_point_arg,
         register_fail_point_async, register_fail_point_if, register_fail_points, sim_test,
     };
-    use iota_protocol_config::{PerObjectCongestionControlMode, ProtocolConfig, ProtocolVersion};
+    use iota_protocol_config::{
+        Chain, PerObjectCongestionControlMode, ProtocolConfig, ProtocolVersion,
+    };
     use iota_simulator::{SimConfig, configs::*, tempfile::TempDir};
     use iota_storage::blob::Blob;
     use iota_surfer::surf_strategy::SurfStrategy;
@@ -103,8 +105,38 @@ mod test {
     #[sim_test(config = "test_config()")]
     async fn test_simulated_load_with_reconfig() {
         iota_protocol_config::ProtocolConfig::poison_get_for_min_version();
-        let test_cluster = build_test_cluster(4, 1000, 1).await;
+        let test_cluster = build_test_cluster(2, 3000, 1).await;
         test_simulated_load(test_cluster, 60).await;
+    }
+
+    #[sim_test(config = "test_config()")]
+    async fn test_mainnet_config() {
+        chain_config_smoke_test(Chain::Mainnet).await;
+    }
+
+    #[sim_test(config = "test_config()")]
+    async fn test_testnet_config() {
+        chain_config_smoke_test(Chain::Testnet).await;
+    }
+
+    async fn chain_config_smoke_test(chain: Chain) {
+        iota_protocol_config::ProtocolConfig::poison_get_for_min_version();
+        let test_cluster = init_test_cluster_builder(2, 3000)
+            .with_authority_overload_config(AuthorityOverloadConfig {
+                // Disable system overload checks for the test - during tests with crashes,
+                // it is possible for overload protection to trigger due to validators
+                // having queued certs which are missing dependencies.
+                check_system_overload_at_execution: false,
+                check_system_overload_at_signing: false,
+                ..Default::default()
+            })
+            .with_submit_delay_step_override_millis(3000)
+            .with_num_unpruned_validators(1)
+            .with_chain_override(chain)
+            .build()
+            .await
+            .into();
+        test_simulated_load(test_cluster, 30).await;
     }
 
     // Ensure that with half the committee enabling v2 and half not,

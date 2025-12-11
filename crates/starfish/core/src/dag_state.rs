@@ -53,6 +53,10 @@ pub(crate) enum TransactionSource {
     /// have been collected to reconstruct it.
     ShardReconstructor,
 
+    /// Transactions received via commit synchronization. Transactions are
+    /// fetched for all the committed blocks in synced commits.
+    CommitSyncer,
+
     /// Data added during testing.
     /// Only used in test code.
     #[cfg(test)]
@@ -67,6 +71,7 @@ impl TransactionSource {
             TransactionSource::TransactionSynchronizer => "Transactions synchronizer",
             TransactionSource::BlockStreaming => "Block streaming",
             TransactionSource::ShardReconstructor => "Shard reconstructor",
+            TransactionSource::CommitSyncer => "Commit syncer",
             #[cfg(test)]
             TransactionSource::Test => "test",
         }
@@ -126,7 +131,7 @@ pub(crate) struct DagState {
     /// Highest round of blocks accepted.
     highest_accepted_round: Round,
 
-    /// Last consensus commit of the dag.
+    /// Last pending consensus commit of the dag.
     last_commit: Option<TrustedCommit>,
 
     /// Last wall time when commit round advanced. Does not persist across
@@ -148,7 +153,6 @@ pub(crate) struct DagState {
     scoring_subdag: ScoringSubdag,
 
     /// Commit votes pending to be included in new blocks.
-    // TODO: limit to 1st commit per round with multi-leader.
     pending_commit_votes: VecDeque<CommitVote>,
 
     /// Acknowledgments pending to be included in new blocks. These represent
@@ -452,6 +456,9 @@ impl DagState {
             .gap_to_available_commit
             .set(gap as i64);
     }
+    pub(crate) fn update_pending_commit_votes(&mut self, solid_commit_refs: Vec<CommitRef>) {
+        self.pending_commit_votes.extend(solid_commit_refs);
+    }
 
     /// Updates internal metadata for accepted block header.
     fn update_block_header_metadata(&mut self, block_header: &VerifiedBlockHeader) {
@@ -459,7 +466,7 @@ impl DagState {
         self.recent_block_headers
             .insert(block_ref, block_header.clone());
         self.recent_headers_refs_by_authority[block_ref.author].insert(block_ref);
-        self.threshold_clock.add_block(block_ref);
+        self.threshold_clock.add_block_header(block_ref);
         self.highest_accepted_round = max(self.highest_accepted_round, block_header.round());
         self.context
             .metrics
@@ -860,29 +867,25 @@ impl DagState {
             .collect()
     }
 
-    /// Gets the last proposed block from this authority.
-    /// If no block is proposed yet, returns Genesis block.
-    /// NOTE: the method panics if transactions or headers are not found in DAG
-    /// State for the most recent header, as that should not happen for
-    /// correct initialization
-    pub(crate) fn recover_last_own_block(&self) -> VerifiedBlock {
+    /// Gets the last proposed (non-genesis) block from this authority.
+    /// NOTE: the method will not panic if transactions or headers are not found
+    /// in DAG State for the most recent header, as that could happen for
+    /// instance when own header is synced and the node is restarted.
+    pub(crate) fn get_last_own_non_genesis_block(&self) -> Option<VerifiedBlock> {
         if let Some(last) = self.recent_headers_refs_by_authority[self.context.own_index].last() {
-            let header = self
-                .recent_block_headers
-                .get(last)
-                .expect("Block header should exist for the most recent blocks");
-            let transactions = self.recent_transactions_by_authority[last.author]
-                .get(last)
-                .expect("Transactions should exist for the most recent blocks");
-            return VerifiedBlock::new(header.clone(), transactions.clone());
+            if last.round > GENESIS_ROUND {
+                if let (Some(last_header), Some(last_transactions)) = (
+                    self.recent_block_headers.get(last),
+                    self.recent_transactions_by_authority[last.author].get(last),
+                ) {
+                    return Some(VerifiedBlock::new(
+                        last_header.clone(),
+                        last_transactions.clone(),
+                    ));
+                }
+            }
         }
-
-        let (_, genesis_block) = self
-            .genesis
-            .iter()
-            .find(|(block_ref, _)| block_ref.author == self.context.own_index)
-            .expect("Genesis should be found for authority {authority_index}");
-        genesis_block.clone()
+        None
     }
 
     /// Gets the last proposed block header from this authority.
@@ -1346,7 +1349,6 @@ impl DagState {
                 .set((*round).into());
         }
 
-        self.pending_commit_votes.push_back(commit.reference());
         self.commits_to_write.push(commit);
     }
 
@@ -1925,7 +1927,7 @@ mod test {
             .collect();
 
         // Round 11 block headers.
-        let round_11_headers = vec![
+        let round_11_headers = [
             // This will connect to round 12.
             VerifiedBlockHeader::new_for_test(
                 TestBlockHeader::new(11, 0)
@@ -1977,7 +1979,7 @@ mod test {
             round_11_headers[1].reference(),
             round_11_headers[5].reference(),
         ];
-        let round_12_headers = vec![
+        let round_12_headers = [
             VerifiedBlockHeader::new_for_test(
                 TestBlockHeader::new(12, 0)
                     .set_timestamp_ms(1200)
@@ -2005,7 +2007,7 @@ mod test {
             round_12_headers[2].reference(),
             round_11_headers[2].reference(),
         ];
-        let round_13_headers = vec![
+        let round_13_headers = [
             VerifiedBlockHeader::new_for_test(
                 TestBlockHeader::new(12, 1)
                     .set_timestamp_ms(1300)
@@ -2433,8 +2435,8 @@ mod test {
 
         // Check the last proposed block
         assert_eq!(
-            dag_state.recover_last_own_block(),
-            dag_builder.blocks(num_rounds..=num_rounds)[0].clone()
+            dag_state.get_last_own_non_genesis_block(),
+            Some(dag_builder.blocks(num_rounds..=num_rounds)[0].clone())
         );
 
         // Destroy the dag state.
@@ -2466,8 +2468,8 @@ mod test {
 
         // The last proposed block should be from the round 5
         assert_eq!(
-            dag_state.recover_last_own_block(),
-            dag_builder.blocks(5..=5)[0].clone()
+            dag_state.get_last_own_non_genesis_block(),
+            Some(dag_builder.blocks(5..=5)[0].clone())
         );
 
         // Block headers and transactions above round 5 should not be in DagState,
@@ -2914,7 +2916,10 @@ mod test {
                 .into_iter()
                 .find(|block| block.author() == context.own_index)
                 .unwrap();
-            assert_eq!(dag_state.read().recover_last_own_block(), my_genesis_block);
+            assert_eq!(
+                dag_state.read().get_last_proposed_block_header(),
+                my_genesis_block.verified_block_header
+            );
         }
 
         // WHEN adding some block headers for authorities, only the last ones should be

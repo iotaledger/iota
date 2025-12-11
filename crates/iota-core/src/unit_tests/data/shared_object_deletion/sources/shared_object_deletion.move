@@ -4,11 +4,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 module shared_object_deletion::o2 {
-    use std::vector;
-    use iota::object::{Self, UID};
-    use iota::transfer;
-    use iota::tx_context::{Self, TxContext};
-
     public struct Obj has key, store {
         id: UID,
         flipped: bool

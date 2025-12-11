@@ -18,7 +18,7 @@ use iota_config::{
 };
 use iota_macros::nondeterministic;
 use iota_network::randomness;
-use iota_protocol_config::ProtocolConfig;
+use iota_protocol_config::{Chain, ProtocolConfig};
 use iota_swarm_config::{genesis_config::AccountConfig, network_config::NetworkConfig};
 use iota_types::{
     base_types::{AuthorityName, ObjectID},
@@ -76,6 +76,7 @@ pub struct TestAuthorityBuilder<'a> {
     cache_type: Option<ExecutionCacheType>,
     cache_config: Option<ExecutionCacheConfig>,
     disable_execute_genesis_transactions: bool,
+    chain_override: Option<Chain>,
 }
 
 impl<'a> TestAuthorityBuilder<'a> {
@@ -189,6 +190,11 @@ impl<'a> TestAuthorityBuilder<'a> {
         self
     }
 
+    pub fn with_chain_override(mut self, chain: Chain) -> Self {
+        self.chain_override = Some(chain);
+        self
+    }
+
     pub async fn build(self) -> Arc<AuthorityState> {
         let mut local_network_config_builder =
             iota_swarm_config::network_config_builder::ConfigBuilder::new_with_temp_dir()
@@ -287,6 +293,12 @@ impl<'a> TestAuthorityBuilder<'a> {
             backpressure_manager.clone(),
         );
 
+        let chain_id = ChainIdentifier::from(*genesis.checkpoint().digest());
+        let chain = match self.chain_override {
+            Some(chain) => chain,
+            None => chain_id.chain(),
+        };
+
         let epoch_store = AuthorityPerEpochStore::new(
             name,
             Arc::new(genesis_committee.clone()),
@@ -299,7 +311,7 @@ impl<'a> TestAuthorityBuilder<'a> {
             cache_metrics,
             signature_verifier_metrics,
             &expensive_safety_checks,
-            ChainIdentifier::from(*genesis.checkpoint().digest()),
+            (chain_id, chain),
             checkpoint_store
                 .get_highest_executed_checkpoint_seq_number()
                 .unwrap()

@@ -455,7 +455,7 @@ impl StoredTransaction {
         })
     }
 
-    fn try_into_sender_signed_data(&self) -> IndexerResult<SenderSignedData> {
+    pub fn try_into_sender_signed_data(&self) -> IndexerResult<SenderSignedData> {
         let sender_signed_data: SenderSignedData =
             bcs::from_bytes(&self.raw_transaction).map_err(|e| {
                 IndexerError::PersistentStorageDataCorruption(format!(

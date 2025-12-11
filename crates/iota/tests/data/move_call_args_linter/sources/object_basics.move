@@ -5,9 +5,6 @@
 /// Test CTURD object basics (create, transfer, update, read, delete)
 module examples::object_basics {
     use iota::event;
-    use iota::object::{Self, UID};
-    use iota::tx_context::{Self, TxContext};
-    use iota::transfer;
 
     public struct Object has key, store {
         id: UID,
