@@ -32,6 +32,7 @@ use reqwest::Client;
 use serde::Deserialize;
 use serde_json::json;
 use shared_crypto::intent::Intent;
+use iota_sdk_types::crypto::Intent;
 
 /// Got from iota-genesis-builder/src/stardust/test_outputs/stardust_mix.rs
 const SPONSOR_ADDRESS_MNEMONIC: &str = "okay pottery arch air egg very cave cash poem gown sorry mind poem crack dawn wet car pink extra crane hen bar boring salt";

@@ -38,9 +38,6 @@ feature_flags:
   select_committee_supporting_next_epoch_version: true
   consensus_median_timestamp_with_checkpoint_enforcement: true
   consensus_commit_transactions_only_for_traversed_headers: true
-  move_auth: true
-  publish_package_metadata: true
-  iota_metadata_module_bytes: true
 max_tx_size_bytes: 131072
 max_input_objects: 2048
 max_size_written_objects: 5000000
@@ -75,7 +72,6 @@ max_move_object_size: 256000
 max_move_package_size: 102400
 max_publish_or_upgrade_per_ptb: 5
 max_tx_gas: 50000000000
-max_auth_gas: 1000000000
 max_gas_price: 100000
 max_gas_computation_bucket: 5000000
 gas_rounding_step: 1000

@@ -71,6 +71,7 @@ iota-package-management.workspace = true
 iota-protocol-config.workspace = true
 iota-replay.workspace = true
 iota-sdk.workspace = true
+iota-sdk-types.workspace = true
 iota-source-validation.workspace = true
 iota-swarm.workspace = true
 iota-swarm-config.workspace = true
@@ -87,7 +88,6 @@ move-ir-types.workspace = true
 move-package.workspace = true
 move-symbol-pool.workspace = true
 move-vm-profiler.workspace = true
-shared-crypto.workspace = true
 telemetry-subscribers.workspace = true
 
 [target.'cfg(not(msim))'.dev-dependencies]

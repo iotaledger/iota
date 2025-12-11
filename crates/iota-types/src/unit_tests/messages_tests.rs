@@ -743,9 +743,9 @@ fn test_sponsored_transaction_message() {
     let tx_data = TransactionData::new_with_gas_data(kind, sender, gas_data.clone());
     let intent = Intent::iota_transaction();
     let sender_sig: GenericSignature =
-        signature_from_signer(tx_data.clone(), intent.clone(), &sender_kp).into();
+        signature_from_signer(tx_data.clone(), intent, &sender_kp).into();
     let sponsor_sig: GenericSignature =
-        signature_from_signer(tx_data.clone(), intent.clone(), &sponsor_kp).into();
+        signature_from_signer(tx_data.clone(), intent, &sponsor_kp).into();
     let transaction = Transaction::from_generic_sig_data(
         tx_data.clone(),
         vec![sender_sig.clone(), sponsor_sig.clone()],
@@ -788,7 +788,7 @@ fn test_sponsored_transaction_message() {
     // Test incomplete signature lists (more sigs than expected)
     let third_party_kp = IotaKeyPair::Ed25519(get_key_pair().1);
     let third_party_sig: GenericSignature =
-        signature_from_signer(tx_data.clone(), intent.clone(), &third_party_kp).into();
+        signature_from_signer(tx_data.clone(), intent, &third_party_kp).into();
     assert!(matches!(
         Transaction::from_generic_sig_data(
             tx_data.clone(),

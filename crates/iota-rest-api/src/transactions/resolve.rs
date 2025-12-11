@@ -9,10 +9,7 @@ use axum::{
     extract::{Query, State},
 };
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk2::types::{
-    Argument, Command, ObjectId, Transaction, UnresolvedInputArgument, UnresolvedObjectReference,
-    UnresolvedProgrammableTransaction, UnresolvedTransaction,
-};
+use iota_sdk_types::{Argument, Command, ObjectId, Transaction};
 use iota_types::{
     base_types::{IotaAddress, ObjectID, ObjectRef},
     effects::TransactionEffectsAPI,
@@ -29,7 +26,14 @@ use move_binary_format::normalized;
 use schemars::JsonSchema;
 use tap::Pipe;
 
-use super::{TransactionSimulationResponse, execution::SimulateTransactionQueryParameters};
+use super::{
+    TransactionSimulationResponse,
+    execution::SimulateTransactionQueryParameters,
+    unresolved::{
+        UnresolvedInputArgument, UnresolvedObjectReference, UnresolvedProgrammableTransaction,
+        UnresolvedTransaction,
+    },
+};
 use crate::{
     RestError, RestService, Result,
     accept::AcceptFormat,

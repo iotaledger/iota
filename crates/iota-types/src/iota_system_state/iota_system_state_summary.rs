@@ -4,6 +4,7 @@
 
 use either::Either;
 use fastcrypto::{encoding::Base64, traits::ToFromBytes};
+use iota_protocol_config::ProtocolVersion;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
@@ -368,7 +369,191 @@ pub struct IotaSystemStateSummaryV2 {
     pub validator_report_records: Vec<(IotaAddress, Vec<IotaAddress>)>,
 }
 
+/// Access common fields of the inner variants wrapped by
+/// [`IotaSystemStateSummary`].
+///
+/// ## Panics
+///
+/// If the `field` identifier does not correspond to an existing field in any
+/// of the inner types wrapped in the variants.
+///
+/// ## Usage
+///
+/// Basic field access (returns reference):
+/// ```ignore
+/// state_summary_get!(self, field_name)
+/// ```
+///
+/// With transformation (applies expression to field value):
+/// ```ignore
+/// state_summary_get!(self, field_name => |value| transform(value))
+/// ```
+macro_rules! state_summary_get {
+    // Direct field access - returns a reference
+    ($enum:expr, $field:ident) => {{
+        match $enum {
+            IotaSystemStateSummary::V1(ref inner) => &inner.$field,
+            IotaSystemStateSummary::V2(ref inner) => &inner.$field,
+        }
+    }};
+    // Field access with transformation - applies the expression
+    ($enum:expr, $field:ident => $transform:expr) => {{
+        match $enum {
+            IotaSystemStateSummary::V1(ref inner) => $transform(inner.$field),
+            IotaSystemStateSummary::V2(ref inner) => $transform(inner.$field),
+        }
+    }};
+}
+
 impl IotaSystemStateSummary {
+    pub fn epoch(&self) -> u64 {
+        *state_summary_get!(self, epoch)
+    }
+
+    pub fn protocol_version(&self) -> ProtocolVersion {
+        state_summary_get!(self, protocol_version => ProtocolVersion::new)
+    }
+
+    pub fn system_state_version(&self) -> u64 {
+        *state_summary_get!(self, system_state_version)
+    }
+
+    pub fn iota_total_supply(&self) -> u64 {
+        *state_summary_get!(self, iota_total_supply)
+    }
+
+    pub fn iota_treasury_cap_id(&self) -> ObjectID {
+        *state_summary_get!(self, iota_treasury_cap_id)
+    }
+
+    pub fn storage_fund_total_object_storage_rebates(&self) -> u64 {
+        *state_summary_get!(self, storage_fund_total_object_storage_rebates)
+    }
+
+    pub fn storage_fund_non_refundable_balance(&self) -> u64 {
+        *state_summary_get!(self, storage_fund_non_refundable_balance)
+    }
+
+    pub fn reference_gas_price(&self) -> u64 {
+        *state_summary_get!(self, reference_gas_price)
+    }
+
+    pub fn safe_mode(&self) -> bool {
+        *state_summary_get!(self, safe_mode)
+    }
+
+    pub fn safe_mode_storage_charges(&self) -> u64 {
+        *state_summary_get!(self, safe_mode_storage_charges)
+    }
+
+    pub fn safe_mode_computation_charges(&self) -> u64 {
+        match &self {
+            IotaSystemStateSummary::V1(v1) => v1.safe_mode_computation_rewards,
+            IotaSystemStateSummary::V2(v2) => v2.safe_mode_computation_charges,
+        }
+    }
+
+    pub fn safe_mode_computation_charges_burned(&self) -> u64 {
+        match &self {
+            IotaSystemStateSummary::V1(v1) => v1.safe_mode_computation_rewards,
+            IotaSystemStateSummary::V2(v2) => v2.safe_mode_computation_charges_burned,
+        }
+    }
+
+    pub fn safe_mode_storage_rebates(&self) -> u64 {
+        *state_summary_get!(self, safe_mode_storage_rebates)
+    }
+
+    pub fn safe_mode_non_refundable_storage_fee(&self) -> u64 {
+        *state_summary_get!(self, safe_mode_non_refundable_storage_fee)
+    }
+
+    pub fn epoch_start_timestamp_ms(&self) -> u64 {
+        *state_summary_get!(self, epoch_start_timestamp_ms)
+    }
+
+    pub fn epoch_duration_ms(&self) -> u64 {
+        *state_summary_get!(self, epoch_duration_ms)
+    }
+
+    pub fn min_validator_count(&self) -> u64 {
+        *state_summary_get!(self, min_validator_count)
+    }
+
+    pub fn max_validator_count(&self) -> u64 {
+        *state_summary_get!(self, max_validator_count)
+    }
+
+    pub fn min_validator_joining_stake(&self) -> u64 {
+        *state_summary_get!(self, min_validator_joining_stake)
+    }
+
+    pub fn validator_low_stake_threshold(&self) -> u64 {
+        *state_summary_get!(self, validator_low_stake_threshold)
+    }
+
+    pub fn validator_very_low_stake_threshold(&self) -> u64 {
+        *state_summary_get!(self, validator_very_low_stake_threshold)
+    }
+
+    pub fn validator_low_stake_grace_period(&self) -> u64 {
+        *state_summary_get!(self, validator_low_stake_grace_period)
+    }
+
+    pub fn total_stake(&self) -> u64 {
+        *state_summary_get!(self, total_stake)
+    }
+
+    pub fn active_validators(&self) -> &[IotaValidatorSummary] {
+        state_summary_get!(self, active_validators)
+    }
+
+    pub fn pending_active_validators_id(&self) -> ObjectID {
+        *state_summary_get!(self, pending_active_validators_id)
+    }
+
+    pub fn pending_active_validators_size(&self) -> u64 {
+        *state_summary_get!(self, pending_active_validators_size)
+    }
+
+    pub fn pending_removals(&self) -> &[u64] {
+        state_summary_get!(self, pending_removals)
+    }
+
+    pub fn staking_pool_mappings_id(&self) -> ObjectID {
+        *state_summary_get!(self, staking_pool_mappings_id)
+    }
+
+    pub fn staking_pool_mappings_size(&self) -> u64 {
+        *state_summary_get!(self, staking_pool_mappings_size)
+    }
+
+    pub fn inactive_pools_id(&self) -> ObjectID {
+        *state_summary_get!(self, inactive_pools_id)
+    }
+
+    pub fn inactive_pools_size(&self) -> u64 {
+        *state_summary_get!(self, inactive_pools_size)
+    }
+
+    pub fn validator_candidates_id(&self) -> ObjectID {
+        *state_summary_get!(self, validator_candidates_id)
+    }
+
+    pub fn validator_candidates_size(&self) -> u64 {
+        *state_summary_get!(self, validator_candidates_size)
+    }
+
+    pub fn at_risk_validators(&self) -> &[(IotaAddress, u64)] {
+        state_summary_get!(self, at_risk_validators)
+    }
+
+    pub fn validator_report_records(&self) -> &[(IotaAddress, Vec<IotaAddress>)] {
+        state_summary_get!(self, validator_report_records)
+    }
+
+    // Methods that require special handling due to version differences
+
     pub fn get_iota_committee_for_benchmarking(&self) -> CommitteeWithNetworkMetadata {
         match self {
             Self::V1(v1) => v1.get_iota_committee_for_benchmarking(),
@@ -386,6 +571,16 @@ impl IotaSystemStateSummary {
         match self {
             Self::V1(v1) => Either::Left(v1.active_validators.iter()),
             Self::V2(v2) => Either::Right(v2.active_validators.iter()),
+        }
+    }
+
+    /// Returns the indices of committee members.
+    /// For V1, all active validators are committee members (returns 0..len).
+    /// For V2, returns the committee_members field.
+    pub fn committee_members(&self) -> Vec<u64> {
+        match self {
+            Self::V1(v1) => (0..v1.active_validators.len()).map(|i| i as u64).collect(),
+            Self::V2(v2) => v2.committee_members.clone(),
         }
     }
 }

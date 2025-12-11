@@ -22,6 +22,7 @@ use fastcrypto::{
 use iota_json_rpc_types::IotaTransactionBlockResponse;
 use iota_keys::keystore::AccountKeystore;
 use iota_macros::sim_test;
+use iota_sdk_types::crypto::Intent;
 use iota_test_transaction_builder::publish_package;
 use iota_types::{
     IOTA_FRAMEWORK_ADDRESS, TypeTag,
@@ -44,7 +45,6 @@ use iota_types::{
 };
 use move_command_line_common::error_bitset::ErrorBitset;
 use move_core_types::ident_str;
-use shared_crypto::intent::Intent;
 use test_cluster::{TestCluster, TestClusterBuilder};
 
 const AA_PACKAGE_PATH: &str = "tests/abstract_account/abstract_account";

@@ -3,4 +3,4 @@
 '@iota/iota-sdk': minor
 ---
 
-New subscription API types.
+Deprecate `AddressTransactionBlockRelationship.Sign`

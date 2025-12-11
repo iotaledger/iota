@@ -73,11 +73,6 @@ public fun build(self: AbstractAccountBuilder) {
     account::create_account_v1(account, authenticator);
 }
 
-/// Share AbstractAccount.
-public fun share(self: AbstractAccount) {
-    iota::transfer::share_object(self);
-}
-
 /// Adds a new dynamic field to the account.
 ///
 /// Only the account itself can call this function.
@@ -124,11 +119,11 @@ public fun borrow_field_mut<Name: copy + drop + store, Value: store>(
     dynamic_field::borrow_mut(&mut self.id, name)
 }
 
-/// Rotate a dynamic field.
+/// Replace a dynamic field.
 ///
 /// Only the account itself can call this function.
 /// This function cannot change the type of the stored `Value`.
-public fun rotate_field<Name: copy + drop + store, Value: store>(
+public fun replace_field<Name: copy + drop + store, Value: store>(
     self: &mut AbstractAccount,
     name: Name,
     value: Value,

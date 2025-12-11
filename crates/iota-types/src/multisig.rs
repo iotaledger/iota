@@ -18,11 +18,11 @@ use fastcrypto::{
     secp256r1::Secp256r1PublicKey,
     traits::{EncodeDecodeBase64, ToFromBytes, VerifyingKey},
 };
+use iota_sdk_types::crypto::IntentMessage;
 use once_cell::sync::OnceCell;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
-use shared_crypto::intent::IntentMessage;
 
 use crate::{
     base_types::{EpochId, IotaAddress},

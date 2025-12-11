@@ -73,6 +73,7 @@ members = [
   "crates/iota-authority-aggregation",
   "crates/iota-aws-orchestrator",
   "crates/iota-benchmark",
+  "crates/iota-build-cache-server",
   "crates/iota-cluster-test",
   "crates/iota-common",
   "crates/iota-config",
@@ -157,7 +158,6 @@ members = [
   "crates/iota-upgrade-compatibility-transactional-tests",
   "crates/iota-verifier-transactional-tests",
   "crates/prometheus-closure-metric",
-  "crates/shared-crypto",
   "crates/simulacrum",
   "crates/starfish/config",
   "crates/starfish/core",
@@ -178,7 +178,7 @@ members = [
 
 [workspace.package]
 # This version string will be inherited by iota-core, iota-faucet, iota-node, iota-tools, iota-sdk, iota-move-build, and iota crates.
-version = "1.13.0-alpha"
+version = "1.14.0-alpha"
 
 [workspace.metadata.cargo-udeps.ignore]
 normal = ["move-package-alt"]
@@ -332,7 +332,7 @@ rand = "0.8.5"
 rayon = "1.5.3"
 regex = "1.7.1"
 reqwest = { version = "0.12", default-features = false, features = ["http2", "json", "rustls-tls"] }
-roaring = "0.10.6"
+roaring = "0.11.2"
 rocksdb = { version = "0.21.0", default-features = false, features = ["snappy", "lz4", "zstd", "zlib", "multi-threaded-cf"] }
 rstest = "0.16.0"
 rustls = { version = "0.23.18", default-features = false, features = ["std", "tls12", "ring"] }
@@ -382,7 +382,6 @@ url = "2.3.1"
 uuid = { version = "1.1.2", features = ["v4", "fast-rng"] }
 
 # internal dependencies
-### Workspace Members ###
 bin-version = { path = "crates/bin-version" }
 consensus-config = { path = "consensus/config" }
 consensus-core = { path = "consensus/core" }
@@ -394,8 +393,9 @@ iota-analytics-indexer-derive = { path = "crates/iota-analytics-indexer-derive" 
 iota-archival = { path = "crates/iota-archival" }
 iota-authority-aggregation = { path = "crates/iota-authority-aggregation" }
 iota-benchmark = { path = "crates/iota-benchmark" }
+iota-build-cache-server = { path = "crates/iota-build-cache-server" }
 iota-cluster-test = { path = "crates/iota-cluster-test" }
-iota-common = { path = "crates/iota-common" }
+iota-common = { path = "crates/iota-common", default-features = false }
 iota-config = { path = "crates/iota-config" }
 iota-core = { path = "crates/iota-core" }
 iota-cost = { path = "crates/iota-cost" }
@@ -454,8 +454,7 @@ iota-rest-kv = { path = "crates/iota-rest-kv" }
 iota-rosetta = { path = "crates/iota-rosetta" }
 iota-rpc-loadgen = { path = "crates/iota-rpc-loadgen" }
 iota-sdk = { path = "crates/iota-sdk" }
-# core-types with json format for REST API
-iota-sdk2 = { package = "iota-rust-sdk", git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "d7084eaf0564f4e2381b2e8408ee1f7d51468450", features = ["hash", "serde", "schemars"] }
+iota-sdk-types = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "05608b7e4a5b96d85f84e1970a517f6f174beb8b", features = ["hash", "serde", "schemars"] }
 iota-simulator = { path = "crates/iota-simulator" }
 iota-snapshot = { path = "crates/iota-snapshot" }
 iota-source-validation = { path = "crates/iota-source-validation" }
@@ -498,7 +497,6 @@ move-vm-config = { path = "external-crates/move/crates/move-vm-config" }
 move-vm-profiler = { path = "external-crates/move/crates/move-vm-profiler" }
 move-vm-test-utils = { path = "external-crates/move/crates/move-vm-test-utils/", features = ["tiered-gas"] }
 prometheus-closure-metric = { path = "crates/prometheus-closure-metric" }
-shared-crypto = { path = "crates/shared-crypto" }
 simulacrum = { path = "crates/simulacrum" }
 starfish-config = { path = "crates/starfish/config" }
 starfish-core = { path = "crates/starfish/core" }

@@ -25,7 +25,12 @@ use move_command_line_common::{
     insta_assert,
 };
 use move_compiler::{
-    FullyCompiledProgram, compiled_unit::{AnnotatedCompiledUnit, FunctionInfo}, diagnostics::{Diagnostics, warning_filters::WarningFiltersBuilder}, editions::{Edition, Flavor}, parser::ast::FunctionName, shared::{NumericalAddress, PackageConfig, files::MappedFiles, unique_map::UniqueMap}
+    FullyCompiledProgram,
+    compiled_unit::{AnnotatedCompiledUnit, FunctionInfo},
+    diagnostics::{Diagnostics, warning_filters::WarningFiltersBuilder},
+    editions::{Edition, Flavor},
+    parser::ast::FunctionName,
+    shared::{NumericalAddress, PackageConfig, files::MappedFiles, unique_map::UniqueMap},
 };
 use move_core_types::{
     account_address::AccountAddress,

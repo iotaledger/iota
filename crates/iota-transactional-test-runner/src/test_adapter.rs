@@ -237,7 +237,7 @@ impl AdapterInitConfig {
             protocol_config.set_max_tx_gas_for_testing(mx_tx_gas_override)
         }
         if let Some(enable) = move_auth {
-            protocol_config.set_move_auth_for_testing(enable);
+            protocol_config.set_enable_move_authentication_for_testing(enable);
         }
         if custom_validator_account && !simulator {
             panic!("Can only set custom validator account in simulator mode");

@@ -65,7 +65,7 @@ public fun rotate_public_key(
     ctx: &TxContext,
 ) {
     // Update the account owner public key dynamic field. It is expected that the field already exists.
-    account.rotate_field(OwnerPublicKey {}, public_key, ctx);
+    account.replace_field(OwnerPublicKey {}, public_key, ctx);
 
     // Update the account owner public key dynamic field. It is expected that the field already exists.
     account.rotate_auth_info_v1(authenticator, ctx);

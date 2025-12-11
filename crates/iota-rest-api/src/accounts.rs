@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use axum::extract::{Path, Query, State};
-use iota_sdk2::types::{Address, ObjectId, StructTag, Version};
+use iota_sdk_types::{Address, ObjectId, StructTag, Version};
 use iota_types::iota_sdk_types_conversions::struct_tag_core_to_sdk;
 use openapiv3::v3_1::Operation;
 use tap::Pipe;

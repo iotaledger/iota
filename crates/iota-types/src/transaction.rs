@@ -15,6 +15,7 @@ use anyhow::bail;
 use enum_dispatch::enum_dispatch;
 use fastcrypto::{encoding::Base64, hash::HashFunction};
 use iota_protocol_config::ProtocolConfig;
+use iota_sdk_types::crypto::{Intent, IntentMessage, IntentScope};
 use itertools::Either;
 use move_core_types::{
     ident_str,
@@ -24,7 +25,6 @@ use move_core_types::{
 use nonempty::{NonEmpty, nonempty};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use shared_crypto::intent::{Intent, IntentMessage, IntentScope};
 use strum::IntoStaticStr;
 use tap::Pipe;
 use tracing::{instrument, trace};
@@ -2422,7 +2422,7 @@ impl SenderSignedData {
                     }
                 }
                 GenericSignature::MoveAuthenticator(_) => {
-                    if !config.move_auth() {
+                    if !config.enable_move_authentication() {
                         return Err(IotaError::UserInput {
                             error: UserInputError::Unsupported(
                                 "`Move authentication` is not enabled on this network".to_string(),

@@ -162,23 +162,23 @@ main() {
       echo "Please run as root or with sudo"
       exit 1
     fi
-    [ -d "$TEMP_EXPORT_DIR" ] && rm -rf "$TEMP_EXPORT_DIR"
+  
+  [ -d "$TEMP_EXPORT_DIR" ] && rm -rf "$TEMP_EXPORT_DIR"
 
-    [ -d "$PRIVATE_DATA_DIR" ] && ./cleanup.sh
+  [ -d "$PRIVATE_DATA_DIR" ] && ./cleanup.sh
 
-    # Generate genesis template if missing
-    generate_genesis_template_if_missing
+  # Generate genesis template if missing
+  generate_genesis_template_if_missing
 
-    # Only check overlay file existence
-    check_configs_exist "$OVERLAY_PATH"
+  # Only check overlay file existence
+  check_configs_exist "$OVERLAY_PATH"
 
-    for image in "iotaledger/iota-tools" "iotaledger/iota-node" "iotaledger/iota-indexer"; do
-      check_docker_image_exist "$image"
-    done
+  for image in "iotaledger/iota-tools" "iotaledger/iota-node" "iotaledger/iota-indexer"; do
+    check_docker_image_exist "$image"
+  done
 
-    generate_genesis_files
-    create_folder_for_postgres
-
+  generate_genesis_files
+  create_folder_for_postgres
 
   echo "Done"
 }

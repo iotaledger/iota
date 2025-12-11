@@ -11,10 +11,40 @@
 //! directly to avoid going through the BCS machinery.
 
 use fastcrypto::traits::ToFromBytes;
-use iota_sdk2::types::{
-    object::{MovePackage, MoveStruct},
-    transaction::{ChangeEpoch, ChangeEpochV2, ChangeEpochV3},
-    *,
+use iota_sdk_types::{
+    address::Address,
+    checkpoint::{
+        CheckpointCommitment, CheckpointContents, CheckpointData, CheckpointSummary,
+        CheckpointTransaction, CheckpointTransactionInfo, EndOfEpochData, SignedCheckpointSummary,
+    },
+    crypto::{Bls12381PublicKey, Bls12381Signature, Jwk, JwkId, UserSignature},
+    digest::Digest,
+    effects::{
+        ChangedObject, IdOperation, ObjectIn, ObjectOut, TransactionEffects, TransactionEffectsV1,
+        UnchangedSharedKind, UnchangedSharedObject,
+    },
+    events::{Event, TransactionEvents},
+    execution_status::{
+        CommandArgumentError, ExecutionError, ExecutionStatus, MoveLocation, PackageUpgradeError,
+        TypeArgumentError,
+    },
+    gas::GasCostSummary,
+    object::{
+        GenesisObject, MovePackage, MoveStruct, Object, ObjectData, ObjectReference, Owner,
+        TypeOrigin, UpgradeInfo,
+    },
+    object_id::ObjectId,
+    transaction::{
+        ActiveJwk, Argument, AuthenticatorStateExpire, AuthenticatorStateUpdateV1,
+        CancelledTransaction, ChangeEpoch, ChangeEpochV2, ChangeEpochV3, Command,
+        ConsensusCommitPrologueV1, ConsensusDeterminedVersionAssignments,
+        EndOfEpochTransactionKind, GasPayment, GenesisTransaction, Input, MakeMoveVector,
+        MergeCoins, MoveCall, ProgrammableTransaction, Publish, RandomnessStateUpdate,
+        SignedTransaction, SplitCoins, SystemPackage, Transaction, TransactionExpiration,
+        TransactionKind, TransactionV1, TransferObjects, Upgrade, VersionAssignment,
+    },
+    type_tag::{Identifier, StructTag, TypeParseError, TypeTag},
+    validator::{ValidatorAggregatedSignature, ValidatorCommittee, ValidatorCommitteeMember},
 };
 use move_core_types::language_storage::ModuleId;
 use tap::Pipe;
@@ -260,10 +290,48 @@ fn sdk_upgrade_info_to_move(info: UpgradeInfo) -> crate::move_package::UpgradeIn
     }
 }
 
+impl TryFrom<crate::transaction::TransactionData> for TransactionV1 {
+    type Error = SdkTypeConversionError;
+
+    fn try_from(value: crate::transaction::TransactionData) -> Result<Self, Self::Error> {
+        match value {
+            crate::transaction::TransactionData::V1(value) => value.try_into(),
+        }
+    }
+}
+
+impl TryFrom<TransactionV1> for crate::transaction::TransactionData {
+    type Error = SdkTypeConversionError;
+
+    fn try_from(value: TransactionV1) -> Result<Self, Self::Error> {
+        Ok(Self::V1(value.try_into()?))
+    }
+}
+
 impl TryFrom<crate::transaction::TransactionData> for Transaction {
     type Error = SdkTypeConversionError;
 
     fn try_from(value: crate::transaction::TransactionData) -> Result<Self, Self::Error> {
+        match value {
+            crate::transaction::TransactionData::V1(value) => Ok(Self::V1(value.try_into()?)),
+        }
+    }
+}
+
+impl TryFrom<Transaction> for crate::transaction::TransactionData {
+    type Error = SdkTypeConversionError;
+
+    fn try_from(value: Transaction) -> Result<Self, Self::Error> {
+        match value {
+            Transaction::V1(value) => value.try_into(),
+        }
+    }
+}
+
+impl TryFrom<crate::transaction::TransactionDataV1> for TransactionV1 {
+    type Error = SdkTypeConversionError;
+
+    fn try_from(value: crate::transaction::TransactionDataV1) -> Result<Self, Self::Error> {
         Self {
             sender: Address::new(value.sender().to_inner()),
             gas_payment: GasPayment {
@@ -290,14 +358,14 @@ impl TryFrom<crate::transaction::TransactionData> for Transaction {
     }
 }
 
-impl TryFrom<Transaction> for crate::transaction::TransactionData {
+impl TryFrom<TransactionV1> for crate::transaction::TransactionDataV1 {
     type Error = SdkTypeConversionError;
 
-    fn try_from(value: Transaction) -> Result<Self, Self::Error> {
-        Self::new_with_gas_data(
-            value.kind.try_into()?,
-            value.sender.into(),
-            crate::transaction::GasData {
+    fn try_from(value: TransactionV1) -> Result<Self, Self::Error> {
+        Self {
+            kind: value.kind.try_into()?,
+            sender: value.sender.into(),
+            gas_data: crate::transaction::GasData {
                 payment: value
                     .gas_payment
                     .objects
@@ -309,7 +377,13 @@ impl TryFrom<Transaction> for crate::transaction::TransactionData {
                 price: value.gas_payment.price,
                 budget: value.gas_payment.budget,
             },
-        )
+            expiration: match value.expiration {
+                TransactionExpiration::None => crate::transaction::TransactionExpiration::None,
+                TransactionExpiration::Epoch(e) => {
+                    crate::transaction::TransactionExpiration::Epoch(e)
+                }
+            },
+        }
         .pipe(Ok)
     }
 }
@@ -743,7 +817,7 @@ impl From<EndOfEpochTransactionKind> for crate::transaction::EndOfEpochTransacti
     }
 }
 
-impl From<crate::transaction::CallArg> for InputArgument {
+impl From<crate::transaction::CallArg> for Input {
     fn from(value: crate::transaction::CallArg) -> Self {
         match value {
             crate::transaction::CallArg::Pure(vec) => Self::Pure { value: vec },
@@ -768,15 +842,15 @@ impl From<crate::transaction::CallArg> for InputArgument {
     }
 }
 
-impl From<InputArgument> for crate::transaction::CallArg {
-    fn from(value: InputArgument) -> Self {
+impl From<Input> for crate::transaction::CallArg {
+    fn from(value: Input) -> Self {
         use crate::transaction::ObjectArg;
         match value {
-            InputArgument::Pure { value } => Self::Pure(value),
-            InputArgument::ImmutableOrOwned(object_reference) => Self::Object(
-                ObjectArg::ImmOrOwnedObject(sdk_obj_ref_to_core(object_reference)),
-            ),
-            InputArgument::Shared {
+            Input::Pure { value } => Self::Pure(value),
+            Input::ImmutableOrOwned(object_reference) => Self::Object(ObjectArg::ImmOrOwnedObject(
+                sdk_obj_ref_to_core(object_reference),
+            )),
+            Input::Shared {
                 object_id,
                 initial_shared_version,
                 mutable,
@@ -785,7 +859,7 @@ impl From<InputArgument> for crate::transaction::CallArg {
                 initial_shared_version: initial_shared_version.into(),
                 mutable,
             }),
-            InputArgument::Receiving(object_reference) => {
+            Input::Receiving(object_reference) => {
                 Self::Object(ObjectArg::Receiving(sdk_obj_ref_to_core(object_reference)))
             }
         }
@@ -826,37 +900,35 @@ impl TryFrom<crate::effects::TransactionEffects> for TransactionEffects {
                         .into_iter()
                         .map(|(id, change)| ChangedObject {
                             object_id: id.into(),
-                            change: EffectsObjectChange {
-                                input_state: match change.input_state {
-                                    crate::effects::ObjectIn::NotExist => ObjectIn::NotExist,
-                                    crate::effects::ObjectIn::Exist(((version, digest), owner)) => {
-                                        ObjectIn::Exist {
-                                            version: version.value(),
-                                            digest: digest.into(),
-                                            owner: owner.into(),
-                                        }
+                            input_state: match change.input_state {
+                                crate::effects::ObjectIn::NotExist => ObjectIn::Missing,
+                                crate::effects::ObjectIn::Exist(((version, digest), owner)) => {
+                                    ObjectIn::Data {
+                                        version: version.value(),
+                                        digest: digest.into(),
+                                        owner: owner.into(),
                                     }
-                                },
-                                output_state: match change.output_state {
-                                    crate::effects::ObjectOut::NotExist => ObjectOut::NotExist,
-                                    crate::effects::ObjectOut::ObjectWrite((digest, owner)) => {
-                                        ObjectOut::ObjectWrite {
-                                            digest: digest.into(),
-                                            owner: owner.into(),
-                                        }
+                                }
+                            },
+                            output_state: match change.output_state {
+                                crate::effects::ObjectOut::NotExist => ObjectOut::Missing,
+                                crate::effects::ObjectOut::ObjectWrite((digest, owner)) => {
+                                    ObjectOut::ObjectWrite {
+                                        digest: digest.into(),
+                                        owner: owner.into(),
                                     }
-                                    crate::effects::ObjectOut::PackageWrite((seq, digest)) => {
-                                        ObjectOut::PackageWrite {
-                                            version: seq.value(),
-                                            digest: digest.into(),
-                                        }
+                                }
+                                crate::effects::ObjectOut::PackageWrite((seq, digest)) => {
+                                    ObjectOut::PackageWrite {
+                                        version: seq.value(),
+                                        digest: digest.into(),
                                     }
-                                },
-                                id_operation: match change.id_operation {
-                                    crate::effects::IDOperation::None => IdOperation::None,
-                                    crate::effects::IDOperation::Created => IdOperation::Created,
-                                    crate::effects::IDOperation::Deleted => IdOperation::Deleted,
-                                },
+                                }
+                            },
+                            id_operation: match change.id_operation {
+                                crate::effects::IDOperation::None => IdOperation::None,
+                                crate::effects::IDOperation::Created => IdOperation::Created,
+                                crate::effects::IDOperation::Deleted => IdOperation::Deleted,
                             },
                         })
                         .collect(),
@@ -936,11 +1008,9 @@ impl TryFrom<TransactionEffects> for crate::effects::TransactionEffects {
                                 (
                                     obj.object_id.into(),
                                     crate::effects::EffectsObjectChange {
-                                        input_state: match obj.change.input_state {
-                                            ObjectIn::NotExist => {
-                                                crate::effects::ObjectIn::NotExist
-                                            }
-                                            ObjectIn::Exist {
+                                        input_state: match obj.input_state {
+                                            ObjectIn::Missing => crate::effects::ObjectIn::NotExist,
+                                            ObjectIn::Data {
                                                 version,
                                                 digest,
                                                 owner,
@@ -949,8 +1019,8 @@ impl TryFrom<TransactionEffects> for crate::effects::TransactionEffects {
                                                 owner.into(),
                                             )),
                                         },
-                                        output_state: match obj.change.output_state {
-                                            ObjectOut::NotExist => {
+                                        output_state: match obj.output_state {
+                                            ObjectOut::Missing => {
                                                 crate::effects::ObjectOut::NotExist
                                             }
                                             ObjectOut::ObjectWrite { digest, owner } => {
@@ -966,7 +1036,7 @@ impl TryFrom<TransactionEffects> for crate::effects::TransactionEffects {
                                                 ))
                                             }
                                         },
-                                        id_operation: match obj.change.id_operation {
+                                        id_operation: match obj.id_operation {
                                             IdOperation::None => crate::effects::IDOperation::None,
                                             IdOperation::Created => {
                                                 crate::effects::IDOperation::Created
@@ -1028,14 +1098,14 @@ impl TryFrom<TransactionEffects> for crate::effects::TransactionEffects {
 
 macro_rules! impl_convert_digest {
     ($name:ident) => {
-        impl From<crate::digests::$name> for $name {
+        impl From<crate::digests::$name> for Digest {
             fn from(value: crate::digests::$name) -> Self {
                 Self::new(value.into_inner())
             }
         }
 
-        impl From<$name> for crate::digests::$name {
-            fn from(value: $name) -> Self {
+        impl From<Digest> for crate::digests::$name {
+            fn from(value: Digest) -> Self {
                 Self::new(value.into_inner())
             }
         }
@@ -1050,18 +1120,7 @@ impl_convert_digest!(TransactionEffectsDigest);
 impl_convert_digest!(TransactionEventsDigest);
 impl_convert_digest!(CheckpointContentsDigest);
 impl_convert_digest!(ConsensusCommitDigest);
-
-impl From<crate::digests::EffectsAuxDataDigest> for EffectsAuxiliaryDataDigest {
-    fn from(value: crate::digests::EffectsAuxDataDigest) -> Self {
-        Self::new(value.into_inner())
-    }
-}
-
-impl From<EffectsAuxiliaryDataDigest> for crate::digests::EffectsAuxDataDigest {
-    fn from(value: EffectsAuxiliaryDataDigest) -> Self {
-        Self::new(value.into_inner())
-    }
-}
+impl_convert_digest!(EffectsAuxDataDigest);
 
 impl From<crate::execution_status::ExecutionStatus> for ExecutionStatus {
     fn from(value: crate::execution_status::ExecutionStatus) -> Self {

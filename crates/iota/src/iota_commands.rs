@@ -266,6 +266,8 @@ pub enum IotaCommand {
         force: bool,
         #[arg(long)]
         epoch_duration_ms: Option<u64>,
+        #[arg(long, help = "Set the genesis chain start timestamp in milliseconds")]
+        chain_start_timestamp_ms: Option<u64>,
         #[arg(
             long,
             value_name = "ADDR",
@@ -357,7 +359,7 @@ pub enum IotaCommand {
     #[cfg(feature = "iota-names")]
     /// Manage names registered in IOTA-Names.
     /// By using this service, you agree to the Terms & Conditions:
-    /// testnet.iotanames.com/?modal=terms_conditions."
+    /// testnet.iotanames.com/terms-of-service."
     Name {
         /// The file storing the state of the user accounts
         #[arg(long = "client.config")]
@@ -431,6 +433,7 @@ impl IotaCommand {
                 from_config,
                 write_config,
                 epoch_duration_ms,
+                chain_start_timestamp_ms,
                 benchmark_ips,
                 with_faucet,
                 committee_size,
@@ -444,6 +447,7 @@ impl IotaCommand {
                     working_dir,
                     force,
                     epoch_duration_ms,
+                    chain_start_timestamp_ms,
                     benchmark_ips,
                     with_faucet,
                     committee_size,
@@ -610,7 +614,7 @@ impl IotaCommand {
             IotaCommand::Name { config, json, cmd } => {
                 eprintln!(
                     "{}",
-                    "By using this service, you agree to the Terms & Conditions: testnet.iotanames.com/?modal=terms_conditions."
+                    "By using this service, you agree to the Terms & Conditions: testnet.iotanames.com/terms-of-service"
                         .bold()
                         .yellow()
                 );
@@ -739,6 +743,7 @@ async fn start(
                 Some(config_path.clone()),
                 false,
                 epoch_duration_ms,
+                None,
                 None,
                 false,
                 committee_size.unwrap_or(DEFAULT_COMMITTEE_SIZE),
@@ -1007,6 +1012,7 @@ async fn genesis(
     working_dir: Option<PathBuf>,
     force: bool,
     epoch_duration_ms: Option<u64>,
+    chain_start_timestamp_ms: Option<u64>,
     benchmark_ips: Option<Vec<String>>,
     with_faucet: bool,
     committee_size: usize,
@@ -1094,8 +1100,9 @@ async fn genesis(
                 }
                 keystore.save()?;
 
-                // Make a new genesis config from the provided ip addresses.
-                GenesisConfig::new_for_benchmarks(&ips, epoch_duration_ms)
+                // Make a new genesis config from the provided ip addresses with given epoch
+                // duration and timestamp.
+                GenesisConfig::new_for_benchmarks(&ips, epoch_duration_ms, chain_start_timestamp_ms)
             } else if keystore_path.exists() {
                 let existing_keys = FileBasedKeystore::new(&keystore_path)?.addresses();
                 GenesisConfig::for_local_testing_with_addresses(existing_keys)

@@ -517,6 +517,7 @@ pub struct StarfishConsensusHandler {
 
 impl StarfishConsensusHandler {
     pub fn new(
+        last_processed_commit_at_startup: starfish_core::CommitIndex,
         mut consensus_handler: ConsensusHandler<CheckpointService>,
         mut receiver: UnboundedReceiver<starfish_core::CommittedSubDag>,
         commit_consumer_monitor: Arc<starfish_core::CommitConsumerMonitor>,
@@ -526,10 +527,14 @@ impl StarfishConsensusHandler {
             // backpressure.
             while let Some(consensus_output) = receiver.recv().await {
                 let commit_index = consensus_output.commit_ref.index;
-                consensus_handler
-                    .handle_consensus_output(consensus_output)
-                    .await;
-                commit_consumer_monitor.set_highest_handled_commit(commit_index);
+                if commit_index <= last_processed_commit_at_startup {
+                    consensus_handler.handle_prior_consensus_output(consensus_output);
+                } else {
+                    consensus_handler
+                        .handle_consensus_output(consensus_output)
+                        .await;
+                    commit_consumer_monitor.set_highest_handled_commit(commit_index);
+                }
             }
         });
         Self {

@@ -34,4 +34,4 @@ Contents: test::abstract_account::AbstractAccount {
 
 task 4, lines 41-43:
 //# abstract --account immshared(2,1) --ptb-inputs 100 @A
-Error: Error checking transaction input objects: GasObjectNotOwnedObject { owner: Shared { initial_shared_version: SequenceNumber(3) } }
+Error: Error checking transaction input objects: NotSharedObject

@@ -17,6 +17,7 @@ use fastcrypto::{
     traits::AllowedRng,
 };
 use fastcrypto_zkp::bn254::zk_login::ZkLoginInputs;
+use iota_sdk_types::crypto::HashingIntentScope;
 use move_binary_format::{CompiledModule, file_format::SignatureToken};
 use move_bytecode_utils::resolve_struct;
 use move_core_types::{
@@ -32,7 +33,6 @@ use serde::{
     ser::{Error, SerializeSeq},
 };
 use serde_with::serde_as;
-use shared_crypto::intent::HashingIntentScope;
 
 use crate::{
     IOTA_CLOCK_OBJECT_ID, IOTA_FRAMEWORK_ADDRESS, IOTA_SYSTEM_ADDRESS, MOVE_STDLIB_ADDRESS,

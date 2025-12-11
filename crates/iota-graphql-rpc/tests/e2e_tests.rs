@@ -555,12 +555,12 @@ mod tests {
     #[serial]
     #[ignore = "https://github.com/iotaledger/iota/issues/1777"]
     async fn test_zklogin_sig_verify() {
+        use iota_sdk_types::crypto::{Intent, IntentMessage};
         use iota_test_transaction_builder::TestTransactionBuilder;
         use iota_types::{
             base_types::IotaAddress, crypto::Signature, signature::GenericSignature,
             utils::load_test_vectors, zk_login_authenticator::ZkLoginAuthenticator,
         };
-        use shared_crypto::intent::{Intent, IntentMessage};
 
         let _guard = telemetry_subscribers::TelemetryConfig::new()
             .with_env()

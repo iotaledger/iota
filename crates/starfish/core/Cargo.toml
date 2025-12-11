@@ -56,8 +56,8 @@ iota-macros.workspace = true
 iota-metrics.workspace = true
 iota-network-stack.workspace = true
 iota-protocol-config.workspace = true
+iota-sdk-types.workspace = true
 iota-tls.workspace = true
-shared-crypto.workspace = true
 starfish-config.workspace = true
 typed-store.workspace = true
 

@@ -78,7 +78,7 @@ If you're working with a private GitHub repository, you can include a [private a
 The `iota-aws-orchestrator` binary provides various functionalities for creating, starting, stopping, and destroying instances. You can use the following command to boot 2 node and 2 dedicated client instances per region (if the settings file specifies 10 regions, as shown in the example above, a total of 20 instances will be created):
 
 ```bash
-cargo run --bin iota-aws-orchestrator -- testbed deploy --instances 2 --dedicated-clients 2
+cargo run --bin iota-aws-orchestrator -- testbed deploy --id test1 --instances 2 --dedicated-clients 2
 ```
 
 ### Note:

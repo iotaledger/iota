@@ -12,7 +12,7 @@
       "name": "Apache-2.0",
       "url": "https://raw.githubusercontent.com/iotaledger/iota/main/LICENSE"
     },
-    "version": "1.13.0-alpha"
+    "version": "1.14.0-alpha"
   },
   "methods": [
     {
@@ -1301,7 +1301,7 @@
             "name": "Result",
             "value": {
               "minSupportedProtocolVersion": "1",
-              "maxSupportedProtocolVersion": "16",
+              "maxSupportedProtocolVersion": "18",
               "protocolVersion": "6",
               "featureFlags": {
                 "accept_passkey_in_multisig": false,
@@ -1324,12 +1324,12 @@
                 "disallow_new_modules_in_deps_only_packages": true,
                 "enable_group_ops_native_function_msm": true,
                 "enable_jwk_consensus_updates": false,
+                "enable_move_authentication": false,
                 "enable_poseidon": true,
                 "enable_vdf": true,
                 "hardened_otw_check": true,
-                "iota_metadata_module_bytes": false,
+                "metadata_in_module_bytes": false,
                 "minimize_child_object_mutations": false,
-                "move_auth": false,
                 "native_charging_v2": true,
                 "no_extraneous_module_bytes": true,
                 "normalize_ptb_arguments": false,
@@ -10142,7 +10142,10 @@
           },
           "type_arguments": {
             "description": "Type arguments for the Move authenticate function",
-            "type": "string"
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
           }
         }
       },

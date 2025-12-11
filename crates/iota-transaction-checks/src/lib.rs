@@ -209,8 +209,8 @@ mod checked {
     /// A common function to check the `MoveAuthenticator` inputs for signing.
     ///
     /// Checks that the authenticator inputs meet the requirements and returns
-    /// the union of the checked authenticator input objects and the account
-    /// object.
+    /// checked authenticator input objects, among which we also find the
+    /// account object.
     #[instrument(level = "trace", skip_all)]
     pub fn check_move_authenticator_input_for_signing(
         authenticator_input_objects: InputObjects,
@@ -426,8 +426,8 @@ mod checked {
         let gas_status =
             IotaGasStatus::new(gas_budget, gas_price, reference_gas_price, protocol_config)?;
 
-        // check balance and coins consistency
-        // load all gas coins
+        // Check balance and coins consistency
+        // Load all gas coins
         let objects: BTreeMap<_, _> = objects.iter().map(|o| (o.id(), o)).collect();
         let mut gas_objects = vec![];
         for obj_ref in gas {
@@ -641,7 +641,7 @@ mod checked {
         Ok(())
     }
 
-    /// Check all the `MoveAuthenticator`-related input objects against the
+    /// Check all the `MoveAuthenticator` related input objects against the
     /// database.
     #[instrument(level = "trace", skip_all)]
     fn check_move_authenticator_objects(

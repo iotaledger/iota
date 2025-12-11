@@ -9,10 +9,10 @@ use std::{
 
 use fastcrypto::{error::FastCryptoError, traits::ToFromBytes};
 use iota_protocol_config::ProtocolConfig;
+use iota_sdk_types::crypto::IntentMessage;
 use once_cell::sync::OnceCell;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use shared_crypto::intent::IntentMessage;
 
 use crate::{
     base_types::{IotaAddress, ObjectID, ObjectRef, SequenceNumber},
@@ -35,7 +35,7 @@ pub struct MoveAuthenticator {
     /// Input objects or primitive values
     call_args: Vec<CallArg>,
     /// Type arguments for the Move authenticate function
-    #[schemars(with = "String")]
+    #[schemars(with = "Vec<String>")]
     type_arguments: Vec<TypeInput>,
     /// The object that is authenticated. Represents the account being the
     /// sender of the transaction.

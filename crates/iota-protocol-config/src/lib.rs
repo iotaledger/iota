@@ -19,7 +19,7 @@ use tracing::{info, warn};
 
 /// The minimum and maximum protocol versions supported by this build.
 const MIN_PROTOCOL_VERSION: u64 = 1;
-pub const MAX_PROTOCOL_VERSION: u64 = 16;
+pub const MAX_PROTOCOL_VERSION: u64 = 18;
 
 // Record history of protocol version allocations here:
 //
@@ -91,6 +91,12 @@ pub const MAX_PROTOCOL_VERSION: u64 = 16;
 //             AuthorityCapabilities notification.
 //             Enable committing transactions only for traversed headers in
 //             Starfish.
+// Version 17: Increase the committee size to 100 on all networks.
+// Version 18: Allow metadata bytes indexed with a dedicated key in compiled
+//             Move modules in devnet.
+//             Enable publishing package metadata v1 along with the package in
+//             devnet.
+//             Enable Move-based account authentication in devnet.
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
 
@@ -147,17 +153,14 @@ impl std::ops::Add<u64> for ProtocolVersion {
     }
 }
 
-#[derive(Clone, Serialize, Deserialize, Debug, PartialEq, Copy, PartialOrd, Ord, Eq, ValueEnum)]
+#[derive(
+    Clone, Serialize, Deserialize, Debug, PartialEq, Copy, PartialOrd, Ord, Eq, ValueEnum, Default,
+)]
 pub enum Chain {
     Mainnet,
     Testnet,
+    #[default]
     Unknown,
-}
-
-impl Default for Chain {
-    fn default() -> Self {
-        Self::Unknown
-    }
 }
 
 impl Chain {
@@ -373,18 +376,18 @@ struct FeatureFlags {
     #[serde(skip_serializing_if = "is_false")]
     consensus_commit_transactions_only_for_traversed_headers: bool,
 
-    // If true, enables the authentication of account using Move code.
+    // If true, it allows metadata bytes indexed with a dedicated key in a compiled module.
+    // This flag is used to provide the correct MoveVM configuration for clients.
     #[serde(skip_serializing_if = "is_false")]
-    move_auth: bool,
+    metadata_in_module_bytes: bool,
 
     // If true, enables publishing package metadata v1 along with the package.
     #[serde(skip_serializing_if = "is_false")]
     publish_package_metadata: bool,
 
-    // If true, it allows metadata bytes indexed with the iota key in a compiled module
-    // This flag is used to provide the correct MoveVM configuration for clients.
+    // If true, enables the authentication of account using Move code.
     #[serde(skip_serializing_if = "is_false")]
-    iota_metadata_module_bytes: bool,
+    enable_move_authentication: bool,
 }
 
 fn is_true(b: &bool) -> bool {
@@ -1279,18 +1282,6 @@ impl ProtocolConfig {
         self.feature_flags.passkey_auth
     }
 
-    pub fn move_auth(&self) -> bool {
-        self.feature_flags.move_auth
-    }
-
-    pub fn publish_package_metadata(&self) -> bool {
-        self.feature_flags.publish_package_metadata
-    }
-
-    pub fn iota_metadata_module_bytes(&self) -> bool {
-        self.feature_flags.iota_metadata_module_bytes
-    }
-
     pub fn max_transaction_size_bytes(&self) -> u64 {
         // Provide a default value if protocol config version is too low.
         self.consensus_max_transaction_size_bytes
@@ -1469,9 +1460,22 @@ impl ProtocolConfig {
         );
         res
     }
+
     pub fn consensus_commit_transactions_only_for_traversed_headers(&self) -> bool {
         self.feature_flags
             .consensus_commit_transactions_only_for_traversed_headers
+    }
+
+    pub fn metadata_in_module_bytes(&self) -> bool {
+        self.feature_flags.metadata_in_module_bytes
+    }
+
+    pub fn publish_package_metadata(&self) -> bool {
+        self.feature_flags.publish_package_metadata
+    }
+
+    pub fn enable_move_authentication(&self) -> bool {
+        self.feature_flags.enable_move_authentication
     }
 }
 
@@ -1650,7 +1654,7 @@ impl ProtocolConfig {
             max_move_object_size: Some(250 * 1024),
             max_move_package_size: Some(100 * 1024),
             max_publish_or_upgrade_per_ptb: Some(5),
-            // max auth gas budget
+            // max gas budget for an authentication is in NANOS
             max_auth_gas: None,
             // max gas budget is in NANOS and an absolute value 50IOTA
             max_tx_gas: Some(50_000_000_000),
@@ -2344,13 +2348,21 @@ impl ProtocolConfig {
                     // Enable committing transactions only for traversed headers in Starfish
                     cfg.feature_flags
                         .consensus_commit_transactions_only_for_traversed_headers = true;
-                    // Enable AA in all networks that are not mainnet or testnet.
+                }
+                17 => {
+                    // Increase the committee size to 100 on all networks.
+                    cfg.max_committee_members_count = Some(100);
+                }
+                18 => {
                     if chain != Chain::Mainnet && chain != Chain::Testnet {
-                        // max auth gas budget is in NANOS and an absolute value 1IOTA
-                        cfg.max_auth_gas = Some(1_000_000_000);
-                        cfg.feature_flags.move_auth = true;
+                        // Enable storing metadata in module bytes and then
+                        // publishing package metadata in devnet
+                        cfg.feature_flags.metadata_in_module_bytes = true;
                         cfg.feature_flags.publish_package_metadata = true;
-                        cfg.feature_flags.iota_metadata_module_bytes = true;
+                        // Enable Move authentication in devnet
+                        cfg.feature_flags.enable_move_authentication = true;
+                        // Max auth gas budget is in NANOS and an absolute value 1IOTA
+                        cfg.max_auth_gas = Some(1_000_000_000);
                     }
                 }
                 // Use this template when making changes:
@@ -2533,6 +2545,7 @@ impl ProtocolConfig {
         self.feature_flags
             .consensus_median_timestamp_with_checkpoint_enforcement = val;
     }
+
     pub fn set_consensus_commit_transactions_only_for_traversed_headers_for_testing(
         &mut self,
         val: bool,
@@ -2541,12 +2554,16 @@ impl ProtocolConfig {
             .consensus_commit_transactions_only_for_traversed_headers = val;
     }
 
-    pub fn set_move_auth_for_testing(&mut self, val: bool) {
-        self.feature_flags.move_auth = val;
+    pub fn set_metadata_in_module_bytes_for_testing(&mut self, val: bool) {
+        self.feature_flags.metadata_in_module_bytes = val;
     }
 
     pub fn set_publish_package_metadata_for_testing(&mut self, val: bool) {
         self.feature_flags.publish_package_metadata = val;
+    }
+
+    pub fn set_enable_move_authentication_for_testing(&mut self, val: bool) {
+        self.feature_flags.enable_move_authentication = val;
     }
 }
 

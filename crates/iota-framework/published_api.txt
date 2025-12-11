@@ -1461,106 +1461,208 @@ create_immutable_account_v1_impl
 	0x2::account
 ProgrammableMoveCall
 	public struct
-	0x2::programmable_transaction
-ProgrammableTransaction
+	0x2::ptb_command
+TransferObjectsData
 	public struct
-	0x2::programmable_transaction
-ObjectRef
+	0x2::ptb_command
+SplitCoinsData
 	public struct
-	0x2::programmable_transaction
-CallArg
-	public enum
-	0x2::programmable_transaction
+	0x2::ptb_command
+MergeCoinsData
+	public struct
+	0x2::ptb_command
+PublishData
+	public struct
+	0x2::ptb_command
+MakeMoveVecData
+	public struct
+	0x2::ptb_command
+UpgradeData
+	public struct
+	0x2::ptb_command
 Command
 	public enum
-	0x2::programmable_transaction
+	0x2::ptb_command
 Argument
 	public enum
-	0x2::programmable_transaction
-ObjectArg
-	public enum
-	0x2::programmable_transaction
-package_id
+	0x2::ptb_command
+is_move_call
 	public fun
-	0x2::programmable_transaction
+	0x2::ptb_command
+is_transfer_objects
+	public fun
+	0x2::ptb_command
+is_split_coins
+	public fun
+	0x2::ptb_command
+is_merge_coins
+	public fun
+	0x2::ptb_command
+is_publish
+	public fun
+	0x2::ptb_command
+is_make_move_vec
+	public fun
+	0x2::ptb_command
+is_upgrade
+	public fun
+	0x2::ptb_command
+as_move_call
+	public fun
+	0x2::ptb_command
+as_transfer_objects
+	public fun
+	0x2::ptb_command
+as_split_coins
+	public fun
+	0x2::ptb_command
+as_merge_coins
+	public fun
+	0x2::ptb_command
+as_publish
+	public fun
+	0x2::ptb_command
+as_make_move_vec
+	public fun
+	0x2::ptb_command
+as_upgrade
+	public fun
+	0x2::ptb_command
+is_gas_coin
+	public fun
+	0x2::ptb_command
+is_input
+	public fun
+	0x2::ptb_command
+is_result
+	public fun
+	0x2::ptb_command
+is_nested_result
+	public fun
+	0x2::ptb_command
+input_index
+	public fun
+	0x2::ptb_command
+result_command_index
+	public fun
+	0x2::ptb_command
+nested_result_command_index
+	public fun
+	0x2::ptb_command
+nested_result_inner_index
+	public fun
+	0x2::ptb_command
+package
+	public fun
+	0x2::ptb_command
 module_name
 	public fun
-	0x2::programmable_transaction
-function_name
+	0x2::ptb_command
+function
 	public fun
-	0x2::programmable_transaction
+	0x2::ptb_command
 type_arguments
 	public fun
-	0x2::programmable_transaction
+	0x2::ptb_command
 arguments
 	public fun
-	0x2::programmable_transaction
-object_id
+	0x2::ptb_command
+objects
 	public fun
-	0x2::programmable_transaction
-sequence_number
+	0x2::ptb_command
+recipient
 	public fun
-	0x2::programmable_transaction
-object_digest
+	0x2::ptb_command
+coin
 	public fun
-	0x2::programmable_transaction
-inputs
+	0x2::ptb_command
+amounts
 	public fun
-	0x2::programmable_transaction
-commands
+	0x2::ptb_command
+target_coin
 	public fun
-	0x2::programmable_transaction
-pure_data
+	0x2::ptb_command
+source_coins
 	public fun
-	0x2::programmable_transaction
-object_data
+	0x2::ptb_command
+modules
 	public fun
-	0x2::programmable_transaction
-command_to_int
+	0x2::ptb_command
+dependencies
 	public fun
-	0x2::programmable_transaction
-move_call_data
+	0x2::ptb_command
+type_arg
 	public fun
-	0x2::programmable_transaction
-transfer_objects_data
+	0x2::ptb_command
+elements
 	public fun
-	0x2::programmable_transaction
-split_coins_data
+	0x2::ptb_command
+upgrade_modules
 	public fun
-	0x2::programmable_transaction
-merge_coins_data
+	0x2::ptb_command
+upgrade_dependencies
 	public fun
-	0x2::programmable_transaction
-publish_data
+	0x2::ptb_command
+upgrade_package
 	public fun
-	0x2::programmable_transaction
-make_move_vec_data
+	0x2::ptb_command
+upgrade_ticket
 	public fun
-	0x2::programmable_transaction
-upgrade_data
-	public fun
-	0x2::programmable_transaction
-argument_input
-	public fun
-	0x2::programmable_transaction
-argument_result
-	public fun
-	0x2::programmable_transaction
-argument_nested_result
-	public fun
-	0x2::programmable_transaction
-object_ref
-	public fun
-	0x2::programmable_transaction
-shared_object_data
-	public fun
-	0x2::programmable_transaction
+	0x2::ptb_command
+ObjectRef
+	public struct
+	0x2::ptb_call_arg
+CallArg
+	public enum
+	0x2::ptb_call_arg
+ObjectArg
+	public enum
+	0x2::ptb_call_arg
 is_pure_data
 	public fun
-	0x2::programmable_transaction
+	0x2::ptb_call_arg
 is_object_data
 	public fun
-	0x2::programmable_transaction
+	0x2::ptb_call_arg
+as_pure_data
+	public fun
+	0x2::ptb_call_arg
+as_object_data
+	public fun
+	0x2::ptb_call_arg
+is_shared_object
+	public fun
+	0x2::ptb_call_arg
+is_imm_or_owned_object
+	public fun
+	0x2::ptb_call_arg
+is_receiving_object
+	public fun
+	0x2::ptb_call_arg
+object_id
+	public fun
+	0x2::ptb_call_arg
+object_version
+	public fun
+	0x2::ptb_call_arg
+object_digest
+	public fun
+	0x2::ptb_call_arg
+object_ref
+	public fun
+	0x2::ptb_call_arg
+is_mutable_shared_object
+	public fun
+	0x2::ptb_call_arg
+id
+	public fun
+	0x2::ptb_call_arg
+sequence_number
+	public fun
+	0x2::ptb_call_arg
+digest
+	public fun
+	0x2::ptb_call_arg
 AuthContext
 	public struct
 	0x2::auth_context
@@ -3196,6 +3298,120 @@ max_heapify_recursive
 priorities
 	public fun
 	0x2::priority_queue
+ProgrammableMoveCall
+	public struct
+	0x2::programmable_transaction
+ProgrammableTransaction
+	public struct
+	0x2::programmable_transaction
+ObjectRef
+	public struct
+	0x2::programmable_transaction
+CallArg
+	public enum
+	0x2::programmable_transaction
+Command
+	public enum
+	0x2::programmable_transaction
+Argument
+	public enum
+	0x2::programmable_transaction
+ObjectArg
+	public enum
+	0x2::programmable_transaction
+package_id
+	public fun
+	0x2::programmable_transaction
+module_name
+	public fun
+	0x2::programmable_transaction
+function_name
+	public fun
+	0x2::programmable_transaction
+type_arguments
+	public fun
+	0x2::programmable_transaction
+arguments
+	public fun
+	0x2::programmable_transaction
+object_id
+	public fun
+	0x2::programmable_transaction
+sequence_number
+	public fun
+	0x2::programmable_transaction
+object_digest
+	public fun
+	0x2::programmable_transaction
+inputs
+	public fun
+	0x2::programmable_transaction
+commands
+	public fun
+	0x2::programmable_transaction
+pure_data
+	public fun
+	0x2::programmable_transaction
+object_data
+	public fun
+	0x2::programmable_transaction
+command_to_int
+	public fun
+	0x2::programmable_transaction
+move_call_data
+	public fun
+	0x2::programmable_transaction
+transfer_objects_data
+	public fun
+	0x2::programmable_transaction
+split_coins_data
+	public fun
+	0x2::programmable_transaction
+merge_coins_data
+	public fun
+	0x2::programmable_transaction
+publish_data
+	public fun
+	0x2::programmable_transaction
+make_move_vec_data
+	public fun
+	0x2::programmable_transaction
+upgrade_data
+	public fun
+	0x2::programmable_transaction
+argument_input
+	public fun
+	0x2::programmable_transaction
+argument_result
+	public fun
+	0x2::programmable_transaction
+argument_nested_result
+	public fun
+	0x2::programmable_transaction
+object_ref
+	public fun
+	0x2::programmable_transaction
+shared_object_data
+	public fun
+	0x2::programmable_transaction
+is_pure_data
+	public fun
+	0x2::programmable_transaction
+is_object_data
+	public fun
+	0x2::programmable_transaction
+ProgrammableTransaction
+	public struct
+	0x2::ptb
+inputs
+	public fun
+	0x2::ptb
+commands
+	public fun
+	0x2::ptb
+new_programmable_transaction_for_testing
+	public(package) fun
+	0x2::ptb
 Versioned
 	public struct
 	0x2::versioned
