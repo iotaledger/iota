@@ -1,4 +1,4 @@
-address 0x2 {
+address A {
 module m {
 }
 module n {

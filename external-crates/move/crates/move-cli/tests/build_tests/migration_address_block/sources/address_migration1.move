@@ -1,8 +1,6 @@
-address /* some inline comment */ 0x2 
-// a line comment
-{
+address 0x2 {
 module m {
 }
 module n {
 }
-/* an inline comment*/}
+}

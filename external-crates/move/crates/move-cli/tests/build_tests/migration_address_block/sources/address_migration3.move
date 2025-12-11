@@ -1,6 +1,1 @@
-address A {
-module m {
-}
-module n {
-}
-}
+address 0x2{ module m {} module n {}}
