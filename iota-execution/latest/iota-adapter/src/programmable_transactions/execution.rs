@@ -15,7 +15,7 @@ mod checked {
     use iota_move_natives::object_runtime::ObjectRuntime;
     use iota_protocol_config::ProtocolConfig;
     use iota_types::{
-        IOTA_FRAMEWORK_ADDRESS,
+        IOTA_FRAMEWORK_ADDRESS, auth_context,
         base_types::{
             IotaAddress, MoveObjectType, ObjectID, RESOLVED_ASCII_STR, RESOLVED_STD_OPTION,
             RESOLVED_UTF8_STR, TX_CONTEXT_MODULE_NAME, TX_CONTEXT_STRUCT_NAME, TxContext,
@@ -421,7 +421,7 @@ mod checked {
             is_init,
         )?;
         // build the arguments, storing meta data about by-mut-ref args
-        let (tx_context_kind, by_mut_ref, serialized_arguments) =
+        let (tx_context_kind, has_auth_context, by_mut_ref, serialized_arguments) =
             build_move_args::<Mode>(context, runtime_id, function, kind, &signature, &arguments)?;
         // invoke the VM
         let SerializedReturnValues {
@@ -433,6 +433,7 @@ mod checked {
             function,
             type_arguments,
             tx_context_kind,
+            has_auth_context,
             serialized_arguments,
             trace_builder_opt,
         )?;
@@ -1042,9 +1043,18 @@ mod checked {
         function: &IdentStr,
         type_arguments: Vec<Type>,
         tx_context_kind: TxContextKind,
+        has_auth_context: bool,
         mut serialized_arguments: Vec<Vec<u8>>,
         trace_builder_opt: &mut Option<MoveTraceBuilder>,
     ) -> Result<SerializedReturnValues, ExecutionError> {
+        if has_auth_context {
+            let auth_context = context.state_view.read_auth_context();
+            assert_invariant!(
+                auth_context.is_some(),
+                "The `iota::auth_context::AuthContext` value is expected to be read from the storage"
+            );
+            serialized_arguments.push(auth_context.unwrap().to_bcs_bytes());
+        }
         match tx_context_kind {
             TxContextKind::None => (),
             TxContextKind::Mutable | TxContextKind::Immutable => {
@@ -1465,6 +1475,7 @@ mod checked {
 
     type ArgInfo = (
         TxContextKind,
+        bool,
         // mut ref
         Vec<(LocalIndex, ValueKind)>,
         Vec<Vec<u8>>,
@@ -1486,13 +1497,37 @@ mod checked {
             Some(t) => is_tx_context(context, t)?,
             None => TxContextKind::None,
         };
+        // Check if the second last parameter is an auth context.
+        // According to the current design, authenticators must contain `TxContext` as
+        // the last parameter and `AuthContext` as the second last.
+        let has_auth_context = match parameters.iter().rev().nth(1) {
+            Some(t) => is_auth_context(context, t)?,
+            None => false,
+        };
+        if has_auth_context {
+            if !context.protocol_config.enable_move_authentication() {
+                return Err(ExecutionError::new_with_source(
+                    ExecutionErrorKind::VMInvariantViolation,
+                    "`iota::auth_context::AuthContext` can't be used as a parameter if the `move_authentication` feature is disabled",
+                ));
+            }
+            if !Mode::allow_auth_context() {
+                return Err(ExecutionError::new_with_source(
+                    ExecutionErrorKind::VMInvariantViolation,
+                    "`iota::auth_context::AuthContext` can't be used as a parameter in this execution mode",
+                ));
+            }
+        }
         // an init function can have one or two arguments, with the last one always
         // being of type &mut TxContext and the additional (first) one
         // representing a one time witness type (see one_time_witness verifier
         // pass for additional explanation)
         let has_one_time_witness = function_kind == FunctionKind::Init && parameters.len() == 2;
         let has_tx_context = tx_ctx_kind != TxContextKind::None;
-        let num_args = args.len() + (has_one_time_witness as usize) + (has_tx_context as usize);
+        let num_args = args.len()
+            + (has_one_time_witness as usize)
+            + (has_auth_context as usize)
+            + (has_tx_context as usize);
         if num_args != parameters.len() {
             return Err(ExecutionError::new_with_source(
                 ExecutionErrorKind::ArityMismatch,
@@ -1574,7 +1609,7 @@ mod checked {
             };
             serialized_args.push(bytes);
         }
-        Ok((tx_ctx_kind, by_mut_ref, serialized_args))
+        Ok((tx_ctx_kind, has_auth_context, by_mut_ref, serialized_args))
     }
 
     /// checks that the value is compatible with the specified type
@@ -1747,6 +1782,35 @@ mod checked {
         } else {
             TxContextKind::None
         })
+    }
+
+    // Returns `true` if the type is a Datatype with identifier matching
+    // `AuthContext`.
+    // Returns `false` for all other types or identifiers not matching.
+    pub fn is_auth_context(
+        context: &ExecutionContext<'_, '_, '_>,
+        t: &Type,
+    ) -> Result<bool, ExecutionError> {
+        let inner = match t {
+            Type::Reference(inner) => inner,
+            _ => return Ok(false),
+        };
+
+        let Type::Datatype(idx) = &**inner else {
+            return Ok(false);
+        };
+
+        let Some(s) = context.vm.get_runtime().get_type(*idx) else {
+            invariant_violation!("Loaded struct not found")
+        };
+
+        let (module_addr, module_name, struct_name) = get_datatype_ident(&s);
+
+        Ok(auth_context::is_auth_context(
+            module_addr,
+            module_name,
+            struct_name,
+        ))
     }
 
     /// Returns Some(layout) iff it is a primitive, an ID, a String, or an

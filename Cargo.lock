@@ -6133,6 +6133,7 @@ dependencies = [
  "iota-types",
  "jsonrpsee",
  "move-binary-format",
+ "move-command-line-common",
  "move-core-types",
  "move-package",
  "p256",

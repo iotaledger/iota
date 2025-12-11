@@ -94,6 +94,9 @@ pub const MAX_PROTOCOL_VERSION: u64 = 18;
 // Version 17: Increase the committee size to 100 on all networks.
 // Version 18: Allow metadata bytes indexed with a dedicated key in compiled
 //             Move modules in devnet.
+//             Enable publishing package metadata v1 along with the package in
+//             devnet.
+//             Enable Move-based account authentication in devnet.
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
 
@@ -381,6 +384,10 @@ struct FeatureFlags {
     // If true, enables publishing package metadata v1 along with the package.
     #[serde(skip_serializing_if = "is_false")]
     publish_package_metadata: bool,
+
+    // If true, enables the authentication of account using Move code.
+    #[serde(skip_serializing_if = "is_false")]
+    enable_move_authentication: bool,
 }
 
 fn is_true(b: &bool) -> bool {
@@ -588,6 +595,9 @@ pub struct ProtocolConfig {
 
     /// Maximum gas budget in NANOS that a transaction can use.
     max_tx_gas: Option<u64>,
+
+    /// Maximum gas budget in NANOS that a authentication transaction can use.
+    max_auth_gas: Option<u64>,
 
     /// Maximum amount of the proposed gas price in NANOS (defined in the
     /// transaction).
@@ -1271,6 +1281,7 @@ impl ProtocolConfig {
     pub fn passkey_auth(&self) -> bool {
         self.feature_flags.passkey_auth
     }
+
     pub fn max_transaction_size_bytes(&self) -> u64 {
         // Provide a default value if protocol config version is too low.
         self.consensus_max_transaction_size_bytes
@@ -1462,6 +1473,10 @@ impl ProtocolConfig {
     pub fn publish_package_metadata(&self) -> bool {
         self.feature_flags.publish_package_metadata
     }
+
+    pub fn enable_move_authentication(&self) -> bool {
+        self.feature_flags.enable_move_authentication
+    }
 }
 
 #[cfg(not(msim))]
@@ -1639,6 +1654,8 @@ impl ProtocolConfig {
             max_move_object_size: Some(250 * 1024),
             max_move_package_size: Some(100 * 1024),
             max_publish_or_upgrade_per_ptb: Some(5),
+            // max gas budget for an authentication is in NANOS
+            max_auth_gas: None,
             // max gas budget is in NANOS and an absolute value 50IOTA
             max_tx_gas: Some(50_000_000_000),
             max_gas_price: Some(100_000),
@@ -2342,6 +2359,10 @@ impl ProtocolConfig {
                         // publishing package metadata in devnet
                         cfg.feature_flags.metadata_in_module_bytes = true;
                         cfg.feature_flags.publish_package_metadata = true;
+                        // Enable Move authentication in devnet
+                        cfg.feature_flags.enable_move_authentication = true;
+                        // Max auth gas budget is in NANOS and an absolute value 1IOTA
+                        cfg.max_auth_gas = Some(1_000_000_000);
                     }
                 }
                 // Use this template when making changes:
@@ -2524,7 +2545,7 @@ impl ProtocolConfig {
         self.feature_flags
             .consensus_median_timestamp_with_checkpoint_enforcement = val;
     }
-    
+
     pub fn set_consensus_commit_transactions_only_for_traversed_headers_for_testing(
         &mut self,
         val: bool,
@@ -2539,6 +2560,10 @@ impl ProtocolConfig {
 
     pub fn set_publish_package_metadata_for_testing(&mut self, val: bool) {
         self.feature_flags.publish_package_metadata = val;
+    }
+
+    pub fn set_enable_move_authentication_for_testing(&mut self, val: bool) {
+        self.feature_flags.enable_move_authentication = val;
     }
 }
 

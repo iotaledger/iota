@@ -1077,7 +1077,7 @@ fn test_consensus_commit_prologue_v1_transaction() {
     );
     assert!(tx.contains_shared_object());
     assert_eq!(
-        tx.shared_input_objects().next().unwrap(),
+        tx.shared_input_objects().into_iter().next().unwrap(),
         SharedInputObject {
             id: IOTA_CLOCK_OBJECT_ID,
             initial_shared_version: IOTA_CLOCK_OBJECT_SHARED_VERSION,

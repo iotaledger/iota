@@ -266,6 +266,11 @@ impl AuthenticatorTrait for MultiSig {
                         )
                         .map_err(|e| FastCryptoError::GeneralError(e.to_string()))
                 }
+                CompressedSignature::Move(_move_authenticator_as_bytes) => {
+                    return Err(IotaError::InvalidSignature {
+                        error: "Move authenticator cannot be used for multisig".to_string(),
+                    });
+                }
             };
             if res.is_ok() {
                 weight_sum += *weight as u16;

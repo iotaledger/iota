@@ -31,6 +31,7 @@ use crate::{
 #[macro_use]
 pub mod error;
 
+pub mod account;
 pub mod accumulator;
 pub mod auth_context;
 pub mod authenticator_state;
@@ -74,6 +75,7 @@ pub mod messages_grpc;
 pub mod messages_safe_client;
 pub mod metrics;
 pub mod mock_checkpoint_builder;
+pub mod move_authenticator;
 pub mod move_package;
 pub mod multisig;
 pub mod object;
