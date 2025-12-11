@@ -323,9 +323,9 @@ impl AccountKeystore for FileBasedKeystore {
 
         match stored_key {
             StoredKey::KeyPair(keypair) => Ok(Signature::new_hashed(msg, keypair)),
-            StoredKey::Account(_) => Err(signature::Error::from_source(format!(
-                "sign_hashed is not supported for account type"
-            ))),
+            StoredKey::Account(_) => Err(signature::Error::from_source(
+                "sign_hashed is not supported for account type",
+            )),
             StoredKey::External { source, .. } => Err(signature::Error::from_source(format!(
                 "sign_hashed is not supported for external type: {source} [{address}]"
             ))),
@@ -347,9 +347,9 @@ impl AccountKeystore for FileBasedKeystore {
         let intent_msg = &IntentMessage::new(intent, msg);
         match stored_key {
             StoredKey::KeyPair(keypair) => Ok(Signature::new_secure(intent_msg, keypair)),
-            StoredKey::Account(_) => Err(signature::Error::from_source(format!(
+            StoredKey::Account(_) => Err(signature::Error::from_source(
                 "sign_secure is not supported for account type",
-            ))),
+            )),
             StoredKey::External { source, .. } => Err(signature::Error::from_source(format!(
                 "sign_secure is not supported for external type: {source} [{address}]",
             ))),
@@ -731,9 +731,9 @@ impl AccountKeystore for InMemKeystore {
 
         match stored_key {
             StoredKey::KeyPair(keypair) => Ok(Signature::new_hashed(msg, keypair)),
-            StoredKey::Account(_) => Err(signature::Error::from_source(format!(
+            StoredKey::Account(_) => Err(signature::Error::from_source(
                 "sign_hashed is not supported for account type",
-            ))),
+            )),
             StoredKey::External { source, .. } => Err(signature::Error::from_source(format!(
                 "sign_hashed is not supported for external type: {source} [{address}]"
             ))),
@@ -755,9 +755,9 @@ impl AccountKeystore for InMemKeystore {
         let intent_msg = &IntentMessage::new(intent, msg);
         match stored_key {
             StoredKey::KeyPair(keypair) => Ok(Signature::new_secure(intent_msg, keypair)),
-            StoredKey::Account(_) => Err(signature::Error::from_source(format!(
+            StoredKey::Account(_) => Err(signature::Error::from_source(
                 "sign_secure is not supported for account type",
-            ))),
+            )),
             StoredKey::External { source, .. } => Err(signature::Error::from_source(format!(
                 "sign_secure is not supported for external type: {source} [{address}]",
             ))),
