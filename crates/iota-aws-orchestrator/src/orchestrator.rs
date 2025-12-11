@@ -612,7 +612,7 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
         if self.settings.enable_flamegraph {
             self.fetch_flamegraphs(
                 parameters,
-                self.node_instances.clone(),
+                self.instances_without_metrics().clone(),
                 &path,
                 "?svg=true",
                 "flamegraph",
@@ -627,7 +627,7 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
             {
                 self.fetch_flamegraphs(
                     parameters,
-                    self.node_instances.clone(),
+                    self.instances_without_metrics().clone(),
                     &path,
                     "?svg=true&mem=true",
                     "flamegraph-alloc",
