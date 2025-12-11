@@ -6,7 +6,7 @@ use std::{
     collections::HashSet,
     fs::{self},
     marker::PhantomData,
-    path::PathBuf,
+    path::{Path, PathBuf},
     time::Duration,
 };
 
@@ -607,10 +607,49 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
             .iter()
             .collect();
         fs::create_dir_all(&path).expect("Failed to create log directory");
-        aggregator.save(path);
+        aggregator.save(&path);
+
+        if self.settings.enable_flamegraph {
+            self.fetch_flamegraphs(
+                parameters,
+                self.node_instances.clone(),
+                &path,
+                "?svg=true",
+                "flamegraph",
+            )
+            .await?;
+        }
 
         display::done();
         Ok(aggregator)
+    }
+
+    async fn fetch_flamegraphs(
+        &self,
+        parameters: &BenchmarkParameters<T>,
+        nodes: Vec<Instance>,
+        path: &Path,
+        query: &str,
+        file_prefix: &str,
+    ) -> TestbedResult<()> {
+        let flamegraph_commands = self
+            .protocol_commands
+            .nodes_flamegraph_command(nodes, parameters, query);
+        let stdio = self
+            .ssh_manager
+            .execute_per_instance(flamegraph_commands, CommandContext::default())
+            .await?;
+        for (i, (stdout, stderr)) in stdio.into_iter().enumerate() {
+            if !stdout.is_empty() {
+                let file = path.join(format!("{file_prefix}-{i}.svg"));
+                fs::write(file, stdout).unwrap();
+            }
+            if !stderr.is_empty() {
+                let file = path.join(format!("{file_prefix}-{i}.log"));
+                fs::write(file, stderr).unwrap();
+            }
+        }
+        Ok(())
     }
 
     /// Download the log files from the nodes and clients.

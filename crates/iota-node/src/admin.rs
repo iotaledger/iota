@@ -8,6 +8,7 @@ use axum::{
     Router,
     extract::{Query, State},
     http::StatusCode,
+    response::{IntoResponse as _, Response},
     routing::{get, post},
 };
 use base64::Engine;
@@ -454,9 +455,80 @@ async fn randomness_inject_full_sig(
     }
 }
 
-async fn flamegraph(State(state): State<Arc<AppState>>) -> impl axum::response::IntoResponse {
-    match state.tracing_handle.get_flamegraph() {
-        Some(sub) => Ok(axum::Json(sub.get_nested_sets("iota-node"))),
-        None => Err((StatusCode::NOT_FOUND, "flamegraphs are not enabled\n")),
+#[derive(Deserialize)]
+struct Flamegraph {
+    /// Toggle SVG response, otherwise return nested set model for Grafana.
+    #[serde(default)]
+    svg: bool,
+    /// SVG width in pixels (3600 by default).
+    #[serde(default)]
+    width: usize,
+    /// Select still running call graphs.
+    #[serde(default)]
+    running: bool,
+    /// Select already completed call graphs.
+    #[serde(default)]
+    completed: bool,
+    /// Select call graph with the given ID.
+    #[serde(default)]
+    graph_id: String,
+}
+
+async fn flamegraph(State(state): State<Arc<AppState>>, query: Query<Flamegraph>) -> Response {
+    if let Some(sub) = state.tracing_handle.get_flamegraph() {
+        let Query(Flamegraph {
+            svg,
+            width,
+            mut running,
+            mut completed,
+            graph_id,
+        }) = query;
+        if !running && !completed {
+            running = true;
+            completed = true;
+        }
+        if svg {
+            // draw an svg
+            let width = if width == 0 { Some(3600) } else { Some(width) };
+            let config = telemetry_subscribers::flamegraph::SvgConfig {
+                width,
+                ..Default::default()
+            };
+            let svg = if !graph_id.is_empty() {
+                sub.get_svg(&graph_id, running, completed, &config)
+            } else {
+                sub.get_combined_svg("iota-node", running, completed, &config)
+            };
+            if let Some(svg) = svg {
+                (
+                    [(
+                        axum::http::header::CONTENT_TYPE,
+                        axum::http::header::HeaderValue::from_static("image/svg+xml"),
+                    )],
+                    svg.into_string(),
+                )
+                    .into_response()
+            } else {
+                (StatusCode::NOT_FOUND, "Flamegraphs not found\n").into_response()
+            }
+        } else {
+            // default nested set model for grafana
+            let nested_frames = if !graph_id.is_empty() {
+                sub.get_nested_set(&graph_id, running, completed)
+            } else {
+                sub.get_nested_sets("iota-node", running, completed)
+            };
+            if !nested_frames.is_empty() {
+                axum::Json(nested_frames).into_response()
+            } else {
+                (StatusCode::NOT_FOUND, "Flamegraphs not found\n").into_response()
+            }
+        }
+    } else {
+        (
+            StatusCode::NOT_FOUND,
+            "Flamegraphs are not enabled (re-run iota-node with TRACE_FLAMEGRAPH=1)\n",
+        )
+            .into_response()
     }
 }

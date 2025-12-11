@@ -242,3 +242,61 @@ impl<S: Default + MergeMetrics + SpanMetrics> Flames<S> {
         }
     }
 }
+impl<S: Clone + Default + MergeMetrics + SpanMetrics> Flames<S> {
+    /// Merge and collect a running call graph into completed with the given
+    /// graph id.
+    pub fn get_callgraph(
+        &self,
+        graph_id: &Metadata<'_>,
+        running: bool,
+        completed: bool,
+    ) -> Option<CallGraph<S>> {
+        let running = if running {
+            self.graphs
+                .read()
+                .values()
+                .find(|g| g.graph_id == *graph_id)
+                .map(|g| g.mutex.lock().clone())
+        } else {
+            None
+        };
+        let completed = if completed {
+            self.completed.read().get(graph_id).cloned()
+        } else {
+            None
+        };
+        match (completed, running) {
+            (Some(mut completed), Some(running)) => {
+                completed.merge(running);
+                Some(completed)
+            }
+            (Some(g), None) => Some(g),
+            (None, Some(g)) => Some(g),
+            (None, None) => None,
+        }
+    }
+    /// Merge and collect all running call graphs into completed with the same
+    /// graph id.
+    pub fn get_callgraphs(&self, running: bool, completed: bool) -> HashMap<GraphId, CallGraph<S>> {
+        let mut callgraphs = if completed {
+            self.completed.read().clone()
+        } else {
+            HashMap::default()
+        };
+        if running {
+            let rlock = self.graphs.read();
+            rlock.iter().for_each(|(_tid, Graph { graph_id, mutex })| {
+                // collect_into is still unstable
+                match callgraphs.entry(*graph_id) {
+                    hash_map::Entry::Occupied(mut entry) => {
+                        entry.get_mut().merge(mutex.lock().clone());
+                    }
+                    hash_map::Entry::Vacant(entry) => {
+                        entry.insert(mutex.lock().clone());
+                    }
+                }
+            });
+        }
+        callgraphs
+    }
+}

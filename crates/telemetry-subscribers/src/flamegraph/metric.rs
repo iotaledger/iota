@@ -89,23 +89,17 @@ pub struct FlameMetric {
     pub running: Stopwatch,
     /// Stopwatch measuring a task's idle pending time.
     pub pending: Stopwatch,
-    #[cfg(debug_assertions)]
-    count: CountMetric,
+    pub count: CountMetric,
 }
 
 impl fmt::Debug for FlameMetric {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        #[cfg(debug_assertions)]
         {
             write!(
                 f,
                 "[run={:?} pend={:?} {:?}]",
                 self.running, self.pending, self.count
             )
-        }
-        #[cfg(not(debug_assertions))]
-        {
-            write!(f, "[run={:?} pend={:?}]", self.running, self.pending)
         }
     }
 }
@@ -115,14 +109,12 @@ impl SpanMetrics for FlameMetric {
     const REENTER: bool = true;
 
     fn enter(&mut self, now: Clock) {
-        #[cfg(debug_assertions)]
         self.count.enter(());
         self.pending.try_stop(now);
         self.running.start(now);
     }
 
     fn exit(&mut self, now: Clock) {
-        #[cfg(debug_assertions)]
         self.count.exit(());
         self.running.stop(now);
         self.pending.start(now);
@@ -131,7 +123,6 @@ impl SpanMetrics for FlameMetric {
 
 impl MergeMetrics for FlameMetric {
     fn merge(&mut self, other: Self) {
-        #[cfg(debug_assertions)]
         self.count.merge(other.count);
         self.running.total += other.running.total;
         self.pending.total += other.pending.total;

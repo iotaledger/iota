@@ -8,11 +8,11 @@ use std::sync::Arc;
 #[cfg(debug_assertions)]
 use super::flame::NodeId;
 use super::{
-    flame::{Flames, FrameLabel, GraphId, Tid},
-    grafana::NestedSetFrame,
+    flame::{Flames, FrameLabel, GraphId, Metadata, Tid},
+    grafana,
     metric::{Clock, FlameMetric},
+    svg,
 };
-use crate::flamegraph::grafana::Dashboard;
 
 #[derive(Debug)]
 struct FlameSpanInner {
@@ -193,15 +193,50 @@ impl FlameSub {
     }
 
     pub fn list_nested_sets(&self) -> Vec<(GraphId, f64)> {
+        use grafana::Dashboard as _;
         self.flames.list_nested_sets()
     }
 
-    pub fn get_nested_sets(&self, label: &'static str) -> Vec<NestedSetFrame> {
-        self.flames.get_nested_sets(label)
+    pub fn get_nested_sets(
+        &self,
+        label: &'static str,
+        running: bool,
+        completed: bool,
+    ) -> Vec<grafana::NestedSetFrame> {
+        use grafana::Dashboard as _;
+        self.flames.get_nested_sets(label, running, completed)
     }
 
-    pub fn get_nested_set(&self, graph_id: &str) -> Vec<NestedSetFrame> {
-        self.flames.get_nested_set(graph_id)
+    pub fn get_nested_set(
+        &self,
+        graph_id: &str,
+        running: bool,
+        completed: bool,
+    ) -> Vec<grafana::NestedSetFrame> {
+        use grafana::Dashboard as _;
+        self.flames.get_nested_set(graph_id, running, completed)
+    }
+
+    pub fn get_svg(
+        &self,
+        graph_id: &str,
+        running: bool,
+        completed: bool,
+        config: &svg::Config,
+    ) -> Option<svg::Svg> {
+        self.flames
+            .render_svg(&Metadata::from(graph_id), running, completed, config)
+    }
+
+    pub fn get_combined_svg(
+        &self,
+        caption: &str,
+        running: bool,
+        completed: bool,
+        config: &svg::Config,
+    ) -> Option<svg::Svg> {
+        self.flames
+            .render_combined_svg(caption, running, completed, config)
     }
 }
 

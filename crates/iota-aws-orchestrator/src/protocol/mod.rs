@@ -103,9 +103,31 @@ pub trait ProtocolMetrics {
         self.nodes_metrics_path(instances, parameters)
             .into_iter()
             .map(|(instance, path)| {
+                let cmd = format!("curl {path}");
+                display::action(format!("\n{cmd}"));
+                (instance, cmd)
+            })
+            .collect()
+    }
+
+    /// The command to retrieve the flamegraphs from the nodes.
+    fn nodes_flamegraph_command<I, T>(
+        &self,
+        instances: I,
+        _parameters: &BenchmarkParameters<T>,
+        query: &str,
+    ) -> Vec<(Instance, String)>
+    where
+        I: IntoIterator<Item = Instance>,
+        T: BenchmarkType,
+    {
+        instances
+            .into_iter()
+            .map(|instance| {
                 (instance, {
-                    display::action(format!("\ncurl {path}"));
-                    format!("curl {path}")
+                    let cmd = format!("curl http://localhost:1337/flamegraph{query}");
+                    display::action(format!("\n{cmd}"));
+                    cmd.to_string()
                 })
             })
             .collect()
