@@ -183,13 +183,6 @@ pub enum UserInputError {
     InvalidGasObject { object_id: ObjectID },
     #[error("Gas object does not have enough balance to cover minimal gas spend")]
     InsufficientBalanceToCoverMinimalGas,
-    #[error(
-        "Computation budget {computation_budget:?} is less then gas spent for authentication {gas_spent_for_authentication:?}"
-    )]
-    ComputationBudgetLessThenGasSpentForAuthentication {
-        computation_budget: u64,
-        gas_spent_for_authentication: u64,
-    },
 
     #[error(
         "Could not find the referenced object {:?} as the asked version {:?} is higher than the latest {:?}",
