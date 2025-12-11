@@ -50,10 +50,9 @@ public fun create(
     authenticator: AuthenticatorInfoV1<AbstractAccount>,
     ctx: &mut TxContext,
 ) {
-    let account = abstract_account::builder(authenticator, ctx)
+    abstract_account::builder(authenticator, ctx)
         .add_dynamic_field(OwnerPublicKey {}, public_key)
-        .finish();
-    account.share();
+        .build();
 }
 
 /// Rotates the account owner public key to a new one as well as the authenticator.
