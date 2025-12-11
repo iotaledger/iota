@@ -11,12 +11,12 @@ bcs = "0.1"
 clap = { version = "4.5", features = ["derive", "env", "wrap_help"] }
 dirs = "6.0"
 fastcrypto = "0.1"
-iota-sdk-types = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "05608b7e4a5b96d85f84e1970a517f6f174beb8b" }
 serde = { version = "1.0", features = ["derive"] }
 tokio = { version = "1.46.1", features = ["time"] }
 
 # internal dependencies
 iota-keys = { path = "../../../crates/iota-keys" }
 iota-sdk = { path = "../../../crates/iota-sdk" }
+iota-sdk-types = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "05608b7e4a5b96d85f84e1970a517f6f174beb8b" }
 iota-types = { path = "../../../crates/iota-types" }
 move-core-types = { path = "../../../external-crates/move/crates/move-core-types" }

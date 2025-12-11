@@ -220,179 +220,60 @@ Response: {
     "transactionBlocks": {
       "nodes": [
         {
-          "effects": null
+          "effects": {
+            "status": "FAILURE",
+            "errors": "Error in 1st command, from '0x284c0b3b3bfadc4a177f2cc291443cf3934083e7ba7b5ad4689b646857563dd9::m::callU32' (line 152), abort 'ImAU32': 9"
+          }
         },
         {
-          "effects": null
+          "effects": {
+            "status": "FAILURE",
+            "errors": "Error in 1st command, from '0x284c0b3b3bfadc4a177f2cc291443cf3934083e7ba7b5ad4689b646857563dd9::m::callU64' (line 155), abort 'ImAU64': 10"
+          }
         },
         {
-          "effects": null
+          "effects": {
+            "status": "FAILURE",
+            "errors": "Error in 1st command, from '0x284c0b3b3bfadc4a177f2cc291443cf3934083e7ba7b5ad4689b646857563dd9::m::callU128' (line 158), abort 'ImAU128': 11"
+          }
         },
         {
-          "effects": null
+          "effects": {
+            "status": "FAILURE",
+            "errors": "Error in 1st command, from '0x284c0b3b3bfadc4a177f2cc291443cf3934083e7ba7b5ad4689b646857563dd9::m::callU256' (line 161), abort 'ImAU256': 12"
+          }
         },
         {
-          "effects": null
+          "effects": {
+            "status": "FAILURE",
+            "errors": "Error in 1st command, from '0x284c0b3b3bfadc4a177f2cc291443cf3934083e7ba7b5ad4689b646857563dd9::m::callAddress' (line 164), abort 'ImAnAddress': 0x000000000000000000000000000000000000000000000000000000000000000d"
+          }
         },
         {
-          "effects": null
+          "effects": {
+            "status": "FAILURE",
+            "errors": "Error in 1st command, from '0x284c0b3b3bfadc4a177f2cc291443cf3934083e7ba7b5ad4689b646857563dd9::m::callString' (line 167), abort 'ImAString': This is a string in v2"
+          }
         },
         {
-          "effects": null
+          "effects": {
+            "status": "FAILURE",
+            "errors": "Error in 1st command, from '0x284c0b3b3bfadc4a177f2cc291443cf3934083e7ba7b5ad4689b646857563dd9::m::callU64vec' (line 170), abort 'ImNotAString': BgEAAAAAAAAAAgAAAAAAAAADAAAAAAAAAAQAAAAAAAAABQAAAAAAAAAGAAAAAAAAAA=="
+          }
         },
         {
-          "effects": null
+          "effects": {
+            "status": "FAILURE",
+            "errors": "Error in 1st command, from '0x284c0b3b3bfadc4a177f2cc291443cf3934083e7ba7b5ad4689b646857563dd9::m::normalAbort' (instruction 1), abort code: 0"
+          }
         },
         {
-          "effects": null
+          "effects": {
+            "status": "FAILURE",
+            "errors": "Error in 1st command, from '0x284c0b3b3bfadc4a177f2cc291443cf3934083e7ba7b5ad4689b646857563dd9::m::assertLineNo' (line 176)"
+          }
         }
       ]
     }
-  },
-  "errors": [
-    {
-      "message": "Internal error occurred while processing request: Error resolving Move location: Linkage not found for package: 0x284c0b3b3bfadc4a177f2cc291443cf3934083e7ba7b5ad4689b646857563dd9",
-      "locations": [
-        {
-          "line": 6,
-          "column": 9
-        }
-      ],
-      "path": [
-        "transactionBlocks",
-        "nodes",
-        0,
-        "effects",
-        "errors"
-      ]
-    },
-    {
-      "message": "Internal error occurred while processing request: Error resolving Move location: Linkage not found for package: 0x284c0b3b3bfadc4a177f2cc291443cf3934083e7ba7b5ad4689b646857563dd9",
-      "locations": [
-        {
-          "line": 6,
-          "column": 9
-        }
-      ],
-      "path": [
-        "transactionBlocks",
-        "nodes",
-        1,
-        "effects",
-        "errors"
-      ]
-    },
-    {
-      "message": "Internal error occurred while processing request: Error resolving Move location: Linkage not found for package: 0x284c0b3b3bfadc4a177f2cc291443cf3934083e7ba7b5ad4689b646857563dd9",
-      "locations": [
-        {
-          "line": 6,
-          "column": 9
-        }
-      ],
-      "path": [
-        "transactionBlocks",
-        "nodes",
-        2,
-        "effects",
-        "errors"
-      ]
-    },
-    {
-      "message": "Internal error occurred while processing request: Error resolving Move location: Linkage not found for package: 0x284c0b3b3bfadc4a177f2cc291443cf3934083e7ba7b5ad4689b646857563dd9",
-      "locations": [
-        {
-          "line": 6,
-          "column": 9
-        }
-      ],
-      "path": [
-        "transactionBlocks",
-        "nodes",
-        3,
-        "effects",
-        "errors"
-      ]
-    },
-    {
-      "message": "Internal error occurred while processing request: Error resolving Move location: Linkage not found for package: 0x284c0b3b3bfadc4a177f2cc291443cf3934083e7ba7b5ad4689b646857563dd9",
-      "locations": [
-        {
-          "line": 6,
-          "column": 9
-        }
-      ],
-      "path": [
-        "transactionBlocks",
-        "nodes",
-        4,
-        "effects",
-        "errors"
-      ]
-    },
-    {
-      "message": "Internal error occurred while processing request: Error resolving Move location: Linkage not found for package: 0x284c0b3b3bfadc4a177f2cc291443cf3934083e7ba7b5ad4689b646857563dd9",
-      "locations": [
-        {
-          "line": 6,
-          "column": 9
-        }
-      ],
-      "path": [
-        "transactionBlocks",
-        "nodes",
-        5,
-        "effects",
-        "errors"
-      ]
-    },
-    {
-      "message": "Internal error occurred while processing request: Error resolving Move location: Linkage not found for package: 0x284c0b3b3bfadc4a177f2cc291443cf3934083e7ba7b5ad4689b646857563dd9",
-      "locations": [
-        {
-          "line": 6,
-          "column": 9
-        }
-      ],
-      "path": [
-        "transactionBlocks",
-        "nodes",
-        6,
-        "effects",
-        "errors"
-      ]
-    },
-    {
-      "message": "Internal error occurred while processing request: Error resolving Move location: Linkage not found for package: 0x284c0b3b3bfadc4a177f2cc291443cf3934083e7ba7b5ad4689b646857563dd9",
-      "locations": [
-        {
-          "line": 6,
-          "column": 9
-        }
-      ],
-      "path": [
-        "transactionBlocks",
-        "nodes",
-        7,
-        "effects",
-        "errors"
-      ]
-    },
-    {
-      "message": "Internal error occurred while processing request: Error resolving Move location: Linkage not found for package: 0x284c0b3b3bfadc4a177f2cc291443cf3934083e7ba7b5ad4689b646857563dd9",
-      "locations": [
-        {
-          "line": 6,
-          "column": 9
-        }
-      ],
-      "path": [
-        "transactionBlocks",
-        "nodes",
-        8,
-        "effects",
-        "errors"
-      ]
-    }
-  ]
+  }
 }

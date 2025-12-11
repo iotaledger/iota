@@ -32,7 +32,6 @@ fastcrypto-zkp.workspace = true
 futures.workspace = true
 http.workspace = true
 inquire = "0.6.0"
-iota-sdk-types.workspace = true
 json_to_table.workspace = true
 miette = { version = "7", features = ["fancy"] }
 prometheus.workspace = true
@@ -72,6 +71,7 @@ iota-package-management.workspace = true
 iota-protocol-config.workspace = true
 iota-replay.workspace = true
 iota-sdk.workspace = true
+iota-sdk-types.workspace = true
 iota-source-validation.workspace = true
 iota-swarm.workspace = true
 iota-swarm-config.workspace = true

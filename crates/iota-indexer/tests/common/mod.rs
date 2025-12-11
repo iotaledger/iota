@@ -333,7 +333,7 @@ pub async fn indexer_wait_for_transaction(
     .expect("timeout waiting for indexer to catchup to given transaction");
 }
 
-pub async fn execute_tx_and_wait_for_indexer(
+pub async fn execute_tx_and_wait_for_indexer_checkpoint(
     indexer_client: &HttpClient,
     store: &PgIndexerStore,
     tx_bytes: TransactionBlockBytes,

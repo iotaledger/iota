@@ -17,7 +17,7 @@ use iota_core::{
 use iota_json_rpc_types::IotaTransactionBlockEffectsAPI;
 use iota_macros::sim_test;
 use iota_node::IotaNodeHandle;
-use iota_protocol_config::ProtocolConfig;
+use iota_protocol_config::{Chain, ProtocolConfig};
 use iota_sdk_types::crypto::{Intent, IntentMessage, IntentScope};
 use iota_swarm_config::genesis_config::{ValidatorGenesisConfig, ValidatorGenesisConfigBuilder};
 use iota_test_transaction_builder::{TestTransactionBuilder, make_transfer_iota_transaction};
@@ -275,22 +275,35 @@ async fn reconfig_with_revert_end_to_end_test() {
 // This test just starts up a cluster that reconfigures itself under 0 load.
 #[sim_test]
 async fn test_passive_reconfig() {
-    do_test_passive_reconfig().await;
+    do_test_passive_reconfig(None).await;
+}
+
+#[sim_test]
+async fn test_passive_reconfig_mainnet_smoke_test() {
+    do_test_passive_reconfig(Some(Chain::Mainnet)).await;
+}
+
+#[sim_test]
+async fn test_passive_reconfig_testnet_smoke_test() {
+    do_test_passive_reconfig(Some(Chain::Testnet)).await;
 }
 
 #[sim_test(check_determinism)]
 async fn test_passive_reconfig_determinism() {
-    do_test_passive_reconfig().await;
+    do_test_passive_reconfig(None).await;
 }
 
-async fn do_test_passive_reconfig() {
+async fn do_test_passive_reconfig(chain: Option<Chain>) {
     telemetry_subscribers::init_for_testing();
     ProtocolConfig::poison_get_for_min_version();
 
-    let test_cluster = TestClusterBuilder::new()
-        .with_epoch_duration_ms(1000)
-        .build()
-        .await;
+    let mut builder = TestClusterBuilder::new().with_epoch_duration_ms(1000);
+
+    if let Some(chain) = chain {
+        builder = builder.with_chain_override(chain);
+    }
+
+    let test_cluster = builder.build().await;
 
     let target_epoch: u64 = std::env::var("RECONFIG_TARGET_EPOCH")
         .ok()

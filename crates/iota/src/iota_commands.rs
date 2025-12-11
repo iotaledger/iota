@@ -359,7 +359,7 @@ pub enum IotaCommand {
     #[cfg(feature = "iota-names")]
     /// Manage names registered in IOTA-Names.
     /// By using this service, you agree to the Terms & Conditions:
-    /// testnet.iotanames.com/?modal=terms_conditions."
+    /// testnet.iotanames.com/terms-of-service."
     Name {
         /// The file storing the state of the user accounts
         #[arg(long = "client.config")]
@@ -614,7 +614,7 @@ impl IotaCommand {
             IotaCommand::Name { config, json, cmd } => {
                 eprintln!(
                     "{}",
-                    "By using this service, you agree to the Terms & Conditions: testnet.iotanames.com/?modal=terms_conditions."
+                    "By using this service, you agree to the Terms & Conditions: testnet.iotanames.com/terms-of-service"
                         .bold()
                         .yellow()
                 );

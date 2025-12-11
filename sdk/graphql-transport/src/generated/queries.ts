@@ -199,7 +199,7 @@ export type Address = IOwner & {
   /**
    * Similar behavior to the `transactionBlocks` in Query but supporting the
    * additional `AddressTransactionBlockRelationship` filter, which
-   * defaults to `SIGN`.
+   * defaults to `SENT`.
    *
    * `scanLimit` restricts the number of candidate transactions scanned when
    * gathering a page of results. It is required for queries that apply
@@ -353,14 +353,21 @@ export type AddressOwner = {
   owner?: Maybe<Owner>;
 };
 
-/**
- * The possible relationship types for a transaction block: sign, sent,
- * received, or paid.
- */
+/** The possible relationship types for a transaction block: sent or received. */
 export enum AddressTransactionBlockRelationship {
   /** Transactions that sent objects to this address. */
   Recv = 'RECV',
-  /** Transactions this address has signed either as a sender or as a sponsor. */
+  /** Transactions this address has sent. */
+  Sent = 'SENT',
+  /**
+   * Transactions this address has sent. NOTE: this input filter has been
+   * deprecated in favor of `SENT` which behaves identically but is named
+   * more clearly. Both filters restrict transactions by their sender,
+   * only, not signers in general.
+   *
+   * This filter will be removed after 6 months with the 1.24.0 release.
+   * @deprecated Misleading semantics. Use `SENT` instead. This will be removed with the 1.24.0 release.
+   */
   Sign = 'SIGN'
 }
 
@@ -5526,7 +5533,17 @@ export type TransactionBlockFilter = {
   kind?: InputMaybe<TransactionBlockKindInput>;
   /** Limit to transactions that sent an object to the given address. */
   recvAddress?: InputMaybe<Scalars['IotaAddress']['input']>;
-  /** Limit to transactions that were signed by the given address. */
+  /** Limit to transactions that were sent by the given address. */
+  sentAddress?: InputMaybe<Scalars['IotaAddress']['input']>;
+  /**
+   * Limit to transactions that were sent by the given address. NOTE: this
+   * input filter has been deprecated in favor of `sentAddress` which has
+   * clearer semantics. Both filters restrict transactions by their sender,
+   * only, not signers in general.
+   *
+   * This filter will be removed after 6 months with the 1.24.0 release.
+   * @deprecated Misleading semantics. Use `sentAddress` instead. This will be removed with the 1.24.0 release.
+   */
   signAddress?: InputMaybe<Scalars['IotaAddress']['input']>;
   /** Select transactions by their digest. */
   transactionIds?: InputMaybe<Array<Scalars['String']['input']>>;

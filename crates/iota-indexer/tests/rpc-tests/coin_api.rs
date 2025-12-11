@@ -32,7 +32,7 @@ use test_cluster::TestCluster;
 use tokio::sync::OnceCell;
 
 use crate::common::{
-    ApiTestSetup, execute_tx_and_wait_for_indexer, indexer_wait_for_object,
+    ApiTestSetup, execute_tx_and_wait_for_indexer_checkpoint, indexer_wait_for_object,
     indexer_wait_for_transaction, publish_test_move_package,
     start_test_cluster_with_read_write_indexer,
 };
@@ -1062,5 +1062,5 @@ async fn transfer_all_coins(
         .await
         .unwrap();
 
-    execute_tx_and_wait_for_indexer(indexer_client, store, tx_bytes, keypair).await;
+    execute_tx_and_wait_for_indexer_checkpoint(indexer_client, store, tx_bytes, keypair).await;
 }
