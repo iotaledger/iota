@@ -20,11 +20,11 @@ use iota_move_build::BuildConfig;
 use iota_sdk::{PagedFn, wallet_context::WalletContext};
 use iota_swarm_config::genesis_config::{DEFAULT_GAS_AMOUNT, DEFAULT_NUMBER_OF_OBJECT_PER_ACCOUNT};
 use iota_types::{
+    StructTag,
     balance::Supply,
     base_types::{Address, ObjectId},
     coin::{COIN_MODULE_NAME, TreasuryCap},
     iota_system_state::iota_system_state_summary::IotaSystemStateSummary,
-    parse_iota_struct_tag,
     quorum_driver_types::ExecuteTransactionRequestType,
 };
 use jsonrpsee::http_client::HttpClient;
@@ -108,7 +108,7 @@ async fn create_and_mint_coins(
             _ => None,
         })
         .find_map(|(object_id, object_type)| {
-            let coin_type = parse_iota_struct_tag(&coin_name).unwrap();
+            let coin_type = StructTag::from_str(&coin_name).unwrap();
             (&TreasuryCap::type_(coin_type) == object_type).then_some(object_id)
         })
         .unwrap();

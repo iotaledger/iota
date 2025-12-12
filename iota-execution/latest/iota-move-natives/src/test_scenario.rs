@@ -12,7 +12,7 @@ use std::{
 use better_any::{Tid, TidAble};
 use indexmap::{IndexMap, IndexSet};
 use iota_types::{
-    TypeTag,
+    StructTag, TypeTag,
     base_types::{Address, ObjectId, Version},
     config,
     digests::{ObjectDigest, TransactionDigest},
@@ -28,7 +28,6 @@ use move_core_types::{
     account_address::AccountAddress,
     annotated_value::{MoveFieldLayout, MoveStructLayout, MoveTypeLayout, MoveValue},
     annotated_visitor as AV,
-    language_storage::StructTag,
     vm_status::StatusCode,
 };
 use move_vm_runtime::{native_extensions::NativeExtensionMarker, native_functions::NativeContext};
@@ -209,9 +208,9 @@ pub fn end_transaction(
                 .map(|shared_or_imm_owner| shared_or_imm_owner != &owner)
                 .unwrap_or(/* not incorrect */ false);
         if created_object_ids.contains(&id) {
-            created.push(AccountAddress::new(id.into_bytes()));
+            created.push(id);
         } else {
-            written.push(AccountAddress::new(id.into_bytes()));
+            written.push(id);
         }
         match owner {
             Owner::AddressOwner(a) => {
@@ -264,7 +263,7 @@ pub fn end_transaction(
             || taken_shared_or_imm
                 .get(&id)
                 .is_some_and(|owner| matches!(owner, Owner::Immutable));
-        deleted.push(AccountAddress::new(id.into_bytes()));
+        deleted.push(id);
     }
     // find all wrapped objects
     let mut all_wrapped = BTreeSet::new();
@@ -298,7 +297,7 @@ pub fn end_transaction(
 
     // mark all wrapped as deleted
     for wrapped in all_wrapped {
-        deleted.push(AccountAddress::new(wrapped.into_bytes()))
+        deleted.push(wrapped)
     }
 
     // new input objects are remaining taken objects not written/deleted
@@ -419,11 +418,7 @@ pub fn ids_for_address(
         .address_inventories
         .get(&account)
         .and_then(|inv| inv.get(&specified_ty))
-        .map(|s| {
-            s.iter()
-                .map(|id| pack_id(AccountAddress::new(id.into_bytes())))
-                .collect::<Vec<Value>>()
-        })
+        .map(|s| s.iter().map(|id| pack_id(*id)).collect::<Vec<Value>>())
         .unwrap_or_default();
     let ids_vector = Value::vector_for_testing_only(ids);
     Ok(NativeResult::ok(legacy_test_cost(), smallvec![ids_vector]))
@@ -783,7 +778,7 @@ fn most_recent_at_ty_opt(
 ) -> Option<Value> {
     let s = inv.get(&ty)?;
     let most_recent_id = s.iter().filter(|id| !taken.contains_key(id)).next_back()?;
-    Some(pack_id(AccountAddress::new(most_recent_id.into_bytes())))
+    Some(pack_id(*most_recent_id))
 }
 
 fn get_specified_ty(mut ty_args: Vec<Type>) -> Type {
@@ -808,11 +803,13 @@ fn pop_id(args: &mut VecDeque<Value>) -> PartialVMResult<ObjectId> {
     ))
 }
 
-fn pack_id(a: impl Into<AccountAddress>) -> Value {
-    Value::struct_(values::Struct::pack(vec![Value::address(a.into())]))
+fn pack_id(a: impl Into<Address>) -> Value {
+    Value::struct_(values::Struct::pack(vec![Value::address(
+        AccountAddress::new(a.into().into_bytes()),
+    )]))
 }
 
-fn pack_ids(items: impl IntoIterator<Item = impl Into<AccountAddress>>) -> Value {
+fn pack_ids(items: impl IntoIterator<Item = impl Into<Address>>) -> Value {
     Value::vector_for_testing_only(items.into_iter().map(pack_id))
 }
 
@@ -825,9 +822,9 @@ fn pack_vec_map(items: impl IntoIterator<Item = (Value, Value)>) -> Value {
 }
 
 fn transaction_effects(
-    created: impl IntoIterator<Item = impl Into<AccountAddress>>,
-    written: impl IntoIterator<Item = impl Into<AccountAddress>>,
-    deleted: impl IntoIterator<Item = impl Into<AccountAddress>>,
+    created: impl IntoIterator<Item = impl Into<Address>>,
+    written: impl IntoIterator<Item = impl Into<Address>>,
+    deleted: impl IntoIterator<Item = impl Into<Address>>,
     transferred: impl IntoIterator<Item = (ObjectId, Owner)>,
     num_events: u64,
 ) -> Value {
@@ -838,15 +835,12 @@ fn transaction_effects(
     for (id, owner) in transferred {
         match owner {
             Owner::AddressOwner(a) => transferred_to_account.push((
-                pack_id(AccountAddress::new(id.into_bytes())),
+                pack_id(id),
                 Value::address(AccountAddress::new(a.into_bytes())),
             )),
-            Owner::ObjectOwner(o) => transferred_to_object.push((
-                pack_id(AccountAddress::new(id.into_bytes())),
-                pack_id(AccountAddress::new(o.into_bytes())),
-            )),
-            Owner::Shared { .. } => shared.push(AccountAddress::new(id.into_bytes())),
-            Owner::Immutable => frozen.push(AccountAddress::new(id.into_bytes())),
+            Owner::ObjectOwner(o) => transferred_to_object.push((pack_id(id), pack_id(o))),
+            Owner::Shared { .. } => shared.push(id),
+            Owner::Immutable => frozen.push(id),
         }
     }
 

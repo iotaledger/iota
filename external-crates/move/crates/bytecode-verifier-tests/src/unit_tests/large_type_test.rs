@@ -55,7 +55,8 @@ fn test_large_types() {
     });
 
     // returns_vecs
-    m.identifiers.push(Identifier::new("returns_vecs").unwrap());
+    m.identifiers
+        .push(IdentifierRef::const_new("returns_vecs").to_owned());
     m.function_handles.push(FunctionHandle {
         module: ModuleHandleIndex(0),
         name: IdentifierIndex(1),
@@ -77,7 +78,7 @@ fn test_large_types() {
 
     // takes_and_returns_vecs
     m.identifiers
-        .push(Identifier::new("takes_and_returns_vecs").unwrap());
+        .push(IdentifierRef::const_new("takes_and_returns_vecs").to_owned());
     m.function_handles.push(FunctionHandle {
         module: ModuleHandleIndex(0),
         name: IdentifierIndex(2),
@@ -98,7 +99,8 @@ fn test_large_types() {
     });
 
     // takes_vecs
-    m.identifiers.push(Identifier::new("takes_vecs").unwrap());
+    m.identifiers
+        .push(IdentifierRef::const_new("takes_vecs").to_owned());
     m.function_handles.push(FunctionHandle {
         module: ModuleHandleIndex(0),
         name: IdentifierIndex(3),

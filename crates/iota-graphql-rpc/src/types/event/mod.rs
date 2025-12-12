@@ -18,10 +18,9 @@ use iota_indexer::{
     schema::{checkpoints, events},
 };
 use iota_types::{
-    Identifier,
+    Identifier, StructTag,
     base_types::{Address as NativeIotaAddress, ObjectId},
     event::Event as NativeEvent,
-    parse_iota_struct_tag,
 };
 use lookups::{add_bounds, select_emit_module, select_event_type, select_sender};
 
@@ -277,8 +276,8 @@ impl Event {
             .map_err(|e| Error::Internal(e.to_string()))?;
         let package_id =
             ObjectId::from_bytes(&stored.package).map_err(|e| Error::Internal(e.to_string()))?;
-        let type_ = parse_iota_struct_tag(&stored.event_type)
-            .map_err(|e| Error::Internal(e.to_string()))?;
+        let type_ =
+            StructTag::from_str(&stored.event_type).map_err(|e| Error::Internal(e.to_string()))?;
         let transaction_module =
             Identifier::from_str(&stored.module).map_err(|e| Error::Internal(e.to_string()))?;
         let contents = stored.bcs.clone();

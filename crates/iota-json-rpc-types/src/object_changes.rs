@@ -5,11 +5,11 @@
 use std::fmt::{Display, Formatter, Result};
 
 use iota_types::{
+    StructTag,
     base_types::{Address, ObjectDigest, ObjectId, ObjectReference, Version},
-    iota_serde::{IotaStructTag, Version as AsVersion},
+    iota_serde::Version as AsVersion,
     object::Owner,
 };
-use move_core_types::language_storage::StructTag;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
@@ -36,7 +36,6 @@ pub enum ObjectChange {
         sender: Address,
         recipient: Owner,
         #[schemars(with = "String")]
-        #[serde_as(as = "IotaStructTag")]
         object_type: StructTag,
         object_id: ObjectId,
         #[schemars(with = "AsVersion")]
@@ -50,7 +49,6 @@ pub enum ObjectChange {
         sender: Address,
         owner: Owner,
         #[schemars(with = "String")]
-        #[serde_as(as = "IotaStructTag")]
         object_type: StructTag,
         object_id: ObjectId,
         #[schemars(with = "AsVersion")]
@@ -66,7 +64,6 @@ pub enum ObjectChange {
     Deleted {
         sender: Address,
         #[schemars(with = "String")]
-        #[serde_as(as = "IotaStructTag")]
         object_type: StructTag,
         object_id: ObjectId,
         #[schemars(with = "AsVersion")]
@@ -78,7 +75,6 @@ pub enum ObjectChange {
     Wrapped {
         sender: Address,
         #[schemars(with = "String")]
-        #[serde_as(as = "IotaStructTag")]
         object_type: StructTag,
         object_id: ObjectId,
         #[schemars(with = "AsVersion")]
@@ -91,7 +87,6 @@ pub enum ObjectChange {
         sender: Address,
         owner: Owner,
         #[schemars(with = "String")]
-        #[serde_as(as = "IotaStructTag")]
         object_type: StructTag,
         object_id: ObjectId,
         #[schemars(with = "AsVersion")]

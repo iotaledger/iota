@@ -6,16 +6,12 @@ use std::fmt::{Display, Formatter};
 
 use anyhow::Result;
 use iota_macros::EnumVariantOrder;
-use move_core_types::{
-    account_address::AccountAddress,
-    identifier::Identifier,
-    language_storage::{StructTag, TypeTag},
-};
+use iota_sdk_2::types::{Address, Identifier, StructTag, TypeTag};
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Hash, Eq, Clone, PartialOrd, Ord)]
 pub struct StructInput {
-    pub address: AccountAddress,
+    pub address: Address,
     pub module: String,
     pub name: String,
     // alias for compatibility with old json serialized data.
@@ -142,8 +138,8 @@ impl TypeInput {
                 } = *inner;
                 TypeTag::Struct(Box::new(StructTag {
                     address,
-                    module: Identifier::new_unchecked(module),
-                    name: Identifier::new_unchecked(name),
+                    module: Identifier::new(module).unwrap(),
+                    name: Identifier::new(name).unwrap(),
                     type_params: type_params
                         .into_iter()
                         .map(|ty| ty.into_type_tag_unchecked())
@@ -231,7 +227,7 @@ impl StructInput {
                 write!(
                     f,
                     "{}::{}::{}",
-                    self.data.address.to_canonical_display(self.with_prefix),
+                    self.data.address.to_canonical_string(self.with_prefix),
                     self.data.module,
                     self.data.name
                 )?;
@@ -297,8 +293,8 @@ impl Display for StructInput {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "0x{}::{}::{}",
-            self.address.short_str_lossless(),
+            "{}::{}::{}",
+            self.address.to_short_string(true),
             self.module,
             self.name
         )?;

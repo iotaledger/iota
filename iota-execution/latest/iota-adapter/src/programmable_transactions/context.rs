@@ -17,6 +17,7 @@ mod checked {
     };
     use iota_protocol_config::ProtocolConfig;
     use iota_types::{
+        Identifier, StructTag, TypeTag,
         balance::Balance,
         base_types::{Address, MoveObjectType, ObjectId, ObjectReference, TxContext},
         coin::Coin,
@@ -24,6 +25,7 @@ mod checked {
         event::Event,
         execution::{ExecutionResults, ExecutionResultsV1},
         execution_status::CommandArgumentError,
+        iota_sdk_types_conversions::{struct_tag_core_to_sdk, type_tag_core_to_sdk},
         metrics::LimitsMetrics,
         move_package::MovePackage,
         object::{Data, MoveObject, Object, ObjectInner, Owner},
@@ -36,11 +38,8 @@ mod checked {
         file_format::{CodeOffset, FunctionDefinitionIndex, TypeParameterIndex},
     };
     use move_core_types::{
-        account_address::AccountAddress,
-        identifier::IdentStr,
-        language_storage::{ModuleId, StructTag, TypeTag},
-        resolver::ModuleResolver,
-        vm_status::StatusCode,
+        account_address::AccountAddress, identifier::IdentStr, language_storage::ModuleId,
+        resolver::ModuleResolver, vm_status::StatusCode,
     };
     use move_trace_format::format::MoveTraceBuilder;
     use move_vm_runtime::{
@@ -283,13 +282,13 @@ mod checked {
         pub fn set_link_context(
             &mut self,
             package_id: ObjectId,
-        ) -> Result<AccountAddress, ExecutionError> {
+        ) -> Result<ObjectId, ExecutionError> {
             if self.linkage_view.has_linkage(package_id) {
                 // Setting same context again, can skip.
                 return Ok(self
                     .linkage_view
                     .original_package_id()
-                    .unwrap_or(AccountAddress::new(package_id.into_bytes())));
+                    .unwrap_or(package_id.into()));
             }
 
             let package = package_for_linkage(&self.linkage_view, package_id)
@@ -350,7 +349,7 @@ mod checked {
                     let Some(bytes) = value.simple_serialize(&layout) else {
                         invariant_violation!("Failed to deserialize already serialized Move value");
                     };
-                    Ok((module_id.clone(), tag, bytes))
+                    Ok((module_id.clone(), struct_tag_core_to_sdk(&tag), bytes))
                 })
                 .collect::<Result<Vec<_>, ExecutionError>>()?;
             self.user_events.extend(new_events);
@@ -921,7 +920,7 @@ mod checked {
                 .map(|(module_id, tag, contents)| {
                     Event::new(
                         Address::new(module_id.address().into_bytes()),
-                        module_id.name(),
+                        &Identifier::new(module_id.name().as_str()).unwrap(),
                         tx_context.sender(),
                         tag,
                         contents,
@@ -1161,14 +1160,14 @@ mod checked {
         pub fn publish_module_bundle(
             &mut self,
             modules: Vec<Vec<u8>>,
-            sender: AccountAddress,
+            sender: ObjectId,
         ) -> VMResult<()> {
             // TODO: publish_module_bundle() currently doesn't charge gas.
             // Do we want to charge there?
             let mut data_store = IotaDataStore::new(&self.linkage_view, &self.new_packages);
             self.vm.get_runtime().publish_module_bundle(
                 modules,
-                sender,
+                AccountAddress::new(sender.into_bytes()),
                 &mut data_store,
                 &mut IotaGasMeter(self.gas_charger.move_gas_status_mut()),
             )
@@ -1179,10 +1178,13 @@ mod checked {
         /// Retrieves the `TypeTag` corresponding to the provided `Type` by
         /// querying the Move VM runtime.
         fn get_type_tag(&self, type_: &Type) -> Result<TypeTag, ExecutionError> {
-            self.vm
-                .get_runtime()
-                .get_type_tag(type_)
-                .map_err(|e| self.convert_vm_error(e))
+            Ok(type_tag_core_to_sdk(
+                &self
+                    .vm
+                    .get_runtime()
+                    .get_type_tag(type_)
+                    .map_err(|e| self.convert_vm_error(e))?,
+            ))
         }
     }
 
@@ -1245,9 +1247,16 @@ mod checked {
                     .finish(Location::Undefined)
             })?;
 
-        let runtime_id = ModuleId::new(original_address, module.clone());
+        let runtime_id = ModuleId::new(
+            AccountAddress::new(original_address.into_bytes()),
+            move_core_types::identifier::Identifier::new(module.as_str()).unwrap(),
+        );
         let data_store = IotaDataStore::new(linkage_view, new_packages);
-        let res = vm.get_runtime().load_type(&runtime_id, name, &data_store);
+        let res = vm.get_runtime().load_type(
+            &runtime_id,
+            &move_core_types::identifier::Identifier::new(name.as_str()).unwrap(),
+            &data_store,
+        );
         linkage_view.reset_linkage();
         let (idx, struct_type) = res?;
 
@@ -1591,10 +1600,11 @@ mod checked {
             .get(&id)
             .map(|obj: &LoadedRuntimeObject| obj.version);
 
-        let type_tag = vm
-            .get_runtime()
-            .get_type_tag(&type_)
-            .map_err(|e| crate::error::convert_vm_error(e, vm, linkage_view))?;
+        let type_tag = type_tag_core_to_sdk(
+            &vm.get_runtime()
+                .get_type_tag(&type_)
+                .map_err(|e| crate::error::convert_vm_error(e, vm, linkage_view))?,
+        );
 
         let struct_tag = match type_tag {
             TypeTag::Struct(inner) => *inner,
@@ -1647,7 +1657,7 @@ mod checked {
     // come...
     impl DataStore for IotaDataStore<'_, '_> {
         fn link_context(&self) -> AccountAddress {
-            self.linkage_view.link_context()
+            AccountAddress::new(self.linkage_view.link_context().into_bytes())
         }
 
         fn relocate(&self, module_id: &ModuleId) -> PartialVMResult<ModuleId> {

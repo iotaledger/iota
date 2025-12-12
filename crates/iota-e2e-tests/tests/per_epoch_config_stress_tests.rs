@@ -7,11 +7,11 @@ use std::{future::Future, path::PathBuf, sync::Arc, time::Duration};
 use iota_json_rpc_types::IotaTransactionBlockEffectsAPI;
 use iota_macros::sim_test;
 use iota_types::{
+    IdentifierRef, TypeTag,
     base_types::{Address, EpochId, ObjectId, ObjectReference, Version},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     transaction::{CallArg, ObjectArg, TransactionData},
 };
-use move_core_types::{ident_str, language_storage::TypeTag};
 use rand::random;
 use test_cluster::{TestCluster, TestClusterBuilder};
 use tracing::info;
@@ -203,8 +203,8 @@ async fn create_native_transfer_tx(
     let amount_input = pt_builder.pure(1u64).unwrap();
     let split_coin = pt_builder.programmable_move_call(
         ObjectId::from(Address::FRAMEWORK),
-        ident_str!("coin").to_owned(),
-        ident_str!("split").to_owned(),
+        IdentifierRef::const_new("coin").to_owned(),
+        IdentifierRef::const_new("split").to_owned(),
         vec![test_env.regulated_coin_type.clone()],
         vec![coin_input, amount_input],
     );

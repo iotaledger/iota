@@ -5,13 +5,8 @@
 use std::str::FromStr;
 
 use anyhow::ensure;
-use move_core_types::{
-    account_address::AccountAddress,
-    annotated_value::{MoveDatatypeLayout, MoveValue},
-    ident_str,
-    identifier::{IdentStr, Identifier},
-    language_storage::StructTag,
-};
+use iota_sdk_2::types::{Identifier, IdentifierRef, StructTag};
+use move_core_types::annotated_value::{MoveDatatypeLayout, MoveValue};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -112,7 +107,7 @@ pub struct Event {
 impl Event {
     pub fn new(
         package_id: Address,
-        module: &IdentStr,
+        module: &IdentifierRef,
         sender: Address,
         type_: StructTag,
         contents: Vec<u8>,
@@ -137,15 +132,15 @@ impl Event {
     }
 
     pub fn is_system_epoch_info_event_v1(&self) -> bool {
-        self.type_.address.as_ref() == Address::SYSTEM.as_bytes()
-            && self.type_.module.as_ident_str() == ident_str!("iota_system_state_inner")
-            && self.type_.name.as_ident_str() == ident_str!("SystemEpochInfoEventV1")
+        self.type_.address == Address::SYSTEM
+            && self.type_.module == IdentifierRef::const_new("iota_system_state_inner")
+            && self.type_.name == IdentifierRef::const_new("SystemEpochInfoEventV1")
     }
 
     pub fn is_system_epoch_info_event_v2(&self) -> bool {
-        self.type_.address.as_ref() == Address::SYSTEM.as_bytes()
-            && self.type_.module.as_ident_str() == ident_str!("iota_system_state_inner")
-            && self.type_.name.as_ident_str() == ident_str!("SystemEpochInfoEventV2")
+        self.type_.address == Address::SYSTEM
+            && self.type_.module == IdentifierRef::const_new("iota_system_state_inner")
+            && self.type_.name == IdentifierRef::const_new("SystemEpochInfoEventV2")
     }
 
     pub fn is_system_epoch_info_event(&self) -> bool {
@@ -157,12 +152,12 @@ impl Event {
     pub fn random_for_testing() -> Self {
         Self {
             package_id: ObjectId::new(rand::random()),
-            transaction_module: Identifier::new("test").unwrap(),
+            transaction_module: IdentifierRef::const_new("test").to_owned(),
             sender: Address::new(rand::random()),
             type_: StructTag {
-                address: AccountAddress::new(rand::random()),
-                module: Identifier::new("test").unwrap(),
-                name: Identifier::new("test").unwrap(),
+                address: Address::new(rand::random()),
+                module: IdentifierRef::const_new("test").to_owned(),
+                name: IdentifierRef::const_new("test").to_owned(),
                 type_params: vec![],
             },
             contents: vec![],

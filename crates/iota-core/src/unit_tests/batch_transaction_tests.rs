@@ -5,13 +5,13 @@
 use authority_tests::send_and_confirm_transaction;
 use bcs;
 use iota_types::{
+    IdentifierRef,
     crypto::{AccountKeyPair, get_key_pair},
     execution_status::ExecutionStatus,
     object::Owner,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     utils::to_sender_signed_transaction,
 };
-use move_core_types::ident_str;
 
 use super::*;
 use crate::authority::authority_tests::init_state_with_ids_and_object_basics;
@@ -49,8 +49,8 @@ async fn test_batch_transaction_ok() -> anyhow::Result<()> {
         builder
             .move_call(
                 package.object_id,
-                ident_str!("object_basics").to_owned(),
-                ident_str!("create").to_owned(),
+                IdentifierRef::const_new("object_basics").to_owned(),
+                IdentifierRef::const_new("create").to_owned(),
                 vec![],
                 vec![
                     CallArg::Pure(16u64.to_le_bytes().to_vec()),
@@ -133,8 +133,8 @@ async fn test_batch_transaction_last_one_fail() -> anyhow::Result<()> {
     builder
         .move_call(
             package.object_id,
-            ident_str!("object_basics").to_owned(),
-            ident_str!("create").to_owned(),
+            IdentifierRef::const_new("object_basics").to_owned(),
+            IdentifierRef::const_new("create").to_owned(),
             vec![],
             vec![],
         )
@@ -189,8 +189,8 @@ async fn test_batch_insufficient_gas_balance() -> anyhow::Result<()> {
         builder
             .move_call(
                 package.object_id,
-                ident_str!("object_basics").to_owned(),
-                ident_str!("create").to_owned(),
+                IdentifierRef::const_new("object_basics").to_owned(),
+                IdentifierRef::const_new("create").to_owned(),
                 vec![],
                 vec![
                     CallArg::Pure(16u64.to_le_bytes().to_vec()),

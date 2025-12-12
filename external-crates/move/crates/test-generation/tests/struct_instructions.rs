@@ -26,7 +26,7 @@ fn generate_module_with_struct(resource: bool) -> CompiledModule {
     let struct_index = 0;
     let num_fields = 5;
     let offset = module.identifiers.len() as TableIndex;
-    module.identifiers.push(Identifier::new("struct0").unwrap());
+    module.identifiers.push(IdentifierRef::const_new("struct0").to_owned());
 
     let mut fields = vec![];
     for i in 0..num_fields {

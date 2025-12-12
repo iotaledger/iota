@@ -6,9 +6,7 @@
 
 use anyhow::Result;
 use iota_protocol_config::ProtocolConfig;
-use move_core_types::{
-    account_address::AccountAddress, ident_str, identifier::IdentStr, language_storage::StructTag,
-};
+use iota_sdk_2::types::{IdentifierRef, StructTag};
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 
@@ -27,8 +25,8 @@ use crate::{
     stardust::{coin_type::CoinType, stardust_to_iota_address},
 };
 
-pub const BASIC_OUTPUT_MODULE_NAME: &IdentStr = ident_str!("basic_output");
-pub const BASIC_OUTPUT_STRUCT_NAME: &IdentStr = ident_str!("BasicOutput");
+pub const BASIC_OUTPUT_MODULE_NAME: &IdentifierRef = IdentifierRef::const_new("basic_output");
+pub const BASIC_OUTPUT_STRUCT_NAME: &IdentifierRef = IdentifierRef::const_new("BasicOutput");
 
 /// Rust version of the stardust basic output.
 #[serde_as]
@@ -111,7 +109,7 @@ impl BasicOutput {
     /// Returns the struct tag of the BasicOutput struct
     pub fn tag(type_param: TypeTag) -> StructTag {
         StructTag {
-            address: AccountAddress::new(Address::STARDUST.into_bytes()),
+            address: Address::STARDUST,
             module: BASIC_OUTPUT_MODULE_NAME.to_owned(),
             name: BASIC_OUTPUT_STRUCT_NAME.to_owned(),
             type_params: vec![type_param],
@@ -194,9 +192,9 @@ impl BasicOutput {
 
     /// Whether the given `StructTag` represents a `BasicOutput`.
     pub fn is_basic_output(s: &StructTag) -> bool {
-        s.address == AccountAddress::new(Address::STARDUST.into_bytes())
-            && s.module.as_ident_str() == BASIC_OUTPUT_MODULE_NAME
-            && s.name.as_ident_str() == BASIC_OUTPUT_STRUCT_NAME
+        s.address == Address::STARDUST
+            && s.module == BASIC_OUTPUT_MODULE_NAME
+            && s.name == BASIC_OUTPUT_STRUCT_NAME
     }
 }
 

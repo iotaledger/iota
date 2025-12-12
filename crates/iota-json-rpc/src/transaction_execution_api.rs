@@ -42,7 +42,6 @@ use iota_types::{
     },
 };
 use jsonrpsee::{RpcModule, core::RpcResult};
-use move_core_types::account_address::AccountAddress;
 use tracing::{Instrument, instrument};
 
 use crate::{
@@ -470,9 +469,9 @@ impl IotaRpcModule for TransactionExecutionApi {
 
 #[async_trait]
 impl PackageStore for TransactionExecutionApi {
-    async fn fetch(&self, id: AccountAddress) -> Result<Arc<Package>, PackageResolverError> {
+    async fn fetch(&self, id: ObjectId) -> Result<Arc<Package>, PackageResolverError> {
         let backing_store = self.state.get_backing_package_store();
-        match backing_store.get_package_object(&ObjectId::new(id.into_bytes())) {
+        match backing_store.get_package_object(&id) {
             Ok(Some(pkg)) => Ok(Arc::new(Package::read_from_package(pkg.move_package())?)),
             Ok(None) => Err(PackageResolverError::PackageNotFound(id)),
             Err(e) => Err(PackageResolverError::Store {

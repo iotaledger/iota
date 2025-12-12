@@ -7,12 +7,8 @@ use std::{
     fmt::{Display, Formatter},
 };
 
-use move_core_types::{
-    annotated_value::MoveStructLayout,
-    ident_str,
-    identifier::IdentStr,
-    language_storage::{StructTag, TypeTag},
-};
+use iota_sdk_2::types::IdentifierRef;
+use move_core_types::annotated_value::MoveStructLayout;
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -36,16 +32,16 @@ pub const STARDUST_TOTAL_SUPPLY_IOTA: u64 = 4_600_000_000;
 /// Stardust ledger, before any inflation mechanism
 pub const STARDUST_TOTAL_SUPPLY_NANOS: u64 = STARDUST_TOTAL_SUPPLY_IOTA * NANOS_PER_IOTA;
 
-pub const GAS_MODULE_NAME: &IdentStr = ident_str!("iota");
-pub const GAS_STRUCT_NAME: &IdentStr = ident_str!("IOTA");
-pub const GAS_TREASURY_CAP_STRUCT_NAME: &IdentStr = ident_str!("IotaTreasuryCap");
+pub const GAS_MODULE_NAME: &IdentifierRef = IdentifierRef::const_new("iota");
+pub const GAS_STRUCT_NAME: &IdentifierRef = IdentifierRef::const_new("IOTA");
+pub const GAS_TREASURY_CAP_STRUCT_NAME: &IdentifierRef =
+    IdentifierRef::const_new("IotaTreasuryCap");
 
 pub use checked::*;
 
 #[iota_macros::with_checked_arithmetic]
 mod checked {
-    use iota_sdk_2::types::Address;
-    use move_core_types::account_address::AccountAddress;
+    use iota_sdk_2::types::{Address, StructTag, TypeTag};
 
     use super::*;
 
@@ -53,7 +49,7 @@ mod checked {
     impl GAS {
         pub fn type_() -> StructTag {
             StructTag {
-                address: AccountAddress::new(Address::FRAMEWORK.into_bytes()),
+                address: Address::FRAMEWORK,
                 name: GAS_STRUCT_NAME.to_owned(),
                 module: GAS_MODULE_NAME.to_owned(),
                 type_params: Vec::new(),
@@ -181,7 +177,7 @@ mod checked {
     impl IotaTreasuryCap {
         pub fn type_() -> StructTag {
             StructTag {
-                address: AccountAddress::new(Address::FRAMEWORK.into_bytes()),
+                address: Address::FRAMEWORK,
                 module: GAS_MODULE_NAME.to_owned(),
                 name: GAS_TREASURY_CAP_STRUCT_NAME.to_owned(),
                 type_params: Vec::new(),

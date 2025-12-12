@@ -8,21 +8,19 @@ use fastcrypto::encoding::{Encoding, Hex};
 use iota_framework::BuiltInFramework;
 use iota_move_build::BuildConfig;
 use iota_types::{
+    IdentifierRef, StructTag, TypeTag,
     base_types::{
         Address, ObjectId, STD_ASCII_MODULE_NAME, STD_ASCII_STRUCT_NAME, STD_OPTION_MODULE_NAME,
         STD_OPTION_STRUCT_NAME, TransactionDigest,
     },
     dynamic_field::derive_dynamic_field_id,
     gas_coin::GasCoin,
+    iota_sdk_types_conversions::struct_tag_sdk_to_core,
     object::Object,
-    parse_iota_type_tag,
 };
 use move_core_types::{
-    account_address::AccountAddress,
     annotated_value::{MoveFieldLayout, MoveStructLayout, MoveTypeLayout},
     ident_str,
-    identifier::Identifier,
-    language_storage::StructTag,
     u256::U256,
 };
 use serde::Serialize;
@@ -441,8 +439,8 @@ fn test_basic_args_linter_top_level() {
     .unwrap();
     let package = example_package.data.try_as_package().unwrap();
 
-    let module = Identifier::new("resolve_args").unwrap();
-    let function = Identifier::new("foo").unwrap();
+    let module = IdentifierRef::const_new("resolve_args").to_owned();
+    let function = IdentifierRef::const_new("foo").to_owned();
 
     // Function signature:
     // foo(
@@ -541,10 +539,8 @@ fn test_convert_number_from_bcs() {
 #[test]
 fn test_no_address_zero_trimming() {
     let bcs_bytes = bcs::to_bytes(
-        &AccountAddress::from_str(
-            "0x0000000000000000000000000000011111111111111111111111111111111111",
-        )
-        .unwrap(),
+        &Address::from_str("0x0000000000000000000000000000011111111111111111111111111111111111")
+            .unwrap(),
     )
     .unwrap();
     let value = IotaJsonValue::from_bcs_bytes(Some(&MoveTypeLayout::Address), &bcs_bytes).unwrap();
@@ -629,12 +625,12 @@ fn test_iota_call_arg_string_type() {
     let arg1 = bcs::to_bytes("Some String").unwrap();
 
     let string_layout = Some(MoveTypeLayout::Struct(Box::new(MoveStructLayout {
-        type_: StructTag {
-            address: AccountAddress::new(Address::STD_LIB.into_bytes()),
+        type_: struct_tag_sdk_to_core(&StructTag {
+            address: Address::STD_LIB,
             module: STD_ASCII_MODULE_NAME.into(),
             name: STD_ASCII_STRUCT_NAME.into(),
             type_params: vec![],
-        },
+        }),
         fields: vec![MoveFieldLayout {
             name: ident_str!("bytes").into(),
             layout: MoveTypeLayout::Vector(Box::new(MoveTypeLayout::U8)),
@@ -650,12 +646,12 @@ fn test_iota_call_arg_option_type() {
     let arg1 = bcs::to_bytes(&Some("Some String")).unwrap();
 
     let string_layout = MoveTypeLayout::Struct(Box::new(MoveStructLayout {
-        type_: StructTag {
-            address: AccountAddress::new(Address::STD_LIB.into_bytes()),
+        type_: struct_tag_sdk_to_core(&StructTag {
+            address: Address::STD_LIB,
             module: STD_ASCII_MODULE_NAME.into(),
             name: STD_ASCII_STRUCT_NAME.into(),
             type_params: vec![],
-        },
+        }),
         fields: vec![MoveFieldLayout {
             name: ident_str!("bytes").into(),
             layout: MoveTypeLayout::Vector(Box::new(MoveTypeLayout::U8)),
@@ -663,12 +659,12 @@ fn test_iota_call_arg_option_type() {
     }));
 
     let option_layout = MoveTypeLayout::Struct(Box::new(MoveStructLayout {
-        type_: StructTag {
-            address: AccountAddress::new(Address::STD_LIB.into_bytes()),
+        type_: struct_tag_sdk_to_core(&StructTag {
+            address: Address::STD_LIB,
             module: STD_OPTION_MODULE_NAME.into(),
             name: STD_OPTION_STRUCT_NAME.into(),
             type_params: vec![],
-        },
+        }),
         fields: vec![MoveFieldLayout {
             name: ident_str!("vec").into(),
             layout: MoveTypeLayout::Vector(Box::new(string_layout.clone())),
@@ -713,12 +709,12 @@ fn test_convert_string_vec() {
     let test_vec = vec!["0xbbb", "test_str"];
     let bcs = bcs::to_bytes(&test_vec).unwrap();
     let string_layout = MoveTypeLayout::Struct(Box::new(MoveStructLayout {
-        type_: StructTag {
-            address: AccountAddress::new(Address::STD_LIB.into_bytes()),
+        type_: struct_tag_sdk_to_core(&StructTag {
+            address: Address::STD_LIB,
             module: STD_ASCII_MODULE_NAME.into(),
             name: STD_ASCII_STRUCT_NAME.into(),
             type_params: vec![],
-        },
+        }),
         fields: vec![MoveFieldLayout {
             name: ident_str!("bytes").into(),
             layout: MoveTypeLayout::Vector(Box::new(MoveTypeLayout::U8)),
@@ -748,12 +744,12 @@ fn test_string_vec_df_name_child_id_eq() {
     });
 
     let string_layout = MoveTypeLayout::Struct(Box::new(MoveStructLayout {
-        type_: StructTag {
-            address: AccountAddress::new(Address::STD_LIB.into_bytes()),
+        type_: struct_tag_sdk_to_core(&StructTag {
+            address: Address::STD_LIB,
             module: STD_ASCII_MODULE_NAME.into(),
             name: STD_ASCII_STRUCT_NAME.into(),
             type_params: vec![],
-        },
+        }),
         fields: vec![MoveFieldLayout {
             name: ident_str!("bytes").into(),
             layout: MoveTypeLayout::Vector(Box::new(MoveTypeLayout::U8)),
@@ -761,14 +757,14 @@ fn test_string_vec_df_name_child_id_eq() {
     }));
 
     let layout = MoveTypeLayout::Struct(Box::new(MoveStructLayout {
-        type_: StructTag {
-            address: AccountAddress::new(Address::STD_LIB.into_bytes()),
+        type_: struct_tag_sdk_to_core(&StructTag {
+            address: Address::STD_LIB,
             module: STD_ASCII_MODULE_NAME.into(),
             name: STD_ASCII_STRUCT_NAME.into(),
             type_params: vec![],
-        },
+        }),
         fields: vec![MoveFieldLayout::new(
-            Identifier::from_str("labels").unwrap(),
+            ident_str!("labels").into(),
             MoveTypeLayout::Vector(Box::new(string_layout)),
         )],
     }));
@@ -778,7 +774,7 @@ fn test_string_vec_df_name_child_id_eq() {
 
     let child_id = derive_dynamic_field_id(
         parent_id,
-        &parse_iota_type_tag(
+        &TypeTag::from_str(
             "0x3278d6445c6403c96abe9e25cc1213a85de2bd627026ee57906691f9bbf2bf8a::domain::Domain",
         )
         .unwrap(),

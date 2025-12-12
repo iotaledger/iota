@@ -14,6 +14,7 @@ use colored::Colorize;
 use fastcrypto::encoding::Base64;
 use iota_protocol_config::ProtocolConfig;
 use iota_types::{
+    Identifier, StructTag,
     base_types::{
         Address, ObjectDigest, ObjectId, ObjectInfo, ObjectReference, ObjectType,
         TransactionDigest, Version,
@@ -23,16 +24,12 @@ use iota_types::{
         UserInputResult,
     },
     gas_coin::GasCoin,
-    iota_serde::{BigInt, IotaStructTag, Version as AsVersion},
+    iota_serde::{BigInt, Version as AsVersion},
     move_package::{MovePackage, TypeOrigin, UpgradeInfo},
     object::{Data, MoveObject, Object, ObjectInner, ObjectRead, Owner},
 };
 use move_bytecode_utils::module_cache::GetModule;
-use move_core_types::{
-    annotated_value::{MoveStructLayout, MoveValue},
-    identifier::Identifier,
-    language_storage::StructTag,
-};
+use move_core_types::annotated_value::{MoveStructLayout, MoveValue};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -865,7 +862,6 @@ pub trait IotaMoveObject: Sized {
 #[serde(rename = "MoveObject", rename_all = "camelCase")]
 pub struct IotaParsedMoveObject {
     #[serde(rename = "type")]
-    #[serde_as(as = "IotaStructTag")]
     #[schemars(with = "String")]
     pub type_: StructTag,
     pub fields: IotaMoveStruct,
@@ -947,7 +943,6 @@ pub fn type_and_fields_from_move_event_data(
 pub struct IotaRawMoveObject {
     #[schemars(with = "String")]
     #[serde(rename = "type")]
-    #[serde_as(as = "IotaStructTag")]
     pub type_: StructTag,
     pub version: Version,
     #[serde_as(as = "Base64")]
@@ -1155,11 +1150,7 @@ pub enum IotaObjectDataFilter {
         module: Identifier,
     },
     /// Query by type
-    StructType(
-        #[schemars(with = "String")]
-        #[serde_as(as = "IotaStructTag")]
-        StructTag,
-    ),
+    StructType(#[schemars(with = "String")] StructTag),
     AddressOwner(Address),
     ObjectOwner(ObjectId),
     ObjectId(ObjectId),
@@ -1209,7 +1200,7 @@ impl IotaObjectDataFilter {
             }
             IotaObjectDataFilter::MoveModule { package, module } => {
                 matches!(&object.type_, ObjectType::Struct(s) if &ObjectId::new(s.address().into_bytes()) == package
-                        && s.module() == module.as_ident_str())
+                        && s.module() == module)
             }
             IotaObjectDataFilter::Package(p) => {
                 matches!(&object.type_, ObjectType::Struct(s) if &ObjectId::new(s.address().into_bytes()) == p)

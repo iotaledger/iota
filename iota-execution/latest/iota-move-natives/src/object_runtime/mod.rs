@@ -18,6 +18,7 @@ use iota_types::{
     error::{ExecutionError, ExecutionErrorKind, VMMemoryLimitExceededSubStatusCode},
     execution::DynamicallyLoadedObjectMetadata,
     id::UID,
+    iota_sdk_types_conversions::struct_tag_sdk_to_core,
     metrics::LimitsMetrics,
     object::{MoveObject, Owner},
     storage::ChildObjectResolver,
@@ -831,7 +832,7 @@ pub fn get_all_uids(
             &mut self,
             driver: &mut AV::StructDriver<'_, 'b, 'l>,
         ) -> Result<(), Self::Error> {
-            if driver.struct_layout().type_ == UID::type_() {
+            if driver.struct_layout().type_ == struct_tag_sdk_to_core(&UID::type_()) {
                 while driver.next_field(&mut UIDCollector(self.0))?.is_some() {}
             } else {
                 while driver.next_field(self)?.is_some() {}

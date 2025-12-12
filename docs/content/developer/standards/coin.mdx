@@ -191,7 +191,7 @@ let address_to_ban_arg = ptb.pure(address_to_ban)?;
 ptb.programmable_move_call(
     ObjectId::from(Address::FRAMEWORK),
     Identifier::from(COIN_MODULE_NAME),
-    Identifier::from_str("deny_list_add")?,
+    IdentifierRef::const_new("deny_list_add").to_owned(),
     vec![<otw-type>],
     vec![deny_list, deny_cap, address_to_ban_arg],
 );

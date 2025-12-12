@@ -184,7 +184,7 @@ fn binary_limits_test() {
     check_limit!(
         module_test,
         identifiers,
-        Identifier::new("ident").unwrap(),
+        IdentifierRef::const_new("ident").to_owned(),
         &binary_config,
         "IDENTIFIERS"
     );

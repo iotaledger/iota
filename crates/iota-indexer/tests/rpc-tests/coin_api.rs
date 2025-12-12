@@ -16,20 +16,16 @@ use iota_json_rpc_types::{
 };
 use iota_keys::keystore::AccountKeystore;
 use iota_types::{
-    TypeTag,
+    IdentifierRef, StructTag, TypeTag,
     balance::Supply,
     base_types::{Address, ObjectId},
     coin::{COIN_MODULE_NAME, CoinMetadata, TreasuryCap},
     crypto::{AccountKeyPair, IotaKeyPair, Signature, get_key_pair},
-    parse_iota_struct_tag,
     quorum_driver_types::ExecuteTransactionRequestType,
     utils::to_sender_signed_transaction,
 };
 use itertools::Itertools;
 use jsonrpsee::http_client::HttpClient;
-use move_core_types::{
-    account_address::AccountAddress, identifier::Identifier, language_storage::StructTag,
-};
 use test_cluster::TestCluster;
 use tokio::sync::OnceCell;
 
@@ -829,7 +825,7 @@ async fn mint_trusted_coin(
         .unwrap();
     assert_eq!(0, result.value);
 
-    let coin_type = parse_iota_struct_tag(&coin_name).unwrap();
+    let coin_type = StructTag::from_str(&coin_name).unwrap();
     let treasury_cap_type = TreasuryCap::type_(coin_type);
     let treasury_cap = get_single_owned_object_by_type(http_client, address, treasury_cap_type)
         .await
@@ -883,7 +879,7 @@ async fn create_migrated_coin_manager_coins(
     .await?;
 
     {
-        let coin_type = parse_iota_struct_tag(&coin_name).unwrap();
+        let coin_type = StructTag::from_str(&coin_name).unwrap();
         let treasury_cap_type = TreasuryCap::type_(coin_type.clone());
         let treasury_cap = get_single_owned_object_by_type(http_client, address, treasury_cap_type)
             .await
@@ -896,13 +892,13 @@ async fn create_migrated_coin_manager_coins(
                 .object_id;
 
         let guardian_type = StructTag {
-            address: AccountAddress::new(package.object_id.into_bytes()),
-            module: Identifier::new("coin_manager_coin").unwrap(),
-            name: Identifier::new("Guardian").unwrap(),
+            address: package.object_id.into(),
+            module: IdentifierRef::const_new("coin_manager_coin").to_owned(),
+            name: IdentifierRef::const_new("Guardian").to_owned(),
             type_params: vec![TypeTag::Struct(Box::new(StructTag {
-                address: AccountAddress::new(package.object_id.into_bytes()),
-                module: Identifier::new("coin_manager_coin").unwrap(),
-                name: Identifier::new("COIN_MANAGER_COIN").unwrap(),
+                address: package.object_id.into(),
+                module: IdentifierRef::const_new("coin_manager_coin").to_owned(),
+                name: IdentifierRef::const_new("COIN_MANAGER_COIN").to_owned(),
                 type_params: vec![],
             }))],
         };
@@ -931,7 +927,7 @@ async fn create_migrated_coin_manager_coins(
     }
 
     {
-        let imm_coin_type = parse_iota_struct_tag(&immutable_metadata_coin_name).unwrap();
+        let imm_coin_type = StructTag::from_str(&immutable_metadata_coin_name).unwrap();
         let treasury_cap_type = TreasuryCap::type_(imm_coin_type.clone());
         let treasury_cap = get_single_owned_object_by_type(http_client, address, treasury_cap_type)
             .await
@@ -946,13 +942,13 @@ async fn create_migrated_coin_manager_coins(
             .unwrap();
 
         let guardian_type = StructTag {
-            address: AccountAddress::new(package.object_id.into_bytes()),
-            module: Identifier::new("immutable_metadata_coin_manager_coin").unwrap(),
-            name: Identifier::new("Guardian").unwrap(),
+            address: package.object_id.into(),
+            module: IdentifierRef::const_new("immutable_metadata_coin_manager_coin").to_owned(),
+            name: IdentifierRef::const_new("Guardian").to_owned(),
             type_params: vec![TypeTag::Struct(Box::new(StructTag {
-                address: AccountAddress::new(package.object_id.into_bytes()),
-                module: Identifier::new("immutable_metadata_coin_manager_coin").unwrap(),
-                name: Identifier::new("IMMUTABLE_METADATA_COIN_MANAGER_COIN").unwrap(),
+                address: package.object_id.into(),
+                module: IdentifierRef::const_new("immutable_metadata_coin_manager_coin").to_owned(),
+                name: IdentifierRef::const_new("IMMUTABLE_METADATA_COIN_MANAGER_COIN").to_owned(),
                 type_params: vec![],
             }))],
         };

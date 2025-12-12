@@ -11,6 +11,7 @@ use std::{
 use anyhow::{anyhow, bail};
 use fastcrypto::encoding::{Encoding, Hex};
 use iota_types::{
+    Identifier, StructTag, TypeTag,
     base_types::{
         Address, ObjectId, RESOLVED_ASCII_STR, RESOLVED_STD_OPTION, RESOLVED_UTF8_STR,
         STD_ASCII_MODULE_NAME, STD_ASCII_STRUCT_NAME, STD_OPTION_MODULE_NAME,
@@ -18,6 +19,7 @@ use iota_types::{
         TxContextKind, is_primitive_type_tag, move_ascii_str_layout, move_utf8_str_layout,
     },
     id::{self, ID, RESOLVED_IOTA_ID},
+    iota_sdk_types_conversions::struct_tag_core_to_sdk,
     move_package::MovePackage,
     object::bounded_visitor::BoundedVisitor,
     transfer::RESOLVED_RECEIVING_STRUCT,
@@ -30,8 +32,6 @@ pub use move_core_types::annotated_value::MoveTypeLayout;
 use move_core_types::{
     account_address::AccountAddress,
     annotated_value::{MoveFieldLayout, MoveStruct, MoveValue, MoveVariant},
-    identifier::Identifier,
-    language_storage::{StructTag, TypeTag},
     runtime_value as R,
     u256::U256,
 };
@@ -197,7 +197,9 @@ impl IotaJsonValue {
                              with one field of address or u8 vector type"
                 ),
             },
-            MoveTypeLayout::Struct(struct_layout) if struct_layout.type_ == ID::type_() => {
+            MoveTypeLayout::Struct(struct_layout)
+                if struct_tag_core_to_sdk(&struct_layout.type_) == ID::type_() =>
+            {
                 Ok(R::MoveValue::Struct(R::MoveStruct(vec![
                     Self::to_move_value(val, &inner_vec[0].layout.clone())?,
                 ])))
@@ -253,13 +255,13 @@ impl IotaJsonValue {
             }
             // For ascii and utf8 strings
             (JsonValue::String(s), MoveTypeLayout::Struct(struct_layout))
-                if is_move_string_type(&struct_layout.type_) =>
+                if is_move_string_type(&struct_tag_core_to_sdk(&struct_layout.type_)) =>
             {
                 R::MoveValue::Vector(s.as_bytes().iter().copied().map(R::MoveValue::U8).collect())
             }
             // For ID
             (JsonValue::String(s), MoveTypeLayout::Struct(struct_layout))
-                if struct_layout.type_ == ID::type_() =>
+                if struct_tag_core_to_sdk(&struct_layout.type_) == ID::type_() =>
             {
                 if struct_layout.fields.len() != 1 {
                     bail!(
@@ -267,8 +269,8 @@ impl IotaJsonValue {
                         struct_layout.type_
                     );
                 };
-                let addr = Address::from_str(s)?;
-                R::MoveValue::Address(AccountAddress::new(addr.into_bytes()))
+                let addr = AccountAddress::from_str(s)?;
+                R::MoveValue::Address(addr)
             }
             (JsonValue::Object(o), MoveTypeLayout::Struct(struct_layout)) => {
                 let mut field_values = vec![];
@@ -323,8 +325,8 @@ impl IotaJsonValue {
             }
 
             (v, MoveTypeLayout::Address) => {
-                let addr = json_value_to_iota_address(v)?;
-                R::MoveValue::Address(AccountAddress::new(addr.into_bytes()))
+                let addr = AccountAddress::new(json_value_to_iota_address(v)?.into_bytes());
+                R::MoveValue::Address(addr)
             }
 
             _ => bail!("Unexpected arg {val:?} for expected type {ty:?}"),
@@ -387,13 +389,17 @@ fn move_value_to_json(move_value: &MoveValue) -> Option<JsonValue> {
         MoveValue::U32(v) => json!(v),
         MoveValue::U256(v) => json!(v.to_string()),
         MoveValue::Struct(move_struct) => match move_struct {
-            MoveStruct { fields, type_ } if is_move_string_type(type_) => {
+            MoveStruct { fields, type_ }
+                if is_move_string_type(&struct_tag_core_to_sdk(&type_)) =>
+            {
                 // ascii::string and utf8::string has a single bytes field.
                 let (_, v) = fields.first()?;
                 let string: String = bcs::from_bytes(&v.simple_serialize()?).ok()?;
                 json!(string)
             }
-            MoveStruct { fields, type_ } if is_move_option_type(type_) => {
+            MoveStruct { fields, type_ }
+                if is_move_option_type(&struct_tag_core_to_sdk(&type_)) =>
+            {
                 // option has a single vec field.
                 let (_, v) = fields.first()?;
                 if let MoveValue::Vector(v) = v {
@@ -402,7 +408,7 @@ fn move_value_to_json(move_value: &MoveValue) -> Option<JsonValue> {
                     return None;
                 }
             }
-            MoveStruct { fields, type_ } if type_ == &ID::type_() => {
+            MoveStruct { fields, type_ } if struct_tag_core_to_sdk(&type_) == ID::type_() => {
                 // option has a single vec field.
                 let (_, v) = fields.first()?;
                 if let MoveValue::Address(address) = v {
@@ -441,17 +447,17 @@ fn move_value_to_json(move_value: &MoveValue) -> Option<JsonValue> {
 }
 
 fn is_move_string_type(tag: &StructTag) -> bool {
-    (tag.address == AccountAddress::new(Address::STD_LIB.into_bytes())
-        && tag.module.as_ident_str() == STD_UTF8_MODULE_NAME
-        && tag.name.as_ident_str() == STD_UTF8_STRUCT_NAME)
-        || (tag.address == AccountAddress::new(Address::STD_LIB.into_bytes())
-            && tag.module.as_ident_str() == STD_ASCII_MODULE_NAME
-            && tag.name.as_ident_str() == STD_ASCII_STRUCT_NAME)
+    (tag.address == Address::STD_LIB
+        && tag.module == STD_UTF8_MODULE_NAME
+        && tag.name == STD_UTF8_STRUCT_NAME)
+        || (tag.address == Address::STD_LIB
+            && tag.module == STD_ASCII_MODULE_NAME
+            && tag.name == STD_ASCII_STRUCT_NAME)
 }
 fn is_move_option_type(tag: &StructTag) -> bool {
-    tag.address == AccountAddress::new(Address::STD_LIB.into_bytes())
-        && tag.module.as_ident_str() == STD_OPTION_MODULE_NAME
-        && tag.name.as_ident_str() == STD_OPTION_STRUCT_NAME
+    tag.address == Address::STD_LIB
+        && tag.module == STD_OPTION_MODULE_NAME
+        && tag.name == STD_OPTION_STRUCT_NAME
 }
 
 impl FromStr for IotaJsonValue {
@@ -622,15 +628,25 @@ fn layout_of_primitive_typetag(tag: &TypeTag) -> Option<MoveTypeLayout> {
                 name,
                 type_params: type_args,
             } = &**stag;
-            let resolved_struct = (address, module.as_ident_str(), name.as_ident_str());
             // is id or..
-            if resolved_struct == RESOLVED_IOTA_ID {
+            if address.as_bytes() == RESOLVED_IOTA_ID.0.as_ref()
+                && module.as_str() == RESOLVED_IOTA_ID.1.as_str()
+                && name.as_str() == RESOLVED_IOTA_ID.2.as_str()
+            {
                 MTL::Struct(Box::new(id::ID::layout()))
-            } else if resolved_struct == RESOLVED_ASCII_STR {
+            } else if address.as_bytes() == RESOLVED_ASCII_STR.0.as_ref()
+                && module.as_str() == RESOLVED_ASCII_STR.1.as_str()
+                && name.as_str() == RESOLVED_ASCII_STR.2.as_str()
+            {
                 MTL::Struct(Box::new(move_ascii_str_layout()))
-            } else if resolved_struct == RESOLVED_UTF8_STR {
+            } else if address.as_bytes() == RESOLVED_UTF8_STR.0.as_ref()
+                && module.as_str() == RESOLVED_UTF8_STR.1.as_str()
+                && name.as_str() == RESOLVED_UTF8_STR.2.as_str()
+            {
                 MTL::Struct(Box::new(move_utf8_str_layout()))
-            } else if resolved_struct == RESOLVED_STD_OPTION // is option of a primitive
+            } else if address.as_bytes() == RESOLVED_STD_OPTION.0.as_ref()
+                && module.as_str() == RESOLVED_STD_OPTION.1.as_str()
+                && name.as_str() == RESOLVED_STD_OPTION.2.as_str()
                 && type_args.len() == 1
                 && is_primitive_type_tag(&type_args[0])
             {
@@ -794,12 +810,15 @@ pub fn resolve_move_function_args(
 ) -> Result<Vec<(ResolvedCallArg, SignatureToken)>, anyhow::Error> {
     // Extract the expected function signature
     let module = package.deserialize_module(&module_ident, &BinaryConfig::standard())?;
-    let function_str = function.as_ident_str();
+    let function_str = function.as_str();
     let fdef = module
         .function_defs
         .iter()
         .find(|fdef| {
-            module.identifier_at(module.function_handle_at(fdef.function).name) == function_str
+            module
+                .identifier_at(module.function_handle_at(fdef.function).name)
+                .as_str()
+                == function_str
         })
         .ok_or_else(|| {
             anyhow!(
@@ -920,7 +939,7 @@ macro_rules! type_args {
         }
         impl <T: core::fmt::Display> IotaJsonTypeArg for T {
             fn to_iota_json(&self) -> anyhow::Result<IotaTypeTag> {
-                Ok(iota_types::parse_iota_type_tag(&self.to_string())?.into())
+                Ok(iota_types::TypeTag::from_str(&self.to_string())?.into())
             }
         }
         Ok::<_, anyhow::Error>(vec![$($value.to_iota_json()?,)*])

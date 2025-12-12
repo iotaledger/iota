@@ -35,7 +35,7 @@ fn make_module_with_function(
     return_: Signature,
     type_parameters: Vec<AbilitySet>,
 ) -> (CompiledModule, Identifier) {
-    let function_name = Identifier::new("foo").unwrap();
+    let function_name = IdentifierRef::const_new("foo").to_owned();
     let mut signatures = vec![Signature(vec![])];
     let parameters_idx = match signatures
         .iter()
@@ -87,8 +87,8 @@ fn make_module_with_function(
         signatures,
 
         identifiers: vec![
-            Identifier::new("M").unwrap(),
-            Identifier::new("X").unwrap(),
+            IdentifierRef::const_new("M").to_owned(),
+            IdentifierRef::const_new("X").to_owned(),
             function_name.clone(),
         ],
         address_identifiers: vec![AccountAddress::random()],

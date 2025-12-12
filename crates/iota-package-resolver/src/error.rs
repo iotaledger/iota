@@ -4,9 +4,8 @@
 
 use std::sync::Arc;
 
-use iota_types::TypeTag;
+use iota_types::{TypeTag, base_types::ObjectId};
 use move_binary_format::errors::VMError;
-use move_core_types::account_address::AccountAddress;
 use thiserror::Error;
 
 #[derive(Error, Debug, Clone)]
@@ -25,61 +24,61 @@ pub enum Error {
 
     #[error(
         "Package has no modules: {}",
-        .0.to_canonical_display(/* with_prefix */ true),
+        .0,
     )]
-    EmptyPackage(AccountAddress),
+    EmptyPackage(ObjectId),
 
     #[error(
         "Function not found: {}::{1}::{2}",
-        .0.to_canonical_display(/* with_prefix */ true),
+        .0,
     )]
-    FunctionNotFound(AccountAddress, String, String),
+    FunctionNotFound(ObjectId, String, String),
 
     #[error(
         "Conflicting types for input {0}: {} and {}",
-        .1.to_canonical_display(/* with_prefix */ true),
-        .2.to_canonical_display(/* with_prefix */ true),
+        .1,
+        .2,
     )]
     InputTypeConflict(u16, TypeTag, TypeTag),
 
     #[error(
         "Linkage not found for package: {}",
-        .0.to_canonical_display(/* with_prefix */ true),
+        .0,
     )]
-    LinkageNotFound(AccountAddress),
+    LinkageNotFound(ObjectId),
 
     #[error(
         "Module not found: {}::{1}",
-        .0.to_canonical_display(/* with_prefix */ true),
+        .0,
     )]
-    ModuleNotFound(AccountAddress, String),
+    ModuleNotFound(ObjectId, String),
 
     #[error(
         "No origin package found for {}::{1}::{2}",
-        .0.to_canonical_display(/* with_prefix */ true),
+        .0,
     )]
-    NoTypeOrigin(AccountAddress, String, String),
+    NoTypeOrigin(ObjectId, String, String),
 
     #[error(
         "Not a package: {}",
-        .0.to_canonical_display(/* with_prefix */ true),
+        .0,
     )]
-    NotAPackage(AccountAddress),
+    NotAPackage(ObjectId),
 
     #[error("Not an identifier: '{0}'")]
     NotAnIdentifier(String),
 
     #[error(
         "Package not found: {}",
-        .0.to_canonical_display(/* with_prefix */ true),
+        .0,
     )]
-    PackageNotFound(AccountAddress),
+    PackageNotFound(ObjectId),
 
     #[error(
         "Datatype not found: {}::{1}::{2}",
-        .0.to_canonical_display(/* with_prefix */ true),
+        .0,
     )]
-    DatatypeNotFound(AccountAddress, String, String),
+    DatatypeNotFound(ObjectId, String, String),
 
     #[error("More than {0} struct definitions required to resolve type")]
     TooManyTypeNodes(usize, usize),

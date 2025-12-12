@@ -13,6 +13,7 @@ use iota_json::{
 use iota_json_rpc_types::{IotaArgument, IotaData, IotaObjectDataOptions, IotaRawData, PtbInput};
 use iota_protocol_config::ProtocolConfig;
 use iota_types::{
+    Identifier, TypeTag,
     base_types::{Address, ObjectId, ObjectReference, ObjectType, TxContext, TxContextKind},
     error::UserInputError,
     fp_ensure,
@@ -25,7 +26,6 @@ use iota_types::{
 use move_binary_format::{
     CompiledModule, binary_config::BinaryConfig, file_format::SignatureToken,
 };
-use move_core_types::{identifier::Identifier, language_storage::TypeTag};
 
 use crate::TransactionBuilder;
 
@@ -192,16 +192,19 @@ impl TransactionBuilder {
         let package = self.fetch_move_package(package_id).await?;
 
         let module_compiled = package.deserialize_module(module, &BinaryConfig::standard())?;
-        let function_str = function.as_ident_str();
+        let function_str = function.as_str();
         let function_def = module_compiled
             .function_defs
             .iter()
             .find(|function_def| {
-                module_compiled.identifier_at(
-                    module_compiled
-                        .function_handle_at(function_def.function)
-                        .name,
-                ) == function_str
+                module_compiled
+                    .identifier_at(
+                        module_compiled
+                            .function_handle_at(function_def.function)
+                            .name,
+                    )
+                    .as_str()
+                    == function_str
             })
             .ok_or_else(|| anyhow!("Could not resolve function {function} in module {module}"))?;
         let function_signature = module_compiled.function_handle_at(function_def.function);

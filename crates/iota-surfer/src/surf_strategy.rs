@@ -5,11 +5,12 @@
 use std::time::Duration;
 
 use iota_types::{
+    StructTag,
     base_types::ObjectReference,
+    iota_sdk_types_conversions::struct_tag_core_to_sdk,
     transaction::{CallArg, ObjectArg},
 };
 use move_binary_format::normalized;
-use move_core_types::language_storage::StructTag;
 use rand::{Rng, seq::SliceRandom};
 use tokio::time::Instant;
 use tracing::debug;
@@ -139,7 +140,7 @@ impl SurfStrategy {
     ) -> Option<CallArg> {
         let pool = state.pool.read().await;
         let type_tag = match arg_type {
-            Type::Datatype(dt) => dt.to_struct_tag(&*pool),
+            Type::Datatype(dt) => struct_tag_core_to_sdk(&dt.to_struct_tag(&*pool)),
             _ => {
                 return None;
             }

@@ -211,22 +211,20 @@ impl Argument {
             }
             (Argument::String(s), TypeTag::Struct(stag))
                 if {
-                    let resolved = (
-                        &stag.address,
-                        stag.module.as_ident_str(),
-                        stag.name.as_ident_str(),
-                    );
-                    resolved == RESOLVED_ASCII_STR || resolved == RESOLVED_UTF8_STR
+                    (stag.address.as_bytes() == RESOLVED_ASCII_STR.0.as_ref()
+                        && stag.module.as_str() == RESOLVED_ASCII_STR.1.as_str()
+                        && stag.name.as_str() == RESOLVED_ASCII_STR.2.as_str())
+                        || (stag.address.as_bytes() == RESOLVED_UTF8_STR.0.as_ref()
+                            && stag.module.as_str() == RESOLVED_UTF8_STR.1.as_str()
+                            && stag.name.as_str() == RESOLVED_UTF8_STR.2.as_str())
                 } =>
             {
                 MoveValue::Vector(s.bytes().map(MoveValue::U8).collect::<Vec<_>>())
             }
             (Argument::Address(a), TypeTag::Struct(stag))
-                if (
-                    &stag.address,
-                    stag.module.as_ident_str(),
-                    stag.name.as_ident_str(),
-                ) == RESOLVED_IOTA_ID =>
+                if (stag.address.as_bytes() == RESOLVED_IOTA_ID.0.as_ref()
+                    && stag.module.as_str() == RESOLVED_IOTA_ID.1.as_str()
+                    && stag.name.as_str() == RESOLVED_IOTA_ID.2.as_str()) =>
             {
                 MoveValue::Address(a.into_inner())
             }
@@ -246,11 +244,9 @@ impl Argument {
                 }
             }
             (Argument::Option(sp!(loc, o)), TypeTag::Struct(stag))
-                if (
-                    &stag.address,
-                    stag.module.as_ident_str(),
-                    stag.name.as_ident_str(),
-                ) == RESOLVED_STD_OPTION
+                if (stag.address.as_bytes() == RESOLVED_STD_OPTION.0.as_ref()
+                    && stag.module.as_str() == RESOLVED_STD_OPTION.1.as_str()
+                    && stag.name.as_str() == RESOLVED_STD_OPTION.2.as_str())
                     && stag.type_params.len() == 1 =>
             {
                 if let Some(v) = o {

@@ -6,17 +6,15 @@ use std::str::FromStr;
 
 use anyhow::anyhow;
 use iota_types::{
+    IdentifierRef, StructTag, TypeTag,
     base_types::{Address, ObjectDigest, ObjectId, Version},
     gas_coin::GasCoin,
+    iota_sdk_types_conversions::struct_tag_sdk_to_core,
     object::{MoveObject, Owner},
-    parse_iota_struct_tag,
 };
 use move_core_types::{
-    account_address::AccountAddress,
     annotated_value::{MoveStruct, MoveValue},
     ident_str,
-    identifier::Identifier,
-    language_storage::{StructTag, TypeTag},
 };
 use serde_json::json;
 
@@ -48,12 +46,12 @@ fn test_move_value_to_string() {
         .collect::<Vec<_>>();
 
     let move_value = MoveValue::Struct(MoveStruct {
-        type_: StructTag {
-            address: AccountAddress::new(Address::STD_LIB.into_bytes()),
-            module: ident_str!("string").to_owned(),
-            name: ident_str!("String").to_owned(),
+        type_: struct_tag_sdk_to_core(&StructTag {
+            address: Address::STD_LIB,
+            module: IdentifierRef::const_new("string").to_owned(),
+            name: IdentifierRef::const_new("String").to_owned(),
             type_params: vec![],
-        },
+        }),
         fields: vec![(ident_str!("bytes").to_owned(), MoveValue::Vector(values))],
     });
 
@@ -66,14 +64,14 @@ fn test_move_value_to_string() {
 fn test_option() {
     // bugfix for https://github.com/iotaledger/iota/issues/4995
     let option = MoveValue::Struct(MoveStruct {
-        type_: StructTag {
-            address: AccountAddress::new(Address::STD_LIB.into_bytes()),
-            module: Identifier::from_str("option").unwrap(),
-            name: Identifier::from_str("Option").unwrap(),
+        type_: struct_tag_sdk_to_core(&StructTag {
+            address: Address::STD_LIB,
+            module: IdentifierRef::const_new("option").to_owned(),
+            name: IdentifierRef::const_new("Option").to_owned(),
             type_params: vec![TypeTag::U8],
-        },
+        }),
         fields: vec![(
-            Identifier::from_str("vec").unwrap(),
+            ident_str!("vec").to_owned(),
             MoveValue::Vector(vec![MoveValue::U8(5)]),
         )],
     });
@@ -94,22 +92,22 @@ fn test_move_value_to_url() {
         .collect::<Vec<_>>();
 
     let string_move_value = MoveValue::Struct(MoveStruct {
-        type_: StructTag {
-            address: AccountAddress::new(Address::STD_LIB.into_bytes()),
-            module: ident_str!("string").to_owned(),
-            name: ident_str!("String").to_owned(),
+        type_: struct_tag_sdk_to_core(&StructTag {
+            address: Address::STD_LIB,
+            module: IdentifierRef::const_new("string").to_owned(),
+            name: IdentifierRef::const_new("String").to_owned(),
             type_params: vec![],
-        },
+        }),
         fields: vec![(ident_str!("bytes").to_owned(), MoveValue::Vector(values))],
     });
 
     let url_move_value = MoveValue::Struct(MoveStruct {
-        type_: StructTag {
-            address: AccountAddress::new(Address::FRAMEWORK.into_bytes()),
-            module: ident_str!("url").to_owned(),
-            name: ident_str!("Url").to_owned(),
+        type_: struct_tag_sdk_to_core(&StructTag {
+            address: Address::FRAMEWORK,
+            module: IdentifierRef::const_new("url").to_owned(),
+            name: IdentifierRef::const_new("Url").to_owned(),
             type_params: vec![],
-        },
+        }),
         fields: vec![(ident_str!("url").to_owned(), string_move_value)],
     });
 
@@ -188,7 +186,7 @@ fn test_type_tag_struct_tag_devnet_inc_222() {
         let oc = ObjectChange::Created {
             sender: Address::ZERO,
             owner: Owner::Immutable,
-            object_type: parse_iota_struct_tag(tag).unwrap(),
+            object_type: StructTag::from_str(tag).unwrap(),
             object_id: ObjectId::new(rand::random()),
             version: Default::default(),
             digest: ObjectDigest::new(rand::random()),

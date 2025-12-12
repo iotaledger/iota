@@ -8,7 +8,6 @@ use anyhow::Result;
 use async_trait::async_trait;
 use iota_package_resolver::{Package, PackageStore, error::Error as PackageResolverError};
 use iota_types::base_types::ObjectId;
-use move_core_types::account_address::AccountAddress;
 use tokio::sync::Mutex;
 use tracing::{error, info};
 
@@ -16,7 +15,7 @@ use crate::{config::Config, verifier::get_verified_object};
 
 pub struct RemotePackageStore {
     config: Config,
-    cache: Mutex<HashMap<AccountAddress, Arc<Package>>>,
+    cache: Mutex<HashMap<ObjectId, Arc<Package>>>,
 }
 
 impl RemotePackageStore {
@@ -32,7 +31,7 @@ impl RemotePackageStore {
 impl PackageStore for RemotePackageStore {
     /// Read package contents. Fails if `id` is not an object, not a package, or
     /// is malformed in some way.
-    async fn fetch(&self, id: AccountAddress) -> iota_package_resolver::Result<Arc<Package>> {
+    async fn fetch(&self, id: ObjectId) -> iota_package_resolver::Result<Arc<Package>> {
         // Check if we have it in the cache
         let res: Result<Arc<Package>> = async move {
             if let Some(package) = self.cache.lock().await.get(&id) {

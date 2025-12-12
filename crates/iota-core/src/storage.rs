@@ -5,6 +5,7 @@
 use std::sync::Arc;
 
 use iota_types::{
+    StructTag,
     base_types::{Address, ObjectId, TransactionDigest, Version},
     committee::{Committee, EpochId},
     digests::TransactionEventsDigest,
@@ -22,7 +23,6 @@ use iota_types::{
     },
     transaction::VerifiedTransaction,
 };
-use move_core_types::language_storage::StructTag;
 use parking_lot::Mutex;
 use tap::Pipe;
 use tracing::instrument;

@@ -8,14 +8,8 @@ use std::{
 };
 
 use fastcrypto::{encoding::Base64, hash::HashFunction};
-use iota_sdk_2::types::crypto::HashingIntentScope;
-use move_core_types::{
-    account_address::AccountAddress,
-    annotated_value::{MoveStruct, MoveValue},
-    ident_str,
-    identifier::IdentStr,
-    language_storage::{StructTag, TypeTag},
-};
+use iota_sdk_2::types::{IdentifierRef, StructTag, TypeTag, crypto::HashingIntentScope};
+use move_core_types::annotated_value::{MoveStruct, MoveValue};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use serde_json::Value;
@@ -27,18 +21,21 @@ use crate::{
     crypto::DefaultHash,
     error::{IotaError, IotaResult},
     id::UID,
-    iota_serde::{IotaTypeTag, Readable},
+    iota_sdk_types_conversions::struct_tag_core_to_sdk,
+    iota_serde::Readable,
     object::Object,
     storage::ObjectStore,
 };
 
 pub mod visitor;
 
-const DYNAMIC_FIELD_MODULE_NAME: &IdentStr = ident_str!("dynamic_field");
-const DYNAMIC_FIELD_FIELD_STRUCT_NAME: &IdentStr = ident_str!("Field");
+const DYNAMIC_FIELD_MODULE_NAME: &IdentifierRef = IdentifierRef::const_new("dynamic_field");
+const DYNAMIC_FIELD_FIELD_STRUCT_NAME: &IdentifierRef = IdentifierRef::const_new("Field");
 
-const DYNAMIC_OBJECT_FIELD_MODULE_NAME: &IdentStr = ident_str!("dynamic_object_field");
-const DYNAMIC_OBJECT_FIELD_WRAPPER_STRUCT_NAME: &IdentStr = ident_str!("Wrapper");
+const DYNAMIC_OBJECT_FIELD_MODULE_NAME: &IdentifierRef =
+    IdentifierRef::const_new("dynamic_object_field");
+const DYNAMIC_OBJECT_FIELD_WRAPPER_STRUCT_NAME: &IdentifierRef =
+    IdentifierRef::const_new("Wrapper");
 
 /// Rust version of the Move iota::dynamic_field::Field type
 #[derive(Clone, Serialize, Deserialize, Debug)]
@@ -84,7 +81,7 @@ pub struct DynamicFieldInfo {
 #[serde(rename_all = "camelCase")]
 pub struct DynamicFieldName {
     #[schemars(with = "String")]
-    #[serde_as(as = "Readable<IotaTypeTag, _>")]
+    #[serde_as(as = "Readable<_, _>")]
     pub type_: TypeTag,
     // Bincode does not like serde_json::Value, rocksdb will not insert the value without
     // serializing value as string. TODO: investigate if this can be removed after switch to
@@ -120,20 +117,20 @@ impl Display for DynamicFieldType {
 
 impl DynamicFieldInfo {
     pub fn is_dynamic_field(tag: &StructTag) -> bool {
-        tag.address == AccountAddress::new(Address::FRAMEWORK.into_bytes())
-            && tag.module.as_ident_str() == DYNAMIC_FIELD_MODULE_NAME
-            && tag.name.as_ident_str() == DYNAMIC_FIELD_FIELD_STRUCT_NAME
+        tag.address == Address::FRAMEWORK
+            && tag.module == DYNAMIC_FIELD_MODULE_NAME
+            && tag.name == DYNAMIC_FIELD_FIELD_STRUCT_NAME
     }
 
     pub fn is_dynamic_object_field_wrapper(tag: &StructTag) -> bool {
-        tag.address == AccountAddress::new(Address::FRAMEWORK.into_bytes())
-            && tag.module.as_ident_str() == DYNAMIC_OBJECT_FIELD_MODULE_NAME
-            && tag.name.as_ident_str() == DYNAMIC_OBJECT_FIELD_WRAPPER_STRUCT_NAME
+        tag.address == Address::FRAMEWORK
+            && tag.module == DYNAMIC_OBJECT_FIELD_MODULE_NAME
+            && tag.name == DYNAMIC_OBJECT_FIELD_WRAPPER_STRUCT_NAME
     }
 
     pub fn dynamic_field_type(key: TypeTag, value: TypeTag) -> StructTag {
         StructTag {
-            address: AccountAddress::new(Address::FRAMEWORK.into_bytes()),
+            address: Address::FRAMEWORK,
             name: DYNAMIC_FIELD_FIELD_STRUCT_NAME.to_owned(),
             module: DYNAMIC_FIELD_MODULE_NAME.to_owned(),
             type_params: vec![key, value],
@@ -142,7 +139,7 @@ impl DynamicFieldInfo {
 
     pub fn dynamic_object_field_wrapper(key: TypeTag) -> StructTag {
         StructTag {
-            address: AccountAddress::new(Address::FRAMEWORK.into_bytes()),
+            address: Address::FRAMEWORK,
             module: DYNAMIC_OBJECT_FIELD_MODULE_NAME.to_owned(),
             name: DYNAMIC_OBJECT_FIELD_WRAPPER_STRUCT_NAME.to_owned(),
             type_params: vec![key],
@@ -265,10 +262,13 @@ pub fn extract_id_value(id_value: &MoveValue) -> Option<ObjectId> {
 }
 
 pub fn is_dynamic_object(move_struct: &MoveStruct) -> bool {
-    matches!(
-        &move_struct.type_.type_params[0],
-        TypeTag::Struct(tag) if DynamicFieldInfo::is_dynamic_object_field_wrapper(tag)
-    )
+    if let move_core_types::language_storage::TypeTag::Struct(tag) =
+        &move_struct.type_.type_params[0]
+    {
+        DynamicFieldInfo::is_dynamic_object_field_wrapper(&struct_tag_core_to_sdk(tag))
+    } else {
+        false
+    }
 }
 
 pub fn derive_dynamic_field_id<T>(

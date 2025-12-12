@@ -1,17 +1,18 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use move_core_types::{ident_str, identifier::IdentStr};
+use iota_sdk_2::types::IdentifierRef;
 
-pub const IOTA_SYSTEM_ADMIN_CAP_MODULE_NAME: &IdentStr = ident_str!("system_admin_cap");
-pub const IOTA_SYSTEM_ADMIN_CAP_STRUCT_NAME: &IdentStr = ident_str!("IotaSystemAdminCap");
+pub const IOTA_SYSTEM_ADMIN_CAP_MODULE_NAME: &IdentifierRef =
+    IdentifierRef::const_new("system_admin_cap");
+pub const IOTA_SYSTEM_ADMIN_CAP_STRUCT_NAME: &IdentifierRef =
+    IdentifierRef::const_new("IotaSystemAdminCap");
 
 pub use checked::*;
 
 #[iota_macros::with_checked_arithmetic]
 mod checked {
-    use iota_sdk_2::types::Address;
-    use move_core_types::{account_address::AccountAddress, language_storage::StructTag};
+    use iota_sdk_2::types::{Address, StructTag};
     use serde::{Deserialize, Serialize};
 
     use super::*;
@@ -28,7 +29,7 @@ mod checked {
     impl IotaSystemAdminCap {
         pub fn type_() -> StructTag {
             StructTag {
-                address: AccountAddress::new(Address::FRAMEWORK.into_bytes()),
+                address: Address::FRAMEWORK,
                 module: IOTA_SYSTEM_ADMIN_CAP_MODULE_NAME.to_owned(),
                 name: IOTA_SYSTEM_ADMIN_CAP_STRUCT_NAME.to_owned(),
                 type_params: Vec::new(),

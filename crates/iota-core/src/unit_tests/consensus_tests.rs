@@ -10,6 +10,7 @@ use iota_macros::sim_test;
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_2::types::Address;
 use iota_types::{
+    IdentifierRef,
     base_types::{ExecutionDigests, ObjectId},
     crypto::deterministic_random_account_key,
     gas::GasCostSummary,
@@ -24,7 +25,6 @@ use iota_types::{
     },
     utils::{make_committee_key_num, to_sender_signed_transaction},
 };
-use move_core_types::ident_str;
 use parking_lot::Mutex;
 use rand::{Rng, SeedableRng, rngs::StdRng, thread_rng};
 use tokio::time::sleep;
@@ -77,8 +77,8 @@ pub async fn test_certificates(
         let data = TransactionData::new_move_call(
             sender,
             ObjectId::from(Address::FRAMEWORK),
-            ident_str!(module).to_owned(),
-            ident_str!(function).to_owned(),
+            IdentifierRef::const_new(module).to_owned(),
+            IdentifierRef::const_new(function).to_owned(),
             // type_args
             vec![],
             gas_object.compute_object_reference(),

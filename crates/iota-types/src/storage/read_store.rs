@@ -4,12 +4,12 @@
 
 use std::sync::Arc;
 
-use move_core_types::language_storage::{StructTag, TypeTag};
+use iota_sdk_2::types::{StructTag, TypeTag};
 use serde::{Deserialize, Serialize};
 
 use super::{ObjectStore, error::Result};
 use crate::{
-    base_types::{EpochId, Address, MoveObjectType, ObjectId, Version},
+    base_types::{Address, EpochId, MoveObjectType, ObjectId, Version},
     committee::Committee,
     digests::{
         ChainIdentifier, CheckpointContentsDigest, CheckpointDigest, TransactionDigest,

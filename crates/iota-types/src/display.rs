@@ -2,10 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_sdk_2::types::Address;
-use move_core_types::{
-    account_address::AccountAddress, ident_str, identifier::IdentStr, language_storage::StructTag,
-};
+use iota_sdk_2::types::{Address, IdentifierRef, StructTag, TypeTag};
 use serde::Deserialize;
 
 use crate::{
@@ -14,9 +11,10 @@ use crate::{
     id::{ID, UID},
 };
 
-pub const DISPLAY_MODULE_NAME: &IdentStr = ident_str!("display");
-pub const DISPLAY_CREATED_EVENT_NAME: &IdentStr = ident_str!("DisplayCreated");
-pub const DISPLAY_VERSION_UPDATED_EVENT_NAME: &IdentStr = ident_str!("VersionUpdated");
+pub const DISPLAY_MODULE_NAME: &IdentifierRef = IdentifierRef::const_new("display");
+pub const DISPLAY_CREATED_EVENT_NAME: &IdentifierRef = IdentifierRef::const_new("DisplayCreated");
+pub const DISPLAY_VERSION_UPDATED_EVENT_NAME: &IdentifierRef =
+    IdentifierRef::const_new("VersionUpdated");
 
 // TODO: add tests to keep in sync
 /// Rust version of the Move iota::display::Display type
@@ -39,7 +37,7 @@ pub struct DisplayVersionUpdatedEvent {
 impl DisplayVersionUpdatedEvent {
     pub fn type_(inner: &StructTag) -> StructTag {
         StructTag {
-            address: AccountAddress::new(Address::FRAMEWORK.into_bytes()),
+            address: Address::FRAMEWORK,
             name: DISPLAY_VERSION_UPDATED_EVENT_NAME.to_owned(),
             module: DISPLAY_MODULE_NAME.to_owned(),
             type_params: vec![inner.clone().into()],
@@ -48,16 +46,14 @@ impl DisplayVersionUpdatedEvent {
 
     // Checks if the provided `StructTag` is a DisplayVersionUpdatedEvent<T>
     pub fn is_display_updated_event(inner: &StructTag) -> bool {
-        inner.address == AccountAddress::new(Address::FRAMEWORK.into_bytes())
-            && inner.module.as_ident_str() == DISPLAY_MODULE_NAME
-            && inner.name.as_ident_str() == DISPLAY_VERSION_UPDATED_EVENT_NAME
+        inner.address == Address::FRAMEWORK
+            && inner.module == DISPLAY_MODULE_NAME
+            && inner.name == DISPLAY_VERSION_UPDATED_EVENT_NAME
     }
 
     // Checks if the provided `StructTag` is a DisplayVersionUpdatedEvent<T> and
     // returns a reference to the inner type T if so.
     pub fn inner_type(inner: &StructTag) -> Option<&StructTag> {
-        use move_core_types::language_storage::TypeTag;
-
         if !Self::is_display_updated_event(inner) {
             return None;
         }
@@ -86,7 +82,7 @@ pub struct DisplayCreatedEvent {
 impl DisplayCreatedEvent {
     pub fn type_(inner: &StructTag) -> StructTag {
         StructTag {
-            address: AccountAddress::new(Address::FRAMEWORK.into_bytes()),
+            address: Address::FRAMEWORK,
             name: DISPLAY_CREATED_EVENT_NAME.to_owned(),
             module: DISPLAY_MODULE_NAME.to_owned(),
             type_params: vec![inner.clone().into()],

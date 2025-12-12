@@ -6,7 +6,7 @@ use std::{fs, path::PathBuf, str::FromStr, sync::Arc};
 
 use insta::assert_snapshot;
 use iota_move_build::{BuildConfig, CompiledPackage};
-use iota_types::move_package::UpgradePolicy;
+use iota_types::{IdentifierRef, move_package::UpgradePolicy};
 use move_binary_format::{
     CompiledModule,
     normalized::{Field, Type},
@@ -275,7 +275,7 @@ fn test_address_change() {
 
 #[test]
 fn positional_formatting() {
-    let name = Identifier::new("pos999").unwrap();
+    let name = IdentifierRef::const_new("pos999").to_owned();
     let field = Field {
         name,
         type_: Type::Bool,

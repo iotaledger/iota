@@ -10,10 +10,12 @@ use std::{
 };
 
 use iota_types::{
+    StructTag,
     base_types::{Address, MoveObjectType, ObjectId, Version},
     digests::TransactionDigest,
     dynamic_field::visitor as DFV,
     full_checkpoint_content::CheckpointData,
+    iota_sdk_types_conversions::type_tag_core_to_sdk,
     layout_resolver::LayoutResolver,
     messages_checkpoint::CheckpointContents,
     object::{Object, Owner},
@@ -21,7 +23,6 @@ use iota_types::{
         BackingPackageStore, DynamicFieldIndexInfo, DynamicFieldKey, error::Error as StorageError,
     },
 };
-use move_core_types::language_storage::StructTag;
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use serde::{Deserialize, Serialize};
 use tracing::{debug, info};
@@ -603,7 +604,7 @@ fn try_create_dynamic_field_info(
     let value_metadata = field.value_metadata().map_err(StorageError::custom)?;
 
     Ok(Some(DynamicFieldIndexInfo {
-        name_type: field.name_layout.into(),
+        name_type: type_tag_core_to_sdk(&field.name_layout.into()),
         name_value: field.name_bytes.to_owned(),
         dynamic_field_type: field.kind,
         dynamic_object_id: if let DFV::ValueMetadata::DynamicObjectField(id) = value_metadata {

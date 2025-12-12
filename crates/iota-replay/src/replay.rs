@@ -27,6 +27,7 @@ use iota_types::{
     gas::IotaGasStatus,
     in_memory_storage::InMemoryStorage,
     inner_temporary_store::InnerTemporaryStore,
+    iota_sdk_types_conversions::struct_tag_core_to_sdk,
     message_envelope::Message,
     metrics::LimitsMetrics,
     object::{Data, Object, Owner},
@@ -36,15 +37,16 @@ use iota_types::{
     },
     transaction::{
         CheckedInputObjects, InputObjectKind, InputObjects, ObjectReadResult, ObjectReadResultKind,
-        SenderSignedData, Transaction, TransactionDataAPI, TransactionKind,
-        TransactionKind::ProgrammableTransaction, VerifiedTransaction,
+        SenderSignedData, Transaction, TransactionDataAPI,
+        TransactionKind::{self, ProgrammableTransaction},
+        VerifiedTransaction,
     },
 };
 use move_binary_format::CompiledModule;
 use move_bytecode_utils::module_cache::GetModule;
 use move_core_types::{
     account_address::AccountAddress,
-    language_storage::{ModuleId, StructTag},
+    language_storage::ModuleId,
     resolver::{ModuleResolver, ResourceResolver},
 };
 use prometheus::Registry;
@@ -1987,12 +1989,12 @@ impl ResourceResolver for LocalExec {
     fn get_resource(
         &self,
         address: &AccountAddress,
-        type_: &StructTag,
+        type_: &move_core_types::language_storage::StructTag,
     ) -> IotaResult<Option<Vec<u8>>> {
         fn inner(
             self_: &LocalExec,
             address: &AccountAddress,
-            type_: &StructTag,
+            type_: &move_core_types::language_storage::StructTag,
         ) -> IotaResult<Option<Vec<u8>>> {
             // If package not present fetch it from the network or some remote location
             let Some(object) = self_.get_or_download_object(
@@ -2006,7 +2008,7 @@ impl ResourceResolver for LocalExec {
             match &object.data {
                 Data::Move(m) => {
                     assert!(
-                        m.is_type(type_),
+                        m.is_type(&struct_tag_core_to_sdk(type_)),
                         "Invariant violation: ill-typed object in storage \
                         or bad object request from caller"
                     );

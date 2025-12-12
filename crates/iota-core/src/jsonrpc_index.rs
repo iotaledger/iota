@@ -9,6 +9,7 @@ use std::{
     cmp::{max, min},
     collections::{HashMap, HashSet},
     path::{Path, PathBuf},
+    str::FromStr,
     sync::{
         Arc,
         atomic::{AtomicU64, Ordering},
@@ -20,6 +21,7 @@ use iota_common::try_iterator_ext::TryIteratorExt;
 use iota_json_rpc_types::{IotaObjectDataFilter, TransactionFilter};
 use iota_storage::{mutex_table::MutexTable, sharded_lru::ShardedLruCache};
 use iota_types::{
+    StructTag, TypeTag,
     base_types::{
         Address, ObjectDigest, ObjectId, ObjectInfo, ObjectReference, TransactionDigest, TxVersion,
         Version,
@@ -30,13 +32,9 @@ use iota_types::{
     error::{IotaError, IotaResult, UserInputError},
     inner_temporary_store::TxCoins,
     object::{Object, Owner},
-    parse_iota_struct_tag,
 };
 use itertools::Itertools;
-use move_core_types::{
-    account_address::AccountAddress,
-    language_storage::{ModuleId, StructTag, TypeTag},
-};
+use move_core_types::{account_address::AccountAddress, language_storage::ModuleId};
 use parking_lot::ArcMutexGuard;
 use prometheus::{IntCounter, Registry, register_int_counter_with_registry};
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
@@ -569,7 +567,10 @@ impl IndexStore {
                         i,
                         ModuleId::new(
                             AccountAddress::new(e.package_id.into_bytes()),
-                            e.transaction_module.clone(),
+                            move_core_types::identifier::Identifier::new(
+                                e.transaction_module.as_str(),
+                            )
+                            .unwrap(),
                         ),
                     )
                 })
@@ -609,7 +610,11 @@ impl IndexStore {
             events.data.iter().enumerate().map(|(i, e)| {
                 (
                     (
-                        ModuleId::new(e.type_.address, e.type_.module.clone()),
+                        ModuleId::new(
+                            AccountAddress::new(e.type_.address.into_bytes()),
+                            move_core_types::identifier::Identifier::new(e.type_.module.as_str())
+                                .unwrap(),
+                        ),
                         (sequence, i),
                     ),
                     (event_digest, *digest, timestamp_ms),
@@ -1423,9 +1428,10 @@ impl IndexStore {
                 continue;
             }
 
-            let coin_type = TypeTag::Struct(Box::new(parse_iota_struct_tag(&coin_type).map_err(
-                |e| IotaError::Execution(format!("Failed to parse event sender address: {e:?}")),
-            )?));
+            let coin_type =
+                TypeTag::Struct(Box::new(StructTag::from_str(&coin_type).map_err(|e| {
+                    IotaError::Execution(format!("Failed to parse event sender address: {e:?}"))
+                })?));
             balances.insert(
                 coin_type,
                 TotalBalance {

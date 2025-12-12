@@ -17,11 +17,11 @@ use iota_json_rpc_types::{
 use iota_open_rpc::Module;
 use iota_transaction_builder::{DataReader, TransactionBuilder};
 use iota_types::{
+    StructTag,
     base_types::{Address, ObjectId, ObjectInfo},
     iota_serde::BigInt,
 };
 use jsonrpsee::{RpcModule, core::RpcResult};
-use move_core_types::language_storage::StructTag;
 
 use crate::{IotaRpcModule, authority_state::StateRead};
 

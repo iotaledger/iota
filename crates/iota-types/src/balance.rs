@@ -2,13 +2,10 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_sdk_2::types::Address;
+use iota_sdk_2::types::{Address, IdentifierRef, StructTag, TypeTag};
 use move_core_types::{
-    account_address::AccountAddress,
     annotated_value::{MoveFieldLayout, MoveStructLayout, MoveTypeLayout},
     ident_str,
-    identifier::IdentStr,
-    language_storage::{StructTag, TypeTag},
 };
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -16,12 +13,15 @@ use serde_with::serde_as;
 
 use crate::{
     error::{ExecutionError, ExecutionErrorKind},
+    iota_sdk_types_conversions::struct_tag_sdk_to_core,
     iota_serde::{BigInt, Readable},
 };
-pub const BALANCE_MODULE_NAME: &IdentStr = ident_str!("balance");
-pub const BALANCE_STRUCT_NAME: &IdentStr = ident_str!("Balance");
-pub const BALANCE_CREATE_REWARDS_FUNCTION_NAME: &IdentStr = ident_str!("create_staking_rewards");
-pub const BALANCE_DESTROY_REBATES_FUNCTION_NAME: &IdentStr = ident_str!("destroy_storage_rebates");
+pub const BALANCE_MODULE_NAME: &IdentifierRef = IdentifierRef::const_new("balance");
+pub const BALANCE_STRUCT_NAME: &IdentifierRef = IdentifierRef::const_new("Balance");
+pub const BALANCE_CREATE_REWARDS_FUNCTION_NAME: &IdentifierRef =
+    IdentifierRef::const_new("create_staking_rewards");
+pub const BALANCE_DESTROY_REBATES_FUNCTION_NAME: &IdentifierRef =
+    IdentifierRef::const_new("destroy_storage_rebates");
 
 #[serde_as]
 #[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq, JsonSchema)]
@@ -43,7 +43,7 @@ impl Balance {
 
     pub fn type_(type_param: TypeTag) -> StructTag {
         StructTag {
-            address: AccountAddress::new(Address::FRAMEWORK.into_bytes()),
+            address: Address::FRAMEWORK,
             module: BALANCE_MODULE_NAME.to_owned(),
             name: BALANCE_STRUCT_NAME.to_owned(),
             type_params: vec![type_param],
@@ -55,9 +55,9 @@ impl Balance {
     }
 
     pub fn is_balance(s: &StructTag) -> bool {
-        s.address == AccountAddress::new(Address::FRAMEWORK.into_bytes())
-            && s.module.as_ident_str() == BALANCE_MODULE_NAME
-            && s.name.as_ident_str() == BALANCE_STRUCT_NAME
+        s.address == Address::FRAMEWORK
+            && s.module == BALANCE_MODULE_NAME
+            && s.name == BALANCE_STRUCT_NAME
     }
 
     pub fn withdraw(&mut self, amount: u64) -> Result<(), ExecutionError> {
@@ -86,7 +86,7 @@ impl Balance {
 
     pub fn layout(type_param: TypeTag) -> MoveStructLayout {
         MoveStructLayout {
-            type_: Self::type_(type_param),
+            type_: struct_tag_sdk_to_core(&Self::type_(type_param)),
             fields: vec![MoveFieldLayout::new(
                 ident_str!("value").to_owned(),
                 MoveTypeLayout::U64,

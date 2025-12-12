@@ -7,15 +7,14 @@ use std::{fmt, fmt::Display, str::FromStr};
 use fastcrypto::encoding::{Base58, Base64};
 use iota_metrics::monitored_scope;
 use iota_types::{
+    Identifier, IdentifierRef, StructTag,
     base_types::{Address, ObjectId, TransactionDigest},
     error::IotaResult,
     event::{Event, EventEnvelope, EventID},
-    iota_serde::{BigInt, IotaStructTag},
+    iota_serde::BigInt,
 };
 use json_to_table::json_to_table;
-use move_core_types::{
-    annotated_value::MoveDatatypeLayout, identifier::Identifier, language_storage::StructTag,
-};
+use move_core_types::annotated_value::MoveDatatypeLayout;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
@@ -45,7 +44,6 @@ pub struct IotaEvent {
     /// Sender's IOTA address.
     pub sender: Address,
     #[schemars(with = "String")]
-    #[serde_as(as = "IotaStructTag")]
     /// Move event type.
     pub type_: StructTag,
     /// Parsed json value of the event
@@ -247,7 +245,7 @@ impl IotaEvent {
                 event_seq: 0,
             },
             package_id: ObjectId::new(rand::random()),
-            transaction_module: Identifier::from_str("random_for_testing").unwrap(),
+            transaction_module: IdentifierRef::const_new("random_for_testing").to_owned(),
             sender: Address::new(rand::random()),
             type_: StructTag::from_str("0x6666::random_for_testing::RandomForTesting").unwrap(),
             parsed_json: json!({}),
@@ -311,11 +309,7 @@ pub enum EventFilter {
     /// Return events with the given Move event struct name (struct tag).
     /// For example, if the event is defined in `0xabcd::MyModule`, and named
     /// `Foo`, then the struct tag is `0xabcd::MyModule::Foo`.
-    MoveEventType(
-        #[schemars(with = "String")]
-        #[serde_as(as = "IotaStructTag")]
-        StructTag,
-    ),
+    MoveEventType(#[schemars(with = "String")] StructTag),
     /// Return events with the given Move module name where the event struct is
     /// defined. If the event is defined in Module A but emitted in a tx
     /// with Module B, query `MoveEventModule` by module A returns the

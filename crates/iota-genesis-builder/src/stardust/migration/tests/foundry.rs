@@ -10,6 +10,7 @@ use iota_sdk::{
     },
 };
 use iota_types::{
+    TypeTag,
     balance::Balance,
     base_types::{Address, MoveObjectType, ObjectId},
     coin::CoinMetadata,
@@ -18,7 +19,6 @@ use iota_types::{
     object::Object,
     stardust::{coin_type::CoinType, stardust_to_iota_address, stardust_to_iota_address_owner},
 };
-use move_core_types::language_storage::TypeTag;
 
 use crate::stardust::{
     migration::tests::{create_foundry, run_migration},

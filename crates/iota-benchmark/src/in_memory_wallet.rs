@@ -5,13 +5,13 @@
 use std::{collections::BTreeMap, sync::Arc};
 
 use iota_types::{
+    Identifier, TypeTag,
     base_types::{Address, ObjectId, ObjectReference},
     crypto::AccountKeyPair,
     object::Owner,
     transaction::{CallArg, Command, Transaction, TransactionData, TransactionDataAPI},
     utils::to_sender_signed_transaction,
 };
-use move_core_types::{identifier::Identifier, language_storage::TypeTag};
 
 use crate::{
     BenchMoveCallArg, ExecutionEffects, ProgrammableTransactionBuilder, convert_move_call_args,

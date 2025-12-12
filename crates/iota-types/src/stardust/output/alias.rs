@@ -2,10 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use iota_protocol_config::ProtocolConfig;
+use iota_sdk_2::types::{IdentifierRef, StructTag};
 use iota_stardust_sdk::types::block::output::AliasOutput as StardustAlias;
-use move_core_types::{
-    account_address::AccountAddress, ident_str, identifier::IdentStr, language_storage::StructTag,
-};
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 
@@ -20,10 +18,10 @@ use crate::{
     stardust::{coin_type::CoinType, stardust_to_iota_address},
 };
 
-pub const ALIAS_MODULE_NAME: &IdentStr = ident_str!("alias");
-pub const ALIAS_OUTPUT_MODULE_NAME: &IdentStr = ident_str!("alias_output");
-pub const ALIAS_OUTPUT_STRUCT_NAME: &IdentStr = ident_str!("AliasOutput");
-pub const ALIAS_STRUCT_NAME: &IdentStr = ident_str!("Alias");
+pub const ALIAS_MODULE_NAME: &IdentifierRef = IdentifierRef::const_new("alias");
+pub const ALIAS_OUTPUT_MODULE_NAME: &IdentifierRef = IdentifierRef::const_new("alias_output");
+pub const ALIAS_OUTPUT_STRUCT_NAME: &IdentifierRef = IdentifierRef::const_new("AliasOutput");
+pub const ALIAS_STRUCT_NAME: &IdentifierRef = IdentifierRef::const_new("Alias");
 pub const ALIAS_DYNAMIC_OBJECT_FIELD_KEY: &[u8] = b"alias";
 pub const ALIAS_DYNAMIC_OBJECT_FIELD_KEY_TYPE: &str = "vector<u8>";
 
@@ -57,7 +55,7 @@ impl Alias {
     /// [`Alias`] in its move package.
     pub fn tag() -> StructTag {
         StructTag {
-            address: AccountAddress::new(Address::STARDUST.into_bytes()),
+            address: Address::STARDUST,
             module: ALIAS_MODULE_NAME.to_owned(),
             name: ALIAS_STRUCT_NAME.to_owned(),
             type_params: Vec::new(),
@@ -157,7 +155,7 @@ impl AliasOutput {
     /// [`AliasOutput`] in its move package.
     pub fn tag(type_param: TypeTag) -> StructTag {
         StructTag {
-            address: AccountAddress::new(Address::STARDUST.into_bytes()),
+            address: Address::STARDUST,
             module: ALIAS_OUTPUT_MODULE_NAME.to_owned(),
             name: ALIAS_OUTPUT_STRUCT_NAME.to_owned(),
             type_params: vec![type_param],
@@ -213,9 +211,9 @@ impl AliasOutput {
     }
 
     pub fn is_alias_output(s: &StructTag) -> bool {
-        s.address == AccountAddress::new(Address::STARDUST.into_bytes())
-            && s.module.as_ident_str() == ALIAS_OUTPUT_MODULE_NAME
-            && s.name.as_ident_str() == ALIAS_OUTPUT_STRUCT_NAME
+        s.address == Address::STARDUST
+            && s.module == ALIAS_OUTPUT_MODULE_NAME
+            && s.name == ALIAS_OUTPUT_STRUCT_NAME
     }
 }
 

@@ -48,7 +48,7 @@ fn test_bicliques() {
             .collect(),
     ));
     m.identifiers
-        .push(Identifier::new("take_and_return_references").unwrap());
+        .push(IdentifierRef::const_new("take_and_return_references").to_owned());
     m.function_handles.push(FunctionHandle {
         module: ModuleHandleIndex(0),
         name: IdentifierIndex(1),
@@ -75,7 +75,7 @@ fn test_bicliques() {
 
     // create swallow_references
     m.identifiers
-        .push(Identifier::new("swallow_references").unwrap());
+        .push(IdentifierRef::const_new("swallow_references").to_owned());
     m.function_handles.push(FunctionHandle {
         module: ModuleHandleIndex(0),
         name: IdentifierIndex(2),
@@ -177,7 +177,7 @@ fn test_merge_state_large_graph() {
             .collect(),
     ));
 
-    m.identifiers.push(Identifier::new("return_refs").unwrap());
+    m.identifiers.push(IdentifierRef::const_new("return_refs").to_owned());
     m.function_handles.push(FunctionHandle {
         module: ModuleHandleIndex(0),
         name: IdentifierIndex(1),
@@ -198,7 +198,7 @@ fn test_merge_state_large_graph() {
     });
 
     m.identifiers
-        .push(Identifier::new("take_and_return_refs").unwrap());
+        .push(IdentifierRef::const_new("take_and_return_refs").to_owned());
     m.function_handles.push(FunctionHandle {
         module: ModuleHandleIndex(0),
         name: IdentifierIndex(2),

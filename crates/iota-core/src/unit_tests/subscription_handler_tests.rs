@@ -3,16 +3,16 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use iota_json_rpc_types::IotaMoveStruct;
-use iota_sdk_2::types::Address;
 use iota_types::{
-    base_types::ObjectId, gas_coin::GasCoin, object::bounded_visitor::BoundedVisitor,
+    IdentifierRef, StructTag,
+    base_types::{Address, ObjectId},
+    gas_coin::GasCoin,
+    iota_sdk_types_conversions::struct_tag_sdk_to_core,
+    object::bounded_visitor::BoundedVisitor,
 };
 use move_core_types::{
-    account_address::AccountAddress,
     annotated_value::{MoveFieldLayout, MoveStructLayout, MoveTypeLayout},
     ident_str,
-    identifier::Identifier,
-    language_storage::StructTag,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -20,7 +20,7 @@ use serde_json::json;
 #[test]
 fn test_to_json_value() {
     let move_event = TestEvent {
-        creator: AccountAddress::random(),
+        creator: Address::new(rand::random()),
         name: "test_event".into(),
         data: vec![100, 200, 300],
         coins: vec![
@@ -52,7 +52,7 @@ fn test_to_json_value() {
         json_value.pointer("/coins/0/id/id")
     );
     assert_eq!(
-        Some(&json!(format!("{:#x}", move_event.creator))),
+        Some(&json!(format!("{}", move_event.creator))),
         json_value.pointer("/creator")
     );
     assert_eq!(Some(&json!("100")), json_value.pointer("/data/0"));
@@ -63,7 +63,7 @@ fn test_to_json_value() {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct TestEvent {
-    creator: AccountAddress,
+    creator: Address,
     name: UTF8String,
     data: Vec<u64>,
     coins: Vec<GasCoin>,
@@ -72,16 +72,16 @@ pub struct TestEvent {
 impl TestEvent {
     fn type_() -> StructTag {
         StructTag {
-            address: AccountAddress::new(Address::FRAMEWORK.into_bytes()),
-            module: ident_str!("IOTA").to_owned(),
-            name: ident_str!("new_foobar").to_owned(),
+            address: Address::FRAMEWORK,
+            module: IdentifierRef::const_new("IOTA").to_owned(),
+            name: IdentifierRef::const_new("new_foobar").to_owned(),
             type_params: vec![],
         }
     }
 
     fn layout() -> MoveStructLayout {
         MoveStructLayout {
-            type_: Self::type_(),
+            type_: struct_tag_sdk_to_core(&Self::type_()),
             fields: vec![
                 MoveFieldLayout::new(ident_str!("creator").to_owned(), MoveTypeLayout::Address),
                 MoveFieldLayout::new(
@@ -121,15 +121,15 @@ impl From<&str> for UTF8String {
 impl UTF8String {
     fn type_() -> StructTag {
         StructTag {
-            address: AccountAddress::new(Address::STD_LIB.into_bytes()),
-            name: Identifier::new("String").unwrap(),
-            module: Identifier::new("string").unwrap(),
+            address: Address::STD_LIB,
+            name: IdentifierRef::const_new("String").into(),
+            module: IdentifierRef::const_new("string").into(),
             type_params: vec![],
         }
     }
     fn layout() -> MoveStructLayout {
         MoveStructLayout {
-            type_: Self::type_(),
+            type_: struct_tag_sdk_to_core(&Self::type_()),
             fields: vec![MoveFieldLayout::new(
                 ident_str!("bytes").to_owned(),
                 MoveTypeLayout::Vector(Box::new(MoveTypeLayout::U8)),

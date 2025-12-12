@@ -162,7 +162,7 @@ impl Client {
         builder.programmable_move_call(
             self.package,
             raw.type_.module.clone(),
-            Identifier::new("ended").unwrap(),
+            IdentifierRef::const_new("ended").to_owned(),
             vec![],
             vec![g],
         );
@@ -222,8 +222,8 @@ impl Client {
 
         let turn_cap_type = StructTag {
             address: self.package.into(),
-            module: Identifier::new("owned").unwrap(),
-            name: Identifier::new("TurnCap").unwrap(),
+            module: IdentifierRef::const_new("owned").to_owned(),
+            name: IdentifierRef::const_new("TurnCap").to_owned(),
             type_params: vec![],
         };
 
@@ -291,8 +291,8 @@ impl Client {
 
         builder.programmable_move_call(
             self.package,
-            Identifier::new("shared").unwrap(),
-            Identifier::new("new").unwrap(),
+            IdentifierRef::const_new("shared").to_owned(),
+            IdentifierRef::const_new("new").to_owned(),
             vec![],
             vec![x, o],
         );
@@ -329,8 +329,8 @@ impl Client {
 
         let game = builder.programmable_move_call(
             self.package,
-            Identifier::new("owned").unwrap(),
-            Identifier::new("new").unwrap(),
+            IdentifierRef::const_new("owned").to_owned(),
+            IdentifierRef::const_new("new").to_owned(),
             vec![],
             vec![x, o, a],
         );
@@ -363,8 +363,8 @@ impl Client {
 
         builder.programmable_move_call(
             self.package,
-            Identifier::new("shared").unwrap(),
-            Identifier::new("burn").unwrap(),
+            IdentifierRef::const_new("shared").to_owned(),
+            IdentifierRef::const_new("burn").to_owned(),
             vec![],
             vec![g],
         );
@@ -391,8 +391,8 @@ impl Client {
 
         builder.programmable_move_call(
             self.package,
-            Identifier::new("owned").unwrap(),
-            Identifier::new("burn").unwrap(),
+            IdentifierRef::const_new("owned").to_owned(),
+            IdentifierRef::const_new("burn").to_owned(),
             vec![],
             vec![g],
         );
@@ -446,8 +446,8 @@ impl Client {
 
         builder.programmable_move_call(
             self.package,
-            Identifier::new("shared").unwrap(),
-            Identifier::new("place_mark").unwrap(),
+            IdentifierRef::const_new("shared").to_owned(),
+            IdentifierRef::const_new("place_mark").to_owned(),
             vec![],
             vec![g, r, c],
         );
@@ -481,8 +481,8 @@ impl Client {
 
         builder.programmable_move_call(
             self.package,
-            Identifier::new("owned").unwrap(),
-            Identifier::new("send_mark").unwrap(),
+            IdentifierRef::const_new("owned").to_owned(),
+            IdentifierRef::const_new("send_mark").to_owned(),
             vec![],
             vec![t, r, c],
         );
@@ -534,8 +534,8 @@ impl Client {
 
         builder.programmable_move_call(
             self.package,
-            Identifier::new("owned").unwrap(),
-            Identifier::new("place_mark").unwrap(),
+            IdentifierRef::const_new("owned").to_owned(),
+            IdentifierRef::const_new("place_mark").to_owned(),
             vec![],
             vec![g, m],
         );

@@ -33,7 +33,6 @@ use iota_sdk::{
     IotaClientBuilder, rpc_types::IotaTransactionBlockEffects, types::base_types::ObjectId,
 };
 use iota_source_validation::{BytecodeSourceVerifier, ValidationMode};
-use move_core_types::account_address::AccountAddress;
 use move_package::{BuildConfig as MoveBuildConfig, LintFlag};
 use move_symbol_pool::Symbol;
 use prometheus::{IntCounter, Registry, register_int_counter_with_registry};
@@ -149,7 +148,7 @@ impl fmt::Display for Network {
 /// Map module name to verified source info.
 pub type SourceLookup = BTreeMap<Symbol, SourceInfo>;
 /// Map addresses to module names and sources.
-pub type AddressLookup = BTreeMap<AccountAddress, SourceLookup>;
+pub type AddressLookup = BTreeMap<ObjectId, SourceLookup>;
 /// Top-level lookup that maps network to sources for corresponding on-chain
 /// networks.
 pub type NetworkLookup = BTreeMap<Network, AddressLookup>;
@@ -190,7 +189,7 @@ pub async fn verify_package(
     let address = compiled_package
         .published_at
         .as_ref()
-        .map(|id| AccountAddress::new(id.into_bytes()))
+        .map(|id| id)
         .map_err(|_| anyhow!("could not resolve published-at field in package manifest"))?;
     info!("verifying {} at {address}", package_path.as_ref().display());
     for v in &compiled_package.package.root_compiled_units {
@@ -202,7 +201,7 @@ pub async fn verify_package(
         } else {
             let mut source_map = SourceLookup::new();
             source_map.insert(name, SourceInfo { path, source });
-            address_map.insert(address, source_map);
+            address_map.insert(*address, source_map);
         }
     }
     Ok((network.clone(), address_map))
@@ -505,7 +504,7 @@ async fn api_route(
 ) -> impl IntoResponse {
     debug!("request network={network}&address={address}&module={module}");
     let symbol = Symbol::from(module);
-    let Ok(address) = AccountAddress::from_hex_literal(&address) else {
+    let Ok(address) = ObjectId::from_hex(&address) else {
         let error = format!("Invalid hex address {address}");
         return (
             StatusCode::BAD_REQUEST,

@@ -14,7 +14,7 @@ use iota_json_rpc_types::{IotaTransactionBlockEffects, IotaTransactionBlockEffec
 use iota_move_build::BuildConfig;
 use iota_protocol_config::{Chain, ProtocolConfig};
 use iota_types::{
-    Identifier,
+    Identifier, IdentifierRef, StructTag,
     base_types::{Address, ObjectId, ObjectReference, Version},
     execution_config_utils::to_binary_config,
     object::{Object, Owner},
@@ -22,7 +22,6 @@ use iota_types::{
     transaction::{CallArg, ObjectArg, TEST_ONLY_GAS_UNIT_FOR_PUBLISH, TransactionData},
 };
 use move_binary_format::{file_format::Visibility, normalized};
-use move_core_types::{identifier::IdentStr, language_storage::StructTag};
 use rand::rngs::StdRng;
 use test_cluster::TestCluster;
 use tokio::sync::RwLock;
@@ -419,8 +418,8 @@ fn is_type_tx_context(ty: &Type) -> bool {
         Type::Reference(_, inner) => match inner.as_ref() {
             Type::Datatype(dt) => {
                 dt.module.address.as_ref() == Address::FRAMEWORK.as_bytes()
-                    && dt.module.name.as_ident_str() == IdentStr::new("tx_context").unwrap()
-                    && dt.name.as_ident_str() == IdentStr::new("TxContext").unwrap()
+                    && dt.module.name.as_str() == IdentifierRef::const_new("tx_context").as_str()
+                    && dt.name.as_str() == IdentifierRef::const_new("TxContext").as_str()
                     && dt.type_arguments.is_empty()
             }
             _ => false,

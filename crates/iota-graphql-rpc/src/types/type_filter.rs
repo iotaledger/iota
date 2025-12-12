@@ -6,10 +6,8 @@ use std::{fmt, result::Result, str::FromStr};
 
 use async_graphql::*;
 use iota_types::{
-    TypeTag, parse_iota_address, parse_iota_fq_name, parse_iota_module_id, parse_iota_struct_tag,
-    parse_iota_type_tag,
+    StructTag, TypeTag, parse_iota_address, parse_iota_fq_name, parse_iota_module_id,
 };
-use move_core_types::language_storage::StructTag;
 
 use crate::{
     filter,
@@ -104,7 +102,7 @@ impl TypeFilter {
                 let statement = format!(
                     "{} = '\\x{}'::bytea",
                     package_field,
-                    hex::encode(tag.address.to_vec())
+                    hex::encode(tag.address.as_bytes().to_vec())
                 );
                 query = filter!(query, statement);
                 let statement = module_field.to_string() + " = {}";
@@ -119,7 +117,7 @@ impl TypeFilter {
                 let statement = format!(
                     "{} = '\\x{}'::bytea",
                     package_field,
-                    hex::encode(tag.address.to_vec())
+                    hex::encode(tag.address.as_bytes().to_vec())
                 );
                 query = filter!(query, statement);
                 let statement = module_field.to_string() + " = {}";
@@ -237,7 +235,7 @@ impl FromStr for ExactTypeFilter {
     type Err = Error;
 
     fn from_str(s: &str) -> Result<Self, Error> {
-        if let Ok(tag) = parse_iota_type_tag(s) {
+        if let Ok(tag) = TypeTag::from_str(s) {
             Ok(ExactTypeFilter(tag))
         } else {
             Err(Error::InvalidFormat(
@@ -250,7 +248,7 @@ impl FromStr for ExactTypeFilter {
 impl FromStr for TypeFilter {
     type Err = Error;
     fn from_str(s: &str) -> Result<Self, Error> {
-        if let Ok(tag) = parse_iota_struct_tag(s) {
+        if let Ok(tag) = StructTag::from_str(s) {
             Ok(TypeFilter::ByType(tag))
         } else if let Ok(filter) = ModuleFilter::from_str(s) {
             Ok(TypeFilter::ByModule(filter))
@@ -318,7 +316,7 @@ impl fmt::Display for TypeFilter {
         match self {
             TypeFilter::ByModule(m) => write!(f, "{m}"),
             TypeFilter::ByType(t) => {
-                write!(f, "{}", t.to_canonical_display(/* with_prefix */ true))
+                write!(f, "{}", t.to_canonical_string(/* with_prefix */ true))
             }
         }
     }
@@ -326,7 +324,7 @@ impl fmt::Display for TypeFilter {
 
 impl fmt::Display for ExactTypeFilter {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.0.to_canonical_display(/* with_prefix */ true))
+        write!(f, "{}", self.0.to_canonical_string(/* with_prefix */ true))
     }
 }
 

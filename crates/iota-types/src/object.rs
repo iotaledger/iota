@@ -11,12 +11,10 @@ use std::{
 };
 
 use iota_protocol_config::ProtocolConfig;
+use iota_sdk_2::types::{StructTag, TypeTag};
 use move_binary_format::CompiledModule;
 use move_bytecode_utils::{layout::TypeLayoutBuilder, module_cache::GetModule};
-use move_core_types::{
-    annotated_value::{MoveStruct, MoveStructLayout, MoveTypeLayout, MoveValue},
-    language_storage::{StructTag, TypeTag},
-};
+use move_core_types::annotated_value::{MoveStruct, MoveStructLayout, MoveTypeLayout, MoveValue};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_with::{Bytes, serde_as};
@@ -34,6 +32,7 @@ use crate::{
         ExecutionError, ExecutionErrorKind, IotaError, IotaResult, UserInputError, UserInputResult,
     },
     gas_coin::{GAS, GasCoin},
+    iota_sdk_types_conversions::type_tag_sdk_to_core,
     layout_resolver::LayoutResolver,
     move_package::MovePackage,
     timelock::timelock::TimeLock,
@@ -282,10 +281,9 @@ impl MoveObject {
         resolver: &impl GetModule,
     ) -> Result<MoveStructLayout, IotaError> {
         let type_ = TypeTag::Struct(Box::new(struct_tag));
-        let layout = TypeLayoutBuilder::build_with_types(&type_, resolver).map_err(|e| {
-            IotaError::ObjectSerialization {
-                error: e.to_string(),
-            }
+        let layout = TypeLayoutBuilder::build_with_types(&type_tag_sdk_to_core(&type_), resolver)
+            .map_err(|e| IotaError::ObjectSerialization {
+            error: e.to_string(),
         })?;
         match layout {
             MoveTypeLayout::Struct(l) => Ok(*l),
@@ -354,7 +352,8 @@ impl MoveObject {
                 BTreeMap::default()
             })
         } else {
-            let layout = layout_resolver.get_annotated_layout(&self.type_().clone().into())?;
+            let layout =
+                layout_resolver.get_annotated_layout(&StructTag::from(self.type_().clone()))?;
 
             let mut traversal = BalanceTraversal::default();
             MoveValue::visit_deserialize(&self.contents, &layout.into_layout(), &mut traversal)

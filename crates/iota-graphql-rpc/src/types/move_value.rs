@@ -3,13 +3,13 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use async_graphql::*;
-use iota_types::object::bounded_visitor::BoundedVisitor;
-use move_core_types::{
-    account_address::AccountAddress,
-    annotated_value as A, ident_str,
-    identifier::{IdentStr, Identifier},
-    language_storage::{StructTag, TypeTag},
+use iota_sdk_2::types::Address;
+use iota_types::{
+    IdentifierRef, StructTag, TypeTag,
+    iota_sdk_types_conversions::{struct_tag_core_to_sdk, type_tag_core_to_sdk},
+    object::bounded_visitor::BoundedVisitor,
 };
+use move_core_types::{annotated_value as A, ident_str};
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -24,18 +24,18 @@ use crate::{
     },
 };
 
-const STD: AccountAddress = AccountAddress::ONE;
-const IOTA: AccountAddress = AccountAddress::TWO;
+const STD: Address = Address::STD_LIB;
+const IOTA: Address = Address::FRAMEWORK;
 
-const MOD_ASCII: &IdentStr = ident_str!("ascii");
-const MOD_OBJECT: &IdentStr = ident_str!("object");
-const MOD_OPTION: &IdentStr = ident_str!("option");
-const MOD_STRING: &IdentStr = ident_str!("string");
+const MOD_ASCII: &IdentifierRef = IdentifierRef::const_new("ascii");
+const MOD_OBJECT: &IdentifierRef = IdentifierRef::const_new("object");
+const MOD_OPTION: &IdentifierRef = IdentifierRef::const_new("option");
+const MOD_STRING: &IdentifierRef = IdentifierRef::const_new("string");
 
-const TYPE_ID: &IdentStr = ident_str!("ID");
-const TYPE_OPTION: &IdentStr = ident_str!("Option");
-const TYPE_STRING: &IdentStr = ident_str!("String");
-const TYPE_UID: &IdentStr = ident_str!("UID");
+const TYPE_ID: &IdentifierRef = IdentifierRef::const_new("ID");
+const TYPE_OPTION: &IdentifierRef = IdentifierRef::const_new("Option");
+const TYPE_STRING: &IdentifierRef = IdentifierRef::const_new("String");
+const TYPE_UID: &IdentifierRef = IdentifierRef::const_new("UID");
 
 #[derive(SimpleObject)]
 #[graphql(complex)]
@@ -159,7 +159,7 @@ impl MoveValue {
     fn value_impl(&self, layout: A::MoveTypeLayout) -> Result<A::MoveValue, Error> {
         // TODO (annotated-visitor): deserializing directly using a custom visitor.
         BoundedVisitor::deserialize_value(&self.bcs.0[..], &layout).map_err(|_| {
-            let type_tag: TypeTag = (&layout).into();
+            let type_tag = type_tag_core_to_sdk(&(&layout).into());
             Error::Internal(format!(
                 "Failed to deserialize Move value for type: {type_tag}"
             ))
@@ -200,6 +200,7 @@ impl TryFrom<A::MoveValue> for MoveData {
 
             V::Struct(s) => {
                 let A::MoveStruct { type_, fields } = s;
+                let type_ = struct_tag_core_to_sdk(&type_);
                 if is_type(&type_, &STD, MOD_OPTION, TYPE_OPTION) {
                     // 0x1::option::Option
                     Self::Option(match extract_option(&type_, fields)? {
@@ -247,10 +248,12 @@ impl TryFrom<A::MoveValue> for MoveData {
     }
 }
 
-impl TryFrom<(Identifier, A::MoveValue)> for MoveField {
+impl TryFrom<(move_core_types::identifier::Identifier, A::MoveValue)> for MoveField {
     type Error = Error;
 
-    fn try_from((ident, value): (Identifier, A::MoveValue)) -> Result<Self, Error> {
+    fn try_from(
+        (ident, value): (move_core_types::identifier::Identifier, A::MoveValue),
+    ) -> Result<Self, Error> {
         Ok(MoveField {
             name: ident.to_string(),
             value: MoveData::try_from(value)?,
@@ -279,6 +282,7 @@ fn try_to_json_value(value: A::MoveValue) -> Result<Value, Error> {
 
         V::Struct(s) => {
             let A::MoveStruct { type_, fields } = s;
+            let type_ = struct_tag_core_to_sdk(&type_);
             if is_type(&type_, &STD, MOD_OPTION, TYPE_OPTION) {
                 // 0x1::option::Option
                 match extract_option(&type_, fields)? {
@@ -334,10 +338,13 @@ fn try_to_json_value(value: A::MoveValue) -> Result<Value, Error> {
     })
 }
 
-fn is_type(tag: &StructTag, address: &AccountAddress, module: &IdentStr, name: &IdentStr) -> bool {
-    &tag.address == address
-        && tag.module.as_ident_str() == module
-        && tag.name.as_ident_str() == name
+fn is_type(
+    tag: &StructTag,
+    address: &Address,
+    module: &IdentifierRef,
+    name: &IdentifierRef,
+) -> bool {
+    tag.address == *address && tag.module == module && tag.name == name
 }
 
 macro_rules! extract_field {
@@ -387,7 +394,7 @@ fn extract_bytes(value: A::MoveValue) -> Result<Vec<u8>, Error> {
 /// `std::string::String`.
 fn extract_string(
     type_: &StructTag,
-    fields: Vec<(Identifier, A::MoveValue)>,
+    fields: Vec<(move_core_types::identifier::Identifier, A::MoveValue)>,
 ) -> Result<String, Error> {
     let bytes = extract_bytes(extract_field!(type_, fields, bytes))?;
     String::from_utf8(bytes).map_err(|e| {
@@ -415,8 +422,8 @@ fn extract_string(
 /// Which matches `0x2::object::ID`.
 fn extract_id(
     type_: &StructTag,
-    fields: Vec<(Identifier, A::MoveValue)>,
-) -> Result<AccountAddress, Error> {
+    fields: Vec<(move_core_types::identifier::Identifier, A::MoveValue)>,
+) -> Result<Address, Error> {
     use A::MoveValue as V;
     let V::Address(addr) = extract_field!(type_, fields, bytes) else {
         return Err(Error::Internal(
@@ -424,7 +431,7 @@ fn extract_id(
         ));
     };
 
-    Ok(addr)
+    Ok(Address::new(addr.into_bytes()))
 }
 
 /// Extracts an address from the contents of a Move Struct, assuming the struct
@@ -437,8 +444,8 @@ fn extract_id(
 /// Which matches `0x2::object::UID`.
 fn extract_uid(
     type_: &StructTag,
-    fields: Vec<(Identifier, A::MoveValue)>,
-) -> Result<AccountAddress, Error> {
+    fields: Vec<(move_core_types::identifier::Identifier, A::MoveValue)>,
+) -> Result<Address, Error> {
     use A::MoveValue as V;
     let V::Struct(s) = extract_field!(type_, fields, id) else {
         return Err(Error::Internal(
@@ -447,6 +454,7 @@ fn extract_uid(
     };
 
     let A::MoveStruct { type_, fields } = s;
+    let type_ = struct_tag_core_to_sdk(&type_);
     if !is_type(&type_, &IOTA, MOD_OBJECT, TYPE_ID) {
         return Err(Error::Internal(
             "Expected UID.id to have type ID.".to_string(),
@@ -467,7 +475,7 @@ fn extract_uid(
 /// `0x1::option::Option<T>`.
 fn extract_option(
     type_: &StructTag,
-    fields: Vec<(Identifier, A::MoveValue)>,
+    fields: Vec<(move_core_types::identifier::Identifier, A::MoveValue)>,
 ) -> Result<Option<A::MoveValue>, Error> {
     let A::MoveValue::Vector(mut elements) = extract_field!(type_, fields, vec) else {
         return Err(Error::Internal(
@@ -491,6 +499,7 @@ mod tests {
     use expect_test::expect;
     use move_core_types::{
         annotated_value::{self as A, MoveFieldLayout, MoveStructLayout as S, MoveTypeLayout as L},
+        ident_str,
         u256::U256,
     };
 
@@ -499,7 +508,7 @@ mod tests {
     macro_rules! struct_layout {
         ($type:literal { $($name:literal : $layout:expr),* $(,)?}) => {
             A::MoveTypeLayout::Struct(Box::new(S {
-                type_: StructTag::from_str($type).expect("failed to parse struct"),
+                type_: move_core_types::language_storage::StructTag::from_str($type).expect("failed to parse struct"),
                 fields: vec![$(MoveFieldLayout {
                     name: ident_str!($name).to_owned(),
                     layout: $layout,
@@ -519,7 +528,7 @@ mod tests {
     }
 
     fn data<T: Serialize>(layout: A::MoveTypeLayout, data: T) -> Result<MoveData, Error> {
-        let tag: TypeTag = (&layout).into();
+        let tag: TypeTag = type_tag_core_to_sdk(&(&layout).into());
 
         // The format for type from its `Display` impl does not technically match the
         // format that the RPC expects from the data layer (where a type's
@@ -539,7 +548,7 @@ mod tests {
     }
 
     fn json<T: Serialize>(layout: A::MoveTypeLayout, data: T) -> Result<Json, Error> {
-        let tag: TypeTag = (&layout).into();
+        let tag: TypeTag = type_tag_core_to_sdk(&(&layout).into());
         let type_ = MoveType::from(tag);
         let bcs = Base64(bcs::to_bytes(&data).unwrap());
         MoveValue { type_, bcs }.json_impl(layout)

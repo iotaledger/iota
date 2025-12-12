@@ -31,7 +31,7 @@ fn many_backedges() {
     m.signatures
         .push(Signature(vec![SignatureToken::Bool, SignatureToken::U8]));
     m.identifiers
-        .push(Identifier::new("returns_bool_and_u64").unwrap());
+        .push(IdentifierRef::const_new("returns_bool_and_u64").to_owned());
     m.function_handles.push(FunctionHandle {
         module: ModuleHandleIndex(0),
         name: IdentifierIndex(1),

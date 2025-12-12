@@ -11,16 +11,13 @@
 
 use base_types::{Address, ObjectId, Version};
 pub use iota_network_stack::multiaddr;
+pub use iota_sdk_2::types::{Identifier, IdentifierRef, StructTag, TypeTag};
 use move_binary_format::{
     CompiledModule,
     file_format::{AbilitySet, SignatureToken},
 };
 use move_bytecode_utils::resolve_struct;
-use move_core_types::{
-    account_address::AccountAddress,
-    language_storage::{ModuleId, StructTag},
-};
-pub use move_core_types::{identifier::Identifier, language_storage::TypeTag};
+use move_core_types::{account_address::AccountAddress, language_storage::ModuleId};
 use object::OBJECT_START_VERSION;
 
 use crate::{
@@ -103,12 +100,12 @@ pub const IOTA_SYSTEM_STATE_OBJECT_SHARED_VERSION: Version = OBJECT_START_VERSIO
 pub const IOTA_CLOCK_OBJECT_SHARED_VERSION: Version = OBJECT_START_VERSION;
 pub const IOTA_AUTHENTICATOR_STATE_OBJECT_SHARED_VERSION: Version = OBJECT_START_VERSION;
 
-pub const SYSTEM_PACKAGE_ADDRESSES: &[AccountAddress] = &[
-    AccountAddress::new(Address::STD_LIB.into_bytes()),
-    AccountAddress::new(Address::FRAMEWORK.into_bytes()),
-    AccountAddress::new(Address::SYSTEM.into_bytes()),
-    AccountAddress::new(Address::GENESIS_BRIDGE.into_bytes()),
-    AccountAddress::new(Address::STARDUST.into_bytes()),
+pub const SYSTEM_PACKAGE_ADDRESSES: &[Address] = &[
+    Address::STD_LIB,
+    Address::FRAMEWORK,
+    Address::SYSTEM,
+    Address::GENESIS_BRIDGE,
+    Address::STARDUST,
 ];
 
 pub fn iota_framework_address_concat_string(suffix: &str) -> String {
@@ -151,25 +148,6 @@ pub fn parse_iota_module_id(s: &str) -> anyhow::Result<ModuleId> {
 pub fn parse_iota_fq_name(s: &str) -> anyhow::Result<(ModuleId, String)> {
     use move_core_types::parsing::types::ParsedFqName;
     ParsedFqName::parse(s)?.into_fq_name(&resolve_address)
-}
-
-/// Parse `s` as a struct type: A fully-qualified name, optionally followed by a
-/// list of type parameters (types -- see `parse_iota_type_tag`, separated by
-/// commas, surrounded by angle brackets). Parsing succeeds if and only if `s`
-/// matches this format exactly, with no remaining input. This function is
-/// intended for use within the authority codebase.
-pub fn parse_iota_struct_tag(s: &str) -> anyhow::Result<StructTag> {
-    use move_core_types::parsing::types::ParsedStructType;
-    ParsedStructType::parse(s)?.into_struct_tag(&resolve_address)
-}
-
-/// Parse `s` as a type: Either a struct type (see `parse_iota_struct_tag`), a
-/// primitive type, or a vector with a type parameter. Parsing succeeds if and
-/// only if `s` matches this format exactly, with no remaining input. This
-/// function is intended for use within the authority codebase.
-pub fn parse_iota_type_tag(s: &str) -> anyhow::Result<TypeTag> {
-    use move_core_types::parsing::types::ParsedType;
-    ParsedType::parse(s)?.into_type_tag(&resolve_address)
 }
 
 /// Resolve well-known named addresses into numeric addresses.
@@ -309,6 +287,8 @@ fn is_object_struct(
 
 #[cfg(test)]
 mod tests {
+    use std::str::FromStr;
+
     use expect_test::expect;
 
     use super::*;
@@ -353,7 +333,7 @@ mod tests {
 
     #[test]
     fn test_parse_iota_struct_tag_short_account_addr() {
-        let result = parse_iota_struct_tag("0x2::iota::IOTA").expect("should not error");
+        let result = StructTag::from_str("0x2::iota::IOTA").expect("should not error");
 
         let expected = expect!["0x2::iota::IOTA"];
         expected.assert_eq(&result.to_string());
@@ -366,7 +346,7 @@ mod tests {
 
     #[test]
     fn test_parse_iota_struct_tag_long_account_addr() {
-        let result = parse_iota_struct_tag(
+        let result = StructTag::from_str(
             "0x0000000000000000000000000000000000000000000000000000000000000002::iota::IOTA",
         )
         .expect("should not error");
@@ -383,7 +363,7 @@ mod tests {
     #[test]
     fn test_parse_iota_struct_with_type_param_short_addr() {
         let result =
-            parse_iota_struct_tag("0x2::coin::COIN<0x2::iota::IOTA>").expect("should not error");
+            StructTag::from_str("0x2::coin::COIN<0x2::iota::IOTA>").expect("should not error");
 
         let expected = expect!["0x2::coin::COIN<0x2::iota::IOTA>"];
         expected.assert_eq(&result.to_string());
@@ -396,7 +376,7 @@ mod tests {
 
     #[test]
     fn test_parse_iota_struct_with_type_param_long_addr() {
-        let result = parse_iota_struct_tag("0x0000000000000000000000000000000000000000000000000000000000000002::coin::COIN<0x0000000000000000000000000000000000000000000000000000000000000002::iota::IOTA>")
+        let result = StructTag::from_str("0x0000000000000000000000000000000000000000000000000000000000000002::coin::COIN<0x0000000000000000000000000000000000000000000000000000000000000002::iota::IOTA>")
             .expect("should not error");
 
         let expected = expect!["0x2::coin::COIN<0x2::iota::IOTA>"];
@@ -410,7 +390,7 @@ mod tests {
 
     #[test]
     fn test_complex_struct_tag_with_short_addr() {
-        let result = parse_iota_struct_tag(
+        let result = StructTag::from_str(
             "0xe7::vec_coin::VecCoin<vector<0x2::coin::Coin<0x2::iota::IOTA>>>",
         )
         .expect("should not error");
@@ -426,7 +406,7 @@ mod tests {
 
     #[test]
     fn test_complex_struct_tag_with_long_addr() {
-        let result = parse_iota_struct_tag("0x00000000000000000000000000000000000000000000000000000000000000e7::vec_coin::VecCoin<vector<0x0000000000000000000000000000000000000000000000000000000000000002::coin::Coin<0x0000000000000000000000000000000000000000000000000000000000000002::iota::IOTA>>>")
+        let result = StructTag::from_str("0x00000000000000000000000000000000000000000000000000000000000000e7::vec_coin::VecCoin<vector<0x0000000000000000000000000000000000000000000000000000000000000002::coin::Coin<0x0000000000000000000000000000000000000000000000000000000000000002::iota::IOTA>>>")
             .expect("should not error");
 
         let expected = expect!["0xe7::vec_coin::VecCoin<vector<0x2::coin::Coin<0x2::iota::IOTA>>>"];
@@ -440,7 +420,7 @@ mod tests {
 
     #[test]
     fn test_dynamic_field_short_addr() {
-        let result = parse_iota_struct_tag(
+        let result = StructTag::from_str(
             "0x2::dynamic_field::Field<address, 0x2::balance::Balance<0x234::coin::COIN>>",
         )
         .expect("should not error");
@@ -457,7 +437,7 @@ mod tests {
 
     #[test]
     fn test_dynamic_field_long_addr() {
-        let result = parse_iota_struct_tag(
+        let result = StructTag::from_str(
             "0x2::dynamic_field::Field<address, 0x2::balance::Balance<0x234::coin::COIN>>",
         )
         .expect("should not error");

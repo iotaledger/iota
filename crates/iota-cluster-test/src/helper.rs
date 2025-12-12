@@ -2,14 +2,14 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use std::str::FromStr;
+
 use anyhow::bail;
 use iota_json_rpc_types::{BalanceChange, IotaData, IotaObjectData, IotaObjectDataOptions};
 use iota_sdk::IotaClient;
 use iota_types::{
-    base_types::ObjectId, error::IotaObjectResponseError, gas_coin::GasCoin, object::Owner,
-    parse_iota_type_tag,
+    TypeTag, base_types::ObjectId, error::IotaObjectResponseError, gas_coin::GasCoin, object::Owner,
 };
-use move_core_types::language_storage::TypeTag;
 use tracing::{debug, trace};
 
 /// A util struct that helps verify IOTA Object.
@@ -200,7 +200,7 @@ impl BalanceChangeChecker {
         self
     }
     pub fn coin_type(mut self, coin_type: &str) -> Self {
-        self.coin_type = Some(parse_iota_type_tag(coin_type).unwrap());
+        self.coin_type = Some(TypeTag::from_str(coin_type).unwrap());
         self
     }
 

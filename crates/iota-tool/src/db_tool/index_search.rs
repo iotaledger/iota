@@ -339,12 +339,12 @@ fn from_module_id_and_event_id(s: &str) -> Result<(ModuleId, (Version, usize)), 
     if tokens.len() != 2 {
         bail!("Invalid module id");
     }
-    let package = ObjectId::from_str(tokens[0].trim())?;
+    let package = AccountAddress::from_str(tokens[0].trim())?;
 
     Ok((
         ModuleId::new(
-            AccountAddress::new(package.into_bytes()),
-            Identifier::from_str(tokens[1].trim())?,
+            package,
+            move_core_types::identifier::Identifier::from_str(tokens[1].trim())?,
         ),
         (tx_seq, event_seq),
     ))

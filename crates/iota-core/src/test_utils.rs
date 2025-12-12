@@ -7,6 +7,7 @@ use std::{sync::Arc, time::Duration};
 use fastcrypto::{hash::MultisetHash, traits::KeyPair};
 use iota_sdk_2::types::crypto::{Intent, IntentScope};
 use iota_types::{
+    IdentifierRef,
     base_types::{
         Address, AuthorityName, ExecutionDigests, ObjectId, ObjectReference, TransactionDigest,
         random_object_ref,
@@ -26,7 +27,6 @@ use iota_types::{
     },
     utils::{create_fake_transaction, to_sender_signed_transaction},
 };
-use move_core_types::ident_str;
 use tokio::time::timeout;
 use tracing::{info, warn};
 
@@ -238,8 +238,8 @@ pub fn make_transfer_object_move_transaction(
         TransactionData::new_move_call(
             src,
             framework_obj_id,
-            ident_str!("object_basics").to_owned(),
-            ident_str!("transfer").to_owned(),
+            IdentifierRef::const_new("object_basics").to_owned(),
+            IdentifierRef::const_new("transfer").to_owned(),
             Vec::new(),
             gas_object_ref,
             args,

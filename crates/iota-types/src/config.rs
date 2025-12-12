@@ -2,25 +2,20 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_sdk_2::types::Address;
-use move_core_types::{
-    account_address::AccountAddress,
-    ident_str,
-    identifier::IdentStr,
-    language_storage::{StructTag, TypeTag},
-};
+use iota_sdk_2::types::{Address, IdentifierRef, StructTag, TypeTag};
+use move_core_types::{account_address::AccountAddress, ident_str, identifier::IdentStr};
 use serde::{Deserialize, Serialize};
 
 use crate::{MoveTypeTagTrait, base_types::EpochId, id::UID};
 
-pub const CONFIG_MODULE_NAME: &IdentStr = ident_str!("config");
-pub const CONFIG_STRUCT_NAME: &IdentStr = ident_str!("Config");
-pub const SETTING_STRUCT_NAME: &IdentStr = ident_str!("Setting");
-pub const SETTING_DATA_STRUCT_NAME: &IdentStr = ident_str!("SettingData");
+pub const CONFIG_MODULE_NAME: &IdentifierRef = IdentifierRef::const_new("config");
+pub const CONFIG_STRUCT_NAME: &IdentifierRef = IdentifierRef::const_new("Config");
+pub const SETTING_STRUCT_NAME: &IdentifierRef = IdentifierRef::const_new("Setting");
+pub const SETTING_DATA_STRUCT_NAME: &IdentifierRef = IdentifierRef::const_new("SettingData");
 pub const RESOLVED_IOTA_CONFIG: (&AccountAddress, &IdentStr, &IdentStr) = (
     &AccountAddress::new(Address::FRAMEWORK.into_bytes()),
-    CONFIG_MODULE_NAME,
-    CONFIG_STRUCT_NAME,
+    ident_str!(CONFIG_MODULE_NAME.as_str()),
+    ident_str!(CONFIG_STRUCT_NAME.as_str()),
 );
 
 /// Rust representation of the Move type 0x2::config::Config.
@@ -46,7 +41,7 @@ pub struct SettingData<V> {
 impl Config {
     pub fn type_() -> StructTag {
         StructTag {
-            address: AccountAddress::new(Address::FRAMEWORK.into_bytes()),
+            address: Address::FRAMEWORK,
             module: CONFIG_MODULE_NAME.to_owned(),
             name: CONFIG_STRUCT_NAME.to_owned(),
             type_params: vec![],
@@ -56,7 +51,7 @@ impl Config {
 
 pub fn setting_type(value_tag: TypeTag) -> StructTag {
     StructTag {
-        address: AccountAddress::new(Address::FRAMEWORK.into_bytes()),
+        address: Address::FRAMEWORK,
         module: CONFIG_MODULE_NAME.to_owned(),
         name: SETTING_STRUCT_NAME.to_owned(),
         type_params: vec![value_tag],
@@ -82,9 +77,9 @@ pub fn is_setting(tag: &StructTag) -> bool {
         name,
         type_params,
     } = tag;
-    *address == AccountAddress::new(Address::FRAMEWORK.into_bytes())
-        && module.as_ident_str() == CONFIG_MODULE_NAME
-        && name.as_ident_str() == SETTING_STRUCT_NAME
+    *address == Address::FRAMEWORK
+        && module == CONFIG_MODULE_NAME
+        && name == SETTING_STRUCT_NAME
         && type_params.len() == 1
 }
 

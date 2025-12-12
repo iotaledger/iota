@@ -3,10 +3,7 @@
 
 use std::{fmt, str::FromStr};
 
-use iota_types::base_types::Address;
-use move_core_types::{
-    account_address::AccountAddress, ident_str, identifier::IdentStr, language_storage::StructTag,
-};
+use iota_types::{IdentifierRef, StructTag, base_types::Address};
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -70,11 +67,11 @@ impl fmt::Display for Name {
 
 impl Name {
     pub fn type_(package_address: Address) -> StructTag {
-        const IOTA_NAMES_NAME_MODULE: &IdentStr = ident_str!("name");
-        const IOTA_NAMES_NAME_STRUCT: &IdentStr = ident_str!("Name");
+        const IOTA_NAMES_NAME_MODULE: &IdentifierRef = IdentifierRef::const_new("name");
+        const IOTA_NAMES_NAME_STRUCT: &IdentifierRef = IdentifierRef::const_new("Name");
 
         StructTag {
-            address: AccountAddress::new(package_address.into_bytes()),
+            address: package_address,
             module: IOTA_NAMES_NAME_MODULE.to_owned(),
             name: IOTA_NAMES_NAME_STRUCT.to_owned(),
             type_params: vec![],

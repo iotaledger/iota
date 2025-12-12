@@ -9,7 +9,7 @@ use std::{
 };
 
 use fastcrypto::traits::{AggregateAuthenticator, KeyPair};
-use move_core_types::{account_address::AccountAddress, language_storage::StructTag};
+use iota_sdk_2::types::StructTag;
 use roaring::RoaringBitmap;
 
 use super::*;
@@ -848,8 +848,8 @@ fn test_sponsored_transaction_validity_check() {
         builder
             .move_call(
                 ObjectId::new(rand::random()),
-                Identifier::new("random_module").unwrap(),
-                Identifier::new("random_function").unwrap(),
+                IdentifierRef::const_new("random_module").to_owned(),
+                IdentifierRef::const_new("random_function").to_owned(),
                 vec![],
                 vec![CallArg::Object(ObjectArg::ImmOrOwnedObject(
                     random_object_ref(),
@@ -1112,9 +1112,9 @@ fn test_move_input_objects() {
     let gas_object_ref = random_object_ref();
     let mk_st = |package: ObjectId, type_args| {
         TypeTag::Struct(Box::new(StructTag {
-            address: AccountAddress::new(package.into_bytes()),
-            module: Identifier::new("foo").unwrap(),
-            name: Identifier::new("bar").unwrap(),
+            address: package.into(),
+            module: IdentifierRef::const_new("foo").to_owned(),
+            name: IdentifierRef::const_new("bar").to_owned(),
             type_params: type_args,
         }))
     };
@@ -1143,8 +1143,8 @@ fn test_move_input_objects() {
     ];
     builder.command(Command::move_call(
         package,
-        Identifier::new("foo").unwrap(),
-        Identifier::new("bar").unwrap(),
+        IdentifierRef::const_new("foo").to_owned(),
+        IdentifierRef::const_new("bar").to_owned(),
         type_args,
         args,
     ));
@@ -1201,9 +1201,9 @@ fn test_unique_input_objects() {
 
     let mk_st = |package: ObjectId, type_args| {
         TypeTag::Struct(Box::new(StructTag {
-            address: AccountAddress::new(package.into_bytes()),
-            module: Identifier::new("foo").unwrap(),
-            name: Identifier::new("bar").unwrap(),
+            address: package.into(),
+            module: IdentifierRef::const_new("foo").to_owned(),
+            name: IdentifierRef::const_new("bar").to_owned(),
             type_params: type_args,
         }))
     };
@@ -1246,15 +1246,15 @@ fn test_unique_input_objects() {
 
     builder.command(Command::move_call(
         package,
-        Identifier::new("test_module").unwrap(),
-        Identifier::new("test_function").unwrap(),
+        IdentifierRef::const_new("test_module").to_owned(),
+        IdentifierRef::const_new("test_function").to_owned(),
         type_args.clone(),
         args_1,
     ));
     builder.command(Command::move_call(
         package,
-        Identifier::new("test_module").unwrap(),
-        Identifier::new("test_function").unwrap(),
+        IdentifierRef::const_new("test_module").to_owned(),
+        IdentifierRef::const_new("test_function").to_owned(),
         type_args,
         args_2,
     ));

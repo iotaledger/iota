@@ -2,10 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_sdk_2::types::Address;
-use move_core_types::{
-    account_address::AccountAddress, ident_str, identifier::IdentStr, language_storage::StructTag,
-};
+use iota_sdk_2::types::{Address, IdentifierRef, StructTag};
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -45,12 +42,14 @@ pub const VALIDATOR_VERY_LOW_STAKE_THRESHOLD_NANOS: u64 = 1_000_000 * NANOS_PER_
 /// for this many epochs before being kicked out.
 pub const VALIDATOR_LOW_STAKE_GRACE_PERIOD: u64 = 7;
 
-pub const STAKING_POOL_MODULE_NAME: &IdentStr = ident_str!("staking_pool");
-pub const STAKED_IOTA_STRUCT_NAME: &IdentStr = ident_str!("StakedIota");
+pub const STAKING_POOL_MODULE_NAME: &IdentifierRef = IdentifierRef::const_new("staking_pool");
+pub const STAKED_IOTA_STRUCT_NAME: &IdentifierRef = IdentifierRef::const_new("StakedIota");
 
-pub const ADD_STAKE_MUL_COIN_FUN_NAME: &IdentStr = ident_str!("request_add_stake_mul_coin");
-pub const ADD_STAKE_FUN_NAME: &IdentStr = ident_str!("request_add_stake");
-pub const WITHDRAW_STAKE_FUN_NAME: &IdentStr = ident_str!("request_withdraw_stake");
+pub const ADD_STAKE_MUL_COIN_FUN_NAME: &IdentifierRef =
+    IdentifierRef::const_new("request_add_stake_mul_coin");
+pub const ADD_STAKE_FUN_NAME: &IdentifierRef = IdentifierRef::const_new("request_add_stake");
+pub const WITHDRAW_STAKE_FUN_NAME: &IdentifierRef =
+    IdentifierRef::const_new("request_withdraw_stake");
 
 #[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]
 pub struct StakedIota {
@@ -63,7 +62,7 @@ pub struct StakedIota {
 impl StakedIota {
     pub fn type_() -> StructTag {
         StructTag {
-            address: AccountAddress::new(Address::SYSTEM.into_bytes()),
+            address: Address::SYSTEM,
             module: STAKING_POOL_MODULE_NAME.to_owned(),
             name: STAKED_IOTA_STRUCT_NAME.to_owned(),
             type_params: vec![],
@@ -71,9 +70,9 @@ impl StakedIota {
     }
 
     pub fn is_staked_iota(s: &StructTag) -> bool {
-        s.address == AccountAddress::new(Address::SYSTEM.into_bytes())
-            && s.module.as_ident_str() == STAKING_POOL_MODULE_NAME
-            && s.name.as_ident_str() == STAKED_IOTA_STRUCT_NAME
+        s.address == Address::SYSTEM
+            && s.module == STAKING_POOL_MODULE_NAME
+            && s.name == STAKED_IOTA_STRUCT_NAME
             && s.type_params.is_empty()
     }
 

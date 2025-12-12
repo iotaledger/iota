@@ -10,17 +10,12 @@ use std::{
 use derive_more::Display;
 use fastcrypto::hash::HashFunction;
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_2::types::Address;
+use iota_sdk_2::types::{Address, Identifier, IdentifierRef, StructTag};
 use move_binary_format::{
     binary_config::BinaryConfig, file_format::CompiledModule, file_format_common::VERSION_6,
     normalized,
 };
-use move_core_types::{
-    account_address::AccountAddress,
-    ident_str,
-    identifier::{IdentStr, Identifier},
-    language_storage::{ModuleId, StructTag},
-};
+use move_core_types::language_storage::ModuleId;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_with::{Bytes, serde_as};
@@ -39,10 +34,10 @@ use crate::{
 // #[path = "unit_tests/move_package.rs"]
 // mod base_types_tests;
 
-pub const PACKAGE_MODULE_NAME: &IdentStr = ident_str!("package");
-pub const UPGRADECAP_STRUCT_NAME: &IdentStr = ident_str!("UpgradeCap");
-pub const UPGRADETICKET_STRUCT_NAME: &IdentStr = ident_str!("UpgradeTicket");
-pub const UPGRADERECEIPT_STRUCT_NAME: &IdentStr = ident_str!("UpgradeReceipt");
+pub const PACKAGE_MODULE_NAME: &IdentifierRef = IdentifierRef::const_new("package");
+pub const UPGRADECAP_STRUCT_NAME: &IdentifierRef = IdentifierRef::const_new("UpgradeCap");
+pub const UPGRADETICKET_STRUCT_NAME: &IdentifierRef = IdentifierRef::const_new("UpgradeTicket");
+pub const UPGRADERECEIPT_STRUCT_NAME: &IdentifierRef = IdentifierRef::const_new("UpgradeReceipt");
 
 #[derive(Clone, Debug)]
 /// Additional information about a function
@@ -56,7 +51,7 @@ pub struct FnInfo {
 /// Uniquely identifies a function in a module
 pub struct FnInfoKey {
     pub fn_name: String,
-    pub mod_addr: AccountAddress,
+    pub mod_addr: Address,
 }
 
 /// A map from function info keys to function info
@@ -528,7 +523,7 @@ impl MovePackage {
 impl UpgradeCap {
     pub fn type_() -> StructTag {
         StructTag {
-            address: AccountAddress::new(Address::FRAMEWORK.into_bytes()),
+            address: Address::FRAMEWORK,
             module: PACKAGE_MODULE_NAME.to_owned(),
             name: UPGRADECAP_STRUCT_NAME.to_owned(),
             type_params: vec![],
@@ -550,7 +545,7 @@ impl UpgradeCap {
 impl UpgradeTicket {
     pub fn type_() -> StructTag {
         StructTag {
-            address: AccountAddress::new(Address::FRAMEWORK.into_bytes()),
+            address: Address::FRAMEWORK,
             module: PACKAGE_MODULE_NAME.to_owned(),
             name: UPGRADETICKET_STRUCT_NAME.to_owned(),
             type_params: vec![],
@@ -561,7 +556,7 @@ impl UpgradeTicket {
 impl UpgradeReceipt {
     pub fn type_() -> StructTag {
         StructTag {
-            address: AccountAddress::new(Address::FRAMEWORK.into_bytes()),
+            address: Address::FRAMEWORK,
             module: PACKAGE_MODULE_NAME.to_owned(),
             name: UPGRADERECEIPT_STRUCT_NAME.to_owned(),
             type_params: vec![],
@@ -579,10 +574,14 @@ impl UpgradeReceipt {
 }
 
 /// Checks if a function is annotated with one of the test-related annotations
-pub fn is_test_fun(name: &IdentStr, module: &CompiledModule, fn_info_map: &FnInfoMap) -> bool {
-    let fn_name = name.to_string();
+pub fn is_test_fun(name: &str, module: &CompiledModule, fn_info_map: &FnInfoMap) -> bool {
+    let fn_name = name.to_owned();
     let mod_handle = module.self_handle();
-    let mod_addr = *module.address_identifier_at(mod_handle.address);
+    let mod_addr = Address::new(
+        module
+            .address_identifier_at(mod_handle.address)
+            .into_bytes(),
+    );
     let fn_info_key = FnInfoKey { fn_name, mod_addr };
     match fn_info_map.get(&fn_info_key) {
         Some(fn_info) => fn_info.is_test,

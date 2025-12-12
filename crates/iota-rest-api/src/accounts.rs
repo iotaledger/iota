@@ -4,7 +4,6 @@
 
 use axum::extract::{Path, Query, State};
 use iota_sdk_2::types::{Address, ObjectId, StructTag, Version};
-use iota_types::iota_sdk_types_conversions::struct_tag_core_to_sdk;
 use openapiv3::v3_1::Operation;
 use tap::Pipe;
 
@@ -64,7 +63,7 @@ async fn list_account_objects(
                 owner: info.owner.into(),
                 object_id: info.object_id.into(),
                 version: info.version.into(),
-                type_: struct_tag_core_to_sdk(info.type_.into())?,
+                type_: info.type_.into(),
             }
             .pipe(Ok)
         })

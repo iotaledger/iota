@@ -7,11 +7,9 @@ use futures::StreamExt;
 use iota_grpc_types::v0::{common as grpc_common, events as grpc_events};
 use iota_json_rpc_types::EventFilter;
 use iota_types::{
+    Identifier, StructTag,
     base_types::{Address, ObjectId},
     digests::TransactionDigest,
-};
-use move_core_types::{
-    account_address::AccountAddress, identifier::Identifier, language_storage::StructTag,
 };
 use tokio_util::sync::CancellationToken;
 use tonic::{Request, Response, Status};
@@ -79,7 +77,7 @@ impl grpc_events::event_service_server::EventService for EventGrpcService {
                         debug!(
                             "Event matched filter: TX: {}, Type: {}, Sender: {}",
                             event.id.tx_digest,
-                            event.type_.name.as_ident_str(),
+                            event.type_.name,
                             event.sender
                         );
 
@@ -125,7 +123,7 @@ fn create_event_filter(proto_filter: &grpc_events::EventFilter) -> Result<EventF
         Some(Filter::MoveEventType(f)) => {
             let object_id = parse_object_id(&f.package_id, "Package ID")?;
             let struct_tag = StructTag {
-                address: AccountAddress::new(object_id.into_bytes()),
+                address: object_id.into(),
                 module: parse_identifier(&f.module, "module name")?,
                 name: parse_identifier(&f.name, "event name")?,
                 type_params: vec![],

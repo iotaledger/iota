@@ -6,6 +6,7 @@ use std::sync::Arc;
 
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
+    IdentifierRef, StructTag, TypeTag,
     base_types::{Address, ObjectId, ObjectReference, dbg_addr},
     crypto::{AccountKeyPair, get_account_key_pair},
     deny_list_v1::{
@@ -15,11 +16,6 @@ use iota_types::{
     effects::{TransactionEffects, TransactionEffectsAPI},
     object::Object,
     transaction::{CallArg, ObjectArg, TEST_ONLY_GAS_UNIT_FOR_PUBLISH},
-};
-use move_core_types::{
-    account_address::AccountAddress,
-    ident_str,
-    language_storage::{StructTag, TypeTag},
 };
 
 use crate::authority::{
@@ -89,9 +85,9 @@ async fn test_regulated_coin_v1_types() {
         .await
         .version;
     let regulated_coin_type = TypeTag::Struct(Box::new(StructTag {
-        address: AccountAddress::new(package_id.into_bytes()),
-        module: ident_str!("regulated_coin").to_owned(),
-        name: ident_str!("REGULATED_COIN").to_owned(),
+        address: package_id.into(),
+        module: IdentifierRef::const_new("regulated_coin").to_owned(),
+        name: IdentifierRef::const_new("REGULATED_COIN").to_owned(),
         type_params: vec![],
     }));
     let deny_address = dbg_addr(2);

@@ -12,21 +12,16 @@ use std::{
 use anyhow::anyhow;
 use fastcrypto::hash::HashFunction;
 use fastcrypto_zkp::bn254::zk_login::ZkLoginInputs;
-use iota_sdk_2::types::crypto::HashingIntentScope;
 pub use iota_sdk_2::types::object::VersionExt;
+use iota_sdk_2::types::{IdentifierRef, StructTag, TypeTag, crypto::HashingIntentScope};
 use move_binary_format::{CompiledModule, file_format::SignatureToken};
 use move_bytecode_utils::resolve_struct;
 use move_core_types::{
-    account_address::AccountAddress,
-    annotated_value as A, ident_str,
-    identifier::IdentStr,
-    language_storage::{ModuleId, StructTag, TypeTag},
+    account_address::AccountAddress, annotated_value as A, ident_str, identifier::IdentStr,
+    language_storage::ModuleId,
 };
 use schemars::JsonSchema;
-use serde::{
-    Deserialize, Serialize, Serializer,
-    ser::{Error, SerializeSeq},
-};
+use serde::{Deserialize, Serialize, Serializer, ser::SerializeSeq};
 
 use crate::{
     balance::Balance,
@@ -43,11 +38,12 @@ use crate::{
     gas_coin::{GAS, GasCoin},
     governance::{STAKED_IOTA_STRUCT_NAME, STAKING_POOL_MODULE_NAME, StakedIota},
     id::RESOLVED_IOTA_ID,
-    iota_serde::to_iota_struct_tag_string,
+    iota_sdk_types_conversions::{
+        struct_tag_core_to_sdk, struct_tag_sdk_to_core, type_tag_sdk_to_core,
+    },
     messages_checkpoint::CheckpointTimestamp,
     multisig::MultiSigPublicKey,
     object::{Object, Owner},
-    parse_iota_struct_tag,
     signature::GenericSignature,
     stardust::output::{AliasOutput, BasicOutput, Nft, NftOutput},
     timelock::{
@@ -161,17 +157,15 @@ impl MoveObjectType {
         Self(MoveObjectType_::Other(Nft::tag()))
     }
 
-    pub fn address(&self) -> AccountAddress {
+    pub fn address(&self) -> Address {
         match &self.0 {
-            MoveObjectType_::GasCoin | MoveObjectType_::Coin(_) => {
-                AccountAddress::new(Address::FRAMEWORK.into_bytes())
-            }
-            MoveObjectType_::StakedIota => AccountAddress::new(Address::SYSTEM.into_bytes()),
+            MoveObjectType_::GasCoin | MoveObjectType_::Coin(_) => Address::FRAMEWORK,
+            MoveObjectType_::StakedIota => Address::SYSTEM,
             MoveObjectType_::Other(s) => s.address,
         }
     }
 
-    pub fn module(&self) -> &IdentStr {
+    pub fn module(&self) -> &IdentifierRef {
         match &self.0 {
             MoveObjectType_::GasCoin | MoveObjectType_::Coin(_) => COIN_MODULE_NAME,
             MoveObjectType_::StakedIota => STAKING_POOL_MODULE_NAME,
@@ -179,7 +173,7 @@ impl MoveObjectType {
         }
     }
 
-    pub fn name(&self) -> &IdentStr {
+    pub fn name(&self) -> &IdentifierRef {
         match &self.0 {
             MoveObjectType_::GasCoin | MoveObjectType_::Coin(_) => COIN_STRUCT_NAME,
             MoveObjectType_::StakedIota => STAKED_IOTA_STRUCT_NAME,
@@ -215,7 +209,9 @@ impl MoveObjectType {
     }
 
     pub fn module_id(&self) -> ModuleId {
-        ModuleId::new(self.address(), self.module().to_owned())
+        ModuleId::new(AccountAddress::new(self.address().into_bytes()), unsafe {
+            move_core_types::identifier::Identifier::new_unchecked(self.module().as_str())
+        })
     }
 
     pub fn size_for_gas_metering(&self) -> usize {
@@ -288,19 +284,19 @@ impl MoveObjectType {
     }
 
     pub fn is_upgrade_cap(&self) -> bool {
-        self.address() == AccountAddress::new(Address::FRAMEWORK.into_bytes())
+        self.address() == Address::FRAMEWORK
             && self.module().as_str() == "package"
             && self.name().as_str() == "UpgradeCap"
     }
 
     pub fn is_regulated_coin_metadata(&self) -> bool {
-        self.address() == AccountAddress::new(Address::FRAMEWORK.into_bytes())
+        self.address() == Address::FRAMEWORK
             && self.module().as_str() == "coin"
             && self.name().as_str() == "RegulatedCoinMetadata"
     }
 
     pub fn is_coin_deny_cap_v1(&self) -> bool {
-        self.address() == AccountAddress::new(Address::FRAMEWORK.into_bytes())
+        self.address() == Address::FRAMEWORK
             && self.module().as_str() == "coin"
             && self.name().as_str() == "DenyCapV1"
     }
@@ -431,6 +427,12 @@ impl From<StructTag> for MoveObjectType {
     }
 }
 
+impl From<move_core_types::language_storage::StructTag> for MoveObjectType {
+    fn from(value: move_core_types::language_storage::StructTag) -> Self {
+        struct_tag_core_to_sdk(&value).into()
+    }
+}
+
 impl From<MoveObjectType> for StructTag {
     fn from(t: MoveObjectType) -> Self {
         match t.0 {
@@ -442,10 +444,22 @@ impl From<MoveObjectType> for StructTag {
     }
 }
 
+impl From<MoveObjectType> for move_core_types::language_storage::StructTag {
+    fn from(value: MoveObjectType) -> Self {
+        struct_tag_sdk_to_core(&value.into())
+    }
+}
+
 impl From<MoveObjectType> for TypeTag {
     fn from(o: MoveObjectType) -> TypeTag {
         let s: StructTag = o.into();
         TypeTag::Struct(Box::new(s))
+    }
+}
+
+impl From<MoveObjectType> for move_core_types::language_storage::TypeTag {
+    fn from(value: MoveObjectType) -> Self {
+        type_tag_sdk_to_core(&value.into())
     }
 }
 
@@ -463,21 +477,31 @@ pub fn is_primitive_type_tag(t: &TypeTag) -> bool {
                 name,
                 type_params: type_args,
             } = &**st;
-            let resolved_struct = (address, module.as_ident_str(), name.as_ident_str());
             // is id or..
-            if resolved_struct == RESOLVED_IOTA_ID {
+            if address.as_bytes() == RESOLVED_IOTA_ID.0.as_ref()
+                && module.as_str() == RESOLVED_IOTA_ID.1.as_str()
+                && name.as_str() == RESOLVED_IOTA_ID.2.as_str()
+            {
                 return true;
             }
             // is utf8 string
-            if resolved_struct == RESOLVED_UTF8_STR {
+            if address.as_bytes() == RESOLVED_UTF8_STR.0.as_ref()
+                && module.as_str() == RESOLVED_UTF8_STR.1.as_str()
+                && name.as_str() == RESOLVED_UTF8_STR.2.as_str()
+            {
                 return true;
             }
             // is ascii string
-            if resolved_struct == RESOLVED_ASCII_STR {
+            if address.as_bytes() == RESOLVED_ASCII_STR.0.as_ref()
+                && module.as_str() == RESOLVED_ASCII_STR.1.as_str()
+                && name.as_str() == RESOLVED_ASCII_STR.2.as_str()
+            {
                 return true;
             }
             // is option of a primitive
-            resolved_struct == RESOLVED_STD_OPTION
+            address.as_bytes() == RESOLVED_STD_OPTION.0.as_ref()
+                && module.as_str() == RESOLVED_STD_OPTION.1.as_str()
+                && name.as_str() == RESOLVED_STD_OPTION.2.as_str()
                 && type_args.len() == 1
                 && is_primitive_type_tag(&type_args[0])
         }
@@ -521,7 +545,7 @@ impl FromStr for ObjectType {
         if s.to_lowercase() == PACKAGE {
             Ok(ObjectType::Package)
         } else {
-            let tag = parse_iota_struct_tag(s)?;
+            let tag = StructTag::from_str(s)?;
             Ok(ObjectType::Struct(MoveObjectType::from(tag)))
         }
     }
@@ -767,39 +791,39 @@ impl VerifiedExecutionData {
     }
 }
 
-pub const STD_OPTION_MODULE_NAME: &IdentStr = ident_str!("option");
-pub const STD_OPTION_STRUCT_NAME: &IdentStr = ident_str!("Option");
+pub const STD_OPTION_MODULE_NAME: &IdentifierRef = IdentifierRef::const_new("option");
+pub const STD_OPTION_STRUCT_NAME: &IdentifierRef = IdentifierRef::const_new("Option");
 pub const RESOLVED_STD_OPTION: (&AccountAddress, &IdentStr, &IdentStr) = (
     &AccountAddress::new(Address::STD_LIB.into_bytes()),
-    STD_OPTION_MODULE_NAME,
-    STD_OPTION_STRUCT_NAME,
+    ident_str!(STD_OPTION_MODULE_NAME.as_str()),
+    ident_str!(STD_OPTION_STRUCT_NAME.as_str()),
 );
 
-pub const STD_ASCII_MODULE_NAME: &IdentStr = ident_str!("ascii");
-pub const STD_ASCII_STRUCT_NAME: &IdentStr = ident_str!("String");
+pub const STD_ASCII_MODULE_NAME: &IdentifierRef = IdentifierRef::const_new("ascii");
+pub const STD_ASCII_STRUCT_NAME: &IdentifierRef = IdentifierRef::const_new("String");
 pub const RESOLVED_ASCII_STR: (&AccountAddress, &IdentStr, &IdentStr) = (
     &AccountAddress::new(Address::STD_LIB.into_bytes()),
-    STD_ASCII_MODULE_NAME,
-    STD_ASCII_STRUCT_NAME,
+    ident_str!(STD_ASCII_MODULE_NAME.as_str()),
+    ident_str!(STD_ASCII_STRUCT_NAME.as_str()),
 );
 
-pub const STD_UTF8_MODULE_NAME: &IdentStr = ident_str!("string");
-pub const STD_UTF8_STRUCT_NAME: &IdentStr = ident_str!("String");
+pub const STD_UTF8_MODULE_NAME: &IdentifierRef = IdentifierRef::const_new("string");
+pub const STD_UTF8_STRUCT_NAME: &IdentifierRef = IdentifierRef::const_new("String");
 pub const RESOLVED_UTF8_STR: (&AccountAddress, &IdentStr, &IdentStr) = (
     &AccountAddress::new(Address::STD_LIB.into_bytes()),
-    STD_UTF8_MODULE_NAME,
-    STD_UTF8_STRUCT_NAME,
+    ident_str!(STD_UTF8_MODULE_NAME.as_str()),
+    ident_str!(STD_UTF8_STRUCT_NAME.as_str()),
 );
 
-pub const TX_CONTEXT_MODULE_NAME: &IdentStr = ident_str!("tx_context");
-pub const TX_CONTEXT_STRUCT_NAME: &IdentStr = ident_str!("TxContext");
+pub const TX_CONTEXT_MODULE_NAME: &IdentifierRef = IdentifierRef::const_new("tx_context");
+pub const TX_CONTEXT_STRUCT_NAME: &IdentifierRef = IdentifierRef::const_new("TxContext");
 
 pub fn move_ascii_str_layout() -> A::MoveStructLayout {
     A::MoveStructLayout {
-        type_: StructTag {
+        type_: move_core_types::language_storage::StructTag {
             address: AccountAddress::new(Address::STD_LIB.into_bytes()),
-            module: STD_ASCII_MODULE_NAME.to_owned(),
-            name: STD_ASCII_STRUCT_NAME.to_owned(),
+            module: ident_str!(STD_ASCII_MODULE_NAME.as_str()).to_owned(),
+            name: ident_str!(STD_ASCII_STRUCT_NAME.as_str()).to_owned(),
             type_params: vec![],
         },
         fields: vec![A::MoveFieldLayout::new(
@@ -811,10 +835,10 @@ pub fn move_ascii_str_layout() -> A::MoveStructLayout {
 
 pub fn move_utf8_str_layout() -> A::MoveStructLayout {
     A::MoveStructLayout {
-        type_: StructTag {
+        type_: move_core_types::language_storage::StructTag {
             address: AccountAddress::new(Address::STD_LIB.into_bytes()),
-            module: STD_UTF8_MODULE_NAME.to_owned(),
-            name: STD_UTF8_STRUCT_NAME.to_owned(),
+            module: ident_str!(STD_UTF8_MODULE_NAME.as_str()).to_owned(),
+            name: ident_str!(STD_UTF8_STRUCT_NAME.as_str()).to_owned(),
             type_params: vec![],
         },
         fields: vec![A::MoveFieldLayout::new(
@@ -827,7 +851,7 @@ pub fn move_utf8_str_layout() -> A::MoveStructLayout {
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
 pub struct TxContext {
     /// Signer/sender of the transaction
-    sender: AccountAddress,
+    sender: Address,
     /// Digest of the current transaction
     digest: Vec<u8>,
     /// The current epoch number
@@ -866,7 +890,7 @@ impl TxContext {
         epoch_timestamp_ms: u64,
     ) -> Self {
         Self {
-            sender: AccountAddress::new(sender.into_bytes()),
+            sender: *sender,
             digest: digest.into_inner().to_vec(),
             epoch: *epoch_id,
             epoch_timestamp_ms,
@@ -889,9 +913,9 @@ impl TxContext {
         };
 
         let (module_addr, module_name, struct_name) = resolve_struct(view, *idx);
-        let is_tx_context_type = module_name == TX_CONTEXT_MODULE_NAME
-            && module_addr == &AccountAddress::new(Address::FRAMEWORK.into_bytes())
-            && struct_name == TX_CONTEXT_STRUCT_NAME;
+        let is_tx_context_type = module_name.as_str() == TX_CONTEXT_MODULE_NAME.as_str()
+            && module_addr.as_ref() == Address::FRAMEWORK.as_bytes()
+            && struct_name.as_str() == TX_CONTEXT_STRUCT_NAME.as_str();
 
         if is_tx_context_type {
             kind
@@ -995,11 +1019,7 @@ pub enum ObjectIdParseError {
 impl fmt::Display for MoveObjectType {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> std::fmt::Result {
         let s: StructTag = self.clone().into();
-        write!(
-            f,
-            "{}",
-            to_iota_struct_tag_string(&s).map_err(fmt::Error::custom)?
-        )
+        write!(f, "{s}")
     }
 }
 

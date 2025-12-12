@@ -66,7 +66,7 @@ pub(crate) fn select_event_type(event_type: &TypeFilter, sender: Option<IotaAddr
                     write!(
                         name,
                         "{}",
-                        param.to_canonical_display(/* with_prefix */ true)
+                        param.to_canonical_string(/* with_prefix */ true)
                     )
                     .unwrap();
                     prefix = ", ";
@@ -79,7 +79,7 @@ pub(crate) fn select_event_type(event_type: &TypeFilter, sender: Option<IotaAddr
                 select_ev(sender, table),
                 format!(
                     "package = {} and module = {{}} and {} = {{}}",
-                    bytea_literal(package.as_slice()),
+                    bytea_literal(package.as_bytes()),
                     col_name
                 ),
                 module,

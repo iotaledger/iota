@@ -2,15 +2,10 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_sdk_2::types::Address;
+use iota_sdk_2::types::{Address, IdentifierRef, StructTag, TypeTag};
 use move_binary_format::{CompiledModule, file_format::SignatureToken};
 use move_bytecode_utils::resolve_struct;
-use move_core_types::{
-    account_address::AccountAddress,
-    ident_str,
-    identifier::IdentStr,
-    language_storage::{StructTag, TypeTag},
-};
+use move_core_types::{account_address::AccountAddress, ident_str, identifier::IdentStr};
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -18,13 +13,13 @@ use crate::{
     id::ID,
 };
 
-const TRANSFER_MODULE_NAME: &IdentStr = ident_str!("transfer");
-const RECEIVING_STRUCT_NAME: &IdentStr = ident_str!("Receiving");
+const TRANSFER_MODULE_NAME: &IdentifierRef = IdentifierRef::const_new("transfer");
+const RECEIVING_STRUCT_NAME: &IdentifierRef = IdentifierRef::const_new("Receiving");
 
 pub const RESOLVED_RECEIVING_STRUCT: (&AccountAddress, &IdentStr, &IdentStr) = (
     &AccountAddress::new(Address::FRAMEWORK.into_bytes()),
-    TRANSFER_MODULE_NAME,
-    RECEIVING_STRUCT_NAME,
+    ident_str!(TRANSFER_MODULE_NAME.as_str()),
+    ident_str!(RECEIVING_STRUCT_NAME.as_str()),
 );
 
 /// Rust version of the Move iota::transfer::Receiving type
@@ -48,7 +43,7 @@ impl Receiving {
 
     pub fn struct_tag() -> StructTag {
         StructTag {
-            address: AccountAddress::new(Address::FRAMEWORK.into_bytes()),
+            address: Address::FRAMEWORK,
             module: TRANSFER_MODULE_NAME.to_owned(),
             name: RECEIVING_STRUCT_NAME.to_owned(),
             // TODO: this should really include the type parameters eventually when we add type

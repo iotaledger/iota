@@ -8,6 +8,7 @@ use iota_json_rpc_types::{
 use iota_protocol_config::ProtocolVersion;
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
+    IdentifierRef, TypeTag,
     balance::Balance,
     base_types::{Address, ObjectId},
     crypto::{AccountKeyPair, get_key_pair},
@@ -17,7 +18,6 @@ use iota_types::{
     transaction::{CallArg, ObjectArg},
     utils::to_sender_signed_transaction,
 };
-use move_core_types::{identifier::Identifier, language_storage::TypeTag};
 
 use crate::common::{
     ApiTestSetup, indexer_wait_for_checkpoint, indexer_wait_for_latest_checkpoint,
@@ -252,8 +252,8 @@ fn test_timelocked_staking() {
             // Step 1: Get the IOTA balance from the coin object.
             let iota_balance = builder.programmable_move_call(
                 ObjectId::from_address(Address::FRAMEWORK),
-                Identifier::new("coin").unwrap(),
-                Identifier::new("into_balance").unwrap(),
+                IdentifierRef::const_new("coin").to_owned(),
+                IdentifierRef::const_new("into_balance").to_owned(),
                 vec![GAS::type_tag()],
                 vec![iota_coin_argument],
             );
@@ -262,8 +262,8 @@ fn test_timelocked_staking() {
             let timelock_timestamp = builder.input(CallArg::from(u64::MAX)).unwrap();
             let timelocked_iota_balance = builder.programmable_move_call(
                 ObjectId::from_address(Address::FRAMEWORK),
-                Identifier::new("timelock").unwrap(),
-                Identifier::new("lock").unwrap(),
+                IdentifierRef::const_new("timelock").to_owned(),
+                IdentifierRef::const_new("lock").to_owned(),
                 vec![TypeTag::Struct(Box::new(Balance::type_(GAS::type_tag())))],
                 vec![iota_balance, timelock_timestamp],
             );
@@ -283,8 +283,8 @@ fn test_timelocked_staking() {
 
             let _ = builder.programmable_move_call(
                 ObjectId::new(Address::SYSTEM.into_bytes()),
-                Identifier::new("timelocked_staking").unwrap(),
-                Identifier::new("request_add_stake").unwrap(),
+                IdentifierRef::const_new("timelocked_staking").to_owned(),
+                IdentifierRef::const_new("request_add_stake").to_owned(),
                 vec![],
                 vec![state, timelocked_iota_balance, validator],
             );
@@ -364,8 +364,8 @@ fn test_timelocked_unstaking() {
             // Step 1: Get the IOTA balance from the coin object.
             let iota_balance = builder.programmable_move_call(
                 ObjectId::from_address(Address::FRAMEWORK),
-                Identifier::new("coin").unwrap(),
-                Identifier::new("into_balance").unwrap(),
+                IdentifierRef::const_new("coin").to_owned(),
+                IdentifierRef::const_new("into_balance").to_owned(),
                 vec![GAS::type_tag()],
                 vec![iota_coin_argument],
             );
@@ -374,8 +374,8 @@ fn test_timelocked_unstaking() {
             let timelock_timestamp = builder.input(CallArg::from(u64::MAX)).unwrap();
             let timelocked_iota_balance = builder.programmable_move_call(
                 ObjectId::from_address(Address::FRAMEWORK),
-                Identifier::new("timelock").unwrap(),
-                Identifier::new("lock").unwrap(),
+                IdentifierRef::const_new("timelock").to_owned(),
+                IdentifierRef::const_new("lock").to_owned(),
                 vec![TypeTag::Struct(Box::new(Balance::type_(GAS::type_tag())))],
                 vec![iota_balance, timelock_timestamp],
             );
@@ -395,8 +395,8 @@ fn test_timelocked_unstaking() {
 
             let _ = builder.programmable_move_call(
                 ObjectId::new(Address::SYSTEM.into_bytes()),
-                Identifier::new("timelocked_staking").unwrap(),
-                Identifier::new("request_add_stake").unwrap(),
+                IdentifierRef::const_new("timelocked_staking").to_owned(),
+                IdentifierRef::const_new("request_add_stake").to_owned(),
                 vec![],
                 vec![state, timelocked_iota_balance, validator],
             );
@@ -447,8 +447,8 @@ fn test_timelocked_unstaking() {
 
             let _ = builder.programmable_move_call(
                 ObjectId::new(Address::SYSTEM.into_bytes()),
-                Identifier::new("timelocked_staking").unwrap(),
-                Identifier::new("request_withdraw_stake").unwrap(),
+                IdentifierRef::const_new("timelocked_staking").to_owned(),
+                IdentifierRef::const_new("request_withdraw_stake").to_owned(),
                 vec![],
                 vec![state, timelocked_stake_id_argument],
             );

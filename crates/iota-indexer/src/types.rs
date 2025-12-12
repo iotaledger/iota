@@ -7,19 +7,18 @@ use iota_json_rpc_types::{
     ObjectChange,
 };
 use iota_types::{
+    StructTag,
     base_types::{Address, ObjectDigest, ObjectId, Version},
     crypto::AggregateAuthoritySignature,
     digests::TransactionDigest,
     dynamic_field::DynamicFieldType,
     effects::TransactionEffects,
     event::{SystemEpochInfoEvent, SystemEpochInfoEventV1, SystemEpochInfoEventV2},
-    iota_serde::IotaStructTag,
     messages_checkpoint::{CheckpointCommitment, CheckpointDigest, EndOfEpochData},
     move_package::MovePackage,
     object::{Object, Owner},
     transaction::SenderSignedData,
 };
-use move_core_types::language_storage::StructTag;
 #[cfg(any(test, feature = "shared_test_runtime", feature = "pg_integration"))]
 use rand::Rng;
 use serde::{Deserialize, Serialize};
@@ -490,7 +489,6 @@ pub enum IndexedObjectChange {
     Transferred {
         sender: Address,
         recipient: Owner,
-        #[serde_as(as = "IotaStructTag")]
         object_type: StructTag,
         object_id: ObjectId,
         version: Version,
@@ -500,7 +498,6 @@ pub enum IndexedObjectChange {
     Mutated {
         sender: Address,
         owner: Owner,
-        #[serde_as(as = "IotaStructTag")]
         object_type: StructTag,
         object_id: ObjectId,
         version: Version,
@@ -510,7 +507,6 @@ pub enum IndexedObjectChange {
     /// Delete object
     Deleted {
         sender: Address,
-        #[serde_as(as = "IotaStructTag")]
         object_type: StructTag,
         object_id: ObjectId,
         version: Version,
@@ -518,7 +514,6 @@ pub enum IndexedObjectChange {
     /// Wrapped object
     Wrapped {
         sender: Address,
-        #[serde_as(as = "IotaStructTag")]
         object_type: StructTag,
         object_id: ObjectId,
         version: Version,
@@ -527,7 +522,6 @@ pub enum IndexedObjectChange {
     Created {
         sender: Address,
         owner: Owner,
-        #[serde_as(as = "IotaStructTag")]
         object_type: StructTag,
         object_id: ObjectId,
         version: Version,

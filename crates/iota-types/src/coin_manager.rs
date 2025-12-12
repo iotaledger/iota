@@ -1,10 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_sdk_2::types::Address;
-use move_core_types::{
-    account_address::AccountAddress, ident_str, identifier::IdentStr, language_storage::TypeTag,
-};
+use iota_sdk_2::types::{Address, IdentifierRef, TypeTag};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -16,9 +13,10 @@ use crate::{
     object::{Data, Object},
 };
 
-pub const COIN_MANAGER_MODULE_NAME: &IdentStr = ident_str!("coin_manager");
-pub const COIN_MANAGER_STRUCT_NAME: &IdentStr = ident_str!("CoinManager");
-pub const COIN_MANAGER_TREASURY_CAP_STRUCT_NAME: &IdentStr = ident_str!("CoinManagerTreasuryCap");
+pub const COIN_MANAGER_MODULE_NAME: &IdentifierRef = IdentifierRef::const_new("coin_manager");
+pub const COIN_MANAGER_STRUCT_NAME: &IdentifierRef = IdentifierRef::const_new("CoinManager");
+pub const COIN_MANAGER_TREASURY_CAP_STRUCT_NAME: &IdentifierRef =
+    IdentifierRef::const_new("CoinManagerTreasuryCap");
 
 /// The purpose of a CoinManager is to allow access to all
 /// properties of a Coin on-chain from within a single shared object
@@ -50,9 +48,9 @@ pub struct CoinManager {
 
 impl CoinManager {
     pub fn is_coin_manager(object_type: &StructTag) -> bool {
-        object_type.address == AccountAddress::new(Address::FRAMEWORK.into_bytes())
-            && object_type.module.as_ident_str() == COIN_MANAGER_MODULE_NAME
-            && object_type.name.as_ident_str() == COIN_MANAGER_STRUCT_NAME
+        object_type.address == Address::FRAMEWORK
+            && object_type.module == COIN_MANAGER_MODULE_NAME
+            && object_type.name == COIN_MANAGER_STRUCT_NAME
     }
 
     pub fn from_bcs_bytes(content: &[u8]) -> Result<Self, IotaError> {
@@ -63,7 +61,7 @@ impl CoinManager {
 
     pub fn type_(type_param: StructTag) -> StructTag {
         StructTag {
-            address: AccountAddress::new(Address::FRAMEWORK.into_bytes()),
+            address: Address::FRAMEWORK,
             name: COIN_MANAGER_STRUCT_NAME.to_owned(),
             module: COIN_MANAGER_MODULE_NAME.to_owned(),
             type_params: vec![TypeTag::Struct(Box::new(type_param))],
@@ -97,9 +95,9 @@ pub struct CoinManagerTreasuryCap {
 
 impl CoinManagerTreasuryCap {
     pub fn is_coin_manager_treasury_cap(object_type: &StructTag) -> bool {
-        object_type.address == AccountAddress::new(Address::FRAMEWORK.into_bytes())
-            && object_type.module.as_ident_str() == COIN_MANAGER_MODULE_NAME
-            && object_type.name.as_ident_str() == COIN_MANAGER_TREASURY_CAP_STRUCT_NAME
+        object_type.address == Address::FRAMEWORK
+            && object_type.module == COIN_MANAGER_MODULE_NAME
+            && object_type.name == COIN_MANAGER_TREASURY_CAP_STRUCT_NAME
     }
 }
 

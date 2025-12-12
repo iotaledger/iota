@@ -55,11 +55,11 @@ fn unbalanced_stack_crash() {
         .push(Signature(vec![Address, Bool, Address]));
 
     module.identifiers.extend(vec![
-        Identifier::from_str("zf_hello_world").unwrap(),
-        Identifier::from_str("awldFnU18mlDKQfh6qNfBGx8X").unwrap(),
-        Identifier::from_str("aQPwJNHyAHpvJ").unwrap(),
-        Identifier::from_str("aT7ZphKTrKcYCwCebJySrmrKlckmnL5").unwrap(),
-        Identifier::from_str("arYpsFa2fvrpPJ").unwrap(),
+        ident_str!("zf_hello_world").to_owned(),
+        ident_str!("awldFnU18mlDKQfh6qNfBGx8X").to_owned(),
+        ident_str!("aQPwJNHyAHpvJ").to_owned(),
+        ident_str!("aT7ZphKTrKcYCwCebJySrmrKlckmnL5").to_owned(),
+        ident_str!("arYpsFa2fvrpPJ").to_owned(),
     ]);
     module.address_identifiers.push(AccountAddress::random());
 
@@ -142,7 +142,7 @@ fn too_many_locals() {
         function_instantiations: vec![],
         field_instantiations: vec![],
         signatures: vec![Signature(sign_128)],
-        identifiers: vec![Identifier::new("x").unwrap()],
+        identifiers: vec![IdentifierRef::const_new("x").to_owned()],
         address_identifiers: vec![AccountAddress::ONE],
         constant_pool: vec![],
         metadata: vec![],
@@ -198,7 +198,7 @@ fn borrow_graph() {
             Reference(Box::new(U64)),
             Reference(Box::new(U64)),
         ])],
-        identifiers: vec![Identifier::new("a").unwrap()],
+        identifiers: vec![IdentifierRef::const_new("a").to_owned()],
         address_identifiers: vec![AccountAddress::ONE],
         constant_pool: vec![],
         metadata: vec![],
@@ -307,7 +307,7 @@ fn indirect_code() {
             ]),
             Signature(vec![SignatureToken::U64]),
         ],
-        identifiers: vec![Identifier::new("a").unwrap()],
+        identifiers: vec![IdentifierRef::const_new("a").to_owned()],
         address_identifiers: vec![AccountAddress::ONE],
         constant_pool: vec![],
         metadata: vec![],

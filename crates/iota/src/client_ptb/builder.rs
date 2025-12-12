@@ -13,8 +13,9 @@ use iota_move::manage_package::resolve_lock_file_path;
 use iota_sdk::apis::ReadApi;
 use iota_sdk_2::types::Address;
 use iota_types::{
-    Identifier, TypeTag,
+    Identifier, IdentifierRef, TypeTag,
     base_types::{ObjectId, TxContext, TxContextKind, is_primitive_type_tag},
+    iota_sdk_types_conversions::type_tag_core_to_sdk,
     move_package::MovePackage,
     object::Owner,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
@@ -28,7 +29,6 @@ use move_binary_format::{
 use move_core_types::{
     account_address::AccountAddress,
     annotated_value::MoveTypeLayout,
-    ident_str,
     parsing::{
         address::{NumericalAddress, ParsedAddress},
         parser::NumberFormat,
@@ -170,7 +170,7 @@ impl ToPure {
 
     pub fn new_from_layout(layout: MoveTypeLayout) -> Self {
         Self {
-            type_: TypeTag::from(&layout),
+            type_: type_tag_core_to_sdk(&(&layout).into()),
         }
     }
 }
@@ -219,7 +219,7 @@ pub struct PTBBuilder<'a> {
     /// A map from identifiers to addresses. This is used to support address
     /// resolution, and also supports external address sources (e.g.,
     /// keystore).
-    addresses: BTreeMap<String, AccountAddress>,
+    addresses: BTreeMap<String, Address>,
     /// A map from identifiers to the file scopes in which they were declared.
     /// This is used for reporting shadowing warnings.
     identifiers: BTreeMap<String, Vec<Span>>,
@@ -285,7 +285,7 @@ impl ArgWithHistory {
 }
 
 impl<'a> PTBBuilder<'a> {
-    pub fn new(starting_env: BTreeMap<String, AccountAddress>, reader: &'a ReadApi) -> Self {
+    pub fn new(starting_env: BTreeMap<String, Address>, reader: &'a ReadApi) -> Self {
         Self {
             addresses: starting_env,
             identifiers: BTreeMap::new(),
@@ -386,7 +386,8 @@ impl<'a> PTBBuilder<'a> {
     fn declare_possible_address_binding(&mut self, ident: String, possible_addr: &Spanned<PTBArg>) {
         match possible_addr.value {
             PTBArg::Address(addr) => {
-                self.addresses.insert(ident, addr.into_inner());
+                self.addresses
+                    .insert(ident, Address::new(addr.into_inner().into_bytes()));
             }
             PTBArg::Identifier(ref i) => {
                 // We do a one-hop resolution here to see if we can resolve the identifier to an
@@ -550,8 +551,10 @@ impl<'a> PTBBuilder<'a> {
             .function_defs
             .iter()
             .find(|fdef| {
-                module.identifier_at(module.function_handle_at(fdef.function).name)
-                    == function_name.as_ident_str()
+                module
+                    .identifier_at(module.function_handle_at(fdef.function).name)
+                    .as_str()
+                    == function_name.as_str()
             })
             .ok_or_else(|| {
                 let e = err!(
@@ -847,9 +850,11 @@ impl<'a> PTBBuilder<'a> {
                     .insert(i, ArgWithHistory::Unresolved(arg_w_loc));
             }
             ParsedPTBCommand::MakeMoveVec(sp!(ty_loc, ty_arg), sp!(_, args)) => {
-                let ty_arg = ty_arg
-                    .into_type_tag(&resolve_address)
-                    .map_err(|e| err!(ty_loc, "{e}"))?;
+                let ty_arg = type_tag_core_to_sdk(
+                    &ty_arg
+                        .into_type_tag(&resolve_address)
+                        .map_err(|e| err!(ty_loc, "{e}"))?,
+                );
                 let mut vec_args: Vec<Tx::Argument> = vec![];
                 if is_primitive_type_tag(&ty_arg) {
                     for arg in args.into_iter() {
@@ -903,15 +908,15 @@ impl<'a> PTBBuilder<'a> {
 
                 if let Some(sp!(ty_loc, in_ty_args)) = in_ty_args {
                     for t in in_ty_args.into_iter() {
-                        ty_args.push(
-                            t.into_type_tag(&resolve_address)
+                        ty_args.push(type_tag_core_to_sdk(
+                            &t.into_type_tag(&resolve_address)
                                 .map_err(|e| err!(ty_loc, "{e}"))?,
-                        )
+                        ))
                     }
                 }
 
                 let resolved_address = address.value.clone().into_account_address(&|s| {
-                    self.addresses.get(s).cloned().or_else(|| resolve_address(s))
+                    self.addresses.get(s).map(|addr| AccountAddress::new(addr.into_bytes())).or_else(|| resolve_address(s))
                 }).map_err(|e| {
                     let e = err!(address.span, "{e}");
                     if let ParsedAddress::Named(name) = address.value {
@@ -958,7 +963,7 @@ impl<'a> PTBBuilder<'a> {
                         package_path,
                         build_config.install_dir.clone(),
                         chain_id,
-                        AccountAddress::ZERO,
+                        ObjectId::ZERO,
                     )
                     .map_err(|e| err!(pkg_loc, "{e}"))?
                 } else {
@@ -1037,7 +1042,7 @@ impl<'a> PTBBuilder<'a> {
                         &package_path,
                         build_config.install_dir.clone(),
                         chain_id,
-                        AccountAddress::ZERO,
+                        ObjectId::ZERO,
                     )
                     .map_err(|e| err!(path_loc, "{e}"))?
                 } else {
@@ -1092,8 +1097,8 @@ impl<'a> PTBBuilder<'a> {
                     .map_err(|e| err!(cmd_span, "{e}"))?;
                 let upgrade_ticket = self.ptb.command(Tx::Command::move_call(
                     ObjectId::from(Address::FRAMEWORK),
-                    ident_str!("package").to_owned(),
-                    ident_str!("authorize_upgrade").to_owned(),
+                    IdentifierRef::const_new("package").to_owned(),
+                    IdentifierRef::const_new("authorize_upgrade").to_owned(),
                     vec![],
                     vec![upgrade_cap_arg, upgrade_arg, digest_arg],
                 ));
@@ -1109,8 +1114,8 @@ impl<'a> PTBBuilder<'a> {
                 );
                 let res = self.ptb.command(Tx::Command::move_call(
                     ObjectId::from(Address::FRAMEWORK),
-                    ident_str!("package").to_owned(),
-                    ident_str!("commit_upgrade").to_owned(),
+                    IdentifierRef::const_new("package").to_owned(),
+                    IdentifierRef::const_new("commit_upgrade").to_owned(),
                     vec![],
                     vec![upgrade_cap_arg, upgrade_receipt],
                 ));

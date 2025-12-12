@@ -1,10 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_sdk_2::types::Address;
-use move_core_types::{
-    account_address::AccountAddress, ident_str, identifier::IdentStr, language_storage::StructTag,
-};
+use iota_sdk_2::types::{Address, IdentifierRef, StructTag};
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -16,8 +13,10 @@ use crate::{
     object::{Data, Object},
 };
 
-pub const TIMELOCKED_STAKED_IOTA_MODULE_NAME: &IdentStr = ident_str!("timelocked_staking");
-pub const TIMELOCKED_STAKED_IOTA_STRUCT_NAME: &IdentStr = ident_str!("TimelockedStakedIota");
+pub const TIMELOCKED_STAKED_IOTA_MODULE_NAME: &IdentifierRef =
+    IdentifierRef::const_new("timelocked_staking");
+pub const TIMELOCKED_STAKED_IOTA_STRUCT_NAME: &IdentifierRef =
+    IdentifierRef::const_new("TimelockedStakedIota");
 
 /// Rust version of the Move
 /// stardust::timelocked_staked_iota::TimelockedStakedIota type.
@@ -36,7 +35,7 @@ impl TimelockedStakedIota {
     /// Get the TimeLock's `type`.
     pub fn type_() -> StructTag {
         StructTag {
-            address: AccountAddress::new(Address::SYSTEM.into_bytes()),
+            address: Address::SYSTEM,
             module: TIMELOCKED_STAKED_IOTA_MODULE_NAME.to_owned(),
             name: TIMELOCKED_STAKED_IOTA_STRUCT_NAME.to_owned(),
             type_params: vec![],
@@ -45,9 +44,9 @@ impl TimelockedStakedIota {
 
     /// Is this other StructTag representing a TimelockedStakedIota?
     pub fn is_timelocked_staked_iota(s: &StructTag) -> bool {
-        s.address == AccountAddress::new(Address::SYSTEM.into_bytes())
-            && s.module.as_ident_str() == TIMELOCKED_STAKED_IOTA_MODULE_NAME
-            && s.name.as_ident_str() == TIMELOCKED_STAKED_IOTA_STRUCT_NAME
+        s.address == Address::SYSTEM
+            && s.module == TIMELOCKED_STAKED_IOTA_MODULE_NAME
+            && s.name == TIMELOCKED_STAKED_IOTA_STRUCT_NAME
             && s.type_params.is_empty()
     }
 

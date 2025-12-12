@@ -41,7 +41,7 @@ pub struct LinkageView<'state> {
     /// Cache is keyed first by the Runtime ID of the type's module, and then
     /// the type's identifier. The value is the ObjectId/Address of the
     /// package that introduced the type.
-    type_origin_cache: RefCell<HashMap<ModuleId, HashMap<Identifier, AccountAddress>>>,
+    type_origin_cache: RefCell<HashMap<ModuleId, HashMap<Identifier, ObjectId>>>,
     /// Cache of past package addresses that have been the link context -- if a
     /// package is in this set, then we will not try to load its type origin
     /// table when setting it as a context (again).
@@ -50,8 +50,8 @@ pub struct LinkageView<'state> {
 
 #[derive(Debug)]
 pub struct LinkageInfo {
-    storage_id: AccountAddress,
-    runtime_id: AccountAddress,
+    storage_id: ObjectId,
+    runtime_id: ObjectId,
     link_table: BTreeMap<ObjectId, UpgradeInfo>,
 }
 
@@ -81,7 +81,7 @@ impl<'state> LinkageView<'state> {
     pub fn has_linkage(&self, context: ObjectId) -> bool {
         self.linkage_info
             .as_ref()
-            .is_some_and(|l| l.storage_id.as_ref() == context.as_bytes())
+            .is_some_and(|l| l.storage_id == context)
     }
 
     /// Reset the linkage, but save the context that existed before, if there
@@ -114,7 +114,7 @@ impl<'state> LinkageView<'state> {
     /// Set the linkage context to the information based on the linkage and type
     /// origin tables from the `context` package.  Returns the original
     /// package ID (aka the runtime ID) of the context package on success.
-    pub fn set_linkage(&mut self, context: &MovePackage) -> Result<AccountAddress, ExecutionError> {
+    pub fn set_linkage(&mut self, context: &MovePackage) -> Result<ObjectId, ExecutionError> {
         if let Some(existing) = &self.linkage_info {
             invariant_violation!(
                 "Attempt to overwrite linkage info with context from {}. \
@@ -149,16 +149,17 @@ impl<'state> LinkageView<'state> {
                 invariant_violation!("Struct name isn't an identifier: {struct_name}");
             };
 
-            let runtime_id = ModuleId::new(runtime_id, module_name);
+            let runtime_id =
+                ModuleId::new(AccountAddress::new(runtime_id.into_bytes()), module_name);
             self.add_type_origin(runtime_id, struct_name, *defining_id)?;
         }
 
         Ok(runtime_id)
     }
 
-    /// Retrieves the original package ID (as an `AccountAddress`) from the
+    /// Retrieves the original package ID (as an `Address`) from the
     /// linkage information, if available.
-    pub fn original_package_id(&self) -> Option<AccountAddress> {
+    pub fn original_package_id(&self) -> Option<ObjectId> {
         Some(self.linkage_info.as_ref()?.runtime_id)
     }
 
@@ -170,7 +171,7 @@ impl<'state> LinkageView<'state> {
         &self,
         runtime_id: &ModuleId,
         struct_: &IdentStr,
-    ) -> Option<AccountAddress> {
+    ) -> Option<ObjectId> {
         self.type_origin_cache
             .borrow()
             .get(runtime_id)?
@@ -191,11 +192,11 @@ impl<'state> LinkageView<'state> {
 
         match module_cache.entry(struct_) {
             Entry::Vacant(entry) => {
-                entry.insert(AccountAddress::new(defining_id.into_bytes()));
+                entry.insert(defining_id);
             }
 
             Entry::Occupied(entry) => {
-                if entry.get().as_ref() != defining_id.as_bytes() {
+                if *entry.get() != defining_id {
                     invariant_violation!(
                         "Conflicting defining ID for {}::{}: {} and {}",
                         runtime_id,
@@ -211,10 +212,10 @@ impl<'state> LinkageView<'state> {
     }
 
     /// Retrieves the current link context's storage ID as an `AccountAddress`.
-    pub(crate) fn link_context(&self) -> AccountAddress {
+    pub(crate) fn link_context(&self) -> ObjectId {
         self.linkage_info
             .as_ref()
-            .map_or(AccountAddress::ZERO, |l| l.storage_id)
+            .map_or(ObjectId::ZERO, |l| l.storage_id)
     }
 
     /// Relocates a given `ModuleId` based on the current linkage context.
@@ -226,9 +227,9 @@ impl<'state> LinkageView<'state> {
         // The request is to relocate a module in the package that the link context is
         // from.  This entry will not be stored in the linkage table, so must be
         // handled specially.
-        if module_id.address() == &linkage.runtime_id {
+        if module_id.address().as_ref() == linkage.runtime_id.as_bytes() {
             return Ok(ModuleId::new(
-                linkage.storage_id,
+                AccountAddress::new(linkage.storage_id.into_bytes()),
                 module_id.name().to_owned(),
             ));
         }
@@ -266,7 +267,10 @@ impl<'state> LinkageView<'state> {
         }
 
         if let Some(cached) = self.get_cached_type_origin(runtime_id, struct_) {
-            return Ok(ModuleId::new(cached, runtime_id.name().to_owned()));
+            return Ok(ModuleId::new(
+                AccountAddress::new(cached.into_bytes()),
+                runtime_id.name().to_owned(),
+            ));
         }
 
         let storage_id = ObjectId::new(self.relocate(runtime_id)?.address().into_bytes());
@@ -299,8 +303,8 @@ impl<'state> LinkageView<'state> {
 impl From<&MovePackage> for LinkageInfo {
     fn from(package: &MovePackage) -> Self {
         Self {
-            storage_id: AccountAddress::new(package.id().into_bytes()),
-            runtime_id: AccountAddress::new(package.original_package_id().into_bytes()),
+            storage_id: package.id(),
+            runtime_id: package.original_package_id(),
             link_table: package.linkage_table().clone(),
         }
     }
@@ -310,7 +314,7 @@ impl LinkageResolver for LinkageView<'_> {
     type Error = IotaError;
 
     fn link_context(&self) -> AccountAddress {
-        LinkageView::link_context(self)
+        AccountAddress::new(LinkageView::link_context(self).into_bytes())
     }
 
     fn relocate(&self, module_id: &ModuleId) -> Result<ModuleId, Self::Error> {

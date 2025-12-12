@@ -8,7 +8,7 @@ use async_trait::async_trait;
 use futures::future::join_all;
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
-    Identifier,
+    IdentifierRef,
     base_types::{Address, ObjectId, ObjectReference, Version},
     crypto::{AccountKeyPair, get_key_pair},
     object::Owner,
@@ -128,8 +128,8 @@ impl RandomizedTransactionPayload {
                 builder
                     .move_call(
                         self.package_id,
-                        Identifier::new("counter").unwrap(),
-                        Identifier::new("increment").unwrap(),
+                        IdentifierRef::const_new("counter").to_owned(),
+                        IdentifierRef::const_new("increment").to_owned(),
                         vec![],
                         vec![CallArg::Object(ObjectArg::SharedObject {
                             object_id: self.shared_objects[next_shared_input_index].object_id,
@@ -144,8 +144,8 @@ impl RandomizedTransactionPayload {
                 builder
                     .move_call(
                         self.package_id,
-                        Identifier::new("counter").unwrap(),
-                        Identifier::new("set_value").unwrap(),
+                        IdentifierRef::const_new("counter").to_owned(),
+                        IdentifierRef::const_new("set_value").to_owned(),
                         vec![],
                         vec![
                             CallArg::Object(ObjectArg::SharedObject {
@@ -164,8 +164,8 @@ impl RandomizedTransactionPayload {
                 builder
                     .move_call(
                         self.package_id,
-                        Identifier::new("counter").unwrap(),
-                        Identifier::new("value").unwrap(),
+                        IdentifierRef::const_new("counter").to_owned(),
+                        IdentifierRef::const_new("value").to_owned(),
                         vec![],
                         vec![CallArg::Object(ObjectArg::SharedObject {
                             object_id: self.shared_objects[next_shared_input_index].object_id,
@@ -183,8 +183,8 @@ impl RandomizedTransactionPayload {
         builder
             .move_call(
                 self.package_id,
-                Identifier::new("random").unwrap(),
-                Identifier::new("new").unwrap(),
+                IdentifierRef::const_new("random").to_owned(),
+                IdentifierRef::const_new("new").to_owned(),
                 vec![],
                 vec![CallArg::Object(ObjectArg::SharedObject {
                     object_id: ObjectId::RANDOMNESS_STATE,

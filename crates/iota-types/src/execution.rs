@@ -4,8 +4,7 @@
 
 use std::collections::{BTreeMap, BTreeSet, HashSet};
 
-use iota_sdk_2::types::Address;
-use move_core_types::language_storage::TypeTag;
+use iota_sdk_2::types::{Address, TypeTag};
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 

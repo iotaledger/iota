@@ -52,7 +52,7 @@ pub fn verify_module(
         let name = module.identifier_at(handle.name);
 
         // allow calling init function in the test code
-        if !is_test_fun(name, module, fn_info_map) {
+        if !is_test_fun(name.as_str(), module, fn_info_map) {
             verify_init_not_called(module, func_def).map_err(verification_failure)?;
         }
 

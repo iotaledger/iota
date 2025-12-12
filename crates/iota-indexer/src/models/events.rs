@@ -8,13 +8,12 @@ use diesel::prelude::*;
 use iota_json_rpc_types::{BcsEvent, IotaEvent, type_and_fields_from_move_event_data};
 use iota_package_resolver::{PackageStore, Resolver};
 use iota_types::{
+    Identifier, StructTag,
     base_types::{Address, ObjectId},
     digests::TransactionDigest,
     event::EventID,
     object::bounded_visitor::BoundedVisitor,
-    parse_iota_struct_tag,
 };
-use move_core_types::identifier::Identifier;
 
 use crate::{errors::IndexerError, schema::events, types::IndexedEvent};
 
@@ -105,7 +104,7 @@ impl StoredEvent {
             }
         };
 
-        let type_ = parse_iota_struct_tag(&self.event_type)?;
+        let type_ = StructTag::from_str(&self.event_type).map_err(|e| anyhow::anyhow!(e))?;
         let move_type_layout = package_resolver
             .type_layout(type_.clone().into())
             .await
@@ -130,7 +129,8 @@ impl StoredEvent {
                 event_seq: self.event_sequence_number as u64,
             },
             package_id,
-            transaction_module: Identifier::from_str(&self.module)?,
+            transaction_module: Identifier::new(&self.module)
+                .map_err(|e| IndexerError::Serde(e.to_string()))?,
             sender,
             type_,
             bcs: BcsEvent::new(self.bcs),
@@ -142,8 +142,7 @@ impl StoredEvent {
 
 #[cfg(test)]
 mod tests {
-    use iota_types::event::Event;
-    use move_core_types::{account_address::AccountAddress, language_storage::StructTag};
+    use iota_types::{IdentifierRef, event::Event};
 
     use super::*;
 
@@ -152,12 +151,12 @@ mod tests {
         let tx_digest = TransactionDigest::default();
         let event = Event {
             package_id: ObjectId::new(rand::random()),
-            transaction_module: Identifier::new("test").unwrap(),
+            transaction_module: IdentifierRef::const_new("test").to_owned(),
             sender: Address::new(rand::random()),
             type_: StructTag {
-                address: AccountAddress::TWO,
-                module: Identifier::new("test").unwrap(),
-                name: Identifier::new("test").unwrap(),
+                address: Address::FRAMEWORK,
+                module: IdentifierRef::const_new("test").to_owned(),
+                name: IdentifierRef::const_new("test").to_owned(),
                 type_params: vec![],
             },
             contents: vec![],

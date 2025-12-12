@@ -8,15 +8,14 @@ use anyhow::{Result, bail};
 use iota_data_ingestion_core::Worker;
 use iota_package_resolver::{PackageStore, Resolver};
 use iota_types::{
+    StructTag, TypeTag,
     base_types::ObjectId,
     effects::{TransactionEffects, TransactionEffectsAPI},
+    iota_sdk_types_conversions::struct_tag_core_to_sdk,
     object::{Object, Owner, bounded_visitor::BoundedVisitor},
     transaction::{TransactionData, TransactionDataAPI},
 };
-use move_core_types::{
-    annotated_value::{MoveStruct, MoveTypeLayout, MoveValue},
-    language_storage::{StructTag, TypeTag},
-};
+use move_core_types::annotated_value::{MoveStruct, MoveTypeLayout, MoveValue};
 
 use crate::{
     FileType,
@@ -203,7 +202,7 @@ fn parse_struct(
     all_structs: &mut BTreeMap<String, WrappedStruct>,
 ) {
     let mut wrapped_struct = WrappedStruct {
-        struct_tag: Some(move_struct.type_),
+        struct_tag: Some(struct_tag_core_to_sdk(&move_struct.type_)),
         ..Default::default()
     };
     for (k, v) in move_struct.fields {
@@ -287,42 +286,40 @@ fn parse_struct_field(
 
 #[cfg(test)]
 mod tests {
-    use std::{collections::BTreeMap, str::FromStr};
+    use std::str::FromStr;
 
-    use iota_types::base_types::ObjectId;
+    use iota_types::iota_sdk_types_conversions::struct_tag_sdk_to_core;
     use move_core_types::{
-        account_address::AccountAddress,
-        annotated_value::{MoveStruct, MoveValue, MoveVariant},
-        identifier::Identifier,
-        language_storage::StructTag,
+        account_address::AccountAddress, annotated_value::MoveVariant, ident_str,
     };
 
+    use super::*;
     use crate::handlers::parse_struct;
 
     #[tokio::test]
     async fn test_wrapped_object_parsing() -> anyhow::Result<()> {
         let uid_field = MoveValue::Struct(MoveStruct {
-            type_: StructTag::from_str("0x2::object::UID")?,
+            type_: struct_tag_sdk_to_core(&StructTag::from_str("0x2::object::UID")?),
             fields: vec![(
-                Identifier::from_str("id")?,
+                ident_str!("id").to_owned(),
                 MoveValue::Struct(MoveStruct {
-                    type_: StructTag::from_str("0x2::object::ID")?,
+                    type_: struct_tag_sdk_to_core(&StructTag::from_str("0x2::object::ID")?),
                     fields: vec![(
-                        Identifier::from_str("bytes")?,
+                        ident_str!("bytes").to_owned(),
                         MoveValue::Signer(AccountAddress::from_hex_literal("0x300")?),
                     )],
                 }),
             )],
         });
         let balance_field = MoveValue::Struct(MoveStruct {
-            type_: StructTag::from_str("0x2::balance::Balance")?,
-            fields: vec![(Identifier::from_str("value")?, MoveValue::U32(10))],
+            type_: struct_tag_sdk_to_core(&StructTag::from_str("0x2::balance::Balance")?),
+            fields: vec![(ident_str!("value").to_owned(), MoveValue::U32(10))],
         });
         let move_struct = MoveStruct {
-            type_: StructTag::from_str("0x2::test::Test")?,
+            type_: struct_tag_sdk_to_core(&StructTag::from_str("0x2::test::Test")?),
             fields: vec![
-                (Identifier::from_str("id")?, uid_field),
-                (Identifier::from_str("principal")?, balance_field),
+                (ident_str!("id").to_owned(), uid_field),
+                (ident_str!("principal").to_owned(), balance_field),
             ],
         };
         let mut all_structs = BTreeMap::new();
@@ -341,37 +338,37 @@ mod tests {
     #[tokio::test]
     async fn test_wrapped_object_parsing_within_enum() -> anyhow::Result<()> {
         let uid_field = MoveValue::Struct(MoveStruct {
-            type_: StructTag::from_str("0x2::object::UID")?,
+            type_: struct_tag_sdk_to_core(&StructTag::from_str("0x2::object::UID")?),
             fields: vec![(
-                Identifier::from_str("id")?,
+                ident_str!("id").to_owned(),
                 MoveValue::Struct(MoveStruct {
-                    type_: StructTag::from_str("0x2::object::ID")?,
+                    type_: struct_tag_sdk_to_core(&StructTag::from_str("0x2::object::ID")?),
                     fields: vec![(
-                        Identifier::from_str("bytes")?,
+                        ident_str!("bytes").to_owned(),
                         MoveValue::Signer(AccountAddress::from_hex_literal("0x300")?),
                     )],
                 }),
             )],
         });
         let balance_field = MoveValue::Struct(MoveStruct {
-            type_: StructTag::from_str("0x2::balance::Balance")?,
-            fields: vec![(Identifier::from_str("value")?, MoveValue::U32(10))],
+            type_: struct_tag_sdk_to_core(&StructTag::from_str("0x2::balance::Balance")?),
+            fields: vec![(ident_str!("value").to_owned(), MoveValue::U32(10))],
         });
         let move_enum = MoveVariant {
-            type_: StructTag::from_str("0x2::test::TestEnum")?,
-            variant_name: Identifier::from_str("TestVariant")?,
+            type_: struct_tag_sdk_to_core(&StructTag::from_str("0x2::test::TestEnum")?),
+            variant_name: ident_str!("TestVariant").to_owned(),
             tag: 0,
             fields: vec![
-                (Identifier::from_str("field0")?, MoveValue::U64(10)),
-                (Identifier::from_str("principal")?, balance_field),
+                (ident_str!("field0").to_owned(), MoveValue::U64(10)),
+                (ident_str!("principal").to_owned(), balance_field),
             ],
         };
         let move_struct = MoveStruct {
-            type_: StructTag::from_str("0x2::test::Test")?,
+            type_: struct_tag_sdk_to_core(&StructTag::from_str("0x2::test::Test")?),
             fields: vec![
-                (Identifier::from_str("id")?, uid_field),
+                (ident_str!("id").to_owned(), uid_field),
                 (
-                    Identifier::from_str("enum_field")?,
+                    ident_str!("enum_field").to_owned(),
                     MoveValue::Variant(move_enum),
                 ),
             ],

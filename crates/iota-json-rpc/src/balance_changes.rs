@@ -10,6 +10,7 @@ use std::{
 use async_trait::async_trait;
 use iota_json_rpc_types::BalanceChange;
 use iota_types::{
+    TypeTag,
     base_types::{ObjectId, ObjectReference, Version},
     coin::Coin,
     digests::ObjectDigest,
@@ -20,7 +21,6 @@ use iota_types::{
     storage::WriteKind,
     transaction::InputObjectKind,
 };
-use move_core_types::language_storage::TypeTag;
 use tokio::sync::RwLock;
 use tracing::instrument;
 

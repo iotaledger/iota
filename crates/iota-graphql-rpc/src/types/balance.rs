@@ -290,7 +290,7 @@ fn filter(mut query: RawQuery, owner: IotaAddress, coin_type: Option<TypeTag>) -
         query = filter!(
             query,
             "coin_type = {}",
-            coin_type.to_canonical_display(/* with_prefix */ true)
+            coin_type.to_canonical_string(/* with_prefix */ true)
         );
     };
 

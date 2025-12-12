@@ -7,6 +7,7 @@ use std::collections::VecDeque;
 use iota_types::{
     base_types::{MoveObjectType, ObjectId},
     dynamic_field::derive_dynamic_field_id,
+    iota_sdk_types_conversions::type_tag_core_to_sdk,
 };
 use move_binary_format::errors::{PartialVMError, PartialVMResult};
 use move_core_types::{
@@ -146,7 +147,7 @@ pub fn hash_type_and_key(
     let Some(k_bytes) = k.simple_serialize(&k_layout) else {
         return Ok(NativeResult::err(cost, E_BCS_SERIALIZATION_FAILURE));
     };
-    let Ok(id) = derive_dynamic_field_id(*parent, &k_tag, &k_bytes) else {
+    let Ok(id) = derive_dynamic_field_id(*parent, &type_tag_core_to_sdk(&k_tag), &k_bytes) else {
         return Ok(NativeResult::err(cost, E_BCS_SERIALIZATION_FAILURE));
     };
 

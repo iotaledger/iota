@@ -69,7 +69,7 @@ impl Worker for ObjectHandler {
                 state
                     .resolver
                     .package_store()
-                    .evict(SYSTEM_PACKAGE_ADDRESSES.iter().copied());
+                    .evict(SYSTEM_PACKAGE_ADDRESSES.iter().copied().map(Into::into));
             }
         }
         Ok(())

@@ -31,7 +31,6 @@ use iota_source_validation_service::{
     SourceServiceMetrics, host_port, initialize, serve, start_prometheus_server, verify_packages,
     watch_for_upgrades,
 };
-use move_core_types::account_address::AccountAddress;
 use move_symbol_pool::Symbol;
 use reqwest::Client;
 use test_cluster::TestClusterBuilder;
@@ -318,7 +317,7 @@ async fn test_api_route() -> anyhow::Result<()> {
         },
     );
     let mut address_lookup = AddressLookup::new();
-    let account_address = AccountAddress::from_hex_literal(address).unwrap();
+    let account_address = ObjectId::from_hex(address).unwrap();
     address_lookup.insert(account_address, source_lookup);
     let mut sources = NetworkLookup::new();
     sources.insert(Network::Localnet, address_lookup);

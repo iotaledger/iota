@@ -74,8 +74,8 @@ fn mk_module_entry(pool: &mut RcPool, vis: u8, is_entry: bool) -> NormalizedModu
         ],
         self_module_handle_idx: ModuleHandleIndex(0),
         identifiers: vec![
-            Identifier::new("M").unwrap(),  // Module name
-            Identifier::new("fn").unwrap(), // Function name
+            IdentifierRef::const_new("M").to_owned(),  // Module name
+            IdentifierRef::const_new("fn").to_owned(), // Function name
         ],
         address_identifiers: vec![
             AccountAddress::ZERO, // Module address
@@ -169,9 +169,9 @@ fn mk_module_plus_code_perm(
         ],
         self_module_handle_idx: ModuleHandleIndex(0),
         identifiers: p.pool(vec![
-            Identifier::new("M").unwrap(),   // Module name
-            Identifier::new("fn").unwrap(),  // Function name
-            Identifier::new("fn1").unwrap(), // Function name
+            IdentifierRef::const_new("M").to_owned(),   // Module name
+            IdentifierRef::const_new("fn").to_owned(),  // Function name
+            IdentifierRef::const_new("fn1").to_owned(), // Function name
         ]),
         address_identifiers: vec![
             AccountAddress::ZERO, // Module address
@@ -278,15 +278,15 @@ fn make_complex_module_perm(pool: &mut RcPool, p: Permutation) -> NormalizedModu
         ],
         self_module_handle_idx: ModuleHandleIndex(0),
         identifiers: p.pool(vec![
-            Identifier::new("M").unwrap(),       // Module name
-            Identifier::new("S").unwrap(),       // Struct name
-            Identifier::new("GS").unwrap(),      // Generic struct name
-            Identifier::new("R").unwrap(),       // Resource name
-            Identifier::new("GR").unwrap(),      // Generic resource name
-            Identifier::new("f").unwrap(),       // Field name
-            Identifier::new("fn").unwrap(),      // Function name
-            Identifier::new("g_fn").unwrap(),    // Generic function name
-            Identifier::new("test_fn").unwrap(), // Test function name
+            IdentifierRef::const_new("M").to_owned(),       // Module name
+            IdentifierRef::const_new("S").to_owned(),       // Struct name
+            IdentifierRef::const_new("GS").to_owned(),      // Generic struct name
+            IdentifierRef::const_new("R").to_owned(),       // Resource name
+            IdentifierRef::const_new("GR").to_owned(),      // Generic resource name
+            IdentifierRef::const_new("f").to_owned(),       // Field name
+            IdentifierRef::const_new("fn").to_owned(),      // Function name
+            IdentifierRef::const_new("g_fn").to_owned(),    // Generic function name
+            IdentifierRef::const_new("test_fn").to_owned(), // Test function name
         ]),
         address_identifiers: vec![
             AccountAddress::ZERO, // Module address
@@ -557,7 +557,7 @@ fn mk_module_with_defs(
     friend_defs: Vec<(Identifier, AccountAddress)>,
 ) -> NormalizedModule {
     let mut identifiers = vec![
-        Identifier::new("M").unwrap(), // Module name
+        IdentifierRef::const_new("M").to_owned(), // Module name
     ];
 
     let mut datatype_handles = vec![];
@@ -1107,7 +1107,7 @@ fn check_new_changed_missing_declarations() {
     let m1 = mk_module_with_defs(
         pool,
         vec![(
-            Identifier::new("S1").unwrap(),
+            IdentifierRef::const_new("S1").to_owned(),
             StructDefinition {
                 struct_handle: DatatypeHandleIndex(0),
                 field_information: StructFieldInformation::Declared(vec![FieldDefinition {
@@ -1125,7 +1125,7 @@ fn check_new_changed_missing_declarations() {
     let m2 = mk_module_with_defs(
         pool,
         vec![(
-            Identifier::new("S2").unwrap(),
+            IdentifierRef::const_new("S2").to_owned(),
             StructDefinition {
                 struct_handle: DatatypeHandleIndex(0),
                 field_information: StructFieldInformation::Declared(vec![FieldDefinition {
@@ -1143,7 +1143,7 @@ fn check_new_changed_missing_declarations() {
     let m3 = mk_module_with_defs(
         pool,
         vec![(
-            Identifier::new("S1").unwrap(),
+            IdentifierRef::const_new("S1").to_owned(),
             StructDefinition {
                 struct_handle: DatatypeHandleIndex(0),
                 field_information: StructFieldInformation::Declared(vec![FieldDefinition {
@@ -1171,7 +1171,7 @@ fn check_new_changed_missing_declarations() {
         pool,
         vec![],
         vec![(
-            Identifier::new("E1").unwrap(),
+            IdentifierRef::const_new("E1").to_owned(),
             EnumDefinition {
                 enum_handle: DatatypeHandleIndex(0),
                 variants: vec![VariantDefinition {
@@ -1192,7 +1192,7 @@ fn check_new_changed_missing_declarations() {
         pool,
         vec![],
         vec![(
-            Identifier::new("E2").unwrap(),
+            IdentifierRef::const_new("E2").to_owned(),
             EnumDefinition {
                 enum_handle: DatatypeHandleIndex(0),
                 variants: vec![VariantDefinition {
@@ -1213,7 +1213,7 @@ fn check_new_changed_missing_declarations() {
         pool,
         vec![],
         vec![(
-            Identifier::new("E1").unwrap(),
+            IdentifierRef::const_new("E1").to_owned(),
             EnumDefinition {
                 enum_handle: DatatypeHandleIndex(0),
                 variants: vec![VariantDefinition {
@@ -1246,7 +1246,7 @@ fn check_new_changed_missing_declarations() {
         vec![],
         vec![],
         vec![(
-            Identifier::new("fn1").unwrap(),
+            IdentifierRef::const_new("fn1").to_owned(),
             FunctionDefinition {
                 function: FunctionHandleIndex(0),
                 visibility: Visibility::Public,
@@ -1268,7 +1268,7 @@ fn check_new_changed_missing_declarations() {
         vec![],
         vec![],
         vec![(
-            Identifier::new("fn2").unwrap(),
+            IdentifierRef::const_new("fn2").to_owned(),
             FunctionDefinition {
                 function: FunctionHandleIndex(0),
                 visibility: Visibility::Public,
@@ -1290,7 +1290,7 @@ fn check_new_changed_missing_declarations() {
         vec![],
         vec![],
         vec![(
-            Identifier::new("fn1").unwrap(),
+            IdentifierRef::const_new("fn1").to_owned(),
             FunctionDefinition {
                 function: FunctionHandleIndex(0),
                 visibility: Visibility::Public,
@@ -1321,10 +1321,10 @@ fn check_new_changed_missing_declarations() {
 fn test_friend_linking() {
     let pool = &mut RcPool::new();
     let friend_modules = [
-        (Identifier::new("M1").unwrap(), AccountAddress::random()),
-        (Identifier::new("M2").unwrap(), AccountAddress::random()),
-        (Identifier::new("M3").unwrap(), AccountAddress::random()),
-        (Identifier::new("M4").unwrap(), AccountAddress::random()),
+        (IdentifierRef::const_new("M1").to_owned(), AccountAddress::random()),
+        (IdentifierRef::const_new("M2").to_owned(), AccountAddress::random()),
+        (IdentifierRef::const_new("M3").to_owned(), AccountAddress::random()),
+        (IdentifierRef::const_new("M4").to_owned(), AccountAddress::random()),
     ];
 
     // zero friends
@@ -1405,12 +1405,12 @@ fn test_friend_linking() {
 
 #[test]
 fn test_compare_ord_iters() {
-    let a = Identifier::new("a").unwrap();
-    let b = Identifier::new("b").unwrap();
-    let c = Identifier::new("c").unwrap();
-    let d = Identifier::new("d").unwrap();
-    let e = Identifier::new("e").unwrap();
-    let f = Identifier::new("f").unwrap();
+    let a = IdentifierRef::const_new("a").to_owned();
+    let b = IdentifierRef::const_new("b").to_owned();
+    let c = IdentifierRef::const_new("c").to_owned();
+    let d = IdentifierRef::const_new("d").to_owned();
+    let e = IdentifierRef::const_new("e").to_owned();
+    let f = IdentifierRef::const_new("f").to_owned();
 
     // (old, new, expected, name)
     let tests = vec![

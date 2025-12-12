@@ -40,7 +40,7 @@ pub enum ValidationMode {
 
         /// Look for the root package on-chain at the specified address, rather
         /// than the address in its manifest.
-        at: Option<AccountAddress>,
+        at: Option<ObjectId>,
     },
 }
 
@@ -49,7 +49,7 @@ pub struct BytecodeSourceVerifier<'a> {
 }
 
 /// Map package addresses and module names to package names and bytecode.
-type LocalModules = HashMap<(AccountAddress, Symbol), (Symbol, CompiledModule)>;
+type LocalModules = HashMap<(ObjectId, Symbol), (Symbol, CompiledModule)>;
 
 #[derive(Default)]
 struct OnChainRepresentation {
@@ -57,11 +57,11 @@ struct OnChainRepresentation {
     /// only be present if root package verification was requested, in which
     /// case the keys from this mapping must match the source package's
     /// dependencies.
-    on_chain_dependencies: Option<HashSet<AccountAddress>>,
+    on_chain_dependencies: Option<HashSet<ObjectId>>,
 
     /// Map package addresses and module names to bytecode (package names are
     /// gone in the on-chain representation).
-    modules: HashMap<(AccountAddress, Symbol), CompiledModule>,
+    modules: HashMap<(ObjectId, Symbol), CompiledModule>,
 }
 
 impl ValidationMode {
@@ -82,7 +82,7 @@ impl ValidationMode {
 
     /// Only verify that the root package matches its on-chain version, but
     /// override the location to look for the root package to `address`.
-    pub fn root_at(address: AccountAddress) -> Self {
+    pub fn root_at(address: ObjectId) -> Self {
         Self::Root {
             deps: false,
             at: Some(address),
@@ -101,7 +101,7 @@ impl ValidationMode {
 
     /// Verify both the root package and its dependencies, but override the
     /// location to look for the root package to `address`.
-    pub fn root_and_deps_at(address: AccountAddress) -> Self {
+    pub fn root_and_deps_at(address: ObjectId) -> Self {
         Self::Root {
             deps: true,
             at: Some(address),
@@ -115,10 +115,10 @@ impl ValidationMode {
 
     /// If the root package needs to be verified, what address should it be
     /// fetched from?
-    fn root_address(&self, package: &CompiledPackage) -> Result<Option<AccountAddress>, Error> {
+    fn root_address(&self, package: &CompiledPackage) -> Result<Option<ObjectId>, Error> {
         match self {
             Self::Root { at: Some(addr), .. } => Ok(Some(*addr)),
-            Self::Root { at: None, .. } => Ok(Some(AccountAddress::new(
+            Self::Root { at: None, .. } => Ok(Some(ObjectId::new(
                 package.published_at.clone()?.into_bytes(),
             ))),
             Self::Deps => Ok(None),
@@ -127,7 +127,7 @@ impl ValidationMode {
 
     /// All the on-chain addresses that we need to fetch to build on-chain
     /// addresses.
-    fn on_chain_addresses(&self, package: &CompiledPackage) -> Result<Vec<AccountAddress>, Error> {
+    fn on_chain_addresses(&self, package: &CompiledPackage) -> Result<Vec<ObjectId>, Error> {
         let mut addrs = vec![];
 
         if let Some(addr) = self.root_address(package)? {
@@ -179,7 +179,7 @@ impl ValidationMode {
                 .peekable();
 
             let runtime_id = match modules.peek() {
-                Some(Ok((_, module))) => *module.self_id().address(),
+                Some(Ok((_, module))) => ObjectId::new(module.self_id().address().into_bytes()),
 
                 Some(Err(_)) => {
                     // SAFETY: The error type does not implement `Clone` so we need to take the
@@ -209,10 +209,9 @@ impl ValidationMode {
             }
 
             if root.is_some_and(|r| r == storage_id) {
-                on_chain.on_chain_dependencies =
-                    Some(HashSet::from_iter(linkage_table.into_values().map(
-                        |info| AccountAddress::new(info.upgraded_id.into_bytes()),
-                    )));
+                on_chain.on_chain_dependencies = Some(HashSet::from_iter(
+                    linkage_table.into_values().map(|info| info.upgraded_id),
+                ));
             }
         }
 
@@ -257,11 +256,11 @@ impl ValidationMode {
             for (package, local_unit) in deps_compiled_units {
                 let m = &local_unit.unit;
                 let module = m.name;
-                let address = m.address.into_inner();
+                let address = ObjectId::new(m.address.into_inner().into_bytes());
 
                 // Skip modules with on 0x0 because they are treated as part of the root
                 // package, even if they are a source dependency.
-                if address == AccountAddress::ZERO {
+                if address == ObjectId::ZERO {
                     continue;
                 }
 
@@ -270,8 +269,8 @@ impl ValidationMode {
 
             // Include bytecode dependencies.
             for (package, module) in iota_package.bytecode_deps.iter() {
-                let address = *module.address();
-                if address == AccountAddress::ZERO {
+                let address = ObjectId::new(module.address().into_bytes());
+                if address == ObjectId::ZERO {
                     continue;
                 }
                 map.insert(
@@ -304,11 +303,11 @@ impl ValidationMode {
         for (_, local_unit) in root_compiled_units {
             let m = &local_unit.unit;
             let module = m.name;
-            let address = m.address.into_inner();
+            let address = ObjectId::new(m.address.into_inner().into_bytes());
 
             let (address, compiled_module) = if let Some(root_address) = at {
                 (*root_address, substitute_root_address(m, *root_address)?)
-            } else if address == AccountAddress::ZERO {
+            } else if address == ObjectId::ZERO {
                 return Err(Error::InvalidModuleFailure {
                     name: module.to_string(),
                     message: "Can't verify unpublished source".to_string(),
@@ -326,9 +325,9 @@ impl ValidationMode {
             for (package, local_unit) in &package.deps_compiled_units {
                 let m = &local_unit.unit;
                 let module = m.name;
-                let address = m.address.into_inner();
+                let address = ObjectId::new(m.address.into_inner().into_bytes());
 
-                if address != AccountAddress::ZERO {
+                if address != ObjectId::ZERO {
                     continue;
                 }
 
@@ -359,7 +358,7 @@ impl<'a> BytecodeSourceVerifier<'a> {
         if matches!(
             mode,
             ValidationMode::Root {
-                at: Some(AccountAddress::ZERO),
+                at: Some(ObjectId::ZERO),
                 ..
             }
         ) {
@@ -375,7 +374,7 @@ impl<'a> BytecodeSourceVerifier<'a> {
         // unpublished dependency.
         if let Some(on_chain_deps) = &mut chain.on_chain_dependencies {
             for dependency_id in dependency_addresses(package) {
-                if dependency_id != AccountAddress::ZERO && !on_chain_deps.remove(&dependency_id) {
+                if dependency_id != ObjectId::ZERO && !on_chain_deps.remove(&dependency_id) {
                     errs.push(Error::MissingDependencyInLinkageTable(dependency_id));
                 }
             }
@@ -412,8 +411,8 @@ impl<'a> BytecodeSourceVerifier<'a> {
         Ok(())
     }
 
-    async fn pkg_for_address(&self, addr: AccountAddress) -> Result<IotaRawMovePackage, Error> {
-        // Move packages are specified with an AccountAddress, but are
+    async fn pkg_for_address(&self, addr: ObjectId) -> Result<IotaRawMovePackage, Error> {
+        // Move packages are specified with an ObjectId, but are
         // fetched from a iota network via iota_getObject, which takes an object ID
         let obj_id = ObjectId::new(addr.into_bytes());
 
@@ -448,7 +447,7 @@ impl<'a> BytecodeSourceVerifier<'a> {
 
 fn substitute_root_address(
     named_module: &NamedCompiledModule,
-    root: AccountAddress,
+    root: ObjectId,
 ) -> Result<CompiledModule, Error> {
     let mut module = named_module.module.clone();
     let address_idx = module.self_handle().address;
@@ -460,22 +459,18 @@ fn substitute_root_address(
         });
     };
 
-    if *addr != AccountAddress::ZERO {
+    if addr.as_ref() != ObjectId::ZERO.as_bytes() {
         return Err(Error::InvalidModuleFailure {
             name: named_module.name.to_string(),
             message: "Self address already populated".to_string(),
         });
     }
 
-    *addr = root;
+    *addr = AccountAddress::new(root.into_bytes());
     Ok(module)
 }
 
 /// The on-chain addresses for a source package's dependencies
-fn dependency_addresses(package: &CompiledPackage) -> impl Iterator<Item = AccountAddress> + '_ {
-    package
-        .dependency_ids
-        .published
-        .values()
-        .map(|id| AccountAddress::new(id.into_bytes()))
+fn dependency_addresses(package: &CompiledPackage) -> impl Iterator<Item = ObjectId> + '_ {
+    package.dependency_ids.published.values().copied()
 }

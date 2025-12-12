@@ -4,18 +4,15 @@
 
 use std::str::FromStr;
 
-use iota_types::{base_types::ObjectType, iota_serde::IotaStructTag, parse_iota_struct_tag};
-use move_core_types::language_storage::StructTag;
+use iota_types::{StructTag, base_types::ObjectType};
 use serde::Serialize;
 use serde_json::Value;
-use serde_with::serde_as;
 
 #[test]
 fn test_struct_tag_serde() {
-    let tag = parse_iota_struct_tag("0x7f89cdffd8968affa0b47bef91adc5314e19509080470c45bfd434cd83a766b::mymodule::MyStruct<0x7f89cdffd8968affa0b47bef91adc5314e19509080470c45bfd434cd83a766b::othermodule::OtherStruct>").unwrap();
-    #[serde_as]
+    let tag = StructTag::from_str("0x7f89cdffd8968affa0b47bef91adc5314e19509080470c45bfd434cd83a766b::mymodule::MyStruct<0x7f89cdffd8968affa0b47bef91adc5314e19509080470c45bfd434cd83a766b::othermodule::OtherStruct>").unwrap();
     #[derive(Serialize)]
-    struct TestStructTag(#[serde_as(as = "IotaStructTag")] StructTag);
+    struct TestStructTag(StructTag);
 
     // serialize to json should not trim the leading 0
     let Value::String(json) = serde_json::to_value(TestStructTag(tag.clone())).unwrap() else {
@@ -26,7 +23,7 @@ fn test_struct_tag_serde() {
         "0x07f89cdffd8968affa0b47bef91adc5314e19509080470c45bfd434cd83a766b::mymodule::MyStruct<0x07f89cdffd8968affa0b47bef91adc5314e19509080470c45bfd434cd83a766b::othermodule::OtherStruct>"
     );
 
-    let tag2 = parse_iota_struct_tag(&json).unwrap();
+    let tag2 = StructTag::from_str(&json).unwrap();
     assert_eq!(tag, tag2);
 }
 

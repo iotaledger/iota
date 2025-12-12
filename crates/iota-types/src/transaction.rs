@@ -17,15 +17,11 @@ use enum_dispatch::enum_dispatch;
 use fastcrypto::{encoding::Base64, hash::HashFunction};
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_2::types::{
+    Identifier, IdentifierRef, TypeTag,
     crypto::{Intent, IntentMessage, IntentScope},
     object::VersionExt,
 };
 use itertools::Either;
-use move_core_types::{
-    ident_str,
-    identifier::{self, Identifier},
-    language_storage::TypeTag,
-};
 use nonempty::{NonEmpty, nonempty};
 use serde::{Deserialize, Serialize};
 use strum::IntoStaticStr;
@@ -162,13 +158,13 @@ fn type_input_validity_check(
                 let next_depth = depth + 1;
                 if config.validate_identifier_inputs() {
                     fp_ensure!(
-                        identifier::is_valid(&s.module),
+                        Identifier::is_valid(&s.module),
                         UserInputError::InvalidIdentifier {
                             error: s.module.clone()
                         }
                     );
                     fp_ensure!(
-                        identifier::is_valid(&s.name),
+                        Identifier::is_valid(&s.name),
                         UserInputError::InvalidIdentifier {
                             error: s.name.clone()
                         }
@@ -844,13 +840,13 @@ impl ProgrammableMoveCall {
         );
         if config.validate_identifier_inputs() {
             fp_ensure!(
-                identifier::is_valid(&self.module),
+                Identifier::is_valid(&self.module),
                 UserInputError::InvalidIdentifier {
                     error: self.module.clone()
                 }
             );
             fp_ensure!(
-                identifier::is_valid(&self.function),
+                Identifier::is_valid(&self.function),
                 UserInputError::InvalidIdentifier {
                     error: self.module.clone()
                 }
@@ -1889,8 +1885,8 @@ impl TransactionData {
             let digest_arg = builder.pure(digest).unwrap();
             let upgrade_ticket = builder.programmable_move_call(
                 ObjectId::from(Address::FRAMEWORK),
-                ident_str!("package").to_owned(),
-                ident_str!("authorize_upgrade").to_owned(),
+                IdentifierRef::const_new("package").to_owned(),
+                IdentifierRef::const_new("authorize_upgrade").to_owned(),
                 vec![],
                 vec![Argument::Input(0), upgrade_arg, digest_arg],
             );
@@ -1898,8 +1894,8 @@ impl TransactionData {
 
             builder.programmable_move_call(
                 ObjectId::from(Address::FRAMEWORK),
-                ident_str!("package").to_owned(),
-                ident_str!("commit_upgrade").to_owned(),
+                IdentifierRef::const_new("package").to_owned(),
+                IdentifierRef::const_new("commit_upgrade").to_owned(),
                 vec![],
                 vec![Argument::Input(0), upgrade_receipt],
             );

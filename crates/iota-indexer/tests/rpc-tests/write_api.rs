@@ -25,7 +25,7 @@ use iota_json_rpc_types::{
 use iota_move_build::BuildConfig;
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
-    Identifier, TypeTag,
+    Identifier, IdentifierRef, StructTag, TypeTag,
     base_types::{Address, ObjectId, ObjectReference},
     crypto::{AccountKeyPair, IotaKeyPair, get_key_pair},
     digests::TransactionDigest,
@@ -38,9 +38,6 @@ use iota_types::{
 };
 use itertools::Itertools;
 use jsonrpsee::http_client::HttpClient;
-use move_core_types::{
-    account_address::AccountAddress, identifier::IdentStr, language_storage::StructTag,
-};
 
 use crate::{
     coin_api::execute_move_call,
@@ -850,9 +847,9 @@ fn test_repeatedly_update_display() {
             .unwrap();
 
         let bear_type_tag = TypeTag::Struct(Box::new(StructTag {
-            address: AccountAddress::new(package_id.into_bytes()),
-            name: IdentStr::new("DemoBear").unwrap().into(),
-            module: IdentStr::new("demo_bear").unwrap().into(),
+            address: package_id.into(),
+            name: IdentifierRef::const_new("DemoBear").into(),
+            module: IdentifierRef::const_new("demo_bear").into(),
             type_params: Vec::new(),
         }));
 

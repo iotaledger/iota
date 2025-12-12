@@ -15,6 +15,7 @@ mod checked {
     use iota_move_natives::object_runtime::ObjectRuntime;
     use iota_protocol_config::ProtocolConfig;
     use iota_types::{
+        TypeTag,
         base_types::{
             Address, MoveObjectType, ObjectId, RESOLVED_ASCII_STR, RESOLVED_STD_OPTION,
             RESOLVED_UTF8_STR, TX_CONTEXT_MODULE_NAME, TX_CONTEXT_STRUCT_NAME, TxContext,
@@ -25,6 +26,7 @@ mod checked {
         execution_config_utils::to_binary_config,
         execution_status::{CommandArgumentError, PackageUpgradeError},
         id::RESOLVED_IOTA_ID,
+        iota_sdk_types_conversions::type_tag_core_to_sdk,
         metrics::LimitsMetrics,
         move_package::{
             MovePackage, UpgradeCap, UpgradePolicy, UpgradeReceipt, UpgradeTicket,
@@ -50,7 +52,7 @@ mod checked {
     use move_core_types::{
         account_address::AccountAddress,
         identifier::{IdentStr, Identifier},
-        language_storage::{ModuleId, TypeTag},
+        language_storage::ModuleId,
         u256::U256,
     };
     use move_trace_format::format::MoveTraceBuilder;
@@ -348,7 +350,8 @@ mod checked {
                 let original_address = context.set_link_context(package)?;
                 let storage_id =
                     ModuleId::new(AccountAddress::new(package.into_bytes()), module.clone());
-                let runtime_id = ModuleId::new(original_address, module);
+                let runtime_id =
+                    ModuleId::new(AccountAddress::new(original_address.into_bytes()), module);
                 let return_values = execute_move_call::<Mode>(
                     context,
                     &mut argument_updates,
@@ -971,10 +974,7 @@ mod checked {
             })
             .collect();
         context
-            .publish_module_bundle(
-                new_module_bytes,
-                AccountAddress::new(package_id.into_bytes()),
-            )
+            .publish_module_bundle(new_module_bytes, package_id)
             .map_err(|e| context.convert_vm_error(e))?;
 
         // run the IOTA verifier
@@ -1238,11 +1238,13 @@ mod checked {
                         invariant_violation!("TyParam should have been substituted")
                     }
                     Type::Datatype(_) | Type::DatatypeInstantiation(_) if abilities.has_key() => {
-                        let type_tag = context
-                            .vm
-                            .get_runtime()
-                            .get_type_tag(return_type)
-                            .map_err(|e| context.convert_vm_error(e))?;
+                        let type_tag = type_tag_core_to_sdk(
+                            &context
+                                .vm
+                                .get_runtime()
+                                .get_type_tag(return_type)
+                                .map_err(|e| context.convert_vm_error(e))?,
+                        );
                         let TypeTag::Struct(struct_tag) = type_tag else {
                             invariant_violation!("Struct type make a non struct type tag")
                         };
@@ -1376,11 +1378,13 @@ mod checked {
                 Type::MutableReference(inner) => {
                     let value = context.borrow_arg_mut(idx, arg)?;
                     let object_info = if let Value::Object(ObjectValue { type_, .. }) = &value {
-                        let type_tag = context
-                            .vm
-                            .get_runtime()
-                            .get_type_tag(type_)
-                            .map_err(|e| context.convert_vm_error(e))?;
+                        let type_tag = type_tag_core_to_sdk(
+                            &context
+                                .vm
+                                .get_runtime()
+                                .get_type_tag(type_)
+                                .map_err(|e| context.convert_vm_error(e))?,
+                        );
                         let TypeTag::Struct(struct_tag) = type_tag else {
                             invariant_violation!("Struct type make a non struct type tag")
                         };
@@ -1582,10 +1586,9 @@ mod checked {
             invariant_violation!("Loaded struct not found")
         };
         let (module_addr, module_name, struct_name) = get_datatype_ident(&s);
-        let is_tx_context_type = module_addr
-            == &AccountAddress::new(Address::FRAMEWORK.into_bytes())
-            && module_name == TX_CONTEXT_MODULE_NAME
-            && struct_name == TX_CONTEXT_STRUCT_NAME;
+        let is_tx_context_type = module_addr.as_ref() == Address::FRAMEWORK.as_bytes()
+            && module_name.as_str() == TX_CONTEXT_MODULE_NAME.as_str()
+            && struct_name.as_str() == TX_CONTEXT_STRUCT_NAME.as_str();
         Ok(if is_tx_context_type {
             if is_mut {
                 TxContextKind::Mutable

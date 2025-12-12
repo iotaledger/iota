@@ -68,24 +68,24 @@ impl Adapter {
     fn new(store: InMemoryStorage) -> Self {
         let functions = vec![
             (
-                ModuleId::new(DEFAULT_ACCOUNT, Identifier::new("A").unwrap()),
-                Identifier::new("entry_a").unwrap(),
+                ModuleId::new(DEFAULT_ACCOUNT, IdentifierRef::const_new("A").to_owned()),
+                IdentifierRef::const_new("entry_a").to_owned(),
             ),
             (
-                ModuleId::new(DEFAULT_ACCOUNT, Identifier::new("D").unwrap()),
-                Identifier::new("entry_d").unwrap(),
+                ModuleId::new(DEFAULT_ACCOUNT, IdentifierRef::const_new("D").to_owned()),
+                IdentifierRef::const_new("entry_d").to_owned(),
             ),
             (
-                ModuleId::new(DEFAULT_ACCOUNT, Identifier::new("E").unwrap()),
-                Identifier::new("entry_e").unwrap(),
+                ModuleId::new(DEFAULT_ACCOUNT, IdentifierRef::const_new("E").to_owned()),
+                IdentifierRef::const_new("entry_e").to_owned(),
             ),
             (
-                ModuleId::new(DEFAULT_ACCOUNT, Identifier::new("F").unwrap()),
-                Identifier::new("entry_f").unwrap(),
+                ModuleId::new(DEFAULT_ACCOUNT, IdentifierRef::const_new("F").to_owned()),
+                IdentifierRef::const_new("entry_f").to_owned(),
             ),
             (
-                ModuleId::new(DEFAULT_ACCOUNT, Identifier::new("C").unwrap()),
-                Identifier::new("just_c").unwrap(),
+                ModuleId::new(DEFAULT_ACCOUNT, IdentifierRef::const_new("C").to_owned()),
+                IdentifierRef::const_new("just_c").to_owned(),
             ),
         ];
         let config = VMConfig {

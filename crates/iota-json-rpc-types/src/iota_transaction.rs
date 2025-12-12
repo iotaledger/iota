@@ -4,6 +4,7 @@
 
 use std::{
     fmt::{self, Display, Formatter, Write},
+    str::FromStr,
     sync::Arc,
 };
 
@@ -14,6 +15,7 @@ use iota_json::{IotaJsonValue, primitive_type};
 use iota_metrics::monitored_scope;
 use iota_package_resolver::{PackageStore, Resolver};
 use iota_types::{
+    StructTag, TypeTag,
     authenticator_state::ActiveJwk,
     base_types::{Address, EpochId, ObjectId, ObjectReference, TransactionDigest, Version},
     crypto::IotaSignature,
@@ -23,11 +25,11 @@ use iota_types::{
     event::EventID,
     execution_status::ExecutionStatus,
     gas::GasCostSummary,
-    iota_serde::{BigInt, IotaTypeTag as AsIotaTypeTag, Readable, Version as AsVersion},
+    iota_sdk_types_conversions::type_tag_core_to_sdk,
+    iota_serde::{BigInt, Readable, Version as AsVersion},
     layout_resolver::{LayoutResolver, get_layout_from_struct_tag},
     messages_consensus::ConsensusDeterminedVersionAssignments,
     object::{Owner, bounded_visitor::BoundedVisitor},
-    parse_iota_type_tag,
     quorum_driver_types::ExecuteTransactionRequestType,
     signature::GenericSignature,
     storage::{DeleteKind, WriteKind},
@@ -41,10 +43,8 @@ use iota_types::{
 use move_binary_format::CompiledModule;
 use move_bytecode_utils::module_cache::GetModule;
 use move_core_types::{
-    account_address::AccountAddress,
-    annotated_value::MoveTypeLayout,
-    identifier::{IdentStr, Identifier},
-    language_storage::{ModuleId, StructTag, TypeTag},
+    account_address::AccountAddress, annotated_value::MoveTypeLayout, identifier::IdentStr,
+    language_storage::ModuleId,
 };
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -428,7 +428,7 @@ pub fn get_new_package_upgrade_cap_from_response(
                     },
                     ..
                 } if module.as_str() == "package" && name.as_str() == "UpgradeCap"
-                    && *address == AccountAddress::new(Address::FRAMEWORK.into_bytes()))
+                    && *address == Address::FRAMEWORK)
             })
             .map(|change| change.object_ref())
     })
@@ -1937,11 +1937,14 @@ impl IotaProgrammableTransactionBlock {
         for command in commands.iter() {
             match command {
                 Command::MoveCall(c) => {
-                    let Ok(module) = Identifier::new(c.module.clone()) else {
+                    let Ok(module) = move_core_types::identifier::Identifier::new(c.module.clone())
+                    else {
                         return result_types;
                     };
 
-                    let Ok(function) = Identifier::new(c.function.clone()) else {
+                    let Ok(function) =
+                        move_core_types::identifier::Identifier::new(c.function.clone())
+                    else {
                         return result_types;
                     };
 
@@ -2269,7 +2272,7 @@ impl AsRef<str> for IotaTypeTag {
 impl TryFrom<IotaTypeTag> for TypeTag {
     type Error = anyhow::Error;
     fn try_from(tag: IotaTypeTag) -> Result<Self, Self::Error> {
-        parse_iota_type_tag(&tag.0)
+        Ok(TypeTag::from_str(&tag.0)?)
     }
 }
 
@@ -2372,7 +2375,7 @@ impl IotaCallArg {
     ) -> Result<Self, anyhow::Error> {
         Ok(match value {
             CallArg::Pure(p) => IotaCallArg::Pure(IotaPureValue {
-                value_type: layout.map(|l| l.into()),
+                value_type: layout.map(|l| type_tag_core_to_sdk(&l.into())),
                 value: IotaJsonValue::from_bcs_bytes(layout, &p)?,
             }),
             CallArg::Object(ObjectArg::ImmOrOwnedObject(ObjectReference {
@@ -2427,7 +2430,6 @@ impl IotaCallArg {
 #[serde(rename_all = "camelCase")]
 pub struct IotaPureValue {
     #[schemars(with = "Option<String>")]
-    #[serde_as(as = "Option<AsIotaTypeTag>")]
     value_type: Option<TypeTag>,
     value: IotaJsonValue,
 }

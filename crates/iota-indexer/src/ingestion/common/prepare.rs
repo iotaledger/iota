@@ -7,13 +7,13 @@
 use std::collections::BTreeMap;
 
 use iota_types::{
+    StructTag, TypeTag,
     base_types::{ObjectId, ObjectReference, Version},
     digests::TransactionDigest,
     dynamic_field::{DynamicFieldInfo, DynamicFieldType},
     full_checkpoint_content::CheckpointData,
     object::Object,
 };
-use move_core_types::language_storage::{StructTag, TypeTag};
 
 use crate::{
     errors::{IndexerError, IndexerResult},

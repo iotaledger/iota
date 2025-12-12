@@ -15,7 +15,6 @@ use iota_types::{
     gas::GasCostSummary,
     transaction::{ProgrammableTransaction, TransactionKind},
 };
-use move_core_types::account_address::AccountAddress;
 use serde::Serialize;
 
 use super::{ast::ProgramMetadata, lexer::Lexer, parser::ProgramParser};
@@ -300,7 +299,7 @@ impl PTB {
             .keystore()
             .addresses_with_alias()
             .into_iter()
-            .map(|(sa, alias)| (alias.alias.clone(), AccountAddress::new(sa.into_bytes())))
+            .map(|(sa, alias)| (alias.alias.clone(), *sa))
             .collect();
         let builder = PTBBuilder::new(starting_addresses, client.read_api());
         builder.build(program).await

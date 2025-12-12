@@ -47,11 +47,11 @@ fuzz_target!(|code_unit: CodeUnit| {
 
     module.identifiers.extend(
         vec![
-            Identifier::from_str("zf_hello_world").unwrap(),
-            Identifier::from_str("awldFnU18mlDKQfh6qNfBGx8X").unwrap(),
-            Identifier::from_str("aQPwJNHyAHpvJ").unwrap(),
-            Identifier::from_str("aT7ZphKTrKcYCwCebJySrmrKlckmnL5").unwrap(),
-            Identifier::from_str("arYpsFa2fvrpPJ").unwrap(),
+            ident_str!("zf_hello_world").to_owned(),
+            ident_str!("awldFnU18mlDKQfh6qNfBGx8X").to_owned(),
+            ident_str!("aQPwJNHyAHpvJ").to_owned(),
+            ident_str!("aT7ZphKTrKcYCwCebJySrmrKlckmnL5").to_owned(),
+            ident_str!("arYpsFa2fvrpPJ").to_owned(),
         ]
         .into_iter(),
     );

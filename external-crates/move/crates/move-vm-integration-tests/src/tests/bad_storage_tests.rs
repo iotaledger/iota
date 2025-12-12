@@ -36,8 +36,8 @@ fn test_malformed_module() {
     let mut blob = vec![];
     serialize_module_at_max_version(&m, &mut blob).unwrap();
 
-    let module_id = ModuleId::new(TEST_ADDR, Identifier::new("M").unwrap());
-    let fun_name = Identifier::new("foo").unwrap();
+    let module_id = ModuleId::new(TEST_ADDR, IdentifierRef::const_new("M").to_owned());
+    let fun_name = IdentifierRef::const_new("foo").to_owned();
 
     // Publish M and call M::foo. No errors should be thrown.
     {
@@ -98,8 +98,8 @@ fn test_unverifiable_module() {
     let mut units = compile_units(&code).unwrap();
     let m = as_module(units.pop().unwrap());
 
-    let module_id = ModuleId::new(TEST_ADDR, Identifier::new("M").unwrap());
-    let fun_name = Identifier::new("foo").unwrap();
+    let module_id = ModuleId::new(TEST_ADDR, IdentifierRef::const_new("M").to_owned());
+    let fun_name = IdentifierRef::const_new("foo").to_owned();
 
     // Publish M and call M::foo to make sure it works.
     {
@@ -176,8 +176,8 @@ fn test_missing_module_dependency() {
     let mut blob_n = vec![];
     serialize_module_at_max_version(&n, &mut blob_n).unwrap();
 
-    let module_id = ModuleId::new(TEST_ADDR, Identifier::new("N").unwrap());
-    let fun_name = Identifier::new("bar").unwrap();
+    let module_id = ModuleId::new(TEST_ADDR, IdentifierRef::const_new("N").to_owned());
+    let fun_name = IdentifierRef::const_new("bar").to_owned();
 
     // Publish M and N and call N::bar. Everything should work.
     {
@@ -248,8 +248,8 @@ fn test_malformed_module_dependency() {
     let mut blob_n = vec![];
     serialize_module_at_max_version(&n, &mut blob_n).unwrap();
 
-    let module_id = ModuleId::new(TEST_ADDR, Identifier::new("N").unwrap());
-    let fun_name = Identifier::new("bar").unwrap();
+    let module_id = ModuleId::new(TEST_ADDR, IdentifierRef::const_new("N").to_owned());
+    let fun_name = IdentifierRef::const_new("bar").to_owned();
 
     // Publish M and N and call N::bar. Everything should work.
     {
@@ -325,8 +325,8 @@ fn test_unverifiable_module_dependency() {
     let mut blob_n = vec![];
     serialize_module_at_max_version(&n, &mut blob_n).unwrap();
 
-    let module_id = ModuleId::new(TEST_ADDR, Identifier::new("N").unwrap());
-    let fun_name = Identifier::new("bar").unwrap();
+    let module_id = ModuleId::new(TEST_ADDR, IdentifierRef::const_new("N").to_owned());
+    let fun_name = IdentifierRef::const_new("bar").to_owned();
 
     // Publish M and N and call N::bar. Everything should work.
     {
@@ -429,8 +429,8 @@ const LIST_OF_ERROR_CODES: &[StatusCode] = &[
 
 #[test]
 fn test_storage_returns_bogus_error_when_loading_module() {
-    let module_id = ModuleId::new(TEST_ADDR, Identifier::new("N").unwrap());
-    let fun_name = Identifier::new("bar").unwrap();
+    let module_id = ModuleId::new(TEST_ADDR, IdentifierRef::const_new("N").to_owned());
+    let fun_name = IdentifierRef::const_new("bar").to_owned();
 
     for error_code in LIST_OF_ERROR_CODES {
         let storage = BogusStorage {

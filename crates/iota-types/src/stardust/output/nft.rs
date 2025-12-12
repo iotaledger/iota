@@ -3,11 +3,9 @@
 
 use anyhow::anyhow;
 use iota_protocol_config::ProtocolConfig;
+use iota_sdk_2::types::{IdentifierRef, StructTag};
 use iota_stardust_sdk::types::block::output::{
     NftOutput as StardustNft, feature::Irc27Metadata as StardustIrc27,
-};
-use move_core_types::{
-    account_address::AccountAddress, ident_str, identifier::IdentStr, language_storage::StructTag,
 };
 use num_rational::Ratio;
 use serde::{Deserialize, Serialize};
@@ -27,12 +25,12 @@ use crate::{
     stardust::{coin_type::CoinType, stardust_to_iota_address},
 };
 
-pub const IRC27_MODULE_NAME: &IdentStr = ident_str!("irc27");
-pub const NFT_MODULE_NAME: &IdentStr = ident_str!("nft");
-pub const NFT_OUTPUT_MODULE_NAME: &IdentStr = ident_str!("nft_output");
-pub const NFT_OUTPUT_STRUCT_NAME: &IdentStr = ident_str!("NftOutput");
-pub const NFT_STRUCT_NAME: &IdentStr = ident_str!("Nft");
-pub const IRC27_STRUCT_NAME: &IdentStr = ident_str!("Irc27Metadata");
+pub const IRC27_MODULE_NAME: &IdentifierRef = IdentifierRef::const_new("irc27");
+pub const NFT_MODULE_NAME: &IdentifierRef = IdentifierRef::const_new("nft");
+pub const NFT_OUTPUT_MODULE_NAME: &IdentifierRef = IdentifierRef::const_new("nft_output");
+pub const NFT_OUTPUT_STRUCT_NAME: &IdentifierRef = IdentifierRef::const_new("NftOutput");
+pub const NFT_STRUCT_NAME: &IdentifierRef = IdentifierRef::const_new("Nft");
+pub const IRC27_STRUCT_NAME: &IdentifierRef = IdentifierRef::const_new("Irc27Metadata");
 pub const NFT_DYNAMIC_OBJECT_FIELD_KEY: &[u8] = b"nft";
 pub const NFT_DYNAMIC_OBJECT_FIELD_KEY_TYPE: &str = "vector<u8>";
 
@@ -264,7 +262,7 @@ impl Nft {
     /// [`Nft`] in its move package.
     pub fn tag() -> StructTag {
         StructTag {
-            address: AccountAddress::new(Address::STARDUST.into_bytes()),
+            address: Address::STARDUST,
             module: NFT_MODULE_NAME.to_owned(),
             name: NFT_STRUCT_NAME.to_owned(),
             type_params: Vec::new(),
@@ -407,7 +405,7 @@ impl NftOutput {
     /// [`NftOutput`] in its move package.
     pub fn tag(type_param: TypeTag) -> StructTag {
         StructTag {
-            address: AccountAddress::new(Address::STARDUST.into_bytes()),
+            address: Address::STARDUST,
             module: NFT_OUTPUT_MODULE_NAME.to_owned(),
             name: NFT_OUTPUT_STRUCT_NAME.to_owned(),
             type_params: vec![type_param],
@@ -481,9 +479,9 @@ impl NftOutput {
     }
 
     pub fn is_nft_output(s: &StructTag) -> bool {
-        s.address == AccountAddress::new(Address::STARDUST.into_bytes())
-            && s.module.as_ident_str() == NFT_OUTPUT_MODULE_NAME
-            && s.name.as_ident_str() == NFT_OUTPUT_STRUCT_NAME
+        s.address == Address::STARDUST
+            && s.module == NFT_OUTPUT_MODULE_NAME
+            && s.name == NFT_OUTPUT_STRUCT_NAME
     }
 }
 

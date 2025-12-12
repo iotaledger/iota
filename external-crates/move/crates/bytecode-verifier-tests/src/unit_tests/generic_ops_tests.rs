@@ -25,15 +25,15 @@ fn make_module() -> CompiledModule {
         ],
         self_module_handle_idx: ModuleHandleIndex(0),
         identifiers: vec![
-            Identifier::new("M").unwrap(),       // Module name
-            Identifier::new("S").unwrap(),       // Struct name
-            Identifier::new("GS").unwrap(),      // Generic struct name
-            Identifier::new("R").unwrap(),       // Resource name
-            Identifier::new("GR").unwrap(),      // Generic resource name
-            Identifier::new("f").unwrap(),       // Field name
-            Identifier::new("fn").unwrap(),      // Function name
-            Identifier::new("g_fn").unwrap(),    // Generic function name
-            Identifier::new("test_fn").unwrap(), // Test function name
+            IdentifierRef::const_new("M").to_owned(),       // Module name
+            IdentifierRef::const_new("S").to_owned(),       // Struct name
+            IdentifierRef::const_new("GS").to_owned(),      // Generic struct name
+            IdentifierRef::const_new("R").to_owned(),       // Resource name
+            IdentifierRef::const_new("GR").to_owned(),      // Generic resource name
+            IdentifierRef::const_new("f").to_owned(),       // Field name
+            IdentifierRef::const_new("fn").to_owned(),      // Function name
+            IdentifierRef::const_new("g_fn").to_owned(),    // Generic function name
+            IdentifierRef::const_new("test_fn").to_owned(), // Test function name
         ],
         address_identifiers: vec![
             AccountAddress::ZERO, // Module address

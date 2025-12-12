@@ -105,7 +105,7 @@ pub fn verify_module(
             // one-time witness type candidate and if instantiation does not
             // happen in test code
 
-            if !is_test_fun(fn_name, module, fn_info_map) {
+            if !is_test_fun(fn_name.as_str(), module, fn_info_map) {
                 verify_no_instantiations(module, fn_def, candidate_name, def)
                     .map_err(verification_failure)?;
             }

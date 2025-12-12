@@ -12,6 +12,7 @@ use std::{
 use iota_move_build::BuildConfig;
 use iota_protocol_config::ProtocolConfig;
 use iota_types::{
+    IdentifierRef, StructTag,
     base_types::{Address, ObjectId, ObjectReference},
     crypto::{AccountKeyPair, get_key_pair},
     effects::{TransactionEffects, TransactionEffectsAPI},
@@ -26,7 +27,7 @@ use iota_types::{
     storage::ObjectStore,
     transaction::{Argument, ObjectArg, ProgrammableTransaction, TEST_ONLY_GAS_UNIT_FOR_PUBLISH},
 };
-use move_core_types::{account_address::AccountAddress, ident_str, language_storage::StructTag};
+use move_core_types::ident_str;
 
 use crate::authority::{
     AuthorityState,
@@ -44,8 +45,8 @@ macro_rules! move_call {
     {$builder:expr, ($addr:expr)::$module_name:ident::$func:ident($($args:expr),* $(,)?)} => {
         $builder.programmable_move_call(
             $addr,
-            ident_str!(stringify!($module_name)).to_owned(),
-            ident_str!(stringify!($func)).to_owned(),
+            iota_types::IdentifierRef::const_new(stringify!($module_name)).to_owned(),
+            iota_types::IdentifierRef::const_new(stringify!($func)).to_owned(),
             vec![],
             vec![$($args),*],
         )
@@ -427,9 +428,9 @@ async fn test_upgrade_introduces_type_then_uses_it() {
     assert_eq!(
         b.data.struct_tag().unwrap(),
         StructTag {
-            address: AccountAddress::new(package_v2.into_bytes()),
-            module: ident_str!("base").to_owned(),
-            name: ident_str!("B").to_owned(),
+            address: package_v2.into(),
+            module: IdentifierRef::const_new("base").to_owned(),
+            name: IdentifierRef::const_new("B").to_owned(),
             type_params: vec![],
         },
     );

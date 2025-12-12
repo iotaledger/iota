@@ -22,7 +22,6 @@ use iota_types::{
     },
     utils::to_sender_signed_transaction,
 };
-use move_core_types::ident_str;
 use rand::seq::SliceRandom;
 
 use crate::{

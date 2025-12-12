@@ -130,37 +130,6 @@ impl TryFrom<ObjectData> for crate::object::Data {
     }
 }
 
-fn move_type_tag_to_sdk(tt: move_core_types::language_storage::TypeTag) -> TypeTag {
-    use move_core_types::language_storage::TypeTag as MoveTypeTag;
-    match tt {
-        MoveTypeTag::Bool => TypeTag::Bool,
-        MoveTypeTag::U8 => TypeTag::U8,
-        MoveTypeTag::U64 => TypeTag::U64,
-        MoveTypeTag::U128 => TypeTag::U128,
-        MoveTypeTag::Address => TypeTag::Address,
-        MoveTypeTag::Signer => TypeTag::Signer,
-        MoveTypeTag::Vector(type_tag) => TypeTag::Vector(Box::new(move_type_tag_to_sdk(*type_tag))),
-        MoveTypeTag::Struct(struct_tag) => {
-            TypeTag::Struct(Box::new(move_struct_tag_to_sdk(*struct_tag)))
-        }
-        MoveTypeTag::U16 => TypeTag::U16,
-        MoveTypeTag::U32 => TypeTag::U32,
-        MoveTypeTag::U256 => TypeTag::U256,
-    }
-}
-
-fn move_struct_tag_to_sdk(st: move_core_types::language_storage::StructTag) -> StructTag {
-    StructTag {
-        address: Address::new(st.address.into_bytes()),
-        module: Identifier::new(st.module.as_str()).expect("module identifier conversion failed"),
-        name: Identifier::new(st.name.as_str()).expect("struct name identifier conversion failed"),
-        type_params: st
-            .type_params
-            .into_iter()
-            .map(move_type_tag_to_sdk)
-            .collect(),
-    }
-}
 
 fn move_package_to_sdk(package: crate::move_package::MovePackage) -> MovePackage {
     MovePackage {
@@ -223,7 +192,7 @@ fn sdk_object_to_move(
     obj: MoveStruct,
 ) -> Result<crate::object::MoveObject, SdkTypeConversionError> {
     crate::object::MoveObject {
-        type_: sdk_object_type_to_move(obj.type_)?,
+        type_: crate::base_types::MoveObjectType::from(obj.type_),
         version: obj.version,
         contents: obj.contents,
     }
@@ -231,28 +200,12 @@ fn sdk_object_to_move(
 }
 
 fn move_object_type_to_sdk(type_: crate::base_types::MoveObjectType) -> StructTag {
-    move_struct_tag_to_sdk(move_core_types::language_storage::StructTag {
+    StructTag {
         address: type_.address(),
         module: type_.module().to_owned(),
         name: type_.name().to_owned(),
         type_params: type_.type_params(),
-    })
-}
-
-fn sdk_object_type_to_move(
-    type_: StructTag,
-) -> Result<crate::base_types::MoveObjectType, SdkTypeConversionError> {
-    crate::base_types::MoveObjectType::from(move_core_types::language_storage::StructTag {
-        address: move_core_types::account_address::AccountAddress::new(type_.address.into_bytes()),
-        module: crate::Identifier::new(type_.module.as_str())?,
-        name: crate::Identifier::new(type_.name.as_str())?,
-        type_params: type_
-            .type_params
-            .into_iter()
-            .map(type_tag_sdk_to_core)
-            .collect::<Result<_, _>>()?,
-    })
-    .pipe(Ok)
+    }
 }
 
 fn move_type_origin_to_sdk(origin: crate::move_package::TypeOrigin) -> TypeOrigin {
@@ -415,21 +368,18 @@ impl TryFrom<crate::transaction::TransactionKind> for TransactionKind {
                         .events
                         .into_iter()
                         .map(|event| {
-                            let module = Identifier::new(event.transaction_module.as_str());
-                            let type_ = struct_tag_core_to_sdk(event.type_);
+                            let module = Identifier::new(event.transaction_module.as_str()).map_err(|_| SdkTypeConversionError(
+                                    "invalid transaction module".to_string(),
+                                ))?;
 
-                            match (module, type_) {
-                                (Ok(module), Ok(type_)) => Ok(Event {
+                                Result::<_,SdkTypeConversionError>::Ok(Event {
                                     package_id: event.package_id.into(),
                                     module,
                                     sender: event.sender.into(),
-                                    type_,
+                                    type_: event.type_,
                                     contents: event.contents,
-                                }),
-                                _ => Err(SdkTypeConversionError(
-                                    "invalid transaction module or struct tag".to_string(),
-                                )),
-                            }
+                                })
+                            
                         })
                         .collect::<Result<_,_>>()?,
                 })
@@ -542,21 +492,17 @@ impl TryFrom<TransactionKind> for crate::transaction::TransactionKind {
                         .events
                         .into_iter()
                         .map(|event| {
-                            let transaction_module = crate::Identifier::new(event.module.as_str());
-                            let type_ = struct_tag_sdk_to_core(event.type_);
+                            let transaction_module = crate::Identifier::new(event.module.as_str()).map_err(|_| SdkTypeConversionError(
+                                    "invalid transaction module or struct tag".to_string(),
+                                ))?;
 
-                            match (transaction_module, type_) {
-                                (Ok(transaction_module), Ok(type_)) => Ok(crate::event::Event {
+                            Result::<_,SdkTypeConversionError>::Ok(crate::event::Event {
                                     package_id: event.package_id.into(),
                                     transaction_module,
                                     sender: event.sender.into(),
-                                    type_,
+                                    type_: event.type_,
                                     contents: event.contents,
-                                }),
-                                _ => Err(SdkTypeConversionError(
-                                    "invalid transaction module or struct tag".to_string(),
-                                )),
-                            }
+                                })
                         })
                         .collect::<Result<_,_>>()?,
                 })
@@ -1527,7 +1473,7 @@ impl From<MoveLocation> for crate::execution_status::MoveLocation {
         Self {
             module: ModuleId::new(
                 move_core_types::account_address::AccountAddress::new(value.package.into_bytes()),
-                crate::Identifier::new(value.module.as_str()).expect("invalid module name"),
+                move_core_types::identifier::Identifier::new(value.module.as_str()).expect("invalid module name"),
             ),
             function: value.function,
             instruction: value.instruction,
@@ -1741,7 +1687,7 @@ impl TryFrom<crate::event::Event> for Event {
             package_id: value.package_id.into(),
             module: Identifier::new(value.transaction_module.as_str())?,
             sender: value.sender.into(),
-            type_: struct_tag_core_to_sdk(value.type_)?,
+            type_: value.type_,
             contents: value.contents,
         }
         .pipe(Ok)
@@ -1756,7 +1702,7 @@ impl TryFrom<Event> for crate::event::Event {
             package_id: value.package_id.into(),
             transaction_module: crate::Identifier::new(value.module.as_str())?,
             sender: value.sender.into(),
-            type_: struct_tag_sdk_to_core(value.type_)?,
+            type_: value.type_,
             contents: value.contents,
         }
         .pipe(Ok)
@@ -1779,8 +1725,6 @@ impl TryFrom<crate::transaction::Command> for Command {
                     .map(|type_input| {
                         type_input
                             .into_type_tag()
-                            .map_err(|err| err.into())
-                            .and_then(type_tag_core_to_sdk)
                     })
                     .collect::<Result<_, _>>()?,
                 arguments: programmable_move_call
@@ -1812,8 +1756,6 @@ impl TryFrom<crate::transaction::Command> for Command {
                     .map(|type_input| {
                         type_input
                             .into_type_tag()
-                            .map_err(|err| err.into())
-                            .and_then(type_tag_core_to_sdk)
                     })
                     .transpose()?,
                 elements: elements.into_iter().map(Into::into).collect(),
@@ -1843,10 +1785,7 @@ impl TryFrom<Command> for crate::transaction::Command {
                 crate::Identifier::new(move_call.function.as_str())
                     .expect("invalid move call function identifier"),
                 move_call
-                    .type_arguments
-                    .into_iter()
-                    .map(type_tag_sdk_to_core)
-                    .collect::<Result<_, _>>()?,
+                    .type_arguments,
                 move_call.arguments.into_iter().map(Into::into).collect(),
             ),
             Command::TransferObjects(transfer_objects) => Self::TransferObjects(
@@ -1875,9 +1814,7 @@ impl TryFrom<Command> for crate::transaction::Command {
             ),
             Command::MakeMoveVector(make_move_vector) => Self::make_move_vec(
                 make_move_vector
-                    .type_
-                    .map(type_tag_sdk_to_core)
-                    .transpose()?,
+                    .type_,
                 make_move_vector
                     .elements
                     .into_iter()
@@ -2197,9 +2134,7 @@ impl TryFrom<SignedTransaction> for crate::transaction::Transaction {
     }
 }
 
-pub fn type_tag_core_to_sdk(
-    value: move_core_types::language_storage::TypeTag,
-) -> Result<TypeTag, SdkTypeConversionError> {
+pub fn type_tag_core_to_sdk(value: &move_core_types::language_storage::TypeTag) -> TypeTag {
     match value {
         move_core_types::language_storage::TypeTag::Bool => TypeTag::Bool,
         move_core_types::language_storage::TypeTag::U8 => TypeTag::U8,
@@ -2208,21 +2143,18 @@ pub fn type_tag_core_to_sdk(
         move_core_types::language_storage::TypeTag::Address => TypeTag::Address,
         move_core_types::language_storage::TypeTag::Signer => TypeTag::Signer,
         move_core_types::language_storage::TypeTag::Vector(type_tag) => {
-            TypeTag::Vector(Box::new(type_tag_core_to_sdk(*type_tag)?))
+            TypeTag::Vector(Box::new(type_tag_core_to_sdk(type_tag)))
         }
         move_core_types::language_storage::TypeTag::Struct(struct_tag) => {
-            TypeTag::Struct(Box::new(struct_tag_core_to_sdk(*struct_tag)?))
+            TypeTag::Struct(Box::new(struct_tag_core_to_sdk(struct_tag)))
         }
         move_core_types::language_storage::TypeTag::U16 => TypeTag::U16,
         move_core_types::language_storage::TypeTag::U32 => TypeTag::U32,
         move_core_types::language_storage::TypeTag::U256 => TypeTag::U256,
     }
-    .pipe(Ok)
 }
 
-pub fn type_tag_sdk_to_core(
-    value: TypeTag,
-) -> Result<move_core_types::language_storage::TypeTag, SdkTypeConversionError> {
+pub fn type_tag_sdk_to_core(value: &TypeTag) -> move_core_types::language_storage::TypeTag {
     match value {
         TypeTag::Bool => move_core_types::language_storage::TypeTag::Bool,
         TypeTag::U8 => move_core_types::language_storage::TypeTag::U8,
@@ -2231,21 +2163,18 @@ pub fn type_tag_sdk_to_core(
         TypeTag::Address => move_core_types::language_storage::TypeTag::Address,
         TypeTag::Signer => move_core_types::language_storage::TypeTag::Signer,
         TypeTag::Vector(type_tag) => move_core_types::language_storage::TypeTag::Vector(Box::new(
-            type_tag_sdk_to_core(*type_tag)?,
+            type_tag_sdk_to_core(type_tag),
         )),
         TypeTag::Struct(struct_tag) => move_core_types::language_storage::TypeTag::Struct(
-            Box::new(struct_tag_sdk_to_core(*struct_tag)?),
+            Box::new(struct_tag_sdk_to_core(struct_tag)),
         ),
         TypeTag::U16 => move_core_types::language_storage::TypeTag::U16,
         TypeTag::U32 => move_core_types::language_storage::TypeTag::U32,
         TypeTag::U256 => move_core_types::language_storage::TypeTag::U256,
     }
-    .pipe(Ok)
 }
 
-pub fn struct_tag_core_to_sdk(
-    value: move_core_types::language_storage::StructTag,
-) -> Result<StructTag, SdkTypeConversionError> {
+pub fn struct_tag_core_to_sdk(value: &move_core_types::language_storage::StructTag) -> StructTag {
     let move_core_types::language_storage::StructTag {
         address,
         module,
@@ -2254,24 +2183,18 @@ pub fn struct_tag_core_to_sdk(
     } = value;
 
     let address = Address::new(address.into_bytes());
-    let module = Identifier::new(module.as_str())?;
-    let name = Identifier::new(name.as_str())?;
-    let type_params = type_params
-        .into_iter()
-        .map(type_tag_core_to_sdk)
-        .collect::<Result<_, _>>()?;
+    let module = Identifier::new(module.as_str()).unwrap();
+    let name = Identifier::new(name.as_str()).unwrap();
+    let type_params = type_params.into_iter().map(type_tag_core_to_sdk).collect();
     StructTag {
         address,
         module,
         name,
         type_params,
     }
-    .pipe(Ok)
 }
 
-pub fn struct_tag_sdk_to_core(
-    value: StructTag,
-) -> Result<move_core_types::language_storage::StructTag, SdkTypeConversionError> {
+pub fn struct_tag_sdk_to_core(value: &StructTag) -> move_core_types::language_storage::StructTag {
     let StructTag {
         address,
         module,
@@ -2280,19 +2203,15 @@ pub fn struct_tag_sdk_to_core(
     } = value;
 
     let address = move_core_types::account_address::AccountAddress::new(address.into_bytes());
-    let module = move_core_types::identifier::Identifier::new(module.into_inner())?;
-    let name = move_core_types::identifier::Identifier::new(name.into_inner())?;
-    let type_params = type_params
-        .into_iter()
-        .map(type_tag_sdk_to_core)
-        .collect::<Result<_, _>>()?;
+    let module = move_core_types::identifier::Identifier::new(module.as_str()).unwrap();
+    let name = move_core_types::identifier::Identifier::new(name.as_str()).unwrap();
+    let type_params = type_params.into_iter().map(type_tag_sdk_to_core).collect();
     move_core_types::language_storage::StructTag {
         address,
         module,
         name,
         type_params,
     }
-    .pipe(Ok)
 }
 
 impl From<crate::committee::Committee> for ValidatorCommittee {

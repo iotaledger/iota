@@ -4,6 +4,7 @@
 
 use std::{collections::BTreeMap, num::NonZeroUsize, str::FromStr};
 
+use anyhow::anyhow;
 use async_trait::async_trait;
 use futures::future::join_all;
 use iota_core::authority::NodeStateDump;
@@ -16,6 +17,7 @@ use iota_json_rpc_types::{
 use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
 use iota_sdk::IotaClient;
 use iota_types::{
+    StructTag,
     base_types::{ObjectId, Version},
     digests::{ChainIdentifier, TransactionDigest},
     object::Object,
@@ -24,7 +26,6 @@ use iota_types::{
     },
 };
 use lru::LruCache;
-use move_core_types::language_storage::StructTag;
 use parking_lot::RwLock;
 use rand::Rng;
 
@@ -605,7 +606,7 @@ impl DataFetcher for RemoteFetcher {
     ) -> Result<Vec<IotaEvent>, ReplayEngineError> {
         let struct_tags: Vec<StructTag> = EPOCH_CHANGE_STRUCT_TAGS
             .iter()
-            .map(|tag| StructTag::from_str(tag))
+            .map(|tag| StructTag::from_str(tag).map_err(|e| anyhow!(e)))
             .collect::<Result<_, _>>()?;
 
         let mut epoch_change_events: Vec<IotaEvent> = vec![];

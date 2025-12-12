@@ -41,6 +41,7 @@ use iota_sdk::{
     iota_client_config::{IotaClientConfig, IotaEnv},
     wallet_context::WalletContext,
 };
+use iota_sdk_2::types::ObjectId;
 use iota_swarm::memory::Swarm;
 use iota_swarm_config::{
     genesis_config::GenesisConfig,
@@ -53,7 +54,6 @@ use iota_types::{
     crypto::{IotaKeyPair, SignatureScheme},
 };
 use move_analyzer::analyzer;
-use move_core_types::account_address::AccountAddress;
 use move_package::BuildConfig;
 use rand::rngs::OsRng;
 use serde_json::json;
@@ -560,7 +560,7 @@ impl IotaCommand {
                                 &rerooted_path,
                                 build_config.install_dir.clone(),
                                 chain_id,
-                                AccountAddress::ZERO,
+                                ObjectId::ZERO,
                             )?
                         } else {
                             None

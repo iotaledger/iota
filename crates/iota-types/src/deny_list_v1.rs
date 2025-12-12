@@ -7,12 +7,7 @@ use std::{
     fmt,
 };
 
-use move_core_types::{
-    account_address::AccountAddress,
-    ident_str,
-    identifier::IdentStr,
-    language_storage::{StructTag, TypeTag},
-};
+use iota_sdk_2::types::{IdentifierRef, StructTag, TypeTag};
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use tracing::{error, instrument};
 
@@ -28,8 +23,8 @@ use crate::{
     transaction::{CheckedInputObjects, ReceivingObjects},
 };
 
-pub const DENY_LIST_MODULE: &IdentStr = ident_str!("deny_list");
-pub const DENY_LIST_CREATE_FUNC: &IdentStr = ident_str!("create");
+pub const DENY_LIST_MODULE: &IdentifierRef = IdentifierRef::const_new("deny_list");
+pub const DENY_LIST_CREATE_FUNC: &IdentifierRef = IdentifierRef::const_new("create");
 
 pub const DENY_LIST_COIN_TYPE_INDEX: u64 = 0;
 
@@ -60,9 +55,9 @@ struct ConfigKey {
 impl ConfigKey {
     pub fn type_() -> StructTag {
         StructTag {
-            address: AccountAddress::new(Address::FRAMEWORK.into_bytes()),
+            address: Address::FRAMEWORK,
             module: DENY_LIST_MODULE.to_owned(),
-            name: ident_str!("ConfigKey").to_owned(),
+            name: IdentifierRef::const_new("ConfigKey").to_owned(),
             type_params: vec![],
         }
     }
@@ -81,9 +76,9 @@ struct AddressKey(Address);
 impl AddressKey {
     pub fn type_() -> StructTag {
         StructTag {
-            address: AccountAddress::new(Address::FRAMEWORK.into_bytes()),
+            address: Address::FRAMEWORK,
             module: DENY_LIST_MODULE.to_owned(),
-            name: ident_str!("AddressKey").to_owned(),
+            name: IdentifierRef::const_new("AddressKey").to_owned(),
             type_params: vec![],
         }
     }
@@ -107,9 +102,9 @@ impl GlobalPauseKey {
     }
     pub fn type_() -> StructTag {
         StructTag {
-            address: AccountAddress::new(Address::FRAMEWORK.into_bytes()),
+            address: Address::FRAMEWORK,
             module: DENY_LIST_MODULE.to_owned(),
-            name: ident_str!("GlobalPauseKey").to_owned(),
+            name: IdentifierRef::const_new("GlobalPauseKey").to_owned(),
             type_params: vec![],
         }
     }

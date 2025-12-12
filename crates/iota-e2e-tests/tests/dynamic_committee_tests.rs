@@ -25,7 +25,6 @@ use iota_types::{
     storage::ObjectStore,
     transaction::{Argument, Command, ObjectArg, ProgrammableTransaction},
 };
-use move_core_types::ident_str;
 use rand::{Rng, SeedableRng, rngs::StdRng};
 use test_cluster::{TestCluster, TestClusterBuilder};
 use tracing::info;
@@ -37,8 +36,8 @@ macro_rules! move_call {
     {$builder:expr, ($addr:expr)::$module_name:ident::$func:ident($($args:expr),* $(,)?)} => {
         $builder.programmable_move_call(
             $addr,
-            ident_str!(stringify!($module_name)).to_owned(),
-            ident_str!(stringify!($func)).to_owned(),
+            iota_types::IdentifierRef::const_new(stringify!($module_name)).to_owned(),
+            iota_types::IdentifierRef::const_new(stringify!($func)).to_owned(),
             vec![],
             vec![$($args),*],
         )

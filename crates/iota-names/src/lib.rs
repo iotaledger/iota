@@ -10,9 +10,9 @@ pub mod registry;
 
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-use iota_types::base_types::ObjectId;
-use move_core_types::{
-    account_address::AccountAddress, ident_str, identifier::IdentStr, language_storage::StructTag,
+use iota_types::{
+    IdentifierRef, StructTag,
+    base_types::{Address, ObjectId},
 };
 use serde::{Deserialize, Serialize};
 
@@ -42,10 +42,10 @@ impl SubnameRegistration {
 
 /// Unifying trait for [`NameRegistration`] and [`SubnameRegistration`]
 pub trait IotaNamesNft {
-    const MODULE: &IdentStr;
-    const TYPE_NAME: &IdentStr;
+    const MODULE: &IdentifierRef;
+    const TYPE_NAME: &IdentifierRef;
 
-    fn type_(package_id: AccountAddress) -> StructTag {
+    fn type_(package_id: Address) -> StructTag {
         StructTag {
             address: package_id,
             module: Self::MODULE.into(),
@@ -72,8 +72,8 @@ pub trait IotaNamesNft {
 }
 
 impl IotaNamesNft for NameRegistration {
-    const MODULE: &IdentStr = ident_str!("name_registration");
-    const TYPE_NAME: &IdentStr = ident_str!("NameRegistration");
+    const MODULE: &IdentifierRef = IdentifierRef::const_new("name_registration");
+    const TYPE_NAME: &IdentifierRef = IdentifierRef::const_new("NameRegistration");
 
     fn name(&self) -> &Name {
         &self.name
@@ -93,8 +93,8 @@ impl IotaNamesNft for NameRegistration {
 }
 
 impl IotaNamesNft for SubnameRegistration {
-    const MODULE: &IdentStr = ident_str!("subname_registration");
-    const TYPE_NAME: &IdentStr = ident_str!("SubnameRegistration");
+    const MODULE: &IdentifierRef = IdentifierRef::const_new("subname_registration");
+    const TYPE_NAME: &IdentifierRef = IdentifierRef::const_new("SubnameRegistration");
 
     fn name(&self) -> &Name {
         self.nft.name()

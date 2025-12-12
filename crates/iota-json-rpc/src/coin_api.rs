@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{collections::HashMap, sync::Arc};
+use std::{collections::HashMap, str::FromStr, sync::Arc};
 
 use anyhow::Result;
 use async_trait::async_trait;
@@ -17,6 +17,7 @@ use iota_open_rpc::Module;
 use iota_protocol_config::Chain;
 use iota_storage::key_value_store::TransactionKeyValueStore;
 use iota_types::{
+    StructTag, TypeTag,
     balance::Supply,
     base_types::{Address, ObjectId},
     coin::{CoinMetadata, TreasuryCap},
@@ -27,12 +28,10 @@ use iota_types::{
         IotaSystemStateTrait, iota_system_state_summary::IotaSystemStateSummaryV2,
     },
     object::Object,
-    parse_iota_struct_tag,
 };
 use jsonrpsee::{RpcModule, core::RpcResult};
 #[cfg(test)]
 use mockall::automock;
-use move_core_types::language_storage::{StructTag, TypeTag};
 use tap::TapFallible;
 use tracing::{debug, instrument};
 
@@ -44,7 +43,7 @@ use crate::{
 };
 
 pub fn parse_to_struct_tag(coin_type: &str) -> Result<StructTag, IotaRpcInputError> {
-    parse_iota_struct_tag(coin_type)
+    StructTag::from_str(coin_type)
         .map_err(|e| IotaRpcInputError::CannotParseIotaStructTag(format!("{e}")))
 }
 
@@ -584,11 +583,9 @@ mod tests {
         id::UID,
         messages_checkpoint::CheckpointDigest,
         object::Object,
-        parse_iota_struct_tag,
         utils::create_fake_transaction,
     };
     use mockall::{mock, predicate};
-    use move_core_types::language_storage::StructTag;
 
     use super::*;
     use crate::authority_state::{MockStateRead, StateReadError};
@@ -672,7 +669,7 @@ mod tests {
     }
 
     fn get_test_coin_type_tag(coin_type: String) -> TypeTag {
-        TypeTag::Struct(Box::new(parse_iota_struct_tag(&coin_type).unwrap()))
+        TypeTag::Struct(Box::new(StructTag::from_str(&coin_type).unwrap()))
     }
 
     enum CoinType {
@@ -711,7 +708,7 @@ mod tests {
         package_id: ObjectId,
     ) -> (String, StructTag, StructTag, TreasuryCap, Object) {
         let coin_name = get_test_coin_type(package_id);
-        let input_coin_struct = parse_iota_struct_tag(&coin_name).expect("should not fail");
+        let input_coin_struct = StructTag::from_str(&coin_name).expect("should not fail");
         let treasury_cap_struct = TreasuryCap::type_(input_coin_struct.clone());
         let treasury_cap = TreasuryCap {
             id: UID::new(get_test_package_id()),
@@ -808,7 +805,7 @@ mod tests {
             let coin_type = coin.coin_type.clone();
 
             let coin_type_tag =
-                TypeTag::Struct(Box::new(parse_iota_struct_tag(&coin.coin_type).unwrap()));
+                TypeTag::Struct(Box::new(StructTag::from_str(&coin.coin_type).unwrap()));
             let mut mock_state = MockStateRead::new();
             mock_state
                 .expect_get_owned_coins()
@@ -851,9 +848,8 @@ mod tests {
             let cursor = coins[0].coin_object_id;
             let limit = 2;
 
-            let coin_type_tag = TypeTag::Struct(Box::new(
-                parse_iota_struct_tag(&coins[0].coin_type).unwrap(),
-            ));
+            let coin_type_tag =
+                TypeTag::Struct(Box::new(StructTag::from_str(&coins[0].coin_type).unwrap()));
             let mut mock_state = MockStateRead::new();
             mock_state
                 .expect_get_owned_coins()
@@ -1340,7 +1336,7 @@ mod tests {
         async fn test_valid_coin_metadata_object() {
             let package_id = get_test_package_id();
             let coin_name = get_test_coin_type(package_id);
-            let input_coin_struct = parse_iota_struct_tag(&coin_name).expect("should not fail");
+            let input_coin_struct = StructTag::from_str(&coin_name).expect("should not fail");
             let coin_metadata_struct = CoinMetadata::type_(input_coin_struct.clone());
             let coin_metadata = CoinMetadata {
                 id: UID::new(get_test_package_id()),
@@ -1404,7 +1400,7 @@ mod tests {
         async fn test_find_package_object_not_iota_coin_metadata() {
             let package_id = get_test_package_id();
             let coin_name = get_test_coin_type(package_id);
-            let input_coin_struct = parse_iota_struct_tag(&coin_name).expect("should not fail");
+            let input_coin_struct = StructTag::from_str(&coin_name).expect("should not fail");
             let coin_metadata_struct = CoinMetadata::type_(input_coin_struct.clone());
             let treasury_cap = TreasuryCap {
                 id: UID::new(get_test_package_id()),

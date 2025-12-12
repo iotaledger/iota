@@ -24,6 +24,7 @@ use iota_test_transaction_builder::{
 };
 use iota_tool::restore_from_db_checkpoint;
 use iota_types::{
+    IdentifierRef,
     base_types::{Address, ObjectId, ObjectReference, TransactionDigest, Version, VersionExt},
     crypto::{IotaKeyPair, get_key_pair},
     error::{IotaError, UserInputError},
@@ -42,7 +43,7 @@ use iota_types::{
     utils::{to_sender_signed_transaction, to_sender_signed_transaction_with_multi_signers},
 };
 use jsonrpsee::{core::client::ClientT, rpc_params};
-use move_core_types::{annotated_value::MoveStructLayout, ident_str};
+use move_core_types::annotated_value::MoveStructLayout;
 use rand::rngs::OsRng;
 use test_cluster::TestClusterBuilder;
 use tokio::{
@@ -675,7 +676,7 @@ async fn test_full_node_event_query_by_module_ok() {
     // query by move event module
     let params = rpc_params![EventFilter::MoveEventModule {
         package: package_id,
-        module: ident_str!("testnet_nft").into()
+        module: IdentifierRef::const_new("testnet_nft").into()
     }];
     let page: EventPage = jsonrpc_client
         .request("iotax_queryEvents", params)
@@ -1141,8 +1142,8 @@ async fn test_pass_back_no_object() -> Result<(), anyhow::Error> {
     let tx_data = TransactionData::new_move_call(
         sender,
         package_ref.object_id,
-        ident_str!("object_basics").to_owned(),
-        ident_str!("use_clock").to_owned(),
+        IdentifierRef::const_new("object_basics").to_owned(),
+        IdentifierRef::const_new("use_clock").to_owned(),
         // type_args
         vec![],
         gas_obj,

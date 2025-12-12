@@ -31,7 +31,7 @@ fn test_deps_arent_tested() {
     let (mod_id, _) = iter.next().unwrap();
     let expected_mod_id = ModuleId::new(
         AccountAddress::from_hex_literal("0x6").unwrap(),
-        Identifier::new("B").unwrap(),
+        IdentifierRef::const_new("B").to_owned(),
     );
     assert!(mod_id == expected_mod_id);
     assert!(iter.next().is_none());

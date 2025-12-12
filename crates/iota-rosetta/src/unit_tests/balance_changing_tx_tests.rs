@@ -5,7 +5,6 @@
 use std::{
     collections::{BTreeMap, HashMap},
     path::PathBuf,
-    str::FromStr,
 };
 
 use anyhow::anyhow;
@@ -24,7 +23,7 @@ use iota_sdk::{
 };
 use iota_sdk_2::types::crypto::Intent;
 use iota_types::{
-    TypeTag,
+    IdentifierRef, StructTag, TypeTag,
     base_types::{Address, ObjectId, ObjectReference},
     gas_coin::GasCoin,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
@@ -37,7 +36,6 @@ use iota_types::{
         TransactionKind,
     },
 };
-use move_core_types::{identifier::Identifier, language_storage::StructTag};
 use rand::seq::{IteratorRandom, SliceRandom};
 use serde_json::json;
 use signature::rand_core::OsRng;
@@ -206,8 +204,8 @@ async fn test_publish_and_move_call() {
         builder
             .move_call(
                 *package,
-                Identifier::from_str("my_coin").unwrap(),
-                Identifier::from_str("mint").unwrap(),
+                IdentifierRef::const_new("my_coin").to_owned(),
+                IdentifierRef::const_new("mint").to_owned(),
                 vec![],
                 vec![
                     CallArg::Object(ObjectArg::ImmOrOwnedObject(treasury)),

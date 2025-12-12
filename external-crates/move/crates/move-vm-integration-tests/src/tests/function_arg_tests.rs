@@ -56,13 +56,13 @@ fn run(
     serialize_module_at_max_version(&m, &mut blob).unwrap();
 
     let mut storage = InMemoryStorage::new();
-    let module_id = ModuleId::new(TEST_ADDR, Identifier::new("M").unwrap());
+    let module_id = ModuleId::new(TEST_ADDR, IdentifierRef::const_new("M").to_owned());
     storage.publish_or_overwrite_module(module_id.clone(), blob);
 
     let vm = MoveVM::new(vec![]).unwrap();
     let mut sess = vm.new_session(&storage);
 
-    let fun_name = Identifier::new("foo").unwrap();
+    let fun_name = IdentifierRef::const_new("foo").to_owned();
 
     let ty_args: Vec<_> = ty_arg_tags
         .into_iter()

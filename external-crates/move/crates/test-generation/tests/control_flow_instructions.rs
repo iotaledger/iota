@@ -19,7 +19,7 @@ fn generate_module_with_function() -> CompiledModule {
     let mut module = empty_module();
 
     let offset = module.identifiers.len();
-    module.identifiers.push(Identifier::new("func0").unwrap());
+    module.identifiers.push(IdentifierRef::const_new("func0").to_owned());
 
     module.signatures = vec![
         Signature(vec![]),

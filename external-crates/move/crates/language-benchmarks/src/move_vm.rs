@@ -110,8 +110,8 @@ fn execute<M: Measurement + 'static>(
     }
 
     // module and function to call
-    let module_id = ModuleId::new(sender, Identifier::new("bench").unwrap());
-    let fun_name = Identifier::new("bench").unwrap();
+    let module_id = ModuleId::new(sender, IdentifierRef::const_new("bench").to_owned());
+    let fun_name = IdentifierRef::const_new("bench").to_owned();
 
     // benchmark
     c.bench_function(file, |b| {

@@ -14,6 +14,7 @@ use iota_sdk::rpc_types::{
     IotaTransactionBlockKind, IotaTransactionBlockResponse,
 };
 use iota_types::{
+    IdentifierRef, StructTag,
     base_types::{Address, ObjectId, Version},
     digests::TransactionDigest,
     gas_coin::{GAS, GasCoin},
@@ -22,12 +23,7 @@ use iota_types::{
     object::Owner,
     transaction::TransactionData,
 };
-use move_core_types::{
-    account_address::AccountAddress,
-    ident_str,
-    language_storage::{ModuleId, StructTag},
-    resolver::ModuleResolver,
-};
+use move_core_types::{language_storage::ModuleId, resolver::ModuleResolver};
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -636,9 +632,9 @@ impl TryFrom<IotaTransactionBlockResponse> for Operations {
 }
 
 fn is_unstake_event(tag: &StructTag) -> bool {
-    tag.address == AccountAddress::new(Address::SYSTEM.into_bytes())
-        && tag.module.as_ident_str() == ident_str!("validator")
-        && tag.name.as_ident_str() == ident_str!("UnstakingRequestEvent")
+    tag.address == Address::SYSTEM
+        && tag.module == IdentifierRef::const_new("validator")
+        && tag.name == IdentifierRef::const_new("UnstakingRequestEvent")
 }
 
 #[derive(Deserialize, Serialize, Clone, Debug)]

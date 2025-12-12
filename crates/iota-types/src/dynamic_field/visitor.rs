@@ -11,7 +11,7 @@ use move_core_types::{
 };
 
 use super::{DynamicFieldInfo, DynamicFieldType};
-use crate::{base_types::ObjectId, id::UID};
+use crate::{base_types::ObjectId, id::UID, iota_sdk_types_conversions::struct_tag_core_to_sdk};
 
 /// Visitor to deserialize the outer structure of a `0x2::dynamic_field::Field`
 /// while leaving its name and value untouched.
@@ -83,7 +83,9 @@ impl<'b, 'l> Visitor<'b, 'l> for FieldVisitor {
         &mut self,
         driver: &mut StructDriver<'_, 'b, 'l>,
     ) -> Result<Self::Value, Error> {
-        if !DynamicFieldInfo::is_dynamic_field(&driver.struct_layout().type_) {
+        if !DynamicFieldInfo::is_dynamic_field(&struct_tag_core_to_sdk(
+            &driver.struct_layout().type_,
+        )) {
             return Err(Error::NotADynamicField);
         }
 
@@ -217,7 +219,7 @@ fn extract_name_layout(
         return Ok((DynamicFieldType::DynamicField, layout));
     };
 
-    if !DynamicFieldInfo::is_dynamic_object_field_wrapper(&struct_.type_) {
+    if !DynamicFieldInfo::is_dynamic_object_field_wrapper(&struct_tag_core_to_sdk(&struct_.type_)) {
         return Ok((DynamicFieldType::DynamicField, layout));
     }
 

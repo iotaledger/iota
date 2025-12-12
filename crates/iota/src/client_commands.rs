@@ -53,6 +53,7 @@ use iota_sdk::{
 };
 use iota_source_validation::{BytecodeSourceVerifier, ValidationMode};
 use iota_types::{
+    TypeTag,
     base_types::{Address, ObjectId, ObjectReference, Version},
     crypto::{EmptySignInfo, SignatureScheme},
     digests::{ChainIdentifier, TransactionDigest},
@@ -64,7 +65,6 @@ use iota_types::{
     metrics::BytecodeVerifierMetrics,
     move_package::{MovePackage, UpgradeCap},
     object::Owner,
-    parse_iota_type_tag,
     quorum_driver_types::ExecuteTransactionRequestType,
     signature::GenericSignature,
     transaction::{
@@ -75,7 +75,6 @@ use iota_types::{
 use json_to_table::json_to_table;
 use move_binary_format::CompiledModule;
 use move_bytecode_verifier_meter::Scope;
-use move_core_types::{account_address::AccountAddress, language_storage::TypeTag};
 use move_package::{BuildConfig as MoveBuildConfig, source_package::parsed_manifest::Dependencies};
 use move_symbol_pool::Symbol;
 use prometheus::Registry;
@@ -156,7 +155,7 @@ pub enum IotaClientCommands {
         /// All must be specified, or the call will fail.
         #[arg(
             long,
-            value_parser = parse_iota_type_tag,
+            value_parser = TypeTag::from_str,
             num_args(1..),
         )]
         type_args: Vec<TypeTag>,
@@ -1017,7 +1016,7 @@ impl IotaClientCommands {
                         &package_path,
                         build_config.install_dir.clone(),
                         chain_id,
-                        AccountAddress::ZERO,
+                        ObjectId::ZERO,
                     )?
                 } else {
                     None
@@ -1163,7 +1162,7 @@ impl IotaClientCommands {
                         &package_path,
                         build_config.install_dir.clone(),
                         chain_id,
-                        AccountAddress::ZERO,
+                        ObjectId::ZERO,
                     )?
                 } else {
                     None
@@ -1975,12 +1974,8 @@ impl IotaClientCommands {
                     (false, true, _) => ValidationMode::deps(),
                     (true, false, None) => ValidationMode::root(),
                     (true, true, None) => ValidationMode::root_and_deps(),
-                    (true, false, Some(at)) => {
-                        ValidationMode::root_at(AccountAddress::new(at.into_bytes()))
-                    }
-                    (true, true, Some(at)) => {
-                        ValidationMode::root_and_deps_at(AccountAddress::new(at.into_bytes()))
-                    }
+                    (true, false, Some(at)) => ValidationMode::root_at(at),
+                    (true, true, Some(at)) => ValidationMode::root_and_deps_at(at),
                 };
 
                 build_config.implicit_dependencies = implicit_deps(latest_system_packages());

@@ -266,7 +266,7 @@ async fn test_event_filtering_and_bcs_serialization() {
                             "MoveEventTypeFilter should only match NFT package events"
                         );
                         assert_eq!(
-                            event.type_.name.as_ident_str().as_str(),
+                            event.type_.name.as_str(),
                             NFT_MINTED_EVENT,
                             "MoveEventTypeFilter should only match NFTMinted events"
                         );

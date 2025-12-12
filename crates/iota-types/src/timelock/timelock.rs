@@ -2,13 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use iota_protocol_config::ProtocolConfig;
+use iota_sdk_2::types::{IdentifierRef, StructTag, TypeTag};
 use iota_stardust_sdk::types::block::output::{BasicOutput, OutputId};
-use move_core_types::{
-    account_address::AccountAddress,
-    ident_str,
-    identifier::IdentStr,
-    language_storage::{StructTag, TypeTag},
-};
 use serde::{Deserialize, Serialize};
 
 use super::{
@@ -27,8 +22,8 @@ use crate::{
 #[path = "../unit_tests/timelock/timelock_tests.rs"]
 mod timelock_tests;
 
-pub const TIMELOCK_MODULE_NAME: &IdentStr = ident_str!("timelock");
-pub const TIMELOCK_STRUCT_NAME: &IdentStr = ident_str!("TimeLock");
+pub const TIMELOCK_MODULE_NAME: &IdentifierRef = IdentifierRef::const_new("timelock");
+pub const TIMELOCK_STRUCT_NAME: &IdentifierRef = IdentifierRef::const_new("TimeLock");
 
 /// All basic outputs whose IDs start with this prefix represent vested rewards
 /// that were created during the stardust upgrade on IOTA mainnet.
@@ -176,7 +171,7 @@ impl<T> TimeLock<T> {
     /// Get the TimeLock's `type`.
     pub fn type_(type_param: TypeTag) -> StructTag {
         StructTag {
-            address: AccountAddress::new(Address::FRAMEWORK.into_bytes()),
+            address: Address::FRAMEWORK,
             module: TIMELOCK_MODULE_NAME.to_owned(),
             name: TIMELOCK_STRUCT_NAME.to_owned(),
             type_params: vec![type_param],
@@ -223,9 +218,9 @@ where
 
 /// Is this other StructTag representing a TimeLock?
 pub fn is_timelock(other: &StructTag) -> bool {
-    other.address == AccountAddress::new(Address::FRAMEWORK.into_bytes())
-        && other.module.as_ident_str() == TIMELOCK_MODULE_NAME
-        && other.name.as_ident_str() == TIMELOCK_STRUCT_NAME
+    other.address == Address::FRAMEWORK
+        && other.module == TIMELOCK_MODULE_NAME
+        && other.name == TIMELOCK_STRUCT_NAME
 }
 
 /// Is this other StructTag representing a `TimeLock<Balance<T>>`?

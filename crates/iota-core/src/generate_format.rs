@@ -9,6 +9,7 @@ use clap::*;
 use fastcrypto_zkp::{bn254::zk_login::OIDCProvider, zk_login_utils::Bn254FrElement};
 use iota_sdk_2::types::crypto::{Intent, IntentMessage, PersonalMessage};
 use iota_types::{
+    IdentifierRef, StructTag, TypeTag,
     base_types::{
         self, Address, MoveObjectType, MoveObjectType_, ObjectDigest, ObjectId, TransactionDigest,
         TransactionEffectsDigest,
@@ -46,11 +47,7 @@ use iota_types::{
     type_input::{StructInput, TypeInput},
     utils::DEFAULT_ADDRESS_SEED,
 };
-use move_core_types::{
-    account_address::AccountAddress,
-    identifier::Identifier,
-    language_storage::{ModuleId, StructTag, TypeTag},
-};
+use move_core_types::{account_address::AccountAddress, ident_str, language_storage::ModuleId};
 use pretty_assertions::assert_str_eq;
 use rand::{SeedableRng, rngs::StdRng};
 use roaring::RoaringBitmap;
@@ -86,10 +83,10 @@ fn get_registry() -> Result<Registry> {
     // with all the base types contained in messages, especially the ones with
     // custom serializers; or involving generics (see [serde_reflection documentation](https://novifinancial.github.io/serde-reflection/serde_reflection/index.html)).
 
-    let m = ModuleId::new(AccountAddress::ZERO, Identifier::new("foo").unwrap());
+    let m = ModuleId::new(AccountAddress::ZERO, ident_str!("foo").to_owned());
     tracer.trace_value(&mut samples, &m).unwrap();
     tracer
-        .trace_value(&mut samples, &Identifier::new("foo").unwrap())
+        .trace_value(&mut samples, &ident_str!("foo").to_owned())
         .unwrap();
 
     let (addr, kp): (_, AuthorityKeyPair) = get_key_pair();
@@ -191,7 +188,7 @@ fn get_registry() -> Result<Registry> {
     tracer.trace_value(&mut samples, &tot).unwrap();
 
     let si = StructInput {
-        address: AccountAddress::ZERO,
+        address: Address::ZERO,
         module: "foo".to_owned(),
         name: "bar".to_owned(),
         type_params: vec![TypeInput::Bool],
@@ -202,7 +199,7 @@ fn get_registry() -> Result<Registry> {
     // Event while, sui's doesn't.
     let event = Event {
         package_id: ObjectId::new(rand::random()),
-        transaction_module: Identifier::new("foo").unwrap(),
+        transaction_module: IdentifierRef::const_new("foo").to_owned(),
         sender: Address::ZERO,
         type_: struct_tag.clone(),
         contents: vec![0],

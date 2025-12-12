@@ -65,9 +65,9 @@ fn no_verify_locals_good() {
         function_instantiations: vec![],
         field_instantiations: vec![],
         identifiers: vec![
-            Identifier::new("Bad").unwrap(),
-            Identifier::new("blah").unwrap(),
-            Identifier::new("foo").unwrap(),
+            IdentifierRef::const_new("Bad").to_owned(),
+            IdentifierRef::const_new("blah").to_owned(),
+            IdentifierRef::const_new("foo").to_owned(),
         ],
         address_identifiers: vec![AccountAddress::new([0; AccountAddress::LENGTH])],
         constant_pool: vec![],
@@ -164,8 +164,8 @@ fn big_signature_test() {
         field_instantiations: vec![],
         signatures: vec![Signature(vec![]), Signature(vec![st])],
         identifiers: vec![
-            Identifier::new("f").unwrap(),
-            Identifier::new("generic_struct").unwrap(),
+            IdentifierRef::const_new("f").to_owned(),
+            IdentifierRef::const_new("generic_struct").to_owned(),
         ],
         address_identifiers: vec![AccountAddress::ONE],
         constant_pool: vec![],

@@ -10,7 +10,6 @@ use iota_package_resolver::{
 };
 use iota_rest_api::Client;
 use iota_types::{base_types::ObjectId, object::Object};
-use move_core_types::account_address::AccountAddress;
 use thiserror::Error;
 use typed_store::{
     DBMapUtils, Map, TypedStoreError,
@@ -87,18 +86,18 @@ impl LocalDBPackageStore {
         Ok(())
     }
 
-    pub async fn get(&self, id: AccountAddress) -> Result<Object> {
+    pub async fn get(&self, id: ObjectId) -> Result<Object> {
         let object = if let Some(object) = self
             .package_store_tables
             .packages
-            .get(&ObjectId::new(id.into_bytes()))
+            .get(&id)
             .map_err(Error::TypedStore)?
         {
             object
         } else {
             let object = self
                 .fallback_client
-                .get_object(ObjectId::new(id.into_bytes()))
+                .get_object(id)
                 .await
                 .map_err(|_| PackageResolverError::PackageNotFound(id))?;
             self.update(&object)?;
@@ -110,7 +109,7 @@ impl LocalDBPackageStore {
 
 #[async_trait]
 impl PackageStore for LocalDBPackageStore {
-    async fn fetch(&self, id: AccountAddress) -> Result<Arc<Package>> {
+    async fn fetch(&self, id: ObjectId) -> Result<Arc<Package>> {
         let object = self.get(id).await?;
         Ok(Arc::new(Package::read_from_object(&object)?))
     }
