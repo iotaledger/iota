@@ -2423,7 +2423,7 @@ impl Display for IotaClientCommandResult {
 
                 let mut table = builder.build();
                 table.with(TableStyle::rounded());
-                table.with(TablePanel::header("Added new account to the keystore."));
+                table.with(TablePanel::header("Added account to the keystore."));
 
                 table.with(
                     TableModify::new(TableCell::new(0, 0))
