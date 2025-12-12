@@ -10,6 +10,7 @@ use std::{
     time::Duration,
 };
 
+use chrono;
 use tokio::time::{self, Instant};
 
 use crate::{
@@ -602,9 +603,14 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
 
         let results_directory = &self.settings.results_dir;
         let commit = &self.settings.repository.commit;
-        let path: PathBuf = [results_directory, &format!("results-{commit}").into()]
-            .iter()
-            .collect();
+        let timestamp = chrono::Local::now().format("%y%m%d_%H%M%S");
+        let path: PathBuf = [
+            results_directory,
+            &format!("results-{commit}").into(),
+            &format!("{timestamp}").into(),
+        ]
+        .iter()
+        .collect();
         fs::create_dir_all(&path).expect("Failed to create log directory");
         aggregator.save(&path);
 

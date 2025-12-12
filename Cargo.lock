@@ -5670,6 +5670,7 @@ dependencies = [
  "aws-runtime",
  "aws-sdk-ec2",
  "aws-smithy-runtime-api",
+ "chrono",
  "clap",
  "color-eyre",
  "crossterm 0.25.0",
