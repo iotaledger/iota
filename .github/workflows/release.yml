@@ -38,6 +38,7 @@ env:
   # from transient network timeouts or other issues.
   CARGO_NET_RETRY: 10
   RUSTUP_MAX_RETRIES: 10
+  # Path to temporary build directory. If this gets changed the chocolatey nuspec files needs to be updated
   TMP_BUILD_DIR: "./tmp/release"
   RELEASE_NOTES_FILE: "release_notes.txt"
 
