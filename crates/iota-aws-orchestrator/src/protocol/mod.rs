@@ -103,7 +103,7 @@ pub trait ProtocolMetrics {
         self.nodes_metrics_path(instances, parameters)
             .into_iter()
             .map(|(instance, path)| {
-                let cmd = format!("curl {path}");
+                let cmd = format!("curl '{path}'");
                 display::action(format!("\n{cmd}"));
                 (instance, cmd)
             })
@@ -125,7 +125,7 @@ pub trait ProtocolMetrics {
             .into_iter()
             .map(|instance| {
                 (instance, {
-                    let cmd = format!("curl http://localhost:1337/flamegraph{query}");
+                    let cmd = format!("curl 'http://localhost:1337/flamegraph{query}'");
                     display::action(format!("\n{cmd}"));
                     cmd.to_string()
                 })
@@ -154,7 +154,7 @@ pub trait ProtocolMetrics {
     {
         self.clients_metrics_path(instances, parameters)
             .into_iter()
-            .map(|(instance, path)| (instance, format!("curl {path}")))
+            .map(|(instance, path)| (instance, format!("curl '{path}'")))
             .collect()
     }
 }
