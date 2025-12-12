@@ -108,7 +108,9 @@ pub(crate) async fn sign_transaction(
             .sign_secure(signer_address, tx_data, Intent::iota_transaction())?
             .into()),
         StoredKey::Account(_) => {
-            bail!("Cannot sign with account type")
+            bail!(
+                "Cannot sign with account type. Please provide --auth-call-args (and --auth-type-args if needed)."
+            )
         }
         StoredKey::External {
             derivation_path,
@@ -154,7 +156,9 @@ where
     match key {
         StoredKey::KeyPair(_) => Ok(keystore.sign_secure(address, &msg, intent)?),
         StoredKey::Account(_) => {
-            bail!("Cannot sign with account type")
+            bail!(
+                "Cannot sign with account type. Please provide --auth-call-args (and --auth-type-args if needed)."
+            )
         }
         StoredKey::External {
             derivation_path,
