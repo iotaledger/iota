@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use iota_grpc_types::google::rpc::{BadRequest, ErrorInfo, RetryInfo};
-use iota_types::base_types::ObjectID;
+use iota_types::{base_types::ObjectID, digests::TransactionDigest};
 use tonic::{Code, Status};
 
 /// Main RPC error type
@@ -181,6 +181,23 @@ impl std::error::Error for ObjectNotFoundError {}
 
 impl From<ObjectNotFoundError> for RpcError {
     fn from(value: ObjectNotFoundError) -> Self {
+        Self::new(tonic::Code::NotFound, value.to_string())
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct TransactionNotFoundError(pub TransactionDigest);
+
+impl std::fmt::Display for TransactionNotFoundError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Transaction {} not found", self.0)
+    }
+}
+
+impl std::error::Error for TransactionNotFoundError {}
+
+impl From<TransactionNotFoundError> for RpcError {
+    fn from(value: TransactionNotFoundError) -> Self {
         Self::new(tonic::Code::NotFound, value.to_string())
     }
 }
