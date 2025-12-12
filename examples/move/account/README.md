@@ -51,7 +51,7 @@ iota client ptb \
 ## Use the account
 
 ```bash
-iota client new-account $ACCOUNT_ADDRESS
+iota client add-account $ACCOUNT_ADDRESS
 iota client switch --address $ACCOUNT_ADDRESS
 iota client faucet
 sleep 2 # wait for the gas to be available

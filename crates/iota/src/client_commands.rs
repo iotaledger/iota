@@ -127,6 +127,16 @@ pub enum IotaClientCommands {
     ActiveAddress,
     /// Default environment used for commands when none specified
     ActiveEnv,
+    /// Add a existing account address to the keystore
+    AddAccount {
+        // TODO: better comment
+        /// The account object id
+        address: IotaAddress,
+        /// The alias must start with a letter and can contain only letters,
+        /// digits, hyphens (-), or underscores (_).
+        #[arg(long)]
+        alias: Option<String>,
+    },
     /// Obtain the Addresses managed by the client.
     Addresses {
         /// Sort by alias instead of address
@@ -245,16 +255,6 @@ pub enum IotaClientCommands {
         gas_data: GasDataArgs,
         #[command(flatten)]
         processing: TxProcessingArgs,
-    },
-    /// Add a new account address to the keystore
-    NewAccount {
-        // TODO: better comment
-        /// The account object id
-        address: IotaAddress,
-        /// The alias must start with a letter and can contain only letters,
-        /// digits, hyphens (-), or underscores (_).
-        #[arg(long)]
-        alias: Option<String>,
     },
     /// Generate new address and keypair with optional key scheme {ed25519 |
     /// secp256k1 | secp256r1} which defaults to ed25519, optional alias which
@@ -793,6 +793,44 @@ impl IotaClientCommands {
         context: &mut WalletContext,
     ) -> Result<IotaClientCommandResult, anyhow::Error> {
         let ret = match self {
+            IotaClientCommands::AddAccount { address, alias } => {
+                let client = context.get_client().await?;
+
+                let authenticator_info_id = dynamic_field::derive_dynamic_field_id(
+                    address,
+                    &account::AuthenticatorInfoV1Key::tag().into(),
+                    &account::AuthenticatorInfoV1Key::default().to_bcs_bytes(),
+                )?;
+
+                let response = client
+                    .read_api()
+                    .get_object_with_options(
+                        authenticator_info_id,
+                        IotaObjectDataOptions::new().with_bcs(),
+                    )
+                    .await?;
+
+                if let Some(error) = response.error {
+                    bail!("Failed to fetch AuthenticatorInfoV1 object {error}");
+                }
+
+                response
+                    .into_object()?
+                    .bcs
+                    .ok_or_else(|| anyhow::anyhow!("missing bcs"))?
+                    .try_into_move()
+                    .ok_or_else(|| anyhow::anyhow!("invalid move type"))?
+                    .deserialize::<Field<account::AuthenticatorInfoV1Key, account::AuthenticatorInfoV1>>()?;
+
+                context
+                    .config_mut()
+                    .keystore_mut()
+                    .add_key(alias, StoredKey::Account(address))?;
+
+                let alias = context.config().keystore().get_alias_by_address(&address)?;
+
+                IotaClientCommandResult::AddAccount(AddAccountOutput { address, alias })
+            }
             IotaClientCommands::ProfileTransaction {
                 tx_digest,
                 profile_output,
@@ -1659,44 +1697,6 @@ impl IotaClientCommands {
                 .await?;
                 IotaClientCommandResult::Objects(objects)
             }
-            IotaClientCommands::NewAccount { address, alias } => {
-                let client = context.get_client().await?;
-
-                let authenticator_info_id = dynamic_field::derive_dynamic_field_id(
-                    address,
-                    &account::AuthenticatorInfoV1Key::tag().into(),
-                    &account::AuthenticatorInfoV1Key::default().to_bcs_bytes(),
-                )?;
-
-                let response = client
-                    .read_api()
-                    .get_object_with_options(
-                        authenticator_info_id,
-                        IotaObjectDataOptions::new().with_bcs(),
-                    )
-                    .await?;
-
-                if let Some(error) = response.error {
-                    bail!("Failed to fetch AuthenticatorInfoV1 object {error}");
-                }
-
-                response
-                    .into_object()?
-                    .bcs
-                    .ok_or_else(|| anyhow::anyhow!("missing bcs"))?
-                    .try_into_move()
-                    .ok_or_else(|| anyhow::anyhow!("invalid move type"))?
-                    .deserialize::<Field<account::AuthenticatorInfoV1Key, account::AuthenticatorInfoV1>>()?;
-
-                context
-                    .config_mut()
-                    .keystore_mut()
-                    .add_key(alias, StoredKey::Account(address))?;
-
-                let alias = context.config().keystore().get_alias_by_address(&address)?;
-
-                IotaClientCommandResult::NewAccount(NewAccountOutput { address, alias })
-            }
             IotaClientCommands::NewAddress {
                 key_scheme,
                 alias,
@@ -2416,6 +2416,26 @@ impl Display for IotaClientCommandResult {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let mut writer = String::new();
         match self {
+            IotaClientCommandResult::AddAccount(new_account) => {
+                let mut builder = TableBuilder::default();
+                builder.push_record(vec!["address", new_account.address.to_string().as_str()]);
+                builder.push_record(vec!["alias", new_account.alias.as_str()]);
+
+                let mut table = builder.build();
+                table.with(TableStyle::rounded());
+                table.with(TablePanel::header("Added new account to the keystore."));
+
+                table.with(
+                    TableModify::new(TableCell::new(0, 0))
+                        .with(TableBorder::default().corner_bottom_right('┬')),
+                );
+                table.with(
+                    TableModify::new(TableCell::new(0, 0))
+                        .with(TableBorder::default().corner_top_right('─')),
+                );
+
+                write!(f, "{table}")?
+            }
             IotaClientCommandResult::Addresses(addresses) => {
                 let mut builder = TableBuilder::default();
                 builder.set_header(vec!["alias", "address", "source", "active"]);
@@ -2510,26 +2530,6 @@ impl Display for IotaClientCommandResult {
                     table.with(tabled::settings::style::BorderSpanCorrection);
                 }
                 write!(f, "{table}")?;
-            }
-            IotaClientCommandResult::NewAccount(new_account) => {
-                let mut builder = TableBuilder::default();
-                builder.push_record(vec!["address", new_account.address.to_string().as_str()]);
-                builder.push_record(vec!["alias", new_account.alias.as_str()]);
-
-                let mut table = builder.build();
-                table.with(TableStyle::rounded());
-                table.with(TablePanel::header("Added new account to the keystore."));
-
-                table.with(
-                    TableModify::new(TableCell::new(0, 0))
-                        .with(TableBorder::default().corner_bottom_right('┬')),
-                );
-                table.with(
-                    TableModify::new(TableCell::new(0, 0))
-                        .with(TableBorder::default().corner_top_right('─')),
-                );
-
-                write!(f, "{table}")?
             }
             IotaClientCommandResult::NewAddress(new_address) => {
                 let mut builder = TableBuilder::default();
@@ -2851,6 +2851,7 @@ impl IotaClientCommandResult {
             }) => (),
             IotaClientCommandResult::ActiveAddress(_)
             | IotaClientCommandResult::ActiveEnv(_)
+            | IotaClientCommandResult::AddAccount(_)
             | IotaClientCommandResult::Addresses(_)
             | IotaClientCommandResult::Balance(_, _)
             | IotaClientCommandResult::ComputeTransactionDigest(_)
@@ -2859,7 +2860,6 @@ impl IotaClientCommandResult {
             | IotaClientCommandResult::DevInspect(_)
             | IotaClientCommandResult::Envs(_, _)
             | IotaClientCommandResult::Gas(_)
-            | IotaClientCommandResult::NewAccount(_)
             | IotaClientCommandResult::NewAddress(_)
             | IotaClientCommandResult::NewEnv(_)
             | IotaClientCommandResult::NoOutput
@@ -2897,7 +2897,7 @@ pub struct DynamicFieldOutput {
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct NewAccountOutput {
+pub struct AddAccountOutput {
     pub address: IotaAddress,
     pub alias: String,
 }
@@ -3014,6 +3014,7 @@ impl ObjectsOutput {
 pub enum IotaClientCommandResult {
     ActiveAddress(Option<IotaAddress>),
     ActiveEnv(Option<String>),
+    AddAccount(AddAccountOutput),
     Addresses(AddressesOutput),
     Balance(Vec<(Option<IotaCoinMetadata>, Vec<Coin>)>, bool),
     ChainIdentifier(String),
@@ -3023,7 +3024,6 @@ pub enum IotaClientCommandResult {
     DevInspect(DevInspectResults),
     Envs(Vec<IotaEnv>, Option<String>),
     Gas(Vec<GasCoin>),
-    NewAccount(NewAccountOutput),
     NewAddress(NewAddressOutput),
     NewEnv(IotaEnv),
     NoOutput,
