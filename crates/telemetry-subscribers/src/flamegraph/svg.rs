@@ -309,6 +309,22 @@ impl CallGraph<FlameMetric> {
     }
 }
 
+fn append_type_suffix(label: &str, config: &Config) -> String {
+    #[cfg(all(feature = "flamegraph-alloc", nightly))]
+    {
+        if config.measure_mem {
+            format!("{label} (memory)")
+        } else {
+            format!("{label} (time)")
+        }
+    }
+    #[cfg(not(all(feature = "flamegraph-alloc", nightly)))]
+    {
+        let _ = config;
+        format!("{label} (time)")
+    }
+}
+
 impl Flames<FlameMetric> {
     pub fn render_svg(
         &self,
@@ -317,8 +333,10 @@ impl Flames<FlameMetric> {
         completed: bool,
         config: &Config,
     ) -> Option<Svg> {
+        let caption = &append_type_suffix(graph_id.caption, config);
+
         self.get_callgraph(graph_id, running, completed)
-            .map(|callgraph| callgraph.render_svg(graph_id.caption, config))
+            .map(|callgraph| callgraph.render_svg(caption, config))
     }
     fn render_combined_svg_with_measure<M>(
         &self,
@@ -363,6 +381,8 @@ impl Flames<FlameMetric> {
         completed: bool,
         config: &Config,
     ) -> Option<Svg> {
+        let caption = &append_type_suffix(caption, config);
+
         #[cfg(all(feature = "flamegraph-alloc", nightly))]
         {
             if config.measure_mem {
