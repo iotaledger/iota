@@ -14,7 +14,10 @@ use iota_grpc_types::{
     },
 };
 use iota_macros::sim_test;
-use iota_types::transaction::{TransactionData, TransactionDataAPI};
+use iota_types::{
+    programmable_transaction_builder::ProgrammableTransactionBuilder,
+    transaction::{ObjectArg, TransactionData, TransactionDataAPI},
+};
 use prost_types::FieldMask;
 use test_cluster::TestClusterBuilder;
 
@@ -304,4 +307,164 @@ async fn simulate_transaction_empty_request() {
         result.is_err(),
         "Expected error for missing transaction, but got success"
     );
+}
+
+#[sim_test]
+async fn simulate_programmable_transaction_command_results() {
+    let test_cluster = TestClusterBuilder::new()
+        .with_fullnode_enable_grpc_api(true)
+        .build()
+        .await;
+
+    // Wait for at least one checkpoint
+    test_cluster.wait_for_checkpoint(1, None).await;
+
+    let mut client = TransactionExecutionServiceClient::connect(test_cluster.grpc_url())
+        .await
+        .unwrap();
+
+    let (sender, mut gas) = test_cluster.wallet.get_one_account().await.unwrap();
+    gas.sort_by_key(|object_ref| object_ref.0);
+    let gas_obj = gas.last().unwrap();
+    let obj_to_split = gas.first().unwrap();
+
+    // Build a programmable transaction that will produce command results
+    // We need to use a Move call that returns values, not just transfer_arg
+    let mut builder = ProgrammableTransactionBuilder::new();
+
+    // Use SplitCoins which returns a value (the split coin)
+    let gas_coin_arg = builder
+        .obj(ObjectArg::ImmOrOwnedObject(*obj_to_split))
+        .unwrap();
+    let amount = builder.pure(1000u64).unwrap();
+
+    // SplitCoins returns the newly created coin, which is an ExecutionResult
+    let split_result = builder.command(iota_types::transaction::Command::SplitCoins(
+        gas_coin_arg,
+        vec![amount],
+    ));
+
+    // Transfer the split coin to sender (this uses the result from the previous
+    // command)
+    builder.transfer_arg(sender, split_result);
+
+    let pt = builder.finish();
+
+    let tx_data = TransactionData::new_programmable(
+        sender,
+        vec![*gas_obj],
+        pt,
+        10_000_000, // gas budget
+        1000,       // gas price
+    );
+
+    let create_transaction = || ProtoTransaction {
+        bcs: Some(BcsData {
+            data: bcs::to_bytes(&tx_data).unwrap().into(),
+        }),
+        ..Default::default()
+    };
+
+    // Test cases for command_results field presence
+    type TestCase<'a> = (&'a str, Option<FieldMask>, &'a [&'a str]);
+    let test_cases: Vec<TestCase> = vec![
+        (
+            "default readmask",
+            None,
+            &[
+                "transaction.transaction.digest",
+                "transaction.transaction.bcs",
+                "transaction.effects.digest",
+                "transaction.effects.bcs",
+                // mutated_by_ref has argument since they reference input arguments
+                "command_results.results.mutated_by_ref.outputs.argument.kind",
+                "command_results.results.mutated_by_ref.outputs.type_tag",
+                "command_results.results.mutated_by_ref.outputs.bcs",
+                "command_results.results.mutated_by_ref.outputs.json",
+                // return_values don't have argument (they're results, not arguments)
+                "command_results.results.return_values.outputs.type_tag",
+                "command_results.results.return_values.outputs.bcs",
+                "command_results.results.return_values.outputs.json",
+            ],
+        ),
+        (
+            "full command_results readmask",
+            Some(FieldMask::from_paths(["command_results"])),
+            &[
+                // Full mask returns all nested fields
+                // mutated_by_ref has argument since they reference input arguments
+                "command_results.results.mutated_by_ref.outputs.argument.kind",
+                "command_results.results.mutated_by_ref.outputs.type_tag",
+                "command_results.results.mutated_by_ref.outputs.bcs",
+                "command_results.results.mutated_by_ref.outputs.json",
+                // return_values don't have argument (they're results, not arguments)
+                "command_results.results.return_values.outputs.type_tag",
+                "command_results.results.return_values.outputs.bcs",
+                "command_results.results.return_values.outputs.json",
+            ],
+        ),
+        (
+            "command_results with nested return_values field",
+            Some(FieldMask::from_paths([
+                "command_results.results.return_values",
+            ])),
+            &[
+                // return_values don't have argument (they're results, not arguments)
+                "command_results.results.return_values.outputs.type_tag",
+                "command_results.results.return_values.outputs.bcs",
+                "command_results.results.return_values.outputs.json",
+            ],
+        ),
+        (
+            "command_results with nested mutated_by_ref field",
+            Some(FieldMask::from_paths([
+                "command_results.results.mutated_by_ref",
+            ])),
+            &[
+                // mutated_by_ref has argument since they reference input arguments
+                "command_results.results.mutated_by_ref.outputs.argument.kind",
+                "command_results.results.mutated_by_ref.outputs.type_tag",
+                "command_results.results.mutated_by_ref.outputs.bcs",
+                "command_results.results.mutated_by_ref.outputs.json",
+            ],
+        ),
+        (
+            "command_results return_values outputs with type_tag field",
+            Some(FieldMask::from_paths([
+                "command_results.results.return_values.outputs.type_tag",
+            ])),
+            &["command_results.results.return_values.outputs.type_tag"],
+        ),
+        (
+            "command_results mutated_by_ref outputs with argument field",
+            Some(FieldMask::from_paths([
+                "command_results.results.mutated_by_ref.outputs.argument",
+            ])),
+            &["command_results.results.mutated_by_ref.outputs.argument.kind"],
+        ),
+        (
+            "command_results mutated_by_ref outputs",
+            Some(FieldMask::from_paths([
+                "command_results.results.mutated_by_ref.outputs",
+            ])),
+            &[
+                // mutated_by_ref has argument since they reference input arguments
+                "command_results.results.mutated_by_ref.outputs.argument.kind",
+                "command_results.results.mutated_by_ref.outputs.type_tag",
+                "command_results.results.mutated_by_ref.outputs.bcs",
+                "command_results.results.mutated_by_ref.outputs.json",
+            ],
+        ),
+    ];
+
+    for (scenario, mask, expected_paths) in test_cases {
+        assert_simulate_transaction_request(
+            &mut client,
+            create_transaction(),
+            mask,
+            expected_paths,
+            scenario,
+        )
+        .await;
+    }
 }
