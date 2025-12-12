@@ -292,6 +292,11 @@ pub struct GrpcApiConfig {
     /// Buffer size for broadcast channels used for event streaming
     #[serde(default = "default_event_broadcast_buffer_size")]
     pub event_broadcast_buffer_size: usize,
+
+    /// Maximum size for Move values when rendering to JSON
+    /// in bytes.
+    #[serde(default = "default_max_json_move_value_size")]
+    pub max_json_move_value_size: usize,
 }
 
 impl Default for GrpcApiConfig {
@@ -300,6 +305,7 @@ impl Default for GrpcApiConfig {
             address: default_grpc_api_address(),
             checkpoint_broadcast_buffer_size: default_checkpoint_broadcast_buffer_size(),
             event_broadcast_buffer_size: default_event_broadcast_buffer_size(),
+            max_json_move_value_size: default_max_json_move_value_size(),
         }
     }
 }
@@ -315,6 +321,10 @@ fn default_checkpoint_broadcast_buffer_size() -> usize {
 
 fn default_event_broadcast_buffer_size() -> usize {
     1000
+}
+
+fn default_max_json_move_value_size() -> usize {
+    1024 * 1024 // 1 MB
 }
 
 #[derive(Clone, Copy, Debug, Default, Deserialize, Serialize)]

@@ -399,6 +399,7 @@ async fn test_server_and_client_setup<I: Iterator<Item = u64>>(
     let server_handle = start_grpc_server(
         grpc_reader,
         dummy_event_subscriber,
+        None, // No transaction executor for this test
         config,
         cancellation_token,
         iota_types::digests::ChainIdentifier::default(),

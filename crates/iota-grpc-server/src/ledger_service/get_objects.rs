@@ -13,7 +13,7 @@ use iota_grpc_types::{
         object::Object,
     },
 };
-use iota_types::{base_types::ObjectID, iota_sdk_types_conversions::SdkTypeConversionError};
+use iota_types::base_types::ObjectID;
 use prost::Message;
 use prost_types::FieldMask;
 
@@ -23,7 +23,11 @@ use crate::{
     types::{GrpcReader, ObjectsStreamResult},
 };
 
-pub const READ_MASK_DEFAULT: &str = "reference.object_id,reference.version,reference.digest";
+pub const READ_MASK_DEFAULT: &str = crate::field_mask!(
+    "reference.object_id",
+    "reference.version",
+    "reference.digest",
+);
 
 type ValidationResult = Result<(Vec<(ObjectID, Option<u64>)>, FieldMaskTree), RpcError>;
 
@@ -123,7 +127,6 @@ fn get_object_impl(
     version: Option<u64>,
     read_mask: &FieldMaskTree,
 ) -> Result<Object, RpcError> {
-    // Get object from storage (returns iota_types::object::Object)
     let object = if let Some(version) = version {
         reader
             .get_object_by_key(&object_id, version.into())
@@ -134,16 +137,10 @@ fn get_object_impl(
             .ok_or_else(|| ObjectNotFoundError::new(object_id))?
     };
 
-    // Convert to iota-sdk-types type
-    // TODO: Remove this conversion when we migrate iota-types to iota-sdk-types
-    // types
-    let sdk_object = object
-        .try_into()
-        .map_err(|e: SdkTypeConversionError| anyhow::Error::msg(e.to_string()))?;
-
-    let mut message = Object::default();
-
-    Merge::merge(&mut message, &sdk_object, read_mask);
-
-    Ok(message)
+    Object::merge_from(object, read_mask).map_err(|e| {
+        RpcError::new(
+            tonic::Code::Internal,
+            format!("Failed to build object response: {e}"),
+        )
+    })
 }

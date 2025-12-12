@@ -6,6 +6,8 @@ syntax = "proto3";
 
 package iota.grpc.v0.command;
 
+import "google/protobuf/struct.proto";
+
 import "iota/grpc/v0/bcs.proto";
 import "iota/grpc/v0/types.proto";
 
@@ -45,6 +47,7 @@ message CommandOutput {
   optional Argument argument = 1;
   optional iota.grpc.v0.types.TypeTag type_tag = 2;
   optional iota.grpc.v0.bcs.BcsData bcs = 3;
+  optional google.protobuf.Value json = 4;
 }
 
 message CommandOutputs {
@@ -53,8 +56,8 @@ message CommandOutputs {
 
 // An intermediate result/output from the execution of a single command
 message CommandResult {
-  optional CommandOutputs return_values = 1;
-  optional CommandOutputs mutated_by_ref = 2;
+  optional CommandOutputs mutated_by_ref = 1;
+  optional CommandOutputs return_values = 2;
 }
 
 message CommandResults {

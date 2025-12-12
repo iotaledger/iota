@@ -10,7 +10,6 @@ use iota_grpc_types::{
             GetObjectsRequest, GetObjectsResponse, ObjectRequest, ObjectRequests,
             ledger_service_client::LedgerServiceClient,
         },
-        object::Object,
         types::ObjectReference,
     },
 };
@@ -19,20 +18,7 @@ use iota_types::base_types::ObjectID;
 use prost_types::FieldMask;
 use test_cluster::TestClusterBuilder;
 
-use crate::{impl_field_presence_checker, utils::assert_field_presence};
-
-// Generate the FieldPresenceChecker implementation for Object
-impl_field_presence_checker!(Object {
-    reference: ObjectReference,
-    bcs,
-});
-
-// Generate the FieldPresenceChecker implementation for ObjectReference
-impl_field_presence_checker!(ObjectReference {
-    object_id,
-    version,
-    digest,
-});
+use crate::utils::assert_field_presence;
 
 async fn assert_get_objects_request(
     client: &mut LedgerServiceClient<tonic::transport::Channel>,

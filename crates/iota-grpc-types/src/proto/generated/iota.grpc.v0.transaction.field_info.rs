@@ -181,73 +181,65 @@ mod _field_impls {
         }
     }
     impl ExecutedTransaction {
-        pub const DIGEST_FIELD: &'static MessageField = &MessageField {
-            name: "digest",
-            json_name: "digest",
-            number: 1i32,
-            is_optional: true,
-            message_fields: Some(Digest::FIELDS),
-        };
         pub const TRANSACTION_FIELD: &'static MessageField = &MessageField {
             name: "transaction",
             json_name: "transaction",
-            number: 2i32,
+            number: 1i32,
             is_optional: true,
             message_fields: Some(Transaction::FIELDS),
         };
         pub const SIGNATURES_FIELD: &'static MessageField = &MessageField {
             name: "signatures",
             json_name: "signatures",
-            number: 3i32,
+            number: 2i32,
             is_optional: true,
             message_fields: Some(UserSignatures::FIELDS),
         };
         pub const EFFECTS_FIELD: &'static MessageField = &MessageField {
             name: "effects",
             json_name: "effects",
-            number: 4i32,
+            number: 3i32,
             is_optional: true,
             message_fields: Some(TransactionEffects::FIELDS),
         };
         pub const EVENTS_FIELD: &'static MessageField = &MessageField {
             name: "events",
             json_name: "events",
-            number: 5i32,
+            number: 4i32,
             is_optional: true,
             message_fields: Some(TransactionEvents::FIELDS),
         };
         pub const CHECKPOINT_FIELD: &'static MessageField = &MessageField {
             name: "checkpoint",
             json_name: "checkpoint",
-            number: 6i32,
+            number: 5i32,
             is_optional: true,
             message_fields: None,
         };
         pub const TIMESTAMP_FIELD: &'static MessageField = &MessageField {
             name: "timestamp",
             json_name: "timestamp",
-            number: 7i32,
+            number: 6i32,
             is_optional: true,
             message_fields: None,
         };
         pub const INPUT_OBJECTS_FIELD: &'static MessageField = &MessageField {
             name: "input_objects",
             json_name: "inputObjects",
-            number: 9i32,
+            number: 7i32,
             is_optional: true,
             message_fields: Some(Objects::FIELDS),
         };
         pub const OUTPUT_OBJECTS_FIELD: &'static MessageField = &MessageField {
             name: "output_objects",
             json_name: "outputObjects",
-            number: 10i32,
+            number: 8i32,
             is_optional: true,
             message_fields: Some(Objects::FIELDS),
         };
     }
     impl MessageFields for ExecutedTransaction {
         const FIELDS: &'static [&'static MessageField] = &[
-            Self::DIGEST_FIELD,
             Self::TRANSACTION_FIELD,
             Self::SIGNATURES_FIELD,
             Self::EFFECTS_FIELD,
@@ -277,10 +269,6 @@ mod _field_impls {
         }
         pub fn finish(self) -> String {
             self.path.join(".")
-        }
-        pub fn digest(mut self) -> DigestFieldPathBuilder {
-            self.path.push(ExecutedTransaction::DIGEST_FIELD.name);
-            DigestFieldPathBuilder::new_with_base(self.path)
         }
         pub fn transaction(mut self) -> TransactionFieldPathBuilder {
             self.path.push(ExecutedTransaction::TRANSACTION_FIELD.name);

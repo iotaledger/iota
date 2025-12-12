@@ -19,7 +19,15 @@ use tonic::Status;
 
 use crate::ledger_service::LedgerGrpcService;
 
-pub const READ_MASK_DEFAULT: &str = "epoch,first_checkpoint,last_checkpoint,start,end,reference_gas_price,protocol_config.protocol_version";
+pub const READ_MASK_DEFAULT: &str = crate::field_mask!(
+    "epoch",
+    "first_checkpoint",
+    "last_checkpoint",
+    "start",
+    "end",
+    "reference_gas_price",
+    "protocol_config.protocol_version"
+);
 
 #[tracing::instrument(skip(service))]
 pub fn get_epoch(
@@ -83,10 +91,13 @@ pub fn get_epoch(
         }
 
         if let Some(submask) = read_mask.subtree(Epoch::PROTOCOL_CONFIG_FIELD.name) {
-            message.protocol_config = Some(ProtocolConfig::merge_from(
-                get_protocol_config(epoch_info.protocol_version, service.chain)?,
-                &submask,
-            ));
+            message.protocol_config = Some(
+                ProtocolConfig::merge_from(
+                    get_protocol_config(epoch_info.protocol_version, service.chain)?,
+                    &submask,
+                )
+                .map_err(|e| Status::internal(format!("Failed to merge protocol config: {e}")))?,
+            );
         }
 
         // If we're not loading the current epoch then grab the indexed snapshot of the
@@ -98,12 +109,9 @@ pub fn get_epoch(
 
     if let Some(system_state) = system_state {
         if read_mask.contains(Epoch::BCS_SYSTEM_STATE_FIELD.name) {
-            let bcs_bytes = bcs::to_bytes(&system_state).map_err(|e| {
-                Status::internal(format!("Failed to serialize system state to BCS: {e}"))
-            })?;
-            message.bcs_system_state = Some(Box::new(BcsData {
-                data: bcs_bytes.into(),
-            }));
+            if let Ok(bcs_data) = BcsData::serialize(&system_state) {
+                message.bcs_system_state = Some(Box::new(bcs_data));
+            }
         }
     }
 

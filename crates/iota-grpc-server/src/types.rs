@@ -211,6 +211,9 @@ pub type CheckpointStreamResult = Result<grpc_ledger_service::CheckpointData, St
 
 /// Trait for reading checkpoint data from storage
 pub trait GrpcStateReader: Send + Sync + 'static {
+    /// Get the chain identifier
+    fn get_chain_identifier(&self) -> anyhow::Result<iota_types::digests::ChainIdentifier>;
+
     /// Get the latest checkpoint sequence number
     fn get_latest_checkpoint_sequence_number(&self) -> Option<u64>;
 
@@ -251,6 +254,12 @@ pub trait GrpcStateReader: Send + Sync + 'static {
 
     /// Get indexed epoch information
     fn get_epoch_info(&self, epoch: u64) -> Option<iota_types::storage::EpochInfo>;
+
+    /// Get the Move type layout for a given TypeTag
+    fn get_type_layout(
+        &self,
+        type_tag: &iota_types::TypeTag,
+    ) -> Result<Option<move_core_types::annotated_value::MoveTypeLayout>>;
 }
 
 /// Adapter that implements GrpcStateReader for RestStateReader
@@ -259,6 +268,10 @@ pub struct RestStateReaderAdapter {
 }
 
 impl GrpcStateReader for RestStateReaderAdapter {
+    fn get_chain_identifier(&self) -> anyhow::Result<iota_types::digests::ChainIdentifier> {
+        self.inner.get_chain_identifier().map_err(Into::into)
+    }
+
     fn get_latest_checkpoint_sequence_number(&self) -> Option<u64> {
         match self.inner.try_get_latest_checkpoint() {
             Ok(checkpoint) => Some(*checkpoint.sequence_number()),
@@ -334,6 +347,13 @@ impl GrpcStateReader for RestStateReaderAdapter {
             .indexes()
             .and_then(|indexes| indexes.get_epoch_info(epoch).ok().flatten())
     }
+
+    fn get_type_layout(
+        &self,
+        type_tag: &iota_types::TypeTag,
+    ) -> Result<Option<move_core_types::annotated_value::MoveTypeLayout>> {
+        Ok(self.inner.get_type_layout(type_tag)?)
+    }
 }
 
 /// Central gRPC data reader that provides unified access to checkpoint data.
@@ -355,6 +375,10 @@ impl GrpcReader {
                 inner: state_reader,
             }),
         }
+    }
+
+    pub fn get_chain_identifier(&self) -> anyhow::Result<iota_types::digests::ChainIdentifier> {
+        self.state_reader.get_chain_identifier()
     }
 
     pub fn get_epoch_last_checkpoint(
@@ -423,8 +447,28 @@ impl GrpcReader {
         self.state_reader.get_system_state()
     }
 
+    pub fn get_system_state_summary(
+        &self,
+    ) -> anyhow::Result<
+        iota_types::iota_system_state::iota_system_state_summary::IotaSystemStateSummary,
+    > {
+        use iota_types::iota_system_state::IotaSystemStateTrait;
+
+        let system_state = self.get_system_state()?;
+        let summary = system_state.into_iota_system_state_summary();
+
+        Ok(summary)
+    }
+
     pub fn get_epoch_info(&self, epoch: u64) -> Option<iota_types::storage::EpochInfo> {
         self.state_reader.get_epoch_info(epoch)
+    }
+
+    pub fn get_type_layout(
+        &self,
+        type_tag: &iota_types::TypeTag,
+    ) -> Result<Option<move_core_types::annotated_value::MoveTypeLayout>> {
+        self.state_reader.get_type_layout(type_tag)
     }
 
     /// Generic checkpoint streaming implementation that works with checkpoint
