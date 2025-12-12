@@ -19,7 +19,7 @@ use move_core_types::account_address::AccountAddress;
 use serde::de::DeserializeOwned;
 
 use crate::{
-    config::ServiceConfig,
+    config::{DEFAULT_PAGE_SIZE, ServiceConfig},
     connection::ScanConnection,
     error::Error,
     mutation::Mutation,
@@ -466,6 +466,9 @@ impl Query {
     /// GraphQL, but it can be restricted by the `after` and `before`
     /// cursors, and the `beforeCheckpoint`, `afterCheckpoint` and
     /// `atCheckpoint` filters.
+    #[graphql(
+        complexity = "first.or(last).unwrap_or(DEFAULT_PAGE_SIZE as u64) as usize * child_complexity"
+    )]
     async fn transaction_blocks(
         &self,
         ctx: &Context<'_>,
@@ -495,6 +498,9 @@ impl Query {
     /// We currently do not support filtering by emitting module and event type
     /// at the same time so if both are provided in one filter, the query will
     /// error.
+    #[graphql(
+        complexity = "first.or(last).unwrap_or(DEFAULT_PAGE_SIZE as u64) as usize * child_complexity"
+    )]
     async fn events(
         &self,
         ctx: &Context<'_>,

@@ -537,6 +537,7 @@ impl ServerBuilder {
 
 fn schema_builder() -> SchemaBuilder<Query, Mutation, Subscription> {
     async_graphql::Schema::build(Query, Mutation, Subscription)
+        .limit_complexity(6000)
         .register_output_type::<IMoveObject>()
         .register_output_type::<IObject>()
         .register_output_type::<IOwner>()

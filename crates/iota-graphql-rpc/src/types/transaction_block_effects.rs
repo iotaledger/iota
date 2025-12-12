@@ -17,6 +17,7 @@ use iota_types::{
 };
 
 use crate::{
+    config::DEFAULT_PAGE_SIZE,
     consistency::{ConsistentIndexCursor, UNAVAILABLE_CHECKPOINT_SEQUENCE_NUMBER},
     data::package_resolver::PackageResolver,
     error::Error,
@@ -101,6 +102,7 @@ impl TransactionBlockEffects {
     }
 
     /// Whether the transaction executed successfully or not.
+    #[graphql(complexity = 0)]
     async fn status(&self) -> Option<ExecutionStatus> {
         Some(match self.native().status() {
             NativeExecutionStatus::Success => ExecutionStatus::Success,
@@ -111,6 +113,7 @@ impl TransactionBlockEffects {
     /// The latest version of all objects (apart from packages) that have been
     /// created or modified by this transaction, immediately following this
     /// transaction.
+    #[graphql(complexity = 0)]
     async fn lamport_version(&self) -> UInt53 {
         self.native().lamport_version().value().into()
     }
@@ -119,6 +122,7 @@ impl TransactionBlockEffects {
     /// If the error is a Move abort, the error message will be resolved to a
     /// human-readable form if possible, otherwise it will fall back to
     /// displaying the abort code and location.
+    #[graphql(complexity = 0)]
     async fn errors(&self, ctx: &Context<'_>) -> Result<Option<String>> {
         let resolver: &PackageResolver = ctx.data_unchecked();
 
@@ -198,6 +202,7 @@ impl TransactionBlockEffects {
     }
 
     /// Transactions whose outputs this transaction depends upon.
+    #[graphql(complexity = 0)]
     async fn dependencies(
         &self,
         ctx: &Context<'_>,
@@ -262,12 +267,14 @@ impl TransactionBlockEffects {
     }
 
     /// Effects to the gas object.
+    #[graphql(complexity = 0)]
     async fn gas_effects(&self) -> Option<GasEffects> {
         Some(GasEffects::from(self.native(), self.checkpoint_viewed_at))
     }
 
     /// Shared objects that are referenced by but not changed by this
     /// transaction.
+    #[graphql(complexity = 0)]
     async fn unchanged_shared_objects(
         &self,
         ctx: &Context<'_>,
@@ -307,6 +314,7 @@ impl TransactionBlockEffects {
     }
 
     /// The effect this transaction had on objects on-chain.
+    #[graphql(complexity = 0)]
     async fn object_changes(
         &self,
         ctx: &Context<'_>,
@@ -353,6 +361,7 @@ impl TransactionBlockEffects {
 
     /// The effect this transaction had on the balances (sum of coin values per
     /// coin type) of addresses and objects.
+    #[graphql(complexity = 0)]
     async fn balance_changes(
         &self,
         ctx: &Context<'_>,
@@ -409,6 +418,9 @@ impl TransactionBlockEffects {
     }
 
     /// Events emitted by this transaction block.
+    #[graphql(
+        complexity = "first.or(last).unwrap_or(DEFAULT_PAGE_SIZE as u64) as usize * child_complexity"
+    )]
     async fn events(
         &self,
         ctx: &Context<'_>,
@@ -459,6 +471,7 @@ impl TransactionBlockEffects {
 
     /// Timestamp corresponding to the checkpoint this transaction was finalized
     /// in.
+    #[graphql(complexity = 0)]
     async fn timestamp(&self) -> Result<Option<DateTime>, Error> {
         let TransactionBlockEffectsKind::Checkpointed { stored_tx, .. } = &self.kind else {
             return Ok(None);
@@ -467,6 +480,7 @@ impl TransactionBlockEffects {
     }
 
     /// The epoch this transaction was executed in.
+    #[graphql(complexity = 0)]
     async fn epoch(&self, ctx: &Context<'_>) -> Result<Option<Epoch>> {
         Epoch::query(
             ctx,
@@ -499,6 +513,7 @@ impl TransactionBlockEffects {
     }
 
     /// Base64 encoded bcs serialization of the on-chain transaction effects.
+    #[graphql(complexity = 0)]
     async fn bcs(&self) -> Result<Base64> {
         let bytes = match &self.kind {
             TransactionBlockEffectsKind::Checkpointed { stored_tx, .. } => {

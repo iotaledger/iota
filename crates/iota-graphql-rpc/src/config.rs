@@ -14,6 +14,8 @@ use crate::functional_group::FunctionalGroup;
 
 pub(crate) const RPC_TIMEOUT_ERR_SLEEP_RETRY_PERIOD: Duration = Duration::from_millis(10_000);
 pub(crate) const MAX_CONCURRENT_REQUESTS: usize = 1_000;
+pub(crate) const DEFAULT_PAGE_SIZE: u32 = 20;
+pub(crate) const MAX_PAGE_SIZE: u32 = 50;
 
 /// The combination of all configurations for the GraphQL service.
 #[GraphQLConfig]
@@ -499,8 +501,8 @@ impl Default for Limits {
             max_output_nodes: 100_000,
             max_query_payload_size: 5_000,
             max_db_query_cost: 20_000,
-            default_page_size: 20,
-            max_page_size: 50,
+            default_page_size: DEFAULT_PAGE_SIZE,
+            max_page_size: MAX_PAGE_SIZE,
             // This default was picked as the sum of pre- and post- quorum timeouts from
             // [`iota_core::authority_aggregator::TimeoutConfig`], with a 10% buffer.
             //

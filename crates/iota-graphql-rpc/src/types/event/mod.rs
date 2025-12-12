@@ -26,6 +26,7 @@ use iota_types::{
 use lookups::{add_bounds, select_emit_module, select_event_type, select_sender};
 
 use crate::{
+    config::DEFAULT_PAGE_SIZE,
     data::{self, Db, DbConnection, QueryExecutor},
     error::Error,
     query,
@@ -89,6 +90,7 @@ impl Event {
     /// For simulated transactions (e.g. dry run), or transactions that have
     /// been just executed but not yet included in a checkpoint this returns
     /// null.
+    #[graphql(complexity = "DEFAULT_PAGE_SIZE as usize * (1 + child_complexity)")]
     async fn transaction_block(&self, ctx: &Context<'_>) -> Result<Option<TransactionBlock>> {
         let Some(checkpointed) = &self.checkpointed_info else {
             return Ok(None);
@@ -103,6 +105,7 @@ impl Event {
     /// For example, if a PTB invokes A::m1::foo, which internally
     /// calls A::m2::emit_event to emit an event,
     /// the sending module would be A::m1.
+    #[graphql(complexity = 0)]
     async fn sending_module(&self, ctx: &Context<'_>) -> Result<Option<MoveModule>> {
         MoveModule::query(
             ctx,
@@ -115,6 +118,7 @@ impl Event {
     }
 
     /// Address of the sender of the event
+    #[graphql(complexity = 0)]
     async fn sender(&self) -> Result<Option<Address>> {
         if self.native.sender == NativeIotaAddress::ZERO {
             return Ok(None);
@@ -127,6 +131,7 @@ impl Event {
     }
 
     /// UTC timestamp in milliseconds since epoch (1/1/1970)
+    #[graphql(complexity = 0)]
     async fn timestamp(&self) -> Result<Option<DateTime>, Error> {
         if let Some(checkpointed) = &self.checkpointed_info {
             Ok(Some(DateTime::from_ms(checkpointed.timestamp_ms)?))

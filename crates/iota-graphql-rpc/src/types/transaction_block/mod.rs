@@ -195,6 +195,7 @@ impl TransactionBlock {
     /// A 32-byte hash that uniquely identifies the transaction block contents,
     /// encoded in Base58. This serves as a unique id for the block on
     /// chain.
+    #[graphql(complexity = 0)]
     async fn digest(&self) -> Option<String> {
         self.native_signed_data()
             .map(|s| Base58::encode(s.digest()))
@@ -202,6 +203,7 @@ impl TransactionBlock {
 
     /// The address corresponding to the public key that signed this
     /// transaction. System transactions do not have senders.
+    #[graphql(complexity = 0)]
     async fn sender(&self) -> Option<Address> {
         let sender = self.native().sender();
 
@@ -217,6 +219,7 @@ impl TransactionBlock {
     ///
     /// If the owner of the gas object(s) is not the same as the sender, the
     /// transaction block is a sponsored transaction block.
+    #[graphql(complexity = 0)]
     async fn gas_input(&self, ctx: &Context<'_>) -> Option<GasInput> {
         let checkpoint_viewed_at =
             if matches!(self.inner, TransactionBlockInner::Checkpointed { .. })
@@ -240,6 +243,7 @@ impl TransactionBlock {
 
     /// The type of this transaction as well as the commands and/or parameters
     /// comprising the transaction of this kind.
+    #[graphql(complexity = 0)]
     async fn kind(&self) -> Option<TransactionBlockKind> {
         Some(TransactionBlockKind::from(
             self.native().kind().clone(),
@@ -249,6 +253,7 @@ impl TransactionBlock {
 
     /// A list of all signatures, Base64-encoded, from senders, and potentially
     /// the gas owner if this is a sponsored transaction.
+    #[graphql(complexity = 0)]
     async fn signatures(&self) -> Option<Vec<Base64>> {
         self.native_signed_data().map(|s| {
             s.tx_signatures()
@@ -260,6 +265,7 @@ impl TransactionBlock {
 
     /// The effects field captures the results to the chain of executing this
     /// transaction.
+    #[graphql(complexity = "child_complexity")]
     async fn effects(&self) -> Result<Option<TransactionBlockEffects>> {
         Ok(Some(self.clone().try_into().extend()?))
     }
@@ -268,6 +274,7 @@ impl TransactionBlock {
     /// reference that sets a deadline after which validators will no longer
     /// consider the transaction valid. By default, there is no deadline for
     /// when a transaction must execute.
+    #[graphql(complexity = 0)]
     async fn expiration(&self, ctx: &Context<'_>) -> Result<Option<Epoch>> {
         let TransactionExpiration::Epoch(id) = self.native().expiration() else {
             return Ok(None);
@@ -280,6 +287,7 @@ impl TransactionBlock {
 
     /// Serialized form of this transaction's `SenderSignedData`, BCS serialized
     /// and Base64 encoded.
+    #[graphql(complexity = 0)]
     async fn bcs(&self) -> Option<Base64> {
         match &self.inner {
             TransactionBlockInner::Checkpointed { stored_tx, .. } => {
@@ -306,6 +314,7 @@ impl TransactionBlock {
     ///
     /// Otherwise, it is recommended that you use
     /// `Query.isTransactionIndexedOnNode` for optimal performance.
+    #[graphql(complexity = 0)]
     async fn indexed_on_node(&self, ctx: &Context<'_>) -> Result<Option<bool>> {
         if self.inner.is_checkpointed() {
             return Ok(Some(true));
