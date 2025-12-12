@@ -3,10 +3,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 module iota_system::msim_extra_1 {
-    use iota::object::{Self, UID};
-    use iota::transfer;
-    use iota::tx_context::{Self, TxContext};
-
     public struct Type has drop, copy {
         x: u64,
     }

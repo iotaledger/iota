@@ -62,6 +62,15 @@ export class FeaturesController {
                         bannerUrl: '',
                     },
                 },
+                [Feature.WalletPasskeys]: {
+                    defaultValue: {
+                        [Network.Mainnet]: true,
+                        [Network.Devnet]: true,
+                        [Network.Testnet]: true,
+                        [Network.Localnet]: true,
+                        [Network.Custom]: true,
+                    },
+                },
                 [Feature.PollingTxnTable]: {
                     defaultValue: true,
                 },
@@ -159,6 +168,15 @@ export class FeaturesController {
                         dismissKey: '',
                         imageUrl: '',
                         bannerUrl: '',
+                    },
+                },
+                [Feature.WalletPasskeys]: {
+                    defaultValue: {
+                        [Network.Mainnet]: false,
+                        [Network.Devnet]: false,
+                        [Network.Testnet]: false,
+                        [Network.Localnet]: false,
+                        [Network.Custom]: false,
                     },
                 },
                 [Feature.PollingTxnTable]: {
