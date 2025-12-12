@@ -36,18 +36,15 @@ pub struct TransactionEvents {
 /// A transaction that has been executed, along with its signatures, effects, events and objects.
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct ExecutedTransaction {
-    /// The digest of this Transaction.
-    #[prost(message, optional, tag = "1")]
-    pub digest: ::core::option::Option<super::types::Digest>,
     /// The transaction itself.
-    #[prost(message, optional, tag = "2")]
+    #[prost(message, optional, tag = "1")]
     pub transaction: ::core::option::Option<Transaction>,
     /// List of user signatures that are used to authorize the
     /// execution of this transaction.
-    #[prost(message, optional, tag = "3")]
+    #[prost(message, optional, tag = "2")]
     pub signatures: ::core::option::Option<super::signatures::UserSignatures>,
     /// The `TransactionEffects` for this transaction.
-    #[prost(message, optional, tag = "4")]
+    #[prost(message, optional, tag = "3")]
     pub effects: ::core::option::Option<TransactionEffects>,
     /// The `TransactionEvents` for this transaction.
     ///
@@ -55,19 +52,19 @@ pub struct ExecutedTransaction {
     /// transaction didn't produce any events.
     /// `iota.types.TransactionEffects.events_digest` is populated if the
     /// transaction produced any events.
-    #[prost(message, optional, tag = "5")]
+    #[prost(message, optional, tag = "4")]
     pub events: ::core::option::Option<TransactionEvents>,
     /// The sequence number for the checkpoint that includes this transaction.
-    #[prost(uint64, optional, tag = "6")]
+    #[prost(uint64, optional, tag = "5")]
     pub checkpoint: ::core::option::Option<u64>,
     /// The Unix timestamp of the checkpoint that includes this transaction.
-    #[prost(message, optional, tag = "7")]
+    #[prost(message, optional, tag = "6")]
     pub timestamp: ::core::option::Option<::prost_types::Timestamp>,
     /// Set of input objects used by this transaction.
-    #[prost(message, optional, tag = "9")]
+    #[prost(message, optional, tag = "7")]
     pub input_objects: ::core::option::Option<super::object::Objects>,
     /// Set of output objects produced by this transaction.
-    #[prost(message, optional, tag = "10")]
+    #[prost(message, optional, tag = "8")]
     pub output_objects: ::core::option::Option<super::object::Objects>,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]

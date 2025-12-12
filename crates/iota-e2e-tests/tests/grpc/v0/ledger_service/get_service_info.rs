@@ -12,19 +12,7 @@ use iota_macros::sim_test;
 use prost_types::FieldMask;
 use test_cluster::TestClusterBuilder;
 
-use crate::{impl_field_presence_checker, utils::assert_field_presence};
-
-// Generate the FieldPresenceChecker implementation for GetServiceInfoResponse
-impl_field_presence_checker!(GetServiceInfoResponse {
-    chain_id,
-    chain,
-    epoch,
-    executed_checkpoint_height,
-    executed_checkpoint_timestamp,
-    lowest_available_checkpoint,
-    lowest_available_checkpoint_objects,
-    server,
-});
+use crate::utils::assert_field_presence;
 
 async fn assert_service_info_request(
     client: &mut LedgerServiceClient<tonic::transport::Channel>,

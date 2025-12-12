@@ -322,6 +322,7 @@ mod _accessor_impls {
                 argument: None,
                 type_tag: None,
                 bcs: None,
+                json: None,
             }
         }
         #[doc(hidden)]
@@ -422,6 +423,28 @@ mod _accessor_impls {
             self.set_bcs(field.into());
             self
         }
+        ///If `json` is set, returns [`Some`] with a mutable reference to the value; otherwise returns [`None`].
+        pub fn json_opt_mut(&mut self) -> Option<&mut ::prost_types::Value> {
+            self.json.as_mut().map(|field| field as _)
+        }
+        ///Returns a mutable reference to `json`.
+        ///If the field is unset, it is first initialized with the default value.
+        pub fn json_mut(&mut self) -> &mut ::prost_types::Value {
+            self.json.get_or_insert_default()
+        }
+        ///If `json` is set, returns [`Some`] with the value; otherwise returns [`None`].
+        pub fn json_opt(&self) -> Option<&::prost_types::Value> {
+            self.json.as_ref().map(|field| field as _)
+        }
+        ///Sets `json` with the provided value.
+        pub fn set_json<T: Into<::prost_types::Value>>(&mut self, field: T) {
+            self.json = Some(field.into().into());
+        }
+        ///Sets `json` with the provided value.
+        pub fn with_json<T: Into<::prost_types::Value>>(mut self, field: T) -> Self {
+            self.set_json(field.into());
+            self
+        }
     }
     impl super::CommandOutputs {
         pub const fn const_default() -> Self {
@@ -454,46 +477,14 @@ mod _accessor_impls {
     impl super::CommandResult {
         pub const fn const_default() -> Self {
             Self {
-                return_values: None,
                 mutated_by_ref: None,
+                return_values: None,
             }
         }
         #[doc(hidden)]
         pub fn default_instance() -> &'static Self {
             static DEFAULT: super::CommandResult = super::CommandResult::const_default();
             &DEFAULT
-        }
-        ///Returns the value of `return_values`, or the default value if `return_values` is unset.
-        pub fn return_values(&self) -> &super::CommandOutputs {
-            self.return_values
-                .as_ref()
-                .map(|field| field as _)
-                .unwrap_or_else(|| super::CommandOutputs::default_instance() as _)
-        }
-        ///If `return_values` is set, returns [`Some`] with a mutable reference to the value; otherwise returns [`None`].
-        pub fn return_values_opt_mut(&mut self) -> Option<&mut super::CommandOutputs> {
-            self.return_values.as_mut().map(|field| field as _)
-        }
-        ///Returns a mutable reference to `return_values`.
-        ///If the field is unset, it is first initialized with the default value.
-        pub fn return_values_mut(&mut self) -> &mut super::CommandOutputs {
-            self.return_values.get_or_insert_default()
-        }
-        ///If `return_values` is set, returns [`Some`] with the value; otherwise returns [`None`].
-        pub fn return_values_opt(&self) -> Option<&super::CommandOutputs> {
-            self.return_values.as_ref().map(|field| field as _)
-        }
-        ///Sets `return_values` with the provided value.
-        pub fn set_return_values<T: Into<super::CommandOutputs>>(&mut self, field: T) {
-            self.return_values = Some(field.into().into());
-        }
-        ///Sets `return_values` with the provided value.
-        pub fn with_return_values<T: Into<super::CommandOutputs>>(
-            mut self,
-            field: T,
-        ) -> Self {
-            self.set_return_values(field.into());
-            self
         }
         ///Returns the value of `mutated_by_ref`, or the default value if `mutated_by_ref` is unset.
         pub fn mutated_by_ref(&self) -> &super::CommandOutputs {
@@ -525,6 +516,38 @@ mod _accessor_impls {
             field: T,
         ) -> Self {
             self.set_mutated_by_ref(field.into());
+            self
+        }
+        ///Returns the value of `return_values`, or the default value if `return_values` is unset.
+        pub fn return_values(&self) -> &super::CommandOutputs {
+            self.return_values
+                .as_ref()
+                .map(|field| field as _)
+                .unwrap_or_else(|| super::CommandOutputs::default_instance() as _)
+        }
+        ///If `return_values` is set, returns [`Some`] with a mutable reference to the value; otherwise returns [`None`].
+        pub fn return_values_opt_mut(&mut self) -> Option<&mut super::CommandOutputs> {
+            self.return_values.as_mut().map(|field| field as _)
+        }
+        ///Returns a mutable reference to `return_values`.
+        ///If the field is unset, it is first initialized with the default value.
+        pub fn return_values_mut(&mut self) -> &mut super::CommandOutputs {
+            self.return_values.get_or_insert_default()
+        }
+        ///If `return_values` is set, returns [`Some`] with the value; otherwise returns [`None`].
+        pub fn return_values_opt(&self) -> Option<&super::CommandOutputs> {
+            self.return_values.as_ref().map(|field| field as _)
+        }
+        ///Sets `return_values` with the provided value.
+        pub fn set_return_values<T: Into<super::CommandOutputs>>(&mut self, field: T) {
+            self.return_values = Some(field.into().into());
+        }
+        ///Sets `return_values` with the provided value.
+        pub fn with_return_values<T: Into<super::CommandOutputs>>(
+            mut self,
+            field: T,
+        ) -> Self {
+            self.set_return_values(field.into());
             self
         }
     }

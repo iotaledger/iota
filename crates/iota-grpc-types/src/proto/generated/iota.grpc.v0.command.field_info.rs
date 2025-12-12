@@ -261,12 +261,20 @@ mod _field_impls {
             is_optional: true,
             message_fields: Some(BcsData::FIELDS),
         };
+        pub const JSON_FIELD: &'static MessageField = &MessageField {
+            name: "json",
+            json_name: "json",
+            number: 4i32,
+            is_optional: true,
+            message_fields: None,
+        };
     }
     impl MessageFields for CommandOutput {
         const FIELDS: &'static [&'static MessageField] = &[
             Self::ARGUMENT_FIELD,
             Self::TYPE_TAG_FIELD,
             Self::BCS_FIELD,
+            Self::JSON_FIELD,
         ];
     }
     impl CommandOutput {
@@ -300,6 +308,10 @@ mod _field_impls {
         pub fn bcs(mut self) -> BcsDataFieldPathBuilder {
             self.path.push(CommandOutput::BCS_FIELD.name);
             BcsDataFieldPathBuilder::new_with_base(self.path)
+        }
+        pub fn json(mut self) -> String {
+            self.path.push(CommandOutput::JSON_FIELD.name);
+            self.finish()
         }
     }
     impl CommandOutputs {
@@ -340,16 +352,16 @@ mod _field_impls {
         }
     }
     impl CommandResult {
-        pub const RETURN_VALUES_FIELD: &'static MessageField = &MessageField {
-            name: "return_values",
-            json_name: "returnValues",
+        pub const MUTATED_BY_REF_FIELD: &'static MessageField = &MessageField {
+            name: "mutated_by_ref",
+            json_name: "mutatedByRef",
             number: 1i32,
             is_optional: true,
             message_fields: Some(CommandOutputs::FIELDS),
         };
-        pub const MUTATED_BY_REF_FIELD: &'static MessageField = &MessageField {
-            name: "mutated_by_ref",
-            json_name: "mutatedByRef",
+        pub const RETURN_VALUES_FIELD: &'static MessageField = &MessageField {
+            name: "return_values",
+            json_name: "returnValues",
             number: 2i32,
             is_optional: true,
             message_fields: Some(CommandOutputs::FIELDS),
@@ -357,8 +369,8 @@ mod _field_impls {
     }
     impl MessageFields for CommandResult {
         const FIELDS: &'static [&'static MessageField] = &[
-            Self::RETURN_VALUES_FIELD,
             Self::MUTATED_BY_REF_FIELD,
+            Self::RETURN_VALUES_FIELD,
         ];
     }
     impl CommandResult {
@@ -381,12 +393,12 @@ mod _field_impls {
         pub fn finish(self) -> String {
             self.path.join(".")
         }
-        pub fn return_values(mut self) -> CommandOutputsFieldPathBuilder {
-            self.path.push(CommandResult::RETURN_VALUES_FIELD.name);
-            CommandOutputsFieldPathBuilder::new_with_base(self.path)
-        }
         pub fn mutated_by_ref(mut self) -> CommandOutputsFieldPathBuilder {
             self.path.push(CommandResult::MUTATED_BY_REF_FIELD.name);
+            CommandOutputsFieldPathBuilder::new_with_base(self.path)
+        }
+        pub fn return_values(mut self) -> CommandOutputsFieldPathBuilder {
+            self.path.push(CommandResult::RETURN_VALUES_FIELD.name);
             CommandOutputsFieldPathBuilder::new_with_base(self.path)
         }
     }

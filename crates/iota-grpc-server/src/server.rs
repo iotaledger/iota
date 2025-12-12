@@ -6,7 +6,10 @@
 use std::{net::SocketAddr, sync::Arc};
 
 use anyhow::Result;
-use iota_grpc_types::v0::ledger_service as grpc_ledger_service;
+use iota_grpc_types::v0::{
+    ledger_service as grpc_ledger_service, transaction_execution_service as grpc_tx_service,
+};
+use iota_types::transaction_executor::TransactionExecutor;
 use tokio::sync::broadcast;
 use tokio_stream::wrappers::TcpListenerStream;
 use tokio_util::sync::CancellationToken;
@@ -14,6 +17,7 @@ use tonic::transport::Server;
 
 use crate::{
     GrpcCheckpointDataBroadcaster, GrpcCheckpointSummaryBroadcaster, GrpcReader, LedgerGrpcService,
+    TransactionExecutionGrpcService,
 };
 
 /// Handle to control a running gRPC server
@@ -65,6 +69,7 @@ impl GrpcServerHandle {
 pub async fn start_grpc_server(
     grpc_reader: Arc<GrpcReader>,
     _event_subscriber: Arc<dyn crate::EventSubscriber>, // TODO: still needed?
+    executor: Option<Arc<dyn TransactionExecutor>>,
     config: iota_config::node::GrpcApiConfig,
     shutdown_token: CancellationToken,
     chain_id: iota_types::digests::ChainIdentifier,
@@ -91,9 +96,18 @@ pub async fn start_grpc_server(
     );
 
     // Create the server with proper address binding
-    let server_builder = Server::builder().add_service(
+    let mut server_builder = Server::builder().add_service(
         grpc_ledger_service::ledger_service_server::LedgerServiceServer::new(ledger_service),
     );
+
+    // Add TransactionExecutionService if executor is provided
+    if let Some(executor) = executor {
+        let tx_service =
+            TransactionExecutionGrpcService::new(grpc_reader.clone(), executor, config.clone());
+        server_builder = server_builder.add_service(
+            grpc_tx_service::transaction_execution_service_server::TransactionExecutionServiceServer::new(tx_service),
+        );
+    }
 
     // Bind to the address to get the actual local address (especially important for
     // port 0)

@@ -66,6 +66,7 @@ fn main() {
         ".iota.grpc.v0.epoch.Epoch.bcs_system_state".to_string(),
         ".iota.grpc.v0.ledger_service.TransactionResult.result.transaction".to_string(),
         "json_contents".to_string(),
+        "json".to_string(),
     ];
 
     // for field info and accessor generation

@@ -879,8 +879,16 @@ impl IotaNode {
         let iota_node_metrics =
             Arc::new(IotaNodeMetrics::new(&registry_service.default_registry()));
 
+        // Convert transaction orchestrator to executor trait object for gRPC server
+        // Note that the transaction_orchestrator (so as executor) will be None if it is
+        // a validator node or run_with_range is set
+        let executor: Option<Arc<dyn iota_types::transaction_executor::TransactionExecutor>> =
+            transaction_orchestrator
+                .clone()
+                .map(|o| o as Arc<dyn iota_types::transaction_executor::TransactionExecutor>);
+
         let grpc_server_handle =
-            build_grpc_server(&config, state.clone(), state_sync_store.clone()).await?;
+            build_grpc_server(&config, state.clone(), state_sync_store.clone(), executor).await?;
 
         let validator_components = if state.is_committee_validator(&epoch_store) {
             let (components, _) = futures::join!(
@@ -2426,6 +2434,7 @@ async fn build_grpc_server(
     config: &NodeConfig,
     state: Arc<AuthorityState>,
     state_sync_store: RocksDbStore,
+    executor: Option<Arc<dyn iota_types::transaction_executor::TransactionExecutor>>,
 ) -> Result<Option<GrpcServerHandle>> {
     // Validators do not expose gRPC APIs
     if config.consensus_config().is_some() || !config.enable_grpc_api {
@@ -2456,6 +2465,7 @@ async fn build_grpc_server(
     let handle = start_grpc_server(
         grpc_reader,
         event_subscriber,
+        executor,
         grpc_config.clone(),
         shutdown_token,
         chain_id,

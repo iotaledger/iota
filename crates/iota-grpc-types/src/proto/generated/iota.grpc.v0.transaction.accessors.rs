@@ -7,7 +7,6 @@ mod _accessor_impls {
     impl super::ExecutedTransaction {
         pub const fn const_default() -> Self {
             Self {
-                digest: None,
                 transaction: None,
                 signatures: None,
                 effects: None,
@@ -22,38 +21,6 @@ mod _accessor_impls {
         pub fn default_instance() -> &'static Self {
             static DEFAULT: super::ExecutedTransaction = super::ExecutedTransaction::const_default();
             &DEFAULT
-        }
-        ///Returns the value of `digest`, or the default value if `digest` is unset.
-        pub fn digest(&self) -> &super::super::types::Digest {
-            self.digest
-                .as_ref()
-                .map(|field| field as _)
-                .unwrap_or_else(|| super::super::types::Digest::default_instance() as _)
-        }
-        ///If `digest` is set, returns [`Some`] with a mutable reference to the value; otherwise returns [`None`].
-        pub fn digest_opt_mut(&mut self) -> Option<&mut super::super::types::Digest> {
-            self.digest.as_mut().map(|field| field as _)
-        }
-        ///Returns a mutable reference to `digest`.
-        ///If the field is unset, it is first initialized with the default value.
-        pub fn digest_mut(&mut self) -> &mut super::super::types::Digest {
-            self.digest.get_or_insert_default()
-        }
-        ///If `digest` is set, returns [`Some`] with the value; otherwise returns [`None`].
-        pub fn digest_opt(&self) -> Option<&super::super::types::Digest> {
-            self.digest.as_ref().map(|field| field as _)
-        }
-        ///Sets `digest` with the provided value.
-        pub fn set_digest<T: Into<super::super::types::Digest>>(&mut self, field: T) {
-            self.digest = Some(field.into().into());
-        }
-        ///Sets `digest` with the provided value.
-        pub fn with_digest<T: Into<super::super::types::Digest>>(
-            mut self,
-            field: T,
-        ) -> Self {
-            self.set_digest(field.into());
-            self
         }
         ///Returns the value of `transaction`, or the default value if `transaction` is unset.
         pub fn transaction(&self) -> &super::Transaction {
