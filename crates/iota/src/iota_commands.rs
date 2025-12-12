@@ -1160,26 +1160,26 @@ async fn genesis(
         genesis_conf.parameters.epoch_duration_ms = epoch_duration_ms;
     }
 
-    let admin_interface_address_with_port = match admin_interface_address {
-        Some(input) => {
+    let admin_interface_address_with_port = admin_interface_address
+        .map(|input| {
             let default_port = iota_config::node::default_admin_interface_address().port();
-            Some(
-                parse_host_port(input, default_port)
-                    .map_err(|_| anyhow!("Invalid admin interface host and port"))?,
-            )
-        }
-        None => Some(iota_config::node::default_admin_interface_address()),
-    };
+            parse_host_port(input, default_port)
+                .map_err(|_| anyhow!("Invalid admin interface host and port"))
+        })
+        .transpose()?;
 
     let mut builder = ConfigBuilder::new(iota_config_dir)
         .with_genesis_config(genesis_conf)
-        .with_empty_validator_genesis()
-        .with_admin_interface_address(admin_interface_address_with_port);
+        .with_empty_validator_genesis();
     builder = if let Some(validators) = validator_info {
         builder.with_validators(validators)
     } else {
         builder.committee_size(NonZeroUsize::new(committee_size).unwrap())
     };
+
+    if let Some(address) = admin_interface_address_with_port {
+        builder = builder.with_admin_interface_address(address);
+    }
 
     let network_config = tokio::task::spawn_blocking(move || builder.build()).await?;
     let mut keystore = FileBasedKeystore::new(&keystore_path)?;

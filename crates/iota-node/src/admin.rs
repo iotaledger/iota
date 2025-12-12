@@ -460,7 +460,7 @@ struct Flamegraph {
     /// Toggle SVG response, otherwise return nested set model for Grafana.
     #[serde(default)]
     svg: bool,
-    /// SVG width in pixels (when missing or set to 0 will default to 3600).
+    /// SVG width in pixels (when missing or set to 0 will default to 1920).
     #[serde(default)]
     width: usize,
     /// Select still running call graphs.

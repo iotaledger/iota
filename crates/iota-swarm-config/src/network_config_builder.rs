@@ -301,11 +301,8 @@ impl<R> ConfigBuilder<R> {
         self
     }
 
-    pub fn with_admin_interface_address(
-        mut self,
-        admin_interface_address: Option<SocketAddr>,
-    ) -> Self {
-        self.admin_interface_address = admin_interface_address;
+    pub fn with_admin_interface_address(mut self, admin_interface_address: SocketAddr) -> Self {
+        self.admin_interface_address = Some(admin_interface_address);
         self
     }
 
