@@ -338,31 +338,8 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
     pub async fn update(&self) -> TestbedResult<()> {
         display::action("Updating all instances");
 
-        // Update all active instances.
         let commit = &self.settings.repository.commit;
-        let git_update_command = [
-            &format!("git fetch origin {commit} --force"),
-            &format!("(git reset --hard origin/{commit} || git checkout --force {commit})"),
-            "git clean -fd -e target",
-        ]
-        .join(" && ");
-
-        let id = "git update";
         let repo_name = self.settings.repository_name();
-        let context = CommandContext::new()
-            .run_background(id.into())
-            .with_execute_from_path(repo_name.clone().into());
-
-        // Execute and wait for the git update command on all instances (including
-        // metrics)
-        display::action(format!("update command: {git_update_command}"));
-        self.ssh_manager
-            .execute(self.instances(), git_update_command, context)
-            .await?;
-        self.ssh_manager
-            .wait_for_command(self.instances(), id, CommandStatus::Terminated)
-            .await?;
-
         let build_groups = self.settings.build_groups();
 
         // Check if build cache is enabled
@@ -378,6 +355,28 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
                 )
                 .await?;
         } else {
+            let git_update_command = [
+                &format!("git fetch origin {commit} --force"),
+                &format!("(git reset --hard origin/{commit} || git checkout --force {commit})"),
+                "git clean -fd -e target",
+            ]
+            .join(" && ");
+
+            let id = "git update";
+            let context = CommandContext::new()
+                .run_background(id.into())
+                .with_execute_from_path(repo_name.clone().into());
+
+            // Execute and wait for the git update command on all instances (including
+            // metrics)
+            display::action(format!("update command: {git_update_command}"));
+            self.ssh_manager
+                .execute(self.instances(), git_update_command, context)
+                .await?;
+            self.ssh_manager
+                .wait_for_command(self.instances(), id, CommandStatus::Terminated)
+                .await?;
+
             self.update_with_local_build(build_groups).await?;
         }
 
