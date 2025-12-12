@@ -128,7 +128,7 @@ jobs:
 
       - name: Build Wallet
         if: (!cancelled()) && (inputs.isWalletDashboard || inputs.isWallet || inputs.isRpc || inputs.isTypescriptSDK || github.ref_name == 'develop')
-        run: pnpm wallet build
+        run: pnpm wallet build:rc
 
       - name: Build Dashboard
         if: (!cancelled()) && (inputs.isWalletDashboard || inputs.isRpc || inputs.isTypescriptSDK || github.ref_name == 'develop')
