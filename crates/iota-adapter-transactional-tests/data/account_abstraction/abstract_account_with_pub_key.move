@@ -1,7 +1,7 @@
 // Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-module aa::abstract_account;
+module abstract_account_with_pub_key::abstract_account;
 
 use iota::account;
 use iota::dynamic_field;

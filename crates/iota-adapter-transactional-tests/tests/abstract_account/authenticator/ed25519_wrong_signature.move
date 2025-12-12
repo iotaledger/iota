@@ -3,14 +3,14 @@
 
 // ed25519 authentication fails due to wrong signature
 
-//# init --addresses test=0x0 aa=0x0 --accounts A
+//# init --addresses test=0x0 abstract_account_with_pub_key=0x0 --accounts A
 
 //# publish-dependencies --paths crates/iota-adapter-transactional-tests/data/account_abstraction/abstract_account_with_pub_key.move
 
-//# publish --sender A --dependencies aa
+//# publish --sender A --dependencies abstract_account_with_pub_key
 module test::authenticate;
 
-use aa::abstract_account::AbstractAccount;
+use abstract_account_with_pub_key::abstract_account::AbstractAccount;
 use iota::auth_context::AuthContext;
 use iota::ed25519;
 
@@ -34,7 +34,7 @@ public fun authenticate_ed25519(
     );
 }
 
-//# init-abstract-account --sender A --package-metadata object(3,1) --inputs "authenticate" "authenticate_ed25519" x"cc62332e34bb2d5cd69f60efbb2a36cb916c7eb458301ea36636c4dbb012bd88" --create-function aa::abstract_account::create --account-type aa::abstract_account::AbstractAccount
+//# init-abstract-account --sender A --package-metadata object(3,1) --inputs "authenticate" "authenticate_ed25519" x"cc62332e34bb2d5cd69f60efbb2a36cb916c7eb458301ea36636c4dbb012bd88" --create-function abstract_account_with_pub_key::abstract_account::create --account-type abstract_account_with_pub_key::abstract_account::AbstractAccount
 
 //# view-object 4,0
 

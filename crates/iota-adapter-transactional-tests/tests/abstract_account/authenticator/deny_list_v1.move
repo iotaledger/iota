@@ -3,7 +3,7 @@
 
 // using a regulated coin in an authenticator
 
-//# init --addresses test_coin=0x0 test_account=0x0 aa=0x0 --accounts A C
+//# init --addresses test_coin=0x0 test_account=0x0 simple_abstract_account=0x0 --accounts A C
 
 //# publish --sender C
 module test_coin::regulated_coin {
@@ -33,11 +33,11 @@ module test_coin::regulated_coin {
 // a `REGULATED_COIN` shared instance that will be used as an authenticator input
 //# view-object 1,0
 
-//# publish-dependencies --paths crates/iota-adapter-transactional-tests/data/account_abstraction/abstract_account.move
+//# publish-dependencies --paths crates/iota-adapter-transactional-tests/data/account_abstraction/simple_abstract_account.move
 
-//# publish --sender A --dependencies test_coin aa
+//# publish --sender A --dependencies test_coin simple_abstract_account
 module test_account::authenticate {
-    use aa::abstract_account::AbstractAccount;
+    use simple_abstract_account::abstract_account::AbstractAccount;
     use iota::auth_context::AuthContext;
     use iota::coin::Coin;
     use test_coin::regulated_coin::REGULATED_COIN;
@@ -51,12 +51,12 @@ module test_account::authenticate {
     ) {}
 }
 
-//# init-abstract-account --sender A --package-metadata object(5,1) --inputs "authenticate" "authenticate" --create-function aa::abstract_account::create --account-type aa::abstract_account::AbstractAccount
+//# init-abstract-account --sender A --package-metadata object(5,1) --inputs "authenticate" "authenticate" --create-function simple_abstract_account::abstract_account::create --account-type simple_abstract_account::abstract_account::AbstractAccount
 
-//# set-address account_addr object(6,0)
+//# set-address account_addr object(6,2)
 
 // use a `REGULATED_COIN` coin as an authenticator input, which is allowed
-//# abstract --account immshared(6,0) --auth-inputs immshared(1,0) --ptb-inputs 100 @A
+//# abstract --account immshared(6,2) --auth-inputs immshared(1,0) --ptb-inputs 100 @A
 //> 0: SplitCoins(Gas, [Input(0)]);
 //> 1: TransferObjects([Result(0)], Input(1));
 
@@ -64,7 +64,7 @@ module test_account::authenticate {
 //# run iota::coin::deny_list_v1_add --args object(0x403) object(1,2) @account_addr --type-args test_coin::regulated_coin::REGULATED_COIN --sender C
 
 // attempt to use a `REGULATED_COIN` instance as an authenticator input, which is denied
-//# abstract --account immshared(6,0) --auth-inputs immshared(1,0) --ptb-inputs 100 @A
+//# abstract --account immshared(6,2) --auth-inputs immshared(1,0) --ptb-inputs 100 @A
 //> 0: SplitCoins(Gas, [Input(0)]);
 //> 1: TransferObjects([Result(0)], Input(1));
 
@@ -72,6 +72,6 @@ module test_account::authenticate {
 //# run iota::coin::deny_list_v1_remove --args object(0x403) object(1,2) @account_addr --type-args test_coin::regulated_coin::REGULATED_COIN --sender C
 
 // use a `REGULATED_COIN` coin as an authenticator input, which is allowed
-//# abstract --account immshared(6,0) --auth-inputs immshared(1,0) --ptb-inputs 100 @A
+//# abstract --account immshared(6,2) --auth-inputs immshared(1,0) --ptb-inputs 100 @A
 //> 0: SplitCoins(Gas, [Input(0)]);
 //> 1: TransferObjects([Result(0)], Input(1));
