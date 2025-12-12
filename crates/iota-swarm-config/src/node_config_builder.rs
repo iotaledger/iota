@@ -388,9 +388,9 @@ impl FullnodeConfigBuilder {
 
     pub fn with_admin_interface_address(
         mut self,
-        admin_interface_address: impl Into<SocketAddr>,
+        admin_interface_address: Option<impl Into<SocketAddr>>,
     ) -> Self {
-        self.admin_interface_address = Some(admin_interface_address.into());
+        self.admin_interface_address = admin_interface_address.map(|addr| addr.into());
         self
     }
 

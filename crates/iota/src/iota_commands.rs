@@ -1159,20 +1159,28 @@ async fn genesis(
     if let Some(epoch_duration_ms) = epoch_duration_ms {
         genesis_conf.parameters.epoch_duration_ms = epoch_duration_ms;
     }
+
+    let admin_interface_address_with_port = match admin_interface_address {
+        Some(input) => {
+            let default_port = iota_config::node::default_admin_interface_address().port();
+            Some(
+                parse_host_port(input, default_port)
+                    .map_err(|_| anyhow!("Invalid admin interface host and port"))?,
+            )
+        }
+        None => Some(iota_config::node::default_admin_interface_address()),
+    };
+
     let mut builder = ConfigBuilder::new(iota_config_dir)
         .with_genesis_config(genesis_conf)
-        .with_empty_validator_genesis();
+        .with_empty_validator_genesis()
+        .with_admin_interface_address(admin_interface_address_with_port);
     builder = if let Some(validators) = validator_info {
         builder.with_validators(validators)
     } else {
         builder.committee_size(NonZeroUsize::new(committee_size).unwrap())
     };
-    if let Some(input) = admin_interface_address {
-        let default_port = iota_config::node::default_admin_interface_address().port();
-        let admin_interface_address = parse_host_port(input, default_port)
-            .map_err(|_| anyhow!("Invalid admin interface host and port"))?;
-        builder = builder.with_admin_interface_address(admin_interface_address);
-    }
+
     let network_config = tokio::task::spawn_blocking(move || builder.build()).await?;
     let mut keystore = FileBasedKeystore::new(&keystore_path)?;
     for key in &network_config.account_keys {
@@ -1202,6 +1210,7 @@ async fn genesis(
         .with_config_directory(FULL_NODE_DB_PATH.into())
         .with_rpc_addr(iota_config::node::default_json_rpc_address())
         .with_genesis(genesis.clone())
+        .with_admin_interface_address(admin_interface_address_with_port)
         .build_from_parts(&mut OsRng, network_config.validator_configs(), genesis);
 
     fullnode_config.save(iota_config_dir.join(IOTA_FULLNODE_CONFIG))?;
@@ -1220,7 +1229,7 @@ async fn genesis(
                 .with_db_path(PathBuf::from("/opt/iota/db/authorities_db/full_node_db"))
                 .with_network_address("/ip4/0.0.0.0/tcp/8080/http".parse()?)
                 .with_metrics_address(([0, 0, 0, 0], 9184))
-                .with_admin_interface_address(([127, 0, 0, 1], 1337))
+                .with_admin_interface_address(admin_interface_address_with_port)
                 .with_json_rpc_address(([0, 0, 0, 0], 9000))
                 .with_genesis(genesis.clone())
                 .build_from_parts(&mut OsRng, network_config.validator_configs(), genesis);
