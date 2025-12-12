@@ -2,10 +2,10 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useIotaClientContext } from '@iota/dapp-kit';
-import { Network, NetworkConfiguration } from '@iota/iota-sdk/client';
-import { useLocalStorage, toast } from '@iota/core';
+import { NetworkConfiguration } from '@iota/iota-sdk/client';
+import { useLocalStorage, toast, setNetworkGroup } from '@iota/core';
 import { useEffect } from 'react';
-import { ampli, setNetworkGroup } from '@/lib/utils/analytics';
+import { ampli } from '@/lib/utils/analytics';
 
 export function usePersistedNetwork() {
     const clientContext = useIotaClientContext();
@@ -25,7 +25,7 @@ export function usePersistedNetwork() {
 
         clientContext.selectNetwork(network.id);
         setPersistedNetwork(network.id);
-        setNetworkGroup(network.id, network.id === Network.Custom ? network.url : null);
+        setNetworkGroup(ampli.client, network.id, network.url);
         toast(`Switched to ${network.name}`);
         ampli.switchedNetwork({
             toNetwork: network.name,

@@ -22,13 +22,3 @@ export function getCustomNetwork(rpc: string = ''): NetworkConfiguration {
         explorer: getNetwork(getDefaultNetwork()).explorer,
     };
 }
-
-/**
- * Returns the network name (e.g., "mainnet", "testnet", "devnet", "custom", "unknown").
- */
-export function getNetworkName(network: Network, customRpc?: string | null): string {
-    if (customRpc) {
-        return getCustomNetwork(customRpc).name;
-    }
-    return getNetwork(network)?.name || 'unknown';
-}

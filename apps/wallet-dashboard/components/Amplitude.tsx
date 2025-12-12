@@ -3,37 +3,51 @@
 
 'use client';
 
-import {
-    ampli,
-    initAmplitude,
-    parseNetworkIdentifier,
-    setNetworkGroup,
-} from '@/lib/utils/analytics';
+import { useEffect, useRef, useState } from 'react';
+import { usePathname, useSearchParams } from 'next/navigation';
+import { ampli, initAmplitude } from '@/lib/utils/analytics';
+import { Network } from '@iota/iota-sdk/client';
 import { useIotaClientContext } from '@iota/dapp-kit';
-import { useEffect } from 'react';
-
-async function load() {
-    await initAmplitude();
-    ampli.openedWalletDashboard({
-        pagePath: location.pathname,
-        pagePathFragment: `${location.pathname}${location.search}${location.hash}`,
-        walletDashboardRev: process.env.NEXT_PUBLIC_DASHBOARD_REV,
-    });
-}
 
 export function Amplitude() {
     const clientContext = useIotaClientContext();
-    const activeNetwork = clientContext.network;
-    const { network, customRpc } = parseNetworkIdentifier(activeNetwork);
+    const pathname = usePathname();
+    const searchParams = useSearchParams();
+    const [hash, setHash] = useState(window.location.hash);
 
+    const initializedRef = useRef(false);
+
+    // Initialize Amplitude once
     useEffect(() => {
-        load();
+        (async () => {
+            await initAmplitude(clientContext.network as Network, clientContext.config?.url);
+            initializedRef.current = true;
+        })();
+    }, [clientContext.network, clientContext.config?.url]);
+
+    // Track hash changes
+    useEffect(() => {
+        setHash(window.location.hash);
+
+        const handleHashChange = () => {
+            setHash(window.location.hash);
+        };
+
+        window.addEventListener('hashchange', handleHashChange);
+        return () => window.removeEventListener('hashchange', handleHashChange);
     }, []);
 
+    // Track page changes
     useEffect(() => {
-        ampli.identify(undefined);
-        setNetworkGroup(network, customRpc);
-    }, [network, customRpc]);
+        if (!initializedRef.current) return;
+
+        const search = searchParams.toString() ? `?${searchParams.toString()}` : '';
+        ampli.openedWalletDashboard({
+            pagePath: pathname,
+            pagePathFragment: `${pathname}${search}${hash}`,
+            walletDashboardRev: process.env.NEXT_PUBLIC_DASHBOARD_REV,
+        });
+    }, [pathname, searchParams, hash]);
 
     return null;
 }

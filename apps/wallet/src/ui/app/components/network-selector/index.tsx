@@ -36,6 +36,7 @@ export function NetworkSelector() {
             return;
         }
         setCustomRpcInputVisible(network.id === Network.Custom);
+        setNetworkGroup(ampli.client, network.id, network.url);
         if (network.id !== Network.Custom) {
             try {
                 await dispatch(
@@ -47,7 +48,6 @@ export function NetworkSelector() {
                         store: true,
                     }),
                 ).unwrap();
-                setNetworkGroup(ampli.client, network.id, null);
                 ampli.switchedNetwork({
                     toNetwork: network.name,
                 });

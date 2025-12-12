@@ -1,9 +1,9 @@
 // Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { type Network } from '@iota/iota-sdk/client';
+import { getNetwork, Network } from '@iota/iota-sdk/client';
 import * as amplitude from '@amplitude/analytics-browser';
-import { getNetworkName } from './api-env';
+import { getCustomNetwork } from './api-env';
 
 export type BrowserClient = amplitude.Types.BrowserClient;
 /**
@@ -13,13 +13,18 @@ export type BrowserClient = amplitude.Types.BrowserClient;
 export function setNetworkGroup(
     amplitudeClient: BrowserClient,
     network: Network,
-    customRpc?: string | null,
+    url?: string,
     groupKey: string = 'network',
 ): void {
     if (!amplitudeClient) {
         console.warn('Amplitude client is not initialized. Cannot set network group.');
         return;
     }
-    const networkName = getNetworkName(network, customRpc);
+
+    const knownNetworkName = getNetwork(network)?.name || 'not-defined';
+    const customRpcName = getCustomNetwork(url).name;
+
+    const networkName = network === Network.Custom && url ? customRpcName : knownNetworkName;
+
     amplitudeClient?.setGroup(groupKey, networkName);
 }
