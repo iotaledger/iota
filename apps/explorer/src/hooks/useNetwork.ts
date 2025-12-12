@@ -7,7 +7,6 @@ import { useLayoutEffect, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { growthbook } from '~/lib/utils/growthbook';
 import { queryClient } from '~/lib/utils/queryClient';
-import { setNetworkGroup, parseNetworkIdentifier } from '~/lib/utils/analytics/amplitude';
 import * as Sentry from '@sentry/react';
 
 export function useNetwork(): [string, (network: Network | string) => void] {
@@ -43,10 +42,6 @@ export function useNetwork(): [string, (network: Network | string) => void] {
         Sentry.setContext('network', {
             network,
         });
-
-        // Parse network identifier and set network group for analytics
-        const { network: networkEnum, customRpc } = parseNetworkIdentifier(network);
-        setNetworkGroup(networkEnum, customRpc);
     }, [network]);
 
     return [network, setNetwork];

@@ -4,6 +4,7 @@ import './globals.css';
 
 import React from 'react';
 import ReactDOM from 'react-dom/client';
+import { CookieManagerProvider } from '@boxfish-studio/react-cookie-manager';
 import {
     getDefaultConfig,
     darkTheme as rainbowDarkTheme,
@@ -13,6 +14,7 @@ import {
 } from '@rainbow-me/rainbowkit';
 import { darkTheme, IotaClientProvider, lightTheme, WalletProvider } from '@iota/dapp-kit';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { CookieDisclaimer } from './components/disclaimer/CookieDisclaimer';
 import App from './App.tsx';
 import { ThemeProvider } from './providers/ThemeProvider.tsx';
 import { WagmiProvider } from 'wagmi';
@@ -26,15 +28,12 @@ import {
 } from './config/index.ts';
 import { EvmRpcClientProvider } from './providers/EvmRpcClientProvider.tsx';
 import { Toaster } from './components/index.ts';
-import { IotaGraphQLClientProvider, Disclaimer, handleConsentAccepted } from '@iota/core';
+import { IotaGraphQLClientProvider } from '@iota/core';
 import { growthbook, interceptProviderAnnouncements } from './lib/utils/index.ts';
 import { GrowthBookProvider } from '@growthbook/growthbook-react';
 import { getNetwork } from '@iota/iota-sdk/client';
 import { metaMaskWallet, walletConnectWallet } from '@rainbow-me/rainbowkit/wallets';
-import { USE_CONDITIONS_LINKS } from './lib/constants/routes.constants.ts';
-import { Link } from './components/link/Link.tsx';
 import { initAmplitude } from './shared/analytics';
-import { cookieConfig } from './config/cookieConfig.ts';
 
 // We intercept EIP-6963 announcements
 // to only allow certain wallets (metamask) to be discovered
@@ -84,29 +83,11 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
                                 >
                                     <ThemeProvider appId="IOTA-evm-bridge">
                                         <RainbowKit>
-                                            <App />
-                                            <Toaster />
-                                            <Disclaimer
-                                                onClose={() => {
-                                                    handleConsentAccepted();
-                                                }}
-                                            >
-                                                <div className="text-body-md text-neutral-10 dark:text-neutral-92">
-                                                    We use cookies to improve your experience. By
-                                                    using this website, you agree with our{' '}
-                                                    {USE_CONDITIONS_LINKS.map(
-                                                        ({ text, url }, index) => (
-                                                            <React.Fragment key={text}>
-                                                                <Link href={url}>{text}</Link>
-                                                                {index <
-                                                                USE_CONDITIONS_LINKS.length - 1
-                                                                    ? ', '
-                                                                    : ''}
-                                                            </React.Fragment>
-                                                        ),
-                                                    )}
-                                                </div>
-                                            </Disclaimer>
+                                            <CookieManagerProvider>
+                                                <App />
+                                                <Toaster />
+                                                <CookieDisclaimer />
+                                            </CookieManagerProvider>
                                         </RainbowKit>
                                     </ThemeProvider>
                                 </WalletProvider>

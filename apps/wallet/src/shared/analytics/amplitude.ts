@@ -9,19 +9,15 @@ import { getNetwork, type Network } from '@iota/iota-sdk/client';
 
 import { ampli } from './ampli';
 
-const IS_ENABLED = process.env.BUILD_ENV === 'production';
-
-const ApiKey = {
-    production: '2a5d35822a1bab41835813f0223f319e',
-    development: '30a15c4ef8ae0e10ce5d2ed4f0023de3',
-};
+// const IS_ENABLED = process.env.BUILD_ENV === 'production';
+const IS_ENABLED = true;
 
 export async function initAmplitude() {
     ampli.load({
+        environment: 'iotawallet',
         // Flip this if you'd like to test Amplitude locally
         disabled: !IS_ENABLED,
         client: {
-            apiKey: IS_ENABLED ? ApiKey.production : ApiKey.development,
             configuration: {
                 optOut: false,
                 // Explicitly use cookie storage to persist data across popup sessions

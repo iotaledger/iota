@@ -1,8 +1,11 @@
 import { IotaLogoWeb } from '@iota/apps-ui-icons';
 import { Divider } from '@iota/apps-ui-kit';
 import { Link } from '../link';
-import { USE_CONDITIONS_LINKS } from '../../lib/constants/routes.constants';
-import { ExternalLink } from '../../lib/types/link';
+
+interface ExternalLink {
+    text: string;
+    url: string;
+}
 
 const EXTERNAL_LINKS: ExternalLink[] = [
     {
@@ -24,6 +27,17 @@ const EXTERNAL_LINKS: ExternalLink[] = [
     {
         text: 'Youtube',
         url: 'https://www.youtube.com/c/iotafoundation',
+    },
+];
+
+const USE_CONDITIONS_LINKS: ExternalLink[] = [
+    {
+        text: 'Terms & Conditions',
+        url: 'https://www.iota.org/terms-of-use',
+    },
+    {
+        text: 'Privacy Policy',
+        url: 'https://www.iota.org/privacy-policy',
     },
 ];
 
