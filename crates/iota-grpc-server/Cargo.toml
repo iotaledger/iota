@@ -12,7 +12,7 @@ workspace = true
 [dependencies]
 # external dependencies
 anyhow.workspace = true
-async-stream = "0.3"
+async-stream.workspace = true
 bcs.workspace = true
 futures.workspace = true
 prost.workspace = true
@@ -31,5 +31,6 @@ iota-core.workspace = true
 iota-grpc-types.workspace = true
 iota-json-rpc-types.workspace = true
 iota-protocol-config.workspace = true
+iota-sdk-types.workspace = true
 iota-types.workspace = true
 move-core-types.workspace = true

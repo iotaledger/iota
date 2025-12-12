@@ -32,12 +32,13 @@ pub(crate) trait FieldPresenceChecker {
 ///     field1,               // simple field (string, int, etc.)
 ///     field2,               // another simple field
 ///     nested: NestedType,   // nested message that can be recursed into
+///     items: [ItemType],    // repeated field (Vec) that can be recursed into
 /// });
 /// ```
 #[macro_export]
 macro_rules! impl_field_presence_checker {
-    // Main rule: matches the syntax `Type { field1, field2: NestedType, ... }`
-    ($type:ty { $( $field:ident $( : $nested_type:ty )? ),* $(,)? }) => {
+    // Main rule: matches the syntax `Type { field1, field2: NestedType, field3: [Type], ... }`
+    ($type:ty { $( $field:ident $( : $nested_type:tt )? ),* $(,)? }) => {
         // Generate the trait implementation for the given type
         impl $crate::utils::FieldPresenceChecker for $type {
             fn top_level_fields(&self) -> &[&'static str] {
@@ -60,6 +61,17 @@ macro_rules! impl_field_presence_checker {
             }
         }
     };
+
+    // Helper rule for repeated fields (when `: [Type]` is specified)
+    (@field_check $self:ident, $field:ident, [ $nested_type:ty ]) => {{
+        // Repeated fields are always present, check if non-empty
+        let present = !$self.$field.is_empty();
+
+        // If the vec is non-empty, provide a reference to the first element as a checker
+        let nested = $self.$field.first().map(|f| f as &dyn $crate::utils::FieldPresenceChecker);
+
+        Some((present, nested))
+    }};
 
     // Helper rule for nested fields (when `: Type` is specified)
     (@field_check $self:ident, $field:ident, $nested_type:ty) => {{
@@ -128,7 +140,7 @@ pub(crate) fn assert_field_presence(
     for expected_top_level_field in &expected_top_level_fields {
         assert!(
             actual_top_level_fields.contains(expected_top_level_field),
-            "Invalid field '{}' in {scenario}: field does not exist on this type",
+            "Invalid field '{}' in '{scenario}': field does not exist on this type",
             expected_top_level_field
         );
     }
@@ -139,11 +151,11 @@ pub(crate) fn assert_field_presence(
 
         let (is_present, _) = checker
             .check_field_presence(top_level_field)
-            .unwrap_or_else(|| panic!("Invalid field '{top_level_field}' in {scenario}"));
+            .unwrap_or_else(|| panic!("Invalid field '{top_level_field}' in '{scenario}'"));
 
         assert_eq!(
             is_present, should_be_present,
-            "Field '{top_level_field}' in {scenario}: expected {should_be_present}, got {is_present}"
+            "Field '{top_level_field}' in '{scenario}': expected '{should_be_present}', got '{is_present}'"
         );
     }
 
@@ -151,7 +163,7 @@ pub(crate) fn assert_field_presence(
     for non_nested_field in &expected_non_nested_field_paths {
         if expected_nested_field_paths.contains_key(non_nested_field) {
             panic!(
-                "Contradictory field paths in {scenario}: '{non_nested_field}' specified both as non-nested (implying no nested fields) and with nested fields ({})",
+                "Contradictory field paths in '{scenario}': '{non_nested_field}' specified both as non-nested (implying no nested fields) and with nested fields ({})",
                 expected_nested_field_paths[non_nested_field]
                     .iter()
                     .map(|s| format!("{}.{}", non_nested_field, s))

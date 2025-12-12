@@ -30,14 +30,18 @@ impl TryFrom<&ValidatorCommitteeMember> for iota_sdk_types::ValidatorCommitteeMe
     ) -> Result<Self, Self::Error> {
         let public_key = public_key
             .as_ref()
-            .ok_or_else(|| TryFromProtoError::missing("public_key"))?
+            .ok_or_else(|| {
+                TryFromProtoError::missing(ValidatorCommitteeMember::PUBLIC_KEY_FIELD.name)
+            })?
             .as_ref()
             .pipe(iota_sdk_types::Bls12381PublicKey::from_bytes)
             .map_err(|e| {
                 TryFromProtoError::invalid(ValidatorCommitteeMember::PUBLIC_KEY_FIELD, e)
             })?;
 
-        let stake = weight.ok_or_else(|| TryFromProtoError::missing("weight"))?;
+        let stake = weight.ok_or_else(|| {
+            TryFromProtoError::missing(ValidatorCommitteeMember::WEIGHT_FIELD.name)
+        })?;
         Ok(Self { public_key, stake })
     }
 }
@@ -62,11 +66,11 @@ impl TryFrom<&ValidatorCommittee> for iota_sdk_types::ValidatorCommittee {
     fn try_from(value: &ValidatorCommittee) -> Result<Self, Self::Error> {
         let epoch = value
             .epoch
-            .ok_or_else(|| TryFromProtoError::missing("epoch"))?;
+            .ok_or_else(|| TryFromProtoError::missing(ValidatorCommittee::EPOCH_FIELD.name))?;
         let members = value
             .members
             .as_ref()
-            .ok_or_else(|| TryFromProtoError::missing("members"))?;
+            .ok_or_else(|| TryFromProtoError::missing(ValidatorCommittee::MEMBERS_FIELD.name))?;
         Ok(Self {
             epoch,
             members: members
@@ -79,7 +83,11 @@ impl TryFrom<&ValidatorCommittee> for iota_sdk_types::ValidatorCommittee {
 }
 
 impl Merge<&Epoch> for Epoch {
-    fn merge(&mut self, source: &Epoch, mask: &FieldMaskTree) {
+    fn merge(
+        &mut self,
+        source: &Epoch,
+        mask: &FieldMaskTree,
+    ) -> Result<(), Box<dyn std::error::Error>> {
         let Epoch {
             epoch,
             committee,
@@ -127,13 +135,20 @@ impl Merge<&Epoch> for Epoch {
         if let Some(submask) = mask.subtree(Self::PROTOCOL_CONFIG_FIELD.name) {
             self.protocol_config = protocol_config
                 .as_ref()
-                .map(|config| ProtocolConfig::merge_from(config, &submask));
+                .map(|config| ProtocolConfig::merge_from(config, &submask))
+                .transpose()?;
         }
+
+        Ok(())
     }
 }
 
 impl Merge<&ProtocolConfig> for ProtocolConfig {
-    fn merge(&mut self, source: &ProtocolConfig, mask: &FieldMaskTree) {
+    fn merge(
+        &mut self,
+        source: &ProtocolConfig,
+        mask: &FieldMaskTree,
+    ) -> Result<(), Box<dyn std::error::Error>> {
         let ProtocolConfig {
             protocol_version,
             feature_flags,
@@ -151,11 +166,17 @@ impl Merge<&ProtocolConfig> for ProtocolConfig {
         if mask.contains(Self::ATTRIBUTES_FIELD.name) {
             self.attributes = attributes.to_owned();
         }
+
+        Ok(())
     }
 }
 
 impl Merge<ProtocolConfig> for ProtocolConfig {
-    fn merge(&mut self, source: ProtocolConfig, mask: &FieldMaskTree) {
+    fn merge(
+        &mut self,
+        source: ProtocolConfig,
+        mask: &FieldMaskTree,
+    ) -> Result<(), Box<dyn std::error::Error>> {
         let ProtocolConfig {
             protocol_version,
             feature_flags,
@@ -173,6 +194,8 @@ impl Merge<ProtocolConfig> for ProtocolConfig {
         if mask.contains(Self::ATTRIBUTES_FIELD.name) {
             self.attributes = attributes;
         }
+
+        Ok(())
     }
 }
 
