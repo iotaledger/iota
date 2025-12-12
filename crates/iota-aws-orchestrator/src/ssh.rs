@@ -51,6 +51,8 @@ pub struct CommandContext {
     pub path: Option<PathBuf>,
     /// The log file to redirect all stdout and stderr.
     pub log_file: Option<PathBuf>,
+    /// The number of retries before giving up to execute the command.
+    pub retries: usize,
 }
 
 impl CommandContext {
@@ -60,6 +62,7 @@ impl CommandContext {
             background: None,
             path: None,
             log_file: None,
+            retries: 0,
         }
     }
 
@@ -78,6 +81,12 @@ impl CommandContext {
     /// Set the log file where to redirect stdout and stderr.
     pub fn with_log_file(mut self, path: PathBuf) -> Self {
         self.log_file = Some(path);
+        self
+    }
+
+    /// Set the number of retries before giving up to execute the command.
+    pub fn with_retries(mut self, retries: usize) -> Self {
+        self.retries = retries;
         self
     }
 
@@ -209,34 +218,24 @@ impl SshConnectionManager {
                 let context = context.clone();
 
                 tokio::spawn(async move {
+                    let connection = ssh_manager.connect(instance.ssh_address()).await?;
+
                     let command_str = command.into();
                     let mut consecutive_errors = 0;
                     loop {
-                        match ssh_manager.connect(instance.ssh_address()).await {
-                            Ok(connection) => {
-                                // success resets the error streak
-                                consecutive_errors = 0;
-                                match connection.execute(context.apply(command_str.clone())).await {
-                                    Ok(output) => {
-                                        return Ok(output);
-                                    }
-                                    Err(err) => {
-                                        consecutive_errors += 1;
-                                        if consecutive_errors >= 5 {
-                                            return Err(err);
-                                        }
-                                    }
-                                }
+                        match connection.execute(context.apply(command_str.clone())).await {
+                            Ok(output) => {
+                                return Ok(output);
                             }
                             Err(err) => {
                                 consecutive_errors += 1;
-                                if consecutive_errors >= 5 {
+                                if consecutive_errors > context.retries {
                                     return Err(err);
                                 }
                             }
                         }
 
-                        sleep(Duration::from_secs(5)).await;
+                        sleep(Self::RETRY_DELAY).await;
                     }
                 })
             })
@@ -294,7 +293,7 @@ impl SshConnectionManager {
             sleep(Self::RETRY_DELAY).await;
 
             if self
-                .execute_per_instance(instances.clone(), CommandContext::default())
+                .execute_per_instance(instances.clone(), CommandContext::default().with_retries(5))
                 .await
                 .is_ok()
             {
@@ -310,7 +309,7 @@ impl SshConnectionManager {
     {
         let ssh_command = format!("(tmux kill-session -t {command_id} || true)");
         let targets = instances.into_iter().map(|x| (x, ssh_command.clone()));
-        self.execute_per_instance(targets, CommandContext::default())
+        self.execute_per_instance(targets, CommandContext::default().with_retries(5))
             .await?;
         Ok(())
     }
