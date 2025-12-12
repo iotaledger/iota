@@ -1446,14 +1446,14 @@ Doesn't support simulator mode.
 #### Example
 
 ```move
-//# init --addresses test=0x0 aa=0x0 --accounts A
+//# init --addresses test=0x0 simple_abstract_account=0x0 --accounts A
 
-//# publish-dependencies --paths crates/iota-adapter-transactional-tests/data/account_abstraction/abstract_account.move
+//# publish-dependencies --paths crates/iota-adapter-transactional-tests/data/account_abstraction/simple_abstract_account.move
 
-//# publish --sender A --dependencies aa
+//# publish --sender A --dependencies simple_abstract_account
 module test::authenticate;
 
-use aa::abstract_account::AbstractAccount;
+use simple_abstract_account::abstract_account::AbstractAccount;
 use iota::auth_context::AuthContext;
 use std::ascii;
 
@@ -1467,11 +1467,11 @@ public fun authenticate_hello_world(
     assert!(msg == ascii::string(b"HelloWorld"), 0);
 }
 
-//# init-abstract-account --sender A --package-metadata object(3,1) --inputs "authenticate" "authenticate_hello_world" --create-function aa::abstract_account::create --account-type AbstractAccount
+//# init-abstract-account --sender A --package-metadata object(3,1) --inputs "authenticate" "authenticate_hello_world" --create-function simple_abstract_account::abstract_account::create --account-type simple_abstract_account::abstract_account::AbstractAccount
 
-//# view-object 4,0
+//# view-object 4,2
 
-//# abstract --account immshared(4,0) --auth-inputs "HelloWorld" --ptb-inputs 100 @A
+//# abstract --account immshared(4,2) --auth-inputs "HelloWorld" --ptb-inputs 100 @A
 //> 0: SplitCoins(Gas, [Input(0)]);
 //> 1: TransferObjects([Result(0)], Input(1));
 
@@ -1487,7 +1487,7 @@ In this section we have:
 ```
 
 - Account (--account)
-  The immutable shared object that represents Abstract Account - `immshared(4,0)`.
+  The immutable shared object that represents Abstract Account - `immshared(4,2)`.
 - Auth Inputs (--auth-inputs)
   These are the inputs used for the authenticator arguments. They should reflect the parameters of the function marked with `#[authenticator]`.
 - PTB Inputs (--ptb-inputs)
@@ -1509,41 +1509,41 @@ init:
 A: object(0,0)
 
 task 1, line 8:
-//# publish-dependencies --paths crates/iota-adapter-transactional-tests/data/account_abstraction/abstract_account.move
-Output for 'crates/iota-adapter-transactional-tests/data/account_abstraction/abstract_account.move':
+//# publish-dependencies --paths crates/iota-adapter-transactional-tests/data/account_abstraction/simple_abstract_account.move
+Output for 'crates/iota-adapter-transactional-tests/data/account_abstraction/simple_abstract_account.move':
 created: object(2,0)
 mutated: object(0,1)
 gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 7584800,  storage_rebate: 0, non_refundable_storage_fee: 0
 
 task 2, lines 10-25:
-//# publish --sender A --dependencies aa
+//# publish --sender A --dependencies simple_abstract_account
 created: object(3,0), object(3,1)
 mutated: object(0,0)
 gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 9918000,  storage_rebate: 0, non_refundable_storage_fee: 0
 
 task 3, line 27:
-//# init-abstract-account --sender A --package-metadata object(3,1) --inputs "authenticate" "authenticate_hello_world" --create-function aa::abstract_account::create --account-type AbstractAccount
+//# init-abstract-account --sender A --package-metadata object(3,1) --inputs "authenticate" "authenticate_hello_world" --create-function simple_abstract_account::abstract_account::create --account-type simple_abstract_account::abstract_account::AbstractAccount
 created: object(4,0), object(4,1), object(4,2)
 mutated: object(0,0)
 gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 6718400,  storage_rebate: 980400, non_refundable_storage_fee: 0
 
 task 4, line 29:
-//# view-object 4,0
+//# view-object 4,2
 Owner: Shared( 3 )
 Version: 3
-Contents: aa::abstract_account::AbstractAccount {
+Contents: simple_abstract_account::abstract_account::AbstractAccount {
     id: iota::object::UID {
         id: iota::object::ID {
-            bytes: fake(4,0),
+            bytes: fake(4,2),
         },
     },
 }
 
 task 5, lines 31-33:
-//# abstract --account immshared(4,0) --auth-inputs "HelloWorld" --ptb-inputs 100 @A
+//# abstract --account immshared(4,2) --auth-inputs "HelloWorld" --ptb-inputs 100 @A
 created: object(6,0)
-mutated: object(4,1)
-unchanged_shared: object(4,0)
+mutated: object(4,0)
+unchanged_shared: object(4,2)
 gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 1960800,  storage_rebate: 980400, non_refundable_storage_fee: 0
 
 task 6, line 35:
@@ -1612,21 +1612,24 @@ The `init-abstract-account` subcommand (`InitAbstractAccount` in Rust) creates a
   It carries metadata about module functions (including authenticator attributes) and is passed as the first argument to aa::abstract_account::create.
 - --inputs "authenticate" "authenticate_hello_world"
   These values are passed as additional arguments to the create function (after package_metadata).
-  They must correspond to the function parameters defined in `aa::abstract_account::create` (e.g. the module name and authenticator function name to register).
-- --create-function `aa::abstract_account::create`
+  They must correspond to the function parameters defined in `simple_abstract_account::abstract_account::create` (e.g. the module name and authenticator function name to register).
+- --create-function `simple_abstract_account::abstract_account::create`
   This string is split into three parts:
-  - aa - named address (resolved via the named address mapping to the AA package ID),
+  - simple_abstract_account - named address (resolved via the named address mapping to the AA package ID),
   - abstract_account - module name,
   - create - function name.
-- --account-type `AbstractAccount`
+- --account-type `simple_abstract_account::abstract_account::AbstractAccount`
   After the transaction is executed, the adapter scans the created objects and finds the one whose struct tag name equals AbstractAccount.
-  That object ID becomes the logical address of the Abstract Account.
+  - simple_abstract_account - named address (resolved via the named address mapping to the AA package ID),
+  - abstract_account - module name,
+  - AbstractAccount - type name.
+    That object ID becomes the logical address of the Abstract Account.
 
 ### `publish-dependencies`
 
 The `publish-dependencies` subcommand (`PublishDeps` in Rust) is a lightweight helper for transactional tests that need to publish prepared dependency modules (e.g., Account Abstraction implementations) in order to avoid duplication/complex relations.
 It compiles and publishes Move source files provided by path and then stores the published modules in the adapter’s compiled state. As a result, the newly published package becomes available for subsequent commands and can be used as a proper dependency within built-in Move code.
-The package name of the dependency must be initialized to `0x0` with the init command, e.g., `aa=0x0`.
+The package name of the dependency must be initialized to `0x0` with the init command, e.g., `simple_abstract_account=0x0`.
 
 #### Syntax
 
