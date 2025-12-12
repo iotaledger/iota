@@ -19,13 +19,7 @@ use iota_test_transaction_builder::make_transfer_iota_transaction;
 use prost_types::FieldMask;
 use test_cluster::TestClusterBuilder;
 
-use crate::{impl_field_presence_checker, utils::assert_field_presence};
-
-// Generate the FieldPresenceChecker implementation for
-// ExecuteTransactionResponse
-impl_field_presence_checker!(ExecuteTransactionResponse {
-    transaction: ExecutedTransaction,
-});
+use crate::utils::assert_field_presence;
 
 async fn assert_execute_transaction_request(
     client: &mut TransactionExecutionServiceClient<tonic::transport::Channel>,

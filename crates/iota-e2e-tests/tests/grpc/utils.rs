@@ -32,12 +32,13 @@ pub(crate) trait FieldPresenceChecker {
 ///     field1,               // simple field (string, int, etc.)
 ///     field2,               // another simple field
 ///     nested: NestedType,   // nested message that can be recursed into
+///     items: [ItemType],    // repeated field (Vec) that can be recursed into
 /// });
 /// ```
 #[macro_export]
 macro_rules! impl_field_presence_checker {
-    // Main rule: matches the syntax `Type { field1, field2: NestedType, ... }`
-    ($type:ty { $( $field:ident $( : $nested_type:ty )? ),* $(,)? }) => {
+    // Main rule: matches the syntax `Type { field1, field2: NestedType, field3: [Type], ... }`
+    ($type:ty { $( $field:ident $( : $nested_type:tt )? ),* $(,)? }) => {
         // Generate the trait implementation for the given type
         impl $crate::utils::FieldPresenceChecker for $type {
             fn top_level_fields(&self) -> &[&'static str] {
@@ -60,6 +61,17 @@ macro_rules! impl_field_presence_checker {
             }
         }
     };
+
+    // Helper rule for repeated fields (when `: [Type]` is specified)
+    (@field_check $self:ident, $field:ident, [ $nested_type:ty ]) => {{
+        // Repeated fields are always present, check if non-empty
+        let present = !$self.$field.is_empty();
+
+        // If the vec is non-empty, provide a reference to the first element as a checker
+        let nested = $self.$field.first().map(|f| f as &dyn $crate::utils::FieldPresenceChecker);
+
+        Some((present, nested))
+    }};
 
     // Helper rule for nested fields (when `: Type` is specified)
     (@field_check $self:ident, $field:ident, $nested_type:ty) => {{
