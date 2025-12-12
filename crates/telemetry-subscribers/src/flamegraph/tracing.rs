@@ -284,10 +284,12 @@ where
 {
     fn enabled(
         &self,
-        metadata: &tracing::Metadata<'_>,
+        _metadata: &tracing::Metadata<'_>,
         _ctx: tracing_subscriber::layer::Context<'_, S>,
     ) -> bool {
-        self.enabled_metadata(metadata)
+        // When used as a Layer, we must return true for events to allow them to pass
+        // through to other layers.
+        true
     }
 
     fn on_new_span(
