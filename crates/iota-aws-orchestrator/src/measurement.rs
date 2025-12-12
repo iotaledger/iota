@@ -2,13 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{
-    collections::HashMap,
-    fs,
-    io::BufRead,
-    path::{Path, PathBuf},
-    time::Duration,
-};
+use std::{collections::HashMap, fs, io::BufRead, path::Path, time::Duration};
 
 use prettytable::{Table, row};
 use prometheus_parse::Scrape;
@@ -355,8 +349,9 @@ impl<T: BenchmarkType> MeasurementsCollection<T> {
     /// Save the collection of measurements as a json file.
     pub fn save<P: AsRef<Path>>(&self, path: P) {
         let json = serde_json::to_string_pretty(self).expect("Cannot serialize metrics");
-        let mut file = PathBuf::from(path.as_ref());
-        file.push(format!("measurements-{:?}.json", self.parameters));
+        let file = path
+            .as_ref()
+            .join(format!("measurements-{:?}.json", self.parameters));
         fs::write(file, json).unwrap();
     }
 

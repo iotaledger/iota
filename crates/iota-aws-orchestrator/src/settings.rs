@@ -197,13 +197,9 @@ pub struct Settings {
     #[serde(default)]
     pub use_fullnode_for_execution: bool,
     /// The directory (on the local machine) where to save benchmarks
-    /// measurements.
+    /// results.
     #[serde(default = "default_results_dir")]
     pub results_dir: PathBuf,
-    /// The directory (on the local machine) where to download logs files from
-    /// the instances.
-    #[serde(default = "default_logs_dir")]
-    pub logs_dir: PathBuf,
     /// Binary build configuration.
     #[serde(default)]
     pub build_configs: HashMap<String, BinaryBuildConfig>,
@@ -220,10 +216,6 @@ fn default_results_dir() -> PathBuf {
     ["./", "results"].iter().collect()
 }
 
-fn default_logs_dir() -> PathBuf {
-    ["./", "logs"].iter().collect()
-}
-
 impl Settings {
     /// Load the settings from a json file.
     pub fn load<P>(path: P) -> SettingsResult<Self>
@@ -236,7 +228,6 @@ impl Settings {
             let settings: Settings = serde_json::from_slice(data.as_bytes())?;
 
             fs::create_dir_all(&settings.results_dir)?;
-            fs::create_dir_all(&settings.logs_dir)?;
 
             Ok(settings)
         };
@@ -381,7 +372,6 @@ impl Settings {
             working_dir: "/path/to/working_dir".into(),
             use_fullnode_for_execution: false,
             results_dir: "results".into(),
-            logs_dir: "logs".into(),
             build_configs: HashMap::new(),
             enable_flamegraph: false,
         }

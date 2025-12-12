@@ -539,6 +539,7 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
     /// Collect metrics from the load generators.
     pub async fn run(
         &self,
+        benchmark_dir: &Path,
         parameters: &BenchmarkParameters<T>,
     ) -> TestbedResult<MeasurementsCollection<T>> {
         display::action(format!(
@@ -601,24 +602,16 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
             }
         }
 
-        let results_directory = &self.settings.results_dir;
-        let commit = &self.settings.repository.commit;
-        let timestamp = chrono::Local::now().format("%y%m%d_%H%M%S");
-        let path: PathBuf = [
-            results_directory,
-            &format!("results-{commit}").into(),
-            &format!("{timestamp}").into(),
-        ]
-        .iter()
-        .collect();
-        fs::create_dir_all(&path).expect("Failed to create log directory");
-        aggregator.save(&path);
+        aggregator.save(benchmark_dir);
 
         if self.settings.enable_flamegraph {
+            let flamegraphs_dir = benchmark_dir.join("flamegraphs");
+            fs::create_dir_all(&flamegraphs_dir).expect("Failed to create flamegraphs directory");
+
             self.fetch_flamegraphs(
                 parameters,
                 self.instances_without_metrics().clone(),
-                &path,
+                &flamegraphs_dir,
                 "?svg=true",
                 "flamegraph",
             )
@@ -633,7 +626,7 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
                 self.fetch_flamegraphs(
                     parameters,
                     self.instances_without_metrics().clone(),
-                    &path,
+                    &flamegraphs_dir,
                     "?svg=true&mem=true",
                     "flamegraph-alloc",
                 )
@@ -674,20 +667,10 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
     }
 
     /// Download the log files from the nodes and clients.
-    pub async fn download_logs(
-        &self,
-        parameters: &BenchmarkParameters<T>,
-    ) -> TestbedResult<LogsAnalyzer> {
-        // Create a log sub-directory for this run.
-        let commit = &self.settings.repository.commit;
-        let path: PathBuf = [
-            &self.settings.logs_dir,
-            &format!("logs-{commit}").into(),
-            &format!("logs-{parameters:?}").into(),
-        ]
-        .iter()
-        .collect();
-        fs::create_dir_all(&path).expect("Failed to create log directory");
+    pub async fn download_logs(&self, benchmark_dir: &Path) -> TestbedResult<LogsAnalyzer> {
+        // Create a logs sub-directory for this run.
+        let path = benchmark_dir.join("logs");
+        fs::create_dir_all(&path).expect("Failed to create logs directory");
 
         // NOTE: Our ssh library does not seem to be able to transfers files in parallel
         // reliably.
@@ -701,10 +684,8 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
             let connection = self.ssh_manager.connect(instance.ssh_address()).await?;
             let client_log_content = connection.download("client.log").await?;
 
-            let client_log_file = [path.clone(), format!("client-{i}.log").into()]
-                .iter()
-                .collect::<PathBuf>();
-            fs::write(&client_log_file, client_log_content.as_bytes())
+            let client_log_file = path.join(format!("client-{i}.log"));
+            fs::write(client_log_file, client_log_content.as_bytes())
                 .expect("Cannot write log file");
 
             let mut log_parser = LogsAnalyzer::default();
@@ -720,10 +701,8 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
             let connection = self.ssh_manager.connect(instance.ssh_address()).await?;
             let node_log_content = connection.download("node.log").await?;
 
-            let node_log_file = [path.clone(), format!("node-{i}.log").into()]
-                .iter()
-                .collect::<PathBuf>();
-            fs::write(&node_log_file, node_log_content.as_bytes()).expect("Cannot write log file");
+            let node_log_file = path.join(format!("node-{i}.log"));
+            fs::write(node_log_file, node_log_content.as_bytes()).expect("Cannot write log file");
 
             let mut log_parser = LogsAnalyzer::default();
             log_parser.set_node_errors(&node_log_content);
@@ -746,6 +725,9 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
         // Cleanup the testbed (in case the previous run was not completed).
         self.cleanup(true).await?;
 
+        let commit: PathBuf = self.settings.repository.commit.replace("/", "_").into();
+        let timestamp = chrono::Local::now().format("%y%m%d_%H%M%S");
+
         // Update the software on all instances.
         if !self.skip_testbed_update {
             self.install().await?;
@@ -761,8 +743,18 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
             display::config("Parameters", &parameters);
             display::newline();
 
+            let benchmark_dir: PathBuf = [
+                &self.settings.results_dir,
+                &commit,
+                &format!("{timestamp}-{parameters:?}").into(),
+            ]
+            .iter()
+            .collect();
+
             // Cleanup the testbed (in case the previous run was not completed).
             self.cleanup(true).await?;
+            // Create benchmark directory.
+            fs::create_dir_all(&benchmark_dir).expect("Failed to create benchmark directory");
             // Start the instance monitoring tools.
             self.start_monitoring(&parameters).await?;
 
@@ -780,7 +772,7 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
 
             // Wait for the benchmark to terminate. Then save the results and print a
             // summary.
-            let aggregator = self.run(&parameters).await?;
+            let aggregator = self.run(&benchmark_dir, &parameters).await?;
             aggregator.display_summary();
             generator.register_result(aggregator);
             // drop(monitor);
@@ -790,7 +782,7 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
 
             // Download the log files.
             if self.log_processing {
-                let error_counter = self.download_logs(&parameters).await?;
+                let error_counter = self.download_logs(&benchmark_dir).await?;
                 error_counter.print_summary();
             }
 
