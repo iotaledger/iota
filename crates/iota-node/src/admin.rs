@@ -473,7 +473,6 @@ struct Flamegraph {
     #[serde(default)]
     graph_id: String,
     /// Use memory allocations as span measure rather than duration.
-    #[cfg(all(feature = "flamegraph-alloc", nightly))]
     #[serde(default)]
     mem: bool,
 }
@@ -486,7 +485,6 @@ async fn flamegraph(State(state): State<Arc<AppState>>, query: Query<Flamegraph>
             mut running,
             mut completed,
             graph_id,
-            #[cfg(all(feature = "flamegraph-alloc", nightly))]
             mem,
         }) = query;
         if !running && !completed {
@@ -494,8 +492,19 @@ async fn flamegraph(State(state): State<Arc<AppState>>, query: Query<Flamegraph>
             completed = true;
         }
         if svg {
+            #[cfg(not(all(feature = "flamegraph-alloc", nightly)))]
+            {
+                if mem {
+                    return (
+                        StatusCode::BAD_REQUEST,
+                        "memory flamegraphs are not supported (re-run iota-node with 'flamegraph-alloc' feature enabled and on nightly Rust toolchain)",
+                    )
+                        .into_response();
+                }
+            }
+
             // draw an svg
-            let width = if width == 0 { Some(3600) } else { Some(width) };
+            let width = if width == 0 { Some(1920) } else { Some(width) };
             let config = telemetry_subscribers::flamegraph::SvgConfig {
                 width,
                 #[cfg(all(feature = "flamegraph-alloc", nightly))]
