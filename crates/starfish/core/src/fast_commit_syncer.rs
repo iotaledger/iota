@@ -531,7 +531,7 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
         // 1. Fetch commits, voting headers, and transactions in the commit range
         //    from the target authority. Each transaction is serialized as
         //    SerializedTransactionsV2 which includes the TransactionRef.
-        let (serialized_commits, serialized_voting_block_headers, serialized_transactions) = inner
+        let (serialized_commits, serialized_proof_for_last_commit, serialized_transactions) = inner
             .network_client
             .fetch_commits_and_transactions(target_authority, commit_range.clone(), timeout)
             .await?;
@@ -547,7 +547,7 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
                         target_authority,
                         commit_range,
                         serialized_commits,
-                        serialized_voting_block_headers,
+                        serialized_proof_for_last_commit,
                     )
                 }
             })

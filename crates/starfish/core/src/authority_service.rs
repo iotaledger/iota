@@ -3517,7 +3517,7 @@ mod tests {
 
         let peer = context.committee.to_authority_index(1).unwrap();
         let serialized_transactions = authority_service
-            .handle_fetch_transactions(peer, block_refs_to_request_first_batch.clone(), TransactionFetchMode::TransactionsSynchronizer)
+            .handle_fetch_transactions(peer, block_refs_to_request_first_batch.clone(), TransactionFetchMode::TransactionSync)
             .await
             .expect("We should expect a correct return of serialized transactions");
 
@@ -3588,7 +3588,7 @@ mod tests {
             .truncate(context.parameters.max_transactions_per_regular_sync_fetch);
 
         let serialized_transactions = authority_service
-            .handle_fetch_transactions(peer, block_refs_to_request_second_batch.clone(), TransactionFetchMode::TransactionsSynchronizer)
+            .handle_fetch_transactions(peer, block_refs_to_request_second_batch.clone(), TransactionFetchMode::TransactionSync)
             .await
             .expect("Should return an empty vector");
 
