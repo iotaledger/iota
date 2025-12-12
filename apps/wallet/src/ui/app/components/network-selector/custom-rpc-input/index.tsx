@@ -5,12 +5,11 @@
 import { useAppDispatch, useAppSelector } from '_hooks';
 import { changeActiveNetwork } from '_redux/slices/app';
 import { ampli } from '_src/shared/analytics/ampli';
-import { setNetworkGroup } from '_src/shared/analytics/amplitude';
 import { isValidUrl } from '_src/shared/utils';
 import { Network } from '@iota/iota-sdk/client';
 import { Form, Formik } from 'formik';
 import { useCallback } from 'react';
-import { toast } from '@iota/core';
+import { toast, setNetworkGroup } from '@iota/core';
 import * as Yup from 'yup';
 import { InputWithAction } from './InputWithAction';
 
@@ -43,7 +42,7 @@ export function CustomRPCInput() {
                         store: true,
                     }),
                 ).unwrap();
-                setNetworkGroup(Network.Custom, rpcInput);
+                setNetworkGroup(ampli.client, Network.Custom, rpcInput);
                 ampli.switchedNetwork({
                     toNetwork: rpcInput,
                 });

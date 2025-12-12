@@ -3,8 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { ampli } from '_src/shared/analytics/ampli';
-import { setNetworkGroup } from '_src/shared/analytics/amplitude';
-import { getCustomNetwork } from '@iota/core';
+import { setNetworkGroup, getCustomNetwork } from '@iota/core';
 import { getNetwork } from '@iota/iota-sdk/client';
 import { useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
@@ -22,7 +21,7 @@ export function useInitialPageView() {
 
     useEffect(() => {
         ampli.identify(undefined);
-        setNetworkGroup(network, customRpc);
+        setNetworkGroup(ampli.client, network, customRpc);
     }, [network, customRpc]);
 
     useEffect(() => {

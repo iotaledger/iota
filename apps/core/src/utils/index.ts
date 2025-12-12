@@ -30,7 +30,7 @@ export * from './nftMediaUtils';
 export * from './mapTimelockObjects';
 export * from './formatDelegatedTimelockedStake';
 export * from './formatIotaName';
-
+export * from './amplitude';
 export * from './stake';
 export * from './transaction';
 export * from './validation';
