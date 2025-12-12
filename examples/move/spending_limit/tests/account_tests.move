@@ -8,7 +8,8 @@ use generic_keyed_authentication::owner_public_key;
 use iota::account::AuthenticatorInfoV1;
 use iota::auth_context::{Self, AuthContext};
 use iota::hex;
-use iota::programmable_transaction;
+use iota::ptb_call_arg;
+use iota::ptb_command;
 use iota::test_scenario::{Self, Scenario};
 use spending_limit::account::{Self as spending_limit, SpendLimit};
 use spending_limit::spending_limit as limit;
@@ -48,12 +49,12 @@ fun account_fails_verification() {
     let account_address = create_spending_limit_for_testing(scenario, 1000, public_key);
     scenario.next_tx(account_address);
     {
-        let account = scenario.take_shared<spending_limit::SpendLimit>();
+        let mut account = scenario.take_shared<spending_limit::SpendLimit>();
 
         let signature: vector<u8> = b"32";
         let auth_context = create_auth_context_for_testing(account_address, 500, scenario.ctx());
         spending_limit::authenticate(
-            &account,
+            &mut account,
             hex::encode(signature),
             &auth_context,
             scenario.ctx(),
@@ -84,12 +85,12 @@ fun only_account_can_authenticate() {
     );
     scenario.next_tx(@0x0);
     {
-        let account = scenario.take_shared<spending_limit::SpendLimit>();
+        let mut account = scenario.take_shared<spending_limit::SpendLimit>();
 
         let signature: vector<u8> = b"32";
         let auth_context = create_auth_context_for_testing(account_address, 1001, &test_ctx);
         spending_limit::authenticate(
-            &account,
+            &mut account,
             hex::encode(signature),
             &auth_context,
             scenario.ctx(),
@@ -111,7 +112,7 @@ fun account_spending_limit_exceeded() {
 
     scenario.next_tx(account_address);
     {
-        let account = scenario.take_shared<spending_limit::SpendLimit>();
+        let mut account = scenario.take_shared<spending_limit::SpendLimit>();
         let digest = x"315f5bdb76d078c43b8ac0064e4a0164612b1fce77c869345bfc94c75894edd3";
         let test_ctx = tx_context::new(account_address, digest, 0, 0, 0);
 
@@ -121,7 +122,7 @@ fun account_spending_limit_exceeded() {
 
         // Try to spend 1001, which exceeds limit of 1000
         spending_limit::authenticate(
-            &account,
+            &mut account,
             hex::encode(signature),
             &auth_context,
             &test_ctx,
@@ -140,12 +141,16 @@ fun account_within_spending_limit() {
 
     let digest = x"315f5bdb76d078c43b8ac0064e4a0164612b1fce77c869345bfc94c75894edd3";
     let public_key = x"28851fafd2cbe27170bdae5a24029b2accfb1ede8b364811a808fe2275c82b59";
+    let initial_limit = 1000;
+    let withdraw_amount = 500;
 
-    let account_address = create_spending_limit_for_testing(scenario, 1000, public_key);
+    // Create account with 1000 limit
+    let account_address = create_spending_limit_for_testing(scenario, initial_limit, public_key);
 
     scenario.next_tx(account_address);
     {
-        let account = scenario.take_shared<spending_limit::SpendLimit>();
+        let mut account = scenario.take_shared<spending_limit::SpendLimit>();
+
         let test_ctx = tx_context::new(
             account_address,
             digest,
@@ -156,17 +161,33 @@ fun account_within_spending_limit() {
 
         let signature =
             x"474686f447a998ccc6824bb05e69133de41b59999944e494a3ff5504abd9af86403aa7c240ac51d1d48e0b34a560ca7ee4542e25cfd7b090e4652dfb53941a04";
-        let auth_context = create_auth_context_for_testing(account_address, 1000, &test_ctx);
+
+        // Create auth context for withdrawing 500
+        let auth_context = create_auth_context_for_testing(
+            account_address,
+            withdraw_amount,
+            &test_ctx,
+        );
 
         spending_limit::authenticate(
-            &account,
+            &mut account,
             hex::encode(signature),
             &auth_context,
             &test_ctx,
         );
 
-        //checking that the correct amount was retrieved
-        // assert_eq!(amount, 1000);
+        test_scenario::return_shared(account);
+    };
+
+    // Verify State Change
+    scenario.next_tx(account_address);
+    {
+        let account = scenario.take_shared<spending_limit::SpendLimit>();
+
+        let current_limit = account.spending_limit();
+
+        // Expected: 1000 (initial) - 500 (withdrawn) = 500
+        assert_eq!(current_limit, initial_limit - withdraw_amount);
 
         test_scenario::return_shared(account);
     };
@@ -184,7 +205,7 @@ fun account_zero_spending() {
 
     scenario.next_tx(account_address);
     {
-        let account = scenario.take_shared<spending_limit::SpendLimit>();
+        let mut account = scenario.take_shared<spending_limit::SpendLimit>();
         let digest = x"315f5bdb76d078c43b8ac0064e4a0164612b1fce77c869345bfc94c75894edd3";
         let test_ctx = tx_context::new(account_address, digest, 0, 0, 0);
 
@@ -193,7 +214,7 @@ fun account_zero_spending() {
         let auth_context = create_auth_context_for_testing(account_address, 0, &test_ctx);
         // Spend 0 (should always pass)
         spending_limit::authenticate(
-            &account,
+            &mut account,
             hex::encode(signature),
             &auth_context,
             &test_ctx,
@@ -235,7 +256,7 @@ fun test_missing_withdraw_call() {
 
     scenario.next_tx(account_address);
     {
-        let account = scenario.take_shared<spending_limit::SpendLimit>();
+        let mut account = scenario.take_shared<spending_limit::SpendLimit>();
         let digest = x"315f5bdb76d078c43b8ac0064e4a0164612b1fce77c869345bfc94c75894edd3";
         let test_ctx = tx_context::new(account_address, digest, 0, 0, 0);
 
@@ -246,7 +267,7 @@ fun test_missing_withdraw_call() {
         let auth_context = auth_context::new_with_tx_inputs(*test_ctx.digest(), vector[], vector[]);
 
         spending_limit::authenticate(
-            &account,
+            &mut account,
             hex::encode(signature),
             &auth_context,
             &test_ctx,
@@ -266,7 +287,7 @@ fun test_multiple_withdraw_calls_within_limit() {
     let account_address = create_spending_limit_for_testing(scenario, 3000, public_key);
     scenario.next_tx(account_address);
     {
-        let account = scenario.take_shared<spending_limit::SpendLimit>();
+        let mut account = scenario.take_shared<spending_limit::SpendLimit>();
         let digest = x"315f5bdb76d078c43b8ac0064e4a0164612b1fce77c869345bfc94c75894edd3";
         let test_ctx = tx_context::new(account_address, digest, 0, 0, 0);
 
@@ -282,7 +303,7 @@ fun test_multiple_withdraw_calls_within_limit() {
         );
 
         spending_limit::authenticate(
-            &account,
+            &mut account,
             hex::encode(signature),
             &auth_context,
             &test_ctx,
@@ -301,7 +322,7 @@ fun test_multiple_withdraw_calls_at_limit() {
     let account_address = create_spending_limit_for_testing(scenario, 3000, public_key);
     scenario.next_tx(account_address);
     {
-        let account = scenario.take_shared<spending_limit::SpendLimit>();
+        let mut account = scenario.take_shared<spending_limit::SpendLimit>();
         let digest = x"315f5bdb76d078c43b8ac0064e4a0164612b1fce77c869345bfc94c75894edd3";
         let test_ctx = tx_context::new(account_address, digest, 0, 0, 0);
 
@@ -317,7 +338,7 @@ fun test_multiple_withdraw_calls_at_limit() {
         );
 
         spending_limit::authenticate(
-            &account,
+            &mut account,
             hex::encode(signature),
             &auth_context,
             &test_ctx,
@@ -337,7 +358,7 @@ fun test_multiple_withdraw_calls_over_limit() {
     let account_address = create_spending_limit_for_testing(scenario, 3000, public_key);
     scenario.next_tx(account_address);
     {
-        let account = scenario.take_shared<spending_limit::SpendLimit>();
+        let mut account = scenario.take_shared<spending_limit::SpendLimit>();
         let digest = x"315f5bdb76d078c43b8ac0064e4a0164612b1fce77c869345bfc94c75894edd3";
         let test_ctx = tx_context::new(account_address, digest, 0, 0, 0);
 
@@ -353,7 +374,7 @@ fun test_multiple_withdraw_calls_over_limit() {
         );
 
         spending_limit::authenticate(
-            &account,
+            &mut account,
             hex::encode(signature),
             &auth_context,
             &test_ctx,
@@ -373,7 +394,7 @@ fun test_withdraw_call_wrong_account() {
 
     scenario.next_tx(account_address);
     {
-        let account = scenario.take_shared<spending_limit::SpendLimit>();
+        let mut account = scenario.take_shared<spending_limit::SpendLimit>();
         let digest = x"315f5bdb76d078c43b8ac0064e4a0164612b1fce77c869345bfc94c75894edd3";
         let test_ctx = tx_context::new(account_address, digest, 0, 0, 0);
 
@@ -385,7 +406,7 @@ fun test_withdraw_call_wrong_account() {
         let auth_context = create_auth_context_for_testing(wrong_address, 500, &test_ctx);
 
         spending_limit::authenticate(
-            &account,
+            &mut account,
             hex::encode(signature),
             &auth_context,
             &test_ctx,
@@ -405,7 +426,7 @@ fun test_withdraw_call_wrong_package_id() {
     let account_address = create_spending_limit_for_testing(scenario, 1000, public_key);
     scenario.next_tx(account_address);
     {
-        let account = scenario.take_shared<spending_limit::SpendLimit>();
+        let mut account = scenario.take_shared<spending_limit::SpendLimit>();
         let digest = x"315f5bdb76d078c43b8ac0064e4a0164612b1fce77c869345bfc94c75894edd3";
         let test_ctx = tx_context::new(account_address, digest, 0, 0, 0);
 
@@ -413,33 +434,33 @@ fun test_withdraw_call_wrong_package_id() {
             x"cce72947906dbae4c166fc01fd096432784032be43db540909bc901dbc057992b4d655ca4f4355cf0868e1266baacf6919902969f063e74162f8f04bc4056105";
 
         // Create auth_context with a wrong package id
-        let move_call = programmable_transaction::new_programmable_move_call(
+        let move_call = ptb_command::new_programmable_move_call_for_testing(
             object::id_from_address(@0x012345), // wrong package id
             ascii::string(b"account"),
             ascii::string(b"withdraw_from_balance_reserve"),
             vector[],
             vector[
-                programmable_transaction::new_input_argument(0), // account
-                programmable_transaction::new_input_argument(1), // amount
+                ptb_command::new_input_argument_for_testing(0), // account
+                ptb_command::new_input_argument_for_testing(1), // amount
             ],
         );
-        let command = programmable_transaction::new_move_call(move_call);
+        let command = ptb_command::new_move_call_command_for_testing(move_call);
         let commands = vector[command];
 
         let account_id = object::id_from_address(account_address);
-        let account_obj_arg = programmable_transaction::new_shared_object(account_id, 0, true);
-        let account_call_arg = programmable_transaction::new_object(account_obj_arg);
+        let account_obj_arg = ptb_call_arg::new_object_arg_shared_for_testing(account_id, 0, true);
+        let account_call_arg = ptb_call_arg::new_call_arg_object_for_testing(account_obj_arg);
 
         let amount: u64 = 500;
         let amount_bytes = iota::bcs::to_bytes(&amount);
-        let amount_call_arg = programmable_transaction::new_pure(amount_bytes);
+        let amount_call_arg = ptb_call_arg::new_call_arg_pure_for_testing(amount_bytes);
 
         let inputs = vector[account_call_arg, amount_call_arg];
 
         let auth_context = auth_context::new_with_tx_inputs(*test_ctx.digest(), inputs, commands);
 
         spending_limit::authenticate(
-            &account,
+            &mut account,
             hex::encode(signature),
             &auth_context,
             &test_ctx,
@@ -458,7 +479,7 @@ fun test_withdraw_call_wrong_module() {
     let account_address = create_spending_limit_for_testing(scenario, 1000, public_key);
     scenario.next_tx(account_address);
     {
-        let account = scenario.take_shared<spending_limit::SpendLimit>();
+        let mut account = scenario.take_shared<spending_limit::SpendLimit>();
         let digest = x"315f5bdb76d078c43b8ac0064e4a0164612b1fce77c869345bfc94c75894edd3";
         let test_ctx = tx_context::new(account_address, digest, 0, 0, 0);
 
@@ -466,33 +487,32 @@ fun test_withdraw_call_wrong_module() {
             x"cce72947906dbae4c166fc01fd096432784032be43db540909bc901dbc057992b4d655ca4f4355cf0868e1266baacf6919902969f063e74162f8f04bc4056105";
 
         // Create auth_context with a wrong module name
-        let move_call = programmable_transaction::new_programmable_move_call(
+        let move_call = ptb_command::new_programmable_move_call_for_testing(
             object::id_from_address(@spending_limit),
             ascii::string(b"wrong_module"), // wrong module name
             ascii::string(b"withdraw_from_balance_reserve"),
             vector[],
             vector[
-                programmable_transaction::new_input_argument(0), // account
-                programmable_transaction::new_input_argument(1), // amount
+                ptb_command::new_input_argument_for_testing(0), // account
+                ptb_command::new_input_argument_for_testing(1), // amount
             ],
         );
-        let command = programmable_transaction::new_move_call(move_call);
+        let command = ptb_command::new_move_call_command_for_testing(move_call);
         let commands = vector[command];
 
         let account_id = object::id_from_address(account_address);
-        let account_obj_arg = programmable_transaction::new_shared_object(account_id, 0, true);
-        let account_call_arg = programmable_transaction::new_object(account_obj_arg);
+        let account_obj_arg = ptb_call_arg::new_object_arg_shared_for_testing(account_id, 0, true);
+        let account_call_arg = ptb_call_arg::new_call_arg_object_for_testing(account_obj_arg);
 
         let amount: u64 = 500;
         let amount_bytes = iota::bcs::to_bytes(&amount);
-        let amount_call_arg = programmable_transaction::new_pure(amount_bytes);
-
+        let amount_call_arg = ptb_call_arg::new_call_arg_pure_for_testing(amount_bytes);
         let inputs = vector[account_call_arg, amount_call_arg];
 
         let auth_context = auth_context::new_with_tx_inputs(*test_ctx.digest(), inputs, commands);
 
         spending_limit::authenticate(
-            &account,
+            &mut account,
             hex::encode(signature),
             &auth_context,
             &test_ctx,
@@ -511,7 +531,7 @@ fun test_withdraw_call_wrong_function() {
     let account_address = create_spending_limit_for_testing(scenario, 1000, public_key);
     scenario.next_tx(account_address);
     {
-        let account = scenario.take_shared<spending_limit::SpendLimit>();
+        let mut account = scenario.take_shared<spending_limit::SpendLimit>();
         let digest = x"315f5bdb76d078c43b8ac0064e4a0164612b1fce77c869345bfc94c75894edd3";
         let test_ctx = tx_context::new(account_address, digest, 0, 0, 0);
 
@@ -519,33 +539,32 @@ fun test_withdraw_call_wrong_function() {
             x"cce72947906dbae4c166fc01fd096432784032be43db540909bc901dbc057992b4d655ca4f4355cf0868e1266baacf6919902969f063e74162f8f04bc4056105";
 
         // Create auth_context with a wrong function name
-        let move_call = programmable_transaction::new_programmable_move_call(
+        let move_call = ptb_command::new_programmable_move_call_for_testing(
             object::id_from_address(@spending_limit),
             ascii::string(b"account"),
             ascii::string(b"wrong_function"), // wrong function name
             vector[],
             vector[
-                programmable_transaction::new_input_argument(0), // account
-                programmable_transaction::new_input_argument(1), // amount
+                ptb_command::new_input_argument_for_testing(0), // account
+                ptb_command::new_input_argument_for_testing(1), // amount
             ],
         );
-        let command = programmable_transaction::new_move_call(move_call);
+        let command = ptb_command::new_move_call_command_for_testing(move_call);
         let commands = vector[command];
 
         let account_id = object::id_from_address(account_address);
-        let account_obj_arg = programmable_transaction::new_shared_object(account_id, 0, true);
-        let account_call_arg = programmable_transaction::new_object(account_obj_arg);
+        let account_obj_arg = ptb_call_arg::new_object_arg_shared_for_testing(account_id, 0, true);
+        let account_call_arg = ptb_call_arg::new_call_arg_object_for_testing(account_obj_arg);
 
         let amount: u64 = 500;
         let amount_bytes = iota::bcs::to_bytes(&amount);
-        let amount_call_arg = programmable_transaction::new_pure(amount_bytes);
-
+        let amount_call_arg = ptb_call_arg::new_call_arg_pure_for_testing(amount_bytes);
         let inputs = vector[account_call_arg, amount_call_arg];
 
         let auth_context = auth_context::new_with_tx_inputs(*test_ctx.digest(), inputs, commands);
 
         spending_limit::authenticate(
-            &account,
+            &mut account,
             hex::encode(signature),
             &auth_context,
             &test_ctx,
@@ -592,7 +611,7 @@ fun test_withdraw_invalid_bcs_amount() {
     let account_address = create_spending_limit_for_testing(scenario, 1000, public_key);
     scenario.next_tx(account_address);
     {
-        let account = scenario.take_shared<spending_limit::SpendLimit>();
+        let mut account = scenario.take_shared<spending_limit::SpendLimit>();
         let digest = x"315f5bdb76d078c43b8ac0064e4a0164612b1fce77c869345bfc94c75894edd3";
         let test_ctx = tx_context::new(account_address, digest, 0, 0, 0);
 
@@ -601,30 +620,30 @@ fun test_withdraw_invalid_bcs_amount() {
 
         // Create auth_context with an invalid BCS amount (e.g., empty vector)
         let account_id = object::id_from_address(account_address);
-        let account_obj_arg = programmable_transaction::new_shared_object(account_id, 0, true);
-        let account_call_arg = programmable_transaction::new_object(account_obj_arg);
+        let account_obj_arg = ptb_call_arg::new_object_arg_shared_for_testing(account_id, 0, true);
+        let account_call_arg = ptb_call_arg::new_call_arg_object_for_testing(account_obj_arg);
 
         let invalid_amount_bytes: vector<u8> = vector[]; // invalid BCS
-        let amount_call_arg = programmable_transaction::new_pure(invalid_amount_bytes);
+        let amount_call_arg = ptb_call_arg::new_call_arg_pure_for_testing(invalid_amount_bytes);
 
         let inputs = vector[account_call_arg, amount_call_arg];
 
-        let move_call = programmable_transaction::new_programmable_move_call(
+        let move_call = ptb_command::new_programmable_move_call_for_testing(
             object::id_from_address(@spending_limit),
             ascii::string(b"account"),
             ascii::string(b"withdraw_from_balance_reserve"),
             vector[],
             vector[
-                programmable_transaction::new_input_argument(0), // account
-                programmable_transaction::new_input_argument(1), // amount
+                ptb_command::new_input_argument_for_testing(0), // account
+                ptb_command::new_input_argument_for_testing(1), // amount
             ],
         );
-        let command = programmable_transaction::new_move_call(move_call);
+        let command = ptb_command::new_move_call_command_for_testing(move_call);
         let commands = vector[command];
 
         let auth_context = auth_context::new_with_tx_inputs(*test_ctx.digest(), inputs, commands);
         spending_limit::authenticate(
-            &account,
+            &mut account,
             hex::encode(signature),
             &auth_context,
             &test_ctx,
@@ -673,28 +692,27 @@ fun create_auth_context_for_testing(
 ): AuthContext {
     // Input 0: account (shared object)
     let account_id = object::id_from_address(account_address);
-    let account_obj_arg = programmable_transaction::new_shared_object(account_id, 0, true);
-    let account_call_arg = programmable_transaction::new_object(account_obj_arg);
+    let account_obj_arg = ptb_call_arg::new_object_arg_shared_for_testing(account_id, 0, true);
+    let account_call_arg = ptb_call_arg::new_call_arg_object_for_testing(account_obj_arg);
 
     // Input 1: amount (pure u64)
     let amount_bytes = iota::bcs::to_bytes(&amount);
-    let amount_call_arg = programmable_transaction::new_pure(amount_bytes);
-
+    let amount_call_arg = ptb_call_arg::new_call_arg_pure_for_testing(amount_bytes);
     let inputs = vector[account_call_arg, amount_call_arg];
 
     // Comando: withdraw_from_balance_reserve<IOTA>(Input(0), Input(1))
-    let move_call = programmable_transaction::new_programmable_move_call(
+    let move_call = ptb_command::new_programmable_move_call_for_testing(
         object::id_from_address(@spending_limit),
         ascii::string(b"account"),
         ascii::string(b"withdraw_from_balance_reserve"),
         vector[], // type args
         vector[
-            programmable_transaction::new_input_argument(0), // account
-            programmable_transaction::new_input_argument(1), // amount
+            ptb_command::new_input_argument_for_testing(0), // account
+            ptb_command::new_input_argument_for_testing(1), // amount
         ],
     );
 
-    let command = programmable_transaction::new_move_call(move_call);
+    let command = ptb_command::new_move_call_command_for_testing(move_call);
     let commands = vector[command];
 
     auth_context::new_with_tx_inputs(*ctx.digest(), inputs, commands)
@@ -708,17 +726,16 @@ fun create_auth_context_for_testing_multiple_withdraw_calls(
 ): AuthContext {
     // Input 0: account (shared object)
     let account_id = object::id_from_address(account_address);
-    let account_obj_arg = programmable_transaction::new_shared_object(account_id, 0, true);
-    let account_call_arg = programmable_transaction::new_object(account_obj_arg);
+    let account_obj_arg = ptb_call_arg::new_object_arg_shared_for_testing(account_id, 0, true);
+    let account_call_arg = ptb_call_arg::new_call_arg_object_for_testing(account_obj_arg);
 
     // Input 1: amount (pure u64) for withdraw
     let amount_bytes = iota::bcs::to_bytes(&amount_per_withdraw);
-    let amount_call_arg = programmable_transaction::new_pure(amount_bytes);
+    let amount_call_arg = ptb_call_arg::new_call_arg_pure_for_testing(amount_bytes);
     // Input 2: temp_number (pure u16) for random function
     let temp_number: u16 = 42;
     let temp_number_bytes = iota::bcs::to_bytes(&temp_number);
-    let temp_call_arg = programmable_transaction::new_pure(temp_number_bytes);
-
+    let temp_call_arg = ptb_call_arg::new_call_arg_pure_for_testing(temp_number_bytes);
     let inputs = vector[account_call_arg, amount_call_arg, temp_call_arg];
 
     // Create commands with one loop
@@ -727,28 +744,27 @@ fun create_auth_context_for_testing_multiple_withdraw_calls(
 
     while (i < num_withdraws) {
         // Add random function call
-        let random_call = programmable_transaction::new_programmable_move_call(
+        let random_call = ptb_command::new_programmable_move_call_for_testing(
             object::id_from_address(@spending_limit),
             ascii::string(b"account"),
             ascii::string(b"random_function_that_does_nothing"),
             vector[],
-            vector[programmable_transaction::new_input_argument(2)], // temp_number
+            vector[ptb_command::new_input_argument_for_testing(2)], // temp_number
         );
-        commands.push_back(programmable_transaction::new_move_call(random_call));
+        commands.push_back(ptb_command::new_move_call_command_for_testing(random_call));
 
         // Add withdraw call
-        let withdraw_call = programmable_transaction::new_programmable_move_call(
+        let withdraw_call = ptb_command::new_programmable_move_call_for_testing(
             object::id_from_address(@spending_limit),
             ascii::string(b"account"),
             ascii::string(b"withdraw_from_balance_reserve"),
             vector[],
             vector[
-                programmable_transaction::new_input_argument(0), // account
-                programmable_transaction::new_input_argument(1), // amount
+                ptb_command::new_input_argument_for_testing(0), // account
+                ptb_command::new_input_argument_for_testing(1), // amount
             ],
         );
-        commands.push_back(programmable_transaction::new_move_call(withdraw_call));
-
+        commands.push_back(ptb_command::new_move_call_command_for_testing(withdraw_call));
         i = i + 1;
     };
 

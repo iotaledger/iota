@@ -11,20 +11,22 @@ use iota::bcs;
 use iota::coin::{Self, Coin};
 use iota::dynamic_field;
 use iota::iota::IOTA;
-use iota::programmable_transaction::{
-    move_call_data,
-    command_to_int,
-    pure_data,
-    arguments,
-    package_id,
-    function_name,
-    module_name,
-    ProgrammableMoveCall,
-    argument_input,
+use iota::ptb_call_arg::{
     is_object_data,
     is_pure_data,
     is_shared_object,
-    shared_object_data
+    as_pure_data,
+    as_object_data,
+    object_id
+};
+use iota::ptb_command::{
+    module_name,
+    function as function_name,
+    package as package_id,
+    arguments,
+    as_move_call,
+    ProgrammableMoveCall,
+    input_index
 };
 use spending_limit::spending_limit;
 use std::ascii;
@@ -70,16 +72,9 @@ public fun create(
     // Create the SpendLimit account object.
     let mut spend_limit_account = SpendLimit { id: object::new(ctx) };
 
-    // Check compatibility and create proof.
-    let proof = account::check_auth_info_v1_compatibility(&spend_limit_account, authenticator);
-
-    // Attach the authenticator info.
-    account::attach_auth_info_v1(
-        &mut spend_limit_account.id,
-        proof,
-    );
     // Attach public key using the owner_public_key module.
     owner_public_key::attach(&mut spend_limit_account.id, public_key);
+
     // Initialize balance reserve.
     dynamic_field::add(
         &mut spend_limit_account.id,
@@ -88,16 +83,19 @@ public fun create(
             balance: balance::zero<IOTA>(),
         },
     );
+
     // Attach spending limit.
     spending_limit::attach(
         &mut spend_limit_account.id,
         limit,
     );
-    iota::transfer::share_object(spend_limit_account);
+
+    // Finalize account creation.
+    account::create_account_v1(spend_limit_account, authenticator);
 }
 
 public fun authenticate(
-    account: &SpendLimit,
+    account: &mut SpendLimit,
     signature: vector<u8>,
     auth_ctx: &AuthContext,
     ctx: &TxContext,
@@ -106,7 +104,7 @@ public fun authenticate(
 
     let total_amount = validate_and_calculate_withdrawals(auth_ctx, ctx);
 
-    spending_limit::authenticate_with_amount(&account.id, total_amount);
+    spending_limit::authenticate_with_amount(&mut account.id, total_amount);
 }
 
 public fun withdraw_from_balance_reserve(
@@ -142,26 +140,32 @@ public(package) fun validate_and_calculate_withdrawals(
     while (i < len) {
         let cmd = &commands[i];
 
-        if (command_to_int(cmd) == 0) {
-            let call = move_call_data(cmd);
+        let call_opt = as_move_call(cmd);
+
+        if (option::is_some(&call_opt)) {
+            let call = option::borrow(&call_opt);
 
             if (is_valid_withdraw_call(call, auth_ctx, ctx)) {
                 // Extract amount inline.
                 let args = arguments(call);
                 assert!(args.length() > 1, EInvalidAmount);
                 let amount_arg = &args[1];
-                let input_idx = argument_input(amount_arg);
+                let input_idx_opt = input_index(amount_arg);
+                assert!(option::is_some(&input_idx_opt), EInvalidAmount);
+                let input_idx = *option::borrow(&input_idx_opt);
                 assert!((input_idx as u64) < inputs.length(), EInvalidAmount);
                 let call_arg = &inputs[(input_idx as u64)];
-                let bytes = pure_data(call_arg);
+                let bytes_opt = as_pure_data(call_arg);
+                assert!(option::is_some(&bytes_opt), EInvalidAmount);
+                let bytes = *option::borrow(&bytes_opt);
                 // u64 is 8 bytes
                 assert!(bytes.length() == 8, EInvalidAmount);
-                let mut bcs_stream = bcs::new(*bytes);
+                let mut bcs_stream = bcs::new(bytes);
                 let amount = bcs_stream.peel_u64();
                 assert!(amount > 0, EInvalidAmount);
 
                 total_amount = total_amount + amount;
-            };
+            }
         };
 
         i = i + 1;
@@ -219,7 +223,9 @@ fun first_arg_equals_sender(
     let arg0 = args.borrow(0);
 
     // u64 since then borrow and length are u64 as well.
-    let input_ix = argument_input(arg0) as u64;
+    let input_ix_opt = input_index(arg0);
+    assert!(option::is_some(&input_ix_opt), EInvalidAmount);
+    let input_ix = *option::borrow(&input_ix_opt) as u64;
 
     let inputs = tx_inputs(auth_ctx);
 
@@ -235,20 +241,26 @@ fun first_arg_equals_sender(
 
     // Object argument where its ID/address equals sender.
     if (is_object_data(carg)) {
-        let obj_data = carg.object_data();
+        let obj_data_opt = carg.as_object_data();
 
+        assert!(option::is_some(&obj_data_opt), EInvalidAmount);
+        let obj_data = option::borrow(&obj_data_opt);
         // Need to check if it's a shared object.
 
         if (is_shared_object(obj_data)) {
-            let (shared_id, _, _) = shared_object_data(obj_data);
+            let shared_id_opt = object_id(obj_data);
+            assert!(option::is_some(&shared_id_opt), EInvalidAmount);
+            let shared_id = *option::borrow(&shared_id_opt);
             let id_addr = object::id_to_address(&shared_id);
             return id_addr == tx_context::sender(ctx)
         };
 
         // It's either an owned or immutable object then.
 
-        let obj_id = obj_data.object_ref().object_id();
-        let id_addr = object::id_to_address(obj_id);
+        let obj_id_opt = object_id(obj_data);
+        assert!(option::is_some(&obj_id_opt), EInvalidAmount);
+        let obj_id = *option::borrow(&obj_id_opt);
+        let id_addr = object::id_to_address(&obj_id);
         return id_addr == tx_context::sender(ctx)
     };
 

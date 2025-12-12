@@ -32,11 +32,13 @@ public struct SpendingLimit has copy, drop, store {}
 // === Public Functions ===
 
 // Authenticates that the given amount is within the spending limit.
-public fun authenticate_with_amount(account_id: &UID, amount: u64) {
+public fun authenticate_with_amount(account_id: &mut UID, amount: u64) {
     assert!(has(account_id), ESpendingLimitMissing);
 
-    let spending_limit: &u64 = borrow(account_id);
+    let spending_limit = borrow_mut(account_id);
     assert!(amount <= *spending_limit, EOverspend);
+
+    *spending_limit = *spending_limit - amount;
 }
 
 // Attaches a spending limit to the given account ID.
