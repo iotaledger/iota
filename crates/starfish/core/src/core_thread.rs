@@ -205,9 +205,6 @@ impl CoreThread {
                     let Some(command) = command else {
                         break;
                     };
-                    if fast_sync_ongoing {
-                        info!("Core thread buffer is {}", self.receiver.len());
-                    }
                     self.context.metrics.node_metrics.core_lock_dequeued.inc();
 
                     // During fast sync, ignore all commands except AddSubdagFromFastSync
