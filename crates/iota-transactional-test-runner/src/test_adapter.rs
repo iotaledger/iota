@@ -2259,8 +2259,8 @@ impl IotaTestAdapter {
                     .struct_tag()
                     .filter(|tag| {
                         tag.address == package_addr
-                            && tag.module.as_str() == &module_name
-                            && tag.name.as_str() == &account_type
+                            && tag.module.as_str() == module_name
+                            && tag.name.as_str() == account_type
                     })
                     .map(|_| *id)
             })
