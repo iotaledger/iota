@@ -4,7 +4,7 @@
 
 import { type TransactionSummaryType } from '../../..';
 import { BalanceChanges, ObjectChanges } from '../../cards';
-import { LoadingIndicator, Title, TitleSize } from '@iota/apps-ui-kit';
+import { Badge, BadgeType, LoadingIndicator, Title, TitleSize } from '@iota/apps-ui-kit';
 import { RenderExplorerLink } from '../../../types';
 
 interface TransactionSummaryProps {
@@ -13,6 +13,7 @@ interface TransactionSummaryProps {
     isLoading?: boolean;
     isError?: boolean;
     isDryRun?: boolean;
+    chain?: string;
 }
 
 export function TransactionSummary({
@@ -20,6 +21,7 @@ export function TransactionSummary({
     isLoading,
     isError,
     isDryRun = false,
+    chain,
     renderExplorerLink,
 }: TransactionSummaryProps) {
     if (isError) return null;
@@ -31,6 +33,18 @@ export function TransactionSummary({
                 </div>
             ) : (
                 <div className="flex flex-col gap-3">
+                    {chain && (
+                        <div className="flex">
+                            <Badge
+                                type={
+                                    chain.split(':')[1] === 'mainnet'
+                                        ? BadgeType.PrimarySolid
+                                        : BadgeType.Neutral
+                                }
+                                label={chain.split(':')[1]}
+                            />
+                        </div>
+                    )}
                     {isDryRun && (
                         <Title title="Do you approve these actions?" size={TitleSize.Medium} />
                     )}

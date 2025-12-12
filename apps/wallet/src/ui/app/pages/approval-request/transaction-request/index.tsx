@@ -109,6 +109,7 @@ export function TransactionRequest({ txRequest }: TransactionRequestProps) {
                         isLoading={isDryRunLoading}
                         isError={isDryRunError}
                         summary={summary}
+                        chain={chain}
                         renderExplorerLink={ExplorerLinkHelper}
                     />
                     {(!summary || isDryRunError) && (
