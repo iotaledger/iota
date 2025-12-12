@@ -5,7 +5,7 @@
 import * as amplitude from '@amplitude/analytics-browser';
 import { LogLevel, TransportType, type UserSession } from '@amplitude/analytics-types';
 import { getNetwork, Network } from '@iota/iota-sdk/client';
-import { PersistableStorage } from '@iota/core';
+import { PersistableStorage, setNetworkGroup as coreSetNetworkGroup } from '@iota/core';
 
 import { ampli } from './ampli';
 
@@ -69,6 +69,5 @@ export function setNetworkGroup(network: Network, customRpc?: string | null): vo
     if (!ampli.isLoaded) {
         return;
     }
-    const networkName = getNetworkName(network, customRpc);
-    ampli.client.setGroup('network', networkName);
+    coreSetNetworkGroup(ampli.client, network, customRpc);
 }
