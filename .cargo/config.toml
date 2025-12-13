@@ -4,6 +4,8 @@ ci-clippy = "clippy --all-targets --all-features -- -D warnings"
 ci-license = "license-template --template .license_template --ignore .license_ignore"
 ci-udeps = "udeps --all-targets --backend=depinfo"
 ci-udeps-external = "udeps --all-targets --manifest-path external-crates/move/Cargo.toml --backend=depinfo"
+ci-deny-bans = "deny --manifest-path ./Cargo.toml check bans licenses sources --hide-inclusion-graph"
+ci-deny-advisories = "deny --manifest-path ./Cargo.toml check advisories --hide-inclusion-graph"
 
 [build]
 rustflags = ["-C", "force-frame-pointers=yes", "-C", "force-unwind-tables=yes"]
