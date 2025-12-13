@@ -240,8 +240,8 @@ async-graphql = { version = "7.1.0", default-features = false }
 async-recursion = "1.0.4"
 async-stream = "0.3.6"
 async-trait = "0.1.61"
-aws-config = "1.5.6"
-aws-sdk-dynamodb = "1.42"
+aws-config = "1.8"
+aws-sdk-dynamodb = "1.103"
 axum = { version = "0.8", default-features = false, features = ["tokio", "http2", "json", "matched-path", "original-uri", "form", "query", "ws", "macros"] }
 axum-extra = { version = "0.10", features = ["typed-header"] }
 axum-server = { version = "0.8", default-features = false, features = ["tls-rustls"] }
