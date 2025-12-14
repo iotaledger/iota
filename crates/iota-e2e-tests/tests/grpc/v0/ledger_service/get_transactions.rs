@@ -141,7 +141,7 @@ async fn get_transactions_readmask_scenarios() {
     type TestCase<'a> = (&'a str, Option<FieldMask>, &'a [&'a str]);
     let test_cases: Vec<TestCase> = vec![
         // Default readmask (None) - returns only digest
-        ("default readmask", None, &["digest"]),
+        ("default readmask", None, &["transaction.digest"]),
         // Empty readmask - returns no fields
         (
             "empty readmask",
@@ -155,7 +155,6 @@ async fn get_transactions_readmask_scenarios() {
         (
             "full readmask",
             Some(FieldMask::from_paths([
-                "digest",
                 "transaction.digest",
                 "transaction.bcs",
                 "signatures",
@@ -166,14 +165,12 @@ async fn get_transactions_readmask_scenarios() {
                 "timestamp",
             ])),
             &[
-                "digest",
                 "transaction.digest",
                 "transaction.bcs",
                 "signatures",
                 "effects.digest",
                 "effects.bcs",
-                // Note: events is intentionally excluded from expected because
-                // simple transfers don't emit events
+                "events",
                 "checkpoint",
                 "timestamp",
             ],
@@ -181,8 +178,8 @@ async fn get_transactions_readmask_scenarios() {
         // Partial readmask: digest only
         (
             "partial readmask (digest only)",
-            Some(FieldMask::from_paths(["digest"])),
-            &["digest"],
+            Some(FieldMask::from_paths(["transaction.digest"])),
+            &["transaction.digest"],
         ),
         // Partial readmask: effects.digest only (specific nested field)
         (
@@ -252,9 +249,9 @@ async fn get_transactions_batch() {
     let responses = assert_get_transactions_request(
         &mut client,
         digests.clone(),
-        Some(FieldMask::from_paths(["digest", "effects"])),
+        Some(FieldMask::from_paths(["transaction.digest", "effects"])),
         None,
-        &["digest", "effects.digest", "effects.bcs"],
+        &["transaction.digest", "effects.digest", "effects.bcs"],
         "batch with 3 transactions",
     )
     .await;
@@ -301,7 +298,6 @@ async fn get_transactions_streaming() {
         &mut client,
         all_digests,
         Some(FieldMask::from_paths([
-            "digest",
             "transaction",
             "signatures",
             "effects",
@@ -312,7 +308,6 @@ async fn get_transactions_streaming() {
         ])),
         Some(1024 * 1024_u32), // 1MB (minimum allowed)
         &[
-            "digest",
             "transaction.digest",
             "transaction.bcs",
             "signatures",
@@ -480,7 +475,7 @@ async fn get_transactions_mixed_valid_invalid() {
                 },
             ],
         }),
-        read_mask: Some(FieldMask::from_paths(["digest"])),
+        read_mask: Some(FieldMask::from_paths(["transaction.digest"])),
         max_message_size_bytes: None,
     };
 

@@ -106,7 +106,7 @@ pub struct GetTransactionsRequest {
     #[prost(message, optional, tag = "1")]
     pub requests: ::core::option::Option<TransactionRequests>,
     /// Mask specifying which fields to read.
-    /// If no mask is specified, defaults to `digest`.
+    /// If no mask is specified, defaults to `transaction.digest`.
     #[prost(message, optional, tag = "2")]
     pub read_mask: ::core::option::Option<::prost_types::FieldMask>,
     /// Optional maximum message size the client can receive (1MB - 128MB)

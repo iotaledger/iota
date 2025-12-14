@@ -1,6 +1,8 @@
 // Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use std::sync::Arc;
+
 use futures::Stream;
 use iota_grpc_types::{
     field::{FieldMaskTree, FieldMaskUtil},
@@ -11,21 +13,21 @@ use iota_grpc_types::{
         ledger_service::{
             GetTransactionsRequest, GetTransactionsResponse, TransactionResult, transaction_result,
         },
-        object::Objects,
-        transaction::{ExecutedTransaction, TransactionEvents, TransactionReadSource},
+        transaction::ExecutedTransaction,
     },
 };
-use iota_types::{digests::TransactionDigest, iota_sdk_types_conversions::SdkTypeConversionError};
+use iota_types::digests::TransactionDigest;
 use prost::Message;
 use prost_types::FieldMask;
 
 use crate::{
     constants::validate_max_message_size,
     error::RpcError,
+    transaction_execution_service::TransactionReadSource,
     types::{GrpcReader, TransactionsStreamResult},
 };
 
-pub const READ_MASK_DEFAULT: &str = crate::field_mask!("digest");
+pub const READ_MASK_DEFAULT: &str = crate::field_mask!("transaction.digest");
 
 type ValidationResult = Result<(Vec<TransactionDigest>, FieldMaskTree), RpcError>;
 
@@ -69,7 +71,8 @@ pub fn validate_get_transaction_requests(
 
 #[tracing::instrument(skip(reader))]
 pub(crate) fn get_transactions(
-    reader: GrpcReader,
+    reader: Arc<GrpcReader>,
+    config: iota_config::node::GrpcApiConfig,
     GetTransactionsRequest {
         requests,
         read_mask,
@@ -90,7 +93,7 @@ pub(crate) fn get_transactions(
         digests.into_iter(),
         digest,
         {
-            let tx_result = match get_transaction_impl(&reader, digest, &read_mask) {
+            let tx_result = match get_transaction_impl(&reader, &config, digest, &read_mask) {
                 Ok(tx) => TransactionResult {
                     result: Some(transaction_result::Result::Transaction(Box::new(tx))),
                 },
@@ -111,107 +114,35 @@ pub(crate) fn get_transactions(
 
 #[tracing::instrument(skip(reader))]
 fn get_transaction_impl(
-    reader: &GrpcReader,
+    reader: &Arc<GrpcReader>,
+    config: &iota_config::node::GrpcApiConfig,
     digest: TransactionDigest,
     read_mask: &FieldMaskTree,
 ) -> Result<ExecutedTransaction, RpcError> {
     // Get transaction data from storage
     let tx_read = reader.get_transaction_read(&digest)?;
 
-    // Convert to iota_sdk2 types - create owned data in local scope
-    // Clone the inner transaction from Arc and convert to SDK type
-    let sdk_transaction: iota_sdk2::types::SignedTransaction = (*tx_read.transaction)
-        .clone()
-        .into_inner()
-        .try_into()
-        .map_err(|e: SdkTypeConversionError| anyhow::Error::msg(e.to_string()))?;
+    let transaction_data = tx_read.transaction.transaction_data().clone();
+    let signatures = tx_read.transaction.tx_signatures().to_owned();
 
-    let sdk_effects: iota_sdk2::types::TransactionEffects = tx_read
-        .effects
-        .clone()
-        .try_into()
-        .map_err(|e: SdkTypeConversionError| anyhow::Error::msg(e.to_string()))?;
-
-    let sdk_events: Option<iota_sdk2::types::TransactionEvents> = tx_read
-        .events
-        .as_ref()
-        .map(|events| {
-            events
-                .clone()
-                .try_into()
-                .map_err(|e: SdkTypeConversionError| anyhow::Error::msg(e.to_string()))
-        })
-        .transpose()?;
-
-    let sdk_digest: iota_sdk2::types::TransactionDigest = tx_read.digest.into();
-
-    // Create TransactionReadSource with references to local owned data
-    let sdk_source = TransactionReadSource {
-        digest: sdk_digest,
-        transaction: &sdk_transaction,
-        effects: &sdk_effects,
-        events: sdk_events.as_ref(),
+    // Create a source for the merge
+    let source = TransactionReadSource {
+        reader: reader.clone(),
+        config,
+        transaction_data,
+        signatures: Some(signatures),
+        effects: Some(tx_read.effects),
+        events: tx_read.events,
         checkpoint: tx_read.checkpoint,
         timestamp_ms: tx_read.timestamp_ms,
+        input_objects: Some(tx_read.input_objects),
+        output_objects: Some(tx_read.output_objects),
     };
 
-    // Build response using Merge trait
-    let mut message = ExecutedTransaction::default();
-    Merge::merge(&mut message, &sdk_source, read_mask);
-
-    // Handle events separately (as noted in TransactionReadSource impl)
-    // Events are handled here because they need the events_digest from effects
-    if let Some(events_mask) = read_mask.subtree(ExecutedTransaction::EVENTS_FIELD.name) {
-        if let Some(ref sdk_events) = sdk_events {
-            let mut proto_events = TransactionEvents::default();
-            Merge::merge(&mut proto_events, sdk_events, &events_mask);
-            message.events = Some(proto_events);
-        }
-    }
-
-    // Handle input_objects separately
-    if let Some(input_objects_mask) =
-        read_mask.subtree(ExecutedTransaction::INPUT_OBJECTS_FIELD.name)
-    {
-        // Convert input objects to SDK types
-        let sdk_input_objects: Vec<iota_sdk2::types::Object> = tx_read
-            .input_objects
-            .into_iter()
-            .filter_map(|obj| obj.try_into().ok())
-            .collect();
-
-        if !sdk_input_objects.is_empty() {
-            let mut proto_objects = Objects::default();
-            Merge::merge(
-                &mut proto_objects,
-                sdk_input_objects.as_slice(),
-                &input_objects_mask,
-            );
-            message.input_objects = Some(proto_objects);
-        }
-    }
-
-    // Handle output_objects separately
-    if let Some(output_objects_mask) =
-        read_mask.subtree(ExecutedTransaction::OUTPUT_OBJECTS_FIELD.name)
-    {
-        // Convert output objects to SDK types
-        let sdk_output_objects: Vec<iota_sdk2::types::Object> = tx_read
-            .output_objects
-            .into_iter()
-            .filter_map(|obj| obj.try_into().ok())
-            .collect();
-
-        if !sdk_output_objects.is_empty() {
-            let mut proto_objects = Objects::default();
-            Merge::merge(
-                &mut proto_objects,
-                sdk_output_objects.as_slice(),
-                &output_objects_mask,
-            );
-            message.output_objects = Some(proto_objects);
-        }
-    }
-
-    Ok(message)
+    ExecutedTransaction::merge_from(&source, read_mask).map_err(|e| {
+        RpcError::new(
+            tonic::Code::Internal,
+            format!("failed to build executed transaction in get_transaction response: {e}"),
+        )
+    })
 }
