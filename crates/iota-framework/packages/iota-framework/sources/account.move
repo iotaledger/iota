@@ -15,10 +15,7 @@ const EAuthenticatorInfoV1AlreadyAttached: vector<u8> =
 const EAuthenticatorInfoV1NotAttached: vector<u8> =
     b"'AuthenticatorInfoV1' is not attached to the account.";
 #[error(code = 2)]
-const EAuthenticatorInfoV1CompatibilityNotProven: vector<u8> =
-    b"An `AuthenticatorInfoV1` instance is not verified to be attached to the account.";
-#[error(code = 3)]
-const EAuthenticatorInfoNotCompatibileWithAccount: vector<u8> =
+const EAuthenticatorInfoNotCompatibleWithAccount: vector<u8> =
     b"The provided `AuthenticatorInfoV1` is not compatible with the account type.";
 
 /// Dynamic field key, where the system will look for a potential
@@ -31,12 +28,6 @@ public struct AuthenticatorInfoV1<phantom Account: key> has copy, drop, store {
     package: ID,
     module_name: ascii::String,
     function_name: ascii::String,
-}
-
-/// Represents a proof of compatibility between `AuthenticatorInfoV1` and an account.
-public struct AuthenticatorInfoV1CompatibilityProof<phantom Account: key> has drop {
-    account_id: ID,
-    authenticator: AuthenticatorInfoV1<Account>,
 }
 
 /// Create an "AuthenticatorInfoV1" using an `authenticate` function defined outside of this version of the package
@@ -65,7 +56,7 @@ public fun create_auth_info_v1<Account: key>(
 
     assert!(
         type_name::get<Account>() == authenticator_metadata.account_type(),
-        EAuthenticatorInfoNotCompatibileWithAccount,
+        EAuthenticatorInfoNotCompatibleWithAccount,
     );
     AuthenticatorInfoV1 {
         package: package_metadata.storage_id(),
@@ -74,47 +65,48 @@ public fun create_auth_info_v1<Account: key>(
     }
 }
 
-/// Checks that the provided `authenticator` is compatible with the given `account`.
-/// Returns a proof that can be used to attach or rotate the `authenticator` to the `account`.
-public fun check_auth_info_v1_compatibility<Account: key>(
-    account: &Account,
+/// Create an account as a mutable shared object with the provided `authenticator`.
+/// The `authenticator` instance will be added to the account as a dynamic field specified by the `AuthenticatorInfoV1Key` name.
+/// This function has custom rules performed by the IOTA Move bytecode verifier that ensures
+/// that `Account` is an object defined in the module where `create_account_v1` is invoked.
+public fun create_account_v1<Account: key>(
+    mut account: Account,
     authenticator: AuthenticatorInfoV1<Account>,
-): AuthenticatorInfoV1CompatibilityProof<Account> {
-    AuthenticatorInfoV1CompatibilityProof {
-        account_id: object::id(account),
-        authenticator,
-    }
+) {
+    attach_auth_info_v1(&mut account, authenticator);
+
+    create_account_v1_impl(account);
 }
 
-/// Attach the `authenticator` instance to the account. It uses a `AuthenticatorInfoV1CompatibilityProof` to obtain that instance.
-/// It will be added as a dynamic field specified by the `AuthenticatorInfoV1Key` name.
-public fun attach_auth_info_v1<Account: key>(
-    account_id: &mut UID,
-    proof: AuthenticatorInfoV1CompatibilityProof<Account>,
+/// Create an account as an immutable object with the provided `authenticator`.
+/// The `authenticator` instance will be added to the account as a dynamic field specified by the `AuthenticatorInfoV1Key` name.
+/// This function has custom rules performed by the IOTA Move bytecode verifier that ensures
+/// that `Account` is an object defined in the module where `create_immutable_account_v1` is invoked.
+public fun create_immutable_account_v1<Account: key>(
+    mut account: Account,
+    authenticator: AuthenticatorInfoV1<Account>,
 ) {
-    assert!(account_id.as_inner() == proof.account_id, EAuthenticatorInfoV1CompatibilityNotProven);
-    assert!(!has_auth_info_v1(account_id), EAuthenticatorInfoV1AlreadyAttached);
+    attach_auth_info_v1(&mut account, authenticator);
 
-    dynamic_field::add(account_id, auth_info_v1_key(), proof.authenticator);
+    create_immutable_account_v1_impl(account);
 }
 
 /// Rotate the account-related authenticator.
-/// The `authenticator` instance will replace the account dynamic field specified by the `AuthenticatorInfoV1Key` name;
-/// It uses a `AuthenticatorInfoV1CompatibilityProof` to obtain the new instance.
+/// The `authenticator` instance will replace the account dynamic field specified by the `AuthenticatorInfoV1Key` name.
+/// This function has custom rules performed by the IOTA Move bytecode verifier that ensures
+/// that `Account` is an object defined in the module where `rotate_auth_info_v1` is invoked.
 public fun rotate_auth_info_v1<Account: key>(
-    account_id: &mut UID,
-    proof: AuthenticatorInfoV1CompatibilityProof<Account>,
+    account: &mut Account,
+    authenticator: AuthenticatorInfoV1<Account>,
 ): AuthenticatorInfoV1<Account> {
-    assert!(account_id.as_inner() == proof.account_id, EAuthenticatorInfoV1CompatibilityNotProven);
+    let account_id = borrow_account_uid_mut(account);
+
     assert!(has_auth_info_v1(account_id), EAuthenticatorInfoV1NotAttached);
 
     let name = auth_info_v1_key();
 
-    let previous_authenticator_info = dynamic_field::remove<_, AuthenticatorInfoV1<Account>>(
-        account_id,
-        name,
-    );
-    dynamic_field::add(account_id, name, proof.authenticator);
+    let previous_authenticator_info = dynamic_field::remove(account_id, name);
+    dynamic_field::add(account_id, name, authenticator);
     previous_authenticator_info
 }
 
@@ -134,7 +126,39 @@ fun auth_info_v1_key(): AuthenticatorInfoV1Key {
     AuthenticatorInfoV1Key {}
 }
 
-/// Creates an `AuthenticatorInfoV1` instance for testing, skipping validation.
+/// Add `authenticator` as a dynamic field to `account`.
+/// This function must be called only from the account functions protected by the compiler
+/// from being called outside the `Account` module.
+fun attach_auth_info_v1<Account: key>(
+    account: &mut Account,
+    authenticator: AuthenticatorInfoV1<Account>,
+) {
+    let account_id = borrow_account_uid_mut(account);
+
+    assert!(!has_auth_info_v1(account_id), EAuthenticatorInfoV1AlreadyAttached);
+
+    dynamic_field::add(account_id, auth_info_v1_key(), authenticator);
+}
+
+/// Borrow the account `UID` mutably.
+///
+/// IMPORTANT: This function is allowed to be called only by the functions that the IOTA Move bytecode verifier
+/// prevents from being invoked outside the module where `Account` is declared.
+native fun borrow_account_uid_mut<Account: key>(account: &mut Account): &mut UID;
+
+/// Turn `account` into a mutable shared object.
+///
+/// IMPORTANT: This function is allowed to be called only by the functions that the IOTA Move bytecode verifier
+/// prevents from being invoked outside the module where `Account` is declared.
+native fun create_account_v1_impl<Account: key>(account: Account);
+
+/// Turn `account` into an immutable object.
+///
+/// IMPORTANT: This function is allowed to be called only by the functions that the IOTA Move bytecode verifier
+/// prevents from being invoked outside the module where `Account` is declared.
+native fun create_immutable_account_v1_impl<Account: key>(account: Account);
+
+/// Create an `AuthenticatorInfoV1` instance for testing, skipping validation.
 #[test_only]
 public fun create_auth_info_v1_for_testing<Account: key>(
     package: address,

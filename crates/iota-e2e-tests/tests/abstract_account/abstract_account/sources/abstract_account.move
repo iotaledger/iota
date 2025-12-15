@@ -25,6 +25,7 @@ const ETransactionSenderIsNotTheAccount: vector<u8> = b"Transaction must be sign
 /// add the desired authenticator info and dynamic fields.
 public struct AbstractAccountBuilder {
     account: AbstractAccount,
+    authenticator: AuthenticatorInfoV1<AbstractAccount>,
 }
 
 /// This struct represents an abstract account.
@@ -50,16 +51,10 @@ public fun builder(
     authenticator: AuthenticatorInfoV1<AbstractAccount>,
     ctx: &mut TxContext,
 ): AbstractAccountBuilder {
-    let mut builder = AbstractAccountBuilder {
+    AbstractAccountBuilder {
         account: AbstractAccount { id: object::new(ctx) },
-    };
-
-    let authenticator_compatibility_proof = account::check_auth_info_v1_compatibility(
-        &builder.account,
         authenticator,
-    );
-    account::attach_auth_info_v1(&mut builder.account.id, authenticator_compatibility_proof);
-    builder
+    }
 }
 
 /// Attach a `Value` as a dynamic field to the account being built.
@@ -72,15 +67,10 @@ public fun add_dynamic_field<Name: copy + drop + store, Value: store>(
     self
 }
 
-/// Finish building the `AbstractAccount`.
-public fun finish(self: AbstractAccountBuilder): AbstractAccount {
-    let AbstractAccountBuilder { account } = self;
-    account
-}
-
-/// Share the `AbstractAccount`.
-public fun share(self: AbstractAccount) {
-    iota::transfer::share_object(self);
+/// Finish building the `AbstractAccount` and share the object.
+public fun build(self: AbstractAccountBuilder) {
+    let AbstractAccountBuilder { account, authenticator } = self;
+    account::create_account_v1(account, authenticator);
 }
 
 /// Adds a new dynamic field to the account.
@@ -129,7 +119,7 @@ public fun borrow_field_mut<Name: copy + drop + store, Value: store>(
     dynamic_field::borrow_mut(&mut self.id, name)
 }
 
-/// Rotate a dynamic field.
+/// Replace a dynamic field.
 ///
 /// Only the account itself can call this function.
 /// This function cannot change the type of the stored `Value`.
@@ -157,11 +147,7 @@ public fun rotate_auth_info_v1(
 ): AuthenticatorInfoV1<AbstractAccount> {
     ensure_tx_sender_is_account(self, ctx);
 
-    let authenticator_compatibility_proof = account::check_auth_info_v1_compatibility(
-        self,
-        authenticator,
-    );
-    account::rotate_auth_info_v1(&mut self.id, authenticator_compatibility_proof)
+    account::rotate_auth_info_v1(self, authenticator)
 }
 
 // === Public-View Functions ===

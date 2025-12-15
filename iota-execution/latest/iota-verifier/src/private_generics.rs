@@ -16,6 +16,7 @@ use move_core_types::{account_address::AccountAddress, ident_str, identifier::Id
 use crate::{TEST_SCENARIO_MODULE_NAME, verification_failure};
 
 pub const TRANSFER_MODULE: &IdentStr = ident_str!("transfer");
+pub const ACCOUNT_MODULE: &IdentStr = ident_str!("account");
 pub const EVENT_MODULE: &IdentStr = ident_str!("event");
 pub const EVENT_FUNCTION: &IdentStr = ident_str!("emit");
 pub const GET_EVENTS_TEST_FUNCTION: &IdentStr = ident_str!("events_by_type");
@@ -37,6 +38,17 @@ pub const TRANSFER_IMPL_FUNCTIONS: &[&IdentStr] = &[
     ident_str!("freeze_object_impl"),
     ident_str!("share_object_impl"),
     ident_str!("receive_impl"),
+];
+
+pub const PUBLIC_ACCOUNT_FUNCTIONS: &[&IdentStr] = &[
+    ident_str!("create_auth_info_v1"),
+    ident_str!("borrow_auth_info_v1"),
+    ident_str!("has_auth_info_v1"),
+];
+pub const PRIVATE_ACCOUNT_FUNCTIONS: &[&IdentStr] = &[
+    ident_str!("create_account_v1"),
+    ident_str!("create_immutable_account_v1"),
+    ident_str!("rotate_auth_info_v1"),
 ];
 
 /// All transfer functions (the functions in `iota::transfer`) are "private" in
@@ -90,16 +102,18 @@ fn verify_function(view: &CompiledModule, fdef: &FunctionDefinition) -> Result<(
             let type_arguments = &view.signature_at(*type_parameters).0;
             let ident = addr_module(view, mhandle);
             if ident == (IOTA_FRAMEWORK_ADDRESS, TRANSFER_MODULE) {
-                verify_private_transfer(view, fhandle, type_arguments)?
+                verify_private_transfer_module_functions(view, fhandle, type_arguments)?
             } else if ident == (IOTA_FRAMEWORK_ADDRESS, EVENT_MODULE) {
                 verify_private_event_emit(view, fhandle, type_arguments)?
+            } else if ident == (IOTA_FRAMEWORK_ADDRESS, ACCOUNT_MODULE) {
+                verify_private_account_module_functions(view, fhandle, type_arguments)?
             }
         }
     }
     Ok(())
 }
 
-fn verify_private_transfer(
+fn verify_private_transfer_module_functions(
     view: &CompiledModule,
     fhandle: &FunctionHandle,
     type_arguments: &[SignatureToken],
@@ -132,6 +146,46 @@ fn verify_private_transfer(
             If the object has the 'store' type ability, you can use the non-internal variant \
             instead, i.e. '{iota}::transfer::public_{f}'",
             iota = IOTA_FRAMEWORK_ADDRESS,
+            f = fident,
+            t = format_signature_token(view, type_arg),
+        ));
+    }
+
+    Ok(())
+}
+
+fn verify_private_account_module_functions(
+    view: &CompiledModule,
+    fhandle: &FunctionHandle,
+    type_arguments: &[SignatureToken],
+) -> Result<(), String> {
+    let self_handle = view.module_handle_at(view.self_handle_idx());
+    if addr_module(view, self_handle) == (IOTA_FRAMEWORK_ADDRESS, ACCOUNT_MODULE) {
+        return Ok(());
+    }
+    let fident = view.identifier_at(fhandle.name);
+    // public account functions have no additional rules
+    if PUBLIC_ACCOUNT_FUNCTIONS.contains(&fident) {
+        return Ok(());
+    }
+    if !PRIVATE_ACCOUNT_FUNCTIONS.contains(&fident) {
+        // unknown function, so a bug in the implementation here
+        debug_assert!(false, "unknown account function {fident}");
+        return Err(format!("Calling unknown account function, {fident}"));
+    };
+
+    if type_arguments.len() != 1 {
+        debug_assert!(false, "Expected 1 type argument for {fident}");
+        return Err(format!("Expected 1 type argument for {fident}"));
+    }
+
+    let type_arg = &type_arguments[0];
+    if !is_defined_in_current_module(view, type_arg) {
+        return Err(format!(
+            "Invalid call to '{iota}::{account}::{f}' on an object of type '{t}'. \
+            The account object's type must be defined in the current module.",
+            iota = IOTA_FRAMEWORK_ADDRESS,
+            account = ACCOUNT_MODULE,
             f = fident,
             t = format_signature_token(view, type_arg),
         ));

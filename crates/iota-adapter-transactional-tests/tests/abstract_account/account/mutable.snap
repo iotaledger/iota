@@ -1,0 +1,54 @@
+---
+source: external-crates/move/crates/move-transactional-test-runner/src/framework.rs
+---
+processed 6 tasks
+
+init:
+A: object(0,0)
+
+task 1, lines 8-33:
+//# publish --sender A
+created: object(1,0), object(1,1)
+mutated: object(0,0)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 9978800,  storage_rebate: 0, non_refundable_storage_fee: 0
+
+task 2, lines 35-39:
+//# programmable --sender A --inputs x"10" object(1,1) "abstract_account" "authenticate" 7000000000
+//> 0: iota::account::create_auth_info_v1<test::abstract_account::AbstractAccount>(Input(1), Input(2), Input(3));
+//> 1: test::abstract_account::create(Input(0), Result(0));
+//> 2: SplitCoins(Gas, [Input(4)]);
+//> 3: TransferObjects([Result(2)], Result(1));
+created: object(2,0), object(2,1), object(2,2)
+mutated: object(0,0)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 6657600,  storage_rebate: 980400, non_refundable_storage_fee: 0
+
+task 3, line 41:
+//# view-object 2,0
+Owner: Account Address ( fake(2,2) )
+Version: 3
+Contents: iota::coin::Coin<iota::iota::IOTA> {
+    id: iota::object::UID {
+        id: iota::object::ID {
+            bytes: fake(2,0),
+        },
+    },
+    balance: iota::balance::Balance<iota::iota::IOTA> {
+        value: 7000000000u64,
+    },
+}
+
+task 4, line 43:
+//# view-object 2,2
+Owner: Shared( 3 )
+Version: 3
+Contents: test::abstract_account::AbstractAccount {
+    id: iota::object::UID {
+        id: iota::object::ID {
+            bytes: fake(2,2),
+        },
+    },
+}
+
+task 5, lines 45-46:
+//# abstract --account object(2,2) --gas-payment 2,0 --ptb-inputs 100 @A
+Error: Error checking transaction input objects: Unsupported("MoveAuthenticator cannot authenticate mutable shared objects")

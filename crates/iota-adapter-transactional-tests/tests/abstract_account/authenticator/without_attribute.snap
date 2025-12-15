@@ -1,0 +1,21 @@
+---
+source: external-crates/move/crates/move-transactional-test-runner/src/framework.rs
+---
+processed 3 tasks
+
+init:
+A: object(0,0)
+
+task 1, lines 8-40:
+//# publish --sender A
+created: object(1,0)
+mutated: object(0,0)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 7577200,  storage_rebate: 0, non_refundable_storage_fee: 0
+
+task 2, lines 42-46:
+//# programmable --sender A --inputs x"10" object(1,1) "abstract_account" "authenticate_hello_world" 7000000000
+//> 0: iota::account::create_auth_info_v1<test::abstract_account::AbstractAccount>(Input(1), Input(2), Input(3));
+//> 1: test::abstract_account::create(Input(0), Result(0));
+//> 2: SplitCoins(Gas, [Input(4)]);
+//> 3: TransferObjects([Result(2)], Result(1));
+Error: INVALID TEST. Unknown object, object(1,1)
