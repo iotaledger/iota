@@ -218,6 +218,29 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
         let working_dir_cmd = format!("mkdir -p {working_dir}");
         let git_clone_cmd = format!("(git clone {url} || true)");
 
+        let mut basic_commands = vec![
+            "sudo apt-get update",
+            "sudo apt-get -y upgrade",
+            "sudo apt-get -y autoremove",
+            // Disable "pending kernel upgrade" message.
+            "sudo apt-get -y remove needrestart",
+            "sudo apt-get -y install curl git ca-certificates",
+            // Increase open file limits to prevent "Too many open files" errors
+            "echo '* soft nofile 1048576' | sudo tee -a /etc/security/limits.conf",
+            "echo '* hard nofile 1048576' | sudo tee -a /etc/security/limits.conf",
+            "echo 'root soft nofile 1048576' | sudo tee -a /etc/security/limits.conf",
+            "echo 'root hard nofile 1048576' | sudo tee -a /etc/security/limits.conf",
+            // Set system-wide file descriptor limits
+            "echo 'fs.file-max = 2097152' | sudo tee -a /etc/sysctl.conf",
+            "sudo sysctl -p",
+            // Set limits for current session
+            "ulimit -n 1048576 || true",
+            // Create the working directory.
+            working_dir_cmd.as_str(),
+            // Clone the repo.
+            git_clone_cmd.as_str(),
+        ];
+
         // Collect all unique non-"stable" rust toolchains from build configs
         let toolchain_cmds: Vec<String> = if !use_precompiled_binaries {
             self.settings
@@ -237,19 +260,6 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
         } else {
             vec![]
         };
-
-        let mut basic_commands = vec![
-            "sudo apt-get update",
-            "sudo apt-get -y upgrade",
-            "sudo apt-get -y autoremove",
-            // Disable "pending kernel upgrade" message.
-            "sudo apt-get -y remove needrestart",
-            "sudo apt-get -y install curl git ca-certificates",
-            // Create the working directory.
-            working_dir_cmd.as_str(),
-            // Clone the repo.
-            git_clone_cmd.as_str(),
-        ];
 
         if !use_precompiled_binaries {
             // If not using precompiled binaries, install rustup.
