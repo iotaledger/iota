@@ -410,7 +410,7 @@ impl SshConnection {
         command: String,
     ) -> SshResult<(String, String)> {
         channel
-            .exec(true, command)
+            .exec(true, command.clone())
             .await
             .map_err(|e| self.make_session_error(e))?;
 
@@ -437,7 +437,8 @@ impl SshConnection {
             SshError::NonZeroExitCode {
                 address: self.address,
                 code: exit_code.unwrap(),
-                message: output_str
+                message: output_str,
+                command,
             }
         );
 
