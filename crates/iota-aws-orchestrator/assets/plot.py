@@ -245,7 +245,7 @@ class Plotter:
 
     def _load_measurement_data(self, filename):
         measurements = []
-        files = glob(os.path.join(self.data_directory, filename))
+        files = glob(os.path.join(self.data_directory, '**', filename), recursive=True)
         for file in files:
             print(f'Loading file {file}...')
             with open(file, 'r') as f:
@@ -259,7 +259,7 @@ class Plotter:
     def _file_format(self, shared_objects_ratio, faults, nodes, load):
         use_ip = self.parameters.use_internal_ip_address
         use_ip = '*' if use_ip is None else 'true' if use_ip else 'false'
-        return f'measurements-{shared_objects_ratio}-{faults}-{nodes}-{load}-{use_ip}.json'
+        return f'measurements-{shared_objects_ratio}-{faults}-{nodes}-{load}-{use_ip}-*.json'
 
     def plot_latency_throughput(self):
         plot_lines_data = []

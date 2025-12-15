@@ -5670,6 +5670,7 @@ dependencies = [
  "aws-runtime",
  "aws-sdk-ec2",
  "aws-smithy-runtime-api",
+ "chrono",
  "clap",
  "color-eyre",
  "crossterm 0.25.0",
@@ -5728,6 +5729,7 @@ dependencies = [
  "prometheus",
  "rand 0.8.5",
  "regex",
+ "rustc_version_runtime",
  "serde",
  "serde_json",
  "strum 0.26.3",
@@ -6229,6 +6231,11 @@ dependencies = [
  "typed-store",
  "uuid",
 ]
+
+[[package]]
+name = "iota-flamegraph-svg"
+version = "0.1.0"
+source = "git+https://github.com/iotaledger/flamegraph-svg?rev=ba681350dc9a72c9bae493b93840bdfbc01d0bbe#ba681350dc9a72c9bae493b93840bdfbc01d0bbe"
 
 [[package]]
 name = "iota-framework"
@@ -7194,6 +7201,7 @@ dependencies = [
  "move-vm-profiler",
  "prometheus",
  "reqwest 0.12.7",
+ "rustc_version_runtime",
  "serde",
  "tap",
  "telemetry-subscribers",
@@ -8115,6 +8123,7 @@ dependencies = [
  "anemo",
  "anyhow",
  "async-trait",
+ "base64 0.21.7",
  "bcs",
  "better_any",
  "bincode",
@@ -8160,6 +8169,7 @@ dependencies = [
  "prometheus",
  "proptest",
  "proptest-derive",
+ "prost-types 0.14.1",
  "rand 0.8.5",
  "roaring",
  "schemars",
@@ -12722,6 +12732,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "rustc_version_runtime"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2dd18cd2bae1820af0b6ad5e54f4a51d0f3fcc53b05f845675074efcc7af071d"
+dependencies = [
+ "rustc_version",
+ "semver",
+]
+
+[[package]]
 name = "rusticata-macros"
 version = "4.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -14350,13 +14370,18 @@ dependencies = [
  "console-subscriber",
  "crossterm 0.25.0",
  "futures",
+ "iota-flamegraph-svg",
  "once_cell",
  "opentelemetry",
  "opentelemetry-otlp",
  "opentelemetry-proto",
  "opentelemetry_sdk",
+ "parking_lot 0.12.3",
  "prometheus",
  "prost 0.13.3",
+ "rand 0.8.5",
+ "rustc_version_runtime",
+ "serde",
  "thiserror 1.0.64",
  "tokio",
  "tonic 0.12.3",

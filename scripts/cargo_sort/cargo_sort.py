@@ -349,6 +349,7 @@ if __name__ == '__main__':
     # add special cases
     internal_crates_dict["iota-sdk-types"] = None
     internal_crates_dict["iota-sdk-transaction-builder"] = None
+    internal_crates_dict["iota-flamegraph-svg"] = None
 
     # ignored folders
     ignored_folders = []

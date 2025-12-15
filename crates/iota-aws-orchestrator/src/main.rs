@@ -25,6 +25,7 @@ pub mod client;
 pub mod display;
 pub mod error;
 pub mod faults;
+pub mod logger;
 pub mod logs;
 pub mod measurement;
 mod monitor;

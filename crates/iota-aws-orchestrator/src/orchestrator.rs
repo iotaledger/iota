@@ -6,10 +6,11 @@ use std::{
     collections::HashSet,
     fs::{self},
     marker::PhantomData,
-    path::PathBuf,
+    path::{Path, PathBuf},
     time::Duration,
 };
 
+use chrono;
 use tokio::time::{self, Instant};
 
 use crate::{
@@ -217,8 +218,32 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
         let working_dir_cmd = format!("mkdir -p {working_dir}");
         let git_clone_cmd = format!("(git clone {url} || true)");
 
+        let mut basic_commands = vec![
+            "sudo apt-get update",
+            "sudo apt-get -y upgrade",
+            "sudo apt-get -y autoremove",
+            // Disable "pending kernel upgrade" message.
+            "sudo apt-get -y remove needrestart",
+            "sudo apt-get -y install curl git ca-certificates",
+            // Increase open file limits to prevent "Too many open files" errors
+            "echo '* soft nofile 1048576' | sudo tee -a /etc/security/limits.conf",
+            "echo '* hard nofile 1048576' | sudo tee -a /etc/security/limits.conf",
+            "echo 'root soft nofile 1048576' | sudo tee -a /etc/security/limits.conf",
+            "echo 'root hard nofile 1048576' | sudo tee -a /etc/security/limits.conf",
+            // Set system-wide file descriptor limits
+            "echo 'fs.file-max = 2097152' | sudo tee -a /etc/sysctl.conf",
+            "sudo sysctl -p",
+            // Set limits for current session
+            "ulimit -n 1048576 || true",
+            // Create the working directory.
+            working_dir_cmd.as_str(),
+        ];
+
         // Collect all unique non-"stable" rust toolchains from build configs
         let toolchain_cmds: Vec<String> = if !use_precompiled_binaries {
+            // Clone the repo.
+            basic_commands.push(git_clone_cmd.as_str());
+
             self.settings
                 .build_configs
                 .values()
@@ -236,19 +261,6 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
         } else {
             vec![]
         };
-
-        let mut basic_commands = vec![
-            "sudo apt-get update",
-            "sudo apt-get -y upgrade",
-            "sudo apt-get -y autoremove",
-            // Disable "pending kernel upgrade" message.
-            "sudo apt-get -y remove needrestart",
-            "sudo apt-get -y install curl git ca-certificates",
-            // Create the working directory.
-            working_dir_cmd.as_str(),
-            // Clone the repo.
-            git_clone_cmd.as_str(),
-        ];
 
         if !use_precompiled_binaries {
             // If not using precompiled binaries, install rustup.
@@ -338,31 +350,8 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
     pub async fn update(&self) -> TestbedResult<()> {
         display::action("Updating all instances");
 
-        // Update all active instances.
         let commit = &self.settings.repository.commit;
-        let git_update_command = [
-            &format!("git fetch origin {commit} --force"),
-            &format!("(git reset --hard origin/{commit} || git checkout --force {commit})"),
-            "git clean -fd -e target",
-        ]
-        .join(" && ");
-
-        let id = "git update";
         let repo_name = self.settings.repository_name();
-        let context = CommandContext::new()
-            .run_background(id.into())
-            .with_execute_from_path(repo_name.clone().into());
-
-        // Execute and wait for the git update command on all instances (including
-        // metrics)
-        display::action(format!("update command: {git_update_command}"));
-        self.ssh_manager
-            .execute(self.instances(), git_update_command, context)
-            .await?;
-        self.ssh_manager
-            .wait_for_command(self.instances(), id, CommandStatus::Terminated)
-            .await?;
-
         let build_groups = self.settings.build_groups();
 
         // Check if build cache is enabled
@@ -378,6 +367,28 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
                 )
                 .await?;
         } else {
+            let git_update_command = [
+                &format!("git fetch origin {commit} --force"),
+                &format!("(git reset --hard origin/{commit} || git checkout --force {commit})"),
+                "git clean -fd -e target",
+            ]
+            .join(" && ");
+
+            let id = "git update";
+            let context = CommandContext::new()
+                .run_background(id.into())
+                .with_execute_from_path(repo_name.clone().into());
+
+            // Execute and wait for the git update command on all instances (including
+            // metrics)
+            display::action(format!("update command: {git_update_command}"));
+            self.ssh_manager
+                .execute(self.instances(), git_update_command, context)
+                .await?;
+            self.ssh_manager
+                .wait_for_command(self.instances(), id, CommandStatus::Terminated)
+                .await?;
+
             self.update_with_local_build(build_groups).await?;
         }
 
@@ -539,6 +550,7 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
     /// Collect metrics from the load generators.
     pub async fn run(
         &self,
+        benchmark_dir: &Path,
         parameters: &BenchmarkParameters<T>,
     ) -> TestbedResult<MeasurementsCollection<T>> {
         display::action(format!(
@@ -601,33 +613,75 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
             }
         }
 
-        let results_directory = &self.settings.results_dir;
-        let commit = &self.settings.repository.commit;
-        let path: PathBuf = [results_directory, &format!("results-{commit}").into()]
-            .iter()
-            .collect();
-        fs::create_dir_all(&path).expect("Failed to create log directory");
-        aggregator.save(path);
+        aggregator.save(benchmark_dir);
+
+        if self.settings.enable_flamegraph {
+            let flamegraphs_dir = benchmark_dir.join("flamegraphs");
+            fs::create_dir_all(&flamegraphs_dir).expect("Failed to create flamegraphs directory");
+
+            self.fetch_flamegraphs(
+                parameters,
+                self.instances_without_metrics().clone(),
+                &flamegraphs_dir,
+                "?svg=true",
+                "flamegraph",
+            )
+            .await?;
+
+            if self
+                .settings
+                .build_configs
+                .get("iota-node")
+                .is_some_and(|config| config.features.iter().any(|f| f == "flamegraph-alloc"))
+            {
+                self.fetch_flamegraphs(
+                    parameters,
+                    self.instances_without_metrics().clone(),
+                    &flamegraphs_dir,
+                    "?svg=true&mem=true",
+                    "flamegraph-alloc",
+                )
+                .await?;
+            }
+        }
 
         display::done();
         Ok(aggregator)
     }
 
-    /// Download the log files from the nodes and clients.
-    pub async fn download_logs(
+    async fn fetch_flamegraphs(
         &self,
         parameters: &BenchmarkParameters<T>,
-    ) -> TestbedResult<LogsAnalyzer> {
-        // Create a log sub-directory for this run.
-        let commit = &self.settings.repository.commit;
-        let path: PathBuf = [
-            &self.settings.logs_dir,
-            &format!("logs-{commit}").into(),
-            &format!("logs-{parameters:?}").into(),
-        ]
-        .iter()
-        .collect();
-        fs::create_dir_all(&path).expect("Failed to create log directory");
+        nodes: Vec<Instance>,
+        path: &Path,
+        query: &str,
+        file_prefix: &str,
+    ) -> TestbedResult<()> {
+        let flamegraph_commands = self
+            .protocol_commands
+            .nodes_flamegraph_command(nodes, parameters, query);
+        let stdio = self
+            .ssh_manager
+            .execute_per_instance(flamegraph_commands, CommandContext::default())
+            .await?;
+        for (i, (stdout, stderr)) in stdio.into_iter().enumerate() {
+            if !stdout.is_empty() {
+                let file = path.join(format!("{file_prefix}-{i}.svg"));
+                fs::write(file, stdout).unwrap();
+            }
+            if !stderr.is_empty() {
+                let file = path.join(format!("{file_prefix}-{i}.log"));
+                fs::write(file, stderr).unwrap();
+            }
+        }
+        Ok(())
+    }
+
+    /// Download the log files from the nodes and clients.
+    pub async fn download_logs(&self, benchmark_dir: &Path) -> TestbedResult<LogsAnalyzer> {
+        // Create a logs sub-directory for this run.
+        let path = benchmark_dir.join("logs");
+        fs::create_dir_all(&path).expect("Failed to create logs directory");
 
         // NOTE: Our ssh library does not seem to be able to transfers files in parallel
         // reliably.
@@ -641,10 +695,8 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
             let connection = self.ssh_manager.connect(instance.ssh_address()).await?;
             let client_log_content = connection.download("client.log").await?;
 
-            let client_log_file = [path.clone(), format!("client-{i}.log").into()]
-                .iter()
-                .collect::<PathBuf>();
-            fs::write(&client_log_file, client_log_content.as_bytes())
+            let client_log_file = path.join(format!("client-{i}.log"));
+            fs::write(client_log_file, client_log_content.as_bytes())
                 .expect("Cannot write log file");
 
             let mut log_parser = LogsAnalyzer::default();
@@ -660,10 +712,8 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
             let connection = self.ssh_manager.connect(instance.ssh_address()).await?;
             let node_log_content = connection.download("node.log").await?;
 
-            let node_log_file = [path.clone(), format!("node-{i}.log").into()]
-                .iter()
-                .collect::<PathBuf>();
-            fs::write(&node_log_file, node_log_content.as_bytes()).expect("Cannot write log file");
+            let node_log_file = path.join(format!("node-{i}.log"));
+            fs::write(node_log_file, node_log_content.as_bytes()).expect("Cannot write log file");
 
             let mut log_parser = LogsAnalyzer::default();
             log_parser.set_node_errors(&node_log_content);
@@ -686,6 +736,9 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
         // Cleanup the testbed (in case the previous run was not completed).
         self.cleanup(true).await?;
 
+        let commit: PathBuf = self.settings.repository.commit.replace("/", "_").into();
+        let timestamp = chrono::Local::now().format("%y%m%d_%H%M%S");
+
         // Update the software on all instances.
         if !self.skip_testbed_update {
             self.install().await?;
@@ -701,38 +754,64 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
             display::config("Parameters", &parameters);
             display::newline();
 
+            let benchmark_dir: PathBuf = [
+                &self.settings.results_dir,
+                &commit,
+                &format!("{timestamp}-{parameters:?}").into(),
+            ]
+            .iter()
+            .collect();
+
             // Cleanup the testbed (in case the previous run was not completed).
             self.cleanup(true).await?;
-            // Start the instance monitoring tools.
-            self.start_monitoring(&parameters).await?;
+            // Create benchmark directory.
+            fs::create_dir_all(&benchmark_dir).expect("Failed to create benchmark directory");
 
-            // Configure all instances (if needed).
-            if !self.skip_testbed_configuration && latest_committee_size != parameters.nodes {
-                self.configure(&parameters).await?;
-                latest_committee_size = parameters.nodes;
+            // Initialize logger for this benchmark run
+            let log_file = benchmark_dir.join("logs.txt");
+            crate::logger::init_logger(&log_file).expect("Failed to initialize logger");
+
+            let benchmark_result = async {
+                // Start the instance monitoring tools.
+                self.start_monitoring(&parameters).await?;
+
+                // Configure all instances (if needed).
+                if !self.skip_testbed_configuration && latest_committee_size != parameters.nodes {
+                    self.configure(&parameters).await?;
+                    latest_committee_size = parameters.nodes;
+                }
+
+                // Deploy the validators.
+                self.run_nodes(&parameters).await?;
+
+                // Deploy the load generators.
+                self.run_clients(&parameters).await?;
+
+                // Wait for the benchmark to terminate. Then save the results and print a
+                // summary.
+                let aggregator = self.run(&benchmark_dir, &parameters).await?;
+                aggregator.display_summary();
+                generator.register_result(aggregator);
+                // drop(monitor);
+
+                // Kill the nodes and clients (without deleting the log files).
+                self.cleanup(false).await?;
+
+                // Download the log files.
+                if self.log_processing {
+                    let error_counter = self.download_logs(&benchmark_dir).await?;
+                    error_counter.print_summary();
+                }
+
+                TestbedResult::Ok(())
             }
+            .await;
 
-            // Deploy the validators.
-            self.run_nodes(&parameters).await?;
+            // Close the logger for this benchmark run
+            crate::logger::close_logger();
 
-            // Deploy the load generators.
-            self.run_clients(&parameters).await?;
-
-            // Wait for the benchmark to terminate. Then save the results and print a
-            // summary.
-            let aggregator = self.run(&parameters).await?;
-            aggregator.display_summary();
-            generator.register_result(aggregator);
-            // drop(monitor);
-
-            // Kill the nodes and clients (without deleting the log files).
-            self.cleanup(false).await?;
-
-            // Download the log files.
-            if self.log_processing {
-                let error_counter = self.download_logs(&parameters).await?;
-                error_counter.print_summary();
-            }
+            // Propagate any error that occurred
+            benchmark_result?;
 
             i += 1;
         }

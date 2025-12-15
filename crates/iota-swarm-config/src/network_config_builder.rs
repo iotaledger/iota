@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
+    net::SocketAddr,
     num::NonZeroUsize,
     path::{Path, PathBuf},
     sync::Arc,
@@ -97,6 +98,7 @@ pub struct ConfigBuilder<R = OsRng> {
     submit_delay_step_override_millis: Option<u64>,
     state_accumulator_config: Option<StateAccumulatorV1EnabledConfig>,
     empty_validator_genesis: bool,
+    admin_interface_address: Option<SocketAddr>,
 }
 
 impl ConfigBuilder {
@@ -124,6 +126,7 @@ impl ConfigBuilder {
             submit_delay_step_override_millis: None,
             state_accumulator_config: Some(StateAccumulatorV1EnabledConfig::Global(true)),
             empty_validator_genesis: false,
+            admin_interface_address: None,
         }
     }
 
@@ -298,6 +301,11 @@ impl<R> ConfigBuilder<R> {
         self
     }
 
+    pub fn with_admin_interface_address(mut self, admin_interface_address: SocketAddr) -> Self {
+        self.admin_interface_address = Some(admin_interface_address);
+        self
+    }
+
     pub fn rng<N: rand::RngCore + rand::CryptoRng>(self, rng: N) -> ConfigBuilder<N> {
         ConfigBuilder {
             rng: Some(rng),
@@ -320,6 +328,7 @@ impl<R> ConfigBuilder<R> {
             submit_delay_step_override_millis: self.submit_delay_step_override_millis,
             state_accumulator_config: self.state_accumulator_config,
             empty_validator_genesis: self.empty_validator_genesis,
+            admin_interface_address: self.admin_interface_address,
         }
     }
 
@@ -490,7 +499,7 @@ impl<R: rand::RngCore + rand::CryptoRng> ConfigBuilder<R> {
         let validator_configs = validators
             .into_iter()
             .enumerate()
-            .map(|(idx, validator)| {
+            .map(|(idx, mut validator)| {
                 let mut builder = ValidatorConfigBuilder::new()
                     .with_config_directory(self.config_directory.clone())
                     .with_policy_config(self.policy_config.clone())
@@ -548,6 +557,9 @@ impl<R: rand::RngCore + rand::CryptoRng> ConfigBuilder<R> {
                     if idx < num_unpruned_validators {
                         builder = builder.with_unpruned_checkpoints();
                     }
+                }
+                if let Some(admin_interface_address) = self.admin_interface_address {
+                    validator.admin_interface_address = admin_interface_address;
                 }
                 if self.empty_validator_genesis {
                     builder.build_without_genesis(validator)
