@@ -755,36 +755,52 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
             self.cleanup(true).await?;
             // Create benchmark directory.
             fs::create_dir_all(&benchmark_dir).expect("Failed to create benchmark directory");
-            // Start the instance monitoring tools.
-            self.start_monitoring(&parameters).await?;
 
-            // Configure all instances (if needed).
-            if !self.skip_testbed_configuration && latest_committee_size != parameters.nodes {
-                self.configure(&parameters).await?;
-                latest_committee_size = parameters.nodes;
+            // Initialize logger for this benchmark run
+            let log_file = benchmark_dir.join("logs.txt");
+            crate::logger::init_logger(&log_file).expect("Failed to initialize logger");
+
+            let benchmark_result = async {
+                // Start the instance monitoring tools.
+                self.start_monitoring(&parameters).await?;
+
+                // Configure all instances (if needed).
+                if !self.skip_testbed_configuration && latest_committee_size != parameters.nodes {
+                    self.configure(&parameters).await?;
+                    latest_committee_size = parameters.nodes;
+                }
+
+                // Deploy the validators.
+                self.run_nodes(&parameters).await?;
+
+                // Deploy the load generators.
+                self.run_clients(&parameters).await?;
+
+                // Wait for the benchmark to terminate. Then save the results and print a
+                // summary.
+                let aggregator = self.run(&benchmark_dir, &parameters).await?;
+                aggregator.display_summary();
+                generator.register_result(aggregator);
+                // drop(monitor);
+
+                // Kill the nodes and clients (without deleting the log files).
+                self.cleanup(false).await?;
+
+                // Download the log files.
+                if self.log_processing {
+                    let error_counter = self.download_logs(&benchmark_dir).await?;
+                    error_counter.print_summary();
+                }
+
+                TestbedResult::Ok(())
             }
+            .await;
 
-            // Deploy the validators.
-            self.run_nodes(&parameters).await?;
+            // Close the logger for this benchmark run
+            crate::logger::close_logger();
 
-            // Deploy the load generators.
-            self.run_clients(&parameters).await?;
-
-            // Wait for the benchmark to terminate. Then save the results and print a
-            // summary.
-            let aggregator = self.run(&benchmark_dir, &parameters).await?;
-            aggregator.display_summary();
-            generator.register_result(aggregator);
-            // drop(monitor);
-
-            // Kill the nodes and clients (without deleting the log files).
-            self.cleanup(false).await?;
-
-            // Download the log files.
-            if self.log_processing {
-                let error_counter = self.download_logs(&benchmark_dir).await?;
-                error_counter.print_summary();
-            }
+            // Propagate any error that occurred
+            benchmark_result?;
 
             i += 1;
         }
