@@ -6,64 +6,52 @@ processed 7 tasks
 init:
 A: object(0,0)
 
-task 1, lines 8-56:
-//# publish --sender A
-created: object(1,0), object(1,1)
-mutated: object(0,0)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 12129600,  storage_rebate: 0, non_refundable_storage_fee: 0
+task 1, line 8:
+//# publish-dependencies --paths crates/iota-adapter-transactional-tests/data/account_abstraction/abstract_account_with_pub_key.move
+Output for 'crates/iota-adapter-transactional-tests/data/account_abstraction/abstract_account_with_pub_key.move':
+created: object(2,0)
+mutated: object(0,1)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 9044000,  storage_rebate: 0, non_refundable_storage_fee: 0
 
-task 2, lines 58-62:
-//# programmable --sender A --inputs x"cc62332e34bb2d5cd69f60efbb2a36cb916c7eb458301ea36636c4dbb012bd88" object(1,1) "abstract_account" "authenticate_ed25519" 7000000000
-//> 0: iota::account::create_auth_info_v1<test::abstract_account::AbstractAccount>(Input(1), Input(2), Input(3));
-//> 1: test::abstract_account::create(Input(0), Result(0));
-//> 2: SplitCoins(Gas, [Input(4)]);
-//> 3: TransferObjects([Result(2)], Result(1));
-created: object(2,0), object(2,1), object(2,2), object(2,3)
+task 2, lines 10-35:
+//# publish --sender A --dependencies abstract_account_with_pub_key
+created: object(3,0), object(3,1)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 8816000,  storage_rebate: 980400, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 9750800,  storage_rebate: 0, non_refundable_storage_fee: 0
 
-task 3, line 64:
-//# view-object 2,3
+task 3, line 37:
+//# init-abstract-account --sender A --package-metadata object(3,1) --inputs "authenticate" "authenticate_ed25519" x"cc62332e34bb2d5cd69f60efbb2a36cb916c7eb458301ea36636c4dbb012bd88" --create-function abstract_account_with_pub_key::abstract_account::create --account-type abstract_account_with_pub_key::abstract_account::AbstractAccount
+created: object(4,0), object(4,1), object(4,2), object(4,3)
+mutated: object(0,0)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 8785600,  storage_rebate: 980400, non_refundable_storage_fee: 0
+
+task 4, line 39:
+//# view-object 4,0
 Owner: Shared( 3 )
 Version: 3
-Contents: test::abstract_account::AbstractAccount {
+Contents: abstract_account_with_pub_key::abstract_account::AbstractAccount {
     id: iota::object::UID {
         id: iota::object::ID {
-            bytes: fake(2,3),
+            bytes: fake(4,0),
         },
     },
 }
 
-task 4, line 66:
-//# view-object 2,0
-Owner: Account Address ( fake(2,3) )
-Version: 3
-Contents: iota::coin::Coin<iota::iota::IOTA> {
-    id: iota::object::UID {
-        id: iota::object::ID {
-            bytes: fake(2,0),
-        },
-    },
-    balance: iota::balance::Balance<iota::iota::IOTA> {
-        value: 7000000000u64,
-    },
-}
-
-task 5, lines 68-70:
-//# abstract --account immshared(2,3) --gas-payment 2,0 --auth-inputs x"cce72947906dbae4c166fc01fd096432784032be43db540909bc901dbc057992b4d655ca4f4355cf0868e1266baacf6919902969f063e74162f8f04bc4056105" x"315f5bdb76d078c43b8ac0064e4a0164612b1fce77c869345bfc94c75894edd3" --ptb-inputs 100 @A
-created: object(5,0)
-mutated: object(2,0)
-unchanged_shared: object(2,3)
+task 5, lines 41-43:
+//# abstract --account immshared(4,0) --auth-inputs x"cce72947906dbae4c166fc01fd096432784032be43db540909bc901dbc057992b4d655ca4f4355cf0868e1266baacf6919902969f063e74162f8f04bc4056105" x"315f5bdb76d078c43b8ac0064e4a0164612b1fce77c869345bfc94c75894edd3" --ptb-inputs 100 @A
+created: object(6,0)
+mutated: object(4,1)
+unchanged_shared: object(4,0)
 gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 1960800,  storage_rebate: 980400, non_refundable_storage_fee: 0
 
-task 6, line 72:
-//# view-object 5,0
+task 6, line 45:
+//# view-object 6,0
 Owner: Account Address ( A )
 Version: 4
 Contents: iota::coin::Coin<iota::iota::IOTA> {
     id: iota::object::UID {
         id: iota::object::ID {
-            bytes: fake(5,0),
+            bytes: fake(6,0),
         },
     },
     balance: iota::balance::Balance<iota::iota::IOTA> {

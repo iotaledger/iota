@@ -3,18 +3,17 @@
 
 // authenticate test for abstract accounts with receiving argument
 
-//# init --addresses test=0x0 --accounts A
+//# init --addresses test=0x0 simple_abstract_account=0x0 --accounts A
 
-//# publish --sender A
-module test::abstract_account;
+//# publish-dependencies --paths crates/iota-adapter-transactional-tests/data/account_abstraction/simple_abstract_account.move
 
+//# publish --sender A --dependencies simple_abstract_account
+module test::authenticate;
+
+use simple_abstract_account::abstract_account::AbstractAccount;
 use iota::auth_context::AuthContext;
 use iota::coin::Coin;
 use iota::iota::IOTA;
-
-public struct AbstractAccount has key {
-    id: UID,
-}
 
 #[authenticator]
 public fun authenticate_receive_coin(
