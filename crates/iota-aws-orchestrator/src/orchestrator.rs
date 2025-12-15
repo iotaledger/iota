@@ -237,12 +237,13 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
             "ulimit -n 1048576 || true",
             // Create the working directory.
             working_dir_cmd.as_str(),
-            // Clone the repo.
-            git_clone_cmd.as_str(),
         ];
 
         // Collect all unique non-"stable" rust toolchains from build configs
         let toolchain_cmds: Vec<String> = if !use_precompiled_binaries {
+            // Clone the repo.
+            basic_commands.push(git_clone_cmd.as_str());
+
             self.settings
                 .build_configs
                 .values()
