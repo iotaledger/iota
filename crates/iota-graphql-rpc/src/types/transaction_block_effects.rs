@@ -17,7 +17,7 @@ use iota_types::{
 };
 
 use crate::{
-    consistency::ConsistentIndexCursor,
+    consistency::{ConsistentIndexCursor, UNAVAILABLE_CHECKPOINT_SEQUENCE_NUMBER},
     data::package_resolver::PackageResolver,
     error::Error,
     types::{
@@ -466,7 +466,7 @@ impl TransactionBlockEffects {
         Ok(Some(DateTime::from_ms(stored_tx.timestamp_ms)?))
     }
 
-    /// The epoch this transaction was finalized in.
+    /// The epoch this transaction was executed in.
     async fn epoch(&self, ctx: &Context<'_>) -> Result<Option<Epoch>> {
         Epoch::query(
             ctx,
@@ -477,13 +477,17 @@ impl TransactionBlockEffects {
         .extend()
     }
 
-    /// The checkpoint this transaction was finalized in.
+    /// The checkpoint this transaction was finalized in, if it is within the
+    /// available range.
     async fn checkpoint(&self, ctx: &Context<'_>) -> Result<Option<Checkpoint>> {
         // If the transaction data is not a checkpointed transaction, it's not in the
         // checkpoint yet so we return None.
         let TransactionBlockEffectsKind::Checkpointed { stored_tx, .. } = &self.kind else {
             return Ok(None);
         };
+        if !self.is_available() {
+            return Ok(None);
+        }
 
         Checkpoint::query(
             ctx,
@@ -519,6 +523,11 @@ impl TransactionBlockEffects {
             TransactionBlockEffectsKind::DryRun { native, .. } => native,
             TransactionBlockEffectsKind::Executed { native, .. } => native,
         }
+    }
+
+    /// Returns whether the parent transaction is within the available range.
+    pub(crate) fn is_available(&self) -> bool {
+        self.checkpoint_viewed_at < UNAVAILABLE_CHECKPOINT_SEQUENCE_NUMBER
     }
 }
 
