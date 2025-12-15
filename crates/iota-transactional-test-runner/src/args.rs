@@ -117,6 +117,28 @@ pub struct ConsensusCommitPrologueCommand {
 }
 
 #[derive(Debug, clap::Parser)]
+pub struct InitAbstractAccountCommand {
+    #[arg(long)]
+    pub sender: Option<String>,
+    #[arg(
+        long,
+        value_parser = ParsedValue::<IotaExtraValueArgs>::parse,
+    )]
+    pub package_metadata: ParsedValue<IotaExtraValueArgs>,
+    #[arg(
+        long,
+        value_parser = ParsedValue::<IotaExtraValueArgs>::parse,
+        num_args(1..),
+        action = clap::ArgAction::Append,
+    )]
+    pub inputs: Vec<ParsedValue<IotaExtraValueArgs>>,
+    #[arg(long)]
+    pub create_function: String,
+    #[arg(long)]
+    pub account_type: String,
+}
+
+#[derive(Debug, clap::Parser)]
 pub struct ProgrammableTransactionCommand {
     #[arg(long)]
     pub sender: Option<String>,
@@ -172,6 +194,12 @@ pub struct AbstractTransactionCommand {
         action = clap::ArgAction::Append,
     )]
     pub authenticator_inputs: Vec<ParsedValue<IotaExtraValueArgs>>,
+}
+
+#[derive(Debug, Parser)]
+pub struct PublishDepsCommand {
+    #[arg(long, num_args(1..))]
+    pub paths: Vec<String>,
 }
 
 #[derive(Debug, clap::Parser)]
@@ -268,6 +296,8 @@ pub enum IotaSubcommand<ExtraValueArgs: ParsableValue, ExtraRunArgs: Parser> {
     RunGraphql(RunGraphqlCommand),
     Bench(RunCommand<ExtraValueArgs>, ExtraRunArgs),
     AbstractTransaction(AbstractTransactionCommand),
+    PublishDeps(PublishDepsCommand),
+    InitAbstractAccount(InitAbstractAccountCommand),
 }
 
 impl<ExtraValueArgs: ParsableValue, ExtraRunArgs: Parser> clap::FromArgMatches
@@ -321,6 +351,12 @@ impl<ExtraValueArgs: ParsableValue, ExtraRunArgs: Parser> clap::FromArgMatches
                 RunCommand::from_arg_matches(matches)?,
                 ExtraRunArgs::from_arg_matches(matches)?,
             ),
+            Some(("publish-dependencies", matches)) => {
+                IotaSubcommand::PublishDeps(PublishDepsCommand::from_arg_matches(matches)?)
+            }
+            Some(("init-abstract-account", matches)) => IotaSubcommand::InitAbstractAccount(
+                InitAbstractAccountCommand::from_arg_matches(matches)?,
+            ),
             _ => {
                 return Err(clap::Error::raw(
                     clap::error::ErrorKind::InvalidSubcommand,
@@ -358,6 +394,8 @@ impl<ExtraValueArgs: ParsableValue, ExtraRunArgs: Parser> clap::CommandFactory
             .subcommand(
                 RunCommand::<ExtraValueArgs>::augment_args(ExtraRunArgs::command()).name("bench"),
             )
+            .subcommand(PublishDepsCommand::command().name("publish-dependencies"))
+            .subcommand(InitAbstractAccountCommand::command().name("init-abstract-account"))
     }
 
     fn command_for_update() -> clap::Command {

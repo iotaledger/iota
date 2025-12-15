@@ -8,6 +8,7 @@
 use std::{
     collections::{BTreeMap, BTreeSet},
     fmt::{self, Write},
+    io::Write as IoWrite,
     path::{Path, PathBuf},
     sync::Arc,
     time::Duration,
@@ -81,7 +82,7 @@ use move_compiler::{
 use move_core_types::{
     account_address::AccountAddress,
     ident_str,
-    identifier::IdentStr,
+    identifier::{IdentStr, Identifier},
     language_storage::{ModuleId, TypeTag},
     metadata::Metadata,
     parsing::{address::ParsedAddress, values::ParsedValue},
@@ -130,6 +131,7 @@ const RNG_SEED: [u8; 32] = [
 
 const DEFAULT_GAS_BUDGET: u64 = 5_000_000_000;
 const GAS_FOR_TESTING: u64 = GAS_VALUE_FOR_TESTING;
+const GAS_FOR_ABSTRACT_ACCOUNT: u64 = 10_000_000_000_000;
 
 const DEFAULT_CHAIN_START_TIMESTAMP: u64 = 0;
 
@@ -167,6 +169,7 @@ pub struct IotaTestAdapter {
     /// name.
     package_upgrade_mapping: BTreeMap<Symbol, Symbol>,
     accounts: BTreeMap<String, TestAccount>,
+    abstract_accounts: BTreeMap<ObjectID, TestAccount>,
     default_account: TestAccount,
     default_syntax: SyntaxChoice,
     object_enumeration: BiBTreeMap<ObjectID, FakeID>,
@@ -418,6 +421,7 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
             ),
             package_upgrade_mapping: BTreeMap::new(),
             accounts,
+            abstract_accounts: BTreeMap::new(),
             default_account,
             default_syntax,
             object_enumeration: BiBTreeMap::new(),
@@ -449,6 +453,7 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
         } else {
             Some(output)
         };
+
         (test_adapter, output)
     }
 
@@ -469,7 +474,9 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
         fill_metadata(&mut modules);
 
         let named_addr_opt = modules.first().unwrap().named_address;
+
         let first_module_name = modules.first().unwrap().module.self_id().name().to_string();
+
         let modules_bytes = modules
             .iter()
             .map(|m| {
@@ -480,8 +487,10 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
                 Ok(module_bytes)
             })
             .collect::<anyhow::Result<_>>()?;
+
         let gas_budget = gas_budget.unwrap_or(DEFAULT_GAS_BUDGET);
         let mapping = &self.compiled_state.named_address_mapping;
+
         let mut dependencies: Vec<_> = dependencies
             .into_iter()
             .map(|d| {
@@ -492,10 +501,13 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
                 Ok(id)
             })
             .collect::<Result<_, _>>()?;
+
         let gas_price = gas_price.unwrap_or(self.gas_price);
+
         // we are assuming that all packages depend on Move Stdlib and IOTA Framework,
         // so these don't have to be provided explicitly as parameters
         dependencies.extend([MOVE_STDLIB_PACKAGE_ID, IOTA_FRAMEWORK_PACKAGE_ID]);
+
         let data = |sender, gas| {
             let mut builder = ProgrammableTransactionBuilder::new();
             if upgradeable {
@@ -509,6 +521,7 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
         };
         let transaction = self.sign_txn(sender, data);
         let summary = self.execute_txn(transaction).await?;
+
         let created_package = summary
             .created
             .iter()
@@ -526,6 +539,7 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
                 }
             })
             .unwrap();
+
         let package_addr = NumericalAddress::new(created_package.into_bytes(), NumberFormat::Hex);
         if let Some(named_addr) = named_addr_opt {
             let prev_package = self
@@ -540,7 +554,9 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
                 _ => (),
             }
         }
+
         let output = self.object_summary_output(&summary, /* summarize */ false);
+
         let published_modules = self
             .get_object(&created_package, None)
             .unwrap()
@@ -1188,17 +1204,22 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
                 // Parse and resolve ptb inputs.
                 let (ptb_inputs, ptb_commands) = self.prepare_ptb_data(data, ptb_inputs)?;
 
-                // Parse and resolve auth inputs.
-                // Build MoveAuthenticator.
-                // Get Abstract Test Account
-                let (aa_sender, move_authenticator) =
-                    self.prepare_move_authenticator_data(authenticator_inputs, account)?;
-
                 let gas_budget = gas_budget.unwrap_or(DEFAULT_GAS_BUDGET);
                 let gas_price = gas_price.unwrap_or(self.gas_price);
 
+                // Parse and resolve auth inputs.
+                // Build MoveAuthenticator.
+                // Get Abstract Test Account
+                let (aa_id, move_authenticator) = self
+                    .prepare_move_authenticator_data(authenticator_inputs, account)
+                    .await?;
+
+                let account = self.abstract_accounts.get(&aa_id).ok_or_else(|| {
+                    anyhow::anyhow!("Unbound abstract account @{aa_id} for MoveAuthenticator")
+                })?;
+
                 let tx = self.sign_sponsor_txn(
-                    &aa_sender,
+                    account,
                     sponsor,
                     gas_payment,
                     Some(move_authenticator),
@@ -1220,6 +1241,58 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
                 let summary = self.execute_txn(tx).await?;
                 let output = self.object_summary_output(&summary, /* summarize */ false);
                 Ok(output)
+            }
+            IotaSubcommand::PublishDeps(PublishDepsCommand { paths }) => {
+                let mut outputs = vec![];
+                for file_path in paths {
+                    let empty_publish_args = <Self::ExtraPublishArgs as Default>::default();
+                    let mut data = NamedTempFile::new()?;
+                    // It handles both relative and absolute paths
+                    let path = Path::new(&file_path);
+                    let buf = find_iota_root_dir().join(path);
+                    let file = std::fs::read(&buf)?;
+                    data.write_all(file.as_slice())?;
+
+                    let (warnings_opt, output, data, modules) = compile_any(
+                        self,
+                        "publish",
+                        SyntaxChoice::Source,
+                        name.clone(),
+                        number,
+                        start_line,
+                        command_lines_stop,
+                        stop_line,
+                        Some(data),
+                        |adapter, modules| {
+                            adapter.publish_modules(modules, None, empty_publish_args)
+                        },
+                    )
+                    .await?;
+                    store_modules(self, SyntaxChoice::Source, data, modules);
+                    let output = merge_output(output, warnings_opt);
+                    outputs.push(format!(
+                        "Output for '{}':\n{}",
+                        file_path,
+                        output.unwrap_or_default()
+                    ));
+                }
+                Ok(Some(outputs.join("\n\n")))
+            }
+            IotaSubcommand::InitAbstractAccount(InitAbstractAccountCommand {
+                sender,
+                package_metadata,
+                inputs,
+                create_function,
+                account_type,
+            }) => {
+                self.init_abstract_account(
+                    sender,
+                    package_metadata,
+                    inputs,
+                    create_function,
+                    account_type,
+                )
+                .await
             }
         }
     }
@@ -1326,11 +1399,11 @@ impl IotaTestAdapter {
 
     /// Build a MoveAuthenticator.
     /// Returns the Abstract Test Account and MoveAuthenticator.
-    fn prepare_move_authenticator_data(
+    async fn prepare_move_authenticator_data(
         &mut self,
         authenticator_inputs: Vec<ParsedValue<IotaExtraValueArgs>>,
         account: ParsedValue<IotaExtraValueArgs>,
-    ) -> anyhow::Result<(TestAccount, GenericSignature)> {
+    ) -> anyhow::Result<(ObjectID, GenericSignature)> {
         // Resolve authenticator inputs
         let auth_inputs_resolved = self.compiled_state().resolve_args(authenticator_inputs)?;
         let auth_inputs: Vec<CallArg> = auth_inputs_resolved
@@ -1347,15 +1420,10 @@ impl IotaTestAdapter {
         let CallArg::Object(aa_arg) = aa_arg.into_call_arg(self)? else {
             anyhow::bail!("abstract: account must be an object representing the abstract account");
         };
-        let aa_sender_addr = aa_arg.id().into();
+        let aa_id = aa_arg.id();
 
-        let account = TestAccount {
-            address: aa_sender_addr,
-            key_pair: None,
-            gas: aa_sender_addr.into(), // TODO: handle abstract account gas
-        };
         Ok((
-            account,
+            aa_id,
             GenericSignature::MoveAuthenticator(MoveAuthenticator::new_for_testing(
                 auth_inputs,
                 vec![],
@@ -2151,6 +2219,176 @@ impl IotaTestAdapter {
         }
         Ok(dependencies)
     }
+
+    async fn init_abstract_account(
+        &mut self,
+        sender: Option<String>,
+        package_metadata: ParsedValue<IotaExtraValueArgs>,
+        inputs: Vec<ParsedValue<IotaExtraValueArgs>>,
+        create_function: String,
+        account_type: String,
+    ) -> anyhow::Result<Option<String>> {
+        // Resolve abstract account `create` function path
+        let (aa_package_id, aa_module_name, create_fn_name) =
+            self.resolve_create_function(&create_function)?;
+
+        let pt = self.build_abstract_account_transaction(
+            package_metadata,
+            inputs,
+            aa_package_id,
+            &aa_module_name,
+            &create_fn_name,
+        )?;
+
+        let gas_budget = DEFAULT_GAS_BUDGET;
+        let gas_price = self.gas_price;
+
+        let tx = self.sign_txn(sender, |sender_addr, gas| {
+            TransactionData::new_programmable(sender_addr, gas, pt, gas_budget, gas_price)
+        });
+
+        let summary = self.execute_txn(tx).await?;
+
+        let created_abstract_account_id = summary
+            .created
+            .iter()
+            .find_map(|id| {
+                let object: Object = self.get_object(id, None).unwrap();
+                let (package_addr, module_name, account_type) =
+                    self.resolve_account_type(&account_type).unwrap();
+                object
+                    .struct_tag()
+                    .filter(|tag| {
+                        tag.address == package_addr
+                            && tag.module.as_str() == module_name
+                            && tag.name.as_str() == account_type
+                    })
+                    .map(|_| *id)
+            })
+            .expect("Abstract account must have been created");
+
+        let created_abstract_account_coin = summary
+            .created
+            .iter()
+            .find_map(|id| {
+                let object = self.get_object(id, None).unwrap();
+                object
+                    .as_coin_maybe()
+                    .map(|_| object.compute_object_reference())
+            })
+            .expect("Abstract account creation must have a gas coin");
+
+        let abstract_account = TestAccount {
+            address: IotaAddress::from(created_abstract_account_id),
+            key_pair: None,
+            gas: created_abstract_account_coin.0,
+        };
+
+        // Store the created abstract account
+        self.abstract_accounts
+            .insert(created_abstract_account_id, abstract_account);
+
+        let output = self.object_summary_output(&summary, false);
+        Ok(output)
+    }
+
+    fn parse_namespace<'a>(
+        &'a self,
+        namespace: &'a str,
+    ) -> anyhow::Result<(&'a str, String, String)> {
+        let mut parts = namespace.split("::");
+
+        let named_addr = parts
+            .next()
+            .context(format!("invalid {namespace}: missing package named_addr"))?;
+        let module = parts
+            .next()
+            .context(format!("invalid {namespace}: missing module name"))?;
+        let name = parts
+            .next()
+            .context(format!("invalid {namespace}: missing name"))?;
+
+        if parts.next().is_some() {
+            anyhow::bail!("invalid {namespace}: too many '::' segments");
+        }
+
+        Ok((named_addr, module.to_owned(), name.to_owned()))
+    }
+
+    fn resolve_create_function(
+        &self,
+        create_function: &str,
+    ) -> anyhow::Result<(ObjectID, String, String)> {
+        let (named_addr, aa_module_name, create_fn_name) = self.parse_namespace(create_function)?;
+
+        let aa_package_addr = self
+            .compiled_state
+            .named_address_mapping
+            .get(named_addr)
+            .context("abstract account package address not found")?
+            .into_inner();
+
+        Ok((aa_package_addr.into(), aa_module_name, create_fn_name))
+    }
+
+    fn resolve_account_type(
+        &self,
+        account_type: &str,
+    ) -> anyhow::Result<(AccountAddress, String, String)> {
+        let (named_addr, module_name, account_type) = self.parse_namespace(account_type)?;
+
+        let package_addr = self
+            .compiled_state
+            .named_address_mapping
+            .get(named_addr)
+            .context("account type package address not found")?
+            .into_inner();
+
+        Ok((package_addr, module_name, account_type))
+    }
+
+    fn build_abstract_account_transaction(
+        &mut self,
+        package_metadata: ParsedValue<IotaExtraValueArgs>,
+        inputs: Vec<ParsedValue<IotaExtraValueArgs>>,
+        aa_pkg_id: ObjectID,
+        aa_module_name: &str,
+        aa_create_fn_name: &str,
+    ) -> anyhow::Result<ProgrammableTransaction> {
+        let mut builder = ProgrammableTransactionBuilder::new();
+
+        let mut create_fn_inputs = vec![];
+
+        let inputs = self
+            .compiled_state()
+            .resolve_args(inputs)?
+            .into_iter()
+            .map(|arg| arg.into_argument(&mut builder, self))
+            .collect::<anyhow::Result<Vec<Argument>>>()?;
+        let state = self.compiled_state();
+        let pkg_metadata =
+            package_metadata.into_concrete_value(&|s| Some(state.resolve_named_address(s)))?;
+        let pkg_metadata_arg = pkg_metadata.into_argument(&mut builder, self)?;
+
+        create_fn_inputs.push(pkg_metadata_arg);
+        create_fn_inputs.extend(inputs);
+
+        let aa_addr = builder.programmable_move_call(
+            aa_pkg_id,
+            Identifier::new(aa_module_name)?,
+            Identifier::new(aa_create_fn_name)?,
+            vec![],
+            create_fn_inputs,
+        );
+
+        // Fund the abstract account with gas
+        let gas_amount = builder.pure(GAS_FOR_ABSTRACT_ACCOUNT)?;
+        let new_coin_arg =
+            builder.command(Command::SplitCoins(Argument::GasCoin, vec![gas_amount]));
+        builder.command(Command::TransferObjects(vec![new_coin_arg], aa_addr));
+
+        Ok(builder.finish())
+    }
 }
 
 impl<'a> GetModule for &'a IotaTestAdapter {
@@ -2676,6 +2914,16 @@ impl ReadStore for IotaTestAdapter {
     > {
         self.executor.try_get_full_checkpoint_contents(digest)
     }
+}
+
+fn find_iota_root_dir() -> PathBuf {
+    let manifest_dir = Path::new(env!("CARGO_MANIFEST_DIR"));
+    let root = manifest_dir
+        .components()
+        .take_while(|c| c.as_os_str() != "iota-transactional-test-runner")
+        .collect::<PathBuf>();
+    let iota_root_dir = root.parent().expect("Failed to get iota root directory");
+    iota_root_dir.to_path_buf()
 }
 
 /// Fill the compiled modules with authenticator metadata directly from

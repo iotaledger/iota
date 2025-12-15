@@ -3,39 +3,25 @@
 
 // simple authenticate test for abstract accounts with sponsorship
 
-//# init --addresses test=0x0 --accounts A
+//# init --addresses test=0x0 simple_abstract_account=0x0 --accounts A
 
-//# publish --sender A
-module test::abstract_account;
+//# publish-dependencies --paths crates/iota-adapter-transactional-tests/data/account_abstraction/simple_abstract_account.move
 
-use iota::account::{Self, AuthenticatorInfoV1};
+//# publish --sender A --dependencies simple_abstract_account
+module test::authenticate;
+
+use simple_abstract_account::abstract_account::AbstractAccount;
 use iota::auth_context::AuthContext;
-
-public struct AbstractAccount has key {
-    id: UID,
-}
-
-public fun create(
-    _public_key: vector<u8>,
-    authenticator: AuthenticatorInfoV1<AbstractAccount>,
-    ctx: &mut TxContext,
-) {
-    let account = AbstractAccount { id: object::new(ctx) };
-
-    account::create_account_v1(account, authenticator);
-}
 
 #[authenticator]
 public fun authenticate(_account: &AbstractAccount, _auth_ctx: &AuthContext, _ctx: &TxContext) {}
 
-//# programmable --sender A --inputs x"10" object(1,1) "abstract_account" "authenticate" 7000000000
-//> 0: iota::account::create_auth_info_v1<test::abstract_account::AbstractAccount>(Input(1), Input(2), Input(3));
-//> 1: test::abstract_account::create(Input(0), Result(0));
+//# init-abstract-account --sender A --package-metadata object(3,1) --inputs "authenticate" "authenticate" --create-function simple_abstract_account::abstract_account::create --account-type simple_abstract_account::abstract_account::AbstractAccount
 
-//# view-object 2,1
+//# view-object 4,2
 
-//# abstract --account immshared(2,1) --sponsor A --ptb-inputs 100 @A
+//# abstract --account immshared(4,2) --sponsor A --ptb-inputs 100 @A
 //> 0: SplitCoins(Gas, [Input(0)]);
 //> 1: TransferObjects([Result(0)], Input(1));
 
-//# view-object 4,0
+//# view-object 6,0

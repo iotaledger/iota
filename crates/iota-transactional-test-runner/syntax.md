@@ -28,6 +28,8 @@
   - [`run-graphql`](#run-graphql)
   - [`bench`](#bench)
   - [`abstract`](#abstract)
+  - [`init-abstract-account`](#init-abstract-account)
+  - [`publish-dependencies`](#publish-dependencies)
 - [How `run_test` Compares a Move File With the Corresponding `.snap` File](#how-run_test-compares-a-move-file-with-the-corresponding-snap-file)
   - [Adapter Creation in `create_adapter`](#adapter-creation-in-create_adapter)
   - [Execution Process in `run_tasks_with_adapter`](#execution-process-in-run_tasks_with_adapter)
@@ -1433,48 +1435,27 @@ Doesn't support simulator mode.
 
 ```
 --account <ACCOUNT>: the sender of the abstract transaction. Must be an Abstract Account (AA) shared object.
---sponsor <SPONSOR> (optional): account that pays for gas. If omitted, you must provide --gas-payment and that coin must be owned by the Abstract Account (AA).
---gas-payment <OBJECT_ID>: coin object used to pay gas. Required when --sponsor is not provided.
---auth-inputs <AUTH_INPUTS>: arguments to build the MoveAuthenticator(for instance - signature, public key etc).
---ptb-inputs <PTB_INPUTS>: inputs passed to the PTB (Programmable Transaction Block) body.
+--sponsor <SPONSOR> (optional): account that pays for gas.
 --gas-budget <GAS_BUDGET> (optional): maximum gas units for execution.
 --gas-price <GAS_PRICE> (optional): gas price per unit.
+--gas-payment <OBJECT_ID>: coin object used to pay gas.
+--ptb-inputs <PTB_INPUTS>: inputs passed to the PTB (Programmable Transaction Block) body.
+--auth-inputs <AUTH_INPUTS>: arguments to build the MoveAuthenticator(for instance - signature, public key etc).
 ```
 
 #### Example
 
 ```move
-// Copyright (c) 2025 IOTA Stiftung
-// SPDX-License-Identifier: Apache-2.0
+//# init --addresses test=0x0 simple_abstract_account=0x0 --accounts A
 
-// simple authentication using abstract account
+//# publish-dependencies --paths crates/iota-adapter-transactional-tests/data/account_abstraction/simple_abstract_account.move
 
-//# init --addresses test=0x0 --accounts A
+//# publish --sender A --dependencies simple_abstract_account
+module test::authenticate;
 
-//# publish --sender A
-module test::abstract_account;
-
-use iota::account::{Self, AuthenticatorInfoV1};
+use simple_abstract_account::abstract_account::AbstractAccount;
 use iota::auth_context::AuthContext;
 use std::ascii;
-
-public struct AbstractAccount has key {
-    id: UID,
-}
-
-public fun create(
-    _public_key: vector<u8>,
-    authenticator: AuthenticatorInfoV1<AbstractAccount>,
-    ctx: &mut TxContext,
-): address {
-    let account = AbstractAccount { id: object::new(ctx) };
-
-    let account_address = object::id_address(&account);
-
-    account::create_account_v1(account, authenticator);
-
-    account_address
-}
 
 #[authenticator]
 public fun authenticate_hello_world(
@@ -1486,33 +1467,35 @@ public fun authenticate_hello_world(
     assert!(msg == ascii::string(b"HelloWorld"), 0);
 }
 
-//# programmable --sender A --inputs x"10" object(1,1) "abstract_account" "authenticate_hello_world" 7000000000
-//> 0: iota::account::create_auth_info_v1<test::abstract_account::AbstractAccount>(Input(1), Input(2), Input(3));
-//> 1: test::abstract_account::create(Input(0), Result(0));
-//> 2: SplitCoins(Gas, [Input(4)]);
-//> 3: TransferObjects([Result(2)], Result(1));
+//# init-abstract-account --sender A --package-metadata object(3,1) --inputs "authenticate" "authenticate_hello_world" --create-function simple_abstract_account::abstract_account::create --account-type simple_abstract_account::abstract_account::AbstractAccount
 
-//# view-object 2,0
+//# view-object 4,2
 
-//# view-object 2,2
-
-//# abstract --account immshared(2,2) --gas-payment 2,0 --auth-inputs "HelloWorld" --ptb-inputs 100 @A
+//# abstract --account immshared(4,2) --auth-inputs "HelloWorld" --ptb-inputs 100 @A
 //> 0: SplitCoins(Gas, [Input(0)]);
 //> 1: TransferObjects([Result(0)], Input(1));
 
-//# view-object 5,0
+//# view-object 6,0
+```
+
+In this section we have:
+
+```move
+//# abstract --account immshared(4,0) --auth-inputs "HelloWorld" --ptb-inputs 100 @A
+//> 0: SplitCoins(Gas, [Input(0)]);
+//> 1: TransferObjects([Result(0)], Input(1));
 ```
 
 - Account (--account)
-  The immutable shared object that represents Abstract Account.
-- Gas Payment (--gas-payment)
-  Coin object that must be owned by the Abstract Account (AA).
+  The immutable shared object that represents Abstract Account - `immshared(4,2)`.
+- Auth Inputs (--auth-inputs)
+  These are the inputs used for the authenticator arguments. They should reflect the parameters of the function marked with `#[authenticator]`.
 - PTB Inputs (--ptb-inputs)
   These are inputs used inside the transaction body - for example, numeric values, objects, or addresses.
   The PTB commands (//> ...) operate as in the programmable command.
 
-- object(1,1)
-  The `PackageMetadata` object carries information about function annotations, such as attributes
+- object(3,1)
+  The `PackageMetadata` object carries information about function annotations, such as function attributes.
 
 `.snap` output:
 
@@ -1525,70 +1508,152 @@ processed 7 tasks
 init:
 A: object(0,0)
 
-task 1, lines 8-41:
-//# publish --sender A
-created: object(1,0), object(1,1)
+task 1, line 8:
+//# publish-dependencies --paths crates/iota-adapter-transactional-tests/data/account_abstraction/simple_abstract_account.move
+Output for 'crates/iota-adapter-transactional-tests/data/account_abstraction/simple_abstract_account.move':
+created: object(2,0)
+mutated: object(0,1)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 7584800,  storage_rebate: 0, non_refundable_storage_fee: 0
+
+task 2, lines 10-25:
+//# publish --sender A --dependencies simple_abstract_account
+created: object(3,0), object(3,1)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 11149200,  storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 9918000,  storage_rebate: 0, non_refundable_storage_fee: 0
 
-task 2, lines 43-47:
-//# programmable --sender A --inputs x"10" object(1,1) "abstract_account" "authenticate_hello_world" 7000000000
-//> 0: iota::account::create_auth_info_v1<test::abstract_account::AbstractAccount>(Input(1), Input(2), Input(3));
-//> 1: test::abstract_account::create(Input(0), Result(0));
-//> 2: SplitCoins(Gas, [Input(4)]);
-//> 3: TransferObjects([Result(2)], Result(1));
-created: object(2,0), object(2,1), object(2,2)
+task 3, line 27:
+//# init-abstract-account --sender A --package-metadata object(3,1) --inputs "authenticate" "authenticate_hello_world" --create-function simple_abstract_account::abstract_account::create --account-type simple_abstract_account::abstract_account::AbstractAccount
+created: object(4,0), object(4,1), object(4,2)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 6748800,  storage_rebate: 980400, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 6718400,  storage_rebate: 980400, non_refundable_storage_fee: 0
 
-task 3, line 49:
-//# view-object 2,0
-Owner: Account Address ( fake(2,2) )
-Version: 3
-Contents: iota::coin::Coin<iota::iota::IOTA> {
-    id: iota::object::UID {
-        id: iota::object::ID {
-            bytes: fake(2,0),
-        },
-    },
-    balance: iota::balance::Balance<iota::iota::IOTA> {
-        value: 7000000000u64,
-    },
-}
-
-task 4, line 51:
-//# view-object 2,2
+task 4, line 29:
+//# view-object 4,2
 Owner: Shared( 3 )
 Version: 3
-Contents: test::abstract_account::AbstractAccount {
+Contents: simple_abstract_account::abstract_account::AbstractAccount {
     id: iota::object::UID {
         id: iota::object::ID {
-            bytes: fake(2,2),
+            bytes: fake(4,2),
         },
     },
 }
 
-task 5, lines 53-55:
-//# abstract --account immshared(2,2) --gas-payment 2,0 --auth-inputs "HelloWorld" --ptb-inputs 100 @A
-created: object(5,0)
-mutated: object(2,0)
-unchanged_shared: object(2,2)
+task 5, lines 31-33:
+//# abstract --account immshared(4,2) --auth-inputs "HelloWorld" --ptb-inputs 100 @A
+created: object(6,0)
+mutated: object(4,0)
+unchanged_shared: object(4,2)
 gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 1960800,  storage_rebate: 980400, non_refundable_storage_fee: 0
 
-task 6, line 57:
-//# view-object 5,0
+task 6, line 35:
+//# view-object 6,0
 Owner: Account Address ( A )
 Version: 4
 Contents: iota::coin::Coin<iota::iota::IOTA> {
     id: iota::object::UID {
         id: iota::object::ID {
-            bytes: fake(5,0),
+            bytes: fake(6,0),
         },
     },
     balance: iota::balance::Balance<iota::iota::IOTA> {
         value: 100u64,
     },
 }
+```
+
+### `init-abstract-account`
+
+The `init-abstract-account` subcommand (`InitAbstractAccount` in Rust) creates and registers an Abstract Account (AA) in the transactional test environment.
+
+#### Syntax
+
+```
+//# init-abstract-account [OPTIONS]
+```
+
+#### Options
+
+```
+--sender <SENDER>: Named account that submits and pays for the initialization transaction.
+    Defaults to the adapter’s default account if omitted.
+
+--package-metadata <PACKAGE_METADATA>: Reference to the `PackageMetadata` object associated with the AA package,
+    typically created during `publish`. For example: `object(3,1)`.
+    This value is passed as the first argument to the AA `create` function.
+
+--inputs <INPUTS>: Additional arguments passed to the AA `create` function after
+    `package_metadata`. These must match the function’s parameter list
+    (e.g. key material, configuration values, initial settings).
+
+--create-function <CREATE-FUNCTION>: Fully qualified path to the Abstract Account creation function in the AA.
+    Move module: <named-address>::<module>::<function>
+
+    Example: `aa::abstract_account::create`.
+
+    The `named-address` part must already be bound to the AA package address
+    via `publish` / `publish-deps` and the named address mapping.
+
+--account-type <ACCOUNT-TYPE>: The name of the Abstract Account struct type that is expected to be created
+    by the `create` function. Example: `AbstractAccount`.
+    The adapter uses this type name to locate the newly created AA object in
+    the transaction’s `created` set and register it as an abstract account.
+```
+
+#### Example
+
+```move
+// Initialize Abstract Account and register it in the adapter
+//# init-abstract-account --sender A --package-metadata object(3,1) --inputs "authenticate" "authenticate_hello_world" --create-function aa::abstract_account::create --account-type AbstractAccount
+```
+
+- --package-metadata `object(3,1)`
+  `object(3,1)` is a `PackageMetadata` object produced by the publish step for the AA package.
+  It carries metadata about module functions (including authenticator attributes) and is passed as the first argument to aa::abstract_account::create.
+- --inputs "authenticate" "authenticate_hello_world"
+  These values are passed as additional arguments to the create function (after package_metadata).
+  They must correspond to the function parameters defined in `simple_abstract_account::abstract_account::create` (e.g. the module name and authenticator function name to register).
+- --create-function `simple_abstract_account::abstract_account::create`
+  This string is split into three parts:
+  - simple_abstract_account - named address (resolved via the named address mapping to the AA package ID),
+  - abstract_account - module name,
+  - create - function name.
+- --account-type `simple_abstract_account::abstract_account::AbstractAccount`
+  After the transaction is executed, the adapter scans the created objects and finds the one whose struct tag name equals AbstractAccount.
+  - simple_abstract_account - named address (resolved via the named address mapping to the AA package ID),
+  - abstract_account - module name,
+  - AbstractAccount - type name.
+    That object ID becomes the logical address of the Abstract Account.
+
+### `publish-dependencies`
+
+The `publish-dependencies` subcommand (`PublishDeps` in Rust) is a lightweight helper for transactional tests that need to publish prepared dependency modules (e.g., Account Abstraction implementations) in order to avoid duplication/complex relations.
+It compiles and publishes Move source files provided by path and then stores the published modules in the adapter’s compiled state. As a result, the newly published package becomes available for subsequent commands and can be used as a proper dependency within built-in Move code.
+The package name of the dependency must be initialized to `0x0` with the init command, e.g., `simple_abstract_account=0x0`.
+
+#### Syntax
+
+```move
+//# publish-deps [OPTIONS]
+```
+
+#### Options
+
+```
+--paths <PATHS>...: one or more Move source file paths to compile and publish.
+  Each path may be relative to the IOTA root or absolute.
+```
+
+#### Example
+
+```move
+//# publish --sender A --dependencies dep1
+```
+
+Output:
+
+```
+Output for './dep1.move':
 ```
 
 ## How `run_test` Compares a Move File With the Corresponding `.snap` File

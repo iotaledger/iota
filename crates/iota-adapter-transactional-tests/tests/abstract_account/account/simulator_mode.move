@@ -5,4 +5,4 @@
 
 //# init --addresses test=0x0 --accounts A --simulator
 
-//# abstract --account immshared(2,3) --gas-payment 2,0 --ptb-inputs 100 @A
+//# abstract --account immshared(2,3) --ptb-inputs 100 @A
