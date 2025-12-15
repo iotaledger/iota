@@ -9,8 +9,6 @@
 //! the indexer is unable to fetch data from the database, which is especially
 //! useful when pruning is enabled.
 
-#![expect(dead_code)]
-
 use std::collections::HashMap;
 
 use futures::future;
