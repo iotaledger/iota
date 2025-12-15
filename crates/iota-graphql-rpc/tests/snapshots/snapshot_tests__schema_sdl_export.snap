@@ -4621,11 +4621,12 @@ type TransactionBlockEffects {
 	"""
 	timestamp: DateTime
 	"""
-	The epoch this transaction was finalized in.
+	The epoch this transaction was executed in.
 	"""
 	epoch: Epoch
 	"""
-	The checkpoint this transaction was finalized in.
+	The checkpoint this transaction was finalized in, if it is within the
+	available range.
 	"""
 	checkpoint: Checkpoint
 	"""

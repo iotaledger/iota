@@ -29,6 +29,7 @@ use serde::{Deserialize, Serialize};
 use crate::{
     config::ServiceConfig,
     connection::ScanConnection,
+    consistency::UNAVAILABLE_CHECKPOINT_SEQUENCE_NUMBER,
     data::{self, DataLoader, Db, DbConnection, QueryExecutor},
     error::Error,
     server::{builder::get_write_api, watermark_task::Watermark},
@@ -174,13 +175,15 @@ impl TransactionBlock {
     /// transaction block is a sponsored transaction block.
     async fn gas_input(&self, ctx: &Context<'_>) -> Option<GasInput> {
         let checkpoint_viewed_at =
-            if matches!(self.inner, TransactionBlockInner::Checkpointed { .. }) {
+            if matches!(self.inner, TransactionBlockInner::Checkpointed { .. })
+                && self.is_available()
+            {
                 self.checkpoint_viewed_at
             } else {
-                // Non-checkpointed transactions have a sentinel checkpoint_viewed_at value that
-                // generally prevents access to further queries, but inputs should
-                // generally be available so try to access them at the high
-                // watermark.
+                // Non-checkpointed and unavailable transactions have a sentinel
+                // checkpoint_viewed_at value that generally prevents access to
+                // further queries, but inputs should generally be available so
+                // try to access them at the high watermark.
                 let Watermark { checkpoint, .. } = *ctx.data_unchecked();
                 checkpoint
             };
@@ -486,6 +489,11 @@ impl TransactionBlock {
 
         Ok(conn)
     }
+
+    /// Returns whether this transaction block is within the available range.
+    pub(crate) fn is_available(&self) -> bool {
+        self.checkpoint_viewed_at < UNAVAILABLE_CHECKPOINT_SEQUENCE_NUMBER
+    }
 }
 
 impl Loader<DigestKey> for Db {
@@ -530,22 +538,18 @@ impl Loader<DigestKey> for Db {
         for key in keys {
             let digest_bytes = key.digest.as_slice();
 
-            match transaction_digest_to_stored.get(digest_bytes) {
-                Some(stored)
-                    if (key.checkpoint_viewed_at as i64) >= stored.checkpoint_sequence_number =>
-                {
-                    // Filter by key's checkpoint viewed at here. Doing this in memory because it
-                    // should be quite rare that this query actually filters something,
-                    // but encoding it in SQL is complicated.
-                    let tx_block = TransactionBlock {
-                        inner: TransactionBlockInner::try_from(stored.clone())?,
-                        checkpoint_viewed_at: key.checkpoint_viewed_at,
-                    };
-                    results.insert(*key, tx_block);
+            if let Some(stored) = transaction_digest_to_stored.get(digest_bytes) {
+                let mut checkpoint_viewed_at = key.checkpoint_viewed_at;
+                if key.checkpoint_viewed_at < stored.checkpoint_sequence_number as u64 {
+                    checkpoint_viewed_at = UNAVAILABLE_CHECKPOINT_SEQUENCE_NUMBER;
                 }
-                _ => {
-                    missing_digests.push(key.digest.to_vec());
-                }
+                let tx_block = TransactionBlock {
+                    inner: TransactionBlockInner::try_from(stored.clone())?,
+                    checkpoint_viewed_at,
+                };
+                results.insert(*key, tx_block);
+            } else {
+                missing_digests.push(key.digest.to_vec());
             }
         }
 
@@ -584,7 +588,7 @@ impl Loader<DigestKey> for Db {
                 if let Some(optimistic) = transaction_digest_to_optimistic.get(digest_bytes) {
                     let tx_block = TransactionBlock {
                         inner: TransactionBlockInner::try_from(optimistic.clone())?,
-                        checkpoint_viewed_at: u64::MAX,
+                        checkpoint_viewed_at: UNAVAILABLE_CHECKPOINT_SEQUENCE_NUMBER,
                     };
                     results.insert(*key, tx_block);
                 }
