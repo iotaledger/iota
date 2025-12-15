@@ -13,9 +13,10 @@ use std::{
 };
 
 use bytes::Bytes;
+use iota_metrics::monitored_mpsc::UnboundedSender;
 use itertools::Itertools as _;
 use starfish_config::AuthorityIndex;
-use tokio::{sync::mpsc::UnboundedSender, time::Instant};
+use tokio::time::Instant;
 use tracing::{debug, error, info, trace, warn};
 
 use crate::{

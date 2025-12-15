@@ -5,7 +5,7 @@ services:
       context: ../../
       dockerfile: docker/iota/Dockerfile
       args:
-        - RUST_IMAGE_VERSION=${RUST_IMAGE_VERSION:-bookworm}
+        - RUST_IMAGE_VERSION=${RUST_IMAGE_VERSION:-trixie}
         - PROFILE=release
         - TARGET_FOLDER=target/release
         - CARGO_BUILD_FEATURES=${CARGO_BUILD_FEATURES:-default}
@@ -46,7 +46,7 @@ services:
       context: ../../
       dockerfile: docker/iota-indexer/Dockerfile
       args:
-        - RUST_IMAGE_VERSION=${RUST_IMAGE_VERSION:-bookworm}
+        - RUST_IMAGE_VERSION=${RUST_IMAGE_VERSION:-trixie}
         - PROFILE=dev
         - TARGET_FOLDER=target/debug
         - CARGO_BUILD_FEATURES=${CARGO_BUILD_FEATURES:-default}
@@ -130,7 +130,7 @@ services:
       context: ../../
       dockerfile: docker/iota-graphql-rpc/Dockerfile
       args:
-        - RUST_IMAGE_VERSION=${RUST_IMAGE_VERSION:-bookworm}
+        - RUST_IMAGE_VERSION=${RUST_IMAGE_VERSION:-trixie}
         - PROFILE=dev
         - TARGET_FOLDER=target/debug
         - CARGO_BUILD_FEATURES=${CARGO_BUILD_FEATURES:-default}
