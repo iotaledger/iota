@@ -218,8 +218,32 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
         let working_dir_cmd = format!("mkdir -p {working_dir}");
         let git_clone_cmd = format!("(git clone {url} || true)");
 
+        let mut basic_commands = vec![
+            "sudo apt-get update",
+            "sudo apt-get -y upgrade",
+            "sudo apt-get -y autoremove",
+            // Disable "pending kernel upgrade" message.
+            "sudo apt-get -y remove needrestart",
+            "sudo apt-get -y install curl git ca-certificates",
+            // Increase open file limits to prevent "Too many open files" errors
+            "echo '* soft nofile 1048576' | sudo tee -a /etc/security/limits.conf",
+            "echo '* hard nofile 1048576' | sudo tee -a /etc/security/limits.conf",
+            "echo 'root soft nofile 1048576' | sudo tee -a /etc/security/limits.conf",
+            "echo 'root hard nofile 1048576' | sudo tee -a /etc/security/limits.conf",
+            // Set system-wide file descriptor limits
+            "echo 'fs.file-max = 2097152' | sudo tee -a /etc/sysctl.conf",
+            "sudo sysctl -p",
+            // Set limits for current session
+            "ulimit -n 1048576 || true",
+            // Create the working directory.
+            working_dir_cmd.as_str(),
+        ];
+
         // Collect all unique non-"stable" rust toolchains from build configs
         let toolchain_cmds: Vec<String> = if !use_precompiled_binaries {
+            // Clone the repo.
+            basic_commands.push(git_clone_cmd.as_str());
+
             self.settings
                 .build_configs
                 .values()
@@ -237,19 +261,6 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
         } else {
             vec![]
         };
-
-        let mut basic_commands = vec![
-            "sudo apt-get update",
-            "sudo apt-get -y upgrade",
-            "sudo apt-get -y autoremove",
-            // Disable "pending kernel upgrade" message.
-            "sudo apt-get -y remove needrestart",
-            "sudo apt-get -y install curl git ca-certificates",
-            // Create the working directory.
-            working_dir_cmd.as_str(),
-            // Clone the repo.
-            git_clone_cmd.as_str(),
-        ];
 
         if !use_precompiled_binaries {
             // If not using precompiled binaries, install rustup.
@@ -755,36 +766,52 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
             self.cleanup(true).await?;
             // Create benchmark directory.
             fs::create_dir_all(&benchmark_dir).expect("Failed to create benchmark directory");
-            // Start the instance monitoring tools.
-            self.start_monitoring(&parameters).await?;
 
-            // Configure all instances (if needed).
-            if !self.skip_testbed_configuration && latest_committee_size != parameters.nodes {
-                self.configure(&parameters).await?;
-                latest_committee_size = parameters.nodes;
+            // Initialize logger for this benchmark run
+            let log_file = benchmark_dir.join("logs.txt");
+            crate::logger::init_logger(&log_file).expect("Failed to initialize logger");
+
+            let benchmark_result = async {
+                // Start the instance monitoring tools.
+                self.start_monitoring(&parameters).await?;
+
+                // Configure all instances (if needed).
+                if !self.skip_testbed_configuration && latest_committee_size != parameters.nodes {
+                    self.configure(&parameters).await?;
+                    latest_committee_size = parameters.nodes;
+                }
+
+                // Deploy the validators.
+                self.run_nodes(&parameters).await?;
+
+                // Deploy the load generators.
+                self.run_clients(&parameters).await?;
+
+                // Wait for the benchmark to terminate. Then save the results and print a
+                // summary.
+                let aggregator = self.run(&benchmark_dir, &parameters).await?;
+                aggregator.display_summary();
+                generator.register_result(aggregator);
+                // drop(monitor);
+
+                // Kill the nodes and clients (without deleting the log files).
+                self.cleanup(false).await?;
+
+                // Download the log files.
+                if self.log_processing {
+                    let error_counter = self.download_logs(&benchmark_dir).await?;
+                    error_counter.print_summary();
+                }
+
+                TestbedResult::Ok(())
             }
+            .await;
 
-            // Deploy the validators.
-            self.run_nodes(&parameters).await?;
+            // Close the logger for this benchmark run
+            crate::logger::close_logger();
 
-            // Deploy the load generators.
-            self.run_clients(&parameters).await?;
-
-            // Wait for the benchmark to terminate. Then save the results and print a
-            // summary.
-            let aggregator = self.run(&benchmark_dir, &parameters).await?;
-            aggregator.display_summary();
-            generator.register_result(aggregator);
-            // drop(monitor);
-
-            // Kill the nodes and clients (without deleting the log files).
-            self.cleanup(false).await?;
-
-            // Download the log files.
-            if self.log_processing {
-                let error_counter = self.download_logs(&benchmark_dir).await?;
-                error_counter.print_summary();
-            }
+            // Propagate any error that occurred
+            benchmark_result?;
 
             i += 1;
         }

@@ -289,15 +289,14 @@ impl SshConnectionManager {
         I: IntoIterator<Item = (Instance, S)> + Clone,
         S: Into<String> + Send + 'static + Clone,
     {
-        loop {
-            sleep(Self::RETRY_DELAY).await;
-
-            if self
-                .execute_per_instance(instances.clone(), CommandContext::default().with_retries(5))
-                .await
-                .is_ok()
-            {
-                break;
+        match self
+            .execute_per_instance(instances.clone(), CommandContext::default().with_retries(5))
+            .await
+        {
+            Ok(_) => {}
+            Err(e) => {
+                // Handle failure case
+                panic!("Command execution failed on one or more instances: {e}");
             }
         }
     }
@@ -410,7 +409,7 @@ impl SshConnection {
         command: String,
     ) -> SshResult<(String, String)> {
         channel
-            .exec(true, command)
+            .exec(true, command.clone())
             .await
             .map_err(|e| self.make_session_error(e))?;
 
@@ -437,7 +436,8 @@ impl SshConnection {
             SshError::NonZeroExitCode {
                 address: self.address,
                 code: exit_code.unwrap(),
-                message: output_str
+                message: output_str,
+                command,
             }
         );
 
