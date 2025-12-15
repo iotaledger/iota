@@ -238,11 +238,12 @@ impl AwsClient {
 
     /// Return the command to mount the first (standard) NVMe drive.
     fn nvme_mount_command(&self) -> Vec<String> {
-        const DRIVE: &str = "nvme1n1";
         let directory = self.settings.working_dir.display();
         vec![
-            format!("(sudo mkfs.ext4 -E nodiscard /dev/{DRIVE} || true)"),
-            format!("(sudo mount /dev/{DRIVE} {directory} || true)"),
+            "export NVME_DRIVE=$(nvme list | awk '/NVMe Instance Storage/ {print $1; exit}')"
+                .to_string(),
+            "(sudo mkfs.ext4 -E nodiscard $NVME_DRIVE || true)".to_string(),
+            format!("(sudo mount $NVME_DRIVE {directory} || true)"),
             format!("sudo chmod 777 -R {directory}"),
         ]
     }

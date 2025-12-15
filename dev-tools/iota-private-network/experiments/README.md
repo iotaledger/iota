@@ -47,8 +47,8 @@ docker pull nicolaka/netshoot
 
 Supports the following flags:
 
-- `-n <NUM>`: number of validators (default: `4`; any number between `4` and `19` is supported)
-- `-p <protocol>`: consensus protocol (default: `mysticeti`; another option: `starfish`)
+- `-n <NUM>`: number of validators (default: `4`; any number between `4` and `30` is supported)
+- `-p <protocol>`: consensus protocol (default: `starfish`; another option: `mysticeti`)
 - `-b <true|false>`: rebuild Docker images before running (default: `true`)
 - `-g <true|false>`: enable geodistributed large network latencies (default: `false`)
 - `-s <SEED>`: seed for pseudorandom disruptions (default: `42`)
@@ -67,14 +67,14 @@ The script should be run from inside the `iota/dev-tools/iota-private-network/ex
 **Usage:**
 
 ```bash
-# Run default 4-validator Mysticeti network with small latencies without any additional disruptions
+# Run default 4-validator Starfish network with small latencies without any additional disruptions
 ./run-all-benchmark.sh
 
-# Run 10-validator Starfish network with large geodistributed latencies for one hour without rebuilding images
-./run-all-benchmark.sh -n 10 -p starfish -g true -b false
+# Run 10-validator Mysticeti network with large geodistributed latencies for one hour without rebuilding images
+./run-all-benchmark.sh -n 10 -p mysticeti -g true -b false
 
-# Run 19-validator Starfish network with geodistributed latencies, 10% blocked connections, 5% chances for packet loss, 10% for restarts and running for 2 hours
-./run-all-benchmark.sh -n 19 -p starfish -g true -x 10 -l 5 -r 10 -t 7200
+# Run 30-validator Starfish network with geodistributed latencies, 10% blocked connections, 5% chances for packet loss, 10% for restarts and running for 2 hours
+./run-all-benchmark.sh -n 30 -g true -x 10 -l 5 -r 10 -t 7200
 ```
 ---
 
@@ -86,10 +86,10 @@ It supports two types of spammer tools, by default the stress test from the iota
 ### With default spammer enabled:
 
 ```bash
-./run-all-benchmark.sh -n 4 -p mysticeti -S true -T 500
+./run-all-benchmark.sh -n 4 -S true -T 500
 ```
 
-This will load the default spammer with a TPS of 500.
+This will load the default spammer with a TPS of 500 using Starfish (default protocol).
 
 ### Required Setup for optional Spammer
 
@@ -112,6 +112,12 @@ The optional spammer allows a special transaction type, called `sizable`, and ca
 ```
 
 This will launch the spammer from the external repository with the configured transaction rate, TPS=100, and size, 10KiB.
+
+To use Mysticeti instead of Starfish, add `-p mysticeti`:
+
+```bash
+./run-all-benchmark.sh -n 4 -p mysticeti -S true -T 100 -Z 10KiB
+```
 
 ## Main Fuzz Script: `run-all-fuzz.sh`
 
@@ -150,7 +156,7 @@ Supported flags:
   Number of validators (default: `4`; supports `4`–`19`).
 
 - `-p <protocol>`\
-  Consensus protocol (default: `mysticeti`; other option: `starfish`).
+  Consensus protocol (default: `starfish`; other option: `mysticeti`).
 
 - `-b <true|false>`\
   Rebuild Docker images before running (default: `true`).
@@ -250,14 +256,14 @@ All drops installed by the fuzz script are tagged with\
 
 ## Examples
 
-### 1. Default 4-validator Mysticeti network, low latencies, no extra disruptions
+### 1. Default 4-validator Starfish network, low latencies, no extra disruptions
 
 ```
 ./run-all-fuzz.sh
 ```
 
 - 4 validators
-- protocol `mysticeti`
+- protocol `starfish` (default)
 - topology `false` → `geo-low` (low RTTs)
 - no blocked pairs, no packet loss, no restarts
 - no spammer
@@ -329,11 +335,11 @@ Two modes are supported:
 ### Enable default stress benchmark spammer
 
 ```
-./run-all-fuzz.sh -n 4 -p mysticeti -S true -T 500
+./run-all-fuzz.sh -n 4 -S true -T 500
 ```
 
 - Starts `faucet-1`.
-- Runs the stress benchmark with `target-qps = 500`.
+- Runs the stress benchmark with `target-qps = 500` using Starfish (default).
 - Writes spammer logs to `logs/spammer.log`.
 
 ### Enable `iota-spammer` (external repo)

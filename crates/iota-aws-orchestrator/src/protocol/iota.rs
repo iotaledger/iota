@@ -59,6 +59,7 @@ pub struct IotaProtocol {
     use_fullnode_for_execution: bool,
     use_precompiled_binaries: bool,
     build_configs: HashMap<String, BinaryBuildConfig>,
+    enable_flamegraph: bool,
 }
 
 impl IotaProtocol {
@@ -71,6 +72,7 @@ impl IotaProtocol {
             use_fullnode_for_execution: settings.use_fullnode_for_execution,
             use_precompiled_binaries: settings.build_cache_enabled(),
             build_configs: settings.build_configs.clone(),
+            enable_flamegraph: settings.enable_flamegraph,
         }
     }
 
@@ -170,7 +172,7 @@ impl ProtocolCommands<IotaBenchmarkType> for IotaProtocol {
             &[&format!("mkdir -p {working_dir}")],
             &[
                 "genesis",
-                &format!("-f --working-dir {working_dir} --benchmark-ips {ips}"),
+                &format!("-f --working-dir {working_dir} --benchmark-ips {ips} --admin-interface-address=localhost:1337"),
                 &epoch_duration_flag,
                 &chain_start_timestamp_flag,
             ],
@@ -227,6 +229,11 @@ impl ProtocolCommands<IotaBenchmarkType> for IotaProtocol {
                             }
                         },
                         format!("export MAX_PIPELINE_DELAY={max_pipeline_delay}").as_str(),
+                        if self.enable_flamegraph {
+                            "export TRACE_FLAMEGRAPH=1"
+                        } else {
+                            ""
+                        },
                     ],
                     &[&format!(
                         "--config-path {} --listen-address {}",
@@ -269,11 +276,16 @@ impl ProtocolCommands<IotaBenchmarkType> for IotaProtocol {
                     &[
                         // Overwrite listen address and external address with 0.0.0.0 and actual fullnode IP.
                         // Escape quotes for proper handling inside tmux wrapper
-                        &format!(
+                        format!(
                             "sed -i 's|listen-address: \\\"127.0.0.1:|listen-address: \\\"0.0.0.0:|' {0} && sed -i 's|external-address: /ip4/127.0.0.1/|external-address: /ip4/{1}/|' {0}",
                             config_path.display(),
                             fullnode_ip
-                        )
+                        ),
+                        if self.enable_flamegraph {
+                            "export TRACE_FLAMEGRAPH=1".to_string()
+                        } else {
+                            "".to_string()
+                        },
                     ],
                     &[&format!("--config-path {}", config_path.display())],
                 );

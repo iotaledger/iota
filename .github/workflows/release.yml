@@ -275,8 +275,8 @@ jobs:
     name: Update the homebrew-tap formula
     needs: release-build
     runs-on: ubuntu-latest
-    # releasing iota cli on testnet releases because it lags `develop` less than mainnet, but is more likely to be stable than devnet
-    if: ${{ github.event_name == 'release' && contains(github.ref, '-rc') }}
+    # Releasing iota cli on Testnet and Mainnet releases which are equally stable
+    if: ${{ github.event_name == 'release' && !contains(github.ref, '-alpha') && !contains(github.ref, '-beta')}}
     steps:
       - name: Install Homebrew
         run: |

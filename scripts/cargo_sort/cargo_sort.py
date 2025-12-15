@@ -347,7 +347,9 @@ if __name__ == '__main__':
     internal_crates_dict = get_package_names_from_cargo_tomls(args.target)
     
     # add special cases
-    internal_crates_dict["iota-rust-sdk"] = None
+    internal_crates_dict["iota-sdk-types"] = None
+    internal_crates_dict["iota-sdk-transaction-builder"] = None
+    internal_crates_dict["iota-flamegraph-svg"] = None
 
     # ignored folders
     ignored_folders = []

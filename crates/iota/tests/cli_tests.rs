@@ -362,6 +362,7 @@ async fn test_genesis() -> Result<(), anyhow::Error> {
         remote_migration_snapshots: vec![],
         delegator: None,
         chain_start_timestamp_ms: None,
+        admin_interface_address: None,
     }
     .execute()
     .await?;
@@ -405,6 +406,7 @@ async fn test_genesis() -> Result<(), anyhow::Error> {
         remote_migration_snapshots: vec![],
         delegator: None,
         chain_start_timestamp_ms: None,
+        admin_interface_address: None,
     }
     .execute()
     .await;

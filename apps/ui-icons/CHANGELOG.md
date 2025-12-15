@@ -1,5 +1,11 @@
 # @iota/apps-ui-icons
 
+## 0.7.0
+
+### Minor Changes
+
+-   ae1385d: Update dependencies.
+
 ## 0.6.0
 
 ### Minor Changes

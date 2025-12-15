@@ -120,6 +120,72 @@ scrape_configs:
         labels:
           host: validator-19
           network: local
+  - job_name: "Validator_20"
+    static_configs:
+      - targets: ["validator-20:9184"]
+        labels:
+          host: validator-20
+          network: local
+  - job_name: "Validator_21"
+    static_configs:
+      - targets: ["validator-21:9184"]
+        labels:
+          host: validator-21
+          network: local
+  - job_name: "Validator_22"
+    static_configs:
+      - targets: ["validator-22:9184"]
+        labels:
+          host: validator-22
+          network: local
+  - job_name: "Validator_23"
+    static_configs:
+      - targets: ["validator-23:9184"]
+        labels:
+          host: validator-23
+          network: local
+  - job_name: "Validator_24"
+    static_configs:
+      - targets: ["validator-24:9184"]
+        labels:
+          host: validator-24
+          network: local
+  - job_name: "Validator_25"
+    static_configs:
+      - targets: ["validator-25:9184"]
+        labels:
+          host: validator-25
+          network: local
+  - job_name: "Validator_26"
+    static_configs:
+      - targets: ["validator-26:9184"]
+        labels:
+          host: validator-26
+          network: local
+  - job_name: "Validator_27"
+    static_configs:
+      - targets: ["validator-27:9184"]
+        labels:
+          host: validator-27
+          network: local
+  - job_name: "Validator_28"
+    static_configs:
+      - targets: ["validator-28:9184"]
+        labels:
+          host: validator-28
+          network: local
+  - job_name: "Validator_29"
+    static_configs:
+      - targets: ["validator-29:9184"]
+        labels:
+          host: validator-29
+          network: local
+  - job_name: "Validator_30"
+    static_configs:
+      - targets: ["validator-30:9184"]
+        labels:
+          host: validator-30
+          network: local
   - job_name: "Fullnode_1"
     static_configs:
       - targets: ["fullnode-1:9184"]
