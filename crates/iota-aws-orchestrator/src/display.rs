@@ -14,31 +14,28 @@ use crossterm::{
 };
 use prettytable::format::{self};
 
+use crate::logger;
+
 pub fn header<S: Display>(message: S) {
-    crossterm::execute!(
-        stdout(),
-        PrintStyledContent(format!("\n{message}\n").green().bold()),
-    )
-    .unwrap();
+    let msg = format!("\n{message}\n");
+    logger::log(&msg);
+    crossterm::execute!(stdout(), PrintStyledContent(msg.green().bold()),).unwrap();
 }
 
 pub fn error<S: Display>(message: S) {
-    crossterm::execute!(
-        stdout(),
-        PrintStyledContent(format!("\n{message}\n").red().bold()),
-    )
-    .unwrap();
+    let msg = format!("\n{message}\n");
+    logger::log(&msg);
+    crossterm::execute!(stdout(), PrintStyledContent(msg.red().bold()),).unwrap();
 }
 
 pub fn warn<S: Display>(message: S) {
-    crossterm::execute!(
-        stdout(),
-        PrintStyledContent(format!("\n{message}\n").bold()),
-    )
-    .unwrap();
+    let msg = format!("\n{message}\n");
+    logger::log(&msg);
+    crossterm::execute!(stdout(), PrintStyledContent(msg.bold()),).unwrap();
 }
 
 pub fn config<N: Display, V: Display>(name: N, value: V) {
+    logger::log(&format!("{name}: {value}\n"));
     crossterm::execute!(
         stdout(),
         PrintStyledContent(format!("{name}: ").bold()),
@@ -71,21 +68,26 @@ pub fn confirm<S: Display>(message: S) -> bool {
 }
 
 pub fn action<S: Display>(message: S) {
-    crossterm::execute!(stdout(), Print(format!("{message} ... ")), SavePosition).unwrap();
+    let msg: String = format!("{message} ... ");
+    logger::log(&msg);
+    crossterm::execute!(stdout(), Print(&msg), SavePosition).unwrap();
 }
 
 pub fn status<S: Display>(status: S) {
+    let msg = format!("[{status}]");
+    logger::log(&msg);
     crossterm::execute!(
         stdout(),
         RestorePosition,
         SavePosition,
         Clear(ClearType::UntilNewLine),
-        Print(format!("[{status}]"))
+        Print(&msg)
     )
     .unwrap();
 }
 
 pub fn done() {
+    logger::log("[Ok]\n");
     crossterm::execute!(
         stdout(),
         RestorePosition,
@@ -96,6 +98,7 @@ pub fn done() {
 }
 
 pub fn newline() {
+    logger::log("\n");
     crossterm::execute!(stdout(), Print("\n")).unwrap();
 }
 

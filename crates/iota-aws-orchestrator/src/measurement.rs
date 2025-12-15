@@ -402,6 +402,11 @@ impl<T: BenchmarkType> MeasurementsCollection<T> {
 
         display::newline();
         table.printstd();
+
+        // Also log the table to file
+        let table_string = format!("{}", table);
+        crate::logger::log(&table_string);
+
         display::newline();
     }
 

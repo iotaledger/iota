@@ -6,7 +6,7 @@
 import { GrowthBookProvider } from '@growthbook/growthbook-react';
 import { IotaClientProvider, lightTheme, darkTheme, WalletProvider } from '@iota/dapp-kit';
 import { getAllNetworks, getDefaultNetwork, getNetwork } from '@iota/iota-sdk/client';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { MutationCache, QueryCache, QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
 import { useState } from 'react';
 import { CookieManagerProvider } from '@boxfish-studio/react-cookie-manager';
@@ -22,12 +22,27 @@ import {
 import { growthbook } from '@/lib/utils';
 import { ThemeProvider } from '@iota/core';
 import { createIotaClient } from '@/lib/utils/defaultRpcClient';
+import { captureException } from '@/instrumentation';
 import { CookieDisclaimer } from '@/components/disclaimer/CookieDisclaimer';
 
 growthbook.init();
 
 export function AppProviders({ children }: React.PropsWithChildren) {
-    const [queryClient] = useState(() => new QueryClient());
+    const [queryClient] = useState(
+        () =>
+            new QueryClient({
+                queryCache: new QueryCache({
+                    onError: (error) => {
+                        captureException(error);
+                    },
+                }),
+                mutationCache: new MutationCache({
+                    onError: (error) => {
+                        captureException(error);
+                    },
+                }),
+            }),
+    );
     const allNetworks = getAllNetworks();
     const defaultNetworkId = getDefaultNetwork();
     const [persistedNetworkId] = useLocalStorage<string>(
