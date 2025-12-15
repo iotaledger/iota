@@ -588,7 +588,7 @@ impl Loader<DigestKey> for Db {
                 if let Some(optimistic) = transaction_digest_to_optimistic.get(digest_bytes) {
                     let tx_block = TransactionBlock {
                         inner: TransactionBlockInner::try_from(optimistic.clone())?,
-                        checkpoint_viewed_at: u64::MAX,
+                        checkpoint_viewed_at: UNAVAILABLE_CHECKPOINT_SEQUENCE_NUMBER,
                     };
                     results.insert(*key, tx_block);
                 }
