@@ -39,7 +39,7 @@ public struct AuthenticatorInfoV1<phantom Account: key> has copy, drop, store {
 /// even if package A does not have a dependency on package B.
 /// In fact package A may have a dependency on package B version 1, but can still refer to an `authenticate`
 /// function defined in package B version 2.
-/// Refiring to an `authenticate` function with `create_auth_info_v1` is a strictly runtime dependency and
+/// Referring to an `authenticate` function with `create_auth_info_v1` is a strictly runtime dependency and
 /// it does not collide with any compile time restrictions.
 ///
 /// This function cannot be used in `move unit tests` as there is no mechanism to refer to the package being tested.
@@ -141,18 +141,21 @@ fun attach_auth_info_v1<Account: key>(
 }
 
 /// Borrow the account `UID` mutably.
-/// This function must be called only from the functions protected by the IOTA Move bytecode verifier
-/// from being called outside the `Account` module.
+///
+/// IMPORTANT: This function is allowed to be called only by the functions that the IOTA Move bytecode verifier
+/// prevents from being invoked outside the module where `Account` is declared.
 native fun borrow_account_uid_mut<Account: key>(account: &mut Account): &mut UID;
 
 /// Turn `account` into a mutable shared object.
-/// This function must be called only from the functions protected by the IOTA Move bytecode verifier
-/// from being called outside the `Account` module.
+///
+/// IMPORTANT: This function is allowed to be called only by the functions that the IOTA Move bytecode verifier
+/// prevents from being invoked outside the module where `Account` is declared.
 native fun create_account_v1_impl<Account: key>(account: Account);
 
 /// Turn `account` into an immutable object.
-/// This function must be called only from the functions protected by the IOTA Move bytecode verifier
-/// from being called outside the `Account` module.
+///
+/// IMPORTANT: This function is allowed to be called only by the functions that the IOTA Move bytecode verifier
+/// prevents from being invoked outside the module where `Account` is declared.
 native fun create_immutable_account_v1_impl<Account: key>(account: Account);
 
 /// Create an `AuthenticatorInfoV1` instance for testing, skipping validation.
