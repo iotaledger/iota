@@ -288,6 +288,11 @@ pub enum IotaCommand {
             default_value_t = DEFAULT_COMMITTEE_SIZE
         )]
         committee_size: usize,
+        #[arg(
+            long,
+            help = "Number of additional gas accounts to create for benchmarks (use for dedicated clients)"
+        )]
+        num_additional_gas_accounts: Option<usize>,
         /// The path to local migration snapshot files
         #[arg(long, name = "path", num_args(0..))]
         local_migration_snapshots: Vec<PathBuf>,
@@ -445,6 +450,7 @@ impl IotaCommand {
                 benchmark_ips,
                 with_faucet,
                 committee_size,
+                num_additional_gas_accounts,
                 local_migration_snapshots: with_local_migration_snapshot,
                 remote_migration_snapshots: with_remote_migration_snapshot,
                 delegator,
@@ -460,6 +466,7 @@ impl IotaCommand {
                     benchmark_ips,
                     with_faucet,
                     committee_size,
+                    num_additional_gas_accounts,
                     with_local_migration_snapshot,
                     with_remote_migration_snapshot,
                     delegator,
@@ -757,6 +764,7 @@ async fn start(
                 None,
                 false,
                 committee_size.unwrap_or(DEFAULT_COMMITTEE_SIZE),
+                None,
                 local_migration_snapshots,
                 remote_migration_snapshots,
                 delegator,
@@ -1027,6 +1035,7 @@ async fn genesis(
     benchmark_ips: Option<Vec<String>>,
     with_faucet: bool,
     committee_size: usize,
+    num_additional_gas_accounts: Option<usize>,
     local_migration_snapshots: Vec<PathBuf>,
     remote_migration_snapshots: Vec<SnapshotUrl>,
     delegator: Option<IotaAddress>,
@@ -1107,14 +1116,21 @@ async fn genesis(
                 // Make a keystore containing the key for the genesis gas object.
                 let path = iota_config_dir.join(IOTA_BENCHMARK_GENESIS_GAS_KEYSTORE_FILENAME);
                 let mut keystore = FileBasedKeystore::new(&path)?;
-                for gas_key in GenesisConfig::benchmark_gas_keys(ips.len()) {
+                for gas_key in GenesisConfig::benchmark_gas_keys(
+                    ips.len() + num_additional_gas_accounts.unwrap_or(0),
+                ) {
                     keystore.add_key(None, gas_key)?;
                 }
                 keystore.save()?;
 
                 // Make a new genesis config from the provided ip addresses with given epoch
                 // duration and timestamp.
-                GenesisConfig::new_for_benchmarks(&ips, epoch_duration_ms, chain_start_timestamp_ms)
+                GenesisConfig::new_for_benchmarks(
+                    &ips,
+                    epoch_duration_ms,
+                    chain_start_timestamp_ms,
+                    num_additional_gas_accounts,
+                )
             } else if keystore_path.exists() {
                 let existing_keys = FileBasedKeystore::new(&keystore_path)?.addresses();
                 GenesisConfig::for_local_testing_with_addresses(existing_keys)
