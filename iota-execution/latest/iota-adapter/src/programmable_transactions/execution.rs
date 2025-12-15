@@ -40,7 +40,10 @@ mod checked {
     };
     use iota_verifier::{
         INIT_FN_NAME,
-        private_generics::{EVENT_MODULE, PRIVATE_TRANSFER_FUNCTIONS, TRANSFER_MODULE},
+        private_generics::{
+            ACCOUNT_MODULE, EVENT_MODULE, PRIVATE_ACCOUNT_FUNCTIONS, PRIVATE_TRANSFER_FUNCTIONS,
+            TRANSFER_MODULE,
+        },
     };
     use move_binary_format::{
         CompiledModule,
@@ -1464,6 +1467,16 @@ mod checked {
                 "Cannot directly call iota::{TRANSFER_MODULE}::{function}. \
                 Use the public variant instead, iota::{TRANSFER_MODULE}::public_{function}"
             );
+            return Err(ExecutionError::new_with_source(
+                ExecutionErrorKind::NonEntryFunctionInvoked,
+                msg,
+            ));
+        }
+
+        if module_ident == (&IOTA_FRAMEWORK_ADDRESS, ACCOUNT_MODULE)
+            && PRIVATE_ACCOUNT_FUNCTIONS.contains(&function)
+        {
+            let msg = format!("Cannot directly call iota::{ACCOUNT_MODULE}::{function}.");
             return Err(ExecutionError::new_with_source(
                 ExecutionErrorKind::NonEntryFunctionInvoked,
                 msg,

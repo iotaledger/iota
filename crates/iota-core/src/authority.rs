@@ -893,7 +893,7 @@ impl AuthorityState {
         iota_transaction_checks::deny::check_transaction_for_signing(
             tx_data,
             transaction.tx_signatures(),
-            &tx_data.input_objects()?,
+            &transaction.input_objects()?,
             &tx_data.receiving_objects(),
             &self.config.transaction_deny_config,
             self.get_backing_package_store().as_ref(),
@@ -932,6 +932,7 @@ impl AuthorityState {
             tx_data.sender(),
             &tx_checked_input_objects,
             &tx_receiving_objects,
+            &auth_checked_input_objects,
             &self.get_object_store(),
         )?;
 
