@@ -12,7 +12,6 @@ type OnSuccessCallback = () => void | Promise<void>;
 
 interface UnlockAccountContextType {
     isUnlockModalOpen: boolean;
-    accountToUnlock: SerializedUIAccount | null;
     unlockAccount: (account: SerializedUIAccount, onSuccessCallback?: OnSuccessCallback) => void;
     lockAccount: (account: SerializedUIAccount) => void;
     isPending: boolean;
@@ -27,13 +26,11 @@ interface UnlockAccountProviderProps {
 
 export function UnlockAccountProvider({ children }: UnlockAccountProviderProps) {
     const [isUnlockModalOpen, setIsUnlockModalOpen] = useState(false);
-    const [accountToUnlock, setAccountToUnlock] = useState<SerializedUIAccount | null>(null);
     const onSuccessCallbackRef = useRef<OnSuccessCallback | undefined>();
     const unlockAccountMutation = useUnlockMutation();
     const backgroundClient = useBackgroundClient();
     const hideUnlockModal = useCallback(() => {
         setIsUnlockModalOpen(false);
-        setAccountToUnlock(null);
         onSuccessCallbackRef.current && onSuccessCallbackRef.current();
     }, []);
 
@@ -43,20 +40,9 @@ export function UnlockAccountProvider({ children }: UnlockAccountProviderProps) 
                 if (account.isPasswordUnlockable) {
                     // for password-unlockable accounts, show the unlock modal
                     setIsUnlockModalOpen(true);
-                    setAccountToUnlock(account);
 
                     if (onSuccessCallback) {
                         onSuccessCallbackRef.current = onSuccessCallback;
-                    }
-                } else {
-                    try {
-                        // for non-password-unlockable accounts, unlock directly
-                        setAccountToUnlock(account);
-                        await unlockAccountMutation.mutateAsync({ id: account.id });
-                        setAccountToUnlock(null);
-                        toast('Account unlocked');
-                    } catch (e) {
-                        toast.error((e as Error).message || 'Failed to unlock account');
                     }
                 }
             }
@@ -67,7 +53,7 @@ export function UnlockAccountProvider({ children }: UnlockAccountProviderProps) 
     const lockAccount = useCallback(
         async (account: SerializedUIAccount) => {
             try {
-                await backgroundClient.lockAccountSourceOrAccount({ id: account.id });
+                await backgroundClient.lockAllAccounts({ id: account.id });
                 toast('Account locked');
             } catch (e) {
                 toast.error((e as Error).message || 'Failed to lock account');
@@ -80,7 +66,6 @@ export function UnlockAccountProvider({ children }: UnlockAccountProviderProps) 
         <UnlockAccountContext.Provider
             value={{
                 isUnlockModalOpen,
-                accountToUnlock,
                 unlockAccount,
                 hideUnlockModal,
                 lockAccount,
@@ -91,7 +76,6 @@ export function UnlockAccountProvider({ children }: UnlockAccountProviderProps) 
             <UnlockAccountModal
                 onClose={hideUnlockModal}
                 onSuccess={hideUnlockModal}
-                account={accountToUnlock}
                 open={isUnlockModalOpen}
             />
         </UnlockAccountContext.Provider>

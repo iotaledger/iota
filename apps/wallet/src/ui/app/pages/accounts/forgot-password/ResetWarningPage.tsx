@@ -12,12 +12,15 @@ import { Button, ButtonHtmlType } from '@iota/apps-ui-kit';
 export function ResetWarningPage() {
     const navigate = useNavigate();
     const accountGroups = useAccountGroups();
+    console.log({ accountGroups });
     const { value } = useForgotPasswordContext();
     const accountGroupsToRemove = Object.entries(accountGroups).flatMap(([groupType, aGroup]) =>
         Object.entries(aGroup).filter(
             ([sourceID]) => !value.find(({ accountSourceID }) => accountSourceID === sourceID),
         ),
     );
+
+    console.log(accountGroupsToRemove);
     const { isPending } = useAccounts();
     if (!value.length) {
         return <Navigate to="/accounts/forgot-password" replace />;
@@ -42,17 +45,17 @@ export function ResetWarningPage() {
             showBackButton
         >
             <div className="flex h-full flex-col gap-lg overflow-auto">
-                <span className="text-center text-label-lg text-iota-neutral-40 dark:text-iota-neutral-60">
+                <span className="dark:text-iota-neutral-60 text-center text-label-lg text-iota-neutral-40">
                     To protect the security of your wallet, the accounts listed will be deleted as
                     part of the password reset procedure. Please reconnect or reimport them once the
                     process is complete.
                 </span>
                 <div className="flex w-full flex-1 flex-col gap-lg overflow-auto">
-                    {accountGroupsToRemove.map(([sourceID, accounts]) => (
+                    {accountGroupsToRemove.map(([sourceID, account]) => (
                         <RecoverAccountsGroup
                             key={sourceID}
-                            accounts={accounts}
-                            title={getGroupTitle(accounts[0])}
+                            accounts={account.accounts}
+                            title={''}
                         />
                     ))}
                 </div>

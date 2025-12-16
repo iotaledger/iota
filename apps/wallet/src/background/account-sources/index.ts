@@ -15,6 +15,7 @@ import { MnemonicAccountSource } from './mnemonicAccountSource';
 import { SeedAccountSource } from './seedAccountSource';
 import { toEntropy } from '_src/shared/utils';
 import { KeystoneAccountSource } from './keystoneAccountSource';
+import { lockAllAccounts, unlockAllAccountsAndAccountSources } from '../accounts';
 
 function toAccountSource(accountSource: AccountSourceSerialized) {
     if (MnemonicAccountSource.isOfType(accountSource)) {
@@ -112,25 +113,15 @@ export async function accountSourcesHandleUIMessage(msg: Message, uiConnection: 
         return true;
     }
 
-    if (isMethodPayload(payload, 'unlockAccountSourceOrAccount')) {
-        const { id, password } = payload.args;
-        const accountSource = await getAccountSourceByID(id);
-        if (accountSource) {
-            if (!password) {
-                throw new Error('Missing password');
-            }
-            await accountSource.unlock(password);
-            uiConnection.send(createMessage({ type: 'done' }, msg.id));
-            return true;
-        }
+    if (isMethodPayload(payload, 'unlockAllAccounts')) {
+        const { password } = payload.args;
+        await unlockAllAccountsAndAccountSources(password);
+        uiConnection.send(createMessage({ type: 'done' }, msg.id));
+        return true;
     }
-    if (isMethodPayload(payload, 'lockAccountSourceOrAccount')) {
-        const accountSource = await getAccountSourceByID(payload.args.id);
-        if (accountSource) {
-            await accountSource.lock();
-            uiConnection.send(createMessage({ type: 'done' }, msg.id));
-            return true;
-        }
+    if (isMethodPayload(payload, 'lockAllAccounts')) {
+        await lockAllAccountSources();
+        await lockAllAccounts();
     }
     if (isMethodPayload(payload, 'getAccountSourceEntropy')) {
         const accountSource = await getAccountSourceByID(payload.args.accountSourceID);

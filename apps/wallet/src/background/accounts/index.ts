@@ -10,7 +10,7 @@ import {
 import { type WalletStatusChange } from '_src/shared/messaging/messages/payloads/wallet-status-change';
 import { fromBase64 } from '@iota/iota-sdk/utils';
 import Dexie from 'dexie';
-import { getAccountSourceByID } from '../account-sources';
+import { getAccountSourceByID, getAccountSources, lockAllAccountSources } from '../account-sources';
 import { accountSourcesEvents } from '../account-sources/events';
 import { MnemonicAccountSource } from '../account-sources/mnemonicAccountSource';
 import { SeedAccountSource } from '../account-sources/seedAccountSource';
@@ -161,6 +161,16 @@ export async function lockAllAccounts() {
     }
 }
 
+export async function unlockAllAccountsAndAccountSources(password: string) {
+    const accounts = await getAllAccounts();
+    const accountSources = await getAccountSources();
+    for (const account of [...accounts, ...accountSources]) {
+        if (isPasswordUnLockable(account)) {
+            await account.passwordUnlock(password);
+        }
+    }
+}
+
 interface LockedState {
     failedAttempts: number;
     lastFailedAttemptTime: number | null;
@@ -204,13 +214,11 @@ async function clearStateAfterManyFailedAttempts() {
 
 export async function accountsHandleUIMessage(msg: Message, uiConnection: UiConnection) {
     const { payload } = msg;
-    if (isMethodPayload(payload, 'lockAccountSourceOrAccount')) {
-        const account = await getAccountByID(payload.args.id);
-        if (account) {
-            await account.lock();
-            await uiConnection.send(createMessage({ type: 'done' }, msg.id));
-            return true;
-        }
+    if (isMethodPayload(payload, 'lockAllAccounts')) {
+        await lockAllAccounts();
+        await lockAllAccountSources();
+        uiConnection.send(createMessage({ type: 'done' }, msg.id));
+        return true;
     }
     if (isMethodPayload(payload, 'setAccountNickname')) {
         const { id, nickname } = payload.args;
@@ -221,16 +229,11 @@ export async function accountsHandleUIMessage(msg: Message, uiConnection: UiConn
             return true;
         }
     }
-    if (isMethodPayload(payload, 'unlockAccountSourceOrAccount')) {
-        const { id, password } = payload.args;
-        const account = await getAccountByID(id);
-        if (account) {
-            if (isPasswordUnLockable(account)) {
-                await account.passwordUnlock(password);
-            }
-            await uiConnection.send(createMessage({ type: 'done' }, msg.id));
-            return true;
-        }
+    if (isMethodPayload(payload, 'unlockAllAccounts')) {
+        const { password } = payload.args;
+        await unlockAllAccountsAndAccountSources(password);
+        uiConnection.send(createMessage({ type: 'done' }, msg.id));
+        return true;
     }
     if (isMethodPayload(payload, 'signData')) {
         const { id, data } = payload.args;

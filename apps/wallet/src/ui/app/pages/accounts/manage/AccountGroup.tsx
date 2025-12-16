@@ -154,13 +154,13 @@ export function AccountGroup({
                         <div className="flex items-center gap-1">
                             <TriangleDown
                                 className={clsx(
-                                    'h-5 w-5 text-iota-neutral-10 dark:text-iota-neutral-40',
+                                    'dark:text-iota-neutral-40 h-5 w-5 text-iota-neutral-10',
                                     isOpen
                                         ? 'rotate-0 transition-transform ease-linear'
                                         : '-rotate-90 transition-transform ease-linear',
                                 )}
                             />
-                            <div className="text-title-md text-iota-neutral-10 dark:text-iota-neutral-92">
+                            <div className="dark:text-iota-neutral-92 text-title-md text-iota-neutral-10">
                                 {getGroupTitle(accounts[0])}
                             </div>
                         </div>
@@ -178,7 +178,7 @@ export function AccountGroup({
                                     type={ButtonType.Ghost}
                                     onClick={handleAdd}
                                     icon={
-                                        <Add className="h-5 w-5 text-iota-neutral-10 dark:text-iota-neutral-92" />
+                                        <Add className="dark:text-iota-neutral-92 h-5 w-5 text-iota-neutral-10" />
                                     }
                                 />
                             ) : null}
@@ -192,7 +192,7 @@ export function AccountGroup({
                                             setDropdownOpen(true);
                                         }}
                                         icon={
-                                            <MoreHoriz className="h-5 w-5 text-iota-neutral-10 dark:text-iota-neutral-92" />
+                                            <MoreHoriz className="dark:text-iota-neutral-92 h-5 w-5 text-iota-neutral-10" />
                                         }
                                     />
                                 </div>
@@ -211,7 +211,7 @@ export function AccountGroup({
                                     hideArrow
                                     hideBorder
                                     render={({ isOpen }) => (
-                                        <div className="flex w-full items-center gap-x-md p-sm text-iota-neutral-40 dark:text-iota-neutral-60">
+                                        <div className="dark:text-iota-neutral-60 flex w-full items-center gap-x-md p-sm text-iota-neutral-40">
                                             <div className="shrink-0 text-title-sm">
                                                 From {walletName}
                                             </div>
@@ -260,7 +260,7 @@ export function AccountGroup({
                 )}
             </Collapsible>
             <div
-                className={`absolute right-3 top-3 z-[100] rounded-lg bg-iota-neutral-100 shadow-md dark:bg-iota-neutral-6 ${isDropdownOpen ? '' : 'hidden'}`}
+                className={`dark:bg-iota-neutral-6 absolute right-3 top-3 z-[100] rounded-lg bg-iota-neutral-100 shadow-md ${isDropdownOpen ? '' : 'hidden'}`}
             >
                 <OutsideClickHandler onOutsideClick={() => setDropdownOpen(false)}>
                     <Dropdown>
