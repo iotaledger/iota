@@ -805,18 +805,18 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
                 generator.register_result(aggregator);
                 // drop(monitor);
 
-                // Kill the nodes and clients (without deleting the log files).
-                self.cleanup(false).await?;
-
-                // Download the log files.
-                if self.log_processing {
-                    let error_counter = self.download_logs(&benchmark_dir).await?;
-                    error_counter.print_summary();
-                }
-
                 TestbedResult::Ok(())
             }
             .await;
+
+            // Kill the nodes and clients (without deleting the log files).
+            self.cleanup(false).await?;
+
+            // Download the log files.
+            if self.log_processing {
+                let error_counter = self.download_logs(&benchmark_dir).await?;
+                error_counter.print_summary();
+            }
 
             // Close the logger for this benchmark run
             crate::logger::close_logger();
