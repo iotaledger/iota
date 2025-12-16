@@ -21,9 +21,9 @@
         "test:watch": "vitest"
     },
     "dependencies": {
-        "@amplitude/analytics-client-common": "^0.7.0",
-        "@amplitude/analytics-core": "^0.13.3",
-        "@amplitude/analytics-types": "^0.20.0",
+        "@amplitude/analytics-client-common": "^2.4.17",
+        "@amplitude/analytics-core": "^2.34.0",
+        "@amplitude/analytics-types": "^2.11.0",
         "@growthbook/growthbook-react": "^1.0.0",
         "@hookform/resolvers": "^3.9.0",
         "@iota/apps-ui-icons": "workspace:*",
