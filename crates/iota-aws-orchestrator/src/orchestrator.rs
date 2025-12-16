@@ -592,15 +592,25 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
                     let elapsed = now.duration_since(start).as_secs_f64().ceil() as u64;
                     display::status(format!("{elapsed}s"));
 
-                    let stdio = self
+                    let result = self
                         .ssh_manager
-                        .execute_per_instance(metrics_commands.clone(), CommandContext::default())
-                        .await?;
-                    for (i, (stdout, _stderr)) in stdio.iter().enumerate() {
-                        display::action(format!("Processing metrics from client {}\n", i));
-                        let measurement = Measurement::from_prometheus::<P>(stdout);
-                        aggregator.add(i, measurement);
-                    }
+                        .execute_per_instance_with_results(metrics_commands.clone(), CommandContext::default())
+                        .await;
+
+                    result.iter()
+                        .enumerate()
+                        .for_each(|(i, res)| {
+                            match res {
+                                Ok((stdout, _stderr)) => {
+                                    display::action(format!("Processing metrics from client {}\n", i));
+                                    let measurement = Measurement::from_prometheus::<P>(stdout);
+                                    aggregator.add(i, measurement);
+                                },
+                                Err(e) => {
+                                    display::warn(format!("Failed to scrape metrics from client {i}: {e}"));
+                                }
+                            }
+                        });
 
                     if elapsed > parameters.duration .as_secs() {
                         break;

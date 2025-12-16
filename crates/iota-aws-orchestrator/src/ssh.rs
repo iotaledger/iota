@@ -202,6 +202,26 @@ impl SshConnectionManager {
             .collect::<SshResult<_>>()
     }
 
+    /// Execute the ssh command associated with each instance and return every
+    /// individual result.
+    pub async fn execute_per_instance_with_results<I, S>(
+        &self,
+        instances: I,
+        context: CommandContext,
+    ) -> Vec<SshResult<(String, String)>>
+    where
+        I: IntoIterator<Item = (Instance, S)>,
+        S: Into<String> + Send + 'static,
+    {
+        let handles = self.run_per_instance(instances, context).await;
+
+        try_join_all(handles)
+            .await
+            .unwrap()
+            .into_iter()
+            .collect::<Vec<_>>()
+    }
+
     async fn run_per_instance<I, S>(
         &self,
         instances: I,
