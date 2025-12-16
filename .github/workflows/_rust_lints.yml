@@ -52,12 +52,12 @@ jobs:
       - name: Check Cargo.toml format and sorting
         run: |
           pushd "scripts/cargo_sort"
-          ./run.sh --skip-dprint
+          ./run_ci.sh --skip-dprint
           popd
       - name: Check Cargo.toml diffs after formatting
         run: |
           if git status --porcelain | grep -q "Cargo.toml"; then
-            echo "Cargo.toml files not formatted and/or sorted properly! Please run the 'scripts/cargo_sort/run.sh' script."
+            echo "Cargo.toml files not formatted and/or sorted properly! Please run the 'scripts/cargo_sort/run_ci.sh' script."
             git diff  # Show the actual diffs
             exit 1    # Fail the workflow
           fi
