@@ -714,6 +714,14 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
             display::status(format!("{}/{}", i + 1, self.client_instances.len()));
 
             let connection = self.ssh_manager.connect(instance.ssh_address()).await?;
+
+            if self.settings.use_fullnode_for_execution {
+                let fullnode_log_content = connection.download("fullnode.log").await?;
+                let fullnode_log_file = path.join(format!("fullnode-{i}.log"));
+                fs::write(fullnode_log_file, fullnode_log_content.as_bytes())
+                    .expect("Cannot write log file");
+            }
+
             let client_log_content = connection.download("client.log").await?;
 
             let client_log_file = path.join(format!("client-{i}.log"));
