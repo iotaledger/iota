@@ -721,8 +721,9 @@ impl IndexerReader {
                 .into_iter()
                 .map(|tx| tx.transaction_digest)
                 .collect::<HashSet<_>>();
-            let num_indexed =
-                self.count_indexed_tx_global_orders(optimistic_digests.into_iter())?;
+            let num_indexed = self
+                .count_indexed_tx_global_orders_in_blocking_task(optimistic_digests.into_iter())
+                .await?;
             if num_indexed as usize != num_optimistic {
                 return Ok(false);
             }
@@ -763,12 +764,10 @@ impl IndexerReader {
 
     pub(crate) async fn count_indexed_tx_global_orders_in_blocking_task(
         &self,
-        digests: HashSet<TransactionDigest>,
+        digests: impl Iterator<Item = Vec<u8>> + Send + 'static,
     ) -> Result<i64, IndexerError> {
-        self.spawn_blocking(move |this| {
-            this.count_indexed_tx_global_orders(digests.into_iter().map(|d| d.inner().to_vec()))
-        })
-        .await
+        self.spawn_blocking(move |this| this.count_indexed_tx_global_orders(digests))
+            .await
     }
 
     /// Fetches multiple transactions from the database.

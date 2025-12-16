@@ -94,9 +94,13 @@ impl OptimisticTransactionExecutor {
         };
 
         backoff::future::retry(backoff, async || {
+            let digests: Vec<Vec<u8>> = expected_dependencies
+                .iter()
+                .map(|d| d.inner().to_vec())
+                .collect();
             let count = self
                 .read
-                .count_indexed_tx_global_orders_in_blocking_task(expected_dependencies.clone())
+                .count_indexed_tx_global_orders_in_blocking_task(digests.into_iter())
                 .await?;
             if count as usize != expected_dependencies.len() {
                 return Err(IndexerError::TransactionDependenciesNotIndexed)?;
