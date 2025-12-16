@@ -295,6 +295,7 @@ pub struct AuthorityMetrics {
     pub consensus_committed_subdags: IntCounterVec,
     pub consensus_committed_messages: IntGaugeVec,
     pub consensus_committed_user_transactions: IntGaugeVec,
+    pub consensus_handler_leader_round: IntGauge,
     pub consensus_calculated_throughput: IntGauge,
     pub consensus_calculated_throughput_profile: IntGauge,
 
@@ -696,7 +697,7 @@ impl AuthorityMetrics {
             ).unwrap(),
             consensus_committed_subdags: register_int_counter_vec_with_registry!(
                 "consensus_committed_subdags",
-                "Number of committed subdags, sliced by author",
+                "Number of committed subdags, sliced by leader",
                 &["authority"],
                 registry,
             ).unwrap(),
@@ -710,6 +711,11 @@ impl AuthorityMetrics {
                 "consensus_committed_user_transactions",
                 "Number of committed user transactions, sliced by submitter",
                 &["authority"],
+                registry,
+            ).unwrap(),
+            consensus_handler_leader_round: register_int_gauge_with_registry!(
+                "consensus_handler_leader_round",
+                "The leader round of the current consensus output being processed in the consensus handler",
                 registry,
             ).unwrap(),
             limits_metrics: Arc::new(LimitsMetrics::new(registry)),
