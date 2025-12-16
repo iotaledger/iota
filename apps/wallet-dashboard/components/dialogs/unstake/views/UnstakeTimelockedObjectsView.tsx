@@ -122,7 +122,7 @@ export function UnstakeTimelockedObjectsView({
             reductionSize.current += REDUCTION_STEP_SIZE;
         }
 
-        console.log('[DEBUG]: Timelocked Unstake Error:', unstakeError);
+        console.error('[DEBUG]: Timelocked Unstake Error:', unstakeError);
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [isUnstakeError, unstakeError]);
 

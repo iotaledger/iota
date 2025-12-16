@@ -78,7 +78,7 @@ export function UnstakeView({
 
     useEffect(() => {
         if (isUnstakeError && error) {
-            console.log('[DEBUG]: Unstake Error:', error);
+            console.error('[DEBUG]: Unstake Error:', error);
         }
     }, [isUnstakeError, error]);
 

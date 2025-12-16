@@ -125,7 +125,7 @@ export default function VestingDashboardPage(): JSX.Element {
 
     useEffect(() => {
         if (isUnlockError && unlockError) {
-            console.log('[DEBUG]: Vesting unlock Error:', unlockError);
+            console.error('[DEBUG]: Vesting unlock Error:', unlockError);
         }
     }, [unlockError, isUnlockError]);
 
