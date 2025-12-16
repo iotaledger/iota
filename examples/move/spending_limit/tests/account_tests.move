@@ -700,7 +700,7 @@ fun create_auth_context_for_testing(
     let amount_call_arg = ptb_call_arg::new_call_arg_pure_for_testing(amount_bytes);
     let inputs = vector[account_call_arg, amount_call_arg];
 
-    // Comando: withdraw_from_balance_reserve<IOTA>(Input(0), Input(1))
+    // Command 1: withdraw_from_balance_reserve<IOTA>(Input(0), Input(1))
     let move_call = ptb_command::new_programmable_move_call_for_testing(
         object::id_from_address(@spending_limit),
         ascii::string(b"account"),
