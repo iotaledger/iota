@@ -53,12 +53,11 @@ const EUnauthorized: vector<u8> = b"Function key is not the allowed set";
 #[error(code = 3)]
 const EEd25519VerificationFailed: vector<u8> = b"Ed25519 verification has failed";
 
+/// Dynamic-field name for the Owner Public Key store inside the `IOTAccount`.
 public struct OwnerPublicKey has copy, drop, store {}
 
 /// Dynamic-field name for the Function Keys store inside the `IOTAccount`.
 public struct FunctionKeysName has copy, drop, store {}
-
-fun fk_store_key(): FunctionKeysName { FunctionKeysName {} }
 
 /// Creates a new `IOTAccount` as a shared object with the given authenticator.
 public fun create(
@@ -67,7 +66,7 @@ public fun create(
     ctx: &mut TxContext,
 ) {
     builder(authenticator, ctx)
-        .add_dynamic_field(OwnerPublicKey {}, public_key)
+        .add_dynamic_field(owner_public_key(), public_key)
         .add_dynamic_field(fk_store_key(), build_fn_keys_store(ctx))
         .build();
 }
@@ -82,10 +81,7 @@ public fun grant_permission(
 ) {
     assert!(account.has_field(fk_store_key()), EFunctionKeysNotInitialized);
 
-    let fk_store = account.borrow_field_mut<FunctionKeysName, FunctionKeysStore>(
-        fk_store_key(),
-        ctx,
-    );
+    let fk_store = borrow_function_keys_store_mut(account, ctx);
     fk_store.allow(pub_key, func_key);
 }
 
@@ -98,19 +94,17 @@ public fun revoke_permission(
 ) {
     assert!(account.has_field(fk_store_key()), EFunctionKeysNotInitialized);
 
-    let fk_store = account.borrow_field_mut<FunctionKeysName, FunctionKeysStore>(
-        fk_store_key(),
-        ctx,
-    );
+    let fk_store = borrow_function_keys_store_mut(account, ctx);
     fk_store.disallow(pub_key, func_key);
 }
 
 /// Read-only query for membership in the per-pubkey allow-set.
 public fun has_permission(account: &IOTAccount, pub_key: vector<u8>, func_key: &FunctionKey): bool {
     if (!account.has_field(fk_store_key())) return false;
-    let fk_store = account.borrow_field<FunctionKeysName, FunctionKeysStore>(fk_store_key());
+    let fk_store = borrow_function_keys_store(account);
     fk_store.is_allowed(pub_key, func_key)
 }
+
 // --------------------
 // Authenticator
 // --------------------
@@ -134,6 +128,7 @@ public fun has_permission(account: &IOTAccount, pub_key: vector<u8>, func_key: &
 /// - `EEd25519VerificationFailed` if signature verification fails (owner or delegated flow).
 /// - `EInvalidAmountOfCommands` if the PTB has ≠ 1 command (delegated flow).
 /// - `EUnauthorized` if the function is not authorized for the delegated key (delegated flow).
+#[authenticator]
 public fun authenticate(
     account: &IOTAccount,
     pub_key: vector<u8>,
@@ -162,14 +157,30 @@ public fun authenticate(
         assert!(auth_ctx.tx_commands().length() == 1, EInvalidAmountOfCommands);
         // Extract and check allow-set membership.
         let func_key = extract_func_key(&auth_ctx.tx_commands()[0]);
-        let fk_store = account.borrow_field<FunctionKeysName, FunctionKeysStore>(fk_store_key());
+        let fk_store = borrow_function_keys_store(account);
+
         assert!(fk_store.is_allowed(pub_key, &func_key), EUnauthorized);
     }
 }
 
 public fun borrow_public_key(account: &IOTAccount): &vector<u8> {
-    account.borrow_field(OwnerPublicKey {})
+    account.borrow_field(owner_public_key())
 }
+
+fun borrow_function_keys_store(account: &IOTAccount): &FunctionKeysStore {
+    account.borrow_field(fk_store_key())
+}
+
+fun borrow_function_keys_store_mut(
+    account: &mut IOTAccount,
+    ctx: &TxContext,
+): &mut FunctionKeysStore {
+    account.borrow_field_mut(fk_store_key(), ctx)
+}
+
+fun fk_store_key(): FunctionKeysName { FunctionKeysName {} }
+
+fun owner_public_key(): OwnerPublicKey { OwnerPublicKey {} }
 
 /// Creates a new `IOTAccount` as a shared object with the given authenticator, but without
 /// attaching the Function Keys store. This is useful for testing purposes.
@@ -179,5 +190,5 @@ public fun create_without_fk_store(
     authenticator: AuthenticatorInfoV1<IOTAccount>,
     ctx: &mut TxContext,
 ) {
-    builder(authenticator, ctx).add_dynamic_field(OwnerPublicKey {}, public_key).build();
+    builder(authenticator, ctx).add_dynamic_field(owner_public_key(), public_key).build();
 }

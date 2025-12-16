@@ -204,6 +204,7 @@ public fun update_account_data(
 /// The total weight of the members who approved the transaction must be greater than or equal to the threshold.
 /// If the members list is changed after the transaction proposal, only the members who are still in the list
 /// are considered for the approval. Their weights are taken from the current members list.
+#[authenticator]
 public fun authenticate(self: &DynamicMultisigAccount, _: &AuthContext, ctx: &TxContext) {
     // Check that the sender of this transaction is the account.
     ensure_tx_sender_is_account(self, ctx);

@@ -21,7 +21,7 @@ use function_keys::function_keys;
 use iota::account::{Self as account_pkg, AuthenticatorInfoV1};
 use iota::auth_context::{Self as acx, AuthContext};
 use iota::hex;
-use iota::programmable_transaction::{Self as ptb, Command};
+use iota::ptb_command::{Self, Command};
 use iota::test_scenario::{Self as scen, Scenario};
 use iota::tx_context as txc;
 use iotaccount::iotaccount::{Self, IOTAccount};
@@ -232,6 +232,61 @@ fun test_fk_authenticate_too_many_commands() {
                 b"wallet".to_ascii_string(),
                 b"deposit".to_ascii_string(),
             ),
+        );
+        let auth_ctx = create_auth_context_with_commands_for_testing(cmds);
+
+        let signature =
+            x"cce72947906dbae4c166fc01fd096432784032be43db540909bc901dbc057992b4d655ca4f4355cf0868e1266baacf6919902969f063e74162f8f04bc4056105";
+
+        function_keys::authenticate(
+            &account,
+            user_public_key,
+            hex::encode(signature),
+            &auth_ctx,
+            &ctx,
+        );
+
+        scen::return_shared(account);
+    };
+
+    scen::end(scenario_val);
+}
+
+// ----------------------------------------------------------------------------
+#[test]
+#[expected_failure(abort_code = store::EProgrammableMoveCallExpected)]
+fun test_fk_authenticate_wrong_command() {
+    let mut scenario_val = scen::begin(@0x0);
+    let scenario = &mut scenario_val;
+
+    let owner_pk = x"1ea6f0f467574295a2cd5d21a3fd3a712ade354d520d3bd0fe6088d7b7c2e00e";
+    let user_public_key = x"cc62332e34bb2d5cd69f60efbb2a36cb916c7eb458301ea36636c4dbb012bd88";
+    let account_address = create_iotaccount_with_pk_for_testing(scenario, owner_pk);
+    let package_id = object::id_from_bytes(iota::hash::blake2b256(&b"0x123"));
+
+    // attach + allow withdraw
+    scenario.next_tx(account_address);
+    {
+        let mut account = scenario.take_shared<IOTAccount>();
+        let ctx = scen::ctx(scenario);
+
+        let fk = make_func_key(package_id.to_address(), b"wallet", b"withdraw");
+        function_keys::grant_permission(&mut account, owner_pk, fk, ctx);
+
+        scen::return_shared(account);
+    };
+
+    scenario.next_tx(account_address);
+    {
+        let digest = x"315f5bdb76d078c43b8ac0064e4a0164612b1fce77c869345bfc94c75894edd3";
+
+        let account = scenario.take_shared<IOTAccount>();
+        let ctx = create_tx_context_for_testing(account_address, digest);
+
+        let mut cmds = vector::empty<Command>();
+        vector::push_back(
+            &mut cmds,
+            make_publish_for_testing(),
         );
         let auth_ctx = create_auth_context_with_commands_for_testing(cmds);
 
@@ -527,7 +582,20 @@ fun make_move_call_for_testing(
     module_name: std::ascii::String,
     function_name: std::ascii::String,
 ): Command {
-    ptb::new_move_call(
-        ptb::new_programmable_move_call(pkg, module_name, function_name, vector[], vector[]),
+    ptb_command::new_move_call_command_for_testing(
+        ptb_command::new_programmable_move_call_for_testing(
+            pkg,
+            module_name,
+            function_name,
+            vector[],
+            vector[],
+        ),
+    )
+}
+
+/// Build a Publish `Command`.
+fun make_publish_for_testing(): Command {
+    ptb_command::new_publish_command_for_testing(
+        ptb_command::new_publish_for_testing(vector[], vector[]),
     )
 }

@@ -11,7 +11,7 @@
 /// - A helper to **extract** a `FunctionKey` from a `Command::MoveCall`
 module function_keys::fk_store;
 
-use iota::programmable_transaction::{Command, move_call_data};
+use iota::ptb_command::Command;
 use iota::table::{Self as tbl, Table};
 use iota::vec_set::{Self, VecSet};
 
@@ -23,6 +23,9 @@ const EFunctionKeyDoesNotExist: vector<u8> = b"The function key does not exist";
 
 #[error(code = 3)]
 const EPublicKeyNotFound: vector<u8> = b"Public key entry not found";
+
+#[error(code = 4)]
+const EProgrammableMoveCallExpected: vector<u8> = b"The command is not a programmable Move call";
 
 // =========================
 // Types
@@ -103,9 +106,12 @@ public fun is_allowed(store: &FunctionKeysStore, pub_key: vector<u8>, fk: &Funct
 
 /// Extracts a canonical `FunctionKey` from a PTB `Command::MoveCall`.
 public fun extract_func_key(cmd: &Command): FunctionKey {
-    let mc = move_call_data(cmd);
-    let package = mc.package_id().to_address();
+    assert!(cmd.is_move_call(), EProgrammableMoveCallExpected);
+
+    let mc = cmd.as_move_call().destroy_some();
+    let package = mc.package().to_address();
     let module_name = mc.module_name().as_bytes();
-    let function_name = mc.function_name().as_bytes();
+    let function_name = mc.function().as_bytes();
+
     make_func_key(package, *module_name, *function_name)
 }

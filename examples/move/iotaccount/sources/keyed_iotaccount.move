@@ -56,6 +56,7 @@ public fun create(
 }
 
 /// Ed25519 signature authenticator.
+#[authenticator]
 public fun authenticate_ed25519(
     account: &IOTAccount,
     signature: vector<u8>,
@@ -73,6 +74,7 @@ public fun authenticate_ed25519(
 }
 
 /// Secp256k1 signature authenticator.
+#[authenticator]
 public fun authenticate_secp256k1(
     account: &IOTAccount,
     signature: vector<u8>,
@@ -90,6 +92,7 @@ public fun authenticate_secp256k1(
 }
 
 /// Secp256r1 signature authenticator.
+#[authenticator]
 public fun authenticate_secp256r1(
     account: &IOTAccount,
     signature: vector<u8>,
