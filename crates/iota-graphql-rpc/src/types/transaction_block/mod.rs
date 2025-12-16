@@ -676,7 +676,7 @@ impl Loader<SeqKey> for Db {
             .map(|tx| (tx.tx_sequence_number, tx))
             .collect();
 
-        let mut results = HashMap::new();
+        let mut results = HashMap::with_capacity(keys.len());
         for key in keys {
             let Some(stored) = seq_num_to_tx.get(&(key.tx_sequence_number as i64)) else {
                 continue;
