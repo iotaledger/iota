@@ -1,6 +1,5 @@
 module account::account;
 
-use iota::account::AuthenticatorInfoV1CompatibilityProof;
 use iota::package_metadata::PackageMetadataV1;
 
 public struct Account has key, store {
@@ -16,10 +15,9 @@ fun init(_otw: ACCOUNT, ctx: &mut TxContext) {
     });
 }
 
-public fun link_auth(account: &mut Account, package: &PackageMetadataV1, module_name: std::ascii::String, function_name: std::ascii::String) {
-    let authenticator = iota::account::create_auth_info_v1<Account>(package, module_name, function_name);
-    let authenticator_proof = iota::account::check_auth_info_v1_compatibility<Account>(account, authenticator);
-    iota::account::attach_auth_info_v1<Account>(&mut account.id, authenticator_proof);
+public fun link_auth(account: Account, package: &PackageMetadataV1, module_name: std::ascii::String, function_name: std::ascii::String) {
+    let authenticator_info = iota::account::create_auth_info_v1<Account>(package, module_name, function_name);
+    iota::account::create_account_v1<Account>(account, authenticator_info);
 }
 
 /// An unsecure example authenticator function that checks if the provided message is "hello".
