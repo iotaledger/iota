@@ -47,8 +47,6 @@ const developer = [
             'developer/getting-started/publish',
             'developer/getting-started/debug',
             'developer/getting-started/client-tssdk',
-            'developer/getting-started/coffee-example',
-            'developer/getting-started/simple-token-transfer',
             'developer/getting-started/oracles',
             'developer/getting-started/move-trace-debug',
             'developer/getting-started/install-move-extension',
@@ -274,6 +272,8 @@ const developer = [
         type: 'category',
         label: 'Tutorials',
         items: [
+            'developer/tutorials/simple-token-transfer',
+            'developer/tutorials/coffee-example',
             {
                 type: 'category',
                 label: 'Sponsored Transactions',
@@ -302,6 +302,7 @@ const developer = [
             'developer/tutorials/live-concert',
             'developer/tutorials/retail-store',
             'developer/tutorials/validate-university-degree',
+            'developer/tutorials/create-review-rating-dao-with-multisig',
         ],
     },
     {
@@ -575,7 +576,6 @@ const developer = [
             'developer/advanced/custom-indexer',
             'developer/advanced/onchain-randomness',
             'developer/advanced/asset-tokenization',
-            'developer/advanced/create-review-rating-dao-with-multisig',
         ],
     },
     {
