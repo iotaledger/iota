@@ -9,6 +9,7 @@ mod keytool_tests;
 use std::{
     fmt::{Debug, Display, Formatter},
     path::PathBuf,
+    str::FromStr,
     sync::Arc,
 };
 
@@ -28,6 +29,8 @@ use fastcrypto::{
     secp256k1::recoverable::Secp256k1Sig,
     traits::{KeyPair, ToFromBytes},
 };
+use iota_json::IotaJsonValue;
+use iota_json_rpc_types::{IotaData, IotaObjectDataOptions};
 use iota_keys::{
     key_derive::generate_new_key,
     keypair_file::{
@@ -37,20 +40,26 @@ use iota_keys::{
     keystore::{AccountKeystore, Keystore, StoredKey},
 };
 use iota_ledger::Ledger;
+use iota_sdk::wallet_context::WalletContext;
 use iota_sdk_types::crypto::{Intent, IntentMessage};
 use iota_types::{
-    base_types::IotaAddress,
+    account,
+    base_types::{IotaAddress, ObjectID},
     crypto::{
         DefaultHash, EncodeDecodeBase64, IotaKeyPair, PublicKey, SignatureScheme,
         get_authority_key_pair,
     },
+    dynamic_field::{self, Field},
     error::IotaResult,
+    move_authenticator::MoveAuthenticator,
     multisig::{MultiSig, MultiSigPublicKey, ThresholdUnit, WeightUnit},
     signature::{GenericSignature, VerifyParams},
     signature_verification::VerifiedDigestCache,
-    transaction::{TransactionData, TransactionDataAPI},
+    transaction::{CallArg, TransactionData, TransactionDataAPI},
+    type_input::TypeInput,
 };
 use json_to_table::{Orientation, json_to_table};
+use move_core_types::{identifier::Identifier, language_storage::TypeTag};
 use serde::Serialize;
 use serde_json::json;
 use tabled::{
@@ -205,12 +214,12 @@ pub enum KeyToolCommand {
         data: String,
         #[arg(long)]
         intent: Option<Intent>,
-        // /// Auth input objects or primitive values
-        // #[arg(long, num_args = 1..)]
-        // pub auth_call_args: Option<Vec<String>>,
-        // /// Auth type arguments for the Move authenticate function
-        // #[arg(long, num_args = 1..)]
-        // pub auth_type_arguments: Option<Vec<String>>,
+        /// Auth input objects or primitive values
+        #[arg(long, num_args = 1..)]
+        auth_call_args: Option<Vec<String>>,
+        /// Auth type arguments for the Move authenticate function
+        #[arg(long, num_args = 1..)]
+        auth_type_arguments: Option<Vec<String>>,
     },
     /// Creates a signature by leveraging AWS KMS. Pass in a key-id to leverage
     /// Amazon KMS to sign a message and the base64 pubkey.
@@ -478,7 +487,11 @@ pub enum CommandOutput {
 }
 
 impl KeyToolCommand {
-    pub async fn execute(self, keystore: &mut Keystore) -> Result<CommandOutput, anyhow::Error> {
+    pub async fn execute(
+        self,
+        keystore: &mut Keystore,
+        config: PathBuf,
+    ) -> Result<CommandOutput, anyhow::Error> {
         let cmd_result = Ok(match self {
             KeyToolCommand::Convert { value } => {
                 let result = convert_private_key_to_bech32(value)?;
@@ -793,6 +806,8 @@ impl KeyToolCommand {
                 address,
                 data,
                 intent,
+                auth_call_args,
+                auth_type_arguments,
             } => {
                 let address = get_identity_address_from_keystore(address, keystore)?;
                 let intent = intent.unwrap_or_else(Intent::iota_transaction);
@@ -800,14 +815,124 @@ impl KeyToolCommand {
                     bcs::from_bytes(&Base64::decode(&data).map_err(|e| {
                         anyhow!("Cannot deserialize data as TransactionData {:?}", e)
                     })?)?;
-                let intent_msg = IntentMessage::new(intent, msg);
+                let intent_msg = IntentMessage::new(intent, msg.clone());
                 let raw_intent_msg: String = Base64::encode(bcs::to_bytes(&intent_msg)?);
                 let mut hasher = DefaultHash::default();
                 hasher.update(bcs::to_bytes(&intent_msg)?);
                 let digest = hasher.finalize().digest;
 
-                let iota_signature =
-                    sign_secure(keystore, &address, &intent_msg.value, intent_msg.intent)?;
+                let iota_signature = if auth_call_args.is_some() || auth_type_arguments.is_some() {
+                    // For account addresses, we need auth args
+                    let context = WalletContext::new(&config, None, None)?;
+                    let iota_client = context.get_client().await?;
+
+                    let authenticator_info_id = dynamic_field::derive_dynamic_field_id(
+                        address.clone(),
+                        &account::AuthenticatorInfoV1Key::tag().into(),
+                        &account::AuthenticatorInfoV1Key::default().to_bcs_bytes(),
+                    )?;
+
+                    let response = iota_client
+                        .read_api()
+                        .get_object_with_options(
+                            authenticator_info_id,
+                            IotaObjectDataOptions::new().with_bcs(),
+                        )
+                        .await?;
+
+                    if let Some(error) = response.error {
+                        bail!("Failed to fetch AuthenticatorInfoV1 object {error}");
+                    }
+
+                    let auth_info = response
+                        .data
+                        .expect("missing object data")
+                        .bcs
+                        .ok_or_else(|| anyhow::anyhow!("missing bcs"))?
+                        .try_into_move()
+                        .ok_or_else(|| anyhow::anyhow!("invalid move type"))?
+                        .deserialize::<Field<account::AuthenticatorInfoV1Key, account::AuthenticatorInfoV1>>(
+                        )?;
+
+                    let type_args = auth_type_arguments
+                        .as_ref()
+                        .map(|args| {
+                            args.iter()
+                                .map(|arg| TypeTag::from_str(arg))
+                                .collect::<Result<Vec<_>, _>>()
+                        })
+                        .transpose()?
+                        .unwrap_or_default();
+
+                    let mut json_args: Vec<_> = auth_call_args
+                        .as_ref()
+                        .map(|args| {
+                            args.iter()
+                                .map(|arg| IotaJsonValue::new(serde_json::to_value(arg).unwrap()).unwrap())
+                                .collect()
+                        })
+                        .unwrap_or_default();
+
+                    json_args.insert(
+                        0,
+                        IotaJsonValue::new(serde_json::to_value(address).unwrap()).unwrap(),
+                    );
+
+                    let mut call_args = context
+                        .get_client()
+                        .await?
+                        .transaction_builder()
+                        .resolve_and_check_json_args_to_call_args(
+                            auth_info.value.package,
+                            &Identifier::from_str(&auth_info.value.module)?,
+                            &Identifier::from_str(&auth_info.value.function)?,
+                            &type_args,
+                            json_args,
+                        )
+                        .await?;
+                    call_args.remove(0); // remove signer arg as it's added by the VM
+
+                    let object_response = iota_client
+                        .read_api()
+                        .get_object_with_options(
+                            ObjectID::from(address),
+                            IotaObjectDataOptions {
+                                show_owner: true,
+                                ..Default::default()
+                            },
+                        )
+                        .await?;
+                    if object_response.error.is_some() {
+                        bail!(
+                            "failed to fetch object data for signer_address {address}: {:?}",
+                            object_response.error
+                        );
+                    }
+                    let object = object_response.data.expect("missing object data");
+
+                    let initial_shared_version = if let Some(iota_types::object::Owner::Shared {
+                        initial_shared_version,
+                    }) = object.owner
+                    {
+                        initial_shared_version
+                    } else {
+                        bail!("signer_address {address} is not a shared object")
+                    };
+
+                    GenericSignature::MoveAuthenticator(
+                        MoveAuthenticator::new_for_testing(
+                            call_args,
+                            type_args.into_iter().map(TypeInput::from).collect(),
+                            CallArg::Object(iota_types::transaction::ObjectArg::SharedObject {
+                                id: ObjectID::from(address),
+                                initial_shared_version,
+                                mutable: false,
+                            }),
+                        ),
+                    )
+                } else {
+                    GenericSignature::Signature(sign_secure(keystore, &address, &intent_msg.value, intent_msg.intent)?)
+                };
 
                 CommandOutput::Sign(SignData {
                     iota_address: address,
