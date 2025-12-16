@@ -129,8 +129,7 @@ pub enum IotaClientCommands {
     ActiveEnv,
     /// Add a existing account address to the keystore
     AddAccount {
-        // TODO: better comment
-        /// The account object id
+        /// The object ID of the account
         address: IotaAddress,
         /// The alias must start with a letter and can contain only letters,
         /// digits, hyphens (-), or underscores (_).
@@ -3305,8 +3304,7 @@ pub async fn execute_dry_run(
     );
     debug!("Executing dry run");
     let response = client.read_api().dry_run_transaction_block(tx_data).await?;
-    // .context("Dry run failed")?;
-    // println!("Finished executing dry run {response:?}");
+    debug!("Finished executing dry run {response:?}");
     let resp = IotaClientCommandResult::DryRun(response)
         .prerender_clever_errors(context)
         .await;
@@ -3558,7 +3556,7 @@ pub(crate) async fn dry_run_or_execute_or_serialize(
 
             let mut call_args = client
                 .transaction_builder()
-                .resolve_and_check_call_args_aa(
+                .resolve_and_check_json_args_to_call_args(
                     auth_info.value.package,
                     &Identifier::from_str(&auth_info.value.module)?,
                     &Identifier::from_str(&auth_info.value.function)?,
@@ -3582,7 +3580,6 @@ pub(crate) async fn dry_run_or_execute_or_serialize(
 
         if let Some(gas_sponsor) = gas_sponsor {
             if gas_sponsor != signer {
-                // TODO: can accounts sponsor txs?
                 let signature =
                     sign_transaction(context, &tx_data, &gas_sponsor, auth_args).await?;
 

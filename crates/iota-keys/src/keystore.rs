@@ -638,17 +638,12 @@ impl FileBasedKeystore {
                     format!("Cannot open the keystore file: {}", path.display())
                 })?);
 
-            let file: FileBasedKeystoreFile = serde_json::from_reader(reader)
-                // .with_context(|| {
-                //     format!("Cannot deserialize the keystore file: {}", path.display(),)
-                // })
-                .map_err(|e| {
-                    anyhow!(
-                        "Cannot deserialize the keystore file: {}. {}",
-                        path.display(),
-                        e
-                    )
-                })?;
+            let file: FileBasedKeystoreFile = serde_json::from_reader(reader).map_err(|e| {
+                anyhow!(
+                    "Cannot deserialize the keystore file: {}. {e}",
+                    path.display()
+                )
+            })?;
 
             let aliases = file
                 .keys

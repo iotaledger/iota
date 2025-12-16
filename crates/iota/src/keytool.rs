@@ -205,6 +205,12 @@ pub enum KeyToolCommand {
         data: String,
         #[arg(long)]
         intent: Option<Intent>,
+        // /// Auth input objects or primitive values
+        // #[arg(long, num_args = 1..)]
+        // pub auth_call_args: Option<Vec<String>>,
+        // /// Auth type arguments for the Move authenticate function
+        // #[arg(long, num_args = 1..)]
+        // pub auth_type_arguments: Option<Vec<String>>,
     },
     /// Creates a signature by leveraging AWS KMS. Pass in a key-id to leverage
     /// Amazon KMS to sign a message and the base64 pubkey.

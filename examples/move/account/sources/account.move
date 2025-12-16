@@ -16,11 +16,6 @@ fun init(_otw: ACCOUNT, ctx: &mut TxContext) {
     });
 }
 
-/// Wrapper because of &mut UID
-public fun attach_auth_info_v1<AccountType: key>(account: &mut Account, authenticator_proof: AuthenticatorInfoV1CompatibilityProof<AccountType>,) {
-    iota::account::attach_auth_info_v1<AccountType>(&mut account.id, authenticator_proof);
-}
-
 public fun link_auth(account: &mut Account, package: &PackageMetadataV1, module_name: std::ascii::String, function_name: std::ascii::String) {
     let authenticator = iota::account::create_auth_info_v1<Account>(package, module_name, function_name);
     let authenticator_proof = iota::account::check_auth_info_v1_compatibility<Account>(account, authenticator);
