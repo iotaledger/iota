@@ -256,6 +256,10 @@ pub enum TestbedAction {
         /// Keeps the monitoring instance running
         #[arg(long, action, default_value = "false", global = true)]
         keep_monitoring: bool,
+
+        /// Force destroy without confirmation prompt
+        #[arg(short = 'f', long, action, default_value = "false", global = true)]
+        force: bool,
     },
 }
 
@@ -382,8 +386,11 @@ async fn run<C: ServerProviderClient>(settings: Settings, client: C, opts: Opts)
                 .wrap_err("Failed to stop testbed")?,
 
             // Destroy the testbed and terminal all instances.
-            TestbedAction::Destroy { keep_monitoring } => testbed
-                .destroy(keep_monitoring)
+            TestbedAction::Destroy {
+                keep_monitoring,
+                force,
+            } => testbed
+                .destroy(keep_monitoring, force)
                 .await
                 .wrap_err("Failed to destroy testbed")?,
         },
