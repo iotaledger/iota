@@ -786,8 +786,8 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
                 // Start the instance monitoring tools.
                 self.start_monitoring(&parameters).await?;
 
-                // Configure all instances (if needed).
-                if !self.skip_testbed_configuration && latest_committee_size != parameters.nodes {
+                // Configure all instances (if not skipped).
+                if !self.skip_testbed_configuration {
                     self.configure(&parameters).await?;
                     latest_committee_size = parameters.nodes;
                 }
