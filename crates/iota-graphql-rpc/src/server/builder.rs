@@ -91,7 +91,7 @@ use crate::{
 /// checkpoint timestamp.
 const DEFAULT_MAX_CHECKPOINT_LAG: Duration = Duration::from_secs(300);
 /// The maximum complexity allowed for native [`async_graphql`] checks.
-const MAX_COMPLEXITY: usize = 3000;
+const MAX_COMPLEXITY: usize = 6000;
 
 pub(crate) struct Server {
     router: Router,

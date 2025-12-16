@@ -44,18 +44,18 @@ module Test::M1 {
 # This should fail due to the complexity of the query.
 {
   events(first: 50, filter: { sender: "@{A}" }) {
-    nodes {                               
-      sendingModule {                     
-        name                              
+    nodes {
+      sendingModule {
+        name
       }
-      json                                
-      bcs                                 
-      transactionBlock {                  
-          digest                          
-          effects {                       
-              events(first: 50) {        
-                  nodes {                   
-                      transactionBlock {    
+      json
+      bcs
+      transactionBlock {
+          digest
+          effects {
+              events(first: 50) {
+                  nodes {
+                      transactionBlock {
                           digest
                       }
                   }
@@ -69,13 +69,13 @@ module Test::M1 {
 //# run-graphql
 {
   transactionBlocks(filter: { signAddress: "@{A}" }) {
-    nodes {                     
-      effects{                  
-        events {               
-          edges {               
-            node {              
-              sendingModule {   
-                name            
+    nodes {
+      effects{
+        events {
+          edges {
+            node {
+              sendingModule {
+                name
               }
             }
           }
@@ -89,16 +89,157 @@ module Test::M1 {
 # This should fail due to the complexity of the query
 {
   transactionBlocks(filter: { signAddress: "@{A}" }) {
-    nodes {                     
-      effects{                  
-        events {               
-          edges {               
-            node {              
-              sendingModule {   
-                name            
+    nodes {
+      effects{
+        events {
+          edges {
+            node {
+              sendingModule {
+                name
               }
               transactionBlock {
                 digest
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+//# run-graphql
+{
+  transactionBlocks(filter: { signAddress: "@{A}" }) {
+    nodes {
+      effects{
+        dependencies {
+            nodes {
+                digest
+                effects {
+                    events {
+                        edges {
+                            node {
+                                sendingModule {
+                                    name
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        events {
+          edges {
+            node {
+              sendingModule {
+                name
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+//# run-graphql
+# This should fail due to the complexity of the query
+{
+  transactionBlocks(filter: { signAddress: "@{A}" }) {
+    nodes {
+      effects{
+        dependencies {
+            nodes {
+                digest
+                effects {
+                    events {
+                        edges {
+                            node {
+                                sendingModule {
+                                    name
+                                }
+                                transactionBlock {
+                                    digest
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        events {
+          edges {
+            node {
+              sendingModule {
+                name
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+//# run-graphql
+{
+  transactionBlocks(filter: { signAddress: "@{A}" }) {
+    nodes {
+      effects{
+        checkpoint {
+            transactionBlocks {
+                nodes {
+                  digest
+                }
+            }
+        }
+        events {
+          edges {
+            node {
+              sendingModule {
+                name
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+//# run-graphql
+# This should fail due to the complexity of the query
+{
+  transactionBlocks(filter: { signAddress: "@{A}" }) {
+    nodes {
+      effects{
+        checkpoint {
+            transactionBlocks {
+                nodes {
+                  digest
+                  effects{
+                    events {
+                      edges {
+                        node {
+                          sendingModule {
+                            name
+                          }
+                          transactionBlock {
+                            digest
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+            }
+        }
+        events {
+          edges {
+            node {
+              sendingModule {
+                name
               }
             }
           }

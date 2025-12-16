@@ -97,6 +97,7 @@ type CEvent = JsonCursor<ConsistentIndexCursor>;
 #[Object]
 impl TransactionBlockEffects {
     /// The transaction that ran to produce these effects.
+    #[graphql(complexity = "child_complexity")]
     async fn transaction_block(&self) -> Result<Option<TransactionBlock>> {
         Ok(Some(self.clone().try_into().extend()?))
     }
@@ -202,7 +203,7 @@ impl TransactionBlockEffects {
     }
 
     /// Transactions whose outputs this transaction depends upon.
-    #[graphql(complexity = 0)]
+    #[graphql(complexity = "child_complexity")]
     async fn dependencies(
         &self,
         ctx: &Context<'_>,
@@ -493,6 +494,7 @@ impl TransactionBlockEffects {
 
     /// The checkpoint this transaction was finalized in, if it is within the
     /// available range.
+    #[graphql(complexity = "child_complexity")]
     async fn checkpoint(&self, ctx: &Context<'_>) -> Result<Option<Checkpoint>> {
         // If the transaction data is not a checkpointed transaction, it's not in the
         // checkpoint yet so we return None.
