@@ -355,9 +355,17 @@ impl ProtocolCommands<IotaBenchmarkType> for IotaProtocol {
                     format!(
                         "--shared-counter {shared_counter} --transfer-object {transfer_objects}"
                     ),
-                    "--shared-counter-hotness-factor 50".to_string(),
                     format!("--client-metric-host 0.0.0.0 --client-metric-port {metrics_port}"),
                 ];
+
+                // Add optional shared counter hotness factor if specified
+                let hotness_factor = parameters.shared_counter_hotness_factor.unwrap_or(50);
+                stress_args.push(format!("--shared-counter-hotness-factor {hotness_factor}"));
+
+                // Add optional num shared counters if specified
+                if let Some(num_counters) = parameters.num_shared_counters {
+                    stress_args.push(format!("--num-shared-counters {num_counters}"));
+                }
 
                 if self.use_fullnode_for_execution {
                     stress_args.push("--use-fullnode-for-execution true".to_string());
