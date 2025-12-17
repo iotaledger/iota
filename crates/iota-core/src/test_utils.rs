@@ -5,6 +5,7 @@
 use std::{sync::Arc, time::Duration};
 
 use fastcrypto::{hash::MultisetHash, traits::KeyPair};
+use iota_sdk_types::crypto::{Intent, IntentScope};
 use iota_types::{
     base_types::{
         AuthorityName, ExecutionDigests, IotaAddress, ObjectID, ObjectRef, TransactionDigest,
@@ -26,7 +27,6 @@ use iota_types::{
     utils::{create_fake_transaction, to_sender_signed_transaction},
 };
 use move_core_types::{account_address::AccountAddress, ident_str};
-use shared_crypto::intent::{Intent, IntentScope};
 use tokio::time::timeout;
 use tracing::{info, warn};
 

@@ -117,4 +117,7 @@ pub enum TestbedError {
 
     #[error(transparent)]
     Monitor(#[from] MonitorError),
+
+    #[error(transparent)]
+    BuildCacheError(#[from] iota_build_cache_server::client::BuildCacheError),
 }

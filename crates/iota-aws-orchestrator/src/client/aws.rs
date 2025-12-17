@@ -421,6 +421,7 @@ impl ServerProviderClient for AwsClient {
         role: InstanceRole,
         quantity: usize,
         use_spot_instances: bool,
+        id: String,
     ) -> CloudProviderResult<Vec<Instance>>
     where
         S: Into<String> + Serialize + Send,
@@ -444,6 +445,7 @@ impl ServerProviderClient for AwsClient {
             .resource_type(ResourceType::Instance)
             .tags(Tag::builder().key("Name").value(testbed_id).build())
             .tags(Tag::builder().key("Role").value(role.to_string()).build())
+            .tags(Tag::builder().key("Id").value(id).build())
             .build();
 
         let storage = BlockDeviceMapping::builder()
@@ -462,14 +464,18 @@ impl ServerProviderClient for AwsClient {
             InstanceRole::Client => &self.settings.client_specs,
         };
 
-        let base_request = client
+        let mut base_request = client
             .run_instances()
             .image_id(image_id)
             .instance_type(instance_type.as_str().into())
             .key_name(testbed_id)
             .security_groups(&self.settings.testbed_id)
-            .block_device_mappings(storage)
             .tag_specifications(tags);
+
+        // Only the monitoring device should be EBS backed.
+        if role == InstanceRole::Metrics {
+            base_request = base_request.block_device_mappings(storage);
+        }
         let mut collected_instances = Vec::new();
         if use_spot_instances && role == InstanceRole::Node {
             let start = tokio::time::Instant::now();

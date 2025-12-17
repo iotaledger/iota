@@ -5,8 +5,8 @@ use std::str::FromStr;
 
 use anyhow::Result;
 use clap::{Arg, Command};
+use iota_sdk_types::crypto::Intent;
 use iota_types::{crypto::EncodeDecodeBase64, object::Object, transaction::TransactionData};
-use shared_crypto::intent::Intent;
 
 fn transaction_from_base64(b64: &str) -> TransactionData {
     let bytes = base64::Engine::decode(&base64::engine::general_purpose::STANDARD, b64)

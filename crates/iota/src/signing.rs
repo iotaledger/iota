@@ -8,9 +8,9 @@ use iota_keys::keystore::{AccountKeystore, StoredKey};
 use iota_ledger::Ledger;
 use iota_ledger_signer::LedgerSigner;
 use iota_sdk::wallet_context::WalletContext;
+use iota_sdk_types::crypto::Intent;
 use iota_types::{base_types::IotaAddress, crypto::Signature, transaction::TransactionData};
 use serde::Serialize;
-use shared_crypto::intent::Intent;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum ExternalKeySource {

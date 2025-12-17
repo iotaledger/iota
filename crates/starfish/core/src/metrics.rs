@@ -477,7 +477,7 @@ impl NodeMetrics {
             ).unwrap(),
             cordial_knowledge_message_batch_size: register_histogram_with_registry!(
                 "cordial_knowledge_message_batch_size",
-                "Size of the batch of messages sent to cordial connections",
+                "Size of the batch of messages sent to connections in cordial knowledge",
                 vec![0.0, 1.0, 2.0, 5.0, 10.0, 20.0, 40.0, 80.0, 100.0, 200.0, 400.0, 800.0, 1000.0],
                 registry,
             ).unwrap(),

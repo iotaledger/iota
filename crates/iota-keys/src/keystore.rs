@@ -14,6 +14,7 @@ use std::{
 use anyhow::{Context, anyhow, bail, ensure};
 use bip32::DerivationPath;
 use bip39::{Language, Mnemonic, Seed};
+use iota_sdk_types::crypto::{Intent, IntentMessage};
 use iota_types::{
     base_types::IotaAddress,
     crypto::{
@@ -25,7 +26,6 @@ use rand::{SeedableRng, rngs::StdRng};
 use regex::Regex;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde_with::{DisplayFromStr, serde_as};
-use shared_crypto::intent::{Intent, IntentMessage};
 use tracing::{debug, info};
 
 use crate::{

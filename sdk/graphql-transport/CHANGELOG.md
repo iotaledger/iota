@@ -1,5 +1,38 @@
 # @iota/graphql-transport
 
+## 0.12.0
+
+### Minor Changes
+
+-   ae1385d: Update dependencies.
+
+### Patch Changes
+
+-   Updated dependencies [ae1385d]
+    -   @iota/bcs@1.4.0
+    -   @iota/iota-sdk@1.9.0
+
+## 0.11.0
+
+### Minor Changes
+
+-   f4cc8e8: Add a `maxTransactionPayloadSize` service-configuration parameter for GraphQL schema
+    introspection.
+-   933496c: Changed type of "iotaTotalSupply" to BigInt in the GraphQL queries
+-   147c97e: Update repository URLs.
+-   ec99569: New subscription API types.
+
+### Patch Changes
+
+-   Updated dependencies [00f4a39]
+-   Updated dependencies [f4cc8e8]
+-   Updated dependencies [933496c]
+-   Updated dependencies [147c97e]
+-   Updated dependencies [0a4525d]
+-   Updated dependencies [ec99569]
+    -   @iota/iota-sdk@1.8.0
+    -   @iota/bcs@1.3.0
+
 ## 0.10.0
 
 ### Minor Changes

@@ -6,6 +6,9 @@ use std::sync::Arc;
 
 use async_graphql::*;
 use im::hashmap::HashMap as ImHashMap;
+use iota_sdk_types::crypto::{
+    Intent, IntentAppId, IntentMessage, IntentScope, IntentVersion, PersonalMessage,
+};
 use iota_types::{
     IOTA_AUTHENTICATOR_STATE_ADDRESS, TypeTag,
     authenticator_state::{ActiveJwk, AuthenticatorStateInner},
@@ -14,9 +17,6 @@ use iota_types::{
     signature::{GenericSignature, VerifyParams},
     signature_verification::VerifiedDigestCache,
     transaction::TransactionData,
-};
-use shared_crypto::intent::{
-    AppId, Intent, IntentMessage, IntentScope, IntentVersion, PersonalMessage,
 };
 use tracing::warn;
 
@@ -155,12 +155,12 @@ pub(crate) async fn verify_zklogin_signature(
             }
         }
         ZkLoginIntentScope::PersonalMessage => {
-            let data = PersonalMessage { message: bytes };
+            let data = PersonalMessage(bytes.into());
             let intent_msg = IntentMessage::new(
                 Intent {
                     scope: IntentScope::PersonalMessage,
                     version: IntentVersion::V0,
-                    app_id: AppId::Iota,
+                    app_id: IntentAppId::Iota,
                 },
                 data,
             );
