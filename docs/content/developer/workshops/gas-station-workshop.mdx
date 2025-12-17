@@ -98,7 +98,21 @@ cd gas-station/docker
 ../utils/./gas-station-tool.sh generate-sample-config --config-path config.yaml --docker-compose -n testnet
 ```
 
-### 1.4 Start the Gas Station
+<h3>Expected Output:</h3>
+
+```bash
+Generated a new IOTA address. If you plan to use it, please make sure it has enough funds: '0xc30e6509054a6399d54703de6f028dc4dc6648bd0d389b153dd02275dc846be2'
+```
+
+This is the address that will pay for everyone’s transactions.
+
+### 1.4 Fund the Gas Station Sponsor via Faucet
+
+:::info
+Follow the steps on [this page](../getting-started/get-coins.mdx) to get test tokens using either the IOTA CLI, cURL, or the TypeScript-SDK.
+:::
+
+### 1.5 Start the Gas Station
 
 ```bash
 GAS_STATION_AUTH=supersecret123 docker compose up
@@ -125,21 +139,21 @@ When the gas station starts, it will perform the initial coin-splitting procedur
 
 We are deploying the official, production-ready Gas Station using Docker. The `generate-sample-config` tool creates a testnet-ready configuration. The environment variable sets the auth token to `supersecret123`.
 
-### 1.3 Verify the Gas Station is Healthy
+### 1.6 Verify the Gas Station is Healthy
 
 ```Bash
-curl http://localhost:9527/health
+curl http://localhost:9527
 ```
 <h3>Expected output:</h3>
 
 ```JSON
-{"status":"healthy"}
+{"OK"}
 ```
 <h3>Explanation:</h3>
 
-A successful response confirms the RPC server is listening on port 9527 and ready to sponsor transactions.
+A successful response confirms the RPC server is listening on port 9527 and ready to sponsor transactions, but make sure the sponsored address is funded.
 
-### 1.4 Create the React Frontend
+### 1.7 Create the React Frontend
 
 ```bash
 # 1. Go back to the workshop root folder
@@ -165,7 +179,7 @@ We scaffold a modern Vite + React + TypeScript project and install:
 - @iota/iota-sdk – transaction building
 - `axios` – HTTP calls to the Gas Station
 
-### 1.5 Start the Dev Server
+### 1.8 Start the Dev Server
 
 ```Bash
 npm run dev
@@ -247,28 +261,9 @@ export default function App() {
 `useWallets` returns all detected wallets. When a user connects, `accounts.length > 0`. The `ConnectButton` automatically opens the official modal and handles all wallet standards.
 Test it: Click Connect → Choose IOTA Wallet → Success! You now see your address.
 
-## Part 3 – Fund the Gas Station Sponsor
+======
 
-### 3.1 Find the Sponsor Address
-
-```Bash
-cat gas-station/config.yaml | grep -A 5 signer-config
-```
-
-You’ll see something like:
-
-```yaml
-address: "0xc6254a6dd24bc7cc975a0890d4092c3d0c0996e8783a2e3ff338f47705405b72"
-```
-<h3>Explanation:</h3>
-
-This is the address that will pay for everyone’s transactions.
-
-### 3.2 Fund It via Faucet
-
-:::info
-Follow the steps on [this page](../getting-started/get-coins.mdx) to get test tokens using either the IOTA CLI, cURL, or the TypeScript-SDK.
-:::
+======
 
 ## Part 4 – Implement the Sponsored Post Flow
 
@@ -433,6 +428,6 @@ Clean, responsive UI with live feed and explorer links. Every post is permanentl
 
 ## Resources
 
-- Gas Station Docs: https://docs.iota.org/operator/gas-station
-- dApp Kit: https://docs.iota.org/developer/ts-sdk/dapp-kit
-- Discord: 
+- [Gas Station Docs:](https://docs.iota.org/operator/gas-station)
+- [dApp Kit:](https://docs.iota.org/developer/ts-sdk/dapp-kit)
+- [Discord:](https://discord.com/invite/iota-builders)
