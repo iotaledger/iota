@@ -147,7 +147,7 @@ export function AddAccountPage() {
                     <img
                         src={theme === Theme.Dark ? AddProfileImageDark : AddProfileImage}
                         alt="Add Profile"
-                        width={187}
+                        height={187}
                         className="mx-auto aspect-[4/3] max-h-[187px] w-auto object-cover"
                     />
 
