@@ -454,7 +454,7 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
         let command = self
             .protocol_commands
             .genesis_command(self.node_instances.iter(), parameters);
-        display::action(format!("Genesis command: {command}"));
+        display::action(format!("\nGenesis command: {command}\n\n"));
         let repo_name = self.settings.repository_name();
         let context = CommandContext::new().with_execute_from_path(repo_name.into());
         self.ssh_manager

@@ -183,8 +183,6 @@ impl ProtocolCommands<IotaBenchmarkType> for IotaProtocol {
             ],
         );
 
-        display::action(format!("\n Genesis Command: {iota_command}"));
-
         iota_command
     }
 
