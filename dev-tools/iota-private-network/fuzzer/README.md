@@ -26,14 +26,8 @@ python3 -m venv .venv
 source .venv/bin/activate
 
 # install the net_fuzz package + dependencies
-pip install --upgrade pip setuptools wheel
+pip install --upgrade pip
 pip install -e fuzzer
-```
-
-If `docker` or `requests` are missing, install them into the venv:
-
-```bash
-pip install docker requests
 ```
 
 For commands that need root (iptables, tc, nsenter), it is useful to
@@ -42,6 +36,10 @@ capture the venv Python path:
 ```bash
 PYTHON=$(python -c 'import sys; print(sys.executable)')
 ```
+
+When developing without installing the package you can also export
+`PYTHONPATH=dev-tools/iota-private-network/fuzzer/src` to point Python
+directly at the sources.
 
 You can then run privileged scripts as:
 

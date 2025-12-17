@@ -76,17 +76,19 @@ def run_experiment(protocol):
     
     # Ensure venv exists (simple check)
     venv_python = PRIVNET_DIR / ".venv" / "bin" / "python"
+    pip_path = PRIVNET_DIR / ".venv" / "bin" / "pip"
     if not venv_python.exists():
         print("Creating Python venv...")
         run_command([sys.executable, "-m", "venv", str(PRIVNET_DIR / ".venv")])
-        pip_path = PRIVNET_DIR / ".venv" / "bin" / "pip"
-        run_command([str(pip_path), "install", "-r", "requirements.txt"], cwd=FUZZER_DIR)
+        run_command([str(pip_path), "install", "--upgrade", "pip"])
+
+    run_command([str(pip_path), "install", "-e", "."], cwd=FUZZER_DIR)
 
     # Run the fuzzer script
     # We use sudo because the fuzzer needs to manipulate docker/iptables
     # We execute the module net_fuzz.sync_stress
     env = os.environ.copy()
-    env["PYTHONPATH"] = str(FUZZER_DIR)
+    env["PYTHONPATH"] = str(FUZZER_DIR / "src")
     
     try:
         run_command(

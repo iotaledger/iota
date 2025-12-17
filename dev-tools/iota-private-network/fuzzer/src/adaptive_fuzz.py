@@ -1,6 +1,8 @@
 """
-SOTA Fuzz Test Script for IOTA Private Network.
-Uses Hill Climbing and Heuristics to find worst-case scenarios for consensus.
+Adaptive fuzzing script for the IOTA private network.
+
+Uses hill-climbing heuristics to search for disruptive combinations of
+latency, packet loss, and topology tweaks.
 """
 
 import logging
@@ -19,8 +21,8 @@ import csv
 from datetime import datetime
 
 # Configure logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-log = logging.getLogger("sota_fuzz")
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+log = logging.getLogger("adaptive_fuzz")
 
 @dataclass
 class FuzzParams:
@@ -113,7 +115,7 @@ class NetworkState:
     def get_total_timeouts(self) -> float:
         return sum(n.timeouts for n in self.nodes.values())
 
-class SotaFuzzer:
+class AdaptiveFuzzer:
     def __init__(self, validators: List[str]):
         self.validators = validators
         self.state = NetworkState()
@@ -187,7 +189,7 @@ class SotaFuzzer:
         return True
 
     def run(self):
-        log.info(f"Starting SOTA Fuzz with {len(self.validators)} validators")
+        log.info("Starting adaptive fuzz run with %d validators", len(self.validators))
         
         # Initial reset
         disruptions.reset_network(len(self.validators))
@@ -421,7 +423,7 @@ if __name__ == "__main__":
     except Exception:
         validators = [f"validator-{i}" for i in range(1, 20)]
 
-    fuzzer = SotaFuzzer(validators)
+    fuzzer = AdaptiveFuzzer(validators)
     try:
         fuzzer.run()
     except KeyboardInterrupt:

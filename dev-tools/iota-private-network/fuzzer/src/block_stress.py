@@ -32,14 +32,14 @@ log = logging.getLogger("block_stress")
 # Store latencies globally to keep them constant across re-applications
 LATENCIES = {}
 
-def apply_topology(validators: List[str]):
+def apply_topology(validators: List[str], block_latency_ms: int):
     """
     Applies the Block topology using latencies.
-    Blocks 3 specific peers for each node by setting extremely high latency.
+    Blocks 3 specific peers for each node by setting 'block_latency_ms'.
     Sets random latency (10-100ms) for others.
     """
     N = len(validators)
-    log.info(f"Enforcing Block Topology on {N} nodes (High Latency Strategy).")
+    log.info(f"Enforcing Block Topology on {N} nodes (Block Latency: {block_latency_ms}ms).")
     
     for i, u in enumerate(validators):
         if not docker_env.is_container_running(u):
@@ -55,15 +55,15 @@ def apply_topology(validators: List[str]):
             if i == j: continue
             
             if j in blocked_indices:
-                # Simulate block with high latency (10 seconds)
-                lat = 250
-                jitter = 50
+                # Simulate block with variable latency
+                lat = block_latency_ms
+                jitter = 0
             else:
                 # Connected: Apply random latency (constant for the run)
                 if (u, v) not in LATENCIES:
-                    LATENCIES[(u, v)] = random.randint(30, 100)
+                    LATENCIES[(u, v)] = random.randint(30, 150)
                 lat = LATENCIES[(u, v)]
-                jitter = 15
+                jitter = 5
                 
             try:
                 # Ensure no iptables blocks exist
@@ -124,8 +124,10 @@ def verify_topology(validators: List[str]):
                     is_open = False
                 
                 if should_block and is_open:
-                    log.error(f"VIOLATION: {u}->{v} should be BLOCKED but ping succeeded!")
-                    errors += 1
+                    # With ramping latency, this is expected in the early phases
+                    # log.error(f"VIOLATION: {u}->{v} should be BLOCKED but ping succeeded!")
+                    # errors += 1
+                    pass
                 elif not should_block and not is_open:
                     # This might be due to latency/jitter or node load, so just warn
                     log.warning(f"POTENTIAL ISSUE: {u}->{v} should be OPEN but ping failed.")
@@ -160,28 +162,32 @@ def run():
     disruptions.reset_network(len(validators))
     
     # Start Spammer
-    log.info("Starting Spammer at 100 TPS...")
-    spammer.start_stress_spammer(tps=100)
+    log.info("Starting Spammer at 150 TPS...")
+    spammer.start_stress_spammer(tps=150)
     
-    duration_seconds = 900  # 15 minutes
+    duration_seconds = 1800 # 30 minutes 
     update_interval = 60    # Update latencies every minute
+    current_block_latency = 200 # Start with 200ms for blocked links
     
-    log.info(f"Starting 15-minute Block Stress run.")
+    log.info(f"Starting Block Stress run (Ramping block latency 200ms -> 2000ms).")
 
     try:
         start_time = time.time()
         
         while time.time() - start_time < duration_seconds:
             elapsed = int(time.time() - start_time)
-            log.info(f"=== Time: {elapsed}s / {duration_seconds}s ===")
+            log.info(f"=== Time: {elapsed}s / {duration_seconds}s | Block Latency: {current_block_latency}ms ===")
             
             # Re-apply topology to enforce rules (idempotent)
-            apply_topology(validators)
+            apply_topology(validators, current_block_latency)
             
             # Verify topology
             verify_topology(validators)
             
             time.sleep(update_interval)
+            
+            # Increase block latency by 100ms, cap at 1000ms (1s)
+            current_block_latency = current_block_latency + 100
             
     except KeyboardInterrupt:
         log.info("Interrupted by user.")

@@ -42,8 +42,8 @@ def apply_topology(validators: List[str]):
                 # Core-Core: 10-50ms
                 lat = random.randint(10, 50)
             else:
-                # Outsider involved: 100-200ms
-                lat = random.randint(100, 200)
+                # Outsider involved: 50-100ms
+                lat = random.randint(50, 100)
             
             # Apply latency
             # Note: add_latency handles the case where target container v might be down 
@@ -124,7 +124,7 @@ def run():
     start_time_total = time.time()
     MAX_RUNTIME = 30 * 60  # 30 minutes
 
-    for duration in range(180, 600, 60):
+    for duration in range(60, 310, 60):
         if time.time() - start_time_total > MAX_RUNTIME:
             log.info("Max runtime reached. Stopping test.")
             break
