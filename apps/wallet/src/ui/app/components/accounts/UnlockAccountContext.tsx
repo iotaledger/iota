@@ -26,11 +26,13 @@ interface UnlockAccountProviderProps {
 
 export function UnlockAccountProvider({ children }: UnlockAccountProviderProps) {
     const [isUnlockModalOpen, setIsUnlockModalOpen] = useState(false);
+    const [accountToUnlock, setAccountToUnlock] = useState<SerializedUIAccount | null>(null);
     const onSuccessCallbackRef = useRef<OnSuccessCallback | undefined>();
     const unlockAccountMutation = useUnlockMutation();
     const backgroundClient = useBackgroundClient();
     const hideUnlockModal = useCallback(() => {
         setIsUnlockModalOpen(false);
+        setAccountToUnlock(null);
         onSuccessCallbackRef.current && onSuccessCallbackRef.current();
     }, []);
 
@@ -40,6 +42,7 @@ export function UnlockAccountProvider({ children }: UnlockAccountProviderProps) 
                 if (account.isPasswordUnlockable) {
                     // for password-unlockable accounts, show the unlock modal
                     setIsUnlockModalOpen(true);
+                    setAccountToUnlock(account);
 
                     if (onSuccessCallback) {
                         onSuccessCallbackRef.current = onSuccessCallback;
@@ -76,6 +79,7 @@ export function UnlockAccountProvider({ children }: UnlockAccountProviderProps) 
             <UnlockAccountModal
                 onClose={hideUnlockModal}
                 onSuccess={hideUnlockModal}
+                account={accountToUnlock}
                 open={isUnlockModalOpen}
             />
         </UnlockAccountContext.Provider>

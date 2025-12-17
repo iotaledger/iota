@@ -112,7 +112,26 @@ export async function accountSourcesHandleUIMessage(msg: Message, uiConnection: 
         );
         return true;
     }
-
+    if (isMethodPayload(payload, 'unlockAccountSourceOrAccount')) {
+        const { id, password } = payload.args;
+        const accountSource = await getAccountSourceByID(id);
+        if (accountSource) {
+            if (!password) {
+                throw new Error('Missing password');
+            }
+            await accountSource.unlock(password);
+            uiConnection.send(createMessage({ type: 'done' }, msg.id));
+            return true;
+        }
+    }
+    if (isMethodPayload(payload, 'lockAccountSourceOrAccount')) {
+        const accountSource = await getAccountSourceByID(payload.args.id);
+        if (accountSource) {
+            await accountSource.lock();
+            uiConnection.send(createMessage({ type: 'done' }, msg.id));
+            return true;
+        }
+    }
     if (isMethodPayload(payload, 'unlockAllAccounts')) {
         const { password } = payload.args;
         await unlockAllAccountsAndAccountSources(password);

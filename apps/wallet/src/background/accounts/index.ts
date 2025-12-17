@@ -62,6 +62,7 @@ function toAccount(account: SerializedAccount) {
 }
 
 export async function getAllAccounts(filter?: { sourceID: string }) {
+    console.time('retrieving all accounts from db');
     const db = await getDB();
     let accounts;
     if (filter?.sourceID) {
@@ -69,7 +70,9 @@ export async function getAllAccounts(filter?: { sourceID: string }) {
     } else {
         accounts = await db.accounts.toCollection().sortBy('createdAt');
     }
-    return accounts.map(toAccount);
+    const result = accounts.map(toAccount);
+    console.timeEnd('retrieving all accounts from db');
+    return result;
 }
 
 export async function getAccountByID(id: string) {
@@ -161,14 +164,25 @@ export async function lockAllAccounts() {
     }
 }
 
-export async function unlockAllAccountsAndAccountSources(password: string) {
+export async function unlockAllAccountsAndAccountSources(password?: string) {
+    console.time('unlocking all accounts');
     const accounts = await getAllAccounts();
-    const accountSources = await getAccountSources();
-    for (const account of [...accounts, ...accountSources]) {
-        if (isPasswordUnLockable(account)) {
-            await account.passwordUnlock(password);
+    // const accountSources = await getAccountSources();
+
+    const accPromises = accounts.map(async (acc) => {
+        console.time(`unlocking account ${acc.id}`);
+        if (isPasswordUnLockable(acc) && (await acc.isLocked())) {
+            await acc.passwordUnlock(password);
         }
-    }
+        console.timeEnd(`unlocking account ${acc.id}`);
+    });
+
+    // const sourcesPromises = accountSources.map(async (source) => {
+    //     await source.unlock(password);
+    // });
+
+    await Promise.allSettled(accPromises);
+    console.timeEnd('unlocking all accounts');
 }
 
 interface LockedState {
@@ -214,6 +228,25 @@ async function clearStateAfterManyFailedAttempts() {
 
 export async function accountsHandleUIMessage(msg: Message, uiConnection: UiConnection) {
     const { payload } = msg;
+    if (isMethodPayload(payload, 'lockAccountSourceOrAccount')) {
+        const account = await getAccountByID(payload.args.id);
+        if (account) {
+            await account.lock();
+            await uiConnection.send(createMessage({ type: 'done' }, msg.id));
+            return true;
+        }
+    }
+    if (isMethodPayload(payload, 'unlockAccountSourceOrAccount')) {
+        const { id, password } = payload.args;
+        const account = await getAccountByID(id);
+        if (account) {
+            if (isPasswordUnLockable(account)) {
+                await account.passwordUnlock(password);
+            }
+            await uiConnection.send(createMessage({ type: 'done' }, msg.id));
+            return true;
+        }
+    }
     if (isMethodPayload(payload, 'lockAllAccounts')) {
         await lockAllAccounts();
         await lockAllAccountSources();

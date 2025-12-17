@@ -374,6 +374,31 @@ export class BackgroundClient {
             ),
         );
     }
+    public unlockAccountSourceOrAccount(
+        inputs: MethodPayload<'unlockAccountSourceOrAccount'>['args'],
+    ) {
+        return lastValueFrom(
+            this.sendMessage(
+                createMessage<MethodPayload<'unlockAccountSourceOrAccount'>>({
+                    type: 'method-payload',
+                    method: 'unlockAccountSourceOrAccount',
+                    args: inputs,
+                }),
+            ).pipe(take(1)),
+        );
+    }
+
+    public lockAccountSourceOrAccount({ id }: MethodPayload<'lockAccountSourceOrAccount'>['args']) {
+        return lastValueFrom(
+            this.sendMessage(
+                createMessage<MethodPayload<'lockAccountSourceOrAccount'>>({
+                    type: 'method-payload',
+                    method: 'lockAccountSourceOrAccount',
+                    args: { id },
+                }),
+            ).pipe(take(1)),
+        );
+    }
 
     public unlockAllAccounts(inputs: MethodPayload<'unlockAllAccounts'>['args']) {
         return lastValueFrom(

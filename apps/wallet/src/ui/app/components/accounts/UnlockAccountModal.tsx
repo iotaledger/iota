@@ -5,15 +5,18 @@
 import { toast } from '@iota/core';
 import { useBackgroundClient } from '_hooks';
 import { PasswordModalDialog } from './PasswordInputDialog';
+import type { SerializedUIAccount } from '_src/background/accounts/account';
 
 interface UnlockAccountModalProps {
     onClose: () => void;
     onSuccess: () => void;
+    account: SerializedUIAccount | null;
     open: boolean;
 }
 
-export function UnlockAccountModal({ onClose, onSuccess, open }: UnlockAccountModalProps) {
+export function UnlockAccountModal({ onClose, onSuccess, open, account }: UnlockAccountModalProps) {
     const backgroundService = useBackgroundClient();
+    if (!account) return null;
     return (
         <PasswordModalDialog
             {...{
@@ -24,8 +27,9 @@ export function UnlockAccountModal({ onClose, onSuccess, open }: UnlockAccountMo
                 cancelText: 'Back',
                 showForgotPassword: true,
                 onSubmit: async (password: string) => {
-                    await backgroundService.unlockAllAccounts({
+                    await backgroundService.unlockAccountSourceOrAccount({
                         password,
+                        id: account.id,
                     });
                     toast('Account unlocked');
                     onSuccess();

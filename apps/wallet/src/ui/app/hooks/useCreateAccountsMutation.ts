@@ -11,6 +11,8 @@ import { AccountType } from '_src/background/accounts/account';
 
 import { useCreatePasskeyAccount } from './useCreatePasskeyAccount';
 import { MnemonicAccount } from '_src/background/accounts/mnemonicAccount';
+import { unlockAllAccountsAndAccountSources } from '_src/background/accounts';
+import { getAccountSourceByID } from '_src/background/account-sources';
 
 function validateAccountFormValues<T extends AccountsFormType>(
     createType: T,
@@ -64,6 +66,7 @@ export function useCreateAccountsMutation() {
     return useMutation({
         mutationKey: ['create accounts'],
         mutationFn: async ({ type, password }: { type: AccountsFormType; password?: string }) => {
+            console.time('create accounts mutation');
             let createdAccounts;
             const accountsFormValues = accountsFormValuesRef.current;
 
@@ -79,21 +82,38 @@ export function useCreateAccountsMutation() {
                         'entropy' in accountsFormValues ? accountsFormValues.entropy : undefined,
                 });
 
+                await backgroundClient.unlockAccountSourceOrAccount({
+                    id: accountSource.id,
+                    password: password!,
+                });
+
                 createdAccounts = await backgroundClient.createAccounts({
                     type: AccountType.MnemonicDerived,
                     sourceID: accountSource.id,
                 });
+
+                // await backgroundClient.unlockAccountSourceOrAccount({
+                //     id: createdAccounts[0].id,
+                // });
             } else if (
                 type === AccountsFormType.MnemonicSource &&
                 validateAccountFormValues(type, accountsFormValues, password)
             ) {
+                if (password) {
+                    await backgroundClient.unlockAccountSourceOrAccount({
+                        password,
+                        id: accountsFormValues.sourceID,
+                    });
+                }
+
                 createdAccounts = await backgroundClient.createAccounts({
                     type: AccountType.MnemonicDerived,
                     sourceID: accountsFormValues.sourceID,
                 });
-                console.log('new created account:', createdAccounts);
-                const acc = createdAccounts[0] as unknown as MnemonicAccount;
-                await acc.passwordUnlock();
+
+                // await backgroundClient.unlockAccountSourceOrAccount({
+                //     id: createdAccounts[0].id,
+                // });
             } else if (
                 type === AccountsFormType.ImportSeed &&
                 validateAccountFormValues(type, accountsFormValues, password)
@@ -104,18 +124,38 @@ export function useCreateAccountsMutation() {
                     seed: accountsFormValues.seed,
                 });
 
+                await backgroundClient.unlockAccountSourceOrAccount({
+                    id: accountSource.id,
+                    password,
+                });
+
                 createdAccounts = await backgroundClient.createAccounts({
                     type: AccountType.SeedDerived,
                     sourceID: accountSource.id,
                 });
+
+                // await backgroundClient.unlockAccountSourceOrAccount({
+                //     id: createdAccounts[0].id,
+                // });
             } else if (
                 type === AccountsFormType.SeedSource &&
                 validateAccountFormValues(type, accountsFormValues, password)
             ) {
+                if (password) {
+                    await backgroundClient.unlockAccountSourceOrAccount({
+                        password,
+                        id: accountsFormValues.sourceID,
+                    });
+                }
+
                 createdAccounts = await backgroundClient.createAccounts({
                     type: AccountType.SeedDerived,
                     sourceID: accountsFormValues.sourceID,
                 });
+
+                // await backgroundClient.unlockAccountSourceOrAccount({
+                //     id: createdAccounts[0].id,
+                // });
             } else if (
                 type === AccountsFormType.ImportPrivateKey &&
                 validateAccountFormValues(type, accountsFormValues, password)
@@ -169,6 +209,10 @@ export function useCreateAccountsMutation() {
                     // Its fine to ignore if the account source already exists
                 }
 
+                await backgroundClient.unlockAccountSourceOrAccount({
+                    password,
+                    id: sourceID,
+                });
                 createdAccounts = await backgroundClient.createAccounts({
                     type: AccountType.KeystoneDerived,
                     accounts: accountsFormValues.accounts,
@@ -177,6 +221,18 @@ export function useCreateAccountsMutation() {
             } else {
                 throw new Error(`Create accounts with type ${type} is not implemented yet`);
             }
+
+            for (const aCreatedAccount of createdAccounts) {
+                await backgroundClient.unlockAccountSourceOrAccount({
+                    id: aCreatedAccount.id,
+                    password,
+                });
+            }
+
+            console.log('Unlocking all accounts!!', { password });
+            await backgroundClient.unlockAllAccounts({
+                password,
+            });
 
             ampli.addedAccounts({
                 accountType: CREATE_TYPE_TO_AMPLI_ACCOUNT[type],
@@ -187,6 +243,7 @@ export function useCreateAccountsMutation() {
             if (selectedAccount?.id) {
                 await backgroundClient.selectAccount(selectedAccount?.id);
             }
+            console.timeEnd('create accounts mutation');
             return createdAccounts;
         },
     });
