@@ -230,8 +230,16 @@ This will:
   `docker compose up -d` if necessary)
 - start a detached `stress-benchmark` container on the
   `iota-private-network_iota-network` Docker network
--, if `--duration` is set, stop the container after the given number of
+- if `--duration` is set, stop the container after the given number of
   seconds.
+
+## Longer experiments
+
+Long-running stress experiments live under `net_fuzz.experiments`. See
+`dev-tools/iota-private-network/fuzzer/src/net_fuzz/experiments/README.md` for
+details. Protocol comparison runners (`run_*.py`) also live in
+`dev-tools/iota-private-network/fuzzer/src/net_fuzz/experiments/` and automate
+running the same scenario across Mysticeti and Starfish.
 
 ## Logging
 

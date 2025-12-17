@@ -15,10 +15,31 @@ _IPTABLES_CHAIN = "DOCKER-USER"
 _DELAY_RE = re.compile(r"delay\s+([0-9.]+)ms")
 _LOSS_RE = re.compile(r"loss\s+([0-9.]+)%")
 _RULE_COMMENT_PREFIX = "net-fuzz"
+_VALIDATOR_RE = re.compile(r"^validator-(\d+)$")
 
 
-def _run_host_command(args: list[str]) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(args, capture_output=True, text=True)
+def _ip_to_hex(ip: str) -> str | None:
+    """Return the lowercase hex form of an IPv4 address (no separators)."""
+    try:
+        octets = [int(part) for part in ip.split(".")]
+    except ValueError:
+        return None
+    if len(octets) != 4 or any(part < 0 or part > 255 for part in octets):
+        return None
+    return "".join(f"{part:02x}" for part in octets)
+
+
+def _classid_for_dst(dst: str, dst_ip: str) -> str:
+    """Return the classid used by disruptions.add_latency for a destination."""
+    match = _VALIDATOR_RE.match(dst)
+    if match:
+        idx = int(match.group(1))
+    else:
+        try:
+            idx = int(dst_ip.split(".")[-1])
+        except (IndexError, ValueError):
+            idx = 1
+    return f"1:{100 + idx}"
 
 
 def _read_tc_qdisc(name: str) -> str | None:
@@ -46,7 +67,14 @@ def _read_tc_qdisc(name: str) -> str | None:
     return result.stdout
 
 
-def check_latency(src: str, dst: str, expected_min_ms: int, expected_max_ms: int) -> bool:
+def check_latency(
+    src: str,
+    dst: str,
+    expected_min_ms: int,
+    expected_max_ms: int,
+    *,
+    emit_latency: bool = False,
+) -> bool:
     """Check that latency from ``src`` to ``dst`` lies in the expected range.
 
     For per-destination shaping, we look for the ``tc filter`` matching
@@ -64,34 +92,46 @@ def check_latency(src: str, dst: str, expected_min_ms: int, expected_max_ms: int
     if not dst_ip:
         log.warning("Container %s has no IP; cannot check latency to %s", dst, src)
         return False
+    dst_ip_hex = _ip_to_hex(dst_ip)
 
-    # First try to locate a per-destination filter for dst_ip
-    filt = subprocess.run(
-        ["nsenter", "-t", str(src_pid), "-n", "tc", "filter", "show", "dev", _TC_DEV, "parent", "1:"],
+    classid = _classid_for_dst(dst, dst_ip)
+    delay = None
+    qdisc_out = subprocess.run(
+        ["nsenter", "-t", str(src_pid), "-n", "tc", "qdisc", "show", "dev", _TC_DEV],
         capture_output=True,
         text=True,
     )
-
-    flowid = None
-    if filt.returncode == 0:
-        for line in filt.stdout.splitlines():
-            if dst_ip in line and "flowid" in line:
-                parts = line.split()
-                for i, token in enumerate(parts):
-                    if token == "flowid" and i + 1 < len(parts):
-                        flowid = parts[i + 1]
-                        break
-                if flowid:
+    if qdisc_out.returncode == 0:
+        for line in qdisc_out.stdout.splitlines():
+            if f"parent {classid} " in line:
+                match = _DELAY_RE.search(line)
+                if match:
+                    delay = float(match.group(1))
                     break
 
-    delay = None
-    if flowid:
-        qdisc_out = subprocess.run(
-            ["nsenter", "-t", str(src_pid), "-n", "tc", "qdisc", "show", "dev", _TC_DEV],
+    # Fall back to filter lookup if classid is missing.
+    if delay is None:
+        filt = subprocess.run(
+            ["nsenter", "-t", str(src_pid), "-n", "tc", "filter", "show", "dev", _TC_DEV, "parent", "1:"],
             capture_output=True,
             text=True,
         )
-        if qdisc_out.returncode == 0:
+        flowid = None
+        if filt.returncode == 0:
+            for line in filt.stdout.splitlines():
+                line_lower = line.lower()
+                ip_match = dst_ip in line_lower
+                if dst_ip_hex:
+                    ip_match = ip_match or dst_ip_hex in line_lower
+                if ip_match and "flowid" in line_lower:
+                    parts = line.split()
+                    for i, token in enumerate(parts):
+                        if token == "flowid" and i + 1 < len(parts):
+                            flowid = parts[i + 1]
+                            break
+                    if flowid:
+                        break
+        if flowid:
             for line in qdisc_out.stdout.splitlines():
                 if f"parent {flowid} " in line:
                     match = _DELAY_RE.search(line)
@@ -113,14 +153,24 @@ def check_latency(src: str, dst: str, expected_min_ms: int, expected_max_ms: int
     if expected_min_ms <= delay <= expected_max_ms:
         log.debug("Latency check passed for %s->%s (%.2fms)", src, dst, delay)
         return True
-    log.debug(
-        "Latency check failed for %s->%s: %.2fms not in [%s, %s]",
-        src,
-        dst,
-        delay,
-        expected_min_ms,
-        expected_max_ms,
-    )
+    if emit_latency:
+        log.warning(
+            "Latency mismatch for %s->%s: measured=%.2fms expected=[%s, %s]",
+            src,
+            dst,
+            delay,
+            expected_min_ms,
+            expected_max_ms,
+        )
+    else:
+        log.debug(
+            "Latency check failed for %s->%s: %.2fms not in [%s, %s]",
+            src,
+            dst,
+            delay,
+            expected_min_ms,
+            expected_max_ms,
+        )
     return False
 
 
@@ -190,6 +240,7 @@ def _iptables_has_drop(src_name: str, dst_name: str, src_ip: str, dst_ip: str) -
 
 
 def check_blocked(src: str, dst: str) -> bool:
+    """Return True if bidirectional DROP rules exist for src<->dst."""
     src_ip = docker_env.get_container_ip(src)
     dst_ip = docker_env.get_container_ip(dst)
     if not src_ip or not dst_ip:
@@ -209,6 +260,7 @@ def check_blocked(src: str, dst: str) -> bool:
 
 
 def check_unblocked(src: str, dst: str) -> bool:
+    """Return True if no bidirectional DROP rules exist for src<->dst."""
     src_ip = docker_env.get_container_ip(src)
     dst_ip = docker_env.get_container_ip(dst)
     if not src_ip or not dst_ip:

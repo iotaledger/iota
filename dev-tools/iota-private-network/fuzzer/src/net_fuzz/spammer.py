@@ -46,7 +46,7 @@ def _private_network_root() -> Path:
     net_fuzz/spammer.py → fuzzer/ → iota-private-network/
     """
 
-    return Path(__file__).resolve().parents[2]
+    return Path(__file__).resolve().parents[3]
 
 
 def _container_running(name: str) -> bool:

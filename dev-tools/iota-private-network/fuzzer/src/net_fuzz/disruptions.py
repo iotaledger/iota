@@ -21,7 +21,7 @@ class DisruptionError(RuntimeError):
 
 
 def _run_host_command(args: list[str], *, check: bool = True) -> subprocess.CompletedProcess[str]:
-    """Run a command on the host system"""
+    """Run a command on the host system."""
     log.debug("Host command: %s", " ".join(args))
     result = subprocess.run(args, capture_output=True, text=True)
     if check and result.returncode != 0:
@@ -212,6 +212,7 @@ def _ensure_docker_user_chain() -> None:
 
 
 def _rule_comment(label: str) -> str:
+    """Return the iptables comment used to tag net-fuzz rules."""
     return f"{_RULE_COMMENT_PREFIX}:{label}"
 
 
@@ -266,11 +267,13 @@ def unblock_connection(src: str, dst: str) -> None:
 
 
 def restart_node(name: str) -> None:
+    """Restart a container by name."""
     docker_env.restart_container(name)
     log.info("Restarted node %s", name)
 
 
 def kill_node(name: str) -> None:
+    """Stop a container by name."""
     docker_env.stop_container(name, timeout=5)
     log.info("Stopped node %s", name)
 

@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
+import subprocess
 import logging
 from collections.abc import Iterable
 from dataclasses import dataclass
-import subprocess
 
 import docker
 from docker import errors as docker_errors
@@ -65,18 +65,22 @@ def _list_containers_by_prefix(prefix: str) -> list[ContainerInfo]:
 
 
 def list_validator_containers(prefix: str = "validator-") -> list[ContainerInfo]:
+    """Return validators with names matching the prefix."""
     return _list_containers_by_prefix(prefix)
 
 
 def list_fullnode_containers(prefix: str = "fullnode-") -> list[ContainerInfo]:
+    """Return fullnodes with names matching the prefix."""
     return _list_containers_by_prefix(prefix)
 
 
 def list_faucet_containers(prefix: str = "faucet-") -> list[ContainerInfo]:
+    """Return faucets with names matching the prefix."""
     return _list_containers_by_prefix(prefix)
 
 
 def get_container_ip(name: str, network: str | None = None) -> str | None:
+    """Return the container IP address, optionally scoped to a Docker network."""
     container = _get_container(name)
     networks = container.attrs.get("NetworkSettings", {}).get("Networks", {})
     if network:

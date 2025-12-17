@@ -5,8 +5,7 @@ network. It provides small, composable primitives (Docker, iptables, tc/netem)
 and higher-level scenarios built on top of them.
 
 For environment setup and end-to-end usage examples, see
-`dev-tools/iota-private-network/fuzzer/README.md`. The package uses a
-modern `pyproject.toml` / `src/` layout, so all sources live under
+`dev-tools/iota-private-network/fuzzer/README.md`. The package uses a `pyproject.toml` / `src/` layout, so all sources live under
 `dev-tools/iota-private-network/fuzzer/src/net_fuzz`.
 
 ## Module map
@@ -24,8 +23,9 @@ modern `pyproject.toml` / `src/` layout, so all sources live under
   (`sync_stress`, `adaptive_fuzz`). Some helpers are placeholders.
 - `cli` / `__main__`: entry point for `python -m net_fuzz`.
 - `verify_disruptions`: manual smoke test for the low-level primitives.
-- Scenario scripts: `block_stress`, `mirage_stress`, `non_triangle_stress`,
-  `sync_stress`, `adaptive_fuzz`.
+- Long-running experiments live under `net_fuzz.experiments`:
+  `block_stress`, `mirage_stress`, `non_triangle_stress`, `sync_stress`,
+  `adaptive_fuzz`.
 
 ## Privilege boundary
 
@@ -76,4 +76,4 @@ When building new scenarios:
 - `python -m net_fuzz run-scenario --name fuzz --num-validators 19 --duration 600`
 - `python -m net_fuzz.verify_disruptions --num-validators 4`
 - `python -m net_fuzz.spammer --tps 100 --duration 600`
-- `python -m net_fuzz.block_stress` (long-running stress script)
+- `python -m net_fuzz.experiments.block_stress` (long-running stress script)

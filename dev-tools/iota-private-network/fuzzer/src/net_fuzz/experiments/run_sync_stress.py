@@ -19,8 +19,9 @@ PAUSE_BETWEEN_PROTOCOLS = 60  # seconds
 # Paths
 # ---------------------------------------------------------------------
 SCRIPT_DIR = Path(__file__).resolve().parent
-PRIVNET_DIR = SCRIPT_DIR.parent
-DOCKER_ROOT = SCRIPT_DIR.parents[2] / "docker"
+PRIVNET_DIR = SCRIPT_DIR.parents[3]
+REPO_ROOT = PRIVNET_DIR.parents[1]
+DOCKER_ROOT = REPO_ROOT / "docker"
 FUZZER_DIR = PRIVNET_DIR / "fuzzer"
 
 def run_command(cmd, cwd=None, check=True, shell=False):
@@ -48,9 +49,9 @@ def build_images():
         run_command(["sudo", "./build.sh", "-t", name], cwd=path)
 
 def run_experiment(protocol):
-    """Runs the mirage stress test for a specific protocol."""
+    """Runs the sync stress test for a specific protocol."""
     print(f"\n{'='*60}")
-    print(f"=== Starting Mirage Stress Test for {protocol.upper()} ===")
+    print(f"=== Starting Sync Stress Test for {protocol.upper()} ===")
     print(f"{'='*60}\n")
 
     # 1. Cleanup existing network
@@ -71,8 +72,8 @@ def run_experiment(protocol):
     print(">>> Waiting for network to stabilize (20s)...")
     time.sleep(20)
 
-    # 4. Run Mirage Stress Test
-    print(">>> Running Mirage Stress Test (Python)...")
+    # 4. Run Sync Stress Test
+    print(">>> Running Sync Stress Test (Python)...")
     
     # Ensure venv exists (simple check)
     venv_python = PRIVNET_DIR / ".venv" / "bin" / "python"
@@ -86,13 +87,13 @@ def run_experiment(protocol):
 
     # Run the fuzzer script
     # We use sudo because the fuzzer needs to manipulate docker/iptables
-    # We execute the module net_fuzz.mirage_stress
+    # We execute the module net_fuzz.experiments.sync_stress
     env = os.environ.copy()
     env["PYTHONPATH"] = str(FUZZER_DIR / "src")
     
     try:
         run_command(
-            ["sudo", str(venv_python), "-m", "net_fuzz.mirage_stress"], 
+            ["sudo", str(venv_python), "-m", "net_fuzz.experiments.sync_stress"],
             cwd=FUZZER_DIR,
             check=True
         )
@@ -103,14 +104,14 @@ def run_experiment(protocol):
     except Exception as e:
         print(f"An error occurred during the test: {e}")
 
-    print(f"=== Finished Mirage Stress Test for {protocol} ===")
+    print(f"=== Finished Sync Stress Test for {protocol} ===")
 
     # 5. Cleanup
     print(">>> Cleaning up...")
     run_command(["sudo", "./cleanup.sh"], cwd=PRIVNET_DIR)
 
 def main():
-    parser = argparse.ArgumentParser(description="Run Mirage Stress Test on Mysticeti and Starfish")
+    parser = argparse.ArgumentParser(description="Run Sync Stress Test on Mysticeti and Starfish")
     parser.add_argument("--skip-build", action="store_true", help="Skip building docker images")
     args = parser.parse_args()
 
@@ -126,7 +127,7 @@ def main():
     # Run Starfish 
     run_experiment("starfish")
 
-    print("\nAll mirage stress runs completed.")
+    print("\nAll sync stress runs completed.")
 
 if __name__ == "__main__":
     main()
