@@ -1238,7 +1238,7 @@ async fn genesis(
     info!("Client keystore is stored in {:?}.", keystore_path);
 
     let fullnode_config = FullnodeConfigBuilder::new()
-        .with_config_directory(FULL_NODE_DB_PATH.into())
+        .with_config_directory(iota_config_dir.to_path_buf())
         .with_rpc_addr(iota_config::node::default_json_rpc_address())
         .with_genesis(genesis.clone())
         .with_admin_interface_address(admin_interface_address_with_port)
@@ -1253,7 +1253,7 @@ async fn genesis(
             // join base fullnode config with each SsfnGenesisConfig entry
             let genesis = Genesis::new_from_file("/opt/iota/config/genesis.blob");
             let ssfn_config = FullnodeConfigBuilder::new()
-                .with_config_directory(FULL_NODE_DB_PATH.into())
+                .with_config_directory(iota_config_dir.to_path_buf())
                 .with_p2p_external_address(ssfn.p2p_address)
                 .with_network_key_pair(ssfn.network_key_pair)
                 .with_p2p_listen_address(([0, 0, 0, 0], 8084))

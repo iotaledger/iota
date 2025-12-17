@@ -129,13 +129,10 @@ impl ProtocolCommands<IotaBenchmarkType> for IotaProtocol {
     }
 
     fn db_directories(&self) -> Vec<PathBuf> {
-        let authorities_db = [&self.working_dir, &iota_config::AUTHORITIES_DB_NAME.into()]
-            .iter()
-            .collect();
-        let consensus_db = [&self.working_dir, &iota_config::CONSENSUS_DB_NAME.into()]
-            .iter()
-            .collect();
-        vec![authorities_db, consensus_db]
+        let authorities_db = self.working_dir.join(iota_config::AUTHORITIES_DB_NAME);
+        let consensus_db = self.working_dir.join(iota_config::CONSENSUS_DB_NAME);
+        let full_node_db: PathBuf = self.working_dir.join(iota_config::FULL_NODE_DB_PATH);
+        vec![authorities_db, consensus_db, full_node_db]
     }
 
     fn genesis_command<'a, I>(
