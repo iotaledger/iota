@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 from collections.abc import Iterable
 from dataclasses import dataclass
+import subprocess
 
 import docker
 from docker import errors as docker_errors
@@ -80,9 +81,11 @@ def get_container_ip(name: str, network: str | None = None) -> str | None:
     networks = container.attrs.get("NetworkSettings", {}).get("Networks", {})
     if network:
         entry = networks.get(network)
-        return (entry or {}).get("IPAddress") or None
+        if entry:
+            return entry.get("IPAddress") or entry.get("IPAMConfig", {}).get("IPv4Address")
+        return None
     for entry in networks.values():
-        ip = entry.get("IPAddress")
+        ip = entry.get("IPAddress") or entry.get("IPAMConfig", {}).get("IPv4Address")
         if ip:
             return ip
     return None
@@ -90,10 +93,28 @@ def get_container_ip(name: str, network: str | None = None) -> str | None:
 
 def get_container_pid(name: str) -> int | None:
     container = _get_container(name)
+    try:
+        container.reload()
+    except docker_errors.DockerException:  # pragma: no cover - best effort
+        pass
     pid = container.attrs.get("State", {}).get("Pid")
-    if not pid:
-        return None
-    return int(pid)
+    if pid:
+        try:
+            return int(pid)
+        except (TypeError, ValueError):
+            pass
+    # Fallback: use docker inspect to query PID
+    result = subprocess.run(
+        ["docker", "inspect", "-f", "{{.State.Pid}}", name],
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode == 0:
+        pid_str = result.stdout.strip()
+        if pid_str.isdigit():
+            val = int(pid_str)
+            return val if val > 0 else None
+    return None
 
 
 def _normalize_cmd(cmd: Iterable[str] | str) -> Iterable[str] | str:

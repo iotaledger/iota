@@ -1,16 +1,16 @@
-# net_fuzz – local usage guide
+# fuzzer – local usage guide
 
 This directory contains the `net_fuzz` Python package, which provides
 small, composable primitives to disrupt and inspect the IOTA private
-network (validators, fullnodes, faucet, …).
+network.
 
 The goal of this document is to show how to:
 
-- create a local Python environment for `net_fuzz`
+- create a local Python environment for `fuzzer`
 - apply disruptions (restart/kill, block connections, latency/loss)
 - verify that each disruption actually took effect
 
-> Important: the Python code never runs `sudo` internally. Anything
+> Note: the Python code never runs `sudo` internally. Anything
 > that touches `iptables` or `tc/nsenter` must be executed with
 > sufficient privileges from the outermost layer.
 
@@ -37,9 +37,9 @@ capture the venv Python path:
 PYTHON=$(python -c 'import sys; print(sys.executable)')
 ```
 
-When developing without installing the package you can also export
-`PYTHONPATH=dev-tools/iota-private-network/fuzzer/src` to point Python
-directly at the sources.
+If you prefer not to install the package inside the virtualenv, export
+`PYTHONPATH=dev-tools/iota-private-network/fuzzer/src` so Python can import
+`net_fuzz` straight from `src/net_fuzz`.
 
 You can then run privileged scripts as:
 
