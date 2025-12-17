@@ -375,7 +375,7 @@ fn start_indexer_reader(fullnode_rpc_url: impl Into<String>, database_name: Opti
 
     let config = JsonRpcConfig {
         iota_names_options: IotaNamesOptions::default(),
-        historic_fallback_options: iota_indexer::config::HistoricFallbackOptions::default(),
+        historic_fallback_options: Default::default(),
         rpc_address: SocketAddr::new(DEFAULT_INDEXER_IP.parse().unwrap(), port),
         rpc_client_url: fullnode_rpc_url.into(),
     };

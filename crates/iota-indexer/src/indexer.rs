@@ -175,16 +175,19 @@ impl Indexer {
         let mut read = IndexerReader::new(connection_pool.clone());
 
         if let HistoricFallbackOptions {
-            fallback_kv_url: Some(url),
+            fallback_kv_url: Some(ref url),
             fallback_kv_multi_fetch_batch_size,
             fallback_kv_concurrent_fetches,
-        } = &config.historic_fallback_options
+            fallback_kv_cache_size,
+        } = config.historic_fallback_options
         {
             let historic_fallback_reader = HistoricalFallbackReader::new(
                 url.as_str(),
+                fallback_kv_cache_size,
                 read.package_resolver(),
-                *fallback_kv_multi_fetch_batch_size,
-                *fallback_kv_concurrent_fetches,
+                fallback_kv_multi_fetch_batch_size,
+                fallback_kv_concurrent_fetches,
+                metrics.historical_fallback_metrics.clone(),
             )?;
             info!("HistoricalFallbackReader initialized with URL: {url}");
             read.with_fallback_reader(historic_fallback_reader);

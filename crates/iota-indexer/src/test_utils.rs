@@ -150,7 +150,7 @@ pub async fn start_test_indexer_impl(
         } => {
             let config = crate::config::JsonRpcConfig {
                 iota_names_options: IotaNamesOptions::default(),
-                historic_fallback_options: crate::config::HistoricFallbackOptions::default(),
+                historic_fallback_options: Default::default(),
                 rpc_address: reader_mode_rpc_url.parse().unwrap(),
                 rpc_client_url: rpc_url,
             };

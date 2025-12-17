@@ -12,6 +12,8 @@ use prometheus::{
 };
 use tracing::info;
 
+use crate::historical_fallback::metrics::HistoricalFallbackClientMetrics;
+
 const METRICS_ROUTE: &str = "/metrics";
 
 pub fn start_prometheus_server(
@@ -194,6 +196,7 @@ pub struct IndexerMetrics {
     pub optimistic_tx_with_missing_dependencies_count: IntCounter,
     pub optimistic_tx_with_missing_objects_counts: IntCounter,
     pub optimistic_tx_failed_db_writes_count: IntCounter,
+    pub historical_fallback_metrics: HistoricalFallbackClientMetrics,
 }
 
 impl IndexerMetrics {
@@ -923,6 +926,7 @@ impl IndexerMetrics {
                 registry,
             )
             .unwrap(),
+            historical_fallback_metrics: HistoricalFallbackClientMetrics::new(registry),
         }
     }
 }
