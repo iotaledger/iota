@@ -25,4 +25,5 @@ export enum Feature {
     KnownIotaEVMCoinTypes = 'known-iota-evm-coin-types',
     IotaNames = 'iota-names',
     ValidatorAddressAlias = 'validator-address-alias',
+    TFIdentity = 'trust-framework-identity',
 }
