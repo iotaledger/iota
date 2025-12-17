@@ -411,6 +411,7 @@ impl IotaProtocol {
             parameters.epoch_duration_ms,
             parameters.chain_start_timestamp_ms,
             Some(parameters.additional_gas_accounts),
+            u64::MAX,
         );
         let mut addresses = Vec::new();
         if let Some(validator_configs) = genesis_config.validator_config_info.as_ref() {
@@ -457,6 +458,7 @@ impl ProtocolMetrics for IotaProtocol {
             parameters.epoch_duration_ms,
             parameters.chain_start_timestamp_ms,
             Some(parameters.additional_gas_accounts),
+            u64::MAX,
         )
         .validator_config_info
         .expect("No validator in genesis")

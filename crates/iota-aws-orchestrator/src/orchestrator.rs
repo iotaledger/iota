@@ -820,7 +820,7 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
                 .settings
                 .results_dir
                 .join(&commit)
-                .join(&format!("{timestamp}-{parameters:?}"));
+                .join(format!("{timestamp}-{parameters:?}"));
             parameters.benchmark_dir = benchmark_dir;
 
             // Cleanup the testbed (in case the previous run was not completed).

@@ -1116,12 +1116,26 @@ async fn genesis(
                 // Make a keystore containing the key for the genesis gas object.
                 let path = iota_config_dir.join(IOTA_BENCHMARK_GENESIS_GAS_KEYSTORE_FILENAME);
                 let mut keystore = FileBasedKeystore::new(&path)?;
-                for gas_key in GenesisConfig::benchmark_gas_keys(
-                    ips.len() + num_additional_gas_accounts.unwrap_or(0),
-                ) {
+                let num_validators = ips.len();
+                let num_accounts = num_validators + num_additional_gas_accounts.unwrap_or(0);
+                for gas_key in GenesisConfig::benchmark_gas_keys(num_accounts) {
                     keystore.add_key(None, gas_key)?;
                 }
                 keystore.save()?;
+
+                // Calculate extra allocations (validator, faucet)
+                let validator_extra = num_validators as u64
+                    * (iota_swarm_config::genesis_config::DEFAULT_GAS_AMOUNT
+                        + iota_types::governance::VALIDATOR_LOW_STAKE_THRESHOLD_NANOS);
+                let mut faucet_extra = 0u64;
+                if with_faucet {
+                    faucet_extra = iota_swarm_config::genesis_config::DEFAULT_GAS_AMOUNT
+                        * iota_swarm_config::genesis_config::DEFAULT_NUMBER_OF_OBJECT_PER_ACCOUNT
+                            as u64;
+                }
+                let total_available_amount = u64::MAX
+                    .saturating_sub(validator_extra)
+                    .saturating_sub(faucet_extra);
 
                 // Make a new genesis config from the provided ip addresses with given epoch
                 // duration and timestamp.
@@ -1130,6 +1144,7 @@ async fn genesis(
                     epoch_duration_ms,
                     chain_start_timestamp_ms,
                     num_additional_gas_accounts,
+                    total_available_amount,
                 )
             } else if keystore_path.exists() {
                 let existing_keys = FileBasedKeystore::new(&keystore_path)?.addresses();
