@@ -16,7 +16,8 @@ The goal of this document is to show how to:
 
 ## Environment setup
 
-From the repository root for the private network:
+From the repository root for the private network (make sure the validator
+network is running, e.g. `./run.sh -n 10 -p mysticeti`):
 
 ```bash
 cd ~/iota/dev-tools/iota-private-network
@@ -154,9 +155,20 @@ sudo -E "$PYTHON" -m net_fuzz run-scenario \
   --delay-ms 100
 ```
 
-This uses `disruptions.add_latency` and `checks.check_latency` under
-the hood and logs a short summary. More complex fuzz scenarios can be
-added later without changing how the environment is set up.
+This applies latency once and the CLI process exits immediately—there is no
+long-running worker—but the `tc` state persists until you reset the network.
+To clean up, either restart the validators (e.g. run
+`sudo -E "$PYTHON" -m net_fuzz.verify_disruptions`, which resets at the end) or
+call `disruptions.reset_network` manually, for example:
+
+```bash
+sudo -E "$PYTHON" - <<'PY'
+from net_fuzz import disruptions
+disruptions.reset_network(num_validators=10)
+PY
+```
+More complex fuzz scenarios can be added later without changing how the
+environment is set up.
 
 ## Long-running fuzz scenario
 
@@ -177,7 +189,7 @@ PYTHON=$(python -c 'import sys; print(sys.executable)')
 
 sudo -E "$PYTHON" -m net_fuzz run-scenario \
   --name fuzz \
-  --num-validators 19 \
+  --num-validators 10 \
   --duration 6000 \
   --seed 42 \
   --mean-down 120 \
@@ -214,7 +226,8 @@ sudo -E "$PYTHON" -m net_fuzz.spammer --tps 100 --duration 600
 
 This will:
 
-- ensure `fullnode-1` and `faucet-1` are up via `docker compose`
+- ensure `fullnode-1` and `faucet-1` are running (starting them via
+  `docker compose up -d` if necessary)
 - start a detached `stress-benchmark` container on the
   `iota-private-network_iota-network` Docker network
 -, if `--duration` is set, stop the container after the given number of

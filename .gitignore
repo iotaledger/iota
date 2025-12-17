@@ -43,6 +43,7 @@ flamegraph-mem.svg
 # Python
 .pyc
 **/__pycache__/
+**/.venv*/
 
 # Node.js
 node_modules/
