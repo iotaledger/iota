@@ -22,11 +22,18 @@ use reqwest::{
     Client, Url,
     header::{CONTENT_LENGTH, HeaderValue},
 };
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use tap::TapFallible;
 use tracing::{error, info, instrument, trace, warn};
 
-use crate::errors::IndexerResult;
+use crate::{IndexerError, errors::IndexerResult};
+
+/// Request payload for multi_get containing list of keys.
+#[derive(Serialize, Debug)]
+struct MultiGetRequest {
+    /// List of base64url-encoded keys to retrieve.
+    keys: Vec<String>,
+}
 
 pub(crate) trait KeyValueStoreClient {
     async fn multi_get_transactions(
@@ -74,11 +81,22 @@ pub(crate) trait KeyValueStoreClient {
 pub(crate) struct HttpRestKVClient {
     base_url: Url,
     client: Client,
+    /// Maximum number of keys per batch request
+    batch_size: usize,
+    /// Maximum number of concurrent batch requests
+    max_concurrent_batches: usize,
 }
 
 impl HttpRestKVClient {
-    pub fn new(base_url: &str) -> IndexerResult<Self> {
-        info!("creating HttpRestKVClient with base_url: {}", base_url);
+    pub fn new(
+        base_url: &str,
+        batch_size: usize,
+        max_concurrent_batches: usize,
+    ) -> IndexerResult<Self> {
+        info!(
+            "creating HttpRestKVClient with base_url: {}, batch_size: {}, max_concurrent_batches: {}",
+            base_url, batch_size, max_concurrent_batches
+        );
 
         let client = Client::builder().http2_prior_knowledge().build()?;
 
@@ -90,28 +108,88 @@ impl HttpRestKVClient {
 
         let base_url = Url::parse(&base_url)?;
 
-        Ok(Self { base_url, client })
+        Ok(Self {
+            base_url,
+            client,
+            batch_size,
+            max_concurrent_batches,
+        })
     }
 
+    #[allow(dead_code)]
     fn get_url(&self, key: &Key) -> IndexerResult<Url> {
         let (item_type, digest) = key.to_path_elements();
         let joined = self.base_url.join(&format!("{item_type}/{digest}"))?;
         Ok(Url::from_str(joined.as_str())?)
     }
 
-    async fn multi_fetch(&self, uris: Vec<Key>) -> Vec<IndexerResult<Option<Bytes>>> {
-        if uris.is_empty() {
-            return Vec::new();
+    async fn multi_fetch(&self, keys: Vec<Key>) -> IndexerResult<Vec<Option<Bytes>>> {
+        if keys.is_empty() {
+            return Ok(Vec::new());
         }
-        let len = uris.len();
-        stream::iter(uris)
-            .map(|url| self.fetch(url))
-            // len must be greater than 0, otherwise it will enter a deadlock.
-            .buffered(len)
-            .collect()
-            .await
+
+        let chunks: Vec<Vec<Key>> = keys
+            .chunks(self.batch_size)
+            .map(|chunk| chunk.to_vec())
+            .collect();
+
+        let results = stream::iter(chunks)
+            .map(|chunk| self.fetch_batch(chunk))
+            .buffered(self.max_concurrent_batches);
+
+        futures::pin_mut!(results);
+
+        let mut flattened = Vec::new();
+        while let Some(batch_result) = results.next().await {
+            flattened.extend(batch_result?);
+        }
+
+        Ok(flattened)
     }
 
+    async fn fetch_batch(&self, keys: Vec<Key>) -> IndexerResult<Vec<Option<Bytes>>> {
+        // Extract item_type from the first key (all keys should be the same type)
+        let item_type = keys[0].item_type().to_string();
+        let url = self.base_url.join(&item_type)?;
+
+        let encoded_keys: Vec<String> = keys
+            .iter()
+            .map(|key| {
+                let (_, encoded) = key.to_path_elements();
+                encoded
+            })
+            .collect();
+        let payload = MultiGetRequest { keys: encoded_keys };
+
+        trace!(
+            "fetching batch of {} keys from url: {url}",
+            payload.keys.len()
+        );
+
+        let resp = self.client.post(url.clone()).json(&payload).send().await?;
+
+        trace!(
+            "got response {} for url: {url}, len: {:?}",
+            resp.status(),
+            resp.headers()
+                .get(CONTENT_LENGTH)
+                .unwrap_or(&HeaderValue::from_static("0"))
+        );
+
+        if !resp.status().is_success() {
+            return Err(IndexerError::HistoricalFallbackStorageError(format!(
+                "multi_fetch request failed with status: {}",
+                resp.status()
+            )));
+        }
+
+        let bytes = resp.bytes().await?;
+        bcs::from_bytes::<Vec<Option<Bytes>>>(&bytes).map_err(|e| {
+            IndexerError::Serde(format!("failed to deserialize multi_get response: {e:?}"))
+        })
+    }
+
+    #[allow(dead_code)]
     async fn fetch(&self, key: Key) -> IndexerResult<Option<Bytes>> {
         let url = self.get_url(&key)?;
 
@@ -152,21 +230,6 @@ where
         .ok()
 }
 
-fn map_fetch<'a, K>(fetch: (&'a IndexerResult<Option<Bytes>>, &'a K)) -> Option<(&'a Bytes, &'a K)>
-where
-    K: std::fmt::Debug,
-{
-    let (fetch, key) = fetch;
-    match fetch {
-        Ok(Some(bytes)) => Some((bytes, key)),
-        Ok(None) => None,
-        Err(err) => {
-            warn!("Error fetching key: {key:?}, error: {err:?}");
-            None
-        }
-    }
-}
-
 fn deser_check_digest<T, D>(
     digest: &D,
     bytes: &Bytes,
@@ -198,13 +261,12 @@ impl KeyValueStoreClient for HttpRestKVClient {
             .map(|tx| Key::Transaction(*tx))
             .collect::<Vec<_>>();
 
-        let fetches = self.multi_fetch(keys).await;
+        let fetches = self.multi_fetch(keys).await?;
         let txn_results = fetches
             .iter()
             .zip(transaction_digests.iter())
-            .map(map_fetch)
-            .map(|maybe_bytes| {
-                maybe_bytes.and_then(|(bytes, digest)| {
+            .map(|(fetch, digest)| {
+                fetch.as_ref().and_then(|bytes| {
                     deser_check_digest(digest, bytes, |tx: &Transaction| *tx.digest())
                 })
             })
@@ -223,13 +285,12 @@ impl KeyValueStoreClient for HttpRestKVClient {
             .map(|fx| Key::TransactionEffects(*fx))
             .collect::<Vec<_>>();
 
-        let fetches = self.multi_fetch(keys).await;
+        let fetches = self.multi_fetch(keys).await?;
         let fx_results = fetches
             .iter()
             .zip(transaction_digests.iter())
-            .map(map_fetch)
-            .map(|maybe_bytes| {
-                maybe_bytes.and_then(|(bytes, digest)| {
+            .map(|(fetch, digest)| {
+                fetch.as_ref().and_then(|bytes| {
                     deser_check_digest(digest, bytes, |fx: &TransactionEffects| {
                         *fx.transaction_digest()
                     })
@@ -250,15 +311,15 @@ impl KeyValueStoreClient for HttpRestKVClient {
             .map(|digest| Key::TransactionToCheckpoint(*digest))
             .collect::<Vec<_>>();
 
-        let fetches = self.multi_fetch(keys).await;
+        let fetches = self.multi_fetch(keys).await?;
 
         let results = fetches
             .iter()
             .zip(transaction_digests.iter())
-            .map(map_fetch)
-            .map(|maybe_bytes| {
-                maybe_bytes
-                    .and_then(|(bytes, key)| deser::<_, CheckpointSequenceNumber>(&key, bytes))
+            .map(|(fetch, digest)| {
+                fetch
+                    .as_ref()
+                    .and_then(|bytes| deser::<_, CheckpointSequenceNumber>(&digest, bytes))
             })
             .collect::<Vec<_>>();
 
@@ -274,14 +335,14 @@ impl KeyValueStoreClient for HttpRestKVClient {
             .iter()
             .map(|digest| Key::EventsByTransactionDigest(*digest))
             .collect::<Vec<_>>();
-        Ok(self
-            .multi_fetch(keys)
-            .await
+        let fetches = self.multi_fetch(keys).await?;
+        Ok(fetches
             .iter()
             .zip(transaction_digests.iter())
-            .map(map_fetch)
-            .map(|maybe_bytes| {
-                maybe_bytes.and_then(|(bytes, key)| deser::<_, TransactionEvents>(&key, bytes))
+            .map(|(fetch, digest)| {
+                fetch
+                    .as_ref()
+                    .and_then(|bytes| deser::<_, TransactionEvents>(&digest, bytes))
             })
             .collect::<Vec<_>>())
     }
@@ -296,15 +357,15 @@ impl KeyValueStoreClient for HttpRestKVClient {
             .map(|cp| Key::CheckpointSummary(*cp))
             .collect::<Vec<_>>();
 
-        let fetches = self.multi_fetch(keys).await;
+        let fetches = self.multi_fetch(keys).await?;
 
         let summaries_results = fetches
             .iter()
             .zip(checkpoint_sequence_numbers.iter())
-            .map(map_fetch)
-            .map(|maybe_bytes| {
-                maybe_bytes
-                    .and_then(|(bytes, seq)| deser::<_, CertifiedCheckpointSummary>(seq, bytes))
+            .map(|(fetch, seq)| {
+                fetch
+                    .as_ref()
+                    .and_then(|bytes| deser::<_, CertifiedCheckpointSummary>(seq, bytes))
             })
             .collect::<Vec<_>>();
 
@@ -321,14 +382,15 @@ impl KeyValueStoreClient for HttpRestKVClient {
             .map(|cp| Key::CheckpointContents(*cp))
             .collect::<Vec<_>>();
 
-        let fetches = self.multi_fetch(keys).await;
+        let fetches = self.multi_fetch(keys).await?;
 
         let contents_results = fetches
             .iter()
             .zip(checkpoint_sequence_numbers.iter())
-            .map(map_fetch)
-            .map(|maybe_bytes| {
-                maybe_bytes.and_then(|(bytes, seq)| deser::<_, CheckpointContents>(seq, bytes))
+            .map(|(fetch, seq)| {
+                fetch
+                    .as_ref()
+                    .and_then(|bytes| deser::<_, CheckpointContents>(seq, bytes))
             })
             .collect::<Vec<_>>();
 
@@ -345,14 +407,13 @@ impl KeyValueStoreClient for HttpRestKVClient {
             .map(|cp| Key::CheckpointSummaryByDigest(*cp))
             .collect::<Vec<_>>();
 
-        let fetches = self.multi_fetch(keys).await;
+        let fetches = self.multi_fetch(keys).await?;
 
         let summaries_by_digest_results = fetches
             .iter()
             .zip(checkpoint_digests.iter())
-            .map(map_fetch)
-            .map(|maybe_bytes| {
-                maybe_bytes.and_then(|(bytes, digest)| {
+            .map(|(fetch, digest)| {
+                fetch.as_ref().and_then(|bytes| {
                     deser_check_digest(digest, bytes, |s: &CertifiedCheckpointSummary| *s.digest())
                 })
             })
@@ -371,13 +432,12 @@ impl KeyValueStoreClient for HttpRestKVClient {
             .map(|(object_id, version)| Key::ObjectKey(*object_id, *version))
             .collect::<Vec<_>>();
 
-        let fetches = self.multi_fetch(keys).await;
+        let fetches = self.multi_fetch(keys).await?;
 
         let objects = fetches
             .iter()
             .zip(object_refs.iter())
-            .map(map_fetch)
-            .map(|maybe_bytes| maybe_bytes.and_then(|(bytes, object_ref)| deser(object_ref, bytes)))
+            .map(|(fetch, object_ref)| fetch.as_ref().and_then(|bytes| deser(object_ref, bytes)))
             .collect::<Vec<_>>();
 
         Ok(objects)

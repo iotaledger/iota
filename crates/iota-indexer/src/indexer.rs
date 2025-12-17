@@ -13,7 +13,9 @@ use tracing::{info, warn};
 
 use crate::{
     build_json_rpc_server,
-    config::{IngestionConfig, JsonRpcConfig, RetentionConfig, SnapshotLagConfig},
+    config::{
+        HistoricFallbackOptions, IngestionConfig, JsonRpcConfig, RetentionConfig, SnapshotLagConfig,
+    },
     db::ConnectionPool,
     errors::IndexerError,
     historical_fallback::reader::HistoricalFallbackReader,
@@ -172,10 +174,19 @@ impl Indexer {
 
         let mut read = IndexerReader::new(connection_pool.clone());
 
-        if let Some(fallback_kv_url) = &config.historic_fallback_options.fallback_kv_url {
-            let historic_fallback_reader =
-                HistoricalFallbackReader::new(fallback_kv_url.as_str(), read.package_resolver())?;
-            info!("HistoricalFallbackReader initialized with URL: {fallback_kv_url}");
+        if let HistoricFallbackOptions {
+            fallback_kv_url: Some(url),
+            fallback_kv_multi_fetch_batch_size,
+            fallback_kv_concurrent_fetches,
+        } = &config.historic_fallback_options
+        {
+            let historic_fallback_reader = HistoricalFallbackReader::new(
+                url.as_str(),
+                read.package_resolver(),
+                *fallback_kv_multi_fetch_batch_size,
+                *fallback_kv_concurrent_fetches,
+            )?;
+            info!("HistoricalFallbackReader initialized with URL: {url}");
             read.with_fallback_reader(historic_fallback_reader);
         } else {
             info!("No config for HistoricalFallbackReader provided, skipping...");
