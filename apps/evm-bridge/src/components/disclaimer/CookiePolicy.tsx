@@ -7,6 +7,7 @@ import {
     AMP_COOKIES_KEY,
     handleConsentDeclined,
 } from '@iota/core';
+import { ampli } from '../../shared/analytics';
 
 /**
  * Cookie Policy page - displays information about cookies we use
@@ -14,27 +15,46 @@ import {
  * No banner management - that's handled separately
  */
 export function CookiePolicy(): React.JSX.Element {
+    function onAccept() {
+        handleConsentAccepted(ampli.client);
+    }
+
+    function onReject() {
+        handleConsentDeclined(ampli.client);
+    }
+
     return (
         <CookiePolicyContent
             consentKey={AMP_COOKIES_KEY}
             necessaryCookies={[
                 {
                     name: AMP_COOKIES_KEY,
-                    purpose: 'Session management cookie for IOTA applications',
+                    purpose:
+                        "Stores the user's Amplitude cookies consent state for the current domain",
                     provider: 'IOTA',
-                    category: 'Necessary',
+                    expiration: '1 year',
                 },
             ]}
             additionalCookies={[
                 {
                     name: 'AMP_*',
-                    purpose: 'Amplitude analytics cookies',
+                    purpose:
+                        'Stores anonymous session and device identifiers used by Amplitude to track user interactions and analytics data across your visits.',
                     provider: 'Amplitude',
                     category: 'Analytics',
+                    expiration: '1 year',
+                },
+                {
+                    name: 'AMP_MKTG_*',
+                    purpose:
+                        'Stores marketing attribution data including UTM parameters, referrer information, and click IDs to track campaign effectiveness.',
+                    provider: 'Amplitude',
+                    category: 'Analytics',
+                    expiration: '1 year',
                 },
             ]}
-            onAccept={handleConsentAccepted}
-            onReject={handleConsentDeclined}
+            onAccept={onAccept}
+            onReject={onReject}
         />
     );
 }

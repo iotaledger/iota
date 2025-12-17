@@ -65,10 +65,10 @@ export interface CookiePolicyContentProps {
     /**
      * Callback fired when user accepts additional cookies
      */
-    onAccept?: () => void;
+    onAccept: () => void;
 
     /**
      * Callback fired when user rejects additional cookies
      */
-    onReject?: () => void;
+    onReject: () => void;
 }

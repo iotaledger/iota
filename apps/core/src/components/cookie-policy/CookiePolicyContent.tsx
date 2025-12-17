@@ -12,15 +12,14 @@ import {
     TableRow,
 } from '@iota/apps-ui-kit';
 import { CookiePolicyContentProps, DescribedCookie } from './types';
-import { categorizeCookies } from './helpers';
 import { getAmplitudeConsentStatus } from './helpers';
 
 export function CookiePolicyContent({
     necessaryCookies,
+    additionalCookies,
     onAccept,
     onReject,
 }: CookiePolicyContentProps): React.ReactElement {
-    const { necessary, additional } = categorizeCookies(necessaryCookies || [], []);
     const [consentStatus, setConsentStatus] = useState<'pending' | 'accepted' | 'declined'>(
         'pending',
     );
@@ -30,15 +29,15 @@ export function CookiePolicyContent({
         setConsentStatus(status);
     }, []);
 
-    const handleAccept = () => {
+    async function handleAccept() {
+        await onAccept();
         setConsentStatus('accepted');
-        onAccept?.();
-    };
+    }
 
-    const handleDecline = () => {
+    async function handleDecline() {
+        await onReject();
         setConsentStatus('declined');
-        onReject?.();
-    };
+    }
 
     return (
         <div className="flex flex-col gap-md mb-lg min-h-screen">
@@ -64,18 +63,20 @@ export function CookiePolicyContent({
                     </>
                 </CookiePolicyContentDescription>
             </CookiePolicyContentSection>
-            <CookiePolicyContentSection>
-                <CookiePolicyContentTitle>Necessary Cookies</CookiePolicyContentTitle>
-                <CookiePolicyContentDescription>
-                    <p>
-                        Necessary cookies help make a website usable by enabling basic functions
-                        like page navigation and access to secure areas of the website. The website
-                        cannot function properly without these cookies.
-                    </p>
-                </CookiePolicyContentDescription>
-                {necessary.length > 0 && <CookiesTable cookies={necessary} />}
-            </CookiePolicyContentSection>
-            {additional.length > 0 && (
+            {necessaryCookies && necessaryCookies.length > 0 && (
+                <CookiePolicyContentSection>
+                    <CookiePolicyContentTitle>Necessary Cookies</CookiePolicyContentTitle>
+                    <CookiePolicyContentDescription>
+                        <p>
+                            Necessary cookies help make a website usable by enabling basic functions
+                            like page navigation and access to secure areas of the website. The
+                            website cannot function properly without these cookies.
+                        </p>
+                    </CookiePolicyContentDescription>
+                    <CookiesTable cookies={necessaryCookies} />
+                </CookiePolicyContentSection>
+            )}
+            {additionalCookies && additionalCookies.length > 0 && (
                 <CookiePolicyContentSection>
                     <CookiePolicyContentTitle>Additional Cookies</CookiePolicyContentTitle>
                     <CookiePolicyContentDescription>
@@ -85,7 +86,7 @@ export function CookiePolicyContent({
                             or by third party providers whose services we have added to our pages.
                         </p>
                     </CookiePolicyContentDescription>
-                    <CookiesTable cookies={additional} />
+                    <CookiesTable cookies={additionalCookies} />
                 </CookiePolicyContentSection>
             )}
             <CookiePolicyContentSection>

@@ -7,6 +7,7 @@ import {
     handleConsentAccepted,
     handleConsentDeclined,
 } from '@iota/core';
+import { ampli } from '~/lib/utils';
 
 /**
  * Cookie Policy page - displays information about cookies we use
@@ -14,6 +15,14 @@ import {
  * No banner management - that's handled separately
  */
 export function CookiePolicy(): React.JSX.Element {
+    function onAccept() {
+        handleConsentAccepted(ampli.client);
+    }
+
+    function onReject() {
+        handleConsentDeclined(ampli.client);
+    }
+
     return (
         <CookiePolicyContent
             consentKey={AMP_COOKIES_KEY}
@@ -31,8 +40,8 @@ export function CookiePolicy(): React.JSX.Element {
                     category: 'Analytics',
                 },
             ]}
-            onAccept={handleConsentAccepted}
-            onReject={handleConsentDeclined}
+            onAccept={onAccept}
+            onReject={onReject}
         />
     );
 }

@@ -39,6 +39,10 @@ const USE_CONDITIONS_LINKS: ExternalLink[] = [
         text: 'Privacy Policy',
         url: 'https://www.iota.org/privacy-policy',
     },
+    {
+        text: 'Cookie Policy',
+        url: '/cookie-policy',
+    },
 ];
 
 export function Footer() {

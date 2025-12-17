@@ -29,10 +29,11 @@ const ApiKey = {
 export async function initAmplitude() {
     // Check consent status to determine initial opt-out state
     const consentStatus = getAmplitudeConsentStatus();
-
+    console.log('initialized');
     if (ampli.isLoaded || consentStatus === 'declined') {
         return;
     }
+    console.log('really initialized');
 
     await ampli.load({
         disabled: !IS_ENABLED,
