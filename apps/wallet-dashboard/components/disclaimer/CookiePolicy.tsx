@@ -9,11 +9,6 @@ import {
     handleConsentDeclined,
 } from '@iota/core';
 
-/**
- * Cookie Policy page - displays information about cookies we use
- * Purpose: Just render content showing how we use cookies
- * No banner management - that's handled separately
- */
 export function CookiePolicy(): React.JSX.Element {
     function onAccept() {
         handleConsentAccepted(ampli.client);

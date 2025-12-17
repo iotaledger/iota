@@ -30,12 +30,12 @@ export function CookiePolicyContent({
     }, []);
 
     async function handleAccept() {
-        await onAccept();
+        onAccept();
         setConsentStatus('accepted');
     }
 
     async function handleDecline() {
-        await onReject();
+        onReject();
         setConsentStatus('declined');
     }
 
