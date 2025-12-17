@@ -201,7 +201,8 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
         let commands = self
             .protocol_commands
             .nodes_metrics_command(instances.clone(), parameters);
-        self.ssh_manager.wait_for_success(commands).await;
+        self.wait_for_success(commands, &parameters.benchmark_dir)
+            .await;
 
         Ok(())
     }
@@ -552,7 +553,8 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
         let commands = self
             .protocol_commands
             .clients_metrics_command(self.client_instances.clone(), parameters);
-        self.ssh_manager.wait_for_success(commands).await;
+        self.wait_for_success(commands, &parameters.benchmark_dir)
+            .await;
 
         display::done();
         Ok(())
@@ -561,7 +563,6 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
     /// Collect metrics from the load generators.
     pub async fn run(
         &self,
-        benchmark_dir: &Path,
         parameters: &BenchmarkParameters<T>,
     ) -> TestbedResult<MeasurementsCollection<T>> {
         display::action(format!(
@@ -634,10 +635,10 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
             }
         }
 
-        aggregator.save(benchmark_dir);
+        aggregator.save(&parameters.benchmark_dir);
 
         if self.settings.enable_flamegraph {
-            let flamegraphs_dir = benchmark_dir.join("flamegraphs");
+            let flamegraphs_dir = parameters.benchmark_dir.join("flamegraphs");
             fs::create_dir_all(&flamegraphs_dir).expect("Failed to create flamegraphs directory");
 
             self.fetch_flamegraphs(
@@ -698,6 +699,28 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
         Ok(())
     }
 
+    pub async fn wait_for_success<I, S>(&self, instances: I, _benchmark_dir: &Path)
+    where
+        I: IntoIterator<Item = (Instance, S)> + Clone,
+        S: Into<String> + Send + 'static + Clone,
+    {
+        match self
+            .ssh_manager
+            .execute_per_instance(
+                instances.clone(),
+                CommandContext::default().with_retries(10),
+            )
+            .await
+        {
+            Ok(_) => {}
+            Err(e) => {
+                // Handle failure case
+                // let _ = self.download_logs(benchmark_dir).await;
+                panic!("Command execution failed on one or more instances: {e}");
+            }
+        }
+    }
+
     /// Download the log files from the nodes and clients.
     pub async fn download_logs(&self, benchmark_dir: &Path) -> TestbedResult<LogsAnalyzer> {
         // Create a logs sub-directory for this run.
@@ -713,40 +736,50 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
         for (i, instance) in self.client_instances.iter().enumerate() {
             display::status(format!("{}/{}", i + 1, self.client_instances.len()));
 
-            let connection = self.ssh_manager.connect(instance.ssh_address()).await?;
+            let _: TestbedResult<()> = async {
+                let connection = self.ssh_manager.connect(instance.ssh_address()).await?;
 
-            if self.settings.use_fullnode_for_execution {
-                let fullnode_log_content = connection.download("fullnode.log").await?;
-                let fullnode_log_file = path.join(format!("fullnode-{i}.log"));
-                fs::write(fullnode_log_file, fullnode_log_content.as_bytes())
+                if self.settings.use_fullnode_for_execution {
+                    let fullnode_log_content = connection.download("fullnode.log").await?;
+                    let fullnode_log_file = path.join(format!("fullnode-{i}.log"));
+                    fs::write(fullnode_log_file, fullnode_log_content.as_bytes())
+                        .expect("Cannot write log file");
+                }
+
+                let client_log_content = connection.download("client.log").await?;
+
+                let client_log_file = path.join(format!("client-{i}.log"));
+                fs::write(client_log_file, client_log_content.as_bytes())
                     .expect("Cannot write log file");
+
+                let mut log_parser = LogsAnalyzer::default();
+                log_parser.set_client_errors(&client_log_content);
+                log_parsers.push(log_parser);
+                Ok(())
             }
-
-            let client_log_content = connection.download("client.log").await?;
-
-            let client_log_file = path.join(format!("client-{i}.log"));
-            fs::write(client_log_file, client_log_content.as_bytes())
-                .expect("Cannot write log file");
-
-            let mut log_parser = LogsAnalyzer::default();
-            log_parser.set_client_errors(&client_log_content);
-            log_parsers.push(log_parser)
+            .await;
         }
+
         display::done();
 
         display::action("Downloading nodes logs");
         for (i, instance) in self.node_instances.iter().enumerate() {
             display::status(format!("{}/{}", i + 1, self.node_instances.len()));
 
-            let connection = self.ssh_manager.connect(instance.ssh_address()).await?;
-            let node_log_content = connection.download("node.log").await?;
+            let _: TestbedResult<()> = async {
+                let connection = self.ssh_manager.connect(instance.ssh_address()).await?;
+                let node_log_content = connection.download("node.log").await?;
 
-            let node_log_file = path.join(format!("node-{i}.log"));
-            fs::write(node_log_file, node_log_content.as_bytes()).expect("Cannot write log file");
+                let node_log_file = path.join(format!("node-{i}.log"));
+                fs::write(node_log_file, node_log_content.as_bytes())
+                    .expect("Cannot write log file");
 
-            let mut log_parser = LogsAnalyzer::default();
-            log_parser.set_node_errors(&node_log_content);
-            log_parsers.push(log_parser)
+                let mut log_parser = LogsAnalyzer::default();
+                log_parser.set_node_errors(&node_log_content);
+                log_parsers.push(log_parser);
+                Ok(())
+            }
+            .await;
         }
         display::done();
 
@@ -765,7 +798,7 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
         // Cleanup the testbed (in case the previous run was not completed).
         self.cleanup(true).await?;
 
-        let commit: PathBuf = self.settings.repository.commit.replace("/", "_").into();
+        let commit = self.settings.repository.commit.replace("/", "_");
         let timestamp = chrono::Local::now().format("%y%m%d_%H%M%S");
 
         // Update the software on all instances.
@@ -777,27 +810,27 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
         // Run all benchmarks.
         let mut i = 1;
         let mut latest_committee_size = 0;
-        while let Some(parameters) = generator.next() {
+        while let Some(mut parameters) = generator.next() {
             display::header(format!("Starting benchmark {i}"));
             display::config("Benchmark type", &parameters.benchmark_type);
             display::config("Parameters", &parameters);
             display::newline();
 
-            let benchmark_dir: PathBuf = [
-                &self.settings.results_dir,
-                &commit,
-                &format!("{timestamp}-{parameters:?}").into(),
-            ]
-            .iter()
-            .collect();
+            let benchmark_dir: PathBuf = self
+                .settings
+                .results_dir
+                .join(&commit)
+                .join(&format!("{timestamp}-{parameters:?}"));
+            parameters.benchmark_dir = benchmark_dir;
 
             // Cleanup the testbed (in case the previous run was not completed).
             self.cleanup(true).await?;
             // Create benchmark directory.
-            fs::create_dir_all(&benchmark_dir).expect("Failed to create benchmark directory");
+            fs::create_dir_all(&parameters.benchmark_dir)
+                .expect("Failed to create benchmark directory");
 
             // Initialize logger for this benchmark run
-            let log_file = benchmark_dir.join("logs.txt");
+            let log_file = parameters.benchmark_dir.join("logs.txt");
             crate::logger::init_logger(&log_file).expect("Failed to initialize logger");
 
             let benchmark_result = async {
@@ -818,7 +851,7 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
 
                 // Wait for the benchmark to terminate. Then save the results and print a
                 // summary.
-                let aggregator = self.run(&benchmark_dir, &parameters).await?;
+                let aggregator = self.run(&parameters).await?;
                 aggregator.display_summary();
                 generator.register_result(aggregator);
                 // drop(monitor);
@@ -832,7 +865,7 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
 
             // Download the log files.
             if self.log_processing {
-                let error_counter = self.download_logs(&benchmark_dir).await?;
+                let error_counter = self.download_logs(&parameters.benchmark_dir).await?;
                 error_counter.print_summary();
             }
 

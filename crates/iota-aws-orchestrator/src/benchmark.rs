@@ -5,6 +5,7 @@
 use std::{
     fmt::{Debug, Display},
     hash::Hash,
+    path::PathBuf,
     str::FromStr,
     time::Duration,
 };
@@ -77,6 +78,8 @@ pub struct BenchmarkParameters<T> {
     pub shared_counter_hotness_factor: Option<u8>,
     /// Number of shared counters to use
     pub num_shared_counters: Option<usize>,
+    /// Directory to store benchmark results
+    pub benchmark_dir: PathBuf,
 }
 
 impl<T: BenchmarkType> Default for BenchmarkParameters<T> {
@@ -98,6 +101,7 @@ impl<T: BenchmarkType> Default for BenchmarkParameters<T> {
             chain_start_timestamp_ms: None,
             shared_counter_hotness_factor: None,
             num_shared_counters: None,
+            benchmark_dir: PathBuf::default(),
         }
     }
 }
@@ -150,6 +154,7 @@ impl<T> BenchmarkParameters<T> {
         chain_start_timestamp_ms: Option<u64>,
         shared_counter_hotness_factor: Option<u8>,
         num_shared_counters: Option<usize>,
+        benchmark_dir: PathBuf,
     ) -> Self {
         Self {
             benchmark_type,
@@ -168,6 +173,7 @@ impl<T> BenchmarkParameters<T> {
             chain_start_timestamp_ms,
             shared_counter_hotness_factor,
             num_shared_counters,
+            benchmark_dir,
         }
     }
 }
@@ -251,6 +257,7 @@ impl<T: BenchmarkType> Iterator for BenchmarkParametersGenerator<T> {
         } else {
             None
         };
+
         self.next_load.map(|load| {
             BenchmarkParameters::new(
                 self.benchmark_type.clone(),
@@ -269,6 +276,7 @@ impl<T: BenchmarkType> Iterator for BenchmarkParametersGenerator<T> {
                 chain_start_timestamp_ms,
                 self.shared_counter_hotness_factor,
                 self.num_shared_counters,
+                PathBuf::default(),
             )
         })
     }
