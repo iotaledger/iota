@@ -49,7 +49,6 @@ export async function initAmplitude() {
         },
     }).promise;
 
-    // TODO
     setNetworkGroup(getDefaultNetwork());
 
     window.addEventListener('pagehide', () => {
