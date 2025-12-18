@@ -1289,6 +1289,15 @@ type Epoch {
 
 type Event {
 	"""
+	The transaction block that emitted this event. This information is only
+	available for events from transactions included in a checkpoint.
+	
+	For simulated transactions (e.g. dry run), or transactions that have
+	been just executed but not yet included in a checkpoint this returns
+	null.
+	"""
+	transactionBlock: TransactionBlock
+	"""
 	The Move module containing some function that when called by
 	a programmable transaction block (PTB) emitted this event.
 	For example, if a PTB invokes A::m1::foo, which internally

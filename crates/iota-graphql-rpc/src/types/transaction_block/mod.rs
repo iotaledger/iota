@@ -141,9 +141,53 @@ pub(crate) struct TransactionBlockCursor {
 /// `DataLoader` key for fetching a `TransactionBlock` by its digest, optionally
 /// constrained by a consistency cursor.
 #[derive(Copy, Clone, Hash, Eq, PartialEq, Debug)]
-struct DigestKey {
+pub(crate) struct DigestKey {
     pub digest: Digest,
     pub checkpoint_viewed_at: u64,
+}
+
+impl DigestKey {
+    pub fn new(digest: Digest, checkpoint_viewed_at: u64) -> Self {
+        Self {
+            digest,
+            checkpoint_viewed_at,
+        }
+    }
+}
+
+/// `DataLoader` key for fetching a `TransactionBlock` by its sequence number,
+/// constrained by a consistency cursor.
+#[derive(Copy, Clone, Hash, Eq, PartialEq, Debug)]
+pub(crate) struct SeqKey {
+    pub tx_sequence_number: u64,
+    pub checkpoint_viewed_at: u64,
+}
+
+impl SeqKey {
+    pub fn new(tx_sequence_number: u64, checkpoint_viewed_at: u64) -> Self {
+        Self {
+            tx_sequence_number,
+            checkpoint_viewed_at,
+        }
+    }
+}
+
+/// Filter for a point query of a TransactionBlock.
+pub(crate) enum TransactionBlockLookup {
+    ByDigest(DigestKey),
+    BySeq(SeqKey),
+}
+
+impl From<DigestKey> for TransactionBlockLookup {
+    fn from(key: DigestKey) -> Self {
+        TransactionBlockLookup::ByDigest(key)
+    }
+}
+
+impl From<SeqKey> for TransactionBlockLookup {
+    fn from(key: SeqKey) -> Self {
+        TransactionBlockLookup::BySeq(key)
+    }
 }
 
 #[Object]
@@ -151,6 +195,7 @@ impl TransactionBlock {
     /// A 32-byte hash that uniquely identifies the transaction block contents,
     /// encoded in Base58. This serves as a unique id for the block on
     /// chain.
+    #[graphql(complexity = 0)]
     async fn digest(&self) -> Option<String> {
         self.native_signed_data()
             .map(|s| Base58::encode(s.digest()))
@@ -158,6 +203,7 @@ impl TransactionBlock {
 
     /// The address corresponding to the public key that signed this
     /// transaction. System transactions do not have senders.
+    #[graphql(complexity = "child_complexity")]
     async fn sender(&self) -> Option<Address> {
         let sender = self.native().sender();
 
@@ -173,6 +219,7 @@ impl TransactionBlock {
     ///
     /// If the owner of the gas object(s) is not the same as the sender, the
     /// transaction block is a sponsored transaction block.
+    #[graphql(complexity = "child_complexity")]
     async fn gas_input(&self, ctx: &Context<'_>) -> Option<GasInput> {
         let checkpoint_viewed_at =
             if matches!(self.inner, TransactionBlockInner::Checkpointed { .. })
@@ -196,6 +243,7 @@ impl TransactionBlock {
 
     /// The type of this transaction as well as the commands and/or parameters
     /// comprising the transaction of this kind.
+    #[graphql(complexity = "child_complexity")]
     async fn kind(&self) -> Option<TransactionBlockKind> {
         Some(TransactionBlockKind::from(
             self.native().kind().clone(),
@@ -205,6 +253,7 @@ impl TransactionBlock {
 
     /// A list of all signatures, Base64-encoded, from senders, and potentially
     /// the gas owner if this is a sponsored transaction.
+    #[graphql(complexity = 0)]
     async fn signatures(&self) -> Option<Vec<Base64>> {
         self.native_signed_data().map(|s| {
             s.tx_signatures()
@@ -216,6 +265,7 @@ impl TransactionBlock {
 
     /// The effects field captures the results to the chain of executing this
     /// transaction.
+    #[graphql(complexity = "child_complexity")]
     async fn effects(&self) -> Result<Option<TransactionBlockEffects>> {
         Ok(Some(self.clone().try_into().extend()?))
     }
@@ -224,6 +274,7 @@ impl TransactionBlock {
     /// reference that sets a deadline after which validators will no longer
     /// consider the transaction valid. By default, there is no deadline for
     /// when a transaction must execute.
+    #[graphql(complexity = "child_complexity")]
     async fn expiration(&self, ctx: &Context<'_>) -> Result<Option<Epoch>> {
         let TransactionExpiration::Epoch(id) = self.native().expiration() else {
             return Ok(None);
@@ -236,6 +287,7 @@ impl TransactionBlock {
 
     /// Serialized form of this transaction's `SenderSignedData`, BCS serialized
     /// and Base64 encoded.
+    #[graphql(complexity = 0)]
     async fn bcs(&self) -> Option<Base64> {
         match &self.inner {
             TransactionBlockInner::Checkpointed { stored_tx, .. } => {
@@ -262,6 +314,7 @@ impl TransactionBlock {
     ///
     /// Otherwise, it is recommended that you use
     /// `Query.isTransactionIndexedOnNode` for optimal performance.
+    #[graphql(complexity = 0)]
     async fn indexed_on_node(&self, ctx: &Context<'_>) -> Result<Option<bool>> {
         if self.inner.is_checkpointed() {
             return Ok(Some(true));
@@ -299,22 +352,19 @@ impl TransactionBlock {
         }
     }
 
-    /// Look up a `TransactionBlock` in the database, by its transaction digest.
-    /// Treats it as if it is being viewed at the `checkpoint_viewed_at`
-    /// (e.g. the state of all relevant addresses will be at that
-    /// checkpoint).
+    /// Look up a `TransactionBlock` in the database, by its transaction digest
+    /// or sequence number. Treats it as if it is being viewed at the
+    /// `checkpoint_viewed_at` (e.g. the state of all relevant addresses
+    /// will be at that checkpoint).
     pub(crate) async fn query(
         ctx: &Context<'_>,
-        digest: Digest,
-        checkpoint_viewed_at: u64,
+        key: TransactionBlockLookup,
     ) -> Result<Option<Self>, Error> {
         let DataLoader(loader) = ctx.data_unchecked();
-        loader
-            .load_one(DigestKey {
-                digest,
-                checkpoint_viewed_at,
-            })
-            .await
+        match key {
+            TransactionBlockLookup::ByDigest(digest_key) => loader.load_one(digest_key).await,
+            TransactionBlockLookup::BySeq(seq_key) => loader.load_one(seq_key).await,
+        }
     }
 
     /// Look up multiple `TransactionBlock`s by their digests. Returns a map
@@ -599,6 +649,56 @@ impl Loader<DigestKey> for Db {
     }
 }
 
+impl Loader<SeqKey> for Db {
+    type Value = TransactionBlock;
+    type Error = Error;
+
+    async fn load(&self, keys: &[SeqKey]) -> Result<HashMap<SeqKey, TransactionBlock>, Error> {
+        use transactions::dsl as tx;
+
+        let tx_seqs = keys
+            .iter()
+            .map(|k| k.tx_sequence_number as i64)
+            .collect::<Vec<_>>();
+        let transactions: Vec<StoredTransaction> = self
+            .execute(move |conn| {
+                conn.results(|| {
+                    tx::transactions
+                        .select(StoredTransaction::as_select())
+                        .filter(tx::tx_sequence_number.eq_any(tx_seqs.clone()))
+                })
+            })
+            .await
+            .map_err(|e| Error::Internal(format!("Failed to fetch transactions: {e}")))?;
+
+        let seq_num_to_tx: HashMap<i64, StoredTransaction> = transactions
+            .into_iter()
+            .map(|tx| (tx.tx_sequence_number, tx))
+            .collect();
+
+        let mut results = HashMap::with_capacity(keys.len());
+        for key in keys {
+            let Some(stored) = seq_num_to_tx.get(&(key.tx_sequence_number as i64)) else {
+                continue;
+            };
+
+            let mut checkpoint_viewed_at = key.checkpoint_viewed_at;
+            if key.checkpoint_viewed_at < stored.checkpoint_sequence_number as u64 {
+                checkpoint_viewed_at = UNAVAILABLE_CHECKPOINT_SEQUENCE_NUMBER;
+            }
+            results.insert(
+                *key,
+                TransactionBlock {
+                    inner: TransactionBlockInner::try_from(stored.clone())?,
+                    checkpoint_viewed_at,
+                },
+            );
+        }
+
+        Ok(results)
+    }
+}
+
 impl TryFrom<StoredTransaction> for TransactionBlockInner {
     type Error = Error;
 
@@ -648,20 +748,20 @@ impl TryFrom<TransactionBlockEffects> for TransactionBlock {
         let checkpoint_viewed_at = effects.checkpoint_viewed_at;
         let inner = match effects.kind {
             TransactionBlockEffectsKind::Checkpointed { stored_tx, .. } => {
-                TransactionBlockInner::try_from(stored_tx.clone())
+                TransactionBlockInner::try_from(stored_tx)
             }
             TransactionBlockEffectsKind::Executed { optimistic_tx, .. } => {
-                TransactionBlockInner::try_from(optimistic_tx.clone())
+                TransactionBlockInner::try_from(optimistic_tx)
             }
 
             TransactionBlockEffectsKind::DryRun {
                 tx_data,
-                native,
+                native: effects,
                 events,
             } => Ok(TransactionBlockInner::DryRun {
-                tx_data: tx_data.clone(),
-                effects: native.clone(),
-                events: events.clone(),
+                tx_data,
+                effects,
+                events,
             }),
         }?;
 

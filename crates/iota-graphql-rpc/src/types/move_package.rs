@@ -19,6 +19,7 @@ use iota_types::{is_system_package, move_package::MovePackage as NativeMovePacka
 use serde::{Deserialize, Serialize};
 
 use crate::{
+    config::DEFAULT_PAGE_SIZE,
     connection::ScanConnection,
     consistency::{Checkpointed, ConsistentNamedCursor},
     data::{DataLoader, Db, DbConnection, QueryExecutor},
@@ -382,6 +383,9 @@ impl MovePackage {
     /// GraphQL, but it can be restricted by the `after` and `before`
     /// cursors, and the `beforeCheckpoint`, `afterCheckpoint` and
     /// `atCheckpoint` filters.
+    #[graphql(
+        complexity = "first.or(last).unwrap_or(DEFAULT_PAGE_SIZE as u64) as usize * child_complexity"
+    )]
     pub(crate) async fn received_transaction_blocks(
         &self,
         ctx: &Context<'_>,

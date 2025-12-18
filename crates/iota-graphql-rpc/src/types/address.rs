@@ -5,6 +5,7 @@
 use async_graphql::{connection::Connection, *};
 
 use crate::{
+    config::DEFAULT_PAGE_SIZE,
     connection::ScanConnection,
     types::{
         balance::{self, Balance},
@@ -180,6 +181,9 @@ impl Address {
     /// GraphQL, but it can be restricted by the `after` and `before`
     /// cursors, and the `beforeCheckpoint`, `afterCheckpoint` and
     /// `atCheckpoint` filters.
+    #[graphql(
+        complexity = "first.or(last).unwrap_or(DEFAULT_PAGE_SIZE as u64) as usize * child_complexity"
+    )]
     async fn transaction_blocks(
         &self,
         ctx: &Context<'_>,

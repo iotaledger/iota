@@ -32,6 +32,7 @@ use move_core_types::{
 use serde::{Deserialize, Serialize};
 
 use crate::{
+    config::DEFAULT_PAGE_SIZE,
     connection::ScanConnection,
     consistency::{Checkpointed, View, build_objects_query},
     data::{DataLoader, Db, DbConnection, QueryExecutor, package_resolver::PackageResolver},
@@ -527,6 +528,9 @@ impl Object {
     /// GraphQL, but it can be restricted by the `after` and `before`
     /// cursors, and the `beforeCheckpoint`, `afterCheckpoint` and
     /// `atCheckpoint` filters.
+    #[graphql(
+        complexity = "first.or(last).unwrap_or(DEFAULT_PAGE_SIZE as u64) as usize * child_complexity"
+    )]
     pub(crate) async fn received_transaction_blocks(
         &self,
         ctx: &Context<'_>,
@@ -676,10 +680,9 @@ impl ObjectImpl<'_> {
             return Ok(None);
         };
         let digest = native.previous_transaction;
+        let key = transaction_block::DigestKey::new(digest.into(), self.0.checkpoint_viewed_at);
 
-        TransactionBlock::query(ctx, digest.into(), self.0.checkpoint_viewed_at)
-            .await
-            .extend()
+        TransactionBlock::query(ctx, key.into()).await.extend()
     }
 
     pub(crate) async fn storage_rebate(&self) -> Option<BigInt> {
