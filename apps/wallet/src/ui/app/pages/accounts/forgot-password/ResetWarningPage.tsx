@@ -48,7 +48,7 @@ export function ResetWarningPage() {
                     process is complete.
                 </span>
                 <div className="flex w-full flex-1 flex-col gap-lg overflow-auto">
-                    {accountGroupsToRemove.map(([sourceID, accounts]) => (
+                    {accountGroupsToRemove.map(([sourceID, { accounts }]) => (
                         <RecoverAccountsGroup
                             key={sourceID}
                             accounts={accounts}

@@ -17,7 +17,6 @@ export function setCookieDeclined(): void {
  * @param ampliClient - Optional Amplitude client instance to call setOptOut on
  */
 export function handleConsentAccepted(ampliClient?: BrowserClient): void {
-    // Enable tracking
     if (ampliClient) {
         ampliClient.setOptOut(false);
     }
@@ -30,10 +29,11 @@ export function handleConsentAccepted(ampliClient?: BrowserClient): void {
  * @param ampliClient - Optional Amplitude client instance to call setOptOut on
  */
 export function handleConsentDeclined(ampliClient?: BrowserClient): void {
-    cleanAmplitudeCookies();
     if (ampliClient) {
         ampliClient.setOptOut(true);
+        ampliClient.reset();
     }
+    cleanAmplitudeCookies();
     setCookieDeclined();
 }
 
