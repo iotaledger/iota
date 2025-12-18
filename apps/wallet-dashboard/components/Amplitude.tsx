@@ -4,11 +4,24 @@
 'use client';
 
 import { ampli, initAmplitude } from '@/lib/utils/analytics';
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 
-async function load() {
-    await initAmplitude();
-    await ampli.openedWalletDashboard({
+// Initialize Amplitude immediately when this module loads (client-side only)
+let amplitudeInitialized = false;
+let amplitudeInitPromise: Promise<void> | null = null;
+
+if (typeof window !== 'undefined' && !amplitudeInitialized) {
+    amplitudeInitialized = true;
+    amplitudeInitPromise = initAmplitude();
+}
+
+async function trackPageOpen() {
+    // Wait for initialization to complete before tracking
+    if (amplitudeInitPromise) {
+        await amplitudeInitPromise;
+    }
+
+    ampli.openedWalletDashboard({
         pagePath: location.pathname,
         pagePathFragment: `${location.pathname}${location.search}${location.hash}`,
         walletDashboardRev: process.env.NEXT_PUBLIC_DASHBOARD_REV,
@@ -16,8 +29,13 @@ async function load() {
 }
 
 export function Amplitude() {
+    const hasTracked = useRef(false);
+
     useEffect(() => {
-        load();
+        if (!hasTracked.current) {
+            hasTracked.current = true;
+            trackPageOpen();
+        }
     }, []);
 
     return null;
