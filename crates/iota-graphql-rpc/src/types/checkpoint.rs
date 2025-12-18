@@ -152,7 +152,6 @@ impl Checkpoint {
     }
 
     /// The epoch this checkpoint is part of.
-    #[graphql(complexity = 0)]
     async fn epoch(&self, ctx: &Context<'_>) -> Result<Option<Epoch>> {
         Epoch::query(
             ctx,
