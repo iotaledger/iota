@@ -95,21 +95,6 @@ Run:
 sudo -E "$PYTHON" -m net_fuzz.experiments.sync_stress
 ```
 
-## adaptive_fuzz
-
-Purpose: hill-climbing search over latency, loss, and topology settings to
-find configurations that maximize consensus pain signals.
-
-Behavior:
-- searches across core/minority and triangle-violation strategies
-- uses consensus metrics as a feedback signal
-- writes a CSV log (`fuzz_results.csv`)
-
-Run:
-
-```bash
-sudo -E "$PYTHON" -m net_fuzz.experiments.adaptive_fuzz
-```
 
 ## Protocol comparison runners
 
