@@ -40,7 +40,27 @@ The console responds with the resulting `<TX_BYTES>` value.
 
 All other CLI commands that craft a transaction (such as `iota client publish` and `iota client call`) also accept the `--serialize-unsigned-transaction` flag used in the same way.
 
-:::
+### Decoding before signing (recommended)
+
+Before signing an offline transaction, you can **decode and inspect the unsigned transaction bytes** to verify its contents.
+
+This allows you to review:
+- the sender address
+- gas configuration
+- inputs and commands
+- recipient and amounts
+
+This step is especially useful for:
+- offline or hardware wallet workflows
+- auditing transactions before signing
+- debugging incorrect inputs
+
+Use the following command to decode an unsigned transaction:
+
+```shell
+iota keytool decode-or-verify-tx --tx-bytes <UNSIGNED_TX_BYTES>
+```
+Decodes Base64 encoded transaction bytes and, if a signature is provided, verifies it against the transaction.
 
 ## Sign the serialized data
 
