@@ -97,13 +97,13 @@ export function ImportExistingWallet() {
             onBack={() => navigate(-1)}
         >
             <div className="flex h-full w-full flex-col">
-                <div className="flex w-full flex-1 flex-col justify-center gap-2 text-center">
+                <div className="flex w-full flex-1 flex-col justify-center gap-4 py-md--rs text-center">
                     <img
                         src={theme === Theme.Dark ? ImportAWalletDark : ImportAWallet}
                         alt="Import a wallet"
                         height={140}
                         width="auto"
-                        className="mx-auto h-[140px] w-auto object-cover"
+                        className="mx-auto mb-2 h-[140px] w-auto object-cover"
                     />
                     <div className="flex flex-col items-center gap-xxs">
                         <h2 className="font-alliance-no2 text-[20px] font-medium leading-[120%] tracking-[-0.4px] text-iota-neutral-10 dark:text-iota-neutral-92">
@@ -116,7 +116,7 @@ export function ImportExistingWallet() {
                     </div>
                 </div>
 
-                <div className="flex flex-col gap-y-xs pt-sm text-start">
+                <div className="flex flex-col gap-y-xs pt-md--rs text-start">
                     {profileOptions.map((card) => (
                         <Card
                             key={card.title}
@@ -132,7 +132,7 @@ export function ImportExistingWallet() {
                         </Card>
                     ))}
 
-                    <span className="text-label-lg capitalize leading-5 tracking-[-0.1px] text-iota-neutral-40 dark:text-iota-neutral-60">
+                    <span className="pt-xxs text-label-lg capitalize leading-5 tracking-[-0.1px] text-iota-neutral-40 dark:text-iota-neutral-60">
                         Legacy recovery
                     </span>
 
