@@ -25,6 +25,15 @@ public fun link_auth(account: Account, package: &PackageMetadataV1, module_name:
 public fun authenticate(
     _account: &Account,
     msg: std::ascii::String,
+    // Could also accept shared objects
+    // clock: &iota::clock::Clock,
+    // Could also accept immutable objects
+    // Freeze an empty gas coin for testing:
+    // iota client ptb \
+    // --split-coins gas "[0]" \
+    // --assign coin \
+    // --move-call iota::transfer::public_freeze_object "<iota::coin::Coin<iota::iota::IOTA>>" coin
+    // coin: &iota::coin::Coin<iota::iota::IOTA>,
     _auth_ctx: &iota::auth_context::AuthContext,
     _ctx: &TxContext,
 ) {

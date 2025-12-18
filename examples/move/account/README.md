@@ -54,6 +54,7 @@ sleep 2 # wait for the gas to be available
 iota client gas
 # client command
 iota client pay-iota --recipients 0x111111111504e9350e635d65cd38ccd2c029434c6a3a480d8947a9ba6a15b215 --amounts 1 --auth-call-args "hello"
+# to provide shared or immutable objects in the move authenticator, just add their IDs like 0x6 0x950aed433091d07ba74cb93b9cac1cc334c3b7e8eb791524f10aa3da98ca9a8c
 # PTB command
 ADDRESS=$(iota client active-address)
 iota client ptb \
