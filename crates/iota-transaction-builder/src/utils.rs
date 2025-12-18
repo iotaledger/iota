@@ -126,10 +126,12 @@ impl TransactionBuilder {
         module: &CompiledModule,
     ) -> Result<ResolvedCallArgResult, anyhow::Error> {
         match resolved_arg {
-            ResolvedCallArg::Pure(bytes) => Ok(ResolvedCallArgResult::CallArg(CallArg::Pure(bytes))),
+            ResolvedCallArg::Pure(bytes) => {
+                Ok(ResolvedCallArgResult::CallArg(CallArg::Pure(bytes)))
+            }
             ResolvedCallArg::Object(id) => {
-                let is_mutable = matches!(param, SignatureToken::MutableReference(_))
-                    || !param.is_reference();
+                let is_mutable =
+                    matches!(param, SignatureToken::MutableReference(_)) || !param.is_reference();
                 let object_arg = self.get_object_arg(id, is_mutable, module, param).await?;
                 Ok(ResolvedCallArgResult::CallArg(CallArg::Object(object_arg)))
             }
@@ -444,7 +446,6 @@ fn check_function_has_a_return(
     Ok(())
 }
 
-
 /// Result of resolving a call argument, distinguishing between single
 /// [`CallArg`] and object vectors.
 enum ResolvedCallArgResult {
@@ -452,8 +453,7 @@ enum ResolvedCallArgResult {
     ObjVec(Vec<ObjectArg>),
 }
 
-/// Helper to get function parameters from a compiled module, excluding
-/// TxContext.
+/// Get function parameters from a compiled module, excluding TxContext.
 fn get_function_parameters<'a>(
     module: &'a CompiledModule,
     function: &Identifier,
