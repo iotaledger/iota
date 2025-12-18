@@ -77,7 +77,7 @@ describe('build supply increase staker vesting portfolio', () => {
         const vestingPortfolio = buildVestingPortfolio(lastPayout!, Date.now());
 
         expect(vestingPortfolio.length).toEqual(
-            getSupplyIncreaseVestingPayoutsCount(SupplyIncreaseUserType.Staker),
+            getSupplyIncreaseVestingPayoutsCount(SupplyIncreaseUserType.Entity),
         );
     });
 
