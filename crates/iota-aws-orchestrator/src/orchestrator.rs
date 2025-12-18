@@ -11,6 +11,7 @@ use std::{
 };
 
 use chrono;
+use futures;
 use tokio::time::{self, Instant};
 
 use crate::{
@@ -18,7 +19,7 @@ use crate::{
     build_cache::BuildCacheService,
     client::Instance,
     display,
-    error::TestbedResult,
+    error::{TestbedError, TestbedResult},
     faults::CrashRecoverySchedule,
     logs::LogsAnalyzer,
     measurement::{Measurement, MeasurementsCollection},
@@ -763,23 +764,37 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
         display::done();
 
         display::action("Downloading nodes logs");
-        for (i, instance) in self.node_instances.iter().enumerate() {
-            display::status(format!("{}/{}", i + 1, self.node_instances.len()));
+        let download_tasks: Vec<_> = self
+            .node_instances
+            .iter()
+            .enumerate()
+            .map(|(i, instance)| {
+                let ssh_manager = self.ssh_manager.clone();
+                let path = path.clone();
+                let ssh_address = instance.ssh_address().clone();
 
-            let _: TestbedResult<()> = async {
-                let connection = self.ssh_manager.connect(instance.ssh_address()).await?;
-                let node_log_content = connection.download("node.log").await?;
+                async move {
+                    let connection = ssh_manager.connect(ssh_address).await?;
+                    let node_log_content = connection.download("node.log").await?;
 
-                let node_log_file = path.join(format!("node-{i}.log"));
-                fs::write(node_log_file, node_log_content.as_bytes())
-                    .expect("Cannot write log file");
+                    let node_log_file = path.join(format!("node-{i}.log"));
+                    fs::write(node_log_file, node_log_content.as_bytes())
+                        .expect("Cannot write log file");
 
-                let mut log_parser = LogsAnalyzer::default();
-                log_parser.set_node_errors(&node_log_content);
-                log_parsers.push(log_parser);
-                Ok(())
+                    let mut log_parser = LogsAnalyzer::default();
+                    log_parser.set_node_errors(&node_log_content);
+                    Ok::<LogsAnalyzer, TestbedError>(log_parser)
+                }
+            })
+            .collect();
+
+        let results = futures::future::join_all(download_tasks).await;
+        for (idx, result) in results.into_iter().enumerate() {
+            display::status(format!("{}/{}", idx + 1, self.node_instances.len()));
+            match result {
+                Ok(log_parser) => log_parsers.push(log_parser),
+                Err(e) => display::warn(format!("Failed to download node log: {e}")),
             }
-            .await;
         }
         display::done();
 
