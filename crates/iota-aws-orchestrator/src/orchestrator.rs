@@ -22,7 +22,7 @@ use crate::{
     error::{TestbedError, TestbedResult},
     faults::CrashRecoverySchedule,
     logs::LogsAnalyzer,
-    measurement::{Measurement, MeasurementsCollection},
+    measurement::MeasurementsCollection,
     monitor::{Monitor, Prometheus},
     net_latency::NetworkLatencyCommandBuilder,
     protocol::{ProtocolCommands, ProtocolMetrics},
@@ -557,8 +557,40 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
         self.wait_for_success(commands, &parameters.benchmark_dir)
             .await;
 
+        // Start background metrics collection service on each client instance.
+        display::action("\n\nStarting background metrics collection service");
+        let metrics_script = self.metrics_collection_script_command(parameters);
+        let metrics_context = CommandContext::new().run_background("metrics-collector".into());
+        self.ssh_manager
+            .execute_per_instance(metrics_script.clone(), metrics_context)
+            .await?;
+
         display::done();
         Ok(())
+    }
+
+    /// Create a background metrics collection script that runs on each
+    /// client instance.
+    fn metrics_collection_script_command(
+        &self,
+        parameters: &BenchmarkParameters<T>,
+    ) -> Vec<(Instance, String)> {
+        // We need to get the metrics path from clients_metrics_command
+        self.protocol_commands
+            .clients_metrics_command(self.client_instances.clone(), parameters)
+            .into_iter()
+            .map(|(instance, cmd)| {
+                (
+                    instance,
+                    format!(
+                        r#"while true; do
+    {cmd} >> ~/metrics.log 2>&1
+    sleep 15
+done"#
+                    ),
+                )
+            })
+            .collect::<Vec<_>>()
     }
 
     /// Collect metrics from the load generators.
@@ -567,17 +599,12 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
         parameters: &BenchmarkParameters<T>,
     ) -> TestbedResult<MeasurementsCollection<T>> {
         display::action(format!(
-            "Scraping metrics (at least {}s)",
+            "Running benchmark (at least {}s)",
             parameters.duration.as_secs()
         ));
 
-        // Regularly scrape the client
-        let metrics_commands = self
-            .protocol_commands
-            .clients_metrics_command(self.client_instances.clone(), parameters);
-
-        let mut aggregator = MeasurementsCollection::new(&self.settings, parameters.clone());
-        let mut metrics_interval = time::interval(self.scrape_interval);
+        let aggregator = MeasurementsCollection::new(&self.settings, parameters.clone());
+        let mut metrics_interval = time::interval(Duration::from_secs(5));
         metrics_interval.tick().await; // The first tick returns immediately.
 
         let faults_type = parameters.faults.clone();
@@ -589,32 +616,12 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
         let start = Instant::now();
         loop {
             tokio::select! {
-                // Scrape metrics.
-                now = metrics_interval.tick() => {
-                    let elapsed = now.duration_since(start).as_secs_f64().ceil() as u64;
+                // Update elapsed time display.
+                _ = metrics_interval.tick() => {
+                    let elapsed = Instant::now().duration_since(start).as_secs_f64().ceil() as u64;
                     display::status(format!("{elapsed}s"));
 
-                    let result = self
-                        .ssh_manager
-                        .execute_per_instance_with_results(metrics_commands.clone(), CommandContext::default())
-                        .await;
-
-                    result.iter()
-                        .enumerate()
-                        .for_each(|(i, res)| {
-                            match res {
-                                Ok((stdout, _stderr)) => {
-                                    display::action(format!("Processing metrics from client {}\n", i));
-                                    let measurement = Measurement::from_prometheus::<P>(stdout);
-                                    aggregator.add(i, measurement);
-                                },
-                                Err(e) => {
-                                    display::warn(format!("Failed to scrape metrics from client {i}: {e}"));
-                                }
-                            }
-                        });
-
-                    if elapsed > parameters.duration .as_secs() {
+                    if elapsed > parameters.duration.as_secs() {
                         break;
                     }
                 },
@@ -722,6 +729,39 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
         }
     }
 
+    /// Download the metrics logs from clients.
+    pub async fn download_metrics_logs(&self, benchmark_dir: &Path) -> TestbedResult<()> {
+        let path = benchmark_dir.join("logs");
+        fs::create_dir_all(&path).expect("Failed to create logs directory");
+
+        // Download the clients log files and metrics.
+        display::action("Downloading metrics logs");
+        for (i, instance) in self.client_instances.iter().enumerate() {
+            display::status(format!("{}/{}", i + 1, self.client_instances.len()));
+
+            let _: TestbedResult<()> = async {
+                let connection = self.ssh_manager.connect(instance.ssh_address()).await?;
+
+                // Download metrics file if it exists
+                match connection.download("metrics.log").await {
+                    Ok(metrics_content) => {
+                        let metrics_file = path.join(format!("metrics-{i}.log"));
+                        fs::write(metrics_file, metrics_content.as_bytes())
+                            .expect("Cannot write metrics file");
+                    }
+                    Err(_) => {
+                        display::warn(format!("Metrics file not found for client {i}"));
+                    }
+                }
+                Ok(())
+            }
+            .await;
+        }
+        display::done();
+
+        Ok(())
+    }
+
     /// Download the log files from the nodes and clients.
     pub async fn download_logs(&self, benchmark_dir: &Path) -> TestbedResult<LogsAnalyzer> {
         // Create a logs sub-directory for this run.
@@ -771,7 +811,7 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
             .map(|(i, instance)| {
                 let ssh_manager = self.ssh_manager.clone();
                 let path = path.clone();
-                let ssh_address = instance.ssh_address().clone();
+                let ssh_address = instance.ssh_address();
 
                 async move {
                     let connection = ssh_manager.connect(ssh_address).await?;
@@ -866,7 +906,17 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
 
                 // Wait for the benchmark to terminate. Then save the results and print a
                 // summary.
-                let aggregator = self.run(&parameters).await?;
+                let mut aggregator = self.run(&parameters).await?;
+
+                self.download_metrics_logs(&parameters.benchmark_dir)
+                    .await?;
+
+                // Parse and aggregate metrics from downloaded files
+                aggregator.aggregates_metrics_from_files::<P>(
+                    self.client_instances.len(),
+                    &parameters.benchmark_dir.join("logs"),
+                );
+
                 aggregator.display_summary();
                 generator.register_result(aggregator);
                 // drop(monitor);

@@ -16,7 +16,7 @@ use clap::*;
 use colored::Colorize;
 use fastcrypto::traits::KeyPair;
 use iota_config::{
-    Config, FULL_NODE_DB_PATH, IOTA_BENCHMARK_GENESIS_GAS_KEYSTORE_FILENAME, IOTA_CLIENT_CONFIG,
+    Config, IOTA_BENCHMARK_GENESIS_GAS_KEYSTORE_FILENAME, IOTA_CLIENT_CONFIG,
     IOTA_FULLNODE_CONFIG, IOTA_GENESIS_FILENAME, IOTA_KEYSTORE_FILENAME, IOTA_NETWORK_CONFIG,
     NodeConfig, PersistedConfig, genesis_blob_exists, iota_config_dir,
     node::{Genesis, GrpcApiConfig},

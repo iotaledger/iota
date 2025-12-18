@@ -154,7 +154,7 @@ pub trait ProtocolMetrics {
     {
         self.clients_metrics_path(instances, parameters)
             .into_iter()
-            .map(|(instance, path)| (instance, format!("curl '{path}'")))
+            .map(|(instance, path)| (instance, format!("curl -s '{path}'")))
             .collect()
     }
 }

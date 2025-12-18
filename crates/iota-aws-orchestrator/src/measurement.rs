@@ -355,6 +355,29 @@ impl<T: BenchmarkType> MeasurementsCollection<T> {
         fs::write(file, json).unwrap();
     }
 
+    pub fn aggregates_metrics_from_files<M: ProtocolMetrics>(
+        &mut self,
+        num_instances: usize,
+        log_dir: &Path,
+    ) {
+        display::action("Processing metrics files");
+        for i in 0..num_instances {
+            let metrics_file = log_dir.join(format!("metrics-{i}.log"));
+            if metrics_file.exists() {
+                match fs::read_to_string(&metrics_file) {
+                    Ok(content) => {
+                        let measurements = Measurement::from_prometheus::<M>(&content);
+                        self.add(i, measurements);
+
+                        display::status(format!("Processed metrics for client {i}"));
+                    }
+                    Err(e) => display::warn(format!("Failed to read metrics file {i}: {e}")),
+                }
+            }
+        }
+        display::done();
+    }
+
     /// Display a summary of the measurements.
     pub fn display_summary(&self) {
         let duration = self.benchmark_duration();
