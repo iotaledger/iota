@@ -11,12 +11,9 @@ difficult to scale or reason about:
 
 - **Non-deterministic runs**: shell scripts rarely capture seeds and
   configuration in a structured way, making results hard to reproduce.
-- **Limited composition**: it is awkward to build new experiments from
-  small reusable pieces.
-- **Error handling**: shell pipelines hide failures and make recovery
-  logic brittle.
-- **Observability gaps**: logs and metrics often end up scattered and
-  inconsistent.
+- **Poor composability**: reusing logic across experiments is difficult,
+  leading to code duplication.
+- **Fragile error handling**: shell pipelines often mask failures, making recovery logic brittle.
 
 `net_fuzz` replaces these scripts with a **deterministic, programmable**
 Python package that can be imported, scripted, and tested.
@@ -67,8 +64,7 @@ This split keeps each layer small and testable.
 ## How this replaces bash scripts
 
 The end-state is for Python scripts to be the source of truth for
-network experiments. Shell scripts should only remain as thin wrappers
-around Python runs (if needed) or be removed entirely.
+network experiments. Shell scripts should only remain as thin wrappers around Python runs (if needed) or be removed entirely.
 
 Benefits:
 
