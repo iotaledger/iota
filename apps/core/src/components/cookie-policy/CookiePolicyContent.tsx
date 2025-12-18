@@ -73,7 +73,15 @@ export function CookiePolicyContent({
                             website cannot function properly without these cookies.
                         </p>
                     </CookiePolicyContentDescription>
-                    <CookiesTable cookies={necessaryCookies} />
+                    <CookiesTable
+                        cookies={necessaryCookies}
+                        columns={[
+                            { label: 'Name', columnKey: 1, field: 'name' },
+                            { label: 'Provider', columnKey: 2, field: 'provider' },
+                            { label: 'Purpose', columnKey: 3, field: 'purpose' },
+                            { label: 'Expiration', columnKey: 4, field: 'expiration' },
+                        ]}
+                    />
                 </CookiePolicyContentSection>
             )}
             {additionalCookies && additionalCookies.length > 0 && (
@@ -146,43 +154,45 @@ function CookiePolicyContentDescription({
     );
 }
 
-function CookiesTable({ cookies }: { cookies: DescribedCookie[] }): React.JSX.Element {
-    const HEADERS = [
-        { label: 'Name', columnKey: 1 },
-        { label: 'Provider', columnKey: 2 },
-        { label: 'Category', columnKey: 3 },
-        { label: 'Purpose', columnKey: 4 },
-        { label: 'Expiration', columnKey: 5 },
-    ];
+type CookieTableColumn = {
+    label: string;
+    columnKey: number;
+    field: keyof DescribedCookie;
+};
 
+const DEFAULT_COOKIE_COLUMNS: CookieTableColumn[] = [
+    { label: 'Name', columnKey: 1, field: 'name' },
+    { label: 'Provider', columnKey: 2, field: 'provider' },
+    { label: 'Category', columnKey: 3, field: 'category' },
+    { label: 'Purpose', columnKey: 4, field: 'purpose' },
+    { label: 'Expiration', columnKey: 5, field: 'expiration' },
+];
+
+function CookiesTable({
+    cookies,
+    columns = DEFAULT_COOKIE_COLUMNS,
+}: {
+    cookies: DescribedCookie[];
+    columns?: CookieTableColumn[];
+}): React.JSX.Element {
     return (
         <div className="mt-md">
             <Table rowIndexes={cookies.map((_, index) => index)}>
                 <TableHeader>
                     <TableRow>
-                        {HEADERS.map((header) => (
-                            <TableHeaderCell key={header.columnKey} {...header} />
+                        {columns.map((column) => (
+                            <TableHeaderCell key={column.columnKey} {...column} />
                         ))}
                     </TableRow>
                 </TableHeader>
                 <TableBody>
                     {cookies.map((cookie, rowIndex) => (
                         <TableRow key={rowIndex}>
-                            <TableCellBase>
-                                <TableCellText>{cookie.name}</TableCellText>
-                            </TableCellBase>
-                            <TableCellBase>
-                                <TableCellText>{cookie.provider || '-'}</TableCellText>
-                            </TableCellBase>
-                            <TableCellBase>
-                                <TableCellText>{cookie.category || '-'}</TableCellText>
-                            </TableCellBase>
-                            <TableCellBase>
-                                <TableCellText>{cookie.purpose || '-'}</TableCellText>
-                            </TableCellBase>
-                            <TableCellBase>
-                                <TableCellText>{cookie.expiration || '-'}</TableCellText>
-                            </TableCellBase>
+                            {columns.map((column) => (
+                                <TableCellBase key={column.columnKey}>
+                                    <TableCellText>{cookie[column.field] || '-'}</TableCellText>
+                                </TableCellBase>
+                            ))}
                         </TableRow>
                     ))}
                 </TableBody>
