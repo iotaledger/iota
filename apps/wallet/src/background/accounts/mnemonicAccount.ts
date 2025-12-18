@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { fromExportedKeypair } from '_src/shared/utils';
+// import { fromExportedKeypair } from '_src/shared/utils';
 import { type Keypair } from '@iota/iota-sdk/cryptography';
 
 import { MnemonicAccountSource } from '../account-sources/mnemonicAccountSource';
@@ -77,11 +77,20 @@ export class MnemonicAccount
     }
 
     async isLocked(): Promise<boolean> {
-        return !(await this.#getKeyPair());
+        const mnemonicSource = await this.#getMnemonicSource();
+        return await mnemonicSource.isLocked();
+        // return !(await this.#getKeyPair());
     }
 
     async lock(allowRead = false): Promise<void> {
-        await this.clearEphemeralValue();
+        // await this.clearEphemeralValue();
+        const mnemonicSource = await this.#getMnemonicSource();
+        console.log(
+            'lock source from Mnemonic account mnemonicSource',
+            mnemonicSource,
+            await mnemonicSource.isLocked(),
+        );
+        await mnemonicSource.lock();
         await this.onLocked(allowRead);
     }
 
@@ -92,16 +101,16 @@ export class MnemonicAccount
         if (isSourceLocked && !password) {
             throw new Error('Missing password to unlock the account');
         }
-        const { derivationPath } = await this.getStoredData();
+        // const { derivationPath } = await this.getStoredData();
         if (password && isSourceLocked) {
             await mnemonicSource.unlock(password);
         }
 
-        const keypair = await mnemonicSource.deriveKeyPair(derivationPath);
-        const secretKey = keypair.getSecretKey();
-        await this.setEphemeralValue({
-            keyPair: secretKey,
-        });
+        // const keypair = await mnemonicSource.deriveKeyPair(derivationPath);
+        // const secretKey = keypair.getSecretKey();
+        // await this.setEphemeralValue({
+        //     keyPair: secretKey,
+        // });
         await this.onUnlocked();
     }
 
@@ -130,11 +139,16 @@ export class MnemonicAccount
     }
 
     async signData(data: Uint8Array): Promise<string> {
-        const keyPair = await this.#getKeyPair();
-        if (!keyPair) {
+        const mnemonicSource = await this.#getMnemonicSource();
+        console.log('signData mnemonicSource', mnemonicSource);
+        if (await mnemonicSource.isLocked()) {
             throw new Error(`Account is locked`);
         }
-        return this.generateSignature(data, keyPair);
+        const { derivationPath } = await this.getStoredData();
+        console.log('signData derivationPath', derivationPath);
+        const keypair = await mnemonicSource.deriveKeyPair(derivationPath);
+        console.log('signData keypair', keypair);
+        return this.generateSignature(data, keypair);
     }
 
     get derivationPath() {
@@ -152,13 +166,13 @@ export class MnemonicAccount
         return (await mnemonicSource.deriveKeyPair(derivationPath)).getSecretKey();
     }
 
-    async #getKeyPair() {
-        const ephemeralData = await this.getEphemeralValue();
-        if (ephemeralData) {
-            return fromExportedKeypair(ephemeralData.keyPair);
-        }
-        return null;
-    }
+    // async #getKeyPair() {
+    //     const ephemeralData = await this.getEphemeralValue();
+    //     if (ephemeralData) {
+    //         return fromExportedKeypair(ephemeralData.keyPair);
+    //     }
+    //     return null;
+    // }
 
     async #getMnemonicSource() {
         return new MnemonicAccountSource((await this.getStoredData()).sourceID);

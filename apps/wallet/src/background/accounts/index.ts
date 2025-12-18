@@ -166,10 +166,10 @@ export async function lockAllAccounts() {
 
 export async function unlockAllAccountsAndAccountSources(password?: string) {
     console.time('unlocking all accounts');
-    const accounts = await getAllAccounts();
-    // const accountSources = await getAccountSources();
+    // const accounts = await getAllAccounts();
+    const accountSources = await getAccountSources();
 
-    const accPromises = accounts.map(async (acc) => {
+    const accPromises = accountSources.map(async (acc) => {
         console.time(`unlocking account ${acc.id}`);
         if (isPasswordUnLockable(acc) && (await acc.isLocked())) {
             await acc.passwordUnlock(password);
