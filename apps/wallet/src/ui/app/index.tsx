@@ -13,7 +13,6 @@ import {
 } from './hooks';
 import { setNavVisibility } from '_redux/slices/app';
 import { isLedgerAccountSerializedUI } from '_src/background/accounts/ledgerAccount';
-import { persistableStorage } from '_src/shared/analytics/amplitude';
 import { type LedgerAccountsPublicKeys } from '_src/shared/messaging/messages/payloads/methodPayload';
 import { toBase64 } from '@iota/iota-sdk/utils';
 import { useEffect, useMemo } from 'react';
@@ -99,15 +98,6 @@ export function App() {
     );
     const backgroundClient = useBackgroundClient();
     const { connectToLedger, iotaLedgerClient } = useIotaLedgerClient();
-    useEffect(() => {
-        if (accounts?.length) {
-            // The user has accepted our terms of service after their primary
-            // account has been initialized (either by creating a new wallet
-            // or importing a previous account). This means we've gained
-            // consent and can persist device data to cookie storage
-            persistableStorage.persist();
-        }
-    }, [accounts]);
     useEffect(() => {
         // update ledger accounts without the public key
         (async () => {
