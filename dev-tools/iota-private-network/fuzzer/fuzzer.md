@@ -44,23 +44,23 @@ This split keeps each layer small and testable.
 
 ## Design principles
 
-1. **Determinism by default**  
+1. **Determinism by default**\
    Experiments should accept explicit parameters and seeds. The same
    inputs should produce the same topology and timing decisions.
 
-2. **Idempotent operations**  
+2. **Idempotent operations**\
    Disruptions are applied in a way that can be safely re-run (e.g.
    repeated latency enforcement or repeated resets).
 
-3. **Single responsibility**  
+3. **Single responsibility**\
    Disruptions apply faults; checks verify them; experiment scripts
    orchestrate order and timing. This makes failures easier to debug.
 
-4. **Explicit cleanup**  
+4. **Explicit cleanup**\
    Each experiment is responsible for restoring the network (resetting
    `tc`, removing iptables rules, restarting validators).
 
-5. **Measurable outcomes**  
+5. **Measurable outcomes**\
    Experiments log progress, durations, and metrics, so results are
    comparable across runs and protocols.
 
@@ -82,10 +82,10 @@ Benefits:
 When adding a new experiment:
 
 1. Build it using primitives from `net_fuzz.disruptions` and
-   `net_fuzz.checks`.  
-2. Log parameters at the start of the run.  
-3. Keep the experiment deterministic by seeding random choices.  
-4. Write logs into the standard experiments log folder.  
+   `net_fuzz.checks`.
+2. Log parameters at the start of the run.
+3. Keep the experiment deterministic by seeding random choices.
+4. Write logs into the standard experiments log folder.
 5. Clean up network state in `finally` blocks.
 
 For shorter workflows, add a scenario to `net_fuzz.scenarios` and wire it
@@ -109,7 +109,7 @@ wrong and what we want to learn from it.
 ### Block stress
 
 Block stress models an operator or network adversary that does not cut
-links completely, but makes a minority of paths *much* slower than the
+links completely, but makes a minority of paths _much_ slower than the
 rest. We work with `n = 3f + 1` validators and, for every node, pick
 exactly `f` peers that are treated as “blocked”. Traffic on those edges
 is not dropped; instead a large fixed latency is applied. All remaining
@@ -126,7 +126,7 @@ the run later and compare improvements in a meaningful way.
 
 ### Mirage stress
 
-Mirage stress asks: what happens when links *look* fast on average but
+Mirage stress asks: what happens when links _look_ fast on average but
 are actually unstable? In this scenario every validator pair gets the
 same low base latency, but we progressively increase jitter so that the
 instantaneous delay can swing widely around that mean.

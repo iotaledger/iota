@@ -27,6 +27,7 @@ Purpose: enforce a symmetric topology where each node blocks f peers in a
 validators remain connected.
 
 Behavior:
+
 - for n = 3f + 1 validators, blocks f peers per node
 - if f is even: blocks f/2 neighbors on each side
 - if f is odd: blocks (f-1)/2 neighbors per side plus the antipode
@@ -47,6 +48,7 @@ Purpose: create a “mirage” network where links look fast on average but are
 unstable due to high jitter.
 
 Behavior:
+
 - applies low base latency with high jitter on every edge
 - increases jitter over time
 - runs a background spammer at 100 TPS
@@ -63,8 +65,9 @@ Purpose: enforce a three-group topology that violates triangle inequality
 assumptions to stress gossip and synchronization paths.
 
 Behavior:
-- partitions ``n = 3f + 1`` validators into clusters of sizes ``f``, ``f``,
-  and ``f + 1``
+
+- partitions `n = 3f + 1` validators into clusters of sizes `f`, `f`,
+  and `f + 1`
 - applies slow+lossy intra-group links and faster inter-group links
 - updates latencies every minute for 5 minutes
 - runs a background spammer at 100 TPS
@@ -81,10 +84,11 @@ Purpose: stress synchronization by cycling restarts between core and outsider
 validators while applying asymmetric latencies.
 
 Behavior:
-- uses ``n = 3f + 1`` validators with a core of size ``2f + 1`` and outsiders ``f``
+
+- uses `n = 3f + 1` validators with a core of size `2f + 1` and outsiders `f`
 - core validators have low mutual latency; outsiders have higher latencies to everyone
-- cycles outages between outsiders and a core subset of size ``f`` while keeping
-  only ``2f + 1`` validators online
+- cycles outages between outsiders and a core subset of size `f` while keeping
+  only `2f + 1` validators online
 - after each restart, waits for online validators to converge and advance by
   10 checkpoints (or the best available progress metric)
 - runs a background spammer at 100 TPS
@@ -94,7 +98,6 @@ Run:
 ```bash
 sudo -E "$PYTHON" -m net_fuzz.experiments.sync_stress
 ```
-
 
 ## Protocol comparison runners
 

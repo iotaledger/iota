@@ -167,6 +167,7 @@ from net_fuzz import disruptions
 disruptions.reset_network(num_validators=10)
 PY
 ```
+
 More complex fuzz scenarios can be added later without changing how the
 environment is set up.
 
