@@ -59,7 +59,7 @@ import {
 } from '@iota/dapp-kit';
 import { IotaValidatorSummary } from '@iota/iota-sdk/client';
 import { Calendar, StarHex, Warning } from '@iota/apps-ui-icons';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { StakedTimelockObject } from '@/components';
 import { IotaSignAndExecuteTransactionOutput } from '@iota/wallet-standard';
 import { ampli } from '@/lib/utils/analytics';
@@ -122,6 +122,12 @@ export default function VestingDashboardPage(): JSX.Element {
         setTxDigest,
         setView: setUnstakeDialogView,
     } = useUnstakeDialog();
+
+    useEffect(() => {
+        if (isUnlockError && unlockError) {
+            console.error('[DEBUG]: Vesting unlock Error:', unlockError);
+        }
+    }, [unlockError, isUnlockError]);
 
     const formattedLastPayoutExpirationTime = useCountdownByTimestamp(
         Number(nextPayout?.expirationTimestampMs),
@@ -214,8 +220,9 @@ export default function VestingDashboardPage(): JSX.Element {
             .then(() => {
                 toast.success('Collect transaction has been sent');
             })
-            .catch(() => {
+            .catch((error) => {
                 toast.error('Collect transaction was not sent');
+                console.error('Error executing collect transaction:', error);
             });
     };
 

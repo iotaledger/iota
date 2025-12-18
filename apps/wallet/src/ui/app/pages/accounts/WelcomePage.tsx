@@ -7,9 +7,13 @@ import { useNavigate } from 'react-router-dom';
 import { useFullscreenGuard, useInitializedGuard, useCreateAccountsMutation } from '_hooks';
 import { Button, ButtonType } from '@iota/apps-ui-kit';
 import { IotaLogoWeb } from '@iota/apps-ui-icons';
+import GetStartedImage from '_assets/images/onboarding/get-started.png';
+import GetStartedImageDark from '_assets/images/onboarding/get-started-darkmode.png';
+import { useTheme, Theme } from '@iota/core';
 
 export function WelcomePage() {
     const createAccountsMutation = useCreateAccountsMutation();
+    const { theme } = useTheme();
     const isFullscreenGuardLoading = useFullscreenGuard(true);
     const isInitializedLoading = useInitializedGuard(
         false,
@@ -27,20 +31,19 @@ export function WelcomePage() {
                     className="text-iota-neutral-10 dark:text-iota-neutral-92"
                 />
                 <div className="flex flex-col items-center gap-8 text-center">
-                    <div className="flex flex-col items-center gap-4">
-                        <span className="text-headline-sm text-iota-neutral-40 dark:text-iota-neutral-60">
-                            Welcome to
-                        </span>
-                        <h1 className="text-display-lg text-iota-neutral-10 dark:text-iota-neutral-92">
-                            IOTA Wallet
-                        </h1>
-                        <span className="text-title-lg text-iota-neutral-40 dark:text-iota-neutral-60">
-                            Your Gateway to the IOTA Ecosystem
-                        </span>
-                    </div>
+                    <img
+                        src={theme === Theme.Dark ? GetStartedImageDark : GetStartedImage}
+                        alt="Get Started"
+                        height={246}
+                        width="auto"
+                        className="aspect-[4/3] h-[246px] w-auto object-cover"
+                    />
+                    <h1 className="font-alliance-no2 text-[28px] font-medium leading-[120%] text-iota-neutral-10 dark:text-iota-neutral-92">
+                        Your Gateway to the IOTA Ecosystem
+                    </h1>
                     <Button
                         type={ButtonType.Primary}
-                        text="Add Profile"
+                        text="Get Started"
                         onClick={() => {
                             navigate('/accounts/add-account?sourceFlow=Onboarding');
                         }}
@@ -49,7 +52,7 @@ export function WelcomePage() {
                         }
                     />
                 </div>
-                <div className="text-body-lg text-iota-neutral-60 dark:text-iota-neutral-40">
+                <div className="text-label-lg text-iota-neutral-60 dark:text-iota-neutral-40">
                     &copy; IOTA Foundation {CURRENT_YEAR}
                 </div>
             </div>

@@ -389,6 +389,35 @@ impl Query {
             .extend()
     }
 
+    /// Fetch multiple transaction blocks by their digests.
+    /// This includes all transactions, even if they are not checkpointed yet.
+    async fn transaction_blocks_by_digests(
+        &self,
+        ctx: &Context<'_>,
+        digests: Vec<Digest>,
+    ) -> Result<Vec<Option<TransactionBlock>>> {
+        let limits = &ctx.data_unchecked::<ServiceConfig>().limits;
+        if digests.len() > limits.max_transaction_ids as usize {
+            return Err(Error::Client(format!(
+                "Transaction IDs exceed max limit of '{}'",
+                limits.max_transaction_ids
+            ))
+            .into());
+        }
+
+        let Watermark { checkpoint, .. } = *ctx.data()?;
+        let mut result = TransactionBlock::multi_query(ctx, digests.clone(), checkpoint)
+            .await
+            .extend()?;
+
+        // Map each input digest to Some(transaction) if found, None otherwise
+        // This maintains the same order and length as the input vector
+        Ok(digests
+            .into_iter()
+            .map(|digest| result.remove(&digest))
+            .collect())
+    }
+
     /// The coin objects that exist in the network.
     ///
     /// The type field is a string of the inner type of the coin by which to
@@ -463,10 +492,11 @@ impl Query {
     /// direction of pagination, and so on until all transactions in the
     /// scanning range have been visited.
     ///
-    /// By default, the scanning range includes all transactions known to
-    /// GraphQL, but it can be restricted by the `after` and `before`
+    /// By default, the scanning range includes all checkpointed transactions
+    /// known to GraphQL, but it can be restricted by the `after` and `before`
     /// cursors, and the `beforeCheckpoint`, `afterCheckpoint` and
-    /// `atCheckpoint` filters.
+    /// `atCheckpoint` filters. Transactions that don't have a checkpoint yet
+    /// are always omitted.
     async fn transaction_blocks(
         &self,
         ctx: &Context<'_>,
