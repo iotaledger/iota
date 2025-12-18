@@ -27,6 +27,7 @@ export function CookiePolicy(): React.JSX.Element {
                     purpose:
                         "Stores the user's Amplitude cookies consent state for the current domain",
                     provider: 'IOTA',
+                    category: 'Analytics',
                     expiration: '1 year',
                 },
             ]}
