@@ -28,7 +28,6 @@ use fastcrypto::{
     secp256k1::recoverable::Secp256k1Sig,
     traits::{KeyPair, ToFromBytes},
 };
-use iota_json_rpc_types::IotaObjectDataOptions;
 use iota_keys::{
     key_derive::generate_new_key,
     keypair_file::{
@@ -38,21 +37,18 @@ use iota_keys::{
     keystore::{AccountKeystore, Keystore, StoredKey},
 };
 use iota_ledger::Ledger;
-use iota_sdk::wallet_context::WalletContext;
 use iota_sdk_types::crypto::{Intent, IntentMessage};
 use iota_types::{
-    base_types::{IotaAddress, ObjectID},
+    base_types::IotaAddress,
     crypto::{
         DefaultHash, EncodeDecodeBase64, IotaKeyPair, PublicKey, SignatureScheme,
         get_authority_key_pair,
     },
     error::IotaResult,
-    move_authenticator::MoveAuthenticator,
     multisig::{MultiSig, MultiSigPublicKey, ThresholdUnit, WeightUnit},
     signature::{GenericSignature, VerifyParams},
     signature_verification::VerifiedDigestCache,
-    transaction::{CallArg, TransactionData, TransactionDataAPI},
-    type_input::TypeInput,
+    transaction::{TransactionData, TransactionDataAPI},
 };
 use json_to_table::{Orientation, json_to_table};
 use serde::Serialize;
@@ -65,7 +61,6 @@ use tracing::info;
 
 use crate::{
     PrintableResult,
-    client_commands::{fetch_auth_info, process_auth_args, resolve_auth_call_args},
     key_identity::{
         KeyIdentity, get_identity_address_from_keystore, get_identity_alias_from_keystore,
     },
@@ -210,12 +205,6 @@ pub enum KeyToolCommand {
         data: String,
         #[arg(long)]
         intent: Option<Intent>,
-        /// Auth input objects or primitive values
-        #[arg(long, num_args = 1..)]
-        auth_call_args: Option<Vec<String>>,
-        /// Auth type arguments for the Move authenticate function
-        #[arg(long, num_args = 1..)]
-        auth_type_arguments: Option<Vec<String>>,
     },
     /// Creates a signature by leveraging AWS KMS. Pass in a key-id to leverage
     /// Amazon KMS to sign a message and the base64 pubkey.
@@ -483,11 +472,7 @@ pub enum CommandOutput {
 }
 
 impl KeyToolCommand {
-    pub async fn execute(
-        self,
-        keystore: &mut Keystore,
-        config: PathBuf,
-    ) -> Result<CommandOutput, anyhow::Error> {
+    pub async fn execute(self, keystore: &mut Keystore) -> Result<CommandOutput, anyhow::Error> {
         let cmd_result = Ok(match self {
             KeyToolCommand::Convert { value } => {
                 let result = convert_private_key_to_bech32(value)?;
@@ -802,8 +787,6 @@ impl KeyToolCommand {
                 address,
                 data,
                 intent,
-                auth_call_args,
-                auth_type_arguments,
             } => {
                 let address = get_identity_address_from_keystore(address, keystore)?;
                 let intent = intent.unwrap_or_else(Intent::iota_transaction);
@@ -817,66 +800,7 @@ impl KeyToolCommand {
                 hasher.update(bcs::to_bytes(&intent_msg)?);
                 let digest = hasher.finalize().digest;
 
-                let iota_signature = if auth_call_args.is_some() || auth_type_arguments.is_some() {
-                    // For account addresses, we need auth args
-                    let context = WalletContext::new(&config, None, None)?;
-                    let iota_client = context.get_client().await?;
-
-                    let auth_info = fetch_auth_info(&iota_client, address).await?;
-
-                    let (type_args, json_args) = process_auth_args(auth_call_args.as_ref(), auth_type_arguments.as_ref(), address)?;
-
-                    let call_args = resolve_auth_call_args(
-                        &iota_client,
-                        auth_info.value.package,
-                        &auth_info.value.module,
-                        &auth_info.value.function,
-                        &type_args,
-                        json_args,
-                    )
-                    .await?;
-
-                    let object_response = iota_client
-                        .read_api()
-                        .get_object_with_options(
-                            ObjectID::from(address),
-                            IotaObjectDataOptions {
-                                show_owner: true,
-                                ..Default::default()
-                            },
-                        )
-                        .await?;
-                    if object_response.error.is_some() {
-                        bail!(
-                            "failed to fetch object data for signer_address {address}: {:?}",
-                            object_response.error
-                        );
-                    }
-                    let object = object_response.data.expect("missing object data");
-
-                    let initial_shared_version = if let Some(iota_types::object::Owner::Shared {
-                        initial_shared_version,
-                    }) = object.owner
-                    {
-                        initial_shared_version
-                    } else {
-                        bail!("signer_address {address} is not a shared object")
-                    };
-
-                    GenericSignature::MoveAuthenticator(
-                        MoveAuthenticator::new_for_testing(
-                            call_args,
-                            type_args.into_iter().map(TypeInput::from).collect(),
-                            CallArg::Object(iota_types::transaction::ObjectArg::SharedObject {
-                                id: ObjectID::from(address),
-                                initial_shared_version,
-                                mutable: false,
-                            }),
-                        ),
-                    )
-                } else {
-                    GenericSignature::Signature(sign_secure(keystore, &address, &intent_msg.value, intent_msg.intent)?)
-                };
+                let iota_signature = GenericSignature::Signature(sign_secure(keystore, &address, &intent_msg.value, intent_msg.intent)?);
 
                 CommandOutput::Sign(SignData {
                     iota_address: address,

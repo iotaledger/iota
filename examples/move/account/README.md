@@ -65,8 +65,8 @@ iota client ptb \
 --auth-call-args "hello"
 # --auth-type-args u64
 
-# keytool signing
+# tx bytes signing
 TX_BYTES=$(iota client pay-iota --recipients 0x111111111504e9350e635d65cd38ccd2c029434c6a3a480d8947a9ba6a15b215 --amounts 1 --serialize-unsigned-transaction)
 echo $TX_BYTES
-iota keytool sign --address $ACCOUNT_ADDRESS --data $TX_BYTES --auth-call-args "hello"
+iota client sign --address $ACCOUNT_ADDRESS --data $TX_BYTES --auth-call-args "hello"
 ```

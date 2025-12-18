@@ -317,10 +317,6 @@ pub enum IotaCommand {
     KeyTool {
         #[arg(long)]
         keystore_path: Option<PathBuf>,
-        /// Sets the file storing the state of our user accounts (an empty one
-        /// will be created if missing)
-        #[arg(long = "client.config")]
-        config: Option<PathBuf>,
         /// Return command outputs in json format
         #[arg(long, global = true)]
         json: bool,
@@ -481,15 +477,13 @@ impl IotaCommand {
             IotaCommand::GenesisCeremony(cmd) => run(cmd).await,
             IotaCommand::KeyTool {
                 keystore_path,
-                config,
                 json,
                 cmd,
             } => {
                 let keystore_path =
                     keystore_path.unwrap_or(iota_config_dir()?.join(IOTA_KEYSTORE_FILENAME));
                 let mut keystore = Keystore::from(FileBasedKeystore::new(&keystore_path)?);
-                let config_path = config.unwrap_or(iota_config_dir()?.join(IOTA_CLIENT_CONFIG));
-                cmd.execute(&mut keystore, config_path).await?.print(!json);
+                cmd.execute(&mut keystore).await?.print(!json);
                 Ok(())
             }
             IotaCommand::Client {

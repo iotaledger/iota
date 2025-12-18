@@ -11,7 +11,7 @@ use iota_ledger_signer::LedgerSigner;
 use iota_sdk::wallet_context::WalletContext;
 use iota_sdk_types::crypto::Intent;
 use iota_types::{
-    base_types::{IotaAddress, ObjectID},
+    base_types::{IotaAddress, ObjectID, SequenceNumber},
     crypto::Signature,
     move_authenticator::MoveAuthenticator,
     signature::GenericSignature,
@@ -59,32 +59,8 @@ pub(crate) async fn sign_transaction(
     let iota_client = context.get_client().await?;
 
     if let Some((auth_call_args, type_arguments)) = auth_args {
-        let object_response = iota_client
-            .read_api()
-            .get_object_with_options(
-                ObjectID::from(*signer_address),
-                IotaObjectDataOptions {
-                    show_owner: true,
-                    ..Default::default()
-                },
-            )
-            .await?;
-        if object_response.error.is_some() {
-            bail!(
-                "failed to fetch object data for signer_address {signer_address}: {:?}",
-                object_response.error
-            );
-        }
-        let object = object_response.data.expect("missing object data");
-
-        let initial_shared_version = if let Some(iota_types::object::Owner::Shared {
-            initial_shared_version,
-        }) = object.owner
-        {
-            initial_shared_version
-        } else {
-            bail!("signer_address {signer_address} is not a shared object")
-        };
+        let initial_shared_version =
+            get_shared_object_version(&iota_client, signer_address).await?;
 
         return Ok(GenericSignature::MoveAuthenticator(
             MoveAuthenticator::new_for_testing(
@@ -185,5 +161,37 @@ where
                 }
             }
         }
+    }
+}
+
+pub(crate) async fn get_shared_object_version(
+    iota_client: &iota_sdk::IotaClient,
+    signer_address: &IotaAddress,
+) -> Result<SequenceNumber> {
+    let object_response = iota_client
+        .read_api()
+        .get_object_with_options(
+            ObjectID::from(*signer_address),
+            IotaObjectDataOptions {
+                show_owner: true,
+                ..Default::default()
+            },
+        )
+        .await?;
+    if object_response.error.is_some() {
+        bail!(
+            "failed to fetch object data for signer_address {signer_address}: {:?}",
+            object_response.error
+        );
+    }
+    let object = object_response.data.expect("missing object data");
+
+    if let Some(iota_types::object::Owner::Shared {
+        initial_shared_version,
+    }) = object.owner
+    {
+        Ok(initial_shared_version)
+    } else {
+        bail!("signer_address {signer_address} is not a shared object")
     }
 }
