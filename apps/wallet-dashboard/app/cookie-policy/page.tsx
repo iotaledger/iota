@@ -4,7 +4,26 @@
 'use client';
 
 import { CookiePolicy } from '@/components/disclaimer/CookiePolicy';
+import { Sidebar, TopNav } from '../(protected)/components';
 
 export default function CookiePolicyPage(): JSX.Element {
-    return <CookiePolicy />;
+    return (
+        <div className="min-h-full">
+            <div className="fixed left-0 top-0 z-50 h-full">
+                <Sidebar />
+            </div>
+
+            {/* This padding need to have aligned left/right content's position, because of sidebar overlap on the small screens */}
+            <div className="pl-[72px]">
+                <div className="container relative flex min-h-screen flex-col">
+                    <div className="sticky top-0 z-10 backdrop-blur-lg">
+                        <TopNav />
+                    </div>
+                    <div className="flex-1 py-md--rs">
+                        <CookiePolicy />
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
 }

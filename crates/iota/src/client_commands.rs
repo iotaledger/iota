@@ -994,6 +994,10 @@ impl IotaClientCommands {
 
                 check_protocol_version_and_warn(read_api).await?;
 
+                if !package_path.exists() {
+                    bail!("Package path '{}' does not exist", package_path.display());
+                }
+
                 let package_path =
                     package_path
                         .canonicalize()
@@ -1161,6 +1165,10 @@ impl IotaClientCommands {
                 let chain_id = read_api.get_chain_identifier().await.ok();
 
                 check_protocol_version_and_warn(read_api).await?;
+
+                if !package_path.exists() {
+                    bail!("Package path '{}' does not exist", package_path.display());
+                }
 
                 let package_path =
                     package_path
