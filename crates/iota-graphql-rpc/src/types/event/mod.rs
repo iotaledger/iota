@@ -105,7 +105,7 @@ impl Event {
     /// For example, if a PTB invokes A::m1::foo, which internally
     /// calls A::m2::emit_event to emit an event,
     /// the sending module would be A::m1.
-    #[graphql(complexity = 0)]
+    #[graphql(complexity = "child_complexity")]
     async fn sending_module(&self, ctx: &Context<'_>) -> Result<Option<MoveModule>> {
         MoveModule::query(
             ctx,
@@ -118,7 +118,7 @@ impl Event {
     }
 
     /// Address of the sender of the event
-    #[graphql(complexity = 0)]
+    #[graphql(complexity = "child_complexity")]
     async fn sender(&self) -> Result<Option<Address>> {
         if self.native.sender == NativeIotaAddress::ZERO {
             return Ok(None);

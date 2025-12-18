@@ -268,14 +268,14 @@ impl TransactionBlockEffects {
     }
 
     /// Effects to the gas object.
-    #[graphql(complexity = 0)]
+    #[graphql(complexity = "child_complexity")]
     async fn gas_effects(&self) -> Option<GasEffects> {
         Some(GasEffects::from(self.native(), self.checkpoint_viewed_at))
     }
 
     /// Shared objects that are referenced by but not changed by this
     /// transaction.
-    #[graphql(complexity = 0)]
+    #[graphql(complexity = "child_complexity")]
     async fn unchanged_shared_objects(
         &self,
         ctx: &Context<'_>,
@@ -315,7 +315,7 @@ impl TransactionBlockEffects {
     }
 
     /// The effect this transaction had on objects on-chain.
-    #[graphql(complexity = 0)]
+    #[graphql(complexity = "child_complexity")]
     async fn object_changes(
         &self,
         ctx: &Context<'_>,
@@ -362,7 +362,7 @@ impl TransactionBlockEffects {
 
     /// The effect this transaction had on the balances (sum of coin values per
     /// coin type) of addresses and objects.
-    #[graphql(complexity = 0)]
+    #[graphql(complexity = "child_complexity")]
     async fn balance_changes(
         &self,
         ctx: &Context<'_>,
@@ -481,7 +481,7 @@ impl TransactionBlockEffects {
     }
 
     /// The epoch this transaction was executed in.
-    #[graphql(complexity = 0)]
+    #[graphql(complexity = "child_complexity")]
     async fn epoch(&self, ctx: &Context<'_>) -> Result<Option<Epoch>> {
         Epoch::query(
             ctx,

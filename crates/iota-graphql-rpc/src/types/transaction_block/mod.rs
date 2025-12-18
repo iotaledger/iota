@@ -203,7 +203,7 @@ impl TransactionBlock {
 
     /// The address corresponding to the public key that signed this
     /// transaction. System transactions do not have senders.
-    #[graphql(complexity = 0)]
+    #[graphql(complexity = "child_complexity")]
     async fn sender(&self) -> Option<Address> {
         let sender = self.native().sender();
 
@@ -219,7 +219,7 @@ impl TransactionBlock {
     ///
     /// If the owner of the gas object(s) is not the same as the sender, the
     /// transaction block is a sponsored transaction block.
-    #[graphql(complexity = 0)]
+    #[graphql(complexity = "child_complexity")]
     async fn gas_input(&self, ctx: &Context<'_>) -> Option<GasInput> {
         let checkpoint_viewed_at =
             if matches!(self.inner, TransactionBlockInner::Checkpointed { .. })
@@ -243,7 +243,7 @@ impl TransactionBlock {
 
     /// The type of this transaction as well as the commands and/or parameters
     /// comprising the transaction of this kind.
-    #[graphql(complexity = 0)]
+    #[graphql(complexity = "child_complexity")]
     async fn kind(&self) -> Option<TransactionBlockKind> {
         Some(TransactionBlockKind::from(
             self.native().kind().clone(),
@@ -274,7 +274,7 @@ impl TransactionBlock {
     /// reference that sets a deadline after which validators will no longer
     /// consider the transaction valid. By default, there is no deadline for
     /// when a transaction must execute.
-    #[graphql(complexity = 0)]
+    #[graphql(complexity = "child_complexity")]
     async fn expiration(&self, ctx: &Context<'_>) -> Result<Option<Epoch>> {
         let TransactionExpiration::Epoch(id) = self.native().expiration() else {
             return Ok(None);
