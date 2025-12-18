@@ -20,7 +20,7 @@ For environment setup and end-to-end usage examples, see
   for logging and reporting.
 - `spammer`: manages the `stress-benchmark` container from `iota-tools`.
 - `metrics`: minimal Prometheus parsing utilities used by stress scripts
-  (`sync_stress`, `adaptive_fuzz`). Some helpers are placeholders.
+  (`*_stress`. Some helpers are placeholders.
 - `cli` / `__main__`: entry point for `python -m net_fuzz`.
 - `verify_disruptions`: manual smoke test for the low-level primitives.
 - Long-running experiments live under `net_fuzz.experiments`:
