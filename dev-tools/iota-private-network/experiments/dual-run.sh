@@ -42,15 +42,15 @@ fi
 echo "dual-run: docker images built successfully."
 
 # fuzz cadence
-FUZZ_ROUND_SPAN=400      # time (seconds) between between topology reshuffles
+FUZZ_ROUND_SPAN=300      # time (seconds) between between topology reshuffles
 
 # healing: every 3rd fuzz round -> clear all drops, keep tc latencies, pause restarts
-HEAL_EVERY_ROUND=4
+HEAL_EVERY_ROUND=2
 HEAL_NUM_ROUNDS=1
 
 NUM_VALIDATORS=10
-TOPOLOGY="star"
-DURATION=1800              # seconds
+TOPOLOGY="ring"
+DURATION=3600              # seconds
 SPAMMER=true
 SPAMMER_TPS=100
 SPAMMER_TYPE="stress"
@@ -58,9 +58,9 @@ PAUSE_BETWEEN_PROTOCOLS=60 # seconds
 PAUSE_BETWEEN_STEPS=180 # seconds
 
 # parameter sequences (same length)
-R_LIST=(15 25 0 40)   # percent restarts
-X_LIST=(20 20 30 10)   # percent block
-L_LIST=(10 15 15 10)   # percent nodes with loss
+R_LIST=(25 26 33 33)   # percent restarts
+X_LIST=(10 15 10 10)   # percent block
+L_LIST=(10 15 10 10)   # percent nodes with loss
 
 
 run_experiment() {
