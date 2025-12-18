@@ -5,8 +5,8 @@
 import { decrypt, encrypt } from '_src/shared/cryptography/keystore';
 
 import {
-    Account,
     AccountType,
+    StorableAccount,
     type PasswordUnlockableAccount,
     type SerializedAccount,
     type SerializedUIAccount,
@@ -37,7 +37,7 @@ type EphemeralData = {
 };
 
 export class LedgerAccount
-    extends Account<LedgerAccountSerialized, EphemeralData>
+    extends StorableAccount<LedgerAccountSerialized, EphemeralData>
     implements PasswordUnlockableAccount
 {
     readonly unlockType = 'password';

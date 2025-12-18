@@ -3,8 +3,8 @@
 
 import { decrypt, encrypt } from '_src/shared/cryptography/keystore';
 import {
-    Account,
     AccountType,
+    StorableAccount,
     type PasswordUnlockableAccount,
     type SerializedAccount,
     type SerializedUIAccount,
@@ -37,7 +37,7 @@ type EphemeralData = {
 };
 
 export class PasskeyAccount
-    extends Account<PasskeyAccountSerialized, EphemeralData>
+    extends StorableAccount<PasskeyAccountSerialized, EphemeralData>
     implements PasswordUnlockableAccount
 {
     readonly unlockType = 'password';

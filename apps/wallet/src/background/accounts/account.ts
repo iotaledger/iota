@@ -24,10 +24,12 @@ export enum AccountType {
     KeystoneDerived = 'keystone-derived',
 }
 
-export abstract class Account<
-    T extends SerializedAccount = SerializedAccount,
-    V extends Serializable | null = Serializable,
-> {
+export enum AccountIsDerived {
+    False = 0,
+    True = 1,
+}
+
+export abstract class Account<T extends SerializedAccount = SerializedAccount> {
     readonly id: string;
     readonly type: AccountType;
     // optimization to avoid accessing storage for properties that don't change
@@ -87,21 +89,6 @@ export abstract class Account<
         });
     }
 
-    protected getEphemeralValue(): Promise<V | null> {
-        return getEphemeralValue<NonNullable<V>>(this.id);
-    }
-
-    protected setEphemeralValue(value: V) {
-        if (!value) {
-            return;
-        }
-        return setEphemeralValue(this.id, value);
-    }
-
-    protected clearEphemeralValue() {
-        return clearEphemeralValue(this.id);
-    }
-
     protected async onUnlocked() {
         await setupAutoLockAlarm();
         await (await getDB()).accounts.update(this.id, { lastUnlockedOn: Date.now() });
@@ -121,6 +108,30 @@ export abstract class Account<
     public async setNickname(nickname: string | null) {
         await (await getDB()).accounts.update(this.id, { nickname });
         accountsEvents.emit('accountStatusChanged', { accountID: this.id });
+    }
+}
+
+/**
+ * Accounts that don't depend on an account source
+ * have to be able to store ephemeral values
+ */
+export abstract class StorableAccount<
+    T extends SerializedAccount = SerializedAccount,
+    V extends Serializable | null = Serializable,
+> extends Account<T> {
+    protected getEphemeralValue(): Promise<V | null> {
+        return getEphemeralValue<NonNullable<V>>(this.id);
+    }
+
+    protected setEphemeralValue(value: V) {
+        if (!value) {
+            return;
+        }
+        return setEphemeralValue(this.id, value);
+    }
+
+    protected clearEphemeralValue() {
+        return clearEphemeralValue(this.id);
     }
 }
 

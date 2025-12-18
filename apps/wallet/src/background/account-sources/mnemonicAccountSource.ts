@@ -122,10 +122,12 @@ export class MnemonicAccountSource extends AccountSource<
     }
 
     async unlock(password: string) {
-        console.log('Unlocking mnemonic account source', this.id);
-        await this.setEphemeralValue(await this.#decryptStoredData(password));
-        await setupAutoLockAlarm();
-        accountSourcesEvents.emit('accountSourceStatusUpdated', { accountSourceID: this.id });
+        if (await this.isLocked()) {
+            console.log(`${this.id} Unlocking mnemonic source:`);
+            await this.setEphemeralValue(await this.#decryptStoredData(password));
+            await setupAutoLockAlarm();
+            accountSourcesEvents.emit('accountSourceStatusUpdated', { accountSourceID: this.id });
+        }
     }
 
     async verifyPassword(password: string) {

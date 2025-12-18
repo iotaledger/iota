@@ -4,7 +4,12 @@
 
 import { AccountType, type SerializedUIAccount } from '_src/background/accounts/account';
 import { AccountsFormType, useAccountsFormContext, VerifyPasswordModal } from '_components';
-import { useAccountSources, useCreateAccountsMutation, useActiveAccount } from '_hooks';
+import {
+    useAccountSources,
+    useActiveAccount,
+    useBackgroundClient,
+    useDeriveAccountMutation,
+} from '_hooks';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import clsx from 'clsx';
@@ -64,13 +69,14 @@ export function AccountGroup({
     const [isCollapsibleGroupOpen, setIsCollapsibleGroupOpen] = useState(true);
     const navigate = useNavigate();
     const activeAccount = useActiveAccount();
-    const createAccountMutation = useCreateAccountsMutation();
+    const deriveAccountMutation = useDeriveAccountMutation();
     const isMnemonicDerivedGroup = type === AccountType.MnemonicDerived;
     const isSeedDerivedGroup = type === AccountType.SeedDerived;
     const [accountsFormValues, setAccountsFormValues] = useAccountsFormContext();
     const [isPasswordModalVisible, setPasswordModalVisible] = useState(false);
     const { data: accountSources } = useAccountSources();
     const accountSource = accountSources?.find(({ id }) => id === accountSourceID);
+    const backgroundClient = useBackgroundClient();
 
     async function handleAdd(e: React.MouseEvent<HTMLButtonElement>) {
         if (!accountSource) return;
@@ -89,7 +95,7 @@ export function AccountGroup({
         if (accountSource.isLocked) {
             setPasswordModalVisible(true);
         } else {
-            createAccountMutation.mutate({
+            deriveAccountMutation.mutate({
                 type: accountsFormType,
             });
         }
@@ -154,13 +160,13 @@ export function AccountGroup({
                         <div className="flex items-center gap-1">
                             <TriangleDown
                                 className={clsx(
-                                    'dark:text-iota-neutral-40 h-5 w-5 text-iota-neutral-10',
+                                    'h-5 w-5 text-iota-neutral-10 dark:text-iota-neutral-40',
                                     isOpen
                                         ? 'rotate-0 transition-transform ease-linear'
                                         : '-rotate-90 transition-transform ease-linear',
                                 )}
                             />
-                            <div className="dark:text-iota-neutral-92 text-title-md text-iota-neutral-10">
+                            <div className="text-title-md text-iota-neutral-10 dark:text-iota-neutral-92">
                                 {getGroupTitle(accounts[0])}
                             </div>
                         </div>
@@ -178,7 +184,7 @@ export function AccountGroup({
                                     type={ButtonType.Ghost}
                                     onClick={handleAdd}
                                     icon={
-                                        <Add className="dark:text-iota-neutral-92 h-5 w-5 text-iota-neutral-10" />
+                                        <Add className="h-5 w-5 text-iota-neutral-10 dark:text-iota-neutral-92" />
                                     }
                                 />
                             ) : null}
@@ -192,7 +198,7 @@ export function AccountGroup({
                                             setDropdownOpen(true);
                                         }}
                                         icon={
-                                            <MoreHoriz className="dark:text-iota-neutral-92 h-5 w-5 text-iota-neutral-10" />
+                                            <MoreHoriz className="h-5 w-5 text-iota-neutral-10 dark:text-iota-neutral-92" />
                                         }
                                     />
                                 </div>
@@ -211,7 +217,7 @@ export function AccountGroup({
                                     hideArrow
                                     hideBorder
                                     render={({ isOpen }) => (
-                                        <div className="dark:text-iota-neutral-60 flex w-full items-center gap-x-md p-sm text-iota-neutral-40">
+                                        <div className="flex w-full items-center gap-x-md p-sm text-iota-neutral-40 dark:text-iota-neutral-60">
                                             <div className="shrink-0 text-title-sm">
                                                 From {walletName}
                                             </div>
@@ -260,7 +266,7 @@ export function AccountGroup({
                 )}
             </Collapsible>
             <div
-                className={`dark:bg-iota-neutral-6 absolute right-3 top-3 z-[100] rounded-lg bg-iota-neutral-100 shadow-md ${isDropdownOpen ? '' : 'hidden'}`}
+                className={`absolute right-3 top-3 z-[100] rounded-lg bg-iota-neutral-100 shadow-md dark:bg-iota-neutral-6 ${isDropdownOpen ? '' : 'hidden'}`}
             >
                 <OutsideClickHandler onOutsideClick={() => setDropdownOpen(false)}>
                     <Dropdown>
@@ -281,10 +287,13 @@ export function AccountGroup({
                 <VerifyPasswordModal
                     open
                     onVerify={async (password) => {
+                        await backgroundClient.unlockAllAccounts({
+                            password,
+                        });
+
                         if (accountsFormValues.current) {
-                            await createAccountMutation.mutateAsync({
+                            await deriveAccountMutation.mutateAsync({
                                 type: accountsFormValues.current.type,
-                                password,
                             });
                         }
                         setPasswordModalVisible(false);

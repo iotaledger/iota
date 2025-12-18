@@ -38,6 +38,7 @@ import {
 import { AccountTooManyAttemptsError } from '_src/shared/accounts';
 import { KeystoneAccount } from './keystoneAccount';
 import { KeystoneAccountSource } from '../account-sources/keystoneAccountSource';
+import { ACCOUNT_TYPE_WITH_SOURCE } from '_src/shared/accountTypes';
 
 function toAccount(account: SerializedAccount) {
     if (MnemonicAccount.isOfType(account)) {
@@ -61,18 +62,20 @@ function toAccount(account: SerializedAccount) {
     throw new Error(`Unknown account of type ${account.type}`);
 }
 
-export async function getAllAccounts(filter?: { sourceID: string }) {
-    console.time('retrieving all accounts from db');
+export async function getAllAccounts(filter?: { sourceID?: string; isDerived?: boolean }) {
     const db = await getDB();
     let accounts;
     if (filter?.sourceID) {
         accounts = await db.accounts.where('sourceID').equals(filter.sourceID).sortBy('createdAt');
+    } else if (filter?.isDerived !== undefined) {
+        accounts = await db.accounts
+            .where('isDerived')
+            .equals(filter.isDerived.toString())
+            .sortBy('createdAt');
     } else {
         accounts = await db.accounts.toCollection().sortBy('createdAt');
     }
-    const result = accounts.map(toAccount);
-    console.timeEnd('retrieving all accounts from db');
-    return result;
+    return accounts.map(toAccount);
 }
 
 export async function getAccountByID(id: string) {
@@ -164,25 +167,40 @@ export async function lockAllAccounts() {
     }
 }
 
-export async function unlockAllAccountsAndAccountSources(password?: string) {
-    console.time('unlocking all accounts');
-    // const accounts = await getAllAccounts();
-    const accountSources = await getAccountSources();
+export async function unlockAllAccounts(password?: string) {
+    console.time('Unlocking all accounts');
+    const sources = await getAccountSources();
 
-    const accPromises = accountSources.map(async (acc) => {
-        console.time(`unlocking account ${acc.id}`);
-        if (isPasswordUnLockable(acc) && (await acc.isLocked())) {
-            await acc.passwordUnlock(password);
+    console.log('sources:', sources);
+
+    for (const source of sources) {
+        if (password) {
+            await source.unlock(password);
         }
-        console.timeEnd(`unlocking account ${acc.id}`);
-    });
+    }
 
-    // const sourcesPromises = accountSources.map(async (source) => {
-    //     await source.unlock(password);
-    // });
+    const accounts = (await getAllAccounts()).filter(
+        (account) => !ACCOUNT_TYPE_WITH_SOURCE.includes(account.type),
+    );
+    console.log('accounts that need to be unlocked manually:', accounts);
 
-    await Promise.allSettled(accPromises);
-    console.timeEnd('unlocking all accounts');
+    for (const account of accounts) {
+        const isPasswordUnlockable = isPasswordUnLockable(account);
+        const isLocked = await account.isLocked();
+        if (isPasswordUnlockable && isLocked) {
+            console.log('==========================');
+            console.log(
+                'Unlocking account',
+                await account.address,
+                'of type: ',
+                account.type,
+                ' because mnemonic or self is locked.',
+            );
+            await account.passwordUnlock(password);
+        }
+    }
+
+    console.timeEnd('Unlocking all accounts');
 }
 
 interface LockedState {
@@ -264,7 +282,7 @@ export async function accountsHandleUIMessage(msg: Message, uiConnection: UiConn
     }
     if (isMethodPayload(payload, 'unlockAllAccounts')) {
         const { password } = payload.args;
-        await unlockAllAccountsAndAccountSources(password);
+        await unlockAllAccounts(password);
         uiConnection.send(createMessage({ type: 'done' }, msg.id));
         return true;
     }

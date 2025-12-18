@@ -19,6 +19,7 @@ const ApiKey = {
 };
 
 export async function initAmplitude() {
+    return;
     ampli.load({
         // Flip this if you'd like to test Amplitude locally
         disabled: !IS_PROD_ENV,

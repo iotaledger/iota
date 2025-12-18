@@ -15,7 +15,7 @@ import { MnemonicAccountSource } from './mnemonicAccountSource';
 import { SeedAccountSource } from './seedAccountSource';
 import { toEntropy } from '_src/shared/utils';
 import { KeystoneAccountSource } from './keystoneAccountSource';
-import { lockAllAccounts, unlockAllAccountsAndAccountSources } from '../accounts';
+import { lockAllAccounts, unlockAllAccounts } from '../accounts';
 
 function toAccountSource(accountSource: AccountSourceSerialized) {
     if (MnemonicAccountSource.isOfType(accountSource)) {
@@ -134,7 +134,14 @@ export async function accountSourcesHandleUIMessage(msg: Message, uiConnection: 
     }
     if (isMethodPayload(payload, 'unlockAllAccounts')) {
         const { password } = payload.args;
-        await unlockAllAccountsAndAccountSources(password);
+        const accountSources = await getAccountSources();
+        for (const source of accountSources) {
+            if (password) {
+                await source.unlock(password);
+            }
+        }
+
+        await unlockAllAccounts(password);
         uiConnection.send(createMessage({ type: 'done' }, msg.id));
         return true;
     }

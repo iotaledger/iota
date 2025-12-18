@@ -10,9 +10,6 @@ import { useBackgroundClient } from './useBackgroundClient';
 import { AccountType } from '_src/background/accounts/account';
 
 import { useCreatePasskeyAccount } from './useCreatePasskeyAccount';
-import { MnemonicAccount } from '_src/background/accounts/mnemonicAccount';
-import { unlockAllAccountsAndAccountSources } from '_src/background/accounts';
-import { getAccountSourceByID } from '_src/background/account-sources';
 
 function validateAccountFormValues<T extends AccountsFormType>(
     createType: T,
@@ -48,15 +45,12 @@ export function useCreateAccountsMutation() {
     const [accountsFormValuesRef, setAccountFormValues] = useAccountsFormContext();
     const { createPasskeyAccount } = useCreatePasskeyAccount();
 
-    const CREATE_TYPE_TO_AMPLI_ACCOUNT: Record<
-        AccountsFormType,
-        AddedAccountsProperties['accountType']
+    const CREATE_TYPE_TO_AMPLI_ACCOUNT: Partial<
+        Record<AccountsFormType, AddedAccountsProperties['accountType']>
     > = {
         [AccountsFormType.NewMnemonic]: AmpliAccountType.Derived,
         [AccountsFormType.ImportMnemonic]: AmpliAccountType.Derived,
         [AccountsFormType.ImportSeed]: AmpliAccountType.Derived,
-        [AccountsFormType.MnemonicSource]: AmpliAccountType.Derived,
-        [AccountsFormType.SeedSource]: AmpliAccountType.Derived,
         [AccountsFormType.ImportPrivateKey]: AmpliAccountType.ImportPrivateKey,
         [AccountsFormType.Passkey]: AmpliAccountType.Passkey,
         [AccountsFormType.ImportPasskey]: AmpliAccountType.Passkey,
@@ -66,7 +60,7 @@ export function useCreateAccountsMutation() {
     return useMutation({
         mutationKey: ['create accounts'],
         mutationFn: async ({ type, password }: { type: AccountsFormType; password?: string }) => {
-            console.time('create accounts mutation');
+            console.time('useCreateAccountsMutation');
             let createdAccounts;
             const accountsFormValues = accountsFormValuesRef.current;
 
@@ -91,29 +85,6 @@ export function useCreateAccountsMutation() {
                     type: AccountType.MnemonicDerived,
                     sourceID: accountSource.id,
                 });
-
-                // await backgroundClient.unlockAccountSourceOrAccount({
-                //     id: createdAccounts[0].id,
-                // });
-            } else if (
-                type === AccountsFormType.MnemonicSource &&
-                validateAccountFormValues(type, accountsFormValues, password)
-            ) {
-                if (password) {
-                    await backgroundClient.unlockAccountSourceOrAccount({
-                        password,
-                        id: accountsFormValues.sourceID,
-                    });
-                }
-
-                createdAccounts = await backgroundClient.createAccounts({
-                    type: AccountType.MnemonicDerived,
-                    sourceID: accountsFormValues.sourceID,
-                });
-
-                // await backgroundClient.unlockAccountSourceOrAccount({
-                //     id: createdAccounts[0].id,
-                // });
             } else if (
                 type === AccountsFormType.ImportSeed &&
                 validateAccountFormValues(type, accountsFormValues, password)
@@ -133,29 +104,6 @@ export function useCreateAccountsMutation() {
                     type: AccountType.SeedDerived,
                     sourceID: accountSource.id,
                 });
-
-                // await backgroundClient.unlockAccountSourceOrAccount({
-                //     id: createdAccounts[0].id,
-                // });
-            } else if (
-                type === AccountsFormType.SeedSource &&
-                validateAccountFormValues(type, accountsFormValues, password)
-            ) {
-                if (password) {
-                    await backgroundClient.unlockAccountSourceOrAccount({
-                        password,
-                        id: accountsFormValues.sourceID,
-                    });
-                }
-
-                createdAccounts = await backgroundClient.createAccounts({
-                    type: AccountType.SeedDerived,
-                    sourceID: accountsFormValues.sourceID,
-                });
-
-                // await backgroundClient.unlockAccountSourceOrAccount({
-                //     id: createdAccounts[0].id,
-                // });
             } else if (
                 type === AccountsFormType.ImportPrivateKey &&
                 validateAccountFormValues(type, accountsFormValues, password)
@@ -222,17 +170,56 @@ export function useCreateAccountsMutation() {
                 throw new Error(`Create accounts with type ${type} is not implemented yet`);
             }
 
-            for (const aCreatedAccount of createdAccounts) {
-                await backgroundClient.unlockAccountSourceOrAccount({
-                    id: aCreatedAccount.id,
-                    password,
-                });
-            }
-
-            console.log('Unlocking all accounts!!', { password });
-            await backgroundClient.unlockAllAccounts({
-                password,
+            ampli.addedAccounts({
+                accountType: CREATE_TYPE_TO_AMPLI_ACCOUNT[type],
+                numberOfAccounts: createdAccounts.length,
             });
+            setAccountFormValues(null);
+            const selectedAccount = createdAccounts[0];
+            if (selectedAccount?.id) {
+                await backgroundClient.selectAccount(selectedAccount?.id);
+            }
+            console.timeEnd('useCreateAccountsMutation');
+            return createdAccounts;
+        },
+    });
+}
+
+export function useDeriveAccountMutation() {
+    const backgroundClient = useBackgroundClient();
+    const [accountsFormValuesRef, setAccountFormValues] = useAccountsFormContext();
+
+    const CREATE_TYPE_TO_AMPLI_ACCOUNT = {
+        [AccountsFormType.MnemonicSource]: AmpliAccountType.Derived,
+        [AccountsFormType.SeedSource]: AmpliAccountType.Derived,
+    };
+    return useMutation({
+        mutationKey: ['create accounts'],
+        mutationFn: async ({ type }: { type: AccountsFormType }) => {
+            console.time('useDeriveAccountMutation');
+
+            let createdAccounts;
+            const accountsFormValues = accountsFormValuesRef.current;
+
+            if (
+                type === AccountsFormType.MnemonicSource &&
+                validateAccountFormValues(type, accountsFormValues)
+            ) {
+                createdAccounts = await backgroundClient.createAccounts({
+                    type: AccountType.MnemonicDerived,
+                    sourceID: accountsFormValues.sourceID,
+                });
+            } else if (
+                type === AccountsFormType.SeedSource &&
+                validateAccountFormValues(type, accountsFormValues)
+            ) {
+                createdAccounts = await backgroundClient.createAccounts({
+                    type: AccountType.SeedDerived,
+                    sourceID: accountsFormValues.sourceID,
+                });
+            } else {
+                throw new Error(`Create accounts with type ${type} is not implemented yet`);
+            }
 
             ampli.addedAccounts({
                 accountType: CREATE_TYPE_TO_AMPLI_ACCOUNT[type],
@@ -243,7 +230,7 @@ export function useCreateAccountsMutation() {
             if (selectedAccount?.id) {
                 await backgroundClient.selectAccount(selectedAccount?.id);
             }
-            console.timeEnd('create accounts mutation');
+            console.timeEnd('useDeriveAccountMutation');
             return createdAccounts;
         },
     });

@@ -2,8 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import {
-    Account,
     AccountType,
+    StorableAccount,
     type PasswordUnlockableAccount,
     type SerializedAccount,
     type SerializedUIAccount,
@@ -29,12 +29,8 @@ export function isKeystoneAccountSerializedUI(
     return account.type === AccountType.KeystoneDerived;
 }
 
-type EphemeralData = {
-    unlocked: true;
-};
-
 export class KeystoneAccount
-    extends Account<KeystoneAccountSerialized, EphemeralData>
+    extends StorableAccount<KeystoneAccountSerialized>
     implements PasswordUnlockableAccount
 {
     readonly unlockType = 'password';
@@ -80,26 +76,25 @@ export class KeystoneAccount
     }
 
     async lock(allowRead = false): Promise<void> {
-        await this.clearEphemeralValue();
+        await (await this.#getKeystoneSource()).lock();
         await this.onLocked(allowRead);
     }
 
     async isLocked(): Promise<boolean> {
-        return !(await this.getEphemeralValue())?.unlocked;
+        return (await this.#getKeystoneSource()).isLocked();
     }
 
     async passwordUnlock(password?: string): Promise<void> {
         const keystoneSource = await this.#getKeystoneSource();
-        if ((await keystoneSource.isLocked()) && !password) {
-            throw new Error('Missing password to unlock the account');
-        }
-        if (password) {
+        const isLocked = await keystoneSource.isLocked();
+        if (isLocked) {
+            if (!password) {
+                throw new Error('Missing password to unlock the account');
+            }
+
             await keystoneSource.unlock(password);
+            await this.onUnlocked();
         }
-        await this.setEphemeralValue({
-            unlocked: true,
-        });
-        await this.onUnlocked();
     }
 
     async verifyPassword(password: string): Promise<void> {

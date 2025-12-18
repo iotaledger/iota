@@ -401,6 +401,7 @@ export class BackgroundClient {
     }
 
     public unlockAllAccounts(inputs: MethodPayload<'unlockAllAccounts'>['args']) {
+        console.log('Unlocking all accounts!!', { inputs });
         return lastValueFrom(
             this.sendMessage(
                 createMessage<MethodPayload<'unlockAllAccounts'>>({
