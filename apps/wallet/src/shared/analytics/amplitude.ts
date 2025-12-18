@@ -3,37 +3,48 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import * as amplitude from '@amplitude/analytics-browser';
-import { LogLevel, TransportType, type UserSession } from '@amplitude/analytics-types';
-import { PersistableStorage, getCustomNetwork } from '@iota/core';
+import { LogLevel } from '@amplitude/analytics-types';
+import { getCustomNetwork } from '@iota/core';
 import { getNetwork, type Network } from '@iota/iota-sdk/client';
 
 import { ampli } from './ampli';
 
-const IS_PROD_ENV = process.env.BUILD_ENV === 'production';
-
-export const persistableStorage = new PersistableStorage<UserSession>();
-
-const ApiKey = {
-    production: '2a5d35822a1bab41835813f0223f319e',
-    development: '30a15c4ef8ae0e10ce5d2ed4f0023de3',
-};
+const IS_ENABLED = process.env.BUILD_ENV === 'production';
 
 export async function initAmplitude() {
     ampli.load({
+        environment: 'iotawallet',
         // Flip this if you'd like to test Amplitude locally
-        disabled: !IS_PROD_ENV,
+        disabled: !IS_ENABLED,
         client: {
-            apiKey: IS_PROD_ENV ? ApiKey.production : ApiKey.development,
             configuration: {
-                cookieStorage: persistableStorage,
-                logLevel: IS_PROD_ENV ? LogLevel.Warn : LogLevel.Debug,
+                optOut: false,
+                // Explicitly use cookie storage to persist data across popup sessions
+                identityStorage: 'cookie',
+                autocapture: {
+                    pageViews: IS_ENABLED,
+                    sessions: IS_ENABLED,
+                },
+                logLevel: IS_ENABLED ? LogLevel.Warn : LogLevel.Debug,
+                // Flush events immediately to prevent data loss when popup closes
+                flushIntervalMillis: 1000,
+                flushQueueSize: 5,
             },
         },
     });
 
+    // Flush events when popup is about to close
     window.addEventListener('pagehide', () => {
-        amplitude.setTransport(TransportType.SendBeacon);
+        amplitude.setTransport('beacon');
         amplitude.flush();
+    });
+
+    // Additional flush on visibility change (when popup loses focus)
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'hidden') {
+            amplitude.setTransport('beacon');
+            amplitude.flush();
+        }
     });
 }
 
