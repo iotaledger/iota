@@ -11,10 +11,10 @@ module 0x0.m {
         package_metadata: &package_metadata.PackageMetadataV1,
         module_name: ascii.String,
         function_name: ascii.String,
-    ): account.AuthenticatorInfoV1<T0> {
-        let a: account.AuthenticatorInfoV1<T0>;
+    ): account.AuthenticatorFunctionRefV1<T0> {
+        let a: account.AuthenticatorFunctionRefV1<T0>;
         label l0:
-        a = account.create_auth_info_v1<T0>(move(package_metadata), move(module_name), move(function_name));
+        a = account.create_auth_function_ref_v1<T0>(move(package_metadata), move(module_name), move(function_name));
         return move(a);
     }
 }
@@ -24,7 +24,7 @@ module 0x0.m {
 module 0x0.m {
     import 0x2.account;
 
-    t2<T0: key>(account: T0, authenticator: account.AuthenticatorInfoV1<T0>) {
+    t2<T0: key>(account: T0, authenticator: account.AuthenticatorFunctionRefV1<T0>) {
         label l0:
         account.create_account_v1<T0>(move(account), move(authenticator));
         return;
@@ -36,7 +36,7 @@ module 0x0.m {
 module 0x0.m {
     import 0x2.account;
 
-    t3<T0: key>(account: T0, authenticator: account.AuthenticatorInfoV1<T0>) {
+    t3<T0: key>(account: T0, authenticator: account.AuthenticatorFunctionRefV1<T0>) {
         label l0:
         account.create_immutable_account_v1<T0>(move(account), move(authenticator));
         return;
@@ -47,10 +47,10 @@ module 0x0.m {
 module 0x0.m {
     import 0x2.account;
 
-    t4<T0: key>(account: &mut T0, authenticator: account.AuthenticatorInfoV1<T0>): account.AuthenticatorInfoV1<T0> {
-        let a: account.AuthenticatorInfoV1<T0>;
+    t4<T0: key>(account: &mut T0, authenticator: account.AuthenticatorFunctionRefV1<T0>): account.AuthenticatorFunctionRefV1<T0> {
+        let a: account.AuthenticatorFunctionRefV1<T0>;
         label l0:
-        a = account.rotate_auth_info_v1<T0>(move(account), move(authenticator));
+        a = account.rotate_auth_function_ref_v1<T0>(move(account), move(authenticator));
         return move(a);
     }
 }

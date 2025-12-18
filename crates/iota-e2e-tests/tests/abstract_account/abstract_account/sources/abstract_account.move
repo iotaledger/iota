@@ -3,7 +3,7 @@
 
 module abstract_account::abstract_account;
 
-use iota::account::{Self, AuthenticatorInfoV1};
+use iota::account::{Self, AuthenticatorFunctionRefV1};
 use iota::coin::Coin;
 use iota::dynamic_field;
 use iota::iota::IOTA;
@@ -22,10 +22,10 @@ const ETransactionSenderIsNotTheAccount: vector<u8> = b"Transaction must be sign
 /// The builder is entirely temporary. It cannot be copied, stored or dropped.
 ///
 /// Account implementations are expected to call the builder in a single function call,
-/// add the desired authenticator info and dynamic fields.
+/// add the desired authenticator and dynamic fields.
 public struct AbstractAccountBuilder {
     account: AbstractAccount,
-    authenticator: AuthenticatorInfoV1<AbstractAccount>,
+    authenticator: AuthenticatorFunctionRefV1<AbstractAccount>,
 }
 
 /// This struct represents an abstract account.
@@ -46,9 +46,9 @@ public struct AbstractAccount has key {
 
 /// Construct an AbstractAccountBuilder and set the Authenticator.
 ///
-/// The `AuthenticatorInfo` will be attached to the account being built.
+/// The `AuthenticatorFunctionRef` will be attached to the account being built.
 public fun builder(
-    authenticator: AuthenticatorInfoV1<AbstractAccount>,
+    authenticator: AuthenticatorFunctionRefV1<AbstractAccount>,
     ctx: &mut TxContext,
 ): AbstractAccountBuilder {
     AbstractAccountBuilder {
@@ -140,14 +140,14 @@ public fun replace_field<Name: copy + drop + store, Value: store>(
 /// Rotate the attached authenticator.
 ///
 /// Only the account itself can call this function.
-public fun rotate_auth_info_v1(
+public fun rotate_auth_function_ref_v1(
     self: &mut AbstractAccount,
-    authenticator: AuthenticatorInfoV1<AbstractAccount>,
+    authenticator: AuthenticatorFunctionRefV1<AbstractAccount>,
     ctx: &TxContext,
-): AuthenticatorInfoV1<AbstractAccount> {
+): AuthenticatorFunctionRefV1<AbstractAccount> {
     ensure_tx_sender_is_account(self, ctx);
 
-    account::rotate_auth_info_v1(self, authenticator)
+    account::rotate_auth_function_ref_v1(self, authenticator)
 }
 
 // === Public-View Functions ===
@@ -173,11 +173,13 @@ public fun has_field<Name: copy + drop + store>(self: &AbstractAccount, name: Na
     dynamic_field::exists_(&self.id, name)
 }
 
-/// Borrows a reference to the attached `AuthenticatorInfoV1` instance.
+/// Borrows a reference to the attached `AuthenticatorFunctionRefV1` instance.
 /// This function is not gated to be called only by the account,
 /// anybody can call it to read the attached authenticator.
-public fun borrow_auth_info_v1(self: &AbstractAccount): &AuthenticatorInfoV1<AbstractAccount> {
-    account::borrow_auth_info_v1(&self.id)
+public fun borrow_auth_function_ref_v1(
+    self: &AbstractAccount,
+): &AuthenticatorFunctionRefV1<AbstractAccount> {
+    account::borrow_auth_function_ref_v1(&self.id)
 }
 
 /// Receive an object that was previously sent to this AbstractAccount.

@@ -18,7 +18,7 @@ module function_keys::function_keys_scenario_tests;
 
 use function_keys::fk_store::{Self as store, make_func_key};
 use function_keys::function_keys;
-use iota::account::{Self as account_pkg, AuthenticatorInfoV1};
+use iota::account::{Self as account_pkg, AuthenticatorFunctionRefV1};
 use iota::auth_context::{Self as acx, AuthContext};
 use iota::hex;
 use iota::ptb_command::{Self, Command};
@@ -510,8 +510,8 @@ fun test_fk_authenticate_unauthorized_granted_permission() {
 // Utilities (mirroring iotaccount test style)
 // ============================================================================
 
-fun create_authenticator_info_v1_for_testing(): AuthenticatorInfoV1<IOTAccount> {
-    account_pkg::create_auth_info_v1_for_testing(
+fun create_authenticator_function_ref_v1_for_testing(): AuthenticatorFunctionRefV1<IOTAccount> {
+    account_pkg::create_auth_function_ref_v1_for_testing(
         @0x1,
         ascii::string(b"module"),
         ascii::string(b"function"),
@@ -532,7 +532,7 @@ fun create_iotaccount_for_testing_impl(
     let ctx = scen::ctx(scenario);
 
     let public_key = public_key.destroy_or!(public_key_for_testing());
-    let authenticator = create_authenticator_info_v1_for_testing();
+    let authenticator = create_authenticator_function_ref_v1_for_testing();
 
     function_keys::create(public_key, authenticator, ctx);
 
@@ -552,7 +552,7 @@ fun create_iotaccount_for_testing_without_fk_store(
     let ctx = scen::ctx(scenario);
 
     let public_key = public_key.destroy_or!(public_key_for_testing());
-    let authenticator = create_authenticator_info_v1_for_testing();
+    let authenticator = create_authenticator_function_ref_v1_for_testing();
 
     function_keys::create_without_fk_store(public_key, authenticator, ctx);
 

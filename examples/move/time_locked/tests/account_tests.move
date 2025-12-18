@@ -5,7 +5,7 @@
 module time_locked::account_tests;
 
 use generic_keyed_authentication::owner_public_key;
-use iota::account::AuthenticatorInfoV1;
+use iota::account::AuthenticatorFunctionRefV1;
 use iota::auth_context::{Self, AuthContext};
 use iota::clock;
 use iota::hex;
@@ -175,8 +175,10 @@ fun account_unlocked() {
 
 // --------------------------------------- Test Utilities ---------------------------------------
 
-fun create_authenticator_info_v1_for_testing(): AuthenticatorInfoV1<time_locked::TimeLocked> {
-    iota::account::create_auth_info_v1_for_testing(
+fun create_authenticator_function_ref_v1_for_testing(): AuthenticatorFunctionRefV1<
+    time_locked::TimeLocked,
+> {
+    iota::account::create_auth_function_ref_v1_for_testing(
         @0x1,
         ascii::string(b"time_locked"),
         ascii::string(b"authenticate_time"),
@@ -190,7 +192,7 @@ fun create_time_locked_for_testing(
 ): address {
     let ctx = test_scenario::ctx(scenario);
 
-    let authenticator = create_authenticator_info_v1_for_testing();
+    let authenticator = create_authenticator_function_ref_v1_for_testing();
 
     time_locked::create(public_key, unlock_time, authenticator, ctx);
 

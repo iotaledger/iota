@@ -30,7 +30,7 @@ use function_keys::fk_store::{
     disallow,
     is_allowed
 };
-use iota::account::AuthenticatorInfoV1;
+use iota::account::AuthenticatorFunctionRefV1;
 use iota::auth_context::AuthContext;
 use iota::ed25519;
 use iota::hex::decode;
@@ -62,7 +62,7 @@ public struct FunctionKeysName has copy, drop, store {}
 /// Creates a new `IOTAccount` as a shared object with the given authenticator.
 public fun create(
     public_key: vector<u8>,
-    authenticator: AuthenticatorInfoV1<IOTAccount>,
+    authenticator: AuthenticatorFunctionRefV1<IOTAccount>,
     ctx: &mut TxContext,
 ) {
     builder(authenticator, ctx)
@@ -187,7 +187,7 @@ fun owner_public_key(): OwnerPublicKey { OwnerPublicKey {} }
 #[test_only]
 public fun create_without_fk_store(
     public_key: vector<u8>,
-    authenticator: AuthenticatorInfoV1<IOTAccount>,
+    authenticator: AuthenticatorFunctionRefV1<IOTAccount>,
     ctx: &mut TxContext,
 ) {
     builder(authenticator, ctx).add_dynamic_field(owner_public_key(), public_key).build();

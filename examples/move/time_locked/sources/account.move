@@ -4,7 +4,7 @@
 module time_locked::account;
 
 use generic_keyed_authentication::owner_public_key;
-use iota::account::{Self, AuthenticatorInfoV1};
+use iota::account::{Self, AuthenticatorFunctionRefV1};
 use iota::auth_context::AuthContext;
 use iota::clock::Clock;
 use iotaccount::iotaccount;
@@ -37,7 +37,7 @@ public struct TimeLocked has key {
 public fun create(
     public_key: vector<u8>,
     unlock_time: u64,
-    authenticator: AuthenticatorInfoV1<TimeLocked>,
+    authenticator: AuthenticatorFunctionRefV1<TimeLocked>,
     ctx: &mut TxContext,
 ) {
     let mut id = object::new(ctx);
