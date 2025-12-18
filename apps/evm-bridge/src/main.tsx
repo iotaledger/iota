@@ -90,7 +90,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
                                                     handleConsentAccepted();
                                                 }}
                                             >
-                                                <div className="text-body-md text-neutral-10 dark:text-neutral-92">
+                                                <div className="text-body-md text-iota-neutral-10 dark:text-iota-neutral-92">
                                                     We use cookies to improve your experience. By
                                                     using this website, you agree with our{' '}
                                                     {USE_CONDITIONS_LINKS.map(

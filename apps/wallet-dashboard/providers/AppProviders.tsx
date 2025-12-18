@@ -92,10 +92,7 @@ export function AppProviders({ children }: React.PropsWithChildren) {
                                                         <div>
                                                             We use cookies and analytics tools to
                                                             help us improve your experience.{' '}
-                                                            <a
-                                                                href={COOKIE_POLICY_ROUTE.path}
-                                                                className="underline"
-                                                            >
+                                                            <a href={COOKIE_POLICY_ROUTE.path}>
                                                                 Read our Cookie Policy
                                                             </a>
                                                         </div>
