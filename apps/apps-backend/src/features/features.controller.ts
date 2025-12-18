@@ -110,7 +110,7 @@ export class FeaturesController {
                 [Feature.IotaNames]: {
                     defaultValue: NAME_ADDRESS_RESOLUTION_FEATURE,
                 },
-                [Feature.TFIdentity]: {
+                [Feature.ExplorerTFIdentity]: {
                     defaultValue: false,
                 },
             },
@@ -220,7 +220,7 @@ export class FeaturesController {
                 [Feature.IotaNames]: {
                     defaultValue: NAME_ADDRESS_RESOLUTION_FEATURE,
                 },
-                [Feature.TFIdentity]: {
+                [Feature.ExplorerTFIdentity]: {
                     defaultValue: false,
                 },
             },
