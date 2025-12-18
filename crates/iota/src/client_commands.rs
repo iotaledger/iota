@@ -109,7 +109,7 @@ use crate::{
     client_ptb::ptb::{PTB, PTBCommandResult},
     displays::Pretty,
     key_identity::{KeyIdentity, get_identity_address, get_identity_address_from_keystore},
-    keytool::Key,
+    keytool::{Key, SignData},
     signing::{get_shared_object_version, sign_secure, sign_transaction},
     upgrade_compatibility::check_compatibility,
     verifier_meter::{AccumulatingMeter, Accumulator},
@@ -3101,23 +3101,6 @@ impl ObjectsOutput {
             .map(ObjectsOutput::from)
             .collect::<Result<Vec<_>, _>>()
     }
-}
-
-#[derive(Serialize)]
-pub struct SignData {
-    iota_address: IotaAddress,
-    // Base64 encoded string of serialized transaction data.
-    raw_tx_data: String,
-    // Intent struct used, see [struct Intent] for field definitions.
-    intent: Intent,
-    // Base64 encoded [struct IntentMessage] consisting of (intent || message)
-    // where message can be `TransactionData` etc.
-    raw_intent_msg: String,
-    // Base64 encoded blake2b hash of the intent message, this is what the signature commits to.
-    digest: String,
-    // Base64 encoded `flag || signature || pubkey` for a complete
-    // serialized IOTA signature to be send for executing the transaction.
-    iota_signature: String,
 }
 
 #[derive(Serialize)]

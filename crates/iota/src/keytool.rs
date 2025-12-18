@@ -409,19 +409,19 @@ pub struct SerializedSig {
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SignData {
-    iota_address: IotaAddress,
+    pub iota_address: IotaAddress,
     // Base64 encoded string of serialized transaction data.
-    raw_tx_data: String,
+    pub raw_tx_data: String,
     // Intent struct used, see [struct Intent] for field definitions.
-    intent: Intent,
+    pub intent: Intent,
     // Base64 encoded [struct IntentMessage] consisting of (intent || message)
     // where message can be `TransactionData` etc.
-    raw_intent_msg: String,
+    pub raw_intent_msg: String,
     // Base64 encoded blake2b hash of the intent message, this is what the signature commits to.
-    digest: String,
+    pub digest: String,
     // Base64 encoded `flag || signature || pubkey` for a complete
     // serialized IOTA signature to be send for executing the transaction.
-    iota_signature: String,
+    pub iota_signature: String,
 }
 
 // Commented for now: https://github.com/iotaledger/iota/issues/1777

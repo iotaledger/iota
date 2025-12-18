@@ -41,7 +41,7 @@ echo "Package Metadata Object ID: $METADATA_ID"
 ```bash
 iota client ptb \
 --move-call $PACKAGE_ID::account::link_auth @$ACCOUNT_ADDRESS @$METADATA_ID '"account"' '"authenticate"' \
---dry-run
+--dry-run # leave out to execute
 ```
 
 ## Use the account
