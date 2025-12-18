@@ -6523,7 +6523,7 @@ async fn test_ptb_gas_coins_smashing() -> Result<(), anyhow::Error> {
     Ok(())
 }
 
-#[tokio::test]
+#[sim_test]
 async fn test_move_authenticator() -> Result<(), anyhow::Error> {
     let mut test_cluster = TestClusterBuilder::new()
         .with_num_validators(1)
