@@ -794,13 +794,14 @@ impl KeyToolCommand {
                     bcs::from_bytes(&Base64::decode(&data).map_err(|e| {
                         anyhow!("Cannot deserialize data as TransactionData {:?}", e)
                     })?)?;
-                let intent_msg = IntentMessage::new(intent, msg.clone());
+                let intent_msg = IntentMessage::new(intent, msg);
                 let raw_intent_msg: String = Base64::encode(bcs::to_bytes(&intent_msg)?);
                 let mut hasher = DefaultHash::default();
                 hasher.update(bcs::to_bytes(&intent_msg)?);
                 let digest = hasher.finalize().digest;
 
-                let iota_signature = GenericSignature::Signature(sign_secure(keystore, &address, &intent_msg.value, intent_msg.intent)?);
+                let iota_signature =
+                    sign_secure(keystore, &address, &intent_msg.value, intent_msg.intent)?;
 
                 CommandOutput::Sign(SignData {
                     iota_address: address,
