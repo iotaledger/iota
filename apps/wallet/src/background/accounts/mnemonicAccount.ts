@@ -77,11 +77,9 @@ export class MnemonicAccount
     async isLocked(): Promise<boolean> {
         const mnemonicSource = await this.#getMnemonicSource();
         return await mnemonicSource.isLocked();
-        // return !(await this.#getKeyPair());
     }
 
     async lock(allowRead = false): Promise<void> {
-        // await this.clearEphemeralValue();
         const mnemonicSource = await this.#getMnemonicSource();
         console.log(
             'lock source from Mnemonic account mnemonicSource',

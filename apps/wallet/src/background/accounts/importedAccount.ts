@@ -6,9 +6,8 @@ import { decrypt, encrypt } from '_src/shared/cryptography/keystore';
 import { fromExportedKeypair } from '_src/shared/utils';
 
 import {
-    AccountIsDerived,
     AccountType,
-    StorableAccount,
+    Account,
     type KeyPairExportableAccount,
     type PasswordUnlockableAccount,
     type SerializedAccount,
@@ -37,7 +36,7 @@ export function isImportedAccountSerializedUI(
 }
 
 export class ImportedAccount
-    extends StorableAccount<ImportedAccountSerialized, SessionStorageData>
+    extends Account<ImportedAccountSerialized, SessionStorageData>
     implements PasswordUnlockableAccount, SigningAccount, KeyPairExportableAccount
 {
     readonly canSign = true;
@@ -66,10 +65,6 @@ export class ImportedAccount
 
     static isOfType(serialized: SerializedAccount): serialized is ImportedAccountSerialized {
         return serialized.type === AccountType.PrivateKeyDerived;
-    }
-
-    static isDerived(): AccountIsDerived {
-        return AccountIsDerived.False;
     }
 
     constructor({ id, cachedData }: { id: string; cachedData?: ImportedAccountSerialized }) {

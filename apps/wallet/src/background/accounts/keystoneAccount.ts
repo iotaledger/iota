@@ -2,8 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import {
+    Account,
     AccountType,
-    StorableAccount,
     type PasswordUnlockableAccount,
     type SerializedAccount,
     type SerializedUIAccount,
@@ -30,7 +30,7 @@ export function isKeystoneAccountSerializedUI(
 }
 
 export class KeystoneAccount
-    extends StorableAccount<KeystoneAccountSerialized>
+    extends Account<KeystoneAccountSerialized>
     implements PasswordUnlockableAccount
 {
     readonly unlockType = 'password';

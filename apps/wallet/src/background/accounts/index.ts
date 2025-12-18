@@ -62,16 +62,11 @@ function toAccount(account: SerializedAccount) {
     throw new Error(`Unknown account of type ${account.type}`);
 }
 
-export async function getAllAccounts(filter?: { sourceID?: string; isDerived?: boolean }) {
+export async function getAllAccounts(filter?: { sourceID?: string }) {
     const db = await getDB();
     let accounts;
     if (filter?.sourceID) {
         accounts = await db.accounts.where('sourceID').equals(filter.sourceID).sortBy('createdAt');
-    } else if (filter?.isDerived !== undefined) {
-        accounts = await db.accounts
-            .where('isDerived')
-            .equals(filter.isDerived.toString())
-            .sortBy('createdAt');
     } else {
         accounts = await db.accounts.toCollection().sortBy('createdAt');
     }
