@@ -1,8 +1,9 @@
-"""Non-triangle stress scenario with three validator groups.
+"""Non-triangle stress scenario with dynamic validator groups.
 
-Group 1: validators 1-3
-Group 2: validators 4-7
-Group 3: validators 8-10
+For ``n = 3f + 1`` validators we partition them into three clusters sized
+``t = f``, ``f``, and ``f + 1``. Validators within the same cluster experience
+high latency and some packet loss, while validators in different clusters
+experience lower latency with some jitter.
 """
 
 from __future__ import annotations
@@ -20,23 +21,39 @@ from .. import docker_env, disruptions, spammer
 log = logging.getLogger(__name__)
 
 
-def get_group(validator_name: str) -> int:
-    """Return the group ID for a validator name (1..3), or 0 if unknown."""
-    try:
-        num = int(validator_name.split("-")[1])
-        if 1 <= num <= 3:
-            return 1
-        if 4 <= num <= 7:
-            return 2
-        if 8 <= num <= 10:
-            return 3
-    except (IndexError, ValueError):
-        pass
-    return 0  # Unknown or not in range
+def _assign_groups(validators: list[str]) -> tuple[dict[str, str], dict[str, int], int]:
+    """Assign validators to t/f/f+1 groups for ``n = 3f + 1``."""
+    num_validators = len(validators)
+    if num_validators < 4:
+        raise RuntimeError("non_triangle_stress requires at least 4 validators")
+    if (num_validators - 1) % 3 != 0:
+        raise RuntimeError(
+            f"non_triangle_stress requires n = 3f + 1 validators; got {num_validators}"
+        )
+
+    f = (num_validators - 1) // 3
+    group_specs = (("t", f), ("f", f), ("f+1", f + 1))
+    assignments: dict[str, str] = {}
+    offset = 0
+
+    for label, size in group_specs:
+        end = offset + size
+        for validator in validators[offset:end]:
+            assignments[validator] = label
+        offset = end
+
+    if offset != num_validators:
+        raise RuntimeError(
+            f"Group assignment mismatch: assigned {offset} validators, expected {num_validators}"
+        )
+
+    counts = {label: size for label, size in group_specs}
+    return assignments, counts, f
 
 
 def apply_topology(
     validators: list[str],
+    groups: dict[str, str],
     intra_latency: int,
     inter_latency: int,
     *,
@@ -56,16 +73,16 @@ def apply_topology(
         if not docker_env.is_container_running(u):
             continue
 
-        group_u = get_group(u)
-        if group_u == 0:
+        group_u = groups.get(u)
+        if not group_u:
             continue
 
         for v in validators:
             if u == v:
                 continue
 
-            group_v = get_group(v)
-            if group_v == 0:
+            group_v = groups.get(v)
+            if not group_v:
                 continue
 
             # Determine latency based on group membership
@@ -97,8 +114,20 @@ def run() -> tuple[list[str], ValidatorLogCollector | None]:
         log.error("Failed to list validators: %s", exc)
         return validators, collector
 
-    if len(validators) < 10:
-        log.warning("Expected at least 10 validators, found %d", len(validators))
+    try:
+        groups, group_sizes, f = _assign_groups(validators)
+    except RuntimeError as exc:
+        log.error("%s", exc)
+        return validators, collector
+
+    log.info(
+        "Group sizes (n=%d, f=%d): t=%d, f=%d, f+1=%d",
+        len(validators),
+        f,
+        group_sizes["t"],
+        group_sizes["f"],
+        group_sizes["f+1"],
+    )
 
     # Reset network to clean state
     log.info("Resetting network...")
@@ -136,6 +165,7 @@ def run() -> tuple[list[str], ValidatorLogCollector | None]:
             # Keep the non-metric flavour: intra = slow+lossy, inter = fast+jittery
             apply_topology(
                 validators,
+                groups,
                 intra_latency=intra_latency,
                 inter_latency=inter_latency,
                 intra_loss=10.0,

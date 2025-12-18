@@ -12,7 +12,7 @@ from pathlib import Path
 # ---------------------------------------------------------------------
 # Configuration
 # ---------------------------------------------------------------------
-NUM_VALIDATORS = 10
+DEFAULT_NUM_VALIDATORS = 10
 PAUSE_BETWEEN_PROTOCOLS = 60  # seconds
 
 # ---------------------------------------------------------------------
@@ -48,6 +48,29 @@ def build_images():
         # Using sudo because the build scripts often require it or docker requires it
         run_command(["sudo", "./build.sh", "-t", name], cwd=path)
 
+
+def discover_validator_count(default: int = DEFAULT_NUM_VALIDATORS) -> int:
+    """Return the number of running validator containers or fall back to default."""
+    try:
+        result = subprocess.run(
+            ["docker", "ps", "--format", "{{.Names}}"],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+    except subprocess.CalledProcessError:
+        print("Warning: docker ps failed; using default validator count")
+        return default
+
+    names = [line.strip() for line in result.stdout.splitlines() if line.strip().startswith("validator-")]
+    if names:
+        count = len(names)
+        print(f"Detected {count} validator containers")
+        return count
+
+    print(f"No validator containers detected; using default count {default}")
+    return default
+
 def run_experiment(protocol):
     """Runs the non-triangle stress test for a specific protocol."""
     print(f"\n{'='*60}")
@@ -58,15 +81,17 @@ def run_experiment(protocol):
     print(">>> Cleaning up existing network...")
     run_command(["sudo", "./cleanup.sh"], cwd=PRIVNET_DIR)
 
+    num_validators = discover_validator_count()
+
     # 2. Bootstrap network
     print(f">>> Bootstrapping network for {protocol}...")
     # bootstrap.sh generates the configuration
-    run_command(["sudo", "./bootstrap.sh", "-n", str(NUM_VALIDATORS)], cwd=PRIVNET_DIR)
+    run_command(["sudo", "./bootstrap.sh", "-n", str(num_validators)], cwd=PRIVNET_DIR)
 
     # 3. Start network
     print(f">>> Starting network with {protocol}...")
     # run.sh starts the containers and sets the protocol
-    run_command(["sudo", "./run.sh", "-n", str(NUM_VALIDATORS), "-p", protocol], cwd=PRIVNET_DIR)
+    run_command(["sudo", "./run.sh", "-n", str(num_validators), "-p", protocol], cwd=PRIVNET_DIR)
 
     # Wait for network to stabilize
     print(">>> Waiting for network to stabilize (20s)...")

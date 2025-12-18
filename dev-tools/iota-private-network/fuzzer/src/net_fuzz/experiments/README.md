@@ -62,7 +62,8 @@ Purpose: enforce a three-group topology that violates triangle inequality
 assumptions to stress gossip and synchronization paths.
 
 Behavior:
-- groups validators into three clusters (1–3, 4–7, 8–10)
+- partitions ``n = 3f + 1`` validators into clusters of sizes ``f``, ``f``,
+  and ``f + 1``
 - applies slow+lossy intra-group links and faster inter-group links
 - updates latencies every minute for 5 minutes
 - runs a background spammer at 100 TPS
@@ -117,6 +118,8 @@ runner:
 - starts the network for a specific protocol
 - runs the corresponding experiment
 - repeats for the second protocol
+- auto-detects the current validator count from running containers (falls back
+  to 10 if none are running)
 
 These scripts live alongside this README:
 
