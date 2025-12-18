@@ -51,6 +51,18 @@ def get_consensus_metrics(container_name: str) -> dict[str, float]:
     if val is not None:
         metrics["last_committed_round"] = val
 
+    val = get_metric_value(text, "last_executed_checkpoint")
+    if val is not None:
+        metrics["last_executed_checkpoint"] = val
+
+    val = get_metric_value(text, "last_certified_checkpoint")
+    if val is not None:
+        metrics["last_certified_checkpoint"] = val
+
+    val = get_metric_value(text, "last_constructed_checkpoint")
+    if val is not None:
+        metrics["last_constructed_checkpoint"] = val
+
     val = get_metric_value(text, "consensus_highest_accepted_round")
     if val is not None:
         metrics["highest_accepted_round"] = val

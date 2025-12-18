@@ -8,6 +8,7 @@ All commands below assume:
 
 - the private network is running (e.g. `./run.sh -n 10 -p mysticeti`)
 - a virtual environment is active (`source .venv/bin/activate`)
+- the `PYTHON` environment variable is set to the current interpreter: `export PYTHON=$(python -c 'import sys; print(sys.executable)')`
 - `net_fuzz` is installed (`pip install -e fuzzer`)
 
 Experiment runs automatically write logs under
@@ -80,9 +81,12 @@ Purpose: stress synchronization by cycling restarts between core and outsider
 validators while applying asymmetric latencies.
 
 Behavior:
-- core validators (1–7) have low mutual latency
-- outsiders (8–10) have higher latencies to everyone
-- cycles stop/restart windows for outsiders and then a core subset
+- uses ``n = 3f + 1`` validators with a core of size ``2f + 1`` and outsiders ``f``
+- core validators have low mutual latency; outsiders have higher latencies to everyone
+- cycles outages between outsiders and a core subset of size ``f`` while keeping
+  only ``2f + 1`` validators online
+- after each restart, waits for online validators to converge and advance by
+  10 checkpoints (or the best available progress metric)
 - runs a background spammer at 100 TPS
 
 Run:
