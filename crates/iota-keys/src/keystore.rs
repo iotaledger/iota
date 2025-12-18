@@ -210,11 +210,9 @@ pub struct Alias {
     content = "value",       // name the payload field "value"
     rename_all = "snake_case"
 )]
-// TODO non_exhaustive?
 pub enum StoredKey {
     #[serde(with = "serde_iota_keypair")]
     KeyPair(IotaKeyPair),
-    // TODO default/optional/skip
     Account(IotaAddress),
     External {
         source: String,

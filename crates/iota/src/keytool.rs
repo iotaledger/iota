@@ -9,7 +9,6 @@ mod keytool_tests;
 use std::{
     fmt::{Debug, Display, Formatter},
     path::PathBuf,
-    str::FromStr,
     sync::Arc,
 };
 
@@ -29,8 +28,7 @@ use fastcrypto::{
     secp256k1::recoverable::Secp256k1Sig,
     traits::{KeyPair, ToFromBytes},
 };
-use iota_json::IotaJsonValue;
-use iota_json_rpc_types::{IotaData, IotaObjectDataOptions};
+use iota_json_rpc_types::IotaObjectDataOptions;
 use iota_keys::{
     key_derive::generate_new_key,
     keypair_file::{
@@ -43,13 +41,11 @@ use iota_ledger::Ledger;
 use iota_sdk::wallet_context::WalletContext;
 use iota_sdk_types::crypto::{Intent, IntentMessage};
 use iota_types::{
-    account,
     base_types::{IotaAddress, ObjectID},
     crypto::{
         DefaultHash, EncodeDecodeBase64, IotaKeyPair, PublicKey, SignatureScheme,
         get_authority_key_pair,
     },
-    dynamic_field::{self, Field},
     error::IotaResult,
     move_authenticator::MoveAuthenticator,
     multisig::{MultiSig, MultiSigPublicKey, ThresholdUnit, WeightUnit},
@@ -59,7 +55,6 @@ use iota_types::{
     type_input::TypeInput,
 };
 use json_to_table::{Orientation, json_to_table};
-use move_core_types::{identifier::Identifier, language_storage::TypeTag};
 use serde::Serialize;
 use serde_json::json;
 use tabled::{
@@ -70,6 +65,7 @@ use tracing::info;
 
 use crate::{
     PrintableResult,
+    client_commands::{fetch_auth_info, process_auth_args, resolve_auth_call_args},
     key_identity::{
         KeyIdentity, get_identity_address_from_keystore, get_identity_alias_from_keystore,
     },
@@ -826,71 +822,19 @@ impl KeyToolCommand {
                     let context = WalletContext::new(&config, None, None)?;
                     let iota_client = context.get_client().await?;
 
-                    let authenticator_info_id = dynamic_field::derive_dynamic_field_id(
-                        address.clone(),
-                        &account::AuthenticatorInfoV1Key::tag().into(),
-                        &account::AuthenticatorInfoV1Key::default().to_bcs_bytes(),
-                    )?;
+                    let auth_info = fetch_auth_info(&iota_client, address).await?;
 
-                    let response = iota_client
-                        .read_api()
-                        .get_object_with_options(
-                            authenticator_info_id,
-                            IotaObjectDataOptions::new().with_bcs(),
-                        )
-                        .await?;
+                    let (type_args, json_args) = process_auth_args(auth_call_args.as_ref(), auth_type_arguments.as_ref(), address)?;
 
-                    if let Some(error) = response.error {
-                        bail!("Failed to fetch AuthenticatorInfoV1 object {error}");
-                    }
-
-                    let auth_info = response
-                        .data
-                        .expect("missing object data")
-                        .bcs
-                        .ok_or_else(|| anyhow::anyhow!("missing bcs"))?
-                        .try_into_move()
-                        .ok_or_else(|| anyhow::anyhow!("invalid move type"))?
-                        .deserialize::<Field<account::AuthenticatorInfoV1Key, account::AuthenticatorInfoV1>>(
-                        )?;
-
-                    let type_args = auth_type_arguments
-                        .as_ref()
-                        .map(|args| {
-                            args.iter()
-                                .map(|arg| TypeTag::from_str(arg))
-                                .collect::<Result<Vec<_>, _>>()
-                        })
-                        .transpose()?
-                        .unwrap_or_default();
-
-                    let mut json_args: Vec<_> = auth_call_args
-                        .as_ref()
-                        .map(|args| {
-                            args.iter()
-                                .map(|arg| IotaJsonValue::new(serde_json::to_value(arg).unwrap()).unwrap())
-                                .collect()
-                        })
-                        .unwrap_or_default();
-
-                    json_args.insert(
-                        0,
-                        IotaJsonValue::new(serde_json::to_value(address).unwrap()).unwrap(),
-                    );
-
-                    let mut call_args = context
-                        .get_client()
-                        .await?
-                        .transaction_builder()
-                        .resolve_and_check_json_args_to_call_args(
-                            auth_info.value.package,
-                            &Identifier::from_str(&auth_info.value.module)?,
-                            &Identifier::from_str(&auth_info.value.function)?,
-                            &type_args,
-                            json_args,
-                        )
-                        .await?;
-                    call_args.remove(0); // remove signer arg as it's added by the VM
+                    let call_args = resolve_auth_call_args(
+                        &iota_client,
+                        auth_info.value.package,
+                        &auth_info.value.module,
+                        &auth_info.value.function,
+                        &type_args,
+                        json_args,
+                    )
+                    .await?;
 
                     let object_response = iota_client
                         .read_api()

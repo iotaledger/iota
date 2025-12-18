@@ -70,8 +70,8 @@ use iota_types::{
     quorum_driver_types::ExecuteTransactionRequestType,
     signature::GenericSignature,
     transaction::{
-        InputObjectKind, SenderSignedData, Transaction, TransactionData, TransactionDataAPI,
-        TransactionKind,
+        CallArg, InputObjectKind, SenderSignedData, Transaction, TransactionData,
+        TransactionDataAPI, TransactionKind,
     },
     type_input::TypeInput,
 };
@@ -3503,68 +3503,21 @@ pub(crate) async fn dry_run_or_execute_or_serialize(
         Ok(IotaClientCommandResult::ComputeTransactionDigest(tx_data))
     } else {
         let auth_args = if auth_call_args.is_some() || auth_type_arguments.is_some() {
-            let authenticator_info_id = dynamic_field::derive_dynamic_field_id(
+            let auth_info = fetch_auth_info(&client, signer).await?;
+            let (type_args, json_args) = process_auth_args(
+                auth_call_args.as_ref(),
+                auth_type_arguments.as_ref(),
                 signer,
-                &account::AuthenticatorInfoV1Key::tag().into(),
-                &account::AuthenticatorInfoV1Key::default().to_bcs_bytes(),
             )?;
-
-            let response = client
-                .read_api()
-                .get_object_with_options(
-                    authenticator_info_id,
-                    IotaObjectDataOptions::new().with_bcs(),
-                )
-                .await?;
-
-            if let Some(error) = response.error {
-                bail!("Failed to fetch AuthenticatorInfoV1 object {error}");
-            }
-
-            let auth_info = response
-            .into_object()?
-            .bcs
-            .ok_or_else(|| anyhow::anyhow!("missing bcs"))?
-            .try_into_move()
-            .ok_or_else(|| anyhow::anyhow!("invalid move type"))?
-            .deserialize::<Field<account::AuthenticatorInfoV1Key, account::AuthenticatorInfoV1>>(
-            )?;
-
-            let type_args = auth_type_arguments
-                .as_ref()
-                .map(|args| {
-                    args.iter()
-                        .map(|arg| TypeTag::from_str(arg))
-                        .collect::<Result<Vec<_>, _>>()
-                })
-                .transpose()?
-                .unwrap_or_default();
-
-            let mut json_args: Vec<_> = auth_call_args
-                .as_ref()
-                .map(|args| {
-                    args.iter()
-                        .map(|arg| IotaJsonValue::new(serde_json::to_value(arg).unwrap()).unwrap())
-                        .collect()
-                })
-                .unwrap_or_default();
-
-            json_args.insert(
-                0,
-                IotaJsonValue::new(serde_json::to_value(signer).unwrap()).unwrap(),
-            );
-
-            let mut call_args = client
-                .transaction_builder()
-                .resolve_and_check_json_args_to_call_args(
-                    auth_info.value.package,
-                    &Identifier::from_str(&auth_info.value.module)?,
-                    &Identifier::from_str(&auth_info.value.function)?,
-                    &type_args,
-                    json_args,
-                )
-                .await?;
-            call_args.remove(0); // remove signer arg as it's added by the VM
+            let call_args = resolve_auth_call_args(
+                &client,
+                auth_info.value.package,
+                &auth_info.value.module,
+                &auth_info.value.function,
+                &type_args,
+                json_args,
+            )
+            .await?;
             Some((
                 call_args,
                 type_args.into_iter().map(TypeInput::from).collect(),
@@ -3858,4 +3811,95 @@ async fn select_coins_for_amount(
     }
 
     Ok(coins)
+}
+
+/// Resolves authentication call arguments, removing the signer arg added by the
+/// VM.
+pub(crate) async fn resolve_auth_call_args(
+    client: &IotaClient,
+    package: ObjectID,
+    module: &str,
+    function: &str,
+    type_args: &[TypeTag],
+    json_args: Vec<IotaJsonValue>,
+) -> Result<Vec<CallArg>, anyhow::Error> {
+    let mut call_args = client
+        .transaction_builder()
+        .resolve_and_check_json_args_to_call_args(
+            package,
+            &Identifier::from_str(module)?,
+            &Identifier::from_str(function)?,
+            type_args,
+            json_args,
+        )
+        .await?;
+    call_args.remove(0); // remove signer arg as it's added by the VM
+    Ok(call_args)
+}
+
+/// Fetches AuthenticatorInfoV1 for a signer.
+pub(crate) async fn fetch_auth_info(
+    client: &IotaClient,
+    signer: IotaAddress,
+) -> Result<Field<account::AuthenticatorInfoV1Key, account::AuthenticatorInfoV1>, anyhow::Error> {
+    let authenticator_info_id = dynamic_field::derive_dynamic_field_id(
+        signer,
+        &account::AuthenticatorInfoV1Key::tag().into(),
+        &account::AuthenticatorInfoV1Key::default().to_bcs_bytes(),
+    )?;
+
+    let response = client
+        .read_api()
+        .get_object_with_options(
+            authenticator_info_id,
+            IotaObjectDataOptions::new().with_bcs(),
+        )
+        .await?;
+
+    if let Some(error) = response.error {
+        bail!("Failed to fetch AuthenticatorInfoV1 object {error}");
+    }
+
+    let auth_info = response
+        .into_object()?
+        .bcs
+        .ok_or_else(|| anyhow::anyhow!("missing bcs"))?
+        .try_into_move()
+        .ok_or_else(|| anyhow::anyhow!("invalid move type"))?
+        .deserialize::<Field<account::AuthenticatorInfoV1Key, account::AuthenticatorInfoV1>>()?;
+
+    Ok(auth_info)
+}
+
+/// Processes authentication arguments.
+pub(crate) fn process_auth_args(
+    auth_call_args: Option<&Vec<String>>,
+    auth_type_arguments: Option<&Vec<String>>,
+    signer: IotaAddress,
+) -> Result<(Vec<TypeTag>, Vec<IotaJsonValue>), anyhow::Error> {
+    let type_args = auth_type_arguments
+        .as_ref()
+        .map(|args| {
+            args.iter()
+                .map(|arg| TypeTag::from_str(arg))
+                .collect::<Result<Vec<_>, _>>()
+        })
+        .transpose()?
+        .unwrap_or_default();
+
+    let mut json_args: Vec<_> = auth_call_args
+        .as_ref()
+        .map(|args| {
+            args.iter()
+                .map(|arg| IotaJsonValue::new(serde_json::to_value(arg).unwrap()).unwrap())
+                .collect()
+        })
+        .unwrap_or_default();
+
+    json_args.insert(
+        0,
+        IotaJsonValue::new(serde_json::to_value(signer).unwrap()).unwrap(),
+    );
+
+    Ok((type_args, json_args))
 }
