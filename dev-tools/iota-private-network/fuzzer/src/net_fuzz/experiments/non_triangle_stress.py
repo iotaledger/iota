@@ -10,7 +10,12 @@ from __future__ import annotations
 import logging
 import time
 
-from .. import configure_logging, docker_env, disruptions, spammer
+from . import (
+    ValidatorLogCollector,
+    configure_experiment_logging,
+    start_validator_log_collection,
+)
+from .. import docker_env, disruptions, spammer
 
 log = logging.getLogger(__name__)
 
@@ -79,16 +84,18 @@ def apply_topology(
                 log.debug("Failed to set latency %s->%s: %s", u, v, exc)
 
 
-def run() -> None:
-    configure_logging()
+def run() -> tuple[list[str], ValidatorLogCollector | None]:
+    log_path = configure_experiment_logging("non_triangle_stress")
     # Discover validators
+    validators: list[str] = []
+    collector = None
     try:
         v_list = docker_env.list_validator_containers()
         # Natural sort: validator-1, validator-2, ... validator-10
         validators = sorted([v.name for v in v_list], key=lambda x: int(x.split("-")[1]))
     except Exception as exc:
         log.error("Failed to list validators: %s", exc)
-        return
+        return validators, collector
 
     if len(validators) < 10:
         log.warning("Expected at least 10 validators, found %d", len(validators))
@@ -100,6 +107,7 @@ def run() -> None:
     # Start spammer
     log.info("Starting spammer at 100 TPS...")
     spammer.start_stress_spammer(tps=100)
+    collector = start_validator_log_collection(validators, log_path, interval_s=60)
 
     # Desired schedule (matches docstring)
     start_intra = 100  # ms
@@ -139,21 +147,29 @@ def run() -> None:
 
     except KeyboardInterrupt:
         log.info("Interrupted by user.")
+    return validators, collector
 
 
 def run_safe() -> None:
+    validators: list[str] = []
+    collector = None
     try:
-        run()
+        validators, collector = run()
     except KeyboardInterrupt:
         log.info("Interrupted by user.")
     except Exception as exc:
         log.error("Unexpected error: %s", exc, exc_info=True)
     finally:
         log.info("Cleaning up...")
+        if collector:
+            collector.stop()
         spammer.stop_stress_spammer()
         try:
-            v_list = docker_env.list_validator_containers()
-            disruptions.reset_network(len(v_list))
+            if not validators:
+                v_list = docker_env.list_validator_containers()
+                validators = [v.name for v in v_list]
+            if validators:
+                disruptions.reset_network(len(validators))
         except Exception:
             return
 

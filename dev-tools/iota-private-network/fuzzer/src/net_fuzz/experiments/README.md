@@ -10,6 +10,15 @@ All commands below assume:
 - a virtual environment is active (`source .venv/bin/activate`)
 - `net_fuzz` is installed (`pip install -e fuzzer`)
 
+Experiment runs automatically write logs under
+`dev-tools/iota-private-network/experiments/logs/` with timestamped
+filenames. Each run writes:
+
+- `<experiment>-<timestamp>.log` for the experiment itself.
+- `<experiment>-<timestamp>-validators/` containing per-validator logs:
+  `validator-<n>-latest.log` is refreshed periodically and
+  `validator-<n>-final.log` is captured on shutdown.
+
 ## block_stress
 
 Purpose: enforce a symmetric topology where each node blocks f peers in a

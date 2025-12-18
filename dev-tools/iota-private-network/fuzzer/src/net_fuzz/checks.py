@@ -12,7 +12,7 @@ log = logging.getLogger(__name__)
 
 _TC_DEV = "eth0"
 _IPTABLES_CHAIN = "DOCKER-USER"
-_DELAY_RE = re.compile(r"delay\s+([0-9.]+)ms")
+_DELAY_RE = re.compile(r"delay\s+([0-9.]+)\s*(ms|s|us)", re.IGNORECASE)
 _LOSS_RE = re.compile(r"loss\s+([0-9.]+)%")
 _RULE_COMMENT_PREFIX = "net-fuzz"
 _VALIDATOR_RE = re.compile(r"^validator-(\d+)$")
@@ -40,6 +40,20 @@ def _classid_for_dst(dst: str, dst_ip: str) -> str:
         except (IndexError, ValueError):
             idx = 1
     return f"1:{100 + idx}"
+
+
+def _parse_delay_ms(text: str) -> float | None:
+    """Parse a tc netem delay string into milliseconds."""
+    match = _DELAY_RE.search(text)
+    if not match:
+        return None
+    value = float(match.group(1))
+    unit = match.group(2).lower()
+    if unit == "s":
+        return value * 1000.0
+    if unit == "us":
+        return value / 1000.0
+    return value
 
 
 def _read_tc_qdisc(name: str) -> str | None:
@@ -104,9 +118,9 @@ def check_latency(
     if qdisc_out.returncode == 0:
         for line in qdisc_out.stdout.splitlines():
             if f"parent {classid} " in line:
-                match = _DELAY_RE.search(line)
-                if match:
-                    delay = float(match.group(1))
+                parsed = _parse_delay_ms(line)
+                if parsed is not None:
+                    delay = parsed
                     break
 
     # Fall back to filter lookup if classid is missing.
@@ -134,9 +148,9 @@ def check_latency(
         if flowid:
             for line in qdisc_out.stdout.splitlines():
                 if f"parent {flowid} " in line:
-                    match = _DELAY_RE.search(line)
-                    if match:
-                        delay = float(match.group(1))
+                    parsed = _parse_delay_ms(line)
+                    if parsed is not None:
+                        delay = parsed
                         break
 
     # Fallback: legacy node-wide netem
@@ -144,11 +158,11 @@ def check_latency(
         output = _read_tc_qdisc(src)
         if output is None:
             return False
-        match = _DELAY_RE.search(output)
-        if not match:
+        parsed = _parse_delay_ms(output)
+        if parsed is None:
             log.debug("No delay configured on %s", src)
             return expected_min_ms == 0
-        delay = float(match.group(1))
+        delay = parsed
 
     if expected_min_ms <= delay <= expected_max_ms:
         log.debug("Latency check passed for %s->%s (%.2fms)", src, dst, delay)

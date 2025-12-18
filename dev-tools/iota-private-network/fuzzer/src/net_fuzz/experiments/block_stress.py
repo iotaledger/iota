@@ -11,7 +11,8 @@ import logging
 import random
 import time
 
-from .. import checks, configure_logging, docker_env, disruptions, spammer
+from . import configure_experiment_logging, start_validator_log_collection
+from .. import checks, docker_env, disruptions, spammer
 
 log = logging.getLogger(__name__)
 
@@ -146,10 +147,12 @@ def verify_topology(validators: list[str], block_latency_ms: int) -> None:
 
 
 def run() -> None:
-    configure_logging()
+    log_path = configure_experiment_logging("block_stress")
     # Set fixed seed for reproducibility across different runs (e.g. Mysticeti vs Starfish)
     random.seed(42)
-    
+    validators: list[str] = []
+    collector = None
+
     # Discover validators
     try:
         v_list = docker_env.list_validator_containers()
@@ -177,6 +180,7 @@ def run() -> None:
     log.info("Starting block stress run (ramping latency 200ms -> 2000ms).")
 
     try:
+        collector = start_validator_log_collection(validators, log_path, interval_s=60)
         start_time = time.time()
         
         while time.time() - start_time < duration_seconds:
@@ -205,6 +209,8 @@ def run() -> None:
         log.error("Unexpected error: %s", exc, exc_info=True)
     finally:
         log.info("Test complete. Cleaning up...")
+        if collector:
+            collector.stop()
         spammer.stop_stress_spammer()
         disruptions.reset_network(len(validators))
 

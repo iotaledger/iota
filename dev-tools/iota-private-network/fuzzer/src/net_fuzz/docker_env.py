@@ -146,6 +146,19 @@ def run_in_container(name: str, cmd: Iterable[str] | str, *, check: bool = True)
     return output
 
 
+def get_container_logs(name: str, *, tail: int | None = None) -> str:
+    """Return combined stdout/stderr logs for a container."""
+    container = _get_container(name)
+    kwargs = {"stdout": True, "stderr": True}
+    if tail is not None:
+        kwargs["tail"] = tail
+    try:
+        output = container.logs(**kwargs)
+    except docker_errors.DockerException as exc:  # pragma: no cover
+        raise DockerEnvError(f"Failed to read logs from {name!r}") from exc
+    return output.decode("utf-8", errors="replace")
+
+
 def restart_container(name: str, *, timeout: int = 10) -> None:
     container = _get_container(name)
     try:

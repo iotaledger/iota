@@ -11,7 +11,8 @@ import time
 from dataclasses import dataclass, field
 from datetime import datetime
 
-from .. import configure_logging, docker_env, disruptions, metrics
+from . import configure_experiment_logging
+from .. import docker_env, disruptions, metrics
 
 log = logging.getLogger(__name__)
 
@@ -187,7 +188,7 @@ class AdaptiveFuzzer:
         return True
 
     def run(self) -> None:
-        configure_logging()
+        configure_experiment_logging("adaptive_fuzz")
         log.info("Starting adaptive fuzz run with %d validators", len(self.validators))
 
         # Initial reset
@@ -430,7 +431,6 @@ class AdaptiveFuzzer:
         disruptions.add_latency(C, A, params.fringe_latency_mean, jitter_ms=params.jitter, loss_pct=params.packet_loss)
 
 if __name__ == "__main__":
-    configure_logging()
     validators = [f"validator-{i}" for i in range(1, 19)]
     try:
         v_list = docker_env.list_validator_containers()

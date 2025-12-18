@@ -9,9 +9,18 @@ from __future__ import annotations
 import logging
 import time
 
-from .. import configure_logging, docker_env, disruptions, spammer
+from . import configure_experiment_logging, start_validator_log_collection
+from .. import docker_env, disruptions, spammer
 
 log = logging.getLogger(__name__)
+
+BASE_LATENCY_MS = 10
+INITIAL_JITTER_MS = 50
+MAX_JITTER_MS = 500
+JITTER_STEP_MS = 50
+UPDATE_INTERVAL_S = 120
+DURATION_S = 1800
+SPAMMER_TPS = 100
 
 
 def apply_mirage_topology(validators: list[str], base_latency: int, jitter: int) -> None:
@@ -33,8 +42,9 @@ def apply_mirage_topology(validators: list[str], base_latency: int, jitter: int)
 
 
 def run() -> None:
-    configure_logging()
+    log_path = configure_experiment_logging("mirage_stress")
     # Discover validators
+    collector = None
     try:
         v_list = docker_env.list_validator_containers()
         # Natural sort: validator-1, validator-2, ... validator-10
@@ -51,38 +61,48 @@ def run() -> None:
     disruptions.reset_network(len(validators))
     
     # Start spammer
-    log.info("Starting spammer at 100 TPS...")
-    spammer.start_stress_spammer(tps=100)
-    
-    # Initial parameters
-    base_latency = 10  # Base latency for all edges.
-    current_jitter = 50  # Starting jitter
-    max_jitter = 500  # Extreme jitter
+    log.info("Starting spammer at %d TPS...", SPAMMER_TPS)
+    spammer.start_stress_spammer(tps=SPAMMER_TPS)
 
-    duration_seconds = 1800  # 30 minutes
-    update_interval = 120  # 2 minutes
+    base_latency = BASE_LATENCY_MS
+    current_jitter = INITIAL_JITTER_MS
 
-    log.info("Starting 30-minute mirage run.")
+    log.info(
+        "Starting mirage run: base=%dms jitter_start=%dms step=%dms max=%dms interval=%ds duration=%ds",
+        base_latency,
+        current_jitter,
+        JITTER_STEP_MS,
+        MAX_JITTER_MS,
+        UPDATE_INTERVAL_S,
+        DURATION_S,
+    )
 
     try:
-        start_time = time.time()
-        
-        while time.time() - start_time < duration_seconds:
-            elapsed = int(time.time() - start_time)
+        collector = start_validator_log_collection(validators, log_path, interval_s=60)
+        start_time = time.monotonic()
+        deadline = start_time + DURATION_S
+
+        while True:
+            now = time.monotonic()
+            if now >= deadline:
+                break
+            elapsed = int(now - start_time)
             log.info(
                 "Time: %ds/%ds jitter_ms=%d",
                 elapsed,
-                duration_seconds,
+                DURATION_S,
                 current_jitter,
             )
 
             apply_mirage_topology(validators, base_latency, current_jitter)
 
-            time.sleep(update_interval)
+            sleep_for = min(UPDATE_INTERVAL_S, max(0.0, deadline - time.monotonic()))
+            if sleep_for > 0:
+                time.sleep(sleep_for)
 
             # Increase jitter to make the mirage worse
-            if current_jitter < max_jitter:
-                current_jitter += 50
+            if current_jitter < MAX_JITTER_MS:
+                current_jitter = min(current_jitter + JITTER_STEP_MS, MAX_JITTER_MS)
 
     except KeyboardInterrupt:
         log.info("Interrupted by user.")
@@ -90,6 +110,8 @@ def run() -> None:
         log.error("Unexpected error: %s", exc, exc_info=True)
     finally:
         log.info("Test complete. Cleaning up...")
+        if collector:
+            collector.stop()
         spammer.stop_stress_spammer()
         disruptions.reset_network(len(validators))
 
