@@ -784,4 +784,49 @@ mod test {
         println!("========== DISPLAY SUMMARY ==========\n");
         aggregator.display_summary();
     }
+
+    #[test]
+    #[ignore]
+    // Load measurements from measurement-*.json and parse associated metrics files
+    fn debug_metrics_from_saved_measurements() {
+        use std::{fs, path::PathBuf};
+
+        use crate::IotaBenchmarkType;
+
+        let benchmark_dir = PathBuf::from("PATH/TO/YOUR/SAVED/MEASUREMENTS/DIR");
+
+        // Find and parse the measurement-*.json file to get parameters
+        let mut aggregator: Option<MeasurementsCollection<IotaBenchmarkType>> = None;
+        if let Ok(entries) = fs::read_dir(&benchmark_dir) {
+            for entry in entries.filter_map(|e| e.ok()) {
+                let path = entry.path();
+                if let Some(filename) = path.file_name() {
+                    let filename_str = filename.to_string_lossy();
+
+                    if filename_str.starts_with("measurements-") {
+                        match MeasurementsCollection::<IotaBenchmarkType>::load(&path) {
+                            Ok(loaded) => {
+                                println!("Loaded parameters from: {}\n", filename_str);
+                                aggregator = Some(loaded);
+                                break;
+                            }
+                            Err(e) => {
+                                println!("Failed to load {}: {}\n", filename_str, e);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        let aggregator = match aggregator {
+            Some(agg) => agg,
+            None => {
+                panic!("No measurement-*.json file found or failed to load");
+            }
+        };
+
+        println!("========== DISPLAY SUMMARY ==========\n");
+        aggregator.display_summary();
+    }
 }
