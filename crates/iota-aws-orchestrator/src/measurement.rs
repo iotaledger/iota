@@ -357,25 +357,71 @@ impl<T: BenchmarkType> MeasurementsCollection<T> {
 
     pub fn aggregates_metrics_from_files<M: ProtocolMetrics>(
         &mut self,
-        num_instances: usize,
+        num_clients: usize,
         log_dir: &Path,
     ) {
         display::action("Processing metrics files");
-        for i in 0..num_instances {
+        let duration_secs = self.parameters.duration.as_secs();
+
+        for i in 0..num_clients {
             let metrics_file = log_dir.join(format!("metrics-{i}.log"));
+
             if metrics_file.exists() {
                 match fs::read_to_string(&metrics_file) {
                     Ok(content) => {
-                        let measurements = Measurement::from_prometheus::<M>(&content);
-                        self.add(i, measurements);
+                        display::action(format!("Processing: {}\n", metrics_file.display()));
 
-                        display::status(format!("Processed metrics for client {i}"));
+                        let chunks = self.split_into_chunks(&content);
+                        for chunk in chunks.iter() {
+                            let mut measurements: HashMap<String, Measurement> =
+                                Measurement::from_prometheus::<M>(chunk);
+                            // Retain only measurements within the benchmark duration
+                            measurements.retain(|_, m| m.timestamp.as_secs() <= duration_secs);
+
+                            self.add(i, measurements);
+                        }
+
+                        display::action(format!("Processed metrics for client {i}\n"));
                     }
                     Err(e) => display::warn(format!("Failed to read metrics file {i}: {e}")),
                 }
             }
         }
         display::done();
+    }
+
+    /// Split metrics content into chunks separated by "# HELP
+    /// benchmark_duration" lines
+    fn split_into_chunks(&self, text: &str) -> Vec<String> {
+        let mut chunks = Vec::new();
+        let mut current_chunk = String::new();
+        let mut found_first_help = false;
+
+        for line in text.lines() {
+            let trimmed = line.trim();
+
+            // Skip everything until we find the first "# HELP benchmark_duration"
+            if trimmed.starts_with("# HELP benchmark_duration") {
+                if found_first_help && !current_chunk.is_empty() {
+                    // We've found another chunk boundary, save the previous one
+                    chunks.push(current_chunk);
+                    current_chunk = String::new();
+                }
+                found_first_help = true;
+            }
+
+            if found_first_help {
+                current_chunk.push_str(line);
+                current_chunk.push('\n');
+            }
+        }
+
+        // Add the last chunk
+        if !current_chunk.is_empty() {
+            chunks.push(current_chunk);
+        }
+
+        chunks
     }
 
     /// Display a summary of the measurements.
@@ -705,5 +751,37 @@ mod test {
         assert_eq!(data.count, 1870);
         assert_eq!(data.timestamp.as_secs(), 30);
         assert_eq!(data.squared_sum.as_secs(), 455);
+    }
+
+    #[test]
+    #[ignore]
+    // This test could be used to debug / test existed metrics aggregation
+    fn debug_real_metrics_aggregation() {
+        use std::{path::PathBuf, time::Duration};
+
+        // Put the path to the metrics log directory
+        let metrics_dir = PathBuf::from("PATH/TO/YOUR/METRICS/DIR");
+
+        println!("\n\n========== METRICS AGGREGATION DEBUG ==========\n");
+        println!("Reading metrics from: {}\n", metrics_dir.display());
+
+        let settings = Settings::new_for_test();
+        let num_clients = 10;
+        // Define benchmark parameters matching the real benchmark
+        let benchmark_parameters = BenchmarkParameters {
+            duration: Duration::from_secs(180),
+            load: 1000,
+            nodes: num_clients,
+            ..Default::default()
+        };
+
+        let mut aggregator =
+            MeasurementsCollection::<TestBenchmarkType>::new(&settings, benchmark_parameters);
+
+        // Parse all metrics files
+        aggregator.aggregates_metrics_from_files::<TestProtocolMetrics>(num_clients, &metrics_dir);
+
+        println!("========== DISPLAY SUMMARY ==========\n");
+        aggregator.display_summary();
     }
 }

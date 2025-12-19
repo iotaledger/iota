@@ -643,8 +643,6 @@ done"#
             }
         }
 
-        aggregator.save(&parameters.benchmark_dir);
-
         if self.settings.enable_flamegraph {
             let flamegraphs_dir = parameters.benchmark_dir.join("flamegraphs");
             fs::create_dir_all(&flamegraphs_dir).expect("Failed to create flamegraphs directory");
@@ -918,6 +916,7 @@ done"#
                 );
 
                 aggregator.display_summary();
+                aggregator.save(&parameters.benchmark_dir);
                 generator.register_result(aggregator);
                 // drop(monitor);
 
