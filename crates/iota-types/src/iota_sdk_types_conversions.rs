@@ -809,6 +809,9 @@ impl From<EndOfEpochTransactionKind> for crate::transaction::EndOfEpochTransacti
                     eligible_active_validators: change_epoch_v3.eligible_active_validators,
                 })
             }
+            EndOfEpochTransactionKind::ChangeEpochV4(_change_epoch_v4) => {
+                todo!()
+            }
             EndOfEpochTransactionKind::AuthenticatorStateCreate => Self::AuthenticatorStateCreate,
             EndOfEpochTransactionKind::AuthenticatorStateExpire(authenticator_state_expire) => {
                 Self::AuthenticatorStateExpire(crate::transaction::AuthenticatorStateExpire {
