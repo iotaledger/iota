@@ -1,5 +1,11 @@
 # @iota/apps-ui-icons
 
+## 0.7.1
+
+### Patch Changes
+
+-   c395af9: Add Firefly and Wallet icons
+
 ## 0.7.0
 
 ### Minor Changes

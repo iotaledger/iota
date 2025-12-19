@@ -1,5 +1,19 @@
 # @iota/graphql-transport
 
+## 0.13.0
+
+### Minor Changes
+
+-   8e66840: Deprecate `AddressTransactionBlockRelationship.Sign`
+-   b0d8be1: Support new `TransactionBlocksByDigests` GraphQL query.
+
+### Patch Changes
+
+-   Updated dependencies [4008cc6]
+-   Updated dependencies [8e66840]
+-   Updated dependencies [b0d8be1]
+    -   @iota/iota-sdk@1.10.0
+
 ## 0.12.0
 
 ### Minor Changes
