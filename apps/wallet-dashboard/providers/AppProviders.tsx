@@ -8,7 +8,7 @@ import { IotaClientProvider, lightTheme, darkTheme, WalletProvider } from '@iota
 import { getAllNetworks, getDefaultNetwork, getNetwork } from '@iota/iota-sdk/client';
 import { MutationCache, QueryCache, QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
-import { useState } from 'react';
+import React, { useState } from 'react';
 import { CookieManagerProvider } from '@boxfish-studio/react-cookie-manager';
 import {
     KioskClientProvider,
@@ -25,7 +25,8 @@ import { growthbook } from '@/lib/utils';
 import { ThemeProvider } from '@iota/core';
 import { createIotaClient } from '@/lib/utils/defaultRpcClient';
 import { captureException } from '@/instrumentation';
-import { COOKIE_POLICY_ROUTE } from '@/lib/constants/routes.constants';
+import { LEGAL_LINKS } from '@/lib/constants/routes.constants';
+import Link from 'next/link';
 
 growthbook.init();
 
@@ -90,11 +91,27 @@ export function AppProviders({ children }: React.PropsWithChildren) {
                                                     <Toaster containerClassName="!right-8" />
                                                     <Disclaimer onClose={setCookieAccepted}>
                                                         <div>
-                                                            We use cookies and analytics tools to
-                                                            help us improve your experience.{' '}
-                                                            <a href={COOKIE_POLICY_ROUTE.path}>
-                                                                Read our Cookie Policy
-                                                            </a>
+                                                            By using this website, you agree with
+                                                            our{' '}
+                                                            {LEGAL_LINKS.map(
+                                                                ({ title, href }, index) => (
+                                                                    <React.Fragment key={href}>
+                                                                        <Link
+                                                                            key={href}
+                                                                            href={href}
+                                                                            target="_blank"
+                                                                            rel="noopener noreferrer"
+                                                                            className="text-iota-primary-30 hover:text-iota-primary-50 dark:text-iota-primary-80 dark:hover:text-iota-primary-60"
+                                                                        >
+                                                                            {title}
+                                                                        </Link>
+                                                                        {index <
+                                                                        LEGAL_LINKS.length - 1
+                                                                            ? ', '
+                                                                            : ''}
+                                                                    </React.Fragment>
+                                                                ),
+                                                            )}
                                                         </div>
                                                     </Disclaimer>
                                                 </CookieManagerProvider>
