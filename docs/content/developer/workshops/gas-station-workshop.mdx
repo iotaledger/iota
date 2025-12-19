@@ -10,6 +10,8 @@ In this hands-on workshop you will build Spark Mini, a fully functional, decentr
 
 Spark Mini is a sleek, gas-free microblogging platform built on IOTA testnet. Think Twitter, but with zero fees, no token required, and every post permanently stored on-chain. Using the IOTA Gas Station, the dApp operator quietly pays all transaction costs, so anyone with a wallet can simply connect, type a message, and post instantly, no faucet, no balance, no friction. In this workshop, you’ll build the entire thing from scratch: run your own Gas Station, fund it, and create a beautiful React frontend that delivers real, immutable, on-chain sparks with a single click.
 
+![Full Page](./images/spark-homepage.png)
+
 ### Why IOTA Gas Station?
 
 In traditional blockchains, users must buy tokens, fund wallets, and pay `gas fees` for every action, like posting a message. This creates massive friction, preventing adoption. IOTA Gas Station solves this by letting dApp operators cover fees, so users focus on creating content. Spark Mini demonstrates this with a Twitter-like platform: posts are immutable on IOTA testnet, but completely free.
@@ -261,9 +263,11 @@ export default function App() {
 `useWallets` returns all detected wallets. When a user connects, `accounts.length > 0`. The `ConnectButton` automatically opens the official modal and handles all wallet standards.
 Test it: Click Connect → Choose IOTA Wallet → Success! You now see your address.
 
-## Part 4 – Implement the Sponsored Post Flow
+![Full Page](./images/connect-wallet-popup.png)
 
-### 4.1 Add Constants & Imports
+## Part 3 – Implement the Sponsored Post Flow
+
+### 3.1 Add Constants & Imports
 
 ```tsx
 // Top of src/App.tsx (add these)
@@ -281,7 +285,7 @@ const PACKAGE_ID = '0x2'; // Official demo package
 - P`ACKAGE_ID` is the official demo media package that contains post_message(string).
 - The Gas Station URL and auth token match our Docker setup.
 
-### 4.2 Full Post Handler (copy-paste this function)
+### 3.2 Full Post Handler (copy-paste this function)
 
 ```tsx
 const client = useIotaClient();
@@ -376,6 +380,8 @@ const [posts, setPosts] = useState<Array<{content: string, author: string, txid:
 };
 ```
 
+![Full Page](./images/post-spark.png)
+
 <h3>Explanation:</h3>
 
 This is the complete sponsored transaction flow:
@@ -387,7 +393,7 @@ This is the complete sponsored transaction flow:
 - Gas Station co-signs and submits
 - Success → on-chain forever!
 
-### 4.3 Final UI with Textarea & Feed
+### 3.3 Final UI with Textarea & Feed
 
 Replace the return block with this beautiful final version (includes textarea, button, and feed).
 
@@ -447,6 +453,8 @@ return (
 <h3>Explanation:</h3>
 
 Clean, responsive UI with live feed and explorer links. Every post is permanently stored on IOTA testnet.
+
+![Full Page](./images/final-page.png)
 
 ## Final Test
 
