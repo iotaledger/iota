@@ -173,7 +173,7 @@ impl<D: CoreThreadDispatcher> LeaderTimeoutTask<D> {
                 },
                  // A new block was created. Set a timer in min_block_delay
                 Ok(block) = new_block.recv() => {
-                    debug!("New block {block:?} was created and seen in leader timeout task");
+                    debug!("New block {:?} was created and seen in leader timeout task", block.verified_block_header);
                     last_own_block_round = Some(block.round());
 
                     min_block_delay_timed_out = false;

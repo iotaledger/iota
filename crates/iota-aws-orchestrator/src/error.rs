@@ -74,11 +74,12 @@ pub enum SshError {
         error: russh::Error,
     },
 
-    #[error("Remote execution on {address} returned exit code ({code}): {message}")]
+    #[error("Remote execution cmd '{command}' on {address} returned exit code ({code}): {message}")]
     NonZeroExitCode {
         address: SocketAddr,
         code: u32,
         message: String,
+        command: String,
     },
 }
 
@@ -117,4 +118,7 @@ pub enum TestbedError {
 
     #[error(transparent)]
     Monitor(#[from] MonitorError),
+
+    #[error(transparent)]
+    BuildCacheError(#[from] iota_build_cache_server::client::BuildCacheError),
 }

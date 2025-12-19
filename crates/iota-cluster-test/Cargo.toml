@@ -36,12 +36,12 @@ iota-json-rpc-types.workspace = true
 iota-keys.workspace = true
 iota-move-build.workspace = true
 iota-sdk.workspace = true
+iota-sdk-types.workspace = true
 iota-swarm.workspace = true
 iota-swarm-config.workspace = true
 iota-test-transaction-builder.workspace = true
 iota-types.workspace = true
 move-core-types.workspace = true
-shared-crypto.workspace = true
 telemetry-subscribers.workspace = true
 test-cluster.workspace = true
 

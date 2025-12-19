@@ -15,10 +15,7 @@
 /// - the current implementation is not optimized for a large number of records
 /// and the final one will feature better collection type;
 module regulated_token::denylist_rule {
-    use std::option;
-    use std::vector;
     use iota::bag::{Self, Bag};
-    use iota::tx_context::TxContext;
     use iota::token::{Self, TokenPolicy, TokenPolicyCap, ActionRequest};
 
     /// Trying to `verify` but the sender or the recipient is on the denylist.

@@ -44,7 +44,7 @@ pub struct Intent {
 }
 ```
 
-To see a detailed definition for each field, see each enum definition [in the source code](https://github.com/iotaledger/iota/blob/cb515773e83495bff09569764bef70120c21474f/crates/shared-crypto/src/intent.rs#L91).
+To see a detailed definition for each field, see each enum definition [in the source code](https://github.com/iotaledger/iota-rust-sdk/blob/develop/crates/iota-sdk-types/src/crypto/intent.rs).
 
 The serialization of an `Intent` is a 3-byte array where each field is represented by a byte.
 
@@ -76,7 +76,7 @@ Under the hood, the `new_secure` method in Rust and the `signData` method in Typ
 
 ## Authority Signature
 
-The authority signature is created using the authority key. The data that it commits to is also an intent message `intent || message`. See all available intent scopes [in the source code](https://github.com/iotaledger/iota/blob/cb515773e83495bff09569764bef70120c21474f/crates/shared-crypto/src/intent.rs#L62)
+The authority signature is created using the authority key. The data that it commits to is also an intent message `intent || message`. See all available intent scopes [in the source code](https://github.com/iotaledger/iota-rust-sdk/blob/develop/crates/iota-sdk-types/src/crypto/intent.rs)
 
 ### How to Generate Proof of Possession for an Authority
 
@@ -88,7 +88,7 @@ To generate a proof of possession in Rust, see implementation at `fn generate_pr
 
 # Implementation
 
-1. [Struct and enum definitions](https://github.com/iotaledger/iota/blob/develop/crates/shared-crypto/src/intent.rs)
+1. [Struct and enum definitions](https://github.com/iotaledger/iota-rust-sdk/blob/develop/crates/iota-sdk-types/src/crypto/intent.rs)
 2. [Test](https://github.com/iotaledger/iota/blob/develop/crates/iota-types/src/unit_tests/intent_tests.rs)
 
 <Quiz questions={questions} />

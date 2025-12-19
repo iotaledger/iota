@@ -65,13 +65,13 @@ iota-names.workspace = true
 iota-network-stack.workspace = true
 iota-package-resolver.workspace = true
 iota-rest-api.workspace = true
+iota-sdk-types.workspace = true
 iota-swarm-config.workspace = true
 iota-types.workspace = true
 move-binary-format.workspace = true
 move-core-types.workspace = true
 move-disassembler.workspace = true
 move-ir-types.workspace = true
-shared-crypto.workspace = true
 telemetry-subscribers.workspace = true
 test-cluster.workspace = true
 
