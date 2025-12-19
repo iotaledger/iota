@@ -12,7 +12,6 @@ import { ampli } from './ampli';
 const IS_ENABLED = process.env.BUILD_ENV === 'production';
 
 export async function initAmplitude() {
-    return;
     ampli.load({
         environment: 'iotawallet',
         // Flip this if you'd like to test Amplitude locally

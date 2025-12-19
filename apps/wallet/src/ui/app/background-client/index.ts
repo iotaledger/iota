@@ -398,13 +398,13 @@ export class BackgroundClient {
         );
     }
 
-    public lockAllAccounts(_: MethodPayload<'lockAllAccounts'>['args']) {
+    public lockAllAccounts(args: MethodPayload<'lockAllAccounts'>['args']) {
         return lastValueFrom(
             this.sendMessage(
                 createMessage<MethodPayload<'lockAllAccounts'>>({
                     type: 'method-payload',
                     method: 'lockAllAccounts',
-                    args: {},
+                    args,
                 }),
             ).pipe(take(1)),
         );

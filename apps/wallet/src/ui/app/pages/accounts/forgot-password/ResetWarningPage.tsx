@@ -18,7 +18,6 @@ export function ResetWarningPage() {
             ([sourceID]) => !value.find(({ accountSourceID }) => accountSourceID === sourceID),
         ),
     );
-
     const { isPending } = useAccounts();
     if (!value.length) {
         return <Navigate to="/accounts/forgot-password" replace />;

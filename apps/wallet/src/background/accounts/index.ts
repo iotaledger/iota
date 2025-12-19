@@ -38,7 +38,7 @@ import {
 import { AccountTooManyAttemptsError } from '_src/shared/accounts';
 import { KeystoneAccount } from './keystoneAccount';
 import { KeystoneAccountSource } from '../account-sources/keystoneAccountSource';
-import { ACCOUNT_TYPE_WITH_SOURCE } from '_src/shared/accountTypes';
+import { ACCOUNT_TYPES_WITH_SOURCE } from '_src/shared/accountTypes';
 
 function toAccount(account: SerializedAccount) {
     if (MnemonicAccount.isOfType(account)) {
@@ -168,7 +168,7 @@ export async function lockAllAccounts() {
 
     const allAccounts = await getAllAccounts();
     const accounts = allAccounts.filter(
-        (account) => !ACCOUNT_TYPE_WITH_SOURCE.includes(account.type),
+        (account) => !ACCOUNT_TYPES_WITH_SOURCE.includes(account.type),
     );
 
     for (const account of accounts) {
@@ -188,7 +188,7 @@ export async function unlockAllAccounts(password?: string) {
 
     const allAccounts = await getAllAccounts();
     const accounts = allAccounts.filter(
-        (account) => !ACCOUNT_TYPE_WITH_SOURCE.includes(account.type),
+        (account) => !ACCOUNT_TYPES_WITH_SOURCE.includes(account.type),
     );
 
     for (const account of accounts) {

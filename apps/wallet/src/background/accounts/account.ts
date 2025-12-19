@@ -112,7 +112,7 @@ export abstract class Account<
     protected async onLocked(
         options: LockAccountOptions = {
             allowRead: false,
-            skipEventEmit: true,
+            skipEventEmit: false,
         },
     ) {
         // skip clearing last unlocked value to allow read access

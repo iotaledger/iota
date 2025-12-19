@@ -5,13 +5,11 @@
 import { toast } from '@iota/core';
 import { useBackgroundClient } from '_hooks';
 import { PasswordModalDialog } from './PasswordInputDialog';
-// import type { SerializedUIAccount } from '_src/background/accounts/account';
 
 interface UnlockAccountModalProps {
     onClose: () => void;
     onSuccess: () => void;
     open: boolean;
-    // account?: SerializedUIAccount;
 }
 
 export function UnlockAccountModal({ onClose, onSuccess, open }: UnlockAccountModalProps) {
