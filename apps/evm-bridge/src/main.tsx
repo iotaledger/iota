@@ -31,7 +31,7 @@ import { growthbook, interceptProviderAnnouncements } from './lib/utils/index.ts
 import { GrowthBookProvider } from '@growthbook/growthbook-react';
 import { getNetwork } from '@iota/iota-sdk/client';
 import { metaMaskWallet, walletConnectWallet } from '@rainbow-me/rainbowkit/wallets';
-import { USE_CONDITIONS_LINKS } from './lib/constants/routes.constants.ts';
+import { LEGAL_LINKS } from './lib/constants/routes.constants.ts';
 import { Link } from './components/link/Link.tsx';
 import { initAmplitude } from './shared/analytics';
 
@@ -92,19 +92,16 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
                                             >
                                                 <div className="text-body-md text-iota-neutral-10 dark:text-iota-neutral-92">
                                                     By using this website, you agree with our{' '}
-                                                    {USE_CONDITIONS_LINKS.map(
-                                                        ({ text, url }, index) => (
-                                                            <React.Fragment key={text}>
-                                                                <Link isExternal href={url}>
-                                                                    {text}
-                                                                </Link>
-                                                                {index <
-                                                                USE_CONDITIONS_LINKS.length - 1
-                                                                    ? ', '
-                                                                    : ''}
-                                                            </React.Fragment>
-                                                        ),
-                                                    )}
+                                                    {LEGAL_LINKS.map(({ text, url }, index) => (
+                                                        <React.Fragment key={text}>
+                                                            <Link isExternal href={url}>
+                                                                {text}
+                                                            </Link>
+                                                            {index < LEGAL_LINKS.length - 1
+                                                                ? ', '
+                                                                : ''}
+                                                        </React.Fragment>
+                                                    ))}
                                                 </div>
                                             </Disclaimer>
                                         </RainbowKit>

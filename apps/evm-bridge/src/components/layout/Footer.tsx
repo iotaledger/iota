@@ -1,7 +1,7 @@
 import { IotaLogoWeb } from '@iota/apps-ui-icons';
 import { Divider } from '@iota/apps-ui-kit';
 import { Link } from '../link';
-import { USE_CONDITIONS_LINKS } from '../../lib/constants/routes.constants';
+import { LEGAL_LINKS } from '../../lib/constants/routes.constants';
 import { ExternalLink } from '../../lib/types/link';
 
 const EXTERNAL_LINKS: ExternalLink[] = [
@@ -55,7 +55,7 @@ export function Footer() {
                     </span>
 
                     <div className="flex flex-row gap-lg items-center">
-                        {USE_CONDITIONS_LINKS.map(({ url, text, isExternal }) => (
+                        {LEGAL_LINKS.map(({ url, text, isExternal }) => (
                             <Link key={text} href={url} isSecondary isExternal={isExternal}>
                                 {text}
                             </Link>

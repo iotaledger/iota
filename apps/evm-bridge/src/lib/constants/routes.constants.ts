@@ -3,7 +3,7 @@
 
 import { ExternalLink } from '../types/link';
 
-export const USE_CONDITIONS_LINKS: ExternalLink[] = [
+export const LEGAL_LINKS: ExternalLink[] = [
     {
         text: 'Terms & Conditions',
         url: 'https://www.iota.org/terms-of-use',
