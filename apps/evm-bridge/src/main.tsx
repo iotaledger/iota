@@ -4,7 +4,6 @@ import './globals.css';
 
 import React from 'react';
 import ReactDOM from 'react-dom/client';
-import { CookieManagerProvider } from '@boxfish-studio/react-cookie-manager';
 import {
     getDefaultConfig,
     darkTheme as rainbowDarkTheme,
@@ -14,7 +13,6 @@ import {
 } from '@rainbow-me/rainbowkit';
 import { darkTheme, IotaClientProvider, lightTheme, WalletProvider } from '@iota/dapp-kit';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { CookieDisclaimer } from './components/disclaimer/CookieDisclaimer';
 import App from './App.tsx';
 import { ThemeProvider } from './providers/ThemeProvider.tsx';
 import { WagmiProvider } from 'wagmi';
@@ -28,11 +26,13 @@ import {
 } from './config/index.ts';
 import { EvmRpcClientProvider } from './providers/EvmRpcClientProvider.tsx';
 import { Toaster } from './components/index.ts';
-import { IotaGraphQLClientProvider } from '@iota/core';
+import { IotaGraphQLClientProvider, Disclaimer, handleConsentAccepted } from '@iota/core';
 import { growthbook, interceptProviderAnnouncements } from './lib/utils/index.ts';
 import { GrowthBookProvider } from '@growthbook/growthbook-react';
 import { getNetwork } from '@iota/iota-sdk/client';
 import { metaMaskWallet, walletConnectWallet } from '@rainbow-me/rainbowkit/wallets';
+import { LEGAL_LINKS } from './lib/constants/routes.constants.ts';
+import { Link } from './components/link/Link.tsx';
 import { initAmplitude } from './shared/analytics';
 
 // We intercept EIP-6963 announcements
@@ -83,11 +83,27 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
                                 >
                                     <ThemeProvider appId="IOTA-evm-bridge">
                                         <RainbowKit>
-                                            <CookieManagerProvider>
-                                                <App />
-                                                <Toaster />
-                                                <CookieDisclaimer />
-                                            </CookieManagerProvider>
+                                            <App />
+                                            <Toaster />
+                                            <Disclaimer
+                                                onClose={() => {
+                                                    handleConsentAccepted();
+                                                }}
+                                            >
+                                                <div className="text-body-md text-iota-neutral-10 dark:text-iota-neutral-92">
+                                                    By using this website, you agree with our{' '}
+                                                    {LEGAL_LINKS.map(({ text, url }, index) => (
+                                                        <React.Fragment key={text}>
+                                                            <Link isExternal href={url}>
+                                                                {text}
+                                                            </Link>
+                                                            {index < LEGAL_LINKS.length - 1
+                                                                ? ', '
+                                                                : ''}
+                                                        </React.Fragment>
+                                                    ))}
+                                                </div>
+                                            </Disclaimer>
                                         </RainbowKit>
                                     </ThemeProvider>
                                 </WalletProvider>

@@ -3,13 +3,12 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import * as amplitude from '@amplitude/analytics-browser';
-import { getAmplitudeConsentStatus, PersistableStorage } from '@iota/core';
-import { LogLevel, type UserSession } from '@amplitude/analytics-types';
+import { getAmplitudeConsentStatus } from '@iota/core';
 
 import { ampli } from './ampli';
+import { LogLevel } from '@amplitude/analytics-types';
 
 const IS_ENABLED = import.meta.env.VITE_BUILD_ENV === 'production';
-export const persistableStorage = new PersistableStorage<UserSession>();
 
 export async function initAmplitude() {
     // Check consent status to determine initial opt-out state
