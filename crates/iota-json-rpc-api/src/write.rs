@@ -52,7 +52,7 @@ pub trait WriteApi {
         /// The fully qualified function name `<package_id>::<module_name>::<function_name>`. E.g.  `0x3::iota_system::get_total_iota_supply`.
         function_name: String,
         type_args: Option<Vec<IotaTypeTag>>,
-        call_args: Vec<IotaJsonValue>,
+        arguments: Vec<IotaJsonValue>,
     ) -> RpcResult<IotaMoveViewCallResults>;
 
     /// Runs the transaction in dev-inspect mode. Which allows for nearly any
