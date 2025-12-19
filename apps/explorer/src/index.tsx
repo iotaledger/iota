@@ -43,7 +43,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
                             {LEGAL_LINKS.map(({ title, href }, index) => (
                                 <React.Fragment key={title}>
                                     <Link
-                                        className="text-iota-primary-30 dark:text-iota-primary-80"
+                                        className="text-iota-primary-30 hover:text-iota-primary-50 dark:text-iota-primary-80 dark:hover:text-iota-primary-60"
                                         variant="mono"
                                         href={href}
                                     >
