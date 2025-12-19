@@ -8,22 +8,27 @@ const EXTERNAL_LINKS: ExternalLink[] = [
     {
         text: 'Discord',
         url: 'https://discord.iota.org/',
+        isExternal: true,
     },
     {
         text: 'LinkedIn',
         url: 'https://www.linkedin.com/company/iotafoundation/',
+        isExternal: true,
     },
     {
         text: 'Twitter',
         url: 'https://twitter.com/iota',
+        isExternal: true,
     },
     {
         text: 'GitHub',
         url: 'https://www.github.com/iotaledger/',
+        isExternal: true,
     },
     {
         text: 'Youtube',
         url: 'https://www.youtube.com/c/iotafoundation',
+        isExternal: true,
     },
 ];
 
@@ -34,8 +39,8 @@ export function Footer() {
                 <div className="flex flex-col md:flex-row justify-between items-center gap-y-lg">
                     <IotaLogoWeb className="w-36 h-9 dark:text-iota-neutral-92 text-iota-neutral-10" />
                     <div className="flex flex-row gap-lg items-center">
-                        {EXTERNAL_LINKS.map(({ url, text }) => (
-                            <Link key={text} href={url} isSecondary>
+                        {EXTERNAL_LINKS.map(({ url, text, isExternal }) => (
+                            <Link key={text} href={url} isSecondary isExternal={isExternal}>
                                 {text}
                             </Link>
                         ))}
@@ -50,8 +55,8 @@ export function Footer() {
                     </span>
 
                     <div className="flex flex-row gap-lg items-center">
-                        {USE_CONDITIONS_LINKS.map(({ url, text }) => (
-                            <Link key={text} href={url} isSecondary>
+                        {USE_CONDITIONS_LINKS.map(({ url, text, isExternal }) => (
+                            <Link key={text} href={url} isSecondary isExternal={isExternal}>
                                 {text}
                             </Link>
                         ))}

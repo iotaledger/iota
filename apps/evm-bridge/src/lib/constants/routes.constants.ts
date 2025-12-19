@@ -7,10 +7,12 @@ export const USE_CONDITIONS_LINKS: ExternalLink[] = [
     {
         text: 'Terms & Conditions',
         url: 'https://www.iota.org/terms-of-use',
+        isExternal: true,
     },
     {
         text: 'Privacy Policy',
         url: 'https://www.iota.org/privacy-policy',
+        isExternal: true,
     },
     {
         text: 'Cookie Policy',

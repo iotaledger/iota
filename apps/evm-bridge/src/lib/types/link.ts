@@ -4,4 +4,5 @@
 export interface ExternalLink {
     text: string;
     url: string;
+    isExternal?: boolean;
 }

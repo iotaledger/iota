@@ -91,12 +91,16 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
                                                 }}
                                             >
                                                 <div className="text-body-md text-iota-neutral-10 dark:text-iota-neutral-92">
-                                                    We use cookies to improve your experience. By
-                                                    using this website, you agree with our{' '}
+                                                    By using this website, you agree with our{' '}
                                                     {USE_CONDITIONS_LINKS.map(
-                                                        ({ text, url }, index) => (
+                                                        ({ text, url, isExternal }, index) => (
                                                             <React.Fragment key={text}>
-                                                                <Link href={url}>{text}</Link>
+                                                                <Link
+                                                                    href={url}
+                                                                    isExternal={isExternal}
+                                                                >
+                                                                    {text}
+                                                                </Link>
                                                                 {index <
                                                                 USE_CONDITIONS_LINKS.length - 1
                                                                     ? ', '
