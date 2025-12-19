@@ -119,21 +119,20 @@ pub(crate) fn build_objects_query(
     filter_fn: impl Fn(RawQuery) -> RawQuery,
     newer_criteria: impl Fn(RawQuery) -> RawQuery,
 ) -> RawQuery {
-    // Subquery to be used in `LEFT JOIN` against the inner queries for more recent
-    // object versions
-    let newer = newer_criteria(filter!(
-        query!("SELECT object_id, object_version FROM objects_history"),
-        format!(
-            r#"checkpoint_sequence_number BETWEEN {} AND {}"#,
-            range.first, range.last
-        )
-    ));
-
     let mut snapshot_objs_inner = query!("SELECT * FROM objects_snapshot");
     snapshot_objs_inner = filter_fn(snapshot_objs_inner);
 
     let mut snapshot_objs = match view {
         View::Consistent => {
+            // Subquery to be used in `LEFT JOIN` for more recent object versions
+            let newer = newer_criteria(filter!(
+                query!("SELECT object_id, object_version FROM objects_history"),
+                format!(
+                    r#"checkpoint_sequence_number BETWEEN {} AND {}"#,
+                    range.first, range.last
+                )
+            ));
+
             // The `LEFT JOIN` serves as a filter to remove objects that have a more recent
             // version
             let mut snapshot_objs = query!(
@@ -163,36 +162,44 @@ pub(crate) fn build_objects_query(
 
     // Similar to the snapshot query, construct the filtered inner query for the
     // history table.
-    let mut history_objs_inner = query!("SELECT * FROM objects_history");
-    history_objs_inner = filter_fn(history_objs_inner);
+    let mut history_window = query!("SELECT * FROM objects_history");
+    history_window = filter_fn(history_window);
 
     let mut history_objs = match view {
         View::Consistent => {
             // Additionally bound the inner `objects_history` query by the checkpoint range
-            history_objs_inner = filter!(
-                history_objs_inner,
+            history_window = filter!(
+                history_window,
                 format!(
                     r#"checkpoint_sequence_number BETWEEN {} AND {}"#,
                     range.first, range.last
                 )
             );
 
-            let mut history_objs = query!(
-                r#"SELECT candidates.* FROM ({}) candidates
-                    LEFT JOIN ({}) newer
-                    ON (candidates.object_id = newer.object_id AND candidates.object_version < newer.object_version)"#,
-                history_objs_inner,
-                newer
+            let newest = newer_criteria(filter!(
+                query!("SELECT object_id, MAX(object_version) AS max_version FROM objects_history"),
+                format!(
+                    r#"checkpoint_sequence_number BETWEEN {} AND {}"#,
+                    range.first, range.last
+                )
+            ))
+            .group_by("object_id");
+
+            let history_objs = query!(
+                r#"WITH history_window AS ({}),
+                    newest AS ({})
+                    SELECT candidates.* FROM history_window candidates
+                    JOIN newest
+                    ON candidates.object_id = newest.object_id
+                    AND candidates.object_version = newest.max_version"#,
+                history_window,
+                newest
             );
-            history_objs = filter!(history_objs, "newer.object_version IS NULL");
             history_objs
         }
         View::Historical => {
             // The cursor pagination logic refers to the table with the `candidates` alias
-            query!(
-                "SELECT candidates.* FROM ({}) candidates",
-                history_objs_inner
-            )
+            query!("SELECT candidates.* FROM ({}) candidates", history_window)
         }
     };
 

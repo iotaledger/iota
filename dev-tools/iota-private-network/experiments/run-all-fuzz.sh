@@ -34,7 +34,7 @@ if [ -n "$nums" ]; then
 fi
 
 # 4) Clear tc qdiscs inside validators (adjust upper bound to your max)
-for i in $(seq 1 20); do
+for i in $(seq 1 30); do
   pid=$(docker inspect -f '{{.State.Pid}}' "validator-$i" 2>/dev/null || true)
   [ -z "$pid" ] || [ "$pid" = "0" ] && continue
   sudo nsenter -t "$pid" -n tc qdisc del dev eth0 root 2>/dev/null || true
@@ -220,7 +220,7 @@ log() {
 
 # --- Usage ---
 usage() {
-  echo "Usage: $0 [-n num_validators(4..19)] [-p protocol(mysticeti|starfish)] [-b build_images(true|false)]"
+  echo "Usage: $0 [-n num_validators(4..30)] [-p protocol(mysticeti|starfish)] [-b build_images(true|false)]"
   echo "          [-t topology(true|false|ring|star|non-triangle|random|geo-high|geo-low)] [-s seed(number)]"
   echo "          [-x percent_block_connection(0..100)] [-l percent_loss_packets(0..100)]"
   echo "          [-d run_duration_seconds] [-r percent_restart(0..100)] [-m]"
