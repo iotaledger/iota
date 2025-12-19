@@ -81,8 +81,9 @@ fun auth_function_ref_v1_key(): AuthenticatorFunctionRefV1Key {
 }
 
 /// Add `authenticator` as a dynamic field to `account`.
-/// This function must be called only from the account functions protected by the compiler
-/// from being called outside the `Account` module.
+///
+/// IMPORTANT: This function is allowed to be called only by the functions that the IOTA Move bytecode verifier
+/// prevents from being invoked outside the module where `Account` is declared.
 fun attach_auth_function_ref_v1<Account: key>(
     account: &mut Account,
     authenticator: AuthenticatorFunctionRefV1<Account>,
