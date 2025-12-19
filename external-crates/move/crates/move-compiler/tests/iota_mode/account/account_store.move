@@ -1,7 +1,8 @@
 // can use private account internal functions inside of the defining module if it has store
 
 module a::m {
-    use iota::account::{Self, AuthenticatorFunctionRefV1};
+    use iota::account;
+    use iota::authenticator_function::AuthenticatorFunctionRefV1;
 
     struct A has key, store {
         id: iota::object::UID,
@@ -29,12 +30,16 @@ module iota::object {
     }
 }
 
-module iota::account {
+module iota::authenticator_function {
     use iota::object::UID;
 
     struct AuthenticatorFunctionRefV1<phantom Account: key> {
         id: UID,
     }
+}
+
+module iota::account {
+    use iota::authenticator_function::AuthenticatorFunctionRefV1;
 
     public fun create_account_v1<Account: key>(_: Account, _: AuthenticatorFunctionRefV1<Account>) {
         abort 0

@@ -15,7 +15,7 @@ gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storag
 task 2, lines 20-23:
 //# programmable --inputs object(1,1) "account" "authenticate"
 //> 0: test::account::create();
-//> 1: iota::account::create_auth_function_ref_v1<test::account::Account>(Input(0), Input(1), Input(2));
+//> 1: iota::authenticator_function::create_auth_function_ref_v1<test::account::Account>(Input(0), Input(1), Input(2));
 //> 2: iota::account::create_account_v1<test::account::Account>(Result(0), Result(1));
 Error: Transaction Effects Status: Non Entry Function Invoked. Move Call must start with an entry function
 Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: NonEntryFunctionInvoked, source: Some("Cannot directly call iota::account::create_account_v1."), command: Some(2) } }
@@ -23,7 +23,7 @@ Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { k
 task 3, lines 25-28:
 //# programmable --inputs object(1,1) "account" "authenticate"
 //> 0: test::account::create();
-//> 1: iota::account::create_auth_function_ref_v1<test::account::Account>(Input(0), Input(1), Input(2));
+//> 1: iota::authenticator_function::create_auth_function_ref_v1<test::account::Account>(Input(0), Input(1), Input(2));
 //> 2: iota::account::create_immutable_account_v1<test::account::Account>(Result(0), Result(1));
 Error: Transaction Effects Status: Non Entry Function Invoked. Move Call must start with an entry function
 Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: NonEntryFunctionInvoked, source: Some("Cannot directly call iota::account::create_immutable_account_v1."), command: Some(2) } }
@@ -31,7 +31,7 @@ Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { k
 task 4, lines 30-33:
 //# programmable --inputs object(1,1) "account" "authenticate"
 //> 0: test::account::create();
-//> 1: iota::account::create_auth_function_ref_v1<test::account::Account>(Input(0), Input(1), Input(2));
+//> 1: iota::authenticator_function::create_auth_function_ref_v1<test::account::Account>(Input(0), Input(1), Input(2));
 //> 2: iota::account::rotate_auth_function_ref_v1<test::account::Account>(Result(0), Result(1));
 Error: Transaction Effects Status: Non Entry Function Invoked. Move Call must start with an entry function
 Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: NonEntryFunctionInvoked, source: Some("Cannot directly call iota::account::rotate_auth_function_ref_v1."), command: Some(2) } }

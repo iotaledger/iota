@@ -447,7 +447,7 @@ impl TestEnvironment {
             ];
             if let Argument::Result(authenticator_function_ref_v1) = builder.programmable_move_call(
                 IOTA_FRAMEWORK_ADDRESS.into(),
-                ident_str!("account").to_owned(),
+                ident_str!("authenticator_function").to_owned(),
                 ident_str!("create_auth_function_ref_v1").to_owned(),
                 vec![abstract_account_type_tag(&aa_package_id)],
                 arguments,
@@ -599,7 +599,7 @@ impl TestEnvironment {
         ];
         if let Argument::Result(authenticator_function_ref_v1) = builder.programmable_move_call(
             IOTA_FRAMEWORK_ADDRESS.into(),
-            ident_str!("account").to_owned(),
+            ident_str!("authenticator_function").to_owned(),
             ident_str!("create_auth_function_ref_v1").to_owned(),
             vec![abstract_account_type_tag(&aa_package_id)],
             arguments,

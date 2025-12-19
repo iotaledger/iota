@@ -36,7 +36,7 @@ use serde_with::serde_as;
 
 use crate::{
     IOTA_CLOCK_OBJECT_ID, IOTA_FRAMEWORK_ADDRESS, IOTA_SYSTEM_ADDRESS, MOVE_STDLIB_ADDRESS,
-    account::AuthenticatorFunctionRefV1,
+    account_abstraction::authenticator_function::AuthenticatorFunctionRefV1,
     balance::Balance,
     coin::{COIN_MODULE_NAME, COIN_STRUCT_NAME, Coin, CoinMetadata, TreasuryCap},
     coin_manager::CoinManager,

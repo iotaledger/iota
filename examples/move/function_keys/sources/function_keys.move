@@ -30,8 +30,8 @@ use function_keys::fk_store::{
     disallow,
     is_allowed
 };
-use iota::account::AuthenticatorFunctionRefV1;
 use iota::auth_context::AuthContext;
+use iota::authenticator_function::AuthenticatorFunctionRefV1;
 use iota::ed25519;
 use iota::hex::decode;
 use iotaccount::iotaccount::{builder, ensure_tx_sender_is_account, IOTAccount};

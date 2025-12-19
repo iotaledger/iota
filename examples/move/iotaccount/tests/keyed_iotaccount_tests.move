@@ -4,8 +4,8 @@
 #[test_only]
 module iotaccount::keyed_iotaccount_tests;
 
-use iota::account;
 use iota::auth_context::{Self, AuthContext};
+use iota::authenticator_function;
 use iota::ecdsa_k1;
 use iota::hex;
 use iota::test_scenario::{Self, Scenario};
@@ -356,7 +356,7 @@ fun test_rotate_account_public_key() {
         let mut account = scenario.take_shared<IOTAccount>();
 
         let public_key = b"24";
-        let authenticator = account::create_auth_function_ref_v1_for_testing(
+        let authenticator = authenticator_function::create_auth_function_ref_v1_for_testing(
             @0x2,
             ascii::string(b"module2"),
             ascii::string(b"function2"),
@@ -388,7 +388,7 @@ fun test_rotate_account_public_key_wrong_sender() {
         let mut account = scenario.take_shared<IOTAccount>();
 
         let public_key = b"24";
-        let authenticator = account::create_auth_function_ref_v1_for_testing(
+        let authenticator = authenticator_function::create_auth_function_ref_v1_for_testing(
             @0x2,
             ascii::string(b"module2"),
             ascii::string(b"function2"),

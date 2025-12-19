@@ -3,7 +3,8 @@
 
 module iotaccount::iotaccount;
 
-use iota::account::{Self, AuthenticatorFunctionRefV1};
+use iota::account;
+use iota::authenticator_function::AuthenticatorFunctionRefV1;
 use iota::dynamic_field;
 
 // === Errors ===

@@ -4,8 +4,9 @@
 module time_locked::account;
 
 use generic_keyed_authentication::owner_public_key;
-use iota::account::{Self, AuthenticatorFunctionRefV1};
+use iota::account;
 use iota::auth_context::AuthContext;
+use iota::authenticator_function::AuthenticatorFunctionRefV1;
 use iota::clock::Clock;
 use iotaccount::iotaccount;
 use time_locked::unlock_time;

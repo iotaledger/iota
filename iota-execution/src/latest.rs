@@ -16,7 +16,7 @@ use iota_adapter_latest::{
 use iota_move_natives_latest::all_natives;
 use iota_protocol_config::ProtocolConfig;
 use iota_types::{
-    account::AuthenticatorFunctionRefV1,
+    account_abstraction::authenticator_function::AuthenticatorFunctionRefV1,
     base_types::{IotaAddress, ObjectRef, TxContext},
     committee::EpochId,
     digests::TransactionDigest,
