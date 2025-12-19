@@ -134,20 +134,14 @@ export async function accountSourcesHandleUIMessage(msg: Message, uiConnection: 
     }
     if (isMethodPayload(payload, 'unlockAllAccounts')) {
         const { password } = payload.args;
-        const accountSources = await getAccountSources();
-        for (const source of accountSources) {
-            if (password) {
-                await source.unlock(password);
-            }
-        }
-
         await unlockAllAccounts(password);
         uiConnection.send(createMessage({ type: 'done' }, msg.id));
         return true;
     }
     if (isMethodPayload(payload, 'lockAllAccounts')) {
-        await lockAllAccountSources();
         await lockAllAccounts();
+        uiConnection.send(createMessage({ type: 'done' }, msg.id));
+        return true;
     }
     if (isMethodPayload(payload, 'getAccountSourceEntropy')) {
         const accountSource = await getAccountSourceByID(payload.args.accountSourceID);

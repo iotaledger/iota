@@ -10,3 +10,7 @@ type AccountSourcesEvents = {
 };
 
 export const accountSourcesEvents = mitt<AccountSourcesEvents>();
+
+export type EventEmissionOptions = {
+    skipEventEmit?: boolean;
+};

@@ -14,6 +14,7 @@ import {
     type SerializedUIAccount,
     type SigningAccount,
 } from './account';
+import type { UnlockAccountOptions, LockAccountOptions } from './events';
 
 type SessionStorageData = { keyPair: string };
 type EncryptedData = { keyPair: string };
@@ -75,11 +76,11 @@ export class ImportedAccount
         });
     }
 
-    async lock(allowRead = false): Promise<void> {
+    async lock(options: LockAccountOptions = { allowRead: false }): Promise<void> {
         const isUnlocked = !(await this.isLocked());
         if (isUnlocked) {
             await this.clearEphemeralValue();
-            await this.onLocked({ allowRead });
+            await this.onLocked(options);
         }
     }
 
@@ -103,14 +104,14 @@ export class ImportedAccount
         };
     }
 
-    async passwordUnlock(password?: string): Promise<void> {
+    async passwordUnlock(password?: string, options?: UnlockAccountOptions): Promise<void> {
         if (!password) {
             throw new Error('Missing password to unlock the account');
         }
         const { encrypted } = await this.getStoredData();
         const { keyPair } = await decrypt<EncryptedData>(password, encrypted);
         await this.setEphemeralValue({ keyPair });
-        await this.onUnlocked();
+        await this.onUnlocked(options);
     }
 
     async verifyPassword(password: string): Promise<void> {

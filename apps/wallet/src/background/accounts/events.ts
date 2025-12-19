@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import mitt from 'mitt';
+import type { EventEmissionOptions } from '../account-sources/events';
 
 type AccountsEvents = {
     accountsChanged: void;
@@ -11,3 +12,9 @@ type AccountsEvents = {
 };
 
 export const accountsEvents = mitt<AccountsEvents>();
+
+export type LockAccountOptions = {
+    allowRead?: boolean;
+} & EventEmissionOptions;
+
+export type UnlockAccountOptions = EventEmissionOptions;

@@ -29,7 +29,7 @@ import {
     type AccountSourceSerialized,
     type AccountSourceSerializedUI,
 } from './accountSource';
-import { accountSourcesEvents } from './events';
+import { accountSourcesEvents, type EventEmissionOptions } from './events';
 import { type MakeDerivationOptions, makeDerivationPath } from './bip44Path';
 
 type DataDecrypted = {
@@ -121,11 +121,15 @@ export class MnemonicAccountSource extends AccountSource<
         return (await this.getEphemeralValue()) === null;
     }
 
-    async unlock(password: string) {
+    async unlock(password: string, options: EventEmissionOptions = {}) {
         if (await this.isLocked()) {
             await this.setEphemeralValue(await this.#decryptStoredData(password));
             await setupAutoLockAlarm();
-            accountSourcesEvents.emit('accountSourceStatusUpdated', { accountSourceID: this.id });
+            if (!options.skipEventEmit) {
+                accountSourcesEvents.emit('accountSourceStatusUpdated', {
+                    accountSourceID: this.id,
+                });
+            }
         }
     }
 
@@ -134,11 +138,15 @@ export class MnemonicAccountSource extends AccountSource<
         await decrypt<DataDecrypted>(password, encryptedData);
     }
 
-    async lock() {
+    async lock(options: EventEmissionOptions = {}) {
         const isUnlocked = !(await this.isLocked());
         if (isUnlocked) {
             await this.clearEphemeralValue();
-            accountSourcesEvents.emit('accountSourceStatusUpdated', { accountSourceID: this.id });
+            if (!options.skipEventEmit) {
+                accountSourcesEvents.emit('accountSourceStatusUpdated', {
+                    accountSourceID: this.id,
+                });
+            }
         }
     }
 

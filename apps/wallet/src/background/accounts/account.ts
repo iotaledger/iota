@@ -13,7 +13,7 @@ import {
     getEphemeralValue,
     setEphemeralValue,
 } from '../sessionEphemeralValues';
-import { accountsEvents } from './events';
+import { accountsEvents, type UnlockAccountOptions, type LockAccountOptions } from './events';
 
 export enum AccountType {
     MnemonicDerived = 'mnemonic-derived',
@@ -41,7 +41,7 @@ export abstract class Account<
         }
     }
 
-    abstract lock(allowRead?: boolean): Promise<void>;
+    abstract lock(options?: LockAccountOptions): Promise<void>;
     /**
      * Indicates if the account is unlocked and allows write actions (eg. signing)
      */
@@ -101,7 +101,7 @@ export abstract class Account<
     protected clearEphemeralValue() {
         return clearEphemeralValue(this.id);
     }
-    protected async onUnlocked(options?: { skipEventEmit: boolean }) {
+    protected async onUnlocked(options?: UnlockAccountOptions) {
         await setupAutoLockAlarm();
         await (await getDB()).accounts.update(this.id, { lastUnlockedOn: Date.now() });
         if (!options?.skipEventEmit) {
@@ -110,7 +110,7 @@ export abstract class Account<
     }
 
     protected async onLocked(
-        options: { allowRead: boolean; skipEventEmit?: boolean } = {
+        options: LockAccountOptions = {
             allowRead: false,
             skipEventEmit: true,
         },
@@ -173,7 +173,7 @@ export interface SerializedUIAccount {
 
 export interface PasswordUnlockableAccount {
     readonly unlockType: 'password';
-    passwordUnlock(password?: string): Promise<void>;
+    passwordUnlock(password?: string, options?: UnlockAccountOptions): Promise<void>;
     verifyPassword(password: string): Promise<void>;
 }
 

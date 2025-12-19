@@ -156,10 +156,28 @@ export async function addNewAccounts<T extends SerializedAccount>(accounts: Omit
 }
 
 export async function lockAllAccounts() {
-    const allAccounts = await getAllAccounts();
-    for (const anAccount of allAccounts) {
-        await anAccount.lock();
+    console.time('Locking all accounts');
+    const sources = await getAccountSources();
+
+    for (const source of sources) {
+        const isUnlocked = !(await source.isLocked());
+
+        if (isUnlocked) {
+            await source.lock({ skipEventEmit: true });
+        }
     }
+
+    const allAccounts = await getAllAccounts();
+    const accounts = allAccounts.filter(
+        (account) => !ACCOUNT_TYPE_WITH_SOURCE.includes(account.type),
+    );
+
+    for (const account of accounts) {
+        await account.lock({ skipEventEmit: true });
+    }
+
+    accountsEvents.emit('accountsChanged');
+    console.timeEnd('Locking all accounts');
 }
 
 export async function unlockAllAccounts(password?: string) {
@@ -170,14 +188,16 @@ export async function unlockAllAccounts(password?: string) {
 
     for (const source of sources) {
         if (password) {
-            await source.unlock(password);
+            await source.unlock(password, { skipEventEmit: true });
         }
     }
 
-    const accounts = (await getAllAccounts()).filter(
+    const allAccounts = await getAllAccounts();
+    const accounts = allAccounts.filter(
         (account) => !ACCOUNT_TYPE_WITH_SOURCE.includes(account.type),
     );
     console.log('accounts that need to be unlocked manually:', accounts);
+    console.log('UNLOCKING A TOTAL OF:', allAccounts.length, 'ACCOUNTS');
 
     for (const account of accounts) {
         const isPasswordUnlockable = isPasswordUnLockable(account);
@@ -191,10 +211,10 @@ export async function unlockAllAccounts(password?: string) {
                 account.type,
                 ' because mnemonic or self is locked.',
             );
-            await account.passwordUnlock(password);
+            await account.passwordUnlock(password, { skipEventEmit: true });
         }
     }
-
+    accountsEvents.emit('accountsChanged');
     console.timeEnd('Unlocking all accounts');
 }
 

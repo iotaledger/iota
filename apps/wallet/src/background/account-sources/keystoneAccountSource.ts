@@ -15,7 +15,7 @@ import {
     type AccountSourceSerialized,
     type AccountSourceSerializedUI,
 } from './accountSource';
-import { accountSourcesEvents } from './events';
+import { accountSourcesEvents, type EventEmissionOptions } from './events';
 
 interface KeystoneAccountSourceSerialized extends AccountSourceSerialized {
     type: AccountSourceType.Keystone;
@@ -90,10 +90,13 @@ export class KeystoneAccountSource extends AccountSource<KeystoneAccountSourceSe
         return (await this.getEphemeralValue()) === null;
     }
 
-    async unlock(password: string) {
+    async unlock(password: string, options: EventEmissionOptions = {}) {
         await this.setEphemeralValue(await this.#decryptStoredData(password));
         await setupAutoLockAlarm();
-        accountSourcesEvents.emit('accountSourceStatusUpdated', { accountSourceID: this.id });
+
+        if (!options.skipEventEmit) {
+            accountSourcesEvents.emit('accountSourceStatusUpdated', { accountSourceID: this.id });
+        }
     }
 
     async verifyPassword(password: string) {
@@ -101,9 +104,11 @@ export class KeystoneAccountSource extends AccountSource<KeystoneAccountSourceSe
         await decrypt(password, encryptedData);
     }
 
-    async lock() {
+    async lock(options: EventEmissionOptions = {}) {
         await this.clearEphemeralValue();
-        accountSourcesEvents.emit('accountSourceStatusUpdated', { accountSourceID: this.id });
+        if (!options.skipEventEmit) {
+            accountSourcesEvents.emit('accountSourceStatusUpdated', { accountSourceID: this.id });
+        }
     }
 
     async toUISerialized(): Promise<KeystoneAccountSourceSerializedUI> {

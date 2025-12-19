@@ -11,6 +11,7 @@ import {
     type SerializedAccount,
     type SerializedUIAccount,
 } from './account';
+import type { LockAccountOptions, UnlockAccountOptions } from './events';
 
 export interface LedgerAccountSerialized extends SerializedAccount {
     type: AccountType.LedgerDerived;
@@ -77,11 +78,11 @@ export class LedgerAccount
         super({ type: AccountType.LedgerDerived, id, cachedData });
     }
 
-    async lock(allowRead = false): Promise<void> {
+    async lock(options: LockAccountOptions = { allowRead: false }): Promise<void> {
         const isUnlocked = !(await this.isLocked());
         if (isUnlocked) {
             await this.clearEphemeralValue();
-            await this.onLocked({ allowRead });
+            await this.onLocked(options);
         }
     }
 
@@ -89,14 +90,14 @@ export class LedgerAccount
         return !(await this.getEphemeralValue())?.unlocked;
     }
 
-    async passwordUnlock(password?: string): Promise<void> {
+    async passwordUnlock(password?: string, options?: UnlockAccountOptions): Promise<void> {
         if (!password) {
             throw new Error('Missing password to unlock the account');
         }
         const { encrypted } = await this.getStoredData();
         await decrypt<string>(password, encrypted);
         await this.setEphemeralValue({ unlocked: true });
-        await this.onUnlocked();
+        await this.onUnlocked(options);
     }
 
     async verifyPassword(password: string): Promise<void> {

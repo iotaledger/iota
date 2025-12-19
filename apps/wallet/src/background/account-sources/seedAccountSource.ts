@@ -19,7 +19,7 @@ import {
     type AccountSourceSerialized,
     type AccountSourceSerializedUI,
 } from './accountSource';
-import { accountSourcesEvents } from './events';
+import { accountSourcesEvents, type EventEmissionOptions } from './events';
 import { type MakeDerivationOptions, makeDerivationPath } from './bip44Path';
 
 type DataDecrypted = {
@@ -100,10 +100,12 @@ export class SeedAccountSource extends AccountSource<SeedAccountSourceSerialized
         return (await this.getEphemeralValue()) === null;
     }
 
-    async unlock(password: string) {
+    async unlock(password: string, options: EventEmissionOptions = {}) {
         await this.setEphemeralValue(await this.#decryptStoredData(password));
         await setupAutoLockAlarm();
-        accountSourcesEvents.emit('accountSourceStatusUpdated', { accountSourceID: this.id });
+        if (!options.skipEventEmit) {
+            accountSourcesEvents.emit('accountSourceStatusUpdated', { accountSourceID: this.id });
+        }
     }
 
     async verifyPassword(password: string) {
@@ -111,9 +113,11 @@ export class SeedAccountSource extends AccountSource<SeedAccountSourceSerialized
         await decrypt<DataDecrypted>(password, encryptedData);
     }
 
-    async lock() {
+    async lock(options: EventEmissionOptions = {}) {
         await this.clearEphemeralValue();
-        accountSourcesEvents.emit('accountSourceStatusUpdated', { accountSourceID: this.id });
+        if (!options.skipEventEmit) {
+            accountSourcesEvents.emit('accountSourceStatusUpdated', { accountSourceID: this.id });
+        }
     }
 
     async deriveAccount(
