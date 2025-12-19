@@ -116,7 +116,7 @@ export function ImportExistingWallet() {
                     </div>
                 </div>
 
-                <div className="flex flex-col gap-y-xs pt-md--rs text-start">
+                <div className="flex flex-col gap-y-xs py-md--rs text-start">
                     {profileOptions.map((card) => (
                         <Card
                             key={card.title}
