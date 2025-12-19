@@ -96,7 +96,9 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
                                                     {USE_CONDITIONS_LINKS.map(
                                                         ({ text, url }, index) => (
                                                             <React.Fragment key={text}>
-                                                                <Link href={url}>{text}</Link>
+                                                                <Link isExternal href={url}>
+                                                                    {text}
+                                                                </Link>
                                                                 {index <
                                                                 USE_CONDITIONS_LINKS.length - 1
                                                                     ? ', '
