@@ -42,7 +42,13 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
                             agree with our{' '}
                             {LEGAL_LINKS.map(({ title, href }, index) => (
                                 <React.Fragment key={title}>
-                                    <Link href={href}>{title}</Link>
+                                    <Link
+                                        className="text-iota-primary-30 dark:text-iota-primary-80"
+                                        variant="mono"
+                                        href={href}
+                                    >
+                                        {title}
+                                    </Link>
                                     {index < LEGAL_LINKS.length - 1 ? ', ' : ''}
                                 </React.Fragment>
                             ))}
