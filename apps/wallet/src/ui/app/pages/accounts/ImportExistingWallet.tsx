@@ -13,6 +13,7 @@ import { ImportPass, Key, Passkey, Firefly } from '@iota/apps-ui-icons';
 import { openInNewTab } from '_src/shared/utils';
 import { type ActionCardItem, OnboardingCardIcon } from './AddAccountPage';
 import { Feature, Theme, useFeatureEnabledByNetwork, useTheme } from '@iota/core';
+import clsx from 'clsx';
 
 export function ImportExistingWallet() {
     const { theme } = useTheme();
@@ -88,6 +89,8 @@ export function ImportExistingWallet() {
         }
     };
 
+    const hasManyProfileOptions = profileOptions.length >= 3;
+
     return (
         <PageTemplate
             title="Import a wallet"
@@ -116,7 +119,12 @@ export function ImportExistingWallet() {
                     </div>
                 </div>
 
-                <div className="flex flex-col gap-y-xs pt-md--rs text-start">
+                <div
+                    className={clsx(
+                        'flex flex-col gap-y-xs text-start',
+                        hasManyProfileOptions ? 'py-md--rs' : 'pt-md--rs',
+                    )}
+                >
                     {profileOptions.map((card) => (
                         <Card
                             key={card.title}
