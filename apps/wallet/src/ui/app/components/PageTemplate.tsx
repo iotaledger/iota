@@ -41,8 +41,8 @@ export function PageTemplate({
                     onClose={onClose}
                 />
             )}
-            <div className="w-full flex-1 overflow-y-auto overflow-x-hidden bg-iota-neutral-100 p-md dark:bg-iota-neutral-6">
-                {children}
+            <div className="w-full flex-1 overflow-y-auto overflow-x-hidden bg-iota-neutral-100 px-md pt-md dark:bg-iota-neutral-6">
+                <div className="pb-md">{children}</div>
             </div>
         </div>
     );
