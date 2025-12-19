@@ -90,9 +90,6 @@ export class MnemonicAccount
         const isSourceUnlocked = !(await mnemonicSource.isLocked());
 
         if (isSourceUnlocked) {
-            console.log(
-                `lock source from Mnemonic account mnemonicSource ${this.id} isSourceUnlocked ${isSourceUnlocked}`,
-            );
             await mnemonicSource.lock();
             await this.onLocked(options);
         }

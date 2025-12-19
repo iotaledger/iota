@@ -401,7 +401,6 @@ export class BackgroundClient {
     }
 
     public unlockAllAccounts(inputs: MethodPayload<'unlockAllAccounts'>['args']) {
-        console.log('Unlocking all accounts!!', { inputs });
         return lastValueFrom(
             this.sendMessage(
                 createMessage<MethodPayload<'unlockAllAccounts'>>({
@@ -678,15 +677,8 @@ export class BackgroundClient {
                 network: payload.network,
             });
         } else if (isMethodPayload(payload, 'entitiesUpdated')) {
-            console.log('\n');
-            console.log('%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%');
-            console.log(
-                '[DEVELOPMENT DEBUG]: Invalidating queries for entities update',
-                payload.args.type,
-            );
             const entitiesQueryKey = ENTITIES_TO_CLIENT_QUERY_KEYS[payload.args.type];
             if (entitiesQueryKey) {
-                console.log('[DEVELOPMENT DEBUG]: Invalidating query', { entitiesQueryKey });
                 queryClient.invalidateQueries({ queryKey: entitiesQueryKey });
             }
         }

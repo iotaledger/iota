@@ -156,7 +156,6 @@ export async function addNewAccounts<T extends SerializedAccount>(accounts: Omit
 }
 
 export async function lockAllAccounts() {
-    console.time('Locking all accounts');
     const sources = await getAccountSources();
 
     for (const source of sources) {
@@ -177,15 +176,10 @@ export async function lockAllAccounts() {
     }
 
     accountsEvents.emit('accountsChanged');
-    console.timeEnd('Locking all accounts');
 }
 
 export async function unlockAllAccounts(password?: string) {
-    console.time('Unlocking all accounts');
     const sources = await getAccountSources();
-
-    console.log('sources:', sources);
-
     for (const source of sources) {
         if (password) {
             await source.unlock(password, { skipEventEmit: true });
@@ -196,26 +190,15 @@ export async function unlockAllAccounts(password?: string) {
     const accounts = allAccounts.filter(
         (account) => !ACCOUNT_TYPE_WITH_SOURCE.includes(account.type),
     );
-    console.log('accounts that need to be unlocked manually:', accounts);
-    console.log('UNLOCKING A TOTAL OF:', allAccounts.length, 'ACCOUNTS');
 
     for (const account of accounts) {
         const isPasswordUnlockable = isPasswordUnLockable(account);
         const isLocked = await account.isLocked();
         if (isPasswordUnlockable && isLocked) {
-            console.log('==========================');
-            console.log(
-                'Unlocking account',
-                await account.address,
-                'of type: ',
-                account.type,
-                ' because mnemonic or self is locked.',
-            );
             await account.passwordUnlock(password, { skipEventEmit: true });
         }
     }
     accountsEvents.emit('accountsChanged');
-    console.timeEnd('Unlocking all accounts');
 }
 
 interface LockedState {

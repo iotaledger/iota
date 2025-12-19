@@ -60,7 +60,6 @@ export function useCreateAccountsMutation() {
     return useMutation({
         mutationKey: ['create accounts'],
         mutationFn: async ({ type, password }: { type: AccountsFormType; password?: string }) => {
-            console.time('useCreateAccountsMutation');
             let createdAccounts;
             const accountsFormValues = accountsFormValuesRef.current;
 
@@ -179,7 +178,6 @@ export function useCreateAccountsMutation() {
             if (selectedAccount?.id) {
                 await backgroundClient.selectAccount(selectedAccount?.id);
             }
-            console.timeEnd('useCreateAccountsMutation');
             return createdAccounts;
         },
     });
