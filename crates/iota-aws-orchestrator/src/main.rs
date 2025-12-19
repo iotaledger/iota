@@ -487,18 +487,22 @@ async fn run<C: ServerProviderClient>(settings: Settings, client: C, opts: Opts)
                 None => None,
             };
 
-            let generator =
-                BenchmarkParametersGenerator::new(committee, load, use_internal_ip_addresses)
-                    .with_benchmark_type(benchmark_type)
-                    .with_custom_duration(duration)
-                    .with_perturbation_spec(perturbation_spec)
-                    .with_latency_topology(latency_topology)
-                    .with_consensus_protocol(consensus_protocol)
-                    .with_max_latency(maximum_latency)
-                    .with_epoch_duration(epoch_duration_ms)
-                    .with_max_pipeline_delay(max_pipeline_delay)
-                    .with_current_timestamp_for_genesis(use_current_timestamp_for_genesis)
-                    .with_faults(fault_type);
+            let generator = BenchmarkParametersGenerator::new(
+                committee,
+                dedicated_clients,
+                load,
+                use_internal_ip_addresses,
+            )
+            .with_benchmark_type(benchmark_type)
+            .with_custom_duration(duration)
+            .with_perturbation_spec(perturbation_spec)
+            .with_latency_topology(latency_topology)
+            .with_consensus_protocol(consensus_protocol)
+            .with_max_latency(maximum_latency)
+            .with_epoch_duration(epoch_duration_ms)
+            .with_max_pipeline_delay(max_pipeline_delay)
+            .with_current_timestamp_for_genesis(use_current_timestamp_for_genesis)
+            .with_faults(fault_type);
 
             Orchestrator::new(
                 settings,

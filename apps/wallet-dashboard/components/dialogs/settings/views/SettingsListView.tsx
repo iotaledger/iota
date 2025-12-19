@@ -54,14 +54,24 @@ export function SettingsListView({ handleClose, setView }: SettingsListViewProps
                     </div>
                     <div className="flex flex-col items-center gap-y-1 text-center">
                         <p>{process.env.NEXT_PUBLIC_DASHBOARD_REV}</p>
-                        <Link
-                            href={ToS_LINK}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-label-sm text-iota-primary-30 dark:text-iota-primary-80"
-                        >
-                            Terms of Service
-                        </Link>
+                        <div className="flex gap-md">
+                            <Link
+                                href={ToS_LINK}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-label-sm text-iota-primary-30 dark:text-iota-primary-80"
+                            >
+                                Terms of Service
+                            </Link>
+                            <Link
+                                href={'/cookie-policy'}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-label-sm text-iota-primary-30 dark:text-iota-primary-80"
+                            >
+                                Cookie Policy
+                            </Link>
+                        </div>
                     </div>
                 </div>
             </DialogLayoutBody>

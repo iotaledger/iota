@@ -1,5 +1,16 @@
 # @iota/iota-sdk
 
+## 1.10.0
+
+### Minor Changes
+
+-   8e66840: Deprecate `AddressTransactionBlockRelationship.Sign`
+-   b0d8be1: Support new `TransactionBlocksByDigests` GraphQL query.
+
+### Patch Changes
+
+-   4008cc6: Update validot to v1.2.0.
+
 ## 1.9.0
 
 ### Minor Changes

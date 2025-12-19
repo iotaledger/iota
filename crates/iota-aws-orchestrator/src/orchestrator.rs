@@ -170,31 +170,31 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
         instances: Vec<Instance>,
         parameters: &BenchmarkParameters<T>,
     ) -> TestbedResult<()> {
-        // Run one node per instance.
-        let targets = self
-            .protocol_commands
-            .node_command(instances.clone(), parameters);
-
-        let repo = self.settings.repository_name();
-        let context = CommandContext::new()
-            .run_background("node".into())
-            .with_log_file("~/node.log".into())
-            .with_execute_from_path(repo.into());
         if parameters.use_internal_ip_address {
             if let Some(latency_topology) = parameters.latency_topology.clone() {
-                let latency_context = CommandContext::default();
                 let latency_commands = NetworkLatencyCommandBuilder::new(&instances)
                     .with_perturbation_spec(parameters.perturbation_spec.clone())
                     .with_topology_layout(latency_topology)
                     .with_max_latency(parameters.maximum_latency)
                     .build_network_latency_matrix();
                 self.ssh_manager
-                    .execute_per_instance(latency_commands, latency_context)
+                    .execute_per_instance(latency_commands, CommandContext::default())
                     .await?;
             }
         }
+
+        // Run one node per instance.
+        let targets = self
+            .protocol_commands
+            .node_command(instances.clone(), parameters);
+
+        let repo = self.settings.repository_name();
+        let node_context = CommandContext::new()
+            .run_background("node".into())
+            .with_log_file("~/node.log".into())
+            .with_execute_from_path(repo.into());
         self.ssh_manager
-            .execute_per_instance(targets, context)
+            .execute_per_instance(targets, node_context)
             .await?;
 
         // Wait until all nodes are reachable.
@@ -216,7 +216,7 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
         let use_precompiled_binaries = self.settings.build_cache_enabled();
 
         let working_dir_cmd = format!("mkdir -p {working_dir}");
-        let git_clone_cmd = format!("(git clone {url} || true)");
+        let git_clone_cmd = format!("(git clone --depth=1 {url} || true)");
 
         let mut basic_commands = vec![
             "sudo apt-get update",
@@ -237,13 +237,12 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
             "ulimit -n 1048576 || true",
             // Create the working directory.
             working_dir_cmd.as_str(),
+            // Clone the repo.
+            git_clone_cmd.as_str(),
         ];
 
         // Collect all unique non-"stable" rust toolchains from build configs
         let toolchain_cmds: Vec<String> = if !use_precompiled_binaries {
-            // Clone the repo.
-            basic_commands.push(git_clone_cmd.as_str());
-
             self.settings
                 .build_configs
                 .values()
@@ -302,10 +301,10 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
         .concat()
         .join(" && ");
 
-        let context = CommandContext::default();
         self.ssh_manager
-            .execute(self.instances(), command, context.clone())
+            .execute(self.instances(), command, CommandContext::default())
             .await?;
+
         if !self.skip_monitoring {
             let metrics_instance = self
                 .metrics_instance
@@ -313,7 +312,11 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
                 .expect("No metrics instance available");
             let monitor_command = Monitor::dependencies().join(" && ");
             self.ssh_manager
-                .execute(vec![metrics_instance], monitor_command, context)
+                .execute(
+                    vec![metrics_instance],
+                    monitor_command,
+                    CommandContext::default(),
+                )
                 .await?;
         }
 
@@ -354,6 +357,31 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
         let repo_name = self.settings.repository_name();
         let build_groups = self.settings.build_groups();
 
+        // we need to fetch and checkout the commit even if using precompiled binaries
+        // because the iota-framework submodule, the examples/move folder, or the
+        // dev-tools/grafana-local folder might be used.
+        let git_update_command = [
+            &format!("git fetch origin {commit} --force"),
+            &format!("(git reset --hard origin/{commit} || git checkout --force {commit})"),
+            "git clean -fd -e target",
+        ]
+        .join(" && ");
+
+        let id = "git update";
+        let context = CommandContext::new()
+            .run_background(id.into())
+            .with_execute_from_path(repo_name.clone().into());
+
+        // Execute and wait for the git update command on all instances (including
+        // metrics)
+        display::action(format!("update command: {git_update_command}"));
+        self.ssh_manager
+            .execute(self.instances(), git_update_command, context)
+            .await?;
+        self.ssh_manager
+            .wait_for_command(self.instances(), id, CommandStatus::Terminated)
+            .await?;
+
         // Check if build cache is enabled
         if self.settings.build_cache_enabled() {
             display::action("Using build cache for binary distribution");
@@ -367,28 +395,6 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
                 )
                 .await?;
         } else {
-            let git_update_command = [
-                &format!("git fetch origin {commit} --force"),
-                &format!("(git reset --hard origin/{commit} || git checkout --force {commit})"),
-                "git clean -fd -e target",
-            ]
-            .join(" && ");
-
-            let id = "git update";
-            let context = CommandContext::new()
-                .run_background(id.into())
-                .with_execute_from_path(repo_name.clone().into());
-
-            // Execute and wait for the git update command on all instances (including
-            // metrics)
-            display::action(format!("update command: {git_update_command}"));
-            self.ssh_manager
-                .execute(self.instances(), git_update_command, context)
-                .await?;
-            self.ssh_manager
-                .wait_for_command(self.instances(), id, CommandStatus::Terminated)
-                .await?;
-
             self.update_with_local_build(build_groups).await?;
         }
 

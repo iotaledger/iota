@@ -3,7 +3,7 @@
     "author": "IOTA Foundation <info@iota.org>",
     "description": "IOTA Kiosk library",
     "repository": "https://github.com/iotaledger/iota",
-    "version": "0.6.0",
+    "version": "0.6.1",
     "license": "Apache-2.0",
     "type": "commonjs",
     "main": "./dist/cjs/index.js",
