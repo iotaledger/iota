@@ -78,8 +78,11 @@ export class LedgerAccount
     }
 
     async lock(allowRead = false): Promise<void> {
-        await this.clearEphemeralValue();
-        await this.onLocked(allowRead);
+        const isUnlocked = !(await this.isLocked());
+        if (isUnlocked) {
+            await this.clearEphemeralValue();
+            await this.onLocked({ allowRead });
+        }
     }
 
     async isLocked(): Promise<boolean> {

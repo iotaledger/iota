@@ -81,13 +81,15 @@ export class MnemonicAccount
 
     async lock(allowRead = false): Promise<void> {
         const mnemonicSource = await this.#getMnemonicSource();
-        console.log(
-            'lock source from Mnemonic account mnemonicSource',
-            mnemonicSource,
-            await mnemonicSource.isLocked(),
-        );
-        await mnemonicSource.lock();
-        await this.onLocked(allowRead);
+        const isSourceUnlocked = !(await mnemonicSource.isLocked());
+
+        if (isSourceUnlocked) {
+            console.log(
+                `lock source from Mnemonic account mnemonicSource ${this.id} isSourceUnlocked ${isSourceUnlocked}`,
+            );
+            await mnemonicSource.lock();
+            await this.onLocked({ allowRead, skipEventEmit: true });
+        }
     }
 
     async passwordUnlock(password?: string): Promise<void> {
@@ -100,7 +102,7 @@ export class MnemonicAccount
             }
 
             await mnemonicSource.unlock(password);
-            await this.onUnlocked();
+            await this.onUnlocked({ skipEventEmit: true });
         }
     }
 
@@ -130,14 +132,11 @@ export class MnemonicAccount
 
     async signData(data: Uint8Array): Promise<string> {
         const mnemonicSource = await this.#getMnemonicSource();
-        console.log('signData mnemonicSource', mnemonicSource);
         if (await mnemonicSource.isLocked()) {
             throw new Error(`Account is locked`);
         }
         const { derivationPath } = await this.getStoredData();
-        console.log('signData derivationPath', derivationPath);
         const keypair = await mnemonicSource.deriveKeyPair(derivationPath);
-        console.log('signData keypair', keypair);
         return this.generateSignature(data, keypair);
     }
 

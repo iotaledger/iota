@@ -101,20 +101,30 @@ export abstract class Account<
     protected clearEphemeralValue() {
         return clearEphemeralValue(this.id);
     }
-    protected async onUnlocked() {
+    protected async onUnlocked(options?: { skipEventEmit: boolean }) {
         await setupAutoLockAlarm();
         await (await getDB()).accounts.update(this.id, { lastUnlockedOn: Date.now() });
-        accountsEvents.emit('accountStatusChanged', { accountID: this.id });
+        if (!options?.skipEventEmit) {
+            accountsEvents.emit('accountStatusChanged', { accountID: this.id });
+        }
     }
 
-    protected async onLocked(allowRead: boolean) {
+    protected async onLocked(
+        options: { allowRead: boolean; skipEventEmit?: boolean } = {
+            allowRead: false,
+            skipEventEmit: true,
+        },
+    ) {
         // skip clearing last unlocked value to allow read access
         // when possible (last unlocked within time limits)
-        if (allowRead) {
+        if (options.allowRead) {
             return;
         }
+
         await (await getDB()).accounts.update(this.id, { lastUnlockedOn: null });
-        accountsEvents.emit('accountStatusChanged', { accountID: this.id });
+        if (!options.skipEventEmit) {
+            accountsEvents.emit('accountStatusChanged', { accountID: this.id });
+        }
     }
 
     public async setNickname(nickname: string | null) {

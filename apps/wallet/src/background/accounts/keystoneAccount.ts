@@ -76,8 +76,11 @@ export class KeystoneAccount
     }
 
     async lock(allowRead = false): Promise<void> {
-        await (await this.#getKeystoneSource()).lock();
-        await this.onLocked(allowRead);
+        const isUnlocked = !(await this.isLocked());
+        if (isUnlocked) {
+            await (await this.#getKeystoneSource()).lock();
+            await this.onLocked({ allowRead, skipEventEmit: true });
+        }
     }
 
     async isLocked(): Promise<boolean> {
@@ -93,7 +96,7 @@ export class KeystoneAccount
             }
 
             await keystoneSource.unlock(password);
-            await this.onUnlocked();
+            await this.onUnlocked({ skipEventEmit: true });
         }
     }
 

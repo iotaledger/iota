@@ -78,9 +78,12 @@ export class SeedAccount
     }
 
     async lock(allowRead = false): Promise<void> {
-        const seedSource = await this.#getSeedSource();
-        await seedSource.lock();
-        await this.onLocked(allowRead);
+        const isUnlocked = !(await this.isLocked());
+        if (isUnlocked) {
+            const seedSource = await this.#getSeedSource();
+            await seedSource.lock();
+            await this.onLocked({ allowRead, skipEventEmit: true });
+        }
     }
 
     async passwordUnlock(password?: string): Promise<void> {
@@ -91,7 +94,7 @@ export class SeedAccount
                 throw new Error('Missing password to unlock the account');
             }
             await seedSource.unlock(password);
-            await this.onUnlocked();
+            await this.onUnlocked({ skipEventEmit: true });
         }
     }
 
