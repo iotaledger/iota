@@ -80,6 +80,9 @@ export function ProtectAccountPage() {
                     type,
                     password,
                 });
+
+                await backgroundClient.unlockAllAccounts({ password });
+
                 if (
                     type === AccountsFormType.NewMnemonic &&
                     isMnemonicSerializedUiAccount(createdAccounts[0])
