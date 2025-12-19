@@ -93,12 +93,9 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
                                                 <div className="text-body-md text-iota-neutral-10 dark:text-iota-neutral-92">
                                                     By using this website, you agree with our{' '}
                                                     {USE_CONDITIONS_LINKS.map(
-                                                        ({ text, url, isExternal }, index) => (
+                                                        ({ text, url }, index) => (
                                                             <React.Fragment key={text}>
-                                                                <Link
-                                                                    href={url}
-                                                                    isExternal={isExternal}
-                                                                >
+                                                                <Link isExternal href={url}>
                                                                     {text}
                                                                 </Link>
                                                                 {index <
