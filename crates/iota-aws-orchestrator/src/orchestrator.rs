@@ -594,16 +594,12 @@ done"#
     }
 
     /// Collect metrics from the load generators.
-    pub async fn run(
-        &self,
-        parameters: &BenchmarkParameters<T>,
-    ) -> TestbedResult<MeasurementsCollection<T>> {
+    pub async fn run(&self, parameters: &BenchmarkParameters<T>) -> TestbedResult<()> {
         display::action(format!(
             "Running benchmark (at least {}s)",
             parameters.duration.as_secs()
         ));
 
-        let aggregator = MeasurementsCollection::new(&self.settings, parameters.clone());
         let mut metrics_interval = time::interval(Duration::from_secs(5));
         metrics_interval.tick().await; // The first tick returns immediately.
 
@@ -674,7 +670,7 @@ done"#
         }
 
         display::done();
-        Ok(aggregator)
+        Ok(())
     }
 
     async fn fetch_flamegraphs(
@@ -904,8 +900,11 @@ done"#
 
                 // Wait for the benchmark to terminate. Then save the results and print a
                 // summary.
-                let mut aggregator = self.run(&parameters).await?;
+                self.run(&parameters).await?;
 
+                // Collect and aggregate metrics
+                let mut aggregator =
+                    MeasurementsCollection::new(&self.settings, parameters.clone());
                 self.download_metrics_logs(&parameters.benchmark_dir)
                     .await?;
 
@@ -918,7 +917,6 @@ done"#
                 aggregator.display_summary();
                 aggregator.save(&parameters.benchmark_dir);
                 generator.register_result(aggregator);
-                // drop(monitor);
 
                 TestbedResult::Ok(())
             }
