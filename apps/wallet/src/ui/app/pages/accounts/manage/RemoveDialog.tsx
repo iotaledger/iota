@@ -58,7 +58,6 @@ export function RemoveDialog({ isOpen, setOpen, accountID }: RemoveDialogProps) 
                 open={isOpen}
                 onVerify={async (password) => {
                     await unlockAccountSourceMutation.mutateAsync({
-                        id: accountID,
                         password,
                     });
                     setPasswordModalVisible(false);

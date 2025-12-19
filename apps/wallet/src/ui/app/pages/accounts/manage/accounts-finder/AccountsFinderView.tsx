@@ -272,7 +272,6 @@ export function AccountsFinderView(): JSX.Element {
                         } else if (accountSourceId) {
                             // unlock software account sources
                             await unlockAccountSourceMutation.mutateAsync({
-                                id: accountSourceId,
                                 password,
                             });
                         }

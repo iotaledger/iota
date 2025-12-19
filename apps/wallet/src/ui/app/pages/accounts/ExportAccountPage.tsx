@@ -26,6 +26,9 @@ export function ExportAccountPage() {
             if (!account || isLedgerAccount || isPasskeyAccount) {
                 return null;
             }
+            if (password) {
+                await backgroundClient.unlockAllAccounts({ password });
+            }
             return (
                 await backgroundClient.exportAccountKeyPair({
                     password,

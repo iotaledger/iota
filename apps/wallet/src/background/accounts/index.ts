@@ -244,15 +244,7 @@ async function clearStateAfterManyFailedAttempts() {
 
 export async function accountsHandleUIMessage(msg: Message, uiConnection: UiConnection) {
     const { payload } = msg;
-    if (isMethodPayload(payload, 'lockAccountSourceOrAccount')) {
-        const account = await getAccountByID(payload.args.id);
-        if (account) {
-            await account.lock();
-            await uiConnection.send(createMessage({ type: 'done' }, msg.id));
-            return true;
-        }
-    }
-    if (isMethodPayload(payload, 'unlockAccountSourceOrAccount')) {
+    if (isMethodPayload(payload, 'unlockAccountSource')) {
         const { id, password } = payload.args;
         const account = await getAccountByID(id);
         if (account) {

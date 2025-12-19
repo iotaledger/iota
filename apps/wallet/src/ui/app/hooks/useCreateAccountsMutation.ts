@@ -45,8 +45,9 @@ export function useCreateAccountsMutation() {
     const [accountsFormValuesRef, setAccountFormValues] = useAccountsFormContext();
     const { createPasskeyAccount } = useCreatePasskeyAccount();
 
-    const CREATE_TYPE_TO_AMPLI_ACCOUNT: Partial<
-        Record<AccountsFormType, AddedAccountsProperties['accountType']>
+    const CREATE_TYPE_TO_AMPLI_ACCOUNT: Record<
+        AccountsFormType,
+        AddedAccountsProperties['accountType']
     > = {
         [AccountsFormType.NewMnemonic]: AmpliAccountType.Derived,
         [AccountsFormType.ImportMnemonic]: AmpliAccountType.Derived,
@@ -56,6 +57,8 @@ export function useCreateAccountsMutation() {
         [AccountsFormType.ImportPasskey]: AmpliAccountType.Passkey,
         [AccountsFormType.ImportLedger]: AmpliAccountType.Ledger,
         [AccountsFormType.ImportKeystone]: AmpliAccountType.Keystone,
+        [AccountsFormType.MnemonicSource]: AmpliAccountType.Derived,
+        [AccountsFormType.SeedSource]: AmpliAccountType.Derived,
     };
     return useMutation({
         mutationKey: ['create accounts'],
@@ -64,6 +67,22 @@ export function useCreateAccountsMutation() {
             const accountsFormValues = accountsFormValuesRef.current;
 
             if (
+                type === AccountsFormType.MnemonicSource &&
+                validateAccountFormValues(type, accountsFormValues)
+            ) {
+                createdAccounts = await backgroundClient.createAccounts({
+                    type: AccountType.MnemonicDerived,
+                    sourceID: accountsFormValues.sourceID,
+                });
+            } else if (
+                type === AccountsFormType.SeedSource &&
+                validateAccountFormValues(type, accountsFormValues)
+            ) {
+                createdAccounts = await backgroundClient.createAccounts({
+                    type: AccountType.SeedDerived,
+                    sourceID: accountsFormValues.sourceID,
+                });
+            } else if (
                 (type === AccountsFormType.NewMnemonic ||
                     type === AccountsFormType.ImportMnemonic) &&
                 validateAccountFormValues(type, accountsFormValues, password)
@@ -75,7 +94,7 @@ export function useCreateAccountsMutation() {
                         'entropy' in accountsFormValues ? accountsFormValues.entropy : undefined,
                 });
 
-                await backgroundClient.unlockAccountSourceOrAccount({
+                await backgroundClient.unlockAccountSource({
                     id: accountSource.id,
                     password: password!,
                 });
@@ -94,7 +113,7 @@ export function useCreateAccountsMutation() {
                     seed: accountsFormValues.seed,
                 });
 
-                await backgroundClient.unlockAccountSourceOrAccount({
+                await backgroundClient.unlockAccountSource({
                     id: accountSource.id,
                     password,
                 });
@@ -156,7 +175,7 @@ export function useCreateAccountsMutation() {
                     // Its fine to ignore if the account source already exists
                 }
 
-                await backgroundClient.unlockAccountSourceOrAccount({
+                await backgroundClient.unlockAccountSource({
                     password,
                     id: sourceID,
                 });
@@ -178,57 +197,6 @@ export function useCreateAccountsMutation() {
             if (selectedAccount?.id) {
                 await backgroundClient.selectAccount(selectedAccount?.id);
             }
-            return createdAccounts;
-        },
-    });
-}
-
-export function useDeriveAccountMutation() {
-    const backgroundClient = useBackgroundClient();
-    const [accountsFormValuesRef, setAccountFormValues] = useAccountsFormContext();
-
-    const CREATE_TYPE_TO_AMPLI_ACCOUNT = {
-        [AccountsFormType.MnemonicSource]: AmpliAccountType.Derived,
-        [AccountsFormType.SeedSource]: AmpliAccountType.Derived,
-    };
-    return useMutation({
-        mutationKey: ['create accounts'],
-        mutationFn: async ({ type }: { type: AccountsFormType }) => {
-            console.time('useDeriveAccountMutation');
-
-            let createdAccounts;
-            const accountsFormValues = accountsFormValuesRef.current;
-
-            if (
-                type === AccountsFormType.MnemonicSource &&
-                validateAccountFormValues(type, accountsFormValues)
-            ) {
-                createdAccounts = await backgroundClient.createAccounts({
-                    type: AccountType.MnemonicDerived,
-                    sourceID: accountsFormValues.sourceID,
-                });
-            } else if (
-                type === AccountsFormType.SeedSource &&
-                validateAccountFormValues(type, accountsFormValues)
-            ) {
-                createdAccounts = await backgroundClient.createAccounts({
-                    type: AccountType.SeedDerived,
-                    sourceID: accountsFormValues.sourceID,
-                });
-            } else {
-                throw new Error(`Create accounts with type ${type} is not implemented yet`);
-            }
-
-            ampli.addedAccounts({
-                accountType: CREATE_TYPE_TO_AMPLI_ACCOUNT[type],
-                numberOfAccounts: createdAccounts.length,
-            });
-            setAccountFormValues(null);
-            const selectedAccount = createdAccounts[0];
-            if (selectedAccount?.id) {
-                await backgroundClient.selectAccount(selectedAccount?.id);
-            }
-            console.timeEnd('useDeriveAccountMutation');
             return createdAccounts;
         },
     });

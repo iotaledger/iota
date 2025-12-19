@@ -374,27 +374,13 @@ export class BackgroundClient {
             ),
         );
     }
-    public unlockAccountSourceOrAccount(
-        inputs: MethodPayload<'unlockAccountSourceOrAccount'>['args'],
-    ) {
+    public unlockAccountSource(inputs: MethodPayload<'unlockAccountSource'>['args']) {
         return lastValueFrom(
             this.sendMessage(
-                createMessage<MethodPayload<'unlockAccountSourceOrAccount'>>({
+                createMessage<MethodPayload<'unlockAccountSource'>>({
                     type: 'method-payload',
-                    method: 'unlockAccountSourceOrAccount',
+                    method: 'unlockAccountSource',
                     args: inputs,
-                }),
-            ).pipe(take(1)),
-        );
-    }
-
-    public lockAccountSourceOrAccount({ id }: MethodPayload<'lockAccountSourceOrAccount'>['args']) {
-        return lastValueFrom(
-            this.sendMessage(
-                createMessage<MethodPayload<'lockAccountSourceOrAccount'>>({
-                    type: 'method-payload',
-                    method: 'lockAccountSourceOrAccount',
-                    args: { id },
                 }),
             ).pipe(take(1)),
         );

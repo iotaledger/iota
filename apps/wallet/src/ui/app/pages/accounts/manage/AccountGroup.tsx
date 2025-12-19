@@ -8,7 +8,7 @@ import {
     useAccountSources,
     useActiveAccount,
     useBackgroundClient,
-    useDeriveAccountMutation,
+    useCreateAccountsMutation,
 } from '_hooks';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -69,7 +69,7 @@ export function AccountGroup({
     const [isCollapsibleGroupOpen, setIsCollapsibleGroupOpen] = useState(true);
     const navigate = useNavigate();
     const activeAccount = useActiveAccount();
-    const deriveAccountMutation = useDeriveAccountMutation();
+    const createAccountsMutation = useCreateAccountsMutation();
     const isMnemonicDerivedGroup = type === AccountType.MnemonicDerived;
     const isSeedDerivedGroup = type === AccountType.SeedDerived;
     const [accountsFormValues, setAccountsFormValues] = useAccountsFormContext();
@@ -95,7 +95,7 @@ export function AccountGroup({
         if (accountSource.isLocked) {
             setPasswordModalVisible(true);
         } else {
-            deriveAccountMutation.mutate({
+            createAccountsMutation.mutate({
                 type: accountsFormType,
             });
         }
@@ -292,7 +292,7 @@ export function AccountGroup({
                         });
 
                         if (accountsFormValues.current) {
-                            await deriveAccountMutation.mutateAsync({
+                            await createAccountsMutation.mutateAsync({
                                 type: accountsFormValues.current.type,
                             });
                         }
