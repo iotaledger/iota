@@ -4,7 +4,10 @@
 
 use std::sync::Arc;
 
-use move_core_types::language_storage::{StructTag, TypeTag};
+use move_core_types::{
+    annotated_value::MoveTypeLayout,
+    language_storage::{StructTag, TypeTag},
+};
 use serde::{Deserialize, Serialize};
 
 use super::{ObjectStore, error::Result};
@@ -814,6 +817,26 @@ pub trait RestStateReader: ObjectStore + ReadStore + Send + Sync {
 
     // Get a handle to an instance of the RpcIndexes
     fn indexes(&self) -> Option<&dyn RestIndexes>;
+
+    fn get_type_layout(&self, type_tag: &TypeTag) -> Result<Option<MoveTypeLayout>> {
+        match type_tag {
+            TypeTag::Bool => Ok(Some(MoveTypeLayout::Bool)),
+            TypeTag::U8 => Ok(Some(MoveTypeLayout::U8)),
+            TypeTag::U64 => Ok(Some(MoveTypeLayout::U64)),
+            TypeTag::U128 => Ok(Some(MoveTypeLayout::U128)),
+            TypeTag::Address => Ok(Some(MoveTypeLayout::Address)),
+            TypeTag::Signer => Ok(Some(MoveTypeLayout::Signer)),
+            TypeTag::Vector(type_tag) => Ok(self
+                .get_type_layout(type_tag)?
+                .map(|layout| MoveTypeLayout::Vector(Box::new(layout)))),
+            TypeTag::Struct(struct_tag) => self.get_struct_layout(struct_tag),
+            TypeTag::U16 => Ok(Some(MoveTypeLayout::U16)),
+            TypeTag::U32 => Ok(Some(MoveTypeLayout::U32)),
+            TypeTag::U256 => Ok(Some(MoveTypeLayout::U256)),
+        }
+    }
+
+    fn get_struct_layout(&self, type_tag: &StructTag) -> Result<Option<MoveTypeLayout>>;
 }
 
 pub trait RestIndexes: Send + Sync {

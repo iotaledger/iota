@@ -9,15 +9,10 @@ use std::{
 
 use ahash::{AHashMap, AHashSet};
 use bytes::Bytes;
+use iota_metrics::monitored_mpsc::{self, UnboundedReceiver, UnboundedSender};
 use parking_lot::RwLock;
 use starfish_config::AuthorityIndex;
-use tokio::{
-    sync::{
-        Mutex,
-        mpsc::{UnboundedReceiver, UnboundedSender, unbounded_channel},
-    },
-    task::JoinError,
-};
+use tokio::{sync::Mutex, task::JoinError};
 use tracing::debug;
 
 use crate::{
@@ -252,11 +247,11 @@ impl CordialKnowledge {
     ) {
         let num_authorities = context.committee.size();
 
-        // Main unbounded channel for high-level DAG updates
+        // Main unbounded channel for high-level DAG updates (monitored for metrics)
         let (cordial_knowledge_sender, cordial_knowledge_receiver): (
             UnboundedSender<CordialKnowledgeMessage>,
             UnboundedReceiver<CordialKnowledgeMessage>,
-        ) = unbounded_channel();
+        ) = monitored_mpsc::unbounded_channel("cordial_knowledge");
 
         let mut connection_knowledges = Vec::with_capacity(num_authorities);
 

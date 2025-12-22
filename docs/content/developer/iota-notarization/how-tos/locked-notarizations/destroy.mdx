@@ -26,7 +26,7 @@ Locked notarizations follow these destruction rules based on their delete locks:
 
 - **TimeLock::None**: Can be destroyed immediately
 - **TimeLock::UnlockAt(timestamp)**: Can only be destroyed after the specified timestamp
-- **TimeLock::UntilDestroyed**: Cannot be destroyed (permanent record)
+- **TimeLock::UntilDestroyed**: This option can **not** be used for delete locks
 
 :::warning
 
@@ -175,28 +175,27 @@ https://github.com/iotaledger/notarization/tree/v0.1/bindings/wasm/notarization_
 
 ## Delete Lock Scenarios Summary
 
-| Delete Lock | Can Destroy? | When? | Notes |
-|-------------|--------------|-------|-------|
-| `TimeLock::None` | ✅ Yes | Immediately | No restrictions |
-| `TimeLock::UnlockAt(future)` | ❌ No | After timestamp | Must wait for expiration |
-| `TimeLock::UnlockAt(past)` | ✅ Yes | Immediately | Lock has expired |
-| `TimeLock::UntilDestroyed` | ❌ Never | Never | Permanent record |
+| Delete Lock                  | Can Destroy? | When?           | Notes                                |
+|------------------------------|--------------|-----------------|--------------------------------------|
+| `TimeLock::None`             | ✅ Yes       | Immediately     | No restrictions                      |
+| `TimeLock::UnlockAt(future)` | ❌ No        | After timestamp | Must wait for expiration             |
+| `TimeLock::UnlockAt(past)`   | ✅ Yes       | Immediately     | Lock has expired                     |
+| `TimeLock::UntilDestroyed`   | -            | -               | Can **not** be used for delete locks |
 
 ## Comparison with Dynamic Notarizations
 
-| Feature | Locked Notarization | Dynamic Notarization |
-|---------|-------------------|---------------------|
-| Destruction control | Delete locks | Transfer locks |
-| Default behavior | May have restrictions | Usually destroyable |
-| Lock purpose | Preserve immutable records | Control ownership transfers |
-| Typical use case | Compliance, legal records | Evolving documents |
+| Feature             | Locked Notarization        | Dynamic Notarization        |
+|---------------------|----------------------------|-----------------------------|
+| Destruction control | Delete locks               | Transfer locks              |
+| Default behavior    | May have restrictions      | Usually destroyable         |
+| Lock purpose        | Preserve immutable records | Control ownership transfers |
+| Typical use case    | Compliance, legal records  | Evolving documents          |
 
 ## Error Handling
 
 Destruction attempts may fail due to:
 
 - **Active delete locks**: Time-locked notarizations before expiration
-- **Permanent locks**: `UntilDestroyed` locks prevent all destruction
 - **Insufficient funds**: Not enough gas to complete the transaction
 - **Ownership**: Only the current owner can destroy the notarization
 - **Network issues**: Connectivity or node problems
@@ -206,8 +205,7 @@ Destruction attempts may fail due to:
 1. **Check delete lock status**: Always verify with `is_destroy_allowed()` before attempting
 2. **Understand lock types**: Know the delete lock configuration before creation
 3. **Plan for compliance**: Use appropriate delete locks for regulatory requirements
-4. **Consider permanence**: Use `UntilDestroyed` for truly permanent records
-5. **Backup critical data**: Ensure important content is preserved elsewhere
+4. **Backup critical data**: Ensure important content is preserved elsewhere
 
 ## Full Example Code
 

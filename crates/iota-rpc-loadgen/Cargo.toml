@@ -14,7 +14,6 @@ clap.workspace = true
 dashmap.workspace = true
 dirs.workspace = true
 futures.workspace = true
-iota-sdk-types.workspace = true
 itertools.workspace = true
 serde.workspace = true
 serde_json.workspace = true
@@ -27,6 +26,7 @@ tracing.workspace = true
 iota-json-rpc-types.workspace = true
 iota-keys.workspace = true
 iota-sdk.workspace = true
+iota-sdk-types.workspace = true
 iota-types.workspace = true
 telemetry-subscribers.workspace = true
 

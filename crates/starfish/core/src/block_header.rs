@@ -1066,7 +1066,6 @@ pub(crate) fn genesis_block_headers(context: &Context) -> Vec<VerifiedBlockHeade
 }
 
 /// This struct is public for testing in other crates.
-#[cfg(test)]
 #[derive(Clone)]
 pub struct TestBlockHeader {
     ancestors: Vec<BlockRef>,
@@ -1074,12 +1073,11 @@ pub struct TestBlockHeader {
     block_header: BlockHeaderV1,
 }
 
-#[cfg(test)]
 impl TestBlockHeader {
     /// Creates a simple block with no transactions and without real computation
     /// of transactions commitment. Use it when you don't need to check the
     /// commitment and don't want to create and pass the encoder.
-    pub(crate) fn new(round: Round, author: u8) -> Self {
+    pub fn new(round: Round, author: u8) -> Self {
         Self {
             block_header: BlockHeaderV1 {
                 round,
@@ -1091,6 +1089,8 @@ impl TestBlockHeader {
             acknowledgments: vec![],
         }
     }
+
+    #[cfg(test)]
     pub(crate) fn new_with_commitment(
         round: Round,
         author: u8,
@@ -1117,6 +1117,7 @@ impl TestBlockHeader {
         }
     }
 
+    #[cfg(test)]
     pub(crate) fn new_with_transaction(
         round: Round,
         author: u8,
