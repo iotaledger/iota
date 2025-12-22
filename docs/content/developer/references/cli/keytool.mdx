@@ -136,6 +136,21 @@ $ iota keytool sign --data AAABACBRRpLwgknD6ZV3mc4pB0aVhAQiVkv/heQktW3kYpE+DQEBA
 ╰───────────────┴──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
 ```
 
+:::note
+
+For a **complete offline-signing workflow**, including:
+- serializing unsigned transactions,
+- signing them offline using the CLI or the TypeScript SDK,
+- decoding and inspecting transactions before signing,
+- and submitting signed transactions to the network,
+
+see the **Building Offline** documentation:
+[Building Offline (CLI & TypeScript SDK)](../../ts-sdk/typescript/transaction-building/offline.mdx)
+
+That page consolidates the full end-to-end flow and presents **CLI and TypeScript SDK examples side by side**, while this page remains focused on the `keytool` command reference.
+
+:::
+
 ## Help
 
 Each command has its own help section. For example `iota keytool sign –help` displays the following prompt:
