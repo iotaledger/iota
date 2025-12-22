@@ -24,6 +24,7 @@ export function ConnectButtonL1({
 
     useEffect(() => {
         if (l1Wallet.isConnected && l1Account?.address) {
+            // TODO this event calls 2 times on page load, because we use component twice. Fix it later.
             const walletType = l1Wallet.currentWallet?.name || 'unknown';
             setWalletUserGroup({ l1WalletType: walletType });
             ampli.connectedL1Wallet({ walletType });

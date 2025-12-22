@@ -325,6 +325,7 @@ prometheus = "0.14.0"
 proptest = "1.6.0"
 proptest-derive = "0.5.1"
 prost = "0.14"
+prost-types = "0.14"
 protobuf = { version = "3.7.2", features = ["with-bytes"] }
 quinn-proto = "0.11.7"
 quote = "1.0.23"
