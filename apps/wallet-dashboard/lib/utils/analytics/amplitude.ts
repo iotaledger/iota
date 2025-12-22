@@ -11,7 +11,7 @@ import { ampli } from './ampli';
 
 const IS_ENABLED = true;
 
-export async function initAmplitude(network: Network, url?: string) {
+export async function initAmplitude(networkId: Network, url?: string) {
     // Check consent status to determine initial opt-out state
     const consentStatus = getAmplitudeConsentStatus();
 
@@ -35,7 +35,7 @@ export async function initAmplitude(network: Network, url?: string) {
         },
     }).promise;
 
-    setNetworkGroup(ampli.client, network, url);
+    setNetworkGroup(ampli.client, networkId, url);
 
     window.addEventListener('pagehide', () => {
         amplitude.setTransport('beacon');

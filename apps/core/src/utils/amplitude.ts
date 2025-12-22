@@ -15,7 +15,7 @@ const GROUP_KEY = 'network';
  */
 export function setNetworkGroup(
     amplitudeClient: BrowserClient,
-    network: Network,
+    networkId: Network,
     url?: string,
 ): void {
     if (!amplitudeClient) {
@@ -23,10 +23,10 @@ export function setNetworkGroup(
         return;
     }
 
-    const knownNetworkName = getNetwork(network)?.name || 'not-defined';
+    const knownNetworkName = getNetwork(networkId)?.name || 'not-defined';
     const customRpcName = getCustomNetwork(url).name;
 
-    const networkName = network === Network.Custom && url ? customRpcName : knownNetworkName;
+    const networkName = networkId === Network.Custom && url ? customRpcName : knownNetworkName;
 
     amplitudeClient?.setGroup(GROUP_KEY, networkName);
 }

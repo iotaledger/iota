@@ -3,7 +3,7 @@
 
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef } from 'react';
 import { usePathname, useSearchParams } from 'next/navigation';
 import { ampli, initAmplitude } from '@/lib/utils/analytics';
 import { Network } from '@iota/iota-sdk/client';
@@ -11,43 +11,36 @@ import { useIotaClientContext } from '@iota/dapp-kit';
 
 export function Amplitude() {
     const clientContext = useIotaClientContext();
+    const networkId = clientContext.network as Network;
     const pathname = usePathname();
     const searchParams = useSearchParams();
-    const [hash, setHash] = useState(window.location.hash);
-
-    const initializedRef = useRef(false);
+    const previousUrlRef = useRef<string>('');
 
     // Initialize Amplitude once
     useEffect(() => {
         (async () => {
-            await initAmplitude(clientContext.network as Network, clientContext.config?.url);
-            initializedRef.current = true;
+            await initAmplitude(networkId, clientContext.config?.url);
         })();
-    }, [clientContext.network, clientContext.config?.url]);
-
-    // Track hash changes
-    useEffect(() => {
-        setHash(window.location.hash);
-
-        const handleHashChange = () => {
-            setHash(window.location.hash);
-        };
-
-        window.addEventListener('hashchange', handleHashChange);
-        return () => window.removeEventListener('hashchange', handleHashChange);
-    }, []);
+    }, [networkId, clientContext.config?.url]);
 
     // Track page changes
     useEffect(() => {
-        if (!initializedRef.current) return;
-
+        if (!ampli.isLoaded) return;
+        console.log('openedWalletDashboard event');
         const search = searchParams.toString() ? `?${searchParams.toString()}` : '';
-        ampli.openedWalletDashboard({
-            pagePath: pathname,
-            pagePathFragment: `${pathname}${search}${hash}`,
-            walletDashboardRev: process.env.NEXT_PUBLIC_DASHBOARD_REV,
-        });
-    }, [pathname, searchParams, hash]);
+        const hash = window.location.hash || '';
+        const currentUrl = `${pathname}${search}${hash}`;
+
+        // Only call openedWalletDashboard if the URL has actually changed
+        if (currentUrl !== previousUrlRef.current) {
+            previousUrlRef.current = currentUrl;
+            ampli.openedWalletDashboard({
+                pagePath: pathname,
+                pagePathFragment: currentUrl,
+                walletDashboardRev: process.env.NEXT_PUBLIC_DASHBOARD_REV,
+            });
+        }
+    }, [pathname, searchParams]);
 
     return null;
 }
