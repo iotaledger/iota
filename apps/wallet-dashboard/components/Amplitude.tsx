@@ -18,9 +18,7 @@ export function Amplitude() {
 
     // Initialize Amplitude once
     useEffect(() => {
-        (async () => {
-            await initAmplitude(networkId, clientContext.config?.url);
-        })();
+        initAmplitude(networkId, clientContext.config?.url);
     }, [networkId, clientContext.config?.url]);
 
     // Track page changes

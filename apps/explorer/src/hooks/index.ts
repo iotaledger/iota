@@ -11,7 +11,6 @@ export * from './useGetAllEpochAddressMetrics';
 export * from './useGetCheckpoints';
 export * from './useGetNetworkMetrics';
 export * from './useGetTransactionBlocks';
-export * from './useInitialPageView';
 export * from './useMediaQuery';
 export * from './useNetwork';
 export * from './useNormalizedMoveModule';

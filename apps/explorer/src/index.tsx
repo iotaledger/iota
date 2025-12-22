@@ -9,7 +9,7 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { RouterProvider } from 'react-router-dom';
 import { CookieManagerProvider } from '@boxfish-studio/react-cookie-manager';
-import { growthbook, initAmplitude, initSentry, queryClient } from './lib/utils';
+import { growthbook, initSentry, queryClient } from './lib/utils';
 import { router } from './pages';
 
 initSentry();
@@ -19,9 +19,6 @@ import './index.css';
 import { Disclaimer, handleConsentAccepted } from '@iota/core';
 import { LEGAL_LINKS } from './lib';
 import { Link } from './components';
-
-// Load Amplitude as early as we can:
-initAmplitude();
 
 // Start loading features as early as we can:
 growthbook.loadFeatures();

@@ -15,13 +15,12 @@ import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
 import { Fragment } from 'react';
 import { Outlet, ScrollRestoration } from 'react-router-dom';
 import { NetworkContext } from '~/contexts';
-import { useInitialPageView, useNetwork } from '~/hooks';
+import { useNetwork } from '~/hooks';
 import { createIotaClient, SupportedNetworks } from '~/lib/utils';
+import { Amplitude } from '~/components/Amplitude';
 
 export function Layout(): JSX.Element {
     const [network, setNetwork] = useNetwork();
-
-    useInitialPageView(network);
 
     return (
         // NOTE: We set a top-level key here to force the entire react tree to be re-created when the network changes:
@@ -42,6 +41,7 @@ export function Layout(): JSX.Element {
                         >
                             <KioskClientProvider>
                                 <NetworkContext.Provider value={[network, setNetwork]}>
+                                    <Amplitude />
                                     <ThemeProvider appId="iota-explorer">
                                         <Outlet />
                                         <Toaster />

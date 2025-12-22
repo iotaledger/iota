@@ -25,11 +25,11 @@ export function usePersistedNetwork() {
 
         clientContext.selectNetwork(network.id);
         setPersistedNetwork(network.id);
-        setNetworkGroup(ampli.client, network.id, network.url);
         toast(`Switched to ${network.name}`);
         ampli.switchedNetwork({
             toNetwork: network.name,
         });
+        setNetworkGroup(ampli.client, network.id, network.url);
     }
 
     useEffect(() => {
