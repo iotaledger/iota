@@ -110,6 +110,9 @@ export class FeaturesController {
                 [Feature.IotaNames]: {
                     defaultValue: NAME_ADDRESS_RESOLUTION_FEATURE,
                 },
+                [Feature.ExplorerTFIdentity]: {
+                    defaultValue: false,
+                },
             },
             dateUpdated: new Date().toISOString(),
         };
@@ -216,6 +219,9 @@ export class FeaturesController {
                 },
                 [Feature.IotaNames]: {
                     defaultValue: NAME_ADDRESS_RESOLUTION_FEATURE,
+                },
+                [Feature.ExplorerTFIdentity]: {
+                    defaultValue: false,
                 },
             },
             dateUpdated: new Date().toISOString(),
