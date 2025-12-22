@@ -90,6 +90,7 @@ impl ConsensusClient for LazyMysticetiClient {
             .iter()
             .map(|t| bcs::to_bytes(t).expect("Serializing consensus transaction cannot fail"))
             .collect::<Vec<_>>();
+
         let (block_ref, status_waiter) = client
             .as_ref()
             .expect("Client should always be returned")

@@ -350,7 +350,7 @@ impl<C: NetworkClient> CommitSyncer<C> {
             for certified_commit in commits.commits() {
                 // Collect committed_transactions from the TrustedCommit
                 for block_ref in certified_commit.committed_transactions() {
-                    expected_transactions.insert(block_ref);
+                    expected_transactions.insert(*block_ref);
                 }
 
                 // Collect available transactions from VerifiedTransactions
@@ -662,6 +662,7 @@ impl<C: NetworkClient> CommitSyncer<C> {
         let committed_tx_refs: Vec<BlockRef> = commits
             .iter()
             .flat_map(|c| c.committed_transactions())
+            .copied()
             .collect();
 
         // 3b. Identify which committed transaction blocks are NOT in the committed
