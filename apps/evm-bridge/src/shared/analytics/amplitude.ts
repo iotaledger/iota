@@ -3,16 +3,15 @@
 
 import * as amplitude from '@amplitude/analytics-browser';
 import { LogLevel, type UserSession } from '@amplitude/analytics-types';
-import { getAmplitudeConsentStatus, PersistableStorage } from '@iota/core';
+import { getAmplitudeConsentStatus, PersistableStorage, setNetworkGroup } from '@iota/core';
 
 import { ampli } from './ampli';
-import { getDefaultNetwork, CONFIG } from '../../config';
+import { getDefaultNetwork } from '../../config';
+import { Network } from '@iota/iota-sdk/client';
 
 const IS_ENABLED = import.meta.env.VITE_BUILD_ENV === 'production';
 
 export const persistableStorage = new PersistableStorage<UserSession>();
-
-const GROUP_KEY = 'network';
 
 export enum BridgeDirection {
     L1ToL2 = 'l1_to_l2',
@@ -51,7 +50,8 @@ export async function initAmplitude() {
         },
     }).promise;
 
-    setNetworkGroup();
+    const networkId = getDefaultNetwork() as Network;
+    setNetworkGroup(ampli.client, networkId);
 
     window.addEventListener('pagehide', () => {
         amplitude.setTransport('beacon');
@@ -65,22 +65,6 @@ export function getUrlWithDeviceId(url: URL) {
         url.searchParams.set('amplitude_device_id', deviceId);
     }
     return url;
-}
-
-/**
- * Update the user's network group in Amplitude.
- * This allows filtering events by network in Amplitude analytics.
- */
-function setNetworkGroup(): void {
-    if (!ampli.client) {
-        console.warn('Amplitude client is not initialized. Cannot set network group.');
-        return;
-    }
-
-    // Get the L1 network name from the current configuration
-    const networkName = CONFIG.L1.networkName || getDefaultNetwork();
-
-    ampli.client.setGroup(GROUP_KEY, networkName);
 }
 
 /**

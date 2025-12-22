@@ -9,7 +9,7 @@ import { setNetworkGroup, getAmplitudeConsentStatus } from '@iota/core';
 
 import { ampli } from './ampli';
 
-const IS_ENABLED = true;
+const IS_ENABLED = process.env.NEXT_PUBLIC_BUILD_ENV == 'production';
 
 export async function initAmplitude(networkId: Network, url?: string) {
     // Check consent status to determine initial opt-out state
