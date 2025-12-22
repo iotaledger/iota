@@ -5,6 +5,7 @@ import { Controller, Get } from '@nestjs/common';
 import { Feature } from '@iota/core/enums/features.enums';
 import { Network } from '@iota/iota-sdk/client';
 import { NAME_ADDRESS_RESOLUTION_FEATURE, KNOWN_ADDRESSES_ALIASES } from './features.constants';
+import { RECOGNIZED_COINS } from './coins.constants';
 
 @Controller('/api/features')
 export class FeaturesController {
@@ -133,6 +134,7 @@ export class FeaturesController {
                         '0x0000000000000000000000000000000000000000000000000000000000000003',
                         '0x0000000000000000000000000000000000000000000000000000000000000001',
                         '0x000000000000000000000000000000000000000000000000000000000000107a',
+                        ...RECOGNIZED_COINS.map((coin) => coin.packageId),
                     ],
                 },
                 [Feature.WalletSentryTracing]: {
