@@ -5,12 +5,15 @@ import '@iota/dapp-kit/dist/index.css';
 import './globals.css';
 import { Inter } from 'next/font/google';
 import { Metadata } from 'next';
+import { Suspense } from 'react';
 import { AppProviders } from '@/providers';
 import { FontLinks } from '@/components/FontLinks';
 import { ConnectionGuard } from '@/components/connection-guard';
 import { Amplitude } from '@/components/Amplitude';
 
 const inter = Inter({ subsets: ['latin'] });
+
+export const dynamic = 'force-dynamic';
 
 const METADATA_INFO = {
     title: 'IOTA Wallet Dashboard',
@@ -43,7 +46,9 @@ export default function RootLayout({
             <body className={inter.className}>
                 <AppProviders>
                     <FontLinks />
-                    <Amplitude />
+                    <Suspense fallback={null}>
+                        <Amplitude />
+                    </Suspense>
                     <ConnectionGuard>{children}</ConnectionGuard>
                 </AppProviders>
             </body>
