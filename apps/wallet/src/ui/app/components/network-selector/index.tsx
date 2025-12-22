@@ -5,7 +5,8 @@
 import { useAppDispatch, useAppSelector } from '_hooks';
 import { changeActiveNetwork } from '_redux/slices/app';
 import { ampli } from '_src/shared/analytics/ampli';
-import { setNetworkGroup, getCustomNetwork, toast } from '@iota/core';
+import { setNetworkGroup } from '_src/shared/analytics/amplitude';
+import { getCustomNetwork, toast } from '@iota/core';
 import { getAllNetworks, Network, type NetworkConfiguration } from '@iota/iota-sdk/client';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useEffect, useMemo, useState } from 'react';
@@ -36,7 +37,6 @@ export function NetworkSelector() {
             return;
         }
         setCustomRpcInputVisible(network.id === Network.Custom);
-        setNetworkGroup(ampli.client, network.id, network.url);
         if (network.id !== Network.Custom) {
             try {
                 await dispatch(
@@ -48,6 +48,7 @@ export function NetworkSelector() {
                         store: true,
                     }),
                 ).unwrap();
+                setNetworkGroup(network.id, null);
                 ampli.switchedNetwork({
                     toNetwork: network.name,
                 });
