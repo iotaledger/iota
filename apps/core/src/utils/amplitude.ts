@@ -6,6 +6,9 @@ import * as amplitude from '@amplitude/analytics-browser';
 import { getCustomNetwork } from './api-env';
 
 export type BrowserClient = amplitude.Types.BrowserClient;
+
+const GROUP_KEY = 'network';
+
 /**
  * Update the user's network group in Amplitude.
  * This allows filtering events by network in Amplitude analytics.
@@ -14,7 +17,6 @@ export function setNetworkGroup(
     amplitudeClient: BrowserClient,
     network: Network,
     url?: string,
-    groupKey: string = 'network',
 ): void {
     if (!amplitudeClient) {
         console.warn('Amplitude client is not initialized. Cannot set network group.');
@@ -26,5 +28,5 @@ export function setNetworkGroup(
 
     const networkName = network === Network.Custom && url ? customRpcName : knownNetworkName;
 
-    amplitudeClient?.setGroup(groupKey, networkName);
+    amplitudeClient?.setGroup(GROUP_KEY, networkName);
 }
