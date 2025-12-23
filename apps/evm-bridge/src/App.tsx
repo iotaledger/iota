@@ -4,17 +4,11 @@
 import { Header, Bridge, Footer } from './components';
 import { DirectionalArrowsSvg } from './components/svgs/DirectionalArrows';
 import { FaucetButton } from './components/FaucetButton';
-import { useEffect } from 'react';
-import { initAmplitude } from './shared/analytics';
 import { CookiePolicy } from './components/disclaimer/CookiePolicy';
 
 const TITLE = 'Seamlessly transfer funds between IOTA & IOTA EVM';
 
 export default function App() {
-    useEffect(() => {
-        initAmplitude();
-    }, []);
-
     const isCookiePolicyPage =
         typeof window !== 'undefined' && window.location.pathname === '/cookie-policy';
 

@@ -124,7 +124,6 @@ const developer = [
                             'developer/cryptography/transaction-auth/keys-addresses',
                             'developer/cryptography/transaction-auth/signatures',
                             'developer/cryptography/transaction-auth/multisig',
-                            'developer/cryptography/transaction-auth/offline-signing',
                             'developer/cryptography/transaction-auth/intent-signing',
                         ],
                     },
