@@ -1,3 +1,6 @@
+// Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 // The webextension polyfill does not support (neither plans to) the chrome `sidePanel` API, so instead we do our little abstraction here
 
 export class SidePanel {
