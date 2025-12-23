@@ -54,6 +54,21 @@ A PTB consists of two main components:
   - [`Publish`](#publish): Create a new package and call the `init` function of each module.
   - [`Upgrade`](#upgrade): Upgrade an existing package, gated by [`iota::package::UpgradeCap`](../../../references/framework/iota/package.mdx#struct-upgradecap).
 
+## Limits and Constraints
+
+While Programmable Transaction Blocks (PTBs) allow you to batch a large number of operations (up to 1,024 commands) into a single atomic transaction, they are subject to several hard limits enforced by the IOTA protocol. These limits help ensure network stability, prevent abuse, and maintain predictable performance.
+
+Exceeding any of these limits will cause the transaction to fail during validation or execution.
+
+| EVM/Solidity                               | Move                                                   |
+| ------------------------------------------ | ------------------------------------------------------ |
+| State as part of contracts                 | State as objects                                       |
+| Global shared state                        | Owned and Shared objects                               |
+| Transactions executed one by one           | Parallel execution                                     |
+| No enforced security for standards         | Strict type system for standards, assurances           |
+| Easy to get started with, hard to do right | Harder to get started with, but less room for mistakes |
+
+
 ### Inputs and Results
 
 **Inputs** are the values you provide to the PTB, either as objects or pure values. **Results** are the values produced by the commands within the PTB. You can access these values by borrowing, copying (if allowed), or moving them.
