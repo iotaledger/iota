@@ -86,7 +86,7 @@ impl grpc_ledger_service::ledger_service_server::LedgerService for LedgerGrpcSer
     > {
         let response = get_service_info::get_service_info(self, request.into_inner())
             .map(Response::new)
-            .map_err(|e| tonic::Status::from(e))?;
+            .map_err(tonic::Status::from)?;
         Ok(append_info_headers!(response, self.reader.clone()))
     }
 
@@ -96,7 +96,7 @@ impl grpc_ledger_service::ledger_service_server::LedgerService for LedgerGrpcSer
     ) -> std::result::Result<tonic::Response<Self::GetObjectsStream>, tonic::Status> {
         let response = get_objects::get_objects((*self.reader).clone(), request.into_inner())
             .map(|stream| Response::new(Box::pin(stream) as Self::GetObjectsStream))
-            .map_err(|e| tonic::Status::from(e))?;
+            .map_err(tonic::Status::from)?;
         Ok(append_info_headers!(response, self.reader.clone()))
     }
 
@@ -110,7 +110,7 @@ impl grpc_ledger_service::ledger_service_server::LedgerService for LedgerGrpcSer
             request.into_inner(),
         )
         .map(|stream| Response::new(Box::pin(stream) as Self::GetTransactionsStream))
-        .map_err(|e| tonic::Status::from(e))?;
+        .map_err(tonic::Status::from)?;
         Ok(append_info_headers!(response, self.reader.clone()))
     }
 
@@ -148,9 +148,7 @@ impl grpc_ledger_service::ledger_service_server::LedgerService for LedgerGrpcSer
         &self,
         request: Request<grpc_ledger_service::GetEpochRequest>,
     ) -> Result<Response<grpc_ledger_service::GetEpochResponse>, Status> {
-        let response = get_epoch::get_epoch(self, request.into_inner())
-            .map(Response::new)
-            .map_err(|e| Status::from(e))?;
+        let response = get_epoch::get_epoch(self, request.into_inner()).map(Response::new)?;
         Ok(append_info_headers!(response, self.reader.clone()))
     }
 }

@@ -65,7 +65,7 @@ impl grpc_tx_service::transaction_execution_service_server::TransactionExecution
         )
         .await
         .map(Response::new)
-        .map_err(|e| tonic::Status::from(e))?;
+        .map_err(tonic::Status::from)?;
         Ok(append_info_headers!(response, self.reader.clone()))
     }
 
@@ -81,7 +81,7 @@ impl grpc_tx_service::transaction_execution_service_server::TransactionExecution
         )
         .await
         .map(Response::new)
-        .map_err(|e| tonic::Status::from(e))?;
+        .map_err(tonic::Status::from)?;
         Ok(append_info_headers!(response, self.reader.clone()))
     }
 }
