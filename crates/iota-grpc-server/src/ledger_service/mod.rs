@@ -84,31 +84,34 @@ impl grpc_ledger_service::ledger_service_server::LedgerService for LedgerGrpcSer
         tonic::Response<grpc_ledger_service::GetServiceInfoResponse>,
         tonic::Status,
     > {
-        get_service_info::get_service_info(self, request.into_inner())
+        let response = get_service_info::get_service_info(self, request.into_inner())
             .map(Response::new)
-            .map_err(Into::into)
+            .map_err(|e| tonic::Status::from(e))?;
+        Ok(append_info_headers!(response, self.reader.clone()))
     }
 
     async fn get_objects(
         &self,
         request: tonic::Request<grpc_ledger_service::GetObjectsRequest>,
     ) -> std::result::Result<tonic::Response<Self::GetObjectsStream>, tonic::Status> {
-        get_objects::get_objects((*self.reader).clone(), request.into_inner())
+        let response = get_objects::get_objects((*self.reader).clone(), request.into_inner())
             .map(|stream| Response::new(Box::pin(stream) as Self::GetObjectsStream))
-            .map_err(Into::into)
+            .map_err(|e| tonic::Status::from(e))?;
+        Ok(append_info_headers!(response, self.reader.clone()))
     }
 
     async fn get_transactions(
         &self,
         request: tonic::Request<grpc_ledger_service::GetTransactionsRequest>,
     ) -> std::result::Result<tonic::Response<Self::GetTransactionsStream>, tonic::Status> {
-        get_transactions::get_transactions(
+        let response = get_transactions::get_transactions(
             self.reader.clone(),
             self.config.clone(),
             request.into_inner(),
         )
         .map(|stream| Response::new(Box::pin(stream) as Self::GetTransactionsStream))
-        .map_err(Into::into)
+        .map_err(|e| tonic::Status::from(e))?;
+        Ok(append_info_headers!(response, self.reader.clone()))
     }
 
     /// Checkpoint operations
@@ -124,9 +127,8 @@ impl grpc_ledger_service::ledger_service_server::LedgerService for LedgerGrpcSer
         };
 
         // not implemented
-        Ok(Response::new(
-            Box::pin(stream) as Self::StreamCheckpointDataStream
-        ))
+        let response = Response::new(Box::pin(stream) as Self::StreamCheckpointDataStream);
+        Ok(append_info_headers!(response, self.reader.clone()))
     }
 
     async fn stream_checkpoint_data(
@@ -138,15 +140,17 @@ impl grpc_ledger_service::ledger_service_server::LedgerService for LedgerGrpcSer
         let end_sequence_number = req.end_sequence_number;
 
         let stream = self.stream_checkpoint_data(start_sequence_number, end_sequence_number);
-        Ok(Response::new(
-            Box::pin(stream) as Self::StreamCheckpointDataStream
-        ))
+        let response = Response::new(Box::pin(stream) as Self::StreamCheckpointDataStream);
+        Ok(append_info_headers!(response, self.reader.clone()))
     }
 
     async fn get_epoch(
         &self,
         request: Request<grpc_ledger_service::GetEpochRequest>,
     ) -> Result<Response<grpc_ledger_service::GetEpochResponse>, Status> {
-        get_epoch::get_epoch(self, request.into_inner()).map(Response::new)
+        let response = get_epoch::get_epoch(self, request.into_inner())
+            .map(Response::new)
+            .map_err(|e| Status::from(e))?;
+        Ok(append_info_headers!(response, self.reader.clone()))
     }
 }
