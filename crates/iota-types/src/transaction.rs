@@ -3150,13 +3150,19 @@ impl InputObjectKind {
     }
 
     /// Merges another InputObjectKind into self.
-    /// For shared objects, if either is mutable, the result is mutable.
-    /// Fails if either is not a shared object, or if the IDs or initial
-    /// versions do not match.
+    ///
+    /// For shared objects, if either is mutable, the result is mutable. Fails
+    /// if the IDs or initial versions do not match.
+    /// For non-shared objects, fails if they are not equal.
     pub fn left_union_with_checks(&mut self, other: &InputObjectKind) -> UserInputResult<()> {
         match self {
             InputObjectKind::MovePackage(_) | InputObjectKind::ImmOrOwnedMoveObject(_) => {
-                fp_bail!(UserInputError::NotSharedObject)
+                fp_ensure!(
+                    self == other,
+                    UserInputError::InconsistentInput {
+                        object_id: other.object_id(),
+                    }
+                );
             }
             InputObjectKind::SharedMoveObject {
                 id,
@@ -3198,7 +3204,7 @@ impl InputObjectKind {
             InputObjectKind::MovePackage(_) | InputObjectKind::ImmOrOwnedMoveObject(_) => {
                 fp_ensure!(
                     self == other,
-                    UserInputError::InconsistentAuthenticatorInput {
+                    UserInputError::InconsistentInput {
                         object_id: self.object_id()
                     }
                 );
@@ -3209,7 +3215,7 @@ impl InputObjectKind {
                 mutable: _,
             } => match other {
                 InputObjectKind::MovePackage(_) | InputObjectKind::ImmOrOwnedMoveObject(_) => {
-                    fp_bail!(UserInputError::InconsistentAuthenticatorInput {
+                    fp_bail!(UserInputError::InconsistentInput {
                         object_id: self.object_id()
                     })
                 }
@@ -3220,11 +3226,11 @@ impl InputObjectKind {
                 } => {
                     fp_ensure!(
                         id == other_id,
-                        UserInputError::InconsistentAuthenticatorInput { object_id: *id }
+                        UserInputError::InconsistentInput { object_id: *id }
                     );
                     fp_ensure!(
                         initial_shared_version == other_initial_shared_version,
-                        UserInputError::InconsistentAuthenticatorInput { object_id: *id }
+                        UserInputError::InconsistentInput { object_id: *id }
                     );
                 }
             },
