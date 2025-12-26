@@ -1270,6 +1270,9 @@ delete_impl
 record_new_uid
 	fun
 	0x2::object
+emit
+	public fun
+	0x2::event
 Field
 	public struct
 	0x2::dynamic_field
@@ -1435,6 +1438,15 @@ module_name
 function_name
 	public fun
 	0x2::authenticator_function
+ImmutableAccountCreated
+	public struct
+	0x2::account
+MutableAccountCreated
+	public struct
+	0x2::account
+AuthenticatorFunctionRefV1Rotated
+	public struct
+	0x2::account
 AuthenticatorFunctionRefV1Key
 	public struct
 	0x2::account
@@ -2218,9 +2230,6 @@ update
 is_one_time_witness
 	public fun
 	0x2::types
-emit
-	public fun
-	0x2::event
 Wrapper
 	public struct
 	0x2::dynamic_object_field
