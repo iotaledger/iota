@@ -1506,7 +1506,7 @@ where
 
     /// Processes a given certificate by broadcasting it to authorities and
     /// aggregating the results until reaching a quorum.
-    #[instrument(level = "trace", skip_all)]
+    #[instrument(level = "trace", skip_all, fields(tx_digest = ?request.certificate.digest(), sender = request.certificate.data().transaction_data().gas_owner().to_string()))]
     pub async fn process_certificate(
         &self,
         request: HandleCertificateRequestV1,

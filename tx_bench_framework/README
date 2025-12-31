@@ -1,0 +1,58 @@
+## TX 
+A lightweight benchmarking CLI for IOTA Move transactions on a local private network, supporting both:
+Standard transactions (signed by an EOA / keystore)
+Account Abstraction (AA) transactions (signed via MoveAuthenticator and executed under an AA “account address”)
+The primary goal is to generate large batches of transactions and correlate them with node-side spans in Tempo/Grafana for execution-time analysis (e.g., spans like handle_transaction, process_certificate).
+
+
+### Local network + observability setup
+
+Start localnet.
+Export required environment variables to enable Tempo tracing:
+
+```bash
+export [handle_transaction]=trace,[process_certificate]=trace
+```
+
+Run from the repository root:
+```bash
+cargo run --release --bin iota start --force-regenesis --with-faucet
+```
+
+Start Grafana/Tempo.
+Run from tx_bench_framework/metrics:
+```bash
+docker-compose up -d
+```
+
+### Quick start
+
+1. Create abstract account
+
+```bash
+cargo run -- --use-faucet init --name <ACC_NAME> --aa-package-path <PACKAGE_PATH> --authenticator <hello-world/ed25519/ed25519-heavy>
+```
+
+2. Accounts list 
+
+```bash
+cargo run -- accounts list
+```
+
+3. Switch active account
+
+```bash
+cargo run -- accounts use --name acc1
+```
+
+4. Submit transactions
+
+Standard mode: 
+```bash
+cargo run -- --use-faucet submit --recipient <RECIPIENT_ADDR> --mode standard --count <TX_COUNT>
+```
+
+AA mode:
+```bash
+cargo run -- --use-faucet submit --recipient <RECIPIENT_ADDR> --mode aa --count <TX_COUNT>
+```

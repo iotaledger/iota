@@ -40,6 +40,10 @@ services:
       - ./configs/validators/validator-1-8080.yaml:/opt/iota/config/validator.yaml:ro
       - ./configs/genesis/genesis.blob:/opt/iota/config/genesis.blob:ro
       - ./data/validator-1:/opt/iota/db:rw
+    environment:
+      - OTLP_ENDPOINT=http://tempo:4317 # The endpoint of the Tempo instance
+      - OTEL_SERVICE_NAME=validator-1 # A unique name for the service, it could be later used to filter traces in Grafana
+      - TRACE_FILTER=[handle_transaction_impl]=trace,[handle_transaction]=trace,[process_certificate]=trace
 
   validator-2:
     <<: *common-validator
@@ -52,6 +56,10 @@ services:
       - ./configs/validators/validator-2-8080.yaml:/opt/iota/config/validator.yaml:ro
       - ./configs/genesis/genesis.blob:/opt/iota/config/genesis.blob:ro
       - ./data/validator-2:/opt/iota/db:rw
+    environment:
+      - OTLP_ENDPOINT=http://tempo:4317 # The endpoint of the Tempo instance
+      - OTEL_SERVICE_NAME=validator-2 # A unique name for the service, it could be later used to filter traces in Grafana
+      - TRACE_FILTER=[handle_transaction_impl]=trace,[handle_transaction]=trace,[process_certificate]=trace
 
   validator-3:
     <<: *common-validator
@@ -64,6 +72,10 @@ services:
       - ./configs/validators/validator-3-8080.yaml:/opt/iota/config/validator.yaml:ro
       - ./configs/genesis/genesis.blob:/opt/iota/config/genesis.blob:ro
       - ./data/validator-3:/opt/iota/db:rw
+    environment:
+      - OTLP_ENDPOINT=http://tempo:4317 # The endpoint of the Tempo instance
+      - OTEL_SERVICE_NAME=validator-3 # A unique name for the service, it could be later used to filter traces in Grafana
+      - TRACE_FILTER=[handle_transaction_impl]=trace,[handle_transaction]=trace,[process_certificate]=trace
 
   validator-4:
     <<: *common-validator
@@ -76,6 +88,10 @@ services:
       - ./configs/validators/validator-4-8080.yaml:/opt/iota/config/validator.yaml:ro
       - ./configs/genesis/genesis.blob:/opt/iota/config/genesis.blob:ro
       - ./data/validator-4:/opt/iota/db:rw
+    environment:
+      - OTLP_ENDPOINT=http://tempo:4317 # The endpoint of the Tempo instance
+      - OTEL_SERVICE_NAME=validator-4 # A unique name for the service, it could be later used to filter traces in Grafana
+      - TRACE_FILTER=[handle_transaction_impl]=trace,[handle_transaction]=trace,[process_certificate]=trace
 
   validator-5:
     <<: *common-validator
@@ -273,6 +289,10 @@ services:
     ports:
       - "127.0.0.1:9000:9000/tcp"
       - "127.0.0.1:9184:9184/tcp"
+    environment:
+      - OTLP_ENDPOINT=http://tempo:4317 # The endpoint of the Tempo instance
+      - OTEL_SERVICE_NAME=fullnode-1 # A unique name for the service, it could be later used to filter traces in Grafana
+      - TRACE_FILTER=[handle_transaction_impl]=trace,[handle_transaction]=trace,[process_certificate]=trace
 
   fullnode-2:
     <<: *common-fullnode

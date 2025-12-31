@@ -1,6 +1,7 @@
 [workspace]
 resolver = "2"
 exclude = [
+  "tx_bench_framework",
   "docs/examples/rust",
   "examples/custom-indexer/rust",
   "examples/tic-tac-toe/cli",

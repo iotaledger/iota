@@ -1,0 +1,31 @@
+[package]
+name = "tx_bench_framework"
+edition = "2024"
+
+[dependencies]
+anyhow = "1"
+clap = { version = "4", features = ["derive"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
+uuid = { version = "1", features = ["v4"] }
+serde = { version = "1", features = ["derive"] }
+serde_json ={ version = "1", features = ["preserve_order"] }
+reqwest = { version = "0.12", default-features = false, features = ["http2", "json", "rustls-tls"] }
+
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+tracing-opentelemetry = "0.24"
+opentelemetry = "0.23"
+opentelemetry_sdk = { version = "0.23", features = ["rt-tokio"] }
+opentelemetry-otlp = { version = "0.16", features = ["grpc-tonic"] }
+
+iota-json-rpc-types = { path = "../crates/iota-json-rpc-types" }
+fastcrypto = { git = "https://github.com/MystenLabs/fastcrypto", rev = "69d496c71fb37e3d22fe85e5bbfd4256d61422b9" }
+iota-sdk = { path = "../crates/iota-sdk" }
+iota-sdk-types = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "05608b7e4a5b96d85f84e1970a517f6f174beb8b", features = ["hash", "serde", "schemars"] }
+iota-types = { path = "../crates/iota-types" }
+iota-keys = { path = "../crates/iota-keys" }
+move-core-types = { path = "../external-crates/move/crates/move-core-types" }
+telemetry-subscribers ={ path = "../crates/telemetry-subscribers" }
+iota-move-build = { path = "../crates/iota-move-build" }
+#docs-examples = { path = "../crates/docs-examples" }
+bcs = "0.1"
