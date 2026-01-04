@@ -27,14 +27,19 @@ use tonic::{Request, Response, Streaming, codec::CompressionEncoding};
 use tower_http::trace::{DefaultMakeSpan, DefaultOnFailure, TraceLayer};
 use tracing::{debug, error, info, trace, warn};
 
-use super::{BlockBundleStream, NetworkClient, NetworkService, SerializedBlockBundle, metrics_layer::{MetricsCallbackMaker, MetricsResponseCallback, SizedRequest, SizedResponse}, tonic_gen::{
-    consensus_service_client::ConsensusServiceClient,
-    consensus_service_server::ConsensusService,
-}, TransactionFetchMode};
+use super::{
+    BlockBundleStream, NetworkClient, NetworkService, SerializedBlockBundle, TransactionFetchMode,
+    metrics_layer::{MetricsCallbackMaker, MetricsResponseCallback, SizedRequest, SizedResponse},
+    tonic_gen::{
+        consensus_service_client::ConsensusServiceClient,
+        consensus_service_server::ConsensusService,
+    },
+};
 use crate::{
     CommitIndex, Round,
     block_header::BlockRef,
     commit::CommitRange,
+    commit_syncer::CommitSyncType,
     context::Context,
     error::{ConsensusError, ConsensusResult},
     network::{
@@ -43,7 +48,6 @@ use crate::{
     },
     transaction_ref::{GenericTransactionRef, TransactionRef},
 };
-use crate::commit_syncer::CommitSyncType;
 
 // Maximum bytes size in a single fetch_blocks()response.
 // TODO: put max RPC response size in protocol config.
@@ -694,7 +698,7 @@ impl<S: NetworkService> ConsensusService for TonicServiceProxy<S> {
             .handle_fetch_commits(
                 peer_index,
                 (request.start..=request.end).into(),
-                CommitSyncType::Regular, 
+                CommitSyncType::Regular,
             )
             .await
             .map_err(|e| tonic::Status::internal(format!("{e:?}")))?;
@@ -729,10 +733,7 @@ impl<S: NetworkService> ConsensusService for TonicServiceProxy<S> {
         let request = request.into_inner();
         let (serialized_commits, serialized_headers, serialized_transactions) = self
             .service
-            .handle_fetch_commits_and_transactions(
-                peer_index,
-                (request.start..=request.end).into(),
-            )
+            .handle_fetch_commits_and_transactions(peer_index, (request.start..=request.end).into())
             .await
             .map_err(|e| tonic::Status::internal(format!("{e:?}")))?;
 
@@ -891,7 +892,11 @@ impl<S: NetworkService> ConsensusService for TonicServiceProxy<S> {
 
         let vec_serialized_transactions = self
             .service
-            .handle_fetch_transactions(peer_index, committed_transactions_refs, TransactionFetchMode::TransactionSync)
+            .handle_fetch_transactions(
+                peer_index,
+                committed_transactions_refs,
+                TransactionFetchMode::TransactionSync,
+            )
             .await
             .map_err(|e| tonic::Status::internal(format!("fetch_transactions failed: {e:?}")))?;
 

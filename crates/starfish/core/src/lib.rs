@@ -50,7 +50,6 @@ mod commit_solidifier;
 mod cordial_knowledge;
 mod decoder;
 mod encoder;
-mod fast_commit_syncer;
 mod shard_reconstructor;
 #[cfg(test)]
 mod test_dag;

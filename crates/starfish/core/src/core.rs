@@ -323,7 +323,8 @@ impl Core {
             );
 
             // Try to commit the new blocks if possible.
-            let (_subdags, new_missing_committed_txns) = self.try_commit(CommittedSubDagSource::Consensus)?;
+            let (_subdags, new_missing_committed_txns) =
+                self.try_commit(CommittedSubDagSource::Consensus)?;
 
             // Try to propose now since there are new blocks accepted.
             self.try_propose(ReasonToCreateBlock::AddBlock)?;
@@ -385,7 +386,8 @@ impl Core {
             );
 
             // Try to commit the new blocks if possible.
-            let (_subdags, new_missing_committed_txns) = self.try_commit(CommittedSubDagSource::Consensus)?;
+            let (_subdags, new_missing_committed_txns) =
+                self.try_commit(CommittedSubDagSource::Consensus)?;
 
             // Try to propose now since there are new blocks accepted.
             self.try_propose(ReasonToCreateBlock::AddBlockHeader)?;

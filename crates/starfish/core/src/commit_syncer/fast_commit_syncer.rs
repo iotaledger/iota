@@ -7,7 +7,6 @@ use std::{
     time::Duration,
 };
 
-use bytes::Bytes;
 use iota_metrics::spawn_logged_monitored_task;
 use itertools::Itertools as _;
 use parking_lot::RwLock;
@@ -23,20 +22,16 @@ use tracing::{debug, info, warn};
 
 use crate::{
     CommitConsumerMonitor, CommitIndex,
-    block_header::{BlockHeaderAPI, SignedBlockHeader, VerifiedTransactions},
+    block_header::VerifiedTransactions,
     block_verifier::BlockVerifier,
-    commit::{
-        Commit, CommitAPI as _, CommitDigest, CommitRange, CommitRef, CommittedSubDag,
-        TrustedCommit,
-    },
-    commit_syncer::{CommitSyncType, verify_transactions_with_transactions_refs},
+    commit::{CommitAPI as _, CommitRange, CommittedSubDag},
+    commit_syncer::{CommitSyncType, Inner, verify_transactions_with_transactions_refs},
     commit_vote_monitor::CommitVoteMonitor,
     context::Context,
     core_thread::CoreThreadDispatcher,
     dag_state::DagState,
     error::{ConsensusError, ConsensusResult},
     network::{NetworkClient, SerializedTransactionsV2},
-    stake_aggregator::{QuorumThreshold, StakeAggregator},
     transaction_ref::{GenericTransactionRef, TransactionRef},
 };
 
@@ -190,7 +185,10 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
             .max(self.highest_scheduled_index.unwrap_or(0));
         // When the node is falling behind, schedule pending fetches which will be
         // executed on later.
-        let step = self.inner.sync_type.commit_sync_batch_size(&self.inner.context);
+        let step = self
+            .inner
+            .sync_type
+            .commit_sync_batch_size(&self.inner.context);
 
         info!(
             "[{}] Checking to schedule fetches: synced_commit_index={}, highest_handled_index={}, highest_scheduled_index={}, quorum_commit_index={}, unhandled_commits_threshold={}, fetch_after_index={}, step={}",
@@ -203,8 +201,6 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
             fetch_after_index,
             step
         );
-
-
 
         for prev_end in (fetch_after_index..=quorum_commit_index).step_by(step as usize) {
             // Create range with inclusive start and end.
@@ -221,7 +217,9 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
             if highest_handled_index + unhandled_commits_threshold < range_end {
                 warn!(
                     "[{}] Skip scheduling new commit fetches: consensus handler is lagging. highest_handled_index={}, highest_scheduled_index={}",
-                    self.inner.sync_type.as_str(), highest_handled_index, highest_scheduled_index
+                    self.inner.sync_type.as_str(),
+                    highest_handled_index,
+                    highest_scheduled_index
                 );
                 break;
             }
@@ -323,7 +321,10 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
                 .add_subdags_from_fast_sync(subdags)
                 .await
             {
-                info!("[{}] Failed to dispatch subdags to core, shutting down: {}", sync_label, e);
+                info!(
+                    "[{}] Failed to dispatch subdags to core, shutting down: {}",
+                    sync_label, e
+                );
                 return;
             }
 
@@ -428,7 +429,10 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
             .node_metrics
             .commit_sync_fetch_loop_latency
             .start_timer();
-        info!("[{}] Starting to fetch commits in {commit_range:?} ...", inner.sync_type.as_str());
+        info!(
+            "[{}] Starting to fetch commits in {commit_range:?} ...",
+            inner.sync_type.as_str()
+        );
         loop {
             // Attempt to fetch commits and blocks through min(committee size,
             // MAX_NUM_TARGETS) peers.
@@ -465,7 +469,10 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
                 .await
                 {
                     Ok(Ok(committed_subdags)) => {
-                        info!("[{}] Finished fetching commits in {commit_range:?}", inner.sync_type.as_str());
+                        info!(
+                            "[{}] Finished fetching commits in {commit_range:?}",
+                            inner.sync_type.as_str()
+                        );
                         return (commit_range.end(), committed_subdags);
                     }
                     Ok(Err(e)) => {
@@ -475,14 +482,22 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
                             .authority(authority)
                             .hostname
                             .clone();
-                        warn!("[{}] Failed to fetch {commit_range:?} from {hostname}: {}", inner.sync_type.as_str(), e);
+                        warn!(
+                            "[{}] Failed to fetch {commit_range:?} from {hostname}: {}",
+                            inner.sync_type.as_str(),
+                            e
+                        );
                         let error: &'static str = e.into();
                         inner
                             .context
                             .metrics
                             .node_metrics
                             .commit_sync_fetch_once_errors
-                            .with_label_values(&[hostname.as_str(), error, inner.sync_type.as_str()])
+                            .with_label_values(&[
+                                hostname.as_str(),
+                                error,
+                                inner.sync_type.as_str(),
+                            ])
                             .inc();
                     }
                     Err(_) => {
@@ -492,7 +507,10 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
                             .authority(authority)
                             .hostname
                             .clone();
-                        warn!("[{}] Timed out fetching {commit_range:?} from {authority}", inner.sync_type.as_str());
+                        warn!(
+                            "[{}] Timed out fetching {commit_range:?} from {authority}",
+                            inner.sync_type.as_str()
+                        );
                         inner
                             .context
                             .metrics
@@ -528,8 +546,8 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
             .start_timer();
         assert!(inner.context.protocol_config.consensus_transaction_ref());
 
-        // 1. Fetch commits, voting headers, and transactions in the commit range
-        //    from the target authority. Each transaction is serialized as
+        // 1. Fetch commits, voting headers, and transactions in the commit range from
+        //    the target authority. Each transaction is serialized as
         //    SerializedTransactionsV2 which includes the TransactionRef.
         let (serialized_commits, serialized_proof_for_last_commit, serialized_transactions) = inner
             .network_client
@@ -562,11 +580,12 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
             .collect();
 
         // 4. Process fetched transactions. Each serialized_transaction is a
-        //    SerializedTransactionsV2 containing both the TransactionRef and the
-        //    actual transaction data.
+        //    SerializedTransactionsV2 containing both the TransactionRef and the actual
+        //    transaction data.
         let mut fetched_transactions = BTreeMap::new();
         for serialized_transaction in serialized_transactions {
-            if let Ok(tx_v2) = bcs::from_bytes::<SerializedTransactionsV2>(&serialized_transaction) {
+            if let Ok(tx_v2) = bcs::from_bytes::<SerializedTransactionsV2>(&serialized_transaction)
+            {
                 let transaction_ref = tx_v2.transaction_ref;
                 if !committed_tx_refs.contains(&transaction_ref) {
                     return Err(ConsensusError::UnexpectedTransactionForCommit {
@@ -685,99 +704,5 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
     #[allow(dead_code)]
     fn synced_commit_index(&self) -> CommitIndex {
         self.synced_commit_index
-    }
-}
-
-struct Inner<C: NetworkClient> {
-    context: Arc<Context>,
-    core_thread_dispatcher: Arc<dyn CoreThreadDispatcher>,
-    commit_vote_monitor: Arc<CommitVoteMonitor>,
-    commit_consumer_monitor: Arc<CommitConsumerMonitor>,
-    network_client: Arc<C>,
-    block_verifier: Arc<dyn BlockVerifier>,
-    dag_state: Arc<RwLock<DagState>>,
-    sync_type: CommitSyncType,
-}
-
-impl<C: NetworkClient> Inner<C> {
-    /// Verifies the commits and also certifies them using the provided vote
-    /// blocks for the last commit. The method returns the trusted commits
-    /// and the votes as verified blocks.
-    fn verify_commits(
-        &self,
-        peer: AuthorityIndex,
-        commit_range: CommitRange,
-        serialized_commits: Vec<Bytes>,
-        serialized_vote_blocks_headers: Vec<Bytes>,
-    ) -> ConsensusResult<Vec<TrustedCommit>> {
-        // Parse and verify commits.
-        let mut commits = Vec::new();
-        for serialized in &serialized_commits {
-            let commit: Commit =
-                bcs::from_bytes(serialized).map_err(ConsensusError::MalformedCommit)?;
-            let digest = TrustedCommit::compute_digest(serialized);
-            if commits.is_empty() {
-                // start is inclusive, so first commit must be at the start index.
-                if commit.index() != commit_range.start() {
-                    return Err(ConsensusError::UnexpectedStartCommit {
-                        peer,
-                        start: commit_range.start(),
-                        commit: Box::new(commit),
-                    });
-                }
-            } else {
-                // Verify next commit increments index and references the previous digest.
-                let (last_commit_digest, last_commit): &(CommitDigest, Commit) =
-                    commits.last().unwrap();
-                if commit.index() != last_commit.index() + 1
-                    || &commit.previous_digest() != last_commit_digest
-                {
-                    return Err(ConsensusError::UnexpectedCommitSequence {
-                        peer,
-                        prev_commit: Box::new(last_commit.clone()),
-                        curr_commit: Box::new(commit),
-                    });
-                }
-            }
-            // Do not process more commits past the end index.
-            if commit.index() > commit_range.end() {
-                break;
-            }
-            commits.push((digest, commit));
-        }
-        let Some((end_commit_digest, end_commit)) = commits.last() else {
-            return Err(ConsensusError::NoCommitReceived { peer });
-        };
-
-        // Parse and verify blocks. Then accumulate votes on the end commit.
-        let end_commit_ref = CommitRef::new(end_commit.index(), *end_commit_digest);
-        let mut stake_aggregator = StakeAggregator::<QuorumThreshold>::new();
-        for serialized_block_header in serialized_vote_blocks_headers.into_iter() {
-            let signed_block_header: SignedBlockHeader = bcs::from_bytes(&serialized_block_header)
-                .map_err(ConsensusError::MalformedHeader)?;
-            // The block signature needs to be verified.
-            self.block_verifier.verify(&signed_block_header)?;
-            for vote in signed_block_header.commit_votes() {
-                if *vote == end_commit_ref {
-                    stake_aggregator.add(signed_block_header.author(), &self.context.committee);
-                }
-            }
-        }
-
-        // Check if the end commit has enough votes.
-        if !stake_aggregator.reached_threshold(&self.context.committee) {
-            return Err(ConsensusError::NotEnoughCommitVotes {
-                stake: stake_aggregator.stake(),
-                peer,
-                commit: Box::new(end_commit.clone()),
-            });
-        }
-
-        let trusted_commits = commits
-            .into_iter()
-            .zip(serialized_commits)
-            .map(|((_d, c), s)| TrustedCommit::new_trusted(c, s))
-            .collect();
-        Ok(trusted_commits)
     }
 }

@@ -199,9 +199,7 @@ impl CommitObserver {
 
             // Failures in sender.send() are assumed to be permanent
             if let Err(err) = self.sender.send(solid_sub_dag.clone()) {
-                warn!(
-                    "Failed to send committed sub-dag, probably due to shutdown: {err:?}"
-                );
+                warn!("Failed to send committed sub-dag, probably due to shutdown: {err:?}");
                 return Err(ConsensusError::Shutdown);
             }
             info!(

@@ -55,10 +55,10 @@ pub mod tonic_network;
 mod tonic_tls;
 
 use crate::{
+    commit_syncer::CommitSyncType,
     encoder::ShardEncoder,
     transaction_ref::{GenericTransactionRef, TransactionRef},
 };
-use crate::commit_syncer::CommitSyncType;
 
 /// Controls transaction fetching truncation behavior for different sync modes
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -66,8 +66,9 @@ pub(crate) enum TransactionFetchMode {
     /// No truncation - used by fast commit sync which fetches all transactions
     /// referenced by commits in a batch
     FastCommitSync,
-    /// Truncate to the maximum of max_transactions_per_commit_sync_fetch and max_transactions_per_regular_sync_fetch- used by regular
-    /// commit sync and transactions synchronizer
+    /// Truncate to the maximum of max_transactions_per_commit_sync_fetch and
+    /// max_transactions_per_regular_sync_fetch- used by regular commit sync
+    /// and transactions synchronizer
     TransactionSync,
 }
 
@@ -128,8 +129,8 @@ pub(crate) trait NetworkClient: Send + Sync + Sized + 'static {
     /// Fetches serialized commits in the commit range from a peer, headers
     /// voting for the last commit, and all transactions from these commits.
     /// Returns serialized commits, serialized headers voting for the last
-    /// commit, and serialized transactions (as SerializedTransactionsV2 which includes TransactionRef).
-    /// Used in the fast commit syncer.
+    /// commit, and serialized transactions (as SerializedTransactionsV2 which
+    /// includes TransactionRef). Used in the fast commit syncer.
     async fn fetch_commits_and_transactions(
         &self,
         peer: AuthorityIndex,
@@ -191,8 +192,9 @@ pub(crate) trait NetworkService: Send + Sync + 'static {
 
     /// Handles the request to fetch commits and transactions by index range
     /// from the peer. Used in fast commit sync.
-    /// Returns (commits, certifier_block_headers, transactions) as serialized bytes.
-    /// Each transaction is serialized as SerializedTransactionsV2 which includes the TransactionRef.
+    /// Returns (commits, certifier_block_headers, transactions) as serialized
+    /// bytes. Each transaction is serialized as SerializedTransactionsV2
+    /// which includes the TransactionRef.
     async fn handle_fetch_commits_and_transactions(
         &self,
         peer: AuthorityIndex,

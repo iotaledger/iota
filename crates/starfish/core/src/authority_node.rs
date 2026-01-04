@@ -17,9 +17,11 @@ use crate::{
     block_manager::BlockManager,
     block_verifier::SignedBlockVerifier,
     commit_observer::CommitObserver,
-    commit_syncer::{CommitSyncer, CommitSyncerHandle},
+    commit_syncer::{
+        commit_syncer::{CommitSyncer, CommitSyncerHandle},
+        fast_commit_syncer::{FastCommitSyncer, FastCommitSyncerHandle},
+    },
     commit_vote_monitor::CommitVoteMonitor,
-    fast_commit_syncer::{FastCommitSyncer, FastCommitSyncerHandle},
     context::{Clock, Context},
     cordial_knowledge::{CordialKnowledge, CordialKnowledgeHandle},
     core::{Core, CoreSignals},
@@ -1004,8 +1006,9 @@ mod tests {
         (authority, receiver, consensus_consumer_monitor)
     }
 
-    /// Test that FastCommitSyncer activates when a node restarts with a large commit gap.
-    /// This test is for log analysis - observe logs to verify gap-based syncer selection.
+    /// Test that FastCommitSyncer activates when a node restarts with a large
+    /// commit gap. This test is for log analysis - observe logs to verify
+    /// gap-based syncer selection.
     #[tokio::test(flavor = "current_thread")]
     async fn test_fast_commit_syncer_on_restart() {
         telemetry_subscribers::init_for_testing();
@@ -1022,7 +1025,7 @@ mod tests {
             .collect();
 
         let mut authorities = Vec::with_capacity(NUM_AUTHORITIES);
-        let mut boot_counters = vec![0u64; NUM_AUTHORITIES];
+        let mut boot_counters = [0u64; NUM_AUTHORITIES];
         let mut consumer_monitors = Vec::with_capacity(NUM_AUTHORITIES);
         let mut output_receivers = Vec::with_capacity(NUM_AUTHORITIES);
 
@@ -1098,8 +1101,8 @@ mod tests {
         // Let it run to observe sync behavior in logs
         // Look for: "[fast_commit_sync] Checking to schedule fetches"
         let start_time = Instant::now();
-        let mut last_committed_index = vec![0; NUM_AUTHORITIES];
-        let mut last_round_committed_blocks = vec![0; NUM_AUTHORITIES];
+        let mut last_committed_index = [0; NUM_AUTHORITIES];
+        let mut last_round_committed_blocks = [0; NUM_AUTHORITIES];
         loop {
             if start_time.elapsed() > Duration::from_secs(60) {
                 break;
@@ -1120,7 +1123,6 @@ mod tests {
                             }
                         }
 
-
                         let commit_index = committed_subdag.commit_ref.index;
                         assert!(last_committed_index[index] < commit_index);
                         last_committed_index[index] = commit_index;
@@ -1139,6 +1141,8 @@ mod tests {
             authority.stop().await;
         }
 
-        tracing::info!("Test complete. Check logs for [fast_commit_sync] and [commit_sync] messages.");
+        tracing::info!(
+            "Test complete. Check logs for [fast_commit_sync] and [commit_sync] messages."
+        );
     }
 }

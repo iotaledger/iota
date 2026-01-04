@@ -126,7 +126,8 @@ impl NetworkService for Mutex<TestService> {
     async fn handle_fetch_transactions(
         &self,
         _peer: AuthorityIndex,
-        _block_refs: Vec<GenericTransactionRef>, _fetch_mode: crate::network::TransactionFetchMode,
+        _block_refs: Vec<GenericTransactionRef>,
+        _fetch_mode: crate::network::TransactionFetchMode,
     ) -> ConsensusResult<Vec<Bytes>> {
         unimplemented!("Unimplemented")
     }
