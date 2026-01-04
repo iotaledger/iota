@@ -29,14 +29,15 @@
 //! and retries, should be chosen to favor throughput and efficient resource
 //! usage, over faster reactions.
 
-pub mod commit_syncer;
-pub mod fast_commit_syncer;
+pub mod fast;
+pub mod regular;
 
 use std::{collections::BTreeMap, sync::Arc};
 
 use bytes::Bytes;
 use parking_lot::RwLock;
 use starfish_config::AuthorityIndex;
+use tokio::{sync::oneshot, task::JoinHandle};
 
 use crate::{
     BlockRef, CommitConsumerMonitor, Transaction, VerifiedBlockHeader,
@@ -73,6 +74,24 @@ impl CommitSyncType {
         match self {
             CommitSyncType::Fast => "fast_commit_sync",
             CommitSyncType::Regular => "commit_sync",
+        }
+    }
+}
+
+// Handle to stop the CommitSyncer loop.
+pub(crate) struct CommitSyncerHandle {
+    schedule_task: JoinHandle<()>,
+    tx_shutdown: oneshot::Sender<()>,
+}
+
+impl CommitSyncerHandle {
+    pub(crate) async fn stop(self) {
+        let _ = self.tx_shutdown.send(());
+        // Do not abort schedule task, which waits for fetches to shut down.
+        if let Err(e) = self.schedule_task.await {
+            if e.is_panic() {
+                std::panic::resume_unwind(e.into_panic());
+            }
         }
     }
 }

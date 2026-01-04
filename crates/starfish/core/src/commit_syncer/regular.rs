@@ -14,7 +14,7 @@ use starfish_config::AuthorityIndex;
 use tokio::{
     runtime::Handle,
     sync::oneshot,
-    task::{JoinHandle, JoinSet},
+    task::JoinSet,
     time::{MissedTickBehavior, sleep},
 };
 use tracing::{debug, info, warn};
@@ -25,7 +25,7 @@ use crate::{
     block_verifier::BlockVerifier,
     commit::{CertifiedCommit, CertifiedCommits, CommitAPI as _, CommitRange},
     commit_syncer::{
-        CommitSyncType, Inner, verify_transactions_with_headers,
+        CommitSyncType, CommitSyncerHandle, Inner, verify_transactions_with_headers,
         verify_transactions_with_transactions_refs,
     },
     commit_vote_monitor::CommitVoteMonitor,
@@ -37,25 +37,7 @@ use crate::{
     transaction_ref::{GenericTransactionRef, GenericTransactionRefAPI as _},
 };
 
-// Handle to stop the CommitSyncer loop.
-pub(crate) struct CommitSyncerHandle {
-    schedule_task: JoinHandle<()>,
-    tx_shutdown: oneshot::Sender<()>,
-}
-
-impl CommitSyncerHandle {
-    pub(crate) async fn stop(self) {
-        let _ = self.tx_shutdown.send(());
-        // Do not abort schedule task, which waits for fetches to shut down.
-        if let Err(e) = self.schedule_task.await {
-            if e.is_panic() {
-                std::panic::resume_unwind(e.into_panic());
-            }
-        }
-    }
-}
-
-pub(crate) struct CommitSyncer<C: NetworkClient> {
+pub(crate) struct RegularCommitSyncer<C: NetworkClient> {
     // States shared by scheduler and fetch tasks.
 
     // Shared components' wrapper.
@@ -80,7 +62,7 @@ pub(crate) struct CommitSyncer<C: NetworkClient> {
     synced_commit_index: CommitIndex,
 }
 
-impl<C: NetworkClient> CommitSyncer<C> {
+impl<C: NetworkClient> RegularCommitSyncer<C> {
     pub(crate) fn new(
         context: Arc<Context>,
         core_thread_dispatcher: Arc<dyn CoreThreadDispatcher>,
@@ -101,7 +83,7 @@ impl<C: NetworkClient> CommitSyncer<C> {
             sync_type: CommitSyncType::Regular,
         });
         let synced_commit_index = inner.dag_state.read().last_commit_index();
-        CommitSyncer {
+        RegularCommitSyncer {
             inner,
             inflight_fetches: JoinSet::new(),
             pending_fetches: BTreeSet::new(),
@@ -1037,7 +1019,7 @@ mod tests {
         block_header::{BlockRef, TestBlockHeader, VerifiedBlockHeader},
         block_verifier::NoopBlockVerifier,
         commit::CommitRange,
-        commit_syncer::commit_syncer::CommitSyncer,
+        commit_syncer::regular::RegularCommitSyncer,
         commit_vote_monitor::CommitVoteMonitor,
         context::Context,
         core_thread::tests::MockCoreThreadDispatcher,
@@ -1135,7 +1117,7 @@ mod tests {
         let commit_vote_monitor = Arc::new(CommitVoteMonitor::new(context.clone()));
         let commit_consumer_monitor = Arc::new(CommitConsumerMonitor::new(0));
 
-        let mut commit_syncer = CommitSyncer::new(
+        let mut commit_syncer = RegularCommitSyncer::new(
             context,
             core_thread_dispatcher,
             commit_vote_monitor.clone(),

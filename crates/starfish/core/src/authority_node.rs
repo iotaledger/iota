@@ -17,10 +17,7 @@ use crate::{
     block_manager::BlockManager,
     block_verifier::SignedBlockVerifier,
     commit_observer::CommitObserver,
-    commit_syncer::{
-        commit_syncer::{CommitSyncer, CommitSyncerHandle},
-        fast_commit_syncer::{FastCommitSyncer, FastCommitSyncerHandle},
-    },
+    commit_syncer::{CommitSyncerHandle, fast::FastCommitSyncer, regular::RegularCommitSyncer},
     commit_vote_monitor::CommitVoteMonitor,
     context::{Clock, Context},
     cordial_knowledge::{CordialKnowledge, CordialKnowledgeHandle},
@@ -48,8 +45,8 @@ pub struct ConsensusAuthority {
     commit_consumer_monitor: Arc<CommitConsumerMonitor>,
     shard_reconstructor: Arc<ShardReconstructorHandle>,
     cordial_knowledge: Arc<CordialKnowledgeHandle>,
-    commit_syncer_handle: CommitSyncerHandle,
-    fast_commit_syncer_handle: FastCommitSyncerHandle,
+    regular_commit_syncer_handle: CommitSyncerHandle,
+    fast_commit_syncer_handle: CommitSyncerHandle,
     leader_timeout_handle: LeaderTimeoutTaskHandle,
     core_thread_handle: CoreThreadHandle,
     subscriber: Subscriber<TonicClient, AuthorityService<ChannelCoreThreadDispatcher>>,
@@ -213,7 +210,7 @@ impl ConsensusAuthority {
 
         // Both commit syncers run, but only one actively fetches based on the gap.
         // CommitSyncer handles small gaps, FastCommitSyncer handles large gaps.
-        let commit_syncer_handle = CommitSyncer::new(
+        let regular_commit_syncer_handle = RegularCommitSyncer::new(
             context.clone(),
             core_dispatcher.clone(),
             commit_vote_monitor.clone(),
@@ -277,7 +274,7 @@ impl ConsensusAuthority {
             cordial_knowledge,
             transactions_synchronizer,
             commit_consumer_monitor,
-            commit_syncer_handle,
+            regular_commit_syncer_handle,
             fast_commit_syncer_handle,
             leader_timeout_handle,
             core_thread_handle,
@@ -335,7 +332,7 @@ impl ConsensusAuthority {
             );
         }
 
-        self.commit_syncer_handle.stop().await;
+        self.regular_commit_syncer_handle.stop().await;
         self.fast_commit_syncer_handle.stop().await;
         self.leader_timeout_handle.stop().await;
         // Shutdown Core to stop block productions and broadcast.

@@ -15,7 +15,7 @@ use starfish_config::AuthorityIndex;
 use tokio::{
     runtime::Handle,
     sync::oneshot,
-    task::{JoinHandle, JoinSet},
+    task::JoinSet,
     time::{MissedTickBehavior, sleep},
 };
 use tracing::{debug, info, warn};
@@ -25,7 +25,9 @@ use crate::{
     block_header::VerifiedTransactions,
     block_verifier::BlockVerifier,
     commit::{CommitAPI as _, CommitRange, CommittedSubDag},
-    commit_syncer::{CommitSyncType, Inner, verify_transactions_with_transactions_refs},
+    commit_syncer::{
+        CommitSyncType, CommitSyncerHandle, Inner, verify_transactions_with_transactions_refs,
+    },
     commit_vote_monitor::CommitVoteMonitor,
     context::Context,
     core_thread::CoreThreadDispatcher,
@@ -34,24 +36,6 @@ use crate::{
     network::{NetworkClient, SerializedTransactionsV2},
     transaction_ref::{GenericTransactionRef, TransactionRef},
 };
-
-// Handle to stop the CommitSyncer loop.
-pub(crate) struct FastCommitSyncerHandle {
-    schedule_task: JoinHandle<()>,
-    tx_shutdown: oneshot::Sender<()>,
-}
-
-impl FastCommitSyncerHandle {
-    pub(crate) async fn stop(self) {
-        let _ = self.tx_shutdown.send(());
-        // Do not abort schedule task, which waits for fetches to shut down.
-        if let Err(e) = self.schedule_task.await {
-            if e.is_panic() {
-                std::panic::resume_unwind(e.into_panic());
-            }
-        }
-    }
-}
 
 pub(crate) struct FastCommitSyncer<C: NetworkClient> {
     // States shared by scheduler and fetch tasks.
@@ -110,10 +94,10 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
         }
     }
 
-    pub(crate) fn start(self) -> FastCommitSyncerHandle {
+    pub(crate) fn start(self) -> CommitSyncerHandle {
         let (tx_shutdown, rx_shutdown) = oneshot::channel();
         let schedule_task = spawn_logged_monitored_task!(self.schedule_loop(rx_shutdown,));
-        FastCommitSyncerHandle {
+        CommitSyncerHandle {
             schedule_task,
             tx_shutdown,
         }
