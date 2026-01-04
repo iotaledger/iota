@@ -143,9 +143,9 @@ impl<C: NetworkClient> RegularCommitSyncer<C> {
         let quorum_commit_index = self.inner.commit_vote_monitor.quorum_commit_index();
         let local_commit_index = self.inner.dag_state.read().last_commit_index();
 
-        // Skip scheduling if gap is large - FastCommitSyncer handles large gaps.
+        // Skip scheduling depending on sync type and gap threshold.
         let gap = quorum_commit_index.saturating_sub(local_commit_index);
-        if gap > self.inner.context.parameters.commit_sync_gap_threshold {
+        if !self.inner.sync_type.should_schedule(gap, self.inner.context.parameters.commit_sync_gap_threshold) {
             return;
         }
 
@@ -158,19 +158,10 @@ impl<C: NetworkClient> RegularCommitSyncer<C> {
             .set(local_commit_index as i64);
         let highest_handled_index = self.inner.commit_consumer_monitor.highest_handled_commit();
         let highest_scheduled_index = self.highest_scheduled_index.unwrap_or(0);
-        // Update synced_commit_index periodically to make sure it is no smaller than
+        // Update synced_commit_index periodically to make sure it is not smaller than
         // local commit index.
         self.synced_commit_index = self.synced_commit_index.max(local_commit_index);
         let unhandled_commits_threshold = self.unhandled_commits_threshold();
-        info!(
-            "[{}] Checking to schedule fetches: synced_commit_index={}, highest_handled_index={}, highest_scheduled_index={}, quorum_commit_index={}, unhandled_commits_threshold={}",
-            self.inner.sync_type.as_str(),
-            self.synced_commit_index,
-            highest_handled_index,
-            highest_scheduled_index,
-            quorum_commit_index,
-            unhandled_commits_threshold,
-        );
 
         // TODO: cleanup inflight fetches that are no longer needed.
         let fetch_after_index = self
@@ -178,7 +169,22 @@ impl<C: NetworkClient> RegularCommitSyncer<C> {
             .max(self.highest_scheduled_index.unwrap_or(0));
         // When the node is falling behind, schedule pending fetches which will be
         // executed on later.
-        let step = self.inner.context.parameters.commit_sync_batch_size;
+        let step = self
+            .inner
+            .sync_type
+            .commit_sync_batch_size(&self.inner.context);
+
+        info!(
+            "[{}] Checking to schedule fetches: synced_commit_index={}, highest_handled_index={}, highest_scheduled_index={}, quorum_commit_index={}, unhandled_commits_threshold={}, fetch_after_index={}, step={}",
+            self.inner.sync_type.as_str(),
+            self.synced_commit_index,
+            highest_handled_index,
+            highest_scheduled_index,
+            quorum_commit_index,
+            unhandled_commits_threshold,
+            fetch_after_index,
+            step
+        );
 
         for prev_end in (fetch_after_index..=quorum_commit_index).step_by(step as usize) {
             // Create range with inclusive start and end.
@@ -201,6 +207,12 @@ impl<C: NetworkClient> RegularCommitSyncer<C> {
                 );
                 break;
             }
+            info!(
+                "[{}] Scheduling fetch for commit range {}..={}",
+                self.inner.sync_type.as_str(),
+                range_start,
+                range_end
+            );
             self.pending_fetches
                 .insert((range_start..=range_end).into());
             // quorum_commit_index should be non-decreasing, so highest_scheduled_index

@@ -143,9 +143,9 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
         let quorum_commit_index = self.inner.commit_vote_monitor.quorum_commit_index();
         let local_commit_index = self.inner.dag_state.read().last_commit_index();
 
-        // Skip scheduling if gap is small - CommitSyncer handles small gaps.
+        // Skip scheduling depending on sync type and gap threshold.
         let gap = quorum_commit_index.saturating_sub(local_commit_index);
-        if gap <= self.inner.context.parameters.commit_sync_gap_threshold {
+        if !self.inner.sync_type.should_schedule(gap, self.inner.context.parameters.commit_sync_gap_threshold) {
             return;
         }
 
