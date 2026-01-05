@@ -94,8 +94,7 @@ impl HttpRestKVClient {
         max_concurrent_batches: usize,
     ) -> IndexerResult<Self> {
         info!(
-            "creating HttpRestKVClient with base_url: {}, batch_size: {}, max_concurrent_batches: {}",
-            base_url, batch_size, max_concurrent_batches
+            "creating HttpRestKVClient with base_url: {base_url}, batch_size: {batch_size}, max_concurrent_batches: {max_concurrent_batches}",
         );
 
         let client = Client::builder().http2_prior_knowledge().build()?;
@@ -133,11 +132,9 @@ impl HttpRestKVClient {
             .map(|chunk| chunk.to_vec())
             .collect();
 
-        let results = stream::iter(chunks)
+        let mut results = stream::iter(chunks)
             .map(|chunk| self.fetch_batch(chunk))
             .buffered(self.max_concurrent_batches);
-
-        futures::pin_mut!(results);
 
         let mut flattened = Vec::new();
         while let Some(batch_result) = results.next().await {
