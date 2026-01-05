@@ -7,18 +7,26 @@ use std::{
     time::Duration,
 };
 
+use iota_metrics::spawn_logged_monitored_task;
+use itertools::Itertools as _;
 use parking_lot::RwLock;
+use rand::{prelude::SliceRandom as _, rngs::ThreadRng};
 use starfish_config::AuthorityIndex;
-use tokio::{runtime::Handle, task::JoinSet};
-use tracing::{debug, info};
+use tokio::{
+    runtime::Handle,
+    sync::oneshot,
+    task::JoinSet,
+    time::{MissedTickBehavior, sleep},
+};
+use tracing::{debug, info, warn};
 
 use crate::{
-    CommitConsumerMonitor, CommitIndex,
+    CommitConsumerMonitor, CommitIndex, VerifiedBlockHeader,
     block_header::VerifiedTransactions,
     block_verifier::BlockVerifier,
-    commit::{CommitAPI as _, CommitRange, CommittedSubDag},
+    commit::{CommitAPI as _, CommitRange, CommittedSubDag, TrustedCommit},
     commit_syncer::{
-        CommitSyncType, CommitSyncer, Inner, verify_transactions_with_transactions_refs,
+        CommitSyncType, CommitSyncerHandle, Inner, verify_transactions_with_transactions_refs,
     },
     commit_vote_monitor::CommitVoteMonitor,
     context::Context,
@@ -29,20 +37,23 @@ use crate::{
     transaction_ref::{GenericTransactionRef, TransactionRef},
 };
 
+/// Timeout for fetching block headers during close-to-quorum finalization.
+const FETCH_HEADERS_TIMEOUT: Duration = Duration::from_secs(30);
+
 pub(crate) struct FastCommitSyncer<C: NetworkClient> {
     // States shared by scheduler and fetch tasks.
 
-    // Shared components' wrapper.
+    // Shared components wrapper.
     inner: Arc<Inner<C>>,
 
     // States only used by the scheduler.
 
     // Inflight requests to fetch commits from different authorities.
-    inflight_fetches: JoinSet<(u32, Vec<CommittedSubDag>)>,
+    inflight_fetches: JoinSet<(u32, Vec<TrustedCommit>, Vec<CommittedSubDag>)>,
     // Additional ranges of commits to fetch.
     pending_fetches: BTreeSet<CommitRange>,
     // Fetched commits and blocks by commit range.
-    fetched_ranges: BTreeMap<CommitRange, Vec<CommittedSubDag>>,
+    fetched_ranges: BTreeMap<CommitRange, (Vec<TrustedCommit>, Vec<CommittedSubDag>)>,
     // Highest commit index among inflight and pending fetches.
     // Used to determine the start of new ranges to be fetched.
     highest_scheduled_index: Option<CommitIndex>,
@@ -52,6 +63,13 @@ pub(crate) struct FastCommitSyncer<C: NetworkClient> {
     // The commit index that is the max of highest local commit index and commit index inflight to
     // Core. Used to determine if fetched blocks can be sent to Core without gaps.
     synced_commit_index: CommitIndex,
+    // Whether the syncer is in "close to quorum" mode, meaning remaining gap < batch size.
+    // When this is true, the syncer will fetch block headers and transactions for cached rounds
+    // before completing fast sync.
+    close_to_quorum_mode: bool,
+    // Whether the fast syncer has actually fetched any data. Close-to-quorum mode only
+    // activates after this is true. Reset to false after reinitialization completes.
+    has_fetched_data: bool,
 }
 
 impl<C: NetworkClient> FastCommitSyncer<C> {
@@ -83,58 +101,228 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
             highest_scheduled_index: None,
             highest_fetched_commit_index: 0,
             synced_commit_index,
+            close_to_quorum_mode: false,
+            has_fetched_data: false,
         }
     }
-}
 
-#[async_trait::async_trait]
-impl<C: NetworkClient> CommitSyncer<C> for FastCommitSyncer<C> {
-    type FetchedData = Vec<CommittedSubDag>;
-    fn inner(&self) -> &Arc<Inner<C>> {
-        &self.inner
+    pub(crate) fn start(self) -> CommitSyncerHandle {
+        let (tx_shutdown, rx_shutdown) = oneshot::channel();
+        let schedule_task = spawn_logged_monitored_task!(self.schedule_loop(rx_shutdown,));
+        CommitSyncerHandle {
+            schedule_task,
+            tx_shutdown,
+        }
+    }
+    #[cfg_attr(test,tracing::instrument(skip_all, name ="",fields(authority = %self.inner.context.own_index)))]
+    async fn schedule_loop(mut self, mut rx_shutdown: oneshot::Receiver<()>) {
+        let mut interval = tokio::time::interval(Duration::from_secs(2));
+        interval.set_missed_tick_behavior(MissedTickBehavior::Skip);
+
+        loop {
+            tokio::select! {
+                // Periodically, schedule new fetches if the node is falling behind.
+                _ = interval.tick() => {
+                    self.try_schedule_once();
+                }
+                // Handles results from fetch tasks.
+                Some(result) = self.inflight_fetches.join_next(), if !self.inflight_fetches.is_empty() => {
+                    if let Err(e) = result {
+                        if e.is_panic() {
+                            std::panic::resume_unwind(e.into_panic());
+                        }
+                        warn!("[{}] Fetch cancelled. FastCommitSyncer shutting down: {}", self.inner.sync_type.as_str(), e);
+                        // If any fetch is cancelled or panicked, try to shutdown and exit the loop.
+                        self.inflight_fetches.shutdown().await;
+                        return;
+                    }
+                    let (target_end, commits, committed_subdags) = result.unwrap();
+                    self.handle_fetch_result(target_end, commits, committed_subdags).await;
+                }
+                _ = &mut rx_shutdown => {
+                    // Shutdown requested.
+                    info!("[{}] FastCommitSyncer shutting down ...", self.inner.sync_type.as_str());
+                    self.inflight_fetches.shutdown().await;
+                    return;
+                }
+            }
+
+            self.try_start_fetches();
+
+            // Handle close-to-quorum mode: when all fetches complete and we're close
+            // to the quorum, fetch block headers for cached_rounds and reinitialize.
+            if self.close_to_quorum_mode
+                && self.inflight_fetches.is_empty()
+                && self.pending_fetches.is_empty()
+                && self.fetched_ranges.is_empty()
+            {
+                info!(
+                    "[{}] Close-to-quorum: all fetches complete, fetching headers for cached_rounds",
+                    self.inner.sync_type.as_str()
+                );
+
+                match Self::fetch_headers_for_cached_rounds(self.inner.clone()).await {
+                    Ok(headers) => {
+                        if let Err(e) = self
+                            .inner
+                            .core_thread_dispatcher
+                            .reinitialize_components(headers)
+                            .await
+                        {
+                            warn!(
+                                "[{}] Failed to reinitialize components: {}",
+                                self.inner.sync_type.as_str(),
+                                e
+                            );
+                        } else {
+                            info!(
+                                "[{}] Components reinitialized, fast sync complete",
+                                self.inner.sync_type.as_str()
+                            );
+                        }
+                    }
+                    Err(e) => {
+                        warn!(
+                            "[{}] Failed to fetch headers for cached rounds: {}",
+                            self.inner.sync_type.as_str(),
+                            e
+                        );
+                    }
+                }
+
+                // Reset state regardless of success - we've done what we can,
+                // and regular syncer should take over now
+                self.close_to_quorum_mode = false;
+                self.has_fetched_data = false;
+
+                // Exit the loop - fast sync is complete
+                info!(
+                    "[{}] Fast sync complete, exiting schedule loop",
+                    self.inner.sync_type.as_str()
+                );
+                return;
+            }
+        }
     }
 
-    fn inflight_fetches(&mut self) -> &mut JoinSet<(u32, Self::FetchedData)> {
-        &mut self.inflight_fetches
-    }
+    fn try_schedule_once(&mut self) {
+        let quorum_commit_index = self.inner.commit_vote_monitor.quorum_commit_index();
+        let local_commit_index = self.inner.dag_state.read().last_commit_index();
 
-    fn inflight_fetches_len(&self) -> usize {
-        self.inflight_fetches.len()
-    }
+        // Skip scheduling depending on sync type and gap threshold.
+        let gap = quorum_commit_index.saturating_sub(local_commit_index);
+        if !self.inner.sync_type.should_schedule(gap, self.inner.context.parameters.commit_sync_gap_threshold) {
+            return;
+        }
 
-    fn pending_fetches_len(&self) -> usize {
-        self.pending_fetches.len()
-    }
+        let metrics = &self.inner.context.metrics.node_metrics;
+        metrics
+            .commit_sync_quorum_index
+            .set(quorum_commit_index as i64);
+        metrics
+            .commit_sync_local_index
+            .set(local_commit_index as i64);
+        let highest_handled_index = self.inner.commit_consumer_monitor.highest_handled_commit();
+        let highest_scheduled_index = self.highest_scheduled_index.unwrap_or(0);
+        // Update synced_commit_index periodically to make sure it is not smaller than
+        // local commit index.
+        self.synced_commit_index = self.synced_commit_index.max(local_commit_index);
+        let unhandled_commits_threshold = self.unhandled_commits_threshold();
 
-    fn highest_scheduled_index(&mut self) -> &mut Option<CommitIndex> {
-        &mut self.highest_scheduled_index
-    }
+        // TODO: cleanup inflight fetches that are no longer needed.
+        let fetch_after_index = self
+            .synced_commit_index
+            .max(self.highest_scheduled_index.unwrap_or(0));
+        // When the node is falling behind, schedule pending fetches which will be
+        // executed on later.
+        let step = self
+            .inner
+            .sync_type
+            .commit_sync_batch_size(&self.inner.context);
 
-    fn synced_commit_index(&mut self) -> &mut CommitIndex {
-        &mut self.synced_commit_index
-    }
+        info!(
+            "[{}] Checking to schedule fetches: synced_commit_index={}, highest_handled_index={}, highest_scheduled_index={}, quorum_commit_index={}, unhandled_commits_threshold={}, fetch_after_index={}, step={}",
+            self.inner.sync_type.as_str(),
+            self.synced_commit_index,
+            highest_handled_index,
+            highest_scheduled_index,
+            quorum_commit_index,
+            unhandled_commits_threshold,
+            fetch_after_index,
+            step
+        );
 
-    fn pending_fetches(&mut self) -> &mut BTreeSet<CommitRange> {
-        &mut self.pending_fetches
-    }
+        for prev_end in (fetch_after_index..=quorum_commit_index).step_by(step as usize) {
+            // Create range with inclusive start and end.
+            let range_start = prev_end + 1;
+            let range_end = prev_end + step;
+            // Commit range is not fetched when [range_start, range_end] contains less
+            // number of commits than the target batch size. This is to avoid
+            // the cost of processing more and smaller batches. Block broadcast,
+            // subscription and synchronization will help the node catchup.
+            if quorum_commit_index < range_end {
+                break;
+            }
+            // Pause scheduling new fetches when handling of commits is lagging.
+            if highest_handled_index + unhandled_commits_threshold < range_end {
+                warn!(
+                    "[{}] Skip scheduling new commit fetches: consensus handler is lagging. highest_handled_index={}, highest_scheduled_index={}",
+                    self.inner.sync_type.as_str(),
+                    highest_handled_index,
+                    highest_scheduled_index
+                );
+                break;
+            }
+            info!(
+                "[{}] Scheduling fetch for commit range {}..={}",
+                self.inner.sync_type.as_str(),
+                range_start,
+                range_end
+            );
+            self.pending_fetches
+                .insert((range_start..=range_end).into());
+            // quorum_commit_index should be non-decreasing, so highest_scheduled_index
+            // should not decrease either.
+            self.highest_scheduled_index = Some(range_end);
+        }
 
-    fn fetched_ranges(&mut self) -> &mut BTreeMap<CommitRange, Self::FetchedData> {
-        &mut self.fetched_ranges
-    }
-
-    #[cfg(test)]
-    fn highest_fetched_commit_index(&self) -> CommitIndex {
-        self.highest_fetched_commit_index
+        // Detect close-to-quorum mode: when remaining gap is less than a full batch.
+        // Only activate if we've actually fetched data during this fast sync session.
+        //
+        // When close_to_quorum_mode is activated, the schedule_loop() will:
+        // 1. Wait for all inflight/pending fetches to complete
+        // 2. Fetch block headers for ~cached_rounds worth of commits
+        // 3. Send ReinitializeComponents to core thread to properly initialize DAG state
+        // 4. Reset fast sync state so regular syncer can take over
+        if self.has_fetched_data && !self.close_to_quorum_mode {
+            let current_fetch_after = self
+                .synced_commit_index
+                .max(self.highest_scheduled_index.unwrap_or(0));
+            let remaining_gap = quorum_commit_index.saturating_sub(current_fetch_after);
+            if remaining_gap < step {
+                self.close_to_quorum_mode = true;
+                info!(
+                    "[{}] Entering close-to-quorum mode: remaining_gap={}, step={}",
+                    self.inner.sync_type.as_str(),
+                    remaining_gap,
+                    step
+                );
+            }
+        }
     }
 
     async fn handle_fetch_result(
         &mut self,
         target_end: CommitIndex,
-        fetched_data_set: Self::FetchedData,
+        commits: Vec<TrustedCommit>,
+        committed_subdags: Vec<CommittedSubDag>,
     ) {
-        assert!(!fetched_data_set.is_empty());
+        assert!(!committed_subdags.is_empty());
 
-        let total_transactions_size_bytes = fetched_data_set
+        // Track that we have actually fetched data during this fast sync session.
+        self.has_fetched_data = true;
+
+        let total_transactions_size_bytes = committed_subdags
             .iter()
             .flat_map(|subdag| &subdag.transactions)
             .map(|txns| txns.serialized().len() as u64)
@@ -145,15 +333,15 @@ impl<C: NetworkClient> CommitSyncer<C> for FastCommitSyncer<C> {
         metrics
             .commit_sync_fetched_commits
             .with_label_values(&[sync_label])
-            .inc_by(fetched_data_set.len() as u64);
+            .inc_by(committed_subdags.len() as u64);
         metrics
             .commit_sync_total_fetched_transactions_size
             .with_label_values(&[sync_label])
             .inc_by(total_transactions_size_bytes);
 
         let (commit_start, commit_end) = (
-            fetched_data_set.first().unwrap().commit_ref.index,
-            fetched_data_set.last().unwrap().commit_ref.index,
+            committed_subdags.first().unwrap().commit_ref.index,
+            committed_subdags.last().unwrap().commit_ref.index,
         );
         self.highest_fetched_commit_index = self.highest_fetched_commit_index.max(commit_end);
         metrics
@@ -173,13 +361,13 @@ impl<C: NetworkClient> CommitSyncer<C> for FastCommitSyncer<C> {
         // Only add new blocks if at least some of them are not already synced.
         if self.synced_commit_index < commit_end {
             self.fetched_ranges
-                .insert((commit_start..=commit_end).into(), fetched_data_set);
+                .insert((commit_start..=commit_end).into(), (commits, committed_subdags));
         }
         // Try to process as many fetched blocks as possible.
-        while let Some((fetched_commit_range, _subdags)) = self.fetched_ranges.first_key_value() {
+        while let Some((fetched_commit_range, _)) = self.fetched_ranges.first_key_value() {
             // Only pop fetched_ranges if there is no gap with blocks already synced.
             // Note: start, end and synced_commit_index are all inclusive.
-            let (fetched_commit_range, subdags) =
+            let (fetched_commit_range, (commits, subdags)) =
                 if fetched_commit_range.start() <= self.synced_commit_index + 1 {
                     self.fetched_ranges.pop_first().unwrap()
                 } else {
@@ -208,7 +396,7 @@ impl<C: NetworkClient> CommitSyncer<C> for FastCommitSyncer<C> {
             if let Err(e) = self
                 .inner
                 .core_thread_dispatcher
-                .add_subdags_from_fast_sync(subdags)
+                .add_subdags_from_fast_sync(commits, subdags)
                 .await
             {
                 info!(
@@ -236,12 +424,197 @@ impl<C: NetworkClient> CommitSyncer<C> for FastCommitSyncer<C> {
             .set(self.synced_commit_index as i64);
     }
 
+    fn try_start_fetches(&mut self) {
+        // Cap parallel fetches based on configured limit and committee size, to avoid
+        // overloading the network. Also when there are too many fetched block headers
+        // that cannot be sent to Core before an earlier fetch has not finished,
+        // reduce parallelism so the earlier fetch can retry on a better host and
+        // succeed.
+        let target_parallel_fetches = self
+            .inner
+            .context
+            .parameters
+            .commit_sync_parallel_fetches
+            .min(self.inner.context.committee.size() * 2 / 3)
+            .min(
+                self.inner
+                    .context
+                    .parameters
+                    .commit_sync_batches_ahead
+                    .saturating_sub(self.fetched_ranges.len()),
+            )
+            .max(1);
+        // Start new fetches if there are pending batches and available slots.
+        loop {
+            if self.inflight_fetches.len() >= target_parallel_fetches {
+                break;
+            }
+            if !self.pending_fetches.is_empty() {
+                info!(
+                    "[{}] Pending fetches: {:?}, target parallel fetches: {}, inflight fetch number: {}",
+                    self.inner.sync_type.as_str(),
+                    self.pending_fetches,
+                    target_parallel_fetches,
+                    self.inflight_fetches.len()
+                );
+            }
+            let Some(commit_range) = self.pending_fetches.pop_first() else {
+                break;
+            };
+            self.inflight_fetches
+                .spawn(Self::fetch_loop(self.inner.clone(), commit_range));
+        }
+
+        let metrics = &self.inner.context.metrics.node_metrics;
+        let sync_label = self.inner.sync_type.as_str();
+        metrics
+            .commit_sync_inflight_fetches
+            .with_label_values(&[sync_label])
+            .set(self.inflight_fetches.len() as i64);
+        metrics
+            .commit_sync_pending_fetches
+            .with_label_values(&[sync_label])
+            .set(self.pending_fetches.len() as i64);
+        metrics
+            .commit_sync_highest_synced_index
+            .with_label_values(&[sync_label])
+            .set(self.synced_commit_index as i64);
+    }
+
+    // Retries fetching commits and block headers from available authorities, until
+    // a request succeeds where at least a prefix of the commit range is
+    // fetched. Returns the fetched commits and block headers referenced by the
+    // commits.
+    #[cfg_attr(test,tracing::instrument(skip_all, name ="",fields(authority = %inner.context.own_index)))]
+    async fn fetch_loop(
+        inner: Arc<Inner<C>>,
+        commit_range: CommitRange,
+    ) -> (CommitIndex, Vec<TrustedCommit>, Vec<CommittedSubDag>) {
+        // Individual request base timeout.
+        const TIMEOUT: Duration = Duration::from_secs(10);
+        // Max per-request timeout will be base timeout times a multiplier.
+        // At the extreme, this means there will be 120s timeout to fetch
+        // max_blocks_per_fetch blocks.
+        const MAX_TIMEOUT_MULTIPLIER: u32 = 12;
+        // timeout * max number of targets should be reasonably small, so the
+        // system can adjust to slow network or large data sizes quickly.
+        const MAX_NUM_TARGETS: usize = 24;
+        let mut timeout_multiplier = 0;
+
+        let _timer = inner
+            .context
+            .metrics
+            .node_metrics
+            .commit_sync_fetch_loop_latency
+            .start_timer();
+        info!(
+            "[{}] Starting to fetch commits in {commit_range:?} ...",
+            inner.sync_type.as_str()
+        );
+        loop {
+            // Attempt to fetch commits and blocks through min(committee size,
+            // MAX_NUM_TARGETS) peers.
+            let mut target_authorities = inner
+                .context
+                .committee
+                .authorities()
+                .filter_map(|(i, _)| {
+                    if i != inner.context.own_index {
+                        Some(i)
+                    } else {
+                        None
+                    }
+                })
+                .collect_vec();
+            target_authorities.shuffle(&mut ThreadRng::default());
+            target_authorities.truncate(MAX_NUM_TARGETS);
+            // Increase timeout multiplier for each loop until MAX_TIMEOUT_MULTIPLIER.
+            timeout_multiplier = (timeout_multiplier + 1).min(MAX_TIMEOUT_MULTIPLIER);
+            let request_timeout = TIMEOUT * timeout_multiplier;
+
+            let fetch_timeout = request_timeout * 2;
+            // Try fetching from the selected target authority.
+            for authority in target_authorities {
+                match tokio::time::timeout(
+                    fetch_timeout,
+                    Self::fetch_once(
+                        inner.clone(),
+                        authority,
+                        commit_range.clone(),
+                        request_timeout,
+                    ),
+                )
+                .await
+                {
+                    Ok(Ok((commits, committed_subdags))) => {
+                        info!(
+                            "[{}] Finished fetching commits in {commit_range:?}",
+                            inner.sync_type.as_str()
+                        );
+                        return (commit_range.end(), commits, committed_subdags);
+                    }
+                    Ok(Err(e)) => {
+                        let hostname = inner
+                            .context
+                            .committee
+                            .authority(authority)
+                            .hostname
+                            .clone();
+                        warn!(
+                            "[{}] Failed to fetch {commit_range:?} from {hostname}: {}",
+                            inner.sync_type.as_str(),
+                            e
+                        );
+                        let error: &'static str = e.into();
+                        inner
+                            .context
+                            .metrics
+                            .node_metrics
+                            .commit_sync_fetch_once_errors
+                            .with_label_values(&[
+                                hostname.as_str(),
+                                error,
+                                inner.sync_type.as_str(),
+                            ])
+                            .inc();
+                    }
+                    Err(_) => {
+                        let hostname = inner
+                            .context
+                            .committee
+                            .authority(authority)
+                            .hostname
+                            .clone();
+                        warn!(
+                            "[{}] Timed out fetching {commit_range:?} from {authority}",
+                            inner.sync_type.as_str()
+                        );
+                        inner
+                            .context
+                            .metrics
+                            .node_metrics
+                            .commit_sync_fetch_once_errors
+                            .with_label_values(&[
+                                hostname.as_str(),
+                                "FetchTimeout",
+                                inner.sync_type.as_str(),
+                            ])
+                            .inc();
+                    }
+                }
+            }
+            // Avoid busy looping, by waiting for a while before retrying.
+            sleep(TIMEOUT).await;
+        }
+    }
+
+    // Fetches commits and transactions from a single authority.
     async fn fetch_once(
         inner: Arc<Inner<C>>,
         target_authority: AuthorityIndex,
         commit_range: CommitRange,
         timeout: Duration,
-    ) -> ConsensusResult<Self::FetchedData> {
+    ) -> ConsensusResult<(Vec<TrustedCommit>, Vec<CommittedSubDag>)> {
         let _timer = inner
             .context
             .metrics
@@ -373,6 +746,169 @@ impl<C: NetworkClient> CommitSyncer<C> for FastCommitSyncer<C> {
             ));
         }
 
-        Ok(committed_subdags)
+        Ok((commits, committed_subdags))
+    }
+
+    fn unhandled_commits_threshold(&self) -> CommitIndex {
+        self.inner.context.parameters.commit_sync_batch_size
+            * (self.inner.context.parameters.commit_sync_batches_ahead as u32)
+    }
+
+    /// Fetches block headers for the cached_rounds window from the network.
+    /// This is called when close_to_quorum mode is active and all pending fetches complete.
+    /// Returns verified block headers that will be stored and used to reinitialize components.
+    async fn fetch_headers_for_cached_rounds(
+        inner: Arc<Inner<C>>,
+    ) -> ConsensusResult<Vec<VerifiedBlockHeader>> {
+        let cached_rounds = inner.context.parameters.dag_state_cached_rounds;
+        let max_headers_per_fetch = inner.context.parameters.max_headers_per_commit_sync_fetch;
+
+        // Get block refs from recent commits stored during fast sync
+        let block_refs = inner
+            .dag_state
+            .read()
+            .get_block_refs_for_recent_commits(cached_rounds);
+
+        if block_refs.is_empty() {
+            info!(
+                "[{}] No block refs to fetch for cached rounds",
+                inner.sync_type.as_str()
+            );
+            return Ok(vec![]);
+        }
+
+        info!(
+            "[{}] Fetching {} block headers for cached_rounds window ({})",
+            inner.sync_type.as_str(),
+            block_refs.len(),
+            cached_rounds
+        );
+
+        // Shuffle target authorities for load balancing
+        let mut target_authorities: Vec<_> = inner
+            .context
+            .committee
+            .authorities()
+            .filter_map(|(i, _)| {
+                if i != inner.context.own_index {
+                    Some(i)
+                } else {
+                    None
+                }
+            })
+            .collect();
+        target_authorities.shuffle(&mut ThreadRng::default());
+
+        // Fetch headers in chunks to avoid overwhelming the network
+        let mut all_headers = Vec::new();
+        for chunk in block_refs.chunks(max_headers_per_fetch) {
+            let chunk_refs: Vec<_> = chunk.to_vec();
+
+            // Try fetching from different authorities until successful
+            let mut fetched = false;
+            for &authority in &target_authorities {
+                match tokio::time::timeout(
+                    FETCH_HEADERS_TIMEOUT,
+                    inner.network_client.fetch_block_headers(
+                        authority,
+                        chunk_refs.clone(),
+                        vec![],
+                        FETCH_HEADERS_TIMEOUT,
+                    ),
+                )
+                .await
+                {
+                    Ok(Ok(serialized_headers)) => {
+                        // Verify and convert headers
+                        let verified_headers: ConsensusResult<Vec<VerifiedBlockHeader>> =
+                            serialized_headers
+                                .into_iter()
+                                .map(VerifiedBlockHeader::new_from_bytes)
+                                .collect();
+
+                        match verified_headers {
+                            Ok(headers) => {
+                                info!(
+                                    "[{}] Fetched {} headers from authority {}",
+                                    inner.sync_type.as_str(),
+                                    headers.len(),
+                                    authority
+                                );
+                                all_headers.extend(headers);
+                                fetched = true;
+                                break;
+                            }
+                            Err(e) => {
+                                warn!(
+                                    "[{}] Failed to verify headers from {}: {}",
+                                    inner.sync_type.as_str(),
+                                    authority,
+                                    e
+                                );
+                            }
+                        }
+                    }
+                    Ok(Err(e)) => {
+                        warn!(
+                            "[{}] Failed to fetch headers from {}: {}",
+                            inner.sync_type.as_str(),
+                            authority,
+                            e
+                        );
+                    }
+                    Err(_) => {
+                        warn!(
+                            "[{}] Timed out fetching headers from {}",
+                            inner.sync_type.as_str(),
+                            authority
+                        );
+                    }
+                }
+            }
+
+            if !fetched {
+                return Err(ConsensusError::FailedToFetchBlockHeaders {
+                    num_requested: chunk_refs.len(),
+                });
+            }
+        }
+
+        info!(
+            "[{}] Successfully fetched {} total block headers for cached_rounds",
+            inner.sync_type.as_str(),
+            all_headers.len()
+        );
+
+        Ok(all_headers)
+    }
+
+    #[cfg(test)]
+    #[allow(dead_code)]
+    fn pending_fetches(&self) -> BTreeSet<CommitRange> {
+        self.pending_fetches.clone()
+    }
+
+    #[cfg(test)]
+    #[allow(dead_code)]
+    fn fetched_ranges(&self) -> BTreeMap<CommitRange, (Vec<TrustedCommit>, Vec<CommittedSubDag>)> {
+        self.fetched_ranges.clone()
+    }
+
+    #[cfg(test)]
+    #[allow(dead_code)]
+    fn highest_scheduled_index(&self) -> Option<CommitIndex> {
+        self.highest_scheduled_index
+    }
+
+    #[cfg(test)]
+    #[allow(dead_code)]
+    fn highest_fetched_commit_index(&self) -> CommitIndex {
+        self.highest_fetched_commit_index
+    }
+
+    #[cfg(test)]
+    #[allow(dead_code)]
+    fn synced_commit_index(&self) -> CommitIndex {
+        self.synced_commit_index
     }
 }

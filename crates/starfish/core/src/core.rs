@@ -39,7 +39,7 @@ use crate::{
         VerifiedOwnShard, VerifiedTransactions,
     },
     block_manager::BlockManager,
-    commit::{CertifiedCommits, PendingSubDag},
+    commit::{CertifiedCommits, PendingSubDag, TrustedCommit},
     commit_observer::{CommitObserver, CommittedSubDagSource},
     context::Context,
     dag_state::{DagState, TransactionSource},
@@ -517,6 +517,93 @@ impl Core {
     ) -> ConsensusResult<()> {
         self.commit_observer
             .handle_committed_sub_dags(committed_subdags, source)
+    }
+
+    /// Handle committed subdags from fast sync.
+    /// First stores the commits, transactions, and scoring subdags in DagState,
+    /// then processes the subdags.
+    /// Commits must be stored so that recovery/reinitialization can rebuild
+    /// the Linearizer's transaction acknowledgment tracker.
+    /// Transactions must be stored so they are available for recovery and cache.
+    pub(crate) fn handle_committed_sub_dags_from_fast_sync(
+        &mut self,
+        commits: Vec<TrustedCommit>,
+        committed_subdags: Vec<CommittedSubDag>,
+    ) -> ConsensusResult<()> {
+        // First, store commits, transactions, and scoring subdags in DagState
+        {
+            let mut dag_state = self.dag_state.write();
+
+            // Store commits for recovery
+            for commit in commits {
+                dag_state.add_commit(commit);
+            }
+
+            // Store transactions for each subdag
+            for subdag in &committed_subdags {
+                for transactions in &subdag.transactions {
+                    dag_state.add_transactions(
+                        transactions.clone(),
+                        TransactionSource::CommitSyncer,
+                    );
+                }
+            }
+
+            // Add scoring subdags for leader schedule scoring
+            dag_state
+                .add_scoring_subdags(committed_subdags.iter().map(|s| s.base.clone()).collect());
+        }
+
+        // Then process subdags as usual
+        self.commit_observer
+            .handle_committed_sub_dags(committed_subdags, CommittedSubDagSource::FastCommitSyncer)
+    }
+
+    /// Reinitialize consensus components after fast sync completes.
+    /// This stores block headers on disk and reinitializes DagState, BlockManager,
+    /// and CommitObserver so that regular syncer can take over.
+    ///
+    /// Block headers should cover the cached_rounds window (~500 rounds).
+    pub(crate) fn reinitialize_components(
+        &mut self,
+        block_headers: Vec<VerifiedBlockHeader>,
+    ) -> ConsensusResult<()> {
+        info!(
+            "Reinitializing components with {} block headers",
+            block_headers.len(),
+        );
+
+        // Hold the dag_state lock for the entire flow to ensure consistency
+        let (last_commit_index, threshold_round) = {
+            let mut dag_state = self.dag_state.write();
+
+            // 1. Store block headers on disk
+            dag_state.accept_block_headers(block_headers);
+
+            // 2. Flush everything to storage
+            dag_state.flush();
+
+            // 3. Get current state before reinitializing
+            let last_commit_index = dag_state.last_commit_index();
+
+            // 4. Reinitialize DagState
+            dag_state.reinitialize();
+
+            let threshold_round = dag_state.threshold_clock_round();
+            (last_commit_index, threshold_round)
+        };
+
+        // 5. Reinitialize BlockManager
+        self.block_manager.reinitialize();
+
+        // 6. Reinitialize CommitObserver
+        self.commit_observer.reinitialize(last_commit_index);
+
+        // 7. Reset signaling state
+        self.last_signaled_round = threshold_round.saturating_sub(1);
+
+        info!("Components reinitialized successfully");
+        Ok(())
     }
 
     /// If needed, signals a new clock round and sets up leader timeout.
