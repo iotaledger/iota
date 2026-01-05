@@ -8,6 +8,7 @@ import { execSync } from 'child_process';
 import { defineConfig } from 'vite';
 import svgr from 'vite-plugin-svgr';
 import { configDefaults } from 'vitest/config';
+import { copyFileSync } from 'fs';
 
 process.env.VITE_VERCEL_ENV = process.env.VERCEL_ENV || 'development';
 process.env.VITE_BUILD_ENV = process.env.BUILD_ENV || 'development';
@@ -15,7 +16,28 @@ const EXPLORER_REV = execSync('git rev-parse HEAD').toString().trim().toString()
 
 // https://vitejs.dev/config/
 export default defineConfig({
-    plugins: [react(), svgr()],
+    plugins: [
+        react(),
+        svgr(),
+        {
+            name: 'copy-wasm-files',
+            generateBundle() {
+                // Copy WASM files to public directory
+                try {
+                    copyFileSync(
+                        'node_modules/@iota/identity-wasm/web/identity_wasm_bg.wasm',
+                        'public/identity_wasm_bg.wasm',
+                    );
+                    copyFileSync(
+                        'node_modules/@iota/sdk-wasm/web/wasm/iota_sdk_wasm_bg.wasm',
+                        'public/iota_sdk_wasm_bg.wasm',
+                    );
+                } catch (error) {
+                    console.warn('Could not copy WASM files:', error);
+                }
+            },
+        },
+    ],
     test: {
         // Omit end-to-end tests:
         exclude: [...configDefaults.exclude, 'tests/**'],
