@@ -172,8 +172,8 @@ impl SuggestedGasPriceCalculator {
     }
 
     /// Find the gas price for which a deferred/scheduled certificate would be
-    /// scheduled if that gas price was paid and if exactly the same set of
-    /// transactions appeared in a commit.
+    /// scheduled if (i) that gas price was paid, and (ii) if exactly the same
+    /// set of transactions appeared in a commit.
     fn find_clearing_gas_price(
         &self,
         certificate: &VerifiedExecutableTransaction,
@@ -402,17 +402,19 @@ mod tests {
         let execution_start_time_1 = 0;
         let estimated_execution_duration_1 = 3;
         // Update the calculator's congestion info for this certificate.
-        suggested_gas_price_calculator.update_congestion_info(Some(
-            BumpObjectExecutionSlotsResult::new_for_test(
-                objects_1
-                    .iter()
-                    .filter_map(|(obj_id, mutable)| mutable.then_some(*obj_id))
-                    .collect(),
-                execution_start_time_1,
-                estimated_execution_duration_1,
-                gas_price_1,
-            ),
-        ));
+        suggested_gas_price_calculator.update_congestion_info(
+            max_execution_duration_per_commit.map(|_| {
+                BumpObjectExecutionSlotsResult::new_for_test(
+                    objects_1
+                        .iter()
+                        .filter_map(|(obj_id, mutable)| mutable.then_some(*obj_id))
+                        .collect(),
+                    execution_start_time_1,
+                    estimated_execution_duration_1,
+                    gas_price_1,
+                )
+            }),
+        );
         //
         if let Some(_max_execution_duration_per_commit) = max_execution_duration_per_commit {
             // Note that `object_2` should not appear because it is accessed immutably.
@@ -445,17 +447,19 @@ mod tests {
         let execution_start_time_2 = 1;
         let estimated_execution_duration_2 = 2;
         // Update the calculator's congestion info for this certificate.
-        suggested_gas_price_calculator.update_congestion_info(Some(
-            BumpObjectExecutionSlotsResult::new_for_test(
-                objects_2
-                    .iter()
-                    .filter_map(|(obj_id, mutable)| mutable.then_some(*obj_id))
-                    .collect(),
-                execution_start_time_2,
-                estimated_execution_duration_2,
-                gas_price_2,
-            ),
-        ));
+        suggested_gas_price_calculator.update_congestion_info(
+            max_execution_duration_per_commit.map(|_| {
+                BumpObjectExecutionSlotsResult::new_for_test(
+                    objects_2
+                        .iter()
+                        .filter_map(|(obj_id, mutable)| mutable.then_some(*obj_id))
+                        .collect(),
+                    execution_start_time_2,
+                    estimated_execution_duration_2,
+                    gas_price_2,
+                )
+            }),
+        );
         //
         if let Some(_max_execution_duration_per_commit) = max_execution_duration_per_commit {
             // Note that `object_3` should not appear because it is accessed immutably.
@@ -505,17 +509,19 @@ mod tests {
         let execution_start_time_3 = 2;
         let estimated_execution_duration_3 = 1;
         // Update the calculator's congestion info for this certificate.
-        suggested_gas_price_calculator.update_congestion_info(Some(
-            BumpObjectExecutionSlotsResult::new_for_test(
-                objects_3
-                    .iter()
-                    .filter_map(|(obj_id, mutable)| mutable.then_some(*obj_id))
-                    .collect(),
-                execution_start_time_3,
-                estimated_execution_duration_3,
-                gas_price_3,
-            ),
-        ));
+        suggested_gas_price_calculator.update_congestion_info(
+            max_execution_duration_per_commit.map(|_| {
+                BumpObjectExecutionSlotsResult::new_for_test(
+                    objects_3
+                        .iter()
+                        .filter_map(|(obj_id, mutable)| mutable.then_some(*obj_id))
+                        .collect(),
+                    execution_start_time_3,
+                    estimated_execution_duration_3,
+                    gas_price_3,
+                )
+            }),
+        );
         //
         if let Some(_max_execution_duration_per_commit) = max_execution_duration_per_commit {
             // Note that `object_3` should not appear because it is accessed immutably.
