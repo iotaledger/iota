@@ -118,7 +118,7 @@ message GetTransactionsRequest {
   optional TransactionRequests requests = 1;
 
   // Mask specifying which fields to read.
-  // If no mask is specified, defaults to `digest`.
+  // If no mask is specified, defaults to `transaction.digest`.
   optional google.protobuf.FieldMask read_mask = 2;
 
   // Optional maximum message size the client can receive (1MB - 128MB)

@@ -4,6 +4,7 @@
 mod get_epoch;
 mod get_objects;
 mod get_service_info;
+mod get_transactions;
 
 use std::{pin::Pin, sync::Arc};
 
@@ -17,6 +18,7 @@ use crate::types::*;
 
 pub struct LedgerGrpcService {
     pub reader: Arc<GrpcReader>,
+    pub config: iota_config::node::GrpcApiConfig,
     pub checkpoint_summary_broadcaster: GrpcCheckpointSummaryBroadcaster,
     pub checkpoint_data_broadcaster: GrpcCheckpointDataBroadcaster,
     pub cancellation_token: CancellationToken,
@@ -28,6 +30,7 @@ pub struct LedgerGrpcService {
 impl LedgerGrpcService {
     pub fn new(
         reader: Arc<GrpcReader>,
+        config: iota_config::node::GrpcApiConfig,
         checkpoint_summary_broadcaster: GrpcCheckpointSummaryBroadcaster,
         checkpoint_data_broadcaster: GrpcCheckpointDataBroadcaster,
         cancellation_token: CancellationToken,
@@ -36,6 +39,7 @@ impl LedgerGrpcService {
     ) -> Self {
         Self {
             reader,
+            config,
             checkpoint_summary_broadcaster,
             checkpoint_data_broadcaster,
             cancellation_token,
@@ -96,12 +100,15 @@ impl grpc_ledger_service::ledger_service_server::LedgerService for LedgerGrpcSer
 
     async fn get_transactions(
         &self,
-        _request: tonic::Request<grpc_ledger_service::GetTransactionsRequest>,
+        request: tonic::Request<grpc_ledger_service::GetTransactionsRequest>,
     ) -> std::result::Result<tonic::Response<Self::GetTransactionsStream>, tonic::Status> {
-        // not implemented - return empty stream
-        let stream = futures::stream::empty();
-        let stream: Self::GetTransactionsStream = Box::pin(stream);
-        Ok(Response::new(stream))
+        get_transactions::get_transactions(
+            self.reader.clone(),
+            self.config.clone(),
+            request.into_inner(),
+        )
+        .map(|stream| Response::new(Box::pin(stream) as Self::GetTransactionsStream))
+        .map_err(Into::into)
     }
 
     /// Checkpoint operations

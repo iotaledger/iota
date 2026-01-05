@@ -15,10 +15,13 @@ use iota_grpc_types::v0::{
 use iota_json_rpc_types::{EventFilter, IotaEvent};
 use iota_types::{
     base_types::{ObjectID, VersionNumber},
+    digests::{TransactionDigest, TransactionEventsDigest},
+    effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
     full_checkpoint_content::CheckpointData,
     messages_checkpoint::CertifiedCheckpointSummary,
     object::Object,
     storage::{ObjectStore, ReadStore, RestStateReader, error::Kind},
+    transaction::VerifiedTransaction,
 };
 use serde::Serialize;
 use tokio::sync::broadcast::{Receiver, Sender, error::RecvError};
@@ -260,6 +263,19 @@ pub trait GrpcStateReader: Send + Sync + 'static {
         &self,
         type_tag: &iota_types::TypeTag,
     ) -> Result<Option<move_core_types::annotated_value::MoveTypeLayout>>;
+
+    /// Get a transaction by its digest
+    fn get_transaction(&self, digest: &TransactionDigest) -> Option<Arc<VerifiedTransaction>>;
+
+    /// Get transaction effects by digest
+    fn get_transaction_effects(&self, digest: &TransactionDigest) -> Option<TransactionEffects>;
+
+    /// Get transaction events by event digest
+    fn get_transaction_events(&self, digest: &TransactionEventsDigest)
+    -> Option<TransactionEvents>;
+
+    /// Get checkpoint sequence number for a transaction
+    fn get_transaction_checkpoint(&self, digest: &TransactionDigest) -> Option<u64>;
 }
 
 /// Adapter that implements GrpcStateReader for RestStateReader
@@ -353,6 +369,31 @@ impl GrpcStateReader for RestStateReaderAdapter {
         type_tag: &iota_types::TypeTag,
     ) -> Result<Option<move_core_types::annotated_value::MoveTypeLayout>> {
         Ok(self.inner.get_type_layout(type_tag)?)
+    }
+
+    fn get_transaction(&self, digest: &TransactionDigest) -> Option<Arc<VerifiedTransaction>> {
+        self.inner.get_transaction(digest)
+    }
+
+    fn get_transaction_effects(&self, digest: &TransactionDigest) -> Option<TransactionEffects> {
+        self.inner.get_transaction_effects(digest)
+    }
+
+    fn get_transaction_events(
+        &self,
+        digest: &TransactionEventsDigest,
+    ) -> Option<TransactionEvents> {
+        self.inner.get_events(digest)
+    }
+
+    fn get_transaction_checkpoint(&self, digest: &TransactionDigest) -> Option<u64> {
+        self.inner.indexes().and_then(|indexes| {
+            indexes
+                .get_transaction_info(digest)
+                .ok()
+                .flatten()
+                .map(|info| info.checkpoint)
+        })
     }
 }
 
@@ -596,4 +637,91 @@ impl GrpcReader {
             |item| item.sequence_number(),
         )
     }
+
+    /// Get transaction data for a single transaction digest.
+    ///
+    /// Returns all transaction-related data needed to build a gRPC response.
+    #[tracing::instrument(skip(self))]
+    pub fn get_transaction_read(
+        &self,
+        digest: &TransactionDigest,
+    ) -> Result<TransactionReadData, crate::error::RpcError> {
+        // Get the transaction
+        let transaction = self
+            .state_reader
+            .get_transaction(digest)
+            .ok_or(crate::error::TransactionNotFoundError(*digest))?;
+
+        // Get the effects - required
+        let effects = self
+            .state_reader
+            .get_transaction_effects(digest)
+            .ok_or(crate::error::TransactionNotFoundError(*digest))?;
+
+        // Get events if they exist
+        let events = effects
+            .events_digest()
+            .and_then(|event_digest| self.state_reader.get_transaction_events(event_digest));
+
+        // Get checkpoint from indexes if available
+        let checkpoint = self.state_reader.get_transaction_checkpoint(digest);
+
+        // Get timestamp from checkpoint if we have it
+        let timestamp_ms = checkpoint.and_then(|checkpoint_seq| {
+            self.state_reader
+                .get_checkpoint_summary(checkpoint_seq)
+                .map(|summary| summary.data().timestamp_ms)
+        });
+
+        // Get input objects (objects at their state before the transaction)
+        // modified_at_versions() returns the object IDs and their versions before
+        // modification
+        let input_objects: Vec<Object> = effects
+            .modified_at_versions()
+            .into_iter()
+            .filter_map(|(object_id, version)| {
+                self.state_reader.get_object_by_key(&object_id, version)
+            })
+            .collect();
+
+        // Get output objects (created, mutated, unwrapped objects at their state after
+        // the transaction)
+        let output_objects: Vec<Object> = effects
+            .created()
+            .into_iter()
+            .chain(effects.mutated())
+            .chain(effects.unwrapped())
+            .filter_map(|((object_id, version, _digest), _owner)| {
+                self.state_reader.get_object_by_key(&object_id, version)
+            })
+            .collect();
+
+        Ok(TransactionReadData {
+            digest: *digest,
+            transaction,
+            effects,
+            events,
+            checkpoint,
+            timestamp_ms,
+            input_objects,
+            output_objects,
+        })
+    }
+}
+
+/// Internal struct to hold all transaction-related data fetched from storage.
+///
+/// This struct holds owned data from storage, which is then converted to
+/// `iota-sdk-types` types and used with `Merge` trait to populate gRPC
+/// responses.
+#[derive(Debug)]
+pub struct TransactionReadData {
+    pub digest: TransactionDigest,
+    pub transaction: Arc<VerifiedTransaction>,
+    pub effects: TransactionEffects,
+    pub events: Option<TransactionEvents>,
+    pub checkpoint: Option<u64>,
+    pub timestamp_ms: Option<u64>,
+    pub input_objects: Vec<Object>,
+    pub output_objects: Vec<Object>,
 }
