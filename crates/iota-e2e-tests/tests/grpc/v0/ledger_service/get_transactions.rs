@@ -1,0 +1,526 @@
+// Copyright (c) 2025 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
+use futures::StreamExt;
+use iota_grpc_types::{
+    field::FieldMaskUtil,
+    v0::ledger_service::{
+        GetTransactionsRequest, GetTransactionsResponse, TransactionRequest, TransactionRequests,
+        ledger_service_client::LedgerServiceClient,
+    },
+};
+use iota_macros::sim_test;
+use iota_test_transaction_builder::TestTransactionBuilder;
+use iota_types::digests::TransactionDigest;
+use prost_types::FieldMask;
+use test_cluster::{TestCluster, TestClusterBuilder};
+
+use crate::utils::assert_field_presence;
+
+// Note: impl_field_presence_checker! for ExecutedTransaction is already defined
+
+/// Helper to create a test transaction and return its digest
+async fn create_test_transaction(test_cluster: &TestCluster) -> TransactionDigest {
+    let (sender, gas) = test_cluster
+        .wallet
+        .get_one_gas_object()
+        .await
+        .unwrap()
+        .unwrap();
+    let rgp = test_cluster.get_reference_gas_price().await;
+    let transaction_data = TestTransactionBuilder::new(sender, gas, rgp)
+        .transfer_iota(None, sender)
+        .build();
+    let signed_transaction = test_cluster.wallet.sign_transaction(&transaction_data);
+    let transaction_digest = *signed_transaction.digest();
+    test_cluster
+        .wallet
+        .execute_transaction_may_fail(signed_transaction)
+        .await
+        .unwrap();
+    transaction_digest
+}
+
+/// Helper function to make GetTransactions requests and validate responses..
+async fn assert_get_transactions_request(
+    client: &mut LedgerServiceClient<tonic::transport::Channel>,
+    digests: Vec<TransactionDigest>,
+    read_mask: Option<FieldMask>,
+    max_message_size_bytes: Option<u32>,
+    expected_field_mask_paths: &[&str],
+    scenario: &str,
+) -> Vec<GetTransactionsResponse> {
+    let request = GetTransactionsRequest {
+        requests: Some(TransactionRequests {
+            requests: digests
+                .iter()
+                .map(|d| TransactionRequest {
+                    digest: Some(iota_grpc_types::v0::types::Digest {
+                        digest: d.inner().to_vec().into(),
+                    }),
+                })
+                .collect(),
+        }),
+        read_mask,
+        max_message_size_bytes,
+    };
+
+    let mut stream = client.get_transactions(request).await.unwrap().into_inner();
+
+    let mut responses = Vec::new();
+    let mut response_count = 0;
+
+    // Loop through all responses until has_next is false
+    while let Some(response) = stream.next().await {
+        let response = response.unwrap();
+        response_count += 1;
+
+        // Assert all returned transactions have the expected fields
+        for (idx, tx_result) in response.transactions.iter().enumerate() {
+            if let Some(transaction) = tx_result.transaction_opt() {
+                assert_field_presence(
+                    transaction,
+                    expected_field_mask_paths,
+                    &format!("{scenario} (response {response_count}, transaction {idx})"),
+                );
+            }
+        }
+
+        let has_next = response.has_next;
+        responses.push(response);
+
+        // If has_next is false, this should be the last response
+        if !has_next {
+            break;
+        }
+    }
+
+    // Validate has_next values: all intermediate messages should have has_next=true
+    for (idx, response) in responses[..responses.len() - 1].iter().enumerate() {
+        assert!(
+            response.has_next,
+            "Intermediate stream message #{} should have has_next=true, but got false",
+            idx + 1
+        );
+    }
+
+    // Verify the last response has has_next=false
+    assert!(
+        !responses.last().unwrap().has_next,
+        "{scenario}: last response should have has_next=false"
+    );
+
+    // Verify stream is exhausted
+    assert!(
+        stream.next().await.is_none(),
+        "{scenario}: stream should be exhausted after has_next=false"
+    );
+    responses
+}
+
+#[sim_test]
+async fn get_transactions_readmask_scenarios() {
+    let test_cluster = TestClusterBuilder::new()
+        .with_fullnode_enable_grpc_api(true)
+        .build()
+        .await;
+
+    test_cluster.wait_for_checkpoint(1, None).await;
+
+    // Create a test transaction
+    let transaction_digest = create_test_transaction(&test_cluster).await;
+
+    let mut client = LedgerServiceClient::connect(test_cluster.grpc_url())
+        .await
+        .unwrap();
+
+    // Tests for single-transaction readmask scenarios
+    // Note: When a parent field is specified without nested paths (e.g.,
+    // "effects"), FieldMaskTree treats it as a wildcard and includes all nested
+    // fields. So "effects" means "effects.digest" AND "effects.bcs".
+    type TestCase<'a> = (&'a str, Option<FieldMask>, &'a [&'a str]);
+    let test_cases: Vec<TestCase> = vec![
+        // Default readmask (None) - returns only digest
+        ("default readmask", None, &["transaction.digest"]),
+        // Empty readmask - returns no fields
+        (
+            "empty readmask",
+            Some(FieldMask::from_paths(&[] as &[&str])),
+            &[],
+        ),
+        // Full readmask - returns all implemented fields with explicit nested paths
+        // Note: events may be None if transaction doesn't emit events
+        // Note: signatures, input_objects, output_objects are leaf fields (not
+        // nested) because their inner fields are Vec, not Option
+        (
+            "full readmask",
+            Some(FieldMask::from_paths([
+                "transaction.digest",
+                "transaction.bcs",
+                "signatures",
+                "effects.digest",
+                "effects.bcs",
+                "events",
+                "checkpoint",
+                "timestamp",
+            ])),
+            &[
+                "transaction.digest",
+                "transaction.bcs",
+                "signatures",
+                "effects.digest",
+                "effects.bcs",
+                "events",
+                "checkpoint",
+                "timestamp",
+            ],
+        ),
+        // Partial readmask: digest only
+        (
+            "partial readmask (digest only)",
+            Some(FieldMask::from_paths(["transaction.digest"])),
+            &["transaction.digest"],
+        ),
+        // Partial readmask: effects.digest only (specific nested field)
+        (
+            "partial readmask (effects.digest only)",
+            Some(FieldMask::from_paths(["effects.digest"])),
+            &["effects.digest"],
+        ),
+        // Partial readmask: effects wildcard (all nested fields)
+        (
+            "partial readmask (effects wildcard)",
+            Some(FieldMask::from_paths(["effects"])),
+            &["effects.digest", "effects.bcs"],
+        ),
+        // Partial readmask: transaction + signatures
+        // Note: signatures is a leaf field, transaction has nested paths
+        (
+            "partial readmask (transaction + signatures)",
+            Some(FieldMask::from_paths(["transaction.digest", "signatures"])),
+            &["transaction.digest", "signatures"],
+        ),
+        // Partial readmask: checkpoint + timestamp (metadata only)
+        (
+            "partial readmask (checkpoint + timestamp)",
+            Some(FieldMask::from_paths(["checkpoint", "timestamp"])),
+            &["checkpoint", "timestamp"],
+        ),
+    ];
+
+    for (scenario, mask, expected_paths) in test_cases {
+        let responses = assert_get_transactions_request(
+            &mut client,
+            vec![transaction_digest],
+            mask,
+            None,
+            expected_paths,
+            scenario,
+        )
+        .await;
+
+        let total_transactions: usize = responses.iter().map(|r| r.transactions.len()).sum();
+        assert_eq!(total_transactions, 1, "{scenario}: expected 1 transaction");
+    }
+}
+
+#[sim_test]
+async fn get_transactions_batch() {
+    let test_cluster = TestClusterBuilder::new()
+        .with_fullnode_enable_grpc_api(true)
+        .build()
+        .await;
+
+    test_cluster.wait_for_checkpoint(1, None).await;
+
+    // Create multiple test transactions
+    let mut digests = Vec::new();
+    for _ in 0..3 {
+        let digest = create_test_transaction(&test_cluster).await;
+        digests.push(digest);
+    }
+
+    let mut client = LedgerServiceClient::connect(test_cluster.grpc_url())
+        .await
+        .unwrap();
+
+    // Test batch request with partial readmask
+    // Note: "effects" without nested paths means all nested fields are included
+    let responses = assert_get_transactions_request(
+        &mut client,
+        digests.clone(),
+        Some(FieldMask::from_paths(["transaction.digest", "effects"])),
+        None,
+        &["transaction.digest", "effects.digest", "effects.bcs"],
+        "batch with 3 transactions",
+    )
+    .await;
+
+    let total_transactions: usize = responses.iter().map(|r| r.transactions.len()).sum();
+    assert_eq!(
+        total_transactions, 3,
+        "Should have received 3 transactions in batch"
+    );
+}
+
+#[sim_test]
+async fn get_transactions_streaming() {
+    let test_cluster = TestClusterBuilder::new()
+        .with_fullnode_enable_grpc_api(true)
+        .build()
+        .await;
+
+    test_cluster.wait_for_checkpoint(1, None).await;
+
+    // Create multiple test transactions to have enough data for streaming
+    let mut digests = Vec::new();
+    for _ in 0..10 {
+        let digest = create_test_transaction(&test_cluster).await;
+        digests.push(digest);
+    }
+
+    let mut client = LedgerServiceClient::connect(test_cluster.grpc_url())
+        .await
+        .unwrap();
+
+    // Request each transaction multiple times to create larger payload
+    let mut all_digests = Vec::new();
+    for _ in 0..100 {
+        all_digests.extend(digests.iter().cloned());
+    }
+
+    // Test streaming by requesting many transactions with full readmask
+    // Use minimum allowed message size to maximize chance of multi-message
+    // streaming
+    // Note: Parent fields without nested paths are wildcards that include all
+    // nested fields
+    let responses = assert_get_transactions_request(
+        &mut client,
+        all_digests,
+        Some(FieldMask::from_paths([
+            "transaction",
+            "signatures",
+            "effects",
+            "checkpoint",
+            "timestamp",
+            "input_objects",
+            "output_objects",
+        ])),
+        Some(1024 * 1024_u32), // 1MB (minimum allowed)
+        &[
+            "transaction.digest",
+            "transaction.bcs",
+            "signatures",
+            "effects.digest",
+            "effects.bcs",
+            "checkpoint",
+            "timestamp",
+            "input_objects",
+            "output_objects",
+        ],
+        "streaming with 1000 transactions",
+    )
+    .await;
+
+    // Verify we got all 1000 results
+    let total_transactions: usize = responses.iter().map(|r| r.transactions.len()).sum();
+    assert_eq!(
+        total_transactions, 1000,
+        "Should have received 1000 transactions"
+    );
+
+    // Verify the number of response messages is greater than 1 (i.e., streaming
+    // occurred)
+    assert!(
+        responses.len() > 1,
+        "Should have received multiple response messages for streaming"
+    );
+}
+
+#[sim_test]
+async fn get_transactions_empty_request() {
+    let test_cluster = TestClusterBuilder::new()
+        .with_fullnode_enable_grpc_api(true)
+        .build()
+        .await;
+
+    let mut client = LedgerServiceClient::connect(test_cluster.grpc_url())
+        .await
+        .unwrap();
+
+    // Test empty request list
+    let responses =
+        assert_get_transactions_request(&mut client, vec![], None, None, &[], "empty request")
+            .await;
+
+    // Should return single response with 0 transactions
+    assert_eq!(responses.len(), 1, "Should have 1 response");
+    assert_eq!(
+        responses[0].transactions.len(),
+        0,
+        "Should have 0 transactions"
+    );
+    assert!(
+        !responses[0].has_next,
+        "has_next should be false for empty request"
+    );
+}
+
+#[sim_test]
+async fn get_transactions_nonexistent() {
+    let test_cluster = TestClusterBuilder::new()
+        .with_fullnode_enable_grpc_api(true)
+        .build()
+        .await;
+
+    let mut client = LedgerServiceClient::connect(test_cluster.grpc_url())
+        .await
+        .unwrap();
+
+    // Request non-existent transactions
+    let fake_digest1 = TransactionDigest::new([0u8; 32]);
+    let fake_digest2 = TransactionDigest::new([1u8; 32]);
+
+    let request = GetTransactionsRequest {
+        requests: Some(TransactionRequests {
+            requests: vec![
+                TransactionRequest {
+                    digest: Some(iota_grpc_types::v0::types::Digest {
+                        digest: fake_digest1.inner().to_vec().into(),
+                    }),
+                },
+                TransactionRequest {
+                    digest: Some(iota_grpc_types::v0::types::Digest {
+                        digest: fake_digest2.inner().to_vec().into(),
+                    }),
+                },
+            ],
+        }),
+        read_mask: None,
+        max_message_size_bytes: None,
+    };
+
+    let mut stream = client.get_transactions(request).await.unwrap().into_inner();
+
+    let mut responses = Vec::new();
+    while let Some(response) = stream.next().await {
+        let response = response.unwrap();
+        let has_next = response.has_next;
+        responses.push(response);
+        if !has_next {
+            break;
+        }
+    }
+
+    // Verify all results contain errors (not transactions)
+    let mut error_count = 0;
+    for response in &responses {
+        for tx_result in &response.transactions {
+            assert!(
+                tx_result.error_opt().is_some(),
+                "Expected error for non-existent transaction"
+            );
+            assert!(
+                tx_result.transaction_opt().is_none(),
+                "Expected no transaction for non-existent digest"
+            );
+
+            let error = tx_result.error_opt().unwrap();
+            // Verify error code is NOT_FOUND (5)
+            assert_eq!(
+                error.code, 5,
+                "Error code should be NOT_FOUND (5), got: {}",
+                error.code
+            );
+            error_count += 1;
+        }
+    }
+
+    assert_eq!(error_count, 2, "Should receive 2 errors");
+}
+
+#[sim_test]
+async fn get_transactions_mixed_valid_invalid() {
+    let test_cluster = TestClusterBuilder::new()
+        .with_fullnode_enable_grpc_api(true)
+        .build()
+        .await;
+
+    test_cluster.wait_for_checkpoint(1, None).await;
+
+    // Create a real transaction
+    let real_digest = create_test_transaction(&test_cluster).await;
+
+    let mut client = LedgerServiceClient::connect(test_cluster.grpc_url())
+        .await
+        .unwrap();
+
+    // Request mix of valid and invalid digests
+    let fake_digest = TransactionDigest::new([0u8; 32]);
+
+    let request = GetTransactionsRequest {
+        requests: Some(TransactionRequests {
+            requests: vec![
+                // Valid digest first
+                TransactionRequest {
+                    digest: Some(iota_grpc_types::v0::types::Digest {
+                        digest: real_digest.inner().to_vec().into(),
+                    }),
+                },
+                // Invalid digest
+                TransactionRequest {
+                    digest: Some(iota_grpc_types::v0::types::Digest {
+                        digest: fake_digest.inner().to_vec().into(),
+                    }),
+                },
+            ],
+        }),
+        read_mask: Some(FieldMask::from_paths(["transaction.digest"])),
+        max_message_size_bytes: None,
+    };
+
+    let mut stream = client.get_transactions(request).await.unwrap().into_inner();
+
+    let mut all_results = Vec::new();
+    while let Some(response) = stream.next().await {
+        let response = response.unwrap();
+        let has_next = response.has_next;
+        for tx_result in response.transactions {
+            all_results.push(tx_result);
+        }
+        if !has_next {
+            break;
+        }
+    }
+
+    // Should have exactly 2 results
+    assert_eq!(all_results.len(), 2, "Should have 2 results total");
+
+    // First result should be a transaction (valid digest)
+    assert!(
+        all_results[0].transaction_opt().is_some(),
+        "First result should be a valid transaction"
+    );
+    assert!(
+        all_results[0].error_opt().is_none(),
+        "First result should not have an error"
+    );
+
+    // Second result should be an error (invalid digest)
+    assert!(
+        all_results[1].error_opt().is_some(),
+        "Second result should be an error"
+    );
+    assert!(
+        all_results[1].transaction_opt().is_none(),
+        "Second result should not have a transaction"
+    );
+
+    // Verify error code is NOT_FOUND
+    let error = all_results[1].error_opt().unwrap();
+    assert_eq!(
+        error.code, 5,
+        "Error code should be NOT_FOUND (5), got: {}",
+        error.code
+    );
+}

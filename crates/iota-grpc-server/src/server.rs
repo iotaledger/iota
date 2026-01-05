@@ -88,6 +88,7 @@ pub async fn start_grpc_server(
     // server level
     let ledger_service = LedgerGrpcService::new(
         grpc_reader.clone(),
+        config.clone(),
         checkpoint_summary_broadcaster.clone(),
         checkpoint_data_broadcaster.clone(),
         shutdown_token.clone(),

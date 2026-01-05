@@ -7428,7 +7428,7 @@ dependencies = [
 
 [[package]]
 name = "iota-proto-build"
-version = "1.14.0-alpha"
+version = "1.15.0-alpha"
 dependencies = [
  "heck 0.4.1",
  "itertools 0.13.0",
