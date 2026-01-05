@@ -94,7 +94,7 @@ pub(crate) struct SuggestedGasPriceCalculator {
 impl SuggestedGasPriceCalculator {
     /// Create a new `SuggestedGasPriceCalculator` with empty shared
     /// object congestion data.
-    pub fn new(
+    pub(super) fn new(
         max_execution_duration_per_commit: Option<ExecutionTime>,
         reference_gas_price: u64,
         max_gas_price: u64,
@@ -153,7 +153,7 @@ impl SuggestedGasPriceCalculator {
     /// should only be called for certificates deferred/cancelled due to
     /// shared object congestion; otherwise, there is a risk of panic.
     #[instrument(level = "trace", skip_all)]
-    pub fn calculate_suggested_gas_price(
+    pub(super) fn calculate_suggested_gas_price(
         &self,
         certificate: &VerifiedExecutableTransaction,
         estimated_execution_duration: ExecutionTime,

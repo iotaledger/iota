@@ -18,13 +18,13 @@ use super::{
 };
 
 /// Represents execution slot boundaries
-pub(crate) type ExecutionTime = u64;
-pub const MAX_EXECUTION_TIME: ExecutionTime = ExecutionTime::MAX;
+pub(super) type ExecutionTime = u64;
+const MAX_EXECUTION_TIME: ExecutionTime = ExecutionTime::MAX;
 
 /// Represents a sequencing result: schedule transaction, or defer it
 /// due to shared object congestion. Sequencing result is returned by
 /// the `try_schedule` method of the `SharedObjectCongestionTracker`.
-pub enum SequencingResult {
+pub(super) enum SequencingResult {
     /// Sequencing result indicating that a transaction is scheduled to be
     /// executed at start time
     Schedule(/* start_time */ ExecutionTime),
@@ -230,7 +230,7 @@ impl SharedObjectCongestionTracker {
     /// Create a new `SharedObjectCongestionTracker` for the given
     /// `protocol_config` parameters and taking into account
     /// `initial_object_debts`.
-    pub fn new(
+    pub(super) fn new(
         initial_object_debts: impl IntoIterator<Item = (ObjectID, u64)>,
         protocol_config: &ProtocolConfig,
     ) -> Self {
@@ -260,7 +260,7 @@ impl SharedObjectCongestionTracker {
     /// `PerObjectCongestionControlMode` and `assign_min_free_execution_slot`
     /// parameters and taking into account `initial_object_debts`.
     #[cfg(test)]
-    pub(crate) fn new_for_test(
+    pub(super) fn new_for_test(
         initial_object_debts: impl IntoIterator<Item = (ObjectID, u64)>,
         mode: PerObjectCongestionControlMode,
         assign_min_free_execution_slot: bool,
@@ -288,7 +288,7 @@ impl SharedObjectCongestionTracker {
 
     /// Initialize the free execution slots for the objects that are not in the
     /// tracker.
-    pub fn initialize_object_execution_slots(
+    pub(super) fn initialize_object_execution_slots(
         &mut self,
         shared_input_objects: &[SharedInputObject],
     ) {
@@ -310,7 +310,7 @@ impl SharedObjectCongestionTracker {
     /// is initialized for all objects in the transaction by first calling
     /// `initialize_object_execution_slots`.
     #[instrument(level = "trace", skip_all)]
-    pub fn compute_tx_start_time(
+    fn compute_tx_start_time(
         &self,
         shared_input_objects: &[SharedInputObject],
         tx_duration: ExecutionTime,
@@ -421,7 +421,7 @@ impl SharedObjectCongestionTracker {
     /// The expected execution duration is what is used to schedule transactions
     /// and allocate resources based on how many transactions can be executed
     /// from a given consensus commit.
-    pub fn get_estimated_execution_duration(
+    pub(super) fn get_estimated_execution_duration(
         &self,
         cert: &VerifiedExecutableTransaction,
     ) -> ExecutionTime {
@@ -437,7 +437,7 @@ impl SharedObjectCongestionTracker {
     /// this returns the deferral key and the congested objects responsible for
     /// the deferral.
     #[instrument(level = "trace", skip_all, fields(cert_digest = ?cert.digest()))]
-    pub fn try_schedule(
+    pub(super) fn try_schedule(
         &self,
         cert: &VerifiedExecutableTransaction,
         max_execution_duration_per_commit: u64,
@@ -524,7 +524,7 @@ impl SharedObjectCongestionTracker {
     ///
     /// `start_time` provides the start time of the execution slot assigned to
     /// `cert`.
-    pub fn bump_object_execution_slots(
+    pub(super) fn bump_object_execution_slots(
         &mut self,
         cert: &VerifiedExecutableTransaction,
         start_time: ExecutionTime,
@@ -544,7 +544,7 @@ impl SharedObjectCongestionTracker {
     }
 
     /// Returns the maximum occupied slot end time over all shared objects.
-    pub fn max_occupied_slot_end_time(&self) -> ExecutionTime {
+    pub(super) fn max_occupied_slot_end_time(&self) -> ExecutionTime {
         self.object_execution_slots
             .values()
             .map(|slots| slots.max_object_occupied_slot_end_time())
@@ -555,7 +555,10 @@ impl SharedObjectCongestionTracker {
     /// Returns accumulated debts for objects whose budgets have been exceeded
     /// over the course of the commit. Consumes the tracker object, since
     /// this should only be called once after all txs have been processed.
-    pub fn accumulated_debts(self, max_execution_duration_per_commit: u64) -> Vec<(ObjectID, u64)> {
+    pub(super) fn accumulated_debts(
+        self,
+        max_execution_duration_per_commit: u64,
+    ) -> Vec<(ObjectID, u64)> {
         self.object_execution_slots
             .into_iter()
             .filter_map(|(obj_id, slots)| {
@@ -570,16 +573,16 @@ impl SharedObjectCongestionTracker {
 
 /// Stores per-object debts from a given consensus commit.
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]
-pub enum CongestionPerObjectDebt {
+pub(crate) enum CongestionPerObjectDebt {
     V1(CommitRound, u64),
 }
 
 impl CongestionPerObjectDebt {
-    pub fn new(round: CommitRound, debt: u64) -> Self {
+    pub(super) fn new(round: CommitRound, debt: u64) -> Self {
         Self::V1(round, debt)
     }
 
-    pub fn into_v1(self) -> (CommitRound, u64) {
+    pub(super) fn into_v1(self) -> (CommitRound, u64) {
         match self {
             Self::V1(round, debt) => (round, debt),
         }
@@ -773,7 +776,7 @@ pub mod shared_object_test_utils {
         shared_object_congestion_tracker.compute_tx_start_time(shared_input_objects, tx_duration)
     }
 
-    pub(crate) fn initialize_tracker_and_try_schedule(
+    pub(super) fn initialize_tracker_and_try_schedule(
         shared_object_congestion_tracker: &mut SharedObjectCongestionTracker,
         cert: &VerifiedExecutableTransaction,
         max_execution_duration_per_commit: u64,

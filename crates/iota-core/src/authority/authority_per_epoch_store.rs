@@ -4436,7 +4436,8 @@ impl AuthorityPerEpochStore {
 
     // Only for testing purposes. Loads initial object debts from the consensus
     // quarantine.
-    pub fn load_stored_object_debts_for_testing(
+    #[cfg(test)]
+    pub(crate) fn load_stored_object_debts_for_testing(
         &self,
         for_randomness: bool,
         object_ids: &[ObjectID],
