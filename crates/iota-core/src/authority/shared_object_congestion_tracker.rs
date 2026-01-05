@@ -541,19 +541,18 @@ impl SharedObjectCongestionTracker {
         let end_time = start_time.saturating_add(estimated_execution_duration);
         let occupied_slot = ExecutionSlot::new(start_time, end_time);
 
-        // Bump object execution slots and get IDs of shared objects for which
-        // execution slots are be bumped.
+        // Find IDs of shared objects for which execution slots should be bumped.
         let object_ids = cert
             .shared_input_objects()
-            .filter_map(|obj| {
-                self.object_execution_slots
-                    .get_mut(&obj.id)
-                    .expect("object execution slot should have been initialized before.")
-                    .remove(occupied_slot);
-
-                obj.mutable.then_some(obj.id)
-            })
+            .filter_map(|obj| obj.mutable.then_some(obj.id))
             .collect::<Vec<_>>();
+
+        object_ids.iter().for_each(|obj_id| {
+            self.object_execution_slots
+                .get_mut(obj_id)
+                .expect("object execution slot should have been initialized before.")
+                .remove(occupied_slot);
+        });
 
         Some(BumpObjectExecutionSlotsResult::new(
             object_ids,
