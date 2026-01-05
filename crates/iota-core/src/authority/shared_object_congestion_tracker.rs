@@ -524,23 +524,43 @@ impl SharedObjectCongestionTracker {
     ///
     /// `start_time` provides the start time of the execution slot assigned to
     /// `cert`.
+    ///
+    /// Returns `Some(BumpObjectExecutionSlotsResult)` if `cert`'s estimated
+    /// execution duration is non-zero, else returns `None`.
     pub(super) fn bump_object_execution_slots(
         &mut self,
         cert: &VerifiedExecutableTransaction,
         start_time: ExecutionTime,
-    ) {
-        let tx_duration = self.get_estimated_execution_duration(cert);
-        if tx_duration == 0 {
-            return;
+    ) -> Option<BumpObjectExecutionSlotsResult> {
+        let estimated_execution_duration = self.get_estimated_execution_duration(cert);
+
+        if estimated_execution_duration == 0 {
+            return None;
         }
-        let end_time = start_time.saturating_add(tx_duration);
+
+        let end_time = start_time.saturating_add(estimated_execution_duration);
         let occupied_slot = ExecutionSlot::new(start_time, end_time);
-        for obj in cert.shared_input_objects().filter(|obj| obj.mutable) {
-            self.object_execution_slots
-                .get_mut(&obj.id)
-                .expect("object execution slot should have been initialized before.")
-                .remove(occupied_slot);
-        }
+
+        // Bump object execution slots and get IDs of shared objects for which
+        // execution slots are be bumped.
+        let object_ids = cert
+            .shared_input_objects()
+            .filter_map(|obj| {
+                self.object_execution_slots
+                    .get_mut(&obj.id)
+                    .expect("object execution slot should have been initialized before.")
+                    .remove(occupied_slot);
+
+                obj.mutable.then_some(obj.id)
+            })
+            .collect::<Vec<_>>();
+
+        Some(BumpObjectExecutionSlotsResult::new(
+            object_ids,
+            start_time,
+            estimated_execution_duration,
+            cert.transaction_data().gas_price(),
+        ))
     }
 
     /// Returns the maximum occupied slot end time over all shared objects.
@@ -585,6 +605,81 @@ impl CongestionPerObjectDebt {
     pub(super) fn into_v1(self) -> (CommitRound, u64) {
         match self {
             Self::V1(round, debt) => (round, debt),
+        }
+    }
+}
+
+/// Stores a result of the [`bump_object_execution_slots`] method
+/// of `SharedObjectCongestionTracker` for a single scheduled transaction.
+/// The result is then intended to be used in `SuggestedGasPriceCalculator`.
+pub(super) struct BumpObjectExecutionSlotsResult {
+    /// List of IDs of shared objects for which execution slots
+    /// were bumped. Usually this includes shared objects accessed
+    /// by a mutable reference in a transaction.
+    object_ids: Vec<ObjectID>,
+
+    /// Start time at which the shared-object transaction has been scheduled.
+    execution_start_time: ExecutionTime,
+
+    /// Estimated execution duration of the scheduled shared-object transaction.
+    estimated_execution_duration: ExecutionTime,
+
+    /// Gas price of the scheduled shared-object transaction.
+    gas_price: u64,
+}
+
+impl BumpObjectExecutionSlotsResult {
+    /// Crate a new `BumpObjectExecutionSlotsResult`.
+    fn new(
+        object_ids: Vec<ObjectID>,
+        execution_start_time: ExecutionTime,
+        estimated_execution_duration: ExecutionTime,
+        gas_price: u64,
+    ) -> Self {
+        Self {
+            object_ids,
+            execution_start_time,
+            estimated_execution_duration,
+            gas_price,
+        }
+    }
+
+    /// Get the list of IDs of shared objects for which execution slots
+    /// were bumped.
+    pub(super) fn object_ids(&self) -> &[ObjectID] {
+        &self.object_ids
+    }
+
+    /// Get start time at which the shared-object transaction has been
+    /// scheduled.
+    pub(super) fn execution_start_time(&self) -> ExecutionTime {
+        self.execution_start_time
+    }
+
+    /// Get estimated execution duration of the scheduled shared-object
+    /// transaction.
+    pub(super) fn estimated_execution_duration(&self) -> ExecutionTime {
+        self.estimated_execution_duration
+    }
+
+    /// Get gas price of the scheduled shared-object transaction.
+    pub(super) fn gas_price(&self) -> u64 {
+        self.gas_price
+    }
+
+    /// Crate a new `BumpObjectExecutionSlotsResult` for test.
+    #[cfg(test)]
+    pub(super) fn new_for_test(
+        object_ids: Vec<ObjectID>,
+        execution_start_time: ExecutionTime,
+        estimated_execution_duration: ExecutionTime,
+        gas_price: u64,
+    ) -> Self {
+        Self {
+            object_ids,
+            execution_start_time,
+            estimated_execution_duration,
+            gas_price,
         }
     }
 }

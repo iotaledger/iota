@@ -3878,24 +3878,19 @@ impl AuthorityPerEpochStore {
                         // we have to update the following:
                         // - shared object execution slots (for congestion tracker);
                         // - shared object congestion info (for suggested gas price calculator).
-                        if certificate.contains_shared_object() {
-                            if self
+                        if certificate.contains_shared_object()
+                            && self
                                 .get_max_execution_duration_per_commit_as_option()
                                 .is_some()
-                            {
-                                // We only need to do this if `max_execution_duration_per_commit`
-                                // is `Some`, since otherwise this bumping will panic as object
-                                // execution slots are only initialized if
-                                // `max_execution_duration_per_commit` is not `None`.
-                                shared_object_congestion_tracker
-                                    .bump_object_execution_slots(&certificate, start_time);
-                            }
+                        {
+                            // We only need to do this if `max_execution_duration_per_commit`
+                            // is `Some`, since otherwise this bumping will panic as object
+                            // execution slots are only initialized if
+                            // `max_execution_duration_per_commit` is not `None`.
+                            let bump_result = shared_object_congestion_tracker
+                                .bump_object_execution_slots(&certificate, start_time);
 
-                            suggested_gas_price_calculator.update_congestion_info(
-                                &certificate,
-                                start_time,
-                                estimated_execution_duration,
-                            );
+                            suggested_gas_price_calculator.update_congestion_info(bump_result);
                         }
 
                         Ok(ConsensusCertificateResult::Scheduled {

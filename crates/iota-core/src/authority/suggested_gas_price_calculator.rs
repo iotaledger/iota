@@ -3,13 +3,11 @@
 
 use std::collections::{BTreeMap, HashMap};
 
-use iota_types::{
-    base_types::ObjectID, executable_transaction::VerifiedExecutableTransaction,
-    transaction::TransactionDataAPI,
-};
+use iota_types::{base_types::ObjectID, executable_transaction::VerifiedExecutableTransaction};
 use tracing::instrument;
 
 use super::shared_object_congestion_tracker::ExecutionTime;
+use crate::authority::shared_object_congestion_tracker::BumpObjectExecutionSlotsResult;
 
 /// Holds shared object congestion info for a single scheduled shared-object
 /// transaction.
@@ -110,42 +108,35 @@ impl SuggestedGasPriceCalculator {
     /// Update per-commit congestion info for a single certificate. This should
     /// only be called for scheduled certificates that contain shared object(s);
     /// otherwise, the calculator might wrongly calculate suggested gas price.
-    /// The `execution_start_time` and `estimated_execution_duration` parameters
-    /// are the outcomes of the shared object congestion tracker (sequencer).
-    pub fn update_congestion_info(
+    /// `bump_object_execution_slots_result` is the outcome of the
+    /// [`bump_object_execution_slots`] of `SharedObjectCongestionTracker`.
+    pub(super) fn update_congestion_info(
         &mut self,
-        certificate: &VerifiedExecutableTransaction,
-        execution_start_time: ExecutionTime,
-        estimated_execution_duration: ExecutionTime,
+        bump_object_execution_slots_result: Option<BumpObjectExecutionSlotsResult>,
     ) {
-        // If we don't have a max execution duration, we don't need to update
-        // the congestion info since the reference gas price will be suggested.
-        if self.max_execution_duration_per_commit.is_none() {
-            return;
-        }
+        // If we don't have a `BumpObjectExecutionSlotsResult`, we don't need
+        // to update the congestion info.
+        if let Some(tx) = bump_object_execution_slots_result {
+            let scheduled_transaction_congestion_info = ScheduledTransactionCongestionInfo::new(
+                tx.gas_price(),
+                tx.estimated_execution_duration(),
+            );
 
-        let scheduled_transaction_congestion_info = ScheduledTransactionCongestionInfo::new(
-            certificate.transaction_data().gas_price(),
-            estimated_execution_duration,
-        );
-
-        certificate
-            .shared_input_objects()
-            // Only consider shared objects accessed mutably as objects accessed immutably
-            // do not change object's execution slots in the sequencer.
-            .filter(|object| object.mutable)
-            .for_each(|object| {
+            tx.object_ids().iter().for_each(|obj_id| {
                 self.congestion_info
-                    .entry(object.id)
+                    .entry(*obj_id)
                     .and_modify(|per_object_congestion_info| {
-                        per_object_congestion_info
-                            .insert(execution_start_time, scheduled_transaction_congestion_info);
+                        per_object_congestion_info.insert(
+                            tx.execution_start_time(),
+                            scheduled_transaction_congestion_info,
+                        );
                     })
                     .or_insert(PerObjectCongestionInfo::from([(
-                        execution_start_time,
+                        tx.execution_start_time(),
                         scheduled_transaction_congestion_info,
                     )]));
             });
+        }
     }
 
     /// Calculate a suggested gas price for a deferred/cancelled `certificate`
@@ -285,14 +276,10 @@ pub mod suggested_gas_price_calculator_test_utils {
                                 tracker",
                     );
 
-                    shared_object_congestion_tracker
+                    let bump_result = shared_object_congestion_tracker
                         .bump_object_execution_slots(&certificate, execution_start_time);
 
-                    suggested_gas_price_calculator.update_congestion_info(
-                        &certificate,
-                        execution_start_time,
-                        *duration,
-                    );
+                    suggested_gas_price_calculator.update_congestion_info(bump_result);
                 }
                 PerObjectCongestionControlMode::TotalTxCount => {
                     for _ in 0..*duration {
@@ -308,14 +295,10 @@ pub mod suggested_gas_price_calculator_test_utils {
                                     the tracker",
                         );
 
-                        shared_object_congestion_tracker
+                        let bump_result = shared_object_congestion_tracker
                             .bump_object_execution_slots(&certificate, execution_start_time);
 
-                        suggested_gas_price_calculator.update_congestion_info(
-                            &certificate,
-                            execution_start_time,
-                            1,
-                        );
+                        suggested_gas_price_calculator.update_congestion_info(bump_result);
                     }
                 }
             }
@@ -336,8 +319,8 @@ mod tests {
     use super::SuggestedGasPriceCalculator;
     use crate::authority::{
         shared_object_congestion_tracker::{
-            ExecutionTime, SequencingResult, SharedObjectCongestionTracker,
-            shared_object_test_utils::build_transaction,
+            BumpObjectExecutionSlotsResult, ExecutionTime, SequencingResult,
+            SharedObjectCongestionTracker, shared_object_test_utils::build_transaction,
         },
         suggested_gas_price_calculator::{
             PerCommitCongestionInfo, PerObjectCongestionInfo, ScheduledTransactionCongestionInfo,
@@ -385,13 +368,9 @@ mod tests {
         shared_object_congestion_tracker: &mut SharedObjectCongestionTracker,
         suggested_gas_price_calculator: &mut SuggestedGasPriceCalculator,
     ) {
-        shared_object_congestion_tracker
+        let bump_result = shared_object_congestion_tracker
             .bump_object_execution_slots(certificate, execution_start_time);
-        suggested_gas_price_calculator.update_congestion_info(
-            certificate,
-            execution_start_time,
-            shared_object_congestion_tracker.get_estimated_execution_duration(certificate),
-        );
+        suggested_gas_price_calculator.update_congestion_info(bump_result);
     }
 
     #[rstest]
@@ -418,18 +397,22 @@ mod tests {
         // Construct the first certificate that touches shared objects:
         // - `object_1` by mutable reference,
         // - `object_2` by immutable reference.
-        let objects_1 = vec![(object_1, true), (object_2, false)];
-        let gas_budget_1 = 1_003_000; // not important in this test
+        let objects_1 = [(object_1, true), (object_2, false)];
         let gas_price_1 = 1_003;
-        let certificate_1 = build_transaction(&objects_1, gas_budget_1, gas_price_1);
         let execution_start_time_1 = 0;
         let estimated_execution_duration_1 = 3;
         // Update the calculator's congestion info for this certificate.
-        suggested_gas_price_calculator.update_congestion_info(
-            &certificate_1,
-            execution_start_time_1,
-            estimated_execution_duration_1,
-        );
+        suggested_gas_price_calculator.update_congestion_info(Some(
+            BumpObjectExecutionSlotsResult::new_for_test(
+                objects_1
+                    .iter()
+                    .filter_map(|(obj_id, mutable)| mutable.then_some(*obj_id))
+                    .collect(),
+                execution_start_time_1,
+                estimated_execution_duration_1,
+                gas_price_1,
+            ),
+        ));
         //
         if let Some(_max_execution_duration_per_commit) = max_execution_duration_per_commit {
             // Note that `object_2` should not appear because it is accessed immutably.
@@ -457,18 +440,22 @@ mod tests {
         // - `object_2` by mutable reference,
         // - `object_3` by immutable reference,
         // - `object_4` by mutable reference.
-        let objects_2 = vec![(object_2, true), (object_3, false), (object_4, true)];
-        let gas_budget_2 = 1_002_000; // not important in this test
+        let objects_2 = [(object_2, true), (object_3, false), (object_4, true)];
         let gas_price_2 = 1_002;
-        let certificate_2 = build_transaction(&objects_2, gas_budget_2, gas_price_2);
         let execution_start_time_2 = 1;
         let estimated_execution_duration_2 = 2;
         // Update the calculator's congestion info for this certificate.
-        suggested_gas_price_calculator.update_congestion_info(
-            &certificate_2,
-            execution_start_time_2,
-            estimated_execution_duration_2,
-        );
+        suggested_gas_price_calculator.update_congestion_info(Some(
+            BumpObjectExecutionSlotsResult::new_for_test(
+                objects_2
+                    .iter()
+                    .filter_map(|(obj_id, mutable)| mutable.then_some(*obj_id))
+                    .collect(),
+                execution_start_time_2,
+                estimated_execution_duration_2,
+                gas_price_2,
+            ),
+        ));
         //
         if let Some(_max_execution_duration_per_commit) = max_execution_duration_per_commit {
             // Note that `object_3` should not appear because it is accessed immutably.
@@ -513,18 +500,22 @@ mod tests {
         // Construct the third certificate that touches shared objects:
         // - `object_4` by immutable reference,
         // - `object_5` by mutable reference.
-        let objects_3 = vec![(object_4, false), (object_5, true)];
-        let gas_budget_3 = 1_001_000; // not important in this test
+        let objects_3 = [(object_4, false), (object_5, true)];
         let gas_price_3 = 1_001;
-        let certificate_3 = build_transaction(&objects_3, gas_budget_3, gas_price_3);
         let execution_start_time_3 = 2;
         let estimated_execution_duration_3 = 1;
         // Update the calculator's congestion info for this certificate.
-        suggested_gas_price_calculator.update_congestion_info(
-            &certificate_3,
-            execution_start_time_3,
-            estimated_execution_duration_3,
-        );
+        suggested_gas_price_calculator.update_congestion_info(Some(
+            BumpObjectExecutionSlotsResult::new_for_test(
+                objects_3
+                    .iter()
+                    .filter_map(|(obj_id, mutable)| mutable.then_some(*obj_id))
+                    .collect(),
+                execution_start_time_3,
+                estimated_execution_duration_3,
+                gas_price_3,
+            ),
+        ));
         //
         if let Some(_max_execution_duration_per_commit) = max_execution_duration_per_commit {
             // Note that `object_3` should not appear because it is accessed immutably.
