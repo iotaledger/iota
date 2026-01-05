@@ -1,5 +1,12 @@
 # @iota/apps-ui-kit
 
+## 0.9.1
+
+### Patch Changes
+
+-   Updated dependencies [c395af9]
+    -   @iota/apps-ui-icons@0.7.1
+
 ## 0.9.0
 
 ### Minor Changes

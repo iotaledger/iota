@@ -22,6 +22,18 @@ To build the extension and watch for changes run:
 pnpm wallet dev
 ```
 
+Optionally to enable the whole set of features (e.g Balance Finder) you may also run an apps-backend instance:
+
+```
+pnpm apps-backend dev
+```
+
+You can also run both the wallet and `apps-backend` in one single command with:
+
+```
+pnpm wallet-dev
+```
+
 This will build the app in the [dist/](./dist/) directory, watch for changes and rebuild it. (Also runs prettier to format the files that changed.)
 
 ## Environment Variables

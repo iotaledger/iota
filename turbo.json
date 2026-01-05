@@ -19,8 +19,9 @@
 			"persistent": true
 		},
 		"codegen": {
+			"dependsOn": ["^codegen"],
 			"cache": false,
-			"persistent": true
+			"persistent": false
 		},
 		"build": {
 			"dependsOn": ["^build"],
