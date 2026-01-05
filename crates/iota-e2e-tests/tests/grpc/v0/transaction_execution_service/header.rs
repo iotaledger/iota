@@ -36,9 +36,7 @@ fn verify_iota_headers(metadata: &MetadataMap, operation_name: &str) {
     for header_name in &required_headers {
         assert!(
             metadata.get(*header_name).is_some(),
-            "{} response should contain {} header",
-            operation_name,
-            header_name
+            "{operation_name} response should contain {header_name} header",
         );
     }
 }
@@ -47,11 +45,11 @@ fn verify_iota_headers(metadata: &MetadataMap, operation_name: &str) {
 fn parse_u64_header(metadata: &MetadataMap, header_name: &str) -> u64 {
     metadata
         .get(header_name)
-        .unwrap_or_else(|| panic!("{} header should be present", header_name))
+        .unwrap_or_else(|| panic!("{header_name} header should be present"))
         .to_str()
-        .unwrap_or_else(|_| panic!("{} header should be valid UTF-8", header_name))
+        .unwrap_or_else(|_| panic!("{header_name} header should be valid UTF-8"))
         .parse()
-        .unwrap_or_else(|_| panic!("{} header should be a valid u64", header_name))
+        .unwrap_or_else(|_| panic!("{header_name} header should be a valid u64"))
 }
 
 #[sim_test]
@@ -110,7 +108,7 @@ async fn test_response_headers() {
 
         // Verify epoch value
         let epoch = parse_u64_header(metadata, headers::X_IOTA_EPOCH);
-        assert!(epoch >= 1, "epoch should be at least 1, got {}", epoch);
+        assert!(epoch >= 1, "epoch should be at least 1, got {epoch}");
     }
 
     // Test simulate_transaction
@@ -155,6 +153,6 @@ async fn test_response_headers() {
 
         // Verify epoch value
         let epoch = parse_u64_header(metadata, headers::X_IOTA_EPOCH);
-        assert!(epoch >= 2, "epoch should be at least 2, got {}", epoch);
+        assert!(epoch >= 2, "epoch should be at least 2, got {epoch}");
     }
 }

@@ -30,9 +30,7 @@ fn verify_iota_headers(metadata: &MetadataMap, operation_name: &str) {
     for header_name in &required_headers {
         assert!(
             metadata.get(*header_name).is_some(),
-            "{} response should contain {} header",
-            operation_name,
-            header_name
+            "{operation_name} response should contain {header_name} header",
         );
     }
 }
@@ -41,11 +39,11 @@ fn verify_iota_headers(metadata: &MetadataMap, operation_name: &str) {
 fn parse_u64_header(metadata: &MetadataMap, header_name: &str) -> u64 {
     metadata
         .get(header_name)
-        .unwrap_or_else(|| panic!("{} header should be present", header_name))
+        .unwrap_or_else(|| panic!("{header_name} header should be present"))
         .to_str()
-        .unwrap_or_else(|_| panic!("{} header should be valid UTF-8", header_name))
+        .unwrap_or_else(|_| panic!("{header_name} header should be valid UTF-8"))
         .parse()
-        .unwrap_or_else(|_| panic!("{} header should be a valid u64", header_name))
+        .unwrap_or_else(|_| panic!("{header_name} header should be a valid u64"))
 }
 
 #[sim_test]
@@ -80,13 +78,12 @@ async fn test_response_headers() {
         let checkpoint_height = parse_u64_header(metadata, headers::X_IOTA_CHECKPOINT_HEIGHT);
         assert!(
             checkpoint_height >= 10,
-            "checkpoint_height should be at least 10, got {}",
-            checkpoint_height
+            "checkpoint_height should be at least 10, got {checkpoint_height}",
         );
 
         // Verify epoch value
         let epoch = parse_u64_header(metadata, headers::X_IOTA_EPOCH);
-        assert_eq!(epoch, 0, "epoch should be 0, got {}", epoch);
+        assert_eq!(epoch, 0, "epoch should be 0, got {epoch}");
     }
 
     // Test get_epoch
@@ -109,7 +106,7 @@ async fn test_response_headers() {
 
         // Verify epoch value
         let epoch = parse_u64_header(metadata, headers::X_IOTA_EPOCH);
-        assert!(epoch >= 1, "epoch should be at least 1, got {}", epoch);
+        assert!(epoch >= 1, "epoch should be at least 1, got {epoch}");
     }
 
     // Test get_objects
@@ -133,7 +130,7 @@ async fn test_response_headers() {
 
         // Verify epoch value
         let epoch = parse_u64_header(metadata, headers::X_IOTA_EPOCH);
-        assert!(epoch >= 2, "epoch should be at least 2, got {}", epoch);
+        assert!(epoch >= 2, "epoch should be at least 2, got {epoch}");
     }
 
     // Test get_transactions
@@ -157,7 +154,7 @@ async fn test_response_headers() {
 
         // Verify epoch value
         let epoch = parse_u64_header(metadata, headers::X_IOTA_EPOCH);
-        assert!(epoch >= 3, "epoch should be at least 3, got {}", epoch);
+        assert!(epoch >= 3, "epoch should be at least 3, got {epoch}");
     }
 
     // Test get_checkpoint_data
@@ -185,7 +182,7 @@ async fn test_response_headers() {
 
         // Verify epoch value
         let epoch = parse_u64_header(metadata, headers::X_IOTA_EPOCH);
-        assert!(epoch >= 4, "epoch should be at least 4, got {}", epoch);
+        assert!(epoch >= 4, "epoch should be at least 4, got {epoch}");
     }
 
     // Test stream_checkpoint_data
@@ -214,6 +211,6 @@ async fn test_response_headers() {
 
         // Verify epoch value
         let epoch = parse_u64_header(metadata, headers::X_IOTA_EPOCH);
-        assert!(epoch >= 5, "epoch should be at least 5, got {}", epoch);
+        assert!(epoch >= 5, "epoch should be at least 5, got {epoch}");
     }
 }
