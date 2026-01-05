@@ -1,3 +1,6 @@
+// Copyright (c) 2025 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 use anyhow::Result;
 use fastcrypto::{
     ed25519::Ed25519Signature,

@@ -1,3 +1,6 @@
+// Copyright (c) 2025 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 use anyhow::{anyhow, Context, Result};
 use crate::utils::{get_coin};
 use iota_keys::keystore::{AccountKeystore};
