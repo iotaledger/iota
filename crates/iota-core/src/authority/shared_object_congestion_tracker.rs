@@ -94,13 +94,13 @@ impl ExecutionSlot {
         Self::new(0, MAX_EXECUTION_TIME)
     }
 
-    // Returns an ordering indicating whether this execution slot contains the other
-    // execution slot. The ordering is defined as follows:
-    // - Less: the other slot is not contained by this slot and this slot's end time
-    //   is less than the other slot's end time.
-    // - Greater: the other slot is not contained by this slot and this slot's start
-    //   time is greater than the other slot's start time.
-    // - Equal: the other slot is contained by this slot.
+    /// Returns an ordering indicating whether this execution slot contains the
+    /// other execution slot. The ordering is defined as follows:
+    /// - Less: the other slot is not contained by this slot and this slot's end
+    ///   time is less than the other slot's end time.
+    /// - Greater: the other slot is not contained by this slot and this slot's
+    ///   start time is greater than the other slot's start time.
+    /// - Equal: the other slot is contained by this slot.
     fn contains(&self, other: &Self) -> Ordering {
         if self.end_time < other.end_time {
             Ordering::Less
@@ -120,6 +120,8 @@ impl ExecutionSlot {
 struct ObjectExecutionSlots(Vec<ExecutionSlot>);
 
 impl ObjectExecutionSlots {
+    /// Create a new `ObjectExecutionSlots` with a single slot of maximum
+    /// duration.
     fn new() -> Self {
         Self(vec![ExecutionSlot::max_duration_slot()])
     }
@@ -136,8 +138,8 @@ impl ObjectExecutionSlots {
         }
         None
     }
+
     /// Returns the maximum occupied slot end time for a given shared object.
-    /// If
     fn max_object_occupied_slot_end_time(&self) -> ExecutionTime {
         // the maximum free slot start time for a transaction of duration 0 will give
         // the desired result. If this returns None for a transaction of duration 0,
@@ -146,11 +148,13 @@ impl ObjectExecutionSlots {
             .unwrap_or(MAX_EXECUTION_TIME)
     }
 
-    fn remove(&mut self, slot: ExecutionSlot) {
+    /// Remove the occupied slot `slot_to_remove` from this
+    /// `ObjectExecutionSlots`.
+    fn remove(&mut self, slot_to_remove: ExecutionSlot) {
         // binary search the slot that contains the slot to be removed.
         let mut index = self
             .0
-            .binary_search_by(|s| s.contains(&slot))
+            .binary_search_by(|s| s.contains(&slot_to_remove))
             .expect("can't remove a slot that is not available");
         // if the occupied slot that we wish to remove overlaps with the free slot, we
         // split the free slot. There are 4 cases to consider.
@@ -179,40 +183,42 @@ impl ObjectExecutionSlots {
         let free_slot = self.0.remove(index);
         // case A: if a part of the free slot remains at the start, create a new
         // free slot.
-        if slot.start_time > free_slot.start_time {
+        if slot_to_remove.start_time > free_slot.start_time {
             self.0.insert(
                 index,
-                ExecutionSlot::new(free_slot.start_time, slot.start_time),
+                ExecutionSlot::new(free_slot.start_time, slot_to_remove.start_time),
             );
             index += 1;
         }
         // case B: if a part of the free slot remains at the end, create a new free
         // slot.
-        if slot.end_time < free_slot.end_time {
-            self.0
-                .insert(index, ExecutionSlot::new(slot.end_time, free_slot.end_time));
+        if slot_to_remove.end_time < free_slot.end_time {
+            self.0.insert(
+                index,
+                ExecutionSlot::new(slot_to_remove.end_time, free_slot.end_time),
+            );
         }
     }
 }
 
-// `SharedObjectCongestionTracker` stores the available and occupied execution
-// slots for the transactions within a consensus commit.
-//
-// When transactions are scheduled by the consensus handler, each scheduled
-// transaction takes up an execution slot with a certain start time.
-//
-// The goal of this data structure is to capture the critical path of
-// transaction execution latency on each objects.
-//
-// The `mode` field determines how the estimated execution duration of the
-// transaction is calculated.
-//
-// The `assign_min_free_execution_slot` field determines how the start time of a
-// transaction should be assigned. If true, the tracker will assign the start
-// time according to the minimum free execution slot for a transaction over all
-// its shared objects. If false, the tracker will assign the start time
-// according to the maximum end time of the occupied execution slots for a
-// transaction over all its shared objects.
+/// `SharedObjectCongestionTracker` stores the available and occupied execution
+/// slots for the transactions within a consensus commit.
+///
+/// When transactions are scheduled by the consensus handler, each scheduled
+/// transaction takes up an execution slot with a certain start time.
+///
+/// The goal of this data structure is to capture the critical path of
+/// transaction execution latency on each objects.
+///
+/// The `mode` field determines how the estimated execution duration of the
+/// transaction is calculated.
+///
+/// The `assign_min_free_execution_slot` field determines how the start time of
+/// a transaction should be assigned. If true, the tracker will assign the start
+/// time according to the minimum free execution slot for a transaction over all
+/// its shared objects. If false, the tracker will assign the start time
+/// according to the maximum end time of the occupied execution slots for a
+/// transaction over all its shared objects.
 #[derive(PartialEq, Eq, Clone, Debug)]
 pub(crate) struct SharedObjectCongestionTracker {
     object_execution_slots: HashMap<ObjectID, ObjectExecutionSlots>,
@@ -221,6 +227,9 @@ pub(crate) struct SharedObjectCongestionTracker {
 }
 
 impl SharedObjectCongestionTracker {
+    /// Create a new `SharedObjectCongestionTracker` for the given
+    /// `protocol_config` parameters and taking into account
+    /// `initial_object_debts`.
     pub fn new(
         initial_object_debts: impl IntoIterator<Item = (ObjectID, u64)>,
         protocol_config: &ProtocolConfig,
@@ -238,6 +247,7 @@ impl SharedObjectCongestionTracker {
                 (object_id, slots)
             })
             .collect::<HashMap<_, _>>();
+
         Self {
             object_execution_slots,
             mode: protocol_config.per_object_congestion_control_mode(),
@@ -246,6 +256,9 @@ impl SharedObjectCongestionTracker {
         }
     }
 
+    /// Create a new `SharedObjectCongestionTracker` for testing for the given
+    /// `PerObjectCongestionControlMode` and `assign_min_free_execution_slot`
+    /// parameters and taking into account `initial_object_debts`.
     #[cfg(test)]
     pub(crate) fn new_for_test(
         initial_object_debts: impl IntoIterator<Item = (ObjectID, u64)>,
@@ -273,8 +286,8 @@ impl SharedObjectCongestionTracker {
         }
     }
 
-    // initialize the free execution slots for the objects that are not in the
-    // tracker.
+    /// Initialize the free execution slots for the objects that are not in the
+    /// tracker.
     pub fn initialize_object_execution_slots(
         &mut self,
         shared_input_objects: &[SharedInputObject],
@@ -348,11 +361,11 @@ impl SharedObjectCongestionTracker {
         }
     }
 
-    // A recursive function that tries to find the lowest free slot for a
-    // transaction. If a slot is found that fits the transaction, the function
-    // returns the slot. Otherwise, it returns None.
-    // lookup_interval is the range of the slot that the transaction can fit in
-    // given the objects that have been checked so far.
+    /// A recursive function that tries to find the lowest free slot for a
+    /// transaction. If a slot is found that fits the transaction, the function
+    /// returns the slot. Otherwise, it returns None.
+    /// lookup_interval is the range of the slot that the transaction can fit in
+    /// given the objects that have been checked so far.
     fn compute_min_free_execution_slot(
         &self,
         shared_input_objects: &[SharedInputObject],
@@ -539,9 +552,9 @@ impl SharedObjectCongestionTracker {
             .unwrap_or(0)
     }
 
-    // Returns accumulated debts for objects whose budgets have been exceeded over
-    // the course of the commit. Consumes the tracker object, since this should
-    // only be called once after all txs have been processed.
+    /// Returns accumulated debts for objects whose budgets have been exceeded
+    /// over the course of the commit. Consumes the tracker object, since
+    /// this should only be called once after all txs have been processed.
     pub fn accumulated_debts(self, max_execution_duration_per_commit: u64) -> Vec<(ObjectID, u64)> {
         self.object_execution_slots
             .into_iter()
@@ -714,10 +727,11 @@ pub mod shared_object_test_utils {
 
     pub const TEST_ONLY_GAS_PRICE: u64 = 1_000;
 
-    // Builds a certificate with a list of shared objects and their mutability. The
-    // certificate is only used to test the SharedObjectCongestionTracker
-    // functions, therefore the content other than shared inputs, gas budget
-    // and gas price are not important.
+    /// Builds a certificate with a list of shared objects and their mutability.
+    /// The certificate is only used to test the
+    /// `SharedObjectCongestionTracker` functions, therefore the content
+    /// other than shared inputs, gas budget and gas price are not
+    /// important.
     pub fn build_transaction(
         objects: &[(ObjectID, bool)],
         gas_budget: u64,
