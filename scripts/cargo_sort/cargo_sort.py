@@ -68,27 +68,13 @@ def get_package_names_from_cargo_tomls(directory: str, ignored_patterns: list = 
     print("Getting \"internal\" crates from 'Cargo.toml' files...")
 
     package_names = {}
-    ignored_patterns = ignored_patterns or []
-    ignored_regexes = [re.compile(p) for p in ignored_patterns]
 
-    # find all Cargo.toml files in the target folder
-    for root, dirs, files in os.walk(directory):
-        # skip target directory
-        if 'target' in root.split(os.sep):
-            dirs.clear()
-            continue
+    def extract_package_name(file_path: str, names_dict: dict):
+        package_name = get_package_name_from_cargo_toml(file_path)
+        if package_name:
+            names_dict[package_name] = None
 
-        # skip ignored patterns
-        if any(r.search(root) for r in ignored_regexes):
-            dirs.clear()
-            continue
-
-        for file in files:
-            if file == 'Cargo.toml':
-                file_path = os.path.join(root, file)
-                package_name = get_package_name_from_cargo_toml(file_path)
-                if package_name:
-                    package_names[package_name] = None
+    find_and_process_toml_files(directory, ignored_patterns or [], extract_package_name, names_dict=package_names)
     
     return package_names
 
@@ -113,14 +99,16 @@ def find_all_cargo_tomls(directory: str, ignored_patterns: list = None) -> list:
 
     return cargo_tomls
 
-def find_and_process_toml_files(directory: str, internal_crates_dict: dict, ignored_patterns: list, debug: bool, process_func):
+def find_and_process_toml_files(directory: str, ignored_patterns: list, process_func, **kwargs):
     # find all Cargo.toml files and process them with the given function.
-    print("Processing Cargo.toml files...")
-
+    #   args:
+    #       directory: Root directory to search
+    #       ignored_patterns: Patterns to ignore during traversal
+    #       process_func: Function to call on each Cargo.toml file
+    #       **kwargs: Additional arguments to pass to process_func
     cargo_tomls = find_all_cargo_tomls(directory, ignored_patterns)
     for file_path in cargo_tomls:
-        print(f'Processing {file_path}')
-        process_func(file_path, internal_crates_dict, debug)
+        process_func(file_path, **kwargs)
 
 def run_dprint_fmt(directory: str):
     # run dprint fmt to format the files.
@@ -731,8 +719,10 @@ def build_crate_workspace_ref(dep: Dependency) -> Optional[str]:
         features_str = ', '.join(f'"{f}"' for f in dep.features)
         extra_parts.append(f'features = [{features_str}]')
 
-    if dep.default_features is False:
-        extra_parts.append('default-features = false')
+    # Include both default-features = false AND default-features = true
+    # This is necessary when workspace has default-features=false but this crate needs them
+    if dep.default_features is not None:
+        extra_parts.append(f'default-features = {str(dep.default_features).lower()}')
 
     if dep.optional:
         extra_parts.append('optional = true')
@@ -883,7 +873,19 @@ def update_crate_cargo_toml(toml_path: str, updates: dict):
                             new_lines.append(f'{indent_str}{alias}.workspace = true\n')
                         else:
                             new_lines.append(f'{indent_str}{alias} = {new_spec}\n')
-                    else:
+                    elif action == 'fix_default_features':
+                        # Fix invalid default-features=false in workspace dependency
+                        if dep.workspace:
+                            new_spec = build_crate_workspace_ref(dep)
+                            if new_spec is None:
+                                new_lines.append(f'{indent_str}{alias}.workspace = true\n')
+                            else:
+                                new_lines.append(f'{indent_str}{alias} = {new_spec}\n')
+                        else:
+                            # For non-workspace deps, use full spec
+                            new_spec = build_full_dep_spec(dep)
+                            new_lines.append(f'{indent_str}{alias} = {new_spec}\n')
+                    else:  # 'to_full'
                         new_spec = build_full_dep_spec(dep)
                         new_lines.append(f'{indent_str}{alias} = {new_spec}\n')
                     continue
@@ -893,6 +895,11 @@ def update_crate_cargo_toml(toml_path: str, updates: dict):
     with open(toml_path, 'w') as f:
         f.writelines(new_lines)
     print(f"Updated {toml_path}")
+
+def get_crate_path(toml_path: str, target_dir: str) -> str:
+    # Convert absolute toml path to relative crate path from workspace root.
+    rel_path = os.path.relpath(toml_path, target_dir)
+    return rel_path.replace('/Cargo.toml', '') if rel_path.endswith('/Cargo.toml') else rel_path
 
 def run_consolidate_mode(args, target_dir: str, root_cargo_toml: str, ignore_patterns: list):
     # run the consolidate dependencies mode.
@@ -921,10 +928,12 @@ def run_consolidate_mode(args, target_dir: str, root_cargo_toml: str, ignore_pat
         root_spec = info['root_spec']
 
         unique_crates = set(usage[0] for usage in usages)
+        # Use relative paths from workspace root for unique crate identification
+        unique_crates = set(get_crate_path(usage[0], target_dir) for usage in usages)
         usage_count = len(unique_crates)
 
         regular_usages = [u for u in usages if not is_special_dep_section(u[1])]
-        regular_usage_count = len(set(u[0] for u in regular_usages))
+        regular_usage_count = len(set(get_crate_path(u[0], target_dir) for u in regular_usages))
 
         if regular_usage_count >= args.min_usage:
             if not root_spec:
@@ -1017,13 +1026,22 @@ def run_consolidate_mode(args, target_dir: str, root_cargo_toml: str, ignore_pat
                         print(f"{YELLOW}NOTE: Dependency '{alias}' has multiple versions: {unique_versions}{RESET}")
                         print(f"  Using highest version.")
 
-                    default_features_values = set(dep.default_features for _, dep in version_deps if dep.default_features is not None)
-                    if len(default_features_values) > 1:
-                        print(f"{YELLOW}WARNING: Dependency '{alias}' has conflicting default-features settings!{RESET}")
-                        for path, dep in version_deps:
-                            if dep.default_features is not None:
-                                print(f"    - {os.path.relpath(path)}: default-features = {dep.default_features}")
-                        print(f"  {YELLOW}Will NOT set default-features in workspace (crates should set it individually){RESET}")
+                    # Handle default-features logic:
+                    # If ANY crate uses default-features=false, set workspace to false
+                    # and ALL other crates (that didn't explicitly disable defaults) need default-features=true
+                    print(f"[DEBUG] Considering {alias} for consolidation (version_deps):")
+                    for path, dep in version_deps:
+                        print(f"[DEBUG]   {os.path.relpath(path)}: default_features={dep.default_features}")
+                    
+                    # Check if any crate explicitly disables default features
+                    has_explicit_false = any(dep.default_features is False for _, dep in version_deps)
+                    workspace_default_features = None
+                    
+                    if has_explicit_false:
+                        workspace_default_features = False
+                        print(f"{YELLOW}NOTE: Dependency '{alias}' has at least one crate with default-features=false.{RESET}")
+                        print(f"  Setting default-features=false in workspace.")
+                        print(f"  Other crates will explicitly set default-features=true to maintain behavior.")
 
                     highest_ver_dep = max(version_deps, key=lambda x: parse_version(x[1].version))[1]
                     all_features = merge_features([dep.features for _, dep in version_deps])
@@ -1036,7 +1054,7 @@ def run_consolidate_mode(args, target_dir: str, root_cargo_toml: str, ignore_pat
                         rev=highest_ver_dep.rev,
                         branch=highest_ver_dep.branch,
                         features=all_features,
-                        default_features=False if (len(default_features_values) == 1 and False in default_features_values) else None,
+                        default_features=workspace_default_features,
                     )
 
                 elif git_deps:
@@ -1049,13 +1067,22 @@ def run_consolidate_mode(args, target_dir: str, root_cargo_toml: str, ignore_pat
                         print(f"  {RED}Please resolve manually!{RESET}")
                         raise Exception("Conflicting git specifications detected.")
 
-                    default_features_values = set(dep.default_features for _, dep in git_deps if dep.default_features is not None)
-                    if len(default_features_values) > 1:
-                        print(f"{YELLOW}WARNING: Dependency '{alias}' has conflicting default-features settings!{RESET}")
-                        for path, dep in git_deps:
-                            if dep.default_features is not None:
-                                print(f"    - {os.path.relpath(path)}: default-features = {dep.default_features}")
-                        print(f"  {YELLOW}Will NOT set default-features in workspace (crates should set it individually){RESET}")
+                    # Handle default-features logic:
+                    # If ANY crate uses default-features=false, set workspace to false
+                    # and ALL other crates (that didn't explicitly disable defaults) need default-features=true
+                    print(f"[DEBUG] Considering {alias} for consolidation (git_deps):")
+                    for path, dep in git_deps:
+                        print(f"[DEBUG]   {os.path.relpath(path)}: default_features={dep.default_features}")
+                    
+                    # Check if any crate explicitly disables default features
+                    has_explicit_false = any(dep.default_features is False for _, dep in git_deps)
+                    workspace_default_features = None
+                    
+                    if has_explicit_false:
+                        workspace_default_features = False
+                        print(f"{YELLOW}NOTE: Dependency '{alias}' has at least one crate with default-features=false.{RESET}")
+                        print(f"  Setting default-features=false in workspace.")
+                        print(f"  Other crates will explicitly set default-features=true to maintain behavior.")
                     
                     first_dep = git_deps[0][1]
                     all_features = merge_features([dep.features for _, dep in git_deps])
@@ -1067,7 +1094,7 @@ def run_consolidate_mode(args, target_dir: str, root_cargo_toml: str, ignore_pat
                         rev=first_dep.rev,
                         branch=first_dep.branch,
                         features=all_features,
-                        default_features=False if (len(default_features_values) == 1 and False in default_features_values) else None,
+                        default_features=workspace_default_features,
                     )
 
                 if best_dep:
@@ -1091,19 +1118,47 @@ def run_consolidate_mode(args, target_dir: str, root_cargo_toml: str, ignore_pat
     if deps_to_consolidate:
         print("\nTo consolidate:")
         for alias, info in sorted(deps_to_consolidate.items()):
-            crates = set(os.path.basename(os.path.dirname(u[0])) for u in info['usages'])
+            crates = set(get_crate_path(u[0], target_dir) for u in info['usages'])
             print(f"  {alias}: used by {len(crates)} crates - {crates}")
 
     if deps_to_distribute:
         print("\nTo distribute:")
         for alias, info in sorted(deps_to_distribute.items()):
             if info['usage']:
-                crate = os.path.basename(os.path.dirname(info['usage'][0]))
+                crate = get_crate_path(info['usage'][0], target_dir)
                 print(f"  {alias}: only used by {crate}")
             else:
                 print(f"  {alias}: defined in workspace but not used")
 
-    if not deps_to_consolidate and not deps_to_distribute:
+    # Clean up invalid default-features=false in workspace dependencies
+    invalid_default_features = {}
+    for alias, info in deps_analysis.items():
+        if alias not in deps_to_consolidate and alias not in deps_to_distribute:
+            # Only fix the truly invalid case: workspace = true + default-features = false
+            for toml_path, section, dep in info['usages']:
+                if dep.default_features is False and dep.workspace is True:
+                    # Invalid: workspace dependency with default-features=false (has no effect)
+                    if toml_path not in invalid_default_features:
+                        invalid_default_features[toml_path] = {}
+                    
+                    clean_dep = Dependency(
+                        name=dep.name,
+                        alias=dep.alias,
+                        features=dep.features,  # Keep original features unchanged
+                        default_features=None,  # Remove the invalid false setting
+                        optional=dep.optional,
+                        workspace=True
+                    )
+                    invalid_default_features[toml_path][alias] = ('fix_default_features', clean_dep)
+
+    if invalid_default_features:
+        print(f"\nFound {sum(len(updates) for updates in invalid_default_features.values())} invalid default-features=false in workspace dependencies:")
+        for toml_path, updates in invalid_default_features.items():
+            crate_path = get_crate_path(toml_path, target_dir)
+            deps_list = list(updates.keys())
+            print(f"  {crate_path}: {', '.join(deps_list)}")
+
+    if not deps_to_consolidate and not deps_to_distribute and not invalid_default_features:
         print("\nNo changes needed!")
         return 0
 
@@ -1116,9 +1171,34 @@ def run_consolidate_mode(args, target_dir: str, root_cargo_toml: str, ignore_pat
     crate_updates = defaultdict(dict)
 
     for alias, info in deps_to_consolidate.items():
+        workspace_dep = info['dep']
         for toml_path, section, dep in info['usages']:
             if not dep.workspace:
-                crate_updates[toml_path][alias] = ('to_workspace', dep)
+                # When converting to workspace ref, handle default-features correctly:
+                # If workspace has default-features=false but this crate didn't explicitly disable them,
+                # it needs default-features=true to maintain original behavior
+                explicit_default_features = None
+                if workspace_dep.default_features is False and dep.default_features is not False:
+                    # Workspace is false, but this crate wants defaults (either None or True)
+                    explicit_default_features = True
+                elif dep.default_features is not None and dep.default_features != workspace_dep.default_features:
+                    # Crate has explicit setting that differs from workspace
+                    explicit_default_features = dep.default_features
+                
+                # Only specify features if they differ from workspace features
+                explicit_features = None
+                if dep.features != workspace_dep.features:
+                    explicit_features = dep.features
+                
+                crate_dep = Dependency(
+                    name=dep.name,
+                    alias=dep.alias,
+                    features=explicit_features,
+                    default_features=explicit_default_features,
+                    optional=dep.optional,
+                    workspace=True
+                )
+                crate_updates[toml_path][alias] = ('to_workspace', crate_dep)
 
     for alias, info in deps_to_distribute.items():
         if info['usage']:
@@ -1136,6 +1216,11 @@ def run_consolidate_mode(args, target_dir: str, root_cargo_toml: str, ignore_pat
                     optional=dep.optional,
                 )
                 crate_updates[toml_path][alias] = ('to_full', full_dep)
+
+    # Merge invalid default-features fixes into crate updates
+    for toml_path, updates in invalid_default_features.items():
+        for alias, update in updates.items():
+            crate_updates[toml_path][alias] = update
 
     for toml_path, updates in crate_updates.items():
         if updates:
@@ -1255,12 +1340,13 @@ Examples:
     internal_crates_dict["iota-sdk-transaction-builder"] = None
     internal_crates_dict["iota-flamegraph-svg"] = None
 
+    print("Processing Cargo.toml files...")
     find_and_process_toml_files(
         target_dir,
-        internal_crates_dict,
         ignore_patterns,
-        args.debug,
-        process_cargo_toml_sort
+        process_cargo_toml_sort,
+        internal_crates_dict=internal_crates_dict,
+        debug=args.debug
     )
 
     if not args.skip_dprint:
