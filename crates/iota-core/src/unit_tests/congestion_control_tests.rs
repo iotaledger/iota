@@ -351,15 +351,9 @@ async fn test_congestion_control_execution_cancellation() {
         Some(
             new_suggested_gas_price_calculator_with_initial_values_for_test(
                 &[(shared_object_1.0, initial_debt, TEST_ONLY_GAS_PRICE)],
+                &test_setup.protocol_config,
                 PerObjectCongestionControlMode::TotalGasBudget,
-                test_setup
-                    .protocol_config
-                    .max_accumulated_txn_cost_per_object_in_mysticeti_commit_as_option(),
-                test_setup
-                    .protocol_config
-                    .congestion_control_min_free_execution_slot(),
                 TEST_ONLY_GAS_PRICE,
-                test_setup.protocol_config.max_gas_price(),
             ),
         )
     });

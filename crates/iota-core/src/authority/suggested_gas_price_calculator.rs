@@ -3,6 +3,7 @@
 
 use std::collections::{BTreeMap, HashMap};
 
+use iota_protocol_config::ProtocolConfig;
 use iota_types::{base_types::ObjectID, executable_transaction::VerifiedExecutableTransaction};
 use tracing::instrument;
 
@@ -76,32 +77,46 @@ pub(crate) struct SuggestedGasPriceCalculator {
     /// Per-commit congestion info
     congestion_info: PerCommitCongestionInfo,
 
-    /// Maximum execution duration per shared object per commit.
+    /// Maximum execution duration per shared object per commit
+    /// set in the protocol config.
     max_execution_duration_per_commit: Option<ExecutionTime>,
-
-    /// The reference gas price, which will be suggested if
-    /// `max_execution_duration_per_commit` is set to `None`.
-    reference_gas_price: u64,
 
     /// Maximum gas price that can be set in transactions. This is
     /// used to prevent suggesting feedback gas price larger than
     /// this maximum value set in the protocol config.
     max_gas_price: u64,
+
+    /// The reference gas price, which will be suggested if
+    /// `max_execution_duration_per_commit` is set to `None`.
+    reference_gas_price: u64,
 }
 
 impl SuggestedGasPriceCalculator {
     /// Create a new `SuggestedGasPriceCalculator` with empty shared
     /// object congestion data.
-    pub(super) fn new(
+    pub(super) fn new(protocol_config: &ProtocolConfig, reference_gas_price: u64) -> Self {
+        Self {
+            congestion_info: PerCommitCongestionInfo::new(),
+            max_execution_duration_per_commit: protocol_config
+                .max_accumulated_txn_cost_per_object_in_mysticeti_commit_as_option(),
+            max_gas_price: protocol_config.max_gas_price(),
+            reference_gas_price,
+        }
+    }
+
+    /// Create a new `SuggestedGasPriceCalculator` with empty shared
+    /// object congestion data for testing.
+    #[cfg(test)]
+    fn new_for_test(
         max_execution_duration_per_commit: Option<ExecutionTime>,
-        reference_gas_price: u64,
         max_gas_price: u64,
+        reference_gas_price: u64,
     ) -> Self {
         Self {
             congestion_info: PerCommitCongestionInfo::new(),
             max_execution_duration_per_commit,
-            reference_gas_price,
             max_gas_price,
+            reference_gas_price,
         }
     }
 
@@ -159,7 +174,7 @@ impl SuggestedGasPriceCalculator {
             // Suggested gas price equals `clearing_gas_price + 1`. We add 1 to make this
             // transaction would be scheduled if the same commit structure was repeated.
             let suggested_gas_price =
-                clearing_gas_price.map_or(self.reference_gas_price, |p| p + 1);
+                clearing_gas_price.map_or(self.reference_gas_price, |p| p.saturating_add(1));
 
             // Make sure suggested gas price is not larger than the maximum possible gas
             // price.
@@ -228,7 +243,7 @@ impl SuggestedGasPriceCalculator {
 
 #[cfg(test)]
 pub mod suggested_gas_price_calculator_test_utils {
-    use iota_protocol_config::PerObjectCongestionControlMode;
+    use iota_protocol_config::{PerObjectCongestionControlMode, ProtocolConfig};
     use iota_types::base_types::ObjectID;
 
     use super::SuggestedGasPriceCalculator;
@@ -241,22 +256,17 @@ pub mod suggested_gas_price_calculator_test_utils {
 
     pub(crate) fn new_suggested_gas_price_calculator_with_initial_values_for_test(
         init_values: &[(ObjectID, ExecutionTime, u64)],
+        protocol_config: &ProtocolConfig,
         per_object_congestion_control_mode: PerObjectCongestionControlMode,
-        max_execution_duration_per_commit: Option<ExecutionTime>,
-        min_free_execution_slot_assigned: bool,
         reference_gas_price: u64,
-        max_gas_price: u64,
     ) -> SuggestedGasPriceCalculator {
-        let mut suggested_gas_price_calculator = SuggestedGasPriceCalculator::new(
-            max_execution_duration_per_commit,
-            reference_gas_price,
-            max_gas_price,
-        );
+        let mut suggested_gas_price_calculator =
+            SuggestedGasPriceCalculator::new(protocol_config, reference_gas_price);
 
         let mut shared_object_congestion_tracker = SharedObjectCongestionTracker::new_for_test(
             vec![],
             per_object_congestion_control_mode,
-            min_free_execution_slot_assigned,
+            protocol_config.congestion_control_min_free_execution_slot(),
         );
 
         for (object_id, duration, gas_price) in init_values {
@@ -381,11 +391,10 @@ mod tests {
         )]
         max_execution_duration_per_commit: Option<ExecutionTime>,
     ) {
-        let max_gas_price = ProtocolConfig::get_for_max_version_UNSAFE().max_gas_price();
-        let mut suggested_gas_price_calculator = SuggestedGasPriceCalculator::new(
+        let mut suggested_gas_price_calculator = SuggestedGasPriceCalculator::new_for_test(
             max_execution_duration_per_commit,
+            ProtocolConfig::get_for_max_version_UNSAFE().max_gas_price(),
             REFERENCE_GAS_PRICE,
-            max_gas_price,
         );
 
         let object_1 = ObjectID::random();
@@ -598,10 +607,10 @@ mod tests {
             min_free_execution_slot_assigned,
         );
 
-        let mut suggested_gas_price_calculator = SuggestedGasPriceCalculator::new(
+        let mut suggested_gas_price_calculator = SuggestedGasPriceCalculator::new_for_test(
             Some(max_execution_duration_per_commit),
-            REFERENCE_GAS_PRICE,
             max_gas_price,
+            REFERENCE_GAS_PRICE,
         );
 
         let object_1 = ObjectID::random();
