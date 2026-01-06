@@ -108,76 +108,26 @@ impl CommitObserver {
         observer
     }
 
-    /// Reinitialize CommitObserver after fast sync completes.
-    /// Resets internal state and recovers the Linearizer's state from stored
-    /// commits. This is similar to recovery but without re-sending commits
-    /// (they were already sent during fast sync).
+    /// Reinitialize the CommitObserver at a new commit index.
+    /// Uses the existing `recover_and_send_commits` method which handles:
+    /// - Recovering linearizer state (transaction ack tracker, traversed headers)
+    /// - Only re-sends commits that are > last_commit_index (none in this case)
     pub(crate) fn reinitialize(&mut self, last_commit_index: CommitIndex) {
         let now = Instant::now();
 
         // Clear linearizer state
         self.linearizer.reinitialize();
-        self.commit_solidifier.reinitialize(last_commit_index);
         self.last_sent_commit_index = last_commit_index;
 
-        // Recover linearizer state from recent commits.
-        // This is needed to properly track transaction acknowledgments.
-        self.recover_linearizer_state(last_commit_index);
+        // Reuse existing recovery logic - it won't resend commits since
+        // they're all <= last_commit_index
+        self.recover_and_send_commits(last_commit_index);
 
         info!(
             "CommitObserver reinitialized at commit index {}, took {:?}",
             last_commit_index,
             now.elapsed()
         );
-    }
-
-    /// Recovers the Linearizer's transaction acknowledgment tracker and
-    /// traversed headers from recent commits stored in the database.
-    /// This is necessary after fast sync because the linearizer state is not
-    /// rebuilt during fast sync (only commits and transactions are stored).
-    fn recover_linearizer_state(&mut self, last_commit_index: CommitIndex) {
-        // Calculate the recovery lower bound similar to recover_and_send_commits.
-        // The earliest commit that still might acknowledge not-yet-committed
-        // transactions is: last_commit_index - gc_depth * 2
-        // (once for max linearizer depth and once for max transaction ack depth)
-        let recovery_lower_bound = last_commit_index
-            .saturating_sub(self.context.protocol_config.gc_depth() * 2)
-            .max(1);
-
-        // Retrieve all the commits from the recovery lower bound until the last commit.
-        let recovery_commits = self
-            .store
-            .scan_commits((recovery_lower_bound..=last_commit_index).into())
-            .expect("Scanning commits should not fail");
-
-        info!(
-            "Recovering linearizer state from {} commits (indices {}..={})",
-            recovery_commits.len(),
-            recovery_lower_bound,
-            last_commit_index
-        );
-
-        // Recover transaction acknowledgment tracker in the linearizer using all the
-        // commits.
-        for commit in recovery_commits {
-            let pending_sub_dag =
-                load_pending_subdag_from_store(self.store.as_ref(), commit, vec![]);
-
-            // Rebuild traversed headers tracker so transaction commit checks can succeed.
-            self.linearizer
-                .record_traversed_headers(pending_sub_dag.headers.iter());
-
-            // Recover transaction acknowledgments tracker state.
-            for ((round, authority_idx), transaction_acknowledgments) in
-                pending_sub_dag.transaction_acknowledgments().into_iter()
-            {
-                self.linearizer.add_committed_transaction_acks(
-                    round,
-                    authority_idx,
-                    transaction_acknowledgments,
-                );
-            }
-        }
     }
 
     /// Handles the creation of commits from a set of passed leaders.

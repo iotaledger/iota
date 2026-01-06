@@ -1010,7 +1010,9 @@ mod tests {
     /// gap-based syncer selection.
     #[tokio::test(flavor = "current_thread")]
     async fn test_fast_commit_syncer_on_restart() {
-        telemetry_subscribers::init_for_testing();
+        let _guards = telemetry_subscribers::TelemetryConfig::new()
+            .with_log_level("debug")
+            .init();
         let db_registry = Registry::new();
         DBMetrics::init(&db_registry);
 
@@ -1142,6 +1144,30 @@ mod tests {
 
         tracing::info!(
             "Test complete. Check logs for [fast_commit_sync] and [commit_sync] messages."
+        );
+
+        // Verify authority 0 created blocks after fast sync completed
+        tracing::info!(
+            "Last committed block rounds per authority: {:?}",
+            last_round_committed_blocks
+        );
+        assert!(
+            last_round_committed_blocks[stopped_index] > 0,
+            "Authority {} should have created blocks after fast sync, but last_round_committed_blocks[{}] = {}",
+            stopped_index,
+            stopped_index,
+            last_round_committed_blocks[stopped_index]
+        );
+
+        // Verify authority 0's last committed block round is reasonably close to other authorities
+        // (within 100 rounds), proving it's participating in consensus after sync
+        let max_round = *last_round_committed_blocks.iter().max().unwrap();
+        assert!(
+            last_round_committed_blocks[stopped_index] + 100 >= max_round,
+            "Authority {} should be caught up after fast sync. Its last round {} is too far behind max round {}",
+            stopped_index,
+            last_round_committed_blocks[stopped_index],
+            max_round
         );
     }
 }

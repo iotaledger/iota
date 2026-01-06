@@ -1749,7 +1749,7 @@ impl DagState {
             return vec![];
         }
 
-        let start_index = last_commit_index.saturating_sub(num_commits) + 1;
+        let start_index = last_commit_index.saturating_sub(num_commits).max(1);
         let commits = self
             .store
             .scan_commits((start_index..=last_commit_index).into())

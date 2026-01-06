@@ -123,6 +123,7 @@ pub(crate) enum ReasonToCreateBlock {
     Recover,
     QuorumSubscribersExist,
     KnownLastBlock,
+    FastSyncComplete,
 }
 
 impl ReasonToCreateBlock {
@@ -135,6 +136,7 @@ impl ReasonToCreateBlock {
             ReasonToCreateBlock::Recover => "Recover",
             ReasonToCreateBlock::QuorumSubscribersExist => "QuorumSubscribersExist",
             ReasonToCreateBlock::KnownLastBlock => "KnownLastBlock",
+            ReasonToCreateBlock::FastSyncComplete => "FastSyncComplete",
         }
     }
 
@@ -149,6 +151,7 @@ impl ReasonToCreateBlock {
             ReasonToCreateBlock::Recover => true,
             ReasonToCreateBlock::QuorumSubscribersExist => true,
             ReasonToCreateBlock::KnownLastBlock => true,
+            ReasonToCreateBlock::FastSyncComplete => true,
         }
     }
 }
@@ -563,6 +566,10 @@ impl Core {
             // committed_header_refs). The scoring_subdag would get corrupted with
             // leaders but no votes, leading to incorrect score calculations.
             // Instead, we use the reputation_scores embedded in the commits directly.
+
+            // Flush commits to storage so they're available for get_block_refs_for_recent_commits
+            // when close-to-quorum mode triggers header fetching.
+            dag_state.flush();
         }
 
         // Update leader schedule from commits that have reputation scores.
@@ -587,8 +594,12 @@ impl Core {
                 commit.reputation_scores(),
             );
 
-            // Note: scoring_subdag is empty during fast sync, so this assertion passes
-            self.dag_state.write().add_commit_info(reputation_scores);
+            // Clear scoring_subdag before adding commit_info, since DagState
+            // initialization may have loaded unscored subdags from storage.
+            // This mirrors what update_leader_schedule does in leader_schedule.rs.
+            let mut dag_state = self.dag_state.write();
+            dag_state.clear_scoring_subdag();
+            dag_state.add_commit_info(reputation_scores);
         }
 
         // Then process subdags as usual
@@ -612,7 +623,7 @@ impl Core {
         );
 
         // Hold the dag_state lock for the entire flow to ensure consistency
-        let (last_commit_index, threshold_round) = {
+        let (last_commit_index, threshold_round, last_commit_leader) = {
             let mut dag_state = self.dag_state.write();
 
             // 1. Store block headers on disk
@@ -628,16 +639,20 @@ impl Core {
             dag_state.reinitialize();
 
             let threshold_round = dag_state.threshold_clock_round();
-            (last_commit_index, threshold_round)
+            let last_commit_leader = dag_state.last_commit_leader();
+            (last_commit_index, threshold_round, last_commit_leader)
         };
 
         // 5. Reinitialize BlockManager
         self.block_manager.reinitialize();
 
-        // 6. Reinitialize CommitObserver
+        // 6. Update last_decided_leader to match the new DAG state
+        self.last_decided_leader = last_commit_leader;
+
+        // 7. Reinitialize CommitObserver with recovery (uses recover_and_send_commits)
         self.commit_observer.reinitialize(last_commit_index);
 
-        // 7. Reset signaling state
+        // 8. Reset signaling state
         self.last_signaled_round = threshold_round.saturating_sub(1);
 
         info!("Components reinitialized successfully");

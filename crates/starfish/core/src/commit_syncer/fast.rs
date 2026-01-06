@@ -161,7 +161,7 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
                     self.inner.sync_type.as_str()
                 );
 
-                match Self::fetch_headers_for_cached_rounds(self.inner.clone()).await {
+                match Self::fetch_headers_for_reinitialization(self.inner.clone()).await {
                     Ok(headers) => {
                         if let Err(e) = self
                             .inner
@@ -761,35 +761,43 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
             * (self.inner.context.parameters.commit_sync_batches_ahead as u32)
     }
 
-    /// Fetches block headers for the cached_rounds window from the network.
+    /// Fetches block headers needed for component reinitialization from the network.
     /// This is called when close_to_quorum mode is active and all pending
-    /// fetches complete. Returns verified block headers that will be stored
-    /// and used to reinitialize components.
-    async fn fetch_headers_for_cached_rounds(
+    /// fetches complete. Fetches headers for max(cached_rounds, gc_depth * 2) commits
+    /// to satisfy both DagState cache and linearizer recovery requirements.
+    async fn fetch_headers_for_reinitialization(
         inner: Arc<Inner<C>>,
     ) -> ConsensusResult<Vec<VerifiedBlockHeader>> {
+        // We need headers for two purposes:
+        // 1. DagState cache: at least cached_rounds commits back
+        // 2. Linearizer recovery: at least gc_depth * 2 commits back
+        // Fetch the maximum of the two to satisfy both requirements
         let cached_rounds = inner.context.parameters.dag_state_cached_rounds;
+        let gc_depth = inner.context.protocol_config.gc_depth();
+        let num_commits = std::cmp::max(cached_rounds, gc_depth * 2);
+
         let max_headers_per_fetch = inner.context.parameters.max_headers_per_commit_sync_fetch;
 
         // Get block refs from recent commits stored during fast sync
         let block_refs = inner
             .dag_state
             .read()
-            .get_block_refs_for_recent_commits(cached_rounds);
+            .get_block_refs_for_recent_commits(num_commits);
 
         if block_refs.is_empty() {
             info!(
-                "[{}] No block refs to fetch for cached rounds",
+                "[{}] No block refs to fetch for reinitialization",
                 inner.sync_type.as_str()
             );
             return Ok(vec![]);
         }
 
         info!(
-            "[{}] Fetching {} block headers for cached_rounds window ({})",
+            "[{}] Fetching {} block headers for reinitialization (cached_rounds={}, gc_depth*2={})",
             inner.sync_type.as_str(),
             block_refs.len(),
-            cached_rounds
+            cached_rounds,
+            gc_depth * 2
         );
 
         // Shuffle target authorities for load balancing
@@ -882,7 +890,7 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
         }
 
         info!(
-            "[{}] Successfully fetched {} total block headers for cached_rounds",
+            "[{}] Successfully fetched {} total block headers for reinitialization",
             inner.sync_type.as_str(),
             all_headers.len()
         );
