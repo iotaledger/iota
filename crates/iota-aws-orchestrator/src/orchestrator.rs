@@ -717,7 +717,6 @@ done"#
             Ok(_) => {}
             Err(e) => {
                 // Handle failure case
-                // let _ = self.download_logs(benchmark_dir).await;
                 panic!("Command execution failed on one or more instances: {e}");
             }
         }
