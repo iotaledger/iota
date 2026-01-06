@@ -135,23 +135,15 @@ impl CommitSolidifier {
             }
         }
 
-        // Update dag state with the round of the leader in the last committed subdag
-        // This will allow to evict transactions from the DAG state
-        // In addition, update with the latest solid_commit_refs which are used for
-        // commit syncer
+        // Update with the latest solid_commit_refs which are used for commit syncer
         if !committed_subdags.is_empty() {
             let solid_commit_refs = committed_subdags
                 .iter()
                 .map(|subdag| subdag.commit_ref)
                 .collect();
-            let mut dag_state = self.dag_state.write();
-            dag_state.update_last_solid_commit_leader_round(
-                committed_subdags
-                    .last()
-                    .expect("We should expect at least one committed subdag")
-                    .leader_round(),
-            );
-            dag_state.update_pending_commit_votes(solid_commit_refs);
+            self.dag_state
+                .write()
+                .update_pending_commit_votes(solid_commit_refs);
         }
 
         // Update last_committed_index

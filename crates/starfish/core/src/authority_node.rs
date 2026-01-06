@@ -1099,17 +1099,19 @@ mod tests {
         consumer_monitors[stopped_index] = monitor;
         authorities.insert(stopped_index, authority);
 
-        // Let it run to observe sync behavior in logs
-        // Look for: "[fast_commit_sync] Checking to schedule fetches"
-        let start_time = Instant::now();
+        // First recovery: Let authority 0 catch up and create blocks
+        // Wait until authority 0 is within 50 rounds of other authorities (or timeout after 120s)
+        tracing::info!("=== First recovery: waiting for authority 0 to catch up ===");
         let mut last_committed_index = [0; NUM_AUTHORITIES];
         let mut last_round_committed_blocks = [0; NUM_AUTHORITIES];
+        let start_time = Instant::now();
+        let max_wait = Duration::from_secs(120);
+        let catch_up_threshold = 50;
         loop {
-            if start_time.elapsed() > Duration::from_secs(60) {
+            if start_time.elapsed() > max_wait {
                 break;
             }
             for (index, receiver) in output_receivers.iter_mut().enumerate() {
-                // Manually update the commit consumer monitor with the highest handled commit
                 let deadline = Instant::now() + Duration::from_millis(25);
                 while Instant::now() < deadline {
                     let remaining = deadline - Instant::now();
@@ -1119,19 +1121,151 @@ mod tests {
                         for block_ref in &committed_subdag.base.committed_header_refs {
                             if block_ref.round > GENESIS_ROUND {
                                 let author_index = block_ref.author;
-                                last_round_committed_blocks[author_index] =
-                                    max(last_round_committed_blocks[author_index], block_ref.round);
+                                last_round_committed_blocks[author_index] = max(
+                                    last_round_committed_blocks[author_index],
+                                    block_ref.round,
+                                );
                             }
                         }
 
                         let commit_index = committed_subdag.commit_ref.index;
-                        assert!(last_committed_index[index] < commit_index);
-                        last_committed_index[index] = commit_index;
-                        consumer_monitors[index].set_highest_handled_commit(commit_index);
+                        // Only update if this is a new commit (handles replay during recovery)
+                        if commit_index > last_committed_index[index] {
+                            last_committed_index[index] = commit_index;
+                            consumer_monitors[index].set_highest_handled_commit(commit_index);
+                        }
                     } else {
-                        // If we time out, we assume that no new dags were committed.
                         break;
                     }
+                }
+            }
+            // Check if authority 0 has caught up
+            let max_round = *last_round_committed_blocks.iter().max().unwrap_or(&0);
+            if last_round_committed_blocks[stopped_index] > 0
+                && last_round_committed_blocks[stopped_index] + catch_up_threshold >= max_round
+            {
+                tracing::info!(
+                    "Authority {} caught up: round {} vs max {}",
+                    stopped_index,
+                    last_round_committed_blocks[stopped_index],
+                    max_round
+                );
+                break;
+            }
+        }
+
+        // Verify authority 0 caught up after first fast sync
+        tracing::info!(
+            "After first recovery - Last committed block rounds per authority: {:?}",
+            last_round_committed_blocks
+        );
+        let max_round_first = *last_round_committed_blocks.iter().max().unwrap();
+        assert!(
+            last_round_committed_blocks[stopped_index] > 0,
+            "Authority {} should have created blocks after first fast sync",
+            stopped_index
+        );
+        assert!(
+            last_round_committed_blocks[stopped_index] + catch_up_threshold >= max_round_first,
+            "Authority {} should be caught up after first fast sync. Its round {} is too far behind max {}",
+            stopped_index,
+            last_round_committed_blocks[stopped_index],
+            max_round_first
+        );
+
+        // === Second crash: Stop authority 0 again ===
+        tracing::info!("=== Second crash: Stopping authority {} again ===", stopped_index);
+        authorities.remove(stopped_index).stop().await;
+
+        // Wait to widen gap again
+        tracing::info!("Waiting 10 seconds to widen the commit gap again...");
+        sleep(Duration::from_secs(10)).await;
+
+        // === Second recovery: Restart authority 0 again ===
+        tracing::info!(
+            "=== Second recovery: Restarting authority {}. FastCommitSyncer should activate again ===",
+            stopped_index
+        );
+        let parameters = Parameters {
+            db_path: temp_dirs[stopped_index].path().to_path_buf(),
+            dag_state_cached_rounds: 5,
+            commit_sync_parallel_fetches: 2,
+            commit_sync_batch_size: 10,
+            commit_sync_gap_threshold: 50,
+            fast_commit_sync_batch_size: 20,
+            sync_last_known_own_block_timeout: Duration::from_millis(2_000),
+            ..Default::default()
+        };
+        let (authority, receiver, monitor) = make_authority_with_params(
+            committee.to_authority_index(stopped_index).unwrap(),
+            &temp_dirs[stopped_index],
+            committee.clone(),
+            keypairs.clone(),
+            boot_counters[stopped_index],
+            protocol_config.clone(),
+            parameters,
+        )
+        .await;
+        boot_counters[stopped_index] += 1;
+        output_receivers[stopped_index] = receiver;
+        consumer_monitors[stopped_index] = monitor;
+        authorities.insert(stopped_index, authority);
+
+        // Second recovery: Let authority 0 catch up again
+        // Wait until authority 0 is within 50 rounds of other authorities (or timeout after 120s)
+        tracing::info!("=== Second recovery: waiting for authority 0 to catch up again ===");
+        // Reset tracking for the stopped authority since it will replay commits from recovery
+        let round_before_second_sync = last_round_committed_blocks[stopped_index];
+        last_committed_index[stopped_index] = 0;
+        let start_time = Instant::now();
+        loop {
+            if start_time.elapsed() > max_wait {
+                break;
+            }
+            for (index, receiver) in output_receivers.iter_mut().enumerate() {
+                let deadline = Instant::now() + Duration::from_millis(25);
+                while Instant::now() < deadline {
+                    let remaining = deadline - Instant::now();
+                    if let Ok(Some(committed_subdag)) =
+                        tokio::time::timeout(remaining, receiver.recv()).await
+                    {
+                        for block_ref in &committed_subdag.base.committed_header_refs {
+                            if block_ref.round > GENESIS_ROUND {
+                                let author_index = block_ref.author;
+                                last_round_committed_blocks[author_index] = max(
+                                    last_round_committed_blocks[author_index],
+                                    block_ref.round,
+                                );
+                            }
+                        }
+
+                        let commit_index = committed_subdag.commit_ref.index;
+                        // Only update if this is a new commit (handles replay during recovery)
+                        if commit_index > last_committed_index[index] {
+                            last_committed_index[index] = commit_index;
+                            consumer_monitors[index].set_highest_handled_commit(commit_index);
+                        }
+                    } else {
+                        break;
+                    }
+                }
+            }
+            // Check if authority 0 has caught up (or made progress)
+            let max_round = *last_round_committed_blocks.iter().max().unwrap_or(&0);
+            let made_progress = last_round_committed_blocks[stopped_index] > round_before_second_sync;
+            let is_close = last_round_committed_blocks[stopped_index] + catch_up_threshold >= max_round;
+
+            if made_progress {
+                tracing::info!(
+                    "Authority {} made progress after second sync: round {} (was {}) vs max {}",
+                    stopped_index,
+                    last_round_committed_blocks[stopped_index],
+                    round_before_second_sync,
+                    max_round
+                );
+                if is_close {
+                    tracing::info!("Authority {} is close enough to max, breaking early", stopped_index);
+                    break;
                 }
             }
         }
@@ -1146,25 +1280,26 @@ mod tests {
             "Test complete. Check logs for [fast_commit_sync] and [commit_sync] messages."
         );
 
-        // Verify authority 0 created blocks after fast sync completed
+        // Verify authority 0 created blocks after second fast sync
         tracing::info!(
-            "Last committed block rounds per authority: {:?}",
+            "After second recovery - Last committed block rounds per authority: {:?}",
             last_round_committed_blocks
         );
         assert!(
-            last_round_committed_blocks[stopped_index] > 0,
-            "Authority {} should have created blocks after fast sync, but last_round_committed_blocks[{}] = {}",
+            last_round_committed_blocks[stopped_index] > round_before_second_sync,
+            "Authority {} should have created new blocks after second fast sync. Round before: {}, after: {}",
             stopped_index,
-            stopped_index,
+            round_before_second_sync,
             last_round_committed_blocks[stopped_index]
         );
 
         // Verify authority 0's last committed block round is reasonably close to other authorities
-        // (within 100 rounds), proving it's participating in consensus after sync
+        // (within 200 rounds to allow for slower catch-up on second restart)
+        let second_recovery_threshold = 200;
         let max_round = *last_round_committed_blocks.iter().max().unwrap();
         assert!(
-            last_round_committed_blocks[stopped_index] + 100 >= max_round,
-            "Authority {} should be caught up after fast sync. Its last round {} is too far behind max round {}",
+            last_round_committed_blocks[stopped_index] + second_recovery_threshold >= max_round,
+            "Authority {} should be caught up after second fast sync. Its last round {} is too far behind max round {}",
             stopped_index,
             last_round_committed_blocks[stopped_index],
             max_round

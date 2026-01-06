@@ -17,7 +17,10 @@ use tracing::{debug, info, instrument, warn};
 use crate::{
     CommitConsumer, CommittedSubDag,
     block_header::{BlockHeaderAPI, VerifiedBlockHeader},
-    commit::{CommitAPI, CommitIndex, PendingSubDag, load_pending_subdag_from_store},
+    commit::{
+        CommitAPI, CommitIndex, PendingSubDag, load_pending_subdag_from_store,
+        try_load_pending_subdag_from_store,
+    },
     commit_solidifier::CommitSolidifier,
     context::Context,
     dag_state::DagState,
@@ -165,6 +168,19 @@ impl CommitObserver {
             .commit_solidifier
             .try_get_solid_sub_dags(&pending_sub_dags);
 
+        // Update last_solid_commit_leader_round BEFORE flush so that eviction
+        // uses the correct GC round. This must happen after try_get_solid_sub_dags.
+        if !solid_sub_dags.is_empty() {
+            let max_solid_commit_leader_round = solid_sub_dags
+                .last()
+                .expect("There should be at least one solid subdag")
+                .leader
+                .round;
+            self.dag_state
+                .write()
+                .update_last_solid_commit_leader_round(max_solid_commit_leader_round);
+        }
+
         // Committed headers and sequenced transactions must be persisted to storage
         // before sending them outside consensus.
         if !pending_sub_dags.is_empty() || !solid_sub_dags.is_empty() {
@@ -234,7 +250,7 @@ impl CommitObserver {
         }
         self.report_metrics(pending_sub_dags, &committed_subdags, source);
 
-        // Evict the ack tracker using the information from the latest solid subdag
+        // Evict the ack tracker and update GC round using the latest solid subdag
         if !committed_subdags.is_empty() {
             let max_solid_commit_leader_round = committed_subdags
                 .last()
@@ -243,6 +259,10 @@ impl CommitObserver {
                 .round;
             self.linearizer
                 .evict_linearizer(max_solid_commit_leader_round);
+            // Update dag_state for GC to work correctly (covers both normal and fast sync paths)
+            self.dag_state
+                .write()
+                .update_last_solid_commit_leader_round(max_solid_commit_leader_round);
         }
         tracing::trace!("Committed & sent {sent_sub_dags:#?}");
 
@@ -295,14 +315,12 @@ impl CommitObserver {
         let mut next_commit_index_to_recover = recovery_lower_bound;
         let num_recovery_commits = recovery_commits.len();
 
+        let mut first_valid_commit_found = false;
         for (index, commit) in recovery_commits.into_iter().enumerate() {
             let commit_index = commit.index();
             // Commit index must be continuous during recovery.
             assert_eq!(commit_index, next_commit_index_to_recover);
-            if index == 0 {
-                self.commit_solidifier
-                    .set_last_committed_index(commit_index.saturating_sub(1));
-            }
+
             // On recovery leader schedule will be updated with the current scores
             // and the scores will be passed along with the last commit sent to
             // iota so that the current scores are available for submission.
@@ -318,8 +336,28 @@ impl CommitObserver {
 
             info!("Processing commit {} during recovery", commit_index);
 
-            let pending_sub_dag =
-                load_pending_subdag_from_store(self.store.as_ref(), commit, reputation_scores);
+            // Try to load the pending subdag. If headers are missing (e.g., after fast sync
+            // when only recent headers were fetched), skip this commit and continue.
+            // The linearizer state will be incomplete for older commits, but this is
+            // acceptable - fast sync reinitialization will fix it later.
+            let Some(pending_sub_dag) =
+                try_load_pending_subdag_from_store(self.store.as_ref(), commit, reputation_scores)
+            else {
+                warn!(
+                    "Skipping commit {} during recovery: block headers not available. \
+                    This is expected after fast sync when older headers weren't fetched.",
+                    commit_index
+                );
+                next_commit_index_to_recover += 1;
+                continue;
+            };
+
+            // Initialize commit_solidifier on first valid commit we can process
+            if !first_valid_commit_found {
+                self.commit_solidifier
+                    .set_last_committed_index(commit_index.saturating_sub(1));
+                first_valid_commit_found = true;
+            }
 
             // Rebuild traversed headers tracker so recovery can honor the
             // traversed-headers gate when committing transactions.

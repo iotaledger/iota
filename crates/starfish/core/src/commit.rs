@@ -747,25 +747,34 @@ pub fn load_pending_subdag_from_store(
     commit: TrustedCommit,
     reputation_scores_desc: Vec<(AuthorityIndex, u64)>,
 ) -> PendingSubDag {
+    try_load_pending_subdag_from_store(store, commit, reputation_scores_desc)
+        .expect("We should have all block headers referenced in the commit data")
+}
+
+/// Attempts to recover the full CommittedSubDag from block store.
+/// Returns None if any required block headers are missing.
+/// This is useful during recovery when some headers may not be available
+/// (e.g., after fast sync when headers for older commits weren't fetched).
+pub fn try_load_pending_subdag_from_store(
+    store: &dyn Store,
+    commit: TrustedCommit,
+    reputation_scores_desc: Vec<(AuthorityIndex, u64)>,
+) -> Option<PendingSubDag> {
     let mut leader_block_idx = None;
     let commit_block_headers = store
         .read_verified_block_headers(commit.block_headers())
-        .expect("We should have the block referenced in the commit data");
-    let block_headers = commit_block_headers
-        .into_iter()
-        .enumerate()
-        .map(|(idx, commit_block_opt)| {
-            let commit_block =
-                commit_block_opt.expect("We should have the block referenced in the commit data");
-            if commit_block.reference() == commit.leader() {
-                leader_block_idx = Some(idx);
-            }
-            commit_block
-        })
-        .collect::<Vec<_>>();
-    let leader_block_idx = leader_block_idx.expect("Leader block must be in the sub-dag");
+        .expect("Reading block headers should not fail");
+    let mut block_headers = Vec::with_capacity(commit_block_headers.len());
+    for (idx, commit_block_opt) in commit_block_headers.into_iter().enumerate() {
+        let commit_block = commit_block_opt?; // Return None if any header is missing
+        if commit_block.reference() == commit.leader() {
+            leader_block_idx = Some(idx);
+        }
+        block_headers.push(commit_block);
+    }
+    let leader_block_idx = leader_block_idx?; // Return None if leader not found
     let leader_block_ref = block_headers[leader_block_idx].reference();
-    PendingSubDag::new(
+    Some(PendingSubDag::new(
         leader_block_ref,
         block_headers,
         commit.block_headers().to_vec(),
@@ -773,7 +782,7 @@ pub fn load_pending_subdag_from_store(
         commit.timestamp_ms(),
         commit.reference(),
         reputation_scores_desc,
-    )
+    ))
 }
 
 fn format_transaction_ref_digests(transaction_refs: &[GenericTransactionRef]) -> String {
