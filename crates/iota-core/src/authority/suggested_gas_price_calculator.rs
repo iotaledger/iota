@@ -386,7 +386,6 @@ mod tests {
     fn build_and_try_sequencing_certificate(
         input_shared_objects: &[(ObjectID, bool)],
         tx_gas_data: TxGasData,
-        max_execution_duration_per_commit: ExecutionTime,
         shared_object_congestion_tracker: &mut SharedObjectCongestionTracker,
     ) -> (VerifiedExecutableTransaction, SequencingResult) {
         let certificate = build_transaction(
@@ -399,9 +398,7 @@ mod tests {
 
         let sequencing_result = shared_object_congestion_tracker.try_schedule(
             &certificate,
-            max_execution_duration_per_commit,
             // The remaining inputs are not important for this test
-            0,
             &HashMap::new(),
             0,
         );
@@ -691,7 +688,6 @@ mod tests {
         let (certificate, sequencing_result) = build_and_try_sequencing_certificate(
             &[(object_1, true), (object_2, false)],
             txs_gas_data[0],
-            max_execution_duration_per_commit,
             &mut shared_object_congestion_tracker,
         );
         // Allocations of mutably accessed shared objects should look as follows:
@@ -728,7 +724,6 @@ mod tests {
         let (certificate, sequencing_result) = build_and_try_sequencing_certificate(
             &[(object_1, false), (object_2, true)],
             txs_gas_data[1],
-            max_execution_duration_per_commit,
             &mut shared_object_congestion_tracker,
         );
         // Allocations of mutably accessed shared objects should look as follows:
@@ -769,7 +764,6 @@ mod tests {
         let (certificate, sequencing_result) = build_and_try_sequencing_certificate(
             &[(object_1, false), (object_2, true)],
             txs_gas_data[2],
-            max_execution_duration_per_commit,
             &mut shared_object_congestion_tracker,
         );
         // Allocations of mutably accessed shared objects should look as follows:
@@ -814,7 +808,6 @@ mod tests {
         let (certificate, sequencing_result) = build_and_try_sequencing_certificate(
             &[(object_2, true)],
             txs_gas_data[3],
-            max_execution_duration_per_commit,
             &mut shared_object_congestion_tracker,
         );
         // If `min_free_execution_slot_assigned = true`, allocations of mutably
@@ -884,7 +877,6 @@ mod tests {
         let (certificate, sequencing_result) = build_and_try_sequencing_certificate(
             &input_shared_objects,
             txs_gas_data[4],
-            max_execution_duration_per_commit,
             &mut shared_object_congestion_tracker,
         );
         // If `min_free_execution_slot_assigned = true`, allocations of mutably
@@ -945,7 +937,6 @@ mod tests {
         let (certificate, sequencing_result) = build_and_try_sequencing_certificate(
             &input_shared_objects,
             txs_gas_data[5],
-            max_execution_duration_per_commit,
             &mut shared_object_congestion_tracker,
         );
         // If `min_free_execution_slot_assigned = true`, allocations of mutably
@@ -1006,7 +997,6 @@ mod tests {
         let (certificate, sequencing_result) = build_and_try_sequencing_certificate(
             &input_shared_objects,
             txs_gas_data[6],
-            max_execution_duration_per_commit,
             &mut shared_object_congestion_tracker,
         );
         // If `min_free_execution_slot_assigned = true`, allocations of mutably
@@ -1075,7 +1065,6 @@ mod tests {
         let (certificate, sequencing_result) = build_and_try_sequencing_certificate(
             &input_shared_objects,
             txs_gas_data[7],
-            max_execution_duration_per_commit,
             &mut shared_object_congestion_tracker,
         );
         // If `min_free_execution_slot_assigned = true`, allocations of mutably
@@ -1158,7 +1147,6 @@ mod tests {
         let (certificate, sequencing_result) = build_and_try_sequencing_certificate(
             &[(object_1, true)],
             txs_gas_data[8],
-            max_execution_duration_per_commit,
             &mut shared_object_congestion_tracker,
         );
         // If `min_free_execution_slot_assigned = true`, allocations of mutably
@@ -1204,7 +1192,6 @@ mod tests {
         let (certificate, sequencing_result) = build_and_try_sequencing_certificate(
             &[(object_1, true)],
             txs_gas_data[9],
-            max_execution_duration_per_commit,
             &mut shared_object_congestion_tracker,
         );
         // If `min_free_execution_slot_assigned = true`, allocations of mutably
@@ -1251,7 +1238,6 @@ mod tests {
         let (certificate, sequencing_result) = build_and_try_sequencing_certificate(
             &input_shared_objects,
             txs_gas_data[10],
-            max_execution_duration_per_commit,
             &mut shared_object_congestion_tracker,
         );
         // If `min_free_execution_slot_assigned = true`, allocations of mutably
@@ -1306,7 +1292,6 @@ mod tests {
         let (certificate, sequencing_result) = build_and_try_sequencing_certificate(
             &input_shared_objects,
             txs_gas_data[11],
-            max_execution_duration_per_commit,
             &mut shared_object_congestion_tracker,
         );
         // If `min_free_execution_slot_assigned = true`, allocations of mutably
@@ -1369,7 +1354,6 @@ mod tests {
         let (certificate, sequencing_result) = build_and_try_sequencing_certificate(
             &input_shared_objects,
             txs_gas_data[12],
-            max_execution_duration_per_commit,
             &mut shared_object_congestion_tracker,
         );
         // If `min_free_execution_slot_assigned = true`, allocations of mutably

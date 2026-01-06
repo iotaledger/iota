@@ -240,9 +240,7 @@ impl CongestionControlParameters {
     }
 
     /// Get maximum execution duration per shared object per commit.
-    // TODO: remove
-    #[allow(dead_code)]
-    pub(super) fn max_execution_duration_per_commit(&self) -> Option<ExecutionTime> {
+    fn max_execution_duration_per_commit(&self) -> Option<ExecutionTime> {
         self.max_execution_duration_per_commit
     }
 
@@ -252,6 +250,26 @@ impl CongestionControlParameters {
     #[allow(dead_code)]
     pub(super) fn max_congestion_limit_overshoot_per_commit(&self) -> Option<ExecutionTime> {
         self.max_congestion_limit_overshoot_per_commit
+    }
+
+    /// Get the total congestion limit per commit, i.e.,
+    /// `max_congestion_limit_overshoot_per_commit` plus
+    /// `max_execution_duration_per_commit`.
+    /// Returns `None` if `max_execution_duration_per_commit`
+    /// is not set.
+    // TODO: remove
+    #[allow(dead_code)]
+    pub(super) fn get_total_congestion_limit_per_commit(&self) -> Option<ExecutionTime> {
+        self.max_execution_duration_per_commit
+            .map(|max_execution_duration_per_commit| {
+                max_execution_duration_per_commit.saturating_add(
+                    // If `max_congestion_limit_overshoot_per_commit` is not set,
+                    // add 0 to `max_execution_duration_per_commit`, that is,
+                    // ignore congestion limit overshoot.
+                    self.max_congestion_limit_overshoot_per_commit
+                        .unwrap_or_default(),
+                )
+            })
     }
 }
 
@@ -2026,21 +2044,6 @@ impl AuthorityPerEpochStore {
         }
     }
 
-    fn get_max_execution_duration_per_commit_as_option(&self) -> Option<ExecutionTime> {
-        // The old name for this config parameter referred to "cost", but the current
-        // implementation of the shared object congestion tracker uses the term
-        // "execution duration" to describe the same concept.
-        self.protocol_config()
-            .max_accumulated_txn_cost_per_object_in_mysticeti_commit_as_option()
-    }
-
-    fn get_max_congestion_limit_overshoot_per_commit(&self) -> u64 {
-        // If not set, defaults to 0 which means no overshoot allowed.
-        self.protocol_config()
-            .max_congestion_limit_overshoot_per_commit_as_option()
-            .unwrap_or_default()
-    }
-
     #[instrument("transactions_sequencing", level = "trace", skip_all, fields(cert_digest = ?cert.digest(), scheduling_result = tracing::field::Empty))]
     fn try_schedule(
         &self,
@@ -2073,8 +2076,10 @@ impl AuthorityPerEpochStore {
             return result;
         }
 
-        let result = if let Some(max_execution_duration_per_commit) =
-            self.get_max_execution_duration_per_commit_as_option()
+        let result = if shared_object_congestion_tracker
+            .congestion_control_parameters()
+            .max_execution_duration_per_commit()
+            .is_some()
         {
             // Initialise the free execution slots for the objects that are not in the
             // tracker.
@@ -2084,8 +2089,6 @@ impl AuthorityPerEpochStore {
             // Defer transaction if it uses shared objects that are congested.
             match shared_object_congestion_tracker.try_schedule(
                 cert,
-                max_execution_duration_per_commit,
-                self.get_max_congestion_limit_overshoot_per_commit(),
                 previously_deferred_tx_digests,
                 commit_round,
             ) {
@@ -3604,8 +3607,9 @@ impl AuthorityPerEpochStore {
         // Record accumulated debts from this consensus commit following sequencing.
         // This output will be written to consensus quarantine so the debts can be
         // loaded in the future consensus commit rounds where the objects are involved.
-        if let Some(max_execution_duration_per_commit) =
-            self.get_max_execution_duration_per_commit_as_option()
+        if let Some(max_execution_duration_per_commit) = shared_object_congestion_tracker
+            .congestion_control_parameters()
+            .max_execution_duration_per_commit()
         {
             output.set_congestion_control_object_debts(
                 shared_object_congestion_tracker
@@ -3966,8 +3970,9 @@ impl AuthorityPerEpochStore {
                         // - shared object execution slots (for congestion tracker);
                         // - shared object congestion info (for suggested gas price calculator).
                         if certificate.contains_shared_object()
-                            && self
-                                .get_max_execution_duration_per_commit_as_option()
+                            && shared_object_congestion_tracker
+                                .congestion_control_parameters()
+                                .max_execution_duration_per_commit()
                                 .is_some()
                         {
                             // We only need to do this if `max_execution_duration_per_commit`

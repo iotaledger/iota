@@ -272,6 +272,11 @@ impl SharedObjectCongestionTracker {
         }
     }
 
+    /// Get congestion control parameters used in the tracker.
+    pub(super) fn congestion_control_parameters(&self) -> &CongestionControlParameters {
+        &self.congestion_control_params
+    }
+
     /// Initialize the free execution slots for the objects that are not in the
     /// tracker.
     pub(super) fn initialize_object_execution_slots(
@@ -433,8 +438,6 @@ impl SharedObjectCongestionTracker {
     pub(super) fn try_schedule(
         &self,
         cert: &VerifiedExecutableTransaction,
-        max_execution_duration_per_commit: u64,
-        max_overshoot_per_commit: u64,
         previously_deferred_tx_digests: &PreviouslyDeferredTransactions,
         commit_round: CommitRound,
     ) -> SequencingResult {
@@ -454,8 +457,18 @@ impl SharedObjectCongestionTracker {
             // This is an owned object only transaction. No need to defer.
             return SequencingResult::Schedule(0);
         }
-        let congestion_limit =
-            max_execution_duration_per_commit.saturating_add(max_overshoot_per_commit);
+
+        let congestion_limit = if let Some(congestion_limit) = self
+            .congestion_control_params
+            .get_total_congestion_limit_per_commit()
+        {
+            congestion_limit
+        } else {
+            // If we don't have a congestion limit per commit, we don't need to check for
+            // congestion.
+            return SequencingResult::Schedule(0);
+        };
+
         // Try to compute a scheduling start time for the transaction.
         if let Some(start_time) = self.compute_tx_start_time(&shared_input_objects, tx_duration) {
             // `compute_tx_start_time` returns None if the transaction cannot be scheduled,
@@ -869,8 +882,6 @@ pub mod shared_object_test_utils {
     pub(super) fn initialize_tracker_and_try_schedule(
         shared_object_congestion_tracker: &mut SharedObjectCongestionTracker,
         cert: &VerifiedExecutableTransaction,
-        max_execution_duration_per_commit: u64,
-        max_overshoot_per_commit: u64,
         previously_deferred_tx_digests: &PreviouslyDeferredTransactions,
         commit_round: CommitRound,
     ) -> SequencingResult {
@@ -884,8 +895,6 @@ pub mod shared_object_test_utils {
         );
         shared_object_congestion_tracker.try_schedule(
             cert,
-            max_execution_duration_per_commit,
-            max_overshoot_per_commit,
             previously_deferred_tx_digests,
             commit_round,
         )
@@ -1200,14 +1209,8 @@ mod object_cost_tests {
                 tx_gas_budget,
                 TEST_ONLY_GAS_PRICE,
             );
-            if let SequencingResult::Defer(_, congested_objects) = shared_object_congestion_tracker
-                .try_schedule(
-                    &tx,
-                    max_execution_duration_per_commit,
-                    max_overshoot_per_commit,
-                    &HashMap::new(),
-                    0,
-                )
+            if let SequencingResult::Defer(_, congested_objects) =
+                shared_object_congestion_tracker.try_schedule(&tx, &HashMap::new(), 0)
             {
                 assert_eq!(congested_objects.len(), 1);
                 assert_eq!(congested_objects[0], shared_obj_0);
@@ -1227,8 +1230,6 @@ mod object_cost_tests {
             let sequencing_result = initialize_tracker_and_try_schedule(
                 &mut shared_object_congestion_tracker,
                 &tx,
-                max_execution_duration_per_commit,
-                max_overshoot_per_commit,
                 &HashMap::new(),
                 0,
             );
@@ -1255,8 +1256,6 @@ mod object_cost_tests {
                     initialize_tracker_and_try_schedule(
                         &mut shared_object_congestion_tracker,
                         &tx,
-                        max_execution_duration_per_commit,
-                        max_overshoot_per_commit,
                         &HashMap::new(),
                         0,
                     )
@@ -1319,8 +1318,6 @@ mod object_cost_tests {
         ) = initialize_tracker_and_try_schedule(
             &mut shared_object_congestion_tracker,
             &tx,
-            max_execution_duration_per_commit,
-            max_overshoot_per_commit,
             &previously_deferred_tx_digests,
             10,
         ) {
@@ -1352,8 +1349,6 @@ mod object_cost_tests {
         ) = initialize_tracker_and_try_schedule(
             &mut shared_object_congestion_tracker,
             &tx,
-            max_execution_duration_per_commit,
-            max_overshoot_per_commit,
             &previously_deferred_tx_digests,
             10,
         ) {
@@ -1386,8 +1381,6 @@ mod object_cost_tests {
         ) = initialize_tracker_and_try_schedule(
             &mut shared_object_congestion_tracker,
             &tx,
-            max_execution_duration_per_commit,
-            max_overshoot_per_commit,
             &previously_deferred_tx_digests,
             10,
         ) {
@@ -1604,8 +1597,6 @@ mod object_cost_tests {
         if let SequencingResult::Schedule(start_time) = initialize_tracker_and_try_schedule(
             &mut shared_object_congestion_tracker,
             &tx,
-            max_execution_duration_per_commit,
-            max_overshoot_per_commit,
             &HashMap::new(),
             0,
         ) {
@@ -1646,8 +1637,6 @@ mod object_cost_tests {
         if let SequencingResult::Defer(_, congested_objects) = initialize_tracker_and_try_schedule(
             &mut shared_object_congestion_tracker,
             &tx,
-            max_execution_duration_per_commit,
-            max_overshoot_per_commit,
             &HashMap::new(),
             0,
         ) {
@@ -1706,8 +1695,6 @@ mod object_cost_tests {
         if let SequencingResult::Defer(_, congested_objects) = initialize_tracker_and_try_schedule(
             &mut shared_object_congestion_tracker,
             &tx,
-            max_execution_duration_per_commit,
-            max_overshoot_per_commit,
             &HashMap::new(),
             0,
         ) {
@@ -1762,8 +1749,6 @@ mod object_cost_tests {
         if let SequencingResult::Defer(_, congested_objects) = initialize_tracker_and_try_schedule(
             &mut shared_object_congestion_tracker,
             &tx,
-            max_execution_duration_per_commit,
-            max_overshoot_per_commit,
             &HashMap::new(),
             0,
         ) {
@@ -1870,14 +1855,8 @@ mod object_cost_tests {
                 tx_gas_budget,
                 TEST_ONLY_GAS_PRICE,
             );
-            if let SequencingResult::Defer(_, congested_objects) = shared_object_congestion_tracker
-                .try_schedule(
-                    &tx,
-                    max_execution_duration_per_commit,
-                    max_overshoot_per_commit,
-                    &HashMap::new(),
-                    0,
-                )
+            if let SequencingResult::Defer(_, congested_objects) =
+                shared_object_congestion_tracker.try_schedule(&tx, &HashMap::new(), 0)
             {
                 assert_eq!(congested_objects.len(), 1);
                 assert_eq!(congested_objects[0], shared_obj_0);
@@ -1894,13 +1873,9 @@ mod object_cost_tests {
                 tx_gas_budget,
                 TEST_ONLY_GAS_PRICE,
             );
-            if let SequencingResult::Schedule(_) = shared_object_congestion_tracker.try_schedule(
-                &tx,
-                max_execution_duration_per_commit,
-                max_overshoot_per_commit,
-                &HashMap::new(),
-                0,
-            ) {
+            if let SequencingResult::Schedule(_) =
+                shared_object_congestion_tracker.try_schedule(&tx, &HashMap::new(), 0)
+            {
                 // pass
             } else {
                 panic!("should schedule");
@@ -1918,13 +1893,7 @@ mod object_cost_tests {
                     1,
                 );
                 if let SequencingResult::Defer(_, congested_objects) =
-                    shared_object_congestion_tracker.try_schedule(
-                        &tx,
-                        max_execution_duration_per_commit,
-                        max_overshoot_per_commit,
-                        &HashMap::new(),
-                        0,
-                    )
+                    shared_object_congestion_tracker.try_schedule(&tx, &HashMap::new(), 0)
                 {
                     if assign_min_free_execution_slot {
                         assert_eq!(congested_objects.len(), 2);
