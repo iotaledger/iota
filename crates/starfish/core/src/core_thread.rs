@@ -82,14 +82,19 @@ enum CoreThreadCommand {
     GetMissingTransactionData(
         oneshot::Sender<BTreeMap<GenericTransactionRef, BTreeSet<AuthorityIndex>>>,
     ),
-    AddSubdagFromFastSync(Vec<TrustedCommit>, Vec<CommittedSubDag>, oneshot::Sender<()>),
+    AddSubdagFromFastSync(
+        Vec<TrustedCommit>,
+        Vec<CommittedSubDag>,
+        oneshot::Sender<()>,
+    ),
     /// Reinitialize consensus components after fast sync completes.
     /// Stores the block headers on disk (for the cached_rounds window)
     /// and reinitializes DagState, BlockManager, CommitObserver, etc.
     /// After this, regular syncer can take over.
     ///
-    /// Block headers are for blocks from commits in the cached_rounds window (~500 rounds).
-    /// Commits and transactions are already stored during fast sync via handle_committed_sub_dags.
+    /// Block headers are for blocks from commits in the cached_rounds window
+    /// (~500 rounds). Commits and transactions are already stored during
+    /// fast sync via handle_committed_sub_dags.
     ReinitializeComponents {
         block_headers: Vec<VerifiedBlockHeader>,
         sender: oneshot::Sender<()>,
@@ -158,7 +163,8 @@ pub trait CoreThreadDispatcher: Sync + Send + 'static {
     ) -> Result<(), CoreError>;
 
     /// Reinitialize consensus components after fast sync completes.
-    /// Stores block headers and reinitializes DagState, BlockManager, CommitObserver, etc.
+    /// Stores block headers and reinitializes DagState, BlockManager,
+    /// CommitObserver, etc.
     async fn reinitialize_components(
         &self,
         block_headers: Vec<VerifiedBlockHeader>,
@@ -483,8 +489,10 @@ impl CoreThreadDispatcher for ChannelCoreThreadDispatcher {
         subdags: Vec<CommittedSubDag>,
     ) -> Result<(), CoreError> {
         let (sender, receiver) = oneshot::channel();
-        self.send(CoreThreadCommand::AddSubdagFromFastSync(commits, subdags, sender))
-            .await;
+        self.send(CoreThreadCommand::AddSubdagFromFastSync(
+            commits, subdags, sender,
+        ))
+        .await;
         Ok(receiver.await.map_err(|e| Shutdown(e.to_string()))?)
     }
 
@@ -675,6 +683,7 @@ pub(crate) mod tests {
 
         async fn add_subdags_from_fast_sync(
             &self,
+            _commits: Vec<TrustedCommit>,
             _subdags: Vec<CommittedSubDag>,
         ) -> Result<(), CoreError> {
             unimplemented!()

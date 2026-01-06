@@ -50,6 +50,11 @@ impl LeaderSchedule {
         self
     }
 
+    /// Returns the number of commits per leader schedule period.
+    pub(crate) fn num_commits_per_schedule(&self) -> u64 {
+        self.num_commits_per_schedule
+    }
+
     /// Restores the `LeaderSchedule` from storage. It will attempt to retrieve
     /// the last stored `ReputationScores` and use them to build a
     /// `LeaderSwapTable`.
@@ -175,6 +180,46 @@ impl LeaderSchedule {
             .unwrap();
 
         leader_index
+    }
+
+    /// Updates the leader schedule from reputation scores stored in a commit.
+    /// Used during fast sync where we don't have the scoring_subdag populated,
+    /// but the commits already contain the pre-computed reputation scores.
+    ///
+    /// This bypasses the strict commit range checks since during fast sync
+    /// we may be processing commits from far ahead.
+    pub(crate) fn update_from_commit_scores(
+        &self,
+        commit_index: CommitIndex,
+        reputation_scores_desc: &[(AuthorityIndex, u64)],
+    ) {
+        if reputation_scores_desc.is_empty() {
+            return;
+        }
+
+        // Determine the commit range for these scores.
+        // During fast sync, we don't know the exact range, but we can estimate
+        // it based on the schedule window (num_commits_per_schedule).
+        let range_end = commit_index;
+        let range_start = commit_index.saturating_sub(self.num_commits_per_schedule as u32 - 1);
+        let commit_range = CommitRange::new(range_start..=range_end);
+
+        let reputation_scores = ReputationScores::from_scores_desc(
+            self.context.committee.size(),
+            commit_range,
+            reputation_scores_desc,
+        );
+
+        tracing::info!(
+            "Updating leader schedule from commit scores at index {commit_index}: {reputation_scores:?}"
+        );
+
+        let table = LeaderSwapTable::new(self.context.clone(), commit_index, reputation_scores);
+
+        // Directly update the swap table without strict range checks.
+        // During fast sync, we trust the scores from certified commits.
+        let mut write = self.leader_swap_table.write();
+        *write = table;
     }
 
     /// Atomically updates the `LeaderSwapTable` with the new provided one. Any

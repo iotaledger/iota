@@ -283,9 +283,14 @@ impl DagState {
         self.cordial_knowledge_sender = Some(sender);
     }
 
-    /// Loads cached data (block headers and transactions) for a single authority from storage.
-    /// Updates eviction round and populates in-memory caches.
-    fn load_cached_data_for_authority(&mut self, authority_index: AuthorityIndex, committed_round: Round) {
+    /// Loads cached data (block headers and transactions) for a single
+    /// authority from storage. Updates eviction round and populates
+    /// in-memory caches.
+    fn load_cached_data_for_authority(
+        &mut self,
+        authority_index: AuthorityIndex,
+        committed_round: Round,
+    ) {
         let eviction_round = Self::eviction_round(committed_round, self.cached_rounds);
         self.evicted_rounds[authority_index] = eviction_round;
 
@@ -316,8 +321,9 @@ impl DagState {
     }
 
     /// Reinitialize DagState after fast sync completes.
-    /// This clears in-memory caches and reloads from storage for the cached_rounds window.
-    /// Should be called after block headers have been stored via accept_block_headers() and flush().
+    /// This clears in-memory caches and reloads from storage for the
+    /// cached_rounds window. Should be called after block headers have been
+    /// stored via accept_block_headers() and flush().
     pub(crate) fn reinitialize(&mut self) {
         let num_authorities = self.context.committee.size();
 
@@ -327,8 +333,10 @@ impl DagState {
         );
 
         // 1. Clear all in-memory caches
-        // Note: scoring_subdag is NOT cleared because it's properly populated during
-        // fast sync processing via add_scoring_subdags() and should be preserved.
+        // Note: scoring_subdag IS cleared because during fast sync, CommittedSubDag.headers
+        // is empty, so scoring_subdag cannot be properly populated (it would have leaders
+        // but no votes). After reinitialize, regular operation will rebuild it correctly.
+        self.scoring_subdag.clear();
         self.recent_block_headers.clear();
         self.recent_transactions_by_authority = vec![BTreeMap::new(); num_authorities];
         self.recent_shards_by_authority = vec![BTreeMap::new(); num_authorities];
@@ -1731,9 +1739,10 @@ impl DagState {
         self.last_committed_rounds.clone()
     }
 
-    /// Returns block refs from the last `num_commits` commits stored in the database.
-    /// This is used by the fast commit syncer to determine which block headers to fetch
-    /// for the cached_rounds window before reinitializing components.
+    /// Returns block refs from the last `num_commits` commits stored in the
+    /// database. This is used by the fast commit syncer to determine which
+    /// block headers to fetch for the cached_rounds window before
+    /// reinitializing components.
     pub(crate) fn get_block_refs_for_recent_commits(&self, num_commits: u32) -> Vec<BlockRef> {
         let last_commit_index = self.last_commit_index();
         if last_commit_index == 0 {

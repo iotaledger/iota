@@ -211,7 +211,11 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
 
         // Skip scheduling depending on sync type and gap threshold.
         let gap = quorum_commit_index.saturating_sub(local_commit_index);
-        if !self.inner.sync_type.should_schedule(gap, self.inner.context.parameters.commit_sync_gap_threshold) {
+        if !self
+            .inner
+            .sync_type
+            .should_schedule(gap, self.inner.context.parameters.commit_sync_gap_threshold)
+        {
             return;
         }
 
@@ -292,7 +296,8 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
         // When close_to_quorum_mode is activated, the schedule_loop() will:
         // 1. Wait for all inflight/pending fetches to complete
         // 2. Fetch block headers for ~cached_rounds worth of commits
-        // 3. Send ReinitializeComponents to core thread to properly initialize DAG state
+        // 3. Send ReinitializeComponents to core thread to properly initialize DAG
+        //    state
         // 4. Reset fast sync state so regular syncer can take over
         if self.has_fetched_data && !self.close_to_quorum_mode {
             let current_fetch_after = self
@@ -360,8 +365,10 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
             .max(self.inner.dag_state.read().last_commit_index());
         // Only add new blocks if at least some of them are not already synced.
         if self.synced_commit_index < commit_end {
-            self.fetched_ranges
-                .insert((commit_start..=commit_end).into(), (commits, committed_subdags));
+            self.fetched_ranges.insert(
+                (commit_start..=commit_end).into(),
+                (commits, committed_subdags),
+            );
         }
         // Try to process as many fetched blocks as possible.
         while let Some((fetched_commit_range, _)) = self.fetched_ranges.first_key_value() {
@@ -755,8 +762,9 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
     }
 
     /// Fetches block headers for the cached_rounds window from the network.
-    /// This is called when close_to_quorum mode is active and all pending fetches complete.
-    /// Returns verified block headers that will be stored and used to reinitialize components.
+    /// This is called when close_to_quorum mode is active and all pending
+    /// fetches complete. Returns verified block headers that will be stored
+    /// and used to reinitialize components.
     async fn fetch_headers_for_cached_rounds(
         inner: Arc<Inner<C>>,
     ) -> ConsensusResult<Vec<VerifiedBlockHeader>> {

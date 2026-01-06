@@ -39,13 +39,14 @@ use crate::{
         VerifiedOwnShard, VerifiedTransactions,
     },
     block_manager::BlockManager,
-    commit::{CertifiedCommits, PendingSubDag, TrustedCommit},
+    commit::{CertifiedCommits, CommitAPI, CommitRange, PendingSubDag, TrustedCommit},
     commit_observer::{CommitObserver, CommittedSubDagSource},
     context::Context,
     dag_state::{DagState, TransactionSource},
     encoder::{ShardEncoder, create_encoder},
     error::{ConsensusError, ConsensusResult},
     leader_schedule::LeaderSchedule,
+    leader_scoring::ReputationScores,
     stake_aggregator::{QuorumThreshold, StakeAggregator},
     transaction::TransactionConsumer,
     transaction_ref::{GenericTransactionRef, GenericTransactionRefAPI as _},
@@ -510,6 +511,7 @@ impl Core {
         self.add_block_headers(block_headers)
     }
 
+    #[allow(dead_code)]
     pub(crate) fn handle_committed_sub_dags(
         &mut self,
         committed_subdags: Vec<CommittedSubDag>,
@@ -520,8 +522,9 @@ impl Core {
     }
 
     /// Handle committed subdags from fast sync.
-    /// First stores the commits, transactions, and scoring subdags in DagState,
-    /// then processes the subdags.
+    /// First stores the commits, transactions in DagState, then processes the subdags.
+    /// Also updates the leader schedule from commits that contain reputation scores.
+    ///
     /// Commits must be stored so that recovery/reinitialization can rebuild
     /// the Linearizer's transaction acknowledgment tracker.
     /// Transactions must be stored so they are available for recovery and cache.
@@ -530,28 +533,62 @@ impl Core {
         commits: Vec<TrustedCommit>,
         committed_subdags: Vec<CommittedSubDag>,
     ) -> ConsensusResult<()> {
-        // First, store commits, transactions, and scoring subdags in DagState
+        // Track the last commit with reputation scores for commit_info storage
+        let mut last_commit_with_scores: Option<&TrustedCommit> = None;
+
+        // First, store commits and transactions in DagState
         {
             let mut dag_state = self.dag_state.write();
 
-            // Store commits for recovery
-            for commit in commits {
-                dag_state.add_commit(commit);
+            // Store commits for recovery and track those with reputation scores
+            for commit in &commits {
+                dag_state.add_commit(commit.clone());
+
+                // Track the last commit that has reputation scores
+                if !commit.reputation_scores().is_empty() {
+                    last_commit_with_scores = Some(commit);
+                }
             }
 
             // Store transactions for each subdag
             for subdag in &committed_subdags {
                 for transactions in &subdag.transactions {
-                    dag_state.add_transactions(
-                        transactions.clone(),
-                        TransactionSource::CommitSyncer,
-                    );
+                    dag_state
+                        .add_transactions(transactions.clone(), TransactionSource::CommitSyncer);
                 }
             }
 
-            // Add scoring subdags for leader schedule scoring
-            dag_state
-                .add_scoring_subdags(committed_subdags.iter().map(|s| s.base.clone()).collect());
+            // Note: We intentionally do NOT call add_scoring_subdags() here because
+            // during fast sync, CommittedSubDag.headers is empty (we only have
+            // committed_header_refs). The scoring_subdag would get corrupted with
+            // leaders but no votes, leading to incorrect score calculations.
+            // Instead, we use the reputation_scores embedded in the commits directly.
+        }
+
+        // Update leader schedule from commits that have reputation scores.
+        // This ensures correct leader election during fast sync and after recovery.
+        // Also store commit_info so the leader schedule can be recovered from storage.
+        if let Some(commit) = last_commit_with_scores {
+            self.leader_schedule.update_from_commit_scores(
+                commit.index(),
+                commit.reputation_scores(),
+            );
+
+            // Store commit_info for recovery. The reputation_scores need to be converted
+            // from the commit's format to ReputationScores struct.
+            let commit_index = commit.index();
+            let num_commits_per_schedule = self.leader_schedule.num_commits_per_schedule();
+            let range_end = commit_index;
+            let range_start = commit_index.saturating_sub(num_commits_per_schedule as u32 - 1);
+            let commit_range = CommitRange::new(range_start..=range_end);
+            let reputation_scores = ReputationScores::from_scores_desc(
+                self.context.committee.size(),
+                commit_range,
+                commit.reputation_scores(),
+            );
+
+            // Note: scoring_subdag is empty during fast sync, so this assertion passes
+            self.dag_state.write().add_commit_info(reputation_scores);
         }
 
         // Then process subdags as usual
@@ -560,8 +597,9 @@ impl Core {
     }
 
     /// Reinitialize consensus components after fast sync completes.
-    /// This stores block headers on disk and reinitializes DagState, BlockManager,
-    /// and CommitObserver so that regular syncer can take over.
+    /// This stores block headers on disk and reinitializes DagState,
+    /// BlockManager, and CommitObserver so that regular syncer can take
+    /// over.
     ///
     /// Block headers should cover the cached_rounds window (~500 rounds).
     pub(crate) fn reinitialize_components(

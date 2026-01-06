@@ -334,12 +334,13 @@ pub(crate) fn verify_transactions_with_transactions_refs(
     Ok(verified_transactions_map)
 }
 
+#[allow(dead_code)]
 #[async_trait::async_trait]
 pub trait CommitSyncer<C: NetworkClient>: Send + Sync + 'static + Sized {
     type FetchedData: Send + Sync;
 
     fn inner(&self) -> &Arc<Inner<C>>;
-    fn inflight_fetches(&mut self) -> &mut JoinSet<(u32, Self::FetchedData)>;
+    fn inflight_fetches(&mut self) -> &mut JoinSet<(u32, Vec<Self::FetchedData>)>;
     fn inflight_fetches_len(&self) -> usize;
     fn pending_fetches_len(&self) -> usize;
 
@@ -349,26 +350,23 @@ pub trait CommitSyncer<C: NetworkClient>: Send + Sync + 'static + Sized {
 
     fn pending_fetches(&mut self) -> &mut BTreeSet<CommitRange>;
 
-    fn fetched_ranges(&mut self) -> &mut BTreeMap<CommitRange, Self::FetchedData>;
+    fn fetched_ranges(&mut self) -> &mut BTreeMap<CommitRange, Vec<Self::FetchedData>>;
 
     fn unhandled_commits_threshold(&self) -> CommitIndex {
         self.inner().context.parameters.commit_sync_batch_size
             * (self.inner().context.parameters.commit_sync_batches_ahead as u32)
     }
-
-    #[cfg(test)]
-    fn highest_fetched_commit_index(&self) -> CommitIndex;
     async fn handle_fetch_result(
         &mut self,
         target_end: CommitIndex,
-        fetched_data_set: Self::FetchedData,
+        fetched_data_set: Vec<Self::FetchedData>,
     );
     async fn fetch_once(
         inner: Arc<Inner<C>>,
         target_authority: AuthorityIndex,
         commit_range: CommitRange,
         timeout: Duration,
-    ) -> ConsensusResult<Self::FetchedData>;
+    ) -> ConsensusResult<Vec<Self::FetchedData>>;
 
     fn start(self) -> CommitSyncerHandle {
         let (tx_shutdown, rx_shutdown) = oneshot::channel();
@@ -382,7 +380,7 @@ pub trait CommitSyncer<C: NetworkClient>: Send + Sync + 'static + Sized {
     async fn fetch_loop(
         inner: Arc<Inner<C>>,
         commit_range: CommitRange,
-    ) -> (CommitIndex, Self::FetchedData) {
+    ) -> (CommitIndex, Vec<Self::FetchedData>) {
         // Individual request base timeout.
         const TIMEOUT: Duration = Duration::from_secs(10);
         // Max per-request timeout will be base timeout times a multiplier.

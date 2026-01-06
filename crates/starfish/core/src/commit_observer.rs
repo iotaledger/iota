@@ -109,9 +109,9 @@ impl CommitObserver {
     }
 
     /// Reinitialize CommitObserver after fast sync completes.
-    /// Resets internal state and recovers the Linearizer's state from stored commits.
-    /// This is similar to recovery but without re-sending commits (they were already
-    /// sent during fast sync).
+    /// Resets internal state and recovers the Linearizer's state from stored
+    /// commits. This is similar to recovery but without re-sending commits
+    /// (they were already sent during fast sync).
     pub(crate) fn reinitialize(&mut self, last_commit_index: CommitIndex) {
         let now = Instant::now();
 
@@ -131,10 +131,10 @@ impl CommitObserver {
         );
     }
 
-    /// Recovers the Linearizer's transaction acknowledgment tracker and traversed headers
-    /// from recent commits stored in the database.
-    /// This is necessary after fast sync because the linearizer state is not rebuilt
-    /// during fast sync (only commits and transactions are stored).
+    /// Recovers the Linearizer's transaction acknowledgment tracker and
+    /// traversed headers from recent commits stored in the database.
+    /// This is necessary after fast sync because the linearizer state is not
+    /// rebuilt during fast sync (only commits and transactions are stored).
     fn recover_linearizer_state(&mut self, last_commit_index: CommitIndex) {
         // Calculate the recovery lower bound similar to recover_and_send_commits.
         // The earliest commit that still might acknowledge not-yet-committed
@@ -157,9 +157,11 @@ impl CommitObserver {
             last_commit_index
         );
 
-        // Recover transaction acknowledgment tracker in the linearizer using all the commits.
+        // Recover transaction acknowledgment tracker in the linearizer using all the
+        // commits.
         for commit in recovery_commits {
-            let pending_sub_dag = load_pending_subdag_from_store(self.store.as_ref(), commit, vec![]);
+            let pending_sub_dag =
+                load_pending_subdag_from_store(self.store.as_ref(), commit, vec![]);
 
             // Rebuild traversed headers tracker so transaction commit checks can succeed.
             self.linearizer
