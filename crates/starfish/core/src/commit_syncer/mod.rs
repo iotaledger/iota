@@ -96,6 +96,40 @@ impl CommitSyncType {
     }
 }
 
+/// Verifies that fetched block headers match the requested block refs.
+/// Returns verified headers or an error if count/reference mismatch.
+pub(crate) fn verify_fetched_headers(
+    peer: AuthorityIndex,
+    request_block_refs: &[BlockRef],
+    serialized_block_headers: Vec<Bytes>,
+) -> ConsensusResult<Vec<VerifiedBlockHeader>> {
+    // 1. Verify count matches
+    if request_block_refs.len() != serialized_block_headers.len() {
+        return Err(ConsensusError::UnexpectedNumberOfHeadersFetched {
+            authority: peer,
+            requested: request_block_refs.len(),
+            received_headers: serialized_block_headers.len(),
+        });
+    }
+
+    // 2. Verify each header's reference matches requested
+    serialized_block_headers
+        .into_iter()
+        .zip(request_block_refs)
+        .map(|(serialized, requested_ref)| {
+            let header = VerifiedBlockHeader::new_from_bytes(serialized)?;
+            if *requested_ref != header.reference() {
+                return Err(ConsensusError::UnexpectedBlockHeaderForCommit {
+                    peer,
+                    requested: *requested_ref,
+                    received: header.reference(),
+                });
+            }
+            Ok(header)
+        })
+        .collect()
+}
+
 // Handle to stop the CommitSyncer loop.
 pub(crate) struct CommitSyncerHandle {
     schedule_task: JoinHandle<()>,

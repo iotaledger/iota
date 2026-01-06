@@ -1173,6 +1173,11 @@ mod tests {
             max_round_first
         );
 
+        // Let the validator operate for a while to ensure sufficient data is written to storage.
+        // This helps ensure proper initialization on the next restart.
+        tracing::info!("Letting authority {} operate for 10 seconds before second crash...", stopped_index);
+        sleep(Duration::from_secs(10)).await;
+
         // === Second crash: Stop authority 0 again ===
         tracing::info!("=== Second crash: Stopping authority {} again ===", stopped_index);
         authorities.remove(stopped_index).stop().await;

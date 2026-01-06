@@ -26,7 +26,8 @@ use crate::{
     block_verifier::BlockVerifier,
     commit::{CommitAPI as _, CommitRange, CommittedSubDag, TrustedCommit},
     commit_syncer::{
-        CommitSyncType, CommitSyncerHandle, Inner, verify_transactions_with_transactions_refs,
+        CommitSyncType, CommitSyncerHandle, Inner, verify_fetched_headers,
+        verify_transactions_with_transactions_refs,
     },
     commit_vote_monitor::CommitVoteMonitor,
     context::Context,
@@ -150,7 +151,8 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
             self.try_start_fetches();
 
             // Handle close-to-quorum mode: when all fetches complete and we're close
-            // to the quorum, fetch block headers for cached_rounds and reinitialize.
+            // to the quorum, fetch block headers for a large enough number of rounds and
+            // reinitialize.
             if self.close_to_quorum_mode
                 && self.inflight_fetches.is_empty()
                 && self.pending_fetches.is_empty()
@@ -761,10 +763,11 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
             * (self.inner.context.parameters.commit_sync_batches_ahead as u32)
     }
 
-    /// Fetches block headers needed for component reinitialization from the network.
-    /// This is called when close_to_quorum mode is active and all pending
-    /// fetches complete. Fetches headers for max(cached_rounds, gc_depth * 2) commits
-    /// to satisfy both DagState cache and linearizer recovery requirements.
+    /// Fetches block headers needed for component reinitialization from the
+    /// network. This is called when close_to_quorum mode is active and all
+    /// pending fetches complete. Fetches headers for max(cached_rounds,
+    /// gc_depth * 2) commits to satisfy both DagState cache and linearizer
+    /// recovery requirements.
     async fn fetch_headers_for_reinitialization(
         inner: Arc<Inner<C>>,
     ) -> ConsensusResult<Vec<VerifiedBlockHeader>> {
@@ -835,14 +838,8 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
                 .await
                 {
                     Ok(Ok(serialized_headers)) => {
-                        // Verify and convert headers
-                        let verified_headers: ConsensusResult<Vec<VerifiedBlockHeader>> =
-                            serialized_headers
-                                .into_iter()
-                                .map(VerifiedBlockHeader::new_from_bytes)
-                                .collect();
-
-                        match verified_headers {
+                        // Verify headers match requested refs
+                        match verify_fetched_headers(authority, &chunk_refs, serialized_headers) {
                             Ok(headers) => {
                                 info!(
                                     "[{}] Fetched {} headers from authority {}",

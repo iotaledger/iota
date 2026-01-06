@@ -20,13 +20,13 @@ use tokio::{
 use tracing::{debug, info, warn};
 
 use crate::{
-    CommitConsumerMonitor, CommitIndex, VerifiedBlockHeader,
+    CommitConsumerMonitor, CommitIndex,
     block_header::BlockRef,
     block_verifier::BlockVerifier,
     commit::{CertifiedCommit, CertifiedCommits, CommitAPI as _, CommitRange},
     commit_syncer::{
-        CommitSyncType, CommitSyncerHandle, Inner, verify_transactions_with_headers,
-        verify_transactions_with_transactions_refs,
+        CommitSyncType, CommitSyncerHandle, Inner, verify_fetched_headers,
+        verify_transactions_with_headers, verify_transactions_with_transactions_refs,
     },
     commit_vote_monitor::CommitVoteMonitor,
     context::Context,
@@ -752,40 +752,12 @@ impl<C: NetworkClient> RegularCommitSyncer<C> {
                             timeout,
                         )
                         .await?;
-                    // 5. Verify the same number of block headers is returned as requested.
-                    if request_block_refs.len() != serialized_block_headers.len() {
-                        return Err(ConsensusError::UnexpectedNumberOfHeadersFetched {
-                            authority: target_authority,
-                            requested: request_block_refs.len(),
-                            received_headers: serialized_block_headers.len(),
-                        });
-                    }
-                    // 6. Verify returned block headers have valid formats.
-                    let verified_block_headers = serialized_block_headers
-                        .iter()
-                        .cloned()
-                        .zip(request_block_refs)
-                        .map(|(serialized_block_header, requested_block_ref)| {
-                            // we don't verify the header, we only check the block reference below
-                            let block_header =
-                                VerifiedBlockHeader::new_from_bytes(serialized_block_header)?;
-
-                            // 7. Verify the returned block headers match the requested block refs.
-                            // If they do match, the returned block headers can be considered
-                            // verified as well.
-                            if *requested_block_ref != block_header.reference() {
-                                return Err(ConsensusError::UnexpectedBlockHeaderForCommit {
-                                    peer: target_authority,
-                                    requested: *requested_block_ref,
-                                    received: block_header.reference(),
-                                });
-                            }
-
-                            Ok(block_header)
-                        })
-                        .collect::<ConsensusResult<Vec<_>>>()?;
-
-                    Ok(verified_block_headers)
+                    // 5. Verify headers: count matches and each reference matches requested.
+                    verify_fetched_headers(
+                        target_authority,
+                        request_block_refs,
+                        serialized_block_headers,
+                    )
                 }
             })
             .collect();
