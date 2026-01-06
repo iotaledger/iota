@@ -77,7 +77,7 @@ pub fn get_service_info(
     }
 
     if read_mask.contains(GetServiceInfoResponse::SERVER_FIELD.name) {
-        message.server = service.server_version.as_ref().map(ToString::to_string);
+        message.server = service.reader.server_version();
     }
 
     Ok(message)

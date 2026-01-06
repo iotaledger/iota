@@ -403,19 +403,31 @@ impl GrpcStateReader for RestStateReaderAdapter {
 #[derive(Clone)]
 pub struct GrpcReader {
     state_reader: Arc<dyn GrpcStateReader>,
+    server_version: Option<String>,
 }
 
 impl GrpcReader {
-    pub fn new(state_reader: Arc<dyn GrpcStateReader>) -> Self {
-        Self { state_reader }
+    pub fn new(state_reader: Arc<dyn GrpcStateReader>, server_version: Option<String>) -> Self {
+        Self {
+            state_reader,
+            server_version,
+        }
     }
 
-    pub fn from_rest_state_reader(state_reader: Arc<dyn RestStateReader>) -> Self {
+    pub fn from_rest_state_reader(
+        state_reader: Arc<dyn RestStateReader>,
+        server_version: Option<String>,
+    ) -> Self {
         Self {
             state_reader: Arc::new(RestStateReaderAdapter {
                 inner: state_reader,
             }),
+            server_version,
         }
+    }
+
+    pub fn server_version(&self) -> Option<String> {
+        self.server_version.clone()
     }
 
     pub fn get_chain_identifier(&self) -> anyhow::Result<iota_types::digests::ChainIdentifier> {

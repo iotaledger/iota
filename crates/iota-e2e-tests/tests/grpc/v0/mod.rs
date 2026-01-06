@@ -1,6 +1,7 @@
 // Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+mod header;
 mod ledger_service;
 mod transaction_execution_service;
 

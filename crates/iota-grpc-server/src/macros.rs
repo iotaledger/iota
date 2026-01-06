@@ -114,3 +114,20 @@ macro_rules! create_batching_stream {
         }
     };
 }
+
+/// Appends IOTA-specific metadata headers to a gRPC response.
+///
+/// This macro simplifies adding checkpoint and blockchain metadata headers
+/// to gRPC responses without repeating boilerplate code.
+/// Tonic does not currently support interceptors that can modify responses,
+/// so this macro provides a convenient way to append headers directly.
+///
+/// # Example
+/// ```ignore
+/// let response = Response::new(result);
+/// Ok(append_info_headers!(response, self.reader))
+/// ```
+#[macro_export]
+macro_rules! append_info_headers {
+    ($response:expr, $reader:expr) => {{ $crate::append_info_headers($reader, $response) }};
+}
