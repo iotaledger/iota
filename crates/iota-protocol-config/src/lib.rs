@@ -19,7 +19,7 @@ use tracing::{info, warn};
 
 /// The minimum and maximum protocol versions supported by this build.
 const MIN_PROTOCOL_VERSION: u64 = 1;
-pub const MAX_PROTOCOL_VERSION: u64 = 17;
+pub const MAX_PROTOCOL_VERSION: u64 = 18;
 
 // Record history of protocol version allocations here:
 //
@@ -92,6 +92,8 @@ pub const MAX_PROTOCOL_VERSION: u64 = 17;
 //             Enable committing transactions only for traversed headers in
 //             Starfish.
 // Version 17: Increase the committee size to 100 on all networks.
+// Version 18: Enable congestion limit overshoot in the gas price feedback
+//             mechanism on devnet.
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
 
@@ -367,9 +369,14 @@ struct FeatureFlags {
     // leader's ancestors, and (3) enforces checkpoint timestamps are non-decreasing.
     #[serde(skip_serializing_if = "is_false")]
     consensus_median_timestamp_with_checkpoint_enforcement: bool,
+
     // If true, then transactions are committed only for traversed headers
     #[serde(skip_serializing_if = "is_false")]
     consensus_commit_transactions_only_for_traversed_headers: bool,
+
+    // To enable/disable congestion limit overshoot in the gas price feedback mechanism.
+    #[serde(skip_serializing_if = "is_false")]
+    congestion_limit_overshoot_in_gas_price_feedback_mechanism: bool,
 }
 
 fn is_true(b: &bool) -> bool {
@@ -1439,9 +1446,17 @@ impl ProtocolConfig {
         );
         res
     }
+
     pub fn consensus_commit_transactions_only_for_traversed_headers(&self) -> bool {
         self.feature_flags
             .consensus_commit_transactions_only_for_traversed_headers
+    }
+
+    /// Check whether congestion limit overshoot is enabled in the gas price
+    /// feedback mechanism.
+    pub fn congestion_limit_overshoot_in_gas_price_feedback_mechanism(&self) -> bool {
+        self.feature_flags
+            .congestion_limit_overshoot_in_gas_price_feedback_mechanism
     }
 }
 
@@ -2317,6 +2332,14 @@ impl ProtocolConfig {
                     // Increase the committee size to 100 on all networks.
                     cfg.max_committee_members_count = Some(100);
                 }
+                18 => {
+                    if chain != Chain::Testnet && chain != Chain::Mainnet {
+                        // Enable congestion limit overshoot in the gas price feedback
+                        // mechanism on devnet.
+                        cfg.feature_flags
+                            .congestion_limit_overshoot_in_gas_price_feedback_mechanism = true;
+                    }
+                }
                 // Use this template when making changes:
                 //
                 //     // modify an existing constant.
@@ -2477,6 +2500,7 @@ impl ProtocolConfig {
         self.feature_flags
             .congestion_control_gas_price_feedback_mechanism = val;
     }
+
     pub fn set_select_committee_from_eligible_validators_for_testing(&mut self, val: bool) {
         self.feature_flags.select_committee_from_eligible_validators = val;
     }
@@ -2497,12 +2521,21 @@ impl ProtocolConfig {
         self.feature_flags
             .consensus_median_timestamp_with_checkpoint_enforcement = val;
     }
+
     pub fn set_consensus_commit_transactions_only_for_traversed_headers_for_testing(
         &mut self,
         val: bool,
     ) {
         self.feature_flags
             .consensus_commit_transactions_only_for_traversed_headers = val;
+    }
+
+    pub fn set_congestion_limit_overshoot_in_gas_price_feedback_mechanism_for_testing(
+        &mut self,
+        val: bool,
+    ) {
+        self.feature_flags
+            .congestion_limit_overshoot_in_gas_price_feedback_mechanism = val;
     }
 }
 
