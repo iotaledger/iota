@@ -26,7 +26,9 @@ use iota_config::node::ExpensiveSafetyCheckConfig;
 use iota_execution::{self, Executor};
 use iota_macros::{fail_point, fail_point_arg};
 use iota_metrics::monitored_scope;
-use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
+use iota_protocol_config::{
+    Chain, PerObjectCongestionControlMode, ProtocolConfig, ProtocolVersion,
+};
 use iota_storage::mutex_table::{MutexGuard, MutexTable};
 use iota_types::{
     accumulator::Accumulator,
@@ -165,6 +167,63 @@ impl CertLockGuard {
 }
 
 type JwkAggregator = GenericMultiStakeAggregator<(JwkId, JWK), true>;
+
+/// Congestion control parameters for `SharedObjectCongestionTracker`
+/// and `SuggestedGasPriceCalculator`.
+///
+/// The `per_object_congestion_control_mode` field determines how the estimated
+/// execution duration of the transaction is calculated.
+///
+/// The `congestion_control_min_free_execution_slot` field determines how the
+/// start time of a transaction should be assigned. If true, the tracker will
+/// assign the start time according to the minimum free execution slot for a
+/// transaction over all its shared objects. If false, the tracker will assign
+/// the start time according to the maximum end time of the occupied execution
+/// slots for a transaction over all its shared objects.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct CongestionControlParameters {
+    /// Controls the behavior of per-object congestion control.
+    per_object_congestion_control_mode: PerObjectCongestionControlMode,
+
+    /// Whether to use the minimum free execution slot to schedule execution
+    /// of a transaction.
+    congestion_control_min_free_execution_slot: bool,
+}
+
+impl CongestionControlParameters {
+    /// Create a new `CongestionControlParameters` from `ProtocolConfig`.
+    fn new(protocol_config: &ProtocolConfig) -> Self {
+        Self {
+            per_object_congestion_control_mode: protocol_config
+                .per_object_congestion_control_mode(),
+            congestion_control_min_free_execution_slot: protocol_config
+                .congestion_control_min_free_execution_slot(),
+        }
+    }
+
+    /// Create a new `CongestionControlParameters` for testing.
+    #[cfg(test)]
+    pub(crate) fn new_for_test(
+        per_object_congestion_control_mode: PerObjectCongestionControlMode,
+        congestion_control_min_free_execution_slot: bool,
+    ) -> Self {
+        Self {
+            per_object_congestion_control_mode,
+            congestion_control_min_free_execution_slot,
+        }
+    }
+
+    /// Get the per-object congestion control mode.
+    pub(super) fn per_object_congestion_control_mode(&self) -> PerObjectCongestionControlMode {
+        self.per_object_congestion_control_mode
+    }
+
+    /// Check whether to use the minimum free execution slot to schedule
+    /// execution of a transaction.
+    pub(super) fn congestion_control_min_free_execution_slot(&self) -> bool {
+        self.congestion_control_min_free_execution_slot
+    }
+}
 
 /// An alias type for a collection used to hold previously deferred
 /// transactions, where `Option<u64>` is used to hold suggested gas
@@ -2953,6 +3012,8 @@ impl AuthorityPerEpochStore {
             self.protocol_config.consensus_transaction_ordering(),
         );
 
+        let congestion_control_params = CongestionControlParameters::new(&self.protocol_config);
+
         // We track transaction shared object congestion separately for regular
         // transactions and transactions using randomness.
         let shared_object_congestion_tracker = SharedObjectCongestionTracker::new(
@@ -2962,7 +3023,7 @@ impl AuthorityPerEpochStore {
                 false,
                 &sequenced_transactions,
             )?,
-            self.protocol_config(),
+            congestion_control_params.clone(),
         );
         let shared_object_using_randomness_congestion_tracker = SharedObjectCongestionTracker::new(
             self.consensus_quarantine.read().load_initial_object_debts(
@@ -2971,7 +3032,7 @@ impl AuthorityPerEpochStore {
                 true,
                 &sequenced_randomness_transactions,
             )?,
-            self.protocol_config(),
+            congestion_control_params,
         );
 
         let consensus_transactions: Vec<_> = system_transactions

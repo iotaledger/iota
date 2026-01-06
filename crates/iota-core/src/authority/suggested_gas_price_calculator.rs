@@ -276,10 +276,13 @@ pub mod suggested_gas_price_calculator_test_utils {
     use iota_types::base_types::ObjectID;
 
     use super::SuggestedGasPriceCalculator;
-    use crate::authority::shared_object_congestion_tracker::{
-        ExecutionTime, SharedObjectCongestionTracker,
-        shared_object_test_utils::{
-            build_transaction, initialize_tracker_and_compute_tx_start_time,
+    use crate::authority::{
+        authority_per_epoch_store::CongestionControlParameters,
+        shared_object_congestion_tracker::{
+            ExecutionTime, SharedObjectCongestionTracker,
+            shared_object_test_utils::{
+                build_transaction, initialize_tracker_and_compute_tx_start_time,
+            },
         },
     };
 
@@ -294,8 +297,10 @@ pub mod suggested_gas_price_calculator_test_utils {
 
         let mut shared_object_congestion_tracker = SharedObjectCongestionTracker::new_for_test(
             vec![],
-            per_object_congestion_control_mode,
-            protocol_config.congestion_control_min_free_execution_slot(),
+            CongestionControlParameters::new_for_test(
+                per_object_congestion_control_mode,
+                protocol_config.congestion_control_min_free_execution_slot(),
+            ),
         );
 
         for (object_id, duration, gas_price) in init_values {
@@ -357,6 +362,7 @@ mod tests {
 
     use super::SuggestedGasPriceCalculator;
     use crate::authority::{
+        authority_per_epoch_store::CongestionControlParameters,
         shared_object_congestion_tracker::{
             BumpObjectExecutionSlotsResult, ExecutionTime, SequencingResult,
             SharedObjectCongestionTracker, shared_object_test_utils::build_transaction,
@@ -634,8 +640,7 @@ mod tests {
 
         let mut shared_object_congestion_tracker = SharedObjectCongestionTracker::new_for_test(
             vec![],
-            mode,
-            min_free_execution_slot_assigned,
+            CongestionControlParameters::new_for_test(mode, min_free_execution_slot_assigned),
         );
 
         let mut suggested_gas_price_calculator = SuggestedGasPriceCalculator::new_for_test(

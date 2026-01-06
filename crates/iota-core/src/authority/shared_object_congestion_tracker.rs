@@ -4,7 +4,7 @@
 
 use std::{cmp::Ordering, collections::HashMap};
 
-use iota_protocol_config::{PerObjectCongestionControlMode, ProtocolConfig};
+use iota_protocol_config::PerObjectCongestionControlMode;
 use iota_types::{
     base_types::{CommitRound, ObjectID},
     executable_transaction::VerifiedExecutableTransaction,
@@ -16,6 +16,7 @@ use tracing::instrument;
 use super::{
     authority_per_epoch_store::PreviouslyDeferredTransactions, transaction_deferral::DeferralKey,
 };
+use crate::authority::authority_per_epoch_store::CongestionControlParameters;
 
 /// Represents execution slot boundaries
 pub(super) type ExecutionTime = u64;
@@ -209,30 +210,19 @@ impl ObjectExecutionSlots {
 ///
 /// The goal of this data structure is to capture the critical path of
 /// transaction execution latency on each objects.
-///
-/// The `mode` field determines how the estimated execution duration of the
-/// transaction is calculated.
-///
-/// The `assign_min_free_execution_slot` field determines how the start time of
-/// a transaction should be assigned. If true, the tracker will assign the start
-/// time according to the minimum free execution slot for a transaction over all
-/// its shared objects. If false, the tracker will assign the start time
-/// according to the maximum end time of the occupied execution slots for a
-/// transaction over all its shared objects.
-#[derive(PartialEq, Eq, Clone, Debug)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct SharedObjectCongestionTracker {
     object_execution_slots: HashMap<ObjectID, ObjectExecutionSlots>,
-    mode: PerObjectCongestionControlMode,
-    assign_min_free_execution_slot: bool,
+    congestion_control_params: CongestionControlParameters,
 }
 
 impl SharedObjectCongestionTracker {
     /// Create a new `SharedObjectCongestionTracker` for the given
-    /// `protocol_config` parameters and taking into account
+    /// `CongestionControlParameters` and taking into account
     /// `initial_object_debts`.
     pub(super) fn new(
         initial_object_debts: impl IntoIterator<Item = (ObjectID, u64)>,
-        protocol_config: &ProtocolConfig,
+        congestion_control_params: CongestionControlParameters,
     ) -> Self {
         let object_execution_slots = initial_object_debts
             .into_iter()
@@ -250,20 +240,17 @@ impl SharedObjectCongestionTracker {
 
         Self {
             object_execution_slots,
-            mode: protocol_config.per_object_congestion_control_mode(),
-            assign_min_free_execution_slot: protocol_config
-                .congestion_control_min_free_execution_slot(),
+            congestion_control_params,
         }
     }
 
     /// Create a new `SharedObjectCongestionTracker` for testing for the given
-    /// `PerObjectCongestionControlMode` and `assign_min_free_execution_slot`
-    /// parameters and taking into account `initial_object_debts`.
+    /// `CongestionControlParameters` and taking into account
+    /// `initial_object_debts`.
     #[cfg(test)]
     pub(super) fn new_for_test(
         initial_object_debts: impl IntoIterator<Item = (ObjectID, u64)>,
-        mode: PerObjectCongestionControlMode,
-        assign_min_free_execution_slot: bool,
+        congestion_control_params: CongestionControlParameters,
     ) -> Self {
         let object_execution_slots = initial_object_debts
             .into_iter()
@@ -281,8 +268,7 @@ impl SharedObjectCongestionTracker {
 
         Self {
             object_execution_slots,
-            mode,
-            assign_min_free_execution_slot,
+            congestion_control_params,
         }
     }
 
@@ -315,7 +301,11 @@ impl SharedObjectCongestionTracker {
         shared_input_objects: &[SharedInputObject],
         tx_duration: ExecutionTime,
     ) -> Option<ExecutionTime> {
-        if self.assign_min_free_execution_slot {
+        let assign_min_free_execution_slot = self
+            .congestion_control_params
+            .congestion_control_min_free_execution_slot();
+
+        if assign_min_free_execution_slot {
             // If `assign_min_free_execution_slot` is true, we assign the transaction start
             // time based on the lowest free execution slot that can accommodate the
             // transaction. We start the search from the full range of the slots
@@ -425,7 +415,10 @@ impl SharedObjectCongestionTracker {
         &self,
         cert: &VerifiedExecutableTransaction,
     ) -> ExecutionTime {
-        match self.mode {
+        match self
+            .congestion_control_params
+            .per_object_congestion_control_mode()
+        {
             PerObjectCongestionControlMode::None => 0,
             PerObjectCongestionControlMode::TotalGasBudget => cert.gas_budget(),
             PerObjectCongestionControlMode::TotalTxCount => 1,
@@ -473,9 +466,13 @@ impl SharedObjectCongestionTracker {
             }
         }
 
+        let assign_min_free_execution_slot = self
+            .congestion_control_params
+            .congestion_control_min_free_execution_slot();
+
         // The transaction cannot be scheduled. We need to defer it and return a list
         // of the IDs of shared input objects to explain the congestion reason.
-        let congested_objects: Vec<ObjectID> = if self.assign_min_free_execution_slot {
+        let congested_objects: Vec<ObjectID> = if assign_min_free_execution_slot {
             // if `assign_min_free_execution_slot` is true, we return all the shared input
             // objects as no individual object can be identified as the cause of congestion.
             shared_input_objects.iter().map(|obj| obj.id).collect()
@@ -811,7 +808,6 @@ mod execution_slot_tests {
 
 #[cfg(test)]
 pub mod shared_object_test_utils {
-    use iota_protocol_config::PerObjectCongestionControlMode;
     use iota_test_transaction_builder::TestTransactionBuilder;
     use iota_types::{
         base_types::{ObjectID, SequenceNumber, random_object_ref},
@@ -897,13 +893,11 @@ pub mod shared_object_test_utils {
 
     pub(crate) fn new_congestion_tracker_with_initial_value_for_test(
         init_values: &[(ObjectID, ExecutionTime)],
-        mode: PerObjectCongestionControlMode,
-        assign_min_free_execution_slot: bool,
+        congestion_control_params: CongestionControlParameters,
     ) -> SharedObjectCongestionTracker {
         SharedObjectCongestionTracker::new_for_test(
             init_values.iter().map(|(id, debt)| (*id, *debt)),
-            mode,
-            assign_min_free_execution_slot,
+            congestion_control_params,
         )
     }
 
@@ -937,8 +931,10 @@ mod object_cost_tests {
         let mut shared_object_congestion_tracker =
             new_congestion_tracker_with_initial_value_for_test(
                 &[(object_id_0, 5), (object_id_1, 9)],
-                PerObjectCongestionControlMode::TotalGasBudget,
-                assign_min_free_execution_slot,
+                CongestionControlParameters::new_for_test(
+                    PerObjectCongestionControlMode::TotalGasBudget,
+                    assign_min_free_execution_slot,
+                ),
             );
 
         // The tracker has the following object execution slots:
@@ -1151,8 +1147,7 @@ mod object_cost_tests {
                     (shared_obj_0, initial_debt_obj_0),
                     (shared_obj_1, initial_debt_obj_1),
                 ],
-                mode,
-                assign_min_free_execution_slot,
+                CongestionControlParameters::new_for_test(mode, assign_min_free_execution_slot),
             );
         // add a transaction with gas budget 1 that writes to object 0 and 1.
         // We don't test the scheduling result here, we just want to update the
@@ -1284,7 +1279,10 @@ mod object_cost_tests {
         let max_execution_duration_per_commit = 0;
         let max_overshoot_per_commit = 0;
         let mut shared_object_congestion_tracker =
-            new_congestion_tracker_with_initial_value_for_test(&[], mode, false);
+            new_congestion_tracker_with_initial_value_for_test(
+                &[],
+                CongestionControlParameters::new_for_test(mode, false),
+            );
 
         // Insert a random pre-existing transaction.
         let mut previously_deferred_tx_digests = PreviouslyDeferredTransactions::new();
@@ -1404,8 +1402,7 @@ mod object_cost_tests {
         let mut shared_object_congestion_tracker =
             new_congestion_tracker_with_initial_value_for_test(
                 &[(object_id_0, 5), (object_id_1, 10)],
-                mode,
-                assign_min_free_execution_slot,
+                CongestionControlParameters::new_for_test(mode, assign_min_free_execution_slot),
             );
         assert_eq!(
             shared_object_congestion_tracker.max_occupied_slot_end_time(),
@@ -1437,8 +1434,7 @@ mod object_cost_tests {
             shared_object_congestion_tracker,
             new_congestion_tracker_with_initial_value_for_test(
                 &[(object_id_0, 5), (object_id_1, 10)],
-                mode,
-                assign_min_free_execution_slot,
+                CongestionControlParameters::new_for_test(mode, assign_min_free_execution_slot),
             )
         );
         assert_eq!(
@@ -1574,8 +1570,10 @@ mod object_cost_tests {
         let mut shared_object_congestion_tracker =
             new_congestion_tracker_with_initial_value_for_test(
                 &[(object_id_0, u64::MAX - 1), (object_id_1, u64::MAX - 1)],
-                PerObjectCongestionControlMode::TotalGasBudget,
-                assign_min_free_execution_slot,
+                CongestionControlParameters::new_for_test(
+                    PerObjectCongestionControlMode::TotalGasBudget,
+                    assign_min_free_execution_slot,
+                ),
             );
 
         let tx = build_transaction(&[(object_id_0, true)], 1, TEST_ONLY_GAS_PRICE);
@@ -1664,8 +1662,10 @@ mod object_cost_tests {
         let mut shared_object_congestion_tracker =
             new_congestion_tracker_with_initial_value_for_test(
                 &[(object_id_0, 0), (object_id_1, 1), (object_id_2, 2)],
-                PerObjectCongestionControlMode::TotalGasBudget,
-                assign_min_free_execution_slot,
+                CongestionControlParameters::new_for_test(
+                    PerObjectCongestionControlMode::TotalGasBudget,
+                    assign_min_free_execution_slot,
+                ),
             );
 
         let tx = build_transaction(
@@ -1724,8 +1724,10 @@ mod object_cost_tests {
         let mut shared_object_congestion_tracker =
             new_congestion_tracker_with_initial_value_for_test(
                 &[(object_id_0, u64::MAX)],
-                PerObjectCongestionControlMode::TotalGasBudget,
-                assign_min_free_execution_slot,
+                CongestionControlParameters::new_for_test(
+                    PerObjectCongestionControlMode::TotalGasBudget,
+                    assign_min_free_execution_slot,
+                ),
             );
 
         let tx = build_transaction(&[(object_id_0, true)], u64::MAX, TEST_ONLY_GAS_PRICE);
@@ -1805,8 +1807,7 @@ mod object_cost_tests {
                 //     301|            |
                 SharedObjectCongestionTracker::new_for_test(
                     [(shared_obj_0, 301), (shared_obj_1, 199)],
-                    mode,
-                    assign_min_free_execution_slot,
+                    CongestionControlParameters::new_for_test(mode, assign_min_free_execution_slot),
                 )
             }
             PerObjectCongestionControlMode::TotalTxCount => {
@@ -1819,8 +1820,7 @@ mod object_cost_tests {
                 //        4|            |
                 SharedObjectCongestionTracker::new_for_test(
                     [(shared_obj_0, 4), (shared_obj_1, 3)],
-                    mode,
-                    assign_min_free_execution_slot,
+                    CongestionControlParameters::new_for_test(mode, assign_min_free_execution_slot),
                 )
             }
         };
@@ -1935,8 +1935,7 @@ mod object_cost_tests {
                 (shared_obj_0, initial_object_debt),
                 (shared_obj_1, initial_object_debt),
             ],
-            mode,
-            assign_min_free_execution_slot,
+            CongestionControlParameters::new_for_test(mode, assign_min_free_execution_slot),
         );
 
         // Verify that accumulated_debts is empty initially.

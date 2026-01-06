@@ -25,6 +25,7 @@ use move_core_types::ident_str;
 use crate::{
     authority::{
         AuthorityState,
+        authority_per_epoch_store::CongestionControlParameters,
         authority_tests::{
             build_programmable_transaction, certify_shared_obj_transaction_no_execution,
             execute_programmable_transaction, send_and_confirm_transaction_,
@@ -343,8 +344,10 @@ async fn test_congestion_control_execution_cancellation() {
     register_fail_point_arg("initial_congestion_tracker", move || {
         Some(new_congestion_tracker_with_initial_value_for_test(
             &[(shared_object_1.0, initial_debt)],
-            PerObjectCongestionControlMode::TotalGasBudget,
-            congestion_control_min_free_execution_slot,
+            CongestionControlParameters::new_for_test(
+                PerObjectCongestionControlMode::TotalGasBudget,
+                congestion_control_min_free_execution_slot,
+            ),
         ))
     });
     register_fail_point_arg("initial_suggested_gas_price_calculator", move || {
