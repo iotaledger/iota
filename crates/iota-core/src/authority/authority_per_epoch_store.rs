@@ -188,6 +188,13 @@ pub(crate) struct CongestionControlParameters {
     /// Whether to use the minimum free execution slot to schedule execution
     /// of a transaction.
     congestion_control_min_free_execution_slot: bool,
+
+    /// Maximum execution duration per shared object per commit.
+    max_execution_duration_per_commit: Option<ExecutionTime>,
+
+    /// Maximum amount that is allowed to overshoot
+    /// `max_execution_duration_per_commit`.
+    max_congestion_limit_overshoot_per_commit: Option<ExecutionTime>,
 }
 
 impl CongestionControlParameters {
@@ -198,6 +205,10 @@ impl CongestionControlParameters {
                 .per_object_congestion_control_mode(),
             congestion_control_min_free_execution_slot: protocol_config
                 .congestion_control_min_free_execution_slot(),
+            max_execution_duration_per_commit: protocol_config
+                .max_accumulated_txn_cost_per_object_in_mysticeti_commit_as_option(),
+            max_congestion_limit_overshoot_per_commit: protocol_config
+                .max_congestion_limit_overshoot_per_commit_as_option(),
         }
     }
 
@@ -206,10 +217,14 @@ impl CongestionControlParameters {
     pub(crate) fn new_for_test(
         per_object_congestion_control_mode: PerObjectCongestionControlMode,
         congestion_control_min_free_execution_slot: bool,
+        max_execution_duration_per_commit: Option<ExecutionTime>,
+        max_congestion_limit_overshoot_per_commit: Option<ExecutionTime>,
     ) -> Self {
         Self {
             per_object_congestion_control_mode,
             congestion_control_min_free_execution_slot,
+            max_execution_duration_per_commit,
+            max_congestion_limit_overshoot_per_commit,
         }
     }
 
@@ -222,6 +237,21 @@ impl CongestionControlParameters {
     /// execution of a transaction.
     pub(super) fn congestion_control_min_free_execution_slot(&self) -> bool {
         self.congestion_control_min_free_execution_slot
+    }
+
+    /// Get maximum execution duration per shared object per commit.
+    // TODO: remove
+    #[allow(dead_code)]
+    pub(super) fn max_execution_duration_per_commit(&self) -> Option<ExecutionTime> {
+        self.max_execution_duration_per_commit
+    }
+
+    /// Get maximum amount that is allowed to overshoot
+    /// `max_execution_duration_per_commit`.
+    // TODO: remove
+    #[allow(dead_code)]
+    pub(super) fn max_congestion_limit_overshoot_per_commit(&self) -> Option<ExecutionTime> {
+        self.max_congestion_limit_overshoot_per_commit
     }
 }
 
@@ -3407,7 +3437,7 @@ impl AuthorityPerEpochStore {
             "initial_congestion_tracker",
             |tracker: SharedObjectCongestionTracker| {
                 info!(
-                    "Initialize shared_object_congestion_tracker to  {:?}",
+                    "Initialize shared_object_congestion_tracker to {:?}",
                     tracker
                 );
                 shared_object_congestion_tracker = tracker;
@@ -3421,7 +3451,7 @@ impl AuthorityPerEpochStore {
             "initial_suggested_gas_price_calculator",
             |calculator: SuggestedGasPriceCalculator| {
                 info!(
-                    "Initialize suggested_gas_price_calculator to  {:?}",
+                    "Initialize suggested_gas_price_calculator to {:?}",
                     calculator
                 );
                 suggested_gas_price_calculator = calculator;

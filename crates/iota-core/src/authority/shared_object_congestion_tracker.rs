@@ -934,6 +934,8 @@ mod object_cost_tests {
                 CongestionControlParameters::new_for_test(
                     PerObjectCongestionControlMode::TotalGasBudget,
                     assign_min_free_execution_slot,
+                    None,
+                    None,
                 ),
             );
 
@@ -1147,7 +1149,12 @@ mod object_cost_tests {
                     (shared_obj_0, initial_debt_obj_0),
                     (shared_obj_1, initial_debt_obj_1),
                 ],
-                CongestionControlParameters::new_for_test(mode, assign_min_free_execution_slot),
+                CongestionControlParameters::new_for_test(
+                    mode,
+                    assign_min_free_execution_slot,
+                    Some(max_execution_duration_per_commit),
+                    Some(max_overshoot_per_commit),
+                ),
             );
         // add a transaction with gas budget 1 that writes to object 0 and 1.
         // We don't test the scheduling result here, we just want to update the
@@ -1281,7 +1288,12 @@ mod object_cost_tests {
         let mut shared_object_congestion_tracker =
             new_congestion_tracker_with_initial_value_for_test(
                 &[],
-                CongestionControlParameters::new_for_test(mode, false),
+                CongestionControlParameters::new_for_test(
+                    mode,
+                    false,
+                    Some(max_execution_duration_per_commit),
+                    Some(max_overshoot_per_commit),
+                ),
             );
 
         // Insert a random pre-existing transaction.
@@ -1402,7 +1414,12 @@ mod object_cost_tests {
         let mut shared_object_congestion_tracker =
             new_congestion_tracker_with_initial_value_for_test(
                 &[(object_id_0, 5), (object_id_1, 10)],
-                CongestionControlParameters::new_for_test(mode, assign_min_free_execution_slot),
+                CongestionControlParameters::new_for_test(
+                    mode,
+                    assign_min_free_execution_slot,
+                    None,
+                    None,
+                ),
             );
         assert_eq!(
             shared_object_congestion_tracker.max_occupied_slot_end_time(),
@@ -1434,7 +1451,12 @@ mod object_cost_tests {
             shared_object_congestion_tracker,
             new_congestion_tracker_with_initial_value_for_test(
                 &[(object_id_0, 5), (object_id_1, 10)],
-                CongestionControlParameters::new_for_test(mode, assign_min_free_execution_slot),
+                CongestionControlParameters::new_for_test(
+                    mode,
+                    assign_min_free_execution_slot,
+                    None,
+                    None
+                ),
             )
         );
         assert_eq!(
@@ -1573,6 +1595,8 @@ mod object_cost_tests {
                 CongestionControlParameters::new_for_test(
                     PerObjectCongestionControlMode::TotalGasBudget,
                     assign_min_free_execution_slot,
+                    Some(max_execution_duration_per_commit),
+                    Some(max_overshoot_per_commit),
                 ),
             );
 
@@ -1665,6 +1689,8 @@ mod object_cost_tests {
                 CongestionControlParameters::new_for_test(
                     PerObjectCongestionControlMode::TotalGasBudget,
                     assign_min_free_execution_slot,
+                    Some(max_execution_duration_per_commit),
+                    Some(max_overshoot_per_commit),
                 ),
             );
 
@@ -1727,6 +1753,8 @@ mod object_cost_tests {
                 CongestionControlParameters::new_for_test(
                     PerObjectCongestionControlMode::TotalGasBudget,
                     assign_min_free_execution_slot,
+                    Some(max_execution_duration_per_commit),
+                    Some(max_overshoot_per_commit),
                 ),
             );
 
@@ -1807,7 +1835,12 @@ mod object_cost_tests {
                 //     301|            |
                 SharedObjectCongestionTracker::new_for_test(
                     [(shared_obj_0, 301), (shared_obj_1, 199)],
-                    CongestionControlParameters::new_for_test(mode, assign_min_free_execution_slot),
+                    CongestionControlParameters::new_for_test(
+                        mode,
+                        assign_min_free_execution_slot,
+                        Some(max_execution_duration_per_commit),
+                        Some(max_overshoot_per_commit),
+                    ),
                 )
             }
             PerObjectCongestionControlMode::TotalTxCount => {
@@ -1820,7 +1853,12 @@ mod object_cost_tests {
                 //        4|            |
                 SharedObjectCongestionTracker::new_for_test(
                     [(shared_obj_0, 4), (shared_obj_1, 3)],
-                    CongestionControlParameters::new_for_test(mode, assign_min_free_execution_slot),
+                    CongestionControlParameters::new_for_test(
+                        mode,
+                        assign_min_free_execution_slot,
+                        Some(max_execution_duration_per_commit),
+                        Some(max_overshoot_per_commit),
+                    ),
                 )
             }
         };
@@ -1935,7 +1973,12 @@ mod object_cost_tests {
                 (shared_obj_0, initial_object_debt),
                 (shared_obj_1, initial_object_debt),
             ],
-            CongestionControlParameters::new_for_test(mode, assign_min_free_execution_slot),
+            CongestionControlParameters::new_for_test(
+                mode,
+                assign_min_free_execution_slot,
+                Some(max_execution_duration_per_commit),
+                None,
+            ),
         );
 
         // Verify that accumulated_debts is empty initially.

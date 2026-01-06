@@ -347,6 +347,8 @@ async fn test_congestion_control_execution_cancellation() {
             CongestionControlParameters::new_for_test(
                 PerObjectCongestionControlMode::TotalGasBudget,
                 congestion_control_min_free_execution_slot,
+                None,
+                None,
             ),
         ))
     });

@@ -300,6 +300,8 @@ pub mod suggested_gas_price_calculator_test_utils {
             CongestionControlParameters::new_for_test(
                 per_object_congestion_control_mode,
                 protocol_config.congestion_control_min_free_execution_slot(),
+                None,
+                None,
             ),
         );
 
@@ -640,7 +642,12 @@ mod tests {
 
         let mut shared_object_congestion_tracker = SharedObjectCongestionTracker::new_for_test(
             vec![],
-            CongestionControlParameters::new_for_test(mode, min_free_execution_slot_assigned),
+            CongestionControlParameters::new_for_test(
+                mode,
+                min_free_execution_slot_assigned,
+                Some(max_execution_duration_per_commit),
+                None,
+            ),
         );
 
         let mut suggested_gas_price_calculator = SuggestedGasPriceCalculator::new_for_test(
