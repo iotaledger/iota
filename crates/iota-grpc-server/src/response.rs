@@ -29,41 +29,38 @@ pub fn append_info_headers<T>(
     }
 
     if let Ok(latest_checkpoint) = grpc_reader.get_latest_checkpoint() {
-        if let Ok(height_value) = latest_checkpoint.sequence_number.to_string().parse() {
-            headers.insert(headers::X_IOTA_CHECKPOINT_HEIGHT, height_value);
-        }
-
         if let Ok(epoch_value) = latest_checkpoint.epoch().to_string().parse() {
             headers.insert(headers::X_IOTA_EPOCH, epoch_value);
+        }
+
+        if let Ok(height_value) = latest_checkpoint.sequence_number.to_string().parse() {
+            headers.insert(headers::X_IOTA_CHECKPOINT_HEIGHT, height_value);
         }
 
         if let Ok(timestamp_value) = latest_checkpoint.timestamp_ms.to_string().parse() {
             headers.insert(headers::X_IOTA_TIMESTAMP_MS, timestamp_value);
         }
 
-        if let Ok(duration) = latest_checkpoint
-            .timestamp()
-            .duration_since(std::time::UNIX_EPOCH)
-        {
-            if let Ok(timestamp_value) = duration.as_secs().to_string().parse() {
-                headers.insert(headers::X_IOTA_TIMESTAMP, timestamp_value);
-            }
-        }
+        headers.insert(
+            headers::X_IOTA_TIMESTAMP,
+            iota_grpc_types::proto::timestamp_ms_to_proto(latest_checkpoint.timestamp_ms)
+                .to_string()
+                .try_into()
+                .expect("timestamp is a valid MetadataValue<Ascii>"),
+        );
     }
 
     // Add lowest available checkpoint header
     if let Ok(lowest_checkpoint) = grpc_reader.get_lowest_available_checkpoint() {
         if let Ok(lowest_value) = lowest_checkpoint.to_string().parse() {
-            response
-                .metadata_mut()
-                .insert(headers::X_IOTA_LOWEST_AVAILABLE_CHECKPOINT, lowest_value);
+            headers.insert(headers::X_IOTA_LOWEST_AVAILABLE_CHECKPOINT, lowest_value);
         }
     }
 
     // Add lowest available checkpoint objects header
     if let Ok(lowest_objects) = grpc_reader.get_lowest_available_checkpoint_objects() {
         if let Ok(lowest_objects_value) = lowest_objects.to_string().parse() {
-            response.metadata_mut().insert(
+            headers.insert(
                 headers::X_IOTA_LOWEST_AVAILABLE_CHECKPOINT_OBJECTS,
                 lowest_objects_value,
             );
