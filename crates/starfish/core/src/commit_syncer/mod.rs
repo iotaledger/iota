@@ -32,22 +32,42 @@
 pub mod fast;
 pub mod regular;
 
-use std::{collections::BTreeMap, sync::Arc};
-use std::collections::BTreeSet;
-use std::time::Duration;
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    sync::Arc,
+    time::Duration,
+};
+
 use bytes::Bytes;
+use iota_metrics::spawn_logged_monitored_task;
 use itertools::Itertools;
 use parking_lot::RwLock;
 use rand::{prelude::SliceRandom as _, rngs::ThreadRng};
 use starfish_config::AuthorityIndex;
-use tokio::{sync::oneshot, task::JoinHandle};
-use tokio::task::JoinSet;
-use tokio::time::{sleep, MissedTickBehavior};
-use iota_metrics::spawn_logged_monitored_task;
-use crate::{BlockRef, CommitConsumerMonitor, Transaction, VerifiedBlockHeader, block_header::{
-    BlockHeaderAPI, SignedBlockHeader, TransactionsCommitment, VerifiedTransactions,
-}, block_verifier::BlockVerifier, commit::{Commit, CommitAPI as _, CommitDigest, CommitRange, CommitRef, TrustedCommit}, commit_vote_monitor::CommitVoteMonitor, context::Context, core_thread::CoreThreadDispatcher, dag_state::DagState, encoder::create_encoder, error::{ConsensusError, ConsensusResult}, network::NetworkClient, stake_aggregator::{QuorumThreshold, StakeAggregator}, transaction_ref::GenericTransactionRef, CommitIndex};
+use tokio::{
+    sync::oneshot,
+    task::{JoinHandle, JoinSet},
+    time::{MissedTickBehavior, sleep},
+};
 use tracing::{info, warn};
+
+use crate::{
+    BlockRef, CommitConsumerMonitor, CommitIndex, Transaction, VerifiedBlockHeader,
+    block_header::{
+        BlockHeaderAPI, SignedBlockHeader, TransactionsCommitment, VerifiedTransactions,
+    },
+    block_verifier::BlockVerifier,
+    commit::{Commit, CommitAPI as _, CommitDigest, CommitRange, CommitRef, TrustedCommit},
+    commit_vote_monitor::CommitVoteMonitor,
+    context::Context,
+    core_thread::CoreThreadDispatcher,
+    dag_state::DagState,
+    encoder::create_encoder,
+    error::{ConsensusError, ConsensusResult},
+    network::NetworkClient,
+    stake_aggregator::{QuorumThreshold, StakeAggregator},
+    transaction_ref::GenericTransactionRef,
+};
 pub(crate) enum CommitSyncType {
     Fast,
     Regular,
@@ -71,7 +91,7 @@ impl CommitSyncType {
     pub(crate) fn should_schedule(&self, gap: u32, commit_sync_gap_threshold: u32) -> bool {
         match self {
             CommitSyncType::Fast => gap > commit_sync_gap_threshold,
-            CommitSyncType::Regular => gap <= commit_sync_gap_threshold
+            CommitSyncType::Regular => gap <= commit_sync_gap_threshold,
         }
     }
 }
@@ -187,8 +207,6 @@ impl<C: NetworkClient> Inner<C> {
         Ok(trusted_commits)
     }
 }
-
-
 
 /// Verifies transactions against their block headers and returns a map of
 /// BlockRef to VerifiedTransactions.
@@ -321,33 +339,36 @@ pub trait CommitSyncer<C: NetworkClient>: Send + Sync + 'static + Sized {
     type FetchedData: Send + Sync;
 
     fn inner(&self) -> &Arc<Inner<C>>;
-    fn inflight_fetches(&mut self) -> &mut JoinSet<(u32, Vec<Self::FetchedData>)>;
-    fn inflight_fetches_len (&self) -> usize;
-    fn pending_fetches_len (&self) -> usize;
+    fn inflight_fetches(&mut self) -> &mut JoinSet<(u32, Self::FetchedData)>;
+    fn inflight_fetches_len(&self) -> usize;
+    fn pending_fetches_len(&self) -> usize;
 
     fn highest_scheduled_index(&mut self) -> &mut Option<CommitIndex>;
 
-    fn synced_commit_index (&mut self) -> &mut CommitIndex;
+    fn synced_commit_index(&mut self) -> &mut CommitIndex;
 
     fn pending_fetches(&mut self) -> &mut BTreeSet<CommitRange>;
 
-    fn fetched_ranges(&mut self) -> &mut BTreeMap<CommitRange, Vec<Self::FetchedData>>;
+    fn fetched_ranges(&mut self) -> &mut BTreeMap<CommitRange, Self::FetchedData>;
 
     fn unhandled_commits_threshold(&self) -> CommitIndex {
         self.inner().context.parameters.commit_sync_batch_size
             * (self.inner().context.parameters.commit_sync_batches_ahead as u32)
     }
+
+    #[cfg(test)]
+    fn highest_fetched_commit_index(&self) -> CommitIndex;
     async fn handle_fetch_result(
         &mut self,
         target_end: CommitIndex,
-        fetched_data_set: Vec<Self::FetchedData>,
+        fetched_data_set: Self::FetchedData,
     );
     async fn fetch_once(
         inner: Arc<Inner<C>>,
         target_authority: AuthorityIndex,
         commit_range: CommitRange,
         timeout: Duration,
-    ) -> ConsensusResult<Vec<Self::FetchedData>>;
+    ) -> ConsensusResult<Self::FetchedData>;
 
     fn start(self) -> CommitSyncerHandle {
         let (tx_shutdown, rx_shutdown) = oneshot::channel();
@@ -361,7 +382,7 @@ pub trait CommitSyncer<C: NetworkClient>: Send + Sync + 'static + Sized {
     async fn fetch_loop(
         inner: Arc<Inner<C>>,
         commit_range: CommitRange,
-    ) -> (CommitIndex, Vec<Self::FetchedData>) {
+    ) -> (CommitIndex, Self::FetchedData) {
         // Individual request base timeout.
         const TIMEOUT: Duration = Duration::from_secs(10);
         // Max per-request timeout will be base timeout times a multiplier.
@@ -416,7 +437,7 @@ pub trait CommitSyncer<C: NetworkClient>: Send + Sync + 'static + Sized {
                         request_timeout,
                     ),
                 )
-                    .await
+                .await
                 {
                     Ok(Ok(committed_subdags)) => {
                         info!(
@@ -504,7 +525,7 @@ pub trait CommitSyncer<C: NetworkClient>: Send + Sync + 'static + Sized {
         loop {
             let inner = self.inner().clone();
             let inflight_fetches_len = self.inflight_fetches_len();
-            
+
             if inflight_fetches_len >= target_parallel_fetches {
                 break;
             }
@@ -520,8 +541,7 @@ pub trait CommitSyncer<C: NetworkClient>: Send + Sync + 'static + Sized {
             let Some(commit_range) = self.pending_fetches().pop_first() else {
                 break;
             };
-            (*self.inflight_fetches())
-                .spawn(Self::fetch_loop(inner, commit_range));
+            (*self.inflight_fetches()).spawn(Self::fetch_loop(inner, commit_range));
         }
 
         let metrics = &self.inner().context.metrics.node_metrics;
@@ -581,7 +601,10 @@ pub trait CommitSyncer<C: NetworkClient>: Send + Sync + 'static + Sized {
 
         // Skip scheduling depending on sync type and gap threshold.
         let gap = quorum_commit_index.saturating_sub(local_commit_index);
-        if !self.inner().sync_type.should_schedule(gap, self.inner().context.parameters.commit_sync_gap_threshold) {
+        if !self.inner().sync_type.should_schedule(
+            gap,
+            self.inner().context.parameters.commit_sync_gap_threshold,
+        ) {
             return;
         }
 
@@ -592,7 +615,10 @@ pub trait CommitSyncer<C: NetworkClient>: Send + Sync + 'static + Sized {
         metrics
             .commit_sync_local_index
             .set(local_commit_index as i64);
-        let highest_handled_index = self.inner().commit_consumer_monitor.highest_handled_commit();
+        let highest_handled_index = self
+            .inner()
+            .commit_consumer_monitor
+            .highest_handled_commit();
         let highest_scheduled_index = self.highest_scheduled_index().unwrap_or(0);
         // Update synced_commit_index periodically to make sure it is not smaller than
         // local commit index.
@@ -600,9 +626,8 @@ pub trait CommitSyncer<C: NetworkClient>: Send + Sync + 'static + Sized {
         let unhandled_commits_threshold = self.unhandled_commits_threshold();
 
         // TODO: cleanup inflight fetches that are no longer needed.
-        let fetch_after_index = (*self
-            .synced_commit_index())
-            .max(self.highest_scheduled_index().unwrap_or(0));
+        let fetch_after_index =
+            (*self.synced_commit_index()).max(self.highest_scheduled_index().unwrap_or(0));
         // When the node is falling behind, schedule pending fetches which will be
         // executed on later.
         let step = self
@@ -656,5 +681,4 @@ pub trait CommitSyncer<C: NetworkClient>: Send + Sync + 'static + Sized {
             *self.highest_scheduled_index() = Some(range_end);
         }
     }
-
 }

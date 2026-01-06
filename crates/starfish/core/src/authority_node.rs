@@ -17,7 +17,9 @@ use crate::{
     block_manager::BlockManager,
     block_verifier::SignedBlockVerifier,
     commit_observer::CommitObserver,
-    commit_syncer::{CommitSyncerHandle, fast::FastCommitSyncer, regular::RegularCommitSyncer},
+    commit_syncer::{
+        CommitSyncer, CommitSyncerHandle, fast::FastCommitSyncer, regular::RegularCommitSyncer,
+    },
     commit_vote_monitor::CommitVoteMonitor,
     context::{Clock, Context},
     cordial_knowledge::{CordialKnowledge, CordialKnowledgeHandle},

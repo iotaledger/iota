@@ -853,18 +853,22 @@ mod tests {
 
     /// Test consensus node recovery and state restoration across restarts.
     ///
-    /// This test validates the fix in commit d4e7677c6d ("fix(starfish): Propagate traversed blocks after restart").
+    /// This test validates the fix in commit d4e7677c6d ("fix(starfish):
+    /// Propagate traversed blocks after restart").
     ///
     /// ## The Bug:
-    /// When a consensus node restarts and enters recovery mode, the `traversed_headers_tracker`
-    /// in the linearizer would be empty. If `consensus_commit_transactions_only_for_traversed_headers`
-    /// is enabled, this causes the transaction commit logic to fail at linearizer.rs:317 because
-    /// headers from recovered blocks wouldn't be in the tracker, preventing transactions from
-    /// being committed even though they were valid before restart.
+    /// When a consensus node restarts and enters recovery mode, the
+    /// `traversed_headers_tracker` in the linearizer would be empty. If
+    /// `consensus_commit_transactions_only_for_traversed_headers`
+    /// is enabled, this causes the transaction commit logic to fail at
+    /// linearizer.rs:317 because headers from recovered blocks wouldn't be
+    /// in the tracker, preventing transactions from being committed even
+    /// though they were valid before restart.
     ///
     /// ## The Fix:
-    /// Added `record_traversed_headers()` call during recovery (commit_observer.rs:265-268)
-    /// to populate the tracker from headers in stored pending subdags.
+    /// Added `record_traversed_headers()` call during recovery
+    /// (commit_observer.rs:265-268) to populate the tracker from headers in
+    /// stored pending subdags.
     ///
     /// ## Test Scenario:
     /// 1. Create blocks and commit some leaders
@@ -873,8 +877,9 @@ mod tests {
     /// 4. Verify that new blocks can still successfully acknowledge and commit
     ///    transactions from blocks that existed before restart
     ///
-    /// **Fails without fix:** Transaction commits are blocked because traversed_headers_tracker is empty
-    /// **Passes with fix:** Tracker is populated during recovery, transactions commit successfully
+    /// **Fails without fix:** Transaction commits are blocked because
+    /// traversed_headers_tracker is empty **Passes with fix:** Tracker is
+    /// populated during recovery, transactions commit successfully
     #[tokio::test]
     async fn test_recovery_restores_persistent_state_across_restart() {
         telemetry_subscribers::init_for_testing();
@@ -926,7 +931,10 @@ mod tests {
         );
 
         let mut builder = DagBuilder::new(context.clone());
-        builder.layers(1..=6).build().persist_layers(dag_state.clone());
+        builder
+            .layers(1..=6)
+            .build()
+            .persist_layers(dag_state.clone());
 
         let all_leaders = builder
             .leader_blocks(1..=6)
@@ -947,8 +955,15 @@ mod tests {
             txs_before += subdag.transactions.len();
         }
 
-        info!("Before restart: {} commits, {} transactions", commits_before.len(), txs_before);
-        assert!(txs_before > 0, "Should have committed transactions before restart");
+        info!(
+            "Before restart: {} commits, {} transactions",
+            commits_before.len(),
+            txs_before
+        );
+        assert!(
+            txs_before > 0,
+            "Should have committed transactions before restart"
+        );
 
         // ====== SIMULATE RESTART ======
         info!("=== Restart: Recovery phase ===");
@@ -971,8 +986,12 @@ mod tests {
         // ====== AFTER RESTART ======
         info!("=== After restart: Commit new blocks ===");
 
-        // Create new blocks (rounds 7-8) that will acknowledge blocks from before restart
-        builder.layers(7..=8).build().persist_layers(dag_state.clone());
+        // Create new blocks (rounds 7-8) that will acknowledge blocks from before
+        // restart
+        builder
+            .layers(7..=8)
+            .build()
+            .persist_layers(dag_state.clone());
 
         let new_leaders = builder
             .leader_blocks(7..=8)
