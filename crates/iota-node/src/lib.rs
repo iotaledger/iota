@@ -2455,7 +2455,10 @@ async fn build_grpc_server(
     let shutdown_token = CancellationToken::new();
 
     // Create GrpcReader
-    let grpc_reader = Arc::new(GrpcReader::from_rest_state_reader(rest_read_store));
+    let grpc_reader = Arc::new(GrpcReader::from_rest_state_reader(
+        rest_read_store,
+        Some(env!("CARGO_PKG_VERSION").to_string()),
+    ));
 
     // Get the subscription handler from the state for event streaming
     let event_subscriber =
@@ -2470,7 +2473,6 @@ async fn build_grpc_server(
         grpc_config.clone(),
         shutdown_token,
         chain_id,
-        Some(env!("CARGO_PKG_VERSION").to_string()),
     )
     .await?;
 

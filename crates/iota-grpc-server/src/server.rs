@@ -73,7 +73,6 @@ pub async fn start_grpc_server(
     config: iota_config::node::GrpcApiConfig,
     shutdown_token: CancellationToken,
     chain_id: iota_types::digests::ChainIdentifier,
-    server_version: Option<String>,
 ) -> Result<GrpcServerHandle> {
     // Create broadcast channels
     let (checkpoint_summary_tx, _) = broadcast::channel(config.checkpoint_broadcast_buffer_size);
@@ -93,7 +92,6 @@ pub async fn start_grpc_server(
         checkpoint_data_broadcaster.clone(),
         shutdown_token.clone(),
         chain_id,
-        server_version,
     );
 
     // Create the server with proper address binding

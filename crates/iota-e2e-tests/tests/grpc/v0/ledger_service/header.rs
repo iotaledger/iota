@@ -25,6 +25,7 @@ fn verify_iota_headers(metadata: &MetadataMap, operation_name: &str) {
         headers::X_IOTA_TIMESTAMP,
         headers::X_IOTA_LOWEST_AVAILABLE_CHECKPOINT,
         headers::X_IOTA_LOWEST_AVAILABLE_CHECKPOINT_OBJECTS,
+        headers::X_IOTA_SERVER,
     ];
 
     for header_name in &required_headers {

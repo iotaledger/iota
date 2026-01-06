@@ -24,7 +24,6 @@ pub struct LedgerGrpcService {
     pub cancellation_token: CancellationToken,
     pub chain_id: ChainIdentifier,
     pub chain: Chain,
-    pub server_version: Option<String>,
 }
 
 impl LedgerGrpcService {
@@ -35,7 +34,6 @@ impl LedgerGrpcService {
         checkpoint_data_broadcaster: GrpcCheckpointDataBroadcaster,
         cancellation_token: CancellationToken,
         chain_id: ChainIdentifier,
-        server_version: Option<String>,
     ) -> Self {
         Self {
             reader,
@@ -45,7 +43,6 @@ impl LedgerGrpcService {
             cancellation_token,
             chain_id,
             chain: chain_id.chain(),
-            server_version,
         }
     }
 }

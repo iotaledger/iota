@@ -70,5 +70,12 @@ pub fn append_info_headers<T>(
         }
     }
 
+    if let Some(server_version) = grpc_reader
+        .server_version()
+        .and_then(|version| version.parse().ok())
+    {
+        headers.insert(headers::X_IOTA_SERVER, server_version);
+    }
+
     response
 }
