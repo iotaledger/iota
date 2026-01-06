@@ -74,12 +74,20 @@ type PerCommitCongestionInfo = HashMap<ObjectID, PerObjectCongestionInfo>;
 /// the calculator will suggest the reference gas price.
 #[derive(Debug)]
 pub(crate) struct SuggestedGasPriceCalculator {
-    /// Per-commit congestion info
+    /// Per-commit congestion info.
     congestion_info: PerCommitCongestionInfo,
 
     /// Maximum execution duration per shared object per commit
     /// set in the protocol config.
     max_execution_duration_per_commit: Option<ExecutionTime>,
+
+    /// The maximum amount that is allowed to overshoot the congestion
+    /// limit.
+    max_congestion_limit_overshoot_per_commit: Option<ExecutionTime>,
+
+    /// Whether to take into account congestion limit overshoot in
+    /// the suggested gas price calculations.
+    with_congestion_limit_overshoot: bool,
 
     /// Maximum gas price that can be set in transactions. This is
     /// used to prevent suggesting feedback gas price larger than
@@ -99,6 +107,10 @@ impl SuggestedGasPriceCalculator {
             congestion_info: PerCommitCongestionInfo::new(),
             max_execution_duration_per_commit: protocol_config
                 .max_accumulated_txn_cost_per_object_in_mysticeti_commit_as_option(),
+            max_congestion_limit_overshoot_per_commit: protocol_config
+                .max_congestion_limit_overshoot_per_commit_as_option(),
+            with_congestion_limit_overshoot: protocol_config
+                .congestion_limit_overshoot_in_gas_price_feedback_mechanism(),
             max_gas_price: protocol_config.max_gas_price(),
             reference_gas_price,
         }
@@ -109,12 +121,16 @@ impl SuggestedGasPriceCalculator {
     #[cfg(test)]
     fn new_for_test(
         max_execution_duration_per_commit: Option<ExecutionTime>,
+        max_congestion_limit_overshoot_per_commit: Option<ExecutionTime>,
+        with_congestion_limit_overshoot: bool,
         max_gas_price: u64,
         reference_gas_price: u64,
     ) -> Self {
         Self {
             congestion_info: PerCommitCongestionInfo::new(),
             max_execution_duration_per_commit,
+            max_congestion_limit_overshoot_per_commit,
+            with_congestion_limit_overshoot,
             max_gas_price,
             reference_gas_price,
         }
@@ -195,14 +211,27 @@ impl SuggestedGasPriceCalculator {
         estimated_execution_duration: ExecutionTime,
         max_execution_duration_per_commit: ExecutionTime,
     ) -> Option<u64> {
+        let congestion_limit = if self.with_congestion_limit_overshoot {
+            if let Some(max_congestion_limit_overshoot_per_commit) =
+                self.max_congestion_limit_overshoot_per_commit
+            {
+                max_execution_duration_per_commit
+                    .saturating_add(max_congestion_limit_overshoot_per_commit)
+            } else {
+                max_execution_duration_per_commit
+            }
+        } else {
+            max_execution_duration_per_commit
+        };
+
         // Imaginary start time of the deferred/cancelled certificate. We consider
         // only the highest possible (but sufficient for scheduling) start time as
         // it is very likely that scheduled certificates with lower gas prices
         // appear have higher start times. If a transaction with its
         // `estimated_execution_duration` cannot fit within
-        // `max_execution_duration_per_commit`, set its imaginary start time to 0.
+        // `congestion_limit`, set its imaginary start time to 0.
         let start_time_of_deferred_cert =
-            max_execution_duration_per_commit.saturating_sub(estimated_execution_duration);
+            congestion_limit.saturating_sub(estimated_execution_duration);
 
         certificate
             .shared_input_objects()
@@ -393,6 +422,8 @@ mod tests {
     ) {
         let mut suggested_gas_price_calculator = SuggestedGasPriceCalculator::new_for_test(
             max_execution_duration_per_commit,
+            None,  // TODO: adjust tests for congestion limit overshoot
+            false, // TODO: adjust tests for congestion limit overshoot
             ProtocolConfig::get_for_max_version_UNSAFE().max_gas_price(),
             REFERENCE_GAS_PRICE,
         );
@@ -609,6 +640,8 @@ mod tests {
 
         let mut suggested_gas_price_calculator = SuggestedGasPriceCalculator::new_for_test(
             Some(max_execution_duration_per_commit),
+            None,  // TODO: adjust tests for congestion limit overshoot
+            false, // TODO: adjust tests for congestion limit overshoot
             max_gas_price,
             REFERENCE_GAS_PRICE,
         );
