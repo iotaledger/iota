@@ -288,8 +288,7 @@ impl ConsensusTransactionKind {
 pub enum VersionedMisbehaviorReport {
     V1(
         MisbehaviorsV1<Vec<u64>>,
-        #[serde(skip)]
-        OnceCell<MisbehaviorReportDigest>,
+        #[serde(skip)] OnceCell<MisbehaviorReportDigest>,
     ),
 }
 
@@ -303,14 +302,14 @@ impl VersionedMisbehaviorReport {
             VersionedMisbehaviorReport::V1(report, _) => report.verify(committee_size),
         }
     }
-    // Returns an iterator over references to some of the fields in the report.
+    /// Returns an iterator over references to some of the fields in the report.
     pub fn iterate_over_metrics(&self) -> std::vec::IntoIter<&Vec<u64>> {
         match self {
             VersionedMisbehaviorReport::V1(report, _) => report.iter(),
         }
     }
-    // Returns the digest of the misbehavior report, caching it if it has not
-    // been computed yet.
+    /// Returns the digest of the misbehavior report, caching it if it has not
+    /// been computed yet.
     pub fn digest(&self) -> &MisbehaviorReportDigest {
         match self {
             VersionedMisbehaviorReport::V1(_, digest) => {
