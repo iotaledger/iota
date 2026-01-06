@@ -57,7 +57,7 @@ impl grpc_tx_service::transaction_execution_service_server::TransactionExecution
         &self,
         request: Request<ExecuteTransactionRequest>,
     ) -> Result<Response<ExecuteTransactionResponse>, tonic::Status> {
-        execute_transaction(
+        let response = execute_transaction(
             &self.reader,
             &self.executor,
             &self.config,
@@ -65,14 +65,15 @@ impl grpc_tx_service::transaction_execution_service_server::TransactionExecution
         )
         .await
         .map(Response::new)
-        .map_err(Into::into)
+        .map_err(tonic::Status::from)?;
+        Ok(append_info_headers!(response, self.reader.clone()))
     }
 
     async fn simulate_transaction(
         &self,
         request: Request<SimulateTransactionRequest>,
     ) -> Result<Response<SimulateTransactionResponse>, tonic::Status> {
-        simulate::simulate_transaction(
+        let response = simulate::simulate_transaction(
             &self.reader,
             &self.executor,
             &self.config,
@@ -80,7 +81,8 @@ impl grpc_tx_service::transaction_execution_service_server::TransactionExecution
         )
         .await
         .map(Response::new)
-        .map_err(Into::into)
+        .map_err(tonic::Status::from)?;
+        Ok(append_info_headers!(response, self.reader.clone()))
     }
 }
 

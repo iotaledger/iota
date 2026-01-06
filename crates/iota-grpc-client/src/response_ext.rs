@@ -15,6 +15,7 @@ pub trait ResponseExt: sealed::Sealed {
     fn timestamp(&self) -> Option<&str>;
     fn lowest_available_checkpoint(&self) -> Option<u64>;
     fn lowest_available_checkpoint_objects(&self) -> Option<u64>;
+    fn server_version(&self) -> Option<&str>;
 }
 
 impl ResponseExt for http::header::HeaderMap {
@@ -63,6 +64,11 @@ impl ResponseExt for http::header::HeaderMap {
             .and_then(|h| h.to_str().ok())
             .and_then(|s| s.parse().ok())
     }
+
+    fn server_version(&self) -> Option<&str> {
+        self.get(headers::X_IOTA_SERVER)
+            .and_then(|h| h.to_str().ok())
+    }
 }
 
 impl ResponseExt for tonic::metadata::MetadataMap {
@@ -96,6 +102,10 @@ impl ResponseExt for tonic::metadata::MetadataMap {
 
     fn lowest_available_checkpoint_objects(&self) -> Option<u64> {
         self.as_ref().lowest_available_checkpoint_objects()
+    }
+
+    fn server_version(&self) -> Option<&str> {
+        self.as_ref().server_version()
     }
 }
 
@@ -131,6 +141,10 @@ impl<T> ResponseExt for tonic::Response<T> {
     fn lowest_available_checkpoint_objects(&self) -> Option<u64> {
         self.metadata().lowest_available_checkpoint_objects()
     }
+
+    fn server_version(&self) -> Option<&str> {
+        self.metadata().server_version()
+    }
 }
 
 impl ResponseExt for tonic::Status {
@@ -164,6 +178,10 @@ impl ResponseExt for tonic::Status {
 
     fn lowest_available_checkpoint_objects(&self) -> Option<u64> {
         self.metadata().lowest_available_checkpoint_objects()
+    }
+
+    fn server_version(&self) -> Option<&str> {
+        self.metadata().server_version()
     }
 }
 

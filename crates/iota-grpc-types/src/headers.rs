@@ -40,3 +40,6 @@ pub const X_IOTA_TIMESTAMP_MS: &str = "x-iota-timestamp-ms";
 ///
 /// [RFC 3339]: https://www.ietf.org/rfc/rfc3339.txt
 pub const X_IOTA_TIMESTAMP: &str = "x-iota-timestamp";
+
+/// Server version string
+pub const X_IOTA_SERVER: &str = "x-iota-server";
