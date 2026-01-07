@@ -1675,6 +1675,15 @@ mod tests {
 
             Ok(serialized_headers)
         }
+
+        async fn fetch_commits_and_transactions(
+            &self,
+            _peer: AuthorityIndex,
+            _commit_range: CommitRange,
+            _timeout: Duration,
+        ) -> ConsensusResult<(Vec<Bytes>, Vec<Bytes>, Vec<Bytes>)> {
+            unimplemented!("fetch_commits_and_transactions not implemented in mock")
+        }
     }
 
     #[test]
@@ -2768,6 +2777,13 @@ mod tests {
         > {
             // No additional certified-commit logic in tests
             Ok((BTreeSet::new(), BTreeMap::new()))
+        }
+
+        async fn add_subdags_from_fast_sync(
+            &self,
+            _subdags: Vec<crate::commit::CommittedSubDag>,
+        ) -> Result<(), CoreError> {
+            unimplemented!()
         }
 
         async fn new_block(

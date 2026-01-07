@@ -20,12 +20,13 @@ use parking_lot::RwLock;
 use starfish_config::AuthorityIndex;
 use thiserror::Error;
 use tokio::sync::{oneshot, watch};
-use tracing::warn;
+use tracing::{info, warn};
 
 use crate::{
-    BlockHeaderAPI as _, VerifiedBlockHeader,
+    BlockHeaderAPI as _, CommittedSubDag, VerifiedBlockHeader,
     block_header::{BlockRef, Round, VerifiedBlock, VerifiedOwnShard, VerifiedTransactions},
     commit::CertifiedCommits,
+    commit_observer::CommittedSubDagSource,
     context::Context,
     core::{Core, ReasonToCreateBlock},
     core_thread::CoreError::Shutdown,
@@ -84,6 +85,7 @@ enum CoreThreadCommand {
     GetMissingTransactionData(
         oneshot::Sender<BTreeMap<GenericTransactionRef, BTreeSet<AuthorityIndex>>>,
     ),
+    AddSubdagFromFastSync(Vec<CommittedSubDag>, oneshot::Sender<()>),
 }
 
 #[derive(Error, Debug)]
@@ -143,6 +145,11 @@ pub trait CoreThreadDispatcher: Sync + Send + 'static {
         CoreError,
     >;
 
+    async fn add_subdags_from_fast_sync(
+        &self,
+        subdags: Vec<CommittedSubDag>,
+    ) -> Result<(), CoreError>;
+
     async fn new_block(
         &self,
         round: Round,
@@ -190,6 +197,7 @@ impl CoreThread {
     #[cfg_attr(test,tracing::instrument(skip_all, name ="",fields(authority = %self.context.own_index)))]
     pub async fn run(mut self) -> ConsensusResult<()> {
         tracing::debug!("Started core thread");
+        let mut fast_sync_ongoing = false;
 
         loop {
             tokio::select! {
@@ -198,7 +206,41 @@ impl CoreThread {
                         break;
                     };
                     self.context.metrics.node_metrics.core_lock_dequeued.inc();
+
+                    // During fast sync, ignore all commands except AddSubdagFromFastSync
+                    if fast_sync_ongoing && !matches!(command, CoreThreadCommand::AddSubdagFromFastSync(..)) {
+                        match command {
+                            CoreThreadCommand::AddBlocks(_, _, sender) |
+                            CoreThreadCommand::AddBlockHeaders(_, _, sender) |
+                            CoreThreadCommand::AddCertifiedCommits(_, sender) => {
+                                sender.send((Default::default(), Default::default())).ok();
+                            }
+                            CoreThreadCommand::NewBlock(_, sender, _) => {
+                                sender.send(Default::default()).ok();
+                            }
+                            CoreThreadCommand::GetMissingBlocks(sender) => {
+                                sender.send(Default::default()).ok();
+                            }
+                            CoreThreadCommand::AddTransactions(_, sender, _) |
+                            CoreThreadCommand::AddShards(_, sender) => {
+                                sender.send(()).ok();
+                            }
+                            CoreThreadCommand::GetMissingTransactionData(sender) => {
+                                sender.send(Default::default()).ok();
+                            }
+                            CoreThreadCommand::AddSubdagFromFastSync(..) => unreachable!(),
+                        }
+                        continue;
+                    }
+
                     match command {
+                        CoreThreadCommand::AddSubdagFromFastSync(subdags, sender) => {
+                            info!("Adding subdags from fast sync, entering fast sync mode; {} index_start and {} index_end", subdags.first().map(|sd| sd.base.leader.round).unwrap_or(0), subdags.last().map(|sd| sd.base.leader.round).unwrap_or(0));
+                            fast_sync_ongoing = true;
+                            let _scope = monitored_scope("CoreThread::loop::add_subdags_from_fast_sync");
+                            self.core.handle_committed_sub_dags(subdags, CommittedSubDagSource::FastCommitSyncer)?;
+                            sender.send(()).ok();
+                        }
                         CoreThreadCommand::AddBlocks(blocks, source, sender) => {
                             let _scope = monitored_scope("CoreThread::loop::add_blocks");
                             let (missing_block_refs, missing_committed_txns) = self.core.add_blocks(blocks, source)?;
@@ -244,14 +286,16 @@ impl CoreThread {
                     let _scope = monitored_scope("CoreThread::loop::set_last_known_proposed_round");
                     let round = *self.rx_last_known_proposed_round.borrow();
                     self.core.set_last_known_proposed_round(round);
-                    self.core.new_block(round + 1, ReasonToCreateBlock::KnownLastBlock)?;
+                    if !fast_sync_ongoing {
+                        self.core.new_block(round + 1, ReasonToCreateBlock::KnownLastBlock)?;
+                    }
                 }
                 _ = self.rx_quorum_subscribers_exists.changed() => {
                     let _scope = monitored_scope("CoreThread::loop::set_quorum_subscribers_exists");
                     let should_propose_before = self.core.should_propose();
                     let exists = *self.rx_quorum_subscribers_exists.borrow();
                     self.core.set_quorum_subscribers_exists(exists);
-                    if !should_propose_before && self.core.should_propose() {
+                    if !should_propose_before && self.core.should_propose() && !fast_sync_ongoing {
                         // If core cannot propose before but can propose now, try to produce a new block to ensure liveness,
                         // because block proposal could have been skipped.
                         self.core.new_block(Round::MAX, ReasonToCreateBlock::QuorumSubscribersExist)?;
@@ -446,6 +490,16 @@ impl CoreThreadDispatcher for ChannelCoreThreadDispatcher {
         Ok(receiver.await.map_err(|e| Shutdown(e.to_string()))?)
     }
 
+    async fn add_subdags_from_fast_sync(
+        &self,
+        subdags: Vec<CommittedSubDag>,
+    ) -> Result<(), CoreError> {
+        let (sender, receiver) = oneshot::channel();
+        self.send(CoreThreadCommand::AddSubdagFromFastSync(subdags, sender))
+            .await;
+        Ok(receiver.await.map_err(|e| Shutdown(e.to_string()))?)
+    }
+
     async fn new_block(
         &self,
         round: Round,
@@ -621,6 +675,13 @@ pub(crate) mod tests {
             ),
             CoreError,
         > {
+            unimplemented!()
+        }
+
+        async fn add_subdags_from_fast_sync(
+            &self,
+            _subdags: Vec<CommittedSubDag>,
+        ) -> Result<(), CoreError> {
             unimplemented!()
         }
 
