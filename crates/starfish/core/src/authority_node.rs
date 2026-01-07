@@ -17,7 +17,9 @@ use crate::{
     block_manager::BlockManager,
     block_verifier::SignedBlockVerifier,
     commit_observer::CommitObserver,
-    commit_syncer::{CommitSyncer, CommitSyncerHandle},
+    commit_syncer::{
+        CommitSyncer, CommitSyncerHandle, fast::FastCommitSyncer, regular::RegularCommitSyncer,
+    },
     commit_vote_monitor::CommitVoteMonitor,
     context::{Clock, Context},
     cordial_knowledge::{CordialKnowledge, CordialKnowledgeHandle},
@@ -45,7 +47,8 @@ pub struct ConsensusAuthority {
     commit_consumer_monitor: Arc<CommitConsumerMonitor>,
     shard_reconstructor: Arc<ShardReconstructorHandle>,
     cordial_knowledge: Arc<CordialKnowledgeHandle>,
-    commit_syncer_handle: CommitSyncerHandle,
+    regular_commit_syncer_handle: CommitSyncerHandle,
+    fast_commit_syncer_handle: CommitSyncerHandle,
     leader_timeout_handle: LeaderTimeoutTaskHandle,
     core_thread_handle: CoreThreadHandle,
     subscriber: Subscriber<TonicClient, AuthorityService<ChannelCoreThreadDispatcher>>,
@@ -207,7 +210,20 @@ impl ConsensusAuthority {
             sync_last_known_own_block,
         );
 
-        let commit_syncer_handle = CommitSyncer::new(
+        // Both commit syncers run, but only one actively fetches based on the gap.
+        // CommitSyncer handles small gaps, FastCommitSyncer handles large gaps.
+        let regular_commit_syncer_handle = RegularCommitSyncer::new(
+            context.clone(),
+            core_dispatcher.clone(),
+            commit_vote_monitor.clone(),
+            commit_consumer_monitor.clone(),
+            network_client.clone(),
+            block_verifier.clone(),
+            dag_state.clone(),
+        )
+        .start();
+
+        let fast_commit_syncer_handle = FastCommitSyncer::new(
             context.clone(),
             core_dispatcher.clone(),
             commit_vote_monitor.clone(),
@@ -260,7 +276,8 @@ impl ConsensusAuthority {
             cordial_knowledge,
             transactions_synchronizer,
             commit_consumer_monitor,
-            commit_syncer_handle,
+            regular_commit_syncer_handle,
+            fast_commit_syncer_handle,
             leader_timeout_handle,
             core_thread_handle,
             subscriber,
@@ -317,7 +334,8 @@ impl ConsensusAuthority {
             );
         }
 
-        self.commit_syncer_handle.stop().await;
+        self.regular_commit_syncer_handle.stop().await;
+        self.fast_commit_syncer_handle.stop().await;
         self.leader_timeout_handle.stop().await;
         // Shutdown Core to stop block productions and broadcast.
         // When using streaming, all subscribers to broadcast blocks stop after this.
@@ -941,5 +959,189 @@ mod tests {
         .await;
 
         (authority, receiver, consensus_consumer_monitor)
+    }
+
+    // Helper with custom parameters for fast commit syncer testing
+    async fn make_authority_with_params(
+        index: AuthorityIndex,
+        _db_dir: &TempDir,
+        committee: Committee,
+        keypairs: Vec<(NetworkKeyPair, ProtocolKeyPair)>,
+        boot_counter: u64,
+        protocol_config: ProtocolConfig,
+        parameters: Parameters,
+    ) -> (
+        ConsensusAuthority,
+        UnboundedReceiver<CommittedSubDag>,
+        Arc<CommitConsumerMonitor>,
+    ) {
+        let registry = Registry::new();
+        let txn_verifier = NoopTransactionVerifier {};
+
+        let protocol_keypair = keypairs[index].1.clone();
+        let network_keypair = keypairs[index].0.clone();
+
+        let (sender, receiver) = unbounded_channel("consensus_output");
+        let commit_consumer = CommitConsumer::new(sender, 0);
+
+        let consensus_consumer_monitor = commit_consumer.monitor();
+
+        let authority = ConsensusAuthority::start(
+            0,
+            index,
+            committee,
+            parameters,
+            protocol_config,
+            protocol_keypair,
+            network_keypair,
+            Arc::new(Clock::default()),
+            Arc::new(txn_verifier),
+            commit_consumer,
+            registry,
+            boot_counter,
+        )
+        .await;
+
+        (authority, receiver, consensus_consumer_monitor)
+    }
+
+    /// Test that FastCommitSyncer activates when a node restarts with a large
+    /// commit gap. This test is for log analysis - observe logs to verify
+    /// gap-based syncer selection.
+    #[tokio::test(flavor = "current_thread")]
+    async fn test_fast_commit_syncer_on_restart() {
+        telemetry_subscribers::init_for_testing();
+        let db_registry = Registry::new();
+        DBMetrics::init(&db_registry);
+
+        const NUM_AUTHORITIES: usize = 4;
+        let (committee, keypairs) = local_committee_and_keys(0, vec![1; NUM_AUTHORITIES]);
+        let mut protocol_config = ProtocolConfig::get_for_max_version_UNSAFE();
+        protocol_config.set_consensus_transaction_ref_for_testing(true);
+
+        let temp_dirs: Vec<TempDir> = (0..NUM_AUTHORITIES)
+            .map(|_| TempDir::new().unwrap())
+            .collect();
+
+        let mut authorities = Vec::with_capacity(NUM_AUTHORITIES);
+        let mut boot_counters = [0u64; NUM_AUTHORITIES];
+        let mut consumer_monitors = Vec::with_capacity(NUM_AUTHORITIES);
+        let mut output_receivers = Vec::with_capacity(NUM_AUTHORITIES);
+
+        // Start all authorities with low gap threshold (50 commits)
+        for (index, _) in committee.authorities() {
+            let parameters = Parameters {
+                db_path: temp_dirs[index.value()].path().to_path_buf(),
+                dag_state_cached_rounds: 5,
+                commit_sync_parallel_fetches: 2,
+                commit_sync_batch_size: 10,
+                commit_sync_gap_threshold: 50,
+                fast_commit_sync_batch_size: 20,
+                sync_last_known_own_block_timeout: Duration::from_millis(2_000),
+                ..Default::default()
+            };
+            let (authority, receiver, monitor) = make_authority_with_params(
+                index,
+                &temp_dirs[index.value()],
+                committee.clone(),
+                keypairs.clone(),
+                boot_counters[index],
+                protocol_config.clone(),
+                parameters,
+            )
+            .await;
+            boot_counters[index] += 1;
+            authorities.push(authority);
+            output_receivers.push(receiver);
+            consumer_monitors.push(monitor);
+        }
+
+        tracing::info!("All authorities started. Running for 3 minutes to accumulate commits...");
+
+        // Let network run for some time to accumulate commits
+        sleep(Duration::from_secs(10)).await;
+
+        // Stop authority 0
+        let stopped_index: usize = 0;
+        tracing::info!("Stopping authority {stopped_index}...");
+        authorities.remove(stopped_index).stop().await;
+
+        // Wait more to widen gap
+        tracing::info!("Waiting 10 seconds to widen the commit gap...");
+        sleep(Duration::from_secs(10)).await;
+
+        // Restart the stopped authority
+        tracing::info!("Restarting authority {stopped_index}. FastCommitSyncer should activate...");
+        let parameters = Parameters {
+            db_path: temp_dirs[stopped_index].path().to_path_buf(),
+            dag_state_cached_rounds: 5,
+            commit_sync_parallel_fetches: 2,
+            commit_sync_batch_size: 10,
+            commit_sync_gap_threshold: 50,
+            fast_commit_sync_batch_size: 20,
+            sync_last_known_own_block_timeout: Duration::from_millis(2_000),
+            ..Default::default()
+        };
+        let (authority, receiver, monitor) = make_authority_with_params(
+            committee.to_authority_index(stopped_index).unwrap(),
+            &temp_dirs[stopped_index],
+            committee.clone(),
+            keypairs.clone(),
+            boot_counters[stopped_index],
+            protocol_config.clone(),
+            parameters,
+        )
+        .await;
+        boot_counters[stopped_index] += 1;
+        output_receivers[stopped_index] = receiver;
+        consumer_monitors[stopped_index] = monitor;
+        authorities.insert(stopped_index, authority);
+
+        // Let it run to observe sync behavior in logs
+        // Look for: "[fast_commit_sync] Checking to schedule fetches"
+        let start_time = Instant::now();
+        let mut last_committed_index = [0; NUM_AUTHORITIES];
+        let mut last_round_committed_blocks = [0; NUM_AUTHORITIES];
+        loop {
+            if start_time.elapsed() > Duration::from_secs(60) {
+                break;
+            }
+            for (index, receiver) in output_receivers.iter_mut().enumerate() {
+                // Manually update the commit consumer monitor with the highest handled commit
+                let deadline = Instant::now() + Duration::from_millis(25);
+                while Instant::now() < deadline {
+                    let remaining = deadline - Instant::now();
+                    if let Ok(Some(committed_subdag)) =
+                        tokio::time::timeout(remaining, receiver.recv()).await
+                    {
+                        for block_ref in &committed_subdag.base.committed_header_refs {
+                            if block_ref.round > GENESIS_ROUND {
+                                let author_index = block_ref.author;
+                                last_round_committed_blocks[author_index] =
+                                    max(last_round_committed_blocks[author_index], block_ref.round);
+                            }
+                        }
+
+                        let commit_index = committed_subdag.commit_ref.index;
+                        assert!(last_committed_index[index] < commit_index);
+                        last_committed_index[index] = commit_index;
+                        consumer_monitors[index].set_highest_handled_commit(commit_index);
+                    } else {
+                        // If we time out, we assume that no new dags were committed.
+                        break;
+                    }
+                }
+            }
+        }
+
+        // Stop all authorities
+        tracing::info!("Stopping all authorities...");
+        for authority in authorities {
+            authority.stop().await;
+        }
+
+        tracing::info!(
+            "Test complete. Check logs for [fast_commit_sync] and [commit_sync] messages."
+        );
     }
 }

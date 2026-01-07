@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
+    cmp::max,
     collections::{BTreeMap, VecDeque},
     pin::Pin,
     sync::Arc,
@@ -29,6 +30,7 @@ use crate::{
     },
     block_verifier::BlockVerifier,
     commit::{CommitAPI as _, CommitRange, TrustedCommit},
+    commit_syncer::CommitSyncType,
     commit_vote_monitor::CommitVoteMonitor,
     context::Context,
     cordial_knowledge::CordialKnowledgeHandle,
@@ -40,7 +42,7 @@ use crate::{
     network::{
         BlockBundleStream, NetworkService, SerializedBlock, SerializedBlockBundle,
         SerializedBlockBundleParts, SerializedHeaderAndTransactions, SerializedTransactionsV1,
-        SerializedTransactionsV2,
+        SerializedTransactionsV2, TransactionFetchMode,
     },
     shard_reconstructor::TransactionMessage,
     stake_aggregator::{QuorumThreshold, StakeAggregator},
@@ -877,15 +879,15 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         &self,
         _peer: AuthorityIndex,
         commit_range: CommitRange,
+        commit_sync_type: CommitSyncType,
     ) -> ConsensusResult<(Vec<TrustedCommit>, Vec<VerifiedBlockHeader>)> {
         fail_point_async!("consensus-rpc-response");
 
-        // Compute an inclusive end index and bound the maximum number of commits
-        // scanned.
-        let inclusive_end = commit_range.end().min(
-            commit_range.start() + self.context.parameters.commit_sync_batch_size as CommitIndex
-                - 1,
-        );
+        // Bound the range based on sync type.
+        let batch_size = commit_sync_type.commit_sync_batch_size(&self.context);
+        let inclusive_end = commit_range
+            .end()
+            .min(commit_range.start() + batch_size as CommitIndex - 1);
         let mut commits = self
             .store
             .scan_commits((commit_range.start()..=inclusive_end).into())?;
@@ -911,6 +913,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
                     .metrics
                     .node_metrics
                     .commit_sync_fetch_commits_handler_uncertified_skipped
+                    .with_label_values(&[commit_sync_type.as_str()])
                     .inc();
                 commits.pop();
             }
@@ -922,6 +925,43 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             .flatten()
             .collect();
         Ok((commits, certifier_block_headers))
+    }
+
+    async fn handle_fetch_commits_and_transactions(
+        &self,
+        peer: AuthorityIndex,
+        commit_range: CommitRange,
+    ) -> ConsensusResult<(Vec<Bytes>, Vec<Bytes>, Vec<Bytes>)> {
+        fail_point_async!("consensus-rpc-response");
+
+        let (commits, certifier_block_headers) = self
+            .handle_fetch_commits(peer, commit_range, CommitSyncType::Fast)
+            .await?;
+
+        let transaction_refs: Vec<GenericTransactionRef> = commits
+            .iter()
+            .flat_map(|commit| commit.committed_transactions())
+            .collect();
+
+        let serialized_transactions = self
+            .handle_fetch_transactions(peer, transaction_refs, TransactionFetchMode::FastCommitSync)
+            .await?;
+
+        let serialized_commits: Vec<Bytes> = commits
+            .into_iter()
+            .map(|c| c.serialized().clone())
+            .collect();
+
+        let serialized_headers: Vec<Bytes> = certifier_block_headers
+            .into_iter()
+            .map(|h| h.serialized().clone())
+            .collect();
+
+        Ok((
+            serialized_commits,
+            serialized_headers,
+            serialized_transactions,
+        ))
     }
 
     async fn handle_fetch_latest_block_headers(
@@ -996,6 +1036,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         &self,
         peer: AuthorityIndex,
         mut committed_transactions_refs: Vec<GenericTransactionRef>,
+        fetch_mode: TransactionFetchMode,
     ) -> ConsensusResult<Vec<Bytes>> {
         fail_point_async!("consensus-rpc-response");
 
@@ -1003,20 +1044,26 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             return Ok(Vec::new());
         }
 
-        // Use the maximum of both limits to accommodate both commit sync and regular
-        // sync requests
-        let max_transactions = self
-            .context
-            .parameters
-            .max_transactions_per_regular_sync_fetch
-            .max(
-                self.context
-                    .parameters
-                    .max_transactions_per_commit_sync_fetch,
-            );
+        // Apply truncation based on fetch mode
+        match fetch_mode {
+            TransactionFetchMode::FastCommitSync => {
+                // No truncation for fast commit sync - all transactions
+                // referenced by commits must be fetched
+            }
+            TransactionFetchMode::TransactionSync => {
+                let max_transactions = max(
+                    self.context
+                        .parameters
+                        .max_transactions_per_commit_sync_fetch,
+                    self.context
+                        .parameters
+                        .max_transactions_per_regular_sync_fetch,
+                );
 
-        if committed_transactions_refs.len() > max_transactions {
-            committed_transactions_refs.truncate(max_transactions);
+                if committed_transactions_refs.len() > max_transactions {
+                    committed_transactions_refs.truncate(max_transactions);
+                }
+            }
         }
 
         // Some quick validation of the requested transactions refs
@@ -1351,6 +1398,7 @@ mod tests {
         block_verifier::SignedBlockVerifier,
         commit::{CertifiedCommits, CommitRange},
         commit_observer::CommitObserver,
+        commit_syncer::CommitSyncType,
         commit_vote_monitor::CommitVoteMonitor,
         context::Context,
         cordial_knowledge::{ConnectionKnowledgeMessage, CordialKnowledge},
@@ -1364,7 +1412,7 @@ mod tests {
         network::{
             BlockBundle, BlockBundleStream, NetworkClient, NetworkService, SerializedBlock,
             SerializedBlockBundle, SerializedBlockBundleParts, SerializedHeaderAndTransactions,
-            SerializedTransactionsV1, SerializedTransactionsV2,
+            SerializedTransactionsV1, SerializedTransactionsV2, TransactionFetchMode,
         },
         storage::{Store, mem_store::MemStore},
         test_dag_builder::DagBuilder,
@@ -1413,6 +1461,15 @@ mod tests {
             _authorities: Vec<AuthorityIndex>,
             _timeout: Duration,
         ) -> ConsensusResult<Vec<Bytes>> {
+            unimplemented!("Unimplemented")
+        }
+
+        async fn fetch_commits_and_transactions(
+            &self,
+            _peer: AuthorityIndex,
+            _commit_range: CommitRange,
+            _timeout: Duration,
+        ) -> ConsensusResult<(Vec<Bytes>, Vec<Bytes>, Vec<Bytes>)> {
             unimplemented!("Unimplemented")
         }
 
@@ -2150,6 +2207,13 @@ mod tests {
             CoreError,
         > {
             unimplemented!("Unimplemented")
+        }
+
+        async fn add_subdags_from_fast_sync(
+            &self,
+            _subdags: Vec<crate::commit::CommittedSubDag>,
+        ) -> Result<(), CoreError> {
+            unimplemented!()
         }
 
         async fn new_block(
@@ -3319,7 +3383,7 @@ mod tests {
         let peer = context.committee.to_authority_index(1).unwrap();
 
         let result = authority_service
-            .handle_fetch_commits(peer, range)
+            .handle_fetch_commits(peer, range, CommitSyncType::Regular)
             .await
             .unwrap();
 
@@ -3473,7 +3537,11 @@ mod tests {
 
         let peer = context.committee.to_authority_index(1).unwrap();
         let serialized_transactions = authority_service
-            .handle_fetch_transactions(peer, block_refs_to_request_first_batch.clone())
+            .handle_fetch_transactions(
+                peer,
+                block_refs_to_request_first_batch.clone(),
+                TransactionFetchMode::TransactionSync,
+            )
             .await
             .expect("We should expect a correct return of serialized transactions");
 
@@ -3544,7 +3612,11 @@ mod tests {
             .truncate(context.parameters.max_transactions_per_regular_sync_fetch);
 
         let serialized_transactions = authority_service
-            .handle_fetch_transactions(peer, block_refs_to_request_second_batch.clone())
+            .handle_fetch_transactions(
+                peer,
+                block_refs_to_request_second_batch.clone(),
+                TransactionFetchMode::TransactionSync,
+            )
             .await
             .expect("Should return an empty vector");
 
