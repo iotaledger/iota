@@ -297,6 +297,12 @@ pub struct GrpcApiConfig {
     /// in bytes.
     #[serde(default = "default_max_json_move_value_size")]
     pub max_json_move_value_size: usize,
+
+    /// TLS configuration for the gRPC server.
+    ///
+    /// If not provided, the gRPC server will use plain TCP without TLS.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tls: Option<TlsConfig>,
 }
 
 impl Default for GrpcApiConfig {
@@ -306,7 +312,33 @@ impl Default for GrpcApiConfig {
             checkpoint_broadcast_buffer_size: default_checkpoint_broadcast_buffer_size(),
             event_broadcast_buffer_size: default_event_broadcast_buffer_size(),
             max_json_move_value_size: default_max_json_move_value_size(),
+            tls: None,
         }
+    }
+}
+
+impl GrpcApiConfig {
+    pub fn tls_config(&self) -> Option<&TlsConfig> {
+        self.tls.as_ref()
+    }
+}
+
+#[derive(Clone, Debug, Default, serde::Deserialize, serde::Serialize)]
+#[serde(rename_all = "kebab-case")]
+pub struct TlsConfig {
+    /// File path to a PEM formatted TLS certificate chain
+    cert: String,
+    /// File path to a PEM formatted TLS private key
+    key: String,
+}
+
+impl TlsConfig {
+    pub fn cert(&self) -> &str {
+        &self.cert
+    }
+
+    pub fn key(&self) -> &str {
+        &self.key
     }
 }
 
