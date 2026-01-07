@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import * as identity from '@iota/identity-wasm/web';
+import { isValidIotaObjectId } from '@iota/iota-sdk/utils';
 
 let initPromise: Promise<void> | null = null;
 
@@ -26,6 +27,24 @@ export async function tryDIDParse(didCandidate: string): Promise<identity.IotaDI
     try {
         await initIdentityWasmWeb();
         return identity.IotaDID.parse(didCandidate);
+    } catch {
+        return null;
+    }
+}
+
+/**
+ * Try generate an IotaDID from ObjectId and Network and return the generated did,
+ * otherwise return null if not possible to generate by any reason.
+ */
+export async function tryGenerateDidFromObjectId(
+    objectId: string,
+    network: string,
+): Promise<identity.IotaDID | null> {
+    try {
+        if (!isValidIotaObjectId(objectId)) return null;
+
+        await initIdentityWasmWeb();
+        return identity.IotaDID.fromAliasId(objectId, network);
     } catch {
         return null;
     }

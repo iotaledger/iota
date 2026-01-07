@@ -20,7 +20,7 @@ import { type UseQueryResult, useQuery } from '@tanstack/react-query';
 import { useNetwork } from './useNetwork';
 import { type IdentityClientReadOnly } from '@iota/identity-wasm/web';
 import { useFeatureIsOn } from '@growthbook/growthbook-react';
-import { tryDIDParse } from '~/lib/utils/trust-framework/identity';
+import { tryGenerateDidFromObjectId, tryDIDParse } from '~/lib/utils/trust-framework/identity';
 import { useIdentityClient } from '~/contexts';
 
 const isGenesisLibAddress = (value: string): boolean => /^(0x|0X)0{0,39}[12]$/.test(value);
@@ -35,8 +35,9 @@ const getResultsForDid = async (
     if (identityClient == null) return null; // client not available
     if (!isIdentityEnabled) return null; // feature flag disabled
 
-    const did = await tryDIDParse(query);
-    if (did == null) return null; // invalid did parsing
+    const didParsed = await tryDIDParse(query);
+    const did = didParsed ?? (await tryGenerateDidFromObjectId(query, identityClient.network()));
+    if (did == null) return null; // either invalid parsing or invalid objectId
 
     const didDocument = await identityClient.resolveDid(did!);
 
