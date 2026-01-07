@@ -3900,10 +3900,6 @@ impl AuthorityPerEpochStore {
                     previously_deferred_tx_digests,
                     shared_object_congestion_tracker,
                 );
-                // TODO: remove this
-                let estimated_execution_duration = shared_object_congestion_tracker
-                    .congestion_control_parameters()
-                    .get_estimated_execution_duration(&certificate);
 
                 match scheduling_result {
                     SchedulingResult::Defer(deferral_key, deferral_reason) => {
@@ -3932,10 +3928,7 @@ impl AuthorityPerEpochStore {
                                 {
                                     let current_commit_suggested_gas_price =
                                         suggested_gas_price_calculator
-                                            .calculate_suggested_gas_price(
-                                                &certificate,
-                                                estimated_execution_duration,
-                                            );
+                                            .calculate_suggested_gas_price(&certificate);
 
                                     let suggested_gas_price = previously_deferred_tx_digests
                                         .get(certificate.digest())

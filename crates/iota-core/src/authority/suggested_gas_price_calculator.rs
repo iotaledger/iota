@@ -155,14 +155,10 @@ impl SuggestedGasPriceCalculator {
     pub(super) fn calculate_suggested_gas_price(
         &self,
         certificate: &VerifiedExecutableTransaction,
-        estimated_execution_duration: ExecutionTime,
     ) -> u64 {
         if let Some(congestion_limit_per_commit) = self.get_congestion_limit_per_commit() {
-            let clearing_gas_price = self.find_clearing_gas_price(
-                certificate,
-                estimated_execution_duration,
-                congestion_limit_per_commit,
-            );
+            let clearing_gas_price =
+                self.find_clearing_gas_price(certificate, congestion_limit_per_commit);
 
             // Suggested gas price equals `clearing_gas_price + 1`. We add 1 to make this
             // transaction would be scheduled if the same commit structure was repeated.
@@ -202,17 +198,18 @@ impl SuggestedGasPriceCalculator {
     fn find_clearing_gas_price(
         &self,
         certificate: &VerifiedExecutableTransaction,
-        estimated_execution_duration: ExecutionTime,
         congestion_limit_per_commit: ExecutionTime,
     ) -> Option<u64> {
         // Imaginary start time of the deferred/cancelled certificate. We consider
         // only the highest possible (but sufficient for scheduling) start time as
         // it is very likely that scheduled certificates with lower gas prices
-        // appear have higher start times. If a transaction with its
-        // `estimated_execution_duration` cannot fit within
-        // `congestion_limit_per_commit`, set its imaginary start time to 0.
-        let start_time_of_deferred_cert =
-            congestion_limit_per_commit.saturating_sub(estimated_execution_duration);
+        // appear have higher start times. If a transaction with its estimated
+        // execution duration cannot fit within `congestion_limit_per_commit`,
+        // set its imaginary start time to 0.
+        let start_time_of_deferred_cert = congestion_limit_per_commit.saturating_sub(
+            self.congestion_control_parameters
+                .get_estimated_execution_duration(certificate),
+        );
 
         certificate
             .shared_input_objects()
@@ -838,13 +835,8 @@ mod tests {
             if let SequencingResult::Defer(_key, congested_objects) = sequencing_result {
                 assert_eq!(congested_objects, vec![object_2]);
 
-                let suggested_gas_price = suggested_gas_price_calculator
-                    .calculate_suggested_gas_price(
-                        &certificate,
-                        shared_object_congestion_tracker
-                            .congestion_control_parameters()
-                            .get_estimated_execution_duration(&certificate),
-                    );
+                let suggested_gas_price =
+                    suggested_gas_price_calculator.calculate_suggested_gas_price(&certificate);
                 assert_eq!(suggested_gas_price, txs_gas_data[2].gas_price + 1);
             } else {
                 panic!(
@@ -902,12 +894,8 @@ mod tests {
                 assert_eq!(congested_objects, vec![object_2]);
             }
 
-            let suggested_gas_price = suggested_gas_price_calculator.calculate_suggested_gas_price(
-                &certificate,
-                shared_object_congestion_tracker
-                    .congestion_control_parameters()
-                    .get_estimated_execution_duration(&certificate),
-            );
+            let suggested_gas_price =
+                suggested_gas_price_calculator.calculate_suggested_gas_price(&certificate);
             assert_eq!(suggested_gas_price, txs_gas_data[2].gas_price + 1);
         } else {
             panic!(
@@ -964,12 +952,8 @@ mod tests {
                 assert_eq!(congested_objects, vec![object_2]);
             }
 
-            let suggested_gas_price = suggested_gas_price_calculator.calculate_suggested_gas_price(
-                &certificate,
-                shared_object_congestion_tracker
-                    .congestion_control_parameters()
-                    .get_estimated_execution_duration(&certificate),
-            );
+            let suggested_gas_price =
+                suggested_gas_price_calculator.calculate_suggested_gas_price(&certificate);
             assert_eq!(suggested_gas_price, txs_gas_data[2].gas_price + 1);
         } else {
             panic!(
@@ -1026,12 +1010,8 @@ mod tests {
                 assert_eq!(congested_objects, vec![object_2]);
             }
 
-            let suggested_gas_price = suggested_gas_price_calculator.calculate_suggested_gas_price(
-                &certificate,
-                shared_object_congestion_tracker
-                    .congestion_control_parameters()
-                    .get_estimated_execution_duration(&certificate),
-            );
+            let suggested_gas_price =
+                suggested_gas_price_calculator.calculate_suggested_gas_price(&certificate);
             match mode {
                 PerObjectCongestionControlMode::None => unreachable!(),
                 PerObjectCongestionControlMode::TotalTxCount => {
@@ -1082,12 +1062,8 @@ mod tests {
         // |-------------------------------------------------|---- 0 -----|
         // That is, this certificate must be deferred in both new and old sequencers.
         if let SequencingResult::Defer(_key, congested_objects) = sequencing_result {
-            let suggested_gas_price = suggested_gas_price_calculator.calculate_suggested_gas_price(
-                &certificate,
-                shared_object_congestion_tracker
-                    .congestion_control_parameters()
-                    .get_estimated_execution_duration(&certificate),
-            );
+            let suggested_gas_price =
+                suggested_gas_price_calculator.calculate_suggested_gas_price(&certificate);
 
             if min_free_execution_slot_assigned {
                 // ^ this corresponds the new sequencer's logic
@@ -1265,12 +1241,8 @@ mod tests {
                     .collect::<Vec<_>>()
             );
 
-            let suggested_gas_price = suggested_gas_price_calculator.calculate_suggested_gas_price(
-                &certificate,
-                shared_object_congestion_tracker
-                    .congestion_control_parameters()
-                    .get_estimated_execution_duration(&certificate),
-            );
+            let suggested_gas_price =
+                suggested_gas_price_calculator.calculate_suggested_gas_price(&certificate);
             assert_eq!(suggested_gas_price, txs_gas_data[2].gas_price + 1);
         } else {
             panic!(
@@ -1321,12 +1293,8 @@ mod tests {
                     .collect::<Vec<_>>()
             );
 
-            let suggested_gas_price = suggested_gas_price_calculator.calculate_suggested_gas_price(
-                &certificate,
-                shared_object_congestion_tracker
-                    .congestion_control_parameters()
-                    .get_estimated_execution_duration(&certificate),
-            );
+            let suggested_gas_price =
+                suggested_gas_price_calculator.calculate_suggested_gas_price(&certificate);
             match mode {
                 PerObjectCongestionControlMode::None => unreachable!(),
                 PerObjectCongestionControlMode::TotalTxCount => {
@@ -1385,12 +1353,8 @@ mod tests {
                     .collect::<Vec<_>>()
             );
 
-            let suggested_gas_price = suggested_gas_price_calculator.calculate_suggested_gas_price(
-                &certificate,
-                shared_object_congestion_tracker
-                    .congestion_control_parameters()
-                    .get_estimated_execution_duration(&certificate),
-            );
+            let suggested_gas_price =
+                suggested_gas_price_calculator.calculate_suggested_gas_price(&certificate);
             match mode {
                 PerObjectCongestionControlMode::None => unreachable!(),
                 PerObjectCongestionControlMode::TotalTxCount => {
