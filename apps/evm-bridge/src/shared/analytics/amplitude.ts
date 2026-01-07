@@ -2,12 +2,13 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import * as amplitude from '@amplitude/analytics-browser';
-import { LogLevel, TransportType, type UserSession } from '@amplitude/analytics-types';
-import { PersistableStorage } from '@iota/core';
+import { LogLevel, type UserSession } from '@amplitude/analytics-types';
+import { getAmplitudeConsentStatus, PersistableStorage } from '@iota/core';
 
 import { ampli } from './ampli';
+import { getDefaultNetwork } from '../../config';
 
-const IS_PROD_ENV = import.meta.env.VITE_BUILD_ENV === 'production';
+const IS_ENABLED = import.meta.env.VITE_BUILD_ENV === 'production';
 
 export const persistableStorage = new PersistableStorage<UserSession>();
 
@@ -26,18 +27,32 @@ const ApiKey = {
 };
 
 export async function initAmplitude() {
+    // Check consent status to determine initial opt-out state
+    const consentStatus = getAmplitudeConsentStatus();
+
+    if (ampli.isLoaded || consentStatus === 'declined') {
+        return;
+    }
+
     await ampli.load({
-        disabled: !IS_PROD_ENV,
+        disabled: !IS_ENABLED,
         client: {
             apiKey: ApiKey.production,
             configuration: {
-                logLevel: IS_PROD_ENV ? LogLevel.Warn : amplitude.Types.LogLevel.Debug,
+                optOut: false,
+                autocapture: {
+                    pageViews: IS_ENABLED,
+                    sessions: IS_ENABLED,
+                },
+                logLevel: IS_ENABLED ? LogLevel.Warn : LogLevel.None,
             },
         },
-    });
+    }).promise;
+
+    setNetworkGroup(getDefaultNetwork());
 
     window.addEventListener('pagehide', () => {
-        amplitude.setTransport(TransportType.SendBeacon);
+        amplitude.setTransport('beacon');
         amplitude.flush();
     });
 }
@@ -48,6 +63,10 @@ export function getUrlWithDeviceId(url: URL) {
         url.searchParams.set('amplitude_device_id', deviceId);
     }
     return url;
+}
+
+function setNetworkGroup(network: string): void {
+    ampli.client.setGroup('activeNetwork', network);
 }
 
 /**

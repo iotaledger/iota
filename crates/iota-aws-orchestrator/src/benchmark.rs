@@ -42,6 +42,8 @@ pub struct BenchmarkParameters<T> {
     pub benchmark_type: T,
     /// The committee size.
     pub nodes: usize,
+    /// The number of additional gas accounts to create.
+    pub additional_gas_accounts: usize,
     /// The number of (crash-)faults.
     pub faults: FaultsType,
     /// The total load (tx/s) to submit to the system.
@@ -78,6 +80,7 @@ impl<T: BenchmarkType> Default for BenchmarkParameters<T> {
         Self {
             benchmark_type: T::default(),
             nodes: 4,
+            additional_gas_accounts: 0,
             faults: FaultsType::default(),
             load: 500,
             duration: Duration::from_secs(60),
@@ -127,6 +130,7 @@ impl<T> BenchmarkParameters<T> {
     pub fn new(
         benchmark_type: T,
         nodes: usize,
+        additional_gas_accounts: usize,
         faults: FaultsType,
         load: usize,
         duration: Duration,
@@ -142,6 +146,7 @@ impl<T> BenchmarkParameters<T> {
         Self {
             benchmark_type,
             nodes,
+            additional_gas_accounts,
             faults,
             load,
             duration,
@@ -180,6 +185,8 @@ pub struct BenchmarkParametersGenerator<T> {
     benchmark_type: T,
     /// The committee size.
     pub nodes: usize,
+    /// The number of additional clients.
+    pub additional_gas_accounts: usize,
     /// The load type.
     load_type: LoadType,
     /// The number of faulty nodes.
@@ -234,6 +241,7 @@ impl<T: BenchmarkType> Iterator for BenchmarkParametersGenerator<T> {
             BenchmarkParameters::new(
                 self.benchmark_type.clone(),
                 self.nodes,
+                self.additional_gas_accounts,
                 self.faults.clone(),
                 load,
                 self.duration,
@@ -255,7 +263,12 @@ impl<T: BenchmarkType> BenchmarkParametersGenerator<T> {
     const DEFAULT_DURATION: Duration = Duration::from_secs(180);
 
     /// make a new generator.
-    pub fn new(nodes: usize, mut load_type: LoadType, use_internal_ip_address: bool) -> Self {
+    pub fn new(
+        nodes: usize,
+        additional_gas_accounts: usize,
+        mut load_type: LoadType,
+        use_internal_ip_address: bool,
+    ) -> Self {
         let next_load = match &mut load_type {
             LoadType::Fixed(loads) => {
                 if loads.is_empty() {
@@ -269,6 +282,7 @@ impl<T: BenchmarkType> BenchmarkParametersGenerator<T> {
         Self {
             benchmark_type: T::default(),
             nodes,
+            additional_gas_accounts,
             load_type,
             faults: FaultsType::default(),
             duration: Self::DEFAULT_DURATION,
@@ -449,12 +463,17 @@ pub mod test {
     fn set_lower_bound() {
         let settings = Settings::new_for_test();
         let nodes = 4;
+        let additional_gas_accounts = 0;
         let load = LoadType::Search {
             starting_load: 100,
             max_iterations: 10,
         };
-        let mut generator =
-            BenchmarkParametersGenerator::<TestBenchmarkType>::new(nodes, load, true);
+        let mut generator = BenchmarkParametersGenerator::<TestBenchmarkType>::new(
+            nodes,
+            additional_gas_accounts,
+            load,
+            true,
+        );
         let parameters = generator.next().unwrap();
 
         let collection = MeasurementsCollection::new(&settings, parameters);
@@ -476,12 +495,17 @@ pub mod test {
     fn set_upper_bound() {
         let settings = Settings::new_for_test();
         let nodes = 4;
+        let additional_gas_accounts = 0;
         let load = LoadType::Search {
             starting_load: 100,
             max_iterations: 10,
         };
-        let mut generator =
-            BenchmarkParametersGenerator::<TestBenchmarkType>::new(nodes, load, true);
+        let mut generator = BenchmarkParametersGenerator::<TestBenchmarkType>::new(
+            nodes,
+            additional_gas_accounts,
+            load,
+            true,
+        );
         let first_parameters = generator.next().unwrap();
 
         // Register a first result (zero latency). This sets the lower bound.
@@ -517,12 +541,17 @@ pub mod test {
     fn max_iterations() {
         let settings = Settings::new_for_test();
         let nodes = 4;
+        let additional_gas_accounts = 0;
         let load = LoadType::Search {
             starting_load: 100,
             max_iterations: 0,
         };
-        let mut generator =
-            BenchmarkParametersGenerator::<TestBenchmarkType>::new(nodes, load, true);
+        let mut generator = BenchmarkParametersGenerator::<TestBenchmarkType>::new(
+            nodes,
+            additional_gas_accounts,
+            load,
+            true,
+        );
         let parameters = generator.next().unwrap();
 
         let collection = MeasurementsCollection::new(&settings, parameters);

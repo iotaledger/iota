@@ -29,6 +29,10 @@ Move.lock
 .trace
 .coverage_map.mvcov
 
+# Flamegraph output
+flamegraph.svg
+flamegraph-mem.svg
+
 # Thumbnails
 ._*
 

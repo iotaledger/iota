@@ -19,7 +19,6 @@ clap.workspace = true
 csv = "1.2"
 fastcrypto.workspace = true
 flate2.workspace = true
-iota-sdk-types.workspace = true
 itertools.workspace = true
 packable = { version = "0.8", default-features = false, features = ["io"] }
 prefix-hex = "0.7"
@@ -49,6 +48,7 @@ iota-move-build.workspace = true
 iota-move-natives-latest = { path = "../../iota-execution/latest/iota-move-natives" }
 iota-protocol-config.workspace = true
 iota-sdk = { version = "1.1", default-features = false, features = ["irc_27", "irc_30", "std"] }
+iota-sdk-types.workspace = true
 iota-types.workspace = true
 move-binary-format.workspace = true
 move-compiler.workspace = true

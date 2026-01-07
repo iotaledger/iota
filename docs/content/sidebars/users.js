@@ -50,7 +50,7 @@ const users = [
       {
         type: 'link',
         label: 'Cosmostation Wallet',
-        href: 'https://www.cosmostation.io/',
+        href: 'https://www.cosmostation.io/products/application',
         description: 'Cosmostation provides a browser extension and mobile app for IOTA.',
       }
     ],

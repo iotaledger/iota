@@ -65,6 +65,13 @@ const config: PlaywrightTestConfig = {
             /* Set this to true to reuse the server instance on step 'Run Local net' in e2e.yml */
             reuseExistingServer: !process.env.CI,
         },
+        // Apps-backend:
+        {
+            command: 'cd ../apps-backend && pnpm run preview',
+            port: 3003,
+            timeout: 120 * 1000,
+            reuseExistingServer: !process.env.CI,
+        },
     ],
 };
 

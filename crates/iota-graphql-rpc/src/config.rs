@@ -120,7 +120,7 @@ pub struct Limits {
     /// Maximum deph of a move value.
     pub max_move_value_depth: u32,
     /// Maximum number of transaction ids that can be passed to a
-    /// `TransactionBlockFilter`.
+    /// `TransactionBlockFilter` or to `transaction_blocks_by_digests`.
     pub max_transaction_ids: u32,
     /// Maximum number of candidates to scan when gathering a page of results.
     pub max_scan_limit: u32,

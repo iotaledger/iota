@@ -4,6 +4,7 @@
 
 pub mod backoff;
 pub mod logging;
+#[cfg(feature = "metrics")]
 pub mod metrics;
 pub mod stream_ext;
 pub mod sync;

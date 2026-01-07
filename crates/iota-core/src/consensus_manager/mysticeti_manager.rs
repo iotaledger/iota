@@ -40,7 +40,6 @@ pub struct MysticetiManager {
     protocol_keypair: ProtocolKeyPair,
     network_keypair: NetworkKeyPair,
     storage_base_path: PathBuf,
-    // TODO: switch to parking_lot::Mutex.
     running: Mutex<Running>,
     metrics: Arc<ConsensusManagerMetrics>,
     registry_service: RegistryService,
@@ -49,7 +48,6 @@ pub struct MysticetiManager {
     // Use a shared lazy mysticeti client so we can update the internal mysticeti
     // client that gets created for every new epoch.
     client: Arc<LazyMysticetiClient>,
-    // TODO: switch to parking_lot::Mutex.
     consensus_handler: Mutex<Option<MysticetiConsensusHandler>>,
     consumer_monitor: ArcSwapOption<CommitConsumerMonitor>,
 }

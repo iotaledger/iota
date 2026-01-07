@@ -2,8 +2,6 @@
 // Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-#[cfg(not(target_os = "windows"))]
-use std::os::unix::fs::FileExt;
 #[cfg(target_os = "windows")]
 use std::os::windows::fs::FileExt;
 #[cfg(not(msim))]
@@ -13,7 +11,7 @@ use std::{
     env,
     fmt::Write,
     fs::{self, read_dir},
-    io::{self, Read},
+    io::{self, Read, Seek, SeekFrom, Write as IoWrite},
     net::SocketAddr,
     path::{Path, PathBuf},
     str, thread,
@@ -358,10 +356,12 @@ async fn test_genesis() -> Result<(), anyhow::Error> {
         benchmark_ips: None,
         with_faucet: false,
         committee_size: DEFAULT_NUMBER_OF_AUTHORITIES,
+        num_additional_gas_accounts: None,
         local_migration_snapshots: vec![],
         remote_migration_snapshots: vec![],
         delegator: None,
         chain_start_timestamp_ms: None,
+        admin_interface_address: None,
     }
     .execute()
     .await?;
@@ -401,10 +401,12 @@ async fn test_genesis() -> Result<(), anyhow::Error> {
         benchmark_ips: None,
         with_faucet: false,
         committee_size: DEFAULT_NUMBER_OF_AUTHORITIES,
+        num_additional_gas_accounts: None,
         local_migration_snapshots: vec![],
         remote_migration_snapshots: vec![],
         delegator: None,
         chain_start_timestamp_ms: None,
+        admin_interface_address: None,
     }
     .execute()
     .await;
@@ -2553,10 +2555,10 @@ async fn test_package_upgrade_command() -> Result<(), anyhow::Error> {
         ),
     );
     let new = lines.join("\n");
-    #[cfg(target_os = "windows")]
-    move_toml.seek_write(new.as_bytes(), 0).unwrap();
-    #[cfg(not(target_os = "windows"))]
-    move_toml.write_at(new.as_bytes(), 0).unwrap();
+
+    move_toml.seek(SeekFrom::Start(0))?;
+    move_toml.set_len(0)?; // Truncate the file
+    move_toml.write_all(new.as_bytes())?;
 
     // Now run the upgrade
     let build_config = BuildConfig::new_for_testing().config;
@@ -2854,10 +2856,9 @@ async fn test_package_management_on_upgrade_command_conflict() -> Result<(), any
     lines.insert(idx + 1, "published-at = \"0xbad\"".to_string());
     let new = lines.join("\n");
 
-    #[cfg(target_os = "windows")]
-    move_toml.seek_write(new.as_bytes(), 0).unwrap();
-    #[cfg(not(target_os = "windows"))]
-    move_toml.write_at(new.as_bytes(), 0).unwrap();
+    move_toml.seek(SeekFrom::Start(0))?;
+    move_toml.set_len(0)?; // Truncate the file
+    move_toml.write_all(new.as_bytes())?;
 
     // Create a new build config for the upgrade. Initialize its lock file to the
     // package we published.

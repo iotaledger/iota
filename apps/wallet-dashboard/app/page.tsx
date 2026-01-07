@@ -66,14 +66,24 @@ function HomeDashboardPage(): JSX.Element {
                 <div className="flex flex-col items-center gap-y-1 text-center text-body-lg text-iota-neutral-60">
                     <span>&copy; IOTA Foundation {CURRENT_YEAR}</span>
                     <span>{process.env.NEXT_PUBLIC_DASHBOARD_REV}</span>
-                    <Link
-                        href={ToS_LINK}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-label-sm text-iota-primary-30 dark:text-iota-primary-80"
-                    >
-                        Terms of Service
-                    </Link>
+                    <div className="flex gap-md">
+                        <Link
+                            href={ToS_LINK}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-label-sm text-iota-primary-30 dark:text-iota-primary-80"
+                        >
+                            Terms of Service
+                        </Link>
+                        <Link
+                            href={'/cookie-policy'}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-label-sm text-iota-primary-30 dark:text-iota-primary-80"
+                        >
+                            Cookie Policy
+                        </Link>
+                    </div>
                 </div>
             </div>
         </main>

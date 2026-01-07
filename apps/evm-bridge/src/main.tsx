@@ -33,12 +33,16 @@ import { growthbook, interceptProviderAnnouncements } from './lib/utils/index.ts
 import { GrowthBookProvider } from '@growthbook/growthbook-react';
 import { getNetwork } from '@iota/iota-sdk/client';
 import { metaMaskWallet, walletConnectWallet } from '@rainbow-me/rainbowkit/wallets';
+import { initAmplitude } from './shared/analytics';
 
 // We intercept EIP-6963 announcements
 // to only allow certain wallets (metamask) to be discovered
 interceptProviderAnnouncements();
 
 growthbook.init();
+
+// Load Amplitude as early as we can (respects opt-out based on consent status):
+initAmplitude();
 
 const queryClient = new QueryClient();
 

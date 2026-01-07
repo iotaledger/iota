@@ -20,7 +20,7 @@
         "@nestjs/platform-express": "^10.4.17",
         "@nestjs/schedule": "^4.0.2",
         "cache-manager": "^5.6.1",
-        "class-validator": "^0.14.1",
+        "class-validator": "^0.14.3",
         "reflect-metadata": "^0.2.2"
     },
     "devDependencies": {
