@@ -57,6 +57,7 @@ impl CommitSolidifier {
 
     /// Reinitialize CommitSolidifier after fast sync completes.
     /// Clears pending subdags and sets the last solid committed index.
+    #[allow(dead_code)]
     pub(crate) fn reinitialize(&mut self, last_commit_index: CommitIndex) {
         self.pending_subdags.clear();
         self.last_solid_committed_index = last_commit_index;

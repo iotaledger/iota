@@ -18,8 +18,7 @@ use crate::{
     CommitConsumer, CommittedSubDag,
     block_header::{BlockHeaderAPI, VerifiedBlockHeader},
     commit::{
-        CommitAPI, CommitIndex, PendingSubDag, load_pending_subdag_from_store,
-        try_load_pending_subdag_from_store,
+        CommitAPI, CommitIndex, PendingSubDag, try_load_pending_subdag_from_store,
     },
     commit_solidifier::CommitSolidifier,
     context::Context,

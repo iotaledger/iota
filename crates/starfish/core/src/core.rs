@@ -123,6 +123,7 @@ pub(crate) enum ReasonToCreateBlock {
     Recover,
     QuorumSubscribersExist,
     KnownLastBlock,
+    #[allow(dead_code)]
     FastSyncComplete,
 }
 
