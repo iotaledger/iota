@@ -15,6 +15,7 @@ use fastcrypto::{error::FastCryptoResult, groups::bls12381, hash::HashFunction};
 use fastcrypto_tbls::dkg_v1;
 use fastcrypto_zkp::bn254::zk_login::{JWK, JwkId};
 use iota_sdk_types::crypto::IntentScope;
+use once_cell::sync::OnceCell;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -22,8 +23,8 @@ use crate::{
     base_types::{
         AuthorityName, ConciseableName, ObjectID, ObjectRef, SequenceNumber, TransactionDigest,
     },
-    crypto::{AuthoritySignature, DefaultHash},
-    digests::{ConsensusCommitDigest, Digest},
+    crypto::{AuthoritySignature, DefaultHash, default_hash},
+    digests::{ConsensusCommitDigest, Digest, MisbehaviorReportDigest},
     message_envelope::{Envelope, Message, VerifiedEnvelope},
     messages_checkpoint::{CheckpointSequenceNumber, CheckpointSignatureMessage},
     supported_protocol_versions::{
@@ -90,10 +91,7 @@ pub enum ConsensusTransactionKey {
     NewJWKFetched(Box<(AuthorityName, JwkId, JWK)>),
     RandomnessDkgMessage(AuthorityName),
     RandomnessDkgConfirmation(AuthorityName),
-    // If a validator submits more than one report for the same checkpoint, we update the
-    // scoring metrics using the maximum reported metric, so the checkpoint sequence number is
-    // sufficient to identify a report from a single AuthorityName.
-    MisbehaviorReport(AuthorityName, u64 /* checkpoint_seq */),
+    MisbehaviorReport(MisbehaviorReportDigest),
     // New entries should be added at the end to preserve serialization compatibility. DO NOT
     // CHANGE THE ORDER OF EXISTING ENTRIES!
 }
@@ -106,14 +104,6 @@ impl Debug for ConsensusTransactionKey {
                 write!(f, "CheckpointSignature({:?}, {:?})", name.concise(), seq)
             }
             Self::EndOfPublish(name) => write!(f, "EndOfPublish({:?})", name.concise()),
-            Self::MisbehaviorReport(name, checkpoint_seq) => {
-                write!(
-                    f,
-                    "MisbehaviorReport({:?},{:?})",
-                    name.concise(),
-                    checkpoint_seq
-                )
-            }
             Self::CapabilityNotification(name, generation) => write!(
                 f,
                 "CapabilityNotification({:?}, {:?})",
@@ -135,6 +125,9 @@ impl Debug for ConsensusTransactionKey {
             }
             Self::RandomnessDkgConfirmation(name) => {
                 write!(f, "RandomnessDkgConfirmation({:?})", name.concise())
+            }
+            Self::MisbehaviorReport(digest) => {
+                write!(f, "MisbehaviorReport({digest:?})")
             }
         }
     }
@@ -293,20 +286,35 @@ impl ConsensusTransactionKind {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum VersionedMisbehaviorReport {
-    V1(MisbehaviorsV1<Vec<u64>>),
+    V1(
+        MisbehaviorsV1<Vec<u64>>,
+        #[serde(skip)] OnceCell<MisbehaviorReportDigest>,
+    ),
 }
 
 impl VersionedMisbehaviorReport {
-    pub fn verify(&self, committee_size: usize) -> bool {
-        match self {
-            VersionedMisbehaviorReport::V1(report) => report.verify(committee_size),
-        }
+    pub fn new_v1(misbehaviors: MisbehaviorsV1<Vec<u64>>) -> Self {
+        VersionedMisbehaviorReport::V1(misbehaviors, OnceCell::new())
     }
 
+    pub fn verify(&self, committee_size: usize) -> bool {
+        match self {
+            VersionedMisbehaviorReport::V1(report, _) => report.verify(committee_size),
+        }
+    }
     /// Returns an iterator over references to some of the fields in the report.
     pub fn iterate_over_metrics(&self) -> std::vec::IntoIter<&Vec<u64>> {
         match self {
-            VersionedMisbehaviorReport::V1(report) => report.iter(),
+            VersionedMisbehaviorReport::V1(report, _) => report.iter(),
+        }
+    }
+    /// Returns the digest of the misbehavior report, caching it if it has not
+    /// been computed yet.
+    pub fn digest(&self) -> &MisbehaviorReportDigest {
+        match self {
+            VersionedMisbehaviorReport::V1(_, digest) => {
+                digest.get_or_init(|| MisbehaviorReportDigest::new(default_hash(self)))
+            }
         }
     }
 }
@@ -611,9 +619,6 @@ impl ConsensusTransaction {
             ConsensusTransactionKind::EndOfPublish(authority) => {
                 ConsensusTransactionKey::EndOfPublish(*authority)
             }
-            ConsensusTransactionKind::MisbehaviorReport(authority, _, checkpoint_seq) => {
-                ConsensusTransactionKey::MisbehaviorReport(*authority, *checkpoint_seq)
-            }
             ConsensusTransactionKind::CapabilityNotificationV1(cap) => {
                 ConsensusTransactionKey::CapabilityNotification(cap.authority, cap.generation)
             }
@@ -636,6 +641,9 @@ impl ConsensusTransaction {
             }
             ConsensusTransactionKind::RandomnessDkgConfirmation(authority, _) => {
                 ConsensusTransactionKey::RandomnessDkgConfirmation(*authority)
+            }
+            ConsensusTransactionKind::MisbehaviorReport(_, report, _) => {
+                ConsensusTransactionKey::MisbehaviorReport(*report.digest())
             }
         }
     }

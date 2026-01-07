@@ -189,7 +189,10 @@ impl VersionedScoringMetrics {
     // not.
     pub fn update_from_report(&self, report: &VersionedMisbehaviorReport) {
         match (self, report) {
-            (VersionedScoringMetrics::V1(metrics), VersionedMisbehaviorReport::V1(report_v1)) => {
+            (
+                VersionedScoringMetrics::V1(metrics),
+                VersionedMisbehaviorReport::V1(report_v1, _),
+            ) => {
                 for (i, value) in report_v1.faulty_blocks_provable.iter().enumerate() {
                     metrics.faulty_blocks_provable[i].fetch_max(*value, Ordering::Relaxed);
                 }
@@ -211,7 +214,7 @@ impl VersionedScoringMetrics {
     // network and needs to create a local copy of the metrics contained in it.
     pub fn from_report(report: &VersionedMisbehaviorReport) -> Self {
         match report {
-            VersionedMisbehaviorReport::V1(report_v1) => {
+            VersionedMisbehaviorReport::V1(report_v1, _) => {
                 let committee_size = report_v1.faulty_blocks_provable.len();
                 let metrics = ScoringMetricsV1::new(committee_size);
                 for (i, value) in report_v1.faulty_blocks_provable.iter().enumerate() {
@@ -257,7 +260,7 @@ impl VersionedScoringMetrics {
                     .iter()
                     .map(|metric| metric.load(Ordering::Relaxed))
                     .collect();
-                VersionedMisbehaviorReport::V1(MisbehaviorsV1 {
+                VersionedMisbehaviorReport::new_v1(MisbehaviorsV1 {
                     faulty_blocks_provable,
                     faulty_blocks_unprovable,
                     missing_proposals,
