@@ -11,7 +11,7 @@ Start localnet.
 Export required environment variables to enable Tempo tracing:
 
 ```bash
-export [handle_transaction]=trace,[process_certificate]=trace
+export TRACE_FILTER=[handle_transaction]=trace,[process_certificate]=trace
 ```
 
 Run from the repository root:
