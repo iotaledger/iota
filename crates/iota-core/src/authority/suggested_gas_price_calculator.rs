@@ -302,6 +302,8 @@ pub mod suggested_gas_price_calculator_test_utils {
                 protocol_config.congestion_control_min_free_execution_slot(),
                 None,
                 None,
+                protocol_config.max_gas_price(),
+                protocol_config.congestion_limit_overshoot_in_gas_price_feedback_mechanism(),
             ),
         );
 
@@ -644,6 +646,8 @@ mod tests {
                 min_free_execution_slot_assigned,
                 Some(max_execution_duration_per_commit),
                 None,
+                max_gas_price,
+                false, // TODO:
             ),
         );
 

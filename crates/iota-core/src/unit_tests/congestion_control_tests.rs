@@ -335,7 +335,7 @@ async fn test_congestion_control_execution_cancellation() {
     // touching shared_object_1 will be cancelled.
     let initial_debt = TEST_ONLY_GAS_PRICE * TEST_ONLY_GAS_UNIT + 1;
 
-    let congestion_control_params = CongestionControlParameters::new_for_test(
+    let congestion_control_parameters = CongestionControlParameters::new_for_test(
         PerObjectCongestionControlMode::TotalGasBudget,
         test_setup
             .protocol_config
@@ -346,6 +346,10 @@ async fn test_congestion_control_execution_cancellation() {
         test_setup
             .protocol_config
             .max_congestion_limit_overshoot_per_commit_as_option(),
+        test_setup.protocol_config.max_gas_price(),
+        test_setup
+            .protocol_config
+            .congestion_limit_overshoot_in_gas_price_feedback_mechanism(),
     );
 
     // Initialize shared object queue in the tracker and gas price calculator so
@@ -354,7 +358,7 @@ async fn test_congestion_control_execution_cancellation() {
     register_fail_point_arg("initial_congestion_tracker", move || {
         Some(new_congestion_tracker_with_initial_value_for_test(
             &[(shared_object_1.0, initial_debt)],
-            congestion_control_params.clone(),
+            congestion_control_parameters.clone(),
         ))
     });
     register_fail_point_arg("initial_suggested_gas_price_calculator", move || {

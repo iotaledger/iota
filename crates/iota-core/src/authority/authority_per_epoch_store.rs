@@ -168,8 +168,9 @@ impl CertLockGuard {
 
 type JwkAggregator = GenericMultiStakeAggregator<(JwkId, JWK), true>;
 
-/// Congestion control parameters for `SharedObjectCongestionTracker`
-/// and `SuggestedGasPriceCalculator`.
+/// Container for congestion control parameters commonly used in
+/// `SharedObjectCongestionTracker` and `SuggestedGasPriceCalculator`.
+/// It can be initialized from a `ProtocolConfig` instance.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct CongestionControlParameters {
     /// Controls the behavior of per-object congestion control. This
@@ -193,6 +194,15 @@ pub(crate) struct CongestionControlParameters {
     /// `max_execution_duration_per_commit`. If `None`, it means that
     /// congestion limit overshoot is disabled.
     max_congestion_limit_overshoot_per_commit: Option<ExecutionTime>,
+
+    /// Maximum gas price that can be set in transactions. This field
+    /// is only used in `SuggestedGasPriceCalculator` to prevent
+    /// suggesting feedback gas price larger this value.
+    max_gas_price: u64,
+
+    /// Whether to use congestion limit overshoot in the gas price feedback
+    /// mechanism, i.e., this is only used in `SuggestedGasPriceCalculator`.
+    use_congestion_limit_overshoot_in_gas_price_feedback_mechanism: bool,
 }
 
 impl CongestionControlParameters {
@@ -207,6 +217,9 @@ impl CongestionControlParameters {
                 .max_accumulated_txn_cost_per_object_in_mysticeti_commit_as_option(),
             max_congestion_limit_overshoot_per_commit: protocol_config
                 .max_congestion_limit_overshoot_per_commit_as_option(),
+            max_gas_price: protocol_config.max_gas_price(),
+            use_congestion_limit_overshoot_in_gas_price_feedback_mechanism: protocol_config
+                .congestion_limit_overshoot_in_gas_price_feedback_mechanism(),
         }
     }
 
@@ -217,12 +230,16 @@ impl CongestionControlParameters {
         congestion_control_min_free_execution_slot: bool,
         max_execution_duration_per_commit: Option<ExecutionTime>,
         max_congestion_limit_overshoot_per_commit: Option<ExecutionTime>,
+        max_gas_price: u64,
+        use_congestion_limit_overshoot_in_gas_price_feedback_mechanism: bool,
     ) -> Self {
         Self {
             per_object_congestion_control_mode,
             congestion_control_min_free_execution_slot,
             max_execution_duration_per_commit,
             max_congestion_limit_overshoot_per_commit,
+            max_gas_price,
+            use_congestion_limit_overshoot_in_gas_price_feedback_mechanism,
         }
     }
 

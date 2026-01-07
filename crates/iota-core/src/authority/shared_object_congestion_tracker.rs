@@ -928,8 +928,10 @@ mod object_cost_tests {
                 CongestionControlParameters::new_for_test(
                     PerObjectCongestionControlMode::TotalGasBudget,
                     assign_min_free_execution_slot,
-                    None,
-                    None,
+                    None,  // not important in this test
+                    None,  // not important in this test
+                    0,     // not important in this test
+                    false, // not important in this test
                 ),
             );
 
@@ -1148,6 +1150,8 @@ mod object_cost_tests {
                     assign_min_free_execution_slot,
                     Some(max_execution_duration_per_commit),
                     Some(max_overshoot_per_commit),
+                    0,     // not important in this test
+                    false, // not important in this test
                 ),
             );
         // add a transaction with gas budget 1 that writes to object 0 and 1.
@@ -1277,6 +1281,8 @@ mod object_cost_tests {
                     false,
                     Some(max_execution_duration_per_commit),
                     Some(max_overshoot_per_commit),
+                    0,     // not important in this test
+                    false, // not important in this test
                 ),
             );
 
@@ -1389,15 +1395,19 @@ mod object_cost_tests {
         let object_id_1 = ObjectID::random();
         let object_id_2 = ObjectID::random();
 
+        let congestion_control_parameters = CongestionControlParameters::new_for_test(
+            mode,
+            assign_min_free_execution_slot,
+            None,  // not important in this test
+            None,  // not important in this test
+            0,     // not important in this test
+            false, // not important in this test
+        );
+
         let mut shared_object_congestion_tracker =
             new_congestion_tracker_with_initial_value_for_test(
                 &[(object_id_0, 5), (object_id_1, 10)],
-                CongestionControlParameters::new_for_test(
-                    mode,
-                    assign_min_free_execution_slot,
-                    None,
-                    None,
-                ),
+                congestion_control_parameters.clone(),
             );
         assert_eq!(
             shared_object_congestion_tracker.max_occupied_slot_end_time(),
@@ -1430,12 +1440,7 @@ mod object_cost_tests {
             shared_object_congestion_tracker,
             new_congestion_tracker_with_initial_value_for_test(
                 &[(object_id_0, 5), (object_id_1, 10)],
-                CongestionControlParameters::new_for_test(
-                    mode,
-                    assign_min_free_execution_slot,
-                    None,
-                    None
-                ),
+                congestion_control_parameters,
             )
         );
         assert_eq!(
@@ -1561,6 +1566,15 @@ mod object_cost_tests {
         let max_execution_duration_per_commit = u64::MAX;
         let max_overshoot_per_commit = u64::MAX;
 
+        let congestion_control_parameters = CongestionControlParameters::new_for_test(
+            PerObjectCongestionControlMode::TotalGasBudget,
+            assign_min_free_execution_slot,
+            Some(max_execution_duration_per_commit),
+            Some(max_overshoot_per_commit),
+            0,     // not important in this test
+            false, // not important in this test
+        );
+
         // case 1: large initial duration, small tx duration
         // the initial object execution slots is as follows:
         //               object 0       object 1
@@ -1573,12 +1587,7 @@ mod object_cost_tests {
         let mut shared_object_congestion_tracker =
             new_congestion_tracker_with_initial_value_for_test(
                 &[(object_id_0, u64::MAX - 1), (object_id_1, u64::MAX - 1)],
-                CongestionControlParameters::new_for_test(
-                    PerObjectCongestionControlMode::TotalGasBudget,
-                    assign_min_free_execution_slot,
-                    Some(max_execution_duration_per_commit),
-                    Some(max_overshoot_per_commit),
-                ),
+                congestion_control_parameters.clone(),
             );
 
         let tx = build_transaction(&[(object_id_0, true)], 1, TEST_ONLY_GAS_PRICE);
@@ -1665,12 +1674,7 @@ mod object_cost_tests {
         let mut shared_object_congestion_tracker =
             new_congestion_tracker_with_initial_value_for_test(
                 &[(object_id_0, 0), (object_id_1, 1), (object_id_2, 2)],
-                CongestionControlParameters::new_for_test(
-                    PerObjectCongestionControlMode::TotalGasBudget,
-                    assign_min_free_execution_slot,
-                    Some(max_execution_duration_per_commit),
-                    Some(max_overshoot_per_commit),
-                ),
+                congestion_control_parameters.clone(),
             );
 
         let tx = build_transaction(
@@ -1729,12 +1733,7 @@ mod object_cost_tests {
         let mut shared_object_congestion_tracker =
             new_congestion_tracker_with_initial_value_for_test(
                 &[(object_id_0, u64::MAX)],
-                CongestionControlParameters::new_for_test(
-                    PerObjectCongestionControlMode::TotalGasBudget,
-                    assign_min_free_execution_slot,
-                    Some(max_execution_duration_per_commit),
-                    Some(max_overshoot_per_commit),
-                ),
+                congestion_control_parameters,
             );
 
         let tx = build_transaction(&[(object_id_0, true)], u64::MAX, TEST_ONLY_GAS_PRICE);
@@ -1793,6 +1792,15 @@ mod object_cost_tests {
             PerObjectCongestionControlMode::TotalTxCount => 2,
         };
 
+        let congestion_control_parameters = CongestionControlParameters::new_for_test(
+            mode,
+            assign_min_free_execution_slot,
+            Some(max_execution_duration_per_commit),
+            Some(max_overshoot_per_commit),
+            0,     // not important in this test
+            false, // not important in this test
+        );
+
         // instantiate the tracker with some initial debts such that 1 transaction
         // touching object 1 can be scheduled with some overshoot, but nothing touching
         // object 0 can be scheduled.
@@ -1814,12 +1822,7 @@ mod object_cost_tests {
                 //     301|            |
                 SharedObjectCongestionTracker::new_for_test(
                     [(shared_obj_0, 301), (shared_obj_1, 199)],
-                    CongestionControlParameters::new_for_test(
-                        mode,
-                        assign_min_free_execution_slot,
-                        Some(max_execution_duration_per_commit),
-                        Some(max_overshoot_per_commit),
-                    ),
+                    congestion_control_parameters.clone(),
                 )
             }
             PerObjectCongestionControlMode::TotalTxCount => {
@@ -1832,12 +1835,7 @@ mod object_cost_tests {
                 //        4|            |
                 SharedObjectCongestionTracker::new_for_test(
                     [(shared_obj_0, 4), (shared_obj_1, 3)],
-                    CongestionControlParameters::new_for_test(
-                        mode,
-                        assign_min_free_execution_slot,
-                        Some(max_execution_duration_per_commit),
-                        Some(max_overshoot_per_commit),
-                    ),
+                    congestion_control_parameters,
                 )
             }
         };
@@ -1940,7 +1938,9 @@ mod object_cost_tests {
                 mode,
                 assign_min_free_execution_slot,
                 Some(max_execution_duration_per_commit),
-                None,
+                None,  // not important in this test
+                0,     // not important in this test
+                false, // not important in this test
             ),
         );
 
