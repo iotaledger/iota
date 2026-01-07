@@ -543,7 +543,7 @@ impl Core {
         // First, store commits and transactions in DagState
         {
             let mut dag_state = self.dag_state.write();
-
+            // TODO: Ensure that we add commits in order
             // Store commits for recovery and track those with reputation scores
             for commit in &commits {
                 dag_state.add_commit(commit.clone());

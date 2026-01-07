@@ -782,11 +782,13 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
         let max_headers_per_fetch = inner.context.parameters.max_headers_per_commit_sync_fetch;
 
         // Get block refs from recent commits stored during fast sync
+        // TODO: The commits might not yet stored, but only fetched and pending processing.
         let block_refs = inner
             .dag_state
             .read()
             .get_block_refs_for_recent_commits(num_commits);
 
+        // TODO: we anyway need to reinitialize even if there are no block refs,
         if block_refs.is_empty() {
             info!(
                 "[{}] No block refs to fetch for reinitialization",
