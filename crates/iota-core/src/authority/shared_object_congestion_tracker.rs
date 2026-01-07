@@ -4,7 +4,6 @@
 
 use std::{cmp::Ordering, collections::HashMap};
 
-use iota_protocol_config::PerObjectCongestionControlMode;
 use iota_types::{
     base_types::{CommitRound, ObjectID},
     executable_transaction::VerifiedExecutableTransaction,
@@ -411,25 +410,6 @@ impl SharedObjectCongestionTracker {
         None
     }
 
-    /// Depending on the `PerObjectCongestionControlMode`, different metrics are
-    /// used to approximate the expected execution duration of a transaction.
-    /// The expected execution duration is what is used to schedule transactions
-    /// and allocate resources based on how many transactions can be executed
-    /// from a given consensus commit.
-    pub(super) fn get_estimated_execution_duration(
-        &self,
-        cert: &VerifiedExecutableTransaction,
-    ) -> ExecutionTime {
-        match self
-            .congestion_control_params
-            .per_object_congestion_control_mode()
-        {
-            PerObjectCongestionControlMode::None => 0,
-            PerObjectCongestionControlMode::TotalGasBudget => cert.gas_budget(),
-            PerObjectCongestionControlMode::TotalTxCount => 1,
-        }
-    }
-
     /// Given a transaction, returns a sequencing result. If the transaction can
     /// be scheduled, this returns a `start_time`, and if it should be deferred,
     /// this returns the deferral key and the congested objects responsible for
@@ -441,7 +421,9 @@ impl SharedObjectCongestionTracker {
         previously_deferred_tx_digests: &PreviouslyDeferredTransactions,
         commit_round: CommitRound,
     ) -> SequencingResult {
-        let tx_duration = self.get_estimated_execution_duration(cert);
+        let tx_duration = self
+            .congestion_control_params
+            .get_estimated_execution_duration(cert);
         if tx_duration == 0 {
             // This is a zero-duration transaction, no need to defer.
             return SequencingResult::Schedule(0);
@@ -542,7 +524,9 @@ impl SharedObjectCongestionTracker {
         cert: &VerifiedExecutableTransaction,
         start_time: ExecutionTime,
     ) -> Option<BumpObjectExecutionSlotsResult> {
-        let estimated_execution_duration = self.get_estimated_execution_duration(cert);
+        let estimated_execution_duration = self
+            .congestion_control_params
+            .get_estimated_execution_duration(cert);
 
         if estimated_execution_duration == 0 {
             return None;
@@ -924,6 +908,7 @@ pub mod shared_object_test_utils {
 
 #[cfg(test)]
 mod object_cost_tests {
+    use iota_protocol_config::PerObjectCongestionControlMode;
     use iota_types::digests::TransactionDigest;
     use rstest::rstest;
 
@@ -1425,8 +1410,9 @@ mod object_cost_tests {
             10,
             TEST_ONLY_GAS_PRICE,
         );
-        let cert_duration =
-            shared_object_congestion_tracker.get_estimated_execution_duration(&cert);
+        let cert_duration = shared_object_congestion_tracker
+            .congestion_control_params
+            .get_estimated_execution_duration(&cert);
         let start_time = initialize_tracker_and_compute_tx_start_time(
             &mut shared_object_congestion_tracker,
             &cert
@@ -1464,8 +1450,9 @@ mod object_cost_tests {
             10,
             TEST_ONLY_GAS_PRICE,
         );
-        let cert_duration =
-            shared_object_congestion_tracker.get_estimated_execution_duration(&cert);
+        let cert_duration = shared_object_congestion_tracker
+            .congestion_control_params
+            .get_estimated_execution_duration(&cert);
         let start_time = initialize_tracker_and_compute_tx_start_time(
             &mut shared_object_congestion_tracker,
             &cert
@@ -1520,8 +1507,9 @@ mod object_cost_tests {
             PerObjectCongestionControlMode::TotalGasBudget => 30,
             PerObjectCongestionControlMode::TotalTxCount => 12,
         };
-        let cert_duration =
-            shared_object_congestion_tracker.get_estimated_execution_duration(&cert);
+        let cert_duration = shared_object_congestion_tracker
+            .congestion_control_params
+            .get_estimated_execution_duration(&cert);
         let start_time = initialize_tracker_and_compute_tx_start_time(
             &mut shared_object_congestion_tracker,
             &cert
@@ -1652,7 +1640,9 @@ mod object_cost_tests {
             panic!("transaction is congesting, should defer");
         }
 
-        let cert_duration = shared_object_congestion_tracker.get_estimated_execution_duration(&tx);
+        let cert_duration = shared_object_congestion_tracker
+            .congestion_control_params
+            .get_estimated_execution_duration(&tx);
         assert!(
             initialize_tracker_and_compute_tx_start_time(
                 &mut shared_object_congestion_tracker,
@@ -1713,7 +1703,9 @@ mod object_cost_tests {
             panic!("case 2: object 2 is congested, should defer");
         }
 
-        let cert_duration = shared_object_congestion_tracker.get_estimated_execution_duration(&tx);
+        let cert_duration = shared_object_congestion_tracker
+            .congestion_control_params
+            .get_estimated_execution_duration(&tx);
         assert!(
             initialize_tracker_and_compute_tx_start_time(
                 &mut shared_object_congestion_tracker,
@@ -1758,7 +1750,9 @@ mod object_cost_tests {
             panic!("case 3: object 0 is congested, should defer");
         }
 
-        let cert_duration = shared_object_congestion_tracker.get_estimated_execution_duration(&tx);
+        let cert_duration = shared_object_congestion_tracker
+            .congestion_control_params
+            .get_estimated_execution_duration(&tx);
         assert!(
             initialize_tracker_and_compute_tx_start_time(
                 &mut shared_object_congestion_tracker,

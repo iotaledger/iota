@@ -170,30 +170,28 @@ type JwkAggregator = GenericMultiStakeAggregator<(JwkId, JWK), true>;
 
 /// Congestion control parameters for `SharedObjectCongestionTracker`
 /// and `SuggestedGasPriceCalculator`.
-///
-/// The `per_object_congestion_control_mode` field determines how the estimated
-/// execution duration of the transaction is calculated.
-///
-/// The `congestion_control_min_free_execution_slot` field determines how the
-/// start time of a transaction should be assigned. If true, the tracker will
-/// assign the start time according to the minimum free execution slot for a
-/// transaction over all its shared objects. If false, the tracker will assign
-/// the start time according to the maximum end time of the occupied execution
-/// slots for a transaction over all its shared objects.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct CongestionControlParameters {
-    /// Controls the behavior of per-object congestion control.
+    /// Controls the behavior of per-object congestion control. This
+    /// field determines how the estimated execution duration of a
+    /// transaction is calculated.
     per_object_congestion_control_mode: PerObjectCongestionControlMode,
 
-    /// Whether to use the minimum free execution slot to schedule execution
-    /// of a transaction.
+    /// This field determines how the start time of a transaction should be
+    /// assigned. If `true`, the tracker will assign the start time according
+    /// to the minimum free execution slot for a transaction over all its
+    /// shared objects. If `false`, the tracker will assign the start time
+    /// according to the maximum end time of the occupied execution slots
+    /// for a transaction over all its shared objects.
     congestion_control_min_free_execution_slot: bool,
 
-    /// Maximum execution duration per shared object per commit.
+    /// Maximum execution duration per shared object per commit. If `None`,
+    /// it means that shared-object congestion control is disabled.
     max_execution_duration_per_commit: Option<ExecutionTime>,
 
     /// Maximum amount that is allowed to overshoot
-    /// `max_execution_duration_per_commit`.
+    /// `max_execution_duration_per_commit`. If `None`, it means that
+    /// congestion limit overshoot is disabled.
     max_congestion_limit_overshoot_per_commit: Option<ExecutionTime>,
 }
 
@@ -228,15 +226,31 @@ impl CongestionControlParameters {
         }
     }
 
-    /// Get the per-object congestion control mode.
-    pub(super) fn per_object_congestion_control_mode(&self) -> PerObjectCongestionControlMode {
-        self.per_object_congestion_control_mode
+    /// Depending on the `PerObjectCongestionControlMode`, different metrics are
+    /// used to approximate the expected execution duration of a transaction.
+    /// The expected execution duration is what is used to schedule transactions
+    /// and allocate resources based on how many transactions can be executed
+    /// from a given consensus commit.
+    pub(super) fn get_estimated_execution_duration(
+        &self,
+        cert: &VerifiedExecutableTransaction,
+    ) -> ExecutionTime {
+        match self.per_object_congestion_control_mode {
+            PerObjectCongestionControlMode::None => 0,
+            PerObjectCongestionControlMode::TotalGasBudget => cert.gas_budget(),
+            PerObjectCongestionControlMode::TotalTxCount => 1,
+        }
     }
 
     /// Check whether to use the minimum free execution slot to schedule
     /// execution of a transaction.
     pub(super) fn congestion_control_min_free_execution_slot(&self) -> bool {
         self.congestion_control_min_free_execution_slot
+    }
+
+    /// Check whether shared-object congestion control is enabled.
+    fn is_congestion_control_enabled(&self) -> bool {
+        self.max_execution_duration_per_commit.is_some()
     }
 
     /// Get maximum execution duration per shared object per commit.
@@ -255,10 +269,8 @@ impl CongestionControlParameters {
     /// Get the total congestion limit per commit, i.e.,
     /// `max_congestion_limit_overshoot_per_commit` plus
     /// `max_execution_duration_per_commit`.
-    /// Returns `None` if `max_execution_duration_per_commit`
-    /// is not set.
-    // TODO: remove
-    #[allow(dead_code)]
+    /// Returns `None` if `max_execution_duration_per_commit` is not set,
+    /// i.e., shared-object congestion control is disabled.
     pub(super) fn get_total_congestion_limit_per_commit(&self) -> Option<ExecutionTime> {
         self.max_execution_duration_per_commit
             .map(|max_execution_duration_per_commit| {
@@ -2078,8 +2090,7 @@ impl AuthorityPerEpochStore {
 
         let result = if shared_object_congestion_tracker
             .congestion_control_parameters()
-            .max_execution_duration_per_commit()
-            .is_some()
+            .is_congestion_control_enabled()
         {
             // Initialise the free execution slots for the objects that are not in the
             // tracker.
@@ -2101,8 +2112,7 @@ impl AuthorityPerEpochStore {
                 SequencingResult::Schedule(start_time) => SchedulingResult::Schedule(start_time),
             }
         } else {
-            // If we don't have a max execution duration, we don't need to check for
-            // congestion.
+            // This means shared-object congestion control is disabled.
             SchedulingResult::Schedule(0)
         };
 
@@ -3858,8 +3868,10 @@ impl AuthorityPerEpochStore {
                     previously_deferred_tx_digests,
                     shared_object_congestion_tracker,
                 );
-                let estimated_execution_duration =
-                    shared_object_congestion_tracker.get_estimated_execution_duration(&certificate);
+                // TODO: remove this
+                let estimated_execution_duration = shared_object_congestion_tracker
+                    .congestion_control_parameters()
+                    .get_estimated_execution_duration(&certificate);
 
                 match scheduling_result {
                     SchedulingResult::Defer(deferral_key, deferral_reason) => {
@@ -3972,11 +3984,10 @@ impl AuthorityPerEpochStore {
                         if certificate.contains_shared_object()
                             && shared_object_congestion_tracker
                                 .congestion_control_parameters()
-                                .max_execution_duration_per_commit()
-                                .is_some()
+                                .is_congestion_control_enabled()
                         {
-                            // We only need to do this if `max_execution_duration_per_commit`
-                            // is `Some`, since otherwise this bumping will panic as object
+                            // We only need to do this if shared-object congestion control is
+                            // enabled, since otherwise this bumping will panic as object
                             // execution slots are only initialized if
                             // `max_execution_duration_per_commit` is not `None`.
                             let bump_result = shared_object_congestion_tracker

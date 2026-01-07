@@ -860,6 +860,7 @@ mod tests {
                     .calculate_suggested_gas_price(
                         &certificate,
                         shared_object_congestion_tracker
+                            .congestion_control_parameters()
                             .get_estimated_execution_duration(&certificate),
                     );
                 assert_eq!(suggested_gas_price, txs_gas_data[2].gas_price + 1);
@@ -921,7 +922,9 @@ mod tests {
 
             let suggested_gas_price = suggested_gas_price_calculator.calculate_suggested_gas_price(
                 &certificate,
-                shared_object_congestion_tracker.get_estimated_execution_duration(&certificate),
+                shared_object_congestion_tracker
+                    .congestion_control_parameters()
+                    .get_estimated_execution_duration(&certificate),
             );
             assert_eq!(suggested_gas_price, txs_gas_data[2].gas_price + 1);
         } else {
@@ -981,7 +984,9 @@ mod tests {
 
             let suggested_gas_price = suggested_gas_price_calculator.calculate_suggested_gas_price(
                 &certificate,
-                shared_object_congestion_tracker.get_estimated_execution_duration(&certificate),
+                shared_object_congestion_tracker
+                    .congestion_control_parameters()
+                    .get_estimated_execution_duration(&certificate),
             );
             assert_eq!(suggested_gas_price, txs_gas_data[2].gas_price + 1);
         } else {
@@ -1041,7 +1046,9 @@ mod tests {
 
             let suggested_gas_price = suggested_gas_price_calculator.calculate_suggested_gas_price(
                 &certificate,
-                shared_object_congestion_tracker.get_estimated_execution_duration(&certificate),
+                shared_object_congestion_tracker
+                    .congestion_control_parameters()
+                    .get_estimated_execution_duration(&certificate),
             );
             match mode {
                 PerObjectCongestionControlMode::None => unreachable!(),
@@ -1095,7 +1102,9 @@ mod tests {
         if let SequencingResult::Defer(_key, congested_objects) = sequencing_result {
             let suggested_gas_price = suggested_gas_price_calculator.calculate_suggested_gas_price(
                 &certificate,
-                shared_object_congestion_tracker.get_estimated_execution_duration(&certificate),
+                shared_object_congestion_tracker
+                    .congestion_control_parameters()
+                    .get_estimated_execution_duration(&certificate),
             );
 
             if min_free_execution_slot_assigned {
@@ -1276,7 +1285,9 @@ mod tests {
 
             let suggested_gas_price = suggested_gas_price_calculator.calculate_suggested_gas_price(
                 &certificate,
-                shared_object_congestion_tracker.get_estimated_execution_duration(&certificate),
+                shared_object_congestion_tracker
+                    .congestion_control_parameters()
+                    .get_estimated_execution_duration(&certificate),
             );
             assert_eq!(suggested_gas_price, txs_gas_data[2].gas_price + 1);
         } else {
@@ -1330,7 +1341,9 @@ mod tests {
 
             let suggested_gas_price = suggested_gas_price_calculator.calculate_suggested_gas_price(
                 &certificate,
-                shared_object_congestion_tracker.get_estimated_execution_duration(&certificate),
+                shared_object_congestion_tracker
+                    .congestion_control_parameters()
+                    .get_estimated_execution_duration(&certificate),
             );
             match mode {
                 PerObjectCongestionControlMode::None => unreachable!(),
@@ -1392,7 +1405,9 @@ mod tests {
 
             let suggested_gas_price = suggested_gas_price_calculator.calculate_suggested_gas_price(
                 &certificate,
-                shared_object_congestion_tracker.get_estimated_execution_duration(&certificate),
+                shared_object_congestion_tracker
+                    .congestion_control_parameters()
+                    .get_estimated_execution_duration(&certificate),
             );
             match mode {
                 PerObjectCongestionControlMode::None => unreachable!(),
