@@ -10,9 +10,9 @@ fn build_tempo_digest_regex(digests: &[String]) -> String {
 }
 
 pub fn print_tempo_traceql_queries(
-    tempo_service_name: &str,    
-    span_name: &str,              
-    sender: &str,         
+    tempo_service_name: &str,
+    span_name: &str,
+    sender: &str,
     digests: &[String],
 ) {
     let digest_re = build_tempo_digest_regex(digests);
@@ -21,7 +21,7 @@ pub fn print_tempo_traceql_queries(
 
     println!("\n--- Tempo / TraceQL Metrics (Explore → Metrics mode) ---");
 
-    println!("\n--- Average latency over time ---");     
+    println!("\n--- Average latency over time ---");
     println!(
         r#"{{
   resource.service.name = "{svc}" &&

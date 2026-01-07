@@ -1,30 +1,27 @@
 // Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use anyhow::{anyhow, Context, Result};
-use crate::utils::{get_coin};
-use iota_keys::keystore::{AccountKeystore};
+use anyhow::{Context, Result, anyhow};
+use iota_keys::keystore::AccountKeystore;
 use iota_sdk::{
     IotaClient,
     rpc_types::{IotaTransactionBlockResponseOptions, ObjectChange},
     types::{
-        base_types::ObjectID,
-        quorum_driver_types::ExecuteTransactionRequestType,
-        transaction::{Transaction},
+        base_types::ObjectID, quorum_driver_types::ExecuteTransactionRequestType,
+        transaction::Transaction,
     },
 };
+use iota_sdk_types::crypto::Intent;
 use iota_types::{
-    base_types::ObjectRef,
+    base_types::{IotaAddress, ObjectRef},
     object::Owner,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     signature::GenericSignature,
     transaction::{ObjectArg, TransactionData},
 };
-use iota_types::base_types::IotaAddress;
 use move_core_types::ident_str;
-use iota_sdk_types::crypto::Intent;
 
-use crate::AuthenticatorKind;
+use crate::{AuthenticatorKind, utils::get_coin};
 
 pub async fn create_abstract_account<K: AccountKeystore>(
     client: &IotaClient,

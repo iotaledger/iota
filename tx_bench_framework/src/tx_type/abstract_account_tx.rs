@@ -1,13 +1,13 @@
 // Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use fastcrypto::{
     ed25519::Ed25519Signature,
     encoding::{Encoding, Hex},
+    traits::Authenticator,
 };
-use fastcrypto::traits::Authenticator;
-use iota_json_rpc_types::{IotaTransactionBlockEffectsAPI};
+use iota_json_rpc_types::IotaTransactionBlockEffectsAPI;
 use iota_keys::keystore::AccountKeystore;
 use iota_sdk::{
     IotaClient,
@@ -18,32 +18,32 @@ use iota_sdk::{
         transaction::{Transaction, TransactionData},
     },
 };
-use iota_types::base_types::SequenceNumber;
-use crate::build_split_and_transfer_pt;
-use crate::get_two_distinct_coins;
-use crate::AuthenticatorKind;
-use crate::registry_state::AccountState;
 use iota_types::{
-    base_types::{IotaAddress},
+    base_types::{IotaAddress, SequenceNumber},
     move_authenticator::MoveAuthenticator,
     signature::GenericSignature,
     transaction::{CallArg, ObjectArg},
 };
-use anyhow::Context;
-use crate::SubmitResult;
+
+use crate::{
+    AuthenticatorKind, SubmitResult, get_two_distinct_coins, registry_state::AccountState,
+    tx_type::build_split_and_transfer_pt,
+};
 
 pub async fn submit_aa_tx<K: AccountKeystore>(
     client: &IotaClient,
     keystore: &K,
-    owner: IotaAddress,           
-    state: &AccountState,       
+    owner: IotaAddress,
+    state: &AccountState,
     recipient: IotaAddress,
     gas_budget: u64,
     split_amount: u64,
+    wait_mode: ExecuteTransactionRequestType,
 ) -> Result<SubmitResult> {
-    let t0 = std::time::Instant::now();
-
-    let aa_addr: IotaAddress = state.aa_address.parse().context("bad aa_address in state")?;
+    let aa_addr: IotaAddress = state
+        .aa_address
+        .parse()
+        .context("bad aa_address in state")?;
     let sender = aa_addr;
 
     let gas_price = client.read_api().get_reference_gas_price().await?;
@@ -59,10 +59,17 @@ pub async fn submit_aa_tx<K: AccountKeystore>(
         gas_price,
     );
 
-    let aa_obj_id: ObjectID = state.aa_account_object_id.parse().context("bad aa_account_object_id")?;
+    let aa_obj_id: ObjectID = state
+        .aa_account_object_id
+        .parse()
+        .context("bad aa_account_object_id")?;
     let init_ver = SequenceNumber::from_u64(state.aa_account_version);
 
-    println!("AA data: obj_id={}, version={}", aa_obj_id, init_ver.value());
+    // println!(
+    //     "AA data: obj_id={}, version={}",
+    //     aa_obj_id,
+    //     init_ver.value()
+    // );
     let self_call_arg = CallArg::Object(ObjectArg::SharedObject {
         id: aa_obj_id,
         initial_shared_version: init_ver,
@@ -74,13 +81,11 @@ pub async fn submit_aa_tx<K: AccountKeystore>(
     match state.authenticator {
         AuthenticatorKind::Ed25519 | AuthenticatorKind::Ed25519Heavy => {
             let digest = tx_data.digest().into_inner();
-            let hex_encoded_signature: String = Hex::encode(
-               keystore.sign_hashed(&owner, &digest)?,
-            )
-            .chars()
-            .skip(2)
-            .take(Ed25519Signature::LENGTH * 2)
-            .collect();
+            let hex_encoded_signature: String = Hex::encode(keystore.sign_hashed(&owner, &digest)?)
+                .chars()
+                .skip(2)
+                .take(Ed25519Signature::LENGTH * 2)
+                .collect();
             auth_args.push(CallArg::Pure(bcs::to_bytes(&hex_encoded_signature)?));
         }
         AuthenticatorKind::HelloWorld => {
@@ -89,25 +94,25 @@ pub async fn submit_aa_tx<K: AccountKeystore>(
     }
 
     let signatures = vec![GenericSignature::MoveAuthenticator(
-        MoveAuthenticator::new_for_testing(
-            auth_args,
-            vec![],          
-            self_call_arg,    
-        ),
+        MoveAuthenticator::new_for_testing(auth_args, vec![], self_call_arg),
     )];
 
+    let start = std::time::Instant::now();
     let resp = client
         .quorum_driver_api()
         .execute_transaction_block(
             Transaction::from_generic_sig_data(tx_data, signatures),
             IotaTransactionBlockResponseOptions::full_content(),
-            Some(ExecuteTransactionRequestType::WaitForEffectsCert),
+            Some(wait_mode),
         )
         .await?;
-
+    let end = start.elapsed().as_millis();
     Ok(SubmitResult {
         digest: resp.digest.to_string(),
-        gas_used: resp.effects.as_ref().map(|e| format!("{:?}", e.gas_cost_summary())),
-        elapsed_ms: t0.elapsed().as_millis(),
+        gas_used: resp
+            .effects
+            .as_ref()
+            .map(|e| format!("{:?}", e.gas_cost_summary())),
+        elapsed_ms: end,
     })
 }

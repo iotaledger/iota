@@ -12,7 +12,7 @@ use anyhow::{Context, Result, anyhow, bail};
 use iota_keys::keystore::{AccountKeystore, FileBasedKeystore};
 use iota_move_build::{BuildConfig, CompiledPackage};
 use iota_sdk::{
-    IotaClient,
+    IotaClient, IotaClientBuilder,
     rpc_types::{Coin, IotaObjectDataOptions, IotaTransactionBlockResponseOptions, ObjectChange},
     types::{
         base_types::{IotaAddress, ObjectID},
@@ -22,12 +22,8 @@ use iota_sdk::{
         transaction::{Transaction, TransactionData},
     },
 };
-use iota_types::{
-    base_types::ObjectRef,
-    signature::GenericSignature,
-};
 use iota_sdk_types::Intent;
-use iota_types::error::IotaResult;
+use iota_types::{base_types::ObjectRef, error::IotaResult, signature::GenericSignature};
 use reqwest::Client;
 use serde::Deserialize;
 use serde_json::json;
@@ -285,11 +281,10 @@ pub async fn publish_move_package<K: AccountKeystore>(
         .as_ref()
         .and_then(|changes| {
             changes.iter().find_map(|change| match change {
-                ObjectChange::Created {
-                    object_type, ..
-                } => {
+                ObjectChange::Created { object_type, .. } => {
                     let ty = object_type.to_string();
-                    let is_package_metadata = ty.contains("0x2::package_metadata::PackageMetadataV1");
+                    let is_package_metadata =
+                        ty.contains("0x2::package_metadata::PackageMetadataV1");
                     if is_package_metadata {
                         Some(change.object_ref())
                     } else {
@@ -302,4 +297,18 @@ pub async fn publish_move_package<K: AccountKeystore>(
         .ok_or_else(|| anyhow!("Expected a package metadata object in the transaction response"))?;
 
     Ok((resp.digest.to_string(), package_id, metadata_ref))
+}
+
+pub fn canonical_path_str(p: &PathBuf) -> String {
+    std::fs::canonicalize(p)
+        .unwrap_or_else(|_| p.clone())
+        .to_string_lossy()
+        .to_string()
+}
+
+pub async fn build_client(rpc: &str) -> Result<IotaClient> {
+    IotaClientBuilder::default()
+        .build(rpc)
+        .await
+        .map_err(|e| anyhow!("Failed to build IotaClient for {rpc}: {e}"))
 }
