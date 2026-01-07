@@ -355,18 +355,19 @@ async fn test_congestion_control_execution_cancellation() {
     // Initialize shared object queue in the tracker and gas price calculator so
     // that any transaction touches shared_object_1 should result in congestion
     // and cancellation.
+    let congestion_control_parameters_1 = congestion_control_parameters.clone();
     register_fail_point_arg("initial_congestion_tracker", move || {
         Some(new_congestion_tracker_with_initial_value_for_test(
             &[(shared_object_1.0, initial_debt)],
-            congestion_control_parameters.clone(),
+            congestion_control_parameters_1.clone(),
         ))
     });
+    let congestion_control_parameters_2 = congestion_control_parameters.clone();
     register_fail_point_arg("initial_suggested_gas_price_calculator", move || {
         Some(
             new_suggested_gas_price_calculator_with_initial_values_for_test(
                 &[(shared_object_1.0, initial_debt, TEST_ONLY_GAS_PRICE)],
-                &test_setup.protocol_config,
-                PerObjectCongestionControlMode::TotalGasBudget,
+                congestion_control_parameters_2.clone(),
                 TEST_ONLY_GAS_PRICE,
             ),
         )

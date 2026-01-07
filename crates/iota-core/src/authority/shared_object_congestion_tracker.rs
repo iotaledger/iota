@@ -212,7 +212,7 @@ impl ObjectExecutionSlots {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct SharedObjectCongestionTracker {
     object_execution_slots: HashMap<ObjectID, ObjectExecutionSlots>,
-    congestion_control_params: CongestionControlParameters,
+    congestion_control_parameters: CongestionControlParameters,
 }
 
 impl SharedObjectCongestionTracker {
@@ -221,7 +221,7 @@ impl SharedObjectCongestionTracker {
     /// `initial_object_debts`.
     pub(super) fn new(
         initial_object_debts: impl IntoIterator<Item = (ObjectID, u64)>,
-        congestion_control_params: CongestionControlParameters,
+        congestion_control_parameters: CongestionControlParameters,
     ) -> Self {
         let object_execution_slots = initial_object_debts
             .into_iter()
@@ -239,7 +239,7 @@ impl SharedObjectCongestionTracker {
 
         Self {
             object_execution_slots,
-            congestion_control_params,
+            congestion_control_parameters,
         }
     }
 
@@ -249,7 +249,7 @@ impl SharedObjectCongestionTracker {
     #[cfg(test)]
     pub(super) fn new_for_test(
         initial_object_debts: impl IntoIterator<Item = (ObjectID, u64)>,
-        congestion_control_params: CongestionControlParameters,
+        congestion_control_parameters: CongestionControlParameters,
     ) -> Self {
         let object_execution_slots = initial_object_debts
             .into_iter()
@@ -267,13 +267,13 @@ impl SharedObjectCongestionTracker {
 
         Self {
             object_execution_slots,
-            congestion_control_params,
+            congestion_control_parameters,
         }
     }
 
     /// Get congestion control parameters used in the tracker.
     pub(super) fn congestion_control_parameters(&self) -> &CongestionControlParameters {
-        &self.congestion_control_params
+        &self.congestion_control_parameters
     }
 
     /// Initialize the free execution slots for the objects that are not in the
@@ -306,7 +306,7 @@ impl SharedObjectCongestionTracker {
         tx_duration: ExecutionTime,
     ) -> Option<ExecutionTime> {
         let assign_min_free_execution_slot = self
-            .congestion_control_params
+            .congestion_control_parameters
             .congestion_control_min_free_execution_slot();
 
         if assign_min_free_execution_slot {
@@ -422,7 +422,7 @@ impl SharedObjectCongestionTracker {
         commit_round: CommitRound,
     ) -> SequencingResult {
         let tx_duration = self
-            .congestion_control_params
+            .congestion_control_parameters
             .get_estimated_execution_duration(cert);
         if tx_duration == 0 {
             // This is a zero-duration transaction, no need to defer.
@@ -441,7 +441,7 @@ impl SharedObjectCongestionTracker {
         }
 
         let congestion_limit = if let Some(congestion_limit) = self
-            .congestion_control_params
+            .congestion_control_parameters
             .get_total_congestion_limit_per_commit()
         {
             congestion_limit
@@ -462,7 +462,7 @@ impl SharedObjectCongestionTracker {
         }
 
         let assign_min_free_execution_slot = self
-            .congestion_control_params
+            .congestion_control_parameters
             .congestion_control_min_free_execution_slot();
 
         // The transaction cannot be scheduled. We need to defer it and return a list
@@ -525,7 +525,7 @@ impl SharedObjectCongestionTracker {
         start_time: ExecutionTime,
     ) -> Option<BumpObjectExecutionSlotsResult> {
         let estimated_execution_duration = self
-            .congestion_control_params
+            .congestion_control_parameters
             .get_estimated_execution_duration(cert);
 
         if estimated_execution_duration == 0 {
@@ -886,11 +886,11 @@ pub mod shared_object_test_utils {
 
     pub(crate) fn new_congestion_tracker_with_initial_value_for_test(
         init_values: &[(ObjectID, ExecutionTime)],
-        congestion_control_params: CongestionControlParameters,
+        congestion_control_parameters: CongestionControlParameters,
     ) -> SharedObjectCongestionTracker {
         SharedObjectCongestionTracker::new_for_test(
             init_values.iter().map(|(id, debt)| (*id, *debt)),
-            congestion_control_params,
+            congestion_control_parameters,
         )
     }
 
@@ -1421,7 +1421,7 @@ mod object_cost_tests {
             TEST_ONLY_GAS_PRICE,
         );
         let cert_duration = shared_object_congestion_tracker
-            .congestion_control_params
+            .congestion_control_parameters
             .get_estimated_execution_duration(&cert);
         let start_time = initialize_tracker_and_compute_tx_start_time(
             &mut shared_object_congestion_tracker,
@@ -1456,7 +1456,7 @@ mod object_cost_tests {
             TEST_ONLY_GAS_PRICE,
         );
         let cert_duration = shared_object_congestion_tracker
-            .congestion_control_params
+            .congestion_control_parameters
             .get_estimated_execution_duration(&cert);
         let start_time = initialize_tracker_and_compute_tx_start_time(
             &mut shared_object_congestion_tracker,
@@ -1513,7 +1513,7 @@ mod object_cost_tests {
             PerObjectCongestionControlMode::TotalTxCount => 12,
         };
         let cert_duration = shared_object_congestion_tracker
-            .congestion_control_params
+            .congestion_control_parameters
             .get_estimated_execution_duration(&cert);
         let start_time = initialize_tracker_and_compute_tx_start_time(
             &mut shared_object_congestion_tracker,
@@ -1650,7 +1650,7 @@ mod object_cost_tests {
         }
 
         let cert_duration = shared_object_congestion_tracker
-            .congestion_control_params
+            .congestion_control_parameters
             .get_estimated_execution_duration(&tx);
         assert!(
             initialize_tracker_and_compute_tx_start_time(
@@ -1708,7 +1708,7 @@ mod object_cost_tests {
         }
 
         let cert_duration = shared_object_congestion_tracker
-            .congestion_control_params
+            .congestion_control_parameters
             .get_estimated_execution_duration(&tx);
         assert!(
             initialize_tracker_and_compute_tx_start_time(
@@ -1750,7 +1750,7 @@ mod object_cost_tests {
         }
 
         let cert_duration = shared_object_congestion_tracker
-            .congestion_control_params
+            .congestion_control_parameters
             .get_estimated_execution_duration(&tx);
         assert!(
             initialize_tracker_and_compute_tx_start_time(

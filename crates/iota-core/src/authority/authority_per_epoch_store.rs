@@ -243,6 +243,14 @@ impl CongestionControlParameters {
         }
     }
 
+    /// Get per-object congestion control mode.
+    #[cfg(test)]
+    pub(super) fn per_object_congestion_control_mode_for_test(
+        &self,
+    ) -> PerObjectCongestionControlMode {
+        self.per_object_congestion_control_mode
+    }
+
     /// Depending on the `PerObjectCongestionControlMode`, different metrics are
     /// used to approximate the expected execution duration of a transaction.
     /// The expected execution duration is what is used to schedule transactions
@@ -271,16 +279,19 @@ impl CongestionControlParameters {
     }
 
     /// Get maximum execution duration per shared object per commit.
-    fn max_execution_duration_per_commit(&self) -> Option<ExecutionTime> {
+    pub(super) fn max_execution_duration_per_commit(&self) -> Option<ExecutionTime> {
         self.max_execution_duration_per_commit
     }
 
-    /// Get maximum amount that is allowed to overshoot
-    /// `max_execution_duration_per_commit`.
-    // TODO: remove
-    #[allow(dead_code)]
-    pub(super) fn max_congestion_limit_overshoot_per_commit(&self) -> Option<ExecutionTime> {
-        self.max_congestion_limit_overshoot_per_commit
+    /// Get the maximum gas price that can be set in transactions.
+    pub(super) fn max_gas_price(&self) -> u64 {
+        self.max_gas_price
+    }
+
+    /// Whether to use congestion limit overshoot in the gas price feedback
+    /// mechanism.
+    pub(super) fn use_congestion_limit_overshoot_in_gas_price_feedback_mechanism(&self) -> bool {
+        self.use_congestion_limit_overshoot_in_gas_price_feedback_mechanism
     }
 
     /// Get the total congestion limit per commit, i.e.,
@@ -3072,7 +3083,7 @@ impl AuthorityPerEpochStore {
             self.protocol_config.consensus_transaction_ordering(),
         );
 
-        let congestion_control_params = CongestionControlParameters::new(&self.protocol_config);
+        let congestion_control_parameters = CongestionControlParameters::new(&self.protocol_config);
 
         // We track transaction shared object congestion separately for regular
         // transactions and transactions using randomness.
@@ -3083,7 +3094,7 @@ impl AuthorityPerEpochStore {
                 false,
                 &sequenced_transactions,
             )?,
-            congestion_control_params.clone(),
+            congestion_control_parameters.clone(),
         );
         let shared_object_using_randomness_congestion_tracker = SharedObjectCongestionTracker::new(
             self.consensus_quarantine.read().load_initial_object_debts(
@@ -3092,7 +3103,7 @@ impl AuthorityPerEpochStore {
                 true,
                 &sequenced_randomness_transactions,
             )?,
-            congestion_control_params,
+            congestion_control_parameters,
         );
 
         let consensus_transactions: Vec<_> = system_transactions
@@ -3474,8 +3485,12 @@ impl AuthorityPerEpochStore {
             }
         );
 
-        let mut suggested_gas_price_calculator =
-            SuggestedGasPriceCalculator::new(self.protocol_config(), self.reference_gas_price());
+        let mut suggested_gas_price_calculator = SuggestedGasPriceCalculator::new(
+            shared_object_congestion_tracker
+                .congestion_control_parameters()
+                .clone(),
+            self.reference_gas_price(),
+        );
 
         fail_point_arg!(
             "initial_suggested_gas_price_calculator",

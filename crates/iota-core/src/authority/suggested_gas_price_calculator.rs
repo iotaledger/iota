@@ -3,12 +3,14 @@
 
 use std::collections::{BTreeMap, HashMap};
 
-use iota_protocol_config::ProtocolConfig;
 use iota_types::{base_types::ObjectID, executable_transaction::VerifiedExecutableTransaction};
 use tracing::instrument;
 
 use super::shared_object_congestion_tracker::ExecutionTime;
-use crate::authority::shared_object_congestion_tracker::BumpObjectExecutionSlotsResult;
+use crate::authority::{
+    authority_per_epoch_store::CongestionControlParameters,
+    shared_object_congestion_tracker::BumpObjectExecutionSlotsResult,
+};
 
 /// Holds shared object congestion info for a single scheduled shared-object
 /// transaction.
@@ -58,9 +60,8 @@ type PerCommitCongestionInfo = HashMap<ObjectID, PerObjectCongestionInfo>;
 ///    duration, as well as all input shared objects.
 /// 4. Calculate a suggested gas price for the deferred/cancelled certificate as
 ///    follows:
-///    - compute its (imaginary) execution start time as
-///      `max_execution_duration_per_commit` minus its estimated execution
-///      duration;
+///    - compute its (imaginary) execution start time as congestion limit per
+///      commit minus its estimated execution duration;
 ///    - for each input shared object, get the maximum gas price over scheduled
 ///      certificates whose end execution time is larger than our imaginary
 ///      start time;
@@ -69,49 +70,31 @@ type PerCommitCongestionInfo = HashMap<ObjectID, PerObjectCongestionInfo>;
 ///      previous step plus 1, but such that it does not become larger than the
 ///      maximum gas price set in the protocol.
 ///
-/// Note that if `max_execution_duration_per_commit` is set to `None`,
-/// which means there is no shared object congestion control mechanism,
-/// the calculator will suggest the reference gas price.
+/// Note that if shared-object congestion control is disabled, the calculator
+/// will suggest the reference gas price.
 #[derive(Debug)]
 pub(crate) struct SuggestedGasPriceCalculator {
     /// Per-commit congestion info.
     congestion_info: PerCommitCongestionInfo,
 
-    /// Maximum execution duration per shared object per commit
-    /// set in the protocol config.
-    max_execution_duration_per_commit: Option<ExecutionTime>,
-
-    /// The maximum amount that is allowed to overshoot the congestion
-    /// limit.
-    max_congestion_limit_overshoot_per_commit: Option<ExecutionTime>,
-
-    /// Whether to take into account congestion limit overshoot in
-    /// the suggested gas price calculations.
-    with_congestion_limit_overshoot: bool,
-
-    /// Maximum gas price that can be set in transactions. This is
-    /// used to prevent suggesting feedback gas price larger than
-    /// this maximum value set in the protocol config.
-    max_gas_price: u64,
+    /// A set of congestion control parameters.
+    congestion_control_parameters: CongestionControlParameters,
 
     /// The reference gas price, which will be suggested if
-    /// `max_execution_duration_per_commit` is set to `None`.
+    /// shared-object congestion control is disabled.
     reference_gas_price: u64,
 }
 
 impl SuggestedGasPriceCalculator {
     /// Create a new `SuggestedGasPriceCalculator` with empty shared
     /// object congestion data.
-    pub(super) fn new(protocol_config: &ProtocolConfig, reference_gas_price: u64) -> Self {
+    pub(super) fn new(
+        congestion_control_parameters: CongestionControlParameters,
+        reference_gas_price: u64,
+    ) -> Self {
         Self {
             congestion_info: PerCommitCongestionInfo::new(),
-            max_execution_duration_per_commit: protocol_config
-                .max_accumulated_txn_cost_per_object_in_mysticeti_commit_as_option(),
-            max_congestion_limit_overshoot_per_commit: protocol_config
-                .max_congestion_limit_overshoot_per_commit_as_option(),
-            with_congestion_limit_overshoot: protocol_config
-                .congestion_limit_overshoot_in_gas_price_feedback_mechanism(),
-            max_gas_price: protocol_config.max_gas_price(),
+            congestion_control_parameters,
             reference_gas_price,
         }
     }
@@ -120,18 +103,12 @@ impl SuggestedGasPriceCalculator {
     /// object congestion data for testing.
     #[cfg(test)]
     fn new_for_test(
-        max_execution_duration_per_commit: Option<ExecutionTime>,
-        max_congestion_limit_overshoot_per_commit: Option<ExecutionTime>,
-        with_congestion_limit_overshoot: bool,
-        max_gas_price: u64,
+        congestion_control_parameters: CongestionControlParameters,
         reference_gas_price: u64,
     ) -> Self {
         Self {
             congestion_info: PerCommitCongestionInfo::new(),
-            max_execution_duration_per_commit,
-            max_congestion_limit_overshoot_per_commit,
-            with_congestion_limit_overshoot,
-            max_gas_price,
+            congestion_control_parameters,
             reference_gas_price,
         }
     }
@@ -180,11 +157,11 @@ impl SuggestedGasPriceCalculator {
         certificate: &VerifiedExecutableTransaction,
         estimated_execution_duration: ExecutionTime,
     ) -> u64 {
-        if let Some(max_execution_duration_per_commit) = self.max_execution_duration_per_commit {
+        if let Some(congestion_limit_per_commit) = self.get_congestion_limit_per_commit() {
             let clearing_gas_price = self.find_clearing_gas_price(
                 certificate,
                 estimated_execution_duration,
-                max_execution_duration_per_commit,
+                congestion_limit_per_commit,
             );
 
             // Suggested gas price equals `clearing_gas_price + 1`. We add 1 to make this
@@ -194,11 +171,28 @@ impl SuggestedGasPriceCalculator {
 
             // Make sure suggested gas price is not larger than the maximum possible gas
             // price.
-            suggested_gas_price.min(self.max_gas_price)
+            suggested_gas_price.min(self.congestion_control_parameters.max_gas_price())
         } else {
-            // ^ If we don't have a max execution duration, suggest the reference gas price.
+            // ^ If we don't have congestion limit per commit, suggest the reference gas
+            // price.
 
             self.reference_gas_price
+        }
+    }
+
+    /// Get congestion limit per commit using `CongestionControlParameters`
+    /// of the calculator. Returns `None` if shared-object congestion control
+    /// is disabled.
+    fn get_congestion_limit_per_commit(&self) -> Option<ExecutionTime> {
+        if self
+            .congestion_control_parameters
+            .use_congestion_limit_overshoot_in_gas_price_feedback_mechanism()
+        {
+            self.congestion_control_parameters
+                .get_total_congestion_limit_per_commit()
+        } else {
+            self.congestion_control_parameters
+                .max_execution_duration_per_commit()
         }
     }
 
@@ -209,29 +203,16 @@ impl SuggestedGasPriceCalculator {
         &self,
         certificate: &VerifiedExecutableTransaction,
         estimated_execution_duration: ExecutionTime,
-        max_execution_duration_per_commit: ExecutionTime,
+        congestion_limit_per_commit: ExecutionTime,
     ) -> Option<u64> {
-        let congestion_limit = if self.with_congestion_limit_overshoot {
-            if let Some(max_congestion_limit_overshoot_per_commit) =
-                self.max_congestion_limit_overshoot_per_commit
-            {
-                max_execution_duration_per_commit
-                    .saturating_add(max_congestion_limit_overshoot_per_commit)
-            } else {
-                max_execution_duration_per_commit
-            }
-        } else {
-            max_execution_duration_per_commit
-        };
-
         // Imaginary start time of the deferred/cancelled certificate. We consider
         // only the highest possible (but sufficient for scheduling) start time as
         // it is very likely that scheduled certificates with lower gas prices
         // appear have higher start times. If a transaction with its
         // `estimated_execution_duration` cannot fit within
-        // `congestion_limit`, set its imaginary start time to 0.
+        // `congestion_limit_per_commit`, set its imaginary start time to 0.
         let start_time_of_deferred_cert =
-            congestion_limit.saturating_sub(estimated_execution_duration);
+            congestion_limit_per_commit.saturating_sub(estimated_execution_duration);
 
         certificate
             .shared_input_objects()
@@ -272,7 +253,7 @@ impl SuggestedGasPriceCalculator {
 
 #[cfg(test)]
 pub mod suggested_gas_price_calculator_test_utils {
-    use iota_protocol_config::{PerObjectCongestionControlMode, ProtocolConfig};
+    use iota_protocol_config::PerObjectCongestionControlMode;
     use iota_types::base_types::ObjectID;
 
     use super::SuggestedGasPriceCalculator;
@@ -288,27 +269,21 @@ pub mod suggested_gas_price_calculator_test_utils {
 
     pub(crate) fn new_suggested_gas_price_calculator_with_initial_values_for_test(
         init_values: &[(ObjectID, ExecutionTime, u64)],
-        protocol_config: &ProtocolConfig,
-        per_object_congestion_control_mode: PerObjectCongestionControlMode,
+        congestion_control_parameters: CongestionControlParameters,
         reference_gas_price: u64,
     ) -> SuggestedGasPriceCalculator {
-        let mut suggested_gas_price_calculator =
-            SuggestedGasPriceCalculator::new(protocol_config, reference_gas_price);
-
         let mut shared_object_congestion_tracker = SharedObjectCongestionTracker::new_for_test(
             vec![],
-            CongestionControlParameters::new_for_test(
-                per_object_congestion_control_mode,
-                protocol_config.congestion_control_min_free_execution_slot(),
-                None,
-                None,
-                protocol_config.max_gas_price(),
-                protocol_config.congestion_limit_overshoot_in_gas_price_feedback_mechanism(),
-            ),
+            congestion_control_parameters.clone(),
+        );
+
+        let mut suggested_gas_price_calculator = SuggestedGasPriceCalculator::new(
+            congestion_control_parameters.clone(),
+            reference_gas_price,
         );
 
         for (object_id, duration, gas_price) in init_values {
-            match per_object_congestion_control_mode {
+            match congestion_control_parameters.per_object_congestion_control_mode_for_test() {
                 PerObjectCongestionControlMode::None => {}
                 PerObjectCongestionControlMode::TotalGasBudget => {
                     let certificate =
@@ -428,10 +403,15 @@ mod tests {
         max_execution_duration_per_commit: Option<ExecutionTime>,
     ) {
         let mut suggested_gas_price_calculator = SuggestedGasPriceCalculator::new_for_test(
-            max_execution_duration_per_commit,
-            None,  // TODO: adjust tests for congestion limit overshoot
-            false, // TODO: adjust tests for congestion limit overshoot
-            ProtocolConfig::get_for_max_version_UNSAFE().max_gas_price(),
+            // congestion control parameters are not important in this test
+            CongestionControlParameters::new_for_test(
+                PerObjectCongestionControlMode::TotalTxCount,
+                false,
+                max_execution_duration_per_commit,
+                None,
+                ProtocolConfig::get_for_max_version_UNSAFE().max_gas_price(),
+                false,
+            ),
             REFERENCE_GAS_PRICE,
         );
 
@@ -638,24 +618,22 @@ mod tests {
         };
 
         let max_gas_price = ProtocolConfig::get_for_max_version_UNSAFE().max_gas_price();
+        let congestion_control_parameters = CongestionControlParameters::new_for_test(
+            mode,
+            min_free_execution_slot_assigned,
+            Some(max_execution_duration_per_commit),
+            None, // TODO:
+            max_gas_price,
+            false, // TODO:
+        );
 
         let mut shared_object_congestion_tracker = SharedObjectCongestionTracker::new_for_test(
             vec![],
-            CongestionControlParameters::new_for_test(
-                mode,
-                min_free_execution_slot_assigned,
-                Some(max_execution_duration_per_commit),
-                None,
-                max_gas_price,
-                false, // TODO:
-            ),
+            congestion_control_parameters.clone(),
         );
 
         let mut suggested_gas_price_calculator = SuggestedGasPriceCalculator::new_for_test(
-            Some(max_execution_duration_per_commit),
-            None,  // TODO: adjust tests for congestion limit overshoot
-            false, // TODO: adjust tests for congestion limit overshoot
-            max_gas_price,
+            congestion_control_parameters,
             REFERENCE_GAS_PRICE,
         );
 
