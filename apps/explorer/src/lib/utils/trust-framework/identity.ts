@@ -4,6 +4,10 @@
 
 import * as identity from '@iota/identity-wasm/web';
 import { isValidIotaObjectId } from '@iota/iota-sdk/utils';
+import {
+    DID_PROTOCOL_SEGMENT_SYMBOL,
+    DID_URL_SEGMENT_SYMBOL,
+} from '~/lib/constants/trustFramework.constants';
 
 let initPromise: Promise<void> | null = null;
 
@@ -45,6 +49,42 @@ export async function tryGenerateDidFromObjectId(
 
         await initIdentityWasmWeb();
         return identity.IotaDID.fromAliasId(objectId, network);
+    } catch {
+        return null;
+    }
+}
+
+/**
+ * Encode a DID to be represented in URL by replacing ':' for '-' returning a string,
+ * otherwise returning null;
+ * @example
+ *    await tryEncodeDidToUrl(identity.IotaDID.parse('did:iota:ef77060e:0x06ed4ae8eb655e5063cc3c949c60fd7306a1612390b5ed350b32fec22e118943'))
+ *    // output: did-iota-ef77060e-0x06ed4ae8eb655e5063cc3c949c60fd7306a1612390b5ed350b32fec22e118943
+ */
+export async function tryEncodeDidToUrl(did: identity.IotaDID): Promise<string | null> {
+    try {
+        await initIdentityWasmWeb();
+        const didStr = did.toString();
+        const encodedDid = didStr.replaceAll(DID_PROTOCOL_SEGMENT_SYMBOL, DID_URL_SEGMENT_SYMBOL);
+        return encodedDid;
+    } catch {
+        return null;
+    }
+}
+
+/**
+ * Decode a URL representation of a DID by replacing '-' for ':' returning a DID object,
+ * otherwise returning null;
+ * @example
+ *    (await tryDecodeDidFromUrl('did-iota-ef77060e-0x06ed4ae8eb655e5063cc3c949c60fd7306a1612390b5ed350b32fec22e118943')).toString()
+ *    // output: 'did:iota:ef77060e:0x06ed4ae8eb655e5063cc3c949c60fd7306a1612390b5ed350b32fec22e118943'
+ */
+export async function tryDecodeDidFromUrl(encodedDid: string): Promise<identity.IotaDID | null> {
+    try {
+        await initIdentityWasmWeb();
+        const didStr = encodedDid.replaceAll(DID_URL_SEGMENT_SYMBOL, DID_PROTOCOL_SEGMENT_SYMBOL);
+        const did = identity.IotaDID.parse(didStr);
+        return did;
     } catch {
         return null;
     }

@@ -20,7 +20,11 @@ import { type UseQueryResult, useQuery } from '@tanstack/react-query';
 import { useNetwork } from './useNetwork';
 import { type IdentityClientReadOnly } from '@iota/identity-wasm/web';
 import { useFeatureIsOn } from '@growthbook/growthbook-react';
-import { tryGenerateDidFromObjectId, tryDIDParse } from '~/lib/utils/trust-framework/identity';
+import {
+    tryGenerateDidFromObjectId,
+    tryDIDParse,
+    tryEncodeDidToUrl,
+} from '~/lib/utils/trust-framework/identity';
 import { useIdentityClient } from '~/contexts';
 
 const isGenesisLibAddress = (value: string): boolean => /^(0x|0X)0{0,39}[12]$/.test(value);
@@ -40,10 +44,16 @@ const getResultsForDid = async (
     if (did == null) return null; // either invalid parsing or invalid objectId
 
     const didDocument = await identityClient.resolveDid(did!);
+    const didUrlEncoded = await tryEncodeDidToUrl(didDocument.id());
+    if (didUrlEncoded == null) {
+        throw new Error(
+            'failed to encode a resolved DID to its URL representation, this should never happen!',
+        );
+    }
 
     return [
         {
-            id: didDocument.id().toString(),
+            id: didUrlEncoded,
             label: didDocument.id().toString(),
             type: 'did',
         },
