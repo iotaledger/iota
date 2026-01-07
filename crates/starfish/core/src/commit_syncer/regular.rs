@@ -9,7 +9,6 @@ use futures::{StreamExt as _, stream::FuturesOrdered};
 use iota_metrics::spawn_logged_monitored_task;
 use itertools::Itertools as _;
 use parking_lot::RwLock;
-use rand::{prelude::SliceRandom as _, rngs::ThreadRng};
 use starfish_config::AuthorityIndex;
 use tokio::{
     runtime::Handle,
@@ -25,7 +24,8 @@ use crate::{
     block_verifier::BlockVerifier,
     commit::{CertifiedCommit, CertifiedCommits, CommitAPI as _, CommitRange},
     commit_syncer::{
-        CommitSyncType, CommitSyncerHandle, Inner, verify_fetched_headers,
+        CommitSyncType, CommitSyncerHandle, Inner, fetch_loop as shared_fetch_loop,
+        try_start_fetches as shared_try_start_fetches, verify_fetched_headers,
         verify_transactions_with_headers, verify_transactions_with_transactions_refs,
     },
     commit_vote_monitor::CommitVoteMonitor,
@@ -451,60 +451,18 @@ impl<C: NetworkClient> RegularCommitSyncer<C> {
     }
 
     fn try_start_fetches(&mut self) {
-        // Cap parallel fetches based on configured limit and committee size, to avoid
-        // overloading the network. Also when there are too many fetched block headers
-        // that cannot be sent to Core before an earlier fetch has not finished,
-        // reduce parallelism so the earlier fetch can retry on a better host and
-        // succeed.
-        let target_parallel_fetches = self
-            .inner
-            .context
-            .parameters
-            .commit_sync_parallel_fetches
-            .min(self.inner.context.committee.size() * 2 / 3)
-            .min(
-                self.inner
-                    .context
-                    .parameters
-                    .commit_sync_batches_ahead
-                    .saturating_sub(self.fetched_ranges.len()),
-            )
-            .max(1);
-        // Start new fetches if there are pending batches and available slots.
-        loop {
-            if self.inflight_fetches.len() >= target_parallel_fetches {
-                break;
-            }
-            if !self.pending_fetches.is_empty() {
-                info!(
-                    "[{}] Pending fetches: {:?}, target parallel fetches: {}, inflight fetch number: {}",
-                    self.inner.sync_type.as_str(),
-                    self.pending_fetches,
-                    target_parallel_fetches,
-                    self.inflight_fetches.len()
-                );
-            }
-            let Some(commit_range) = self.pending_fetches.pop_first() else {
-                break;
-            };
-            self.inflight_fetches
-                .spawn(Self::fetch_loop(self.inner.clone(), commit_range));
-        }
-
-        let metrics = &self.inner.context.metrics.node_metrics;
-        let sync_label = self.inner.sync_type.as_str();
-        metrics
-            .commit_sync_inflight_fetches
-            .with_label_values(&[sync_label])
-            .set(self.inflight_fetches.len() as i64);
-        metrics
-            .commit_sync_pending_fetches
-            .with_label_values(&[sync_label])
-            .set(self.pending_fetches.len() as i64);
-        metrics
-            .commit_sync_highest_synced_index
-            .with_label_values(&[sync_label])
-            .set(self.synced_commit_index as i64);
+        let inner = self.inner.clone();
+        shared_try_start_fetches(
+            &self.inner,
+            &mut self.pending_fetches,
+            self.fetched_ranges.len(),
+            self.inflight_fetches.len(),
+            self.synced_commit_index,
+            |commit_range| {
+                self.inflight_fetches
+                    .spawn(Self::fetch_loop(inner.clone(), commit_range));
+            },
+        );
     }
 
     // Retries fetching commits and block headers from available authorities, until
@@ -516,126 +474,12 @@ impl<C: NetworkClient> RegularCommitSyncer<C> {
         inner: Arc<Inner<C>>,
         commit_range: CommitRange,
     ) -> (CommitIndex, CertifiedCommits) {
-        // Individual request base timeout.
-        const TIMEOUT: Duration = Duration::from_secs(10);
-        // Max per-request timeout will be base timeout times a multiplier.
-        // At the extreme, this means there will be 120s timeout to fetch
-        // max_blocks_per_fetch blocks.
-        const MAX_TIMEOUT_MULTIPLIER: u32 = 12;
-        // timeout * max number of targets should be reasonably small, so the
-        // system can adjust to slow network or large data sizes quickly.
-        const MAX_NUM_TARGETS: usize = 24;
-        let mut timeout_multiplier = 0;
-
-        let _timer = inner
-            .context
-            .metrics
-            .node_metrics
-            .commit_sync_fetch_loop_latency
-            .start_timer();
-        info!(
-            "[{}] Starting to fetch commits in {commit_range:?} ...",
-            inner.sync_type.as_str()
-        );
-        loop {
-            // Attempt to fetch commits and blocks through min(committee size,
-            // MAX_NUM_TARGETS) peers.
-            let mut target_authorities = inner
-                .context
-                .committee
-                .authorities()
-                .filter_map(|(i, _)| {
-                    if i != inner.context.own_index {
-                        Some(i)
-                    } else {
-                        None
-                    }
-                })
-                .collect_vec();
-            target_authorities.shuffle(&mut ThreadRng::default());
-            target_authorities.truncate(MAX_NUM_TARGETS);
-            // Increase timeout multiplier for each loop until MAX_TIMEOUT_MULTIPLIER.
-            timeout_multiplier = (timeout_multiplier + 1).min(MAX_TIMEOUT_MULTIPLIER);
-            let request_timeout = TIMEOUT * timeout_multiplier;
-            // Give enough overall timeout for fetching commits and block headers.
-            // - Timeout for fetching commits and commit certifying block headers.
-            // - Timeout for fetching block headers referenced by the commits.
-            // - Time spent on pipelining requests to fetch block headers.
-            // - Another headroom to allow fetch_once() to timeout gracefully if possible.
-            let fetch_timeout = request_timeout * 4;
-            // Try fetching from selected target authority.
-            for authority in target_authorities {
-                match tokio::time::timeout(
-                    fetch_timeout,
-                    Self::fetch_once(
-                        inner.clone(),
-                        authority,
-                        commit_range.clone(),
-                        request_timeout,
-                    ),
-                )
-                .await
-                {
-                    Ok(Ok(commits)) => {
-                        info!(
-                            "[{}] Finished fetching commits in {commit_range:?}",
-                            inner.sync_type.as_str()
-                        );
-                        return (commit_range.end(), commits);
-                    }
-                    Ok(Err(e)) => {
-                        let hostname = inner
-                            .context
-                            .committee
-                            .authority(authority)
-                            .hostname
-                            .clone();
-                        warn!(
-                            "[{}] Failed to fetch {commit_range:?} from {hostname}: {}",
-                            inner.sync_type.as_str(),
-                            e
-                        );
-                        let error: &'static str = e.into();
-                        inner
-                            .context
-                            .metrics
-                            .node_metrics
-                            .commit_sync_fetch_once_errors
-                            .with_label_values(&[
-                                hostname.as_str(),
-                                error,
-                                inner.sync_type.as_str(),
-                            ])
-                            .inc();
-                    }
-                    Err(_) => {
-                        let hostname = inner
-                            .context
-                            .committee
-                            .authority(authority)
-                            .hostname
-                            .clone();
-                        warn!(
-                            "[{}] Timed out fetching {commit_range:?} from {authority}",
-                            inner.sync_type.as_str()
-                        );
-                        inner
-                            .context
-                            .metrics
-                            .node_metrics
-                            .commit_sync_fetch_once_errors
-                            .with_label_values(&[
-                                hostname.as_str(),
-                                "FetchTimeout",
-                                inner.sync_type.as_str(),
-                            ])
-                            .inc();
-                    }
-                }
-            }
-            // Avoid busy looping, by waiting for a while before retrying.
-            sleep(TIMEOUT).await;
-        }
+        // Regular syncer uses 4x timeout multiplier to account for:
+        // - Fetching commits and commit certifying block headers
+        // - Fetching block headers referenced by the commits
+        // - Time spent on pipelining requests
+        // - Headroom to allow fetch_once() to timeout gracefully
+        shared_fetch_loop(inner, commit_range, 4, Self::fetch_once).await
     }
 
     // Fetches commits and blocks from a single authority. At a high level, first

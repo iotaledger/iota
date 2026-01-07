@@ -39,15 +39,14 @@ use std::{
 };
 
 use bytes::Bytes;
-use iota_metrics::spawn_logged_monitored_task;
 use itertools::Itertools;
 use parking_lot::RwLock;
 use rand::{prelude::SliceRandom as _, rngs::ThreadRng};
 use starfish_config::AuthorityIndex;
 use tokio::{
     sync::oneshot,
-    task::{JoinHandle, JoinSet},
-    time::{MissedTickBehavior, sleep},
+    task::JoinHandle,
+    time::sleep,
 };
 use tracing::{info, warn};
 
@@ -368,349 +367,235 @@ pub(crate) fn verify_transactions_with_transactions_refs(
     Ok(verified_transactions_map)
 }
 
-#[allow(dead_code)]
-#[async_trait::async_trait]
-pub trait CommitSyncer<C: NetworkClient>: Send + Sync + 'static + Sized {
-    type FetchedData: Send + Sync;
+/// Generic fetch loop that retries fetching data from available authorities until
+/// a request succeeds. This is shared between RegularCommitSyncer and FastCommitSyncer.
+///
+/// # Type Parameters
+/// - `C`: Network client type
+/// - `T`: Fetched data type (CertifiedCommits for regular, (Vec<TrustedCommit>, Vec<CommittedSubDag>) for fast)
+/// - `F`: Fetch function type
+/// - `Fut`: Future returned by fetch function
+///
+/// # Parameters
+/// - `inner`: Shared context and dependencies
+/// - `commit_range`: The range of commits to fetch
+/// - `fetch_timeout_multiplier`: Multiplier for timeout calculation (4 for regular, 2 for fast)
+/// - `fetch_once_fn`: Implementation-specific fetch function
+///
+/// # Returns
+/// Tuple of (end_commit_index, fetched_data)
+#[cfg_attr(test, tracing::instrument(skip_all, fields(authority = %inner.context.own_index)))]
+pub(crate) async fn fetch_loop<C, T, F, Fut>(
+    inner: Arc<Inner<C>>,
+    commit_range: CommitRange,
+    fetch_timeout_multiplier: u32,
+    fetch_once_fn: F,
+) -> (CommitIndex, T)
+where
+    C: NetworkClient,
+    T: Send,
+    F: Fn(Arc<Inner<C>>, AuthorityIndex, CommitRange, Duration) -> Fut,
+    Fut: std::future::Future<Output = ConsensusResult<T>> + Send,
+{
+    // Individual request base timeout.
+    const TIMEOUT: Duration = Duration::from_secs(10);
+    // Max per-request timeout will be base timeout times a multiplier.
+    // At the extreme, this means there will be 120s timeout to fetch
+    // max_blocks_per_fetch blocks.
+    const MAX_TIMEOUT_MULTIPLIER: u32 = 12;
+    // timeout * max number of targets should be reasonably small, so the
+    // system can adjust to slow network or large data sizes quickly.
+    const MAX_NUM_TARGETS: usize = 24;
+    let mut timeout_multiplier = 0;
 
-    fn inner(&self) -> &Arc<Inner<C>>;
-    fn inflight_fetches(&mut self) -> &mut JoinSet<(u32, Vec<Self::FetchedData>)>;
-    fn inflight_fetches_len(&self) -> usize;
-    fn pending_fetches_len(&self) -> usize;
-
-    fn highest_scheduled_index(&mut self) -> &mut Option<CommitIndex>;
-
-    fn synced_commit_index(&mut self) -> &mut CommitIndex;
-
-    fn pending_fetches(&mut self) -> &mut BTreeSet<CommitRange>;
-
-    fn fetched_ranges(&mut self) -> &mut BTreeMap<CommitRange, Vec<Self::FetchedData>>;
-
-    fn unhandled_commits_threshold(&self) -> CommitIndex {
-        self.inner().context.parameters.commit_sync_batch_size
-            * (self.inner().context.parameters.commit_sync_batches_ahead as u32)
-    }
-    async fn handle_fetch_result(
-        &mut self,
-        target_end: CommitIndex,
-        fetched_data_set: Vec<Self::FetchedData>,
+    let _timer = inner
+        .context
+        .metrics
+        .node_metrics
+        .commit_sync_fetch_loop_latency
+        .start_timer();
+    info!(
+        "[{}] Starting to fetch commits in {commit_range:?} ...",
+        inner.sync_type.as_str()
     );
-    async fn fetch_once(
-        inner: Arc<Inner<C>>,
-        target_authority: AuthorityIndex,
-        commit_range: CommitRange,
-        timeout: Duration,
-    ) -> ConsensusResult<Vec<Self::FetchedData>>;
-
-    fn start(self) -> CommitSyncerHandle {
-        let (tx_shutdown, rx_shutdown) = oneshot::channel();
-        let schedule_task = spawn_logged_monitored_task!(self.schedule_loop(rx_shutdown,));
-        CommitSyncerHandle {
-            schedule_task,
-            tx_shutdown,
-        }
-    }
-
-    async fn fetch_loop(
-        inner: Arc<Inner<C>>,
-        commit_range: CommitRange,
-    ) -> (CommitIndex, Vec<Self::FetchedData>) {
-        // Individual request base timeout.
-        const TIMEOUT: Duration = Duration::from_secs(10);
-        // Max per-request timeout will be base timeout times a multiplier.
-        // At the extreme, this means there will be 120s timeout to fetch
-        // max_blocks_per_fetch blocks.
-        const MAX_TIMEOUT_MULTIPLIER: u32 = 12;
-        // timeout * max number of targets should be reasonably small, so the
-        // system can adjust to slow network or large data sizes quickly.
-        const MAX_NUM_TARGETS: usize = 24;
-        let mut timeout_multiplier = 0;
-
-        let _timer = inner
+    loop {
+        // Attempt to fetch commits and blocks through min(committee size,
+        // MAX_NUM_TARGETS) peers.
+        let mut target_authorities = inner
             .context
-            .metrics
-            .node_metrics
-            .commit_sync_fetch_loop_latency
-            .start_timer();
-        info!(
-            "[{}] Starting to fetch commits in {commit_range:?} ...",
-            inner.sync_type.as_str()
-        );
-        loop {
-            // Attempt to fetch commits and blocks through min(committee size,
-            // MAX_NUM_TARGETS) peers.
-            let mut target_authorities = inner
-                .context
-                .committee
-                .authorities()
-                .filter_map(|(i, _)| {
-                    if i != inner.context.own_index {
-                        Some(i)
-                    } else {
-                        None
-                    }
-                })
-                .collect_vec();
-            target_authorities.shuffle(&mut ThreadRng::default());
-            target_authorities.truncate(MAX_NUM_TARGETS);
-            // Increase timeout multiplier for each loop until MAX_TIMEOUT_MULTIPLIER.
-            timeout_multiplier = (timeout_multiplier + 1).min(MAX_TIMEOUT_MULTIPLIER);
-            let request_timeout = TIMEOUT * timeout_multiplier;
-
-            let fetch_timeout = request_timeout * 2;
-            // Try fetching from the selected target authority.
-            for authority in target_authorities {
-                match tokio::time::timeout(
-                    fetch_timeout,
-                    Self::fetch_once(
-                        inner.clone(),
-                        authority,
-                        commit_range.clone(),
-                        request_timeout,
-                    ),
-                )
-                .await
-                {
-                    Ok(Ok(committed_subdags)) => {
-                        info!(
-                            "[{}] Finished fetching commits in {commit_range:?}",
-                            inner.sync_type.as_str()
-                        );
-                        return (commit_range.end(), committed_subdags);
-                    }
-                    Ok(Err(e)) => {
-                        let hostname = inner
-                            .context
-                            .committee
-                            .authority(authority)
-                            .hostname
-                            .clone();
-                        warn!(
-                            "[{}] Failed to fetch {commit_range:?} from {hostname}: {}",
-                            inner.sync_type.as_str(),
-                            e
-                        );
-                        let error: &'static str = e.into();
-                        inner
-                            .context
-                            .metrics
-                            .node_metrics
-                            .commit_sync_fetch_once_errors
-                            .with_label_values(&[
-                                hostname.as_str(),
-                                error,
-                                inner.sync_type.as_str(),
-                            ])
-                            .inc();
-                    }
-                    Err(_) => {
-                        let hostname = inner
-                            .context
-                            .committee
-                            .authority(authority)
-                            .hostname
-                            .clone();
-                        warn!(
-                            "[{}] Timed out fetching {commit_range:?} from {authority}",
-                            inner.sync_type.as_str()
-                        );
-                        inner
-                            .context
-                            .metrics
-                            .node_metrics
-                            .commit_sync_fetch_once_errors
-                            .with_label_values(&[
-                                hostname.as_str(),
-                                "FetchTimeout",
-                                inner.sync_type.as_str(),
-                            ])
-                            .inc();
-                    }
+            .committee
+            .authorities()
+            .filter_map(|(i, _)| {
+                if i != inner.context.own_index {
+                    Some(i)
+                } else {
+                    None
                 }
-            }
-            // Avoid busy looping, by waiting for a while before retrying.
-            sleep(TIMEOUT).await;
-        }
-    }
+            })
+            .collect_vec();
+        target_authorities.shuffle(&mut ThreadRng::default());
+        target_authorities.truncate(MAX_NUM_TARGETS);
+        // Increase timeout multiplier for each loop until MAX_TIMEOUT_MULTIPLIER.
+        timeout_multiplier = (timeout_multiplier + 1).min(MAX_TIMEOUT_MULTIPLIER);
+        let request_timeout = TIMEOUT * timeout_multiplier;
 
-    fn try_start_fetches(&mut self) {
-        // Cap parallel fetches based on configured limit and committee size, to avoid
-        // overloading the network. Also when there are too many fetched block headers
-        // that cannot be sent to Core before an earlier fetch has not finished,
-        // reduce parallelism so the earlier fetch can retry on a better host and
-        // succeed.
-        let target_parallel_fetches = self
-            .inner()
-            .context
-            .parameters
-            .commit_sync_parallel_fetches
-            .min(self.inner().context.committee.size() * 2 / 3)
-            .min(
-                self.inner()
-                    .context
-                    .parameters
-                    .commit_sync_batches_ahead
-                    .saturating_sub(self.fetched_ranges().len()),
+        let fetch_timeout = request_timeout * fetch_timeout_multiplier;
+        // Try fetching from the selected target authority.
+        for authority in target_authorities {
+            match tokio::time::timeout(
+                fetch_timeout,
+                fetch_once_fn(
+                    inner.clone(),
+                    authority,
+                    commit_range.clone(),
+                    request_timeout,
+                ),
             )
-            .max(1);
-        // Start new fetches if there are pending batches and available slots.
-        loop {
-            let inner = self.inner().clone();
-            let inflight_fetches_len = self.inflight_fetches_len();
-
-            if inflight_fetches_len >= target_parallel_fetches {
-                break;
+            .await
+            {
+                Ok(Ok(data)) => {
+                    info!(
+                        "[{}] Finished fetching commits in {commit_range:?}",
+                        inner.sync_type.as_str()
+                    );
+                    return (commit_range.end(), data);
+                }
+                Ok(Err(e)) => {
+                    let hostname = inner
+                        .context
+                        .committee
+                        .authority(authority)
+                        .hostname
+                        .clone();
+                    warn!(
+                        "[{}] Failed to fetch {commit_range:?} from {hostname}: {}",
+                        inner.sync_type.as_str(),
+                        e
+                    );
+                    let error: &'static str = e.into();
+                    inner
+                        .context
+                        .metrics
+                        .node_metrics
+                        .commit_sync_fetch_once_errors
+                        .with_label_values(&[
+                            hostname.as_str(),
+                            error,
+                            inner.sync_type.as_str(),
+                        ])
+                        .inc();
+                }
+                Err(_) => {
+                    let hostname = inner
+                        .context
+                        .committee
+                        .authority(authority)
+                        .hostname
+                        .clone();
+                    warn!(
+                        "[{}] Timed out fetching {commit_range:?} from {authority}",
+                        inner.sync_type.as_str()
+                    );
+                    inner
+                        .context
+                        .metrics
+                        .node_metrics
+                        .commit_sync_fetch_once_errors
+                        .with_label_values(&[
+                            hostname.as_str(),
+                            "FetchTimeout",
+                            inner.sync_type.as_str(),
+                        ])
+                        .inc();
+                }
             }
-            if !self.pending_fetches().is_empty() {
-                info!(
-                    "[{}] Pending fetches: {:?}, target parallel fetches: {}, inflight fetch number: {}",
-                    inner.sync_type.as_str(),
-                    self.pending_fetches(),
-                    target_parallel_fetches,
-                    inflight_fetches_len
-                );
-            }
-            let Some(commit_range) = self.pending_fetches().pop_first() else {
-                break;
-            };
-            (*self.inflight_fetches()).spawn(Self::fetch_loop(inner, commit_range));
         }
-
-        let metrics = &self.inner().context.metrics.node_metrics;
-        let sync_label = self.inner().sync_type.as_str();
-        metrics
-            .commit_sync_inflight_fetches
-            .with_label_values(&[sync_label])
-            .set(self.inflight_fetches_len() as i64);
-        metrics
-            .commit_sync_pending_fetches
-            .with_label_values(&[sync_label])
-            .set(self.pending_fetches_len() as i64);
-        metrics
-            .commit_sync_highest_synced_index
-            .with_label_values(&[sync_label])
-            .set(*self.synced_commit_index() as i64);
+        // Avoid busy looping, by waiting for a while before retrying.
+        sleep(TIMEOUT).await;
     }
-    async fn schedule_loop(mut self, mut rx_shutdown: oneshot::Receiver<()>) {
-        let mut interval = tokio::time::interval(Duration::from_secs(2));
-        interval.set_missed_tick_behavior(MissedTickBehavior::Skip);
+}
 
-        loop {
-            tokio::select! {
-                // Periodically, schedule new fetches if the node is falling behind.
-                _ = interval.tick() => {
-                    self.try_schedule_once();
-                }
-                // Handles results from fetch tasks.
-                Some(result) = self.inflight_fetches().join_next(), if !self.inflight_fetches().is_empty() => {
-                    if let Err(e) = result {
-                        if e.is_panic() {
-                            std::panic::resume_unwind(e.into_panic());
-                        }
-                        warn!("[{}] Fetch cancelled. FastCommitSyncer shutting down: {}", self.inner().sync_type.as_str(), e);
-                        // If any fetch is cancelled or panicked, try to shutdown and exit the loop.
-                        self.inflight_fetches().shutdown().await;
-                        return;
-                    }
-                    let (target_end, committed_subdags) = result.unwrap();
-                    self.handle_fetch_result(target_end, committed_subdags).await;
-                }
-                _ = &mut rx_shutdown => {
-                    // Shutdown requested.
-                    info!("[{}] FastCommitSyncer shutting down ...", self.inner().sync_type.as_str());
-                    self.inflight_fetches().shutdown().await;
-                    return;
-                }
-            }
+/// Generic function to start pending fetches while respecting parallelism limits.
+/// This is shared between RegularCommitSyncer and FastCommitSyncer.
+///
+/// # Parameters
+/// - `inner`: Shared context and dependencies
+/// - `pending_fetches`: Set of commit ranges pending fetch
+/// - `fetched_ranges_count`: Number of fetched ranges waiting to be processed
+/// - `inflight_fetches_count`: Number of currently in-flight fetch tasks
+/// - `synced_commit_index`: Latest synced commit index
+/// - `spawn_fn`: Closure to spawn a new fetch task
+///
+/// # Returns
+/// Updated counts after spawning new fetches
+pub(crate) fn try_start_fetches<C, F>(
+    inner: &Arc<Inner<C>>,
+    pending_fetches: &mut BTreeSet<CommitRange>,
+    fetched_ranges_count: usize,
+    inflight_fetches_count: usize,
+    synced_commit_index: CommitIndex,
+    mut spawn_fn: F,
+) -> (usize, usize)
+where
+    C: NetworkClient,
+    F: FnMut(CommitRange),
+{
+    // Cap parallel fetches based on configured limit and committee size, to avoid
+    // overloading the network. Also when there are too many fetched block headers
+    // that cannot be sent to Core before an earlier fetch has not finished,
+    // reduce parallelism so the earlier fetch can retry on a better host and
+    // succeed.
+    let target_parallel_fetches = inner
+        .context
+        .parameters
+        .commit_sync_parallel_fetches
+        .min(inner.context.committee.size() * 2 / 3)
+        .min(
+            inner
+                .context
+                .parameters
+                .commit_sync_batches_ahead
+                .saturating_sub(fetched_ranges_count),
+        )
+        .max(1);
 
-            self.try_start_fetches();
+    let mut new_inflight_count = inflight_fetches_count;
+
+    // Start new fetches if there are pending batches and available slots.
+    loop {
+        if new_inflight_count >= target_parallel_fetches {
+            break;
         }
-    }
-
-    fn try_schedule_once(&mut self) {
-        let quorum_commit_index = self.inner().commit_vote_monitor.quorum_commit_index();
-        let local_commit_index = self.inner().dag_state.read().last_commit_index();
-
-        // Skip scheduling depending on sync type and gap threshold.
-        let gap = quorum_commit_index.saturating_sub(local_commit_index);
-        if !self.inner().sync_type.should_schedule(
-            gap,
-            self.inner().context.parameters.commit_sync_gap_threshold,
-        ) {
-            return;
-        }
-
-        let metrics = &self.inner().context.metrics.node_metrics;
-        metrics
-            .commit_sync_quorum_index
-            .set(quorum_commit_index as i64);
-        metrics
-            .commit_sync_local_index
-            .set(local_commit_index as i64);
-        let highest_handled_index = self
-            .inner()
-            .commit_consumer_monitor
-            .highest_handled_commit();
-        let highest_scheduled_index = self.highest_scheduled_index().unwrap_or(0);
-        // Update synced_commit_index periodically to make sure it is not smaller than
-        // local commit index.
-        *self.synced_commit_index() = (*self.synced_commit_index()).max(local_commit_index);
-        let unhandled_commits_threshold = self.unhandled_commits_threshold();
-
-        // TODO: cleanup inflight fetches that are no longer needed.
-        let fetch_after_index =
-            (*self.synced_commit_index()).max(self.highest_scheduled_index().unwrap_or(0));
-        // When the node is falling behind, schedule pending fetches which will be
-        // executed on later.
-        let step = self
-            .inner()
-            .sync_type
-            .commit_sync_batch_size(&self.inner().context);
-
-        info!(
-            "[{}] Checking to schedule fetches: synced_commit_index={}, highest_handled_index={}, highest_scheduled_index={}, quorum_commit_index={}, unhandled_commits_threshold={}, fetch_after_index={}, step={}",
-            self.inner().sync_type.as_str(),
-            self.synced_commit_index(),
-            highest_handled_index,
-            highest_scheduled_index,
-            quorum_commit_index,
-            unhandled_commits_threshold,
-            fetch_after_index,
-            step
-        );
-
-        for prev_end in (fetch_after_index..=quorum_commit_index).step_by(step as usize) {
-            // Create range with inclusive start and end.
-            let range_start = prev_end + 1;
-            let range_end = prev_end + step;
-            // Commit range is not fetched when [range_start, range_end] contains less
-            // number of commits than the target batch size. This is to avoid
-            // the cost of processing more and smaller batches. Block broadcast,
-            // subscription and synchronization will help the node catchup.
-            if quorum_commit_index < range_end {
-                break;
-            }
-            // Pause scheduling new fetches when handling of commits is lagging.
-            if highest_handled_index + unhandled_commits_threshold < range_end {
-                warn!(
-                    "[{}] Skip scheduling new commit fetches: consensus handler is lagging. highest_handled_index={}, highest_scheduled_index={}",
-                    self.inner().sync_type.as_str(),
-                    highest_handled_index,
-                    highest_scheduled_index
-                );
-                break;
-            }
+        if !pending_fetches.is_empty() {
             info!(
-                "[{}] Scheduling fetch for commit range {}..={}",
-                self.inner().sync_type.as_str(),
-                range_start,
-                range_end
+                "[{}] Pending fetches: {:?}, target parallel fetches: {}, inflight fetch number: {}",
+                inner.sync_type.as_str(),
+                pending_fetches,
+                target_parallel_fetches,
+                new_inflight_count
             );
-            self.pending_fetches()
-                .insert((range_start..=range_end).into());
-            // quorum_commit_index should be non-decreasing, so highest_scheduled_index
-            // should not decrease either.
-            *self.highest_scheduled_index() = Some(range_end);
         }
+        let Some(commit_range) = pending_fetches.pop_first() else {
+            break;
+        };
+        spawn_fn(commit_range);
+        new_inflight_count += 1;
     }
+
+    let metrics = &inner.context.metrics.node_metrics;
+    let sync_label = inner.sync_type.as_str();
+    metrics
+        .commit_sync_inflight_fetches
+        .with_label_values(&[sync_label])
+        .set(new_inflight_count as i64);
+    metrics
+        .commit_sync_pending_fetches
+        .with_label_values(&[sync_label])
+        .set(pending_fetches.len() as i64);
+    metrics
+        .commit_sync_highest_synced_index
+        .with_label_values(&[sync_label])
+        .set(synced_commit_index as i64);
+
+    (new_inflight_count, pending_fetches.len())
 }
