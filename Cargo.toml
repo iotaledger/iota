@@ -291,6 +291,7 @@ http-body = "1.0"
 http-body-util = "0.1.2"
 humantime = "2.1.0"
 hyper = "1"
+hyper-rustls = { version = "0.27", default-features = false, features = ["webpki-roots", "http1", "http2", "ring", "tls12"] }
 hyper-util = { version = "0.1.4", features = ["tokio", "server-auto", "service"] }
 im = "15"
 indexmap = { version = "2.11.0", features = ["serde"] }
@@ -300,10 +301,11 @@ integer-encoding = "3.0.1"
 itertools = "0.13.0"
 json_to_table = { git = "https://github.com/zhiburt/tabled/", rev = "e449317a1c02eb6b29e409ad6617e5d9eb7b3bd4" }
 jsonrpsee = { version = "0.24", features = ["server", "macros", "client", "ws-client", "http-client"] }
+leb128 = "0.2.5"
 lru = "0.12"
 mime = "0.3"
 mockall = "0.11.4"
-moka = { version = "0.12.12", default-features = false, features = ["sync"] }
+moka = { version = "0.12", default-features = false, features = ["sync", "atomic64"] }
 more-asserts = "0.3.1"
 msim = { git = "https://github.com/iotaledger/iota-sim.git", branch = "tokio-1.46.1", package = "msim" }
 multiaddr = "0.17.0"
@@ -333,7 +335,7 @@ rand = "0.8.5"
 regex = "1.7.1"
 reqwest = { version = "0.12", default-features = false, features = ["http2", "json", "rustls-tls"] }
 roaring = "0.11.2"
-rs_merkle = "1.5.0"
+rocksdb = { version = "0.21.0", default-features = false, features = ["snappy", "lz4", "zstd", "zlib", "multi-threaded-cf"] }
 rstest = "0.16.0"
 rustls = { version = "0.23.18", default-features = false, features = ["std", "tls12", "ring"] }
 schemars = { version = "0.8.21", features = ["either"] }
@@ -372,10 +374,11 @@ tonic-health = "0.14"
 tonic-prost = "0.14"
 tonic-prost-build = "0.14"
 tonic-rustls = "0.3.0"
-tower = { version = "0.4.12", features = ["util", "timeout", "load-shed", "limit"] }
-tower-http = { version = "0.5", features = ["cors", "timeout", "trace", "set-header", "propagate-header"] }
-tracing = "0.1.44"
-tracing-subscriber = { version = "0.3.22", default-features = false, features = ["std", "smallvec", "fmt", "ansi", "time", "json", "registry", "env-filter"] }
+tower = { version = "0.4.12", features = ["full", "util", "timeout", "load-shed", "limit"] }
+tower-http = { version = "0.5", features = ["cors", "full", "trace", "set-header", "propagate-header"] }
+tracing = "0.1.37"
+tracing-subscriber = { version = "0.3.15", default-features = false, features = ["std", "smallvec", "fmt", "ansi", "time", "json", "registry", "env-filter"] }
+unescape = "0.1.0"
 url = "2.3.1"
 uuid = { version = "1.1.2", features = ["v4", "fast-rng"] }
 
@@ -452,7 +455,7 @@ iota-rest-kv = { path = "crates/iota-rest-kv" }
 iota-rosetta = { path = "crates/iota-rosetta" }
 iota-rpc-loadgen = { path = "crates/iota-rpc-loadgen" }
 iota-sdk = { path = "crates/iota-sdk" }
-iota-sdk-types = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "fda182869d0b4d4016beb80808057b5a593abaf2", features = ["hash", "serde", "schemars"] }
+iota-sdk-types = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "f09c887dce12a9edd99a170b5208dd6276fd8825", features = ["hash", "serde", "schemars"] }
 iota-simulator = { path = "crates/iota-simulator" }
 iota-snapshot = { path = "crates/iota-snapshot" }
 iota-source-validation = { path = "crates/iota-source-validation" }
