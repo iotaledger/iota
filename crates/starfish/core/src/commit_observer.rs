@@ -851,35 +851,12 @@ mod tests {
         }
     }
 
-    /// Test consensus node recovery and state restoration across restarts.
-    ///
-    /// This test validates the fix in commit d4e7677c6d ("fix(starfish):
-    /// Propagate traversed blocks after restart").
-    ///
-    /// ## The Bug:
-    /// When a consensus node restarts and enters recovery mode, the
-    /// `traversed_headers_tracker` in the linearizer would be empty. If
-    /// `consensus_commit_transactions_only_for_traversed_headers`
-    /// is enabled, this causes the transaction commit logic to fail at
-    /// linearizer.rs:317 because headers from recovered blocks wouldn't be
-    /// in the tracker, preventing transactions from being committed even
-    /// though they were valid before restart.
-    ///
-    /// ## The Fix:
-    /// Added `record_traversed_headers()` call during recovery
-    /// (commit_observer.rs:265-268) to populate the tracker from headers in
-    /// stored pending subdags.
-    ///
-    /// ## Test Scenario:
+    /// Test consensus node recovery and linearizer state recovery across restarts.
     /// 1. Create blocks and commit some leaders
     /// 2. Restart node (clears traversed_headers_tracker)
     /// 3. During recovery, verify that traversed headers are recorded
     /// 4. Verify that new blocks can still successfully acknowledge and commit
     ///    transactions from blocks that existed before restart
-    ///
-    /// **Fails without fix:** Transaction commits are blocked because
-    /// traversed_headers_tracker is empty **Passes with fix:** Tracker is
-    /// populated during recovery, transactions commit successfully
     #[tokio::test]
     async fn test_recovery_restores_persistent_state_across_restart() {
         telemetry_subscribers::init_for_testing();
@@ -944,7 +921,7 @@ mod tests {
 
         // Commit first 3 leaders (rounds 1-3)
         // Each leader in the first 3 rounds has transactions from previous rounds
-        let (commits_before, _) = observer
+        let (_, _) = observer
             .handle_committed_leaders(all_leaders[0..3].to_vec(), CommittedSubDagSource::Consensus)
             .unwrap();
 
@@ -954,20 +931,12 @@ mod tests {
         while let Ok(subdag) = receiver.try_recv() {
             txs_before += subdag.transactions.len();
         }
-
-        info!(
-            "Before restart: {} commits, {} transactions",
-            commits_before.len(),
-            txs_before
-        );
         assert!(
             txs_before > 0,
             "Should have committed transactions before restart"
         );
 
-        // ====== SIMULATE RESTART ======
-        info!("=== Restart: Recovery phase ===");
-
+        // Simulate restart:
         // Create new observer starting from 0 to trigger recovery
         // This mimics what happens when the node restarts
         let mut observer_after_restart = CommitObserver::new(
@@ -980,11 +949,6 @@ mod tests {
 
         // Drain recovery commits
         while let Ok(_subdag) = receiver.try_recv() {}
-
-        info!("Recovery completed");
-
-        // ====== AFTER RESTART ======
-        info!("=== After restart: Commit new blocks ===");
 
         // Create new blocks (rounds 7-8) that will acknowledge blocks from before
         // restart
@@ -1008,45 +972,13 @@ mod tests {
         // Count transactions from new commits: new leaders in rounds 7-8 will process
         // acknowledgments from all previous rounds including recovered state
         let mut txs_after = 0;
-        let mut new_commits_count = 0;
         while let Ok(subdag) = receiver.try_recv() {
             txs_after += subdag.transactions.len();
-            new_commits_count += 1;
         }
 
-        info!("After restart: {} transactions", txs_after);
-
-        // ====== VERIFICATION ======
-        // The key metric: txs_after should significantly exceed txs_before
-        //
-        // WITH the fix:
-        //   - record_traversed_headers() populates the tracker during recovery
-        //   - New blocks can acknowledge and commit transactions from recovered blocks
-        //   - Result: txs_after will be much higher (20+ transactions)
-        //
-        // WITHOUT the fix:
-        //   - traversed_headers_tracker stays empty after recovery
-        //   - The check at linearizer.rs:317 blocks transaction commits
-        //   - Result: txs_after will be significantly lower (15 or fewer)
-        //
-        // We use a strict threshold to catch the bug: expect at least 4x transactions
-        // after restart compared to before. This indicates that all blocks from before
-        // restart are being properly marked as traversed, allowing new blocks to
-        // acknowledge and commit their transactions.
+        // Verify that txs_after significantly exceeds txs_before
         assert!(
             txs_after >= txs_before * 4,
-            "BUG DETECTED: After restart, expected at least {}  transactions (4x before: {}), \
-             got only {}. Without the fix (record_traversed_headers), traversed_headers_tracker \
-             is empty after recovery, preventing transactions from recovered blocks from being \
-             committed when acknowledged by new blocks.",
-            txs_before * 4,
-            txs_before,
-            txs_after
         );
-
-        info!("✅ TEST PASSED: Traversed headers correctly propagated through restart");
-        info!("   Transactions before restart: {}", txs_before);
-        info!("   Transactions after restart: {}", txs_after);
-        info!("   Ratio: {:.1}x", txs_after as f64 / txs_before as f64);
     }
 }

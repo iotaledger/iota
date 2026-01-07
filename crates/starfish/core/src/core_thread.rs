@@ -487,12 +487,6 @@ impl CoreThreadDispatcher for ChannelCoreThreadDispatcher {
         &self,
         subdags: Vec<CommittedSubDag>,
     ) -> Result<(), CoreError> {
-        for subdag in &subdags {
-            for block_ref in &subdag.base.committed_header_refs {
-                self.highest_received_rounds[block_ref.author]
-                    .fetch_max(block_ref.round, Ordering::AcqRel);
-            }
-        }
         let (sender, receiver) = oneshot::channel();
         self.send(CoreThreadCommand::AddSubdagFromFastSync(subdags, sender))
             .await;
