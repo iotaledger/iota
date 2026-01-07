@@ -12,6 +12,7 @@ use crate::{
     Round,
     block_header::{BlockRef, VerifiedBlockHeader},
     commit::{CommitRange, TrustedCommit},
+    commit_syncer::CommitSyncType,
     encoder::ShardEncoder,
     error::ConsensusResult,
     network::{BlockBundleStream, NetworkService, SerializedBlockBundle},
@@ -93,9 +94,18 @@ impl NetworkService for Mutex<TestService> {
         &self,
         peer: AuthorityIndex,
         commit_range: CommitRange,
+        _commit_sync_type: CommitSyncType,
     ) -> ConsensusResult<(Vec<TrustedCommit>, Vec<VerifiedBlockHeader>)> {
         self.lock().handle_fetch_commits.push((peer, commit_range));
         Ok((vec![], vec![]))
+    }
+
+    async fn handle_fetch_commits_and_transactions(
+        &self,
+        _peer: AuthorityIndex,
+        _commit_range: CommitRange,
+    ) -> ConsensusResult<(Vec<Bytes>, Vec<Bytes>, Vec<Bytes>)> {
+        unimplemented!("Unimplemented")
     }
 
     async fn handle_fetch_latest_block_headers(
@@ -117,6 +127,7 @@ impl NetworkService for Mutex<TestService> {
         &self,
         _peer: AuthorityIndex,
         _block_refs: Vec<GenericTransactionRef>,
+        _fetch_mode: crate::network::TransactionFetchMode,
     ) -> ConsensusResult<Vec<Bytes>> {
         unimplemented!("Unimplemented")
     }

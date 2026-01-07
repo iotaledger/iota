@@ -137,6 +137,7 @@ pub(crate) trait CommitAPI {
     fn leader(&self) -> BlockRef;
     fn block_headers(&self) -> &[BlockRef];
     fn committed_transactions(&self) -> Vec<GenericTransactionRef>;
+    fn reputation_scores(&self) -> &[(AuthorityIndex, u64)];
 }
 
 /// Specifies one consensus commit.
@@ -193,6 +194,10 @@ impl CommitAPI for CommitV1 {
             .iter()
             .map(|b| GenericTransactionRef::BlockRef(*b))
             .collect()
+    }
+
+    fn reputation_scores(&self) -> &[(AuthorityIndex, u64)] {
+        &[] // CommitV1 doesn't have reputation scores
     }
 }
 
@@ -254,6 +259,10 @@ impl CommitAPI for CommitV2 {
             .iter()
             .map(|t| GenericTransactionRef::TransactionRef(*t))
             .collect()
+    }
+
+    fn reputation_scores(&self) -> &[(AuthorityIndex, u64)] {
+        &self.reputation_scores_desc
     }
 }
 
