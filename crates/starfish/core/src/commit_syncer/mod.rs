@@ -43,11 +43,7 @@ use itertools::Itertools;
 use parking_lot::RwLock;
 use rand::{prelude::SliceRandom as _, rngs::ThreadRng};
 use starfish_config::AuthorityIndex;
-use tokio::{
-    sync::oneshot,
-    task::JoinHandle,
-    time::sleep,
-};
+use tokio::{sync::oneshot, task::JoinHandle, time::sleep};
 use tracing::{info, warn};
 
 use crate::{
@@ -367,19 +363,22 @@ pub(crate) fn verify_transactions_with_transactions_refs(
     Ok(verified_transactions_map)
 }
 
-/// Generic fetch loop that retries fetching data from available authorities until
-/// a request succeeds. This is shared between RegularCommitSyncer and FastCommitSyncer.
+/// Generic fetch loop that retries fetching data from available authorities
+/// until a request succeeds. This is shared between RegularCommitSyncer and
+/// FastCommitSyncer.
 ///
 /// # Type Parameters
 /// - `C`: Network client type
-/// - `T`: Fetched data type (CertifiedCommits for regular, (Vec<TrustedCommit>, Vec<CommittedSubDag>) for fast)
+/// - `T`: Fetched data type (CertifiedCommits for regular, (Vec<TrustedCommit>,
+///   Vec<CommittedSubDag>) for fast)
 /// - `F`: Fetch function type
 /// - `Fut`: Future returned by fetch function
 ///
 /// # Parameters
 /// - `inner`: Shared context and dependencies
 /// - `commit_range`: The range of commits to fetch
-/// - `fetch_timeout_multiplier`: Multiplier for timeout calculation (4 for regular, 2 for fast)
+/// - `fetch_timeout_multiplier`: Multiplier for timeout calculation (4 for
+///   regular, 2 for fast)
 /// - `fetch_once_fn`: Implementation-specific fetch function
 ///
 /// # Returns
@@ -478,11 +477,7 @@ where
                         .metrics
                         .node_metrics
                         .commit_sync_fetch_once_errors
-                        .with_label_values(&[
-                            hostname.as_str(),
-                            error,
-                            inner.sync_type.as_str(),
-                        ])
+                        .with_label_values(&[hostname.as_str(), error, inner.sync_type.as_str()])
                         .inc();
                 }
                 Err(_) => {
@@ -515,8 +510,8 @@ where
     }
 }
 
-/// Generic function to start pending fetches while respecting parallelism limits.
-/// This is shared between RegularCommitSyncer and FastCommitSyncer.
+/// Generic function to start pending fetches while respecting parallelism
+/// limits. This is shared between RegularCommitSyncer and FastCommitSyncer.
 ///
 /// # Parameters
 /// - `inner`: Shared context and dependencies

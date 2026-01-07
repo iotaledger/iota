@@ -70,9 +70,10 @@ impl ReputationScores {
         }
     }
 
-    /// Creates ReputationScores from reputation_scores_desc (as stored in commits).
-    /// The reputation_scores_desc is Vec<(AuthorityIndex, u64)> sorted by score descending.
-    /// This converts it to scores_per_authority indexed by authority.
+    /// Creates ReputationScores from reputation_scores_desc (as stored in
+    /// commits). The reputation_scores_desc is Vec<(AuthorityIndex, u64)>
+    /// sorted by score descending. This converts it to scores_per_authority
+    /// indexed by authority.
     pub(crate) fn from_scores_desc(
         num_authorities: usize,
         commit_range: CommitRange,

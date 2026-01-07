@@ -526,12 +526,14 @@ impl Core {
     }
 
     /// Handle committed subdags from fast sync.
-    /// First stores the commits, transactions in DagState, then processes the subdags.
-    /// Also updates the leader schedule from commits that contain reputation scores.
+    /// First stores the commits, transactions in DagState, then processes the
+    /// subdags. Also updates the leader schedule from commits that contain
+    /// reputation scores.
     ///
     /// Commits must be stored so that recovery/reinitialization can rebuild
     /// the Linearizer's transaction acknowledgment tracker.
-    /// Transactions must be stored so they are available for recovery and cache.
+    /// Transactions must be stored so they are available for recovery and
+    /// cache.
     pub(crate) fn handle_committed_sub_dags_from_fast_sync(
         &mut self,
         commits: Vec<TrustedCommit>,
@@ -568,8 +570,9 @@ impl Core {
             // leaders but no votes, leading to incorrect score calculations.
             // Instead, we use the reputation_scores embedded in the commits directly.
 
-            // Flush commits to storage so they're available for get_block_refs_for_recent_commits
-            // when close-to-quorum mode triggers header fetching.
+            // Flush commits to storage so they're available for
+            // get_block_refs_for_recent_commits when close-to-quorum mode
+            // triggers header fetching.
             dag_state.flush();
         }
 
@@ -577,10 +580,8 @@ impl Core {
         // This ensures correct leader election during fast sync and after recovery.
         // Also store commit_info so the leader schedule can be recovered from storage.
         if let Some(commit) = last_commit_with_scores {
-            self.leader_schedule.update_from_commit_scores(
-                commit.index(),
-                commit.reputation_scores(),
-            );
+            self.leader_schedule
+                .update_from_commit_scores(commit.index(), commit.reputation_scores());
 
             // Store commit_info for recovery. The reputation_scores need to be converted
             // from the commit's format to ReputationScores struct.

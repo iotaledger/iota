@@ -11,12 +11,7 @@ use iota_metrics::spawn_logged_monitored_task;
 use parking_lot::RwLock;
 use rand::{prelude::SliceRandom as _, rngs::ThreadRng};
 use starfish_config::AuthorityIndex;
-use tokio::{
-    runtime::Handle,
-    sync::oneshot,
-    task::JoinSet,
-    time::MissedTickBehavior,
-};
+use tokio::{runtime::Handle, sync::oneshot, task::JoinSet, time::MissedTickBehavior};
 use tracing::{debug, info, warn};
 
 use crate::{
@@ -627,7 +622,8 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
         let max_headers_per_fetch = inner.context.parameters.max_headers_per_commit_sync_fetch;
 
         // Get block refs from recent commits stored during fast sync
-        // TODO: The commits might not yet stored, but only fetched and pending processing.
+        // TODO: The commits might not yet stored, but only fetched and pending
+        // processing.
         let block_refs = inner
             .dag_state
             .read()

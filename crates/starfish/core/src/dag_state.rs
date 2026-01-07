@@ -333,9 +333,10 @@ impl DagState {
         );
 
         // 1. Clear all in-memory caches
-        // Note: scoring_subdag IS cleared because during fast sync, CommittedSubDag.headers
-        // is empty, so scoring_subdag cannot be properly populated (it would have leaders
-        // but no votes). After reinitialize, regular operation will rebuild it correctly.
+        // Note: scoring_subdag IS cleared because during fast sync,
+        // CommittedSubDag.headers is empty, so scoring_subdag cannot be
+        // properly populated (it would have leaders but no votes). After
+        // reinitialize, regular operation will rebuild it correctly.
         self.scoring_subdag.clear();
         self.recent_block_headers.clear();
         self.recent_transactions_by_authority = vec![BTreeMap::new(); num_authorities];

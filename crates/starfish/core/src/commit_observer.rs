@@ -17,9 +17,7 @@ use tracing::{debug, info, instrument, warn};
 use crate::{
     CommitConsumer, CommittedSubDag,
     block_header::{BlockHeaderAPI, VerifiedBlockHeader},
-    commit::{
-        CommitAPI, CommitIndex, PendingSubDag, load_pending_subdag_from_store,
-    },
+    commit::{CommitAPI, CommitIndex, PendingSubDag, load_pending_subdag_from_store},
     commit_solidifier::CommitSolidifier,
     context::Context,
     dag_state::DagState,
@@ -112,7 +110,8 @@ impl CommitObserver {
 
     /// Reinitialize the CommitObserver at a new commit index.
     /// Uses the existing `recover_and_send_commits` method which handles:
-    /// - Recovering linearizer state (transaction ack tracker, traversed headers)
+    /// - Recovering linearizer state (transaction ack tracker, traversed
+    ///   headers)
     /// - Only re-sends commits that are > last_commit_index (none in this case)
     pub(crate) fn reinitialize(&mut self, last_commit_index: CommitIndex) {
         let now = Instant::now();
@@ -166,19 +165,6 @@ impl CommitObserver {
         let (solid_sub_dags, missing_transactions) = self
             .commit_solidifier
             .try_get_solid_sub_dags(&pending_sub_dags);
-
-        // Update last_solid_commit_leader_round BEFORE flush so that eviction
-        // uses the correct GC round. This must happen after try_get_solid_sub_dags.
-        if !solid_sub_dags.is_empty() {
-            let max_solid_commit_leader_round = solid_sub_dags
-                .last()
-                .expect("There should be at least one solid subdag")
-                .leader
-                .round;
-            self.dag_state
-                .write()
-                .update_last_solid_commit_leader_round(max_solid_commit_leader_round);
-        }
 
         // Committed headers and sequenced transactions must be persisted to storage
         // before sending them outside consensus.
@@ -258,7 +244,8 @@ impl CommitObserver {
                 .round;
             self.linearizer
                 .evict_linearizer(max_solid_commit_leader_round);
-            // Update dag_state for GC to work correctly (covers both normal and fast sync paths)
+            // Update dag_state for GC to work correctly (covers both normal and fast sync
+            // paths)
             self.dag_state
                 .write()
                 .update_last_solid_commit_leader_round(max_solid_commit_leader_round);
@@ -318,7 +305,10 @@ impl CommitObserver {
             let commit_index = commit.index();
             // Commit index must be continuous during recovery.
             assert_eq!(commit_index, next_commit_index_to_recover);
-
+            if index == 0 {
+                self.commit_solidifier
+                    .set_last_committed_index(commit_index.saturating_sub(1));
+            }
             // On recovery leader schedule will be updated with the current scores
             // and the scores will be passed along with the last commit sent to
             // iota so that the current scores are available for submission.
@@ -334,11 +324,8 @@ impl CommitObserver {
 
             info!("Processing commit {} during recovery", commit_index);
 
-            let pending_sub_dag = load_pending_subdag_from_store(
-                self.store.as_ref(),
-                commit,
-                reputation_scores,
-            );
+            let pending_sub_dag =
+                load_pending_subdag_from_store(self.store.as_ref(), commit, reputation_scores);
 
             // Rebuild traversed headers tracker so recovery can honor the
             // traversed-headers gate when committing transactions.

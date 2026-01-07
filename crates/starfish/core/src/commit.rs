@@ -752,18 +752,20 @@ pub fn load_pending_subdag_from_store(
     let mut leader_block_idx = None;
     let commit_block_headers = store
         .read_verified_block_headers(commit.block_headers())
-        .expect("Reading block headers should not fail");
-    let mut block_headers = Vec::with_capacity(commit_block_headers.len());
-    for (idx, commit_block_opt) in commit_block_headers.into_iter().enumerate() {
-        let commit_block = commit_block_opt
-            .expect("We should have all block headers referenced in the commit data");
-        if commit_block.reference() == commit.leader() {
-            leader_block_idx = Some(idx);
-        }
-        block_headers.push(commit_block);
-    }
-    let leader_block_idx = leader_block_idx
-        .expect("Leader block should be found in commit headers");
+        .expect("We should have the block referenced in the commit data");
+    let block_headers = commit_block_headers
+        .into_iter()
+        .enumerate()
+        .map(|(idx, commit_block_opt)| {
+            let commit_block =
+                commit_block_opt.expect("We should have the block referenced in the commit data");
+            if commit_block.reference() == commit.leader() {
+                leader_block_idx = Some(idx);
+            }
+            commit_block
+        })
+        .collect::<Vec<_>>();
+    let leader_block_idx = leader_block_idx.expect("Leader block must be in the sub-dag");
     let leader_block_ref = block_headers[leader_block_idx].reference();
     PendingSubDag::new(
         leader_block_ref,

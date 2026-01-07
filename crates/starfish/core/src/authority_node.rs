@@ -17,9 +17,7 @@ use crate::{
     block_manager::BlockManager,
     block_verifier::SignedBlockVerifier,
     commit_observer::CommitObserver,
-    commit_syncer::{
-        CommitSyncerHandle, fast::FastCommitSyncer, regular::RegularCommitSyncer,
-    },
+    commit_syncer::{CommitSyncerHandle, fast::FastCommitSyncer, regular::RegularCommitSyncer},
     commit_vote_monitor::CommitVoteMonitor,
     context::{Clock, Context},
     cordial_knowledge::{CordialKnowledge, CordialKnowledgeHandle},
@@ -1100,7 +1098,8 @@ mod tests {
         authorities.insert(stopped_index, authority);
 
         // First recovery: Let authority 0 catch up and create blocks
-        // Wait until authority 0 is within 50 rounds of other authorities (or timeout after 120s)
+        // Wait until authority 0 is within 50 rounds of other authorities (or timeout
+        // after 120s)
         tracing::info!("=== First recovery: waiting for authority 0 to catch up ===");
         let mut last_committed_index = [0; NUM_AUTHORITIES];
         let mut last_round_committed_blocks = [0; NUM_AUTHORITIES];
@@ -1121,10 +1120,8 @@ mod tests {
                         for block_ref in &committed_subdag.base.committed_header_refs {
                             if block_ref.round > GENESIS_ROUND {
                                 let author_index = block_ref.author;
-                                last_round_committed_blocks[author_index] = max(
-                                    last_round_committed_blocks[author_index],
-                                    block_ref.round,
-                                );
+                                last_round_committed_blocks[author_index] =
+                                    max(last_round_committed_blocks[author_index], block_ref.round);
                             }
                         }
 
@@ -1173,13 +1170,19 @@ mod tests {
             max_round_first
         );
 
-        // Let the validator operate for a while to ensure sufficient data is written to storage.
-        // This helps ensure proper initialization on the next restart.
-        tracing::info!("Letting authority {} operate for 10 seconds before second crash...", stopped_index);
+        // Let the validator operate for a while to ensure sufficient data is written to
+        // storage. This helps ensure proper initialization on the next restart.
+        tracing::info!(
+            "Letting authority {} operate for 10 seconds before second crash...",
+            stopped_index
+        );
         sleep(Duration::from_secs(10)).await;
 
         // === Second crash: Stop authority 0 again ===
-        tracing::info!("=== Second crash: Stopping authority {} again ===", stopped_index);
+        tracing::info!(
+            "=== Second crash: Stopping authority {} again ===",
+            stopped_index
+        );
         authorities.remove(stopped_index).stop().await;
 
         // Wait to widen gap again
@@ -1217,9 +1220,11 @@ mod tests {
         authorities.insert(stopped_index, authority);
 
         // Second recovery: Let authority 0 catch up again
-        // Wait until authority 0 is within 50 rounds of other authorities (or timeout after 120s)
+        // Wait until authority 0 is within 50 rounds of other authorities (or timeout
+        // after 120s)
         tracing::info!("=== Second recovery: waiting for authority 0 to catch up again ===");
-        // Reset tracking for the stopped authority since it will replay commits from recovery
+        // Reset tracking for the stopped authority since it will replay commits from
+        // recovery
         let round_before_second_sync = last_round_committed_blocks[stopped_index];
         last_committed_index[stopped_index] = 0;
         let start_time = Instant::now();
@@ -1237,10 +1242,8 @@ mod tests {
                         for block_ref in &committed_subdag.base.committed_header_refs {
                             if block_ref.round > GENESIS_ROUND {
                                 let author_index = block_ref.author;
-                                last_round_committed_blocks[author_index] = max(
-                                    last_round_committed_blocks[author_index],
-                                    block_ref.round,
-                                );
+                                last_round_committed_blocks[author_index] =
+                                    max(last_round_committed_blocks[author_index], block_ref.round);
                             }
                         }
 
@@ -1257,8 +1260,10 @@ mod tests {
             }
             // Check if authority 0 has caught up (or made progress)
             let max_round = *last_round_committed_blocks.iter().max().unwrap_or(&0);
-            let made_progress = last_round_committed_blocks[stopped_index] > round_before_second_sync;
-            let is_close = last_round_committed_blocks[stopped_index] + catch_up_threshold >= max_round;
+            let made_progress =
+                last_round_committed_blocks[stopped_index] > round_before_second_sync;
+            let is_close =
+                last_round_committed_blocks[stopped_index] + catch_up_threshold >= max_round;
 
             if made_progress {
                 tracing::info!(
@@ -1269,7 +1274,10 @@ mod tests {
                     max_round
                 );
                 if is_close {
-                    tracing::info!("Authority {} is close enough to max, breaking early", stopped_index);
+                    tracing::info!(
+                        "Authority {} is close enough to max, breaking early",
+                        stopped_index
+                    );
                     break;
                 }
             }
@@ -1298,8 +1306,9 @@ mod tests {
             last_round_committed_blocks[stopped_index]
         );
 
-        // Verify authority 0's last committed block round is reasonably close to other authorities
-        // (within 200 rounds to allow for slower catch-up on second restart)
+        // Verify authority 0's last committed block round is reasonably close to other
+        // authorities (within 200 rounds to allow for slower catch-up on second
+        // restart)
         let second_recovery_threshold = 200;
         let max_round = *last_round_committed_blocks.iter().max().unwrap();
         assert!(
