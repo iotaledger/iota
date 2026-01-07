@@ -192,6 +192,15 @@ pub(crate) enum ConsensusError {
         received: GenericTransactionRef,
     },
 
+    #[error(
+        "Fetched transactions from peer {peer} do not match committed transaction refs. Expected {expected} transactions, but received {received} transactions"
+    )]
+    FetchedTransactionsMismatch {
+        peer: AuthorityIndex,
+        expected: usize,
+        received: usize,
+    },
+
     #[error("RocksDB failure: {0}")]
     RocksDBFailure(#[from] TypedStoreError),
 
