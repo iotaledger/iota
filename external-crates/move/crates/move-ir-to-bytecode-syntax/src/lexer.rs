@@ -229,8 +229,8 @@ impl<'input> Lexer<'input> {
                     match &text[len..].chars().next() {
                         Some('"') => {
                             // Special case for ByteArrayValue: h\"[0-9A-Fa-f]*\"
-                            match (name == "h", get_byte_array_value_len(&text[(len + 1)..])) {
-                                (true, bvlen) if bvlen > 0 => (Tok::ByteArrayValue, 2 + bvlen),
+                            match (name, get_byte_array_value_len(&text[(len + 1)..])) {
+                                ("h", bvlen) if bvlen > 0 => (Tok::ByteArrayValue, 2 + bvlen),
                                 _ => (get_name_token(name), len),
                             }
                         }
