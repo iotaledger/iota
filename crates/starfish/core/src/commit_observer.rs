@@ -851,7 +851,8 @@ mod tests {
         }
     }
 
-    /// Test consensus node recovery and linearizer state recovery across restarts.
+    /// Test consensus node recovery and linearizer state recovery across
+    /// restarts.
     /// 1. Create blocks and commit some leaders
     /// 2. Restart node (clears traversed_headers_tracker)
     /// 3. During recovery, verify that traversed headers are recorded
@@ -977,8 +978,6 @@ mod tests {
         }
 
         // Verify that txs_after significantly exceeds txs_before
-        assert!(
-            txs_after >= txs_before * 4,
-        );
+        assert!(txs_after >= txs_before * 4,);
     }
 }
