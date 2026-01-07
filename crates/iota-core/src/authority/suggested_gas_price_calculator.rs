@@ -372,7 +372,7 @@ mod tests {
 
         let sequencing_result = shared_object_congestion_tracker.try_schedule(
             &certificate,
-            // The remaining inputs are not important for this test
+            // The remaining inputs are not important for these tests
             &HashMap::new(),
             0,
         );
@@ -400,7 +400,8 @@ mod tests {
         max_execution_duration_per_commit: Option<ExecutionTime>,
     ) {
         let mut suggested_gas_price_calculator = SuggestedGasPriceCalculator::new_for_test(
-            // congestion control parameters are not important in this test
+            // NOTE: congestion control parameters (except `max_execution_duration_per_commit`)
+            // are not important in this test
             CongestionControlParameters::new_for_test(
                 PerObjectCongestionControlMode::TotalTxCount,
                 false,
@@ -599,33 +600,50 @@ mod tests {
     #[rstest]
     fn calculate_suggested_gas_price(
         #[values(
-            PerObjectCongestionControlMode::TotalTxCount,
+            // TODO: add new test function for each mode to ease visualizations
+            // PerObjectCongestionControlMode::TotalTxCount,
             PerObjectCongestionControlMode::TotalGasBudget
         )]
-        mode: PerObjectCongestionControlMode,
+        per_object_congestion_control_mode: PerObjectCongestionControlMode,
         #[values(false, true)] min_free_execution_slot_assigned: bool,
+        #[values(false, true)] use_congestion_limit_overshoot: bool,
     ) {
-        // Allow only two transactions per shared object per commit. In the
+        let object_1 = ObjectID::random();
+        let object_2 = ObjectID::random();
+
+        // Allow only three transactions per shared object per commit. In the
         // `TotalGasBudget` mode, gas budget of transactions will be set
-        // accordingly.
-        let max_execution_duration_per_commit = match mode {
+        // accordingly. Also, set initial object debts such that maximum
+        // execution duration per commit is allowed to overshot by the
+        // debt amount for each object.
+        let (
+            max_execution_duration_per_commit,
+            max_congestion_limit_overshoot_per_commit,
+            initial_object_debts,
+        ) = match per_object_congestion_control_mode {
             PerObjectCongestionControlMode::None => unreachable!(),
-            PerObjectCongestionControlMode::TotalTxCount => 3,
-            PerObjectCongestionControlMode::TotalGasBudget => 9_000_000,
+            PerObjectCongestionControlMode::TotalTxCount => {
+                (3, 1, vec![(object_1, 1), (object_2, 1)])
+            }
+            PerObjectCongestionControlMode::TotalGasBudget => (
+                9_000_000,
+                1_000_000,
+                vec![(object_1, 1_000_000), (object_2, 1_000_000)],
+            ),
         };
 
         let max_gas_price = ProtocolConfig::get_for_max_version_UNSAFE().max_gas_price();
         let congestion_control_parameters = CongestionControlParameters::new_for_test(
-            mode,
+            per_object_congestion_control_mode,
             min_free_execution_slot_assigned,
             Some(max_execution_duration_per_commit),
-            None, // TODO:
+            Some(max_congestion_limit_overshoot_per_commit),
             max_gas_price,
-            false, // TODO:
+            use_congestion_limit_overshoot,
         );
 
         let mut shared_object_congestion_tracker = SharedObjectCongestionTracker::new_for_test(
-            vec![],
+            initial_object_debts,
             congestion_control_parameters.clone(),
         );
 
@@ -633,9 +651,6 @@ mod tests {
             congestion_control_parameters,
             REFERENCE_GAS_PRICE,
         );
-
-        let object_1 = ObjectID::random();
-        let object_2 = ObjectID::random();
 
         // Gas prices (sorted in descending order) and gas budget to build transactions
         let txs_gas_data = [
@@ -954,7 +969,14 @@ mod tests {
 
             let suggested_gas_price =
                 suggested_gas_price_calculator.calculate_suggested_gas_price(&certificate);
-            assert_eq!(suggested_gas_price, txs_gas_data[2].gas_price + 1);
+            assert_eq!(
+                suggested_gas_price,
+                // If overshoot is not used in the calculator, the congestion limit
+                // will only be set to `max_execution_duration_per_commit`, which
+                // will lead to "inflated" suggested gas price of certificate 1
+                // rather than that of certificate 2.
+                txs_gas_data[if use_congestion_limit_overshoot { 2 } else { 1 }].gas_price + 1
+            );
         } else {
             panic!(
                 "Certificate {} must be deferred",
@@ -1012,13 +1034,24 @@ mod tests {
 
             let suggested_gas_price =
                 suggested_gas_price_calculator.calculate_suggested_gas_price(&certificate);
-            match mode {
+            match per_object_congestion_control_mode {
                 PerObjectCongestionControlMode::None => unreachable!(),
                 PerObjectCongestionControlMode::TotalTxCount => {
                     assert_eq!(suggested_gas_price, txs_gas_data[2].gas_price + 1);
                 }
                 PerObjectCongestionControlMode::TotalGasBudget => {
-                    assert_eq!(suggested_gas_price, txs_gas_data[1].gas_price + 1);
+                    assert_eq!(
+                        suggested_gas_price,
+                        // If overshoot is not used in the calculator, the congestion limit
+                        // will only be set to `max_execution_duration_per_commit`, which
+                        // will lead to "inflated" suggested gas price of certificate 1
+                        // rather than that of certificate 2.
+                        if use_congestion_limit_overshoot {
+                            txs_gas_data[1].gas_price + 1
+                        } else {
+                            txs_gas_data[0].gas_price
+                        }
+                    );
                 }
             }
         } else {
@@ -1076,7 +1109,7 @@ mod tests {
                 );
             } else {
                 // ^ this corresponds the old sequencer's logic
-                match mode {
+                match per_object_congestion_control_mode {
                     PerObjectCongestionControlMode::None => unreachable!(),
                     PerObjectCongestionControlMode::TotalTxCount => {
                         assert_eq!(congested_objects, vec![object_2]);
@@ -1093,7 +1126,7 @@ mod tests {
                 }
             }
 
-            match mode {
+            match per_object_congestion_control_mode {
                 PerObjectCongestionControlMode::None => unreachable!(),
                 PerObjectCongestionControlMode::TotalTxCount => {
                     assert_eq!(suggested_gas_price, txs_gas_data[2].gas_price + 1);
@@ -1295,13 +1328,24 @@ mod tests {
 
             let suggested_gas_price =
                 suggested_gas_price_calculator.calculate_suggested_gas_price(&certificate);
-            match mode {
+            match per_object_congestion_control_mode {
                 PerObjectCongestionControlMode::None => unreachable!(),
                 PerObjectCongestionControlMode::TotalTxCount => {
                     assert_eq!(suggested_gas_price, txs_gas_data[2].gas_price + 1);
                 }
                 PerObjectCongestionControlMode::TotalGasBudget => {
-                    assert_eq!(suggested_gas_price, txs_gas_data[1].gas_price + 1);
+                    assert_eq!(
+                        suggested_gas_price,
+                        // If overshoot is not used in the calculator, the congestion limit
+                        // will only be set to `max_execution_duration_per_commit`, which
+                        // will lead to "inflated" suggested gas price of certificate 1
+                        // rather than that of certificate 2.
+                        if use_congestion_limit_overshoot {
+                            txs_gas_data[1].gas_price + 1
+                        } else {
+                            txs_gas_data[0].gas_price
+                        }
+                    );
                 }
             }
         } else {
@@ -1355,7 +1399,7 @@ mod tests {
 
             let suggested_gas_price =
                 suggested_gas_price_calculator.calculate_suggested_gas_price(&certificate);
-            match mode {
+            match per_object_congestion_control_mode {
                 PerObjectCongestionControlMode::None => unreachable!(),
                 PerObjectCongestionControlMode::TotalTxCount => {
                     assert_eq!(suggested_gas_price, txs_gas_data[2].gas_price + 1);
