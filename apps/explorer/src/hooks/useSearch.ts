@@ -219,9 +219,9 @@ export function useSearch(query: string): UseQueryResult<Results, Error> {
                     getResultsForTransaction(client, query),
                     getResultsForCheckpoint(client, query),
                     getResultsForAddress(client, query, isNamesEnabled, iotaNamesClient),
+                    getResultsForDid(identityClient, isTFIdentityEnabled, query),
                     getResultsForObject(client, query),
                     getResultsForValidatorByPoolIdOrIotaAddress(systemStateSummary || null, query),
-                    getResultsForDid(identityClient, isTFIdentityEnabled, query),
                 ])
             ).filter(
                 (r) => r.status === 'fulfilled' && r.value,
