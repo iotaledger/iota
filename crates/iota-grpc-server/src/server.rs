@@ -13,7 +13,7 @@ use iota_types::transaction_executor::TransactionExecutor;
 use tokio::sync::broadcast;
 use tokio_stream::wrappers::TcpListenerStream;
 use tokio_util::sync::CancellationToken;
-use tonic::transport::Server;
+use tonic::transport::{Identity, Server, ServerTlsConfig};
 
 use crate::{
     GrpcCheckpointDataBroadcaster, GrpcCheckpointSummaryBroadcaster, GrpcReader, LedgerGrpcService,
@@ -94,19 +94,10 @@ pub async fn start_grpc_server(
         chain_id,
     );
 
-    // Create the server with proper address binding
-    let mut server_builder = Server::builder().add_service(
-        grpc_ledger_service::ledger_service_server::LedgerServiceServer::new(ledger_service),
-    );
-
-    // Add TransactionExecutionService if executor is provided
-    if let Some(executor) = executor {
-        let tx_service =
-            TransactionExecutionGrpcService::new(grpc_reader.clone(), executor, config.clone());
-        server_builder = server_builder.add_service(
-            grpc_tx_service::transaction_execution_service_server::TransactionExecutionServiceServer::new(tx_service),
-        );
-    }
+    // Create TransactionExecutionService if executor is provided
+    let tx_service = executor.map(|executor| {
+        TransactionExecutionGrpcService::new(grpc_reader.clone(), executor, config.clone())
+    });
 
     // Bind to the address to get the actual local address (especially important for
     // port 0)
@@ -120,18 +111,74 @@ pub async fn start_grpc_server(
     );
 
     // Spawn the server task with graceful shutdown
+    // TLS and non-TLS cases require different types, so we handle them separately
     let shutdown_token_for_server = shutdown_token.clone();
-    let server_handle = tokio::spawn(async move {
-        let result = server_builder
-            .serve_with_incoming_shutdown(
-                TcpListenerStream::new(listener),
-                shutdown_token_for_server.cancelled(),
+    let server_handle = if let Some(tls_config) = config.tls_config() {
+        // TLS case
+        let cert = std::fs::read_to_string(tls_config.cert()).map_err(|e| {
+            anyhow::anyhow!(
+                "failed to read TLS cert file '{}': {}",
+                tls_config.cert(),
+                e
             )
-            .await;
+        })?;
+        let key = std::fs::read_to_string(tls_config.key()).map_err(|e| {
+            anyhow::anyhow!("failed to read TLS key file '{}': {}", tls_config.key(), e)
+        })?;
 
-        tracing::info!("gRPC server shutdown completed");
-        result
-    });
+        let identity = Identity::from_pem(cert, key);
+        let tls = ServerTlsConfig::new().identity(identity);
+
+        tracing::info!("gRPC server TLS enabled");
+
+        let mut router = Server::builder()
+            .tls_config(tls)
+            .map_err(|e| anyhow::anyhow!("failed to configure TLS: {}", e))?
+            .add_service(
+                grpc_ledger_service::ledger_service_server::LedgerServiceServer::new(
+                    ledger_service,
+                ),
+            );
+
+        if let Some(tx_service) = tx_service {
+            router = router.add_service(
+                grpc_tx_service::transaction_execution_service_server::TransactionExecutionServiceServer::new(tx_service),
+            );
+        }
+
+        // Drop the listener since tonic will rebind for TLS
+        drop(listener);
+
+        tokio::spawn(async move {
+            let result = router
+                .serve_with_shutdown(actual_addr, shutdown_token_for_server.cancelled())
+                .await;
+            tracing::info!("gRPC server shutdown completed");
+            result
+        })
+    } else {
+        // Non-TLS case
+        let mut router = Server::builder().add_service(
+            grpc_ledger_service::ledger_service_server::LedgerServiceServer::new(ledger_service),
+        );
+
+        if let Some(tx_service) = tx_service {
+            router = router.add_service(
+                grpc_tx_service::transaction_execution_service_server::TransactionExecutionServiceServer::new(tx_service),
+            );
+        }
+
+        tokio::spawn(async move {
+            let result = router
+                .serve_with_incoming_shutdown(
+                    TcpListenerStream::new(listener),
+                    shutdown_token_for_server.cancelled(),
+                )
+                .await;
+            tracing::info!("gRPC server shutdown completed");
+            result
+        })
+    };
 
     Ok(GrpcServerHandle {
         server_handle,

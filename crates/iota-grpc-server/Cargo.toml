@@ -22,7 +22,7 @@ tap.workspace = true
 tokio = { workspace = true, features = ["rt-multi-thread"] }
 tokio-stream.workspace = true
 tokio-util.workspace = true
-tonic.workspace = true
+tonic = { workspace = true, features = ["tls-ring"] }
 tracing.workspace = true
 
 # internal dependencies
