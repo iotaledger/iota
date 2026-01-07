@@ -110,11 +110,11 @@ pub async fn start_grpc_server(
         actual_addr
     );
 
-    // Spawn the server task with graceful shutdown
-    // TLS and non-TLS cases require different types, so we handle them separately
-    let shutdown_token_for_server = shutdown_token.clone();
-    let server_handle = if let Some(tls_config) = config.tls_config() {
-        // TLS case
+    // Build the router with services (common for both TLS and non-TLS)
+    let mut router_builder = Server::builder();
+
+    // Configure TLS if enabled
+    if let Some(tls_config) = config.tls_config() {
         let cert = std::fs::read_to_string(tls_config.cert()).map_err(|e| {
             anyhow::anyhow!(
                 "failed to read TLS cert file '{}': {}",
@@ -131,22 +131,28 @@ pub async fn start_grpc_server(
 
         tracing::info!("gRPC server TLS enabled");
 
-        let mut router = Server::builder()
+        router_builder = router_builder
             .tls_config(tls)
-            .map_err(|e| anyhow::anyhow!("failed to configure TLS: {}", e))?
-            .add_service(
-                grpc_ledger_service::ledger_service_server::LedgerServiceServer::new(
-                    ledger_service,
-                ),
-            );
+            .map_err(|e| anyhow::anyhow!("failed to configure TLS: {}", e))?;
+    }
 
-        if let Some(tx_service) = tx_service {
-            router = router.add_service(
-                grpc_tx_service::transaction_execution_service_server::TransactionExecutionServiceServer::new(tx_service),
-            );
-        }
+    // Add services to the router
+    let mut router = router_builder.add_service(
+        grpc_ledger_service::ledger_service_server::LedgerServiceServer::new(ledger_service),
+    );
 
-        // Drop the listener since tonic will rebind for TLS
+    if let Some(tx_service) = tx_service {
+        router = router.add_service(
+            grpc_tx_service::transaction_execution_service_server::TransactionExecutionServiceServer::new(tx_service),
+        );
+    }
+
+    // Spawn the server task with graceful shutdown
+    let shutdown_token_for_server = shutdown_token.clone();
+    let server_handle = if config.tls_config().is_some() {
+        // TLS case: tonic needs to control the entire transport stack for TLS,
+        // so we let it handle binding. We drop our pre-bound listener since
+        // tonic will create its own with proper TLS configuration.
         drop(listener);
 
         tokio::spawn(async move {
@@ -157,17 +163,7 @@ pub async fn start_grpc_server(
             result
         })
     } else {
-        // Non-TLS case
-        let mut router = Server::builder().add_service(
-            grpc_ledger_service::ledger_service_server::LedgerServiceServer::new(ledger_service),
-        );
-
-        if let Some(tx_service) = tx_service {
-            router = router.add_service(
-                grpc_tx_service::transaction_execution_service_server::TransactionExecutionServiceServer::new(tx_service),
-            );
-        }
-
+        // Non-TLS case: use the existing listener
         tokio::spawn(async move {
             let result = router
                 .serve_with_incoming_shutdown(
