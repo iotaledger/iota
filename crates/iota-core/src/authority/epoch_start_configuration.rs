@@ -37,11 +37,6 @@ pub trait EpochStartConfigTrait {
             ExecutionCacheType::PassthroughCache
         }
     }
-
-    fn is_data_quarantine_active_from_beginning_of_epoch(&self) -> bool {
-        self.flags()
-            .contains(&EpochFlag::DataQuarantineFromBeginningOfEpoch)
-    }
 }
 
 // IMPORTANT: Assign explicit values to each variant to ensure that the values

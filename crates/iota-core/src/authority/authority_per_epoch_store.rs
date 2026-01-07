@@ -836,15 +836,6 @@ impl AuthorityEpochTables {
             .safe_iter()
             .collect::<Result<_, _>>()?)
     }
-
-    fn get_all_user_signatures_for_checkpoints(
-        &self,
-    ) -> IotaResult<HashMap<TransactionDigest, Vec<GenericSignature>>> {
-        Ok(self
-            .user_signatures_for_checkpoints
-            .safe_iter()
-            .collect::<Result<_, _>>()?)
-    }
 }
 
 pub(crate) const MUTEX_TABLE_SIZE: usize = 1024;
@@ -977,8 +968,7 @@ impl AuthorityPerEpochStore {
 
         let jwk_aggregator = Mutex::new(jwk_aggregator);
 
-        let consensus_output_cache =
-            ConsensusOutputCache::new(&epoch_start_configuration, &tables, metrics.clone());
+        let consensus_output_cache = ConsensusOutputCache::new(&tables, metrics.clone());
 
         let s = Arc::new(Self {
             name,
@@ -4118,20 +4108,14 @@ impl AuthorityPerEpochStore {
         &self,
         last: Option<CheckpointHeight>,
     ) -> IotaResult<Vec<(CheckpointHeight, PendingCheckpoint)>> {
-        let db_results = if !self
-            .epoch_start_config()
-            .is_data_quarantine_active_from_beginning_of_epoch()
-        {
-            // Reading from the db table is only needed when upgrading to data quarantining
-            // for the first time.
-            let tables = self.tables()?;
-            let db_iter = tables
-                .pending_checkpoints
-                .safe_iter_with_bounds(last.map(|height| height + 1), None);
-            db_iter.collect::<Result<Vec<(CheckpointHeight, PendingCheckpoint)>, _>>()?
-        } else {
-            vec![]
-        };
+        // Reading from the db table is only needed when upgrading to data quarantining
+        // for the first time.
+        let tables = self.tables()?;
+        let db_iter = tables
+            .pending_checkpoints
+            .safe_iter_with_bounds(last.map(|height| height + 1), None);
+        let db_results =
+            db_iter.collect::<Result<Vec<(CheckpointHeight, PendingCheckpoint)>, _>>()?;
 
         let mut quarantine_results = self
             .consensus_quarantine
