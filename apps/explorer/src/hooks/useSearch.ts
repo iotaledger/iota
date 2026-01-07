@@ -18,10 +18,36 @@ import {
 } from '@iota/iota-sdk/utils';
 import { type UseQueryResult, useQuery } from '@tanstack/react-query';
 import { useNetwork } from './useNetwork';
+import { type IdentityClientReadOnly } from '@iota/identity-wasm/web';
+import { useFeatureIsOn } from '@growthbook/growthbook-react';
+import { tryDIDParse } from '~/lib/utils/trust-framework/identity';
+import { useIdentityClient } from '~/contexts';
 
 const isGenesisLibAddress = (value: string): boolean => /^(0x|0X)0{0,39}[12]$/.test(value);
 
 type Results = { id: string; label: string; type: string }[];
+
+const getResultsForDid = async (
+    identityClient: IdentityClientReadOnly | null,
+    isIdentityEnabled: boolean,
+    query: string,
+): Promise<Results | null> => {
+    if (identityClient == null) return null; // client not available
+    if (!isIdentityEnabled) return null; // feature flag disabled
+
+    const did = await tryDIDParse(query);
+    if (did == null) return null; // invalid did parsing
+
+    const didDocument = await identityClient.resolveDid(did!);
+
+    return [
+        {
+            id: didDocument.id().toString(),
+            label: didDocument.id().toString(),
+            type: 'did',
+        },
+    ];
+};
 
 const getResultsForTransaction = async (
     client: IotaClient,
@@ -174,11 +200,13 @@ const getResultsForValidatorByPoolIdOrIotaAddress = async (
 
 export function useSearch(query: string): UseQueryResult<Results, Error> {
     const client = useIotaClient();
+    const identityClient = useIdentityClient();
     const { data: systemStateSummary } = useIotaClientQuery('getLatestIotaSystemState');
     const [networkId] = useNetwork();
     const network = getNetwork(networkId).id;
 
     const isNamesEnabled = useFeatureEnabledByNetwork(Feature.IotaNames, network);
+    const isTFIdentityEnabled = useFeatureIsOn(Feature.ExplorerTFIdentity as string);
     const { iotaNamesClient } = useIotaNamesClient();
 
     return useQuery<Results, Error>({
@@ -192,6 +220,7 @@ export function useSearch(query: string): UseQueryResult<Results, Error> {
                     getResultsForAddress(client, query, isNamesEnabled, iotaNamesClient),
                     getResultsForObject(client, query),
                     getResultsForValidatorByPoolIdOrIotaAddress(systemStateSummary || null, query),
+                    getResultsForDid(identityClient, isTFIdentityEnabled, query),
                 ])
             ).filter(
                 (r) => r.status === 'fulfilled' && r.value,

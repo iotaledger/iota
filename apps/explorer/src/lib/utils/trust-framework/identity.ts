@@ -21,3 +21,12 @@ export const initIdentityWasmWeb = async (): Promise<void> => {
     }
     return initPromise;
 };
+
+export async function tryDIDParse(didCandidate: string): Promise<identity.IotaDID | null> {
+    try {
+        await initIdentityWasmWeb();
+        return identity.IotaDID.parse(didCandidate);
+    } catch {
+        return null;
+    }
+}
