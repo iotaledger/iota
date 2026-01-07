@@ -10,7 +10,7 @@ use std::{
 use fastcrypto::{hash::HashFunction, traits::EncodeDecodeBase64};
 use iota_keys::{
     key_derive::generate_new_key,
-    keystore::{AccountKeystore, Alias, FileBasedKeystore, InMemKeystore, Keystore, LegacyAlias},
+    keystore::{AccountKeystore, FileBasedKeystore, InMemKeystore, Keystore, LegacyAlias},
 };
 use iota_types::{
     base_types::{IOTA_ADDRESS_LENGTH, IotaAddress},
