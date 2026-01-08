@@ -47,7 +47,6 @@ impl LeaderSchedule {
         }
     }
 
-
     #[cfg(test)]
     pub(crate) fn with_num_commits_per_schedule(mut self, num_commits_per_schedule: u64) -> Self {
         self.num_commits_per_schedule = num_commits_per_schedule;
@@ -284,11 +283,16 @@ impl LeaderSchedule {
             dag_state.add_commit_info(reputation_scores.clone());
         }
 
-        let table = LeaderSwapTable::new(self.context.clone(), range_end, reputation_scores.clone());
-        tracing::info!(
+        let table =
+            LeaderSwapTable::new(self.context.clone(), range_end, reputation_scores.clone());
+        tracing::debug!(
             "[AUTH {}] New LeaderSwapTable from fast sync: good_nodes={:?}, bad_nodes={:?}",
             self.context.own_index,
-            table.good_nodes.iter().map(|(i, _, _)| i).collect::<Vec<_>>(),
+            table
+                .good_nodes
+                .iter()
+                .map(|(i, _, _)| i)
+                .collect::<Vec<_>>(),
             table.bad_nodes.keys().collect::<Vec<_>>()
         );
 
@@ -327,11 +331,15 @@ impl LeaderSchedule {
         }
         drop(read);
 
-        tracing::info!(
+        tracing::debug!(
             "[AUTH {}] Normal update LeaderSwapTable: commit_range={:?}, good_nodes={:?}, bad_nodes={:?}",
             self.context.own_index,
             new_commit_range,
-            table.good_nodes.iter().map(|(i, _, _)| i).collect::<Vec<_>>(),
+            table
+                .good_nodes
+                .iter()
+                .map(|(i, _, _)| i)
+                .collect::<Vec<_>>(),
             table.bad_nodes.keys().collect::<Vec<_>>()
         );
 

@@ -1005,9 +1005,10 @@ mod tests {
         (authority, receiver, consensus_consumer_monitor)
     }
 
-    /// Test that FastCommitSyncer does not cause consensus divergence after restart.
-    /// Verifies that all authorities agree on the same commit sequence (digest and leader)
-    /// even when one authority uses fast sync to catch up after crashes.
+    /// Test that FastCommitSyncer does not cause consensus divergence after
+    /// restart. Verifies that all authorities agree on the same commit
+    /// sequence (digest and leader) even when one authority uses fast sync
+    /// to catch up after crashes.
     #[tokio::test(flavor = "current_thread")]
     async fn test_fast_commit_syncer_on_restart() {
         telemetry_subscribers::init_for_testing();
@@ -1035,8 +1036,11 @@ mod tests {
         let mut output_receivers = Vec::with_capacity(NUM_AUTHORITIES);
 
         use std::collections::HashMap;
-        use crate::commit::{CommitDigest, CommitIndex};
-        use crate::block_header::BlockRef;
+
+        use crate::{
+            block_header::BlockRef,
+            commit::{CommitDigest, CommitIndex},
+        };
         let mut authority_commits: Vec<HashMap<CommitIndex, (CommitDigest, BlockRef)>> =
             vec![HashMap::new(); NUM_AUTHORITIES];
 
@@ -1071,7 +1075,7 @@ mod tests {
 
         // Drain receivers during initial operation to track commits
         let start_time = Instant::now();
-        let mut initial_committed_index = vec![0u32; NUM_AUTHORITIES];
+        let mut initial_committed_index = [0u32; NUM_AUTHORITIES];
         while start_time.elapsed() < stable_work_duration_time {
             for (index, receiver) in output_receivers.iter_mut().enumerate() {
                 while let Ok(committed_subdag) = receiver.try_recv() {
@@ -1084,18 +1088,14 @@ mod tests {
             }
             sleep(Duration::from_millis(50)).await;
         }
-        eprintln!("\n=== INITIAL OPERATION (10s) ===");
-        eprintln!("initial_committed_index (all authorities): {:?}", initial_committed_index);
 
         // First crash: stop authority 0
         let stopped_index: usize = 0;
-        eprintln!("\n=== PHASE 1: FIRST CRASH ===");
-        eprintln!("Authority 0 highest_handled_commit before stop: {}", consumer_monitors[stopped_index].highest_handled_commit());
         authorities.remove(stopped_index).stop().await;
 
         // Drain other authorities while authority 0 is stopped
         let start_time = Instant::now();
-        let mut commits_while_stopped = vec![0u32; NUM_AUTHORITIES];
+        let mut commits_while_stopped = [0u32; NUM_AUTHORITIES];
         while start_time.elapsed() < stable_work_duration_time {
             for (index, receiver) in output_receivers.iter_mut().enumerate() {
                 if index == stopped_index {
@@ -1111,13 +1111,10 @@ mod tests {
             }
             sleep(Duration::from_millis(50)).await;
         }
-        eprintln!("\n=== WHILE AUTH 0 STOPPED (10s) ===");
-        eprintln!("commits_while_stopped (other authorities): {:?}", commits_while_stopped);
 
         // First recovery: restart authority 0
-        let last_processed_before_restart = consumer_monitors[stopped_index].highest_handled_commit();
-        eprintln!("\n=== PHASE 2: FIRST RECOVERY ===");
-        eprintln!("last_processed_before_restart: {}", last_processed_before_restart);
+        let last_processed_before_restart =
+            consumer_monitors[stopped_index].highest_handled_commit();
         let parameters = Parameters {
             db_path: temp_dirs[stopped_index].path().to_path_buf(),
             dag_state_cached_rounds: 5,
@@ -1145,8 +1142,8 @@ mod tests {
         authorities.insert(stopped_index, authority);
 
         // Wait for authority 0 to catch up after first recovery
-        let mut last_committed_index = vec![0; NUM_AUTHORITIES];
-        let mut last_round_committed_blocks = vec![0; NUM_AUTHORITIES];
+        let mut last_committed_index = [0; NUM_AUTHORITIES];
+        let mut last_round_committed_blocks = [0; NUM_AUTHORITIES];
         let start_time = Instant::now();
         let max_wait = Duration::from_secs(120);
         loop {
@@ -1193,10 +1190,6 @@ mod tests {
         }
 
         let max_round_first = *last_round_committed_blocks.iter().max().unwrap();
-        eprintln!("\n=== AFTER FIRST RECOVERY CAUGHT UP ===");
-        eprintln!("last_committed_index (all authorities): {:?}", last_committed_index);
-        eprintln!("last_round_committed_blocks (all authorities): {:?}", last_round_committed_blocks);
-        eprintln!("max_round_first: {}", max_round_first);
         assert!(
             last_round_committed_blocks[stopped_index] > 0,
             "Authority should have created blocks after first fast sync"
@@ -1208,7 +1201,7 @@ mod tests {
 
         // Drain receivers during normal operation after first recovery
         let start_time = Instant::now();
-        let mut commits_after_first_recovery = vec![0u32; NUM_AUTHORITIES];
+        let mut commits_after_first_recovery = [0u32; NUM_AUTHORITIES];
         while start_time.elapsed() < stable_work_duration_time {
             for (index, receiver) in output_receivers.iter_mut().enumerate() {
                 while let Ok(committed_subdag) = receiver.try_recv() {
@@ -1221,17 +1214,13 @@ mod tests {
             }
             sleep(Duration::from_millis(50)).await;
         }
-        eprintln!("\n=== NORMAL OPERATION AFTER FIRST RECOVERY (10s) ===");
-        eprintln!("commits_after_first_recovery (all authorities): {:?}", commits_after_first_recovery);
 
         // Second crash: stop authority 0 again
-        eprintln!("\n=== PHASE 3: SECOND CRASH ===");
-        eprintln!("Authority 0 highest_handled_commit before second stop: {}", consumer_monitors[stopped_index].highest_handled_commit());
         authorities.remove(stopped_index).stop().await;
 
         // Drain other authorities while authority 0 is stopped (second time)
         let start_time = Instant::now();
-        let mut commits_while_stopped_2 = vec![0u32; NUM_AUTHORITIES];
+        let mut commits_while_stopped_2 = [0u32; NUM_AUTHORITIES];
         while start_time.elapsed() < stable_work_duration_time {
             for (index, receiver) in output_receivers.iter_mut().enumerate() {
                 if index == stopped_index {
@@ -1247,13 +1236,10 @@ mod tests {
             }
             sleep(Duration::from_millis(50)).await;
         }
-        eprintln!("\n=== WHILE AUTH 0 STOPPED SECOND TIME (10s) ===");
-        eprintln!("commits_while_stopped_2 (other authorities): {:?}", commits_while_stopped_2);
 
         // Second recovery: restart authority 0 again
-        let last_processed_before_second_restart = consumer_monitors[stopped_index].highest_handled_commit();
-        eprintln!("\n=== PHASE 4: SECOND RECOVERY ===");
-        eprintln!("last_processed_before_second_restart: {}", last_processed_before_second_restart);
+        let last_processed_before_second_restart =
+            consumer_monitors[stopped_index].highest_handled_commit();
 
         let parameters = Parameters {
             db_path: temp_dirs[stopped_index].path().to_path_buf(),
@@ -1337,18 +1323,12 @@ mod tests {
             authority.stop().await;
         }
 
-        eprintln!("\n=== FINAL STATE AFTER SECOND RECOVERY ===");
-        eprintln!("last_committed_index (all authorities): {:?}", last_committed_index);
-        eprintln!("last_round_committed_blocks (all authorities): {:?}", last_round_committed_blocks);
-        eprintln!("round_before_second_sync: {}", round_before_second_sync);
-
         // Verify authority 0 made progress and caught up after second recovery
         assert!(
             last_round_committed_blocks[stopped_index] > round_before_second_sync,
             "Authority should have created new blocks after second fast sync"
         );
         let max_round = *last_round_committed_blocks.iter().max().unwrap();
-        eprintln!("max_round (final): {}", max_round);
         assert!(
             last_round_committed_blocks[stopped_index] + SECOND_RECOVERY_THRESHOLD >= max_round,
             "Authority should be caught up after second fast sync"

@@ -531,7 +531,8 @@ impl Core {
     ///
     /// This method follows a similar flow to `try_commit`:
     /// 1. Store commits and transactions in DagState
-    /// 2. For commits with reputation scores, update leader schedule and store CommitInfo
+    /// 2. For commits with reputation scores, update leader schedule and store
+    ///    CommitInfo
     /// 3. Flush to storage
     /// 4. Process subdags via commit_observer
     ///
@@ -560,11 +561,13 @@ impl Core {
                 }
             }
 
-            // Note: We intentionally do NOT call add_scoring_subdags() here because
-            // during fast sync, CommittedSubDag.headers is empty (we only have
-            // committed_header_refs). The scoring_subdag would get corrupted with
-            // leaders but no votes, leading to incorrect score calculations.
-            // Instead, we use the reputation_scores embedded in the commits directly.
+            // Note: We intentionally do NOT call add_scoring_subdags() here
+            // because during fast sync, CommittedSubDag.headers is
+            // empty (we only have committed_header_refs). The
+            // scoring_subdag would get corrupted with leaders but
+            // no votes, leading to incorrect score calculations.
+            // Instead, we use the reputation_scores embedded in the commits
+            // directly.
         }
 
         // Update leader schedule for commits with reputation scores.

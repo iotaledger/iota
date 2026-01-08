@@ -241,7 +241,7 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
             // When the node is falling behind, schedule pending fetches which will be
             // executed on later.
 
-            info!(
+            debug!(
                 "[{}] Checking to schedule fetches: synced_commit_index={}, highest_handled_index={}, highest_scheduled_index={}, quorum_commit_index={}, unhandled_commits_threshold={}, fetch_after_index={}, step={}",
                 self.inner.sync_type.as_str(),
                 self.synced_commit_index,
@@ -274,7 +274,7 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
                     );
                     break;
                 }
-                info!(
+                debug!(
                     "[{}] Scheduling fetch for commit range {}..={}",
                     self.inner.sync_type.as_str(),
                     range_start,
@@ -305,7 +305,7 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
             if remaining_gap > 0 && remaining_gap < step {
                 let range_start = current_fetch_after + 1;
                 let range_end = quorum_commit_index;
-                info!(
+                debug!(
                     "[{}] Scheduling final partial fetch for commit range {}..={} (remaining_gap={})",
                     self.inner.sync_type.as_str(),
                     range_start,

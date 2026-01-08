@@ -177,7 +177,8 @@ impl CommitObserver {
             .get_transaction_ack_authors(missing_transactions);
 
         // Send solid subdags using the common function
-        // (flush will happen inside handle_committed_sub_dags_internal after updating GC round)
+        // (flush will happen inside handle_committed_sub_dags_internal after updating
+        // GC round)
         self.handle_committed_sub_dags_internal(&pending_sub_dags, solid_sub_dags, source)?;
 
         Ok((pending_sub_dags, missing_transaction_acknowledgers))
