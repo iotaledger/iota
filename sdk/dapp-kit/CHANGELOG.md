@@ -1,5 +1,11 @@
 # @iota/dapp-kit
 
+## 0.8.2
+
+### Patch Changes
+
+-   0b1784d: update names package
+
 ## 0.8.1
 
 ### Patch Changes
