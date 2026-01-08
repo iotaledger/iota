@@ -209,13 +209,6 @@ pub(crate) trait NetworkService: Send + Sync + 'static {
         authorities: Vec<AuthorityIndex>,
     ) -> ConsensusResult<Vec<Bytes>>;
 
-    /// Handles the request to get the latest received & accepted rounds of all
-    /// authorities.
-    async fn handle_get_latest_rounds(
-        &self,
-        peer: AuthorityIndex,
-    ) -> ConsensusResult<(Vec<Round>, Vec<Round>)>;
-
     /// Handles the request to fetch transactions by references from the peer.
     /// The `fetch_mode` parameter controls whether results should be truncated
     /// to respect maximum transaction limits.
