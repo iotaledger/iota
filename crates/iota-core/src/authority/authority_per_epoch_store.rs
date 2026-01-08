@@ -4108,29 +4108,10 @@ impl AuthorityPerEpochStore {
         &self,
         last: Option<CheckpointHeight>,
     ) -> IotaResult<Vec<(CheckpointHeight, PendingCheckpoint)>> {
-        // Reading from the db table is only needed when upgrading to data quarantining
-        // for the first time.
-        let tables = self.tables()?;
-        let db_iter = tables
-            .pending_checkpoints
-            .safe_iter_with_bounds(last.map(|height| height + 1), None);
-        let db_results =
-            db_iter.collect::<Result<Vec<(CheckpointHeight, PendingCheckpoint)>, _>>()?;
-
-        let mut quarantine_results = self
+        Ok(self
             .consensus_quarantine
             .read()
-            .get_pending_checkpoints(last);
-
-        // retain only the checkpoints with heights greater than the highest height in
-        // the db
-        if let Some(db_highest_height) = db_results.last().map(|(h, _)| h) {
-            quarantine_results.retain(|(h, _)| h > db_highest_height);
-        }
-
-        let mut db_results = db_results;
-        db_results.extend(quarantine_results);
-        Ok(db_results)
+            .get_pending_checkpoints(last))
     }
 
     pub fn pending_checkpoint_exists(&self, index: &CheckpointHeight) -> IotaResult<bool> {
