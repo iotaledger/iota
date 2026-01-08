@@ -28,10 +28,6 @@ export default defineConfig({
                         'node_modules/@iota/identity-wasm/web/identity_wasm_bg.wasm',
                         'public/identity_wasm_bg.wasm',
                     );
-                    copyFileSync(
-                        'node_modules/@iota/sdk-wasm/web/wasm/iota_sdk_wasm_bg.wasm',
-                        'public/iota_sdk_wasm_bg.wasm',
-                    );
                 } catch (error) {
                     console.warn('Could not copy WASM files:', error);
                 }
