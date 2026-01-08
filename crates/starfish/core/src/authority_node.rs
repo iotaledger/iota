@@ -390,7 +390,8 @@ mod tests {
 
     use super::*;
     use crate::{
-        CommittedSubDag, block_header::GENESIS_ROUND, transaction::NoopTransactionVerifier,
+        CommittedSubDag, block_header::GENESIS_ROUND, commit::CommitIndex,
+        transaction::NoopTransactionVerifier,
     };
 
     #[rstest]
@@ -968,6 +969,7 @@ mod tests {
         boot_counter: u64,
         protocol_config: ProtocolConfig,
         parameters: Parameters,
+        last_processed_commit_index: CommitIndex,
     ) -> (
         ConsensusAuthority,
         UnboundedReceiver<CommittedSubDag>,
@@ -980,7 +982,7 @@ mod tests {
         let network_keypair = keypairs[index].0.clone();
 
         let (sender, receiver) = unbounded_channel("consensus_output");
-        let commit_consumer = CommitConsumer::new(sender, 0);
+        let commit_consumer = CommitConsumer::new(sender, last_processed_commit_index);
 
         let consensus_consumer_monitor = commit_consumer.monitor();
 
@@ -1003,18 +1005,20 @@ mod tests {
         (authority, receiver, consensus_consumer_monitor)
     }
 
-    /// Test that FastCommitSyncer activates when a node restarts with a large
-    /// commit gap. This test is for log analysis - observe logs to verify
-    /// gap-based syncer selection.
+    /// Test that FastCommitSyncer does not cause consensus divergence after restart.
+    /// Verifies that all authorities agree on the same commit sequence (digest and leader)
+    /// even when one authority uses fast sync to catch up after crashes.
     #[tokio::test(flavor = "current_thread")]
     async fn test_fast_commit_syncer_on_restart() {
-        let _guards = telemetry_subscribers::TelemetryConfig::new()
-            .with_log_level("debug")
-            .init();
+        telemetry_subscribers::init_for_testing();
         let db_registry = Registry::new();
         DBMetrics::init(&db_registry);
 
-        const NUM_AUTHORITIES: usize = 4;
+        const NUM_AUTHORITIES: usize = 8;
+        const COMMIT_GAP_THRESHOLD: u32 = 50;
+        const CATCH_UP_THRESHOLD: u32 = 50;
+        const SECOND_RECOVERY_THRESHOLD: u32 = 200;
+
         let (committee, keypairs) = local_committee_and_keys(0, vec![1; NUM_AUTHORITIES]);
         let mut protocol_config = ProtocolConfig::get_for_max_version_UNSAFE();
         protocol_config.set_consensus_transaction_ref_for_testing(true);
@@ -1024,18 +1028,24 @@ mod tests {
             .collect();
 
         let mut authorities = Vec::with_capacity(NUM_AUTHORITIES);
-        let mut boot_counters = [0u64; NUM_AUTHORITIES];
+        let mut boot_counters = vec![0u64; NUM_AUTHORITIES];
         let mut consumer_monitors = Vec::with_capacity(NUM_AUTHORITIES);
         let mut output_receivers = Vec::with_capacity(NUM_AUTHORITIES);
 
-        // Start all authorities with low gap threshold (50 commits)
+        use std::collections::HashMap;
+        use crate::commit::{CommitDigest, CommitIndex};
+        use crate::block_header::BlockRef;
+        let mut authority_commits: Vec<HashMap<CommitIndex, (CommitDigest, BlockRef)>> =
+            vec![HashMap::new(); NUM_AUTHORITIES];
+
+        // Start all authorities
         for (index, _) in committee.authorities() {
             let parameters = Parameters {
                 db_path: temp_dirs[index.value()].path().to_path_buf(),
                 dag_state_cached_rounds: 5,
                 commit_sync_parallel_fetches: 2,
                 commit_sync_batch_size: 10,
-                commit_sync_gap_threshold: 50,
+                commit_sync_gap_threshold: COMMIT_GAP_THRESHOLD,
                 fast_commit_sync_batch_size: 20,
                 sync_last_known_own_block_timeout: Duration::from_millis(2_000),
                 ..Default::default()
@@ -1048,6 +1058,7 @@ mod tests {
                 boot_counters[index],
                 protocol_config.clone(),
                 parameters,
+                0,
             )
             .await;
             boot_counters[index] += 1;
@@ -1056,28 +1067,21 @@ mod tests {
             consumer_monitors.push(monitor);
         }
 
-        tracing::info!("All authorities started. Running for 3 minutes to accumulate commits...");
-
-        // Let network run for some time to accumulate commits
         sleep(Duration::from_secs(10)).await;
 
-        // Stop authority 0
+        // First crash: stop authority 0
         let stopped_index: usize = 0;
-        tracing::info!("Stopping authority {stopped_index}...");
         authorities.remove(stopped_index).stop().await;
-
-        // Wait more to widen gap
-        tracing::info!("Waiting 10 seconds to widen the commit gap...");
         sleep(Duration::from_secs(10)).await;
 
-        // Restart the stopped authority
-        tracing::info!("Restarting authority {stopped_index}. FastCommitSyncer should activate...");
+        // First recovery: restart authority 0
+        let last_processed_before_restart = consumer_monitors[stopped_index].highest_handled_commit();
         let parameters = Parameters {
             db_path: temp_dirs[stopped_index].path().to_path_buf(),
             dag_state_cached_rounds: 5,
             commit_sync_parallel_fetches: 2,
             commit_sync_batch_size: 10,
-            commit_sync_gap_threshold: 50,
+            commit_sync_gap_threshold: COMMIT_GAP_THRESHOLD,
             fast_commit_sync_batch_size: 20,
             sync_last_known_own_block_timeout: Duration::from_millis(2_000),
             ..Default::default()
@@ -1090,6 +1094,7 @@ mod tests {
             boot_counters[stopped_index],
             protocol_config.clone(),
             parameters,
+            last_processed_before_restart,
         )
         .await;
         boot_counters[stopped_index] += 1;
@@ -1097,15 +1102,11 @@ mod tests {
         consumer_monitors[stopped_index] = monitor;
         authorities.insert(stopped_index, authority);
 
-        // First recovery: Let authority 0 catch up and create blocks
-        // Wait until authority 0 is within 50 rounds of other authorities (or timeout
-        // after 120s)
-        tracing::info!("=== First recovery: waiting for authority 0 to catch up ===");
-        let mut last_committed_index = [0; NUM_AUTHORITIES];
-        let mut last_round_committed_blocks = [0; NUM_AUTHORITIES];
+        // Wait for authority 0 to catch up after first recovery
+        let mut last_committed_index = vec![0; NUM_AUTHORITIES];
+        let mut last_round_committed_blocks = vec![0; NUM_AUTHORITIES];
         let start_time = Instant::now();
         let max_wait = Duration::from_secs(120);
-        let catch_up_threshold = 50;
         loop {
             if start_time.elapsed() > max_wait {
                 break;
@@ -1126,7 +1127,11 @@ mod tests {
                         }
 
                         let commit_index = committed_subdag.commit_ref.index;
-                        // Only update if this is a new commit (handles replay during recovery)
+                        let commit_digest = committed_subdag.commit_ref.digest;
+                        let leader = committed_subdag.leader;
+
+                        authority_commits[index].insert(commit_index, (commit_digest, leader));
+
                         if commit_index > last_committed_index[index] {
                             last_committed_index[index] = commit_index;
                             consumer_monitors[index].set_highest_handled_commit(commit_index);
@@ -1136,70 +1141,40 @@ mod tests {
                     }
                 }
             }
-            // Check if authority 0 has caught up
+
             let max_round = *last_round_committed_blocks.iter().max().unwrap_or(&0);
             if last_round_committed_blocks[stopped_index] > 0
-                && last_round_committed_blocks[stopped_index] + catch_up_threshold >= max_round
+                && last_round_committed_blocks[stopped_index] + CATCH_UP_THRESHOLD >= max_round
             {
-                tracing::info!(
-                    "Authority {} caught up: round {} vs max {}",
-                    stopped_index,
-                    last_round_committed_blocks[stopped_index],
-                    max_round
-                );
                 break;
             }
         }
 
-        // Verify authority 0 caught up after first fast sync
-        tracing::info!(
-            "After first recovery - Last committed block rounds per authority: {:?}",
-            last_round_committed_blocks
-        );
         let max_round_first = *last_round_committed_blocks.iter().max().unwrap();
         assert!(
             last_round_committed_blocks[stopped_index] > 0,
-            "Authority {} should have created blocks after first fast sync",
-            stopped_index
+            "Authority should have created blocks after first fast sync"
         );
         assert!(
-            last_round_committed_blocks[stopped_index] + catch_up_threshold >= max_round_first,
-            "Authority {} should be caught up after first fast sync. Its round {} is too far behind max {}",
-            stopped_index,
-            last_round_committed_blocks[stopped_index],
-            max_round_first
+            last_round_committed_blocks[stopped_index] + CATCH_UP_THRESHOLD >= max_round_first,
+            "Authority should be caught up after first fast sync"
         );
 
-        // Let the validator operate for a while to ensure sufficient data is written to
-        // storage. This helps ensure proper initialization on the next restart.
-        tracing::info!(
-            "Letting authority {} operate for 10 seconds before second crash...",
-            stopped_index
-        );
         sleep(Duration::from_secs(10)).await;
 
-        // === Second crash: Stop authority 0 again ===
-        tracing::info!(
-            "=== Second crash: Stopping authority {} again ===",
-            stopped_index
-        );
+        // Second crash: stop authority 0 again
         authorities.remove(stopped_index).stop().await;
-
-        // Wait to widen gap again
-        tracing::info!("Waiting 10 seconds to widen the commit gap again...");
         sleep(Duration::from_secs(10)).await;
 
-        // === Second recovery: Restart authority 0 again ===
-        tracing::info!(
-            "=== Second recovery: Restarting authority {}. FastCommitSyncer should activate again ===",
-            stopped_index
-        );
+        // Second recovery: restart authority 0 again
+        let last_processed_before_second_restart = consumer_monitors[stopped_index].highest_handled_commit();
+
         let parameters = Parameters {
             db_path: temp_dirs[stopped_index].path().to_path_buf(),
             dag_state_cached_rounds: 5,
             commit_sync_parallel_fetches: 2,
             commit_sync_batch_size: 10,
-            commit_sync_gap_threshold: 50,
+            commit_sync_gap_threshold: COMMIT_GAP_THRESHOLD,
             fast_commit_sync_batch_size: 20,
             sync_last_known_own_block_timeout: Duration::from_millis(2_000),
             ..Default::default()
@@ -1212,6 +1187,7 @@ mod tests {
             boot_counters[stopped_index],
             protocol_config.clone(),
             parameters,
+            last_processed_before_second_restart,
         )
         .await;
         boot_counters[stopped_index] += 1;
@@ -1219,12 +1195,7 @@ mod tests {
         consumer_monitors[stopped_index] = monitor;
         authorities.insert(stopped_index, authority);
 
-        // Second recovery: Let authority 0 catch up again
-        // Wait until authority 0 is within 50 rounds of other authorities (or timeout
-        // after 120s)
-        tracing::info!("=== Second recovery: waiting for authority 0 to catch up again ===");
-        // Reset tracking for the stopped authority since it will replay commits from
-        // recovery
+        // Wait for authority 0 to catch up after second recovery
         let round_before_second_sync = last_round_committed_blocks[stopped_index];
         last_committed_index[stopped_index] = 0;
         let start_time = Instant::now();
@@ -1248,6 +1219,12 @@ mod tests {
                         }
 
                         let commit_index = committed_subdag.commit_ref.index;
+                        let commit_digest = committed_subdag.commit_ref.digest;
+                        let leader = committed_subdag.leader;
+
+                        // Track this commit
+                        authority_commits[index].insert(commit_index, (commit_digest, leader));
+
                         // Only update if this is a new commit (handles replay during recovery)
                         if commit_index > last_committed_index[index] {
                             last_committed_index[index] = commit_index;
@@ -1258,65 +1235,78 @@ mod tests {
                     }
                 }
             }
-            // Check if authority 0 has caught up (or made progress)
+
             let max_round = *last_round_committed_blocks.iter().max().unwrap_or(&0);
             let made_progress =
                 last_round_committed_blocks[stopped_index] > round_before_second_sync;
             let is_close =
-                last_round_committed_blocks[stopped_index] + catch_up_threshold >= max_round;
+                last_round_committed_blocks[stopped_index] + CATCH_UP_THRESHOLD >= max_round;
 
-            if made_progress {
-                tracing::info!(
-                    "Authority {} made progress after second sync: round {} (was {}) vs max {}",
-                    stopped_index,
-                    last_round_committed_blocks[stopped_index],
-                    round_before_second_sync,
-                    max_round
-                );
-                if is_close {
-                    tracing::info!(
-                        "Authority {} is close enough to max, breaking early",
-                        stopped_index
-                    );
-                    break;
-                }
+            if made_progress && is_close {
+                break;
             }
         }
 
-        // Stop all authorities
-        tracing::info!("Stopping all authorities...");
         for authority in authorities {
             authority.stop().await;
         }
 
-        tracing::info!(
-            "Test complete. Check logs for [fast_commit_sync] and [commit_sync] messages."
-        );
-
-        // Verify authority 0 created blocks after second fast sync
-        tracing::info!(
-            "After second recovery - Last committed block rounds per authority: {:?}",
-            last_round_committed_blocks
-        );
+        // Verify authority 0 made progress and caught up after second recovery
         assert!(
             last_round_committed_blocks[stopped_index] > round_before_second_sync,
-            "Authority {} should have created new blocks after second fast sync. Round before: {}, after: {}",
-            stopped_index,
-            round_before_second_sync,
-            last_round_committed_blocks[stopped_index]
+            "Authority should have created new blocks after second fast sync"
         );
-
-        // Verify authority 0's last committed block round is reasonably close to other
-        // authorities (within 200 rounds to allow for slower catch-up on second
-        // restart)
-        let second_recovery_threshold = 200;
         let max_round = *last_round_committed_blocks.iter().max().unwrap();
         assert!(
-            last_round_committed_blocks[stopped_index] + second_recovery_threshold >= max_round,
-            "Authority {} should be caught up after second fast sync. Its last round {} is too far behind max round {}",
-            stopped_index,
-            last_round_committed_blocks[stopped_index],
-            max_round
+            last_round_committed_blocks[stopped_index] + SECOND_RECOVERY_THRESHOLD >= max_round,
+            "Authority should be caught up after second fast sync"
+        );
+
+        // Verify commit sequence consistency across all authorities
+        let overall_min = authority_commits
+            .iter()
+            .filter_map(|commits| commits.keys().min())
+            .min()
+            .copied()
+            .unwrap_or(0);
+        let overall_max = authority_commits
+            .iter()
+            .filter_map(|commits| commits.keys().max())
+            .max()
+            .copied()
+            .unwrap_or(0);
+
+        let mut mismatches = Vec::new();
+        for commit_idx in overall_min..=overall_max {
+            let mut commit_data: Vec<(usize, CommitDigest, BlockRef)> = Vec::new();
+            for (auth_idx, commits) in authority_commits.iter().enumerate() {
+                if let Some((digest, leader)) = commits.get(&commit_idx) {
+                    commit_data.push((auth_idx, *digest, *leader));
+                }
+            }
+
+            if commit_data.len() >= 2 {
+                let (first_auth, first_digest, first_leader) = commit_data[0];
+                for &(auth_idx, digest, leader) in &commit_data[1..] {
+                    if digest != first_digest {
+                        mismatches.push(format!(
+                            "Commit {commit_idx} digest mismatch: authority {first_auth} vs {auth_idx}"
+                        ));
+                    }
+                    if leader != first_leader {
+                        mismatches.push(format!(
+                            "Commit {commit_idx} leader mismatch: authority {first_auth} vs {auth_idx}"
+                        ));
+                    }
+                }
+            }
+        }
+
+        assert!(
+            mismatches.is_empty(),
+            "Commit sequence divergence detected - {} mismatches found. \
+            This indicates the fast sync authority has a different leader schedule than other authorities.",
+            mismatches.len()
         );
     }
 }
