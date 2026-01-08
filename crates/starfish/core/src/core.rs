@@ -39,14 +39,13 @@ use crate::{
         VerifiedOwnShard, VerifiedTransactions,
     },
     block_manager::BlockManager,
-    commit::{CertifiedCommits, CommitAPI, CommitRange, PendingSubDag, TrustedCommit},
+    commit::{CertifiedCommits, CommitAPI, PendingSubDag, TrustedCommit},
     commit_observer::{CommitObserver, CommittedSubDagSource},
     context::Context,
     dag_state::{DagState, TransactionSource},
     encoder::{ShardEncoder, create_encoder},
     error::{ConsensusError, ConsensusResult},
     leader_schedule::LeaderSchedule,
-    leader_scoring::ReputationScores,
     stake_aggregator::{QuorumThreshold, StakeAggregator},
     transaction::TransactionConsumer,
     transaction_ref::{GenericTransactionRef, GenericTransactionRefAPI as _},
@@ -530,6 +529,12 @@ impl Core {
     /// subdags. Also updates the leader schedule from commits that contain
     /// reputation scores.
     ///
+    /// This method follows a similar flow to `try_commit`:
+    /// 1. Store commits and transactions in DagState
+    /// 2. For commits with reputation scores, update leader schedule and store CommitInfo
+    /// 3. Flush to storage
+    /// 4. Process subdags via commit_observer
+    ///
     /// Commits must be stored so that recovery/reinitialization can rebuild
     /// the Linearizer's transaction acknowledgment tracker.
     /// Transactions must be stored so they are available for recovery and
@@ -539,21 +544,12 @@ impl Core {
         commits: Vec<TrustedCommit>,
         committed_subdags: Vec<CommittedSubDag>,
     ) -> ConsensusResult<()> {
-        // Track the last commit with reputation scores for commit_info storage
-        let mut last_commit_with_scores: Option<&TrustedCommit> = None;
-
         // First, store commits and transactions in DagState
         {
             let mut dag_state = self.dag_state.write();
-            // TODO: Ensure that we add commits in order
             // Store commits for recovery and track those with reputation scores
             for commit in &commits {
                 dag_state.add_commit(commit.clone());
-
-                // Track the last commit that has reputation scores
-                if !commit.reputation_scores().is_empty() {
-                    last_commit_with_scores = Some(commit);
-                }
             }
 
             // Store transactions for each subdag
@@ -569,40 +565,31 @@ impl Core {
             // committed_header_refs). The scoring_subdag would get corrupted with
             // leaders but no votes, leading to incorrect score calculations.
             // Instead, we use the reputation_scores embedded in the commits directly.
-
-            // Flush commits to storage so they're available for
-            // get_block_refs_for_recent_commits when close-to-quorum mode
-            // triggers header fetching.
-            dag_state.flush();
         }
 
-        // Update leader schedule from commits that have reputation scores.
-        // This ensures correct leader election during fast sync and after recovery.
-        // Also store commit_info so the leader schedule can be recovered from storage.
-        if let Some(commit) = last_commit_with_scores {
-            self.leader_schedule
-                .update_from_commit_scores(commit.index(), commit.reputation_scores());
-
-            // Store commit_info for recovery. The reputation_scores need to be converted
-            // from the commit's format to ReputationScores struct.
-            let commit_index = commit.index();
-            let num_commits_per_schedule = self.leader_schedule.num_commits_per_schedule();
-            let range_end = commit_index;
-            let range_start = commit_index.saturating_sub(num_commits_per_schedule as u32 - 1);
-            let commit_range = CommitRange::new(range_start..=range_end);
-            let reputation_scores = ReputationScores::from_scores_desc(
-                self.context.committee.size(),
-                commit_range,
-                commit.reputation_scores(),
-            );
-
-            // Clear scoring_subdag before adding commit_info, since DagState
-            // initialization may have loaded unscored subdags from storage.
-            // This mirrors what update_leader_schedule does in leader_schedule.rs.
-            let mut dag_state = self.dag_state.write();
-            dag_state.clear_scoring_subdag();
-            dag_state.add_commit_info(reputation_scores);
+        // Update leader schedule for commits with reputation scores.
+        // This mirrors the flow in try_commit where update_leader_schedule is called
+        // when commits_until_update reaches 0.
+        for commit in &commits {
+            let reputation_scores = commit.reputation_scores();
+            if !reputation_scores.is_empty() {
+                // update_from_commit_scores will:
+                // 1. Clear scoring_subdag
+                // 2. Add commit_info to DagState
+                // 3. Update leader swap table
+                // 4. Update metrics
+                self.leader_schedule.update_from_commit_scores(
+                    &self.dag_state,
+                    commit.index(),
+                    reputation_scores,
+                );
+            }
         }
+
+        // Flush commits to storage so they're available for
+        // get_block_refs_for_recent_commits when close-to-quorum mode
+        // triggers header fetching.
+        self.dag_state.write().flush();
 
         // Then process subdags as usual
         self.commit_observer
@@ -645,16 +632,19 @@ impl Core {
             (last_commit_index, threshold_round, last_commit_leader)
         };
 
-        // 5. Reinitialize BlockManager
+        // 5. Reinitialize LeaderSchedule from stored commit info
+        self.leader_schedule.reinitialize(&self.dag_state);
+
+        // 6. Reinitialize BlockManager
         self.block_manager.reinitialize();
 
-        // 6. Update last_decided_leader to match the new DAG state
+        // 7. Update last_decided_leader to match the new DAG state
         self.last_decided_leader = last_commit_leader;
 
-        // 7. Reinitialize CommitObserver with recovery (uses recover_and_send_commits)
+        // 8. Reinitialize CommitObserver with recovery (uses recover_and_send_commits)
         self.commit_observer.reinitialize(last_commit_index);
 
-        // 8. Reset signaling state
+        // 9. Reset signaling state
         self.last_signaled_round = threshold_round.saturating_sub(1);
 
         info!("Components reinitialized successfully");

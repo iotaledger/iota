@@ -6,7 +6,7 @@ use std::{
     sync::Arc,
     time::Duration,
 };
-
+use std::cmp::max;
 use iota_metrics::spawn_logged_monitored_task;
 use parking_lot::RwLock;
 use rand::{prelude::SliceRandom as _, rngs::ThreadRng};
@@ -617,7 +617,9 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
         // Fetch the maximum of the two to satisfy both requirements
         let cached_rounds = inner.context.parameters.dag_state_cached_rounds;
         let gc_depth = inner.context.protocol_config.gc_depth();
-        let num_commits = std::cmp::max(cached_rounds, gc_depth * 2);
+        // TODO: read the leader schedule window from the leader_schedule.rs
+        let leader_schedule_window = crate::leader_schedule::CONSENSUS_COMMITS_PER_SCHEDULE as u32;
+        let num_commits = max(leader_schedule_window, max(cached_rounds, gc_depth * 2));
 
         let max_headers_per_fetch = inner.context.parameters.max_headers_per_commit_sync_fetch;
 

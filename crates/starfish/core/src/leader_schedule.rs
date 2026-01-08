@@ -17,6 +17,14 @@ use crate::{
     leader_scoring::ReputationScores,
 };
 
+/// The window where the schedule change takes place in consensus. It
+/// represents number of committed sub dags.
+/// TODO: move this to protocol config
+#[cfg(not(msim))]
+pub(crate) const CONSENSUS_COMMITS_PER_SCHEDULE: u64 = 300;
+#[cfg(msim)]
+pub(crate) const CONSENSUS_COMMITS_PER_SCHEDULE: u64 = 10;
+
 /// The `LeaderSchedule` is responsible for producing the leader schedule across
 /// an epoch. The leader schedule is subject to change periodically based on
 /// calculated `ReputationScores` of the authorities.
@@ -28,31 +36,19 @@ pub(crate) struct LeaderSchedule {
 }
 
 impl LeaderSchedule {
-    /// The window where the schedule change takes place in consensus. It
-    /// represents number of committed sub dags.
-    /// TODO: move this to protocol config
-    #[cfg(not(msim))]
-    const CONSENSUS_COMMITS_PER_SCHEDULE: u64 = 300;
-    #[cfg(msim)]
-    const CONSENSUS_COMMITS_PER_SCHEDULE: u64 = 10;
-
     pub(crate) fn new(context: Arc<Context>, leader_swap_table: LeaderSwapTable) -> Self {
         Self {
             context,
-            num_commits_per_schedule: Self::CONSENSUS_COMMITS_PER_SCHEDULE,
+            num_commits_per_schedule: CONSENSUS_COMMITS_PER_SCHEDULE,
             leader_swap_table: Arc::new(RwLock::new(leader_swap_table)),
         }
     }
+
 
     #[cfg(test)]
     pub(crate) fn with_num_commits_per_schedule(mut self, num_commits_per_schedule: u64) -> Self {
         self.num_commits_per_schedule = num_commits_per_schedule;
         self
-    }
-
-    /// Returns the number of commits per leader schedule period.
-    pub(crate) fn num_commits_per_schedule(&self) -> u64 {
-        self.num_commits_per_schedule
     }
 
     /// Restores the `LeaderSchedule` from storage. It will attempt to retrieve
@@ -79,16 +75,56 @@ impl LeaderSchedule {
         Self::new(context, leader_swap_table)
     }
 
+    /// Reinitializes the leader schedule from stored commit info.
+    /// Used after fast sync completes to restore the leader swap table
+    /// from the persisted reputation scores.
+    pub(crate) fn reinitialize(&self, dag_state: &RwLock<DagState>) {
+        let leader_swap_table = dag_state.read().recover_last_commit_info().map_or(
+            LeaderSwapTable::default(),
+            |(last_commit_ref, last_commit_info)| {
+                LeaderSwapTable::new(
+                    self.context.clone(),
+                    last_commit_ref.index,
+                    last_commit_info.reputation_scores,
+                )
+            },
+        );
+
+        tracing::info!(
+            "LeaderSchedule reinitialized using {leader_swap_table:?}. There are {} committed subdags scored in DagState.",
+            dag_state.read().scoring_subdags_count(),
+        );
+
+        let mut write = self.leader_swap_table.write();
+        *write = leader_swap_table;
+    }
+
     pub(crate) fn commits_until_leader_schedule_update(
         &self,
         dag_state: Arc<RwLock<DagState>>,
     ) -> usize {
         let subdag_count = dag_state.read().scoring_subdags_count() as u64;
 
-        assert!(
-            subdag_count <= self.num_commits_per_schedule,
-            "Committed subdags count exceeds the number of commits per schedule"
-        );
+        // In the normal online flow, `scoring_subdag` is cleared every time we
+        // update the schedule, so its size stays within `num_commits_per_schedule`.
+        //
+        // After fast-sync or when recovering from older/stale DBs where CommitInfo
+        // wasn't persisted frequently, recovery may rebuild a backlog of scoring
+        // subdags that exceeds the window. In that case, we should trigger an
+        // immediate schedule update rather than panic.
+        if subdag_count > self.num_commits_per_schedule {
+            tracing::warn!(
+                "Committed subdags count ({subdag_count}) exceeds commits-per-schedule ({}) - forcing immediate leader schedule update. This can happen after fast sync / recovery if CommitInfo was missing or stale.",
+                self.num_commits_per_schedule,
+            );
+            return 0;
+        }
+
+        // If the window is full, an update is due now.
+        if subdag_count == self.num_commits_per_schedule {
+            return 0;
+        }
+
         self.num_commits_per_schedule
             .checked_sub(subdag_count)
             .unwrap() as usize
@@ -186,10 +222,16 @@ impl LeaderSchedule {
     /// Used during fast sync where we don't have the scoring_subdag populated,
     /// but the commits already contain the pre-computed reputation scores.
     ///
+    /// This method mirrors the flow in `update_leader_schedule`:
+    /// 1. Clear scoring_subdag (to maintain consistency)
+    /// 2. Add commit_info to DagState (for recovery/reinitialization)
+    /// 3. Update the leader swap table
+    ///
     /// This bypasses the strict commit range checks since during fast sync
     /// we may be processing commits from far ahead.
     pub(crate) fn update_from_commit_scores(
         &self,
+        dag_state: &RwLock<DagState>,
         commit_index: CommitIndex,
         reputation_scores_desc: &[(AuthorityIndex, u64)],
     ) {
@@ -211,15 +253,38 @@ impl LeaderSchedule {
         );
 
         tracing::info!(
-            "Updating leader schedule from commit scores at index {commit_index}: {reputation_scores:?}"
+            "[AUTH {}] Updating leader schedule from commit scores at index {commit_index}: {reputation_scores:?}",
+            self.context.own_index
         );
 
-        let table = LeaderSwapTable::new(self.context.clone(), commit_index, reputation_scores);
+        // Update dag_state: clear scoring_subdag and add commit_info
+        // This mirrors the flow in update_leader_schedule
+        {
+            let mut dag_state = dag_state.write();
+            dag_state.clear_scoring_subdag();
+            dag_state.add_commit_info(reputation_scores.clone());
+        }
+
+        let table = LeaderSwapTable::new(self.context.clone(), commit_index, reputation_scores.clone());
+        tracing::info!(
+            "[AUTH {}] New LeaderSwapTable from fast sync: good_nodes={:?}, bad_nodes={:?}",
+            self.context.own_index,
+            table.good_nodes.iter().map(|(i, _, _)| i).collect::<Vec<_>>(),
+            table.bad_nodes.keys().collect::<Vec<_>>()
+        );
 
         // Directly update the swap table without strict range checks.
         // During fast sync, we trust the scores from certified commits.
         let mut write = self.leader_swap_table.write();
         *write = table;
+
+        // Update metrics
+        reputation_scores.update_metrics(self.context.clone());
+        self.context
+            .metrics
+            .node_metrics
+            .num_of_bad_nodes
+            .set(write.bad_nodes.len() as i64);
     }
 
     /// Atomically updates the `LeaderSwapTable` with the new provided one. Any
@@ -243,7 +308,13 @@ impl LeaderSchedule {
         }
         drop(read);
 
-        tracing::trace!("Updating {table:?}");
+        tracing::info!(
+            "[AUTH {}] Normal update LeaderSwapTable: commit_range={:?}, good_nodes={:?}, bad_nodes={:?}",
+            self.context.own_index,
+            new_commit_range,
+            table.good_nodes.iter().map(|(i, _, _)| i).collect::<Vec<_>>(),
+            table.bad_nodes.keys().collect::<Vec<_>>()
+        );
 
         let mut write = self.leader_swap_table.write();
         *write = table;
@@ -486,7 +557,7 @@ mod tests {
         block_header::{
             BlockHeaderDigest, BlockRef, BlockTimestampMs, TestBlockHeader, VerifiedBlockHeader,
         },
-        commit::{CommitAPI, CommitDigest, CommitInfo, CommitRef, CommittedSubDag, TrustedCommit},
+        commit::{CommitDigest, CommitInfo, CommitRef, CommittedSubDag, TrustedCommit},
         storage::{Store, WriteBatch, mem_store::MemStore},
         test_dag_builder::DagBuilder,
     };
@@ -832,8 +903,10 @@ mod tests {
         let unscored_subdags = vec![
             CommittedSubDag::new(
                 leader_ref,
-                blocks,
-                last_commit.block_headers().to_vec(),
+                blocks.clone(),
+                // For this test we don't need to access block refs through the commit.
+                // Reuse the committed block refs directly.
+                blocks.iter().map(|b| b.reference()).collect::<Vec<_>>(),
                 vec![], // Committed transactions are not important for this test.
                 context.clock.timestamp_utc_ms(),
                 last_commit.reference(),
