@@ -108,7 +108,7 @@ export function TransactionRequest({ txRequest }: TransactionRequestProps) {
             >
                 <PageMainLayoutTitle title="Approve Transaction" />
                 <div className="-mr-3 flex flex-col gap-md">
-                    {(!summary || isDryRunError || isDryRunExecutionFailed) && (
+                    {!isDryRunLoading && (!summary || isDryRunError || isDryRunExecutionFailed) && (
                         <InfoBox
                             title="Review the transaction"
                             supportingText="Unexpected issue during the dry run. The transaction may not execute properly."
