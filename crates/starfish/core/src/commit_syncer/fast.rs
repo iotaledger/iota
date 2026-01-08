@@ -2,11 +2,12 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
+    cmp::max,
     collections::{BTreeMap, BTreeSet},
     sync::Arc,
     time::Duration,
 };
-use std::cmp::max;
+
 use iota_metrics::spawn_logged_monitored_task;
 use parking_lot::RwLock;
 use rand::{prelude::SliceRandom as _, rngs::ThreadRng};
@@ -18,7 +19,7 @@ use crate::{
     CommitConsumerMonitor, CommitIndex, VerifiedBlockHeader,
     block_header::VerifiedTransactions,
     block_verifier::BlockVerifier,
-    commit::{CommitAPI as _, CommitRange, CommittedSubDag, TrustedCommit},
+    commit::{CommitAPI as _, CommitRange, CommittedSubDag, GENESIS_COMMIT_INDEX, TrustedCommit},
     commit_syncer::{
         CommitSyncType, CommitSyncerHandle, Inner, fetch_loop as shared_fetch_loop,
         try_start_fetches as shared_try_start_fetches, verify_fetched_headers,
@@ -205,86 +206,86 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
     fn try_schedule_once(&mut self) {
         let quorum_commit_index = self.inner.commit_vote_monitor.quorum_commit_index();
         let local_commit_index = self.inner.dag_state.read().last_commit_index();
-
-        // Skip scheduling depending on sync type and gap threshold.
-        let gap = quorum_commit_index.saturating_sub(local_commit_index);
-        if !self
-            .inner
-            .sync_type
-            .should_schedule(gap, self.inner.context.parameters.commit_sync_gap_threshold)
-        {
-            return;
-        }
-
-        let metrics = &self.inner.context.metrics.node_metrics;
-        metrics
-            .commit_sync_quorum_index
-            .set(quorum_commit_index as i64);
-        metrics
-            .commit_sync_local_index
-            .set(local_commit_index as i64);
         let highest_handled_index = self.inner.commit_consumer_monitor.highest_handled_commit();
         let highest_scheduled_index = self.highest_scheduled_index.unwrap_or(0);
-        // Update synced_commit_index periodically to make sure it is not smaller than
-        // local commit index.
-        self.synced_commit_index = self.synced_commit_index.max(local_commit_index);
         let unhandled_commits_threshold = self.unhandled_commits_threshold();
-
-        // TODO: cleanup inflight fetches that are no longer needed.
-        let fetch_after_index = self
-            .synced_commit_index
-            .max(self.highest_scheduled_index.unwrap_or(0));
-        // When the node is falling behind, schedule pending fetches which will be
-        // executed on later.
         let step = self
             .inner
             .sync_type
             .commit_sync_batch_size(&self.inner.context);
 
-        info!(
-            "[{}] Checking to schedule fetches: synced_commit_index={}, highest_handled_index={}, highest_scheduled_index={}, quorum_commit_index={}, unhandled_commits_threshold={}, fetch_after_index={}, step={}",
-            self.inner.sync_type.as_str(),
-            self.synced_commit_index,
-            highest_handled_index,
-            highest_scheduled_index,
-            quorum_commit_index,
-            unhandled_commits_threshold,
-            fetch_after_index,
-            step
-        );
+        // Skip scheduling depending on sync type and gap threshold.
+        let gap = quorum_commit_index.saturating_sub(local_commit_index);
+        let should_schedule = self
+            .inner
+            .sync_type
+            .should_schedule(gap, self.inner.context.parameters.commit_sync_gap_threshold)
+            || self.has_fetched_data;
 
-        for prev_end in (fetch_after_index..=quorum_commit_index).step_by(step as usize) {
-            // Create range with inclusive start and end.
-            let range_start = prev_end + 1;
-            let range_end = prev_end + step;
-            // Commit range is not fetched when [range_start, range_end] contains less
-            // number of commits than the target batch size. This is to avoid
-            // the cost of processing more and smaller batches. Block broadcast,
-            // subscription and synchronization will help the node catchup.
-            if quorum_commit_index < range_end {
-                break;
-            }
-            // Pause scheduling new fetches when handling of commits is lagging.
-            if highest_handled_index + unhandled_commits_threshold < range_end {
-                warn!(
-                    "[{}] Skip scheduling new commit fetches: consensus handler is lagging. highest_handled_index={}, highest_scheduled_index={}",
-                    self.inner.sync_type.as_str(),
-                    highest_handled_index,
-                    highest_scheduled_index
-                );
-                break;
-            }
+        if should_schedule {
+            let metrics = &self.inner.context.metrics.node_metrics;
+            metrics
+                .commit_sync_quorum_index
+                .set(quorum_commit_index as i64);
+            metrics
+                .commit_sync_local_index
+                .set(local_commit_index as i64);
+            // Update synced_commit_index periodically to make sure it is not smaller than
+            // local commit index.
+            self.synced_commit_index = self.synced_commit_index.max(local_commit_index);
+
+            // TODO: cleanup inflight fetches that are no longer needed.
+            let fetch_after_index = self
+                .synced_commit_index
+                .max(self.highest_scheduled_index.unwrap_or(0));
+            // When the node is falling behind, schedule pending fetches which will be
+            // executed on later.
+
             info!(
-                "[{}] Scheduling fetch for commit range {}..={}",
+                "[{}] Checking to schedule fetches: synced_commit_index={}, highest_handled_index={}, highest_scheduled_index={}, quorum_commit_index={}, unhandled_commits_threshold={}, fetch_after_index={}, step={}",
                 self.inner.sync_type.as_str(),
-                range_start,
-                range_end
+                self.synced_commit_index,
+                highest_handled_index,
+                highest_scheduled_index,
+                quorum_commit_index,
+                unhandled_commits_threshold,
+                fetch_after_index,
+                step
             );
-            self.pending_fetches
-                .insert((range_start..=range_end).into());
-            // quorum_commit_index should be non-decreasing, so highest_scheduled_index
-            // should not decrease either.
-            self.highest_scheduled_index = Some(range_end);
+
+            for prev_end in (fetch_after_index..=quorum_commit_index).step_by(step as usize) {
+                // Create range with inclusive start and end.
+                let range_start = prev_end + 1;
+                let range_end = prev_end + step;
+                // Commit range is not fetched when [range_start, range_end] contains less
+                // number of commits than the target batch size. This is to avoid
+                // the cost of processing more and smaller batches. Block broadcast,
+                // subscription and synchronization will help the node catchup.
+                if quorum_commit_index < range_end {
+                    break;
+                }
+                // Pause scheduling new fetches when handling of commits is lagging.
+                if highest_handled_index + unhandled_commits_threshold < range_end {
+                    warn!(
+                        "[{}] Skip scheduling new commit fetches: consensus handler is lagging. highest_handled_index={}, highest_scheduled_index={}",
+                        self.inner.sync_type.as_str(),
+                        highest_handled_index,
+                        highest_scheduled_index
+                    );
+                    break;
+                }
+                info!(
+                    "[{}] Scheduling fetch for commit range {}..={}",
+                    self.inner.sync_type.as_str(),
+                    range_start,
+                    range_end
+                );
+                self.pending_fetches
+                    .insert((range_start..=range_end).into());
+                // quorum_commit_index should be non-decreasing, so highest_scheduled_index
+                // should not decrease either.
+                self.highest_scheduled_index = Some(range_end);
+            }
         }
 
         // Detect close-to-quorum mode: when remaining gap is less than a full batch.
@@ -301,6 +302,20 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
                 .synced_commit_index
                 .max(self.highest_scheduled_index.unwrap_or(0));
             let remaining_gap = quorum_commit_index.saturating_sub(current_fetch_after);
+            if remaining_gap > 0 && remaining_gap < step {
+                let range_start = current_fetch_after + 1;
+                let range_end = quorum_commit_index;
+                info!(
+                    "[{}] Scheduling final partial fetch for commit range {}..={} (remaining_gap={})",
+                    self.inner.sync_type.as_str(),
+                    range_start,
+                    range_end,
+                    remaining_gap
+                );
+                self.pending_fetches
+                    .insert((range_start..=range_end).into());
+                self.highest_scheduled_index = Some(range_end);
+            }
             if remaining_gap < step {
                 self.close_to_quorum_mode = true;
                 info!(
@@ -617,9 +632,29 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
         // Fetch the maximum of the two to satisfy both requirements
         let cached_rounds = inner.context.parameters.dag_state_cached_rounds;
         let gc_depth = inner.context.protocol_config.gc_depth();
-        // TODO: read the leader schedule window from the leader_schedule.rs
         let leader_schedule_window = crate::leader_schedule::CONSENSUS_COMMITS_PER_SCHEDULE as u32;
-        let num_commits = max(leader_schedule_window, max(cached_rounds, gc_depth * 2));
+        let (last_commit_index, last_commit_info_index) = {
+            let dag_state = inner.dag_state.read();
+            let last_commit_index = dag_state.last_commit_index();
+            let last_commit_info_index = dag_state
+                .recover_last_commit_info()
+                .map(|(commit_ref, commit_info)| {
+                    let range_end = commit_info.reputation_scores.commit_range.end();
+                    if range_end == GENESIS_COMMIT_INDEX {
+                        commit_ref.index
+                    } else {
+                        range_end
+                    }
+                })
+                .unwrap_or(GENESIS_COMMIT_INDEX);
+            (last_commit_index, last_commit_info_index)
+        };
+        let commits_since_schedule_update =
+            last_commit_index.saturating_sub(last_commit_info_index);
+        let num_commits = max(
+            commits_since_schedule_update,
+            max(leader_schedule_window, max(cached_rounds, gc_depth * 2)),
+        );
 
         let max_headers_per_fetch = inner.context.parameters.max_headers_per_commit_sync_fetch;
 

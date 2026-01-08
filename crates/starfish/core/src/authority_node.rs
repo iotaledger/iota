@@ -1014,10 +1014,12 @@ mod tests {
         let db_registry = Registry::new();
         DBMetrics::init(&db_registry);
 
-        const NUM_AUTHORITIES: usize = 4;
+        const NUM_AUTHORITIES: usize = 7;
         const COMMIT_GAP_THRESHOLD: u32 = 50;
         const CATCH_UP_THRESHOLD: u32 = 50;
         const SECOND_RECOVERY_THRESHOLD: u32 = 200;
+
+        let stable_work_duration_time = Duration::from_secs(30);
 
         let (committee, keypairs) = local_committee_and_keys(0, vec![1; NUM_AUTHORITIES]);
         let mut protocol_config = ProtocolConfig::get_for_max_version_UNSAFE();
@@ -1070,7 +1072,7 @@ mod tests {
         // Drain receivers during initial operation to track commits
         let start_time = Instant::now();
         let mut initial_committed_index = vec![0u32; NUM_AUTHORITIES];
-        while start_time.elapsed() < Duration::from_secs(10) {
+        while start_time.elapsed() < stable_work_duration_time {
             for (index, receiver) in output_receivers.iter_mut().enumerate() {
                 while let Ok(committed_subdag) = receiver.try_recv() {
                     let commit_index = committed_subdag.commit_ref.index;
@@ -1094,7 +1096,7 @@ mod tests {
         // Drain other authorities while authority 0 is stopped
         let start_time = Instant::now();
         let mut commits_while_stopped = vec![0u32; NUM_AUTHORITIES];
-        while start_time.elapsed() < Duration::from_secs(10) {
+        while start_time.elapsed() < stable_work_duration_time {
             for (index, receiver) in output_receivers.iter_mut().enumerate() {
                 if index == stopped_index {
                     continue; // Skip stopped authority
@@ -1207,7 +1209,7 @@ mod tests {
         // Drain receivers during normal operation after first recovery
         let start_time = Instant::now();
         let mut commits_after_first_recovery = vec![0u32; NUM_AUTHORITIES];
-        while start_time.elapsed() < Duration::from_secs(10) {
+        while start_time.elapsed() < stable_work_duration_time {
             for (index, receiver) in output_receivers.iter_mut().enumerate() {
                 while let Ok(committed_subdag) = receiver.try_recv() {
                     let commit_index = committed_subdag.commit_ref.index;
@@ -1230,7 +1232,7 @@ mod tests {
         // Drain other authorities while authority 0 is stopped (second time)
         let start_time = Instant::now();
         let mut commits_while_stopped_2 = vec![0u32; NUM_AUTHORITIES];
-        while start_time.elapsed() < Duration::from_secs(10) {
+        while start_time.elapsed() < stable_work_duration_time {
             for (index, receiver) in output_receivers.iter_mut().enumerate() {
                 if index == stopped_index {
                     continue;

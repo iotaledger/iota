@@ -207,7 +207,13 @@ impl DagState {
         let (mut last_committed_rounds, commit_recovery_start_index) =
             if let Some((commit_ref, commit_info)) = commit_info {
                 tracing::info!("Recovering committed state from {commit_ref} {commit_info:?}");
-                (commit_info.committed_rounds, commit_ref.index + 1)
+                let range_end = commit_info.reputation_scores.commit_range.end();
+                let recovery_start = if range_end == GENESIS_COMMIT_INDEX {
+                    commit_ref.index.saturating_add(1)
+                } else {
+                    range_end.saturating_add(1)
+                };
+                (commit_info.committed_rounds, recovery_start)
             } else {
                 tracing::info!("Found no stored CommitInfo to recover from");
                 (vec![0; num_authorities], GENESIS_COMMIT_INDEX + 1)
@@ -355,7 +361,49 @@ impl DagState {
             self.load_cached_data_for_authority(authority_index, committed_round);
         }
 
+        // Rebuild scoring_subdag from stored commits so leader schedule state
+        // matches peers after fast sync reinitialization.
+        self.rebuild_scoring_subdag_from_store();
+
         info!("DagState reinitialized successfully");
+    }
+
+    fn rebuild_scoring_subdag_from_store(&mut self) {
+        let Some(last_commit) = self.last_commit.as_ref() else {
+            return;
+        };
+
+        let commit_recovery_start_index = self
+            .recover_last_commit_info()
+            .map(|(commit_ref, commit_info)| {
+                let range_end = commit_info.reputation_scores.commit_range.end();
+                if range_end == GENESIS_COMMIT_INDEX {
+                    commit_ref.index.saturating_add(1)
+                } else {
+                    range_end.saturating_add(1)
+                }
+            })
+            .unwrap_or(GENESIS_COMMIT_INDEX + 1);
+
+        if commit_recovery_start_index > last_commit.index() {
+            return;
+        }
+
+        let commits = self
+            .store
+            .scan_commits((commit_recovery_start_index..=last_commit.index()).into())
+            .unwrap_or_else(|e| panic!("Failed to read from storage: {e:?}"));
+
+        let mut unscored_subdags = Vec::with_capacity(commits.len());
+        for commit in commits {
+            let pending_subdag =
+                load_pending_subdag_from_store(self.store.as_ref(), commit, vec![]);
+            unscored_subdags.push(pending_subdag.base);
+        }
+
+        if !unscored_subdags.is_empty() {
+            self.scoring_subdag.add_subdags(unscored_subdags);
+        }
     }
 
     /// Accepts a block header into DagState and keeps it in memory.

@@ -13,7 +13,10 @@ use rand::{SeedableRng, prelude::SliceRandom, rngs::StdRng};
 use starfish_config::{AuthorityIndex, Stake};
 
 use crate::{
-    CommitIndex, Round, commit::CommitRange, context::Context, dag_state::DagState,
+    CommitIndex, Round,
+    commit::{CommitRange, GENESIS_COMMIT_INDEX},
+    context::Context,
+    dag_state::DagState,
     leader_scoring::ReputationScores,
 };
 
@@ -58,9 +61,15 @@ impl LeaderSchedule {
         let leader_swap_table = dag_state.read().recover_last_commit_info().map_or(
             LeaderSwapTable::default(),
             |(last_commit_ref, last_commit_info)| {
+                let range_end = last_commit_info.reputation_scores.commit_range.end();
+                let seed_index = if range_end == GENESIS_COMMIT_INDEX {
+                    last_commit_ref.index
+                } else {
+                    range_end
+                };
                 LeaderSwapTable::new(
                     context.clone(),
-                    last_commit_ref.index,
+                    seed_index,
                     last_commit_info.reputation_scores,
                 )
             },
@@ -82,9 +91,15 @@ impl LeaderSchedule {
         let leader_swap_table = dag_state.read().recover_last_commit_info().map_or(
             LeaderSwapTable::default(),
             |(last_commit_ref, last_commit_info)| {
+                let range_end = last_commit_info.reputation_scores.commit_range.end();
+                let seed_index = if range_end == GENESIS_COMMIT_INDEX {
+                    last_commit_ref.index
+                } else {
+                    range_end
+                };
                 LeaderSwapTable::new(
                     self.context.clone(),
-                    last_commit_ref.index,
+                    seed_index,
                     last_commit_info.reputation_scores,
                 )
             },
@@ -240,10 +255,14 @@ impl LeaderSchedule {
         }
 
         // Determine the commit range for these scores.
-        // During fast sync, we don't know the exact range, but we can estimate
-        // it based on the schedule window (num_commits_per_schedule).
-        let range_end = commit_index;
-        let range_start = commit_index.saturating_sub(self.num_commits_per_schedule as u32 - 1);
+        // Reputation scores are attached to the *first* commit after a schedule
+        // update, so the scores correspond to the previous window ending at
+        // commit_index - 1.
+        let range_end = commit_index.saturating_sub(1);
+        if range_end == GENESIS_COMMIT_INDEX {
+            return;
+        }
+        let range_start = range_end.saturating_sub(self.num_commits_per_schedule as u32 - 1);
         let commit_range = CommitRange::new(range_start..=range_end);
 
         let reputation_scores = ReputationScores::from_scores_desc(
@@ -265,7 +284,7 @@ impl LeaderSchedule {
             dag_state.add_commit_info(reputation_scores.clone());
         }
 
-        let table = LeaderSwapTable::new(self.context.clone(), commit_index, reputation_scores.clone());
+        let table = LeaderSwapTable::new(self.context.clone(), range_end, reputation_scores.clone());
         tracing::info!(
             "[AUTH {}] New LeaderSwapTable from fast sync: good_nodes={:?}, bad_nodes={:?}",
             self.context.own_index,
