@@ -134,8 +134,7 @@ pub async fn get_verified_effects_and_events(
     let prev_ckp_id = checkpoints_list
         .checkpoints
         .iter()
-        .filter(|ckp_id| **ckp_id < seq)
-        .next_back();
+        .rfind(|ckp_id| **ckp_id < seq);
 
     let committee = if let Some(prev_ckp_id) = prev_ckp_id {
         // Read it from the store
@@ -233,8 +232,7 @@ pub async fn get_verified_checkpoint(
     let prev_ckp_id = checkpoints_list
         .checkpoints
         .iter()
-        .filter(|ckp_id| **ckp_id < seq)
-        .next_back();
+        .rfind(|ckp_id| **ckp_id < seq);
 
     let committee = if let Some(prev_ckp_id) = prev_ckp_id {
         // Read it from the store
