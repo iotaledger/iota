@@ -11,9 +11,33 @@ import Quiz from '@site/src/components/Quiz';
 import questions from '/json/developer/advanced-topics/custom-indexer.json';
 import CodeBlock from '@theme/CodeBlock';
 
-You can build custom indexers using the IOTA micro-data ingestion framework. To create an indexer, you subscribe to a checkpoint stream with full checkpoint content. This stream can be one of the publicly available streams from IOTA, one that you set up in your local environment, or a combination of the two.
+You can build custom indexers using the IOTA data ingestion framework, which is maintained through the [iota-data-ingestion-core][] library. To create an indexer, you subscribe to a checkpoint stream with full checkpoint content. This stream can be one of the publicly available streams from IOTA, one that you set up in your local environment, or a combination of the two.
 
 Establishing a custom indexer helps improve latency, allows pruning the data of your IOTA full node, and provides efficient assemblage of checkpoint data.
+
+## Setup
+
+To start, you need to specify the proper dependencies in your `Cargo.toml`. Here is what the minimal manifest would look like for a new indexer:
+
+```toml
+[package]
+name = "custom-indexer"
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0"
+
+[dependencies]
+iota-data-ingestion-core = { git = "https://github.com/iotaledger/iota", package = "iota-data-ingestion-core" }
+iota-types = { git = "https://github.com/iotaledger/iota", package = "iota-types" }
+```
+
+:::caution
+
+When resolving `git` dependencies, Cargo records the latest commit hash at the time of the build on `Cargo.lock`. Updating to newer versions requires manually calling `cargo update iota-data-ingestion-core iota-types` and updating `Cargo.lock`.
+
+Network upgrades that introduce new types included in the checkpoint data will thus require updating custom indexers accordingly.
+
+:::
 
 ## Interface and Data Format
 
@@ -145,7 +169,7 @@ Specify both a local and remote store as a fallback to ensure constant data flow
 
 ### Manifest
 
-Code for the cargo.toml manifest file for the custom indexer.
+Code for the `Cargo.toml` manifest file for the custom indexer.
 
 ```toml file=<rootDir>/examples/custom-indexer/rust/Cargo.toml
 ```
@@ -153,5 +177,7 @@ Code for the cargo.toml manifest file for the custom indexer.
 ## Source Code
 
 Find the following source code in the [IOTA repo](https://github.com/iotaledger/iota/tree/main/examples/custom-indexer/rust).
+
+[iota-data-ingestion-core]: https://github.com/iotaledger/iota/tree/develop/crates/iota-data-ingestion-core
 
 <Quiz questions={questions} />

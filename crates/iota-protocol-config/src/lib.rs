@@ -92,7 +92,8 @@ pub const MAX_PROTOCOL_VERSION: u64 = 18;
 //             Enable committing transactions only for traversed headers in
 //             Starfish.
 // Version 17: Increase the committee size to 100 on all networks.
-// Version 18: Enable congestion limit overshoot in the gas price feedback
+// Version 18: Enable passkey authentication support in testnet.
+//             Enable congestion limit overshoot in the gas price feedback
 //             mechanism on devnet.
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
@@ -2333,6 +2334,11 @@ impl ProtocolConfig {
                     cfg.max_committee_members_count = Some(100);
                 }
                 18 => {
+                    if chain != Chain::Mainnet {
+                        // Enable passkey authentication support in testnet.
+                        cfg.feature_flags.passkey_auth = true;
+                    }
+
                     if chain != Chain::Testnet && chain != Chain::Mainnet {
                         // Enable congestion limit overshoot in the gas price feedback
                         // mechanism on devnet.

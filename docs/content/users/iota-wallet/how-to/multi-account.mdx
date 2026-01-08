@@ -61,9 +61,9 @@ When viewing the private key, ensure no one can see your screen. Click the cross
 
    ![Accounts](/img/users/iota-wallet/how-to/multi-account/navigate-to-accounts.png)
 
-2. Select the account you want to export, click on the `...` icon, and choose `Export Private Key` from the dropdown.
+2. Select the account you want to export, click on the `...` icon, and choose `Export Account Keys` from the dropdown.
 
-   ![Export Private Key](/img/users/iota-wallet/how-to/multi-account/export-private-key.png)
+   ![Export Account Keys](/img/users/iota-wallet/how-to/multi-account/export-account-keys.png)
 
 3. Enter your wallet password and click `Verify`.
 
@@ -73,10 +73,38 @@ When viewing the private key, ensure no one can see your screen. Click the cross
 
    ![Copy](/img/users/iota-wallet/how-to/multi-account/click-copy.png)
 
+## Export a Public Key With Flag for an Account
+
+Exporting a public key allows you to share or verify an account address without exposing sensitive information. Public keys are safe to share and are commonly used for identification, verification, or integration with external tools and services.
+
+:::info
+
+A public key with flag is a Base64-encoded representation of the account's public key that includes an additional prefix (flag) identifying the cryptographic scheme used (for example, Ed25519).
+
+This format ensures the public key can be correctly interpreted by the IOTA protocol, SDKs, and tooling, and avoids ambiguity when working with different key types.
+
+:::
+
+1. Go to `Accounts` at the top of the `Home` tab.
+
+   ![Accounts](/img/users/iota-wallet/how-to/multi-account/navigate-to-accounts.png)
+
+2. Select the account you want to export, click on the `...` icon, and choose `Export Account Keys` from the dropdown.
+
+   ![Export Account Keys](/img/users/iota-wallet/how-to/multi-account/export-account-keys.png)
+
+3. Enter your wallet password and click `Verify`.
+
+   ![Verify](/img/users/iota-wallet/how-to/multi-account/verify.png)
+
+4. Click `Copy` to copy the public key with flag to your clipboard.
+
+   ![Copy Public Key](/img/users/iota-wallet/how-to/multi-account/public-key-copy.png)
+
 
 ## Export a Mnemonic for an Account
 
-Exporting a mnemonic allows you to use the account with other wallet providers. Handle you mnemonic with extreme caution to prevent unauthorized access to your assets.
+Exporting a mnemonic allows you to use the account with other wallet providers. Handle your mnemonic with extreme caution to prevent unauthorized access to your assets.
 
 :::danger
 
