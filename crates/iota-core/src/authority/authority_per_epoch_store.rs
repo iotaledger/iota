@@ -543,12 +543,17 @@ pub struct AuthorityEpochTables {
     /// Transactions that were executed in the current epoch.
     executed_in_epoch: DBMap<TransactionDigest, ()>,
 
+    // TODO: delete the deprecated tables in the next release
     #[allow(dead_code)]
+    #[deprecated]
     assigned_shared_object_versions: DBMap<TransactionKey, Vec<(ObjectID, SequenceNumber)>>,
+
     /// Next available shared object versions for each shared object.
     next_shared_object_versions: DBMap<ObjectID, SequenceNumber>,
 
-    // TODO: delete after DQ is rolled out
+    // TODO: delete the deprecated tables in the next release
+    #[allow(dead_code)]
+    #[deprecated]
     pub(crate) pending_execution: DBMap<TransactionDigest, TrustedExecutableTransaction>,
 
     /// Track which transactions have been processed in
@@ -568,7 +573,9 @@ pub struct AuthorityEpochTables {
     pending_consensus_transactions: DBMap<ConsensusTransactionKey, ConsensusTransaction>,
 
     /// this table is not used
+    // TODO: delete the deprecated tables in the next release
     #[allow(dead_code)]
+    #[deprecated]
     last_consensus_index: DBMap<(), ()>,
 
     /// The following table is used to store a single value (the corresponding
@@ -585,7 +592,9 @@ pub struct AuthorityEpochTables {
     /// Validators that have sent EndOfPublish message in this epoch
     end_of_publish: DBMap<AuthorityName, ()>,
 
+    // TODO: delete the deprecated tables in the next release
     #[allow(dead_code)]
+    #[deprecated]
     pending_checkpoints: DBMap<CheckpointHeight, PendingCheckpoint>,
 
     /// Checkpoint builder maintains internal list of transactions it included
@@ -603,7 +612,9 @@ pub struct AuthorityEpochTables {
         DBMap<(CheckpointSequenceNumber, u64), CheckpointSignatureMessage>,
 
     /// Deprecated - pending signatures are now stored in memory.
+    // TODO: delete the deprecated tables in the next release
     #[allow(dead_code)]
+    #[deprecated]
     user_signatures_for_checkpoints: DBMap<TransactionDigest, Vec<GenericSignature>>,
 
     /// Maps sequence number to checkpoint summary, used by CheckpointBuilder to
