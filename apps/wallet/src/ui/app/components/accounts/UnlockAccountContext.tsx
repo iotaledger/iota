@@ -54,7 +54,7 @@ export function UnlockAccountProvider({ children }: UnlockAccountProviderProps) 
         async (account: SerializedUIAccount) => {
             try {
                 await backgroundClient.lockAllAccounts({ id: account.id });
-                toast('Account locked');
+                toast('Accounts locked');
             } catch (e) {
                 toast.error((e as Error).message || 'Failed to lock account');
             }
