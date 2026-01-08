@@ -166,12 +166,6 @@ impl CommitObserver {
             .commit_solidifier
             .try_get_solid_sub_dags(&pending_sub_dags);
 
-        // Committed headers and sequenced transactions must be persisted to storage
-        // before sending them outside consensus.
-        if !pending_sub_dags.is_empty() || !solid_sub_dags.is_empty() {
-            self.dag_state.write().flush();
-        }
-
         tracing::trace!("Missing committed transactions {missing_transactions:#?}");
 
         // Retrieve the transaction acknowledgment authors for the missing
@@ -183,6 +177,7 @@ impl CommitObserver {
             .get_transaction_ack_authors(missing_transactions);
 
         // Send solid subdags using the common function
+        // (flush will happen inside handle_committed_sub_dags_internal after updating GC round)
         self.handle_committed_sub_dags_internal(&pending_sub_dags, solid_sub_dags, source)?;
 
         Ok((pending_sub_dags, missing_transaction_acknowledgers))
@@ -202,6 +197,29 @@ impl CommitObserver {
         committed_subdags: Vec<CommittedSubDag>,
         source: CommittedSubDagSource,
     ) -> ConsensusResult<()> {
+        // Evict the ack tracker and update GC round BEFORE flush so that eviction
+        // uses the correct GC round.
+        if !committed_subdags.is_empty() {
+            let max_solid_commit_leader_round = committed_subdags
+                .last()
+                .expect("There should be at least one solid subdag")
+                .leader
+                .round;
+            self.linearizer
+                .evict_linearizer(max_solid_commit_leader_round);
+            // Update dag_state for GC to work correctly (covers both normal and fast sync
+            // paths)
+            self.dag_state
+                .write()
+                .update_last_solid_commit_leader_round(max_solid_commit_leader_round);
+        }
+
+        // Committed headers and sequenced transactions must be persisted to storage
+        // before sending them outside consensus.
+        if !pending_sub_dags.is_empty() || !committed_subdags.is_empty() {
+            self.dag_state.write().flush();
+        }
+
         let mut sent_sub_dags = Vec::with_capacity(committed_subdags.len());
         for solid_sub_dag in committed_subdags.iter() {
             // Skip commits that have already been sent
@@ -235,21 +253,6 @@ impl CommitObserver {
         }
         self.report_metrics(pending_sub_dags, &committed_subdags, source);
 
-        // Evict the ack tracker and update GC round using the latest solid subdag
-        if !committed_subdags.is_empty() {
-            let max_solid_commit_leader_round = committed_subdags
-                .last()
-                .expect("There should be at least one solid subdag")
-                .leader
-                .round;
-            self.linearizer
-                .evict_linearizer(max_solid_commit_leader_round);
-            // Update dag_state for GC to work correctly (covers both normal and fast sync
-            // paths)
-            self.dag_state
-                .write()
-                .update_last_solid_commit_leader_round(max_solid_commit_leader_round);
-        }
         tracing::trace!("Committed & sent {sent_sub_dags:#?}");
 
         Ok(())
