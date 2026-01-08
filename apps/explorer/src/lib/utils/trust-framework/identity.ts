@@ -33,14 +33,23 @@ export const createIdentityClientReadOnly = async (
     iotaClient: IotaClient,
     network: string,
 ): Promise<identity.IdentityClientReadOnly> => {
+    // If IOTA_IDENTITY_PKG_ID is declared it has precedence
     await initIdentityWasmWeb();
-    // See more details over env requirement definitions at:
-    // - https://github.com/iotaledger/identity/tree/main/bindings/wasm/identity_wasm/examples#iota-identity-examples
-    if (network in [Network.Testnet]) {
+    if (IOTA_IDENTITY_PKG_ID != null) {
+        return await identity.IdentityClientReadOnly.createWithPkgId(
+            iotaClient,
+            IOTA_IDENTITY_PKG_ID,
+        );
+    }
+
+    // Well-known networks have well-known identity package id
+    if (network in [Network.Mainnet, Network.Testnet, Network.Devnet]) {
         return await identity.IdentityClientReadOnly.create(iotaClient);
     }
-    // otherwise, IOTA_IDENTITY_PKG_ID is required
-    return await identity.IdentityClientReadOnly.createWithPkgId(iotaClient, IOTA_IDENTITY_PKG_ID);
+
+    throw new Error(
+        'Failed to create an IdentityClientReadOnly; declare IOTA_IDENTITY_PKG_ID environment if running on a custom network.',
+    );
 };
 
 export async function tryDIDParse(didCandidate: string): Promise<identity.IotaDID | null> {
