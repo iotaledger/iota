@@ -832,9 +832,9 @@ done"#
                     "ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -i {}",
                     self.settings.ssh_private_key_file.display()
                 ),
-                // remote snapshot path: ~/<timestamp>/snapshots/<snapshot_name>
+                // remote snapshot path: /var/lib/prometheus/<timestamp>/snapshots/<snapshot_name>
                 format!(
-                    "ubuntu@{}:/var/lib/prometheus/metrics2/{}/snapshots/{}/",
+                    "ubuntu@{}:/var/lib/prometheus/{}/snapshots/{}/",
                     instance.main_ip, timestamp, snapshot_name
                 ),
                 // local snapshot path: <benchmark_dir>/snapshot

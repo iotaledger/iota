@@ -156,7 +156,7 @@ impl Prometheus {
             commands.push(format!("sudo mkdir -p {}", Self::PROMETHEUS_DAEMON_DIR));
             // We need to pass '--web.enable-admin-api' flag to enable snapshots.
             // The safest way to do it is via override file.
-            commands.push(format!("(echo \"[Service]\nExecStart=\nExecStart=/usr/bin/prometheus --web.enable-admin-api --storage.tsdb.path=/var/lib/prometheus/metrics2/{}\" | sudo tee {}/override.conf > /dev/null)",
+            commands.push(format!("(echo \"[Service]\nExecStart=\nExecStart=/usr/bin/prometheus --web.enable-admin-api --storage.tsdb.path=/var/lib/prometheus/{}\" | sudo tee {}/override.conf > /dev/null)",
                 tsdb,
                 Self::PROMETHEUS_DAEMON_DIR,
             ));
