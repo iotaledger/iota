@@ -256,12 +256,10 @@ fn get_registry() -> Result<Registry> {
         .unwrap();
     tracer.trace_type::<CheckpointContents>(&samples).unwrap();
     tracer.trace_type::<CheckpointSummary>(&samples).unwrap();
+    tracer.trace_type::<CheckpointCommitment>(&samples).unwrap();
+    tracer.trace_type::<GenesisObject>(&samples).unwrap();
     tracer
-        .trace_type::<CheckpointCommitment>(&mut samples)
-        .unwrap();
-    tracer.trace_type::<GenesisObject>(&mut samples).unwrap();
-    tracer
-        .trace_type::<ConsensusDeterminedVersionAssignments>(&mut samples)
+        .trace_type::<ConsensusDeterminedVersionAssignments>(&samples)
         .unwrap();
 
     let sender_data = SenderSignedData::new(
@@ -275,7 +273,7 @@ fn get_registry() -> Result<Registry> {
         Vec::new(),
     );
     tracer.trace_value(&mut samples, &sender_data).unwrap();
-    tracer.trace_type::<TransactionData>(&mut samples).unwrap();
+    tracer.trace_type::<TransactionData>(&samples).unwrap();
 
     let quorum_sig: AuthorityStrongQuorumSignInfo = AuthorityQuorumSignInfo {
         epoch: 0,
