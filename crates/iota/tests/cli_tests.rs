@@ -6611,7 +6611,7 @@ async fn test_move_authenticator() -> Result<(), anyhow::Error> {
 
     // Link auth
     IotaClientCommands::Call {
-        package,
+        package: package_id,
         module: "account".to_string(),
         function: "link_auth".to_string(),
         type_args: vec![],
