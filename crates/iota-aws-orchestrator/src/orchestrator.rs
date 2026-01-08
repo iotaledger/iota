@@ -6,7 +6,7 @@ use std::{
     collections::HashSet,
     fs::{self},
     marker::PhantomData,
-    path::{Path, PathBuf},
+    path::Path,
     time::Duration,
 };
 
@@ -201,7 +201,7 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
         // Wait until all nodes are reachable.
         let commands = self
             .protocol_commands
-            .nodes_metrics_command(instances.clone(), parameters);
+            .nodes_metrics_command(instances.clone(), parameters.use_internal_ip_address);
         self.wait_for_success(commands, &parameters.benchmark_dir)
             .await;
 
@@ -332,7 +332,11 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
     }
 
     /// Reload prometheus on all instances.
-    pub async fn start_monitoring(&self, parameters: &BenchmarkParameters<T>) -> TestbedResult<()> {
+    pub async fn start_monitoring(
+        &self,
+        use_internal_ip_address: bool,
+        timestamp: &str,
+    ) -> TestbedResult<()> {
         if let Some(instance) = &self.metrics_instance {
             display::action("Configuring monitoring instance");
 
@@ -342,8 +346,18 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
                 self.node_instances.clone(),
                 self.ssh_manager.clone(),
             );
+            // When prometheus snapshots are enabled, pass the timestamp as snapshot
+            // directory
+            let snapshot_dir = self
+                .settings
+                .enable_prometheus_snapshots
+                .then_some(timestamp);
             monitor
-                .start_prometheus(&self.protocol_commands, parameters)
+                .start_prometheus(
+                    &self.protocol_commands,
+                    use_internal_ip_address,
+                    snapshot_dir,
+                )
                 .await?;
             monitor.start_grafana().await?;
 
@@ -551,15 +565,17 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
             .await?;
 
         // Wait until all load generators are reachable.
-        let commands = self
-            .protocol_commands
-            .clients_metrics_command(self.client_instances.clone(), parameters);
+        let commands = self.protocol_commands.clients_metrics_command(
+            self.client_instances.clone(),
+            parameters.use_internal_ip_address,
+        );
         self.wait_for_success(commands, &parameters.benchmark_dir)
             .await;
 
         // Start background metrics collection service on each client instance.
         display::action("\n\nStarting background metrics collection service");
-        let metrics_script = self.metrics_collection_script_command(parameters);
+        let metrics_script =
+            self.metrics_collection_script_command(parameters.use_internal_ip_address);
         let metrics_context = CommandContext::new().run_background("metrics-collector".into());
         self.ssh_manager
             .execute_per_instance(metrics_script.clone(), metrics_context)
@@ -573,11 +589,11 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
     /// client instance.
     fn metrics_collection_script_command(
         &self,
-        parameters: &BenchmarkParameters<T>,
+        use_internal_ip_address: bool,
     ) -> Vec<(Instance, String)> {
         // We need to get the metrics path from clients_metrics_command
         self.protocol_commands
-            .clients_metrics_command(self.client_instances.clone(), parameters)
+            .clients_metrics_command(self.client_instances.clone(), use_internal_ip_address)
             .into_iter()
             .map(|(instance, cmd)| {
                 (
@@ -644,7 +660,6 @@ done"#
             fs::create_dir_all(&flamegraphs_dir).expect("Failed to create flamegraphs directory");
 
             self.fetch_flamegraphs(
-                parameters,
                 self.instances_without_metrics().clone(),
                 &flamegraphs_dir,
                 "?svg=true",
@@ -659,7 +674,6 @@ done"#
                 .is_some_and(|config| config.features.iter().any(|f| f == "flamegraph-alloc"))
             {
                 self.fetch_flamegraphs(
-                    parameters,
                     self.instances_without_metrics().clone(),
                     &flamegraphs_dir,
                     "?svg=true&mem=true",
@@ -675,7 +689,6 @@ done"#
 
     async fn fetch_flamegraphs(
         &self,
-        parameters: &BenchmarkParameters<T>,
         nodes: Vec<Instance>,
         path: &Path,
         query: &str,
@@ -683,7 +696,7 @@ done"#
     ) -> TestbedResult<()> {
         let flamegraph_commands = self
             .protocol_commands
-            .nodes_flamegraph_command(nodes, parameters, query);
+            .nodes_flamegraph_command(nodes, query);
         let stdio = self
             .ssh_manager
             .execute_per_instance(flamegraph_commands, CommandContext::default())
@@ -751,6 +764,109 @@ done"#
             .await;
         }
         display::done();
+
+        Ok(())
+    }
+
+    pub async fn download_prometheus_snapshot(
+        &self,
+        benchmark_dir: &Path,
+        timestamp: &str,
+    ) -> TestbedResult<()> {
+        if let Some(instance) = &self.metrics_instance {
+            display::action("Taking prometheus snapshot");
+            let command = Prometheus::take_snapshot_command();
+
+            // prometheus snapshot response structure
+            #[derive(serde::Deserialize)]
+            struct ResponseData {
+                // snapshot directory name
+                name: String,
+            }
+            #[derive(serde::Deserialize)]
+            struct Response {
+                #[allow(dead_code)]
+                status: String,
+                data: ResponseData,
+            }
+
+            let response = self
+                .ssh_manager
+                .execute(
+                    std::iter::once(instance.clone()),
+                    command.clone(),
+                    CommandContext::default(),
+                )
+                .await?
+                .into_iter()
+                .next()
+                .ok_or_else(|| {
+                    TestbedError::SshCommandFailed(
+                        instance.clone(),
+                        command.clone(),
+                        "No response from command".into(),
+                    )
+                })?
+                .0;
+            let response: Response = serde_json::from_str(&response).map_err(|e| {
+                TestbedError::SshCommandFailed(
+                    instance.clone(),
+                    command.clone(),
+                    format!("Failed to parse response: {e}"),
+                )
+            })?;
+            display::done();
+
+            let snapshot_name = response.data.name;
+            display::config("Created prometheus snapshot", &snapshot_name);
+            display::newline();
+
+            display::action("Downloading prometheus snapshot");
+            let snapshot_dir = benchmark_dir.join("snapshot").display().to_string();
+            let rsync_args = vec![
+                // options: recursive, verbose, compress, override ssh to use key file and disable
+                // host key checking
+                "-rvze".to_string(),
+                // let rsync use ssh with the specified private key file
+                format!(
+                    "ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -i {}",
+                    self.settings.ssh_private_key_file.display()
+                ),
+                // remote snapshot path: ~/<timestamp>/snapshots/<snapshot_name>
+                format!(
+                    "ubuntu@{}:/var/lib/prometheus/metrics2/{}/snapshots/{}/",
+                    instance.main_ip, timestamp, snapshot_name
+                ),
+                // local snapshot path: <benchmark_dir>/snapshot
+                snapshot_dir,
+            ];
+
+            let instance = instance.clone();
+            tokio::task::spawn_blocking(move || -> TestbedResult<()> {
+                match std::process::Command::new("rsync")
+                    .args(&rsync_args)
+                    .status()
+                {
+                    Ok(status) if status.success() => Ok(()),
+                    Ok(status) => Err(TestbedError::SshCommandFailed(
+                        instance,
+                        "rsync ".to_string() + &rsync_args.join(" "),
+                        format!("rsync failed with status: {}", status),
+                    )),
+                    Err(e) => Err(TestbedError::SshCommandFailed(
+                        instance,
+                        "rsync ".to_string() + &rsync_args.join(" "),
+                        format!("rsync failed with error: {}", e),
+                    )),
+                }
+            })
+            .await
+            .unwrap()?;
+
+            display::done();
+            display::status("Downloaded prometheus snapshot");
+            display::newline();
+        }
 
         Ok(())
     }
@@ -847,13 +963,18 @@ done"#
         self.cleanup(true).await?;
 
         let commit = self.settings.repository.commit.replace("/", "_");
-        let timestamp = chrono::Local::now().format("%y%m%d_%H%M%S");
+        let timestamp = chrono::Local::now().format("%y%m%d_%H%M%S").to_string();
+        let benchmark_dir = self.settings.results_dir.join(&commit).join(&timestamp);
 
         // Update the software on all instances.
         if !self.skip_testbed_update {
             self.install().await?;
             self.update().await?;
         }
+
+        // Start the instance monitoring tools.
+        self.start_monitoring(generator.use_internal_ip_address, &timestamp)
+            .await?;
 
         // Run all benchmarks.
         let mut i = 1;
@@ -864,12 +985,7 @@ done"#
             display::config("Parameters", &parameters);
             display::newline();
 
-            let benchmark_dir: PathBuf = self
-                .settings
-                .results_dir
-                .join(&commit)
-                .join(format!("{timestamp}-{parameters:?}"));
-            parameters.benchmark_dir = benchmark_dir;
+            parameters.benchmark_dir = benchmark_dir.join(format!("{parameters:?}"));
 
             // Cleanup the testbed (in case the previous run was not completed).
             self.cleanup(true).await?;
@@ -880,11 +996,14 @@ done"#
             // Initialize logger for this benchmark run
             let log_file = parameters.benchmark_dir.join("logs.txt");
             crate::logger::init_logger(&log_file).expect("Failed to initialize logger");
+            crate::logger::log(
+                chrono::Local::now()
+                    .format("Started %y-%m-%d:%H-%M-%S")
+                    .to_string()
+                    .as_str(),
+            );
 
             let benchmark_result = async {
-                // Start the instance monitoring tools.
-                self.start_monitoring(&parameters).await?;
-
                 // Configure all instances (if not skipped).
                 if !self.skip_testbed_configuration {
                     self.configure(&parameters).await?;
@@ -931,12 +1050,27 @@ done"#
             }
 
             // Close the logger for this benchmark run
+            crate::logger::log(
+                chrono::Local::now()
+                    .format("Finished %y-%m-%d:%H-%M-%S")
+                    .to_string()
+                    .as_str(),
+            );
             crate::logger::close_logger();
 
             // Propagate any error that occurred
             benchmark_result?;
 
             i += 1;
+        }
+
+        if self.settings.enable_prometheus_snapshots {
+            if let Err(e) = self
+                .download_prometheus_snapshot(&benchmark_dir, &timestamp)
+                .await
+            {
+                display::error(format!("Failed to download prometheus snapshot: {}", e));
+            }
         }
 
         display::header("Benchmark completed");

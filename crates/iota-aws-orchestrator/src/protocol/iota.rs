@@ -428,69 +428,55 @@ impl ProtocolMetrics for IotaProtocol {
     const LATENCY_SUM: &'static str = "latency_s_sum";
     const LATENCY_SQUARED_SUM: &'static str = "latency_squared_s";
 
-    fn nodes_metrics_path<I, T>(
+    fn nodes_metrics_path<I>(
         &self,
         instances: I,
-        parameters: &BenchmarkParameters<T>,
+        use_internal_ip_address: bool,
     ) -> Vec<(Instance, String)>
     where
         I: IntoIterator<Item = Instance>,
-        T: BenchmarkType,
     {
-        let (ips, instances): (Vec<_>, Vec<_>) = instances
-            .into_iter()
-            .map(|x| {
-                (
-                    match parameters.use_internal_ip_address {
-                        true => x.private_ip,
-                        false => x.main_ip,
-                    }
-                    .to_string(),
-                    x,
-                )
+        let instances = instances.into_iter().collect::<Vec<_>>();
+        let ips = (0..instances.len())
+            .map(|_| "0.0.0.0".to_string())
+            .collect::<Vec<_>>();
+        // From GenesisConfig we only need validators' `metrics_address` port which is
+        // computed from validator's offset in `ips`. The values of (the rest
+        // of) the arguments are irrelevant.
+        GenesisConfig::new_for_benchmarks(&ips, None, None, None, u64::MAX)
+            .validator_config_info
+            .expect("No validator in genesis")
+            .iter()
+            .zip(instances)
+            .map(|(config, instance)| {
+                let path = format!(
+                    "{}:{}{}",
+                    match use_internal_ip_address {
+                        true => instance.private_ip,
+                        false => instance.main_ip,
+                    },
+                    config.metrics_address.port(),
+                    iota_metrics::METRICS_ROUTE
+                );
+                (instance, path)
             })
-            .unzip();
-        GenesisConfig::new_for_benchmarks(
-            &ips,
-            parameters.epoch_duration_ms,
-            parameters.chain_start_timestamp_ms,
-            Some(parameters.additional_gas_accounts),
-            u64::MAX,
-        )
-        .validator_config_info
-        .expect("No validator in genesis")
-        .iter()
-        .zip(instances)
-        .map(|(config, instance)| {
-            let path = format!(
-                "{}:{}{}",
-                match parameters.use_internal_ip_address {
-                    true => instance.private_ip,
-                    false => instance.main_ip,
-                },
-                config.metrics_address.port(),
-                iota_metrics::METRICS_ROUTE
-            );
-            (instance, path)
-        })
-        .collect()
+            .collect()
     }
 
-    fn clients_metrics_path<I, T>(
+    fn clients_metrics_path<I>(
         &self,
         instances: I,
-        parameters: &BenchmarkParameters<T>,
+        use_internal_ip_address: bool,
     ) -> Vec<(Instance, String)>
     where
         I: IntoIterator<Item = Instance>,
-        T: BenchmarkType,
     {
         instances
             .into_iter()
             .map(|instance| {
                 let path = format!(
                     "{}:{}{}",
-                    match parameters.use_internal_ip_address {
+                    match use_internal_ip_address {
                         true => instance.private_ip,
                         false => instance.main_ip,
                     },

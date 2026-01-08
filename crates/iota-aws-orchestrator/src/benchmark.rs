@@ -219,7 +219,7 @@ pub struct BenchmarkParametersGenerator<T> {
     iterations: usize,
     /// Flag indicating whether nodes should advertise their internal or public
     /// IP address for inter-node communication.
-    use_internal_ip_address: bool,
+    pub use_internal_ip_address: bool,
     /// The topology of private network latencies, RandomGeographical,
     /// RandomClustered, HardCodedClustered, or Mainnet
     pub latency_topology: Option<TopologyLayout>,
