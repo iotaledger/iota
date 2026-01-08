@@ -1496,16 +1496,6 @@ impl AuthorityPerEpochStore {
         Ok(result)
     }
 
-    /// Gets all pending certificates. Used during recovery.
-    pub fn all_pending_execution(&self) -> IotaResult<Vec<VerifiedExecutableTransaction>> {
-        Ok(self
-            .tables()?
-            .pending_execution
-            .unbounded_iter()
-            .map(|(_, cert)| cert.into())
-            .collect())
-    }
-
     /// Called when transaction outputs are committed to disk
     #[instrument(level = "trace", skip_all)]
     pub fn handle_finalized_checkpoint(
