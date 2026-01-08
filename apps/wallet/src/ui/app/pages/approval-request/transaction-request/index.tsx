@@ -70,6 +70,10 @@ export function TransactionRequest({ txRequest }: TransactionRequestProps) {
     if (!signer) {
         return null;
     }
+
+    const isDryRunExecutionFailed = data?.effects.status.status === 'failure';
+    const txHasErrors = isError || isDryRunExecutionFailed;
+
     return (
         <>
             <UserApproveContainer
@@ -79,7 +83,7 @@ export function TransactionRequest({ txRequest }: TransactionRequestProps) {
                 rejectTitle="Reject"
                 onSubmit={async (approved: boolean) => {
                     if (isPending) return;
-                    if (approved && isError) {
+                    if (approved && txHasErrors) {
                         setConfirmationVisible(true);
                         return;
                     }
@@ -104,14 +108,7 @@ export function TransactionRequest({ txRequest }: TransactionRequestProps) {
             >
                 <PageMainLayoutTitle title="Approve Transaction" />
                 <div className="-mr-3 flex flex-col gap-md">
-                    <TransactionSummary
-                        isDryRun
-                        isLoading={isDryRunLoading}
-                        isError={isDryRunError}
-                        summary={summary}
-                        renderExplorerLink={ExplorerLinkHelper}
-                    />
-                    {(!summary || isDryRunError) && (
+                    {(!summary || isDryRunError || isDryRunExecutionFailed) && (
                         <InfoBox
                             title="Review the transaction"
                             supportingText="Unexpected issue during the dry run. The transaction may not execute properly."
@@ -120,6 +117,13 @@ export function TransactionRequest({ txRequest }: TransactionRequestProps) {
                             style={InfoBoxStyle.Elevated}
                         />
                     )}
+                    <TransactionSummary
+                        isDryRun
+                        isLoading={isDryRunLoading}
+                        isError={isDryRunError}
+                        summary={summary}
+                        renderExplorerLink={ExplorerLinkHelper}
+                    />
                     <GasFees
                         sender={addressForTransaction}
                         gasSummary={summary?.gas}
