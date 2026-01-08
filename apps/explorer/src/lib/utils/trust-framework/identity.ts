@@ -4,9 +4,11 @@
 
 import * as identity from '@iota/identity-wasm/web';
 import { isValidIotaObjectId } from '@iota/iota-sdk/utils';
+import { type IotaClient, Network } from '@iota/iota-sdk/client';
 import {
     DID_PROTOCOL_SEGMENT_SYMBOL,
     DID_URL_SEGMENT_SYMBOL,
+    IOTA_IDENTITY_PKG_ID,
 } from '~/lib/constants/trustFramework.constants';
 
 let initPromise: Promise<void> | null = null;
@@ -25,6 +27,20 @@ export const initIdentityWasmWeb = async (): Promise<void> => {
         });
     }
     return initPromise;
+};
+
+export const createIdentityClientReadOnly = async (
+    iotaClient: IotaClient,
+    network: string,
+): Promise<identity.IdentityClientReadOnly> => {
+    await initIdentityWasmWeb();
+    // See more details over env requirement definitions at:
+    // - https://github.com/iotaledger/identity/tree/main/bindings/wasm/identity_wasm/examples#iota-identity-examples
+    if (network in [Network.Testnet]) {
+        return await identity.IdentityClientReadOnly.create(iotaClient);
+    }
+    // otherwise, IOTA_IDENTITY_PKG_ID is required
+    return await identity.IdentityClientReadOnly.createWithPkgId(iotaClient, IOTA_IDENTITY_PKG_ID);
 };
 
 export async function tryDIDParse(didCandidate: string): Promise<identity.IotaDID | null> {
