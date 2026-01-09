@@ -2,12 +2,14 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useGetTransaction } from '@iota/core';
+import { formatDate, useGetTransaction } from '@iota/core';
 import { useState } from 'react';
 import { type Direction } from 'react-resizable-panels';
 
 import {
     AddressLink,
+    CheckpointSequenceLink,
+    EpochLink,
     ErrorBoundary,
     ObjectLink,
     PkgModulesWrapper,
@@ -104,6 +106,32 @@ export function PkgView({ data }: PkgViewProps): JSX.Element {
                                         />
                                     </div>
                                 }
+                            />
+                        )}
+                        {txnData?.checkpoint && (
+                            <KeyValueInfo
+                                keyText="Checkpoint"
+                                value={
+                                    <CheckpointSequenceLink sequence={txnData.checkpoint}>
+                                        {Number(txnData.checkpoint).toLocaleString()}
+                                    </CheckpointSequenceLink>
+                                }
+                            />
+                        )}
+                        {txnData?.effects?.executedEpoch && (
+                            <KeyValueInfo
+                                keyText="Epoch"
+                                value={
+                                    <EpochLink epoch={txnData.effects.executedEpoch}>
+                                        {txnData.effects.executedEpoch}
+                                    </EpochLink>
+                                }
+                            />
+                        )}
+                        {txnData?.timestampMs && (
+                            <KeyValueInfo
+                                keyText="Date"
+                                value={formatDate(Number(txnData.timestampMs))}
                             />
                         )}
                     </div>
