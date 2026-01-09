@@ -39,7 +39,7 @@ async fn request_gas_internal(
         amount, recipient
     );
 
-    let mut simulacrum = state.simulacrum.lock().await;
+    let simulacrum = state.simulacrum.as_ref();
 
     // Request gas from the faucet
     let gas_result = simulacrum.request_gas(recipient, amount);

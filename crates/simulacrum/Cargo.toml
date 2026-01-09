@@ -16,6 +16,7 @@ rand.workspace = true
 # internal dependencies
 iota-config.workspace = true
 iota-execution.workspace = true
+iota-grpc-server.workspace = true
 iota-protocol-config.workspace = true
 iota-storage.workspace = true
 iota-swarm-config.workspace = true

@@ -13678,6 +13678,7 @@ dependencies = [
  "fastcrypto",
  "iota-config",
  "iota-execution",
+ "iota-grpc-server",
  "iota-protocol-config",
  "iota-storage",
  "iota-swarm-config",

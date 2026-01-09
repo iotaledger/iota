@@ -53,6 +53,10 @@ struct Args {
     /// Accounts to create in the format "address:amount,address:amount..."
     #[arg(long)]
     accounts: Option<String>,
+
+    /// Path to store data ingestion files
+    #[arg(long)]
+    data_ingestion_path: Option<String>,
 }
 
 #[tokio::main]
@@ -124,12 +128,18 @@ async fn main() -> Result<()> {
     };
     account_configs.insert(0, faucet_account); // ensure faucet account is first
 
-    let mut simulacrum = Simulacrum::new_with_protocol_version_and_accounts(
+    let simulacrum = Simulacrum::new_with_protocol_version_and_accounts(
         rand::rngs::OsRng,
         args.chain_start_timestamp_ms.unwrap_or_default(),
         iota_protocol_config::ProtocolVersion::MAX,
         account_configs,
     );
+
+    // Set data ingestion path if provided
+    if let Some(path) = args.data_ingestion_path {
+        info!("Setting data ingestion path to: {}", path);
+        simulacrum.set_data_ingestion_path(path.into());
+    }
 
     // Create initial checkpoints if requested
     if args.initial_checkpoints > 0 {
@@ -145,7 +155,7 @@ async fn main() -> Result<()> {
         }
     }
 
-    let simulacrum = Arc::new(tokio::sync::Mutex::new(simulacrum));
+    let simulacrum = Arc::new(simulacrum);
     let app_state = AppState {
         simulacrum: simulacrum.clone(),
         faucet_request_amount: args.faucet_request_amount,

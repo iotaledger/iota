@@ -84,8 +84,8 @@ impl EpochState {
         &self.committee
     }
 
-    pub fn epoch_start_state(&self) -> &EpochStartSystemState {
-        &self.epoch_start_state
+    pub fn epoch_start_state(&self) -> EpochStartSystemState {
+        self.epoch_start_state.clone()
     }
 
     pub fn protocol_version(&self) -> ProtocolVersion {
@@ -94,10 +94,6 @@ impl EpochState {
 
     pub fn protocol_config(&self) -> &ProtocolConfig {
         &self.protocol_config
-    }
-
-    pub fn executor(&self) -> Arc<dyn Executor + Send + Sync> {
-        self.executor.clone()
     }
 
     pub fn execute_transaction(

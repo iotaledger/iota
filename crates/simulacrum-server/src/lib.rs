@@ -9,6 +9,6 @@ pub mod faucet;
 pub mod grpc_server;
 pub mod rest_api;
 
-pub use grpc_server::{SimulacrumGrpcReader, start_simulacrum_grpc_server};
+pub use grpc_server::start_simulacrum_grpc_server;
 pub use rest_api::{AppState, create_router};
 pub use simulacrum::{Simulacrum, store::SimulatorStore};

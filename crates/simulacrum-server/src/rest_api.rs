@@ -17,6 +17,7 @@ use axum::{
     routing::{get, post},
 };
 use http::Method;
+use iota_types::storage::ReadStore;
 use serde::{Deserialize, Serialize};
 use simulacrum::Simulacrum;
 use tower::ServiceBuilder;
@@ -28,7 +29,7 @@ use crate::faucet;
 /// Application state shared between REST handlers
 #[derive(Clone)]
 pub struct AppState {
-    pub simulacrum: Arc<tokio::sync::Mutex<Simulacrum>>,
+    pub simulacrum: Arc<Simulacrum>,
     pub faucet_request_amount: u64,
 }
 
@@ -109,20 +110,14 @@ pub fn checkpoint_to_response(
 pub async fn get_status(
     State(state): State<AppState>,
 ) -> Result<Json<SimulacrumStatus>, StatusCode> {
-    let simulacrum = state.simulacrum.lock().await;
+    let simulacrum = state.simulacrum.as_ref();
 
-    let highest_checkpoint = simulacrum
-        .store()
-        .get_highest_checkpoint()
-        .map(|cp| *cp.sequence_number());
+    let highest_verified_checkpoint = simulacrum.get_highest_verified_checkpoint();
+    let highest_verified_checkpoint_data = highest_verified_checkpoint.data();
+    let highest_checkpoint = Some(highest_verified_checkpoint_data.sequence_number().clone());
+    let current_epoch = highest_verified_checkpoint_data.epoch;
 
-    let current_epoch = simulacrum
-        .store()
-        .get_highest_checkpoint()
-        .map(|cp| cp.epoch())
-        .unwrap_or(0);
-
-    let timestamp_ms = simulacrum.store().get_clock().timestamp_ms();
+    let timestamp_ms = simulacrum.with_store(|store| store.get_clock().timestamp_ms());
     let reference_gas_price = simulacrum.reference_gas_price();
 
     let response = SimulacrumStatus {
@@ -140,20 +135,17 @@ pub async fn get_status(
 pub async fn get_checkpoint(
     State(state): State<AppState>,
 ) -> Result<Json<CheckpointResponse>, StatusCode> {
-    let simulacrum = state.simulacrum.lock().await;
-    let checkpoint = simulacrum
-        .store()
-        .get_highest_checkpoint()
-        .ok_or(StatusCode::NOT_FOUND)?;
+    let simulacrum = state.simulacrum.as_ref();
+    let highest_verified_checkpoint = simulacrum.get_highest_verified_checkpoint();
 
-    let response = checkpoint_to_response(&checkpoint);
+    let response = checkpoint_to_response(&highest_verified_checkpoint);
     Ok(Json(response))
 }
 
 pub async fn create_checkpoint(
     State(state): State<AppState>,
 ) -> Result<Json<CheckpointResponse>, StatusCode> {
-    let mut simulacrum = state.simulacrum.lock().await;
+    let simulacrum = state.simulacrum.as_ref();
     let checkpoint = simulacrum.create_checkpoint();
 
     let response = checkpoint_to_response(&checkpoint);
@@ -176,7 +168,7 @@ pub async fn create_checkpoints(
         return Err(StatusCode::BAD_REQUEST);
     }
 
-    let mut simulacrum = state.simulacrum.lock().await;
+    let simulacrum = state.simulacrum.as_ref();
     let mut checkpoints = Vec::new();
 
     for i in 0..request.count {
@@ -206,11 +198,11 @@ pub async fn advance_clock(
     State(state): State<AppState>,
     Json(request): Json<AdvanceClockRequest>,
 ) -> Result<Json<AdvanceClockResponse>, StatusCode> {
-    let mut simulacrum = state.simulacrum.lock().await;
+    let simulacrum = state.simulacrum.as_ref();
 
-    let old_timestamp = simulacrum.store().get_clock().timestamp_ms();
+    let old_timestamp = simulacrum.with_store(|store| store.get_clock().timestamp_ms());
     simulacrum.advance_clock(Duration::from_millis(request.duration_ms));
-    let new_timestamp = simulacrum.store().get_clock().timestamp_ms();
+    let new_timestamp = simulacrum.with_store(|store| store.get_clock().timestamp_ms());
 
     let response = AdvanceClockResponse {
         new_timestamp_ms: new_timestamp,
@@ -229,19 +221,13 @@ pub async fn advance_epoch(
     State(state): State<AppState>,
     Json(request): Json<AdvanceEpochRequest>,
 ) -> Result<Json<AdvanceEpochResponse>, StatusCode> {
-    let mut simulacrum = state.simulacrum.lock().await;
+    let simulacrum = state.simulacrum.as_ref();
 
-    let old_epoch = simulacrum
-        .store()
-        .get_highest_checkpoint()
-        .map(|cp| cp.epoch())
-        .unwrap_or(0);
+    let old_epoch = simulacrum.get_highest_verified_checkpoint().data().epoch;
+
     simulacrum.advance_epoch();
-    let new_epoch = simulacrum
-        .store()
-        .get_highest_checkpoint()
-        .map(|cp| cp.epoch())
-        .unwrap_or(0);
+
+    let new_epoch = simulacrum.get_highest_verified_checkpoint().data().epoch;
 
     let checkpoint = if request.create_checkpoint {
         let cp = simulacrum.create_checkpoint();

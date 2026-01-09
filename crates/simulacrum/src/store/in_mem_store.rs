@@ -332,6 +332,24 @@ pub struct KeyStore {
     account_keys: BTreeMap<IotaAddress, AccountKeyPair>,
 }
 
+impl Clone for KeyStore {
+    fn clone(&self) -> Self {
+        use fastcrypto::traits::KeyPair;
+        Self {
+            validator_keys: self
+                .validator_keys
+                .iter()
+                .map(|(k, v)| (*k, v.copy()))
+                .collect(),
+            account_keys: self
+                .account_keys
+                .iter()
+                .map(|(k, v)| (*k, v.copy()))
+                .collect(),
+        }
+    }
+}
+
 impl KeyStore {
     pub fn from_network_config(
         network_config: &iota_swarm_config::network_config::NetworkConfig,
