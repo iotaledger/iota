@@ -13675,6 +13675,7 @@ name = "simulacrum"
 version = "1.15.0-alpha"
 dependencies = [
  "anyhow",
+ "async-trait",
  "fastcrypto",
  "iota-config",
  "iota-execution",
@@ -13689,6 +13690,7 @@ dependencies = [
  "move-core-types",
  "prometheus",
  "rand 0.8.5",
+ "tracing",
 ]
 
 [[package]]

@@ -9,15 +9,11 @@ use anyhow::Result;
 use iota_grpc_server::{GrpcReader, GrpcServerHandle, start_grpc_server};
 use iota_types::{
     digests::{ChainIdentifier, CheckpointDigest},
-    effects::TransactionEffectsAPI,
-    quorum_driver_types::{
-        ExecuteTransactionRequestV1, ExecuteTransactionResponseV1, FinalizedEffects,
-        QuorumDriverError,
-    },
-    transaction::TransactionData,
-    transaction_executor::{SimulateTransactionResult, TransactionExecutor, VmChecks},
+    transaction_executor::TransactionExecutor as TransactionExecutorTrait,
 };
-use simulacrum::{Simulacrum, state_reader::SimulacrumGrpcReader};
+use simulacrum::{
+    Simulacrum, state_reader::SimulacrumGrpcReader, transaction_executor::TransactionExecutor,
+};
 
 // Dummy event subscriber for simulacrum (events not supported)
 // TODO: add support for events in simulacrum?
@@ -33,104 +29,6 @@ impl iota_grpc_server::types::EventSubscriber for DummyEventSubscriber {
     }
 }
 
-/// Transaction executor implementation for simulacrum
-/// This allows transaction execution and simulation via gRPC without requiring
-/// quorum consensus
-pub struct SimulacrumTransactionExecutor {
-    simulacrum: Arc<Simulacrum>,
-}
-
-impl SimulacrumTransactionExecutor {
-    pub fn new(simulacrum: Arc<Simulacrum>) -> Self {
-        Self { simulacrum }
-    }
-}
-
-#[async_trait::async_trait]
-impl TransactionExecutor for SimulacrumTransactionExecutor {
-    async fn execute_transaction(
-        &self,
-        request: ExecuteTransactionRequestV1,
-        _client_addr: Option<std::net::SocketAddr>,
-    ) -> Result<ExecuteTransactionResponseV1, QuorumDriverError> {
-        let simulacrum = &*self.simulacrum;
-
-        // Execute the transaction directly (it's already a Transaction type)
-        let (effects, _execution_error) = simulacrum
-            .execute_transaction(request.transaction.clone())
-            .map_err(|e| {
-                QuorumDriverError::QuorumDriverInternal(iota_types::error::IotaError::Unknown(
-                    e.to_string(),
-                ))
-            })?;
-
-        // Create a checkpoint to finalize the transaction
-        let checkpoint = simulacrum.create_checkpoint();
-
-        tracing::debug!(
-            tx_digest = ?effects.transaction_digest(),
-            checkpoint = checkpoint.sequence_number(),
-            "Transaction executed and finalized in simulacrum"
-        );
-
-        // For simulacrum, we create a dummy certified effects since there's no real
-        // validator consensus. We use
-        // CertifiedTransactionEffects::new_from_data_and_sig with empty
-        // signatures.
-        let (test_committee, _) = iota_types::committee::Committee::new_simple_test_committee();
-        let effects_cert = iota_types::effects::CertifiedTransactionEffects::new_from_data_and_sig(
-            effects.clone(),
-            iota_types::crypto::AuthorityQuorumSignInfo::new_from_auth_sign_infos(
-                vec![],
-                &test_committee,
-            )
-            .unwrap(),
-        );
-        let verified_effects =
-            iota_types::effects::VerifiedCertifiedTransactionEffects::new_unchecked(effects_cert);
-
-        // Build response
-        let response = ExecuteTransactionResponseV1 {
-            effects: FinalizedEffects::new_from_effects_cert(verified_effects.into()),
-            events: if request.include_events {
-                // TODO: get events from simulacrum store
-                None
-            } else {
-                None
-            },
-            input_objects: if request.include_input_objects {
-                // TODO: get input objects from simulacrum store
-                None
-            } else {
-                None
-            },
-            output_objects: if request.include_output_objects {
-                // TODO: get output objects from simulacrum store
-                None
-            } else {
-                None
-            },
-            auxiliary_data: if request.include_auxiliary_data {
-                // TODO: get auxiliary data
-                None
-            } else {
-                None
-            },
-        };
-
-        Ok(response)
-    }
-
-    fn simulate_transaction(
-        &self,
-        transaction: TransactionData,
-        checks: VmChecks,
-    ) -> Result<SimulateTransactionResult, iota_types::error::IotaError> {
-        // Simulacrum is already thread-safe, no locking needed
-        self.simulacrum.simulate_transaction(transaction, checks)
-    }
-}
-
 /// Start a gRPC server for the given simulacrum instance
 pub async fn start_simulacrum_grpc_server(
     simulacrum: Arc<Simulacrum>,
@@ -141,10 +39,9 @@ pub async fn start_simulacrum_grpc_server(
 
     // Create a transaction executor for simulacrum to enable transaction execution
     // and simulation via gRPC
-    let executor = Some(
-        Arc::new(SimulacrumTransactionExecutor::new(simulacrum.clone()))
-            as Arc<dyn TransactionExecutor>,
-    );
+    let executor =
+        Some(Arc::new(TransactionExecutor::new(simulacrum.clone()))
+            as Arc<dyn TransactionExecutorTrait>);
 
     let simulacrum_reader = Arc::new(SimulacrumGrpcReader::new(simulacrum.clone(), chain_id));
     let grpc_reader = Arc::new(GrpcReader::new(simulacrum_reader, None));
@@ -174,13 +71,13 @@ mod tests {
 
     #[tokio::test]
     async fn test_grpc_server_startup_with_mutex() {
-        let mut simulacrum = Simulacrum::new();
+        let sim = Simulacrum::new();
 
         // Create some checkpoints
-        simulacrum.advance_clock(Duration::from_secs(1));
-        simulacrum.create_checkpoint();
+        sim.advance_clock(Duration::from_secs(1));
+        sim.create_checkpoint();
 
-        let simulacrum = Arc::new(simulacrum);
+        let simulacrum = Arc::new(sim);
 
         // Start gRPC server with test configuration using test utilities
         let address = local_ip_utils::new_local_tcp_socket_for_testing();

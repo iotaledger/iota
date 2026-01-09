@@ -9,9 +9,11 @@ publish = false
 [dependencies]
 # external dependencies
 anyhow.workspace = true
+async-trait.workspace = true
 fastcrypto.workspace = true
 prometheus.workspace = true
 rand.workspace = true
+tracing.workspace = true
 
 # internal dependencies
 iota-config.workspace = true

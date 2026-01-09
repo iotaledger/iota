@@ -15,6 +15,7 @@
 mod epoch_state;
 pub mod state_reader;
 pub mod store;
+pub mod transaction_executor;
 
 use std::{
     num::NonZeroUsize,
@@ -759,33 +760,33 @@ mod tests {
         let rng = StdRng::from_seed([0; 32]);
         let chain3 = Simulacrum::new_with_rng(rng);
 
-        let committee1 = chain1.with_store(|store| store.get_committee_by_epoch(0));
-        let committee3 = chain3.with_store(|store| store.get_committee_by_epoch(0));
+        let committee1 = chain1.with_store(|store| store.get_committee_by_epoch(0).cloned());
+        let committee3 = chain3.with_store(|store| store.get_committee_by_epoch(0).cloned());
         assert_ne!(committee1, committee3);
     }
 
     #[test]
     fn simple() {
         let steps = 10;
-        let mut chain = Simulacrum::new();
+        let sim = Simulacrum::new();
 
-        let start_time_ms = chain.with_store(|store| {
+        let start_time_ms = sim.with_store(|store| {
             let clock = store.get_clock();
             println!("clock: {clock:#?}");
             clock.timestamp_ms()
         });
 
         for _ in 0..steps {
-            chain.advance_clock(Duration::from_millis(1));
-            chain.create_checkpoint();
-            chain.with_store(|store| {
+            sim.advance_clock(Duration::from_millis(1));
+            sim.create_checkpoint();
+            sim.with_store(|store| {
                 let clock = store.get_clock();
                 println!("clock: {clock:#?}");
             });
         }
-        let end_time_ms = chain.with_store(|store| store.get_clock().timestamp_ms());
+        let end_time_ms = sim.with_store(|store| store.get_clock().timestamp_ms());
         assert_eq!(end_time_ms - start_time_ms, steps);
-        chain.with_store(|store| {
+        sim.with_store(|store| {
             dbg!(store.get_highest_checkpoint());
         });
     }
@@ -793,25 +794,25 @@ mod tests {
     #[test]
     fn simple_epoch() {
         let steps = 10;
-        let mut chain = Simulacrum::new();
+        let sim = Simulacrum::new();
 
-        let start_epoch = chain.with_store(|store| store.get_highest_checkpoint().unwrap().epoch);
+        let start_epoch = sim.with_store(|store| store.get_highest_checkpoint().unwrap().epoch);
         for i in 0..steps {
-            chain.advance_epoch();
-            chain.advance_clock(Duration::from_millis(1));
-            chain.create_checkpoint();
+            sim.advance_epoch();
+            sim.advance_clock(Duration::from_millis(1));
+            sim.create_checkpoint();
             println!("{i}");
         }
-        let end_epoch = chain.with_store(|store| store.get_highest_checkpoint().unwrap().epoch);
+        let end_epoch = sim.with_store(|store| store.get_highest_checkpoint().unwrap().epoch);
         assert_eq!(end_epoch - start_epoch, steps);
-        chain.with_store(|store| {
+        sim.with_store(|store| {
             dbg!(store.get_highest_checkpoint());
         });
     }
 
     #[test]
     fn transfer() {
-        let mut sim = Simulacrum::new();
+        let sim = Simulacrum::new();
         let recipient = IotaAddress::random_for_testing_only();
         let (tx, transfer_amount) = sim.transfer_txn(recipient);
 
@@ -834,7 +835,7 @@ mod tests {
                 store
                     .owned_objects(recipient)
                     .next()
-                    .and_then(|object| GasCoin::try_from(&object).ok())
+                    .and_then(|object| GasCoin::try_from(object).ok())
                     .unwrap()
                     .value()
             );

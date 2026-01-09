@@ -124,7 +124,7 @@ async fn main() -> Result<()> {
     // create an account for the faucet
     let faucet_account = AccountConfig {
         address: None,
-        gas_amounts: vec![10_000_000_000],
+        gas_amounts: vec![100_000_000_000_000],
     };
     account_configs.insert(0, faucet_account); // ensure faucet account is first
 
