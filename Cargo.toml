@@ -160,6 +160,7 @@ members = [
   "crates/iota-verifier-transactional-tests",
   "crates/prometheus-closure-metric",
   "crates/simulacrum",
+  "crates/simulacrum-server",
   "crates/starfish/config",
   "crates/starfish/core",
   "crates/starfish/simtests",
@@ -501,6 +502,7 @@ move-vm-profiler = { path = "external-crates/move/crates/move-vm-profiler" }
 move-vm-test-utils = { path = "external-crates/move/crates/move-vm-test-utils/", features = ["tiered-gas"] }
 prometheus-closure-metric = { path = "crates/prometheus-closure-metric" }
 simulacrum = { path = "crates/simulacrum" }
+simulacrum-server = { path = "crates/simulacrum-server" }
 starfish-config = { path = "crates/starfish/config" }
 starfish-core = { path = "crates/starfish/core" }
 starfish-simtests = { path = "crates/starfish/simtests" }

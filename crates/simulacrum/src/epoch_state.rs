@@ -90,6 +90,10 @@ impl EpochState {
         &self.protocol_config
     }
 
+    pub fn executor(&self) -> Arc<dyn Executor + Send + Sync> {
+        self.executor.clone()
+    }
+
     pub fn execute_transaction(
         &self,
         store: &dyn SimulatorStore,

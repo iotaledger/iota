@@ -93,6 +93,7 @@
 /crates/iota-verifier-transactional-tests/ @iotaledger/vm-language
 /crates/prometheus-closure-metric/ @iotaledger/node
 /crates/simulacrum/ @iotaledger/vm-language
+/crates/simulacrum-server/ @iotaledger/node
 /crates/starfish/ @iotaledger/consensus
 /crates/telemetry-subscribers/ @iotaledger/core-protocol
 /crates/transaction-fuzzer/ @iotaledger/node @iotaledger/vm-language

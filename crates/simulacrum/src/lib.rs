@@ -23,6 +23,7 @@ use iota_config::{
     genesis, transaction_deny_config::TransactionDenyConfig,
     verifier_signing_config::VerifierSigningConfig,
 };
+use iota_execution::Executor;
 use iota_protocol_config::ProtocolVersion;
 use iota_storage::blob::{Blob, BlobEncoding};
 use iota_swarm_config::{
@@ -89,6 +90,10 @@ impl Simulacrum {
     #[expect(clippy::new_without_default)]
     pub fn new() -> Self {
         Self::new_with_rng(OsRng)
+    }
+
+    pub fn executor(&self) -> Arc<dyn Executor + Send + Sync> {
+        self.epoch_state.executor()
     }
 }
 
@@ -345,7 +350,7 @@ impl<R, S: store::SimulatorStore> Simulacrum<R, S> {
         // For right now we'll just use the first account as the `faucet` account. We
         // may want to explicitly cordon off the faucet account from the rest of
         // the accounts though.
-        let (sender, key) = self.keystore().accounts().next().unwrap();
+        let (sender, key) = self.keystore().accounts().next().ok_or_else(|| anyhow!("no accounts available in keystore"))?;
         let object = self
             .store()
             .owned_objects(*sender)
