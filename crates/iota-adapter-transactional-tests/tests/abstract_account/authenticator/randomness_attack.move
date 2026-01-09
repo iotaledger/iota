@@ -10,21 +10,21 @@
 //# publish --sender A --dependencies simple_abstract_account
 module test::randomness_attack;
 
-use iota::random::Random;
 use iota::auth_context::AuthContext;
+use iota::random::Random;
 use simple_abstract_account::abstract_account::AbstractAccount;
 
 public fun attack(_r: &Random) {}
 
 #[authenticator]
-public fun authenticate(
-        _account: &AbstractAccount,
-        _r: &Random,
-        _auth_ctx: &AuthContext,
-        _ctx: &TxContext,
-    ) {}
+public fun authenticate_random(
+    _account: &AbstractAccount,
+    _r: &Random,
+    _auth_ctx: &AuthContext,
+    _ctx: &TxContext,
+) {}
 
-//# init-abstract-account --sender A --package-metadata object(3,0) --inputs "randomness_attack" "authenticate" --create-function simple_abstract_account::abstract_account::create --account-type simple_abstract_account::abstract_account::AbstractAccount
+//# init-abstract-account --sender A --package-metadata object(3,0) --inputs "randomness_attack" "authenticate_random" --create-function simple_abstract_account::abstract_account::create --account-type simple_abstract_account::abstract_account::AbstractAccount
 
 //# view-object 4,2
 

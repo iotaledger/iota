@@ -17,13 +17,13 @@ task 2, lines 10-25:
 //# publish --sender A --dependencies simple_abstract_account
 created: object(3,0), object(3,1)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 9264400,  storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 9424000,  storage_rebate: 0, non_refundable_storage_fee: 0
 
 task 3, line 27:
-//# init-abstract-account --sender A --package-metadata object(3,0) --inputs "randomness_attack" "authenticate" --create-function simple_abstract_account::abstract_account::create --account-type simple_abstract_account::abstract_account::AbstractAccount
+//# init-abstract-account --sender A --package-metadata object(3,0) --inputs "randomness_attack" "authenticate_random" --create-function simple_abstract_account::abstract_account::create --account-type simple_abstract_account::abstract_account::AbstractAccount
 created: object(4,0), object(4,1), object(4,2)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 6665200,  storage_rebate: 980400, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 6718400,  storage_rebate: 980400, non_refundable_storage_fee: 0
 
 task 4, line 29:
 //# view-object 4,2
