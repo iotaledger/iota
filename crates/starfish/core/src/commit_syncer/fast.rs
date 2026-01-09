@@ -19,7 +19,7 @@ use crate::{
     CommitConsumerMonitor, CommitIndex, VerifiedBlockHeader,
     block_header::VerifiedTransactions,
     block_verifier::BlockVerifier,
-    commit::{CommitAPI as _, CommitRange, CommittedSubDag, GENESIS_COMMIT_INDEX, TrustedCommit},
+    commit::{CommitAPI as _, CommitRange, CommittedSubDag, TrustedCommit},
     commit_syncer::{
         CommitSyncType, CommitSyncerHandle, Inner, fetch_loop as shared_fetch_loop,
         handle_fetch_join_error, requeue_partial_range, schedule_commit_ranges,
@@ -619,47 +619,24 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
         let cached_rounds = inner.context.parameters.dag_state_cached_rounds;
         let gc_depth = inner.context.protocol_config.gc_depth();
         let leader_schedule_window = crate::leader_schedule::CONSENSUS_COMMITS_PER_SCHEDULE as u32;
-        let (last_commit_index, last_commit_info_index) = {
-            let dag_state = inner.dag_state.read();
-            let last_commit_index = dag_state.last_commit_index();
-            let last_commit_info_index = dag_state
-                .recover_last_commit_info()
-                .map(|(commit_ref, commit_info)| {
-                    let range_end = commit_info.reputation_scores.commit_range.end();
-                    if range_end == GENESIS_COMMIT_INDEX {
-                        commit_ref.index
-                    } else {
-                        range_end
-                    }
-                })
-                .unwrap_or(GENESIS_COMMIT_INDEX);
-            (last_commit_index, last_commit_info_index)
-        };
-        let commits_since_schedule_update =
-            last_commit_index.saturating_sub(last_commit_info_index);
-        let num_commits = max(
-            commits_since_schedule_update,
-            max(leader_schedule_window, max(cached_rounds, gc_depth * 2)),
-        );
-
-        let max_headers_per_fetch = inner.context.parameters.max_headers_per_commit_sync_fetch;
-
         // Get block refs from recent commits stored during fast sync
         // TODO: The commits might not yet stored, but only fetched and pending
         // processing.
-        let block_refs = inner
-            .dag_state
-            .read()
-            .get_block_refs_for_recent_commits(num_commits);
-
-        // TODO: we anyway need to reinitialize even if there are no block refs,
-        if block_refs.is_empty() {
-            info!(
-                "[{}] No block refs to fetch for reinitialization",
-                inner.sync_type.as_str()
+        let (commits_since_schedule_update, block_refs) = {
+            let dag_state = inner.dag_state.read();
+            let last_commit_index = dag_state.last_commit_index();
+            let last_commit_info_index = dag_state.last_commit_info_index();
+            let commits_since_schedule_update =
+                last_commit_index.saturating_sub(last_commit_info_index);
+            let num_commits = max(
+                commits_since_schedule_update,
+                max(leader_schedule_window, max(cached_rounds, gc_depth * 2)),
             );
-            return Ok(vec![]);
-        }
+            let block_refs = dag_state.get_block_refs_for_recent_commits(num_commits);
+            (commits_since_schedule_update, block_refs)
+        };
+
+        let max_headers_per_fetch = inner.context.parameters.max_headers_per_commit_sync_fetch;
 
         info!(
             "[{}] Fetching {} block headers for reinitialization (cached_rounds={}, gc_depth*2={}, leader_schedule_window={}, commits_since_schedule_update={})",

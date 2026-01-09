@@ -32,6 +32,25 @@ fn calculate_seed_index(last_commit_ref: &CommitRef, last_commit_info: &CommitIn
     }
 }
 
+/// Recovers a `LeaderSwapTable` from stored commit info.
+/// Returns default table if no commit info exists.
+fn recover_leader_swap_table(
+    context: &Arc<Context>,
+    dag_state: &RwLock<DagState>,
+) -> LeaderSwapTable {
+    dag_state.read().recover_last_commit_info().map_or(
+        LeaderSwapTable::default(),
+        |(last_commit_ref, last_commit_info)| {
+            let seed_index = calculate_seed_index(&last_commit_ref, &last_commit_info);
+            LeaderSwapTable::new(
+                context.clone(),
+                seed_index,
+                last_commit_info.reputation_scores,
+            )
+        },
+    )
+}
+
 /// The window where the schedule change takes place in consensus. It
 /// represents number of committed sub dags.
 /// TODO: move this to protocol config
@@ -69,17 +88,7 @@ impl LeaderSchedule {
     /// the last stored `ReputationScores` and use them to build a
     /// `LeaderSwapTable`.
     pub(crate) fn from_store(context: Arc<Context>, dag_state: Arc<RwLock<DagState>>) -> Self {
-        let leader_swap_table = dag_state.read().recover_last_commit_info().map_or(
-            LeaderSwapTable::default(),
-            |(last_commit_ref, last_commit_info)| {
-                let seed_index = calculate_seed_index(&last_commit_ref, &last_commit_info);
-                LeaderSwapTable::new(
-                    context.clone(),
-                    seed_index,
-                    last_commit_info.reputation_scores,
-                )
-            },
-        );
+        let leader_swap_table = recover_leader_swap_table(&context, &dag_state);
 
         tracing::info!(
             "LeaderSchedule recovered using {leader_swap_table:?}. There are {} committed subdags scored in DagState.",
@@ -94,17 +103,7 @@ impl LeaderSchedule {
     /// Used after fast sync completes to restore the leader swap table
     /// from the persisted reputation scores.
     pub(crate) fn reinitialize(&self, dag_state: &RwLock<DagState>) {
-        let leader_swap_table = dag_state.read().recover_last_commit_info().map_or(
-            LeaderSwapTable::default(),
-            |(last_commit_ref, last_commit_info)| {
-                let seed_index = calculate_seed_index(&last_commit_ref, &last_commit_info);
-                LeaderSwapTable::new(
-                    self.context.clone(),
-                    seed_index,
-                    last_commit_info.reputation_scores,
-                )
-            },
-        );
+        let leader_swap_table = recover_leader_swap_table(&self.context, dag_state);
 
         tracing::info!(
             "LeaderSchedule reinitialized using {leader_swap_table:?}. There are {} committed subdags scored in DagState.",

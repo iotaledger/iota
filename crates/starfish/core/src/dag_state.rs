@@ -373,17 +373,7 @@ impl DagState {
             return;
         };
 
-        let commit_recovery_start_index = self
-            .recover_last_commit_info()
-            .map(|(commit_ref, commit_info)| {
-                let range_end = commit_info.reputation_scores.commit_range.end();
-                if range_end == GENESIS_COMMIT_INDEX {
-                    commit_ref.index.saturating_add(1)
-                } else {
-                    range_end.saturating_add(1)
-                }
-            })
-            .unwrap_or(GENESIS_COMMIT_INDEX + 1);
+        let commit_recovery_start_index = self.last_commit_info_index().saturating_add(1);
 
         if commit_recovery_start_index > last_commit.index() {
             return;
@@ -1923,6 +1913,22 @@ impl DagState {
         self.store
             .read_last_commit_info()
             .unwrap_or_else(|e| panic!("Failed to read from storage: {e:?}"))
+    }
+
+    /// Returns the commit index of the last stored commit info, or
+    /// GENESIS_COMMIT_INDEX if none. This is the end of the reputation
+    /// score commit range (or the commit ref index for genesis).
+    pub(crate) fn last_commit_info_index(&self) -> CommitIndex {
+        self.recover_last_commit_info()
+            .map(|(commit_ref, commit_info)| {
+                let range_end = commit_info.reputation_scores.commit_range.end();
+                if range_end == GENESIS_COMMIT_INDEX {
+                    commit_ref.index
+                } else {
+                    range_end
+                }
+            })
+            .unwrap_or(GENESIS_COMMIT_INDEX)
     }
 
     pub(crate) fn add_scoring_subdags(&mut self, scoring_subdags: Vec<SubDagBase>) {

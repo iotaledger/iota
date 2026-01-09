@@ -1262,7 +1262,6 @@ mod tests {
             last_processed_before_second_restart,
         )
         .await;
-        boot_counters[stopped_index] += 1;
         output_receivers[stopped_index] = receiver;
         consumer_monitors[stopped_index] = monitor;
         authorities.insert(stopped_index, authority);
