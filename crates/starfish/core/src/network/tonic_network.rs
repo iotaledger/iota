@@ -828,24 +828,10 @@ impl<S: NetworkService> ConsensusService for TonicServiceProxy<S> {
 
     async fn get_latest_rounds(
         &self,
-        request: Request<GetLatestRoundsRequest>,
+        _request: Request<GetLatestRoundsRequest>,
     ) -> Result<Response<GetLatestRoundsResponse>, tonic::Status> {
-        let Some(peer_index) = request
-            .extensions()
-            .get::<PeerInfo>()
-            .map(|p| p.authority_index)
-        else {
-            return Err(tonic::Status::internal("PeerInfo not found"));
-        };
-        let (highest_received, highest_accepted) = self
-            .service
-            .handle_get_latest_rounds(peer_index)
-            .await
-            .map_err(|e| tonic::Status::internal(format!("{e:?}")))?;
-        Ok(Response::new(GetLatestRoundsResponse {
-            highest_received,
-            highest_accepted,
-        }))
+        error!("get_latest_rounds() is deprecated in starfish and should not be called");
+        unimplemented!();
     }
 
     type FetchTransactionsStream =

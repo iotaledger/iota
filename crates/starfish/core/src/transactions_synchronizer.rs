@@ -2398,10 +2398,6 @@ mod tests {
         fn set_last_known_proposed_round(&self, _round: Round) -> Result<(), CoreError> {
             unimplemented!()
         }
-
-        fn highest_received_rounds(&self) -> Vec<Round> {
-            unimplemented!()
-        }
     }
 
     #[async_trait]
