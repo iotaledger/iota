@@ -19,7 +19,7 @@ use tracing::{info, warn};
 
 /// The minimum and maximum protocol versions supported by this build.
 const MIN_PROTOCOL_VERSION: u64 = 1;
-pub const MAX_PROTOCOL_VERSION: u64 = 17;
+pub const MAX_PROTOCOL_VERSION: u64 = 18;
 
 // Record history of protocol version allocations here:
 //
@@ -92,6 +92,7 @@ pub const MAX_PROTOCOL_VERSION: u64 = 17;
 //             Enable committing transactions only for traversed headers in
 //             Starfish.
 // Version 17: Increase the committee size to 100 on all networks.
+// Version 18: Enable passkey authentication support in testnet.
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
 
@@ -2316,6 +2317,12 @@ impl ProtocolConfig {
                 17 => {
                     // Increase the committee size to 100 on all networks.
                     cfg.max_committee_members_count = Some(100);
+                }
+                18 => {
+                    if chain != Chain::Mainnet {
+                        // Enable passkey authentication support in testnet.
+                        cfg.feature_flags.passkey_auth = true;
+                    }
                 }
                 // Use this template when making changes:
                 //

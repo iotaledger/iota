@@ -34,6 +34,7 @@ pub mod backfill;
 pub mod config;
 pub mod db;
 pub mod errors;
+pub mod historical_fallback;
 pub mod indexer;
 pub mod ingestion;
 pub mod metrics;
