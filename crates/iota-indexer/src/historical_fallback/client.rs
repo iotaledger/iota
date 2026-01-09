@@ -3,11 +3,9 @@
 
 //! Module containing the client for interacting with the REST API KV server.
 
-use std::str::FromStr;
-
 use bytes::Bytes;
 use futures::stream::{self, StreamExt};
-use iota_storage::http_key_value_store::Key;
+use iota_storage::http_key_value_store::{ItemType, Key};
 use iota_types::{
     base_types::{ObjectID, SequenceNumber},
     digests::{CheckpointDigest, TransactionDigest},
@@ -31,8 +29,49 @@ use crate::{IndexerError, errors::IndexerResult};
 /// Request payload for multi_get containing list of keys.
 #[derive(Serialize, Debug)]
 struct MultiGetRequest {
+    /// The item type for all keys in this request.
+    /// Not serialized - used only for URL construction.
+    #[serde(skip)]
+    item_type: ItemType,
     /// List of base64url-encoded keys to retrieve.
     keys: Vec<String>,
+}
+
+impl TryFrom<&[Key]> for MultiGetRequest {
+    type Error = IndexerError;
+
+    /// Creates a new MultiGetRequest from a slice of keys.
+    /// All keys must be the same enum variant.
+    ///
+    /// # Errors
+    /// Returns an error if keys are empty or if keys are different enum
+    /// variants.
+    fn try_from(keys: &[Key]) -> Result<Self, Self::Error> {
+        if keys.is_empty() {
+            return Err(IndexerError::InvalidArgument(
+                "Cannot create MultiGetRequest with empty keys".to_string(),
+            ));
+        }
+
+        let expected_discriminant = std::mem::discriminant(&keys[0]);
+        let (item_type, _) = keys[0].to_path_elements();
+
+        let mut encoded_keys = Vec::with_capacity(keys.len());
+        for key in keys {
+            if std::mem::discriminant(key) != expected_discriminant {
+                return Err(IndexerError::NotSupported(
+                    "MultiGetRequest with heterogenous Key variants are not supported.".to_string(),
+                ));
+            }
+            let (_, encoded_key) = key.to_path_elements();
+            encoded_keys.push(encoded_key);
+        }
+
+        Ok(Self {
+            item_type,
+            keys: encoded_keys,
+        })
+    }
 }
 
 pub(crate) trait KeyValueStoreClient {
@@ -115,13 +154,6 @@ impl HttpRestKVClient {
         })
     }
 
-    #[allow(dead_code)]
-    fn get_url(&self, key: &Key) -> IndexerResult<Url> {
-        let (item_type, digest) = key.to_path_elements();
-        let joined = self.base_url.join(&format!("{item_type}/{digest}"))?;
-        Ok(Url::from_str(joined.as_str())?)
-    }
-
     async fn multi_fetch(&self, keys: Vec<Key>) -> IndexerResult<Vec<Option<Bytes>>> {
         if keys.is_empty() {
             return Ok(Vec::new());
@@ -133,7 +165,7 @@ impl HttpRestKVClient {
             .collect();
 
         let mut results = stream::iter(chunks)
-            .map(|chunk| self.fetch_batch(chunk))
+            .map(|chunk| async move { self.fetch_batch(&chunk).await })
             .buffered(self.max_concurrent_batches);
 
         let mut flattened = Vec::new();
@@ -144,19 +176,9 @@ impl HttpRestKVClient {
         Ok(flattened)
     }
 
-    async fn fetch_batch(&self, keys: Vec<Key>) -> IndexerResult<Vec<Option<Bytes>>> {
-        // Extract item_type from the first key (all keys should be the same type)
-        let item_type = keys[0].item_type().to_string();
-        let url = self.base_url.join(&item_type)?;
-
-        let encoded_keys: Vec<String> = keys
-            .iter()
-            .map(|key| {
-                let (_, encoded) = key.to_path_elements();
-                encoded
-            })
-            .collect();
-        let payload = MultiGetRequest { keys: encoded_keys };
+    async fn fetch_batch(&self, keys: &[Key]) -> IndexerResult<Vec<Option<Bytes>>> {
+        let payload = MultiGetRequest::try_from(keys)?;
+        let url = self.base_url.join(&payload.item_type.to_string())?;
 
         trace!(
             "fetching batch of {} keys from url: {url}",
@@ -184,31 +206,6 @@ impl HttpRestKVClient {
         bcs::from_bytes::<Vec<Option<Bytes>>>(&bytes).map_err(|e| {
             IndexerError::Serde(format!("failed to deserialize multi_get response: {e:?}"))
         })
-    }
-
-    #[allow(dead_code)]
-    async fn fetch(&self, key: Key) -> IndexerResult<Option<Bytes>> {
-        let url = self.get_url(&key)?;
-
-        trace!("fetching url: {url}");
-
-        let resp = self.client.get(url.clone()).send().await?;
-        trace!(
-            "got response {} for url: {url}, len: {:?}",
-            resp.status(),
-            resp.headers()
-                .get(CONTENT_LENGTH)
-                .unwrap_or(&HeaderValue::from_static("0"))
-        );
-
-        // return None for non-2xx responses.
-        if !resp.status().is_success() {
-            return Ok(None);
-        }
-
-        let bytes = resp.bytes().await?;
-        // map the bytes to Some only if non-empty.
-        Ok((!bytes.is_empty()).then_some(bytes))
     }
 }
 
