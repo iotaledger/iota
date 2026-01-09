@@ -6,10 +6,7 @@
 use std::time::Duration;
 
 use bytes::Bytes;
-use futures::{
-    TryStreamExt, future,
-    stream::{self, StreamExt},
-};
+use futures::stream::{self, StreamExt};
 use iota_storage::http_key_value_store::{ItemType, Key};
 use iota_types::{
     base_types::{ObjectID, SequenceNumber},
@@ -134,7 +131,7 @@ pub(crate) struct HttpRestKVClient {
     batch_size: usize,
     /// Maximum number of concurrent batch requests
     max_concurrent_batches: usize,
-    cache: MokaCache<Url, Bytes>,
+    cache: MokaCache<Key, Bytes>,
     metrics: HistoricalFallbackClientMetrics,
 }
 
@@ -189,12 +186,8 @@ impl HttpRestKVClient {
         let mut missing = Vec::with_capacity(keys.len());
 
         for (index, key) in keys.iter().enumerate() {
-            let cache_key = self.get_url(key)?;
-            if let Some(bytes) = self.cache.get(&cache_key) {
-                trace!(
-                    "found cached data for url: {cache_key}, len: {}",
-                    bytes.len()
-                );
+            if let Some(bytes) = self.cache.get(key) {
+                trace!("found cached data for url: {key:?}, len: {}", bytes.len());
                 self.metrics.record_cache_hit(key.item_type());
                 results[index] = Some(bytes);
             } else {
@@ -203,32 +196,35 @@ impl HttpRestKVClient {
             }
         }
 
-        if !missing.is_empty() {
-            let missing_chunks = missing
-                .chunks(self.batch_size)
-                .map(|chunk| chunk.iter().map(|(key, _)| *key).collect())
-                .collect::<Vec<Vec<Key>>>();
+        if missing.is_empty() {
+            return Ok(results);
+        }
 
-            let fetched_results = stream::iter(missing_chunks)
-                .map(|chunk| self.fetch_batch(chunk))
-                .buffered(self.max_concurrent_batches)
-                .try_fold(Vec::with_capacity(missing.len()), |mut acc, batch| {
-                    acc.extend(batch);
-                    future::ok(acc)
-                })
-                .await?;
+        let missing_chunks = missing
+            .chunks(self.batch_size)
+            .map(|chunk| {
+                let keys = chunk.iter().map(|(key, _)| *key).collect::<Vec<Key>>();
+                MultiGetRequest::try_from(keys.as_slice())
+            })
+            .collect::<Result<Vec<MultiGetRequest>, IndexerError>>()?;
 
-            // process fetched results: for each missing key that was successfully fetched
-            // that has non empty bytes, update the cache with the new data and
-            // populate the corresponding slot in results at original index
-            // position.
-            for (fetch_result, (key, index)) in fetched_results.into_iter().zip(missing.into_iter())
-            {
-                if let Some(bytes) = fetch_result.filter(|b| !b.is_empty()) {
-                    let cache_key = self.get_url(&key)?;
-                    self.cache.insert(cache_key, bytes.clone());
-                    results[index] = Some(bytes);
-                }
+        let mut fetch_batch_stream = stream::iter(missing_chunks)
+            .map(|chunk| async move { self.fetch_batch(chunk).await })
+            .buffered(self.max_concurrent_batches);
+
+        let mut fetched_results = Vec::with_capacity(missing.len());
+        while let Some(batch_result) = fetch_batch_stream.next().await {
+            fetched_results.extend(batch_result?);
+        }
+
+        // process fetched results: for each missing key that was successfully fetched
+        // that has non empty bytes, update the cache with the new data and
+        // populate the corresponding slot in results at original index
+        // position.
+        for (fetch_result, (key, index)) in fetched_results.into_iter().zip(missing.into_iter()) {
+            if let Some(bytes) = fetch_result.filter(|b| !b.is_empty()) {
+                self.cache.insert(key, bytes.clone());
+                results[index] = Some(bytes);
             }
         }
 

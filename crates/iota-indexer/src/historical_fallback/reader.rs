@@ -25,6 +25,7 @@ use iota_types::{
     object::Object,
 };
 use itertools::{Either, Itertools, izip};
+use prometheus::Registry;
 
 use crate::{
     errors::{IndexerError, IndexerResult},
@@ -69,14 +70,14 @@ impl HistoricalFallbackReader {
         package_resolver: PackageResolver,
         fallback_kv_multi_fetch_batch_size: usize,
         fallback_kv_concurrent_fetches: usize,
-        metrics: HistoricalFallbackClientMetrics,
+        registry: &Registry,
     ) -> IndexerResult<Self> {
         let client = HttpRestKVClient::new(
             rest_kv_url,
             cache_size,
             fallback_kv_multi_fetch_batch_size,
             fallback_kv_concurrent_fetches,
-            metrics,
+            HistoricalFallbackClientMetrics::new(registry),
         )?;
         Ok(Self {
             client,

@@ -187,7 +187,7 @@ impl Indexer {
                 read.package_resolver(),
                 fallback_kv_multi_fetch_batch_size,
                 fallback_kv_concurrent_fetches,
-                metrics.historical_fallback_metrics.clone(),
+                registry,
             )?;
             info!("HistoricalFallbackReader initialized with URL: {url}");
             read.with_fallback_reader(historic_fallback_reader);
