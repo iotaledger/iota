@@ -14,11 +14,23 @@ use starfish_config::{AuthorityIndex, Stake};
 
 use crate::{
     CommitIndex, Round,
-    commit::{CommitRange, GENESIS_COMMIT_INDEX},
+    commit::{CommitInfo, CommitRange, CommitRef, GENESIS_COMMIT_INDEX},
     context::Context,
     dag_state::DagState,
     leader_scoring::ReputationScores,
 };
+
+/// Calculates the seed index for leader swap table initialization.
+/// Uses the commit range end as seed, falling back to the commit ref index
+/// for genesis commits where the range end equals GENESIS_COMMIT_INDEX.
+fn calculate_seed_index(last_commit_ref: &CommitRef, last_commit_info: &CommitInfo) -> CommitIndex {
+    let range_end = last_commit_info.reputation_scores.commit_range.end();
+    if range_end == GENESIS_COMMIT_INDEX {
+        last_commit_ref.index
+    } else {
+        range_end
+    }
+}
 
 /// The window where the schedule change takes place in consensus. It
 /// represents number of committed sub dags.
@@ -60,12 +72,7 @@ impl LeaderSchedule {
         let leader_swap_table = dag_state.read().recover_last_commit_info().map_or(
             LeaderSwapTable::default(),
             |(last_commit_ref, last_commit_info)| {
-                let range_end = last_commit_info.reputation_scores.commit_range.end();
-                let seed_index = if range_end == GENESIS_COMMIT_INDEX {
-                    last_commit_ref.index
-                } else {
-                    range_end
-                };
+                let seed_index = calculate_seed_index(&last_commit_ref, &last_commit_info);
                 LeaderSwapTable::new(
                     context.clone(),
                     seed_index,
@@ -90,12 +97,7 @@ impl LeaderSchedule {
         let leader_swap_table = dag_state.read().recover_last_commit_info().map_or(
             LeaderSwapTable::default(),
             |(last_commit_ref, last_commit_info)| {
-                let range_end = last_commit_info.reputation_scores.commit_range.end();
-                let seed_index = if range_end == GENESIS_COMMIT_INDEX {
-                    last_commit_ref.index
-                } else {
-                    range_end
-                };
+                let seed_index = calculate_seed_index(&last_commit_ref, &last_commit_info);
                 LeaderSwapTable::new(
                     self.context.clone(),
                     seed_index,
