@@ -39,7 +39,6 @@ macro_rules! fp_ensure {
         }
     };
 }
-pub(crate) use fp_ensure;
 
 use crate::{
     digests::TransactionEventsDigest,

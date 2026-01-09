@@ -5,6 +5,7 @@
 use std::{
     fmt::{Debug, Display},
     hash::Hash,
+    path::PathBuf,
     str::FromStr,
     time::Duration,
 };
@@ -73,6 +74,12 @@ pub struct BenchmarkParameters<T> {
     /// Computed chain start timestamp (computed once in next() if
     /// use_current_timestamp_for_genesis is true)
     pub chain_start_timestamp_ms: Option<u64>,
+    /// Shared counter hotness factor (0-100)
+    pub shared_counter_hotness_factor: Option<u8>,
+    /// Number of shared counters to use
+    pub num_shared_counters: Option<usize>,
+    /// Directory to store benchmark results
+    pub benchmark_dir: PathBuf,
 }
 
 impl<T: BenchmarkType> Default for BenchmarkParameters<T> {
@@ -92,6 +99,9 @@ impl<T: BenchmarkType> Default for BenchmarkParameters<T> {
             epoch_duration_ms: None,
             max_pipeline_delay: 400,
             chain_start_timestamp_ms: None,
+            shared_counter_hotness_factor: None,
+            num_shared_counters: None,
+            benchmark_dir: PathBuf::default(),
         }
     }
 }
@@ -142,6 +152,9 @@ impl<T> BenchmarkParameters<T> {
         consensus_protocol: ConsensusProtocol,
         max_pipeline_delay: u32,
         chain_start_timestamp_ms: Option<u64>,
+        shared_counter_hotness_factor: Option<u8>,
+        num_shared_counters: Option<usize>,
+        benchmark_dir: PathBuf,
     ) -> Self {
         Self {
             benchmark_type,
@@ -158,6 +171,9 @@ impl<T> BenchmarkParameters<T> {
             epoch_duration_ms,
             max_pipeline_delay,
             chain_start_timestamp_ms,
+            shared_counter_hotness_factor,
+            num_shared_counters,
+            benchmark_dir,
         }
     }
 }
@@ -203,7 +219,7 @@ pub struct BenchmarkParametersGenerator<T> {
     iterations: usize,
     /// Flag indicating whether nodes should advertise their internal or public
     /// IP address for inter-node communication.
-    use_internal_ip_address: bool,
+    pub use_internal_ip_address: bool,
     /// The topology of private network latencies, RandomGeographical,
     /// RandomClustered, HardCodedClustered, or Mainnet
     pub latency_topology: Option<TopologyLayout>,
@@ -219,6 +235,10 @@ pub struct BenchmarkParametersGenerator<T> {
     pub max_pipeline_delay: u32,
     /// Use current system time as genesis chain start timestamp instead of 0
     use_current_timestamp_for_genesis: bool,
+    /// Shared counter hotness factor (0-100)
+    shared_counter_hotness_factor: Option<u8>,
+    /// Number of shared counters to use
+    num_shared_counters: Option<usize>,
 }
 
 impl<T: BenchmarkType> Iterator for BenchmarkParametersGenerator<T> {
@@ -237,6 +257,7 @@ impl<T: BenchmarkType> Iterator for BenchmarkParametersGenerator<T> {
         } else {
             None
         };
+
         self.next_load.map(|load| {
             BenchmarkParameters::new(
                 self.benchmark_type.clone(),
@@ -253,6 +274,9 @@ impl<T: BenchmarkType> Iterator for BenchmarkParametersGenerator<T> {
                 self.consensus_protocol.clone(),
                 self.max_pipeline_delay,
                 chain_start_timestamp_ms,
+                self.shared_counter_hotness_factor,
+                self.num_shared_counters,
+                PathBuf::default(),
             )
         })
     }
@@ -298,6 +322,8 @@ impl<T: BenchmarkType> BenchmarkParametersGenerator<T> {
             epoch_duration_ms: None,
             use_current_timestamp_for_genesis: false,
             max_pipeline_delay: 400,
+            shared_counter_hotness_factor: None,
+            num_shared_counters: None,
         }
     }
 
@@ -351,6 +377,16 @@ impl<T: BenchmarkType> BenchmarkParametersGenerator<T> {
 
     pub fn with_current_timestamp_for_genesis(mut self, use_current_timestamp: bool) -> Self {
         self.use_current_timestamp_for_genesis = use_current_timestamp;
+        self
+    }
+
+    pub fn with_shared_counter_hotness_factor(mut self, factor: u8) -> Self {
+        self.shared_counter_hotness_factor = Some(factor);
+        self
+    }
+
+    pub fn with_num_shared_counters(mut self, counters: usize) -> Self {
+        self.num_shared_counters = Some(counters);
         self
     }
 
