@@ -5,37 +5,29 @@ use std::{
     fs::{File, OpenOptions},
     io::Write,
     path::Path,
-    sync::{Mutex, OnceLock},
+    sync::Mutex,
 };
 
 /// Global logger instance for writing to both stdout and file
-static LOGGER: OnceLock<Mutex<Option<File>>> = OnceLock::new();
+static LOGGER: Mutex<Option<File>> = Mutex::new(None);
 
 /// Initialize the logger with a file path
 pub fn init_logger<P: AsRef<Path>>(path: P) -> std::io::Result<()> {
     let file = OpenOptions::new().create(true).append(true).open(path)?;
 
-    LOGGER.get_or_init(|| Mutex::new(Some(file)));
+    LOGGER.lock().unwrap().replace(file);
     Ok(())
 }
 
 /// Log a message to the file (if initialized)
 pub fn log(message: &str) {
-    if let Some(logger) = LOGGER.get() {
-        if let Ok(mut guard) = logger.lock() {
-            if let Some(file) = guard.as_mut() {
-                let _ = write!(file, "{}", message);
-                let _ = file.flush();
-            }
-        }
+    if let Some(mut file) = LOGGER.lock().unwrap().as_ref() {
+        let _ = write!(file, "{}", message);
+        let _ = file.flush();
     }
 }
 
 /// Close the logger
 pub fn close_logger() {
-    if let Some(logger) = LOGGER.get() {
-        if let Ok(mut guard) = logger.lock() {
-            *guard = None;
-        }
-    }
+    LOGGER.lock().unwrap().take();
 }

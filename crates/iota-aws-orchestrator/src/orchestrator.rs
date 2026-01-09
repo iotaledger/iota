@@ -6,11 +6,12 @@ use std::{
     collections::HashSet,
     fs::{self},
     marker::PhantomData,
-    path::{Path, PathBuf},
+    path::Path,
     time::Duration,
 };
 
 use chrono;
+use futures;
 use tokio::time::{self, Instant};
 
 use crate::{
@@ -18,10 +19,10 @@ use crate::{
     build_cache::BuildCacheService,
     client::Instance,
     display,
-    error::TestbedResult,
+    error::{TestbedError, TestbedResult},
     faults::CrashRecoverySchedule,
     logs::LogsAnalyzer,
-    measurement::{Measurement, MeasurementsCollection},
+    measurement::MeasurementsCollection,
     monitor::{Monitor, Prometheus},
     net_latency::NetworkLatencyCommandBuilder,
     protocol::{ProtocolCommands, ProtocolMetrics},
@@ -200,8 +201,9 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
         // Wait until all nodes are reachable.
         let commands = self
             .protocol_commands
-            .nodes_metrics_command(instances.clone(), parameters);
-        self.ssh_manager.wait_for_success(commands).await;
+            .nodes_metrics_command(instances.clone(), parameters.use_internal_ip_address);
+        self.wait_for_success(commands, &parameters.benchmark_dir)
+            .await;
 
         Ok(())
     }
@@ -235,6 +237,11 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
             "sudo sysctl -p",
             // Set limits for current session
             "ulimit -n 1048576 || true",
+            // set network buffer sizes
+            "sudo sysctl -w net.core.rmem_max=104857600",
+            "sudo sysctl -w net.core.wmem_max=104857600",
+            "sudo sysctl -w net.ipv4.tcp_rmem=\"8192 262144 104857600\"",
+            "sudo sysctl -w net.ipv4.tcp_wmem=\"8192 262144 104857600\"",
             // Create the working directory.
             working_dir_cmd.as_str(),
             // Clone the repo.
@@ -325,7 +332,11 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
     }
 
     /// Reload prometheus on all instances.
-    pub async fn start_monitoring(&self, parameters: &BenchmarkParameters<T>) -> TestbedResult<()> {
+    pub async fn start_monitoring(
+        &self,
+        use_internal_ip_address: bool,
+        timestamp: &str,
+    ) -> TestbedResult<()> {
         if let Some(instance) = &self.metrics_instance {
             display::action("Configuring monitoring instance");
 
@@ -335,8 +346,18 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
                 self.node_instances.clone(),
                 self.ssh_manager.clone(),
             );
+            // When prometheus snapshots are enabled, pass the timestamp as snapshot
+            // directory
+            let snapshot_dir = self
+                .settings
+                .enable_prometheus_snapshots
+                .then_some(timestamp);
             monitor
-                .start_prometheus(&self.protocol_commands, parameters)
+                .start_prometheus(
+                    &self.protocol_commands,
+                    use_internal_ip_address,
+                    snapshot_dir,
+                )
                 .await?;
             monitor.start_grafana().await?;
 
@@ -449,7 +470,7 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
         let command = self
             .protocol_commands
             .genesis_command(self.node_instances.iter(), parameters);
-        display::action(format!("Genesis command: {command}"));
+        display::action(format!("\nGenesis command: {command}\n\n"));
         let repo_name = self.settings.repository_name();
         let context = CommandContext::new().with_execute_from_path(repo_name.into());
         self.ssh_manager
@@ -544,33 +565,58 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
             .await?;
 
         // Wait until all load generators are reachable.
-        let commands = self
-            .protocol_commands
-            .clients_metrics_command(self.client_instances.clone(), parameters);
-        self.ssh_manager.wait_for_success(commands).await;
+        let commands = self.protocol_commands.clients_metrics_command(
+            self.client_instances.clone(),
+            parameters.use_internal_ip_address,
+        );
+        self.wait_for_success(commands, &parameters.benchmark_dir)
+            .await;
+
+        // Start background metrics collection service on each client instance.
+        display::action("\n\nStarting background metrics collection service");
+        let metrics_script =
+            self.metrics_collection_script_command(parameters.use_internal_ip_address);
+        let metrics_context = CommandContext::new().run_background("metrics-collector".into());
+        self.ssh_manager
+            .execute_per_instance(metrics_script.clone(), metrics_context)
+            .await?;
 
         display::done();
         Ok(())
     }
 
-    /// Collect metrics from the load generators.
-    pub async fn run(
+    /// Create a background metrics collection script that runs on each
+    /// client instance.
+    fn metrics_collection_script_command(
         &self,
-        benchmark_dir: &Path,
-        parameters: &BenchmarkParameters<T>,
-    ) -> TestbedResult<MeasurementsCollection<T>> {
+        use_internal_ip_address: bool,
+    ) -> Vec<(Instance, String)> {
+        // We need to get the metrics path from clients_metrics_command
+        self.protocol_commands
+            .clients_metrics_command(self.client_instances.clone(), use_internal_ip_address)
+            .into_iter()
+            .map(|(instance, cmd)| {
+                (
+                    instance,
+                    format!(
+                        r#"while true; do
+    {cmd} >> ~/metrics.log 2>&1
+    sleep 15
+done"#
+                    ),
+                )
+            })
+            .collect::<Vec<_>>()
+    }
+
+    /// Collect metrics from the load generators.
+    pub async fn run(&self, parameters: &BenchmarkParameters<T>) -> TestbedResult<()> {
         display::action(format!(
-            "Scraping metrics (at least {}s)",
+            "Running benchmark (at least {}s)",
             parameters.duration.as_secs()
         ));
 
-        // Regularly scrape the client
-        let metrics_commands = self
-            .protocol_commands
-            .clients_metrics_command(self.client_instances.clone(), parameters);
-
-        let mut aggregator = MeasurementsCollection::new(&self.settings, parameters.clone());
-        let mut metrics_interval = time::interval(self.scrape_interval);
+        let mut metrics_interval = time::interval(Duration::from_secs(5));
         metrics_interval.tick().await; // The first tick returns immediately.
 
         let faults_type = parameters.faults.clone();
@@ -582,22 +628,12 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
         let start = Instant::now();
         loop {
             tokio::select! {
-                // Scrape metrics.
-                now = metrics_interval.tick() => {
-                    let elapsed = now.duration_since(start).as_secs_f64().ceil() as u64;
+                // Update elapsed time display.
+                _ = metrics_interval.tick() => {
+                    let elapsed = Instant::now().duration_since(start).as_secs_f64().ceil() as u64;
                     display::status(format!("{elapsed}s"));
 
-                    let stdio = self
-                        .ssh_manager
-                        .execute_per_instance(metrics_commands.clone(), CommandContext::default())
-                        .await?;
-                    for (i, (stdout, _stderr)) in stdio.iter().enumerate() {
-                        display::action(format!("Processing metrics from client {}\n", i));
-                        let measurement = Measurement::from_prometheus::<P>(stdout);
-                        aggregator.add(i, measurement);
-                    }
-
-                    if elapsed > parameters.duration .as_secs() {
+                    if elapsed > parameters.duration.as_secs() {
                         break;
                     }
                 },
@@ -619,14 +655,11 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
             }
         }
 
-        aggregator.save(benchmark_dir);
-
         if self.settings.enable_flamegraph {
-            let flamegraphs_dir = benchmark_dir.join("flamegraphs");
+            let flamegraphs_dir = parameters.benchmark_dir.join("flamegraphs");
             fs::create_dir_all(&flamegraphs_dir).expect("Failed to create flamegraphs directory");
 
             self.fetch_flamegraphs(
-                parameters,
                 self.instances_without_metrics().clone(),
                 &flamegraphs_dir,
                 "?svg=true",
@@ -641,7 +674,6 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
                 .is_some_and(|config| config.features.iter().any(|f| f == "flamegraph-alloc"))
             {
                 self.fetch_flamegraphs(
-                    parameters,
                     self.instances_without_metrics().clone(),
                     &flamegraphs_dir,
                     "?svg=true&mem=true",
@@ -652,12 +684,11 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
         }
 
         display::done();
-        Ok(aggregator)
+        Ok(())
     }
 
     async fn fetch_flamegraphs(
         &self,
-        parameters: &BenchmarkParameters<T>,
         nodes: Vec<Instance>,
         path: &Path,
         query: &str,
@@ -665,7 +696,7 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
     ) -> TestbedResult<()> {
         let flamegraph_commands = self
             .protocol_commands
-            .nodes_flamegraph_command(nodes, parameters, query);
+            .nodes_flamegraph_command(nodes, query);
         let stdio = self
             .ssh_manager
             .execute_per_instance(flamegraph_commands, CommandContext::default())
@@ -680,6 +711,163 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
                 fs::write(file, stderr).unwrap();
             }
         }
+        Ok(())
+    }
+
+    pub async fn wait_for_success<I, S>(&self, instances: I, _benchmark_dir: &Path)
+    where
+        I: IntoIterator<Item = (Instance, S)> + Clone,
+        S: Into<String> + Send + 'static + Clone,
+    {
+        match self
+            .ssh_manager
+            .execute_per_instance(
+                instances.clone(),
+                CommandContext::default().with_retries(10),
+            )
+            .await
+        {
+            Ok(_) => {}
+            Err(e) => {
+                // Handle failure case
+                panic!("Command execution failed on one or more instances: {e}");
+            }
+        }
+    }
+
+    /// Download the metrics logs from clients.
+    pub async fn download_metrics_logs(&self, benchmark_dir: &Path) -> TestbedResult<()> {
+        let path = benchmark_dir.join("logs");
+        fs::create_dir_all(&path).expect("Failed to create logs directory");
+
+        // Download the clients log files and metrics.
+        display::action("Downloading metrics logs");
+        for (i, instance) in self.client_instances.iter().enumerate() {
+            display::status(format!("{}/{}", i + 1, self.client_instances.len()));
+
+            let _: TestbedResult<()> = async {
+                let connection = self.ssh_manager.connect(instance.ssh_address()).await?;
+
+                // Download metrics file if it exists
+                match connection.download("metrics.log").await {
+                    Ok(metrics_content) => {
+                        let metrics_file = path.join(format!("metrics-{i}.log"));
+                        fs::write(metrics_file, metrics_content.as_bytes())
+                            .expect("Cannot write metrics file");
+                    }
+                    Err(_) => {
+                        display::warn(format!("Metrics file not found for client {i}"));
+                    }
+                }
+                Ok(())
+            }
+            .await;
+        }
+        display::done();
+
+        Ok(())
+    }
+
+    pub async fn download_prometheus_snapshot(
+        &self,
+        benchmark_dir: &Path,
+        timestamp: &str,
+    ) -> TestbedResult<()> {
+        if let Some(instance) = &self.metrics_instance {
+            display::action("Taking prometheus snapshot");
+            let command = Prometheus::take_snapshot_command();
+
+            // prometheus snapshot response structure
+            #[derive(serde::Deserialize)]
+            struct ResponseData {
+                // snapshot directory name
+                name: String,
+            }
+            #[derive(serde::Deserialize)]
+            struct Response {
+                #[allow(dead_code)]
+                status: String,
+                data: ResponseData,
+            }
+
+            let response = self
+                .ssh_manager
+                .execute(
+                    std::iter::once(instance.clone()),
+                    command.clone(),
+                    CommandContext::default(),
+                )
+                .await?
+                .into_iter()
+                .next()
+                .ok_or_else(|| {
+                    TestbedError::SshCommandFailed(
+                        instance.clone(),
+                        command.clone(),
+                        "No response from command".into(),
+                    )
+                })?
+                .0;
+            let response: Response = serde_json::from_str(&response).map_err(|e| {
+                TestbedError::SshCommandFailed(
+                    instance.clone(),
+                    command.clone(),
+                    format!("Failed to parse response: {e}"),
+                )
+            })?;
+            display::done();
+
+            let snapshot_name = response.data.name;
+            display::config("Created prometheus snapshot", &snapshot_name);
+            display::newline();
+
+            display::action("Downloading prometheus snapshot");
+            let snapshot_dir = benchmark_dir.join("snapshot").display().to_string();
+            let rsync_args = vec![
+                // options: recursive, verbose, compress, override ssh to use key file and disable
+                // host key checking
+                "-rvze".to_string(),
+                // let rsync use ssh with the specified private key file
+                format!(
+                    "ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -i {}",
+                    self.settings.ssh_private_key_file.display()
+                ),
+                // remote snapshot path: /var/lib/prometheus/<timestamp>/snapshots/<snapshot_name>
+                format!(
+                    "ubuntu@{}:/var/lib/prometheus/{}/snapshots/{}/",
+                    instance.main_ip, timestamp, snapshot_name
+                ),
+                // local snapshot path: <benchmark_dir>/snapshot
+                snapshot_dir,
+            ];
+
+            let instance = instance.clone();
+            tokio::task::spawn_blocking(move || -> TestbedResult<()> {
+                match std::process::Command::new("rsync")
+                    .args(&rsync_args)
+                    .status()
+                {
+                    Ok(status) if status.success() => Ok(()),
+                    Ok(status) => Err(TestbedError::SshCommandFailed(
+                        instance,
+                        "rsync ".to_string() + &rsync_args.join(" "),
+                        format!("rsync failed with status: {}", status),
+                    )),
+                    Err(e) => Err(TestbedError::SshCommandFailed(
+                        instance,
+                        "rsync ".to_string() + &rsync_args.join(" "),
+                        format!("rsync failed with error: {}", e),
+                    )),
+                }
+            })
+            .await
+            .unwrap()?;
+
+            display::done();
+            display::status("Downloaded prometheus snapshot");
+            display::newline();
+        }
+
         Ok(())
     }
 
@@ -698,32 +886,64 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
         for (i, instance) in self.client_instances.iter().enumerate() {
             display::status(format!("{}/{}", i + 1, self.client_instances.len()));
 
-            let connection = self.ssh_manager.connect(instance.ssh_address()).await?;
-            let client_log_content = connection.download("client.log").await?;
+            let _: TestbedResult<()> = async {
+                let connection = self.ssh_manager.connect(instance.ssh_address()).await?;
 
-            let client_log_file = path.join(format!("client-{i}.log"));
-            fs::write(client_log_file, client_log_content.as_bytes())
-                .expect("Cannot write log file");
+                if self.settings.use_fullnode_for_execution {
+                    let fullnode_log_content = connection.download("fullnode.log").await?;
+                    let fullnode_log_file = path.join(format!("fullnode-{i}.log"));
+                    fs::write(fullnode_log_file, fullnode_log_content.as_bytes())
+                        .expect("Cannot write log file");
+                }
 
-            let mut log_parser = LogsAnalyzer::default();
-            log_parser.set_client_errors(&client_log_content);
-            log_parsers.push(log_parser)
+                let client_log_content = connection.download("client.log").await?;
+
+                let client_log_file = path.join(format!("client-{i}.log"));
+                fs::write(client_log_file, client_log_content.as_bytes())
+                    .expect("Cannot write log file");
+
+                let mut log_parser = LogsAnalyzer::default();
+                log_parser.set_client_errors(&client_log_content);
+                log_parsers.push(log_parser);
+                Ok(())
+            }
+            .await;
         }
+
         display::done();
 
         display::action("Downloading nodes logs");
-        for (i, instance) in self.node_instances.iter().enumerate() {
-            display::status(format!("{}/{}", i + 1, self.node_instances.len()));
+        let download_tasks: Vec<_> = self
+            .node_instances
+            .iter()
+            .enumerate()
+            .map(|(i, instance)| {
+                let ssh_manager = self.ssh_manager.clone();
+                let path = path.clone();
+                let ssh_address = instance.ssh_address();
 
-            let connection = self.ssh_manager.connect(instance.ssh_address()).await?;
-            let node_log_content = connection.download("node.log").await?;
+                async move {
+                    let connection = ssh_manager.connect(ssh_address).await?;
+                    let node_log_content = connection.download("node.log").await?;
 
-            let node_log_file = path.join(format!("node-{i}.log"));
-            fs::write(node_log_file, node_log_content.as_bytes()).expect("Cannot write log file");
+                    let node_log_file = path.join(format!("node-{i}.log"));
+                    fs::write(node_log_file, node_log_content.as_bytes())
+                        .expect("Cannot write log file");
 
-            let mut log_parser = LogsAnalyzer::default();
-            log_parser.set_node_errors(&node_log_content);
-            log_parsers.push(log_parser)
+                    let mut log_parser = LogsAnalyzer::default();
+                    log_parser.set_node_errors(&node_log_content);
+                    Ok::<LogsAnalyzer, TestbedError>(log_parser)
+                }
+            })
+            .collect();
+
+        let results = futures::future::join_all(download_tasks).await;
+        for (idx, result) in results.into_iter().enumerate() {
+            display::status(format!("{}/{}", idx + 1, self.node_instances.len()));
+            match result {
+                Ok(log_parser) => log_parsers.push(log_parser),
+                Err(e) => display::warn(format!("Failed to download node log: {e}")),
+            }
         }
         display::done();
 
@@ -742,8 +962,9 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
         // Cleanup the testbed (in case the previous run was not completed).
         self.cleanup(true).await?;
 
-        let commit: PathBuf = self.settings.repository.commit.replace("/", "_").into();
-        let timestamp = chrono::Local::now().format("%y%m%d_%H%M%S");
+        let commit = self.settings.repository.commit.replace("/", "_");
+        let timestamp = chrono::Local::now().format("%y%m%d_%H%M%S").to_string();
+        let benchmark_dir = self.settings.results_dir.join(&commit).join(&timestamp);
 
         // Update the software on all instances.
         if !self.skip_testbed_update {
@@ -751,38 +972,40 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
             self.update().await?;
         }
 
+        // Start the instance monitoring tools.
+        self.start_monitoring(generator.use_internal_ip_address, &timestamp)
+            .await?;
+
         // Run all benchmarks.
         let mut i = 1;
         let mut latest_committee_size = 0;
-        while let Some(parameters) = generator.next() {
+        while let Some(mut parameters) = generator.next() {
             display::header(format!("Starting benchmark {i}"));
             display::config("Benchmark type", &parameters.benchmark_type);
             display::config("Parameters", &parameters);
             display::newline();
 
-            let benchmark_dir: PathBuf = [
-                &self.settings.results_dir,
-                &commit,
-                &format!("{timestamp}-{parameters:?}").into(),
-            ]
-            .iter()
-            .collect();
+            parameters.benchmark_dir = benchmark_dir.join(format!("{parameters:?}"));
 
             // Cleanup the testbed (in case the previous run was not completed).
             self.cleanup(true).await?;
             // Create benchmark directory.
-            fs::create_dir_all(&benchmark_dir).expect("Failed to create benchmark directory");
+            fs::create_dir_all(&parameters.benchmark_dir)
+                .expect("Failed to create benchmark directory");
 
             // Initialize logger for this benchmark run
-            let log_file = benchmark_dir.join("logs.txt");
+            let log_file = parameters.benchmark_dir.join("logs.txt");
             crate::logger::init_logger(&log_file).expect("Failed to initialize logger");
+            crate::logger::log(
+                chrono::Local::now()
+                    .format("Started %y-%m-%d:%H-%M-%S")
+                    .to_string()
+                    .as_str(),
+            );
 
             let benchmark_result = async {
-                // Start the instance monitoring tools.
-                self.start_monitoring(&parameters).await?;
-
-                // Configure all instances (if needed).
-                if !self.skip_testbed_configuration && latest_committee_size != parameters.nodes {
+                // Configure all instances (if not skipped).
+                if !self.skip_testbed_configuration {
                     self.configure(&parameters).await?;
                     latest_committee_size = parameters.nodes;
                 }
@@ -795,31 +1018,59 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
 
                 // Wait for the benchmark to terminate. Then save the results and print a
                 // summary.
-                let aggregator = self.run(&benchmark_dir, &parameters).await?;
+                self.run(&parameters).await?;
+
+                // Collect and aggregate metrics
+                let mut aggregator =
+                    MeasurementsCollection::new(&self.settings, parameters.clone());
+                self.download_metrics_logs(&parameters.benchmark_dir)
+                    .await?;
+
+                // Parse and aggregate metrics from downloaded files
+                aggregator.aggregates_metrics_from_files::<P>(
+                    self.client_instances.len(),
+                    &parameters.benchmark_dir.join("logs"),
+                );
+
                 aggregator.display_summary();
+                aggregator.save(&parameters.benchmark_dir);
                 generator.register_result(aggregator);
-                // drop(monitor);
-
-                // Kill the nodes and clients (without deleting the log files).
-                self.cleanup(false).await?;
-
-                // Download the log files.
-                if self.log_processing {
-                    let error_counter = self.download_logs(&benchmark_dir).await?;
-                    error_counter.print_summary();
-                }
 
                 TestbedResult::Ok(())
             }
             .await;
 
+            // Kill the nodes and clients (without deleting the log files).
+            self.cleanup(false).await?;
+
+            // Download the log files.
+            if self.log_processing {
+                let error_counter = self.download_logs(&parameters.benchmark_dir).await?;
+                error_counter.print_summary();
+            }
+
             // Close the logger for this benchmark run
+            crate::logger::log(
+                chrono::Local::now()
+                    .format("Finished %y-%m-%d:%H-%M-%S")
+                    .to_string()
+                    .as_str(),
+            );
             crate::logger::close_logger();
 
             // Propagate any error that occurred
             benchmark_result?;
 
             i += 1;
+        }
+
+        if self.settings.enable_prometheus_snapshots {
+            if let Err(e) = self
+                .download_prometheus_snapshot(&benchmark_dir, &timestamp)
+                .await
+            {
+                display::error(format!("Failed to download prometheus snapshot: {}", e));
+            }
         }
 
         display::header("Benchmark completed");
