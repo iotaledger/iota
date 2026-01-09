@@ -84,56 +84,63 @@ export function PkgView({ data }: PkgViewProps): JSX.Element {
             <div className="flex flex-col gap-2xl">
                 <Panel>
                     <Title title="Details" />
-                    <div className="flex flex-col gap-lg p-md--rs">
-                        <KeyValueInfo
-                            keyText="Object ID"
-                            value={
-                                <div className="flex flex-col gap-xxs">
-                                    <ObjectLink objectId={viewedData.id} copyText={viewedData.id} />
-                                </div>
-                            }
-                        />
-
-                        <KeyValueInfo keyText="Version" value={viewedData.version} />
-                        {publisherAddress && (
+                    <div className="grid grid-cols-1 gap-lg p-md--rs md:grid-cols-2">
+                        <div className="flex flex-col gap-lg">
                             <KeyValueInfo
-                                keyText="Publisher"
+                                keyText="Object ID"
                                 value={
                                     <div className="flex flex-col gap-xxs">
-                                        <AddressLink
-                                            address={publisherAddress}
-                                            copyText={publisherAddress}
+                                        <ObjectLink
+                                            objectId={viewedData.id}
+                                            copyText={viewedData.id}
                                         />
                                     </div>
                                 }
                             />
-                        )}
-                        {txnData?.checkpoint && (
-                            <KeyValueInfo
-                                keyText="Checkpoint"
-                                value={
-                                    <CheckpointSequenceLink sequence={txnData.checkpoint}>
-                                        {Number(txnData.checkpoint).toLocaleString()}
-                                    </CheckpointSequenceLink>
-                                }
-                            />
-                        )}
-                        {txnData?.effects?.executedEpoch && (
-                            <KeyValueInfo
-                                keyText="Epoch"
-                                value={
-                                    <EpochLink epoch={txnData.effects.executedEpoch}>
-                                        {txnData.effects.executedEpoch}
-                                    </EpochLink>
-                                }
-                            />
-                        )}
-                        {txnData?.timestampMs && (
-                            <KeyValueInfo
-                                keyText="Date"
-                                value={formatDate(Number(txnData.timestampMs))}
-                            />
-                        )}
+
+                            <KeyValueInfo keyText="Version" value={viewedData.version} />
+                            {publisherAddress && (
+                                <KeyValueInfo
+                                    keyText="Publisher"
+                                    value={
+                                        <div className="flex flex-col gap-xxs">
+                                            <AddressLink
+                                                address={publisherAddress}
+                                                copyText={publisherAddress}
+                                            />
+                                        </div>
+                                    }
+                                />
+                            )}
+                        </div>
+                        <div className="flex flex-col gap-lg">
+                            {txnData?.checkpoint && (
+                                <KeyValueInfo
+                                    keyText="Checkpoint"
+                                    value={
+                                        <CheckpointSequenceLink sequence={txnData.checkpoint}>
+                                            {Number(txnData.checkpoint).toLocaleString()}
+                                        </CheckpointSequenceLink>
+                                    }
+                                />
+                            )}
+                            {txnData?.effects?.executedEpoch && (
+                                <KeyValueInfo
+                                    keyText="Epoch"
+                                    value={
+                                        <EpochLink epoch={txnData.effects.executedEpoch}>
+                                            {txnData.effects.executedEpoch}
+                                        </EpochLink>
+                                    }
+                                />
+                            )}
+                            {txnData?.timestampMs && (
+                                <KeyValueInfo
+                                    keyText="Date"
+                                    value={formatDate(Number(txnData.timestampMs))}
+                                />
+                            )}
+                        </div>
                     </div>
                 </Panel>
 
