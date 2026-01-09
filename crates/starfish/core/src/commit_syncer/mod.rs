@@ -155,6 +155,15 @@ pub(crate) struct Inner<C: NetworkClient> {
 }
 
 impl<C: NetworkClient> Inner<C> {
+    /// Calculates the threshold for unhandled commits to apply backpressure.
+    /// When the gap between synced and scheduled commits exceeds this
+    /// threshold, scheduling new fetches should pause to let the handler
+    /// catch up.
+    pub(crate) fn unhandled_commits_threshold(&self) -> CommitIndex {
+        self.context.parameters.commit_sync_batch_size
+            * (self.context.parameters.commit_sync_batches_ahead as u32)
+    }
+
     /// Verifies the commits and also certifies them using the provided vote
     /// blocks for the last commit. The method returns the trusted commits
     /// and the votes as verified blocks.
@@ -593,4 +602,109 @@ where
         .set(synced_commit_index as i64);
 
     (new_inflight_count, pending_fetches.len())
+}
+
+// =============================================================================
+// Shared helper functions for scheduling and error handling
+// =============================================================================
+
+/// Result of scheduling commit range fetches.
+pub(crate) struct ScheduleResult {
+    /// The new highest scheduled commit index (if any ranges were scheduled).
+    pub new_highest_scheduled: Option<CommitIndex>,
+    /// The commit ranges that were scheduled for fetching.
+    pub ranges_scheduled: Vec<CommitRange>,
+}
+
+/// Creates commit range batches for fetching, respecting backpressure.
+///
+/// This function is shared between RegularCommitSyncer and FastCommitSyncer.
+/// It calculates which commit ranges should be fetched next based on:
+/// - The current gap between local and quorum commit indices
+/// - Backpressure from unhandled commits
+///
+/// # Parameters
+/// - `inner`: Shared context and dependencies
+/// - `fetch_after_index`: Start fetching from commits after this index
+/// - `quorum_commit_index`: The commit index that quorum has reached
+/// - `highest_handled_index`: The highest commit index that has been processed
+/// - `unhandled_commits_threshold`: Threshold for applying backpressure
+///
+/// # Returns
+/// A `ScheduleResult` with the new highest scheduled index and ranges to fetch.
+pub(crate) fn schedule_commit_ranges<C: NetworkClient>(
+    inner: &Inner<C>,
+    fetch_after_index: CommitIndex,
+    quorum_commit_index: CommitIndex,
+    highest_handled_index: CommitIndex,
+    unhandled_commits_threshold: CommitIndex,
+) -> ScheduleResult {
+    let step = inner.sync_type.commit_sync_batch_size(&inner.context);
+    let mut result = ScheduleResult {
+        new_highest_scheduled: None,
+        ranges_scheduled: Vec::new(),
+    };
+
+    for prev_end in (fetch_after_index..=quorum_commit_index).step_by(step as usize) {
+        let range_start = prev_end + 1;
+        let range_end = prev_end + step;
+
+        // Don't schedule incomplete batches
+        if quorum_commit_index < range_end {
+            break;
+        }
+
+        // Apply backpressure if handler is lagging
+        if highest_handled_index + unhandled_commits_threshold < range_end {
+            warn!(
+                "[{}] Skip scheduling new commit fetches: handler lagging. \
+                 highest_handled={}, threshold={}",
+                inner.sync_type.as_str(),
+                highest_handled_index,
+                unhandled_commits_threshold
+            );
+            break;
+        }
+
+        result
+            .ranges_scheduled
+            .push((range_start..=range_end).into());
+        result.new_highest_scheduled = Some(range_end);
+    }
+
+    result
+}
+
+/// Handles JoinError from fetch tasks.
+///
+/// # Returns
+/// `true` if the syncer should shutdown, `false` otherwise.
+pub(crate) fn handle_fetch_join_error(
+    error: &tokio::task::JoinError,
+    sync_type: &CommitSyncType,
+) -> bool {
+    if error.is_panic() {
+        // Re-panic in the main task
+        return true;
+    }
+    warn!(
+        "[{}] Fetch cancelled. Shutting down: {}",
+        sync_type.as_str(),
+        error
+    );
+    true // Signal to shutdown
+}
+
+/// Re-queues unfetched portion of a commit range for retry.
+///
+/// When a fetch returns partial results (fewer commits than requested),
+/// this function queues the remaining range for another fetch attempt.
+pub(crate) fn requeue_partial_range(
+    pending_fetches: &mut BTreeSet<CommitRange>,
+    commit_end: CommitIndex,
+    target_end: CommitIndex,
+) {
+    if commit_end < target_end {
+        pending_fetches.insert((commit_end + 1..=target_end).into());
+    }
 }

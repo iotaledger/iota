@@ -604,12 +604,6 @@ impl CommittedSubDag {
         }
     }
 
-    /// Returns the leader round of the sub-dag.
-    #[allow(dead_code)]
-    pub(crate) fn leader_round(&self) -> Round {
-        self.base.leader.round
-    }
-
     /// Helper method to format transaction refs in a consistent way
     fn format_transaction_refs(&self) -> String {
         format_transaction_ref_digests(

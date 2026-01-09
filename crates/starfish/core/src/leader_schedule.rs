@@ -332,8 +332,7 @@ impl LeaderSchedule {
         drop(read);
 
         tracing::debug!(
-            "[AUTH {}] Normal update LeaderSwapTable: commit_range={:?}, good_nodes={:?}, bad_nodes={:?}",
-            self.context.own_index,
+            "Normal update LeaderSwapTable: commit_range={:?}, good_nodes={:?}, bad_nodes={:?}",
             new_commit_range,
             table
                 .good_nodes
@@ -931,8 +930,6 @@ mod tests {
             CommittedSubDag::new(
                 leader_ref,
                 blocks.clone(),
-                // For this test we don't need to access block refs through the commit.
-                // Reuse the committed block refs directly.
                 blocks.iter().map(|b| b.reference()).collect::<Vec<_>>(),
                 vec![], // Committed transactions are not important for this test.
                 context.clock.timestamp_utc_ms(),

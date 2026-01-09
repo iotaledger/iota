@@ -22,6 +22,7 @@ use crate::{
     commit::{CommitAPI as _, CommitRange, CommittedSubDag, GENESIS_COMMIT_INDEX, TrustedCommit},
     commit_syncer::{
         CommitSyncType, CommitSyncerHandle, Inner, fetch_loop as shared_fetch_loop,
+        handle_fetch_join_error, requeue_partial_range, schedule_commit_ranges,
         try_start_fetches as shared_try_start_fetches, verify_fetched_headers,
         verify_transactions_with_transactions_refs,
     },
@@ -124,14 +125,15 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
                 }
                 // Handles results from fetch tasks.
                 Some(result) = self.inflight_fetches.join_next(), if !self.inflight_fetches.is_empty() => {
-                    if let Err(e) = result {
+                    if let Err(ref e) = result {
                         if e.is_panic() {
-                            std::panic::resume_unwind(e.into_panic());
+                            std::panic::resume_unwind(result.unwrap_err().into_panic());
                         }
-                        warn!("[{}] Fetch cancelled. FastCommitSyncer shutting down: {}", self.inner.sync_type.as_str(), e);
-                        // If any fetch is cancelled or panicked, try to shutdown and exit the loop.
-                        self.inflight_fetches.shutdown().await;
-                        return;
+                        if handle_fetch_join_error(e, &self.inner.sync_type) {
+                            // If any fetch is cancelled or panicked, try to shutdown and exit the loop.
+                            self.inflight_fetches.shutdown().await;
+                            return;
+                        }
                     }
                     let (target_end, commits, committed_subdags) = result.unwrap();
                     self.handle_fetch_result(target_end, commits, committed_subdags).await;
@@ -208,7 +210,7 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
         let local_commit_index = self.inner.dag_state.read().last_commit_index();
         let highest_handled_index = self.inner.commit_consumer_monitor.highest_handled_commit();
         let highest_scheduled_index = self.highest_scheduled_index.unwrap_or(0);
-        let unhandled_commits_threshold = self.unhandled_commits_threshold();
+        let unhandled_commits_threshold = self.inner.unhandled_commits_threshold();
         let step = self
             .inner
             .sync_type
@@ -238,11 +240,9 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
             let fetch_after_index = self
                 .synced_commit_index
                 .max(self.highest_scheduled_index.unwrap_or(0));
-            // When the node is falling behind, schedule pending fetches which will be
-            // executed on later.
 
             debug!(
-                "[{}] Checking to schedule fetches: synced_commit_index={}, highest_handled_index={}, highest_scheduled_index={}, quorum_commit_index={}, unhandled_commits_threshold={}, fetch_after_index={}, step={}",
+                "[{}] Checking to schedule fetches: synced_commit_index={}, highest_handled_index={}, highest_scheduled_index={}, quorum_commit_index={}, unhandled_commits_threshold={}, fetch_after_index={}",
                 self.inner.sync_type.as_str(),
                 self.synced_commit_index,
                 highest_handled_index,
@@ -250,41 +250,31 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
                 quorum_commit_index,
                 unhandled_commits_threshold,
                 fetch_after_index,
-                step
             );
 
-            for prev_end in (fetch_after_index..=quorum_commit_index).step_by(step as usize) {
-                // Create range with inclusive start and end.
-                let range_start = prev_end + 1;
-                let range_end = prev_end + step;
-                // Commit range is not fetched when [range_start, range_end] contains less
-                // number of commits than the target batch size. This is to avoid
-                // the cost of processing more and smaller batches. Block broadcast,
-                // subscription and synchronization will help the node catchup.
-                if quorum_commit_index < range_end {
-                    break;
-                }
-                // Pause scheduling new fetches when handling of commits is lagging.
-                if highest_handled_index + unhandled_commits_threshold < range_end {
-                    warn!(
-                        "[{}] Skip scheduling new commit fetches: consensus handler is lagging. highest_handled_index={}, highest_scheduled_index={}",
-                        self.inner.sync_type.as_str(),
-                        highest_handled_index,
-                        highest_scheduled_index
-                    );
-                    break;
-                }
+            // Schedule commit ranges for fetching using shared helper
+            let schedule_result = schedule_commit_ranges(
+                &self.inner,
+                fetch_after_index,
+                quorum_commit_index,
+                highest_handled_index,
+                unhandled_commits_threshold,
+            );
+
+            // Add scheduled ranges to pending fetches
+            for range in schedule_result.ranges_scheduled {
                 debug!(
                     "[{}] Scheduling fetch for commit range {}..={}",
                     self.inner.sync_type.as_str(),
-                    range_start,
-                    range_end
+                    range.start(),
+                    range.end()
                 );
-                self.pending_fetches
-                    .insert((range_start..=range_end).into());
-                // quorum_commit_index should be non-decreasing, so highest_scheduled_index
-                // should not decrease either.
-                self.highest_scheduled_index = Some(range_end);
+                self.pending_fetches.insert(range);
+            }
+
+            // Update highest scheduled index
+            if let Some(new_highest) = schedule_result.new_highest_scheduled {
+                self.highest_scheduled_index = Some(new_highest);
             }
         }
 
@@ -367,10 +357,7 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
             .set(self.highest_fetched_commit_index as i64);
 
         // Allow returning partial results, and try fetching the rest separately.
-        if commit_end < target_end {
-            self.pending_fetches
-                .insert((commit_end + 1..=target_end).into());
-        }
+        requeue_partial_range(&mut self.pending_fetches, commit_end, target_end);
         // Make sure synced_commit_index is up to date.
         self.synced_commit_index = self
             .synced_commit_index
@@ -611,11 +598,6 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
         }
 
         Ok((commits, committed_subdags))
-    }
-
-    fn unhandled_commits_threshold(&self) -> CommitIndex {
-        self.inner.context.parameters.commit_sync_batch_size
-            * (self.inner.context.parameters.commit_sync_batches_ahead as u32)
     }
 
     /// Fetches block headers needed for component reinitialization from the
