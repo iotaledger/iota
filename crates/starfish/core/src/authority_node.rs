@@ -177,7 +177,7 @@ impl ConsensusAuthority {
         );
 
         let (core_dispatcher, core_thread_handle) =
-            ChannelCoreThreadDispatcher::start(context.clone(), &dag_state, core);
+            ChannelCoreThreadDispatcher::start(context.clone(), core);
         let core_dispatcher = Arc::new(core_dispatcher);
 
         let transactions_synchronizer = TransactionsSynchronizer::start(
