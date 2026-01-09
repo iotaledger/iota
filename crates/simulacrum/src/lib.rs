@@ -212,6 +212,23 @@ impl<R, S: store::SimulatorStore> Simulacrum<R, S> {
         Ok((effects, execution_error_opt.err()))
     }
 
+    /// Simulate a transaction without committing changes.
+    /// This is useful for testing transaction behavior without modifying state.
+    pub fn simulate_transaction(
+        &self,
+        transaction: TransactionData,
+        checks: iota_types::transaction_executor::VmChecks,
+    ) -> iota_types::error::IotaResult<iota_types::transaction_executor::SimulateTransactionResult>
+    {
+        self.epoch_state.simulate_transaction(
+            &self.store,
+            &self.deny_config,
+            &self.verifier_signing_config,
+            transaction,
+            checks,
+        )
+    }
+
     /// Creates the next Checkpoint using the Transactions enqueued since the
     /// last checkpoint was created.
     pub fn create_checkpoint(&mut self) -> VerifiedCheckpoint {
@@ -350,7 +367,11 @@ impl<R, S: store::SimulatorStore> Simulacrum<R, S> {
         // For right now we'll just use the first account as the `faucet` account. We
         // may want to explicitly cordon off the faucet account from the rest of
         // the accounts though.
-        let (sender, key) = self.keystore().accounts().next().ok_or_else(|| anyhow!("no accounts available in keystore"))?;
+        let (sender, key) = self
+            .keystore()
+            .accounts()
+            .next()
+            .ok_or_else(|| anyhow!("no accounts available in keystore"))?;
         let object = self
             .store()
             .owned_objects(*sender)

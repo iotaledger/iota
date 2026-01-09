@@ -83,7 +83,7 @@ async fn main() -> Result<()> {
     let mut account_configs = if let Some(accounts_str) = args.accounts {
         let pairs: Vec<&str> = accounts_str.split(',').collect();
         info!("Creating {} accounts", pairs.len());
-        
+
         pairs
             .iter()
             .filter_map(|pair| {
@@ -91,21 +91,21 @@ async fn main() -> Result<()> {
                 if parts.len() != 2 {
                     panic!("Invalid account format '{pair}', expected 'address:amount'");
                 }
-                
+
                 let address = match parts[0].parse::<iota_types::base_types::IotaAddress>() {
                     Ok(addr) => addr,
                     Err(e) => {
                         panic!("Invalid address '{}': {e}", parts[0]);
                     }
                 };
-                
+
                 let amount = match parts[1].parse::<u64>() {
                     Ok(amt) => amt,
                     Err(e) => {
                         panic!("Invalid amount '{}': {e}", parts[1]);
                     }
                 };
-                
+
                 Some(AccountConfig {
                     address: Some(address),
                     gas_amounts: vec![amount],

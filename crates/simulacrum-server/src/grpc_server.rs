@@ -6,19 +6,26 @@
 use std::sync::Arc;
 
 use anyhow::Result;
+#[allow(unused_imports)]
+use async_trait::async_trait;
 use iota_grpc_server::{GrpcReader, GrpcServerHandle, GrpcStateReader, start_grpc_server};
 use iota_types::{
     TypeTag,
     base_types::{ObjectID, VersionNumber},
     committee::Committee,
     digests::{ChainIdentifier, CheckpointDigest, TransactionDigest, TransactionEventsDigest},
-    effects::{TransactionEffects, TransactionEvents},
+    effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
     full_checkpoint_content::CheckpointData,
     iota_system_state::IotaSystemState,
     messages_checkpoint::CertifiedCheckpointSummary,
     object::Object,
+    quorum_driver_types::{
+        ExecuteTransactionRequestV1, ExecuteTransactionResponseV1, FinalizedEffects,
+        QuorumDriverError,
+    },
     storage::EpochInfo,
-    transaction::VerifiedTransaction,
+    transaction::{TransactionData, VerifiedTransaction},
+    transaction_executor::{SimulateTransactionResult, TransactionExecutor, VmChecks},
 };
 use move_core_types::annotated_value::MoveTypeLayout;
 use simulacrum::Simulacrum;
@@ -192,6 +199,108 @@ impl GrpcStateReader for SimulacrumGrpcReader {
     }
 }
 
+/// Transaction executor implementation for simulacrum
+/// This allows transaction execution and simulation via gRPC without requiring
+/// quorum consensus
+pub struct SimulacrumTransactionExecutor {
+    simulacrum: Arc<tokio::sync::Mutex<Simulacrum>>,
+}
+
+impl SimulacrumTransactionExecutor {
+    pub fn new(simulacrum: Arc<tokio::sync::Mutex<Simulacrum>>) -> Self {
+        Self { simulacrum }
+    }
+}
+
+#[async_trait::async_trait]
+impl TransactionExecutor for SimulacrumTransactionExecutor {
+    async fn execute_transaction(
+        &self,
+        request: ExecuteTransactionRequestV1,
+        _client_addr: Option<std::net::SocketAddr>,
+    ) -> Result<ExecuteTransactionResponseV1, QuorumDriverError> {
+        let mut simulacrum = self.simulacrum.lock().await;
+
+        // Execute the transaction directly (it's already a Transaction type)
+        let (effects, _execution_error) = simulacrum
+            .execute_transaction(request.transaction.clone())
+            .map_err(|e| {
+                QuorumDriverError::QuorumDriverInternal(iota_types::error::IotaError::Unknown(
+                    e.to_string(),
+                ))
+            })?;
+
+        // Create a checkpoint to finalize the transaction
+        let checkpoint = simulacrum.create_checkpoint();
+
+        tracing::debug!(
+            tx_digest = ?effects.transaction_digest(),
+            checkpoint = checkpoint.sequence_number(),
+            "Transaction executed and finalized in simulacrum"
+        );
+
+        // For simulacrum, we create a dummy certified effects since there's no real
+        // validator consensus. We use
+        // CertifiedTransactionEffects::new_from_data_and_sig with empty
+        // signatures.
+        let (test_committee, _) = iota_types::committee::Committee::new_simple_test_committee();
+        let effects_cert = iota_types::effects::CertifiedTransactionEffects::new_from_data_and_sig(
+            effects.clone(),
+            iota_types::crypto::AuthorityQuorumSignInfo::new_from_auth_sign_infos(
+                vec![],
+                &test_committee,
+            )
+            .unwrap(),
+        );
+        let verified_effects =
+            iota_types::effects::VerifiedCertifiedTransactionEffects::new_unchecked(effects_cert);
+
+        // Build response
+        let response = ExecuteTransactionResponseV1 {
+            effects: FinalizedEffects::new_from_effects_cert(verified_effects.into()),
+            events: if request.include_events {
+                // TODO: get events from simulacrum store
+                None
+            } else {
+                None
+            },
+            input_objects: if request.include_input_objects {
+                // TODO: get input objects from simulacrum store
+                None
+            } else {
+                None
+            },
+            output_objects: if request.include_output_objects {
+                // TODO: get output objects from simulacrum store
+                None
+            } else {
+                None
+            },
+            auxiliary_data: if request.include_auxiliary_data {
+                // TODO: get auxiliary data
+                None
+            } else {
+                None
+            },
+        };
+
+        Ok(response)
+    }
+
+    fn simulate_transaction(
+        &self,
+        transaction: TransactionData,
+        checks: VmChecks,
+    ) -> Result<SimulateTransactionResult, iota_types::error::IotaError> {
+        // This is a synchronous call, so we need to use blocking
+        let rt = tokio::runtime::Handle::current();
+        let simulacrum = rt.block_on(self.simulacrum.lock());
+
+        // Use the simulacrum's simulate_transaction method
+        simulacrum.simulate_transaction(transaction, checks)
+    }
+}
+
 /// Start a gRPC server for the given simulacrum instance
 pub async fn start_simulacrum_grpc_server(
     simulacrum: Arc<tokio::sync::Mutex<Simulacrum>>,
@@ -200,14 +309,12 @@ pub async fn start_simulacrum_grpc_server(
 ) -> Result<GrpcServerHandle> {
     let chain_id = ChainIdentifier::from(CheckpointDigest::default());
 
-    // TODO: find a way to convert from Executor to TransactionExecutor (I guess we
-    // need some simple implementation of the TransactionOrchestrator without
-    // consensus)
-    // let rt = tokio::runtime::Handle::current();
-    // let simulacrum_tmp = rt.block_on(simulacrum.lock());
-    // let executor = simulacrum_tmp.executor();
-    // drop(simulacrum_tmp);
-    let executor = None;
+    // Create a transaction executor for simulacrum to enable transaction execution
+    // and simulation via gRPC
+    let executor = Some(
+        Arc::new(SimulacrumTransactionExecutor::new(simulacrum.clone()))
+            as Arc<dyn TransactionExecutor>,
+    );
 
     let simulacrum_reader = Arc::new(SimulacrumGrpcReader::new(simulacrum, chain_id));
     let grpc_reader = Arc::new(GrpcReader::new(simulacrum_reader, None));

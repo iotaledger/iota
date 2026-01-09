@@ -13,6 +13,7 @@ path = "src/main.rs"
 [dependencies]
 # external dependencies
 anyhow.workspace = true
+async-trait.workspace = true
 axum.workspace = true
 clap.workspace = true
 futures.workspace = true

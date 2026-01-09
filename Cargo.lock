@@ -13695,6 +13695,7 @@ name = "simulacrum-server"
 version = "1.15.0-alpha"
 dependencies = [
  "anyhow",
+ "async-trait",
  "axum 0.8.4",
  "clap",
  "futures",
