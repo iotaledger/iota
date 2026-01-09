@@ -309,6 +309,9 @@ impl CommitObserver {
             let commit_index = commit.index();
             // Commit index must be continuous during recovery.
             assert_eq!(commit_index, next_commit_index_to_recover);
+            // For the first recovery commit, set the solidifier's baseline to just
+            // before this commit. This ensures the solidifier correctly tracks commits
+            // from the recovery start point forward.
             if index == 0 {
                 self.commit_solidifier
                     .set_last_committed_index(commit_index.saturating_sub(1));

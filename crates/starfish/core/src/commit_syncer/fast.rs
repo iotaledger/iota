@@ -620,16 +620,20 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
 
     /// Fetches block headers needed for component reinitialization from the
     /// network. This is called when close_to_quorum mode is active and all
-    /// pending fetches complete. Fetches headers for max(cached_rounds,
-    /// gc_depth * 2) commits to satisfy both DagState cache and linearizer
-    /// recovery requirements.
+    /// pending fetches complete. Fetches headers for the maximum of
+    /// cached_rounds, gc_depth * 2, leader_schedule_window, and
+    /// commits_since_schedule_update to satisfy DagState cache, linearizer,
+    /// and leader schedule recovery requirements.
     async fn fetch_headers_for_reinitialization(
         inner: Arc<Inner<C>>,
     ) -> ConsensusResult<Vec<VerifiedBlockHeader>> {
-        // We need headers for two purposes:
+        // We need headers for three purposes:
         // 1. DagState cache: at least cached_rounds commits back
         // 2. Linearizer recovery: at least gc_depth * 2 commits back
-        // Fetch the maximum of the two to satisfy both requirements
+        // 3. Leader schedule recovery: at least leader_schedule_window commits back, or
+        //    all commits since the last stored commit info
+        //    (commits_since_schedule_update)
+        // Fetch the maximum to satisfy all requirements
         let cached_rounds = inner.context.parameters.dag_state_cached_rounds;
         let gc_depth = inner.context.protocol_config.gc_depth();
         let leader_schedule_window = crate::leader_schedule::CONSENSUS_COMMITS_PER_SCHEDULE as u32;
@@ -676,11 +680,13 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
         }
 
         info!(
-            "[{}] Fetching {} block headers for reinitialization (cached_rounds={}, gc_depth*2={})",
+            "[{}] Fetching {} block headers for reinitialization (cached_rounds={}, gc_depth*2={}, leader_schedule_window={}, commits_since_schedule_update={})",
             inner.sync_type.as_str(),
             block_refs.len(),
             cached_rounds,
-            gc_depth * 2
+            gc_depth * 2,
+            leader_schedule_window,
+            commits_since_schedule_update
         );
 
         // Shuffle target authorities for load balancing
