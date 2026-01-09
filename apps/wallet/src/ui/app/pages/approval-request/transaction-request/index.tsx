@@ -27,6 +27,7 @@ import { ConfirmationModal } from '../../../shared/ConfirmationModal';
 import { TransactionDetails } from './transaction-details';
 import { Warning } from '@iota/apps-ui-icons';
 import { InfoBox, InfoBoxType, InfoBoxStyle } from '@iota/apps-ui-kit';
+import { DRY_RUN_ERROR_TITLE, getDryRunExecutionSupportingText } from './error.constants';
 
 export interface TransactionRequestProps {
     txRequest: TransactionApprovalRequest;
@@ -72,6 +73,10 @@ export function TransactionRequest({ txRequest }: TransactionRequestProps) {
     }
 
     const isDryRunExecutionFailed = data?.effects.status.status === 'failure';
+    const dryRunExecutionError = data?.effects.status.error;
+    const dryRunExecutionSupportingText = dryRunExecutionError
+        ? getDryRunExecutionSupportingText(dryRunExecutionError)
+        : undefined;
     const txHasErrors = isError || isDryRunExecutionFailed;
 
     return (
@@ -108,15 +113,27 @@ export function TransactionRequest({ txRequest }: TransactionRequestProps) {
             >
                 <PageMainLayoutTitle title="Approve Transaction" />
                 <div className="-mr-3 flex flex-col gap-md">
-                    {!isDryRunLoading && (!summary || isDryRunError || isDryRunExecutionFailed) && (
+                    {isDryRunExecutionFailed && dryRunExecutionSupportingText && (
                         <InfoBox
-                            title="Review the transaction"
-                            supportingText="Unexpected issue during the dry run. The transaction may not execute properly."
+                            title={DRY_RUN_ERROR_TITLE}
+                            supportingText={dryRunExecutionSupportingText}
                             icon={<Warning />}
-                            type={InfoBoxType.Default}
+                            type={InfoBoxType.Error}
                             style={InfoBoxStyle.Elevated}
                         />
                     )}
+                    {!isDryRunLoading &&
+                        (!summary ||
+                            isDryRunError ||
+                            (isDryRunExecutionFailed && !dryRunExecutionError)) && (
+                            <InfoBox
+                                title="Review the transaction"
+                                supportingText="Unexpected issue during the dry run. The transaction may not execute properly."
+                                icon={<Warning />}
+                                type={InfoBoxType.Default}
+                                style={InfoBoxStyle.Elevated}
+                            />
+                        )}
                     <TransactionSummary
                         isDryRun
                         isLoading={isDryRunLoading}
