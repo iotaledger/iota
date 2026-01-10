@@ -862,8 +862,28 @@ def update_crate_cargo_toml(toml_path: str, updates: dict):
             dep_match = dep_line_regex.match(stripped)
             if dep_match:
                 alias = dep_match.group(1)
+                
+                # Check for both regular updates and section-specific updates
+                update_info = None
                 if alias in updates:
-                    action, dep = updates[alias]
+                    update_info = updates[alias]
+                else:
+                    # Check for section-specific update (for clean_features)
+                    section_key = f"{alias}:{current_section}"
+                    if section_key in updates:
+                        update_info = updates[section_key]
+                
+                if update_info:
+                    # Handle different update info formats
+                    if len(update_info) == 3:
+                        action, dep, expected_section = update_info
+                        # Only apply if we're in the expected section
+                        if current_section != expected_section:
+                            new_lines.append(line)
+                            continue
+                    else:
+                        action, dep = update_info
+                    
                     indent = len(line) - len(line.lstrip())
                     indent_str = line[:indent]
 
@@ -884,6 +904,13 @@ def update_crate_cargo_toml(toml_path: str, updates: dict):
                         else:
                             # For non-workspace deps, use full spec
                             new_spec = build_full_dep_spec(dep)
+                            new_lines.append(f'{indent_str}{alias} = {new_spec}\n')
+                    elif action == 'clean_features':
+                        # Clean up redundant features from workspace dependency
+                        new_spec = build_crate_workspace_ref(dep)
+                        if new_spec is None:
+                            new_lines.append(f'{indent_str}{alias}.workspace = true\n')
+                        else:
                             new_lines.append(f'{indent_str}{alias} = {new_spec}\n')
                     else:  # 'to_full'
                         new_spec = build_full_dep_spec(dep)
@@ -1312,7 +1339,46 @@ def run_consolidate_mode(args, target_dir: str, root_cargo_toml: str, ignore_pat
             deps_list = list(updates.keys())
             print(f"  {crate_path}: {', '.join(deps_list)}")
 
-    if not deps_to_consolidate and not deps_to_distribute and not invalid_default_features:
+    # Clean up redundant features in existing workspace dependencies
+    redundant_features_cleanup = {}
+    for alias, info in deps_analysis.items():
+        if alias not in deps_to_consolidate and alias not in deps_to_distribute and info['root_spec']:
+            workspace_dep = info['root_spec']
+            # Check existing workspace dependencies for redundant features
+            for toml_path, section, dep in info['usages']:
+                if dep.workspace and dep.features and workspace_dep.features:
+                    # Filter out features that are already in the workspace dependency
+                    workspace_features_set = set(workspace_dep.features)
+                    crate_features_set = set(dep.features)
+                    additional_features = crate_features_set - workspace_features_set
+                    
+                    # Only update if we can remove some features
+                    if len(additional_features) < len(crate_features_set):
+                        if toml_path not in redundant_features_cleanup:
+                            redundant_features_cleanup[toml_path] = {}
+                        
+                        cleaned_features = sorted(list(additional_features)) if additional_features else None
+                        clean_dep = Dependency(
+                            name=dep.name,
+                            alias=dep.alias,
+                            features=cleaned_features,
+                            default_features=dep.default_features,
+                            optional=dep.optional,
+                            workspace=True
+                        )
+                        # Use section-specific key to handle dependencies in multiple sections
+                        section_key = f"{alias}:{section}"
+                        redundant_features_cleanup[toml_path][section_key] = ('clean_features', clean_dep, section)
+
+    if redundant_features_cleanup:
+        print(f"\nFound {sum(len(updates) for updates in redundant_features_cleanup.values())} workspace dependencies with redundant features:")
+        for toml_path, updates in redundant_features_cleanup.items():
+            crate_path = get_crate_path(toml_path, target_dir)
+            # Extract just the dependency names from section-specific keys
+            deps_list = [key.split(':')[0] for key in updates.keys()]
+            print(f"  {crate_path}: {', '.join(sorted(set(deps_list)))}")  # Use set to dedupe
+
+    if not deps_to_consolidate and not deps_to_distribute and not invalid_default_features and not redundant_features_cleanup:
         print("\nNo changes needed!")
         return 0
 
@@ -1339,9 +1405,20 @@ def run_consolidate_mode(args, target_dir: str, root_cargo_toml: str, ignore_pat
                     # Crate has explicit setting that differs from workspace
                     explicit_default_features = dep.default_features
                 
-                # Only specify features if they differ from workspace features
+                # Only specify features that are not already defined in workspace features
                 explicit_features = None
-                if dep.features != workspace_dep.features:
+                if dep.features and workspace_dep.features:
+                    # Filter out features that are already in the workspace dependency
+                    workspace_features_set = set(workspace_dep.features)
+                    crate_features_set = set(dep.features)
+                    additional_features = crate_features_set - workspace_features_set
+                    if additional_features:
+                        explicit_features = sorted(list(additional_features))
+                elif dep.features and not workspace_dep.features:
+                    # Workspace has no features, but crate does - keep all crate features
+                    explicit_features = dep.features
+                elif dep.features != workspace_dep.features:
+                    # Handle other cases where features differ (e.g., None vs empty list)
                     explicit_features = dep.features
                 
                 crate_dep = Dependency(
@@ -1373,6 +1450,11 @@ def run_consolidate_mode(args, target_dir: str, root_cargo_toml: str, ignore_pat
 
     # Merge invalid default-features fixes into crate updates
     for toml_path, updates in invalid_default_features.items():
+        for alias, update in updates.items():
+            crate_updates[toml_path][alias] = update
+
+    # Merge redundant features cleanup into crate updates
+    for toml_path, updates in redundant_features_cleanup.items():
         for alias, update in updates.items():
             crate_updates[toml_path][alias] = update
 
