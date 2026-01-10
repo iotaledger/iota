@@ -4,7 +4,20 @@ source ./python_cmd.sh
 
 # Run consolidate for external crates first
 $PYTHON_CMD cargo_sort.py --consolidate-deps \
+  --strict \
   --target ../../external-crates/move
 
 # Then run consolidate for the rest, ignoring external-crates and nre
-$PYTHON_CMD cargo_sort.py --consolidate-deps --ignore external-crates --ignore nre "$@"
+$PYTHON_CMD cargo_sort.py --consolidate-deps \
+  --strict \
+  --strict-ignore "*:docs/examples/rust" \
+  --strict-ignore "*:examples/tic-tac-toe/cli" \
+  --strict-ignore "*:examples/custom-indexer/rust" \
+  --strict-ignore "*:sdk/move-bytecode-template" \
+  --strict-ignore "rand:crates/iota-aws-orchestrator" \
+  --strict-ignore "tonic:crates/telemetry-subscribers" \
+  --strict-ignore "prost:crates/telemetry-subscribers" \
+  --strict-ignore "syn:crates/iota-proc-macros" \
+  --ignore external-crates \
+  --ignore nre "$@"
+

@@ -922,12 +922,47 @@ def run_consolidate_mode(args, target_dir: str, root_cargo_toml: str, ignore_pat
 
     deps_to_consolidate = {}
     deps_to_distribute = {}
+    version_conflicts = {}
 
     for alias, info in deps_analysis.items():
         usages = info['usages']
         root_spec = info['root_spec']
+        
+        # Check for version conflicts for this package
+        pkg_name = alias
+        if root_spec:
+            pkg_name = root_spec.name
+        elif usages:
+            pkg_name = usages[0][2].name
+        
+        # Track version conflicts with detailed crate information
+        if pkg_name not in version_conflicts:
+            workspace_ver = root_spec.version if root_spec and root_spec.version else None
+            crate_versions = {}
+            
+            for toml_path, section, dep in usages:
+                if not dep.workspace and dep.version:
+                    if dep.version not in crate_versions:
+                        crate_versions[dep.version] = []
+                    crate_path = get_crate_path(toml_path, target_dir)
+                    crate_versions[dep.version].append(crate_path)
+            
+            # Check for conflicts
+            if workspace_ver and crate_versions:
+                all_versions = set(crate_versions.keys())
+                all_versions.add(workspace_ver)
+                
+                if len(all_versions) > 1:
+                    version_conflicts[pkg_name] = {
+                        'workspace_version': workspace_ver,
+                        'crate_versions': crate_versions
+                    }
+            elif len(crate_versions) > 1:
+                version_conflicts[pkg_name] = {
+                    'workspace_version': None,
+                    'crate_versions': crate_versions
+                }
 
-        unique_crates = set(usage[0] for usage in usages)
         # Use relative paths from workspace root for unique crate identification
         unique_crates = set(get_crate_path(usage[0], target_dir) for usage in usages)
         usage_count = len(unique_crates)
@@ -1115,6 +1150,125 @@ def run_consolidate_mode(args, target_dir: str, root_cargo_toml: str, ignore_pat
     print(f"Dependencies to consolidate (add to workspace): {len(deps_to_consolidate)}")
     print(f"Dependencies to distribute (remove from workspace): {len(deps_to_distribute)}")
 
+    # Show version conflicts with detailed crate information
+    if version_conflicts:
+        print(f"\n{YELLOW} Version Conflicts Found:{RESET}")
+        
+        # Parse strict ignore rules for display hints
+        ignored_deps = set()
+        ignored_dep_crate_combos = {}
+        ignored_crates = set()
+        
+        if args.strict:
+            for ignore_rule in args.strict_ignore:
+                if ':' in ignore_rule:
+                    dep_part, crate_part = ignore_rule.split(':', 1)
+                    if dep_part == '*':
+                        ignored_crates.add(crate_part)
+                    else:
+                        if dep_part not in ignored_dep_crate_combos:
+                            ignored_dep_crate_combos[dep_part] = set()
+                        ignored_dep_crate_combos[dep_part].add(crate_part)
+                else:
+                    ignored_deps.add(ignore_rule)
+        
+        for pkg_name, conflict in version_conflicts.items():
+            workspace_ver = conflict['workspace_version']
+            crate_versions = conflict['crate_versions']
+            
+            # Check if this dependency is completely ignored
+            dep_completely_ignored = args.strict and pkg_name in ignored_deps
+            
+            # Helper function to format crates with ignore annotations
+            def format_crates_with_ignore(crates):
+                displayed_crates = []
+                for crate in crates:
+                    crate_ignored = False
+                    if args.strict:
+                        # Check if this crate is ignored
+                        if (crate in ignored_crates or 
+                            (pkg_name in ignored_dep_crate_combos and crate in ignored_dep_crate_combos[pkg_name])):
+                            crate_ignored = True
+                    
+                    if crate_ignored:
+                        displayed_crates.append(f"{RED}{crate} (ignored){RESET}")
+                    else:
+                        displayed_crates.append(crate)
+                
+                return ', '.join(displayed_crates)
+            
+            # Helper function to display version conflicts
+            def display_version_conflict(pkg_name, conflict, dep_completely_ignored, format_crates_fn):
+                workspace_ver = conflict['workspace_version']
+                crate_versions = conflict['crate_versions']
+                
+                # Print header based on conflict type
+                if workspace_ver:
+                    print(f"\n  Package '{pkg_name}' has conflicting versions:")
+                    if dep_completely_ignored:
+                        print(f"    {RED}(IGNORED in strict mode){RESET}")
+                    print(f"    WORKSPACE: {workspace_ver}")
+                else:
+                    versions_list = sorted(crate_versions.keys())
+                    print(f"\n  Package '{pkg_name}' has multiple versions in crates: {versions_list}")
+                    if dep_completely_ignored:
+                        print(f"    {RED}(IGNORED in strict mode){RESET}")
+                
+                # Print crate versions
+                for version, crates in sorted(crate_versions.items()):
+                    crate_list = format_crates_fn(crates)
+                    print(f"    {crate_list}: ({version})")
+                
+                # Print suggestion
+                suggestion = "using consistent versions across workspace and crates" if workspace_ver else "consolidating to workspace dependency"
+                print(f"    {YELLOW}Consider {suggestion}.{RESET}")
+            
+            display_version_conflict(pkg_name, conflict, dep_completely_ignored, format_crates_with_ignore)
+        
+        if args.strict:
+            # Check if any conflicts should cause strict mode failure
+            strict_failures = {}
+            for pkg_name, conflict in version_conflicts.items():
+                if pkg_name in ignored_deps:
+                    continue  # Ignore this dependency completely
+                
+                workspace_ver = conflict['workspace_version']
+                crate_versions = conflict['crate_versions']
+                filtered_crate_versions = {}
+                
+                for version, crates in crate_versions.items():
+                    filtered_crates = []
+                    for crate in crates:
+                        # Skip if crate is globally ignored
+                        if crate in ignored_crates:
+                            continue
+                        # Skip if this specific dep:crate combo is ignored
+                        if pkg_name in ignored_dep_crate_combos and crate in ignored_dep_crate_combos[pkg_name]:
+                            continue
+                        filtered_crates.append(crate)
+                    
+                    if filtered_crates:
+                        filtered_crate_versions[version] = filtered_crates
+                
+                # Check if there are still conflicts after filtering
+                if workspace_ver and filtered_crate_versions:
+                    all_versions = set(filtered_crate_versions.keys())
+                    all_versions.add(workspace_ver)
+                    if len(all_versions) > 1:
+                        strict_failures[pkg_name] = {
+                            'workspace_version': workspace_ver,
+                            'crate_versions': filtered_crate_versions
+                        }
+                elif len(filtered_crate_versions) > 1:
+                    strict_failures[pkg_name] = {
+                        'workspace_version': None,
+                        'crate_versions': filtered_crate_versions
+                    }
+            
+            if strict_failures:
+                print(f"\n{RED}❌ STRICT MODE: Version conflicts detected (after applying ignore rules)! Exiting with error.{RESET}")
+                return 1
+
     if deps_to_consolidate:
         print("\nTo consolidate:")
         for alias, info in sorted(deps_to_consolidate.items()):
@@ -1292,6 +1446,17 @@ Examples:
         type=int,
         default=2,
         help='Minimum usages to consolidate a dependency (consolidate mode). Default: 2'
+    )
+    parser.add_argument(
+        '--strict',
+        action='store_true',
+        help='Strict mode: exit with error if version conflicts are found (consolidate mode).'
+    )
+    parser.add_argument(
+        '--strict-ignore',
+        action='append',
+        default=[],
+        help='Ignore dependencies/crates in strict mode. Format: "dep_name" or "dep_name:crate/path" or "*:crate/path". Can be specified multiple times.'
     )
 
     args = parser.parse_args()
