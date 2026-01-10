@@ -1167,7 +1167,9 @@ def run_consolidate_mode(args, target_dir: str, root_cargo_toml: str, ignore_pat
         elif usage_count == 1:
             usage = usages[0] if usages else None
             is_special = usage and is_special_dep_section(usage[1])
-            if root_spec and not is_special:
+            # Check if dependency should be kept in workspace despite single usage
+            keep_in_workspace = alias in args.keep_in_workspace
+            if root_spec and not is_special and not keep_in_workspace:
                 deps_to_distribute[alias] = {
                     'root_spec': root_spec,
                     'usage': usage,
@@ -1176,6 +1178,17 @@ def run_consolidate_mode(args, target_dir: str, root_cargo_toml: str, ignore_pat
     print(f"\n=== Analysis Results ===")
     print(f"Dependencies to consolidate (add to workspace): {len(deps_to_consolidate)}")
     print(f"Dependencies to distribute (remove from workspace): {len(deps_to_distribute)}")
+    
+    # Show dependencies kept in workspace due to --keep-in-workspace
+    if args.keep_in_workspace:
+        kept_deps = []
+        for alias, info in deps_analysis.items():
+            if alias in args.keep_in_workspace and info['root_spec'] and len(info['usages']) == 1:
+                kept_deps.append(alias)
+        if kept_deps:
+            print(f"Dependencies kept in workspace (--keep-in-workspace): {len(kept_deps)}")
+            for dep in sorted(kept_deps):
+                print(f"  {dep}")
 
     # Show version conflicts with detailed crate information
     if version_conflicts:
@@ -1481,6 +1494,7 @@ Modes:
     Analyzes and consolidates/distributes workspace dependencies.
     - If an external dep is used by multiple crates: add to workspace
     - If an external dep is used by one crate: remove from workspace
+    - Use --keep-in-workspace to prevent specific deps from being removed
 
 Examples:
   # Sort dependencies (default mode)
@@ -1488,6 +1502,9 @@ Examples:
 
   # Consolidate dependencies, ignoring external-crates
   python cargo_sort.py --consolidate-deps --ignore external-crates
+  
+  # Consolidate but keep example-dep in workspace even if used by one crate
+  python cargo_sort.py --consolidate-deps --keep-in-workspace example-dep
 """
     )
     parser.add_argument(
@@ -1539,6 +1556,12 @@ Examples:
         action='append',
         default=[],
         help='Ignore dependencies/crates in strict mode. Format: "dep_name" or "dep_name:crate/path" or "*:crate/path". Can be specified multiple times.'
+    )
+    parser.add_argument(
+        '--keep-in-workspace',
+        action='append',
+        default=[],
+        help='Dependencies to keep in workspace even if used by only one crate (consolidate mode). Can be specified multiple times.'
     )
 
     args = parser.parse_args()
