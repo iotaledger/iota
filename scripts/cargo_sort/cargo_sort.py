@@ -928,7 +928,7 @@ def get_crate_path(toml_path: str, target_dir: str) -> str:
     rel_path = os.path.relpath(toml_path, target_dir)
     return rel_path.replace('/Cargo.toml', '') if rel_path.endswith('/Cargo.toml') else rel_path
 
-def run_consolidate_mode(args, target_dir: str, root_cargo_toml: str, ignore_patterns: list):
+def run_consolidate_mode(args, target_dir: str, root_cargo_toml: str, ignore_patterns: list, iteration: int = 1):
     # run the consolidate dependencies mode.
     internal_crates = set(get_package_names_from_cargo_tomls(target_dir, ignore_patterns).keys())
     print(f"  Found {len(internal_crates)} internal crates")
@@ -938,8 +938,7 @@ def run_consolidate_mode(args, target_dir: str, root_cargo_toml: str, ignore_pat
     print(f"  Found {len(cargo_tomls)} Cargo.toml files")
 
     if not os.path.exists(root_cargo_toml):
-        print(f"Error: Root Cargo.toml not found at {root_cargo_toml}")
-        return 1
+        raise Exception(f"Error: Root Cargo.toml not found at {root_cargo_toml}")
 
     if root_cargo_toml not in cargo_tomls:
         cargo_tomls.append(root_cargo_toml)
@@ -1306,8 +1305,7 @@ def run_consolidate_mode(args, target_dir: str, root_cargo_toml: str, ignore_pat
                     }
             
             if strict_failures:
-                print(f"\n{RED}❌ STRICT MODE: Version conflicts detected (after applying ignore rules)! Exiting with error.{RESET}")
-                return 1
+                raise Exception(f"\n{RED}❌ STRICT MODE: Version conflicts detected (after applying ignore rules)! Exiting with error.{RESET}")
 
     if deps_to_consolidate:
         print("\nTo consolidate:")
@@ -1392,8 +1390,7 @@ def run_consolidate_mode(args, target_dir: str, root_cargo_toml: str, ignore_pat
             print(f"  {crate_path}: {', '.join(sorted(set(deps_list)))}")  # Use set to dedupe
 
     if not deps_to_consolidate and not deps_to_distribute and not invalid_default_features and not redundant_features_cleanup:
-        print("\nNo changes needed!")
-        return 0
+        return False  # No changes made
 
     root_additions = {alias: info['dep'] for alias, info in deps_to_consolidate.items()}
     root_removals = set(deps_to_distribute.keys())
@@ -1403,6 +1400,7 @@ def run_consolidate_mode(args, target_dir: str, root_cargo_toml: str, ignore_pat
 
     crate_updates = defaultdict(dict)
 
+    # Handle dependencies being newly consolidated to workspace
     for alias, info in deps_to_consolidate.items():
         workspace_dep = info['dep']
         for toml_path, section, dep in info['usages']:
@@ -1444,6 +1442,42 @@ def run_consolidate_mode(args, target_dir: str, root_cargo_toml: str, ignore_pat
                 )
                 crate_updates[toml_path][alias] = ('to_workspace', crate_dep)
 
+    # Handle existing workspace dependencies that have non-workspace crate usages
+    for alias, info in deps_analysis.items():
+        if alias not in deps_to_consolidate and alias not in deps_to_distribute and info['root_spec']:
+            workspace_dep = info['root_spec']
+            for toml_path, section, dep in info['usages']:
+                if not dep.workspace and not is_special_dep_section(section):
+                    # Convert non-workspace usage to workspace reference
+                    explicit_default_features = None
+                    if workspace_dep.default_features is False and dep.default_features is not False:
+                        explicit_default_features = True
+                    elif dep.default_features is not None and dep.default_features != workspace_dep.default_features:
+                        explicit_default_features = dep.default_features
+                    
+                    # Only specify features that are not already defined in workspace features
+                    explicit_features = None
+                    if dep.features and workspace_dep.features:
+                        workspace_features_set = set(workspace_dep.features)
+                        crate_features_set = set(dep.features)
+                        additional_features = crate_features_set - workspace_features_set
+                        if additional_features:
+                            explicit_features = sorted(list(additional_features))
+                    elif dep.features and not workspace_dep.features:
+                        explicit_features = dep.features
+                    elif dep.features != workspace_dep.features:
+                        explicit_features = dep.features
+                    
+                    crate_dep = Dependency(
+                        name=dep.name,
+                        alias=dep.alias,
+                        features=explicit_features,
+                        default_features=explicit_default_features,
+                        optional=dep.optional,
+                        workspace=True
+                    )
+                    crate_updates[toml_path][alias] = ('to_workspace', crate_dep)
+
     for alias, info in deps_to_distribute.items():
         if info['usage']:
             toml_path, section, dep = info['usage']
@@ -1475,7 +1509,44 @@ def run_consolidate_mode(args, target_dir: str, root_cargo_toml: str, ignore_pat
         if updates:
             update_crate_cargo_toml(toml_path, updates)
 
-    return 0
+    # Return whether any changes were made
+    changes_made = (
+        bool(deps_to_consolidate) or 
+        bool(deps_to_distribute) or 
+        bool(invalid_default_features) or 
+        bool(redundant_features_cleanup)
+    )
+    
+    return changes_made
+
+def run_consolidate_mode_with_loop(args, target_dir: str, root_cargo_toml: str, ignore_patterns: list):
+    # Run consolidate mode in a loop until no more changes are detected
+    max_iterations = 10  # Safety limit to prevent infinite loops
+    iteration = 1
+    
+    print(f"=== Consolidate Mode (Loop) ===")
+    
+    while iteration <= max_iterations:
+        print(f"\n--- Consolidation Pass {iteration} ---")
+        
+        try:
+            changes_made = run_consolidate_mode(args, target_dir, root_cargo_toml, ignore_patterns, iteration)
+        except Exception as e:
+            print(f"{RED}ERROR: Consolidation failed with error: {e}{RESET}")
+            print("Stopping consolidation due to unresolvable conflicts.")
+            return 
+        
+        if not changes_made:  # No changes made
+            if iteration == 1:
+                print("No changes needed!")
+            else:
+                print(f"Consolidation completed after {iteration - 1} passes.")
+            return 0
+        
+        # changes were made, continue to next iteration
+        iteration += 1
+    
+    raise Exception(f"{RED}ERROR: Reached maximum iteration limit ({max_iterations}). Some dependencies may still need consolidation.{RESET}")
 
 # ==============================================================================
 # Main Entry Point
@@ -1503,8 +1574,8 @@ Examples:
   # Consolidate dependencies, ignoring external-crates
   python cargo_sort.py --consolidate-deps --ignore external-crates
   
-  # Consolidate but keep example-dep in workspace even if used by one crate
-  python cargo_sort.py --consolidate-deps --keep-in-workspace example-dep
+  # Consolidate but keep fastcrypto-vdf in workspace even if used by one crate
+  python cargo_sort.py --consolidate-deps --keep-in-workspace fastcrypto-vdf
 """
     )
     parser.add_argument(
@@ -1587,7 +1658,7 @@ Examples:
         if ignore_patterns:
             print(f"Ignoring folders: {args.ignore}")
         
-        result = run_consolidate_mode(args, target_dir, root_cargo_toml, ignore_patterns)
+        result = run_consolidate_mode_with_loop(args, target_dir, root_cargo_toml, ignore_patterns)
         if result != 0:
             print(f"Consolidate mode failed with code {result}")
             exit(result)
