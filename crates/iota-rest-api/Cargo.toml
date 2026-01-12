@@ -33,4 +33,4 @@ iota-types.workspace = true
 move-binary-format.workspace = true
 
 [dev-dependencies]
-diffy = "0.3"
+diffy.workspace = true

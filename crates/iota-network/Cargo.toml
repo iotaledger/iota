@@ -45,7 +45,7 @@ tonic-build.workspace = true
 [dev-dependencies]
 # external dependencies
 ed25519-consensus.workspace = true
-tempfile = "3.3.0"
+tempfile = "3.20.0"
 tokio = { workspace = true, features = ["test-util"] }
 
 # internal dependencies

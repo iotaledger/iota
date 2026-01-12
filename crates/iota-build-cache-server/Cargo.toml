@@ -15,7 +15,7 @@ chrono.workspace = true
 clap.workspace = true
 futures.workspace = true
 http.workspace = true
-http-body-util = "0.1"
+http-body-util = "0.1.2"
 hyper.workspace = true
 hyper-util.workspace = true
 reqwest = { workspace = true, features = ["json"] }

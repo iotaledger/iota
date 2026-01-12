@@ -21,7 +21,7 @@ hyper-util.workspace = true
 idna = "1.1.0"
 multiaddr = "0.17.0"
 once_cell.workspace = true
-pin-project-lite = "0.2.13"
+pin-project-lite = "0.2.15"
 serde.workspace = true
 snap.workspace = true
 tokio = { workspace = true, features = ["sync", "rt", "macros"] }
