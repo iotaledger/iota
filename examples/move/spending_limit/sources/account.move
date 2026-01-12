@@ -43,6 +43,9 @@ const ETransactionSenderIsNotTheAccount: vector<u8> = b"Transaction must be sign
 #[error(code = 2)]
 const EInvalidAmount: vector<u8> = b"Invalid amount in withdraw command.";
 
+#[error(code = 3)]
+const ESpendingLimitExceeded: vector<u8> = b"Amount exceeds spending limit.";
+
 // === Constants ===
 
 // === Structs ===
@@ -94,8 +97,9 @@ public fun create(
     account::create_account_v1(spend_limit_account, authenticator);
 }
 
+#[authenticator]
 public fun authenticate(
-    account: &mut SpendLimit,
+    account: &SpendLimit,
     signature: vector<u8>,
     auth_ctx: &AuthContext,
     ctx: &TxContext,
@@ -104,7 +108,7 @@ public fun authenticate(
 
     let total_amount = validate_and_calculate_withdrawals(auth_ctx, ctx);
 
-    spending_limit::authenticate_with_amount(&mut account.id, total_amount);
+    spending_limit::authenticate_with_amount(&account.id, total_amount);
 }
 
 public fun withdraw_from_balance_reserve(
@@ -121,6 +125,10 @@ public fun withdraw_from_balance_reserve(
 
     assert!(balance::value(&reserve.balance) >= amount, EInsufficientBalanceReserve);
     let withdrawn_balance = balance::split(&mut reserve.balance, amount);
+    let spending_limit: &mut u64 = spending_limit::borrow_mut(&mut self.id);
+    assert!(*spending_limit >= amount, ESpendingLimitExceeded);
+    *spending_limit = *spending_limit - amount;
+
     coin::from_balance(withdrawn_balance, ctx)
 }
 

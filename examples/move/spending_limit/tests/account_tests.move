@@ -7,7 +7,9 @@ module spending_limit::account_tests;
 use generic_keyed_authentication::owner_public_key;
 use iota::account::AuthenticatorInfoV1;
 use iota::auth_context::{Self, AuthContext};
+use iota::coin;
 use iota::hex;
+use iota::iota::IOTA;
 use iota::ptb_call_arg;
 use iota::ptb_command;
 use iota::test_scenario::{Self, Scenario};
@@ -49,12 +51,12 @@ fun account_fails_verification() {
     let account_address = create_spending_limit_for_testing(scenario, 1000, public_key);
     scenario.next_tx(account_address);
     {
-        let mut account = scenario.take_shared<spending_limit::SpendLimit>();
+        let account = scenario.take_shared<spending_limit::SpendLimit>();
 
         let signature: vector<u8> = b"32";
         let auth_context = create_auth_context_for_testing(account_address, 500, scenario.ctx());
         spending_limit::authenticate(
-            &mut account,
+            &account,
             hex::encode(signature),
             &auth_context,
             scenario.ctx(),
@@ -85,12 +87,12 @@ fun only_account_can_authenticate() {
     );
     scenario.next_tx(@0x0);
     {
-        let mut account = scenario.take_shared<spending_limit::SpendLimit>();
+        let account = scenario.take_shared<spending_limit::SpendLimit>();
 
         let signature: vector<u8> = b"32";
         let auth_context = create_auth_context_for_testing(account_address, 1001, &test_ctx);
         spending_limit::authenticate(
-            &mut account,
+            &account,
             hex::encode(signature),
             &auth_context,
             scenario.ctx(),
@@ -112,7 +114,7 @@ fun account_spending_limit_exceeded() {
 
     scenario.next_tx(account_address);
     {
-        let mut account = scenario.take_shared<spending_limit::SpendLimit>();
+        let account = scenario.take_shared<spending_limit::SpendLimit>();
         let digest = x"315f5bdb76d078c43b8ac0064e4a0164612b1fce77c869345bfc94c75894edd3";
         let test_ctx = tx_context::new(account_address, digest, 0, 0, 0);
 
@@ -122,7 +124,7 @@ fun account_spending_limit_exceeded() {
 
         // Try to spend 1001, which exceeds limit of 1000
         spending_limit::authenticate(
-            &mut account,
+            &account,
             hex::encode(signature),
             &auth_context,
             &test_ctx,
@@ -147,6 +149,18 @@ fun account_within_spending_limit() {
     // Create account with 1000 limit
     let account_address = create_spending_limit_for_testing(scenario, initial_limit, public_key);
 
+    // Add balance to the reserve
+    scenario.next_tx(account_address);
+    {
+        let mut account = scenario.take_shared<spending_limit::SpendLimit>();
+
+        // Mint coin and deposit to reserve
+        let coin = coin::mint_for_testing<IOTA>(10000, scenario.ctx());
+        spending_limit::deposit_to_reserve(&mut account, coin);
+
+        test_scenario::return_shared(account);
+    };
+
     scenario.next_tx(account_address);
     {
         let mut account = scenario.take_shared<spending_limit::SpendLimit>();
@@ -162,7 +176,6 @@ fun account_within_spending_limit() {
         let signature =
             x"474686f447a998ccc6824bb05e69133de41b59999944e494a3ff5504abd9af86403aa7c240ac51d1d48e0b34a560ca7ee4542e25cfd7b090e4652dfb53941a04";
 
-        // Create auth context for withdrawing 500
         let auth_context = create_auth_context_for_testing(
             account_address,
             withdraw_amount,
@@ -170,11 +183,19 @@ fun account_within_spending_limit() {
         );
 
         spending_limit::authenticate(
-            &mut account,
+            &account,
             hex::encode(signature),
             &auth_context,
             &test_ctx,
         );
+        // Withdraw from balance reserve
+        let coin = spending_limit::withdraw_from_balance_reserve(
+            &mut account,
+            withdraw_amount,
+            scenario.ctx(),
+        );
+
+        iota::test_utils::destroy(coin);
 
         test_scenario::return_shared(account);
     };
@@ -205,7 +226,7 @@ fun account_zero_spending() {
 
     scenario.next_tx(account_address);
     {
-        let mut account = scenario.take_shared<spending_limit::SpendLimit>();
+        let account = scenario.take_shared<spending_limit::SpendLimit>();
         let digest = x"315f5bdb76d078c43b8ac0064e4a0164612b1fce77c869345bfc94c75894edd3";
         let test_ctx = tx_context::new(account_address, digest, 0, 0, 0);
 
@@ -214,7 +235,7 @@ fun account_zero_spending() {
         let auth_context = create_auth_context_for_testing(account_address, 0, &test_ctx);
         // Spend 0 (should always pass)
         spending_limit::authenticate(
-            &mut account,
+            &account,
             hex::encode(signature),
             &auth_context,
             &test_ctx,
@@ -256,7 +277,7 @@ fun test_missing_withdraw_call() {
 
     scenario.next_tx(account_address);
     {
-        let mut account = scenario.take_shared<spending_limit::SpendLimit>();
+        let account = scenario.take_shared<spending_limit::SpendLimit>();
         let digest = x"315f5bdb76d078c43b8ac0064e4a0164612b1fce77c869345bfc94c75894edd3";
         let test_ctx = tx_context::new(account_address, digest, 0, 0, 0);
 
@@ -267,7 +288,7 @@ fun test_missing_withdraw_call() {
         let auth_context = auth_context::new_with_tx_inputs(*test_ctx.digest(), vector[], vector[]);
 
         spending_limit::authenticate(
-            &mut account,
+            &account,
             hex::encode(signature),
             &auth_context,
             &test_ctx,
@@ -287,7 +308,7 @@ fun test_multiple_withdraw_calls_within_limit() {
     let account_address = create_spending_limit_for_testing(scenario, 3000, public_key);
     scenario.next_tx(account_address);
     {
-        let mut account = scenario.take_shared<spending_limit::SpendLimit>();
+        let account = scenario.take_shared<spending_limit::SpendLimit>();
         let digest = x"315f5bdb76d078c43b8ac0064e4a0164612b1fce77c869345bfc94c75894edd3";
         let test_ctx = tx_context::new(account_address, digest, 0, 0, 0);
 
@@ -303,7 +324,7 @@ fun test_multiple_withdraw_calls_within_limit() {
         );
 
         spending_limit::authenticate(
-            &mut account,
+            &account,
             hex::encode(signature),
             &auth_context,
             &test_ctx,
@@ -322,7 +343,7 @@ fun test_multiple_withdraw_calls_at_limit() {
     let account_address = create_spending_limit_for_testing(scenario, 3000, public_key);
     scenario.next_tx(account_address);
     {
-        let mut account = scenario.take_shared<spending_limit::SpendLimit>();
+        let account = scenario.take_shared<spending_limit::SpendLimit>();
         let digest = x"315f5bdb76d078c43b8ac0064e4a0164612b1fce77c869345bfc94c75894edd3";
         let test_ctx = tx_context::new(account_address, digest, 0, 0, 0);
 
@@ -338,7 +359,7 @@ fun test_multiple_withdraw_calls_at_limit() {
         );
 
         spending_limit::authenticate(
-            &mut account,
+            &account,
             hex::encode(signature),
             &auth_context,
             &test_ctx,
@@ -358,7 +379,7 @@ fun test_multiple_withdraw_calls_over_limit() {
     let account_address = create_spending_limit_for_testing(scenario, 3000, public_key);
     scenario.next_tx(account_address);
     {
-        let mut account = scenario.take_shared<spending_limit::SpendLimit>();
+        let account = scenario.take_shared<spending_limit::SpendLimit>();
         let digest = x"315f5bdb76d078c43b8ac0064e4a0164612b1fce77c869345bfc94c75894edd3";
         let test_ctx = tx_context::new(account_address, digest, 0, 0, 0);
 
@@ -374,7 +395,7 @@ fun test_multiple_withdraw_calls_over_limit() {
         );
 
         spending_limit::authenticate(
-            &mut account,
+            &account,
             hex::encode(signature),
             &auth_context,
             &test_ctx,
@@ -394,7 +415,7 @@ fun test_withdraw_call_wrong_account() {
 
     scenario.next_tx(account_address);
     {
-        let mut account = scenario.take_shared<spending_limit::SpendLimit>();
+        let account = scenario.take_shared<spending_limit::SpendLimit>();
         let digest = x"315f5bdb76d078c43b8ac0064e4a0164612b1fce77c869345bfc94c75894edd3";
         let test_ctx = tx_context::new(account_address, digest, 0, 0, 0);
 
@@ -406,7 +427,7 @@ fun test_withdraw_call_wrong_account() {
         let auth_context = create_auth_context_for_testing(wrong_address, 500, &test_ctx);
 
         spending_limit::authenticate(
-            &mut account,
+            &account,
             hex::encode(signature),
             &auth_context,
             &test_ctx,
@@ -426,7 +447,7 @@ fun test_withdraw_call_wrong_package_id() {
     let account_address = create_spending_limit_for_testing(scenario, 1000, public_key);
     scenario.next_tx(account_address);
     {
-        let mut account = scenario.take_shared<spending_limit::SpendLimit>();
+        let account = scenario.take_shared<spending_limit::SpendLimit>();
         let digest = x"315f5bdb76d078c43b8ac0064e4a0164612b1fce77c869345bfc94c75894edd3";
         let test_ctx = tx_context::new(account_address, digest, 0, 0, 0);
 
@@ -460,7 +481,7 @@ fun test_withdraw_call_wrong_package_id() {
         let auth_context = auth_context::new_with_tx_inputs(*test_ctx.digest(), inputs, commands);
 
         spending_limit::authenticate(
-            &mut account,
+            &account,
             hex::encode(signature),
             &auth_context,
             &test_ctx,
@@ -479,7 +500,7 @@ fun test_withdraw_call_wrong_module() {
     let account_address = create_spending_limit_for_testing(scenario, 1000, public_key);
     scenario.next_tx(account_address);
     {
-        let mut account = scenario.take_shared<spending_limit::SpendLimit>();
+        let account = scenario.take_shared<spending_limit::SpendLimit>();
         let digest = x"315f5bdb76d078c43b8ac0064e4a0164612b1fce77c869345bfc94c75894edd3";
         let test_ctx = tx_context::new(account_address, digest, 0, 0, 0);
 
@@ -512,7 +533,7 @@ fun test_withdraw_call_wrong_module() {
         let auth_context = auth_context::new_with_tx_inputs(*test_ctx.digest(), inputs, commands);
 
         spending_limit::authenticate(
-            &mut account,
+            &account,
             hex::encode(signature),
             &auth_context,
             &test_ctx,
@@ -531,7 +552,7 @@ fun test_withdraw_call_wrong_function() {
     let account_address = create_spending_limit_for_testing(scenario, 1000, public_key);
     scenario.next_tx(account_address);
     {
-        let mut account = scenario.take_shared<spending_limit::SpendLimit>();
+        let account = scenario.take_shared<spending_limit::SpendLimit>();
         let digest = x"315f5bdb76d078c43b8ac0064e4a0164612b1fce77c869345bfc94c75894edd3";
         let test_ctx = tx_context::new(account_address, digest, 0, 0, 0);
 
@@ -564,7 +585,7 @@ fun test_withdraw_call_wrong_function() {
         let auth_context = auth_context::new_with_tx_inputs(*test_ctx.digest(), inputs, commands);
 
         spending_limit::authenticate(
-            &mut account,
+            &account,
             hex::encode(signature),
             &auth_context,
             &test_ctx,
@@ -611,7 +632,7 @@ fun test_withdraw_invalid_bcs_amount() {
     let account_address = create_spending_limit_for_testing(scenario, 1000, public_key);
     scenario.next_tx(account_address);
     {
-        let mut account = scenario.take_shared<spending_limit::SpendLimit>();
+        let account = scenario.take_shared<spending_limit::SpendLimit>();
         let digest = x"315f5bdb76d078c43b8ac0064e4a0164612b1fce77c869345bfc94c75894edd3";
         let test_ctx = tx_context::new(account_address, digest, 0, 0, 0);
 
@@ -643,7 +664,7 @@ fun test_withdraw_invalid_bcs_amount() {
 
         let auth_context = auth_context::new_with_tx_inputs(*test_ctx.digest(), inputs, commands);
         spending_limit::authenticate(
-            &mut account,
+            &account,
             hex::encode(signature),
             &auth_context,
             &test_ctx,
