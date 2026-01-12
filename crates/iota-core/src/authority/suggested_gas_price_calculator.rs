@@ -363,7 +363,7 @@ mod tests {
     }
 
     /// Build a set of `TransactionData` with two shared objects for tests.
-    fn build_transaction_data_for_test(
+    fn build_transactions_data_for_test(
         maxgp: u64,
         object_1: ObjectID,
         object_2: ObjectID,
@@ -701,13 +701,13 @@ mod tests {
 
         // Congestion control and other parameters used in
         // `SharedObjectCongestionTracker` and `SuggestedGasPriceCalculator`
-        let maxgp = ProtocolConfig::get_for_max_version_UNSAFE().max_gas_price();
+        let max_gas_price = ProtocolConfig::get_for_max_version_UNSAFE().max_gas_price();
         let congestion_control_parameters = CongestionControlParameters::new_for_test(
             PerObjectCongestionControlMode::TotalTxCount,
             assign_min_free_exec_slot,
-            Some(3), // max_execution_duration_per_commit
-            None,    // max_congestion_limit_overshoot_per_commit
-            maxgp,   // max_gas_price
+            Some(3),       // max_execution_duration_per_commit
+            None,          // max_congestion_limit_overshoot_per_commit
+            max_gas_price, // max_gas_price
             use_congestion_limit_overshoot,
         );
 
@@ -722,14 +722,18 @@ mod tests {
         );
 
         // Create some data for transactions and process each for scheduling.
-        let txs_data = build_transaction_data_for_test(maxgp, object_1, object_2);
+        let txs_data = build_transactions_data_for_test(max_gas_price, object_1, object_2);
 
-        // Transactions 0, 1, and 2 should be scheduled, after which
-        // allocations of mutably accessed shared objects being as follows:
+        // Transactions
+        // 0:  (100K, 3_000_000, [object_1: mut, object_2: imm]),
+        // 1:  (9000, 1_000_000, [object_1: imm, object_2: mut]),
+        // 2:  (8000, 4_000_000, [object_1: imm, object_2: mut])
+        // should be scheduled, after which allocations of mutably
+        // accessed shared objects being as follows:
         // |-------------------------------------|------------|
         // |     object_1     |     object_2     | start time |
         // |__________________|__________________|____________|
-        // |------------------|------------------|---- 3      |
+        // |------------------|------------------|---- 3 -----|
         // |                  | cert. 2 (g=8000) |            |
         // |                  |------------------|---- 2      |
         // |                  | cert. 1 (g=9000) |            |
@@ -748,13 +752,14 @@ mod tests {
             );
         });
 
-        // If `assign_min_free_exec_slot` is `true`, transaction 3 must be scheduled,
-        // in which case allocations of mutably accessed shared object should look
-        // as follows:
+        // If `assign_min_free_exec_slot` is `true`, transaction
+        // 3:  (7000, 2_000_000, [object_2: mut])
+        // must be scheduled, in which case allocations of mutably
+        // accessed shared object should look as follows:
         // |-------------------------------------|------------|
         // |     object_1     |     object_2     | start time |
         // |__________________|__________________|____________|
-        // |------------------|------------------|---- 3      |
+        // |------------------|------------------|---- 3 -----|
         // |                  | cert. 2 (g=8000) |            |
         // |                  |------------------|---- 2      |
         // |                  | cert. 1 (g=9000) |            |
@@ -793,9 +798,11 @@ mod tests {
             );
         }
 
-        // Transactions 4 and 5 must be deferred, with object 2 being labeled
-        // congested and suggested gas price being equal that of transaction 2
-        // plus one.
+        // Transactions
+        // 4:  (7000, 1_000_001, [object_2: imm]),
+        // 5:  (7000, 5_000_000, [object_2: mut])
+        // must be deferred, with object 2 being labeled congested and
+        // suggested gas price being equal that of transaction 2 plus one.
         (4..=5).for_each(|i| {
             let tx_data = &txs_data[i];
             let (congested_objects, suggested_gas_price) = try_defer(
@@ -816,7 +823,10 @@ mod tests {
             );
         });
 
-        // Transactions 6 and 7 must be deferred, with objects 1 and 2 being
+        // Transactions
+        // 6:  (7000, 5_000_001, [object_1: mut, object_2, mut]),
+        // 7:  (7000, 8_000_000, [object_1: mut, object_2, mut])
+        // must be deferred, with objects 1 and 2 being
         // labeled congested if `assign_min_free_exec_slot` is `true` and
         // object 2 if `assign_min_free_exec_slot` is false and suggested
         // gas price being equal that of transaction 2 plus one.
@@ -844,12 +854,15 @@ mod tests {
             );
         });
 
-        // Transactions 8 and 9 should be scheduled, after which allocations
-        // of mutably accessed shared objects being as follows:
+        // Transactions
+        // 8:  (6000, 4_000_000, [object_1: mut]),
+        // 9:  (5000, 2_000_000, [object_1: mut])
+        // should be scheduled, after which allocations of mutably
+        // accessed shared objects being as follows:
         // |-------------------------------------|------------|
         // |     object_1     |     object_2     | start time |
         // |__________________|__________________|____________|
-        // |------------------|------------------|---- 3      |
+        // |------------------|------------------|---- 3 -----|
         // | cert. 9 (g=5000) | cert. 2 (g=8000) |            |
         // |------------------|------------------|---- 2      |
         // | cert. 8 (g=6000) | cert. 1 (g=9000) |            |
@@ -870,10 +883,14 @@ mod tests {
             );
         });
 
-        // Transactions 10, 11, and 12 must be deferred, with objects 1 and 2
-        // being labeled congested if `assign_min_free_exec_slot` is `true`
-        // and object 2 if `assign_min_free_exec_slot` is false and suggested
-        // gas price being equal that of transaction 2 plus one.
+        // Transactions
+        // 10: (5000, 1_000_001, [object_1: imm, object_2, imm]),
+        // 11: (5000, 5_000_001, [object_1: mut, object_2, imm]),
+        // 12: (5000, 9_000_000, [object_1: imm, object_2, mut])
+        // must be deferred, with objects 1 and 2 being labeled congested
+        // if `assign_min_free_exec_slot` is `true` and object 2 if
+        // `assign_min_free_exec_slot` is false and suggested gas price
+        // being equal that of transaction 2 plus one.
         (10..=12).for_each(|i| {
             let tx_data = &txs_data[i];
             let (congested_objects, suggested_gas_price) = try_defer(
@@ -913,13 +930,13 @@ mod tests {
 
         // Congestion control and other parameters used in
         // `SharedObjectCongestionTracker` and `SuggestedGasPriceCalculator`
-        let maxgp = ProtocolConfig::get_for_max_version_UNSAFE().max_gas_price();
+        let max_gas_price = ProtocolConfig::get_for_max_version_UNSAFE().max_gas_price();
         let congestion_control_parameters = CongestionControlParameters::new_for_test(
             PerObjectCongestionControlMode::TotalGasBudget,
             assign_min_free_exec_slot,
             Some(9_000_000), // max_execution_duration_per_commit
             None,            // max_congestion_limit_overshoot_per_commit
-            maxgp,           // max_gas_price
+            max_gas_price,   // max_gas_price
             use_congestion_limit_overshoot,
         );
 
@@ -934,14 +951,18 @@ mod tests {
         );
 
         // Create some data for transactions and process each for scheduling
-        let txs_data = build_transaction_data_for_test(maxgp, object_1, object_2);
+        let txs_data = build_transactions_data_for_test(max_gas_price, object_1, object_2);
 
-        // Transactions 0, 1, and 2 should be scheduled, after which
-        // allocations of mutably accessed shared objects being as follows:
+        // Transactions
+        // 0:  (100K, 3_000_000, [object_1: mut, object_2: imm]),
+        // 1:  (9000, 1_000_000, [object_1: imm, object_2: mut]),
+        // 2:  (8000, 4_000_000, [object_1: imm, object_2: mut])
+        // should be scheduled, after which allocations of mutably
+        // accessed shared objects being as follows:
         // |-------------------------------------------------|------------|
         // |        object_1        |        object_2        | start time |
         // |________________________|________________________|____________|
-        // |------------------------|------------------------|---- 9M     |
+        // |------------------------|------------------------|---- 9M ----|
         // |                        |                        |            |
         // |                        |------------------------|---- 8M     |
         // |                        |                        |            |
@@ -972,13 +993,14 @@ mod tests {
             );
         });
 
-        // If `assign_min_free_exec_slot` is `true`, transaction 3 must be scheduled,
-        // in which case allocations of mutably accessed shared object should look
-        // as follows:
+        // If `assign_min_free_exec_slot` is `true`, transaction
+        // 3:  (7000, 2_000_000, [object_2: mut])
+        // must be scheduled, in which case allocations of mutably accessed
+        // shared object should look as follows:
         // |-------------------------------------------------|------------|
         // |        object_1        |        object_2        | start time |
         // |________________________|________________________|____________|
-        // |------------------------|------------------------|---- 9M     |
+        // |------------------------|------------------------|---- 9M ----|
         // |                        |                        |            |
         // |                        |------------------------|---- 8M     |
         // |                        |                        |            |
@@ -1029,9 +1051,11 @@ mod tests {
             );
         }
 
-        // Transactions 4 and 5 must be deferred, with object 2 being labeled
-        // congested and suggested gas price being equal that of transaction 2
-        // plus one.
+        // Transactions
+        // 4:  (7000, 1_000_001, [object_2: imm]),
+        // 5:  (7000, 5_000_000, [object_2: mut])
+        // must be deferred, with object 2 being labeled congested and
+        // suggested gas price being equal that of transaction 2 plus one.
         (4..=5).for_each(|i| {
             let tx_data = &txs_data[i];
             let (congested_objects, suggested_gas_price) = try_defer(
@@ -1052,10 +1076,12 @@ mod tests {
             );
         });
 
-        // Transaction 6 must be deferred, with objects 1 and 2 being
-        // labeled congested if `assign_min_free_exec_slot` is `true` and
-        // object 2 if `assign_min_free_exec_slot` is false and suggested
-        // gas price being equal that of transaction 1 plus one.
+        // Transaction
+        // 6:  (7000, 5_000_001, [object_1: mut, object_2, mut]),
+        // must be deferred, with objects 1 and 2 being labeled congested
+        // if `assign_min_free_exec_slot` is `true` and object 2 if
+        // `assign_min_free_exec_slot` is false and suggested gas price
+        // being equal that of transaction 1 plus one.
         let tx_data = &txs_data[6];
         let (congested_objects, suggested_gas_price) = try_defer(
             tx_data,
@@ -1078,9 +1104,11 @@ mod tests {
             "Calculated suggested gas price does not match expected; transaction:\n{tx_data:#?}"
         );
 
-        // Transaction 7 must be deferred, with objects 1 and 2 being
-        // labeled congested and suggested gas price being equal that
-        // of transaction 0, i.e., max gas price.
+        // Transaction
+        // 7:  (7000, 8_000_000, [object_1: mut, object_2, mut])
+        // must be deferred, with objects 1 and 2 being labeled congested
+        // and suggested gas price being equal that of transaction 0,
+        // i.e., max gas price.
         let tx_data = &txs_data[7];
         let (congested_objects, suggested_gas_price) = try_defer(
             tx_data,
@@ -1099,12 +1127,15 @@ mod tests {
             "Calculated suggested gas price does not match expected; transaction:\n{tx_data:#?}"
         );
 
-        // Transactions 8 and 9 should be scheduled, after which allocations
-        // of mutably accessed shared objects being as follows:
+        // Transactions
+        // 8:  (6000, 4_000_000, [object_1: mut]),
+        // 9:  (5000, 2_000_000, [object_1: mut])
+        // should be scheduled, after which allocations of mutably accessed
+        // shared objects being as follows:
         // |-------------------------------------------------|------------|
         // |        object_1        |        object_2        | start time |
         // |________________________|________________________|____________|
-        // |------------------------|------------------------|---- 9M     |
+        // |------------------------|------------------------|---- 9M ----|
         // |                        |                        |            |
         // | cert. 9 (g=5000, d=2M) |------------------------|---- 8M     |
         // |                        |                        |            |
@@ -1137,9 +1168,10 @@ mod tests {
             );
         });
 
-        // Transaction 10 must be deferred, with objects 1 and 2 being
-        // labeled congested and suggested gas price being equal that
-        // of transaction 2 plus one.
+        // Transaction
+        // 10: (5000, 1_000_001, [object_1: imm, object_2, imm])
+        // must be deferred, with objects 1 and 2 being labeled congested
+        // and suggested gas price being equal that of transaction 2 plus one.
         let tx_data = &txs_data[10];
         let (congested_objects, suggested_gas_price) = try_defer(
             tx_data,
@@ -1158,9 +1190,10 @@ mod tests {
             "Calculated suggested gas price does not match expected; transaction:\n{tx_data:#?}"
         );
 
-        // Transaction 11 must be deferred, with objects 1 and 2 being
-        // labeled congested and suggested gas price being equal that
-        // of transaction 1 plus one.
+        // Transaction
+        // 11: (5000, 5_000_001, [object_1: mut, object_2, imm])
+        // must be deferred, with objects 1 and 2 being labeled congested
+        // and suggested gas price being equal that of transaction 1 plus one.
         let tx_data = &txs_data[11];
         let (congested_objects, suggested_gas_price) = try_defer(
             tx_data,
@@ -1179,9 +1212,11 @@ mod tests {
             "Calculated suggested gas price does not match expected; transaction:\n{tx_data:#?}"
         );
 
-        // Transaction 12 must be deferred, with objects 1 and 2 being
-        // labeled congested and suggested gas price being equal that
-        // of transaction 0, i.e., max gas price.
+        // Transaction
+        // 12: (5000, 9_000_000, [object_1: imm, object_2, mut])
+        // must be deferred, with objects 1 and 2 being labeled congested
+        // and suggested gas price being equal that of transaction 0, i.e.,
+        // max gas price.
         let tx_data = &txs_data[12];
         let (congested_objects, suggested_gas_price) = try_defer(
             tx_data,
