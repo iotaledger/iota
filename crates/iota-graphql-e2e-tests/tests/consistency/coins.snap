@@ -103,7 +103,7 @@ Response: {
   "data": {
     "availableRange": {
       "first": {
-        "sequenceNumber": 1
+        "sequenceNumber": 0
       },
       "last": {
         "sequenceNumber": 2
@@ -295,7 +295,16 @@ Response: {
 task 13, lines 166-192:
 //# run-graphql --cursors bcs(@{obj_1_1},1)
 Response: {
-  "data": null,
+  "data": {
+    "availableRange": {
+      "first": {
+        "sequenceNumber": 2
+      },
+      "last": {
+        "sequenceNumber": 3
+      }
+    }
+  },
   "errors": [
     {
       "message": "Requested data is outside the available range",
@@ -318,7 +327,16 @@ Response: {
 task 14, lines 194-220:
 //# run-graphql --cursors bcs(@{obj_1_1},0)
 Response: {
-  "data": null,
+  "data": {
+    "availableRange": {
+      "first": {
+        "sequenceNumber": 2
+      },
+      "last": {
+        "sequenceNumber": 3
+      }
+    }
+  },
   "errors": [
     {
       "message": "Requested data is outside the available range",

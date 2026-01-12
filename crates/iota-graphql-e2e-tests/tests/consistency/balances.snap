@@ -105,9 +105,6 @@ Response: {
       "nodes": [
         {
           "sender": {
-            "fakeCoinBalance": {
-              "totalBalance": "600"
-            },
             "allBalances": {
               "nodes": [
                 {
@@ -125,6 +122,9 @@ Response: {
                   "totalBalance": "600"
                 }
               ]
+            },
+            "fakeCoinBalance": {
+              "totalBalance": "600"
             }
           }
         }
@@ -304,7 +304,9 @@ Response: {
     "transactionBlocks": {
       "nodes": [
         {
-          "sender": null
+          "sender": {
+            "fakeCoinBalance": null
+          }
         }
       ]
     }
@@ -340,9 +342,6 @@ Response: {
       "nodes": [
         {
           "sender": {
-            "fakeCoinBalance": {
-              "totalBalance": "600"
-            },
             "allBalances": {
               "nodes": [
                 {
@@ -360,6 +359,9 @@ Response: {
                   "totalBalance": "600"
                 }
               ]
+            },
+            "fakeCoinBalance": {
+              "totalBalance": "600"
             }
           }
         }
@@ -376,9 +378,6 @@ Response: {
       "nodes": [
         {
           "sender": {
-            "fakeCoinBalance": {
-              "totalBalance": "400"
-            },
             "allBalances": {
               "nodes": [
                 {
@@ -396,6 +395,9 @@ Response: {
                   "totalBalance": "400"
                 }
               ]
+            },
+            "fakeCoinBalance": {
+              "totalBalance": "400"
             }
           }
         }
@@ -435,7 +437,9 @@ Response: {
     "transactionBlocks": {
       "nodes": [
         {
-          "sender": null
+          "sender": {
+            "fakeCoinBalance": null
+          }
         }
       ]
     }
@@ -467,6 +471,15 @@ task 40, lines 353-382:
 //# run-graphql --cursors {"c":3,"t":1,"i":false}
 Response: {
   "data": {
+    "transactionBlocks": {
+      "nodes": [
+        {
+          "sender": {
+            "fakeCoinBalance": null
+          }
+        }
+      ]
+    },
     "availableRange": {
       "first": {
         "sequenceNumber": 7
@@ -474,13 +487,6 @@ Response: {
       "last": {
         "sequenceNumber": 14
       }
-    },
-    "transactionBlocks": {
-      "nodes": [
-        {
-          "sender": null
-        }
-      ]
     }
   },
   "errors": [
@@ -510,6 +516,15 @@ task 41, lines 384-413:
 //# run-graphql --cursors {"c":4,"t":1,"i":false}
 Response: {
   "data": {
+    "transactionBlocks": {
+      "nodes": [
+        {
+          "sender": {
+            "fakeCoinBalance": null
+          }
+        }
+      ]
+    },
     "availableRange": {
       "first": {
         "sequenceNumber": 7
@@ -517,13 +532,6 @@ Response: {
       "last": {
         "sequenceNumber": 14
       }
-    },
-    "transactionBlocks": {
-      "nodes": [
-        {
-          "sender": null
-        }
-      ]
     }
   },
   "errors": [

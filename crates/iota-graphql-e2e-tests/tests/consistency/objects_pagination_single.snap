@@ -37,6 +37,11 @@ task 6, lines 38-66:
 //# run-graphql --cursors bcs(@{obj_3_0},@{highest_checkpoint})
 Response: {
   "data": {
+    "before_obj_3_0": {
+      "objects": {
+        "nodes": []
+      }
+    },
     "after_obj_3_0": {
       "objects": {
         "nodes": [
@@ -53,11 +58,6 @@ Response: {
             }
           }
         ]
-      }
-    },
-    "before_obj_3_0": {
-      "objects": {
-        "nodes": []
       }
     }
   }
@@ -136,6 +136,11 @@ Response: {
         ]
       }
     },
+    "before_obj_3_0_chkpt_2": {
+      "consistent_with_above": {
+        "nodes": []
+      }
+    },
     "after_obj_3_0_chkpt_2": {
       "consistent_with_above": {
         "nodes": [
@@ -185,11 +190,6 @@ Response: {
           }
         ]
       }
-    },
-    "before_obj_3_0_chkpt_2": {
-      "consistent_with_above": {
-        "nodes": []
-      }
     }
   }
 }
@@ -207,6 +207,11 @@ task 13, lines 184-247:
 //# run-graphql --cursors bcs(@{obj_3_0},2)
 Response: {
   "data": {
+    "before_obj_3_0_chkpt_2": {
+      "objects": {
+        "nodes": []
+      }
+    },
     "after_obj_3_0_chkpt_2": {
       "objects": {
         "nodes": [
@@ -256,11 +261,6 @@ Response: {
           }
         ]
       }
-    },
-    "before_obj_3_0_chkpt_2": {
-      "objects": {
-        "nodes": []
-      }
     }
   }
 }
@@ -297,6 +297,11 @@ Response: {
             }
           }
         ]
+      }
+    },
+    "before_obj_3_0_chkpt_3": {
+      "consistent_with_above": {
+        "nodes": []
       }
     },
     "after_obj_3_0_chkpt_3": {
@@ -347,11 +352,6 @@ Response: {
             }
           }
         ]
-      }
-    },
-    "before_obj_3_0_chkpt_3": {
-      "consistent_with_above": {
-        "nodes": []
       }
     }
   }

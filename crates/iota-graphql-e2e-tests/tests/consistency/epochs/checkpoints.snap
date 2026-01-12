@@ -78,37 +78,6 @@ Response: {
     "checkpoint": {
       "sequenceNumber": 9
     },
-    "epoch_0": {
-      "epochId": 0,
-      "checkpoints": {
-        "edges": [
-          {
-            "cursor": "eyJjIjo5LCJzIjowfQ",
-            "node": {
-              "sequenceNumber": 0
-            }
-          },
-          {
-            "cursor": "eyJjIjo5LCJzIjoxfQ",
-            "node": {
-              "sequenceNumber": 1
-            }
-          },
-          {
-            "cursor": "eyJjIjo5LCJzIjoyfQ",
-            "node": {
-              "sequenceNumber": 2
-            }
-          },
-          {
-            "cursor": "eyJjIjo5LCJzIjozfQ",
-            "node": {
-              "sequenceNumber": 3
-            }
-          }
-        ]
-      }
-    },
     "epoch_1": {
       "epochId": 1,
       "checkpoints": {
@@ -154,6 +123,37 @@ Response: {
             "cursor": "eyJjIjo5LCJzIjo5fQ",
             "node": {
               "sequenceNumber": 9
+            }
+          }
+        ]
+      }
+    },
+    "epoch_0": {
+      "epochId": 0,
+      "checkpoints": {
+        "edges": [
+          {
+            "cursor": "eyJjIjo5LCJzIjowfQ",
+            "node": {
+              "sequenceNumber": 0
+            }
+          },
+          {
+            "cursor": "eyJjIjo5LCJzIjoxfQ",
+            "node": {
+              "sequenceNumber": 1
+            }
+          },
+          {
+            "cursor": "eyJjIjo5LCJzIjoyfQ",
+            "node": {
+              "sequenceNumber": 2
+            }
+          },
+          {
+            "cursor": "eyJjIjo5LCJzIjozfQ",
+            "node": {
+              "sequenceNumber": 3
             }
           }
         ]
@@ -225,22 +225,6 @@ Response: {
     "checkpoint": {
       "sequenceNumber": 10
     },
-    "epoch_0": {
-      "epochId": 0,
-      "checkpoints": {
-        "nodes": [
-          {
-            "sequenceNumber": 1
-          },
-          {
-            "sequenceNumber": 2
-          },
-          {
-            "sequenceNumber": 3
-          }
-        ]
-      }
-    },
     "epoch_1": {
       "epochId": 1,
       "checkpoints": {
@@ -253,6 +237,22 @@ Response: {
           },
           {
             "sequenceNumber": 7
+          }
+        ]
+      }
+    },
+    "epoch_0": {
+      "epochId": 0,
+      "checkpoints": {
+        "nodes": [
+          {
+            "sequenceNumber": 1
+          },
+          {
+            "sequenceNumber": 2
+          },
+          {
+            "sequenceNumber": 3
           }
         ]
       }

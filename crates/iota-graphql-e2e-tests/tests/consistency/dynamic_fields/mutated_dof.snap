@@ -39,6 +39,10 @@ task 6, lines 75-132:
 //# run-graphql
 Response: {
   "data": {
+    "before_dof_added": {
+      "version": 2,
+      "dynamicObjectField": null
+    },
     "latest": {
       "version": 4,
       "dynamicFields": {
@@ -126,10 +130,6 @@ Response: {
           }
         }
       }
-    },
-    "before_dof_added": {
-      "version": 2,
-      "dynamicObjectField": null
     }
   }
 }
@@ -200,41 +200,10 @@ task 13, lines 197-260:
 //# run-graphql
 Response: {
   "data": {
-    "latest": {
-      "version": 7,
-      "dynamicFields": {
-        "edges": [
-          {
-            "cursor": "IOClWCd1aoZGVRPQUB+jciu8ZdhllqBXcY77izg/ifRiAwAAAAAAAAA=",
-            "node": {
-              "name": {
-                "bcs": "KgAAAAAAAAA="
-              },
-              "value": {
-                "contents": {
-                  "json": {
-                    "id": "0x9d89eff8416d1925a738e48135c8f7c08ae803b42d6442faf999d654cf87d7bb",
-                    "count": "1"
-                  }
-                }
-              }
-            }
-          }
-        ]
-      },
-      "dynamicObjectField": {
-        "name": {
-          "bcs": "KgAAAAAAAAA="
-        },
-        "value": {
-          "contents": {
-            "json": {
-              "id": "0x9d89eff8416d1925a738e48135c8f7c08ae803b42d6442faf999d654cf87d7bb",
-              "count": "1"
-            }
-          }
-        }
-      }
+    "parent_version_6": null,
+    "parent_version_5": {
+      "version": 5,
+      "dynamicObjectField": null
     },
     "owner_view": {
       "version": 7,
@@ -272,10 +241,41 @@ Response: {
         }
       }
     },
-    "parent_version_6": null,
-    "parent_version_5": {
-      "version": 5,
-      "dynamicObjectField": null
+    "latest": {
+      "version": 7,
+      "dynamicFields": {
+        "edges": [
+          {
+            "cursor": "IOClWCd1aoZGVRPQUB+jciu8ZdhllqBXcY77izg/ifRiAwAAAAAAAAA=",
+            "node": {
+              "name": {
+                "bcs": "KgAAAAAAAAA="
+              },
+              "value": {
+                "contents": {
+                  "json": {
+                    "id": "0x9d89eff8416d1925a738e48135c8f7c08ae803b42d6442faf999d654cf87d7bb",
+                    "count": "1"
+                  }
+                }
+              }
+            }
+          }
+        ]
+      },
+      "dynamicObjectField": {
+        "name": {
+          "bcs": "KgAAAAAAAAA="
+        },
+        "value": {
+          "contents": {
+            "json": {
+              "id": "0x9d89eff8416d1925a738e48135c8f7c08ae803b42d6442faf999d654cf87d7bb",
+              "count": "1"
+            }
+          }
+        }
+      }
     },
     "parent_version_4": {
       "version": 4,

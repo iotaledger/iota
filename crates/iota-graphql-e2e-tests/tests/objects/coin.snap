@@ -21,43 +21,6 @@ task 3, lines 38-86:
 //# run-graphql
 Response: {
   "data": {
-    "iotaCoins": {
-      "edges": [
-        {
-          "cursor": "IHQYRhDrG+U4Mtk7XANbay/D7RiOuc6/tqZtP2CrXkzWAQAAAAAAAAA=",
-          "node": {
-            "coinBalance": "300000000000000",
-            "contents": {
-              "type": {
-                "repr": "0x0000000000000000000000000000000000000000000000000000000000000002::coin::Coin<0x0000000000000000000000000000000000000000000000000000000000000002::iota::IOTA>"
-              }
-            }
-          }
-        },
-        {
-          "cursor": "INNUgLY/0naiwb5be28kr+hOzRhK6O/eRpeRYJaPdg7rAQAAAAAAAAA=",
-          "node": {
-            "coinBalance": "299999983382000",
-            "contents": {
-              "type": {
-                "repr": "0x0000000000000000000000000000000000000000000000000000000000000002::coin::Coin<0x0000000000000000000000000000000000000000000000000000000000000002::iota::IOTA>"
-              }
-            }
-          }
-        },
-        {
-          "cursor": "IN1dw8JSMZ3fTkObz72dmGJuhvfZkEEkgWwbSuqY+X4/AQAAAAAAAAA=",
-          "node": {
-            "coinBalance": "30000000000000000",
-            "contents": {
-              "type": {
-                "repr": "0x0000000000000000000000000000000000000000000000000000000000000002::coin::Coin<0x0000000000000000000000000000000000000000000000000000000000000002::iota::IOTA>"
-              }
-            }
-          }
-        }
-      ]
-    },
     "fakeCoins": {
       "edges": [
         {
@@ -95,22 +58,44 @@ Response: {
         }
       ]
     },
-    "address": {
-      "coins": {
-        "edges": [
-          {
-            "cursor": "INNUgLY/0naiwb5be28kr+hOzRhK6O/eRpeRYJaPdg7rAQAAAAAAAAA=",
-            "node": {
-              "coinBalance": "299999983382000",
-              "contents": {
-                "type": {
-                  "repr": "0x0000000000000000000000000000000000000000000000000000000000000002::coin::Coin<0x0000000000000000000000000000000000000000000000000000000000000002::iota::IOTA>"
-                }
+    "iotaCoins": {
+      "edges": [
+        {
+          "cursor": "IHQYRhDrG+U4Mtk7XANbay/D7RiOuc6/tqZtP2CrXkzWAQAAAAAAAAA=",
+          "node": {
+            "coinBalance": "300000000000000",
+            "contents": {
+              "type": {
+                "repr": "0x0000000000000000000000000000000000000000000000000000000000000002::coin::Coin<0x0000000000000000000000000000000000000000000000000000000000000002::iota::IOTA>"
               }
             }
           }
-        ]
-      },
+        },
+        {
+          "cursor": "INNUgLY/0naiwb5be28kr+hOzRhK6O/eRpeRYJaPdg7rAQAAAAAAAAA=",
+          "node": {
+            "coinBalance": "299999983382000",
+            "contents": {
+              "type": {
+                "repr": "0x0000000000000000000000000000000000000000000000000000000000000002::coin::Coin<0x0000000000000000000000000000000000000000000000000000000000000002::iota::IOTA>"
+              }
+            }
+          }
+        },
+        {
+          "cursor": "IN1dw8JSMZ3fTkObz72dmGJuhvfZkEEkgWwbSuqY+X4/AQAAAAAAAAA=",
+          "node": {
+            "coinBalance": "30000000000000000",
+            "contents": {
+              "type": {
+                "repr": "0x0000000000000000000000000000000000000000000000000000000000000002::coin::Coin<0x0000000000000000000000000000000000000000000000000000000000000002::iota::IOTA>"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "address": {
       "allBalances": {
         "edges": [
           {
@@ -135,6 +120,13 @@ Response: {
           }
         ]
       },
+      "lastBalance": {
+        "edges": [
+          {
+            "cursor": "eyJ0IjoiMHhiOTk5OGJmOWIyOWU2N2JlYTEyNzQ3ZWMwM2E4NjUxZjFlMTRjYTY3M2UyOWExMmMzYjJmZDIzZjE5YjRkYTBlOjpmYWtlOjpGQUtFIiwiYyI6MX0"
+          }
+        ]
+      },
       "firstBalance": {
         "edges": [
           {
@@ -142,10 +134,18 @@ Response: {
           }
         ]
       },
-      "lastBalance": {
+      "coins": {
         "edges": [
           {
-            "cursor": "eyJ0IjoiMHhiOTk5OGJmOWIyOWU2N2JlYTEyNzQ3ZWMwM2E4NjUxZjFlMTRjYTY3M2UyOWExMmMzYjJmZDIzZjE5YjRkYTBlOjpmYWtlOjpGQUtFIiwiYyI6MX0"
+            "cursor": "INNUgLY/0naiwb5be28kr+hOzRhK6O/eRpeRYJaPdg7rAQAAAAAAAAA=",
+            "node": {
+              "coinBalance": "299999983382000",
+              "contents": {
+                "type": {
+                  "repr": "0x0000000000000000000000000000000000000000000000000000000000000002::coin::Coin<0x0000000000000000000000000000000000000000000000000000000000000002::iota::IOTA>"
+                }
+              }
+            }
           }
         ]
       }

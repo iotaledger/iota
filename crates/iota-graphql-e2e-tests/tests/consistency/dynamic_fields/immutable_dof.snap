@@ -63,14 +63,14 @@ Response: {
             "value": {
               "address": "0xc8fb82be0c01e305d8aa14702ecc136d16cded95dfe8cebac07e54835a34f9c0",
               "version": 5,
+              "dynamicFields": {
+                "nodes": []
+              },
               "contents": {
                 "json": {
                   "id": "0xc8fb82be0c01e305d8aa14702ecc136d16cded95dfe8cebac07e54835a34f9c0",
                   "count": "0"
                 }
-              },
-              "dynamicFields": {
-                "nodes": []
               }
             }
           }
@@ -146,13 +146,13 @@ task 13, lines 213-240:
 Response: {
   "data": {
     "object": {
+      "dynamicFields": {
+        "nodes": []
+      },
       "owner": {
         "parent": {
           "address": "0xae4a44d68e868342127a1d6b4cd907d24f582ce898baa8f2ff1aa1cac2e8929a"
         }
-      },
-      "dynamicFields": {
-        "nodes": []
       }
     }
   }

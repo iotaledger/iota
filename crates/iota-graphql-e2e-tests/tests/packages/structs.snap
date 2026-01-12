@@ -230,12 +230,18 @@ Response: {
                     "address": "0x3ff1040dea7ec5b167af21519aba55912c98f18f56ebc6df8d5712a3938cb4ad",
                     "asMovePackage": {
                       "module": {
-                        "s": {
-                          "module": {
-                            "package": {
-                              "address": "0xe6e035ec075902afc05abd85c974cfb5748f96a220563286796c1ce36c396d15"
+                        "v": {
+                          "name": "V",
+                          "fields": [
+                            {
+                              "name": "t",
+                              "type": {
+                                "repr": "0xe6e035ec075902afc05abd85c974cfb5748f96a220563286796c1ce36c396d15::m::T<0xe6e035ec075902afc05abd85c974cfb5748f96a220563286796c1ce36c396d15::m::S>"
+                              }
                             }
-                          },
+                          ]
+                        },
+                        "s": {
                           "name": "S",
                           "abilities": [
                             "COPY",
@@ -253,14 +259,14 @@ Response: {
                                 }
                               }
                             }
-                          ]
-                        },
-                        "t": {
+                          ],
                           "module": {
                             "package": {
-                              "address": "0x3ff1040dea7ec5b167af21519aba55912c98f18f56ebc6df8d5712a3938cb4ad"
+                              "address": "0xe6e035ec075902afc05abd85c974cfb5748f96a220563286796c1ce36c396d15"
                             }
-                          },
+                          }
+                        },
+                        "t": {
                           "name": "T",
                           "abilities": [],
                           "typeParameters": [
@@ -311,18 +317,12 @@ Response: {
                                 }
                               }
                             }
-                          ]
-                        },
-                        "v": {
-                          "name": "V",
-                          "fields": [
-                            {
-                              "name": "t",
-                              "type": {
-                                "repr": "0xe6e035ec075902afc05abd85c974cfb5748f96a220563286796c1ce36c396d15::m::T<0xe6e035ec075902afc05abd85c974cfb5748f96a220563286796c1ce36c396d15::m::S>"
-                              }
+                          ],
+                          "module": {
+                            "package": {
+                              "address": "0x3ff1040dea7ec5b167af21519aba55912c98f18f56ebc6df8d5712a3938cb4ad"
                             }
-                          ]
+                          }
                         }
                       }
                     }

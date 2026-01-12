@@ -29,19 +29,19 @@ Response: {
     "events": {
       "nodes": [
         {
-          "sendingModule": {
-            "name": "M3"
-          },
           "type": {
             "repr": "0xb3012d8ef0b3041a7a9bbda4ea80c237584c0ce3314d417ae5d47bbf99b6ef36::M1::EventA"
           },
           "sender": {
             "address": "0x8cca4e1ce0ba5904cea61df9242da2f7d29e3ef328fb7ec07c086b3bf47ca61a"
           },
+          "bcs": "AgAAAAAAAAA=",
           "json": {
             "new_value": "2"
           },
-          "bcs": "AgAAAAAAAAA="
+          "sendingModule": {
+            "name": "M3"
+          }
         }
       ]
     }
@@ -55,9 +55,6 @@ Response: {
     "events": {
       "nodes": [
         {
-          "sendingModule": {
-            "name": "M3"
-          },
           "type": {
             "repr": "0xb3012d8ef0b3041a7a9bbda4ea80c237584c0ce3314d417ae5d47bbf99b6ef36::M1::EventA"
           },
@@ -67,7 +64,10 @@ Response: {
           "json": {
             "new_value": "2"
           },
-          "bcs": "AgAAAAAAAAA="
+          "bcs": "AgAAAAAAAAA=",
+          "sendingModule": {
+            "name": "M3"
+          }
         }
       ]
     }
@@ -101,9 +101,6 @@ Response: {
     "events": {
       "nodes": [
         {
-          "sendingModule": {
-            "name": "M3"
-          },
           "type": {
             "repr": "0xb3012d8ef0b3041a7a9bbda4ea80c237584c0ce3314d417ae5d47bbf99b6ef36::M1::EventA"
           },
@@ -113,7 +110,10 @@ Response: {
           "json": {
             "new_value": "2"
           },
-          "bcs": "AgAAAAAAAAA="
+          "bcs": "AgAAAAAAAAA=",
+          "sendingModule": {
+            "name": "M3"
+          }
         }
       ]
     }

@@ -115,7 +115,7 @@ Response: {
                       "__typename": "ProgrammableTransactionBlock",
                       "transactions": {
                         "nodes": [
-                          {},
+                          null,
                           {
                             "module": "package",
                             "functionName": "make_immutable"
@@ -159,7 +159,7 @@ Response: {
                       "__typename": "ProgrammableTransactionBlock",
                       "transactions": {
                         "nodes": [
-                          {},
+                          null,
                           {
                             "module": "package",
                             "functionName": "make_immutable"

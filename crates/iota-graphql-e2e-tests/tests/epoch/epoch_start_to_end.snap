@@ -49,6 +49,20 @@ Response: {
     "epoch": {
       "epochId": 1,
       "referenceGasPrice": "1000",
+      "startTimestamp": "1970-01-01T00:00:00Z",
+      "totalCheckpoints": 1,
+      "totalTransactions": null,
+      "totalGasFees": null,
+      "totalStakeRewards": null,
+      "fundSize": "0",
+      "netInflow": null,
+      "fundInflow": null,
+      "fundOutflow": null,
+      "endTimestamp": null,
+      "storageFund": {
+        "totalObjectStorageRebates": "0",
+        "nonRefundableBalance": "0"
+      },
       "validatorSet": {
         "totalStake": "2267000000000000",
         "activeValidators": {
@@ -59,23 +73,10 @@ Response: {
           ]
         }
       },
-      "startTimestamp": "1970-01-01T00:00:00Z",
-      "totalCheckpoints": 1,
-      "totalTransactions": null,
-      "totalGasFees": null,
-      "totalStakeRewards": null,
-      "fundSize": "0",
-      "netInflow": null,
-      "fundInflow": null,
-      "fundOutflow": null,
-      "storageFund": {
-        "totalObjectStorageRebates": "0",
-        "nonRefundableBalance": "0"
-      },
+      "systemStateVersion": 2,
       "safeMode": {
         "enabled": false
       },
-      "systemStateVersion": 2,
       "checkpoints": {
         "nodes": [
           {
@@ -89,8 +90,7 @@ Response: {
             "digest": "EUcydaucnNPF4UKiBVoRa55FbojX6JrhkYdHKe9VxoHL"
           }
         ]
-      },
-      "endTimestamp": null
+      }
     }
   }
 }
@@ -114,6 +114,27 @@ Response: {
     "epoch": {
       "epochId": 1,
       "referenceGasPrice": "1000",
+      "startTimestamp": "1970-01-01T00:00:00Z",
+      "totalCheckpoints": 3,
+      "totalTransactions": 4,
+      "totalGasFees": "3000000",
+      "totalStakeRewards": "767000000000000",
+      "fundSize": "0",
+      "netInflow": "15610400",
+      "fundInflow": "18551600",
+      "fundOutflow": "2941200",
+      "endTimestamp": "1970-01-01T00:00:00Z",
+      "checkpoints": {
+        "nodes": [
+          {
+            "sequenceNumber": 5
+          }
+        ]
+      },
+      "safeMode": {
+        "enabled": false
+      },
+      "systemStateVersion": 2,
       "validatorSet": {
         "totalStake": "2267000000000000",
         "activeValidators": {
@@ -124,29 +145,9 @@ Response: {
           ]
         }
       },
-      "startTimestamp": "1970-01-01T00:00:00Z",
-      "totalCheckpoints": 3,
-      "totalTransactions": 4,
-      "totalGasFees": "3000000",
-      "totalStakeRewards": "767000000000000",
-      "fundSize": "0",
-      "netInflow": "15610400",
-      "fundInflow": "18551600",
-      "fundOutflow": "2941200",
       "storageFund": {
         "totalObjectStorageRebates": "0",
         "nonRefundableBalance": "0"
-      },
-      "safeMode": {
-        "enabled": false
-      },
-      "systemStateVersion": 2,
-      "checkpoints": {
-        "nodes": [
-          {
-            "sequenceNumber": 5
-          }
-        ]
       },
       "transactionBlocks": {
         "nodes": [
@@ -154,8 +155,7 @@ Response: {
             "digest": "6D1mwaHWyskToQLw6ktV7Gzhy3Yj1g5YP4cad3dSauEG"
           }
         ]
-      },
-      "endTimestamp": "1970-01-01T00:00:00Z"
+      }
     }
   }
 }
@@ -167,6 +167,30 @@ Response: {
     "epoch": {
       "epochId": 2,
       "referenceGasPrice": "1000",
+      "startTimestamp": "1970-01-01T00:00:00Z",
+      "totalCheckpoints": 1,
+      "totalTransactions": null,
+      "totalGasFees": null,
+      "totalStakeRewards": null,
+      "fundSize": "15610400",
+      "netInflow": null,
+      "fundInflow": null,
+      "fundOutflow": null,
+      "endTimestamp": null,
+      "checkpoints": {
+        "nodes": [
+          {
+            "sequenceNumber": 6
+          }
+        ]
+      },
+      "safeMode": {
+        "enabled": false
+      },
+      "storageFund": {
+        "totalObjectStorageRebates": "15610400",
+        "nonRefundableBalance": "0"
+      },
       "validatorSet": {
         "totalStake": "3034010000000000",
         "activeValidators": {
@@ -177,34 +201,10 @@ Response: {
           ]
         }
       },
-      "startTimestamp": "1970-01-01T00:00:00Z",
-      "totalCheckpoints": 1,
-      "totalTransactions": null,
-      "totalGasFees": null,
-      "totalStakeRewards": null,
-      "fundSize": "15610400",
-      "netInflow": null,
-      "fundInflow": null,
-      "fundOutflow": null,
-      "storageFund": {
-        "totalObjectStorageRebates": "15610400",
-        "nonRefundableBalance": "0"
-      },
-      "safeMode": {
-        "enabled": false
-      },
       "systemStateVersion": 2,
-      "checkpoints": {
-        "nodes": [
-          {
-            "sequenceNumber": 6
-          }
-        ]
-      },
       "transactionBlocks": {
         "nodes": []
-      },
-      "endTimestamp": null
+      }
     }
   }
 }

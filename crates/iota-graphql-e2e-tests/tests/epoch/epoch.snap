@@ -60,6 +60,27 @@ task 10, lines 34-73:
 Response: {
   "data": {
     "epoch": {
+      "totalGasFees": "1000000",
+      "totalStakeRewards": "767000000000000",
+      "fundSize": "14630000",
+      "fundInflow": "1960800",
+      "fundOutflow": "980400",
+      "netInflow": "980400",
+      "totalCheckpoints": 2,
+      "last_checkpoint": {
+        "nodes": [
+          {
+            "sequenceNumber": 6
+          }
+        ]
+      },
+      "first_checkpoint": {
+        "nodes": [
+          {
+            "sequenceNumber": 5
+          }
+        ]
+      },
       "validatorSet": {
         "totalStake": "3034010000000000",
         "activeValidators": {
@@ -72,12 +93,6 @@ Response: {
         "validatorCandidatesSize": 0,
         "inactivePoolsId": "0x7db5972302ce9c55af67d8f827a6033fe102e8c5e6930bc38b36bd765a63c06f"
       },
-      "totalGasFees": "1000000",
-      "totalStakeRewards": "767000000000000",
-      "fundSize": "14630000",
-      "fundInflow": "1960800",
-      "fundOutflow": "980400",
-      "netInflow": "980400",
       "transactionBlocks": {
         "nodes": [
           {
@@ -93,22 +108,7 @@ Response: {
             "digest": "ADNf6DDG3E6xK7uRjxb5S4Zysevb4XnTeXdQDwdjPNwL"
           }
         ]
-      },
-      "first_checkpoint": {
-        "nodes": [
-          {
-            "sequenceNumber": 5
-          }
-        ]
-      },
-      "last_checkpoint": {
-        "nodes": [
-          {
-            "sequenceNumber": 6
-          }
-        ]
-      },
-      "totalCheckpoints": 2
+      }
     }
   }
 }

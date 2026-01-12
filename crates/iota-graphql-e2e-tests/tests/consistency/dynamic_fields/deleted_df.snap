@@ -90,6 +90,7 @@ Response: {
   "data": {
     "latest": {
       "version": 6,
+      "df1": null,
       "dynamicFields": {
         "edges": [
           {
@@ -127,7 +128,6 @@ Response: {
           }
         ]
       },
-      "df1": null,
       "df5": {
         "name": {
           "bcs": "A2RmNQ=="
@@ -139,6 +139,7 @@ Response: {
     },
     "df123_removed": {
       "version": 5,
+      "df1": null,
       "dynamicFields": {
         "edges": [
           {
@@ -176,7 +177,6 @@ Response: {
           }
         ]
       },
-      "df1": null,
       "df5": {
         "name": {
           "bcs": "A2RmNQ=="

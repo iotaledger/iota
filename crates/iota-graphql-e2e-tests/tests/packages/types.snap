@@ -182,7 +182,9 @@ Response: {
 task 6, lines 63-78:
 //# run-graphql
 Response: {
-  "data": null,
+  "data": {
+    "type": null
+  },
   "errors": [
     {
       "message": "Internal error occurred while processing request: Error calculating layout for 0x0000000000000000000000000000000000000000000000000000000000000042::not::Here: Package not found: 0x0000000000000000000000000000000000000000000000000000000000000042",
@@ -241,7 +243,9 @@ Response: {
 task 8, lines 105-122:
 //# run-graphql
 Response: {
-  "data": null,
+  "data": {
+    "type": null
+  },
   "errors": [
     {
       "message": "Internal error occurred while processing request: Error calculating abilities for vector<vector<vector<vector<vector<vector<vector<vector<vector<vector<vector<vector<vector<vector<vector<vector<vector<u8>>>>>>>>>>>>>>>>>: Type parameter nesting exceeded limit of 16",
@@ -275,7 +279,9 @@ Checkpoint created: 1
 task 11, lines 145-153:
 //# run-graphql
 Response: {
-  "data": null,
+  "data": {
+    "type": null
+  },
   "errors": [
     {
       "message": "Internal error occurred while processing request: Error calculating layout for 0xf62d251f4cad2aad35570e3615b8d0495b12fa4d0575ef5e187e3237f869f1d8::m::S1<u32>: Type layout nesting exceeded limit of 128",

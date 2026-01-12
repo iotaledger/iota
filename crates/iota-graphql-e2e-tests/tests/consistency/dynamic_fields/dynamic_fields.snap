@@ -86,10 +86,21 @@ task 9, lines 103-165:
 //# run-graphql
 Response: {
   "data": {
+    "child_version_2_no_parent": {
+      "address": "0xced2e280e377be0d1fcfb2d0b4995a60ce079aaa03ade2108fcbdc4b2de38363",
+      "owner": null
+    },
     "parent_version_2_no_dof": {
       "address": "0x427086c0f5eba3646a4b8a5de8fe98b215f7c005b5fd174a3f267e7a07b03bd6",
       "dynamicFields": {
         "edges": []
+      }
+    },
+    "child_version_3_has_parent": {
+      "owner": {
+        "parent": {
+          "address": "0xee7733e32f4d7a60826c376b85f1028cc3c53e7e3c304182a6a913737511797b"
+        }
       }
     },
     "parent_version_3_has_dof": {
@@ -115,17 +126,6 @@ Response: {
             }
           }
         ]
-      }
-    },
-    "child_version_2_no_parent": {
-      "address": "0xced2e280e377be0d1fcfb2d0b4995a60ce079aaa03ade2108fcbdc4b2de38363",
-      "owner": {}
-    },
-    "child_version_3_has_parent": {
-      "owner": {
-        "parent": {
-          "address": "0xee7733e32f4d7a60826c376b85f1028cc3c53e7e3c304182a6a913737511797b"
-        }
       }
     }
   }
@@ -172,6 +172,26 @@ task 14, lines 177-237:
 //# run-graphql --cursors bcs(@{obj_5_0},1) bcs(@{obj_5_0},2)
 Response: {
   "data": {
+    "use_dof_version_3_cursor_at_parent_version_4": {
+      "dynamicFields": {
+        "edges": []
+      }
+    },
+    "use_dof_version_4_cursor_at_parent_version_4": {
+      "dynamicFields": {
+        "edges": []
+      }
+    },
+    "use_dof_version_4_cursor_at_version_3": {
+      "dynamicFields": {
+        "edges": []
+      }
+    },
+    "use_dof_version_3_cursor_at_parent_version_3": {
+      "dynamicFields": {
+        "edges": []
+      }
+    },
     "parent_version_4_show_dof_and_dfs": {
       "dynamicFields": {
         "edges": [
@@ -263,26 +283,6 @@ Response: {
           }
         ]
       }
-    },
-    "use_dof_version_3_cursor_at_parent_version_4": {
-      "dynamicFields": {
-        "edges": []
-      }
-    },
-    "use_dof_version_4_cursor_at_parent_version_4": {
-      "dynamicFields": {
-        "edges": []
-      }
-    },
-    "use_dof_version_3_cursor_at_parent_version_3": {
-      "dynamicFields": {
-        "edges": []
-      }
-    },
-    "use_dof_version_4_cursor_at_version_3": {
-      "dynamicFields": {
-        "edges": []
-      }
     }
   }
 }
@@ -292,6 +292,7 @@ task 15, lines 239-276:
 Response: {
   "data": {
     "parent_version_3": {
+      "dfNotAvailableYet": null,
       "dynamicObjectField": {
         "name": {
           "bcs": "pAEAAAAAAAA=",
@@ -307,10 +308,20 @@ Response: {
             }
           }
         }
-      },
-      "dfNotAvailableYet": null
+      }
     },
     "parent_version_4": {
+      "dfAddedHere": {
+        "name": {
+          "bcs": "A2RmMQ==",
+          "type": {
+            "repr": "0x0000000000000000000000000000000000000000000000000000000000000001::string::String"
+          }
+        },
+        "value": {
+          "json": "df1"
+        }
+      },
       "dynamicObjectField": {
         "name": {
           "bcs": "pAEAAAAAAAA=",
@@ -325,17 +336,6 @@ Response: {
               "count": "2"
             }
           }
-        }
-      },
-      "dfAddedHere": {
-        "name": {
-          "bcs": "A2RmMQ==",
-          "type": {
-            "repr": "0x0000000000000000000000000000000000000000000000000000000000000001::string::String"
-          }
-        },
-        "value": {
-          "json": "df1"
         }
       }
     }
@@ -382,6 +382,16 @@ task 20, lines 288-338:
 //# run-graphql --cursors bcs(@{obj_5_0},2) bcs(@{obj_5_0},3)
 Response: {
   "data": {
+    "parent_version_4_paginated_on_dof_consistent": {
+      "dynamicFields": {
+        "edges": []
+      }
+    },
+    "parent_version_5_paginated_on_dof_consistent": {
+      "dynamicFields": {
+        "edges": []
+      }
+    },
     "parent_version_4_has_4_children": {
       "dynamicFields": {
         "edges": [
@@ -447,11 +457,6 @@ Response: {
             }
           }
         ]
-      }
-    },
-    "parent_version_4_paginated_on_dof_consistent": {
-      "dynamicFields": {
-        "edges": []
       }
     },
     "parent_version_5_has_7_children": {
@@ -562,11 +567,6 @@ Response: {
           }
         ]
       }
-    },
-    "parent_version_5_paginated_on_dof_consistent": {
-      "dynamicFields": {
-        "edges": []
-      }
     }
   }
 }
@@ -611,6 +611,16 @@ task 25, lines 349-399:
 //# run-graphql --cursors bcs(@{obj_5_0},2) bcs(@{obj_5_0},4)
 Response: {
   "data": {
+    "parent_version_4_paginated_on_dof_consistent": {
+      "dynamicFields": {
+        "edges": []
+      }
+    },
+    "parent_version_6_paginated_no_df_1_2_3": {
+      "dynamicFields": {
+        "edges": []
+      }
+    },
     "parent_version_4_has_df1_2_3": {
       "dynamicFields": {
         "edges": [
@@ -676,11 +686,6 @@ Response: {
             }
           }
         ]
-      }
-    },
-    "parent_version_4_paginated_on_dof_consistent": {
-      "dynamicFields": {
-        "edges": []
       }
     },
     "parent_version_6_no_df_1_2_3": {
@@ -749,11 +754,6 @@ Response: {
           }
         ]
       }
-    },
-    "parent_version_6_paginated_no_df_1_2_3": {
-      "dynamicFields": {
-        "edges": []
-      }
     }
   }
 }
@@ -809,32 +809,12 @@ Response: {
         "sequenceNumber": 8
       }
     },
-    "parent_version_4_outside_consistent_range": {
+    "parent_version_4_paginated_outside_consistent_range": null,
+    "parent_version_6_paginated_no_df_1_2_3": {
       "dynamicFields": {
-        "edges": [
-          {
-            "cursor": "IO53M+MvTXpggmw3a4XxAozDxT5+PDBBgqapE3N1EXl7CAAAAAAAAAA=",
-            "node": {
-              "name": {
-                "bcs": "pAEAAAAAAAA=",
-                "type": {
-                  "repr": "u64"
-                }
-              },
-              "value": {
-                "contents": {
-                  "json": {
-                    "id": "0xced2e280e377be0d1fcfb2d0b4995a60ce079aaa03ade2108fcbdc4b2de38363",
-                    "count": "2"
-                  }
-                }
-              }
-            }
-          }
-        ]
+        "edges": []
       }
     },
-    "parent_version_4_paginated_outside_consistent_range": null,
     "parent_version_6_no_df_1_2_3": {
       "dynamicFields": {
         "edges": [
@@ -902,9 +882,29 @@ Response: {
         ]
       }
     },
-    "parent_version_6_paginated_no_df_1_2_3": {
+    "parent_version_4_outside_consistent_range": {
       "dynamicFields": {
-        "edges": []
+        "edges": [
+          {
+            "cursor": "IO53M+MvTXpggmw3a4XxAozDxT5+PDBBgqapE3N1EXl7CAAAAAAAAAA=",
+            "node": {
+              "name": {
+                "bcs": "pAEAAAAAAAA=",
+                "type": {
+                  "repr": "u64"
+                }
+              },
+              "value": {
+                "contents": {
+                  "json": {
+                    "id": "0xced2e280e377be0d1fcfb2d0b4995a60ce079aaa03ade2108fcbdc4b2de38363",
+                    "count": "2"
+                  }
+                }
+              }
+            }
+          }
+        ]
       }
     }
   },

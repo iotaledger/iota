@@ -268,19 +268,6 @@ task 16, lines 174-195:
 //# run-graphql
 Response: {
   "data": {
-    "unversioned": {
-      "dynamicObjectField": {
-        "value": {
-          "version": 7,
-          "contents": {
-            "json": {
-              "id": "0x355985113ab2d9e4b9dd1011cacacbe4eb4e182196db4c854284e5a7a19d862e",
-              "count": "0"
-            }
-          }
-        }
-      }
-    },
     "latest": {
       "dynamicObjectField": {
         "value": {
@@ -295,6 +282,19 @@ Response: {
       }
     },
     "beforeInnerBump": {
+      "dynamicObjectField": {
+        "value": {
+          "version": 7,
+          "contents": {
+            "json": {
+              "id": "0x355985113ab2d9e4b9dd1011cacacbe4eb4e182196db4c854284e5a7a19d862e",
+              "count": "0"
+            }
+          }
+        }
+      }
+    },
+    "unversioned": {
       "dynamicObjectField": {
         "value": {
           "version": 7,

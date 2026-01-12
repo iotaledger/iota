@@ -7,6 +7,14 @@ task 1, lines 9-31:
 //# run-graphql
 Response: {
   "data": {
+    "last": {
+      "digest": "HA81rp38NCuAG3umu7XtxzZLVcWpJeTFuE33BCCq6Ztw",
+      "sequenceNumber": 0
+    },
+    "first": {
+      "digest": "HA81rp38NCuAG3umu7XtxzZLVcWpJeTFuE33BCCq6Ztw",
+      "sequenceNumber": 0
+    },
     "availableRange": {
       "first": {
         "digest": "HA81rp38NCuAG3umu7XtxzZLVcWpJeTFuE33BCCq6Ztw",
@@ -16,14 +24,6 @@ Response: {
         "digest": "HA81rp38NCuAG3umu7XtxzZLVcWpJeTFuE33BCCq6Ztw",
         "sequenceNumber": 0
       }
-    },
-    "first": {
-      "digest": "HA81rp38NCuAG3umu7XtxzZLVcWpJeTFuE33BCCq6Ztw",
-      "sequenceNumber": 0
-    },
-    "last": {
-      "digest": "HA81rp38NCuAG3umu7XtxzZLVcWpJeTFuE33BCCq6Ztw",
-      "sequenceNumber": 0
     }
   }
 }
@@ -112,14 +112,6 @@ task 16, lines 101-121:
 //# run-graphql
 Response: {
   "data": {
-    "availableRange": {
-      "first": {
-        "sequenceNumber": 3
-      },
-      "last": {
-        "sequenceNumber": 5
-      }
-    },
     "first": {
       "digest": "HA81rp38NCuAG3umu7XtxzZLVcWpJeTFuE33BCCq6Ztw",
       "sequenceNumber": 0
@@ -127,6 +119,14 @@ Response: {
     "last": {
       "digest": "2QtPyuUTV9HN6wS2YUGop4yBYfRFqYwrKsC3fC8Q8ZeJ",
       "sequenceNumber": 5
+    },
+    "availableRange": {
+      "first": {
+        "sequenceNumber": 3
+      },
+      "last": {
+        "sequenceNumber": 5
+      }
     }
   }
 }
