@@ -36,7 +36,83 @@ Response: {
     "compoundDifferentAddresses": {
       "nodes": []
     },
-    "bySentAddress": {
+    "compoundBySignAddress": {
+      "nodes": [
+        {
+          "effects": {
+            "objectChanges": {
+              "nodes": [
+                {
+                  "inputState": null,
+                  "outputState": {
+                    "asMoveObject": {
+                      "asCoin": {
+                        "coinBalance": "1000000"
+                      }
+                    }
+                  }
+                },
+                {
+                  "inputState": {
+                    "asMoveObject": {
+                      "asCoin": {
+                        "coinBalance": "300000000000000"
+                      }
+                    }
+                  },
+                  "outputState": {
+                    "asMoveObject": {
+                      "asCoin": {
+                        "coinBalance": "299999996039200"
+                      }
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "compoundBySentAddress": {
+      "nodes": [
+        {
+          "effects": {
+            "objectChanges": {
+              "nodes": [
+                {
+                  "inputState": null,
+                  "outputState": {
+                    "asMoveObject": {
+                      "asCoin": {
+                        "coinBalance": "1000000"
+                      }
+                    }
+                  }
+                },
+                {
+                  "inputState": {
+                    "asMoveObject": {
+                      "asCoin": {
+                        "coinBalance": "300000000000000"
+                      }
+                    }
+                  },
+                  "outputState": {
+                    "asMoveObject": {
+                      "asCoin": {
+                        "coinBalance": "299999996039200"
+                      }
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "compoundBothAddresses": {
       "nodes": [
         {
           "effects": {
@@ -75,6 +151,44 @@ Response: {
       ]
     },
     "bySignAddress": {
+      "nodes": [
+        {
+          "effects": {
+            "objectChanges": {
+              "nodes": [
+                {
+                  "inputState": null,
+                  "outputState": {
+                    "asMoveObject": {
+                      "asCoin": {
+                        "coinBalance": "1000000"
+                      }
+                    }
+                  }
+                },
+                {
+                  "inputState": {
+                    "asMoveObject": {
+                      "asCoin": {
+                        "coinBalance": "300000000000000"
+                      }
+                    }
+                  },
+                  "outputState": {
+                    "asMoveObject": {
+                      "asCoin": {
+                        "coinBalance": "299999996039200"
+                      }
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "bothAddresses": {
       "nodes": [
         {
           "effects": {
@@ -152,120 +266,6 @@ Response: {
         ]
       }
     },
-    "bothAddresses": {
-      "nodes": [
-        {
-          "effects": {
-            "objectChanges": {
-              "nodes": [
-                {
-                  "inputState": null,
-                  "outputState": {
-                    "asMoveObject": {
-                      "asCoin": {
-                        "coinBalance": "1000000"
-                      }
-                    }
-                  }
-                },
-                {
-                  "inputState": {
-                    "asMoveObject": {
-                      "asCoin": {
-                        "coinBalance": "300000000000000"
-                      }
-                    }
-                  },
-                  "outputState": {
-                    "asMoveObject": {
-                      "asCoin": {
-                        "coinBalance": "299999996039200"
-                      }
-                    }
-                  }
-                }
-              ]
-            }
-          }
-        }
-      ]
-    },
-    "compoundBySentAddress": {
-      "nodes": [
-        {
-          "effects": {
-            "objectChanges": {
-              "nodes": [
-                {
-                  "inputState": null,
-                  "outputState": {
-                    "asMoveObject": {
-                      "asCoin": {
-                        "coinBalance": "1000000"
-                      }
-                    }
-                  }
-                },
-                {
-                  "inputState": {
-                    "asMoveObject": {
-                      "asCoin": {
-                        "coinBalance": "300000000000000"
-                      }
-                    }
-                  },
-                  "outputState": {
-                    "asMoveObject": {
-                      "asCoin": {
-                        "coinBalance": "299999996039200"
-                      }
-                    }
-                  }
-                }
-              ]
-            }
-          }
-        }
-      ]
-    },
-    "compoundBySignAddress": {
-      "nodes": [
-        {
-          "effects": {
-            "objectChanges": {
-              "nodes": [
-                {
-                  "inputState": null,
-                  "outputState": {
-                    "asMoveObject": {
-                      "asCoin": {
-                        "coinBalance": "1000000"
-                      }
-                    }
-                  }
-                },
-                {
-                  "inputState": {
-                    "asMoveObject": {
-                      "asCoin": {
-                        "coinBalance": "300000000000000"
-                      }
-                    }
-                  },
-                  "outputState": {
-                    "asMoveObject": {
-                      "asCoin": {
-                        "coinBalance": "299999996039200"
-                      }
-                    }
-                  }
-                }
-              ]
-            }
-          }
-        }
-      ]
-    },
     "signViaAddress": {
       "transactionBlocks": {
         "nodes": [
@@ -306,7 +306,7 @@ Response: {
         ]
       }
     },
-    "compoundBothAddresses": {
+    "bySentAddress": {
       "nodes": [
         {
           "effects": {

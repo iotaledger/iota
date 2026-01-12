@@ -59,10 +59,6 @@ Response: {
       "fundInflow": null,
       "fundOutflow": null,
       "endTimestamp": null,
-      "storageFund": {
-        "totalObjectStorageRebates": "0",
-        "nonRefundableBalance": "0"
-      },
       "validatorSet": {
         "totalStake": "2267000000000000",
         "activeValidators": {
@@ -73,7 +69,6 @@ Response: {
           ]
         }
       },
-      "systemStateVersion": 2,
       "safeMode": {
         "enabled": false
       },
@@ -83,6 +78,11 @@ Response: {
             "sequenceNumber": 3
           }
         ]
+      },
+      "systemStateVersion": 2,
+      "storageFund": {
+        "totalObjectStorageRebates": "0",
+        "nonRefundableBalance": "0"
       },
       "transactionBlocks": {
         "nodes": [
@@ -131,10 +131,17 @@ Response: {
           }
         ]
       },
-      "safeMode": {
-        "enabled": false
+      "transactionBlocks": {
+        "nodes": [
+          {
+            "digest": "6D1mwaHWyskToQLw6ktV7Gzhy3Yj1g5YP4cad3dSauEG"
+          }
+        ]
       },
-      "systemStateVersion": 2,
+      "storageFund": {
+        "totalObjectStorageRebates": "0",
+        "nonRefundableBalance": "0"
+      },
       "validatorSet": {
         "totalStake": "2267000000000000",
         "activeValidators": {
@@ -145,16 +152,9 @@ Response: {
           ]
         }
       },
-      "storageFund": {
-        "totalObjectStorageRebates": "0",
-        "nonRefundableBalance": "0"
-      },
-      "transactionBlocks": {
-        "nodes": [
-          {
-            "digest": "6D1mwaHWyskToQLw6ktV7Gzhy3Yj1g5YP4cad3dSauEG"
-          }
-        ]
+      "systemStateVersion": 2,
+      "safeMode": {
+        "enabled": false
       }
     }
   }
@@ -184,13 +184,6 @@ Response: {
           }
         ]
       },
-      "safeMode": {
-        "enabled": false
-      },
-      "storageFund": {
-        "totalObjectStorageRebates": "15610400",
-        "nonRefundableBalance": "0"
-      },
       "validatorSet": {
         "totalStake": "3034010000000000",
         "activeValidators": {
@@ -200,6 +193,13 @@ Response: {
             }
           ]
         }
+      },
+      "safeMode": {
+        "enabled": false
+      },
+      "storageFund": {
+        "totalObjectStorageRebates": "15610400",
+        "nonRefundableBalance": "0"
       },
       "systemStateVersion": 2,
       "transactionBlocks": {

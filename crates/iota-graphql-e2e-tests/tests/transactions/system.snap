@@ -1417,13 +1417,6 @@ Response: {
             "checkpoint": {
               "sequenceNumber": 1
             },
-            "dependencies": {
-              "nodes": [
-                {
-                  "digest": "GNZjaNedWQ8pmyTSjzh75HqJfrn9vQ8CsU2BywauRcXF"
-                }
-              ]
-            },
             "objectChanges": {
               "nodes": [
                 {
@@ -1445,6 +1438,13 @@ Response: {
                 "nonRefundableStorageFee": "0"
               },
               "gasObject": null
+            },
+            "dependencies": {
+              "nodes": [
+                {
+                  "digest": "GNZjaNedWQ8pmyTSjzh75HqJfrn9vQ8CsU2BywauRcXF"
+                }
+              ]
             }
           }
         }
@@ -1483,6 +1483,16 @@ Response: {
             }
           },
           "expiration": null,
+          "gasInput": {
+            "gasSponsor": {
+              "address": "0x0000000000000000000000000000000000000000000000000000000000000000"
+            },
+            "gasPrice": "1",
+            "gasBudget": "0",
+            "gasPayment": {
+              "nodes": []
+            }
+          },
           "effects": {
             "status": "SUCCESS",
             "errors": null,
@@ -1537,16 +1547,6 @@ Response: {
                 "nonRefundableStorageFee": "0"
               },
               "gasObject": null
-            }
-          },
-          "gasInput": {
-            "gasSponsor": {
-              "address": "0x0000000000000000000000000000000000000000000000000000000000000000"
-            },
-            "gasPrice": "1",
-            "gasBudget": "0",
-            "gasPayment": {
-              "nodes": []
             }
           }
         }

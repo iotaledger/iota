@@ -43,6 +43,22 @@ Response: {
       "version": 2,
       "dynamicObjectField": null
     },
+    "dof_added": {
+      "version": 3,
+      "dynamicObjectField": {
+        "name": {
+          "bcs": "KgAAAAAAAAA="
+        },
+        "value": {
+          "contents": {
+            "json": {
+              "id": "0x804df9e3026b8500cd2f2ff1e788aadea00fc66e10bbedc5dd62b9c4157181a9",
+              "count": "0"
+            }
+          }
+        }
+      }
+    },
     "latest": {
       "version": 4,
       "dynamicFields": {
@@ -65,22 +81,6 @@ Response: {
           }
         ]
       },
-      "dynamicObjectField": {
-        "name": {
-          "bcs": "KgAAAAAAAAA="
-        },
-        "value": {
-          "contents": {
-            "json": {
-              "id": "0x804df9e3026b8500cd2f2ff1e788aadea00fc66e10bbedc5dd62b9c4157181a9",
-              "count": "0"
-            }
-          }
-        }
-      }
-    },
-    "dof_added": {
-      "version": 3,
       "dynamicObjectField": {
         "name": {
           "bcs": "KgAAAAAAAAA="
@@ -155,13 +155,6 @@ Response: {
       },
       "dynamicObjectField": null
     },
-    "owner_view": {
-      "version": 5,
-      "dynamicObjectField": null,
-      "dynamicFields": {
-        "edges": []
-      }
-    },
     "before_delete_dof": {
       "version": 4,
       "dynamicObjectField": {
@@ -176,6 +169,13 @@ Response: {
             }
           }
         }
+      }
+    },
+    "owner_view": {
+      "version": 5,
+      "dynamicObjectField": null,
+      "dynamicFields": {
+        "edges": []
       }
     }
   }
@@ -194,14 +194,6 @@ task 12, lines 191-254:
 //# run-graphql
 Response: {
   "data": {
-    "parent_version_6": {
-      "version": 6,
-      "dynamicObjectField": null
-    },
-    "parent_version_5": {
-      "version": 5,
-      "dynamicObjectField": null
-    },
     "latest": {
       "version": 6,
       "dynamicFields": {
@@ -214,6 +206,14 @@ Response: {
       "dynamicFields": {
         "edges": []
       },
+      "dynamicObjectField": null
+    },
+    "parent_version_6": {
+      "version": 6,
+      "dynamicObjectField": null
+    },
+    "parent_version_5": {
+      "version": 5,
       "dynamicObjectField": null
     },
     "parent_version_4": {

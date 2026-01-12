@@ -101,14 +101,6 @@ task 7, lines 78-102:
 //# run-graphql
 Response: {
   "data": {
-    "availableRange": {
-      "first": {
-        "sequenceNumber": 0
-      },
-      "last": {
-        "sequenceNumber": 2
-      }
-    },
     "coins": {
       "nodes": [
         {
@@ -157,6 +149,14 @@ Response: {
           }
         }
       ]
+    },
+    "availableRange": {
+      "first": {
+        "sequenceNumber": 1
+      },
+      "last": {
+        "sequenceNumber": 2
+      }
     }
   }
 }
@@ -181,14 +181,6 @@ task 11, lines 110-136:
 //# run-graphql
 Response: {
   "data": {
-    "availableRange": {
-      "first": {
-        "sequenceNumber": 2
-      },
-      "last": {
-        "sequenceNumber": 3
-      }
-    },
     "coins": {
       "nodes": [
         {
@@ -237,6 +229,14 @@ Response: {
           }
         }
       ]
+    },
+    "availableRange": {
+      "first": {
+        "sequenceNumber": 2
+      },
+      "last": {
+        "sequenceNumber": 3
+      }
     }
   }
 }
@@ -245,14 +245,6 @@ task 12, lines 138-164:
 //# run-graphql --cursors bcs(@{obj_1_1},2)
 Response: {
   "data": {
-    "availableRange": {
-      "first": {
-        "sequenceNumber": 2
-      },
-      "last": {
-        "sequenceNumber": 3
-      }
-    },
     "coins": {
       "nodes": [
         {
@@ -288,6 +280,14 @@ Response: {
           }
         }
       ]
+    },
+    "availableRange": {
+      "first": {
+        "sequenceNumber": 2
+      },
+      "last": {
+        "sequenceNumber": 3
+      }
     }
   }
 }

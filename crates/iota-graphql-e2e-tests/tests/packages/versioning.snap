@@ -138,14 +138,16 @@ Response: {
         }
       ]
     },
-    "firstPackage": {
-      "address": "0x7ae980d7a348710ad8df5c0f521d7b90ff39d33868535528bfc2eba8ecb0ffb9",
-      "version": 1,
+    "latestPackage": {
+      "version": 2,
       "module": {
         "functions": {
           "nodes": [
             {
               "name": "f"
+            },
+            {
+              "name": "g"
             }
           ]
         }
@@ -163,16 +165,14 @@ Response: {
         ]
       }
     },
-    "latestPackage": {
-      "version": 2,
+    "firstPackage": {
+      "address": "0x7ae980d7a348710ad8df5c0f521d7b90ff39d33868535528bfc2eba8ecb0ffb9",
+      "version": 1,
       "module": {
         "functions": {
           "nodes": [
             {
               "name": "f"
-            },
-            {
-              "name": "g"
             }
           ]
         }
@@ -243,19 +243,14 @@ Response: {
         }
       ]
     },
-    "latestPackage": {
-      "version": 3,
+    "firstPackage": {
+      "address": "0x7ae980d7a348710ad8df5c0f521d7b90ff39d33868535528bfc2eba8ecb0ffb9",
+      "version": 1,
       "module": {
         "functions": {
           "nodes": [
             {
               "name": "f"
-            },
-            {
-              "name": "g"
-            },
-            {
-              "name": "h"
             }
           ]
         }
@@ -277,14 +272,19 @@ Response: {
         ]
       }
     },
-    "firstPackage": {
-      "address": "0x7ae980d7a348710ad8df5c0f521d7b90ff39d33868535528bfc2eba8ecb0ffb9",
-      "version": 1,
+    "latestPackage": {
+      "version": 3,
       "module": {
         "functions": {
           "nodes": [
             {
               "name": "f"
+            },
+            {
+              "name": "g"
+            },
+            {
+              "name": "h"
             }
           ]
         }
@@ -656,21 +656,6 @@ task 14, lines 313-344:
 //# run-graphql
 Response: {
   "data": {
-    "between": {
-      "nodes": [
-        {
-          "address": "0x8973e7a75735281f583c75e7762dd21a4ef8d29d82f94413ea140265f754f57c",
-          "version": 2,
-          "previousTransactionBlock": {
-            "effects": {
-              "checkpoint": {
-                "sequenceNumber": 2
-              }
-            }
-          }
-        }
-      ]
-    },
     "after": {
       "nodes": [
         {
@@ -691,6 +676,21 @@ Response: {
             "effects": {
               "checkpoint": {
                 "sequenceNumber": 3
+              }
+            }
+          }
+        }
+      ]
+    },
+    "between": {
+      "nodes": [
+        {
+          "address": "0x8973e7a75735281f583c75e7762dd21a4ef8d29d82f94413ea140265f754f57c",
+          "version": 2,
+          "previousTransactionBlock": {
+            "effects": {
+              "checkpoint": {
+                "sequenceNumber": 2
               }
             }
           }
@@ -763,7 +763,7 @@ task 15, lines 346-381:
 //# run-graphql
 Response: {
   "data": {
-    "before": {
+    "packageVersions": {
       "nodes": [
         {
           "address": "0x7ae980d7a348710ad8df5c0f521d7b90ff39d33868535528bfc2eba8ecb0ffb9",
@@ -772,6 +772,10 @@ Response: {
         {
           "address": "0x8973e7a75735281f583c75e7762dd21a4ef8d29d82f94413ea140265f754f57c",
           "version": 2
+        },
+        {
+          "address": "0x41e3e6640be55e1f724cff2a20724f7805cc3d706d5f57d6b9c38bf5831f8288",
+          "version": 3
         }
       ]
     },
@@ -787,7 +791,7 @@ Response: {
         }
       ]
     },
-    "packageVersions": {
+    "before": {
       "nodes": [
         {
           "address": "0x7ae980d7a348710ad8df5c0f521d7b90ff39d33868535528bfc2eba8ecb0ffb9",
@@ -796,10 +800,6 @@ Response: {
         {
           "address": "0x8973e7a75735281f583c75e7762dd21a4ef8d29d82f94413ea140265f754f57c",
           "version": 2
-        },
-        {
-          "address": "0x41e3e6640be55e1f724cff2a20724f7805cc3d706d5f57d6b9c38bf5831f8288",
-          "version": 3
         }
       ]
     },

@@ -21,43 +21,6 @@ task 3, lines 38-86:
 //# run-graphql
 Response: {
   "data": {
-    "fakeCoins": {
-      "edges": [
-        {
-          "cursor": "IGTQkzLYvf6IeIFSqxnStvUjx+SpGkWIVh0SJasNdEFgAQAAAAAAAAA=",
-          "node": {
-            "coinBalance": "1",
-            "contents": {
-              "type": {
-                "repr": "0x0000000000000000000000000000000000000000000000000000000000000002::coin::Coin<0xb9998bf9b29e67bea12747ec03a8651f1e14ca673e29a12c3b2fd23f19b4da0e::fake::FAKE>"
-              }
-            }
-          }
-        },
-        {
-          "cursor": "IJCciOCIiKOVgRANnkv2Ek+63tGQRaRvBTdoC5n6uBeKAQAAAAAAAAA=",
-          "node": {
-            "coinBalance": "3",
-            "contents": {
-              "type": {
-                "repr": "0x0000000000000000000000000000000000000000000000000000000000000002::coin::Coin<0xb9998bf9b29e67bea12747ec03a8651f1e14ca673e29a12c3b2fd23f19b4da0e::fake::FAKE>"
-              }
-            }
-          }
-        },
-        {
-          "cursor": "IMgdXp2TGN2R8SESmdKnbHB97gHQlsVG1EhT1QBdKAjgAQAAAAAAAAA=",
-          "node": {
-            "coinBalance": "2",
-            "contents": {
-              "type": {
-                "repr": "0x0000000000000000000000000000000000000000000000000000000000000002::coin::Coin<0xb9998bf9b29e67bea12747ec03a8651f1e14ca673e29a12c3b2fd23f19b4da0e::fake::FAKE>"
-              }
-            }
-          }
-        }
-      ]
-    },
     "iotaCoins": {
       "edges": [
         {
@@ -95,7 +58,51 @@ Response: {
         }
       ]
     },
+    "fakeCoins": {
+      "edges": [
+        {
+          "cursor": "IGTQkzLYvf6IeIFSqxnStvUjx+SpGkWIVh0SJasNdEFgAQAAAAAAAAA=",
+          "node": {
+            "coinBalance": "1",
+            "contents": {
+              "type": {
+                "repr": "0x0000000000000000000000000000000000000000000000000000000000000002::coin::Coin<0xb9998bf9b29e67bea12747ec03a8651f1e14ca673e29a12c3b2fd23f19b4da0e::fake::FAKE>"
+              }
+            }
+          }
+        },
+        {
+          "cursor": "IJCciOCIiKOVgRANnkv2Ek+63tGQRaRvBTdoC5n6uBeKAQAAAAAAAAA=",
+          "node": {
+            "coinBalance": "3",
+            "contents": {
+              "type": {
+                "repr": "0x0000000000000000000000000000000000000000000000000000000000000002::coin::Coin<0xb9998bf9b29e67bea12747ec03a8651f1e14ca673e29a12c3b2fd23f19b4da0e::fake::FAKE>"
+              }
+            }
+          }
+        },
+        {
+          "cursor": "IMgdXp2TGN2R8SESmdKnbHB97gHQlsVG1EhT1QBdKAjgAQAAAAAAAAA=",
+          "node": {
+            "coinBalance": "2",
+            "contents": {
+              "type": {
+                "repr": "0x0000000000000000000000000000000000000000000000000000000000000002::coin::Coin<0xb9998bf9b29e67bea12747ec03a8651f1e14ca673e29a12c3b2fd23f19b4da0e::fake::FAKE>"
+              }
+            }
+          }
+        }
+      ]
+    },
     "address": {
+      "firstBalance": {
+        "edges": [
+          {
+            "cursor": "eyJ0IjoiMHgwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAyOjppb3RhOjpJT1RBIiwiYyI6MX0"
+          }
+        ]
+      },
       "allBalances": {
         "edges": [
           {
@@ -120,20 +127,6 @@ Response: {
           }
         ]
       },
-      "lastBalance": {
-        "edges": [
-          {
-            "cursor": "eyJ0IjoiMHhiOTk5OGJmOWIyOWU2N2JlYTEyNzQ3ZWMwM2E4NjUxZjFlMTRjYTY3M2UyOWExMmMzYjJmZDIzZjE5YjRkYTBlOjpmYWtlOjpGQUtFIiwiYyI6MX0"
-          }
-        ]
-      },
-      "firstBalance": {
-        "edges": [
-          {
-            "cursor": "eyJ0IjoiMHgwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAyOjppb3RhOjpJT1RBIiwiYyI6MX0"
-          }
-        ]
-      },
       "coins": {
         "edges": [
           {
@@ -146,6 +139,13 @@ Response: {
                 }
               }
             }
+          }
+        ]
+      },
+      "lastBalance": {
+        "edges": [
+          {
+            "cursor": "eyJ0IjoiMHhiOTk5OGJmOWIyOWU2N2JlYTEyNzQ3ZWMwM2E4NjUxZjFlMTRjYTY3M2UyOWExMmMzYjJmZDIzZjE5YjRkYTBlOjpmYWtlOjpGQUtFIiwiYyI6MX0"
           }
         ]
       }

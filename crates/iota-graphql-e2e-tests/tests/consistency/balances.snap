@@ -105,6 +105,9 @@ Response: {
       "nodes": [
         {
           "sender": {
+            "fakeCoinBalance": {
+              "totalBalance": "600"
+            },
             "allBalances": {
               "nodes": [
                 {
@@ -122,9 +125,6 @@ Response: {
                   "totalBalance": "600"
                 }
               ]
-            },
-            "fakeCoinBalance": {
-              "totalBalance": "600"
             }
           }
         }
@@ -141,9 +141,6 @@ Response: {
       "nodes": [
         {
           "sender": {
-            "fakeCoinBalance": {
-              "totalBalance": "400"
-            },
             "allBalances": {
               "nodes": [
                 {
@@ -161,6 +158,9 @@ Response: {
                   "totalBalance": "400"
                 }
               ]
+            },
+            "fakeCoinBalance": {
+              "totalBalance": "400"
             }
           }
         }
@@ -217,9 +217,6 @@ Response: {
       "nodes": [
         {
           "sender": {
-            "fakeCoinBalance": {
-              "totalBalance": "600"
-            },
             "allBalances": {
               "nodes": [
                 {
@@ -237,6 +234,9 @@ Response: {
                   "totalBalance": "600"
                 }
               ]
+            },
+            "fakeCoinBalance": {
+              "totalBalance": "600"
             }
           }
         }
@@ -253,9 +253,6 @@ Response: {
       "nodes": [
         {
           "sender": {
-            "fakeCoinBalance": {
-              "totalBalance": "400"
-            },
             "allBalances": {
               "nodes": [
                 {
@@ -273,6 +270,9 @@ Response: {
                   "totalBalance": "400"
                 }
               ]
+            },
+            "fakeCoinBalance": {
+              "totalBalance": "400"
             }
           }
         }
@@ -378,6 +378,9 @@ Response: {
       "nodes": [
         {
           "sender": {
+            "fakeCoinBalance": {
+              "totalBalance": "400"
+            },
             "allBalances": {
               "nodes": [
                 {
@@ -395,9 +398,6 @@ Response: {
                   "totalBalance": "400"
                 }
               ]
-            },
-            "fakeCoinBalance": {
-              "totalBalance": "400"
             }
           }
         }
@@ -426,14 +426,6 @@ task 39, lines 322-351:
 //# run-graphql --cursors {"c":2,"t":1,"i":false}
 Response: {
   "data": {
-    "availableRange": {
-      "first": {
-        "sequenceNumber": 7
-      },
-      "last": {
-        "sequenceNumber": 14
-      }
-    },
     "transactionBlocks": {
       "nodes": [
         {
@@ -442,6 +434,14 @@ Response: {
           }
         }
       ]
+    },
+    "availableRange": {
+      "first": {
+        "sequenceNumber": 7
+      },
+      "last": {
+        "sequenceNumber": 14
+      }
     }
   },
   "errors": [
@@ -516,6 +516,14 @@ task 41, lines 384-413:
 //# run-graphql --cursors {"c":4,"t":1,"i":false}
 Response: {
   "data": {
+    "availableRange": {
+      "first": {
+        "sequenceNumber": 7
+      },
+      "last": {
+        "sequenceNumber": 14
+      }
+    },
     "transactionBlocks": {
       "nodes": [
         {
@@ -524,14 +532,6 @@ Response: {
           }
         }
       ]
-    },
-    "availableRange": {
-      "first": {
-        "sequenceNumber": 7
-      },
-      "last": {
-        "sequenceNumber": 14
-      }
     }
   },
   "errors": [

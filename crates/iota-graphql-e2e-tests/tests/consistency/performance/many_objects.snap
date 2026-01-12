@@ -397,6 +397,42 @@ Response: {
         }
       ]
     },
+    "a": {
+      "asMoveObject": {
+        "owner": {
+          "owner": {
+            "address": "0x8cca4e1ce0ba5904cea61df9242da2f7d29e3ef328fb7ec07c086b3bf47ca61a"
+          }
+        },
+        "contents": {
+          "json": {
+            "id": "0xfff0d91cb092653dbaad782c2371c7d6c6bd5447e45844f5680e684960dc9131",
+            "value": "107"
+          },
+          "type": {
+            "repr": "0x82a5c9d0ed2a32ac20449c03821cb9a6c266b84fee3ddfdc173932967dfd2bf4::M1::Object"
+          }
+        }
+      }
+    },
+    "b": {
+      "asMoveObject": {
+        "owner": {
+          "owner": {
+            "address": "0x28f02a953f3553f51a9365593c7d4bd0643d2085f004b18c6ca9de51682b2c80"
+          }
+        },
+        "contents": {
+          "json": {
+            "id": "0xfff0d91cb092653dbaad782c2371c7d6c6bd5447e45844f5680e684960dc9131",
+            "value": "107"
+          },
+          "type": {
+            "repr": "0x82a5c9d0ed2a32ac20449c03821cb9a6c266b84fee3ddfdc173932967dfd2bf4::M1::Object"
+          }
+        }
+      }
+    },
     "owned_by_b": {
       "objects": {
         "nodes": [
@@ -471,42 +507,6 @@ Response: {
             }
           }
         ]
-      }
-    },
-    "a": {
-      "asMoveObject": {
-        "owner": {
-          "owner": {
-            "address": "0x8cca4e1ce0ba5904cea61df9242da2f7d29e3ef328fb7ec07c086b3bf47ca61a"
-          }
-        },
-        "contents": {
-          "json": {
-            "id": "0xfff0d91cb092653dbaad782c2371c7d6c6bd5447e45844f5680e684960dc9131",
-            "value": "107"
-          },
-          "type": {
-            "repr": "0x82a5c9d0ed2a32ac20449c03821cb9a6c266b84fee3ddfdc173932967dfd2bf4::M1::Object"
-          }
-        }
-      }
-    },
-    "b": {
-      "asMoveObject": {
-        "owner": {
-          "owner": {
-            "address": "0x28f02a953f3553f51a9365593c7d4bd0643d2085f004b18c6ca9de51682b2c80"
-          }
-        },
-        "contents": {
-          "json": {
-            "id": "0xfff0d91cb092653dbaad782c2371c7d6c6bd5447e45844f5680e684960dc9131",
-            "value": "107"
-          },
-          "type": {
-            "repr": "0x82a5c9d0ed2a32ac20449c03821cb9a6c266b84fee3ddfdc173932967dfd2bf4::M1::Object"
-          }
-        }
       }
     }
   }

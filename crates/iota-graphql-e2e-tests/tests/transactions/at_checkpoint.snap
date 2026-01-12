@@ -33,26 +33,6 @@ Response: {
     "c4": {
       "nodes": []
     },
-    "c2": {
-      "nodes": [
-        {
-          "digest": "7GaccXxmkTAxJUdmuzCaKLoCbccWPpH1giHtkkog6G2w",
-          "kind": {
-            "__typename": "ConsensusCommitPrologueTransaction"
-          }
-        }
-      ]
-    },
-    "c3": {
-      "nodes": [
-        {
-          "digest": "D5npFWfYfq41ETHBZCtmvjipzVH3GEyhpvJ8gZwSc8LG",
-          "kind": {
-            "__typename": "ConsensusCommitPrologueTransaction"
-          }
-        }
-      ]
-    },
     "c1": {
       "nodes": [
         {
@@ -75,6 +55,26 @@ Response: {
           "digest": "24NKU58C62cTZxEvJVH5vQb3V3CnaxYBC7dRnhbE727p",
           "kind": {
             "__typename": "GenesisTransaction"
+          }
+        }
+      ]
+    },
+    "c3": {
+      "nodes": [
+        {
+          "digest": "D5npFWfYfq41ETHBZCtmvjipzVH3GEyhpvJ8gZwSc8LG",
+          "kind": {
+            "__typename": "ConsensusCommitPrologueTransaction"
+          }
+        }
+      ]
+    },
+    "c2": {
+      "nodes": [
+        {
+          "digest": "7GaccXxmkTAxJUdmuzCaKLoCbccWPpH1giHtkkog6G2w",
+          "kind": {
+            "__typename": "ConsensusCommitPrologueTransaction"
           }
         }
       ]

@@ -112,13 +112,13 @@ task 16, lines 101-121:
 //# run-graphql
 Response: {
   "data": {
-    "first": {
-      "digest": "HA81rp38NCuAG3umu7XtxzZLVcWpJeTFuE33BCCq6Ztw",
-      "sequenceNumber": 0
-    },
     "last": {
       "digest": "2QtPyuUTV9HN6wS2YUGop4yBYfRFqYwrKsC3fC8Q8ZeJ",
       "sequenceNumber": 5
+    },
+    "first": {
+      "digest": "HA81rp38NCuAG3umu7XtxzZLVcWpJeTFuE33BCCq6Ztw",
+      "sequenceNumber": 0
     },
     "availableRange": {
       "first": {

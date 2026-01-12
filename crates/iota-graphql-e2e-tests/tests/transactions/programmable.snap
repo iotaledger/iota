@@ -114,11 +114,11 @@ Response: {
             "transactionBlock": {
               "digest": "9fUaSTDfE9P57d9qrQ7GV8WgzUV2pciDjacNeJAPTujJ"
             },
-            "checkpoint": {
-              "sequenceNumber": 1
-            },
             "epoch": {
               "epochId": 0
+            },
+            "checkpoint": {
+              "sequenceNumber": 1
             },
             "dependencies": {
               "nodes": [
@@ -236,11 +236,11 @@ Response: {
             "transactionBlock": {
               "digest": "E9J1uj5mCHpbEJhWBhode3agwe2dypnVvzgjbrfKQ2W4"
             },
-            "checkpoint": {
-              "sequenceNumber": 2
-            },
             "epoch": {
               "epochId": 0
+            },
+            "checkpoint": {
+              "sequenceNumber": 2
             },
             "dependencies": {
               "nodes": [
@@ -765,9 +765,6 @@ Response: {
             "checkpoint": {
               "sequenceNumber": 3
             },
-            "epoch": {
-              "epochId": 0
-            },
             "dependencies": {
               "nodes": [
                 {
@@ -777,6 +774,9 @@ Response: {
                   "digest": "E9J1uj5mCHpbEJhWBhode3agwe2dypnVvzgjbrfKQ2W4"
                 }
               ]
+            },
+            "epoch": {
+              "epochId": 0
             },
             "gasEffects": {
               "gasSummary": {
@@ -960,6 +960,9 @@ Response: {
             "transactionBlock": {
               "digest": "2LM6DhSgVRzBK4ZFxmDKAegGreAHKJ4Gi9eduvUGuRNy"
             },
+            "epoch": {
+              "epochId": 0
+            },
             "checkpoint": {
               "sequenceNumber": 4
             },
@@ -969,9 +972,6 @@ Response: {
                   "digest": "GHP7josgQunHjZN74x3d97hVLb3dHGyRcqNvU1FdMhwL"
                 }
               ]
-            },
-            "epoch": {
-              "epochId": 0
             },
             "objectChanges": {
               "nodes": [

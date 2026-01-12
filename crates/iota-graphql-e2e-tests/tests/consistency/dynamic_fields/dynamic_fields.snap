@@ -177,19 +177,29 @@ Response: {
         "edges": []
       }
     },
-    "use_dof_version_4_cursor_at_parent_version_4": {
+    "parent_version_3_only_dof": {
       "dynamicFields": {
-        "edges": []
-      }
-    },
-    "use_dof_version_4_cursor_at_version_3": {
-      "dynamicFields": {
-        "edges": []
-      }
-    },
-    "use_dof_version_3_cursor_at_parent_version_3": {
-      "dynamicFields": {
-        "edges": []
+        "edges": [
+          {
+            "cursor": "IO53M+MvTXpggmw3a4XxAozDxT5+PDBBgqapE3N1EXl7AgAAAAAAAAA=",
+            "node": {
+              "name": {
+                "bcs": "pAEAAAAAAAA=",
+                "type": {
+                  "repr": "u64"
+                }
+              },
+              "value": {
+                "contents": {
+                  "json": {
+                    "id": "0xced2e280e377be0d1fcfb2d0b4995a60ce079aaa03ade2108fcbdc4b2de38363",
+                    "count": "1"
+                  }
+                }
+              }
+            }
+          }
+        ]
       }
     },
     "parent_version_4_show_dof_and_dfs": {
@@ -259,29 +269,19 @@ Response: {
         ]
       }
     },
-    "parent_version_3_only_dof": {
+    "use_dof_version_3_cursor_at_parent_version_3": {
       "dynamicFields": {
-        "edges": [
-          {
-            "cursor": "IO53M+MvTXpggmw3a4XxAozDxT5+PDBBgqapE3N1EXl7AgAAAAAAAAA=",
-            "node": {
-              "name": {
-                "bcs": "pAEAAAAAAAA=",
-                "type": {
-                  "repr": "u64"
-                }
-              },
-              "value": {
-                "contents": {
-                  "json": {
-                    "id": "0xced2e280e377be0d1fcfb2d0b4995a60ce079aaa03ade2108fcbdc4b2de38363",
-                    "count": "1"
-                  }
-                }
-              }
-            }
-          }
-        ]
+        "edges": []
+      }
+    },
+    "use_dof_version_4_cursor_at_version_3": {
+      "dynamicFields": {
+        "edges": []
+      }
+    },
+    "use_dof_version_4_cursor_at_parent_version_4": {
+      "dynamicFields": {
+        "edges": []
       }
     }
   }
@@ -382,12 +382,12 @@ task 20, lines 288-338:
 //# run-graphql --cursors bcs(@{obj_5_0},2) bcs(@{obj_5_0},3)
 Response: {
   "data": {
-    "parent_version_4_paginated_on_dof_consistent": {
+    "parent_version_5_paginated_on_dof_consistent": {
       "dynamicFields": {
         "edges": []
       }
     },
-    "parent_version_5_paginated_on_dof_consistent": {
+    "parent_version_4_paginated_on_dof_consistent": {
       "dynamicFields": {
         "edges": []
       }
@@ -611,12 +611,12 @@ task 25, lines 349-399:
 //# run-graphql --cursors bcs(@{obj_5_0},2) bcs(@{obj_5_0},4)
 Response: {
   "data": {
-    "parent_version_4_paginated_on_dof_consistent": {
+    "parent_version_6_paginated_no_df_1_2_3": {
       "dynamicFields": {
         "edges": []
       }
     },
-    "parent_version_6_paginated_no_df_1_2_3": {
+    "parent_version_4_paginated_on_dof_consistent": {
       "dynamicFields": {
         "edges": []
       }
@@ -815,6 +815,31 @@ Response: {
         "edges": []
       }
     },
+    "parent_version_4_outside_consistent_range": {
+      "dynamicFields": {
+        "edges": [
+          {
+            "cursor": "IO53M+MvTXpggmw3a4XxAozDxT5+PDBBgqapE3N1EXl7CAAAAAAAAAA=",
+            "node": {
+              "name": {
+                "bcs": "pAEAAAAAAAA=",
+                "type": {
+                  "repr": "u64"
+                }
+              },
+              "value": {
+                "contents": {
+                  "json": {
+                    "id": "0xced2e280e377be0d1fcfb2d0b4995a60ce079aaa03ade2108fcbdc4b2de38363",
+                    "count": "2"
+                  }
+                }
+              }
+            }
+          }
+        ]
+      }
+    },
     "parent_version_6_no_df_1_2_3": {
       "dynamicFields": {
         "edges": [
@@ -860,31 +885,6 @@ Response: {
               }
             }
           },
-          {
-            "cursor": "IO53M+MvTXpggmw3a4XxAozDxT5+PDBBgqapE3N1EXl7CAAAAAAAAAA=",
-            "node": {
-              "name": {
-                "bcs": "pAEAAAAAAAA=",
-                "type": {
-                  "repr": "u64"
-                }
-              },
-              "value": {
-                "contents": {
-                  "json": {
-                    "id": "0xced2e280e377be0d1fcfb2d0b4995a60ce079aaa03ade2108fcbdc4b2de38363",
-                    "count": "2"
-                  }
-                }
-              }
-            }
-          }
-        ]
-      }
-    },
-    "parent_version_4_outside_consistent_range": {
-      "dynamicFields": {
-        "edges": [
           {
             "cursor": "IO53M+MvTXpggmw3a4XxAozDxT5+PDBBgqapE3N1EXl7CAAAAAAAAAA=",
             "node": {

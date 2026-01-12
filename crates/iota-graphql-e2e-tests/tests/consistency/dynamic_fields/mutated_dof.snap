@@ -45,6 +45,19 @@ Response: {
     },
     "latest": {
       "version": 4,
+      "dynamicObjectField": {
+        "name": {
+          "bcs": "KgAAAAAAAAA="
+        },
+        "value": {
+          "contents": {
+            "json": {
+              "id": "0x9d89eff8416d1925a738e48135c8f7c08ae803b42d6442faf999d654cf87d7bb",
+              "count": "0"
+            }
+          }
+        }
+      },
       "dynamicFields": {
         "edges": [
           {
@@ -64,19 +77,6 @@ Response: {
             }
           }
         ]
-      },
-      "dynamicObjectField": {
-        "name": {
-          "bcs": "KgAAAAAAAAA="
-        },
-        "value": {
-          "contents": {
-            "json": {
-              "id": "0x9d89eff8416d1925a738e48135c8f7c08ae803b42d6442faf999d654cf87d7bb",
-              "count": "0"
-            }
-          }
-        }
       }
     },
     "owner_view": {
@@ -148,20 +148,6 @@ task 9, lines 138-189:
 //# run-graphql
 Response: {
   "data": {
-    "latest": {
-      "version": 5,
-      "dynamicFields": {
-        "edges": []
-      },
-      "dynamicObjectField": null
-    },
-    "owner_view": {
-      "version": 5,
-      "dynamicFields": {
-        "edges": []
-      },
-      "dynamicObjectField": null
-    },
     "before_reclaim_dof": {
       "version": 4,
       "dynamicObjectField": {
@@ -177,6 +163,20 @@ Response: {
           }
         }
       }
+    },
+    "latest": {
+      "version": 5,
+      "dynamicFields": {
+        "edges": []
+      },
+      "dynamicObjectField": null
+    },
+    "owner_view": {
+      "version": 5,
+      "dynamicFields": {
+        "edges": []
+      },
+      "dynamicObjectField": null
     }
   }
 }
@@ -241,6 +241,22 @@ Response: {
         }
       }
     },
+    "parent_version_4": {
+      "version": 4,
+      "dynamicObjectField": {
+        "name": {
+          "bcs": "KgAAAAAAAAA="
+        },
+        "value": {
+          "contents": {
+            "json": {
+              "id": "0x9d89eff8416d1925a738e48135c8f7c08ae803b42d6442faf999d654cf87d7bb",
+              "count": "0"
+            }
+          }
+        }
+      }
+    },
     "latest": {
       "version": 7,
       "dynamicFields": {
@@ -272,22 +288,6 @@ Response: {
             "json": {
               "id": "0x9d89eff8416d1925a738e48135c8f7c08ae803b42d6442faf999d654cf87d7bb",
               "count": "1"
-            }
-          }
-        }
-      }
-    },
-    "parent_version_4": {
-      "version": 4,
-      "dynamicObjectField": {
-        "name": {
-          "bcs": "KgAAAAAAAAA="
-        },
-        "value": {
-          "contents": {
-            "json": {
-              "id": "0x9d89eff8416d1925a738e48135c8f7c08ae803b42d6442faf999d654cf87d7bb",
-              "count": "0"
             }
           }
         }

@@ -67,14 +67,14 @@ Response: {
             "value": {
               "address": "0x35171cd646a704687053ec9f1e6cd55ff076e1ad5b6a1273ceeaf79648f6e47d",
               "version": 5,
+              "dynamicFields": {
+                "nodes": []
+              },
               "contents": {
                 "json": {
                   "id": "0x35171cd646a704687053ec9f1e6cd55ff076e1ad5b6a1273ceeaf79648f6e47d",
                   "count": "0"
                 }
-              },
-              "dynamicFields": {
-                "nodes": []
               }
             }
           }

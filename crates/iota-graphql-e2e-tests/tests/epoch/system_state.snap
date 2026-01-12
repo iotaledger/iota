@@ -145,11 +145,11 @@ Response: {
   "data": {
     "epoch": {
       "epochId": 1,
+      "systemStateVersion": 2,
       "storageFund": {
         "totalObjectStorageRebates": "0",
         "nonRefundableBalance": "0"
-      },
-      "systemStateVersion": 2
+      }
     }
   }
 }
@@ -160,11 +160,11 @@ Response: {
   "data": {
     "epoch": {
       "epochId": 4,
-      "systemStateVersion": 2,
       "storageFund": {
         "totalObjectStorageRebates": "15610400",
         "nonRefundableBalance": "0"
-      }
+      },
+      "systemStateVersion": 2
     }
   }
 }

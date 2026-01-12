@@ -90,7 +90,7 @@ Response: {
     "checkpoints": {
       "nodes": [
         {
-          "isOne": {
+          "notOne": {
             "edges": [
               {
                 "txns": {
@@ -99,7 +99,7 @@ Response: {
               }
             ]
           },
-          "notOne": {
+          "isOne": {
             "edges": [
               {
                 "txns": {
