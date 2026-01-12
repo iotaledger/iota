@@ -510,6 +510,11 @@ const developer = [
                 id: 'developer/workshops/identity-workshop',
                 label: 'IOTA Identity Workshop',
             },
+                {
+                type: 'doc',
+                id: 'developer/workshops/gas-station-workshop',
+                label: 'IOTA Gas Station Workshop',
+            },
             {
                 type: 'doc',
                 id: 'developer/workshops/building-decentralized-applications-with-dapp-kit',

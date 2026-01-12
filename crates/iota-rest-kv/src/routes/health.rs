@@ -4,7 +4,7 @@
 use axum::{Json, extract::State, response::IntoResponse};
 use serde::Serialize;
 
-use crate::types::SharedKvStoreClient;
+use crate::types::SharedRestServerAppState;
 
 bin_version::bin_version!();
 
@@ -25,11 +25,11 @@ pub struct HealthResponse {
 ///
 /// This endpoint provides information about the server's health, including
 /// the version, Git hash and uptime.
-pub async fn health(State(kv_store_client): State<SharedKvStoreClient>) -> impl IntoResponse {
+pub async fn health(State(app_state): State<SharedRestServerAppState>) -> impl IntoResponse {
     let response = HealthResponse {
         version: VERSION.to_owned(),
         git_hash: GIT_REVISION.to_owned(),
-        uptime: format!("{:?}", kv_store_client.get_uptime()),
+        uptime: format!("{:?}", app_state.kv_store_client.get_uptime()),
         status: "OK".to_owned(),
     };
     Json(response)

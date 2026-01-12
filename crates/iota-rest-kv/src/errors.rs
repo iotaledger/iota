@@ -23,6 +23,13 @@ pub enum ApiError {
     InternalServerError,
 }
 
+impl From<anyhow::Error> for ApiError {
+    fn from(err: anyhow::Error) -> Self {
+        tracing::error!("internal server error: {err}");
+        ApiError::InternalServerError
+    }
+}
+
 impl IntoResponse for ApiError {
     fn into_response(self) -> Response {
         let status_code = match self {
