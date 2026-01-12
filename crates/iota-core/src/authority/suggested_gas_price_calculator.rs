@@ -684,10 +684,17 @@ mod tests {
     }
 
     // Test `SuggestedGasPriceCalculator::calculate_suggested_gas_price`
-    // in the `PerObjectCongestionControlMode::TotalTxCount` mode.
+    // in the `PerObjectCongestionControlMode::TotalTxCount` mode without
+    // congestion limit overshoot.
     #[rstest]
-    fn calculate_suggested_gas_price_in_total_tx_count_mode(
+    fn calculate_suggested_gas_price_in_tx_count_mode_without_overshoot(
         #[values(false, true)] assign_min_free_exec_slot: bool,
+        // Whether to use congestion limit overshoot in the gas price feedback
+        // mechanism, i.e., this is only used in `SuggestedGasPriceCalculator`.
+        // This is used to test that `SuggestedGasPriceCalculator` behaves in
+        // the same way regardless of `use_congestion_limit_overshoot` values
+        // if `max_congestion_limit_overshoot_per_commit` is `None`.
+        #[values(false, true)] use_congestion_limit_overshoot: bool,
     ) {
         let object_1 = ObjectID::random();
         let object_2 = ObjectID::random();
@@ -701,7 +708,7 @@ mod tests {
             Some(3), // max_execution_duration_per_commit
             None,    // max_congestion_limit_overshoot_per_commit
             maxgp,   // max_gas_price
-            false,   // use_congestion_limit_overshoot
+            use_congestion_limit_overshoot,
         );
 
         // Initialize `SharedObjectCongestionTracker` and `SuggestedGasPriceCalculator`
@@ -889,10 +896,17 @@ mod tests {
     }
 
     // Test `SuggestedGasPriceCalculator::calculate_suggested_gas_price`
-    // in the `PerObjectCongestionControlMode::TotalGasBudget` mode.
+    // in the `PerObjectCongestionControlMode::TotalGasBudget` mode mode
+    // without congestion limit overshoot.
     #[rstest]
-    fn calculate_suggested_gas_price_in_total_gas_budget_mode(
+    fn calculate_suggested_gas_price_in_gas_budget_mode_without_overshoot(
         #[values(false, true)] assign_min_free_exec_slot: bool,
+        // Whether to use congestion limit overshoot in the gas price feedback
+        // mechanism, i.e., this is only used in `SuggestedGasPriceCalculator`.
+        // This is used to test that `SuggestedGasPriceCalculator` behaves in
+        // the same way regardless of `use_congestion_limit_overshoot` values
+        // if `max_congestion_limit_overshoot_per_commit` is `None`.
+        #[values(false, true)] use_congestion_limit_overshoot: bool,
     ) {
         let object_1 = ObjectID::random();
         let object_2 = ObjectID::random();
@@ -906,7 +920,7 @@ mod tests {
             Some(9_000_000), // max_execution_duration_per_commit
             None,            // max_congestion_limit_overshoot_per_commit
             maxgp,           // max_gas_price
-            false,           // use_congestion_limit_overshoot
+            use_congestion_limit_overshoot,
         );
 
         // Initialize `SharedObjectCongestionTracker` and `SuggestedGasPriceCalculator`
