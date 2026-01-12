@@ -90,7 +90,7 @@ async fn main() -> Result<()> {
 
         pairs
             .iter()
-            .filter_map(|pair| {
+            .map(|pair| {
                 let parts: Vec<&str> = pair.split(':').collect();
                 if parts.len() != 2 {
                     panic!("Invalid account format '{pair}', expected 'address:amount'");
@@ -110,10 +110,10 @@ async fn main() -> Result<()> {
                     }
                 };
 
-                Some(AccountConfig {
+                AccountConfig {
                     address: Some(address),
                     gas_amounts: vec![amount],
-                })
+                }
             })
             .collect()
     } else {

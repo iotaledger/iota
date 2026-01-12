@@ -343,7 +343,7 @@ impl<R, S: store::SimulatorStore> Simulacrum<R, S> {
 
         inner.store.insert_checkpoint(checkpoint.clone());
         inner.store.insert_checkpoint_contents(contents.clone());
-        self.process_data_ingestion_locked(&mut inner, checkpoint, contents)
+        self.process_data_ingestion_locked(&inner, checkpoint, contents)
             .unwrap();
         inner.epoch_state = new_epoch_state;
     }
@@ -462,7 +462,7 @@ impl<R, S: store::SimulatorStore> Simulacrum<R, S> {
         let contents = inner
             .store
             .get_checkpoint_contents(&checkpoint.content_digest);
-        self.process_data_ingestion_locked(&mut inner, checkpoint, contents.unwrap())
+        self.process_data_ingestion_locked(&inner, checkpoint, contents.unwrap())
             .unwrap();
     }
 

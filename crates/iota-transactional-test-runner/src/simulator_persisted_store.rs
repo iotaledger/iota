@@ -760,9 +760,7 @@ mod tests {
             None,
         );
         let genesis_checkpoint_digest1 = *chain1
-            .store()
-            .get_checkpoint_by_sequence_number(0)
-            .unwrap()
+            .with_store(|store| store.get_checkpoint_by_sequence_number(0).unwrap())
             .digest();
 
         let rng = StdRng::from_seed([9; 32]);
@@ -774,9 +772,7 @@ mod tests {
             None,
         );
         let genesis_checkpoint_digest2 = *chain2
-            .store()
-            .get_checkpoint_by_sequence_number(0)
-            .unwrap()
+            .with_store(|store| store.get_checkpoint_by_sequence_number(0).unwrap())
             .digest();
 
         assert_eq!(genesis_checkpoint_digest1, genesis_checkpoint_digest2);
@@ -792,8 +788,8 @@ mod tests {
         );
 
         assert_ne!(
-            chain1.store().get_committee_by_epoch(0),
-            chain3.store().get_committee_by_epoch(0),
+            chain1.with_store(|store| store.get_committee_by_epoch(0)),
+            chain3.with_store(|store| store.get_committee_by_epoch(0)),
         );
     }
 }

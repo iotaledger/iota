@@ -114,7 +114,7 @@ pub async fn get_status(
 
     let highest_verified_checkpoint = simulacrum.get_highest_verified_checkpoint();
     let highest_verified_checkpoint_data = highest_verified_checkpoint.data();
-    let highest_checkpoint = Some(highest_verified_checkpoint_data.sequence_number().clone());
+    let highest_checkpoint = Some(*highest_verified_checkpoint_data.sequence_number());
     let current_epoch = highest_verified_checkpoint_data.epoch;
 
     let timestamp_ms = simulacrum.with_store(|store| store.get_clock().timestamp_ms());

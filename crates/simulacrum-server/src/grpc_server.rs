@@ -51,6 +51,7 @@ pub async fn start_simulacrum_grpc_server(
 
     start_grpc_server(
         grpc_reader,
+        #[allow(clippy::unnecessary_literal_unwrap)]
         event_subscriber.unwrap_or_else(|| Arc::new(DummyEventSubscriber)),
         executor,
         config,
