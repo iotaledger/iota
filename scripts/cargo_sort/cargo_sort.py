@@ -928,6 +928,43 @@ def get_crate_path(toml_path: str, target_dir: str) -> str:
     rel_path = os.path.relpath(toml_path, target_dir)
     return rel_path.replace('/Cargo.toml', '') if rel_path.endswith('/Cargo.toml') else rel_path
 
+def should_ignore_dependency(args, dep_name: str, crate_path: str = None) -> bool:
+    """Check if a dependency should be ignored based on strict-ignore rules."""
+    if not args.strict_ignore:
+        return False
+    
+    # Parse ignore rules
+    ignored_deps = set()
+    ignored_dep_crate_combos = {}
+    ignored_crates = set()
+    
+    for ignore_rule in args.strict_ignore:
+        if ':' in ignore_rule:
+            dep_part, crate_part = ignore_rule.split(':', 1)
+            if dep_part == '*':
+                ignored_crates.add(crate_part)
+            else:
+                if dep_part not in ignored_dep_crate_combos:
+                    ignored_dep_crate_combos[dep_part] = set()
+                ignored_dep_crate_combos[dep_part].add(crate_part)
+        else:
+            ignored_deps.add(ignore_rule)
+    
+    # Check if dependency is completely ignored
+    if dep_name in ignored_deps:
+        return True
+    
+    # Check if specific dep:crate combo is ignored
+    if crate_path and dep_name in ignored_dep_crate_combos:
+        if crate_path in ignored_dep_crate_combos[dep_name]:
+            return True
+    
+    # Check if crate is globally ignored
+    if crate_path and crate_path in ignored_crates:
+        return True
+    
+    return False
+
 def run_consolidate_mode(args, target_dir: str, root_cargo_toml: str, ignore_patterns: list, iteration: int = 1):
     # run the consolidate dependencies mode.
     internal_crates = set(get_package_names_from_cargo_tomls(target_dir, ignore_patterns).keys())
@@ -1193,41 +1230,18 @@ def run_consolidate_mode(args, target_dir: str, root_cargo_toml: str, ignore_pat
     if version_conflicts:
         print(f"\n{YELLOW} Version Conflicts Found:{RESET}")
         
-        # Parse strict ignore rules for display hints
-        ignored_deps = set()
-        ignored_dep_crate_combos = {}
-        ignored_crates = set()
-        
-        if args.strict:
-            for ignore_rule in args.strict_ignore:
-                if ':' in ignore_rule:
-                    dep_part, crate_part = ignore_rule.split(':', 1)
-                    if dep_part == '*':
-                        ignored_crates.add(crate_part)
-                    else:
-                        if dep_part not in ignored_dep_crate_combos:
-                            ignored_dep_crate_combos[dep_part] = set()
-                        ignored_dep_crate_combos[dep_part].add(crate_part)
-                else:
-                    ignored_deps.add(ignore_rule)
-        
         for pkg_name, conflict in version_conflicts.items():
             workspace_ver = conflict['workspace_version']
             crate_versions = conflict['crate_versions']
             
-            # Check if this dependency is completely ignored
-            dep_completely_ignored = args.strict and pkg_name in ignored_deps
+            # Check if this dependency is completely ignored (no crate-specific rules)
+            dep_completely_ignored = args.strict and should_ignore_dependency(args, pkg_name, None)
             
             # Helper function to format crates with ignore annotations
             def format_crates_with_ignore(crates):
                 displayed_crates = []
                 for crate in crates:
-                    crate_ignored = False
-                    if args.strict:
-                        # Check if this crate is ignored
-                        if (crate in ignored_crates or 
-                            (pkg_name in ignored_dep_crate_combos and crate in ignored_dep_crate_combos[pkg_name])):
-                            crate_ignored = True
+                    crate_ignored = args.strict and should_ignore_dependency(args, pkg_name, crate)
                     
                     if crate_ignored:
                         displayed_crates.append(f"{RED}{crate} (ignored){RESET}")
@@ -1268,7 +1282,7 @@ def run_consolidate_mode(args, target_dir: str, root_cargo_toml: str, ignore_pat
             # Check if any conflicts should cause strict mode failure
             strict_failures = {}
             for pkg_name, conflict in version_conflicts.items():
-                if pkg_name in ignored_deps:
+                if should_ignore_dependency(args, pkg_name, None):
                     continue  # Ignore this dependency completely
                 
                 workspace_ver = conflict['workspace_version']
@@ -1278,11 +1292,8 @@ def run_consolidate_mode(args, target_dir: str, root_cargo_toml: str, ignore_pat
                 for version, crates in crate_versions.items():
                     filtered_crates = []
                     for crate in crates:
-                        # Skip if crate is globally ignored
-                        if crate in ignored_crates:
-                            continue
                         # Skip if this specific dep:crate combo is ignored
-                        if pkg_name in ignored_dep_crate_combos and crate in ignored_dep_crate_combos[pkg_name]:
+                        if should_ignore_dependency(args, pkg_name, crate):
                             continue
                         filtered_crates.append(crate)
                     
@@ -1405,6 +1416,11 @@ def run_consolidate_mode(args, target_dir: str, root_cargo_toml: str, ignore_pat
         workspace_dep = info['dep']
         for toml_path, section, dep in info['usages']:
             if not dep.workspace:
+                # Check if this specific dep:crate combination should be ignored
+                crate_path = get_crate_path(toml_path, target_dir)
+                if should_ignore_dependency(args, alias, crate_path):
+                    continue  # Skip this conversion
+                
                 # When converting to workspace ref, handle default-features correctly:
                 # If workspace has default-features=false but this crate didn't explicitly disable them,
                 # it needs default-features=true to maintain original behavior
@@ -1448,6 +1464,11 @@ def run_consolidate_mode(args, target_dir: str, root_cargo_toml: str, ignore_pat
             workspace_dep = info['root_spec']
             for toml_path, section, dep in info['usages']:
                 if not dep.workspace and not is_special_dep_section(section):
+                    # Check if this specific dep:crate combination should be ignored
+                    crate_path = get_crate_path(toml_path, target_dir)
+                    if should_ignore_dependency(args, alias, crate_path):
+                        continue  # Skip this conversion
+                    
                     # Convert non-workspace usage to workspace reference
                     explicit_default_features = None
                     if workspace_dep.default_features is False and dep.default_features is not False:
