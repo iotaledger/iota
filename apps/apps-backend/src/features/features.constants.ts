@@ -31,7 +31,7 @@ export const KNOWN_ADDRESSES_ALIASES = Object.fromEntries(
 );
 
 export const NAME_ADDRESS_RESOLUTION_FEATURE: FeatureEnabledByNetwork = {
-    [Network.Mainnet]: false,
+    [Network.Mainnet]: true,
     [Network.Testnet]: true,
     [Network.Devnet]: true,
     [Network.Localnet]: false,
