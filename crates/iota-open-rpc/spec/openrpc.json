@@ -3278,7 +3278,7 @@
           }
         },
         {
-          "name": "call_args",
+          "name": "arguments",
           "required": true,
           "schema": {
             "type": "array",

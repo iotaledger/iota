@@ -30,9 +30,10 @@ use iota_types::{
     },
     full_checkpoint_content::{CheckpointData, CheckpointTransaction},
     messages_checkpoint::{
-        CertifiedCheckpointSummary, CheckpointContents, CheckpointContentsDigest, CheckpointDigest,
-        CheckpointSummary, FullCheckpointContents,
+        CertifiedCheckpointSummary, CheckpointCommitment, CheckpointContents,
+        CheckpointContentsDigest, CheckpointDigest, CheckpointSummary, FullCheckpointContents,
     },
+    messages_consensus::ConsensusDeterminedVersionAssignments,
     messages_grpc::ObjectInfoRequestKind,
     move_package::TypeOrigin,
     multisig::{MultiSig, MultiSigPublicKey},
@@ -40,8 +41,8 @@ use iota_types::{
     signature::GenericSignature,
     storage::DeleteKind,
     transaction::{
-        Argument, CallArg, Command, EndOfEpochTransactionKind, ObjectArg, SenderSignedData,
-        TransactionData, TransactionExpiration, TransactionKind,
+        Argument, CallArg, Command, EndOfEpochTransactionKind, GenesisObject, ObjectArg,
+        SenderSignedData, TransactionData, TransactionExpiration, TransactionKind,
     },
     type_input::{StructInput, TypeInput},
     utils::DEFAULT_ADDRESS_SEED,
@@ -255,6 +256,11 @@ fn get_registry() -> Result<Registry> {
         .unwrap();
     tracer.trace_type::<CheckpointContents>(&samples).unwrap();
     tracer.trace_type::<CheckpointSummary>(&samples).unwrap();
+    tracer.trace_type::<CheckpointCommitment>(&samples).unwrap();
+    tracer.trace_type::<GenesisObject>(&samples).unwrap();
+    tracer
+        .trace_type::<ConsensusDeterminedVersionAssignments>(&samples)
+        .unwrap();
 
     let sender_data = SenderSignedData::new(
         TransactionData::new_with_gas_coins(
@@ -267,6 +273,7 @@ fn get_registry() -> Result<Registry> {
         Vec::new(),
     );
     tracer.trace_value(&mut samples, &sender_data).unwrap();
+    tracer.trace_type::<TransactionData>(&samples).unwrap();
 
     let quorum_sig: AuthorityStrongQuorumSignInfo = AuthorityQuorumSignInfo {
         epoch: 0,

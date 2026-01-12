@@ -1,5 +1,13 @@
 # @iota/dapp-kit
 
+## 0.8.3
+
+### Patch Changes
+
+-   Updated dependencies [1925bea]
+    -   @iota/iota-sdk@1.10.1
+    -   @iota/wallet-standard@0.3.2
+
 ## 0.8.2
 
 ### Patch Changes
