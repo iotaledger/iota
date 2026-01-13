@@ -435,12 +435,13 @@ mod tests {
     }
 
     /// Helper function to test if a certificate with and `tx_data` is
-    /// scheduled. Returns `false` if the certificate is not scheduled.
-    fn should_schedule(
+    /// scheduled. Returns execution start time of the certificate if
+    /// it is scheduled, otherwise returns `None`.
+    fn try_schedule(
         tx_data: &TransactionData,
         shared_object_congestion_tracker: &mut SharedObjectCongestionTracker,
         suggested_gas_price_calculator: &mut SuggestedGasPriceCalculator,
-    ) -> bool {
+    ) -> Option<ExecutionTime> {
         let (certificate, sequencing_result) =
             build_and_try_sequencing_certificate(tx_data, shared_object_congestion_tracker);
         if let SequencingResult::Schedule(execution_start_time) = sequencing_result {
@@ -451,9 +452,9 @@ mod tests {
                 suggested_gas_price_calculator,
             );
 
-            true
+            Some(execution_start_time)
         } else {
-            false
+            None
         }
     }
 
@@ -742,14 +743,15 @@ mod tests {
         // |-------------------------------------|---- 0 -----|
         (0..=2).for_each(|i| {
             let tx_data = &txs_data[i];
-            assert!(
-                should_schedule(
-                    tx_data,
-                    &mut shared_object_congestion_tracker,
-                    &mut suggested_gas_price_calculator,
-                ),
-                "Transaction must be scheduled:\n{tx_data:#?}"
-            );
+            if let Some(execution_start_time) = try_schedule(
+                tx_data,
+                &mut shared_object_congestion_tracker,
+                &mut suggested_gas_price_calculator,
+            ) {
+                assert_eq!(execution_start_time, i as u64);
+            } else {
+                panic!("Transaction must be scheduled:\n{tx_data:#?}");
+            }
         });
 
         // If `assign_min_free_exec_slot` is `true`, transaction
@@ -771,14 +773,15 @@ mod tests {
         // must be equals to that of transaction 2 plus one.
         let tx_data = &txs_data[3];
         if assign_min_free_exec_slot {
-            assert!(
-                should_schedule(
-                    tx_data,
-                    &mut shared_object_congestion_tracker,
-                    &mut suggested_gas_price_calculator,
-                ),
-                "Transaction must be scheduled:\n{tx_data:#?}"
-            );
+            if let Some(execution_start_time) = try_schedule(
+                tx_data,
+                &mut shared_object_congestion_tracker,
+                &mut suggested_gas_price_calculator,
+            ) {
+                assert_eq!(execution_start_time, 0);
+            } else {
+                panic!("Transaction must be scheduled:\n{tx_data:#?}");
+            }
         } else {
             let (congested_objects, suggested_gas_price) = try_defer(
                 tx_data,
@@ -879,14 +882,15 @@ mod tests {
         // `assign_min_free_exec_slot` is `true`.
         (8..=9).for_each(|i| {
             let tx_data = &txs_data[i];
-            assert!(
-                should_schedule(
-                    tx_data,
-                    &mut shared_object_congestion_tracker,
-                    &mut suggested_gas_price_calculator,
-                ),
-                "Transaction must be scheduled:\n{tx_data:#?}"
-            );
+            if let Some(execution_start_time) = try_schedule(
+                tx_data,
+                &mut shared_object_congestion_tracker,
+                &mut suggested_gas_price_calculator,
+            ) {
+                assert_eq!(execution_start_time, i as u64 - 7);
+            } else {
+                panic!("Transaction must be scheduled:\n{tx_data:#?}");
+            }
         });
 
         // Transactions
@@ -989,17 +993,39 @@ mod tests {
         // |                        |                        |---- 1M     |
         // |                        |                        |            |
         // |-------------------------------------------------|---- 0 -----|
-        (0..=2).for_each(|i| {
-            let tx_data = &txs_data[i];
-            assert!(
-                should_schedule(
-                    tx_data,
-                    &mut shared_object_congestion_tracker,
-                    &mut suggested_gas_price_calculator,
-                ),
-                "Transaction must be scheduled:\n{tx_data:#?}"
-            );
-        });
+        // 0:
+        let tx_data = &txs_data[0];
+        if let Some(execution_start_time) = try_schedule(
+            tx_data,
+            &mut shared_object_congestion_tracker,
+            &mut suggested_gas_price_calculator,
+        ) {
+            assert_eq!(execution_start_time, 0);
+        } else {
+            panic!("Transaction must be scheduled:\n{tx_data:#?}");
+        }
+        // 1:
+        let tx_data = &txs_data[1];
+        if let Some(execution_start_time) = try_schedule(
+            tx_data,
+            &mut shared_object_congestion_tracker,
+            &mut suggested_gas_price_calculator,
+        ) {
+            assert_eq!(execution_start_time, 3_000_000);
+        } else {
+            panic!("Transaction must be scheduled:\n{tx_data:#?}");
+        }
+        // 2:
+        let tx_data = &txs_data[2];
+        if let Some(execution_start_time) = try_schedule(
+            tx_data,
+            &mut shared_object_congestion_tracker,
+            &mut suggested_gas_price_calculator,
+        ) {
+            assert_eq!(execution_start_time, 4_000_000);
+        } else {
+            panic!("Transaction must be scheduled:\n{tx_data:#?}");
+        }
 
         // If `assign_min_free_exec_slot` is `true`, transaction
         // 3:  (7000, 2_000_000, [object_2: mut])
@@ -1032,14 +1058,15 @@ mod tests {
         // must be equals to that of transaction 2 plus one.
         let tx_data = &txs_data[3];
         if assign_min_free_exec_slot {
-            assert!(
-                should_schedule(
-                    tx_data,
-                    &mut shared_object_congestion_tracker,
-                    &mut suggested_gas_price_calculator,
-                ),
-                "Transaction must be scheduled:\n{tx_data:#?}"
-            );
+            if let Some(execution_start_time) = try_schedule(
+                tx_data,
+                &mut shared_object_congestion_tracker,
+                &mut suggested_gas_price_calculator,
+            ) {
+                assert_eq!(execution_start_time, 0);
+            } else {
+                panic!("Transaction must be scheduled:\n{tx_data:#?}");
+            }
         } else {
             let (congested_objects, suggested_gas_price) = try_defer(
                 tx_data,
@@ -1172,17 +1199,28 @@ mod tests {
         // |-------------------------------------------------|---- 0 -----|
         // NOTE: certificate 3 will only be scheduled if
         // `assign_min_free_exec_slot` is `true`.
-        (8..=9).for_each(|i| {
-            let tx_data = &txs_data[i];
-            assert!(
-                should_schedule(
-                    tx_data,
-                    &mut shared_object_congestion_tracker,
-                    &mut suggested_gas_price_calculator,
-                ),
-                "Transaction must be scheduled:\n{tx_data:#?}"
-            );
-        });
+        // 8:
+        let tx_data = &txs_data[8];
+        if let Some(execution_start_time) = try_schedule(
+            tx_data,
+            &mut shared_object_congestion_tracker,
+            &mut suggested_gas_price_calculator,
+        ) {
+            assert_eq!(execution_start_time, 3_000_000);
+        } else {
+            panic!("Transaction must be scheduled:\n{tx_data:#?}");
+        }
+        // 9:
+        let tx_data = &txs_data[9];
+        if let Some(execution_start_time) = try_schedule(
+            tx_data,
+            &mut shared_object_congestion_tracker,
+            &mut suggested_gas_price_calculator,
+        ) {
+            assert_eq!(execution_start_time, 7_000_000);
+        } else {
+            panic!("Transaction must be scheduled:\n{tx_data:#?}");
+        }
 
         // Transaction
         // 10: (5000, 1_000_001, [object_1: imm, object_2, imm])
@@ -1322,14 +1360,15 @@ mod tests {
         // |-------------------------------------|---- 0 -----|
         (0..=2).for_each(|i| {
             let tx_data = &txs_data[i];
-            assert!(
-                should_schedule(
-                    tx_data,
-                    &mut shared_object_congestion_tracker,
-                    &mut suggested_gas_price_calculator,
-                ),
-                "Transaction must be scheduled:\n{tx_data:#?}"
-            );
+            if let Some(execution_start_time) = try_schedule(
+                tx_data,
+                &mut shared_object_congestion_tracker,
+                &mut suggested_gas_price_calculator,
+            ) {
+                assert_eq!(execution_start_time, i as u64 + 2);
+            } else {
+                panic!("Transaction must be scheduled:\n{tx_data:#?}");
+            }
         });
 
         // If `assign_min_free_exec_slot` is `true`, transaction
@@ -1345,7 +1384,7 @@ mod tests {
         // |                  | cert. 1 (g=9000) |            |
         // |------------------|------------------|---- 3 -----|
         // | cert. 0 (g=100K) | cert. 3 (g=7000) |            |
-        // |-------------------------------------|---- 2      |
+        // |------------------|------------------|---- 2      |
         // |                  | init. obj. debts |            |
         // |------------------| init. obj. debts |---- 1      |
         // | init. obj. debts | init. obj. debts |            |
@@ -1358,14 +1397,15 @@ mod tests {
         // plus one.
         let tx_data = &txs_data[3];
         if assign_min_free_exec_slot {
-            assert!(
-                should_schedule(
-                    tx_data,
-                    &mut shared_object_congestion_tracker,
-                    &mut suggested_gas_price_calculator,
-                ),
-                "Transaction must be scheduled:\n{tx_data:#?}"
-            );
+            if let Some(execution_start_time) = try_schedule(
+                tx_data,
+                &mut shared_object_congestion_tracker,
+                &mut suggested_gas_price_calculator,
+            ) {
+                assert_eq!(execution_start_time, 2);
+            } else {
+                panic!("Transaction must be scheduled:\n{tx_data:#?}");
+            }
         } else {
             let (congested_objects, suggested_gas_price) = try_defer(
                 tx_data,
@@ -1463,34 +1503,52 @@ mod tests {
         // 8:  (6000, 4_000_000, [object_1: mut]),
         // 9:  (5000, 2_000_000, [object_1: mut])
         // should be scheduled, after which allocations of mutably
-        // accessed shared objects being as follows:
+        // accessed shared objects being as follows if
+        // `assign_min_free_exec_slot` is `true`:
         // |-------------------------------------|------------|
         // |     object_1     |     object_2     | start time |
         // |__________________|__________________|____________|
         // |------------------|------------------|---- 5 -----|
-        // | cert. 9 (g=5000) | cert. 2 (g=8000) |            |
+        // |                  | cert. 2 (g=8000) |            |
         // |------------------|------------------|---- 4      |
-        // | cert. 8 (g=6000) | cert. 1 (g=9000) |            |
+        // | cert. 9 (g=5000) | cert. 1 (g=9000) |            |
         // |------------------|------------------|---- 3 -----|
         // | cert. 0 (g=100K) | cert. 3 (g=7000) |            |
-        // |-------------------------------------|---- 2      |
-        // |                  | init. obj. debts |            |
+        // |------------------|------------------|---- 2      |
+        // | cert. 8 (g=6000) | init. obj. debts |            |
         // |------------------| init. obj. debts |---- 1      |
         // | init. obj. debts | init. obj. debts |            |
         // |-------------------------------------|---- 0 -----|
         // NOTE: certificate 3 will only be scheduled if
         // `assign_min_free_exec_slot` is `true`.
-        (8..=9).for_each(|i| {
-            let tx_data = &txs_data[i];
-            assert!(
-                should_schedule(
-                    tx_data,
-                    &mut shared_object_congestion_tracker,
-                    &mut suggested_gas_price_calculator,
-                ),
-                "Transaction must be scheduled:\n{tx_data:#?}"
+        // Tx 8:
+        let tx_data = &txs_data[8];
+        if let Some(execution_start_time) = try_schedule(
+            tx_data,
+            &mut shared_object_congestion_tracker,
+            &mut suggested_gas_price_calculator,
+        ) {
+            assert_eq!(
+                execution_start_time,
+                if assign_min_free_exec_slot { 1 } else { 3 }
             );
-        });
+        } else {
+            panic!("Transaction must be scheduled:\n{tx_data:#?}");
+        }
+        // Tx 9:
+        let tx_data = &txs_data[9];
+        if let Some(execution_start_time) = try_schedule(
+            tx_data,
+            &mut shared_object_congestion_tracker,
+            &mut suggested_gas_price_calculator,
+        ) {
+            assert_eq!(
+                execution_start_time,
+                if assign_min_free_exec_slot { 3 } else { 4 }
+            );
+        } else {
+            panic!("Transaction must be scheduled:\n{tx_data:#?}");
+        }
 
         // Transactions
         // 10: (5000, 1_000_001, [object_1: imm, object_2, imm]),
