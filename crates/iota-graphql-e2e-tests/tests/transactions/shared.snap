@@ -40,18 +40,6 @@ Response: {
     "transactionBlocks": {
       "nodes": [
         {
-          "kind": {
-            "__typename": "ProgrammableTransactionBlock",
-            "transactions": {
-              "nodes": [
-                {
-                  "package": "0x84d71c058bc8a314b1de14879cb4cbc723fa7f8dc28e31c95021e204a7d80c58",
-                  "module": "m",
-                  "functionName": "get"
-                }
-              ]
-            }
-          },
           "effects": {
             "status": "SUCCESS",
             "unchangedSharedObjects": {
@@ -59,68 +47,80 @@ Response: {
                 {
                   "__typename": "SharedObjectRead",
                   "address": "0x7b85ba777761557bc6824eae0b5bc9d79b71925dbe217a2c2c4b3ae307bf0c01",
-                  "version": 2,
                   "digest": "FGhGfSsEbAQjVB8dB6tzYJpUZ4Udtd7y6n2iBqdBemsB",
                   "object": {
                     "asMoveObject": {
                       "contents": {
-                        "type": {
-                          "repr": "0x84d71c058bc8a314b1de14879cb4cbc723fa7f8dc28e31c95021e204a7d80c58::m::Foo"
-                        },
                         "json": {
                           "id": "0x7b85ba777761557bc6824eae0b5bc9d79b71925dbe217a2c2c4b3ae307bf0c01",
                           "x": "0"
+                        },
+                        "type": {
+                          "repr": "0x84d71c058bc8a314b1de14879cb4cbc723fa7f8dc28e31c95021e204a7d80c58::m::Foo"
                         }
                       }
                     }
-                  }
+                  },
+                  "version": 2
+                }
+              ]
+            }
+          },
+          "kind": {
+            "__typename": "ProgrammableTransactionBlock",
+            "transactions": {
+              "nodes": [
+                {
+                  "functionName": "get",
+                  "module": "m",
+                  "package": "0x84d71c058bc8a314b1de14879cb4cbc723fa7f8dc28e31c95021e204a7d80c58"
                 }
               ]
             }
           }
         },
         {
-          "kind": {
-            "__typename": "ProgrammableTransactionBlock",
-            "transactions": {
-              "nodes": [
-                {
-                  "package": "0x84d71c058bc8a314b1de14879cb4cbc723fa7f8dc28e31c95021e204a7d80c58",
-                  "module": "m",
-                  "functionName": "inc"
-                }
-              ]
-            }
-          },
           "effects": {
             "status": "SUCCESS",
             "unchangedSharedObjects": {
               "nodes": []
             }
-          }
-        },
-        {
+          },
           "kind": {
             "__typename": "ProgrammableTransactionBlock",
             "transactions": {
               "nodes": [
                 {
-                  "package": "0x84d71c058bc8a314b1de14879cb4cbc723fa7f8dc28e31c95021e204a7d80c58",
+                  "functionName": "inc",
                   "module": "m",
-                  "functionName": "get"
+                  "package": "0x84d71c058bc8a314b1de14879cb4cbc723fa7f8dc28e31c95021e204a7d80c58"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "effects": {
+            "status": "SUCCESS",
+            "unchangedSharedObjects": {
+              "nodes": []
+            }
+          },
+          "kind": {
+            "__typename": "ProgrammableTransactionBlock",
+            "transactions": {
+              "nodes": [
+                {
+                  "functionName": "get",
+                  "module": "m",
+                  "package": "0x84d71c058bc8a314b1de14879cb4cbc723fa7f8dc28e31c95021e204a7d80c58"
                 },
                 {
-                  "package": "0x84d71c058bc8a314b1de14879cb4cbc723fa7f8dc28e31c95021e204a7d80c58",
+                  "functionName": "inc",
                   "module": "m",
-                  "functionName": "inc"
+                  "package": "0x84d71c058bc8a314b1de14879cb4cbc723fa7f8dc28e31c95021e204a7d80c58"
                 }
               ]
-            }
-          },
-          "effects": {
-            "status": "SUCCESS",
-            "unchangedSharedObjects": {
-              "nodes": []
             }
           }
         }

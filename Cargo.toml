@@ -233,7 +233,7 @@ anemo-build = { git = "https://github.com/mystenlabs/anemo.git", rev = "c4e7e4cb
 anemo-tower = { git = "https://github.com/mystenlabs/anemo.git", rev = "c4e7e4cb4b624d7738c2016d7b7885c6774ff9c2" }
 anyhow = "1.0.71"
 arc-swap = { version = "1.5.1", features = ["serde"] }
-async-graphql = "7.0.17"
+async-graphql = { version = "7.1.0", default-features = false }
 async-recursion = "1.0.4"
 async-stream = "0.3.6"
 async-trait = "0.1.61"
@@ -341,7 +341,7 @@ schemars = { version = "0.8.21", features = ["either"] }
 scopeguard = "1.1"
 serde = { version = "1.0.144", features = ["derive", "rc"] }
 serde-reflection = "0.5"
-serde_json = { version = "1.0.95", features = ["preserve_order"] }
+serde_json = { version = "1.0.149", features = ["preserve_order"] }
 serde_spanned = "0.6.8"
 serde_with = "3.8"
 serde_yaml = "0.8.26"
@@ -376,8 +376,8 @@ tonic-prost-build = "0.14"
 tonic-rustls = "0.3.0"
 tower = { version = "0.4.12", features = ["full", "util", "timeout", "load-shed", "limit"] }
 tower-http = { version = "0.5", features = ["cors", "full", "trace", "set-header", "propagate-header"] }
-tracing = "0.1.37"
-tracing-subscriber = { version = "0.3.15", default-features = false, features = ["std", "smallvec", "fmt", "ansi", "time", "json", "registry", "env-filter"] }
+tracing = "0.1.44"
+tracing-subscriber = { version = "0.3.22", default-features = false, features = ["std", "smallvec", "fmt", "ansi", "time", "json", "registry", "env-filter"] }
 unescape = "0.1.0"
 url = "2.3.1"
 uuid = { version = "1.1.2", features = ["v4", "fast-rng"] }

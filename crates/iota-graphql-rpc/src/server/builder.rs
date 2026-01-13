@@ -90,6 +90,8 @@ use crate::{
 /// The default allowed maximum lag between the current timestamp and the
 /// checkpoint timestamp.
 const DEFAULT_MAX_CHECKPOINT_LAG: Duration = Duration::from_secs(300);
+/// The maximum complexity allowed for native [`async_graphql`] checks.
+const MAX_COMPLEXITY: usize = 6000;
 
 pub(crate) struct Server {
     router: Router,
@@ -537,6 +539,7 @@ impl ServerBuilder {
 
 fn schema_builder() -> SchemaBuilder<Query, Mutation, Subscription> {
     async_graphql::Schema::build(Query, Mutation, Subscription)
+        .limit_complexity(MAX_COMPLEXITY)
         .register_output_type::<IMoveObject>()
         .register_output_type::<IObject>()
         .register_output_type::<IOwner>()

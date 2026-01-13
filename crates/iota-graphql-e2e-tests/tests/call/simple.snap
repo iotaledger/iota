@@ -178,6 +178,15 @@ Response: {
         "edges": []
       }
     },
+    "object": {
+      "owner": {
+        "__typename": "AddressOwner",
+        "owner": {
+          "address": "0x0000000000000000000000000000000000000000000000000000000000000042"
+        }
+      },
+      "version": 3
+    },
     "second": {
       "objects": {
         "edges": [
@@ -306,15 +315,6 @@ Response: {
           }
         ]
       }
-    },
-    "object": {
-      "version": 3,
-      "owner": {
-        "__typename": "AddressOwner",
-        "owner": {
-          "address": "0x0000000000000000000000000000000000000000000000000000000000000042"
-        }
-      }
     }
   }
 }
@@ -323,6 +323,9 @@ task 20, lines 152-168:
 //# run-graphql
 Response: {
   "data": {
+    "address": {
+      "address": "0x28f02a953f3553f51a9365593c7d4bd0643d2085f004b18c6ca9de51682b2c80"
+    },
     "epoch": {
       "validatorSet": {
         "activeValidators": {
@@ -335,9 +338,6 @@ Response: {
           ]
         }
       }
-    },
-    "address": {
-      "address": "0x28f02a953f3553f51a9365593c7d4bd0643d2085f004b18c6ca9de51682b2c80"
     }
   }
 }

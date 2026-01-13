@@ -62,8 +62,17 @@ pub(crate) struct HistoricalFallbackReader {
 }
 
 impl HistoricalFallbackReader {
-    pub fn new(rest_kv_url: &str, package_resolver: PackageResolver) -> IndexerResult<Self> {
-        let client = HttpRestKVClient::new(rest_kv_url)?;
+    pub fn new(
+        rest_kv_url: &str,
+        package_resolver: PackageResolver,
+        fallback_kv_multi_fetch_batch_size: usize,
+        fallback_kv_concurrent_fetches: usize,
+    ) -> IndexerResult<Self> {
+        let client = HttpRestKVClient::new(
+            rest_kv_url,
+            fallback_kv_multi_fetch_batch_size,
+            fallback_kv_concurrent_fetches,
+        )?;
         Ok(Self {
             client,
             package_resolver,
