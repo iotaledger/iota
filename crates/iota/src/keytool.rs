@@ -64,7 +64,7 @@ use crate::{
     key_identity::{
         KeyIdentity, get_identity_address_from_keystore, get_identity_alias_from_keystore,
     },
-    signing::{ExternalKeySource, sign_secure},
+    signing::{ExternalKeySource, SignData, sign_secure},
 };
 
 #[derive(Subcommand)]
@@ -404,24 +404,6 @@ pub struct ConvertOutput {
 #[serde(rename_all = "camelCase")]
 pub struct SerializedSig {
     serialized_sig_base64: String,
-}
-
-#[derive(Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct SignData {
-    pub iota_address: IotaAddress,
-    // Base64 encoded string of serialized transaction data.
-    pub raw_tx_data: String,
-    // Intent struct used, see [struct Intent] for field definitions.
-    pub intent: Intent,
-    // Base64 encoded [struct IntentMessage] consisting of (intent || message)
-    // where message can be `TransactionData` etc.
-    pub raw_intent_msg: String,
-    // Base64 encoded blake2b hash of the intent message, this is what the signature commits to.
-    pub digest: String,
-    // Base64 encoded `flag || signature || pubkey` for a complete
-    // serialized IOTA signature to be send for executing the transaction.
-    pub iota_signature: String,
 }
 
 // Commented for now: https://github.com/iotaledger/iota/issues/1777
