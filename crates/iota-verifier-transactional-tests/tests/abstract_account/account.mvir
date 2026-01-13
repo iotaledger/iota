@@ -4,6 +4,7 @@
 //# publish
 module 0x0.m {
     import 0x2.account;
+    import 0x2.authenticator_function;
     import 0x2.object;
     import 0x2.package_metadata;
     import 0x1.ascii;
@@ -12,19 +13,8 @@ module 0x0.m {
         id: object.UID,
     }
 
-    t1(
-        package_metadata: &package_metadata.PackageMetadataV1,
-        module_name: ascii.String,
-        function_name: ascii.String,
-    ): account.AuthenticatorFunctionRefV1<Self.Account> {
-        let a: account.AuthenticatorFunctionRefV1<Self.Account>;
-        label l0:
-        a = account.create_auth_function_ref_v1<Self.Account>(move(package_metadata), move(module_name), move(function_name));
-        return move(a);
-    }
-
-    t2(account: &Self.Account): &account.AuthenticatorFunctionRefV1<Self.Account> {
-        let a: &account.AuthenticatorFunctionRefV1<Self.Account>;
+    t1(account: &Self.Account): &authenticator_function.AuthenticatorFunctionRefV1<Self.Account> {
+        let a: &authenticator_function.AuthenticatorFunctionRefV1<Self.Account>;
         let id: &object.UID;
         label l0:
         id = &move(account).Account::id;
@@ -32,7 +22,7 @@ module 0x0.m {
         return move(a);
     }
 
-    t3(account: &Self.Account): bool {
+    t2(account: &Self.Account): bool {
         let b: bool;
         let id: &object.UID;
         label l0:
@@ -41,20 +31,20 @@ module 0x0.m {
         return move(b);
     }
 
-    t4(account: Self.Account, authenticator: account.AuthenticatorFunctionRefV1<Self.Account>) {
+    t3(account: Self.Account, authenticator: authenticator_function.AuthenticatorFunctionRefV1<Self.Account>) {
         label l0:
         account.create_account_v1<Self.Account>(move(account), move(authenticator));
         return;
     }
 
-    t5(account: Self.Account, authenticator: account.AuthenticatorFunctionRefV1<Self.Account>) {
+    t4(account: Self.Account, authenticator: authenticator_function.AuthenticatorFunctionRefV1<Self.Account>) {
         label l0:
         account.create_immutable_account_v1<Self.Account>(move(account), move(authenticator));
         return;
     }
 
-    t6(account: &mut Self.Account, authenticator: account.AuthenticatorFunctionRefV1<Self.Account>): account.AuthenticatorFunctionRefV1<Self.Account> {
-        let a: account.AuthenticatorFunctionRefV1<Self.Account>;
+    t5(account: &mut Self.Account, authenticator: authenticator_function.AuthenticatorFunctionRefV1<Self.Account>): authenticator_function.AuthenticatorFunctionRefV1<Self.Account> {
+        let a: authenticator_function.AuthenticatorFunctionRefV1<Self.Account>;
         label l0:
         a = account.rotate_auth_function_ref_v1<Self.Account>(move(account), move(authenticator));
         return move(a);

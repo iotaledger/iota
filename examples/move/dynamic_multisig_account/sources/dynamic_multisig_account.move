@@ -5,8 +5,9 @@ module dynamic_multisig_account::dynamic_multisig_account;
 
 use dynamic_multisig_account::members::{Self, Members};
 use dynamic_multisig_account::transactions::{Self, Transactions};
-use iota::account::{Self, AuthenticatorFunctionRefV1};
+use iota::account;
 use iota::auth_context::AuthContext;
+use iota::authenticator_function::AuthenticatorFunctionRefV1;
 use iota::dynamic_field;
 
 // --------------------------------------- Errors ---------------------------------------

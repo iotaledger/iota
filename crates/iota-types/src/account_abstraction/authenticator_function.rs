@@ -1,4 +1,4 @@
-// Copyright (c) 2025 IOTA Stiftung
+// Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use move_core_types::{
@@ -15,11 +15,9 @@ use crate::{
     object::{Data, Object},
 };
 
-pub const ACCOUNT_MODULE_NAME: &IdentStr = ident_str!("account");
+pub const AUTHENTICATOR_FUNCTION_MODULE_NAME: &IdentStr = ident_str!("authenticator_function");
 pub const AUTHENTICATOR_FUNCTION_REF_V1_STRUCT_NAME: &IdentStr =
     ident_str!("AuthenticatorFunctionRefV1");
-pub const AUTHENTICATOR_FUNCTION_REF_V1_KEY_STRUCT_NAME: &IdentStr =
-    ident_str!("AuthenticatorFunctionRefV1Key");
 
 #[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]
 pub struct AuthenticatorFunctionRefV1 {
@@ -28,19 +26,11 @@ pub struct AuthenticatorFunctionRefV1 {
     pub function: String,
 }
 
-#[derive(Debug, Default, Serialize, Deserialize, Clone, Eq, PartialEq)]
-pub struct AuthenticatorFunctionRefV1Key {
-    // This field is required to make a Rust struct compatible with an empty Move one.
-    // An empty Move struct contains a 1-byte dummy bool field because empty fields are not
-    // allowed in the bytecode.
-    dummy_field: bool,
-}
-
 impl AuthenticatorFunctionRefV1 {
     pub fn type_(type_param: StructTag) -> StructTag {
         StructTag {
             address: IOTA_FRAMEWORK_ADDRESS,
-            module: ACCOUNT_MODULE_NAME.to_owned(),
+            module: AUTHENTICATOR_FUNCTION_MODULE_NAME.to_owned(),
             name: AUTHENTICATOR_FUNCTION_REF_V1_STRUCT_NAME.to_owned(),
             type_params: vec![TypeTag::Struct(Box::new(type_param))],
         }
@@ -54,7 +44,7 @@ impl AuthenticatorFunctionRefV1 {
 
     pub fn is_authenticator_function_ref_v1(tag: &StructTag) -> bool {
         tag.address == IOTA_FRAMEWORK_ADDRESS
-            && tag.module.as_ident_str() == ACCOUNT_MODULE_NAME
+            && tag.module.as_ident_str() == AUTHENTICATOR_FUNCTION_MODULE_NAME
             && tag.name.as_ident_str() == AUTHENTICATOR_FUNCTION_REF_V1_STRUCT_NAME
     }
 }
@@ -74,20 +64,5 @@ impl TryFrom<Object> for AuthenticatorFunctionRefV1 {
         Err(IotaError::Type {
             error: format!("Object type is not a AuthenticatorFunctionRefV1: {object:?}"),
         })
-    }
-}
-
-impl AuthenticatorFunctionRefV1Key {
-    pub fn tag() -> StructTag {
-        StructTag {
-            address: IOTA_FRAMEWORK_ADDRESS,
-            module: ACCOUNT_MODULE_NAME.to_owned(),
-            name: AUTHENTICATOR_FUNCTION_REF_V1_KEY_STRUCT_NAME.to_owned(),
-            type_params: Vec::new(),
-        }
-    }
-
-    pub fn to_bcs_bytes(&self) -> Vec<u8> {
-        bcs::to_bytes(&self).unwrap()
     }
 }

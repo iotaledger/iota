@@ -1,7 +1,8 @@
 // tests modules cannot use private account internal functions outside of the defining module
 
 module a::m {
-    use iota::account::{Self, AuthenticatorFunctionRefV1};
+    use iota::account;
+    use iota::authenticator_function::AuthenticatorFunctionRefV1;
 
     public fun t1<A: key>(account: A, authenticator: AuthenticatorFunctionRefV1<A>) {
         account::create_account_v1(account, authenticator);
@@ -25,12 +26,16 @@ module iota::object {
     }
 }
 
-module iota::account {
+module iota::authenticator_function {
     use iota::object::UID;
 
     struct AuthenticatorFunctionRefV1<phantom Account: key> {
         id: UID,
     }
+}
+
+module iota::account {
+    use iota::authenticator_function::AuthenticatorFunctionRefV1;
 
     public fun create_account_v1<Account: key>(_: Account, _: AuthenticatorFunctionRefV1<Account>) {
         abort 0

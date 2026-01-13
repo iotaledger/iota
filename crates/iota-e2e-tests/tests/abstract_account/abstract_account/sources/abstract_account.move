@@ -3,7 +3,8 @@
 
 module abstract_account::abstract_account;
 
-use iota::account::{Self, AuthenticatorFunctionRefV1};
+use iota::account;
+use iota::authenticator_function::AuthenticatorFunctionRefV1;
 use iota::coin::Coin;
 use iota::dynamic_field;
 use iota::iota::IOTA;

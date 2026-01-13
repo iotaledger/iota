@@ -4,7 +4,7 @@
 #[test_only]
 module iotaccount::iotaccount_tests;
 
-use iota::account;
+use iota::authenticator_function;
 use iota::test_scenario::{Self, Scenario};
 use iota::test_utils::{assert_eq, assert_ref_eq};
 use iotaccount::iotaccount::{Self, IOTAccount};
@@ -109,7 +109,7 @@ fun account_can_rotate_auth_function_ref_v1() {
 
         assert_eq(*account.borrow_auth_function_ref_v1(), default_authenticator);
 
-        let new_authenticator = account::create_auth_function_ref_v1_for_testing(
+        let new_authenticator = authenticator_function::create_auth_function_ref_v1_for_testing(
             @0x2,
             ascii::string(b"module2"),
             ascii::string(b"function2"),

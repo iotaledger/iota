@@ -41,7 +41,6 @@ pub const TRANSFER_IMPL_FUNCTIONS: &[&IdentStr] = &[
 ];
 
 pub const PUBLIC_ACCOUNT_FUNCTIONS: &[&IdentStr] = &[
-    ident_str!("create_auth_function_ref_v1"),
     ident_str!("borrow_auth_function_ref_v1"),
     ident_str!("has_auth_function_ref_v1"),
 ];

@@ -11,7 +11,7 @@ task 1, line 8:
 Output for 'crates/iota-adapter-transactional-tests/data/account_abstraction/abstract_account_with_pub_key.move':
 created: object(2,0)
 mutated: object(0,1)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 9158000,  storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 9348000,  storage_rebate: 0, non_refundable_storage_fee: 0
 
 task 2, lines 10-35:
 //# publish --sender A --dependencies abstract_account_with_pub_key
@@ -23,7 +23,7 @@ task 3, line 37:
 //# init-abstract-account --sender A --package-metadata object(3,1) --inputs "authenticate" "authenticate_ed25519" x"cc62332e34bb2d5cd69f60efbb2a36cb916c7eb458301ea36636c4dbb012bd88" --create-function abstract_account_with_pub_key::abstract_account::create --account-type abstract_account_with_pub_key::abstract_account::AbstractAccount
 created: object(4,0), object(4,1), object(4,2), object(4,3)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 8892000,  storage_rebate: 980400, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 9006000,  storage_rebate: 980400, non_refundable_storage_fee: 0
 
 task 4, line 39:
 //# view-object 4,0

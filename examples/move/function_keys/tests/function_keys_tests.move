@@ -18,8 +18,8 @@ module function_keys::function_keys_scenario_tests;
 
 use function_keys::fk_store::{Self as store, make_func_key};
 use function_keys::function_keys;
-use iota::account::{Self as account_pkg, AuthenticatorFunctionRefV1};
 use iota::auth_context::{Self as acx, AuthContext};
+use iota::authenticator_function::{Self, AuthenticatorFunctionRefV1};
 use iota::hex;
 use iota::ptb_command::{Self, Command};
 use iota::test_scenario::{Self as scen, Scenario};
@@ -511,7 +511,7 @@ fun test_fk_authenticate_unauthorized_granted_permission() {
 // ============================================================================
 
 fun create_authenticator_function_ref_v1_for_testing(): AuthenticatorFunctionRefV1<IOTAccount> {
-    account_pkg::create_auth_function_ref_v1_for_testing(
+    authenticator_function::create_auth_function_ref_v1_for_testing(
         @0x1,
         ascii::string(b"module"),
         ascii::string(b"function"),
