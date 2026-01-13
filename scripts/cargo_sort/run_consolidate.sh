@@ -1,6 +1,8 @@
 #!/bin/bash
 
 source ./python_cmd.sh
+
+# Run consolidate, ignoring external-crates and nre
 $PYTHON_CMD cargo_sort.py --consolidate-deps \
   --strict \
   --strict-ignore "*:docs/examples/rust" \

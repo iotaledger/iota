@@ -15,7 +15,7 @@ Scans all `Cargo.toml` files and:
 ### Usage
 
 ```bash
-./run.sh [options]
+./run_sort.sh [options]
 
 # Or directly:
 python cargo_sort.py [options]
