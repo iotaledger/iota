@@ -568,7 +568,7 @@ impl KeyToolCommand {
                         CommandOutput::Export(key)
                     }
                     StoredKey::Account(_) => {
-                        bail!("Cannot export account keys");
+                        bail!("Cannot export: account addresses are not backed by private keys");
                     }
                     StoredKey::External { source, .. } => {
                         bail!("Cannot export external keys from {source}");
