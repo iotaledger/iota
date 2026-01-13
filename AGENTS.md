@@ -4,24 +4,27 @@ AGENTS
 ## Tooling
 
 ### Project structure
-- apps/: Web apps and UI packages
-  - wallet: Browser extension web wallet
-  - wallet-dashboard: Nextjs dapp dashboard
-  - iota-explorer: Blockchain explorer
-  - evm-bridge: EVM Bridge dapp
-  - ui-kit: UI components library
-  - ui-icons: Icon library
-  - apps-backend: Backend services for apps
-- sdk/: SDKs
-  - typescript
-  - kiosk
-  - create-dapp
-  - dapp-kit
-  - graphql-transport
-  - isc-sdk
-  - ledgerjs-hw-app-iota
-  - move-bytecode-template
-  - wallet-standard
+```
+apps/
+├── wallet: Browser extension web wallet
+├── wallet-dashboard: Nextjs dapp dashboard
+├── iota-explorer: Blockchain explorer
+├── evm-bridge: EVM Bridge dapp
+├── ui-kit: UI components library
+├── ui-icons: Icon library
+└── apps-backend: Backend services for apps
+
+sdk/
+├── typescript
+├── kiosk
+├── create-dapp
+├── dapp-kit
+├── graphql-transport
+├── isc-sdk
+├── ledgerjs-hw-app-iota
+├── move-bytecode-template
+└── wallet-standard
+```
 
 ### Tools
 - package manager: pnpm (workspace; requires pnpm >= 9)
