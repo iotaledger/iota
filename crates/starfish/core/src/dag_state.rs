@@ -1550,7 +1550,7 @@ impl DagState {
         self.commits_to_write.push(commit);
     }
 
-    /// Add commit info is callled before the first commit in a new leader
+    /// Add commit info is called before the first commit in a new leader
     /// scheduler window
     pub(crate) fn add_commit_info(&mut self, reputation_scores: ReputationScores) {
         // We create an empty scoring subdag once reputation scores are calculated.
