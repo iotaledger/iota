@@ -545,6 +545,14 @@ impl Core {
         commits: Vec<TrustedCommit>,
         committed_subdags: Vec<CommittedSubDag>,
     ) -> ConsensusResult<()> {
+        let _scope = monitored_scope("Core::handle_committed_sub_dags_from_fast_sync");
+        let _s = self
+            .context
+            .metrics
+            .node_metrics
+            .scope_processing_time
+            .with_label_values(&["Core::handle_committed_sub_dags_from_fast_sync"])
+            .start_timer();
         // First, store commits and transactions in DagState
         {
             let mut dag_state = self.dag_state.write();
