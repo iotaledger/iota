@@ -23,3 +23,4 @@ export * from './NoData';
 export * from './Banner';
 export * from './address-alias';
 export * from './named-address';
+export * from './cookie-policy';

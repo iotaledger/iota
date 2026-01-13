@@ -83,7 +83,13 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         serialized_block: ExtendedSerializedBlock,
     ) -> ConsensusResult<()> {
         fail_point_async!("consensus-rpc-response");
-
+        let _s = self
+            .context
+            .metrics
+            .node_metrics
+            .scope_processing_time
+            .with_label_values(&["AuthorityService::handle_stream"])
+            .start_timer();
         let peer_hostname = &self.context.committee.authority(peer).hostname;
 
         // TODO: dedup block verifications, here and with fetched blocks.
@@ -130,6 +136,14 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         let now = self.context.clock.timestamp_utc_ms();
         let forward_time_drift =
             Duration::from_millis(verified_block.timestamp_ms().saturating_sub(now));
+        let latency_to_process_stream =
+            Duration::from_millis(now.saturating_sub(verified_block.timestamp_ms()));
+        self.context
+            .metrics
+            .node_metrics
+            .latency_to_process_stream
+            .with_label_values(&[peer_hostname.as_str()])
+            .observe(latency_to_process_stream.as_secs_f64());
 
         if !self
             .context
@@ -442,13 +456,40 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
 
         // Get requested blocks from store.
         let blocks = if commit_sync_handle {
-            // For commit sync, we respond with all blocks from the store
-            self.dag_state
-                .read()
-                .get_blocks(&block_refs)
-                .into_iter()
-                .flatten()
-                .collect()
+            // For commit sync, optimize by fetching from store for blocks below GC round
+            let gc_round = self.dag_state.read().gc_round();
+
+            // Partition block_refs into those below and at-or-above GC round
+            let (below_gc, above_gc): (Vec<_>, Vec<_>) = block_refs
+                .iter()
+                .partition(|block_ref| block_ref.round < gc_round);
+
+            let mut blocks = Vec::new();
+
+            // Fetch blocks below GC from store
+            if !below_gc.is_empty() {
+                let store_blocks = self
+                    .store
+                    .read_blocks(&below_gc)?
+                    .into_iter()
+                    .flatten()
+                    .collect::<Vec<_>>();
+                blocks.extend(store_blocks);
+            }
+
+            // Fetch blocks at-or-above GC from dag_state
+            if !above_gc.is_empty() {
+                let dag_blocks = self
+                    .dag_state
+                    .read()
+                    .get_blocks(&above_gc)
+                    .into_iter()
+                    .flatten()
+                    .collect::<Vec<_>>();
+                blocks.extend(dag_blocks);
+            }
+
+            blocks
         } else {
             // For periodic or live synchronizer, we respond with requested blocks from the
             // store and with additional blocks from the cache

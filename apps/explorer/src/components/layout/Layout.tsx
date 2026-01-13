@@ -4,7 +4,6 @@
 
 import {
     KioskClientProvider,
-    useCookieConsentBanner,
     ThemeProvider,
     Toaster,
     IotaGraphQLClientProvider,
@@ -17,18 +16,10 @@ import { Fragment } from 'react';
 import { Outlet, ScrollRestoration } from 'react-router-dom';
 import { NetworkContext } from '~/contexts';
 import { useInitialPageView, useNetwork } from '~/hooks';
-import { createIotaClient, persistableStorage, SupportedNetworks } from '~/lib/utils';
+import { createIotaClient, SupportedNetworks } from '~/lib/utils';
 
 export function Layout(): JSX.Element {
     const [network, setNetwork] = useNetwork();
-
-    useCookieConsentBanner(persistableStorage, {
-        cookie_name: 'iota_explorer_cookie_consent',
-        onBeforeLoad: async () => {
-            await import('./CookieConsent.css');
-            document.body.classList.add('cookie-consent-theme');
-        },
-    });
 
     useInitialPageView(network);
 

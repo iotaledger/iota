@@ -94,7 +94,7 @@ pub(crate) trait CommitAPI {
     fn timestamp_ms(&self) -> BlockTimestampMs;
     fn leader(&self) -> BlockRef;
     fn blocks(&self) -> &[BlockRef];
-    fn committed_transactions(&self) -> Vec<BlockRef>;
+    fn committed_transactions(&self) -> &[BlockRef];
 }
 
 /// Specifies one consensus commit.
@@ -146,10 +146,8 @@ impl CommitAPI for CommitV1 {
         &self.blocks
     }
 
-    // TODO: https://github.com/iotaledger/iota/issues/8375
-    // Does this need to be a vector? block refs are a slice == less cloning?
-    fn committed_transactions(&self) -> Vec<BlockRef> {
-        self.committed_transactions.clone()
+    fn committed_transactions(&self) -> &[BlockRef] {
+        &self.committed_transactions
     }
 }
 
@@ -253,21 +251,28 @@ impl CertifiedCommits {
 pub(crate) struct CertifiedCommit {
     commit: Arc<TrustedCommit>,
     verified_block_headers: Vec<VerifiedBlockHeader>,
+    verified_transactions: Vec<VerifiedTransactions>,
 }
 
 impl CertifiedCommit {
     pub(crate) fn new_certified(
         commit: TrustedCommit,
         verified_block_headers: Vec<VerifiedBlockHeader>,
+        verified_transactions: Vec<VerifiedTransactions>,
     ) -> Self {
         Self {
             commit: Arc::new(commit),
             verified_block_headers,
+            verified_transactions,
         }
     }
 
     pub fn block_headers(&self) -> &[VerifiedBlockHeader] {
         &self.verified_block_headers
+    }
+
+    pub fn transactions(&self) -> &[VerifiedTransactions] {
+        &self.verified_transactions
     }
 }
 
@@ -281,12 +286,12 @@ impl Deref for CertifiedCommit {
 
 /// Digest of a consensus commit.
 #[derive(Clone, Copy, Default, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
-pub struct CommitDigest([u8; starfish_config::DIGEST_LENGTH]);
+pub struct CommitDigest([u8; DIGEST_LENGTH]);
 
 impl CommitDigest {
     /// Lexicographic min & max digest.
-    pub const MIN: Self = Self([u8::MIN; starfish_config::DIGEST_LENGTH]);
-    pub const MAX: Self = Self([u8::MAX; starfish_config::DIGEST_LENGTH]);
+    pub const MIN: Self = Self([u8::MIN; DIGEST_LENGTH]);
+    pub const MAX: Self = Self([u8::MAX; DIGEST_LENGTH]);
 
     pub fn into_inner(self) -> [u8; starfish_config::DIGEST_LENGTH] {
         self.0
@@ -640,7 +645,7 @@ pub fn load_pending_subdag_from_store(
     PendingSubDag::new(
         leader_block_ref,
         block_headers,
-        commit.committed_transactions().clone(),
+        commit.committed_transactions().to_vec(),
         commit.timestamp_ms(),
         commit.reference(),
         reputation_scores_desc,

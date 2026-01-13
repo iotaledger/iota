@@ -9,10 +9,7 @@ use axum::{
     extract::{Query, State},
 };
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk2::types::{
-    Argument, Command, ObjectId, Transaction, UnresolvedInputArgument, UnresolvedObjectReference,
-    UnresolvedProgrammableTransaction, UnresolvedTransaction,
-};
+use iota_sdk_types::{Argument, Command, ObjectId, Transaction};
 use iota_types::{
     base_types::{IotaAddress, ObjectID, ObjectRef},
     effects::TransactionEffectsAPI,
@@ -22,13 +19,21 @@ use iota_types::{
     transaction::{
         CallArg, GasData, ObjectArg, ProgrammableTransaction, TransactionData, TransactionDataAPI,
     },
+    transaction_executor::VmChecks,
 };
 use itertools::Itertools;
 use move_binary_format::normalized;
 use schemars::JsonSchema;
 use tap::Pipe;
 
-use super::{TransactionSimulationResponse, execution::SimulateTransactionQueryParameters};
+use super::{
+    TransactionSimulationResponse,
+    execution::SimulateTransactionQueryParameters,
+    unresolved::{
+        UnresolvedInputArgument, UnresolvedObjectReference, UnresolvedProgrammableTransaction,
+        UnresolvedTransaction,
+    },
+};
 use crate::{
     RestError, RestService, Result,
     accept::AcceptFormat,
@@ -128,8 +133,10 @@ async fn resolve_transaction(
     let budget = if let Some(user_provided_budget) = user_provided_budget {
         user_provided_budget
     } else {
+        // Hardcoded dry run simulation
+        let dry_run_checks = VmChecks::Enabled;
         let simulation_result = executor
-            .simulate_transaction(resolved_transaction.clone())
+            .simulate_transaction(resolved_transaction.clone(), dry_run_checks)
             .map_err(anyhow::Error::from)?;
 
         let estimate = estimate_gas_budget_from_gas_cost(

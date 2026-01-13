@@ -1,6 +1,6 @@
 {
     "name": "@iota/graphql-transport",
-    "version": "0.10.0",
+    "version": "0.13.1",
     "description": "A GraphQL transport to allow IotaClient to work with RPC 2.0",
     "license": "Apache-2.0",
     "author": "IOTA Foundation <info@iota.org>",
@@ -27,7 +27,6 @@
         "eslint:fix": "pnpm run eslint:check --fix",
         "lint:fix": "pnpm run eslint:fix && pnpm run prettier:fix",
         "lint": "pnpm run eslint:check && pnpm run prettier:check",
-        "prepublishOnly": "pnpm build",
         "prettier:check": "prettier -c --ignore-unknown --ignore-path=../../.prettierignore --ignore-path=.prettierignore .",
         "prettier:fix": "prettier -w --ignore-unknown --ignore-path=../../.prettierignore --ignore-path=.prettierignore .",
         "test:e2e:nowait": "vitest run e2e",

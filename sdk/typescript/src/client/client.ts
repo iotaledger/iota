@@ -1029,7 +1029,7 @@ export class IotaClient {
     async view(input: ViewParams): Promise<IotaMoveViewCallResults> {
         return await this.transport.request({
             method: 'iota_view',
-            params: [input.functionName, input.typeArgs, input.callArgs],
+            params: [input.functionName, input.typeArgs, input.arguments],
         });
     }
 }

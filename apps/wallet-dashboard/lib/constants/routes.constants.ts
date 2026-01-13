@@ -4,6 +4,7 @@
 import type { ProtectedRoute, PublicRoute } from '../interfaces';
 import { ProtectedRouteTitle } from '../enums';
 import { Activity, Assets, Home, Migration, Stake, Vesting } from '@iota/apps-ui-icons';
+import { ToS_LINK } from '@iota/core';
 
 export const CONNECT_ROUTE: PublicRoute = {
     path: '/',
@@ -61,3 +62,14 @@ export const PROTECTED_ROUTES = [
     VESTING_ROUTE,
     MIGRATION_ROUTE,
 ] as const satisfies ProtectedRoute[];
+
+export const LEGAL_LINKS = [
+    {
+        title: 'Terms of Service',
+        href: ToS_LINK,
+    },
+    {
+        title: 'Cookie Policy',
+        href: COOKIE_POLICY_ROUTE.path,
+    },
+];

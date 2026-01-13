@@ -1,6 +1,6 @@
 {
     "name": "@iota/apps-ui-kit",
-    "version": "0.7.4",
+    "version": "0.9.2",
     "sideEffects": false,
     "repository": "https://github.com/iotaledger/iota",
     "license": "Apache-2.0",
@@ -11,7 +11,6 @@
         "dist"
     ],
     "scripts": {
-        "prepublishOnly": "pnpm turbo run build",
         "prettier:check": "prettier -c --ignore-unknown --ignore-path=../../.prettierignore --ignore-path=.prettierignore .",
         "prettier:fix": "prettier -w --ignore-unknown --ignore-path=../../.prettierignore --ignore-path=.prettierignore .",
         "eslint:check": "eslint --max-warnings=0 .",

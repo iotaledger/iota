@@ -11,19 +11,22 @@ use iota_types::full_checkpoint_content::CheckpointData;
 
 use crate::{
     errors::IndexerError,
-    ingestion::primary::{persist::TransactionObjectChangesToCommit, prepare::PrimaryWorker},
+    ingestion::{
+        common::persist::CommitterWatermark,
+        primary::{persist::TransactionObjectChangesToCommit, prepare::PrimaryWorker},
+    },
     metrics::IndexerMetrics,
 };
 
 #[derive(Clone)]
 pub struct ObjectsSnapshotWorker {
-    pub sender: Sender<(u64, TransactionObjectChangesToCommit)>,
+    pub sender: Sender<(CommitterWatermark, TransactionObjectChangesToCommit)>,
     pub(crate) metrics: IndexerMetrics,
 }
 
 impl ObjectsSnapshotWorker {
     pub fn new(
-        sender: Sender<(u64, TransactionObjectChangesToCommit)>,
+        sender: Sender<(CommitterWatermark, TransactionObjectChangesToCommit)>,
         metrics: IndexerMetrics,
     ) -> ObjectsSnapshotWorker {
         Self { sender, metrics }
@@ -42,7 +45,7 @@ impl Worker for ObjectsSnapshotWorker {
         let transformed_data = PrimaryWorker::index_objects(&checkpoint, &self.metrics).await?;
         self.sender
             .send((
-                checkpoint.checkpoint_summary.sequence_number,
+                CommitterWatermark::from(checkpoint.as_ref()),
                 transformed_data,
             ))
             .await

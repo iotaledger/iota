@@ -7,6 +7,7 @@ use std::{fs::File, io::Write, str::FromStr};
 
 use clap::*;
 use fastcrypto_zkp::{bn254::zk_login::OIDCProvider, zk_login_utils::Bn254FrElement};
+use iota_sdk_types::crypto::{Intent, IntentMessage, PersonalMessage};
 use iota_types::{
     base_types::{
         self, IotaAddress, MoveObjectType, MoveObjectType_, ObjectDigest, ObjectID,
@@ -29,9 +30,10 @@ use iota_types::{
     },
     full_checkpoint_content::{CheckpointData, CheckpointTransaction},
     messages_checkpoint::{
-        CertifiedCheckpointSummary, CheckpointContents, CheckpointContentsDigest, CheckpointDigest,
-        CheckpointSummary, FullCheckpointContents,
+        CertifiedCheckpointSummary, CheckpointCommitment, CheckpointContents,
+        CheckpointContentsDigest, CheckpointDigest, CheckpointSummary, FullCheckpointContents,
     },
+    messages_consensus::ConsensusDeterminedVersionAssignments,
     messages_grpc::ObjectInfoRequestKind,
     move_package::TypeOrigin,
     multisig::{MultiSig, MultiSigPublicKey},
@@ -39,8 +41,8 @@ use iota_types::{
     signature::GenericSignature,
     storage::DeleteKind,
     transaction::{
-        Argument, CallArg, Command, EndOfEpochTransactionKind, ObjectArg, SenderSignedData,
-        TransactionData, TransactionExpiration, TransactionKind,
+        Argument, CallArg, Command, EndOfEpochTransactionKind, GenesisObject, ObjectArg,
+        SenderSignedData, TransactionData, TransactionExpiration, TransactionKind,
     },
     type_input::{StructInput, TypeInput},
     utils::DEFAULT_ADDRESS_SEED,
@@ -54,7 +56,6 @@ use pretty_assertions::assert_str_eq;
 use rand::{SeedableRng, rngs::StdRng};
 use roaring::RoaringBitmap;
 use serde_reflection::{Registry, Result, Samples, Tracer, TracerConfig};
-use shared_crypto::intent::{Intent, IntentMessage, PersonalMessage};
 use typed_store::TypedStoreError;
 
 /// Generate a type format registry for IOTA types
@@ -134,9 +135,7 @@ fn get_registry() -> Result<Registry> {
 
     let msg = IntentMessage::new(
         Intent::iota_transaction(),
-        PersonalMessage {
-            message: "Message".as_bytes().to_vec(),
-        },
+        PersonalMessage("Message".as_bytes().to_vec().into()),
     );
 
     let sig1: GenericSignature = Signature::new_secure(&msg, &kp1).into();
@@ -257,6 +256,11 @@ fn get_registry() -> Result<Registry> {
         .unwrap();
     tracer.trace_type::<CheckpointContents>(&samples).unwrap();
     tracer.trace_type::<CheckpointSummary>(&samples).unwrap();
+    tracer.trace_type::<CheckpointCommitment>(&samples).unwrap();
+    tracer.trace_type::<GenesisObject>(&samples).unwrap();
+    tracer
+        .trace_type::<ConsensusDeterminedVersionAssignments>(&samples)
+        .unwrap();
 
     let sender_data = SenderSignedData::new(
         TransactionData::new_with_gas_coins(
@@ -269,6 +273,7 @@ fn get_registry() -> Result<Registry> {
         Vec::new(),
     );
     tracer.trace_value(&mut samples, &sender_data).unwrap();
+    tracer.trace_type::<TransactionData>(&samples).unwrap();
 
     let quorum_sig: AuthorityStrongQuorumSignInfo = AuthorityQuorumSignInfo {
         epoch: 0,

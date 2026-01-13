@@ -16,8 +16,8 @@ use consensus_config::{
 };
 use enum_dispatch::enum_dispatch;
 use fastcrypto::hash::{Digest, HashFunction};
+use iota_sdk_types::crypto::{Intent, IntentMessage, IntentScope};
 use serde::{Deserialize, Serialize};
-use shared_crypto::intent::{Intent, IntentMessage, IntentScope};
 
 use crate::{
     commit::CommitVote,
@@ -452,6 +452,18 @@ impl VerifiedBlock {
     /// bytes.
     pub(crate) fn new_verified(signed_block: SignedBlock, serialized: Bytes) -> Self {
         let digest = Self::compute_digest(&serialized);
+        VerifiedBlock {
+            block: Arc::new(signed_block),
+            digest,
+            serialized,
+        }
+    }
+
+    pub(crate) fn new_verified_with_digest(
+        signed_block: SignedBlock,
+        serialized: Bytes,
+        digest: BlockDigest,
+    ) -> Self {
         VerifiedBlock {
             block: Arc::new(signed_block),
             digest,

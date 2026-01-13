@@ -3,9 +3,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 module base_addr::base {
-    use iota::object::{Self, UID};
-    use iota::tx_context::{Self, TxContext};
-    use iota::transfer;
     use base_addr::friend_module::{Self, X, Y, Z};
 
     public struct A has store, drop {

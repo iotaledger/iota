@@ -14,11 +14,11 @@ use fastcrypto::{
     secp256r1::{Secp256r1PublicKey, Secp256r1Signature},
     traits::{ToFromBytes, VerifyingKey},
 };
+use iota_sdk_types::crypto::IntentMessage;
 use once_cell::sync::OnceCell;
 use passkey_types::webauthn::{ClientDataType, CollectedClientData};
 use schemars::JsonSchema;
 use serde::{Deserialize, Deserializer, Serialize};
-use shared_crypto::intent::IntentMessage;
 
 use crate::{
     base_types::{EpochId, IotaAddress},

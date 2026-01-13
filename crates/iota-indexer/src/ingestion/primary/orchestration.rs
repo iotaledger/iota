@@ -148,6 +148,8 @@ async fn start_writer_task(
             let epoch = checkpoint.epoch.clone();
             batch.push(checkpoint);
             next_checkpoint_sequence_number += 1;
+            // The batch will consist of contiguous checkpoints and at most one epoch
+            // boundary at the end.
             if batch.len() == writer.checkpoint_commit_batch_size || epoch.is_some() {
                 writer.commit_checkpoints(batch, epoch).await;
                 batch = vec![];

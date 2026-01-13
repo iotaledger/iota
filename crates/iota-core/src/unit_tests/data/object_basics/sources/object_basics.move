@@ -9,9 +9,6 @@ module examples::object_basics {
     use iota::random::Random;
     use iota::dynamic_object_field as ofield;
     use iota::event;
-    use iota::object::{Self, UID, ID};
-    use iota::tx_context::{Self, TxContext};
-    use iota::transfer;
 
     public struct Object has key, store {
         id: UID,

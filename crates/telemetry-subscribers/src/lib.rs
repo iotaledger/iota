@@ -1,6 +1,7 @@
 // Copyright (c) Mysten Labs, Inc.
-// Modifications Copyright (c) 2024 IOTA Stiftung
+// Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
+#![cfg_attr(all(feature = "flamegraph-alloc", nightly), feature(thread_local))]
 
 use std::{
     env,
@@ -32,7 +33,9 @@ use tracing_subscriber::{EnvFilter, Layer, Registry, filter, fmt, layer::Subscri
 use crate::file_exporter::{CachedOpenFile, FileExporter};
 
 mod file_exporter;
+pub mod flamegraph;
 pub mod span_latency_prom;
+pub use flamegraph::FlameSub;
 
 /// Alias for a type-erased error type.
 pub type BoxError = Box<dyn std::error::Error + Send + Sync + 'static>;
@@ -84,6 +87,8 @@ pub struct TelemetryConfig {
     pub sample_rate: f64,
     /// Add directive to include trace logs with provided target.
     pub trace_target: Option<Vec<String>>,
+    /// Enable flamegraph tracing.
+    pub enable_flamegraph: bool,
 }
 
 #[must_use]
@@ -136,6 +141,7 @@ pub struct TracingHandle {
     trace: Option<FilterHandle>,
     file_output: CachedOpenFile,
     sampler: SamplingFilter,
+    flamegraph: Option<FlameSub>,
 }
 
 impl TracingHandle {
@@ -190,6 +196,10 @@ impl TracingHandle {
         } else {
             Err(TelemetryError::TracingDisabled)
         }
+    }
+
+    pub fn get_flamegraph(&self) -> Option<FlameSub> {
+        self.flamegraph.clone()
     }
 }
 
@@ -275,6 +285,7 @@ impl TelemetryConfig {
             prom_registry: None,
             sample_rate: 1.0,
             trace_target: None,
+            enable_flamegraph: false,
         }
     }
 
@@ -317,6 +328,11 @@ impl TelemetryConfig {
         self
     }
 
+    pub fn with_flamegraph(mut self) -> Self {
+        self.enable_flamegraph = true;
+        self
+    }
+
     pub fn with_env(mut self) -> Self {
         if env::var("CRASH_ON_PANIC").is_ok() {
             self.crash_on_panic = true
@@ -345,6 +361,10 @@ impl TelemetryConfig {
 
         if let Ok(sample_rate) = env::var("SAMPLE_RATE") {
             self.sample_rate = sample_rate.parse().expect("Cannot parse SAMPLE_RATE");
+        }
+
+        if env::var("TRACE_FLAMEGRAPH").is_ok() {
+            self.enable_flamegraph = true
         }
 
         self
@@ -480,6 +500,13 @@ impl TelemetryConfig {
             layers.push(fmt_layer);
         }
 
+        let mut flamegraph = None;
+        if config.enable_flamegraph {
+            let flamesub = FlameSub::new();
+            flamegraph = Some(flamesub.clone());
+            layers.push(flamesub.boxed());
+        }
+
         let subscriber = tracing_subscriber::registry().with(layers);
         ::tracing::subscriber::set_global_default(subscriber)
             .expect("unable to initialize tracing subscriber");
@@ -500,6 +527,7 @@ impl TelemetryConfig {
                 trace: trace_filter_handle,
                 file_output,
                 sampler,
+                flamegraph,
             },
         )
     }

@@ -14,6 +14,7 @@ workspace = true
 anemo.workspace = true
 anyhow.workspace = true
 async-trait.workspace = true
+base64.workspace = true
 bcs.workspace = true
 better_any.workspace = true
 bincode.workspace = true
@@ -28,7 +29,6 @@ fastcrypto-zkp.workspace = true
 hex.workspace = true
 im.workspace = true
 indexmap.workspace = true
-iota-sdk2.workspace = true
 itertools.workspace = true
 lru.workspace = true
 nonempty.workspace = true
@@ -42,6 +42,7 @@ passkey-types.workspace = true
 prometheus.workspace = true
 proptest = { workspace = true, optional = true }
 proptest-derive = { workspace = true, optional = true }
+prost-types.workspace = true
 rand.workspace = true
 roaring.workspace = true
 schemars.workspace = true
@@ -64,13 +65,13 @@ iota-enum-compat-util.workspace = true
 iota-macros.workspace = true
 iota-network-stack.workspace = true
 iota-protocol-config.workspace = true
+iota-sdk-types = { workspace = true, features = ["serde"] }
 iota-stardust-sdk = { version = "1.1", default-features = false, features = ["irc_27", "irc_30", "std"], package = "iota-sdk" }
 move-binary-format.workspace = true
 move-bytecode-utils.workspace = true
 move-core-types.workspace = true
 move-vm-profiler.workspace = true
 move-vm-test-utils.workspace = true
-shared-crypto.workspace = true
 starfish-config.workspace = true
 typed-store-error.workspace = true
 
