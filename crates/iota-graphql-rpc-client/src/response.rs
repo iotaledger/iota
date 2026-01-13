@@ -62,8 +62,8 @@ impl GraphqlResponse {
         serde_json::to_string_pretty(&self.full_response).unwrap()
     }
 
-    /// Sort the response data by first the enum variant then by the types' Ord
-    /// implementations
+    /// Sort the response data. Specifically, this sorts the [`Value::Object`]
+    /// map wherever it exists.
     pub fn sort_response_body(&mut self) {
         fn sort_response_value(value: &mut Value) {
             match value {
