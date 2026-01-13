@@ -26,7 +26,6 @@ Response: {
       "sequenceNumber": 3
     },
     "epoch": {
-      "epochId": 0,
       "checkpoints": {
         "nodes": [
           {
@@ -42,7 +41,8 @@ Response: {
             "sequenceNumber": 3
           }
         ]
-      }
+      },
+      "epochId": 0
     }
   }
 }
@@ -78,39 +78,7 @@ Response: {
     "checkpoint": {
       "sequenceNumber": 9
     },
-    "epoch_1": {
-      "epochId": 1,
-      "checkpoints": {
-        "edges": [
-          {
-            "cursor": "eyJjIjo5LCJzIjo0fQ",
-            "node": {
-              "sequenceNumber": 4
-            }
-          },
-          {
-            "cursor": "eyJjIjo5LCJzIjo1fQ",
-            "node": {
-              "sequenceNumber": 5
-            }
-          },
-          {
-            "cursor": "eyJjIjo5LCJzIjo2fQ",
-            "node": {
-              "sequenceNumber": 6
-            }
-          },
-          {
-            "cursor": "eyJjIjo5LCJzIjo3fQ",
-            "node": {
-              "sequenceNumber": 7
-            }
-          }
-        ]
-      }
-    },
     "epoch_0": {
-      "epochId": 0,
       "checkpoints": {
         "edges": [
           {
@@ -138,10 +106,41 @@ Response: {
             }
           }
         ]
-      }
+      },
+      "epochId": 0
+    },
+    "epoch_1": {
+      "checkpoints": {
+        "edges": [
+          {
+            "cursor": "eyJjIjo5LCJzIjo0fQ",
+            "node": {
+              "sequenceNumber": 4
+            }
+          },
+          {
+            "cursor": "eyJjIjo5LCJzIjo1fQ",
+            "node": {
+              "sequenceNumber": 5
+            }
+          },
+          {
+            "cursor": "eyJjIjo5LCJzIjo2fQ",
+            "node": {
+              "sequenceNumber": 6
+            }
+          },
+          {
+            "cursor": "eyJjIjo5LCJzIjo3fQ",
+            "node": {
+              "sequenceNumber": 7
+            }
+          }
+        ]
+      },
+      "epochId": 1
     },
     "epoch_2": {
-      "epochId": 2,
       "checkpoints": {
         "edges": [
           {
@@ -157,7 +156,8 @@ Response: {
             }
           }
         ]
-      }
+      },
+      "epochId": 2
     }
   }
 }
@@ -173,24 +173,7 @@ Response: {
     "checkpoint": {
       "sequenceNumber": 10
     },
-    "epoch_1": {
-      "epochId": 1,
-      "checkpoints": {
-        "nodes": [
-          {
-            "sequenceNumber": 4
-          },
-          {
-            "sequenceNumber": 5
-          },
-          {
-            "sequenceNumber": 6
-          }
-        ]
-      }
-    },
     "epoch_0": {
-      "epochId": 0,
       "checkpoints": {
         "nodes": [
           {
@@ -203,17 +186,34 @@ Response: {
             "sequenceNumber": 2
           }
         ]
-      }
+      },
+      "epochId": 0
+    },
+    "epoch_1": {
+      "checkpoints": {
+        "nodes": [
+          {
+            "sequenceNumber": 4
+          },
+          {
+            "sequenceNumber": 5
+          },
+          {
+            "sequenceNumber": 6
+          }
+        ]
+      },
+      "epochId": 1
     },
     "epoch_2": {
-      "epochId": 2,
       "checkpoints": {
         "nodes": [
           {
             "sequenceNumber": 8
           }
         ]
-      }
+      },
+      "epochId": 2
     }
   }
 }
@@ -226,7 +226,6 @@ Response: {
       "sequenceNumber": 10
     },
     "epoch_0": {
-      "epochId": 0,
       "checkpoints": {
         "nodes": [
           {
@@ -239,10 +238,10 @@ Response: {
             "sequenceNumber": 3
           }
         ]
-      }
+      },
+      "epochId": 0
     },
     "epoch_1": {
-      "epochId": 1,
       "checkpoints": {
         "nodes": [
           {
@@ -255,17 +254,18 @@ Response: {
             "sequenceNumber": 7
           }
         ]
-      }
+      },
+      "epochId": 1
     },
     "epoch_2": {
-      "epochId": 2,
       "checkpoints": {
         "nodes": [
           {
             "sequenceNumber": 9
           }
         ]
-      }
+      },
+      "epochId": 2
     }
   }
 }
@@ -277,31 +277,31 @@ Response: {
     "checkpoint": {
       "sequenceNumber": 10
     },
-    "epoch_2": {
-      "epochId": 2,
-      "checkpoints": {
-        "nodes": []
-      }
-    },
     "epoch_0": {
-      "epochId": 0,
       "checkpoints": {
         "nodes": [
           {
             "sequenceNumber": 2
           }
         ]
-      }
+      },
+      "epochId": 0
     },
     "epoch_1": {
-      "epochId": 1,
       "checkpoints": {
         "nodes": [
           {
             "sequenceNumber": 6
           }
         ]
-      }
+      },
+      "epochId": 1
+    },
+    "epoch_2": {
+      "checkpoints": {
+        "nodes": []
+      },
+      "epochId": 2
     }
   }
 }

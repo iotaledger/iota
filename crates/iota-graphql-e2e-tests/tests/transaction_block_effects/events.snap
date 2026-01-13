@@ -142,55 +142,55 @@ Response: {
     "events": {
       "nodes": [
         {
+          "bcs": "AQAAAAAAAAA=",
           "json": {
             "new_value": "1"
           },
-          "bcs": "AQAAAAAAAAA=",
           "sendingModule": {
             "name": "M1"
           }
         },
         {
+          "bcs": "CgAAAAAAAAA=",
           "json": {
             "new_value": "10"
           },
-          "bcs": "CgAAAAAAAAA=",
           "sendingModule": {
             "name": "M1"
           }
         },
         {
+          "bcs": "CwAAAAAAAAA=",
           "json": {
             "new_value": "11"
           },
-          "bcs": "CwAAAAAAAAA=",
           "sendingModule": {
             "name": "M1"
           }
         },
         {
+          "bcs": "ZAAAAAAAAAA=",
           "json": {
             "new_value": "100"
           },
-          "bcs": "ZAAAAAAAAAA=",
           "sendingModule": {
             "name": "M1"
           }
         },
         {
+          "bcs": "ZQAAAAAAAAA=",
           "json": {
             "new_value": "101"
           },
-          "bcs": "ZQAAAAAAAAA=",
           "sendingModule": {
             "name": "M1"
           }
         },
         {
+          "bcs": "ZgAAAAAAAAA=",
           "json": {
             "new_value": "102"
           },
-          "bcs": "ZgAAAAAAAAA=",
           "sendingModule": {
             "name": "M1"
           }
@@ -212,10 +212,10 @@ Response: {
               "edges": [
                 {
                   "node": {
+                    "bcs": "AQAAAAAAAAA=",
                     "json": {
                       "new_value": "1"
                     },
-                    "bcs": "AQAAAAAAAAA=",
                     "sendingModule": {
                       "name": "M1"
                     }
@@ -242,10 +242,10 @@ Response: {
               "edges": [
                 {
                   "node": {
+                    "bcs": "ZQAAAAAAAAA=",
                     "json": {
                       "new_value": "101"
                     },
-                    "bcs": "ZQAAAAAAAAA=",
                     "sendingModule": {
                       "name": "M1"
                     }
@@ -253,10 +253,10 @@ Response: {
                 },
                 {
                   "node": {
+                    "bcs": "ZgAAAAAAAAA=",
                     "json": {
                       "new_value": "102"
                     },
-                    "bcs": "ZgAAAAAAAAA=",
                     "sendingModule": {
                       "name": "M1"
                     }

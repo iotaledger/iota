@@ -150,28 +150,6 @@ Response: {
     "checkpoint": {
       "sequenceNumber": 12
     },
-    "txs_epoch_0": {
-      "edges": [
-        {
-          "cursor": "eyJjIjo0LCJ0IjowLCJpIjpmYWxzZX0",
-          "node": {
-            "digest": "CFhjKwtoHe55vdfFHt3NNn3UsapGANrYjWY22YDDto73"
-          }
-        },
-        {
-          "cursor": "eyJjIjo0LCJ0IjoxLCJpIjpmYWxzZX0",
-          "node": {
-            "digest": "AeoasPjpn6gVK67Srxrgtesrc7JUL433MMmEwr4zo735"
-          }
-        },
-        {
-          "cursor": "eyJjIjo0LCJ0IjoyLCJpIjpmYWxzZX0",
-          "node": {
-            "digest": "6gXd4nQPmo8XkF2p6tcgL3e8Gv1yg9mEs1J53Yh5pWxh"
-          }
-        }
-      ]
-    },
     "epoch_0_txs": {
       "epochId": 0,
       "transactionBlocks": {
@@ -264,6 +242,28 @@ Response: {
           }
         ]
       }
+    },
+    "txs_epoch_0": {
+      "edges": [
+        {
+          "cursor": "eyJjIjo0LCJ0IjowLCJpIjpmYWxzZX0",
+          "node": {
+            "digest": "CFhjKwtoHe55vdfFHt3NNn3UsapGANrYjWY22YDDto73"
+          }
+        },
+        {
+          "cursor": "eyJjIjo0LCJ0IjoxLCJpIjpmYWxzZX0",
+          "node": {
+            "digest": "AeoasPjpn6gVK67Srxrgtesrc7JUL433MMmEwr4zo735"
+          }
+        },
+        {
+          "cursor": "eyJjIjo0LCJ0IjoyLCJpIjpmYWxzZX0",
+          "node": {
+            "digest": "6gXd4nQPmo8XkF2p6tcgL3e8Gv1yg9mEs1J53Yh5pWxh"
+          }
+        }
+      ]
     },
     "txs_epoch_1": {
       "edges": [
@@ -391,6 +391,31 @@ Response: {
     "checkpoint": {
       "sequenceNumber": 12
     },
+    "epoch_0": {
+      "epochId": 0,
+      "transactionBlocks": {
+        "edges": [
+          {
+            "cursor": "eyJjIjo3LCJ0IjoxLCJpIjpmYWxzZX0",
+            "node": {
+              "digest": "AeoasPjpn6gVK67Srxrgtesrc7JUL433MMmEwr4zo735"
+            }
+          },
+          {
+            "cursor": "eyJjIjo3LCJ0IjoyLCJpIjpmYWxzZX0",
+            "node": {
+              "digest": "6gXd4nQPmo8XkF2p6tcgL3e8Gv1yg9mEs1J53Yh5pWxh"
+            }
+          },
+          {
+            "cursor": "eyJjIjo3LCJ0IjozLCJpIjpmYWxzZX0",
+            "node": {
+              "digest": "7q6n1x31tfr4Lo4gMQ4F5UsP8ySiL3C89yU6ViFihdf6"
+            }
+          }
+        ]
+      }
+    },
     "epoch_1": {
       "epochId": 1,
       "transactionBlocks": {
@@ -440,31 +465,6 @@ Response: {
           }
         ]
       }
-    },
-    "epoch_0": {
-      "epochId": 0,
-      "transactionBlocks": {
-        "edges": [
-          {
-            "cursor": "eyJjIjo3LCJ0IjoxLCJpIjpmYWxzZX0",
-            "node": {
-              "digest": "AeoasPjpn6gVK67Srxrgtesrc7JUL433MMmEwr4zo735"
-            }
-          },
-          {
-            "cursor": "eyJjIjo3LCJ0IjoyLCJpIjpmYWxzZX0",
-            "node": {
-              "digest": "6gXd4nQPmo8XkF2p6tcgL3e8Gv1yg9mEs1J53Yh5pWxh"
-            }
-          },
-          {
-            "cursor": "eyJjIjo3LCJ0IjozLCJpIjpmYWxzZX0",
-            "node": {
-              "digest": "7q6n1x31tfr4Lo4gMQ4F5UsP8ySiL3C89yU6ViFihdf6"
-            }
-          }
-        ]
-      }
     }
   }
 }
@@ -476,19 +476,6 @@ Response: {
     "checkpoint": {
       "sequenceNumber": 12
     },
-    "epoch_1": {
-      "epochId": 1,
-      "transactionBlocks": {
-        "edges": [
-          {
-            "cursor": "eyJjIjo2LCJ0Ijo2LCJpIjpmYWxzZX0",
-            "node": {
-              "digest": "BUCNsiQi7AcFn7YYyDASvKJjJSxLyvRofGejbimuu2C8"
-            }
-          }
-        ]
-      }
-    },
     "epoch_0": {
       "epochId": 0,
       "transactionBlocks": {
@@ -497,6 +484,19 @@ Response: {
             "cursor": "eyJjIjoyLCJ0IjoyLCJpIjpmYWxzZX0",
             "node": {
               "digest": "6gXd4nQPmo8XkF2p6tcgL3e8Gv1yg9mEs1J53Yh5pWxh"
+            }
+          }
+        ]
+      }
+    },
+    "epoch_1": {
+      "epochId": 1,
+      "transactionBlocks": {
+        "edges": [
+          {
+            "cursor": "eyJjIjo2LCJ0Ijo2LCJpIjpmYWxzZX0",
+            "node": {
+              "digest": "BUCNsiQi7AcFn7YYyDASvKJjJSxLyvRofGejbimuu2C8"
             }
           }
         ]

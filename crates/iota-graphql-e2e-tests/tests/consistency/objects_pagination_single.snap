@@ -37,27 +37,27 @@ task 6, lines 38-66:
 //# run-graphql --cursors bcs(@{obj_3_0},@{highest_checkpoint})
 Response: {
   "data": {
-    "before_obj_3_0": {
-      "objects": {
-        "nodes": []
-      }
-    },
     "after_obj_3_0": {
       "objects": {
         "nodes": [
           {
-            "version": 4,
             "contents": {
-              "type": {
-                "repr": "0x5f30b6b73c6e0005dda444933a57d8331d803bd611f0d01041ac14445b71e2e1::M1::Object"
-              },
               "json": {
                 "id": "0x667fb8eaf3ea1f4f8ad4251212756853fe601bf49f89f92aecde723fcc81afec",
                 "value": "100"
+              },
+              "type": {
+                "repr": "0x5f30b6b73c6e0005dda444933a57d8331d803bd611f0d01041ac14445b71e2e1::M1::Object"
               }
-            }
+            },
+            "version": 4
           }
         ]
+      }
+    },
+    "before_obj_3_0": {
+      "objects": {
+        "nodes": []
       }
     }
   }
@@ -80,16 +80,16 @@ Response: {
       "objects": {
         "nodes": [
           {
-            "version": 4,
             "contents": {
-              "type": {
-                "repr": "0x5f30b6b73c6e0005dda444933a57d8331d803bd611f0d01041ac14445b71e2e1::M1::Object"
-              },
               "json": {
                 "id": "0x667fb8eaf3ea1f4f8ad4251212756853fe601bf49f89f92aecde723fcc81afec",
                 "value": "100"
+              },
+              "type": {
+                "repr": "0x5f30b6b73c6e0005dda444933a57d8331d803bd611f0d01041ac14445b71e2e1::M1::Object"
               }
-            }
+            },
+            "version": 4
           }
         ]
       }
@@ -110,49 +110,43 @@ Response: {
       "objects": {
         "nodes": [
           {
-            "version": 4,
             "contents": {
-              "type": {
-                "repr": "0x5f30b6b73c6e0005dda444933a57d8331d803bd611f0d01041ac14445b71e2e1::M1::Object"
-              },
               "json": {
                 "id": "0x047766f0982270376375ca8985aad304cb0543f1ba0d8d9a6531db473b39e079",
                 "value": "1"
-              }
-            }
-          },
-          {
-            "version": 5,
-            "contents": {
+              },
               "type": {
                 "repr": "0x5f30b6b73c6e0005dda444933a57d8331d803bd611f0d01041ac14445b71e2e1::M1::Object"
-              },
+              }
+            },
+            "version": 4
+          },
+          {
+            "contents": {
               "json": {
                 "id": "0x667fb8eaf3ea1f4f8ad4251212756853fe601bf49f89f92aecde723fcc81afec",
                 "value": "200"
+              },
+              "type": {
+                "repr": "0x5f30b6b73c6e0005dda444933a57d8331d803bd611f0d01041ac14445b71e2e1::M1::Object"
               }
-            }
+            },
+            "version": 5
           }
         ]
-      }
-    },
-    "before_obj_3_0_chkpt_2": {
-      "consistent_with_above": {
-        "nodes": []
       }
     },
     "after_obj_3_0_chkpt_2": {
       "consistent_with_above": {
         "nodes": [
           {
-            "version": 5,
             "contents": {
-              "type": {
-                "repr": "0x5f30b6b73c6e0005dda444933a57d8331d803bd611f0d01041ac14445b71e2e1::M1::Object"
-              },
               "json": {
                 "id": "0x667fb8eaf3ea1f4f8ad4251212756853fe601bf49f89f92aecde723fcc81afec",
                 "value": "200"
+              },
+              "type": {
+                "repr": "0x5f30b6b73c6e0005dda444933a57d8331d803bd611f0d01041ac14445b71e2e1::M1::Object"
               }
             },
             "owner": {
@@ -160,35 +154,41 @@ Response: {
                 "objects": {
                   "nodes": [
                     {
-                      "version": 4,
                       "contents": {
-                        "type": {
-                          "repr": "0x5f30b6b73c6e0005dda444933a57d8331d803bd611f0d01041ac14445b71e2e1::M1::Object"
-                        },
                         "json": {
                           "id": "0x047766f0982270376375ca8985aad304cb0543f1ba0d8d9a6531db473b39e079",
                           "value": "1"
-                        }
-                      }
-                    },
-                    {
-                      "version": 5,
-                      "contents": {
+                        },
                         "type": {
                           "repr": "0x5f30b6b73c6e0005dda444933a57d8331d803bd611f0d01041ac14445b71e2e1::M1::Object"
-                        },
+                        }
+                      },
+                      "version": 4
+                    },
+                    {
+                      "contents": {
                         "json": {
                           "id": "0x667fb8eaf3ea1f4f8ad4251212756853fe601bf49f89f92aecde723fcc81afec",
                           "value": "200"
+                        },
+                        "type": {
+                          "repr": "0x5f30b6b73c6e0005dda444933a57d8331d803bd611f0d01041ac14445b71e2e1::M1::Object"
                         }
-                      }
+                      },
+                      "version": 5
                     }
                   ]
                 }
               }
-            }
+            },
+            "version": 5
           }
         ]
+      }
+    },
+    "before_obj_3_0_chkpt_2": {
+      "consistent_with_above": {
+        "nodes": []
       }
     }
   }
@@ -207,23 +207,17 @@ task 13, lines 184-247:
 //# run-graphql --cursors bcs(@{obj_3_0},2)
 Response: {
   "data": {
-    "before_obj_3_0_chkpt_2": {
-      "objects": {
-        "nodes": []
-      }
-    },
     "after_obj_3_0_chkpt_2": {
       "objects": {
         "nodes": [
           {
-            "version": 5,
             "contents": {
-              "type": {
-                "repr": "0x5f30b6b73c6e0005dda444933a57d8331d803bd611f0d01041ac14445b71e2e1::M1::Object"
-              },
               "json": {
                 "id": "0x667fb8eaf3ea1f4f8ad4251212756853fe601bf49f89f92aecde723fcc81afec",
                 "value": "200"
+              },
+              "type": {
+                "repr": "0x5f30b6b73c6e0005dda444933a57d8331d803bd611f0d01041ac14445b71e2e1::M1::Object"
               }
             },
             "this_should_differ": {
@@ -231,35 +225,41 @@ Response: {
                 "objects": {
                   "nodes": [
                     {
-                      "version": 4,
                       "contents": {
-                        "type": {
-                          "repr": "0x5f30b6b73c6e0005dda444933a57d8331d803bd611f0d01041ac14445b71e2e1::M1::Object"
-                        },
                         "json": {
                           "id": "0x047766f0982270376375ca8985aad304cb0543f1ba0d8d9a6531db473b39e079",
                           "value": "1"
-                        }
-                      }
-                    },
-                    {
-                      "version": 5,
-                      "contents": {
+                        },
                         "type": {
                           "repr": "0x5f30b6b73c6e0005dda444933a57d8331d803bd611f0d01041ac14445b71e2e1::M1::Object"
-                        },
+                        }
+                      },
+                      "version": 4
+                    },
+                    {
+                      "contents": {
                         "json": {
                           "id": "0x667fb8eaf3ea1f4f8ad4251212756853fe601bf49f89f92aecde723fcc81afec",
                           "value": "200"
+                        },
+                        "type": {
+                          "repr": "0x5f30b6b73c6e0005dda444933a57d8331d803bd611f0d01041ac14445b71e2e1::M1::Object"
                         }
-                      }
+                      },
+                      "version": 5
                     }
                   ]
                 }
               }
-            }
+            },
+            "version": 5
           }
         ]
+      }
+    },
+    "before_obj_3_0_chkpt_2": {
+      "objects": {
+        "nodes": []
       }
     }
   }
@@ -273,49 +273,43 @@ Response: {
       "objects": {
         "nodes": [
           {
-            "version": 6,
             "contents": {
-              "type": {
-                "repr": "0x5f30b6b73c6e0005dda444933a57d8331d803bd611f0d01041ac14445b71e2e1::M1::Object"
-              },
               "json": {
                 "id": "0x047766f0982270376375ca8985aad304cb0543f1ba0d8d9a6531db473b39e079",
                 "value": "300"
-              }
-            }
-          },
-          {
-            "version": 5,
-            "contents": {
+              },
               "type": {
                 "repr": "0x5f30b6b73c6e0005dda444933a57d8331d803bd611f0d01041ac14445b71e2e1::M1::Object"
-              },
+              }
+            },
+            "version": 6
+          },
+          {
+            "contents": {
               "json": {
                 "id": "0x667fb8eaf3ea1f4f8ad4251212756853fe601bf49f89f92aecde723fcc81afec",
                 "value": "200"
+              },
+              "type": {
+                "repr": "0x5f30b6b73c6e0005dda444933a57d8331d803bd611f0d01041ac14445b71e2e1::M1::Object"
               }
-            }
+            },
+            "version": 5
           }
         ]
-      }
-    },
-    "before_obj_3_0_chkpt_3": {
-      "consistent_with_above": {
-        "nodes": []
       }
     },
     "after_obj_3_0_chkpt_3": {
       "consistent_with_above": {
         "nodes": [
           {
-            "version": 5,
             "contents": {
-              "type": {
-                "repr": "0x5f30b6b73c6e0005dda444933a57d8331d803bd611f0d01041ac14445b71e2e1::M1::Object"
-              },
               "json": {
                 "id": "0x667fb8eaf3ea1f4f8ad4251212756853fe601bf49f89f92aecde723fcc81afec",
                 "value": "200"
+              },
+              "type": {
+                "repr": "0x5f30b6b73c6e0005dda444933a57d8331d803bd611f0d01041ac14445b71e2e1::M1::Object"
               }
             },
             "owner": {
@@ -323,35 +317,41 @@ Response: {
                 "objects": {
                   "nodes": [
                     {
-                      "version": 6,
                       "contents": {
-                        "type": {
-                          "repr": "0x5f30b6b73c6e0005dda444933a57d8331d803bd611f0d01041ac14445b71e2e1::M1::Object"
-                        },
                         "json": {
                           "id": "0x047766f0982270376375ca8985aad304cb0543f1ba0d8d9a6531db473b39e079",
                           "value": "300"
-                        }
-                      }
-                    },
-                    {
-                      "version": 5,
-                      "contents": {
+                        },
                         "type": {
                           "repr": "0x5f30b6b73c6e0005dda444933a57d8331d803bd611f0d01041ac14445b71e2e1::M1::Object"
-                        },
+                        }
+                      },
+                      "version": 6
+                    },
+                    {
+                      "contents": {
                         "json": {
                           "id": "0x667fb8eaf3ea1f4f8ad4251212756853fe601bf49f89f92aecde723fcc81afec",
                           "value": "200"
+                        },
+                        "type": {
+                          "repr": "0x5f30b6b73c6e0005dda444933a57d8331d803bd611f0d01041ac14445b71e2e1::M1::Object"
                         }
-                      }
+                      },
+                      "version": 5
                     }
                   ]
                 }
               }
-            }
+            },
+            "version": 5
           }
         ]
+      }
+    },
+    "before_obj_3_0_chkpt_3": {
+      "consistent_with_above": {
+        "nodes": []
       }
     }
   }

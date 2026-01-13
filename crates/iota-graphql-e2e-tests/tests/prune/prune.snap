@@ -58,16 +58,16 @@ Response: {
     "checkpoints": {
       "nodes": [
         {
-          "sequenceNumber": 5,
           "epoch": {
             "epochId": 2
-          }
+          },
+          "sequenceNumber": 5
         },
         {
-          "sequenceNumber": 6,
           "epoch": {
             "epochId": 2
-          }
+          },
+          "sequenceNumber": 6
         }
       ]
     }

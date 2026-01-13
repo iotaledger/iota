@@ -90,7 +90,7 @@ Response: {
     "checkpoints": {
       "nodes": [
         {
-          "notOne": {
+          "isOne": {
             "edges": [
               {
                 "txns": {
@@ -99,7 +99,7 @@ Response: {
               }
             ]
           },
-          "isOne": {
+          "notOne": {
             "edges": [
               {
                 "txns": {
@@ -269,39 +269,39 @@ task 10, lines 174-229:
 //# run-graphql --show-usage
 Response: {
   "data": {
-    "transactionBlocks": {
-      "edges": [
-        {
-          "txns": {
-            "digest": "FsHAuWJAVkoEfTxphR92wR9LJUrZ7Ct3WgFx2sXJjAi8",
-            "a": null,
-            "b": null
-          }
-        }
-      ]
-    },
     "events": {
       "edges": [
         {
           "node": {
+            "sendingModule": {
+              "name": "nft"
+            },
             "timestamp": "1970-01-01T00:00:00Z",
             "type": {
               "repr": "0x0000000000000000000000000000000000000000000000000000000000000002::display::DisplayCreated<0x000000000000000000000000000000000000000000000000000000000000107a::nft::Nft>"
-            },
-            "sendingModule": {
-              "name": "nft"
             }
           }
         },
         {
           "node": {
+            "sendingModule": {
+              "name": "nft"
+            },
             "timestamp": "1970-01-01T00:00:00Z",
             "type": {
               "repr": "0x0000000000000000000000000000000000000000000000000000000000000002::display::VersionUpdated<0x000000000000000000000000000000000000000000000000000000000000107a::nft::Nft>"
-            },
-            "sendingModule": {
-              "name": "nft"
             }
+          }
+        }
+      ]
+    },
+    "transactionBlocks": {
+      "edges": [
+        {
+          "txns": {
+            "a": null,
+            "b": null,
+            "digest": "FsHAuWJAVkoEfTxphR92wR9LJUrZ7Ct3WgFx2sXJjAi8"
           }
         }
       ]
@@ -327,8 +327,8 @@ Response: {
       "edges": [
         {
           "node": {
-            "digest": "FsHAuWJAVkoEfTxphR92wR9LJUrZ7Ct3WgFx2sXJjAi8",
-            "a": null
+            "a": null,
+            "digest": "FsHAuWJAVkoEfTxphR92wR9LJUrZ7Ct3WgFx2sXJjAi8"
           }
         }
       ]

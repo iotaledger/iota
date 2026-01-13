@@ -30,8 +30,15 @@ task 8, lines 25-37:
 //# run-graphql
 Response: {
   "data": {
-    "c4": {
-      "nodes": []
+    "c0": {
+      "nodes": [
+        {
+          "digest": "24NKU58C62cTZxEvJVH5vQb3V3CnaxYBC7dRnhbE727p",
+          "kind": {
+            "__typename": "GenesisTransaction"
+          }
+        }
+      ]
     },
     "c1": {
       "nodes": [
@@ -49,12 +56,12 @@ Response: {
         }
       ]
     },
-    "c0": {
+    "c2": {
       "nodes": [
         {
-          "digest": "24NKU58C62cTZxEvJVH5vQb3V3CnaxYBC7dRnhbE727p",
+          "digest": "7GaccXxmkTAxJUdmuzCaKLoCbccWPpH1giHtkkog6G2w",
           "kind": {
-            "__typename": "GenesisTransaction"
+            "__typename": "ConsensusCommitPrologueTransaction"
           }
         }
       ]
@@ -69,15 +76,8 @@ Response: {
         }
       ]
     },
-    "c2": {
-      "nodes": [
-        {
-          "digest": "7GaccXxmkTAxJUdmuzCaKLoCbccWPpH1giHtkkog6G2w",
-          "kind": {
-            "__typename": "ConsensusCommitPrologueTransaction"
-          }
-        }
-      ]
+    "c4": {
+      "nodes": []
     }
   }
 }
@@ -86,7 +86,18 @@ task 9, lines 39-51:
 //# run-graphql
 Response: {
   "data": {
-    "c4": null,
+    "c0": {
+      "transactionBlocks": {
+        "nodes": [
+          {
+            "digest": "24NKU58C62cTZxEvJVH5vQb3V3CnaxYBC7dRnhbE727p",
+            "kind": {
+              "__typename": "GenesisTransaction"
+            }
+          }
+        ]
+      }
+    },
     "c1": {
       "transactionBlocks": {
         "nodes": [
@@ -105,18 +116,6 @@ Response: {
         ]
       }
     },
-    "c3": {
-      "transactionBlocks": {
-        "nodes": [
-          {
-            "digest": "D5npFWfYfq41ETHBZCtmvjipzVH3GEyhpvJ8gZwSc8LG",
-            "kind": {
-              "__typename": "ConsensusCommitPrologueTransaction"
-            }
-          }
-        ]
-      }
-    },
     "c2": {
       "transactionBlocks": {
         "nodes": [
@@ -129,18 +128,19 @@ Response: {
         ]
       }
     },
-    "c0": {
+    "c3": {
       "transactionBlocks": {
         "nodes": [
           {
-            "digest": "24NKU58C62cTZxEvJVH5vQb3V3CnaxYBC7dRnhbE727p",
+            "digest": "D5npFWfYfq41ETHBZCtmvjipzVH3GEyhpvJ8gZwSc8LG",
             "kind": {
-              "__typename": "GenesisTransaction"
+              "__typename": "ConsensusCommitPrologueTransaction"
             }
           }
         ]
       }
-    }
+    },
+    "c4": null
   }
 }
 
@@ -149,9 +149,6 @@ task 10, lines 53-64:
 Response: {
   "data": {
     "checkpoints": {
-      "pageInfo": {
-        "hasNextPage": false
-      },
       "nodes": [
         {
           "transactionBlocks": {
@@ -207,7 +204,10 @@ Response: {
             ]
           }
         }
-      ]
+      ],
+      "pageInfo": {
+        "hasNextPage": false
+      }
     }
   }
 }

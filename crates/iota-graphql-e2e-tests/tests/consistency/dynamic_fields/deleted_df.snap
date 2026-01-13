@@ -89,8 +89,15 @@ task 11, lines 76-139:
 Response: {
   "data": {
     "df123_removed": {
-      "version": 5,
       "df1": null,
+      "df5": {
+        "name": {
+          "bcs": "A2RmNQ=="
+        },
+        "value": {
+          "json": "df5"
+        }
+      },
       "dynamicFields": {
         "edges": [
           {
@@ -128,17 +135,9 @@ Response: {
           }
         ]
       },
-      "df5": {
-        "name": {
-          "bcs": "A2RmNQ=="
-        },
-        "value": {
-          "json": "df5"
-        }
-      }
+      "version": 5
     },
     "df456_added": {
-      "version": 4,
       "df1": {
         "name": {
           "bcs": "A2RmMQ=="
@@ -224,10 +223,10 @@ Response: {
             }
           }
         ]
-      }
+      },
+      "version": 4
     },
     "latest": {
-      "version": 6,
       "df1": null,
       "df5": {
         "name": {
@@ -273,7 +272,8 @@ Response: {
             }
           }
         ]
-      }
+      },
+      "version": 6
     }
   }
 }
@@ -283,6 +283,15 @@ task 12, lines 141-179:
 Response: {
   "data": {
     "latest_owner": {
+      "df1": null,
+      "df5": {
+        "name": {
+          "bcs": "A2RmNQ=="
+        },
+        "value": {
+          "json": "df5"
+        }
+      },
       "dynamicFields": {
         "edges": [
           {
@@ -319,15 +328,6 @@ Response: {
             }
           }
         ]
-      },
-      "df1": null,
-      "df5": {
-        "name": {
-          "bcs": "A2RmNQ=="
-        },
-        "value": {
-          "json": "df5"
-        }
       }
     }
   }

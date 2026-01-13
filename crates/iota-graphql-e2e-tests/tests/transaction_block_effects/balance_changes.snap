@@ -42,50 +42,50 @@ Response: {
           {
             "effects": {
               "balanceChanges": {
-                "pageInfo": {
-                  "hasPreviousPage": false,
-                  "hasNextPage": false,
-                  "startCursor": "eyJpIjowLCJjIjoyfQ",
-                  "endCursor": "eyJpIjo1LCJjIjoyfQ"
-                },
                 "edges": [
                   {
+                    "cursor": "eyJpIjowLCJjIjoyfQ",
                     "node": {
                       "amount": "4000"
-                    },
-                    "cursor": "eyJpIjowLCJjIjoyfQ"
+                    }
                   },
                   {
+                    "cursor": "eyJpIjoxLCJjIjoyfQ",
                     "node": {
                       "amount": "2000"
-                    },
-                    "cursor": "eyJpIjoxLCJjIjoyfQ"
+                    }
                   },
                   {
+                    "cursor": "eyJpIjoyLCJjIjoyfQ",
                     "node": {
                       "amount": "-1015000"
-                    },
-                    "cursor": "eyJpIjoyLCJjIjoyfQ"
+                    }
                   },
                   {
+                    "cursor": "eyJpIjozLCJjIjoyfQ",
                     "node": {
                       "amount": "1000"
-                    },
-                    "cursor": "eyJpIjozLCJjIjoyfQ"
+                    }
                   },
                   {
+                    "cursor": "eyJpIjo0LCJjIjoyfQ",
                     "node": {
                       "amount": "5000"
-                    },
-                    "cursor": "eyJpIjo0LCJjIjoyfQ"
+                    }
                   },
                   {
+                    "cursor": "eyJpIjo1LCJjIjoyfQ",
                     "node": {
                       "amount": "3000"
-                    },
-                    "cursor": "eyJpIjo1LCJjIjoyfQ"
+                    }
                   }
-                ]
+                ],
+                "pageInfo": {
+                  "endCursor": "eyJpIjo1LCJjIjoyfQ",
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": "eyJpIjowLCJjIjoyfQ"
+                }
               }
             }
           }
@@ -105,26 +105,26 @@ Response: {
           {
             "effects": {
               "balanceChanges": {
-                "pageInfo": {
-                  "hasPreviousPage": true,
-                  "hasNextPage": true,
-                  "startCursor": "eyJpIjozLCJjIjoxfQ",
-                  "endCursor": "eyJpIjo0LCJjIjoxfQ"
-                },
                 "edges": [
                   {
+                    "cursor": "eyJpIjozLCJjIjoxfQ",
                     "node": {
                       "amount": "1000"
-                    },
-                    "cursor": "eyJpIjozLCJjIjoxfQ"
+                    }
                   },
                   {
+                    "cursor": "eyJpIjo0LCJjIjoxfQ",
                     "node": {
                       "amount": "5000"
-                    },
-                    "cursor": "eyJpIjo0LCJjIjoxfQ"
+                    }
                   }
-                ]
+                ],
+                "pageInfo": {
+                  "endCursor": "eyJpIjo0LCJjIjoxfQ",
+                  "hasNextPage": true,
+                  "hasPreviousPage": true,
+                  "startCursor": "eyJpIjozLCJjIjoxfQ"
+                }
               }
             }
           }
@@ -144,32 +144,32 @@ Response: {
           {
             "effects": {
               "balanceChanges": {
-                "pageInfo": {
-                  "hasPreviousPage": false,
-                  "hasNextPage": true,
-                  "startCursor": "eyJpIjowLCJjIjoxfQ",
-                  "endCursor": "eyJpIjoyLCJjIjoxfQ"
-                },
                 "edges": [
                   {
+                    "cursor": "eyJpIjowLCJjIjoxfQ",
                     "node": {
                       "amount": "4000"
-                    },
-                    "cursor": "eyJpIjowLCJjIjoxfQ"
+                    }
                   },
                   {
+                    "cursor": "eyJpIjoxLCJjIjoxfQ",
                     "node": {
                       "amount": "2000"
-                    },
-                    "cursor": "eyJpIjoxLCJjIjoxfQ"
+                    }
                   },
                   {
+                    "cursor": "eyJpIjoyLCJjIjoxfQ",
                     "node": {
                       "amount": "-1015000"
-                    },
-                    "cursor": "eyJpIjoyLCJjIjoxfQ"
+                    }
                   }
-                ]
+                ],
+                "pageInfo": {
+                  "endCursor": "eyJpIjoyLCJjIjoxfQ",
+                  "hasNextPage": true,
+                  "hasPreviousPage": false,
+                  "startCursor": "eyJpIjowLCJjIjoxfQ"
+                }
               }
             }
           }

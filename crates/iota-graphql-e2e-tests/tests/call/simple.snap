@@ -178,6 +178,15 @@ Response: {
         "edges": []
       }
     },
+    "object": {
+      "owner": {
+        "__typename": "AddressOwner",
+        "owner": {
+          "address": "0x0000000000000000000000000000000000000000000000000000000000000042"
+        }
+      },
+      "version": 3
+    },
     "second": {
       "objects": {
         "edges": [
@@ -305,15 +314,6 @@ Response: {
             }
           }
         ]
-      }
-    },
-    "object": {
-      "version": 3,
-      "owner": {
-        "__typename": "AddressOwner",
-        "owner": {
-          "address": "0x0000000000000000000000000000000000000000000000000000000000000042"
-        }
       }
     }
   }

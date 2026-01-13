@@ -90,17 +90,17 @@ Response: {
       "address": "0xced2e280e377be0d1fcfb2d0b4995a60ce079aaa03ade2108fcbdc4b2de38363",
       "owner": null
     },
-    "parent_version_2_no_dof": {
-      "address": "0x427086c0f5eba3646a4b8a5de8fe98b215f7c005b5fd174a3f267e7a07b03bd6",
-      "dynamicFields": {
-        "edges": []
-      }
-    },
     "child_version_3_has_parent": {
       "owner": {
         "parent": {
           "address": "0xee7733e32f4d7a60826c376b85f1028cc3c53e7e3c304182a6a913737511797b"
         }
+      }
+    },
+    "parent_version_2_no_dof": {
+      "address": "0x427086c0f5eba3646a4b8a5de8fe98b215f7c005b5fd174a3f267e7a07b03bd6",
+      "dynamicFields": {
+        "edges": []
       }
     },
     "parent_version_3_has_dof": {
@@ -118,8 +118,8 @@ Response: {
               "value": {
                 "contents": {
                   "json": {
-                    "id": "0xced2e280e377be0d1fcfb2d0b4995a60ce079aaa03ade2108fcbdc4b2de38363",
-                    "count": "1"
+                    "count": "1",
+                    "id": "0xced2e280e377be0d1fcfb2d0b4995a60ce079aaa03ade2108fcbdc4b2de38363"
                   }
                 }
               }
@@ -172,11 +172,6 @@ task 14, lines 177-237:
 //# run-graphql --cursors bcs(@{obj_5_0},1) bcs(@{obj_5_0},2)
 Response: {
   "data": {
-    "use_dof_version_3_cursor_at_parent_version_4": {
-      "dynamicFields": {
-        "edges": []
-      }
-    },
     "parent_version_3_only_dof": {
       "dynamicFields": {
         "edges": [
@@ -192,8 +187,8 @@ Response: {
               "value": {
                 "contents": {
                   "json": {
-                    "id": "0xced2e280e377be0d1fcfb2d0b4995a60ce079aaa03ade2108fcbdc4b2de38363",
-                    "count": "1"
+                    "count": "1",
+                    "id": "0xced2e280e377be0d1fcfb2d0b4995a60ce079aaa03ade2108fcbdc4b2de38363"
                   }
                 }
               }
@@ -259,8 +254,8 @@ Response: {
               "value": {
                 "contents": {
                   "json": {
-                    "id": "0xced2e280e377be0d1fcfb2d0b4995a60ce079aaa03ade2108fcbdc4b2de38363",
-                    "count": "2"
+                    "count": "2",
+                    "id": "0xced2e280e377be0d1fcfb2d0b4995a60ce079aaa03ade2108fcbdc4b2de38363"
                   }
                 }
               }
@@ -274,12 +269,17 @@ Response: {
         "edges": []
       }
     },
-    "use_dof_version_4_cursor_at_version_3": {
+    "use_dof_version_3_cursor_at_parent_version_4": {
       "dynamicFields": {
         "edges": []
       }
     },
     "use_dof_version_4_cursor_at_parent_version_4": {
+      "dynamicFields": {
+        "edges": []
+      }
+    },
+    "use_dof_version_4_cursor_at_version_3": {
       "dynamicFields": {
         "edges": []
       }
@@ -303,8 +303,8 @@ Response: {
         "value": {
           "contents": {
             "json": {
-              "id": "0xced2e280e377be0d1fcfb2d0b4995a60ce079aaa03ade2108fcbdc4b2de38363",
-              "count": "1"
+              "count": "1",
+              "id": "0xced2e280e377be0d1fcfb2d0b4995a60ce079aaa03ade2108fcbdc4b2de38363"
             }
           }
         }
@@ -332,8 +332,8 @@ Response: {
         "value": {
           "contents": {
             "json": {
-              "id": "0xced2e280e377be0d1fcfb2d0b4995a60ce079aaa03ade2108fcbdc4b2de38363",
-              "count": "2"
+              "count": "2",
+              "id": "0xced2e280e377be0d1fcfb2d0b4995a60ce079aaa03ade2108fcbdc4b2de38363"
             }
           }
         }
@@ -382,16 +382,6 @@ task 20, lines 288-338:
 //# run-graphql --cursors bcs(@{obj_5_0},2) bcs(@{obj_5_0},3)
 Response: {
   "data": {
-    "parent_version_5_paginated_on_dof_consistent": {
-      "dynamicFields": {
-        "edges": []
-      }
-    },
-    "parent_version_4_paginated_on_dof_consistent": {
-      "dynamicFields": {
-        "edges": []
-      }
-    },
     "parent_version_4_has_4_children": {
       "dynamicFields": {
         "edges": [
@@ -449,14 +439,19 @@ Response: {
               "value": {
                 "contents": {
                   "json": {
-                    "id": "0xced2e280e377be0d1fcfb2d0b4995a60ce079aaa03ade2108fcbdc4b2de38363",
-                    "count": "2"
+                    "count": "2",
+                    "id": "0xced2e280e377be0d1fcfb2d0b4995a60ce079aaa03ade2108fcbdc4b2de38363"
                   }
                 }
               }
             }
           }
         ]
+      }
+    },
+    "parent_version_4_paginated_on_dof_consistent": {
+      "dynamicFields": {
+        "edges": []
       }
     },
     "parent_version_5_has_7_children": {
@@ -558,14 +553,19 @@ Response: {
               "value": {
                 "contents": {
                   "json": {
-                    "id": "0xced2e280e377be0d1fcfb2d0b4995a60ce079aaa03ade2108fcbdc4b2de38363",
-                    "count": "2"
+                    "count": "2",
+                    "id": "0xced2e280e377be0d1fcfb2d0b4995a60ce079aaa03ade2108fcbdc4b2de38363"
                   }
                 }
               }
             }
           }
         ]
+      }
+    },
+    "parent_version_5_paginated_on_dof_consistent": {
+      "dynamicFields": {
+        "edges": []
       }
     }
   }
@@ -611,16 +611,6 @@ task 25, lines 349-399:
 //# run-graphql --cursors bcs(@{obj_5_0},2) bcs(@{obj_5_0},4)
 Response: {
   "data": {
-    "parent_version_6_paginated_no_df_1_2_3": {
-      "dynamicFields": {
-        "edges": []
-      }
-    },
-    "parent_version_4_paginated_on_dof_consistent": {
-      "dynamicFields": {
-        "edges": []
-      }
-    },
     "parent_version_4_has_df1_2_3": {
       "dynamicFields": {
         "edges": [
@@ -678,14 +668,19 @@ Response: {
               "value": {
                 "contents": {
                   "json": {
-                    "id": "0xced2e280e377be0d1fcfb2d0b4995a60ce079aaa03ade2108fcbdc4b2de38363",
-                    "count": "2"
+                    "count": "2",
+                    "id": "0xced2e280e377be0d1fcfb2d0b4995a60ce079aaa03ade2108fcbdc4b2de38363"
                   }
                 }
               }
             }
           }
         ]
+      }
+    },
+    "parent_version_4_paginated_on_dof_consistent": {
+      "dynamicFields": {
+        "edges": []
       }
     },
     "parent_version_6_no_df_1_2_3": {
@@ -745,14 +740,19 @@ Response: {
               "value": {
                 "contents": {
                   "json": {
-                    "id": "0xced2e280e377be0d1fcfb2d0b4995a60ce079aaa03ade2108fcbdc4b2de38363",
-                    "count": "2"
+                    "count": "2",
+                    "id": "0xced2e280e377be0d1fcfb2d0b4995a60ce079aaa03ade2108fcbdc4b2de38363"
                   }
                 }
               }
             }
           }
         ]
+      }
+    },
+    "parent_version_6_paginated_no_df_1_2_3": {
+      "dynamicFields": {
+        "edges": []
       }
     }
   }
@@ -809,12 +809,6 @@ Response: {
         "sequenceNumber": 8
       }
     },
-    "parent_version_4_paginated_outside_consistent_range": null,
-    "parent_version_6_paginated_no_df_1_2_3": {
-      "dynamicFields": {
-        "edges": []
-      }
-    },
     "parent_version_4_outside_consistent_range": {
       "dynamicFields": {
         "edges": [
@@ -830,8 +824,8 @@ Response: {
               "value": {
                 "contents": {
                   "json": {
-                    "id": "0xced2e280e377be0d1fcfb2d0b4995a60ce079aaa03ade2108fcbdc4b2de38363",
-                    "count": "2"
+                    "count": "2",
+                    "id": "0xced2e280e377be0d1fcfb2d0b4995a60ce079aaa03ade2108fcbdc4b2de38363"
                   }
                 }
               }
@@ -840,6 +834,7 @@ Response: {
         ]
       }
     },
+    "parent_version_4_paginated_outside_consistent_range": null,
     "parent_version_6_no_df_1_2_3": {
       "dynamicFields": {
         "edges": [
@@ -897,14 +892,19 @@ Response: {
               "value": {
                 "contents": {
                   "json": {
-                    "id": "0xced2e280e377be0d1fcfb2d0b4995a60ce079aaa03ade2108fcbdc4b2de38363",
-                    "count": "2"
+                    "count": "2",
+                    "id": "0xced2e280e377be0d1fcfb2d0b4995a60ce079aaa03ade2108fcbdc4b2de38363"
                   }
                 }
               }
             }
           }
         ]
+      }
+    },
+    "parent_version_6_paginated_no_df_1_2_3": {
+      "dynamicFields": {
+        "edges": []
       }
     }
   },
