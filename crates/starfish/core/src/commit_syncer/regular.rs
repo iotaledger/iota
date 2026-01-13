@@ -147,10 +147,10 @@ impl<C: NetworkClient> RegularCommitSyncer<C> {
 
     fn try_schedule_once(&mut self) {
         let quorum_commit_index = self.inner.commit_vote_monitor.quorum_commit_index();
-        let local_commit_index = self.inner.dag_state.read().last_commit_index();
+        let dag_state_commit_index = self.inner.dag_state.read().last_commit_index();
 
         // Skip scheduling depending on sync type and gap threshold.
-        let gap = quorum_commit_index.saturating_sub(local_commit_index);
+        let gap = quorum_commit_index.saturating_sub(dag_state_commit_index);
         if !self.inner.sync_type.should_schedule(
             gap,
             self.inner.context.parameters.commit_sync_gap_threshold,
@@ -168,12 +168,12 @@ impl<C: NetworkClient> RegularCommitSyncer<C> {
             .set(quorum_commit_index as i64);
         metrics
             .commit_sync_local_index
-            .set(local_commit_index as i64);
+            .set(dag_state_commit_index as i64);
         let highest_handled_index = self.inner.commit_consumer_monitor.highest_handled_commit();
         let highest_scheduled_index = self.highest_scheduled_index.unwrap_or(0);
         // Update synced_commit_index periodically to make sure it is not smaller than
         // local commit index.
-        self.synced_commit_index = self.synced_commit_index.max(local_commit_index);
+        self.synced_commit_index = self.synced_commit_index.max(dag_state_commit_index);
         let unhandled_commits_threshold = self.inner.unhandled_commits_threshold();
 
         // TODO: cleanup inflight fetches that are no longer needed.

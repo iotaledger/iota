@@ -114,7 +114,7 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
     }
     #[cfg_attr(test,tracing::instrument(skip_all, name ="",fields(authority = %self.inner.context.own_index)))]
     async fn schedule_loop(mut self, mut rx_shutdown: oneshot::Receiver<()>) {
-        let mut interval = tokio::time::interval(Duration::from_secs(2));
+        let mut interval = tokio::time::interval(Duration::from_millis(500));
         interval.set_missed_tick_behavior(MissedTickBehavior::Skip);
 
         loop {
@@ -207,7 +207,7 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
 
     fn try_schedule_once(&mut self) {
         let quorum_commit_index = self.inner.commit_vote_monitor.quorum_commit_index();
-        let local_commit_index = self.inner.dag_state.read().last_commit_index();
+        let dag_state_commit_index = self.inner.dag_state.read().last_commit_index();
         let highest_handled_index = self.inner.commit_consumer_monitor.highest_handled_commit();
         let highest_scheduled_index = self.highest_scheduled_index.unwrap_or(0);
         let unhandled_commits_threshold = self.inner.unhandled_commits_threshold();
@@ -217,7 +217,7 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
             .commit_sync_batch_size(&self.inner.context);
 
         // Skip scheduling depending on sync type and gap threshold.
-        let gap = quorum_commit_index.saturating_sub(local_commit_index);
+        let gap = quorum_commit_index.saturating_sub(dag_state_commit_index);
         let should_schedule = self.inner.sync_type.should_schedule(
             gap,
             self.inner.context.parameters.commit_sync_gap_threshold,
@@ -234,10 +234,10 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
                 .set(quorum_commit_index as i64);
             metrics
                 .commit_sync_local_index
-                .set(local_commit_index as i64);
+                .set(dag_state_commit_index as i64);
             // Update synced_commit_index periodically to make sure it is not smaller than
             // local commit index.
-            self.synced_commit_index = self.synced_commit_index.max(local_commit_index);
+            self.synced_commit_index = self.synced_commit_index.max(dag_state_commit_index);
 
             // TODO: cleanup inflight fetches that are no longer needed.
             let fetch_after_index = self
