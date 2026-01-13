@@ -503,14 +503,17 @@ async fn test_addresses_command() -> Result<(), anyhow::Error> {
     Ok(())
 }
 
-#[sim_test]
-async fn test_objects_command() -> Result<(), anyhow::Error> {
-    let mut test_cluster = TestClusterBuilder::new()
-        .with_num_validators(1)
-        .build()
-        .await;
-    let address = test_cluster.get_address_0();
-    let context = &mut test_cluster.wallet;
+/// Helper for test_objects_command - tests listing objects owned by an address
+async fn objects_command_helper(
+    wallet_config: &std::path::Path,
+    address: IotaAddress,
+) -> Result<(), anyhow::Error> {
+    // ===== test_objects_command =====
+    // Tests listing objects owned by an address using both address and alias
+    let mut context = WalletContext::new(wallet_config, None, None)?;
+    context.config_mut().set_active_address(Some(address));
+    let client = context.get_client().await?;
+
     let alias = context
         .config()
         .keystore()
@@ -520,17 +523,16 @@ async fn test_objects_command() -> Result<(), anyhow::Error> {
     IotaClientCommands::Objects {
         address: Some(KeyIdentity::Address(address)),
     }
-    .execute(context)
+    .execute(&mut context)
     .await?
     .print(true);
     // Print objects owned by `address`, passing its alias
     IotaClientCommands::Objects {
         address: Some(KeyIdentity::Alias(alias)),
     }
-    .execute(context)
+    .execute(&mut context)
     .await?
     .print(true);
-    let client = context.get_client().await?;
     let _object_refs = client
         .read_api()
         .get_owned_objects(
@@ -545,6 +547,52 @@ async fn test_objects_command() -> Result<(), anyhow::Error> {
             None,
         )
         .await?;
+
+    Ok(())
+}
+
+/// Helper for test_object_info_get_command - tests getting detailed object info by ID
+async fn object_info_command_helper(
+    wallet_config: &std::path::Path,
+    address: IotaAddress,
+) -> Result<(), anyhow::Error> {
+    // ===== test_object_info_get_command =====
+    // Tests getting detailed object info by ID
+    let mut context = WalletContext::new(wallet_config, None, None)?;
+    context.config_mut().set_active_address(Some(address));
+    let client = context.get_client().await?;
+
+    let object_refs = client
+        .read_api()
+        .get_owned_objects(
+            address,
+            Some(IotaObjectResponseQuery::new_with_options(
+                IotaObjectDataOptions::new(),
+            )),
+            None,
+            None,
+        )
+        .await?
+        .data;
+
+    // Check log output contains all object ids.
+    let object_id = object_refs.first().unwrap().object().unwrap().object_id;
+
+    IotaClientCommands::Object {
+        id: object_id,
+        bcs: false,
+    }
+    .execute(&mut context)
+    .await?
+    .print(true);
+
+    IotaClientCommands::Object {
+        id: object_id,
+        bcs: true,
+    }
+    .execute(&mut context)
+    .await?
+    .print(true);
 
     Ok(())
 }
@@ -898,61 +946,16 @@ async fn test_custom_genesis() -> Result<(), anyhow::Error> {
     Ok(())
 }
 
-#[sim_test]
-async fn test_object_info_get_command() -> Result<(), anyhow::Error> {
-    let mut test_cluster = TestClusterBuilder::new()
-        .with_num_validators(1)
-        .build()
-        .await;
-
-    let address = test_cluster.get_address_0();
-    let context = &mut test_cluster.wallet;
-    let client = context.get_client().await?;
-
-    let object_refs = client
-        .read_api()
-        .get_owned_objects(
-            address,
-            Some(IotaObjectResponseQuery::new_with_options(
-                IotaObjectDataOptions::new(),
-            )),
-            None,
-            None,
-        )
-        .await?
-        .data;
-
-    // Check log output contains all object ids.
-    let object_id = object_refs.first().unwrap().object().unwrap().object_id;
-
-    IotaClientCommands::Object {
-        id: object_id,
-        bcs: false,
-    }
-    .execute(context)
-    .await?
-    .print(true);
-
-    IotaClientCommands::Object {
-        id: object_id,
-        bcs: true,
-    }
-    .execute(context)
-    .await?
-    .print(true);
-
-    Ok(())
-}
-
-#[sim_test]
-async fn test_gas_command() -> Result<(), anyhow::Error> {
-    let mut test_cluster = TestClusterBuilder::new()
-        .with_num_validators(1)
-        .build()
-        .await;
-    let rgp = test_cluster.get_reference_gas_price().await;
-    let address = test_cluster.get_address_0();
-    let context = &mut test_cluster.wallet;
+/// Helper for test_gas_command - tests the Gas command and a transfer
+async fn gas_command_helper(
+    wallet_config: &std::path::Path,
+    address: IotaAddress,
+    rgp: u64,
+) -> Result<(), anyhow::Error> {
+    // ===== test_gas_command =====
+    // Tests the Gas command to list gas objects, performs a transfer, then lists again
+    let mut context = WalletContext::new(wallet_config, None, None)?;
+    context.config_mut().set_active_address(Some(address));
     let alias = context
         .config()
         .keystore()
@@ -984,7 +987,7 @@ async fn test_gas_command() -> Result<(), anyhow::Error> {
     IotaClientCommands::Gas {
         address: Some(KeyIdentity::Address(address)),
     }
-    .execute(context)
+    .execute(&mut context)
     .await?
     .print(true);
 
@@ -1003,14 +1006,14 @@ async fn test_gas_command() -> Result<(), anyhow::Error> {
         },
         processing: TxProcessingArgs::default(),
     }
-    .execute(context)
+    .execute(&mut context)
     .await?;
 
     // Fetch gas again, and use the alias instead of the address
     IotaClientCommands::Gas {
         address: Some(KeyIdentity::Alias(alias)),
     }
-    .execute(context)
+    .execute(&mut context)
     .await?
     .print(true);
 
@@ -1601,82 +1604,16 @@ async fn test_delete_shared_object() -> Result<(), anyhow::Error> {
     Ok(())
 }
 
-#[sim_test]
-async fn test_receive_argument() -> Result<(), anyhow::Error> {
-    let mut test_cluster = TestClusterBuilder::new()
-        .with_num_validators(1)
-        .build()
-        .await;
-    let rgp = test_cluster.get_reference_gas_price().await;
-    let address = test_cluster.get_address_0();
-    let context = &mut test_cluster.wallet;
-
-    let client = context.get_client().await?;
-    let object_refs = client
-        .read_api()
-        .get_owned_objects(
-            address,
-            Some(IotaObjectResponseQuery::new_with_options(
-                IotaObjectDataOptions::new()
-                    .with_type()
-                    .with_owner()
-                    .with_previous_transaction(),
-            )),
-            None,
-            None,
-        )
-        .await?
-        .data;
-
-    let gas_obj_id = object_refs.first().unwrap().object().unwrap().object_id;
-
-    // Provide path to well formed package sources
-    let mut package_path = PathBuf::from(TEST_DATA_DIR);
-    package_path.push("tto");
-    let build_config = BuildConfig::new_for_testing().config;
-    let resp = IotaClientCommands::Publish {
-        package_path,
-        build_config,
-        skip_dependency_verification: false,
-        verify_deps: true,
-        with_unpublished_dependencies: false,
-        payment: PaymentArgs {
-            gas: vec![gas_obj_id],
-        },
-        gas_data: GasDataArgs {
-            gas_budget: Some(rgp * TEST_ONLY_GAS_UNIT_FOR_PUBLISH),
-            ..Default::default()
-        },
-        processing: TxProcessingArgs::default(),
-    }
-    .execute(context)
-    .await?;
-
-    let owned_obj_ids = if let IotaClientCommandResult::TransactionBlock(response) = resp {
-        assert_eq!(
-            response.effects.as_ref().unwrap().gas_object().object_id(),
-            gas_obj_id
-        );
-        let x = response.effects.unwrap();
-        x.created().to_vec()
-    } else {
-        unreachable!("Invalid response");
-    };
-
-    // Check the objects
-    for OwnedObjectRef { reference, .. } in &owned_obj_ids {
-        get_parsed_object_assert_existence(reference.object_id, context).await;
-    }
-
-    let package_id = owned_obj_ids
-        .into_iter()
-        .find(|OwnedObjectRef { owner, .. }| owner == &Owner::Immutable)
-        .expect("Must find published package ID")
-        .reference;
-
+/// Helper function to test receive argument with a specific function name
+async fn receive_argument_helper(
+    context: &mut WalletContext,
+    package_id: ObjectID,
+    rgp: u64,
+    function_name: &str,
+) -> Result<(), anyhow::Error> {
     // Start and then receive the object
     let start_call_result = IotaClientCommands::Call {
-        package: (*package_id.object_id).into(),
+        package: package_id.into(),
         module: "tto".to_string(),
         function: "start".to_string(),
         type_args: vec![],
@@ -1717,9 +1654,9 @@ async fn test_receive_argument() -> Result<(), anyhow::Error> {
         };
 
     let receive_result = IotaClientCommands::Call {
-        package: (*package_id.object_id).into(),
+        package: package_id.into(),
         module: "tto".to_string(),
-        function: "receiver".to_string(),
+        function: function_name.to_string(),
         type_args: vec![],
         args: vec![
             IotaJsonValue::from_str(&parent.object_id.to_string()).unwrap(),
@@ -1745,7 +1682,7 @@ async fn test_receive_argument() -> Result<(), anyhow::Error> {
 }
 
 #[sim_test]
-async fn test_receive_argument_by_immut_ref() -> Result<(), anyhow::Error> {
+async fn test_receive_argument_all_variants() -> Result<(), anyhow::Error> {
     let mut test_cluster = TestClusterBuilder::new()
         .with_num_validators(1)
         .build()
@@ -1815,217 +1752,16 @@ async fn test_receive_argument_by_immut_ref() -> Result<(), anyhow::Error> {
         .into_iter()
         .find(|OwnedObjectRef { owner, .. }| owner == &Owner::Immutable)
         .expect("Must find published package ID")
-        .reference;
+        .reference
+        .object_id;
 
-    // Start and then receive the object
-    let start_call_result = IotaClientCommands::Call {
-        package: (*package_id.object_id).into(),
-        module: "tto".to_string(),
-        function: "start".to_string(),
-        type_args: vec![],
-        args: vec![],
-        payment: PaymentArgs::default(),
-        gas_data: GasDataArgs {
-            gas_budget: Some(rgp * TEST_ONLY_GAS_UNIT_FOR_PUBLISH),
-            ..Default::default()
-        },
-        processing: TxProcessingArgs::default(),
-    }
-    .execute(context)
-    .await?;
-
-    let (parent, child) =
-        if let IotaClientCommandResult::TransactionBlock(response) = start_call_result {
-            let created = response.effects.unwrap().created().to_vec();
-            let owners: BTreeSet<ObjectID> = created
-                .iter()
-                .flat_map(|refe| {
-                    refe.owner
-                        .get_address_owner_address()
-                        .ok()
-                        .map(|x| x.into())
-                })
-                .collect();
-            let child = created
-                .iter()
-                .find(|refe| !owners.contains(&refe.reference.object_id))
-                .unwrap();
-            let parent = created
-                .iter()
-                .find(|refe| owners.contains(&refe.reference.object_id))
-                .unwrap();
-            (parent.reference.clone(), child.reference.clone())
-        } else {
-            unreachable!("Invalid response");
-        };
-
-    let receive_result = IotaClientCommands::Call {
-        package: (*package_id.object_id).into(),
-        module: "tto".to_string(),
-        function: "invalid_call_immut_ref".to_string(),
-        type_args: vec![],
-        args: vec![
-            IotaJsonValue::from_str(&parent.object_id.to_string()).unwrap(),
-            IotaJsonValue::from_str(&child.object_id.to_string()).unwrap(),
-        ],
-        payment: PaymentArgs::default(),
-        gas_data: GasDataArgs {
-            gas_budget: Some(rgp * TEST_ONLY_GAS_UNIT_FOR_PUBLISH),
-            ..Default::default()
-        },
-        processing: TxProcessingArgs::default(),
-    }
-    .execute(context)
-    .await?;
-
-    if let IotaClientCommandResult::TransactionBlock(response) = receive_result {
-        assert!(response.effects.unwrap().into_status().is_ok());
-    } else {
-        unreachable!("Invalid response");
-    };
-
-    Ok(())
-}
-
-#[sim_test]
-async fn test_receive_argument_by_mut_ref() -> Result<(), anyhow::Error> {
-    let mut test_cluster = TestClusterBuilder::new()
-        .with_num_validators(1)
-        .build()
-        .await;
-    let rgp = test_cluster.get_reference_gas_price().await;
-    let address = test_cluster.get_address_0();
-    let context = &mut test_cluster.wallet;
-
-    let client = context.get_client().await?;
-    let object_refs = client
-        .read_api()
-        .get_owned_objects(
-            address,
-            Some(IotaObjectResponseQuery::new_with_options(
-                IotaObjectDataOptions::new()
-                    .with_type()
-                    .with_owner()
-                    .with_previous_transaction(),
-            )),
-            None,
-            None,
-        )
-        .await?
-        .data;
-
-    let gas_obj_id = object_refs.first().unwrap().object().unwrap().object_id;
-
-    // Provide path to well formed package sources
-    let mut package_path = PathBuf::from(TEST_DATA_DIR);
-    package_path.push("tto");
-    let build_config = BuildConfig::new_for_testing().config;
-    let resp = IotaClientCommands::Publish {
-        package_path,
-        build_config,
-        skip_dependency_verification: false,
-        with_unpublished_dependencies: false,
-        verify_deps: true,
-        payment: PaymentArgs {
-            gas: vec![gas_obj_id],
-        },
-        gas_data: GasDataArgs {
-            gas_budget: Some(rgp * TEST_ONLY_GAS_UNIT_FOR_PUBLISH),
-            ..Default::default()
-        },
-        processing: TxProcessingArgs::default(),
-    }
-    .execute(context)
-    .await?;
-
-    let owned_obj_ids = if let IotaClientCommandResult::TransactionBlock(response) = resp {
-        assert_eq!(
-            response.effects.as_ref().unwrap().gas_object().object_id(),
-            gas_obj_id
-        );
-        let x = response.effects.unwrap();
-        x.created().to_vec()
-    } else {
-        unreachable!("Invalid response");
-    };
-
-    // Check the objects
-    for OwnedObjectRef { reference, .. } in &owned_obj_ids {
-        get_parsed_object_assert_existence(reference.object_id, context).await;
-    }
-
-    let package_id = owned_obj_ids
-        .into_iter()
-        .find(|OwnedObjectRef { owner, .. }| owner == &Owner::Immutable)
-        .expect("Must find published package ID")
-        .reference;
-
-    // Start and then receive the object
-    let start_call_result = IotaClientCommands::Call {
-        package: (*package_id.object_id).into(),
-        module: "tto".to_string(),
-        function: "start".to_string(),
-        type_args: vec![],
-        args: vec![],
-        payment: PaymentArgs::default(),
-        gas_data: GasDataArgs {
-            gas_budget: Some(rgp * TEST_ONLY_GAS_UNIT_FOR_PUBLISH),
-            ..Default::default()
-        },
-        processing: TxProcessingArgs::default(),
-    }
-    .execute(context)
-    .await?;
-
-    let (parent, child) =
-        if let IotaClientCommandResult::TransactionBlock(response) = start_call_result {
-            let created = response.effects.unwrap().created().to_vec();
-            let owners: BTreeSet<ObjectID> = created
-                .iter()
-                .flat_map(|refe| {
-                    refe.owner
-                        .get_address_owner_address()
-                        .ok()
-                        .map(|x| x.into())
-                })
-                .collect();
-            let child = created
-                .iter()
-                .find(|refe| !owners.contains(&refe.reference.object_id))
-                .unwrap();
-            let parent = created
-                .iter()
-                .find(|refe| owners.contains(&refe.reference.object_id))
-                .unwrap();
-            (parent.reference.clone(), child.reference.clone())
-        } else {
-            unreachable!("Invalid response");
-        };
-
-    let receive_result = IotaClientCommands::Call {
-        package: (*package_id.object_id).into(),
-        module: "tto".to_string(),
-        function: "invalid_call_mut_ref".to_string(),
-        type_args: vec![],
-        args: vec![
-            IotaJsonValue::from_str(&parent.object_id.to_string()).unwrap(),
-            IotaJsonValue::from_str(&child.object_id.to_string()).unwrap(),
-        ],
-        payment: PaymentArgs::default(),
-        gas_data: GasDataArgs {
-            gas_budget: Some(rgp * TEST_ONLY_GAS_UNIT_FOR_PUBLISH),
-            ..Default::default()
-        },
-        processing: TxProcessingArgs::default(),
-    }
-    .execute(context)
-    .await?;
-
-    if let IotaClientCommandResult::TransactionBlock(response) = receive_result {
-        assert!(response.effects.unwrap().into_status().is_ok());
-    } else {
-        unreachable!("Invalid response");
-    };
+    // Test all three receive argument variants:
+    // - test_receive_argument: Test basic receive functionality
+    receive_argument_helper(context, package_id, rgp, "receiver").await?;
+    // - test_receive_argument_by_immut_ref: Test receive with immutable reference
+    receive_argument_helper(context, package_id, rgp, "invalid_call_immut_ref").await?;
+    // - test_receive_argument_by_mut_ref: Test receive with mutable reference
+    receive_argument_helper(context, package_id, rgp, "invalid_call_mut_ref").await?;
 
     Ok(())
 }
@@ -4412,14 +4148,49 @@ async fn test_cluster_helper() -> (
     )
 }
 
-#[sim_test]
-async fn test_pay() -> Result<(), anyhow::Error> {
-    let (mut test_cluster, client, rgp, objects, recipients, addresses) =
-        test_cluster_helper().await;
+/// Helper to get fresh objects for a given address
+async fn get_objects_for_address(
+    client: &IotaClient,
+    address: IotaAddress,
+) -> Result<Vec<ObjectID>, anyhow::Error> {
+    let object_refs = client
+        .read_api()
+        .get_owned_objects(
+            address,
+            Some(IotaObjectResponseQuery::new_with_options(
+                IotaObjectDataOptions::full_content(),
+            )),
+            None,
+            None,
+        )
+        .await?;
+
+    Ok(object_refs
+        .data
+        .iter()
+        .map(|o| o.object().unwrap().object_id)
+        .collect())
+}
+
+/// Helper for test_pay variant
+/// Tests the Pay command: transfers multiple coins to multiple recipients
+async fn pay_test_helper(
+    wallet_config: &std::path::Path,
+    address: IotaAddress,
+    objects: Vec<ObjectID>,
+    rgp: u64,
+) -> Result<(), anyhow::Error> {
+    // ====== test_pay ======
+    let mut context = WalletContext::new(wallet_config, None, None)?;
+    context.config_mut().set_active_address(Some(address));
+    let client = context.get_client().await?;
     let (object_id1, object_id2, object_id3) = (objects[0], objects[1], objects[2]);
-    let (recipient1, recipient2) = (&recipients[0], &recipients[1]);
-    let (address2, address3) = (addresses[0], addresses[1]);
-    let context = &mut test_cluster.wallet;
+
+    let address2 = IotaAddress::random_for_testing_only();
+    let address3 = IotaAddress::random_for_testing_only();
+    let recipient1 = KeyIdentity::Address(address2);
+    let recipient2 = KeyIdentity::Address(address3);
+
     let pay = IotaClientCommands::Pay {
         input_coins: vec![object_id1, object_id2],
         recipients: vec![recipient1.clone(), recipient2.clone()],
@@ -4433,14 +4204,13 @@ async fn test_pay() -> Result<(), anyhow::Error> {
         },
         processing: TxProcessingArgs::default(),
     }
-    .execute(context)
+    .execute(&mut context)
     .await;
 
     // we passed the gas object to be one of the input coins, which should fail
     assert!(pay.is_err());
 
     let amounts = [5000, 10000];
-    // we expect this to be the gas coin used
     let pay = IotaClientCommands::Pay {
         input_coins: vec![object_id1, object_id2],
         recipients: vec![recipient1.clone(), recipient2.clone()],
@@ -4452,7 +4222,7 @@ async fn test_pay() -> Result<(), anyhow::Error> {
         },
         processing: TxProcessingArgs::default(),
     }
-    .execute(context)
+    .execute(&mut context)
     .await?;
 
     // Pay command takes the input coins and transfers the given amounts from each
@@ -4515,18 +4285,29 @@ async fn test_pay() -> Result<(), anyhow::Error> {
     } else {
         panic!("Pay test failed");
     }
-
     Ok(())
 }
 
-#[sim_test]
-async fn test_pay_iota() -> Result<(), anyhow::Error> {
-    let (mut test_cluster, client, rgp, objects, recipients, addresses) =
-        test_cluster_helper().await;
+/// Helper for test_pay_iota variant
+/// Tests the PayIota command: uses input coins as gas and transfers to
+/// recipients
+async fn pay_iota_test_helper(
+    wallet_config: &std::path::Path,
+    address: IotaAddress,
+    objects: Vec<ObjectID>,
+    rgp: u64,
+) -> Result<(), anyhow::Error> {
+    // ====== test_pay_iota ======
+    let mut context = WalletContext::new(wallet_config, None, None)?;
+    context.config_mut().set_active_address(Some(address));
+    let client = context.get_client().await?;
     let (object_id1, object_id2) = (objects[0], objects[1]);
-    let (recipient1, recipient2) = (&recipients[0], &recipients[1]);
-    let (address2, address3) = (addresses[0], addresses[1]);
-    let context = &mut test_cluster.wallet;
+
+    let address2 = IotaAddress::random_for_testing_only();
+    let address3 = IotaAddress::random_for_testing_only();
+    let recipient1 = KeyIdentity::Address(address2);
+    let recipient2 = KeyIdentity::Address(address3);
+
     let amounts = [1000, 5000];
     let pay_iota = IotaClientCommands::PayIota {
         input_coins: Some(vec![object_id1, object_id2]),
@@ -4538,7 +4319,7 @@ async fn test_pay_iota() -> Result<(), anyhow::Error> {
         },
         processing: TxProcessingArgs::default(),
     }
-    .execute(context)
+    .execute(&mut context)
     .await?;
 
     // pay iota takes the input coins and transfers from each of them (in order) the
@@ -4602,14 +4383,24 @@ async fn test_pay_iota() -> Result<(), anyhow::Error> {
     Ok(())
 }
 
-#[sim_test]
-async fn test_pay_all_iota() -> Result<(), anyhow::Error> {
-    let (mut test_cluster, client, rgp, objects, recipients, addresses) =
-        test_cluster_helper().await;
+/// Helper for test_pay_all_iota variant
+/// Tests the PayAllIota command: transfers all IOTA from input coins to a
+/// single recipient
+async fn pay_all_iota_test_helper(
+    wallet_config: &std::path::Path,
+    address: IotaAddress,
+    objects: Vec<ObjectID>,
+    rgp: u64,
+) -> Result<(), anyhow::Error> {
+    // ====== test_pay_all_iota ======
+    let mut context = WalletContext::new(wallet_config, None, None)?;
+    context.config_mut().set_active_address(Some(address));
+    let client = context.get_client().await?;
     let (object_id1, object_id2) = (objects[0], objects[1]);
-    let recipient1 = &recipients[0];
-    let address2 = addresses[0];
-    let context = &mut test_cluster.wallet;
+
+    let address2 = IotaAddress::random_for_testing_only();
+    let recipient1 = KeyIdentity::Address(address2);
+
     let pay_all_iota = IotaClientCommands::PayAllIota {
         input_coins: vec![object_id1, object_id2],
         recipient: recipient1.clone(),
@@ -4619,7 +4410,7 @@ async fn test_pay_all_iota() -> Result<(), anyhow::Error> {
         },
         processing: TxProcessingArgs::default(),
     }
-    .execute(context)
+    .execute(&mut context)
     .await?;
 
     // pay all iota will take the input coins and smash them into one coin and
@@ -4648,6 +4439,90 @@ async fn test_pay_all_iota() -> Result<(), anyhow::Error> {
     } else {
         panic!("PayAllIota test failed");
     }
+    Ok(())
+}
+
+// cargo nextest run --cargo-profile simulator --test cli_tests
+// cargo nextest run --cargo-profile simulator test_simple_cli_commands
+#[sim_test]
+async fn test_simple_cli_commands() -> Result<(), anyhow::Error> {
+    // This test combines multiple simple CLI command tests that can share a
+    // TestCluster and run in parallel using separate wallet contexts.
+    // Create genesis config with 10 accounts to have enough addresses for all tests
+    let mut genesis_config = GenesisConfig::for_local_testing();
+    genesis_config.accounts.clear();
+    for _ in 0..10 {
+        genesis_config.accounts.push(AccountConfig {
+            address: None,
+            gas_amounts: vec![30_000_000_000_000_000; 5], // 5 gas objects per account
+        });
+    }
+
+    let test_cluster = TestClusterBuilder::new()
+        .with_num_validators(1)
+        .set_genesis_config(genesis_config)
+        .build()
+        .await;
+    let rgp = test_cluster.get_reference_gas_price().await;
+
+    // Get wallet config path for creating separate contexts
+    let wallet_config = test_cluster.swarm.dir().join(IOTA_CLIENT_CONFIG);
+
+    // Get addresses for all tests
+    let context = &test_cluster.wallet;
+    let keystore = context.config().keystore();
+    let all_addresses = keystore.addresses();
+    let address0 = all_addresses[0];
+    let address1 = all_addresses[1];
+    let address2 = all_addresses[2];
+    let address3 = all_addresses[3];
+    let address4 = all_addresses[4];
+    let address5 = all_addresses[5];
+    let address6 = all_addresses[6];
+    let address7 = all_addresses[7];
+
+    let client = test_cluster.fullnode_handle.iota_client.clone();
+    let objects0 = get_objects_for_address(&client, address0).await?;
+    let objects1 = get_objects_for_address(&client, address1).await?;
+    let objects2 = get_objects_for_address(&client, address2).await?;
+
+    // Run all tests in parallel with separate wallet contexts:
+    // - test_pay: Tests the Pay command
+    // - test_pay_iota: Tests the PayIota command
+    // - test_pay_all_iota: Tests the PayAllIota command
+    // - test_ptb_dev_inspect: Tests PTB --dev-inspect flag
+    // - test_ptb_display_args: Tests PTB display options
+    // - test_objects_command: Tests listing objects owned by an address
+    // - test_object_info_get_command: Tests getting detailed object info by ID
+    // - test_balance: Tests the Balance command
+    // - test_gas_command: Tests Gas command with transfer
+    // - test_ptb_gas_coin_smashing: Tests PTB --gas-coin flag
+    // - test_ptb_gas_coins_smashing: Tests PTB --gas-coins flag
+    let (r1, r2, r3, r4, r5, r6, r7, r8, r9, r10, r11) = tokio::join!(
+        pay_test_helper(&wallet_config, address0, objects0, rgp),
+        pay_iota_test_helper(&wallet_config, address1, objects1, rgp),
+        pay_all_iota_test_helper(&wallet_config, address2, objects2, rgp),
+        ptb_dev_inspect_helper(&wallet_config, address3),
+        ptb_display_args_helper(&wallet_config, address4),
+        objects_command_helper(&wallet_config, address3),
+        object_info_command_helper(&wallet_config, address4),
+        balance_command_helper(&wallet_config, address3),
+        gas_command_helper(&wallet_config, address5, rgp),
+        ptb_gas_smashing_helper_parallel(&wallet_config, address6, "gas-coin"),
+        ptb_gas_smashing_helper_parallel(&wallet_config, address7, "gas-coins"),
+    );
+
+    r1?;
+    r2?;
+    r3?;
+    r4?;
+    r5?;
+    r6?;
+    r7?;
+    r8?;
+    r9?;
+    r10?;
+    r11?;
 
     Ok(())
 }
@@ -5216,21 +5091,22 @@ async fn test_parse_host_port() {
     assert!(parse_host_port(input.to_string(), 9123).is_err());
 }
 
-#[sim_test]
-async fn test_balance() -> Result<(), anyhow::Error> {
-    let mut test_cluster = TestClusterBuilder::new()
-        .with_num_validators(1)
-        .build()
-        .await;
-
-    let context = &mut test_cluster.wallet;
+/// Helper for test_balance - tests the Balance command
+async fn balance_command_helper(
+    wallet_config: &std::path::Path,
+    address: IotaAddress,
+) -> Result<(), anyhow::Error> {
+    // ===== test_balance =====
+    // Tests the Balance command to fetch coin balances for an address
+    let mut context = WalletContext::new(wallet_config, None, None)?;
+    context.config_mut().set_active_address(Some(address));
 
     let balance_result = IotaClientCommands::Balance {
         address: None,
         coin_type: None,
         with_coins: false,
     }
-    .execute(context)
+    .execute(&mut context)
     .await?;
 
     if let IotaClientCommandResult::Balance(ordered_coins_iota_first, with_coins) = balance_result {
@@ -5805,14 +5681,14 @@ async fn test_call_command_display_args() -> Result<(), anyhow::Error> {
     Ok(())
 }
 
-#[sim_test]
-async fn test_ptb_dev_inspect() -> Result<(), anyhow::Error> {
-    let mut test_cluster = TestClusterBuilder::new()
-        .with_num_validators(1)
-        .build()
-        .await;
-    let context = &mut test_cluster.wallet;
-
+/// Helper for test_ptb_dev_inspect - tests the --dev-inspect flag
+async fn ptb_dev_inspect_helper(
+    wallet_config: &std::path::Path,
+    address: IotaAddress,
+) -> Result<(), anyhow::Error> {
+    // ===== test_ptb_dev_inspect =====
+    let mut context = WalletContext::new(wallet_config, None, None)?;
+    context.config_mut().set_active_address(Some(address));
     let publish_ptb_string = r#"
         --assign hello_option "some('Hello')" \
         --move-call std::option::borrow "<std::string::String>" hello_option \
@@ -5823,7 +5699,7 @@ async fn test_ptb_dev_inspect() -> Result<(), anyhow::Error> {
         args,
         display: HashSet::new(),
     }
-    .execute(context)
+    .execute(&mut context)
     .await?
     else {
         panic!("unexpected PTB result");
@@ -5836,13 +5712,14 @@ async fn test_ptb_dev_inspect() -> Result<(), anyhow::Error> {
     Ok(())
 }
 
-#[sim_test]
-async fn test_ptb_display_args() -> Result<(), anyhow::Error> {
-    let mut test_cluster = TestClusterBuilder::new()
-        .with_num_validators(1)
-        .build()
-        .await;
-    let context = &mut test_cluster.wallet;
+/// Helper for test_ptb_display_args - tests PTB display options
+async fn ptb_display_args_helper(
+    wallet_config: &std::path::Path,
+    address: IotaAddress,
+) -> Result<(), anyhow::Error> {
+    // ===== test_ptb_display_args =====
+    let mut context = WalletContext::new(wallet_config, None, None)?;
+    context.config_mut().set_active_address(Some(address));
 
     let ptb_string = r#"
     --make-move-vec <u8> "[1]"
@@ -5852,7 +5729,7 @@ async fn test_ptb_display_args() -> Result<(), anyhow::Error> {
         args,
         display: HashSet::from([DisplayOption::Input]),
     }
-    .execute(context)
+    .execute(&mut context)
     .await?
     else {
         panic!("unexpected PTB result");
@@ -5872,7 +5749,7 @@ async fn test_ptb_display_args() -> Result<(), anyhow::Error> {
         args,
         display: HashSet::from([DisplayOption::Events]),
     }
-    .execute(context)
+    .execute(&mut context)
     .await?
     else {
         panic!("unexpected PTB result");
@@ -6401,14 +6278,16 @@ async fn test_tree_shaking_package_system_deps() -> Result<(), anyhow::Error> {
     Ok(())
 }
 
-#[sim_test]
-async fn test_ptb_gas_coin_smashing() -> Result<(), anyhow::Error> {
-    let mut test_cluster = TestClusterBuilder::new()
-        .with_num_validators(1)
-        .build()
-        .await;
-    let address = test_cluster.get_address_0();
-    let context = &mut test_cluster.wallet;
+/// Helper for test_ptb_gas_coin_smashing - takes path and creates its own
+/// context. Tests PTB gas smashing with a specific flag name ("gas-coin" or
+/// "gas-coins")
+async fn ptb_gas_smashing_helper_parallel(
+    wallet_config: &std::path::Path,
+    address: IotaAddress,
+    flag_name: &str,
+) -> Result<(), anyhow::Error> {
+    let mut context = WalletContext::new(wallet_config, None, None)?;
+    context.config_mut().set_active_address(Some(address));
     let client = context.get_client().await?;
     let object_refs = client
         .read_api()
@@ -6430,7 +6309,7 @@ async fn test_ptb_gas_coin_smashing() -> Result<(), anyhow::Error> {
         --split-coins gas [100]
         --assign c
         --transfer-objects [c.0] @{address}
-        --gas-coin {}
+        --{flag_name} {}
         "#,
         gas_coin_ids.join(" ")
     );
@@ -6439,70 +6318,7 @@ async fn test_ptb_gas_coin_smashing() -> Result<(), anyhow::Error> {
         args,
         display: HashSet::new(),
     };
-    let ptb_res = ptb.execute(context).await?;
-    let PTBCommandResult::CommandResult(res) = ptb_res else {
-        panic!("Command failed, expected CommandResult");
-    };
-
-    let IotaClientCommandResult::TransactionBlock(tx_block) = *res else {
-        panic!("Expected TransactionBlock result");
-    };
-    let payment_len = tx_block
-        .transaction
-        .as_ref()
-        .expect("Missing transaction")
-        .data
-        .gas_data()
-        .payment
-        .len();
-    assert!(
-        payment_len > 1,
-        "Expected more than one gas payment, got {payment_len}"
-    );
-
-    Ok(())
-}
-
-// Same as above, just with `gas-coins` instead of `gas-coin`
-#[sim_test]
-async fn test_ptb_gas_coins_smashing() -> Result<(), anyhow::Error> {
-    let mut test_cluster = TestClusterBuilder::new()
-        .with_num_validators(1)
-        .build()
-        .await;
-    let address = test_cluster.get_address_0();
-    let context = &mut test_cluster.wallet;
-    let client = context.get_client().await?;
-    let object_refs = client
-        .read_api()
-        .get_owned_objects(address, None, None, None)
-        .await?
-        .data;
-
-    let gas_coin_ids: Vec<String> = object_refs
-        .iter()
-        .flat_map(|obj_ref| obj_ref.object().map(|o| format!("@{}", o.object_id)))
-        .collect();
-    assert!(
-        gas_coin_ids.len() > 1,
-        "Not enough gas coins to test gas smashing"
-    );
-
-    let ptb_string = format!(
-        r#"
-        --split-coins gas [100]
-        --assign c
-        --transfer-objects [c.0] @{address}
-        --gas-coins {}
-        "#,
-        gas_coin_ids.join(" ")
-    );
-    let args = shlex::split(&ptb_string).unwrap();
-    let ptb = PTB {
-        args,
-        display: HashSet::new(),
-    };
-    let ptb_res = ptb.execute(context).await?;
+    let ptb_res = ptb.execute(&mut context).await?;
     let PTBCommandResult::CommandResult(res) = ptb_res else {
         panic!("Command failed, expected CommandResult");
     };
