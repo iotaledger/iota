@@ -77,7 +77,8 @@ pub const ACCOUNT_MODULE_NAME: Symbol = symbol!("account");
 pub const CREATE_ACCOUNT_V1_FUNCTION_NAME: Symbol = symbol!("create_account_v1");
 pub const CREATE_IMMUTABLE_ACCOUNT_V1_FUNCTION_NAME: Symbol =
     symbol!("create_immutable_account_v1");
-pub const ROTATE_AUTH_INFO_V1_FUNCTION_NAME: Symbol = symbol!("rotate_auth_info_v1");
+pub const ROTATE_AUTH_FUNCTION_REF_V1_FUNCTION_NAME: Symbol =
+    symbol!("rotate_auth_function_ref_v1");
 
 pub const PRIVATE_TRANSFER_FUNCTIONS: &[Symbol] = &[
     TRANSFER_FUNCTION_NAME,
@@ -89,7 +90,7 @@ pub const PRIVATE_TRANSFER_FUNCTIONS: &[Symbol] = &[
 pub const PRIVATE_ACCOUNT_FUNCTIONS: &[Symbol] = &[
     CREATE_ACCOUNT_V1_FUNCTION_NAME,
     CREATE_IMMUTABLE_ACCOUNT_V1_FUNCTION_NAME,
-    ROTATE_AUTH_INFO_V1_FUNCTION_NAME,
+    ROTATE_AUTH_FUNCTION_REF_V1_FUNCTION_NAME,
 ];
 
 //**************************************************************************************************

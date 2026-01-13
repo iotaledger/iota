@@ -21,7 +21,7 @@ public fun create(
     public_key: vector<u8>,
     ctx: &mut TxContext,
 ): address {
-    let authenticator = account::create_auth_info_v1<AbstractAccount>(
+    let authenticator = account::create_auth_function_ref_v1<AbstractAccount>(
         package_metadata,
         module_name,
         function_name,

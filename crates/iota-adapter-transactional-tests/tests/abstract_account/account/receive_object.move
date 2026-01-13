@@ -25,12 +25,12 @@ public fun create(
     function_name: ascii::String,
     ctx: &mut TxContext,
 ): address {
-    let authenticator = account::create_auth_info_v1<AbstractAccount>(
+    let authenticator = account::create_auth_function_ref_v1<AbstractAccount>(
         package_metadata,
         module_name,
         function_name,
     );
-    
+
     let account = AbstractAccount { id: object::new(ctx) };
 
     let account_address = object::id_address(&account);

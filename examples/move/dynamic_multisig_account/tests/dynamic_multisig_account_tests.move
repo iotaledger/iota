@@ -7,7 +7,7 @@ module dynamic_multisig_account::dynamic_multisig_account_tests;
 use dynamic_multisig_account::dynamic_multisig_account::{Self, DynamicMultisigAccount};
 use dynamic_multisig_account::members;
 use dynamic_multisig_account::transactions;
-use iota::account::{Self, AuthenticatorInfoV1};
+use iota::account::{Self, AuthenticatorFunctionRefV1};
 use iota::auth_context::{Self, AuthContext};
 use iota::test_scenario::{Self, Scenario};
 use iota::test_utils::{assert_eq, assert_ref_eq};
@@ -31,7 +31,7 @@ fun test_account_creation() {
             assert_eq(account.threshold(), 3);
             assert_ref_eq(
                 account.authenticator(),
-                &create_default_authenticator_info_v1_for_testing(),
+                &create_default_authenticator_function_ref_v1_for_testing(),
             );
 
             test_scenario::return_shared(account);
@@ -120,7 +120,7 @@ fun test_account_creation_with_inconsistent_members() {
     let members_addresses = vector[@0x1, @0x2, @0x3];
     let members_weights = vector[1, 2];
     let threshold = 3;
-    let authenticator = create_default_authenticator_info_v1_for_testing();
+    let authenticator = create_default_authenticator_function_ref_v1_for_testing();
 
     dynamic_multisig_account::create(
         members_addresses,
@@ -144,7 +144,7 @@ fun test_account_creation_with_members_duplicate() {
     let members_addresses = vector[@0x1, @0x2, @0x2];
     let members_weights = vector[1, 2, 3];
     let threshold = 3;
-    let authenticator = create_default_authenticator_info_v1_for_testing();
+    let authenticator = create_default_authenticator_function_ref_v1_for_testing();
 
     dynamic_multisig_account::create(
         members_addresses,
@@ -168,7 +168,7 @@ fun test_account_creation_with_zero_threshold() {
     let members_weights = vector[1, 2, 3];
     // The threshold can't be zero.
     let threshold = 0;
-    let authenticator = create_default_authenticator_info_v1_for_testing();
+    let authenticator = create_default_authenticator_function_ref_v1_for_testing();
 
     dynamic_multisig_account::create(
         members_addresses,
@@ -192,7 +192,7 @@ fun test_account_creation_with_inconsistent_threshold() {
     let members_weights = vector[1, 2, 3];
     // The threshold is too high.
     let threshold = 7;
-    let authenticator = create_default_authenticator_info_v1_for_testing();
+    let authenticator = create_default_authenticator_function_ref_v1_for_testing();
 
     dynamic_multisig_account::create(
         members_addresses,
@@ -493,7 +493,7 @@ fun test_account_updating() {
             let members_weights = vector[4, 5, 6];
             // The threshold equals to the total weight of all the members; it is the maximum possible value.
             let threshold = 15;
-            let authenticator = create_authenticator_info_v1_for_testing(b"function2");
+            let authenticator = create_authenticator_function_ref_v1_for_testing(b"function2");
 
             account.update_account_data(
                 members_addresses,
@@ -527,7 +527,7 @@ fun test_account_updating_with_not_account() {
             let members_addresses = vector[@0xA, @0xB, @0xC];
             let members_weights = vector[4, 5, 6];
             let threshold = 10;
-            let authenticator = create_authenticator_info_v1_for_testing(b"function2");
+            let authenticator = create_authenticator_function_ref_v1_for_testing(b"function2");
 
             account.update_account_data(
                 members_addresses,
@@ -557,7 +557,7 @@ fun test_account_updating_with_inconsistent_members() {
             let members_addresses = vector[@0xA, @0xB];
             let members_weights = vector[4, 5, 6];
             let threshold = 10;
-            let authenticator = create_authenticator_info_v1_for_testing(b"function2");
+            let authenticator = create_authenticator_function_ref_v1_for_testing(b"function2");
 
             account.update_account_data(
                 members_addresses,
@@ -587,7 +587,7 @@ fun test_account_updating_with_members_duplicate() {
             let members_addresses = vector[@0xA, @0xA, @0xC];
             let members_weights = vector[4, 5, 6];
             let threshold = 10;
-            let authenticator = create_authenticator_info_v1_for_testing(b"function2");
+            let authenticator = create_authenticator_function_ref_v1_for_testing(b"function2");
 
             account.update_account_data(
                 members_addresses,
@@ -617,7 +617,7 @@ fun test_account_updating_with_zero_threshold() {
             let members_weights = vector[4, 5, 6];
             // The threshold can't be zero.
             let threshold = 0;
-            let authenticator = create_authenticator_info_v1_for_testing(b"function2");
+            let authenticator = create_authenticator_function_ref_v1_for_testing(b"function2");
 
             account.update_account_data(
                 members_addresses,
@@ -647,7 +647,7 @@ fun test_account_updating_with_inconsistent_threshold() {
             let members_weights = vector[4, 5, 6];
             // The threshold is too high.
             let threshold = 16;
-            let authenticator = create_authenticator_info_v1_for_testing(b"function2");
+            let authenticator = create_authenticator_function_ref_v1_for_testing(b"function2");
 
             account.update_account_data(
                 members_addresses,
@@ -765,7 +765,7 @@ fun test_authenticate_not_enough_total_weight_after_update() {
             // The @0x3 weight is reduced, so it does not have enough weight to reach the threshold after the update.
             let members_weights = vector[1, 2, 2];
             let threshold = 3;
-            let authenticator = create_authenticator_info_v1_for_testing(b"function2");
+            let authenticator = create_authenticator_function_ref_v1_for_testing(b"function2");
 
             account.update_account_data(
                 members_addresses,
@@ -835,7 +835,7 @@ fun test_authenticate_member_removed_during_update() {
             let members_addresses = vector[@0x2, @0x3];
             let members_weights = vector[2, 3];
             let threshold = 3;
-            let authenticator = create_authenticator_info_v1_for_testing(b"function2");
+            let authenticator = create_authenticator_function_ref_v1_for_testing(b"function2");
 
             account.update_account_data(
                 members_addresses,
@@ -895,7 +895,7 @@ fun test_authenticate_threshold_changed_during_update() {
             let members_weights = vector[1, 2, 3];
             // The threshold is increased, so the transaction does not have enough weight to reach the threshold after the update.
             let threshold = 4;
-            let authenticator = create_authenticator_info_v1_for_testing(b"function2");
+            let authenticator = create_authenticator_function_ref_v1_for_testing(b"function2");
 
             account.update_account_data(
                 members_addresses,
@@ -924,20 +924,20 @@ fun test_authenticate_threshold_changed_during_update() {
 
 // --------------------------------------- Test Utilities ---------------------------------------
 
-fun create_default_authenticator_info_v1_for_testing(): AuthenticatorInfoV1<
+fun create_default_authenticator_function_ref_v1_for_testing(): AuthenticatorFunctionRefV1<
     DynamicMultisigAccount,
 > {
-    account::create_auth_info_v1_for_testing(
+    account::create_auth_function_ref_v1_for_testing(
         @0x1,
         ascii::string(b"module"),
         ascii::string(b"function"),
     )
 }
 
-fun create_authenticator_info_v1_for_testing(
+fun create_authenticator_function_ref_v1_for_testing(
     function: vector<u8>,
-): AuthenticatorInfoV1<DynamicMultisigAccount> {
-    account::create_auth_info_v1_for_testing(
+): AuthenticatorFunctionRefV1<DynamicMultisigAccount> {
+    account::create_auth_function_ref_v1_for_testing(
         @0x1,
         ascii::string(function),
         ascii::string(b"function"),
@@ -950,7 +950,7 @@ fun create_account_for_testing(scenario: &mut Scenario): address {
     let members_addresses = vector[@0x1, @0x2, @0x3];
     let members_weights = vector[1, 2, 3];
     let threshold = 3;
-    let authenticator = create_default_authenticator_info_v1_for_testing();
+    let authenticator = create_default_authenticator_function_ref_v1_for_testing();
 
     dynamic_multisig_account::create(
         members_addresses,

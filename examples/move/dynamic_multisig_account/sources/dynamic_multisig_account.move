@@ -5,7 +5,7 @@ module dynamic_multisig_account::dynamic_multisig_account;
 
 use dynamic_multisig_account::members::{Self, Members};
 use dynamic_multisig_account::transactions::{Self, Transactions};
-use iota::account::{Self, AuthenticatorInfoV1};
+use iota::account::{Self, AuthenticatorFunctionRefV1};
 use iota::auth_context::AuthContext;
 use iota::dynamic_field;
 
@@ -47,7 +47,7 @@ public fun create(
     members_addresses: vector<address>,
     members_weights: vector<u64>,
     threshold: u64,
-    authenticator: AuthenticatorInfoV1<DynamicMultisigAccount>,
+    authenticator: AuthenticatorFunctionRefV1<DynamicMultisigAccount>,
     ctx: &mut TxContext,
 ) {
     // Create a `Members` instance.
@@ -115,8 +115,8 @@ public fun total_approves(self: &DynamicMultisigAccount, transaction_digest: vec
 /// Immutably borrows the account authenticator.
 public fun authenticator(
     self: &DynamicMultisigAccount,
-): &AuthenticatorInfoV1<DynamicMultisigAccount> {
-    account::borrow_auth_info_v1(&self.id)
+): &AuthenticatorFunctionRefV1<DynamicMultisigAccount> {
+    account::borrow_auth_function_ref_v1(&self.id)
 }
 
 // --------------------------------------- Transactions ---------------------------------------
@@ -177,7 +177,7 @@ public fun update_account_data(
     members_addresses: vector<address>,
     members_weights: vector<u64>,
     threshold: u64,
-    authenticator: AuthenticatorInfoV1<DynamicMultisigAccount>,
+    authenticator: AuthenticatorFunctionRefV1<DynamicMultisigAccount>,
     ctx: &TxContext,
 ) {
     // Check that the sender of this transaction is the account.
@@ -195,7 +195,7 @@ public fun update_account_data(
     update_dynamic_field(account_id, members_key(), members);
     update_dynamic_field(account_id, threshold_key(), threshold);
 
-    account::rotate_auth_info_v1(self, authenticator);
+    account::rotate_auth_function_ref_v1(self, authenticator);
 }
 
 /// A transaction authenticator.

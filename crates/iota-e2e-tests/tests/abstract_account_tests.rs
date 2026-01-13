@@ -439,23 +439,23 @@ impl TestEnvironment {
         let pt = {
             let mut builder = ProgrammableTransactionBuilder::new();
 
-            // create auth info
+            // create auth function ref
             let arguments = vec![
                 builder.obj(ObjectArg::ImmOrOwnedObject(aa_package_metadata_ref))?,
                 builder.pure(AA_AUTHENTICATE_MODULE_NAME)?,
                 builder.pure(authenticate_fn_name)?,
             ];
-            if let Argument::Result(authenticator_info_v1) = builder.programmable_move_call(
+            if let Argument::Result(authenticator_function_ref_v1) = builder.programmable_move_call(
                 IOTA_FRAMEWORK_ADDRESS.into(),
                 ident_str!("account").to_owned(),
-                ident_str!("create_auth_info_v1").to_owned(),
+                ident_str!("create_auth_function_ref_v1").to_owned(),
                 vec![abstract_account_type_tag(&aa_package_id)],
                 arguments,
             ) {
                 // Create the abstract account.
                 let arguments = vec![
                     builder.pure(aa_owner_pk.as_ref())?,
-                    Argument::Result(authenticator_info_v1),
+                    Argument::Result(authenticator_function_ref_v1),
                 ];
                 builder.programmable_move_call(
                     aa_package_id,
@@ -591,16 +591,16 @@ impl TestEnvironment {
 
         let mut builder = ProgrammableTransactionBuilder::new();
 
-        // create auth info
+        // create auth function ref
         let arguments = vec![
             builder.obj(ObjectArg::ImmOrOwnedObject(aa_package_metadata_ref))?,
             builder.pure(AA_AUTHENTICATE_MODULE_NAME)?,
             builder.pure(authenticate_fn_name)?,
         ];
-        if let Argument::Result(authenticator_info_v1) = builder.programmable_move_call(
+        if let Argument::Result(authenticator_function_ref_v1) = builder.programmable_move_call(
             IOTA_FRAMEWORK_ADDRESS.into(),
             ident_str!("account").to_owned(),
-            ident_str!("create_auth_info_v1").to_owned(),
+            ident_str!("create_auth_function_ref_v1").to_owned(),
             vec![abstract_account_type_tag(&aa_package_id)],
             arguments,
         ) {
@@ -612,7 +612,7 @@ impl TestEnvironment {
                     mutable: true,
                 })?,
                 builder.pure(new_aa_owner_pk.as_ref())?,
-                Argument::Result(authenticator_info_v1),
+                Argument::Result(authenticator_function_ref_v1),
             ];
             builder.programmable_move_call(
                 aa_package_id,

@@ -3,21 +3,21 @@
 
 module a::m {
     use a::other;
-    use iota::account::{Self, AuthenticatorInfoV1};
+    use iota::account::{Self, AuthenticatorFunctionRefV1};
 
-    public fun t1(account: other::A, authenticator: AuthenticatorInfoV1<other::A>) {
+    public fun t1(account: other::A, authenticator: AuthenticatorFunctionRefV1<other::A>) {
         account::create_account_v1(account, authenticator);
     }
 
-    public fun t2(account: other::A, authenticator: AuthenticatorInfoV1<other::A>) {
+    public fun t2(account: other::A, authenticator: AuthenticatorFunctionRefV1<other::A>) {
         account::create_immutable_account_v1(account, authenticator);
     }
 
     public fun t3(
         account: &mut other::A,
-        authenticator: AuthenticatorInfoV1<other::A>,
-    ): AuthenticatorInfoV1<other::A> {
-        account::rotate_auth_info_v1(account, authenticator)
+        authenticator: AuthenticatorFunctionRefV1<other::A>,
+    ): AuthenticatorFunctionRefV1<other::A> {
+        account::rotate_auth_function_ref_v1(account, authenticator)
     }
 }
 
@@ -36,25 +36,25 @@ module iota::object {
 module iota::account {
     use iota::object::UID;
 
-    struct AuthenticatorInfoV1<phantom Account: key> {
+    struct AuthenticatorFunctionRefV1<phantom Account: key> {
         id: UID,
     }
 
-    public fun create_account_v1<Account: key>(_: Account, _: AuthenticatorInfoV1<Account>) {
+    public fun create_account_v1<Account: key>(_: Account, _: AuthenticatorFunctionRefV1<Account>) {
         abort 0
     }
 
     public fun create_immutable_account_v1<Account: key>(
         _: Account,
-        _: AuthenticatorInfoV1<Account>,
+        _: AuthenticatorFunctionRefV1<Account>,
     ) {
         abort 0
     }
 
-    public fun rotate_auth_info_v1<Account: key>(
+    public fun rotate_auth_function_ref_v1<Account: key>(
         _: &mut Account,
-        _: AuthenticatorInfoV1<Account>,
-    ): AuthenticatorInfoV1<Account> {
+        _: AuthenticatorFunctionRefV1<Account>,
+    ): AuthenticatorFunctionRefV1<Account> {
         abort 0
     }
 }

@@ -3,7 +3,7 @@
 
 module iotaccount::iotaccount;
 
-use iota::account::{Self, AuthenticatorInfoV1};
+use iota::account::{Self, AuthenticatorFunctionRefV1};
 use iota::dynamic_field;
 
 // === Errors ===
@@ -20,10 +20,10 @@ const ETransactionSenderIsNotTheAccount: vector<u8> = b"Transaction must be sign
 /// The builder is entirely temporary. It cannot be copied, stored or dropped.
 ///
 /// Account implementations are expected to call the builder in a single function call,
-/// add the desired authenticator info and dynamic fields.
+/// add the desired authenticator function ref and dynamic fields.
 public struct IOTAccountBuilder {
     account: IOTAccount,
-    authenticator: AuthenticatorInfoV1<IOTAccount>,
+    authenticator: AuthenticatorFunctionRefV1<IOTAccount>,
 }
 
 /// This struct represents an abstract IOTA account.
@@ -44,9 +44,9 @@ public struct IOTAccount has key {
 
 /// Construct an IOTAccountBuilder and set the Authenticator.
 ///
-/// The `AuthenticatorInfo` will be attached to the account being built.
+/// The `AuthenticatorFunctionRef` will be attached to the account being built.
 public fun builder(
-    authenticator: AuthenticatorInfoV1<IOTAccount>,
+    authenticator: AuthenticatorFunctionRefV1<IOTAccount>,
     ctx: &mut TxContext,
 ): IOTAccountBuilder {
     IOTAccountBuilder {
@@ -143,14 +143,14 @@ public fun rotate_field<Name: copy + drop + store, Value: store>(
 /// Rotate the attached authenticator.
 ///
 /// Only the account itself can call this function.
-public fun rotate_auth_info_v1(
+public fun rotate_auth_function_ref_v1(
     self: &mut IOTAccount,
-    authenticator: AuthenticatorInfoV1<IOTAccount>,
+    authenticator: AuthenticatorFunctionRefV1<IOTAccount>,
     ctx: &TxContext,
-): AuthenticatorInfoV1<IOTAccount> {
+): AuthenticatorFunctionRefV1<IOTAccount> {
     ensure_tx_sender_is_account(self, ctx);
 
-    account::rotate_auth_info_v1(self, authenticator)
+    account::rotate_auth_function_ref_v1(self, authenticator)
 }
 
 // === Public-View Functions ===
@@ -176,11 +176,11 @@ public fun has_field<Name: copy + drop + store>(self: &IOTAccount, name: Name): 
     dynamic_field::exists_(&self.id, name)
 }
 
-/// Borrows a reference to the attached `AuthenticatorInfoV1` instance.
+/// Borrows a reference to the attached `AuthenticatorFunctionRefV1` instance.
 /// This function is not gated to be called only by the account,
 /// anybody can call it to read the attached authenticator.
-public fun borrow_auth_info_v1(self: &IOTAccount): &AuthenticatorInfoV1<IOTAccount> {
-    account::borrow_auth_info_v1(&self.id)
+public fun borrow_auth_function_ref_v1(self: &IOTAccount): &AuthenticatorFunctionRefV1<IOTAccount> {
+    account::borrow_auth_function_ref_v1(&self.id)
 }
 
 // === Admin Functions ===

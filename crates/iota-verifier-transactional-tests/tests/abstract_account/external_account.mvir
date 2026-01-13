@@ -33,10 +33,10 @@ module 0x0.m {
         package_metadata: &package_metadata.PackageMetadataV1,
         module_name: ascii.String,
         function_name: ascii.String,
-    ): account.AuthenticatorInfoV1<external.Account> {
-        let a: account.AuthenticatorInfoV1<external.Account>;
+    ): account.AuthenticatorFunctionRefV1<external.Account> {
+        let a: account.AuthenticatorFunctionRefV1<external.Account>;
         label l0:
-        a = account.create_auth_info_v1<external.Account>(move(package_metadata), move(module_name), move(function_name));
+        a = account.create_auth_function_ref_v1<external.Account>(move(package_metadata), move(module_name), move(function_name));
         return move(a);
     }
 }
@@ -47,12 +47,12 @@ module 0x0.m {
     import 0x2.object;
     import test.external;
 
-    t2(account: &external.Account): &account.AuthenticatorInfoV1<external.Account> {
-        let a: &account.AuthenticatorInfoV1<external.Account>;
+    t2(account: &external.Account): &account.AuthenticatorFunctionRefV1<external.Account> {
+        let a: &account.AuthenticatorFunctionRefV1<external.Account>;
         let id: &object.UID;
         label l0:
         id = external.uid(move(account));
-        a = account.borrow_auth_info_v1<external.Account>(move(id));
+        a = account.borrow_auth_function_ref_v1<external.Account>(move(id));
         return move(a);
     }
 }
@@ -68,7 +68,7 @@ module 0x0.m {
         let id: &object.UID;
         label l0:
         id = external.uid(move(account));
-        b = account.has_auth_info_v1(move(id));
+        b = account.has_auth_function_ref_v1(move(id));
         return move(b);
     }
 }
@@ -78,7 +78,7 @@ module 0x0.m {
     import 0x2.account;
     import test.external;
 
-    t4(account: external.Account, authenticator: account.AuthenticatorInfoV1<external.Account>) {
+    t4(account: external.Account, authenticator: account.AuthenticatorFunctionRefV1<external.Account>) {
         label l0:
         account.create_account_v1<external.Account>(move(account), move(authenticator));
         return;
@@ -90,7 +90,7 @@ module 0x0.m {
     import 0x2.account;
     import test.external;
 
-    t5(account: external.Account, authenticator: account.AuthenticatorInfoV1<external.Account>) {
+    t5(account: external.Account, authenticator: account.AuthenticatorFunctionRefV1<external.Account>) {
         label l0:
         account.create_immutable_account_v1<external.Account>(move(account), move(authenticator));
         return;
@@ -102,10 +102,10 @@ module 0x0.m {
     import 0x2.account;
     import test.external;
 
-    t6(account: &mut external.Account, authenticator: account.AuthenticatorInfoV1<external.Account>): account.AuthenticatorInfoV1<external.Account> {
-        let a: account.AuthenticatorInfoV1<external.Account>;
+    t6(account: &mut external.Account, authenticator: account.AuthenticatorFunctionRefV1<external.Account>): account.AuthenticatorFunctionRefV1<external.Account> {
+        let a: account.AuthenticatorFunctionRefV1<external.Account>;
         label l0:
-        a = account.rotate_auth_info_v1<external.Account>(move(account), move(authenticator));
+        a = account.rotate_auth_function_ref_v1<external.Account>(move(account), move(authenticator));
         return move(a);
     }
 }
