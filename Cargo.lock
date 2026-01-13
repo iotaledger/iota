@@ -2721,6 +2721,7 @@ dependencies = [
  "iota-sdk-types",
  "rand 0.8.5",
  "serde",
+ "tracing",
 ]
 
 [[package]]
@@ -14328,6 +14329,7 @@ dependencies = [
  "rand 0.8.5",
  "rs_merkle",
  "serde",
+ "tracing",
 ]
 
 [[package]]

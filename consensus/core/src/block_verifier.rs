@@ -4,6 +4,8 @@
 
 use std::{collections::BTreeSet, sync::Arc};
 
+use tracing::instrument;
+
 use crate::{
     Round,
     block::{
@@ -101,6 +103,7 @@ impl SignedBlockVerifier {
 
 // All block verification logic are implemented below.
 impl BlockVerifier for SignedBlockVerifier {
+    #[instrument(level = "trace", skip_all)]
     fn verify(&self, block: &SignedBlock) -> ConsensusResult<()> {
         let committee = &self.context.committee;
         // The block must belong to the current epoch and have valid authority index,
