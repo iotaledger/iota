@@ -4295,6 +4295,36 @@ async fn get_objects_for_address(
         .collect())
 }
 
+/// Helper to wait for gas objects to reach target count with polling
+async fn wait_for_gas_objects(
+    context: &WalletContext,
+    addresses: &[IotaAddress],
+    target_count: usize,
+) -> Result<(), anyhow::Error> {
+    for _attempt in 0..150 {
+        let mut all_ready = true;
+        for address in addresses {
+            let count = context
+                .get_gas_objects_owned_by_address(*address, None)
+                .await
+                .unwrap()
+                .len();
+            if count != target_count {
+                all_ready = false;
+                break;
+            }
+        }
+
+        if all_ready {
+            return Ok(());
+        }
+
+        sleep(Duration::from_millis(100)).await;
+    }
+
+    panic!("Gas objects did not reach target count {target_count}");
+}
+
 /// Helper for test_pay variant
 /// Tests the Pay command: transfers multiple coins to multiple recipients
 async fn pay_test_helper(
@@ -5199,6 +5229,7 @@ async fn balance_command_helper(
 #[sim_test]
 async fn test_faucet() -> Result<(), anyhow::Error> {
     let test_cluster = TestClusterBuilder::new()
+        .with_num_validators(1)
         .with_fullnode_rpc_port(9000)
         .build()
         .await;
@@ -5242,14 +5273,7 @@ async fn test_faucet() -> Result<(), anyhow::Error> {
         unreachable!("Invalid response");
     };
 
-    sleep(Duration::from_secs(5)).await;
-
-    let gas_objects_after = context
-        .get_gas_objects_owned_by_address(address, None)
-        .await
-        .unwrap()
-        .len();
-    assert_eq!(gas_objects_after, 1);
+    wait_for_gas_objects(&context, &[address], 1).await?;
 
     Ok(())
 }
@@ -5257,6 +5281,7 @@ async fn test_faucet() -> Result<(), anyhow::Error> {
 #[sim_test]
 async fn test_faucet_batch() -> Result<(), anyhow::Error> {
     let test_cluster = TestClusterBuilder::new()
+        .with_num_validators(1)
         .with_fullnode_rpc_port(9000)
         .build()
         .await;
@@ -5320,18 +5345,7 @@ async fn test_faucet_batch() -> Result<(), anyhow::Error> {
         };
     }
 
-    // we need to wait a minimum of 10 seconds for gathering the batch + some time
-    // for transaction to be sequenced
-    sleep(Duration::from_secs(15)).await;
-
-    for address in [address_1, address_2, address_3].iter() {
-        let gas_objects_after = context
-            .get_gas_objects_owned_by_address(*address, None)
-            .await
-            .unwrap()
-            .len();
-        assert_eq!(gas_objects_after, 1);
-    }
+    wait_for_gas_objects(&context, &[address_1, address_2, address_3], 1).await?;
 
     // try with a new batch
     let (address_4, _): (_, AccountKeyPair) = get_key_pair();
@@ -5365,18 +5379,7 @@ async fn test_faucet_batch() -> Result<(), anyhow::Error> {
         };
     }
 
-    // we need to wait a minimum of 10 seconds for gathering the batch + some time
-    // for transaction to be sequenced
-    sleep(Duration::from_secs(15)).await;
-
-    for address in [address_4, address_5, address_6].iter() {
-        let gas_objects_after = context
-            .get_gas_objects_owned_by_address(*address, None)
-            .await
-            .unwrap()
-            .len();
-        assert_eq!(gas_objects_after, 1);
-    }
+    wait_for_gas_objects(&context, &[address_4, address_5, address_6], 1).await?;
 
     Ok(())
 }
@@ -5384,6 +5387,7 @@ async fn test_faucet_batch() -> Result<(), anyhow::Error> {
 #[sim_test]
 async fn test_faucet_batch_concurrent_requests() -> Result<(), anyhow::Error> {
     let test_cluster = TestClusterBuilder::new()
+        .with_num_validators(1)
         .with_fullnode_rpc_port(9000)
         .build()
         .await;
@@ -5455,19 +5459,7 @@ async fn test_faucet_batch_concurrent_requests() -> Result<(), anyhow::Error> {
     }
 
     // Wait for the first batch to complete
-    sleep(Duration::from_secs(15)).await;
-
-    // Validate gas objects after the first batch
-    for address in &addresses {
-        assert_eq!(
-            context
-                .get_gas_objects_owned_by_address(*address, None)
-                .await
-                .unwrap()
-                .len(),
-            1
-        );
-    }
+    wait_for_gas_objects(&context, &addresses, 1).await?;
 
     // Second batch: send faucet requests again for all addresses
     let second_batch_results: Vec<_> = futures::future::join_all(addresses.iter().map(|address| {
@@ -5490,19 +5482,7 @@ async fn test_faucet_batch_concurrent_requests() -> Result<(), anyhow::Error> {
     }
 
     // Wait for the second batch to complete
-    sleep(Duration::from_secs(15)).await;
-
-    // Validate gas objects after the second batch
-    for address in &addresses {
-        assert_eq!(
-            context
-                .get_gas_objects_owned_by_address(*address, None)
-                .await
-                .unwrap()
-                .len(),
-            2
-        );
-    }
+    wait_for_gas_objects(&context, &addresses, 2).await?;
 
     Ok(())
 }
