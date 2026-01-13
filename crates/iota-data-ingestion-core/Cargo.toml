@@ -16,7 +16,7 @@ byteorder.workspace = true
 bytes.workspace = true
 fastcrypto = { workspace = true, features = ["copy_key"] }
 futures.workspace = true
-notify.workspace = true
+notify = "6.1.1"
 object_store.workspace = true
 prometheus.workspace = true
 serde.workspace = true
