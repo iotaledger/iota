@@ -1257,4 +1257,276 @@ mod tests {
             "Calculated suggested gas price does not match expected; transaction:\n{tx_data:#?}"
         );
     }
+
+    // Test `SuggestedGasPriceCalculator::calculate_suggested_gas_price`
+    // in the `PerObjectCongestionControlMode::TotalTxCount` mode with
+    // congestion limit overshoot.
+    #[rstest]
+    fn calculate_suggested_gas_price_in_tx_count_mode_with_overshoot(
+        #[values(false, true)] assign_min_free_exec_slot: bool,
+        // Whether to use congestion limit overshoot in the gas price feedback
+        // mechanism, i.e., this is only used in `SuggestedGasPriceCalculator`.
+        // This is used to test that `SuggestedGasPriceCalculator` behaves
+        // differently depending on `use_congestion_limit_overshoot` values
+        // while congestion limit overshoot is always enabled in
+        // `SharedObjectCongestionTracker`.
+        #[values(false, true)] use_congestion_limit_overshoot: bool,
+    ) {
+        let object_1 = ObjectID::random();
+        let object_2 = ObjectID::random();
+
+        // Congestion control and other parameters used in
+        // `SharedObjectCongestionTracker` and `SuggestedGasPriceCalculator`
+        let max_gas_price = ProtocolConfig::get_for_max_version_UNSAFE().max_gas_price();
+        let congestion_control_parameters = CongestionControlParameters::new_for_test(
+            PerObjectCongestionControlMode::TotalTxCount,
+            assign_min_free_exec_slot,
+            Some(3),       // max_execution_duration_per_commit
+            Some(2),       // max_congestion_limit_overshoot_per_commit
+            max_gas_price, // max_gas_price
+            use_congestion_limit_overshoot,
+        );
+
+        // Initialize `SharedObjectCongestionTracker` and `SuggestedGasPriceCalculator`
+        let mut shared_object_congestion_tracker = SharedObjectCongestionTracker::new_for_test(
+            [(object_1, 1), (object_2, 2)], // initial_object_debts
+            congestion_control_parameters.clone(),
+        );
+        let mut suggested_gas_price_calculator = SuggestedGasPriceCalculator::new_for_test(
+            congestion_control_parameters,
+            REFERENCE_GAS_PRICE,
+        );
+
+        // Create some data for transactions and process each for scheduling.
+        let txs_data = build_transactions_data_for_test(max_gas_price, object_1, object_2);
+
+        // Transactions
+        // 0:  (100K, 3_000_000, [object_1: mut, object_2: imm]),
+        // 1:  (9000, 1_000_000, [object_1: imm, object_2: mut]),
+        // 2:  (8000, 4_000_000, [object_1: imm, object_2: mut]),
+        // should be scheduled, after which allocations of mutably
+        // accessed shared objects being as follows:
+        // |-------------------------------------|------------|
+        // |     object_1     |     object_2     | start time |
+        // |__________________|__________________|____________|
+        // |------------------|------------------|---- 5 -----|
+        // |                  | cert. 2 (g=8000) |            |
+        // |                  |------------------|---- 4      |
+        // |                  | cert. 1 (g=9000) |            |
+        // |------------------|------------------|---- 3 -----|
+        // | cert. 0 (g=100K) |                  |            |
+        // |------------------|------------------|---- 2      |
+        // |                  | init. obj. debts |            |
+        // |------------------| init. obj. debts |---- 1      |
+        // | init. obj. debts | init. obj. debts |            |
+        // |-------------------------------------|---- 0 -----|
+        (0..=2).for_each(|i| {
+            let tx_data = &txs_data[i];
+            assert!(
+                should_schedule(
+                    tx_data,
+                    &mut shared_object_congestion_tracker,
+                    &mut suggested_gas_price_calculator,
+                ),
+                "Transaction must be scheduled:\n{tx_data:#?}"
+            );
+        });
+
+        // If `assign_min_free_exec_slot` is `true`, transaction
+        // 3:  (7000, 2_000_000, [object_2: mut])
+        // must be scheduled, in which case allocations of mutably
+        // accessed shared object should look as follows:
+        // |-------------------------------------|------------|
+        // |     object_1     |     object_2     | start time |
+        // |__________________|__________________|____________|
+        // |------------------|------------------|---- 5 -----|
+        // |                  | cert. 2 (g=8000) |            |
+        // |                  |------------------|---- 4      |
+        // |                  | cert. 1 (g=9000) |            |
+        // |------------------|------------------|---- 3 -----|
+        // | cert. 0 (g=100K) | cert. 3 (g=7000) |            |
+        // |-------------------------------------|---- 2      |
+        // |                  | init. obj. debts |            |
+        // |------------------| init. obj. debts |---- 1      |
+        // | init. obj. debts | init. obj. debts |            |
+        // |-------------------------------------|---- 0 -----|
+        // If `assign_min_free_exec_slot` is `false`, transaction 3 must be deferred,
+        // in which case object 2 must be labeled as congested and suggested gas price
+        // must be equals to that of transaction
+        // 2: if `use_congestion_limit_overshoot` is `true`,
+        // 1: if `use_congestion_limit_overshoot` is `false`
+        // plus one.
+        let tx_data = &txs_data[3];
+        if assign_min_free_exec_slot {
+            assert!(
+                should_schedule(
+                    tx_data,
+                    &mut shared_object_congestion_tracker,
+                    &mut suggested_gas_price_calculator,
+                ),
+                "Transaction must be scheduled:\n{tx_data:#?}"
+            );
+        } else {
+            let (congested_objects, suggested_gas_price) = try_defer(
+                tx_data,
+                &mut shared_object_congestion_tracker,
+                &mut suggested_gas_price_calculator,
+            )
+            .unwrap_or_else(|| {
+                panic!("Transaction must be deferred:\n{tx_data:#?}");
+            });
+            assert_eq!(
+                congested_objects,
+                vec![object_2], // expected congested objects
+                "Calculated congested objects do not match expected: transaction:\n{tx_data:#?}"
+            );
+            assert_eq!(
+                suggested_gas_price,
+                // expected suggested gas price
+                txs_data[if use_congestion_limit_overshoot { 2 } else { 1 }].gas_price + 1,
+                "Calculated suggested gas price does not match expected; transaction:\n{tx_data:#?}"
+            );
+        }
+
+        // Transactions
+        // 4:  (7000, 1_000_001, [object_2: imm]),
+        // 5:  (7000, 5_000_000, [object_2: mut])
+        // must be deferred, with object 2 being labeled congested and
+        // suggested gas price being equal that of transaction
+        // 2: if `use_congestion_limit_overshoot` is `true`,
+        // 1: if `use_congestion_limit_overshoot` is `false`
+        // plus one.
+        (4..=5).for_each(|i| {
+            let tx_data = &txs_data[i];
+            let (congested_objects, suggested_gas_price) = try_defer(
+                tx_data,
+                &mut shared_object_congestion_tracker,
+                &mut suggested_gas_price_calculator,
+            )
+            .unwrap_or_else(|| {
+                panic!("Transaction must be deferred:\n{tx_data:#?}");
+            });
+            assert_eq!(
+                congested_objects,
+                vec![object_2], // expected congested objects
+                "Calculated congested objects do not match expected: transaction:\n{tx_data:#?}"
+            );
+            assert_eq!(
+                suggested_gas_price,
+                // expected suggested gas price
+                txs_data[if use_congestion_limit_overshoot { 2 } else { 1 }].gas_price + 1,
+                "Calculated suggested gas price does not match expected; transaction:\n{tx_data:#?}"
+            );
+        });
+
+        // Transactions
+        // 6:  (7000, 5_000_001, [object_1: mut, object_2, mut]),
+        // 7:  (7000, 8_000_000, [object_1: mut, object_2, mut])
+        // must be deferred, with objects 1 and 2 being
+        // labeled congested if `assign_min_free_exec_slot` is `true` and
+        // object 2 if `assign_min_free_exec_slot` is false and suggested
+        // gas price being equal that of transaction
+        // 2: if `use_congestion_limit_overshoot` is `true` plus one,
+        // 0: if `use_congestion_limit_overshoot` is `false`.
+        (6..=7).for_each(|i| {
+            let tx_data = &txs_data[i];
+            let (congested_objects, suggested_gas_price) = try_defer(
+                tx_data,
+                &mut shared_object_congestion_tracker,
+                &mut suggested_gas_price_calculator,
+            )
+            .unwrap_or_else(|| {
+                panic!("Transaction must be deferred:\n{tx_data:#?}");
+            });
+            assert_eq!(
+                congested_objects,
+                if assign_min_free_exec_slot {
+                    vec![object_1, object_2]
+                } else {
+                    vec![object_2]
+                }, // expected congested objects
+                "Calculated congested objects do not match expected: transaction:\n{tx_data:#?}"
+            );
+            assert_eq!(
+                suggested_gas_price,
+                // expected suggested gas price
+                if use_congestion_limit_overshoot {
+                    txs_data[2].gas_price + 1
+                } else {
+                    txs_data[0].gas_price
+                },
+                "Calculated suggested gas price does not match expected; transaction:\n{tx_data:#?}"
+            );
+        });
+
+        // Transactions
+        // 8:  (6000, 4_000_000, [object_1: mut]),
+        // 9:  (5000, 2_000_000, [object_1: mut])
+        // should be scheduled, after which allocations of mutably
+        // accessed shared objects being as follows:
+        // |-------------------------------------|------------|
+        // |     object_1     |     object_2     | start time |
+        // |__________________|__________________|____________|
+        // |------------------|------------------|---- 5 -----|
+        // | cert. 9 (g=5000) | cert. 2 (g=8000) |            |
+        // |------------------|------------------|---- 4      |
+        // | cert. 8 (g=6000) | cert. 1 (g=9000) |            |
+        // |------------------|------------------|---- 3 -----|
+        // | cert. 0 (g=100K) | cert. 3 (g=7000) |            |
+        // |-------------------------------------|---- 2      |
+        // |                  | init. obj. debts |            |
+        // |------------------| init. obj. debts |---- 1      |
+        // | init. obj. debts | init. obj. debts |            |
+        // |-------------------------------------|---- 0 -----|
+        // NOTE: certificate 3 will only be scheduled if
+        // `assign_min_free_exec_slot` is `true`.
+        (8..=9).for_each(|i| {
+            let tx_data = &txs_data[i];
+            assert!(
+                should_schedule(
+                    tx_data,
+                    &mut shared_object_congestion_tracker,
+                    &mut suggested_gas_price_calculator,
+                ),
+                "Transaction must be scheduled:\n{tx_data:#?}"
+            );
+        });
+
+        // Transactions
+        // 10: (5000, 1_000_001, [object_1: imm, object_2, imm]),
+        // 11: (5000, 5_000_001, [object_1: mut, object_2, imm]),
+        // 12: (5000, 9_000_000, [object_1: imm, object_2, mut])
+        // must be deferred, with objects 1 and 2 being labeled congested
+        // if `assign_min_free_exec_slot` is `true` and object 2 if
+        // `assign_min_free_exec_slot` is false and suggested gas price
+        // being equal that of transaction
+        // 2: if `use_congestion_limit_overshoot` is `true` plus one,
+        // 0: if `use_congestion_limit_overshoot` is `false`.
+        (10..=12).for_each(|i| {
+            let tx_data = &txs_data[i];
+            let (congested_objects, suggested_gas_price) = try_defer(
+                tx_data,
+                &mut shared_object_congestion_tracker,
+                &mut suggested_gas_price_calculator,
+            )
+            .unwrap_or_else(|| {
+                panic!("Transaction must be deferred:\n{tx_data:#?}");
+            });
+            assert_eq!(
+                congested_objects,
+                vec![object_1, object_2], // expected congested objects
+                "Calculated congested objects do not match expected: transaction:\n{tx_data:#?}"
+            );
+            assert_eq!(
+                suggested_gas_price,
+                // expected suggested gas price
+                if use_congestion_limit_overshoot {
+                    txs_data[2].gas_price + 1
+                } else {
+                    txs_data[0].gas_price
+                },
+                "Calculated suggested gas price does not match expected; transaction:\n{tx_data:#?}"
+            );
+        });
+    }
 }
