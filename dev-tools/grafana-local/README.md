@@ -14,3 +14,31 @@ Take care of the ports alignment in `tempo.yaml` and `docker-compose.yaml`. The 
 
 To navigate to the Tempo UI, open Grafana and go to "Data Sources". Select "Explore" in Tempo block and you can start querying spans.
 <img src="./grafana-datasources-tempo.png" width="100%"/>
+
+## Examining prometheus snapshots
+
+1. Extract the snapshot tarball
+
+```bash
+tar czf prometheus-backup.tar.gz /path/to/extracted/snapshot
+```
+
+2. export the `SNAPSHOT_DIR_PATH` environment variable to point to the extracted snapshot directory
+
+```bash
+export SNAPSHOT_DIR_PATH=/path/to/extracted/snapshot
+```
+
+3. Run the following command to start a local grafana and prometheus instance with the snapshot
+
+```bash
+docker compose -f docker-compose.prom-snapshot.yaml up -d
+```
+
+4. Access grafana at `http://localhost:3000`
+
+5. Remove the local grafana and prometheus instance after use
+
+```bash
+docker compose -f docker-compose.prom-snapshot.yaml down
+```

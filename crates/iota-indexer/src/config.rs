@@ -109,11 +109,23 @@ pub struct JsonRpcConfig {
     #[command(flatten)]
     pub iota_names_options: IotaNamesOptions,
 
+    #[command(flatten)]
+    pub historic_fallback_options: HistoricFallbackOptions,
+
     #[clap(long, default_value = "0.0.0.0:9000")]
     pub rpc_address: SocketAddr,
 
     #[clap(long)]
     pub rpc_client_url: String,
+}
+
+#[derive(Args, Debug, Clone)]
+pub struct HistoricFallbackOptions {
+    #[arg(
+        long,
+        help = "Experimental: REST KV store URL for historic fallback. Depends on the iota-rest-kv API which is still being finalized."
+    )]
+    pub fallback_kv_url: Option<Url>,
 }
 
 #[derive(Args, Debug, Default, Clone)]
@@ -395,8 +407,8 @@ pub mod deprecated {
 
     use crate::{
         config::{
-            Command, IndexerConfig, IngestionConfig, IngestionSources, IotaNamesOptions,
-            JsonRpcConfig, PruningOptions, SnapshotLagConfig,
+            Command, HistoricFallbackOptions, IndexerConfig, IngestionConfig, IngestionSources,
+            IotaNamesOptions, JsonRpcConfig, PruningOptions, SnapshotLagConfig,
         },
         db::ConnectionPoolConfig,
         errors::IndexerError,
@@ -601,6 +613,9 @@ pub mod deprecated {
                         old_conf.rpc_server_port,
                     ),
                     rpc_client_url: old_conf.rpc_client_url,
+                    historic_fallback_options: HistoricFallbackOptions {
+                        fallback_kv_url: None,
+                    },
                 })
             } else if old_conf.fullnode_sync_worker {
                 Command::Indexer {
@@ -722,6 +737,7 @@ mod test {
         parse_args::<JsonRpcConfig>([
             "--rpc-address=127.0.0.1:8080",
             "--rpc-client-url=http://example.com",
+            "--fallback-kv-url=http://example.com/restkv/",
         ])
         .unwrap();
 

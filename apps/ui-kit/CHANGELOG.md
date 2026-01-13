@@ -1,5 +1,13 @@
 # @iota/apps-ui-kit
 
+## 0.9.2
+
+### Patch Changes
+
+-   1925bea: Bump with no changes to fix NPM versions
+-   Updated dependencies [1925bea]
+    -   @iota/apps-ui-icons@0.7.2
+
 ## 0.9.1
 
 ### Patch Changes
