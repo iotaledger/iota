@@ -817,22 +817,22 @@ impl IotaClientCommands {
             IotaClientCommands::AddAccount { address, alias } => {
                 let client = context.get_client().await?;
 
-                let authenticator_info_id = dynamic_field::derive_dynamic_field_id(
+                let authenticator_function_ref_id = dynamic_field::derive_dynamic_field_id(
                     address,
-                    &account::AuthenticatorInfoV1Key::tag().into(),
-                    &account::AuthenticatorInfoV1Key::default().to_bcs_bytes(),
+                    &account::AuthenticatorFunctionRefV1Key::tag().into(),
+                    &account::AuthenticatorFunctionRefV1Key::default().to_bcs_bytes(),
                 )?;
 
                 let response = client
                     .read_api()
                     .get_object_with_options(
-                        authenticator_info_id,
+                        authenticator_function_ref_id,
                         IotaObjectDataOptions::new().with_bcs(),
                     )
                     .await?;
 
                 if let Some(error) = response.error {
-                    bail!("Failed to fetch AuthenticatorInfoV1 object {error}");
+                    bail!("Failed to fetch AuthenticatorFunctionRefV1 object {error}");
                 }
 
                 response
@@ -841,7 +841,10 @@ impl IotaClientCommands {
                     .ok_or_else(|| anyhow::anyhow!("missing bcs"))?
                     .try_into_move()
                     .ok_or_else(|| anyhow::anyhow!("invalid move type"))?
-                    .deserialize::<Field<account::AuthenticatorInfoV1Key, account::AuthenticatorInfoV1>>()?;
+                    .deserialize::<Field<
+                        account::AuthenticatorFunctionRefV1Key,
+                        account::AuthenticatorFunctionRefV1,
+                    >>()?;
 
                 context
                     .config_mut()
@@ -3933,27 +3936,30 @@ pub(crate) async fn resolve_auth_call_args(
     Ok(call_args)
 }
 
-/// Fetches AuthenticatorInfoV1 for a signer.
+/// Fetches AuthenticatorFunctionRefV1 for a signer.
 pub(crate) async fn fetch_auth_info(
     client: &IotaClient,
     signer: IotaAddress,
-) -> Result<Field<account::AuthenticatorInfoV1Key, account::AuthenticatorInfoV1>, anyhow::Error> {
-    let authenticator_info_id = dynamic_field::derive_dynamic_field_id(
+) -> Result<
+    Field<account::AuthenticatorFunctionRefV1Key, account::AuthenticatorFunctionRefV1>,
+    anyhow::Error,
+> {
+    let authenticator_function_ref_id = dynamic_field::derive_dynamic_field_id(
         signer,
-        &account::AuthenticatorInfoV1Key::tag().into(),
-        &account::AuthenticatorInfoV1Key::default().to_bcs_bytes(),
+        &account::AuthenticatorFunctionRefV1Key::tag().into(),
+        &account::AuthenticatorFunctionRefV1Key::default().to_bcs_bytes(),
     )?;
 
     let response = client
         .read_api()
         .get_object_with_options(
-            authenticator_info_id,
+            authenticator_function_ref_id,
             IotaObjectDataOptions::new().with_bcs(),
         )
         .await?;
 
     if let Some(error) = response.error {
-        bail!("Failed to fetch AuthenticatorInfoV1 object {error}");
+        bail!("Failed to fetch AuthenticatorFunctionRefV1 object {error}");
     }
 
     let auth_info = response
@@ -3962,7 +3968,7 @@ pub(crate) async fn fetch_auth_info(
         .ok_or_else(|| anyhow::anyhow!("missing bcs"))?
         .try_into_move()
         .ok_or_else(|| anyhow::anyhow!("invalid move type"))?
-        .deserialize::<Field<account::AuthenticatorInfoV1Key, account::AuthenticatorInfoV1>>()?;
+        .deserialize::<Field<account::AuthenticatorFunctionRefV1Key, account::AuthenticatorFunctionRefV1>>()?;
 
     Ok(auth_info)
 }

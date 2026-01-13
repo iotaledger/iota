@@ -16,7 +16,7 @@ fun init(_otw: ACCOUNT, ctx: &mut TxContext) {
 }
 
 public fun link_auth(account: Account, package: &PackageMetadataV1, module_name: std::ascii::String, function_name: std::ascii::String) {
-    let authenticator_info = iota::account::create_auth_info_v1<Account>(package, module_name, function_name);
+    let authenticator_info = iota::account::create_auth_function_ref_v1<Account>(package, module_name, function_name);
     iota::account::create_account_v1<Account>(account, authenticator_info);
 }
 
