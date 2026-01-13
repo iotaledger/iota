@@ -475,7 +475,32 @@ impl TryFrom<crate::transaction::TransactionKind> for TransactionKind {
                     consensus_determined_version_assignments,
                 })
             }
-            InternalTxnKind::ConsensusCommitPrologueV4(_consensus_commit_prologue_v4) => todo!(),
+            InternalTxnKind::ConsensusCommitPrologueV4(consensus_commit_prologue_v4) => {
+                let consensus_determined_version_assignments = match consensus_commit_prologue_v4.consensus_determined_version_assignments {
+                    crate::messages_consensus::ConsensusDeterminedVersionAssignments::CancelledTransactions(vec) =>
+                        ConsensusDeterminedVersionAssignments::CancelledTransactions {
+                            cancelled_transactions: vec.into_iter().map(|value| CancelledTransaction {
+                                digest: value.0.into(),
+                                version_assignments:
+                                    value
+                                        .1
+                                        .into_iter()
+                                        .map(|value| VersionAssignment { object_id: value.0.into(), version: value.1.value() })
+                                        .collect(),
+                            }).collect()
+                        },
+                };
+                TransactionKind::ConsensusCommitPrologueV1(ConsensusCommitPrologueV1 {
+                    epoch: consensus_commit_prologue_v4.epoch,
+                    round: consensus_commit_prologue_v4.round,
+                    sub_dag_index: consensus_commit_prologue_v4.sub_dag_index,
+                    commit_timestamp_ms: consensus_commit_prologue_v4.commit_timestamp_ms,
+                    consensus_commit_digest: consensus_commit_prologue_v4
+                        .consensus_commit_digest
+                        .into(),
+                    consensus_determined_version_assignments,
+                })
+            }
             InternalTxnKind::AuthenticatorStateUpdateV1(authenticator_state_update_v1) => {
                 TransactionKind::AuthenticatorStateUpdateV1(AuthenticatorStateUpdateV1 {
                     epoch: authenticator_state_update_v1.epoch,

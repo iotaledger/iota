@@ -2597,7 +2597,7 @@ impl VerifiedTransaction {
         round: u64,
         commit_timestamp_ms: CheckpointTimestamp,
         consensus_commit_digest: ConsensusCommitDigest,
-        cancelled_txn_version_assignment: Vec<(TransactionDigest, Vec<(ObjectID, SequenceNumber)>)>,
+        consensus_determined_version_assignments: ConsensusDeterminedVersionAssignments,
     ) -> Self {
         ConsensusCommitPrologueV1 {
             epoch,
@@ -2606,10 +2606,7 @@ impl VerifiedTransaction {
             sub_dag_index: None,
             commit_timestamp_ms,
             consensus_commit_digest,
-            consensus_determined_version_assignments:
-                ConsensusDeterminedVersionAssignments::CancelledTransactions(
-                    cancelled_txn_version_assignment,
-                ),
+            consensus_determined_version_assignments,
         }
         .pipe(TransactionKind::ConsensusCommitPrologueV1)
         .pipe(Self::new_system_transaction)

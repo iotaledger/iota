@@ -916,14 +916,14 @@ impl ConsensusCommitInfo {
     fn consensus_commit_prologue_v1_transaction(
         &self,
         epoch: u64,
-        cancelled_txn_version_assignment: Vec<(TransactionDigest, Vec<(ObjectID, SequenceNumber)>)>,
+        consensus_determined_version_assignments: ConsensusDeterminedVersionAssignments,
     ) -> VerifiedExecutableTransaction {
         let transaction = VerifiedTransaction::new_consensus_commit_prologue_v1(
             epoch,
             self.round,
             self.timestamp,
             self.consensus_commit_digest,
-            cancelled_txn_version_assignment,
+            consensus_determined_version_assignments,
         );
         VerifiedExecutableTransaction::new_system(transaction, epoch)
     }
@@ -952,49 +952,18 @@ impl ConsensusCommitInfo {
         cancelled_txn_version_assignment: Vec<(TransactionDigest, Vec<(ObjectID, SequenceNumber)>)>,
         additional_state: &AdditionalConsensusState,
     ) -> VerifiedExecutableTransaction {
-        // self.consensus_commit_prologue_v1_transaction(epoch,
-        // cancelled_txn_version_assignment)
-        todo!()
-        // let version_assignments = if protocol_config
-        //    .record_consensus_determined_version_assignments_in_prologue_v2()
-        //{
-        //    Some(
-        //        ConsensusDeterminedVersionAssignments::CancelledTransactionsV2(
-        //            cancelled_txn_version_assignment,
-        //        ),
-        //    )
-        //} else if protocol_config.
-        //} record_consensus_determined_version_assignments_in_prologue() {
-        //    Some(
-        //        ConsensusDeterminedVersionAssignments::CancelledTransactions(
-        //            cancelled_txn_version_assignment
-        //                .into_iter()
-        //                .map(|(tx_digest, versions)| {
-        //                    (
-        //                        tx_digest,
-        //                        versions.into_iter().map(|(id, v)| (id.0,
-        // v)).collect(),                    )
-        //                })
-        //                .collect(),
-        //        ),
-        //    )
-        //} else {
-        //    None
-        //};
-        // if protocol_config.record_additional_state_digest_in_prologue() {
-        //    self.consensus_commit_prologue_v4_transaction(
-        //        epoch,
-        //        version_assignments.unwrap(),
-        //        additional_state.digest(),
-        //    )
-        //} else if let Some(version_assignments) = version_assignments {
-        //    self.consensus_commit_prologue_v3_transaction(epoch,
-        // version_assignments)
-        //} else if protocol_config.include_consensus_digest_in_prologue() {
-        //    self.consensus_commit_prologue_v2_transaction(epoch)
-        //} else {
-        //    self.consensus_commit_prologue_transaction(epoch)
-        //}
+        let version_assignments = ConsensusDeterminedVersionAssignments::CancelledTransactions(
+            cancelled_txn_version_assignment,
+        );
+        if protocol_config.record_additional_state_digest_in_prologue() {
+            self.consensus_commit_prologue_v4_transaction(
+                epoch,
+                version_assignments,
+                additional_state.digest(),
+            )
+        } else {
+            self.consensus_commit_prologue_v1_transaction(epoch, version_assignments)
+        }
     }
 }
 
