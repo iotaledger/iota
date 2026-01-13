@@ -32,7 +32,7 @@ indexmap.workspace = true
 itertools.workspace = true
 lru.workspace = true
 nonempty.workspace = true
-num-bigint = { version = "0.4.4", default-features = false, features = ["rand"] }
+num-bigint = { version = "0.4.4", default-features = false }
 num-rational = "0.4"
 num-traits = "0.2.18"
 once_cell.workspace = true
