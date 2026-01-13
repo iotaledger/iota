@@ -23,6 +23,7 @@ const EInvalidLimit: vector<u8> = b"Invalid spending limit.";
 
 // === Structs ===
 
+/// A dynamic field key for the spending limit.
 public struct SpendingLimit has copy, drop, store {}
 
 // === Events ===
@@ -31,8 +32,8 @@ public struct SpendingLimit has copy, drop, store {}
 
 // === Public Functions ===
 
-// Authenticates that the given amount is within the spending limit.
-public fun authenticate_with_amount(account_id: &UID, amount: u64) {
+/// Checks that the given amount is within the spending limit.
+public fun check_amount_against_spending_limit(account_id: &UID, amount: u64) {
     assert!(exists(account_id), ESpendingLimitMissing);
 
     let spending_limit = borrow(account_id);

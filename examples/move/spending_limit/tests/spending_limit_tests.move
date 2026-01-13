@@ -45,17 +45,17 @@ fun duplicate_spending_limit_reported() {
     test_scenario::end(scenario_val);
 }
 
-// ---------------------- authenticate_with_amount ------------------------
+// ---------------------- check_amount_against_spending_limit ------------------------
 
 #[test]
 #[expected_failure(abort_code = spending_limit::ESpendingLimitMissing)]
-fun authenticate_with_amount_requires_limit_to_be_set() {
+fun check_amount_against_spending_limit_requires_limit_to_be_set() {
     let mut scenario_val = test_scenario::begin(@0x0);
     let scenario = &mut scenario_val;
 
     let id = scenario.new_object();
 
-    spending_limit::authenticate_with_amount( &id, 100);
+    spending_limit::check_amount_against_spending_limit( &id, 100);
 
     test_utils::destroy(id);
     test_scenario::end(scenario_val);
@@ -63,7 +63,7 @@ fun authenticate_with_amount_requires_limit_to_be_set() {
 
 #[test]
 #[expected_failure(abort_code = spending_limit::EOverspend)]
-fun authenticate_with_amount_fails_if_exceeds_limit() {
+fun check_amount_against_spending_limit_fails_if_exceeds_limit() {
     let mut scenario_val = test_scenario::begin(@0x0);
     let scenario = &mut scenario_val;
 
@@ -72,14 +72,14 @@ fun authenticate_with_amount_fails_if_exceeds_limit() {
     spending_limit::attach(&mut id, 1000);
 
     // Try to spend 1001
-    spending_limit::authenticate_with_amount( &id, 1001);
+    spending_limit::check_amount_against_spending_limit( &id, 1001);
 
     test_utils::destroy(id);
     test_scenario::end(scenario_val);
 }
 
 #[test]
-fun authenticate_with_amount_at_limit() {
+fun check_amount_against_spending_limit_at_limit() {
     let mut scenario_val = test_scenario::begin(@0x0);
     let scenario = &mut scenario_val;
 
@@ -88,14 +88,14 @@ fun authenticate_with_amount_at_limit() {
     spending_limit::attach(&mut id, 1000);
 
     // Spend exactly at limit
-    spending_limit::authenticate_with_amount( &id, 1000);
+    spending_limit::check_amount_against_spending_limit( &id, 1000);
 
     test_utils::destroy(id);
     test_scenario::end(scenario_val);
 }
 
 #[test]
-fun authenticate_with_amount_below_limit() {
+fun check_amount_against_spending_limit_below_limit() {
     let mut scenario_val = test_scenario::begin(@0x0);
     let scenario = &mut scenario_val;
 
@@ -104,7 +104,7 @@ fun authenticate_with_amount_below_limit() {
     spending_limit::attach(&mut id, 1000);
 
     // Spend below limit
-    spending_limit::authenticate_with_amount( &id, 500);
+    spending_limit::check_amount_against_spending_limit( &id, 500);
 
     test_utils::destroy(id);
     test_scenario::end(scenario_val);
@@ -120,7 +120,7 @@ fun authenticate_with_zero_amount() {
     spending_limit::attach(&mut id, 1000);
 
     // Spend zero (should always pass)
-    spending_limit::authenticate_with_amount( &id, 0);
+    spending_limit::check_amount_against_spending_limit( &id, 0);
 
     test_utils::destroy(id);
     test_scenario::end(scenario_val);
@@ -135,10 +135,10 @@ fun multiple_authentications_within_limit() {
 
     spending_limit::attach(&mut id, 1000);
 
-    spending_limit::authenticate_with_amount( &id, 500);
-    spending_limit::authenticate_with_amount( &id, 200);
-    spending_limit::authenticate_with_amount( &id, 100);
-    spending_limit::authenticate_with_amount( &id, 0);
+    spending_limit::check_amount_against_spending_limit( &id, 500);
+    spending_limit::check_amount_against_spending_limit( &id, 200);
+    spending_limit::check_amount_against_spending_limit( &id, 100);
+    spending_limit::check_amount_against_spending_limit( &id, 0);
 
     test_utils::destroy(id);
     test_scenario::end(scenario_val);
@@ -166,7 +166,7 @@ fun multiple_withdrawals_over_the_limit() {
     *spending_limit_ref = *spending_limit_ref - 100;
 
     // Now remaining is 200, authenticate with 300 should fail
-    spending_limit::authenticate_with_amount(&id, 300);
+    spending_limit::check_amount_against_spending_limit(&id, 300);
 
     test_utils::destroy(id);
     test_scenario::end(scenario_val);

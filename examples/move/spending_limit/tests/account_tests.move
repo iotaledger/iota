@@ -5,8 +5,8 @@
 module spending_limit::account_tests;
 
 use generic_keyed_authentication::owner_public_key;
-use iota::account::AuthenticatorInfoV1;
 use iota::auth_context::{Self, AuthContext};
+use iota::authenticator_function::AuthenticatorFunctionRefV1;
 use iota::coin;
 use iota::hex;
 use iota::iota::IOTA;
@@ -248,7 +248,7 @@ fun account_zero_spending() {
 }
 
 #[test]
-fun test_authenticator_info_integrity() {
+fun test_authenticator_function_ref_integrity() {
     let mut scenario_val = test_scenario::begin(@0x0);
     let scenario = &mut scenario_val;
     let account_address = create_spending_limit_for_testing(scenario, 1000, b"42");
@@ -257,11 +257,11 @@ fun test_authenticator_info_integrity() {
     {
         let account = scenario.take_shared<spending_limit::SpendLimit>();
 
-        let info = account.authenticator_info();
+        let fn_ref = account.authenticator_function_ref();
 
-        let expected_info = create_authenticator_info_v1_for_testing();
+        let expected_fn_ref = create_authenticator_function_ref_v1_for_testing();
 
-        assert!(info == &expected_info, 0);
+        assert!(fn_ref == &expected_fn_ref, 0);
 
         test_scenario::return_shared(account);
     };
@@ -677,11 +677,11 @@ fun test_withdraw_invalid_bcs_amount() {
 
 // --------------------------------------- Test Utilities ---------------------------------------
 
-fun create_authenticator_info_v1_for_testing(): AuthenticatorInfoV1<SpendLimit> {
-    iota::account::create_auth_info_v1_for_testing(
+fun create_authenticator_function_ref_v1_for_testing(): AuthenticatorFunctionRefV1<SpendLimit> {
+    iota::authenticator_function::create_auth_function_ref_v1_for_testing(
         @0x1,
         ascii::string(b"spending_limit"),
-        ascii::string(b"authenticate_spending_limit"),
+        ascii::string(b"authenticate"),
     )
 }
 
@@ -692,7 +692,7 @@ fun create_spending_limit_for_testing(
 ): address {
     let ctx = test_scenario::ctx(scenario);
 
-    let authenticator = create_authenticator_info_v1_for_testing();
+    let authenticator = create_authenticator_function_ref_v1_for_testing();
 
     spending_limit::create(public_key, limit, authenticator, ctx);
 

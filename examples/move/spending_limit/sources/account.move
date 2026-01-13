@@ -4,8 +4,9 @@
 module spending_limit::account;
 
 use generic_keyed_authentication::owner_public_key;
-use iota::account::{Self, AuthenticatorInfoV1};
+use iota::account;
 use iota::auth_context::{AuthContext, tx_commands, tx_inputs};
+use iota::authenticator_function::AuthenticatorFunctionRefV1;
 use iota::balance::{Self, Balance};
 use iota::bcs;
 use iota::coin::{Self, Coin};
@@ -50,26 +51,30 @@ const ESpendingLimitExceeded: vector<u8> = b"Amount exceeds spending limit.";
 
 // === Structs ===
 
+/// Struct for the SpendLimit account.
 public struct SpendLimit has key {
     id: UID,
 }
 
-// Marker for the gas reserve balance (outside spending limit).
+/// Marker for the gas reserve balance (outside spending limit).
 public struct BalanceReserveKey has copy, drop, store {}
 
+/// Struct for the balance reserve to keep in the account.
 public struct BalanceReserve has store {
     balance: Balance<IOTA>,
 }
+
 // === Events ===
 
 // === Method Aliases ===
 
 // === Public Functions ===
 
+/// Create a new SpendLimit account. Initializes the account with the given public key and spending limit.
 public fun create(
     public_key: vector<u8>,
     limit: u64,
-    authenticator: AuthenticatorInfoV1<SpendLimit>,
+    authenticator: AuthenticatorFunctionRefV1<SpendLimit>,
     ctx: &mut TxContext,
 ) {
     // Create the SpendLimit account object.
@@ -97,20 +102,8 @@ public fun create(
     account::create_account_v1(spend_limit_account, authenticator);
 }
 
-#[authenticator]
-public fun authenticate(
-    account: &SpendLimit,
-    signature: vector<u8>,
-    auth_ctx: &AuthContext,
-    ctx: &TxContext,
-) {
-    owner_public_key::authenticate_ed25519(&account.id, signature, ctx.digest());
-
-    let total_amount = validate_and_calculate_withdrawals(auth_ctx, ctx);
-
-    spending_limit::authenticate_with_amount(&account.id, total_amount);
-}
-
+/// Withdraws the specified amount from the balance reserve of the SpendLimit account.
+/// Ensures that the transaction sender is the account itself.
 public fun withdraw_from_balance_reserve(
     self: &mut SpendLimit,
     amount: u64,
@@ -132,9 +125,83 @@ public fun withdraw_from_balance_reserve(
     coin::from_balance(withdrawn_balance, ctx)
 }
 
-// Validates withdraw calls and calculates total withdrawal amount.
-// Returns the total amount from all valid withdraw commands.
-// Returns 0 if no valid withdraw commands are found.
+/// Deposit coins into the balance reserve of the SpendLimit account.
+public fun deposit_to_reserve(self: &mut SpendLimit, coin: Coin<IOTA>) {
+    let reserve = dynamic_field::borrow_mut<BalanceReserveKey, BalanceReserve>(
+        &mut self.id,
+        BalanceReserveKey {},
+    );
+    balance::join(&mut reserve.balance, coin::into_balance(coin));
+}
+
+/// Borrow a mutable dynamic field from the SpendLimit account.
+public fun borrow_field_mut<Name: copy + drop + store, Value: store>(
+    self: &mut SpendLimit,
+    name: Name,
+    ctx: &TxContext,
+): &mut Value {
+    // Check that the sender of this transaction is the account.
+    ensure_tx_sender_is_account(self, ctx);
+
+    // Borrow the related dynamic field.
+    dynamic_field::borrow_mut(&mut self.id, name)
+}
+
+/// Ensure that the transaction sender is the SpendLimit account itself.
+public fun ensure_tx_sender_is_account(self: &SpendLimit, ctx: &TxContext) {
+    assert!(self.id.uid_to_address() == ctx.sender(), ETransactionSenderIsNotTheAccount);
+}
+
+// === Authenticators ===
+
+/// Authenticator function for SpendLimit accounts.
+/// Validates the signature and the withdrawal commands in the transaction.
+/// Calculates the total withdrawal amount and checks against the spending limit.
+#[authenticator]
+public fun authenticate(
+    account: &SpendLimit,
+    signature: vector<u8>,
+    auth_ctx: &AuthContext,
+    ctx: &TxContext,
+) {
+    owner_public_key::authenticate_ed25519(&account.id, signature, ctx.digest());
+
+    let total_amount = validate_and_calculate_withdrawals(auth_ctx, ctx);
+
+    spending_limit::check_amount_against_spending_limit(&account.id, total_amount);
+}
+
+// === View Functions ===
+
+// Get the spending limit value.
+public fun spending_limit(account: &SpendLimit): u64 {
+    *spending_limit::borrow(&account.id)
+}
+
+// Query the address of the `SpendLimit` account.
+public fun account_address(self: &SpendLimit): address {
+    self.id.to_address()
+}
+
+// Get the owner public key.
+public fun public_key(account: &SpendLimit): &vector<u8> {
+    owner_public_key::borrow(&account.id)
+}
+
+// Get the authenticator function ref.
+public fun authenticator_function_ref(
+    account: &SpendLimit,
+): &AuthenticatorFunctionRefV1<SpendLimit> {
+    account::borrow_auth_function_ref_v1<SpendLimit>(&account.id)
+}
+
+// === Admin Functions ===
+
+// === Package Functions ===
+
+/// Validates withdraw calls and calculates total withdrawal amount.
+/// Returns the total amount from all valid withdraw commands.
+/// Returns 0 if no valid withdraw commands are found.
 public(package) fun validate_and_calculate_withdrawals(
     auth_ctx: &AuthContext,
     ctx: &TxContext,
@@ -182,6 +249,8 @@ public(package) fun validate_and_calculate_withdrawals(
     total_amount
 }
 
+// === Private Functions ===
+
 // Helper function to validate if a MoveCall is a valid withdraw call.
 fun is_valid_withdraw_call(
     call: &ProgrammableMoveCall,
@@ -217,6 +286,7 @@ fun is_valid_withdraw_call(
     call_package_addr == expected_package_addr
 }
 
+// Helper function to check if the first argument of the MoveCall equals the transaction sender.
 fun first_arg_equals_sender(
     call: &ProgrammableMoveCall,
     auth_ctx: &AuthContext,
@@ -274,58 +344,6 @@ fun first_arg_equals_sender(
 
     false
 }
-
-public fun ensure_tx_sender_is_account(self: &SpendLimit, ctx: &TxContext) {
-    assert!(self.id.uid_to_address() == ctx.sender(), ETransactionSenderIsNotTheAccount);
-}
-
-public fun deposit_to_reserve(self: &mut SpendLimit, coin: Coin<IOTA>) {
-    let reserve = dynamic_field::borrow_mut<BalanceReserveKey, BalanceReserve>(
-        &mut self.id,
-        BalanceReserveKey {},
-    );
-    balance::join(&mut reserve.balance, coin::into_balance(coin));
-}
-
-public fun borrow_field_mut<Name: copy + drop + store, Value: store>(
-    self: &mut SpendLimit,
-    name: Name,
-    ctx: &TxContext,
-): &mut Value {
-    // Check that the sender of this transaction is the account.
-    ensure_tx_sender_is_account(self, ctx);
-
-    // Borrow the related dynamic field.
-    dynamic_field::borrow_mut(&mut self.id, name)
-}
-
-// === View Functions ===
-
-// Get the spending limit value.
-public fun spending_limit(account: &SpendLimit): u64 {
-    *spending_limit::borrow(&account.id)
-}
-
-// Query the address of the `SpendLimit` account.
-public fun account_address(self: &SpendLimit): address {
-    self.id.to_address()
-}
-
-// Get the owner public key.
-public fun public_key(account: &SpendLimit): &vector<u8> {
-    owner_public_key::borrow(&account.id)
-}
-
-// Get the authenticator info.
-public fun authenticator_info(account: &SpendLimit): &AuthenticatorInfoV1<SpendLimit> {
-    account::borrow_auth_info_v1<SpendLimit>(&account.id)
-}
-
-// === Admin Functions ===
-
-// === Package Functions ===
-
-// === Private Functions ===
 
 // === Test Functions ===
 
