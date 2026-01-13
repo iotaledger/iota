@@ -54,6 +54,21 @@ public fun create_auth_function_ref_v1<Account: key>(
     }
 }
 
+/// Return the storage ID of the package represented by `AuthenticatorFunctionRefV1`.
+public fun package<Account: key>(self: &AuthenticatorFunctionRefV1<Account>): ID {
+    self.package
+}
+
+/// Return the name of the module represented by `AuthenticatorFunctionRefV1`.
+public fun module_name<Account: key>(self: &AuthenticatorFunctionRefV1<Account>): &ascii::String {
+    &self.module_name
+}
+
+/// Return the name of the function represented by `AuthenticatorFunctionRefV1`.
+public fun function_name<Account: key>(self: &AuthenticatorFunctionRefV1<Account>): &ascii::String {
+    &self.function_name
+}
+
 /// Create an `AuthenticatorFunctionRefV1` instance for testing, skipping validation.
 #[test_only]
 public fun create_auth_function_ref_v1_for_testing<Account: key>(

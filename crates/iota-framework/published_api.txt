@@ -1426,6 +1426,15 @@ AuthenticatorFunctionRefV1
 create_auth_function_ref_v1
 	public fun
 	0x2::authenticator_function
+package
+	public fun
+	0x2::authenticator_function
+module_name
+	public fun
+	0x2::authenticator_function
+function_name
+	public fun
+	0x2::authenticator_function
 AuthenticatorFunctionRefV1Key
 	public struct
 	0x2::account
