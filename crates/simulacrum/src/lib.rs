@@ -465,7 +465,7 @@ impl<R, S: store::SimulatorStore> Simulacrum<R, S> {
         let checkpoint = inner.store.get_checkpoint_by_sequence_number(0).unwrap();
         let contents = inner
             .store
-            .get_checkpoint_contents(&checkpoint.content_digest);
+            .get_checkpoint_contents_by_digest(&checkpoint.content_digest);
         self.process_data_ingestion_locked(&inner, checkpoint, contents.unwrap())
             .unwrap();
     }
@@ -562,13 +562,13 @@ impl<T, V: store::SimulatorStore> ReadStore for Simulacrum<T, V> {
     fn try_get_highest_verified_checkpoint(
         &self,
     ) -> iota_types::storage::error::Result<VerifiedCheckpoint> {
-        todo!()
+        Ok(self.with_store(|store| store.get_highest_checkpoint().unwrap()))
     }
 
     fn try_get_highest_synced_checkpoint(
         &self,
     ) -> iota_types::storage::error::Result<VerifiedCheckpoint> {
-        todo!()
+        Ok(self.with_store(|store| store.get_highest_checkpoint().unwrap()))
     }
 
     fn try_get_lowest_available_checkpoint(
@@ -600,25 +600,34 @@ impl<T, V: store::SimulatorStore> ReadStore for Simulacrum<T, V> {
     ) -> iota_types::storage::error::Result<
         Option<iota_types::messages_checkpoint::CheckpointContents>,
     > {
-        Ok(self.with_store(|store| store.get_checkpoint_contents(digest)))
+        Ok(self.with_store(|store| store.get_checkpoint_contents_by_digest(digest)))
     }
 
     fn try_get_checkpoint_contents_by_sequence_number(
         &self,
-        _sequence_number: iota_types::messages_checkpoint::CheckpointSequenceNumber,
+        sequence_number: iota_types::messages_checkpoint::CheckpointSequenceNumber,
     ) -> iota_types::storage::error::Result<
         Option<iota_types::messages_checkpoint::CheckpointContents>,
     > {
-        todo!()
+        self.with_store(|store| {
+            let checkpoint = store.get_checkpoint_by_sequence_number(sequence_number);
+
+            match checkpoint {
+                None => Ok(None),
+                Some(checkpoint) => {
+                    let contents_digest = checkpoint.content_digest;
+                    let contents = store.get_checkpoint_contents_by_digest(&contents_digest);
+                    Ok(contents)
+                }
+            }
+        })
     }
 
     fn try_get_transaction(
         &self,
         tx_digest: &iota_types::digests::TransactionDigest,
     ) -> iota_types::storage::error::Result<Option<Arc<VerifiedTransaction>>> {
-        Ok(self
-            .with_store(|store| store.get_transaction(tx_digest))
-            .map(Arc::new))
+        Ok(self.with_store(|store| store.get_transaction(tx_digest)))
     }
 
     fn try_get_transaction_effects(
@@ -632,25 +641,54 @@ impl<T, V: store::SimulatorStore> ReadStore for Simulacrum<T, V> {
         &self,
         event_digest: &iota_types::digests::TransactionEventsDigest,
     ) -> iota_types::storage::error::Result<Option<iota_types::effects::TransactionEvents>> {
-        Ok(self.with_store(|store| store.get_transaction_events(event_digest)))
+        Ok(self.with_store(|store| store.get_events(event_digest)))
     }
 
     fn try_get_full_checkpoint_contents_by_sequence_number(
         &self,
-        _sequence_number: iota_types::messages_checkpoint::CheckpointSequenceNumber,
+        sequence_number: iota_types::messages_checkpoint::CheckpointSequenceNumber,
     ) -> iota_types::storage::error::Result<
         Option<iota_types::messages_checkpoint::FullCheckpointContents>,
     > {
-        todo!()
+        self.with_store(|store| {
+            let checkpoint = store.get_checkpoint_by_sequence_number(sequence_number);
+
+            match checkpoint {
+                None => Ok(None),
+                Some(checkpoint) => {
+                    let contents_digest = checkpoint.content_digest;
+                    let contents = store.get_checkpoint_contents_by_digest(&contents_digest);
+
+                    if let Some(contents) = contents {
+                        iota_types::messages_checkpoint::FullCheckpointContents::try_from_checkpoint_contents(
+                            store,
+                            contents,
+                        )
+                    } else {
+                        Ok(None)
+                    }
+                }
+            }
+        })
     }
 
     fn try_get_full_checkpoint_contents(
         &self,
-        _digest: &iota_types::messages_checkpoint::CheckpointContentsDigest,
+        digest: &iota_types::messages_checkpoint::CheckpointContentsDigest,
     ) -> iota_types::storage::error::Result<
         Option<iota_types::messages_checkpoint::FullCheckpointContents>,
     > {
-        todo!()
+        self.with_store(|store| {
+            let contents = match store.get_checkpoint_contents_by_digest(digest) {
+                Some(c) => c,
+                None => return Ok(None),
+            };
+
+            iota_types::messages_checkpoint::FullCheckpointContents::try_from_checkpoint_contents(
+                store,
+                contents.clone(),
+            )
+        })
     }
 }
 
@@ -674,9 +712,13 @@ impl<T: Send + Sync, V: store::SimulatorStore + Send + Sync> RestStateReader for
 
     fn get_epoch_last_checkpoint(
         &self,
-        _epoch_id: iota_types::committee::EpochId,
+        epoch_id: iota_types::committee::EpochId,
     ) -> iota_types::storage::error::Result<Option<VerifiedCheckpoint>> {
-        todo!()
+        Ok(self.with_store(|store| {
+            store
+                .get_last_checkpoint_of_epoch(epoch_id)
+                .and_then(|seq| self.get_checkpoint_by_sequence_number(seq))
+        }))
     }
 
     fn indexes(&self) -> Option<&dyn iota_types::storage::RestIndexes> {
