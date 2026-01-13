@@ -55,7 +55,9 @@ use iota_sdk::{
 use iota_sdk_types::crypto::{Intent, IntentMessage};
 use iota_source_validation::{BytecodeSourceVerifier, ValidationMode};
 use iota_types::{
-    account,
+    account_abstraction::{
+        account::AuthenticatorFunctionRefV1Key, authenticator_function::AuthenticatorFunctionRefV1,
+    },
     base_types::{IotaAddress, ObjectID, ObjectRef, SequenceNumber},
     crypto::{DefaultHash, EmptySignInfo, SignatureScheme},
     digests::{ChainIdentifier, TransactionDigest},
@@ -819,8 +821,8 @@ impl IotaClientCommands {
 
                 let authenticator_function_ref_id = dynamic_field::derive_dynamic_field_id(
                     address,
-                    &account::AuthenticatorFunctionRefV1Key::tag().into(),
-                    &account::AuthenticatorFunctionRefV1Key::default().to_bcs_bytes(),
+                    &AuthenticatorFunctionRefV1Key::tag().into(),
+                    &AuthenticatorFunctionRefV1Key::default().to_bcs_bytes(),
                 )?;
 
                 let response = client
@@ -842,8 +844,8 @@ impl IotaClientCommands {
                     .try_into_move()
                     .ok_or_else(|| anyhow::anyhow!("invalid move type"))?
                     .deserialize::<Field<
-                        account::AuthenticatorFunctionRefV1Key,
-                        account::AuthenticatorFunctionRefV1,
+                        AuthenticatorFunctionRefV1Key,
+                        AuthenticatorFunctionRefV1,
                     >>()?;
 
                 context
@@ -3940,14 +3942,11 @@ pub(crate) async fn resolve_auth_call_args(
 pub(crate) async fn fetch_auth_info(
     client: &IotaClient,
     signer: IotaAddress,
-) -> Result<
-    Field<account::AuthenticatorFunctionRefV1Key, account::AuthenticatorFunctionRefV1>,
-    anyhow::Error,
-> {
+) -> Result<Field<AuthenticatorFunctionRefV1Key, AuthenticatorFunctionRefV1>, anyhow::Error> {
     let authenticator_function_ref_id = dynamic_field::derive_dynamic_field_id(
         signer,
-        &account::AuthenticatorFunctionRefV1Key::tag().into(),
-        &account::AuthenticatorFunctionRefV1Key::default().to_bcs_bytes(),
+        &AuthenticatorFunctionRefV1Key::tag().into(),
+        &AuthenticatorFunctionRefV1Key::default().to_bcs_bytes(),
     )?;
 
     let response = client
@@ -3968,7 +3967,7 @@ pub(crate) async fn fetch_auth_info(
         .ok_or_else(|| anyhow::anyhow!("missing bcs"))?
         .try_into_move()
         .ok_or_else(|| anyhow::anyhow!("invalid move type"))?
-        .deserialize::<Field<account::AuthenticatorFunctionRefV1Key, account::AuthenticatorFunctionRefV1>>()?;
+        .deserialize::<Field<AuthenticatorFunctionRefV1Key, AuthenticatorFunctionRefV1>>()?;
 
     Ok(auth_info)
 }
