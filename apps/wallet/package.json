@@ -101,7 +101,7 @@
         "@iota/apps-ui-kit": "workspace:*",
         "@iota/core": "workspace:*",
         "@iota/dapp-kit": "workspace:*",
-        "@iota/iota-names-sdk": "^0.5.0",
+        "@iota/iota-names-sdk": "^0.5.1",
         "@iota/iota-sdk": "workspace:*",
         "@iota/kiosk": "workspace:*",
         "@iota/ledgerjs-hw-app-iota": "workspace:*",

@@ -76,8 +76,30 @@ task 9, lines 62-110:
 //# run-graphql
 Response: {
   "data": {
+    "before_df_added": {
+      "dynamicField": null,
+      "version": 2
+    },
+    "df_added": {
+      "dynamicField": {
+        "name": {
+          "bcs": "A2RmMQ=="
+        },
+        "value": {
+          "json": "df1"
+        }
+      },
+      "version": 3
+    },
     "latest": {
-      "version": 4,
+      "dynamicField": {
+        "name": {
+          "bcs": "A2RmMQ=="
+        },
+        "value": {
+          "json": "df1"
+        }
+      },
       "dynamicFields": {
         "edges": [
           {
@@ -115,29 +137,7 @@ Response: {
           }
         ]
       },
-      "dynamicField": {
-        "name": {
-          "bcs": "A2RmMQ=="
-        },
-        "value": {
-          "json": "df1"
-        }
-      }
-    },
-    "df_added": {
-      "version": 3,
-      "dynamicField": {
-        "name": {
-          "bcs": "A2RmMQ=="
-        },
-        "value": {
-          "json": "df1"
-        }
-      }
-    },
-    "before_df_added": {
-      "version": 2,
-      "dynamicField": null
+      "version": 4
     }
   }
 }
@@ -199,8 +199,37 @@ task 16, lines 124-172:
 //# run-graphql
 Response: {
   "data": {
+    "before_df1_mutated": {
+      "dynamicField": {
+        "name": {
+          "bcs": "A2RmMQ=="
+        },
+        "value": {
+          "json": "df1"
+        }
+      },
+      "version": 4
+    },
+    "df1_mutated": {
+      "dynamicField": {
+        "name": {
+          "bcs": "A2RmMQ=="
+        },
+        "value": {
+          "json": "df1_mutated"
+        }
+      },
+      "version": 5
+    },
     "latest": {
-      "version": 6,
+      "dynamicField": {
+        "name": {
+          "bcs": "A2RmMQ=="
+        },
+        "value": {
+          "json": "df1_mutated"
+        }
+      },
       "dynamicFields": {
         "edges": [
           {
@@ -238,36 +267,7 @@ Response: {
           }
         ]
       },
-      "dynamicField": {
-        "name": {
-          "bcs": "A2RmMQ=="
-        },
-        "value": {
-          "json": "df1_mutated"
-        }
-      }
-    },
-    "df1_mutated": {
-      "version": 5,
-      "dynamicField": {
-        "name": {
-          "bcs": "A2RmMQ=="
-        },
-        "value": {
-          "json": "df1_mutated"
-        }
-      }
-    },
-    "before_df1_mutated": {
-      "version": 4,
-      "dynamicField": {
-        "name": {
-          "bcs": "A2RmMQ=="
-        },
-        "value": {
-          "json": "df1"
-        }
-      }
+      "version": 6
     }
   }
 }

@@ -22,13 +22,13 @@ task 3, lines 14-23:
 //# run-graphql
 Response: {
   "data": {
-    "sender": {
-      "asObject": null
-    },
     "coin": {
       "asObject": {
         "digest": "62GE9tkYkwEUQiKvv9CTpGb7VNYqsrAdu23nbNxRVuFN"
       }
+    },
+    "sender": {
+      "asObject": null
     }
   }
 }

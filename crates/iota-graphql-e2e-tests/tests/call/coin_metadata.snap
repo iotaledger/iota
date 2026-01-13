@@ -22,11 +22,11 @@ Response: {
   "data": {
     "coinMetadata": {
       "decimals": 2,
-      "name": "",
-      "symbol": "FAKE",
       "description": "",
       "iconUrl": null,
-      "supply": "0"
+      "name": "",
+      "supply": "0",
+      "symbol": "FAKE"
     }
   }
 }
@@ -50,11 +50,11 @@ Response: {
   "data": {
     "coinMetadata": {
       "decimals": 2,
-      "name": "",
-      "symbol": "FAKE",
       "description": "",
       "iconUrl": null,
-      "supply": "100"
+      "name": "",
+      "supply": "100",
+      "symbol": "FAKE"
     }
   }
 }

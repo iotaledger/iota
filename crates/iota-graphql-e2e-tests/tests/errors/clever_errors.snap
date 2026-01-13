@@ -79,68 +79,68 @@ Response: {
       "nodes": [
         {
           "effects": {
-            "status": "FAILURE",
-            "errors": "Error in 1st command, from '0x51dcb287d03b54a4d0c860c5f08819418d13328deff5f58a5f1ceae1b9379a17::m::callU8' (line 30), abort 'ImAU8': 0"
+            "errors": "Error in 1st command, from '0x51dcb287d03b54a4d0c860c5f08819418d13328deff5f58a5f1ceae1b9379a17::m::callU8' (line 30), abort 'ImAU8': 0",
+            "status": "FAILURE"
           }
         },
         {
           "effects": {
-            "status": "FAILURE",
-            "errors": "Error in 1st command, from '0x51dcb287d03b54a4d0c860c5f08819418d13328deff5f58a5f1ceae1b9379a17::m::callU16' (line 33), abort 'ImAU16': 1"
+            "errors": "Error in 1st command, from '0x51dcb287d03b54a4d0c860c5f08819418d13328deff5f58a5f1ceae1b9379a17::m::callU16' (line 33), abort 'ImAU16': 1",
+            "status": "FAILURE"
           }
         },
         {
           "effects": {
-            "status": "FAILURE",
-            "errors": "Error in 1st command, from '0x51dcb287d03b54a4d0c860c5f08819418d13328deff5f58a5f1ceae1b9379a17::m::callU32' (line 36), abort 'ImAU32': 2"
+            "errors": "Error in 1st command, from '0x51dcb287d03b54a4d0c860c5f08819418d13328deff5f58a5f1ceae1b9379a17::m::callU32' (line 36), abort 'ImAU32': 2",
+            "status": "FAILURE"
           }
         },
         {
           "effects": {
-            "status": "FAILURE",
-            "errors": "Error in 1st command, from '0x51dcb287d03b54a4d0c860c5f08819418d13328deff5f58a5f1ceae1b9379a17::m::callU64' (line 39), abort 'ImAU64': 3"
+            "errors": "Error in 1st command, from '0x51dcb287d03b54a4d0c860c5f08819418d13328deff5f58a5f1ceae1b9379a17::m::callU64' (line 39), abort 'ImAU64': 3",
+            "status": "FAILURE"
           }
         },
         {
           "effects": {
-            "status": "FAILURE",
-            "errors": "Error in 1st command, from '0x51dcb287d03b54a4d0c860c5f08819418d13328deff5f58a5f1ceae1b9379a17::m::callU128' (line 42), abort 'ImAU128': 4"
+            "errors": "Error in 1st command, from '0x51dcb287d03b54a4d0c860c5f08819418d13328deff5f58a5f1ceae1b9379a17::m::callU128' (line 42), abort 'ImAU128': 4",
+            "status": "FAILURE"
           }
         },
         {
           "effects": {
-            "status": "FAILURE",
-            "errors": "Error in 1st command, from '0x51dcb287d03b54a4d0c860c5f08819418d13328deff5f58a5f1ceae1b9379a17::m::callU256' (line 45), abort 'ImAU256': 5"
+            "errors": "Error in 1st command, from '0x51dcb287d03b54a4d0c860c5f08819418d13328deff5f58a5f1ceae1b9379a17::m::callU256' (line 45), abort 'ImAU256': 5",
+            "status": "FAILURE"
           }
         },
         {
           "effects": {
-            "status": "FAILURE",
-            "errors": "Error in 1st command, from '0x51dcb287d03b54a4d0c860c5f08819418d13328deff5f58a5f1ceae1b9379a17::m::callAddress' (line 48), abort 'ImAnAddress': 0x0000000000000000000000000000000000000000000000000000000000000006"
+            "errors": "Error in 1st command, from '0x51dcb287d03b54a4d0c860c5f08819418d13328deff5f58a5f1ceae1b9379a17::m::callAddress' (line 48), abort 'ImAnAddress': 0x0000000000000000000000000000000000000000000000000000000000000006",
+            "status": "FAILURE"
           }
         },
         {
           "effects": {
-            "status": "FAILURE",
-            "errors": "Error in 1st command, from '0x51dcb287d03b54a4d0c860c5f08819418d13328deff5f58a5f1ceae1b9379a17::m::callString' (line 51), abort 'ImAString': This is a string"
+            "errors": "Error in 1st command, from '0x51dcb287d03b54a4d0c860c5f08819418d13328deff5f58a5f1ceae1b9379a17::m::callString' (line 51), abort 'ImAString': This is a string",
+            "status": "FAILURE"
           }
         },
         {
           "effects": {
-            "status": "FAILURE",
-            "errors": "Error in 1st command, from '0x51dcb287d03b54a4d0c860c5f08819418d13328deff5f58a5f1ceae1b9379a17::m::callU64vec' (line 54), abort 'ImNotAString': BQEAAAAAAAAAAgAAAAAAAAADAAAAAAAAAAQAAAAAAAAABQAAAAAAAAA="
+            "errors": "Error in 1st command, from '0x51dcb287d03b54a4d0c860c5f08819418d13328deff5f58a5f1ceae1b9379a17::m::callU64vec' (line 54), abort 'ImNotAString': BQEAAAAAAAAAAgAAAAAAAAADAAAAAAAAAAQAAAAAAAAABQAAAAAAAAA=",
+            "status": "FAILURE"
           }
         },
         {
           "effects": {
-            "status": "FAILURE",
-            "errors": "Error in 1st command, from '0x51dcb287d03b54a4d0c860c5f08819418d13328deff5f58a5f1ceae1b9379a17::m::normalAbort' (instruction 1), abort code: 0"
+            "errors": "Error in 1st command, from '0x51dcb287d03b54a4d0c860c5f08819418d13328deff5f58a5f1ceae1b9379a17::m::normalAbort' (instruction 1), abort code: 0",
+            "status": "FAILURE"
           }
         },
         {
           "effects": {
-            "status": "FAILURE",
-            "errors": "Error in 1st command, from '0x51dcb287d03b54a4d0c860c5f08819418d13328deff5f58a5f1ceae1b9379a17::m::assertLineNo' (line 60)"
+            "errors": "Error in 1st command, from '0x51dcb287d03b54a4d0c860c5f08819418d13328deff5f58a5f1ceae1b9379a17::m::assertLineNo' (line 60)",
+            "status": "FAILURE"
           }
         }
       ]
@@ -221,56 +221,56 @@ Response: {
       "nodes": [
         {
           "effects": {
-            "status": "FAILURE",
-            "errors": "Error in 1st command, from '0x284c0b3b3bfadc4a177f2cc291443cf3934083e7ba7b5ad4689b646857563dd9::m::callU32' (line 152), abort 'ImAU32': 9"
+            "errors": "Error in 1st command, from '0x284c0b3b3bfadc4a177f2cc291443cf3934083e7ba7b5ad4689b646857563dd9::m::callU32' (line 152), abort 'ImAU32': 9",
+            "status": "FAILURE"
           }
         },
         {
           "effects": {
-            "status": "FAILURE",
-            "errors": "Error in 1st command, from '0x284c0b3b3bfadc4a177f2cc291443cf3934083e7ba7b5ad4689b646857563dd9::m::callU64' (line 155), abort 'ImAU64': 10"
+            "errors": "Error in 1st command, from '0x284c0b3b3bfadc4a177f2cc291443cf3934083e7ba7b5ad4689b646857563dd9::m::callU64' (line 155), abort 'ImAU64': 10",
+            "status": "FAILURE"
           }
         },
         {
           "effects": {
-            "status": "FAILURE",
-            "errors": "Error in 1st command, from '0x284c0b3b3bfadc4a177f2cc291443cf3934083e7ba7b5ad4689b646857563dd9::m::callU128' (line 158), abort 'ImAU128': 11"
+            "errors": "Error in 1st command, from '0x284c0b3b3bfadc4a177f2cc291443cf3934083e7ba7b5ad4689b646857563dd9::m::callU128' (line 158), abort 'ImAU128': 11",
+            "status": "FAILURE"
           }
         },
         {
           "effects": {
-            "status": "FAILURE",
-            "errors": "Error in 1st command, from '0x284c0b3b3bfadc4a177f2cc291443cf3934083e7ba7b5ad4689b646857563dd9::m::callU256' (line 161), abort 'ImAU256': 12"
+            "errors": "Error in 1st command, from '0x284c0b3b3bfadc4a177f2cc291443cf3934083e7ba7b5ad4689b646857563dd9::m::callU256' (line 161), abort 'ImAU256': 12",
+            "status": "FAILURE"
           }
         },
         {
           "effects": {
-            "status": "FAILURE",
-            "errors": "Error in 1st command, from '0x284c0b3b3bfadc4a177f2cc291443cf3934083e7ba7b5ad4689b646857563dd9::m::callAddress' (line 164), abort 'ImAnAddress': 0x000000000000000000000000000000000000000000000000000000000000000d"
+            "errors": "Error in 1st command, from '0x284c0b3b3bfadc4a177f2cc291443cf3934083e7ba7b5ad4689b646857563dd9::m::callAddress' (line 164), abort 'ImAnAddress': 0x000000000000000000000000000000000000000000000000000000000000000d",
+            "status": "FAILURE"
           }
         },
         {
           "effects": {
-            "status": "FAILURE",
-            "errors": "Error in 1st command, from '0x284c0b3b3bfadc4a177f2cc291443cf3934083e7ba7b5ad4689b646857563dd9::m::callString' (line 167), abort 'ImAString': This is a string in v2"
+            "errors": "Error in 1st command, from '0x284c0b3b3bfadc4a177f2cc291443cf3934083e7ba7b5ad4689b646857563dd9::m::callString' (line 167), abort 'ImAString': This is a string in v2",
+            "status": "FAILURE"
           }
         },
         {
           "effects": {
-            "status": "FAILURE",
-            "errors": "Error in 1st command, from '0x284c0b3b3bfadc4a177f2cc291443cf3934083e7ba7b5ad4689b646857563dd9::m::callU64vec' (line 170), abort 'ImNotAString': BgEAAAAAAAAAAgAAAAAAAAADAAAAAAAAAAQAAAAAAAAABQAAAAAAAAAGAAAAAAAAAA=="
+            "errors": "Error in 1st command, from '0x284c0b3b3bfadc4a177f2cc291443cf3934083e7ba7b5ad4689b646857563dd9::m::callU64vec' (line 170), abort 'ImNotAString': BgEAAAAAAAAAAgAAAAAAAAADAAAAAAAAAAQAAAAAAAAABQAAAAAAAAAGAAAAAAAAAA==",
+            "status": "FAILURE"
           }
         },
         {
           "effects": {
-            "status": "FAILURE",
-            "errors": "Error in 1st command, from '0x284c0b3b3bfadc4a177f2cc291443cf3934083e7ba7b5ad4689b646857563dd9::m::normalAbort' (instruction 1), abort code: 0"
+            "errors": "Error in 1st command, from '0x284c0b3b3bfadc4a177f2cc291443cf3934083e7ba7b5ad4689b646857563dd9::m::normalAbort' (instruction 1), abort code: 0",
+            "status": "FAILURE"
           }
         },
         {
           "effects": {
-            "status": "FAILURE",
-            "errors": "Error in 1st command, from '0x284c0b3b3bfadc4a177f2cc291443cf3934083e7ba7b5ad4689b646857563dd9::m::assertLineNo' (line 176)"
+            "errors": "Error in 1st command, from '0x284c0b3b3bfadc4a177f2cc291443cf3934083e7ba7b5ad4689b646857563dd9::m::assertLineNo' (line 176)",
+            "status": "FAILURE"
           }
         }
       ]

@@ -122,7 +122,7 @@ impl WriteApiServer for WriteApi {
         &self,
         function_name: String,
         type_args: Option<Vec<IotaTypeTag>>,
-        call_args: Vec<IotaJsonValue>,
+        arguments: Vec<IotaJsonValue>,
     ) -> RpcResult<IotaMoveViewCallResults> {
         let MoveFunctionName {
             package,
@@ -137,7 +137,7 @@ impl WriteApiServer for WriteApi {
                 &module,
                 &function,
                 type_args.unwrap_or_default(),
-                call_args,
+                arguments,
             )
             .await
             .map_err(IndexerError::from)?;
@@ -204,7 +204,7 @@ impl WriteApiServer for OptimisticWriteApi {
         &self,
         function_name: String,
         type_args: Option<Vec<IotaTypeTag>>,
-        call_args: Vec<IotaJsonValue>,
+        arguments: Vec<IotaJsonValue>,
     ) -> RpcResult<IotaMoveViewCallResults> {
         let chain = self
             .optimistic_tx_executor
@@ -221,7 +221,7 @@ impl WriteApiServer for OptimisticWriteApi {
         }
 
         self.write_api
-            .view_function_call(function_name, type_args, call_args)
+            .view_function_call(function_name, type_args, arguments)
             .await
     }
 }
