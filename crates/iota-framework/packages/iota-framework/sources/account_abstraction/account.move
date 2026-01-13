@@ -5,6 +5,7 @@ module iota::account;
 
 use iota::authenticator_function::AuthenticatorFunctionRefV1;
 use iota::dynamic_field;
+use iota::event;
 
 #[error(code = 0)]
 const EAuthenticatorFunctionRefV1AlreadyAttached: vector<u8> =
@@ -12,6 +13,27 @@ const EAuthenticatorFunctionRefV1AlreadyAttached: vector<u8> =
 #[error(code = 1)]
 const EAuthenticatorFunctionRefV1NotAttached: vector<u8> =
     b"'AuthenticatorFunctionRefV1' is not attached to the account.";
+
+#[allow(unused_field)]
+/// Event: emitted when a new immutable account has been created.
+public struct ImmutableAccountCreated<phantom Account: key> has copy, drop {
+    account_id: ID,
+    authenticator: AuthenticatorFunctionRefV1<Account>,
+}
+
+/// Event: emitted when a new mutable account has been created.
+public struct MutableAccountCreated<phantom Account: key> has copy, drop {
+    account_id: ID,
+    authenticator: AuthenticatorFunctionRefV1<Account>,
+}
+
+#[allow(unused_field)]
+/// Event: emitted when an account authenticator has been rotated.
+public struct AuthenticatorFunctionRefV1Rotated<phantom Account: key> has copy, drop {
+    account_id: ID,
+    from: AuthenticatorFunctionRefV1<Account>,
+    to: AuthenticatorFunctionRefV1<Account>,
+}
 
 /// Dynamic field key, where the system will look for a potential
 /// authenticate function.
@@ -21,32 +43,49 @@ public struct AuthenticatorFunctionRefV1Key has copy, drop, store {}
 /// The `authenticator` instance will be added to the account as a dynamic field specified by the `AuthenticatorFunctionRefV1Key` name.
 /// This function has custom rules performed by the IOTA Move bytecode verifier that ensures
 /// that `Account` is an object defined in the module where `create_account_v1` is invoked.
+/// Emits an `MutableAccountCreated` event upon success.
 public fun create_account_v1<Account: key>(
     mut account: Account,
     authenticator: AuthenticatorFunctionRefV1<Account>,
 ) {
+    let event = MutableAccountCreated {
+        account_id: *object::borrow_id(&account),
+        authenticator,
+    };
+
     attach_auth_function_ref_v1(&mut account, authenticator);
 
     create_account_v1_impl(account);
+
+    event::emit(event);
 }
 
 /// Create an account as an immutable object with the provided `authenticator`.
 /// The `authenticator` instance will be added to the account as a dynamic field specified by the `AuthenticatorFunctionRefV1Key` name.
 /// This function has custom rules performed by the IOTA Move bytecode verifier that ensures
 /// that `Account` is an object defined in the module where `create_immutable_account_v1` is invoked.
+/// Emits an `ImmutableAccountCreated` event upon success.
 public fun create_immutable_account_v1<Account: key>(
     mut account: Account,
     authenticator: AuthenticatorFunctionRefV1<Account>,
 ) {
+    let event = ImmutableAccountCreated {
+        account_id: *object::borrow_id(&account),
+        authenticator,
+    };
+
     attach_auth_function_ref_v1(&mut account, authenticator);
 
     create_immutable_account_v1_impl(account);
+
+    event::emit(event);
 }
 
 /// Rotate the account-related authenticator.
 /// The `authenticator` instance will replace the account dynamic field specified by the `AuthenticatorFunctionRefV1Key` name.
 /// This function has custom rules performed by the IOTA Move bytecode verifier that ensures
 /// that `Account` is an object defined in the module where `rotate_auth_function_ref_v1` is invoked.
+/// Emits an `AuthenticatorFunctionRefV1Rotated` event upon success.
 public fun rotate_auth_function_ref_v1<Account: key>(
     account: &mut Account,
     authenticator: AuthenticatorFunctionRefV1<Account>,
@@ -57,9 +96,19 @@ public fun rotate_auth_function_ref_v1<Account: key>(
 
     let name = auth_function_ref_v1_key();
 
-    let previous_authenticator_function_ref = dynamic_field::remove(account_id, name);
+    let prev = dynamic_field::remove(account_id, name);
+
+    let event = AuthenticatorFunctionRefV1Rotated {
+        account_id: *account_id.as_inner(),
+        from: prev,
+        to: authenticator,
+    };
+
     dynamic_field::add(account_id, name, authenticator);
-    previous_authenticator_function_ref
+
+    event::emit(event);
+
+    prev
 }
 
 /// Borrow the account-related authenticator.
