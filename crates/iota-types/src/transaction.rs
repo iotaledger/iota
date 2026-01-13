@@ -2625,6 +2625,7 @@ impl VerifiedTransaction {
 
 impl VerifiedSignedTransaction {
     /// Use signing key to create a signed object.
+    #[instrument(level = "trace", skip_all)]
     pub fn new(
         epoch: EpochId,
         transaction: VerifiedTransaction,
@@ -2719,6 +2720,7 @@ impl CertifiedTransaction {
 
     // TODO: Eventually we should remove all calls to verify_signature
     // and make sure they all call verify to avoid repeated verifications.
+    #[instrument(level = "trace", skip_all)]
     pub fn verify_signatures_authenticated(
         &self,
         committee: &Committee,
