@@ -6,6 +6,7 @@ A gRPC and REST API server for IOTA Simulacrum that allows external clients to i
 
 - **REST API**: Full control interface for managing the simulacrum
 - **gRPC API**: High-performance streaming interface
+- **Faucet Service**: Request gas tokens for testing
 - **Command-line Interface**: Configurable server settings
 
 ## Quick Start
@@ -29,6 +30,9 @@ cargo run --bin simulacrum-server -- \
 - `--rest-address`: REST API server address (default: 127.0.0.1:8080)
 - `--initial-checkpoints`: Number of checkpoints to create on startup (default: 0)
 - `--chain-start-timestamp-ms`: Chain start timestamp in milliseconds
+- `--faucet-request-amount`: Faucet request amount in nanos (default: 1_000_000_000 = 1 IOTA)
+- `--accounts`: Accounts to create in the format "address:amount,address:amount..."
+- `--data-ingestion-path`: Path to store data ingestion files
 
 ## REST API Endpoints
 
@@ -46,6 +50,12 @@ cargo run --bin simulacrum-server -- \
 
 - `POST /clock/advance` - Advance the simulacrum clock
 - `POST /epoch/advance` - Advance to the next epoch
+
+### Faucet
+
+- `GET /faucet/` - Faucet health check
+- `POST /faucet/gas` - Request gas tokens
+- `POST /faucet/v1/gas` - Request gas tokens (batch endpoint)
 
 ## API Examples
 

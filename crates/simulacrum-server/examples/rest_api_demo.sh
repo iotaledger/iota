@@ -7,68 +7,63 @@ BASE_URL="http://127.0.0.1:8080"
 echo "=== Simulacrum Server REST API Demo ==="
 echo ""
 
-# Check health
-echo "1. Checking server health..."
-curl -s "$BASE_URL/health" | jq '.'
-echo ""
-
 # Get status
-echo "2. Getting simulacrum status..."
+echo "1. Getting simulacrum status..."
 curl -s "$BASE_URL/status" | jq '.'
 echo ""
 
 # Get current checkpoint
-echo "3. Getting current checkpoint..."
+echo "2. Getting current checkpoint..."
 curl -s "$BASE_URL/checkpoint" | jq '.'
 echo ""
 
 # Create a checkpoint
-echo "4. Creating a new checkpoint..."
+echo "3. Creating a new checkpoint..."
 curl -s -X POST "$BASE_URL/checkpoint/create" | jq '.'
 echo ""
 
 # Advance clock
-echo "5. Advancing clock by 5 seconds..."
+echo "4. Advancing clock by 5 seconds..."
 curl -s -X POST "$BASE_URL/clock/advance" \
   -H "Content-Type: application/json" \
   -d '{"duration_ms": 5000}' | jq '.'
 echo ""
 
 # Create multiple checkpoints
-echo "6. Creating 3 checkpoints with 2 second intervals..."
+echo "5. Creating 3 checkpoints with 2 second intervals..."
 curl -s -X POST "$BASE_URL/checkpoint/create_multiple" \
   -H "Content-Type: application/json" \
   -d '{"count": 3, "interval_ms": 2000}' | jq '.'
 echo ""
 
 # Advance to next epoch
-echo "7. Advancing to next epoch with checkpoint..."
+echo "6. Advancing to next epoch with checkpoint..."
 curl -s -X POST "$BASE_URL/epoch/advance" \
   -H "Content-Type: application/json" \
   -d '{"create_checkpoint": true}' | jq '.'
 echo ""
 
 # Test faucet health
-echo "8. Checking faucet health..."
+echo "7. Checking faucet health..."
 curl -s "$BASE_URL/faucet/" | jq '.'
 echo ""
 
 # Request gas from faucet (requires a valid IOTA address)
-echo "9. Requesting gas from faucet..."
+echo "8. Requesting gas from faucet..."
 curl -s -X POST "$BASE_URL/faucet/gas" \
   -H "Content-Type: application/json" \
   -d '{"FixedAmountRequest": {"recipient": "0x0000000000000000000000000000000000000000000000000000000000000000"}}' | jq '.'
 echo ""
 
 # Request gas from faucet (batch endpoint)
-echo "10. Requesting gas from faucet (batch)..."
+echo "9. Requesting gas from faucet (batch)..."
 curl -s -X POST "$BASE_URL/faucet/v1/gas" \
   -H "Content-Type: application/json" \
   -d '{"FixedAmountRequest": {"recipient": "0x0000000000000000000000000000000000000000000000000000000000000000"}}' | jq '.'
 echo ""
 
 # Final status check
-echo "11. Final status check..."
+echo "10. Final status check..."
 curl -s "$BASE_URL/status" | jq '.'
 echo ""
 
