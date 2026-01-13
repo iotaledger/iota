@@ -291,7 +291,11 @@ async fn test_simple_cli_commands() -> Result<(), anyhow::Error> {
     // - test_transfer_sponsored: Tests sponsored transfer
     // - test_transfer_serialized_data: Tests transfer with serialized tx data
     // - test_transfer_serialized_kind: Tests transfer with serialized tx kind
-    let (r1, r2, r3, r4, r5, r6, r7, r8, r9, r10, r11, r12, r13, r14, r15, r16, r17) = tokio::join!(
+    // - test_addresses_command: Tests listing all addresses
+    // - test_new_address_command_by_flag: Tests creating new addresses with different schemes
+    // - test_remove_address_command: Tests removing an address
+    // - test_active_address_command: Tests active address and switching
+    let (r1, r2, r3, r4, r5, r6, r7, r8, r9, r10, r11, r12, r13, r14, r15, r16, r17, r18, r19, r20, r21) = tokio::join!(
         pay_test_helper(&wallet_config, address0, objects0, rgp),
         pay_iota_test_helper(&wallet_config, address1, objects1, rgp),
         pay_all_iota_test_helper(&wallet_config, address2, objects2, rgp),
@@ -316,6 +320,10 @@ async fn test_simple_cli_commands() -> Result<(), anyhow::Error> {
         ),
         transfer_serialized_data_helper(&wallet_config, &client, address14, objects14, rgp),
         transfer_serialized_kind_helper(&wallet_config, &client, address15, objects15, rgp),
+        addresses_command_helper(&wallet_config),
+        new_address_command_helper(&wallet_config),
+        remove_address_command_helper(&wallet_config),
+        active_address_command_helper(&wallet_config),
     );
 
     r1?;
@@ -335,6 +343,10 @@ async fn test_simple_cli_commands() -> Result<(), anyhow::Error> {
     r15?;
     r16?;
     r17?;
+    r18?;
+    r19?;
+    r20?;
+    r21?;
 
     Ok(())
 }
@@ -602,10 +614,12 @@ async fn test_start() -> Result<(), anyhow::Error> {
     Ok(())
 }
 
-#[tokio::test]
-async fn test_addresses_command() -> Result<(), anyhow::Error> {
-    let test_cluster = TestClusterBuilder::new().build().await;
-    let mut context = test_cluster.wallet;
+/// Helper for test_addresses_command - tests listing all addresses
+async fn addresses_command_helper(
+    wallet_config: &std::path::Path,
+) -> Result<(), anyhow::Error> {
+    // ===== test_addresses_command =====
+    let mut context = WalletContext::new(wallet_config, None, None)?;
 
     // Add 3 accounts
     for _ in 0..3 {
@@ -3072,10 +3086,12 @@ async fn test_switch_command() -> Result<(), anyhow::Error> {
     Ok(())
 }
 
-#[sim_test]
-async fn test_new_address_command_by_flag() -> Result<(), anyhow::Error> {
-    let mut cluster = TestClusterBuilder::new().build().await;
-    let context = cluster.wallet_mut();
+/// Helper for test_new_address_command_by_flag - tests creating addresses with different schemes
+async fn new_address_command_helper(
+    wallet_config: &std::path::Path,
+) -> Result<(), anyhow::Error> {
+    // ===== test_new_address_command_by_flag =====
+    let mut context = WalletContext::new(wallet_config, None, None)?;
 
     // keypairs loaded from config are Ed25519
     assert_eq!(
@@ -3095,7 +3111,7 @@ async fn test_new_address_command_by_flag() -> Result<(), anyhow::Error> {
         derivation_path: None,
         word_length: None,
     }
-    .execute(context)
+    .execute(&mut context)
     .await?;
 
     // new keypair generated is Secp256k1
@@ -3113,10 +3129,12 @@ async fn test_new_address_command_by_flag() -> Result<(), anyhow::Error> {
     Ok(())
 }
 
-#[sim_test]
-async fn test_remove_address_command() -> Result<(), anyhow::Error> {
-    let mut cluster = TestClusterBuilder::new().build().await;
-    let context = cluster.wallet_mut();
+/// Helper for test_remove_address_command - tests removing an address
+async fn remove_address_command_helper(
+    wallet_config: &std::path::Path,
+) -> Result<(), anyhow::Error> {
+    // ===== test_remove_address_command =====
+    let mut context = WalletContext::new(wallet_config, None, None)?;
 
     let address = context
         .config()
@@ -3129,7 +3147,7 @@ async fn test_remove_address_command() -> Result<(), anyhow::Error> {
     IotaClientCommands::RemoveAddress {
         address: address.into(),
     }
-    .execute(context)
+    .execute(&mut context)
     .await?;
 
     assert_eq!(
@@ -3146,17 +3164,19 @@ async fn test_remove_address_command() -> Result<(), anyhow::Error> {
     Ok(())
 }
 
-#[sim_test]
-async fn test_active_address_command() -> Result<(), anyhow::Error> {
-    let mut cluster = TestClusterBuilder::new().build().await;
-    let context = cluster.wallet_mut();
+/// Helper for test_active_address_command - tests active address and switching
+async fn active_address_command_helper(
+    wallet_config: &std::path::Path,
+) -> Result<(), anyhow::Error> {
+    // ===== test_active_address_command =====
+    let mut context = WalletContext::new(wallet_config, None, None)?;
 
     // Get the active address
     let addr1 = context.active_address()?;
 
     // Run a command with address omitted
     let os = IotaClientCommands::ActiveAddress {}
-        .execute(context)
+        .execute(&mut context)
         .await?;
 
     let a = if let IotaClientCommandResult::ActiveAddress(Some(v)) = os {
@@ -3177,7 +3197,7 @@ async fn test_active_address_command() -> Result<(), anyhow::Error> {
         address: Some(KeyIdentity::Address(addr2)),
         env: None,
     }
-    .execute(context)
+    .execute(&mut context)
     .await?;
     assert_eq!(
         format!("{resp}"),
@@ -3200,7 +3220,7 @@ async fn test_active_address_command() -> Result<(), anyhow::Error> {
         address: Some(KeyIdentity::Alias(alias1)),
         env: None,
     }
-    .execute(context)
+    .execute(&mut context)
     .await?;
     assert_eq!(
         format!("{resp}"),
