@@ -1132,69 +1132,6 @@ vdf_verify
 vdf_verify_internal
 	fun
 	0x2::vdf
-VecMap
-	public struct
-	0x2::vec_map
-Entry
-	public struct
-	0x2::vec_map
-empty
-	public fun
-	0x2::vec_map
-insert
-	public fun
-	0x2::vec_map
-remove
-	public fun
-	0x2::vec_map
-pop
-	public fun
-	0x2::vec_map
-get_mut
-	public fun
-	0x2::vec_map
-get
-	public fun
-	0x2::vec_map
-try_get
-	public fun
-	0x2::vec_map
-contains
-	public fun
-	0x2::vec_map
-size
-	public fun
-	0x2::vec_map
-is_empty
-	public fun
-	0x2::vec_map
-destroy_empty
-	public fun
-	0x2::vec_map
-into_keys_values
-	public fun
-	0x2::vec_map
-from_keys_values
-	public fun
-	0x2::vec_map
-keys
-	public fun
-	0x2::vec_map
-get_idx_opt
-	public fun
-	0x2::vec_map
-get_idx
-	public fun
-	0x2::vec_map
-get_entry_by_idx
-	public fun
-	0x2::vec_map
-get_entry_by_idx_mut
-	public fun
-	0x2::vec_map
-remove_entry_by_idx
-	public fun
-	0x2::vec_map
 TxContext
 	public struct
 	0x2::tx_context
@@ -1333,42 +1270,6 @@ delete_impl
 record_new_uid
 	fun
 	0x2::object
-PackageMetadataKey
-	public struct
-	0x2::package_metadata
-PackageMetadataV1
-	public struct
-	0x2::package_metadata
-ModuleMetadataV1
-	public struct
-	0x2::package_metadata
-AuthenticatorMetadataV1
-	public struct
-	0x2::package_metadata
-storage_id
-	public fun
-	0x2::package_metadata
-runtime_id
-	public fun
-	0x2::package_metadata
-package_version
-	public fun
-	0x2::package_metadata
-try_get_modules_metadata_v1
-	public fun
-	0x2::package_metadata
-modules_metadata_v1
-	public fun
-	0x2::package_metadata
-try_get_authenticator_metadata_v1
-	public fun
-	0x2::package_metadata
-authenticator_metadata_v1
-	public fun
-	0x2::package_metadata
-account_type
-	public fun
-	0x2::package_metadata
 Field
 	public struct
 	0x2::dynamic_field
@@ -1420,14 +1321,113 @@ has_child_object
 has_child_object_with_ty
 	public(package) fun
 	0x2::dynamic_field
-AuthenticatorFunctionRefV1Key
+VecMap
 	public struct
-	0x2::account
+	0x2::vec_map
+Entry
+	public struct
+	0x2::vec_map
+empty
+	public fun
+	0x2::vec_map
+insert
+	public fun
+	0x2::vec_map
+remove
+	public fun
+	0x2::vec_map
+pop
+	public fun
+	0x2::vec_map
+get_mut
+	public fun
+	0x2::vec_map
+get
+	public fun
+	0x2::vec_map
+try_get
+	public fun
+	0x2::vec_map
+contains
+	public fun
+	0x2::vec_map
+size
+	public fun
+	0x2::vec_map
+is_empty
+	public fun
+	0x2::vec_map
+destroy_empty
+	public fun
+	0x2::vec_map
+into_keys_values
+	public fun
+	0x2::vec_map
+from_keys_values
+	public fun
+	0x2::vec_map
+keys
+	public fun
+	0x2::vec_map
+get_idx_opt
+	public fun
+	0x2::vec_map
+get_idx
+	public fun
+	0x2::vec_map
+get_entry_by_idx
+	public fun
+	0x2::vec_map
+get_entry_by_idx_mut
+	public fun
+	0x2::vec_map
+remove_entry_by_idx
+	public fun
+	0x2::vec_map
+PackageMetadataKey
+	public struct
+	0x2::package_metadata
+PackageMetadataV1
+	public struct
+	0x2::package_metadata
+ModuleMetadataV1
+	public struct
+	0x2::package_metadata
+AuthenticatorMetadataV1
+	public struct
+	0x2::package_metadata
+storage_id
+	public fun
+	0x2::package_metadata
+runtime_id
+	public fun
+	0x2::package_metadata
+package_version
+	public fun
+	0x2::package_metadata
+try_get_modules_metadata_v1
+	public fun
+	0x2::package_metadata
+modules_metadata_v1
+	public fun
+	0x2::package_metadata
+try_get_authenticator_metadata_v1
+	public fun
+	0x2::package_metadata
+authenticator_metadata_v1
+	public fun
+	0x2::package_metadata
+account_type
+	public fun
+	0x2::package_metadata
 AuthenticatorFunctionRefV1
 	public struct
-	0x2::account
+	0x2::authenticator_function
 create_auth_function_ref_v1
 	public fun
+	0x2::authenticator_function
+AuthenticatorFunctionRefV1Key
+	public struct
 	0x2::account
 create_account_v1
 	public fun

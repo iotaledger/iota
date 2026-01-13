@@ -11,7 +11,7 @@ task 1, line 8:
 Output for 'crates/iota-adapter-transactional-tests/data/account_abstraction/simple_abstract_account.move':
 created: object(2,0)
 mutated: object(0,1)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 7759600,  storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 7949600,  storage_rebate: 0, non_refundable_storage_fee: 0
 
 task 2, lines 10-25:
 //# publish --sender A --dependencies simple_abstract_account
@@ -23,25 +23,25 @@ task 3, line 27:
 //# init-abstract-account --sender A --package-metadata object(3,1) --inputs "authenticate" "authenticate_hello_world" --create-function simple_abstract_account::abstract_account::create --account-type simple_abstract_account::abstract_account::AbstractAccount
 created: object(4,0), object(4,1), object(4,2)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 6824800,  storage_rebate: 980400, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 6938800,  storage_rebate: 980400, non_refundable_storage_fee: 0
 
 task 4, line 29:
 //# init-abstract-account --sender A --package-metadata object(3,1) --inputs "authenticate" "authenticate_hello_world" --create-function simple_abstract_account::abstract_account::create --account-type simple_abstract_account::abstract_account::AbstractAccount
 created: object(5,0), object(5,1), object(5,2)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 6824800,  storage_rebate: 980400, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 6938800,  storage_rebate: 980400, non_refundable_storage_fee: 0
 
 task 5, line 31:
 //# init-abstract-account --sender A --package-metadata object(3,1) --inputs "authenticate" "authenticate_hello_world" --create-function simple_abstract_account::abstract_account::create --account-type simple_abstract_account::abstract_account::AbstractAccount
 created: object(6,0), object(6,1), object(6,2)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 6824800,  storage_rebate: 980400, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 6938800,  storage_rebate: 980400, non_refundable_storage_fee: 0
 
 task 6, line 33:
 //# view-object 4,1
 Owner: Object ID: ( fake(4,2) )
 Version: 3
-Contents: iota::dynamic_field::Field<iota::account::AuthenticatorFunctionRefV1Key, iota::account::AuthenticatorFunctionRefV1<simple_abstract_account::abstract_account::AbstractAccount>> {
+Contents: iota::dynamic_field::Field<iota::account::AuthenticatorFunctionRefV1Key, iota::authenticator_function::AuthenticatorFunctionRefV1<simple_abstract_account::abstract_account::AbstractAccount>> {
     id: iota::object::UID {
         id: iota::object::ID {
             bytes: fake(4,1),
@@ -50,7 +50,7 @@ Contents: iota::dynamic_field::Field<iota::account::AuthenticatorFunctionRefV1Ke
     name: iota::account::AuthenticatorFunctionRefV1Key {
         dummy_field: false,
     },
-    value: iota::account::AuthenticatorFunctionRefV1<simple_abstract_account::abstract_account::AbstractAccount> {
+    value: iota::authenticator_function::AuthenticatorFunctionRefV1<simple_abstract_account::abstract_account::AbstractAccount> {
         package: iota::object::ID {
             bytes: test,
         },
@@ -117,7 +117,7 @@ task 8, line 37:
 //# view-object 5,1
 Owner: Object ID: ( fake(5,2) )
 Version: 4
-Contents: iota::dynamic_field::Field<iota::account::AuthenticatorFunctionRefV1Key, iota::account::AuthenticatorFunctionRefV1<simple_abstract_account::abstract_account::AbstractAccount>> {
+Contents: iota::dynamic_field::Field<iota::account::AuthenticatorFunctionRefV1Key, iota::authenticator_function::AuthenticatorFunctionRefV1<simple_abstract_account::abstract_account::AbstractAccount>> {
     id: iota::object::UID {
         id: iota::object::ID {
             bytes: fake(5,1),
@@ -126,7 +126,7 @@ Contents: iota::dynamic_field::Field<iota::account::AuthenticatorFunctionRefV1Ke
     name: iota::account::AuthenticatorFunctionRefV1Key {
         dummy_field: false,
     },
-    value: iota::account::AuthenticatorFunctionRefV1<simple_abstract_account::abstract_account::AbstractAccount> {
+    value: iota::authenticator_function::AuthenticatorFunctionRefV1<simple_abstract_account::abstract_account::AbstractAccount> {
         package: iota::object::ID {
             bytes: test,
         },
@@ -193,7 +193,7 @@ task 10, line 41:
 //# view-object 6,1
 Owner: Object ID: ( fake(6,2) )
 Version: 5
-Contents: iota::dynamic_field::Field<iota::account::AuthenticatorFunctionRefV1Key, iota::account::AuthenticatorFunctionRefV1<simple_abstract_account::abstract_account::AbstractAccount>> {
+Contents: iota::dynamic_field::Field<iota::account::AuthenticatorFunctionRefV1Key, iota::authenticator_function::AuthenticatorFunctionRefV1<simple_abstract_account::abstract_account::AbstractAccount>> {
     id: iota::object::UID {
         id: iota::object::ID {
             bytes: fake(6,1),
@@ -202,7 +202,7 @@ Contents: iota::dynamic_field::Field<iota::account::AuthenticatorFunctionRefV1Ke
     name: iota::account::AuthenticatorFunctionRefV1Key {
         dummy_field: false,
     },
-    value: iota::account::AuthenticatorFunctionRefV1<simple_abstract_account::abstract_account::AbstractAccount> {
+    value: iota::authenticator_function::AuthenticatorFunctionRefV1<simple_abstract_account::abstract_account::AbstractAccount> {
         package: iota::object::ID {
             bytes: test,
         },

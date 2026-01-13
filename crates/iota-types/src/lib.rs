@@ -31,7 +31,7 @@ use crate::{
 #[macro_use]
 pub mod error;
 
-pub mod account;
+pub mod account_abstraction;
 pub mod accumulator;
 pub mod auth_context;
 pub mod authenticator_state;

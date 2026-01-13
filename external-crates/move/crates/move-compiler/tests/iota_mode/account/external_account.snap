@@ -6,26 +6,26 @@ info:
   lint: false
 ---
 error[Iota E02010]: invalid private account call
-  ┌─ tests/iota_mode/account/external_account.move:8:9
+  ┌─ tests/iota_mode/account/external_account.move:9:9
   │
-7 │     public fun t1(account: other::A, authenticator: AuthenticatorFunctionRefV1<other::A>) {
+8 │     public fun t1(account: other::A, authenticator: AuthenticatorFunctionRefV1<other::A>) {
   │                            -------- The type 'a::other::A' is not declared in the current module
-8 │         account::create_account_v1(account, authenticator);
+9 │         account::create_account_v1(account, authenticator);
   │         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Invalid private account call. The function 'iota::account::create_account_v1' is restricted to being called in the object's module, 'a::other'
 
 error[Iota E02010]: invalid private account call
-   ┌─ tests/iota_mode/account/external_account.move:12:9
+   ┌─ tests/iota_mode/account/external_account.move:13:9
    │
-11 │     public fun t2(account: other::A, authenticator: AuthenticatorFunctionRefV1<other::A>) {
+12 │     public fun t2(account: other::A, authenticator: AuthenticatorFunctionRefV1<other::A>) {
    │                            -------- The type 'a::other::A' is not declared in the current module
-12 │         account::create_immutable_account_v1(account, authenticator);
+13 │         account::create_immutable_account_v1(account, authenticator);
    │         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Invalid private account call. The function 'iota::account::create_immutable_account_v1' is restricted to being called in the object's module, 'a::other'
 
 error[Iota E02010]: invalid private account call
-   ┌─ tests/iota_mode/account/external_account.move:19:9
+   ┌─ tests/iota_mode/account/external_account.move:20:9
    │
-16 │         account: &mut other::A,
+17 │         account: &mut other::A,
    │                       -------- The type 'a::other::A' is not declared in the current module
    ·
-19 │         account::rotate_auth_function_ref_v1(account, authenticator)
+20 │         account::rotate_auth_function_ref_v1(account, authenticator)
    │         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Invalid private account call. The function 'iota::account::rotate_auth_function_ref_v1' is restricted to being called in the object's module, 'a::other'

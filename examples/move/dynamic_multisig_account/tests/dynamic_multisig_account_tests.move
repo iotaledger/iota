@@ -7,8 +7,8 @@ module dynamic_multisig_account::dynamic_multisig_account_tests;
 use dynamic_multisig_account::dynamic_multisig_account::{Self, DynamicMultisigAccount};
 use dynamic_multisig_account::members;
 use dynamic_multisig_account::transactions;
-use iota::account::{Self, AuthenticatorFunctionRefV1};
 use iota::auth_context::{Self, AuthContext};
+use iota::authenticator_function::{Self, AuthenticatorFunctionRefV1};
 use iota::test_scenario::{Self, Scenario};
 use iota::test_utils::{assert_eq, assert_ref_eq};
 use std::ascii;
@@ -927,7 +927,7 @@ fun test_authenticate_threshold_changed_during_update() {
 fun create_default_authenticator_function_ref_v1_for_testing(): AuthenticatorFunctionRefV1<
     DynamicMultisigAccount,
 > {
-    account::create_auth_function_ref_v1_for_testing(
+    authenticator_function::create_auth_function_ref_v1_for_testing(
         @0x1,
         ascii::string(b"module"),
         ascii::string(b"function"),
@@ -937,7 +937,7 @@ fun create_default_authenticator_function_ref_v1_for_testing(): AuthenticatorFun
 fun create_authenticator_function_ref_v1_for_testing(
     function: vector<u8>,
 ): AuthenticatorFunctionRefV1<DynamicMultisigAccount> {
-    account::create_auth_function_ref_v1_for_testing(
+    authenticator_function::create_auth_function_ref_v1_for_testing(
         @0x1,
         ascii::string(function),
         ascii::string(b"function"),

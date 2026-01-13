@@ -4,39 +4,21 @@
 //# publish
 module 0x0.m {
     import 0x2.account;
-    import 0x2.package_metadata;
-    import 0x1.ascii;
+    import 0x2.authenticator_function;
 
-    t1<T0: key>(
-        package_metadata: &package_metadata.PackageMetadataV1,
-        module_name: ascii.String,
-        function_name: ascii.String,
-    ): account.AuthenticatorFunctionRefV1<T0> {
-        let a: account.AuthenticatorFunctionRefV1<T0>;
-        label l0:
-        a = account.create_auth_function_ref_v1<T0>(move(package_metadata), move(module_name), move(function_name));
-        return move(a);
-    }
-}
-
-
-//# publish
-module 0x0.m {
-    import 0x2.account;
-
-    t2<T0: key>(account: T0, authenticator: account.AuthenticatorFunctionRefV1<T0>) {
+    t1<T0: key>(account: T0, authenticator: authenticator_function.AuthenticatorFunctionRefV1<T0>) {
         label l0:
         account.create_account_v1<T0>(move(account), move(authenticator));
         return;
     }
 }
 
-
 //# publish
 module 0x0.m {
     import 0x2.account;
+    import 0x2.authenticator_function;
 
-    t3<T0: key>(account: T0, authenticator: account.AuthenticatorFunctionRefV1<T0>) {
+    t2<T0: key>(account: T0, authenticator: authenticator_function.AuthenticatorFunctionRefV1<T0>) {
         label l0:
         account.create_immutable_account_v1<T0>(move(account), move(authenticator));
         return;
@@ -46,9 +28,10 @@ module 0x0.m {
 //# publish
 module 0x0.m {
     import 0x2.account;
+    import 0x2.authenticator_function;
 
-    t4<T0: key>(account: &mut T0, authenticator: account.AuthenticatorFunctionRefV1<T0>): account.AuthenticatorFunctionRefV1<T0> {
-        let a: account.AuthenticatorFunctionRefV1<T0>;
+    t3<T0: key>(account: &mut T0, authenticator: authenticator_function.AuthenticatorFunctionRefV1<T0>): authenticator_function.AuthenticatorFunctionRefV1<T0> {
+        let a: authenticator_function.AuthenticatorFunctionRefV1<T0>;
         label l0:
         a = account.rotate_auth_function_ref_v1<T0>(move(account), move(authenticator));
         return move(a);

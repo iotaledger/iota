@@ -3,7 +3,8 @@
 
 module simple_abstract_account::abstract_account;
 
-use iota::account::{Self, AuthenticatorFunctionRefV1};
+use iota::account;
+use iota::authenticator_function::{Self, AuthenticatorFunctionRefV1};
 use iota::package_metadata::PackageMetadataV1;
 use std::ascii;
 
@@ -17,7 +18,7 @@ public fun create(
     function_name: ascii::String,
     ctx: &mut TxContext,
 ): address {
-    let authenticator = account::create_auth_function_ref_v1<AbstractAccount>(
+    let authenticator = authenticator_function::create_auth_function_ref_v1<AbstractAccount>(
         package_metadata,
         module_name,
         function_name,

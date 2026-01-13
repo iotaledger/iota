@@ -4,7 +4,8 @@
 #[test_only]
 module iota::account_tests;
 
-use iota::account::{Self, AuthenticatorFunctionRefV1};
+use iota::account;
+use iota::authenticator_function::{Self, AuthenticatorFunctionRefV1};
 use iota::test_scenario::{Self, Scenario};
 use iota::test_utils::{Self, assert_eq, assert_ref_eq};
 use std::ascii;
@@ -40,7 +41,7 @@ fun authenticator_function_ref_v1_account_happy_path() {
         );
 
         // Rotate the `AuthenticatorFunctionRefV1` instance.
-        let updated_authenticator_function_ref = account::create_auth_function_ref_v1_for_testing(
+        let updated_authenticator_function_ref = authenticator_function::create_auth_function_ref_v1_for_testing(
             @0x2,
             ascii::string(b"module2"),
             ascii::string(b"function2"),
@@ -92,7 +93,7 @@ fun authenticator_function_ref_v1_immutable_account_happy_path() {
 fun authenticator_function_ref_v1_double_account_creation() {
     account_test!(|scenario, account| {
         let authenticator_function_ref_1 = create_default_authenticator_function_ref_v1_for_testing();
-        let authenticator_function_ref_2 = account::create_auth_function_ref_v1_for_testing(
+        let authenticator_function_ref_2 = authenticator_function::create_auth_function_ref_v1_for_testing(
             @0x2,
             ascii::string(b"module2"),
             ascii::string(b"function2"),
@@ -114,7 +115,7 @@ fun authenticator_function_ref_v1_double_account_creation() {
 fun authenticator_function_ref_v1_double_immutable_account_creation() {
     account_test!(|scenario, account| {
         let authenticator_function_ref_1 = create_default_authenticator_function_ref_v1_for_testing();
-        let authenticator_function_ref_2 = account::create_auth_function_ref_v1_for_testing(
+        let authenticator_function_ref_2 = authenticator_function::create_auth_function_ref_v1_for_testing(
             @0x2,
             ascii::string(b"module2"),
             ascii::string(b"function2"),
@@ -159,7 +160,7 @@ fun create_test_account(scenario: &mut Scenario): TestAccount {
 fun create_default_authenticator_function_ref_v1_for_testing(): AuthenticatorFunctionRefV1<
     TestAccount,
 > {
-    account::create_auth_function_ref_v1_for_testing(
+    authenticator_function::create_auth_function_ref_v1_for_testing(
         @0x1,
         ascii::string(b"module"),
         ascii::string(b"function"),

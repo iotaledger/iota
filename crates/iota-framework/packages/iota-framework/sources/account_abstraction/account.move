@@ -3,10 +3,8 @@
 
 module iota::account;
 
+use iota::authenticator_function::AuthenticatorFunctionRefV1;
 use iota::dynamic_field;
-use iota::package_metadata::PackageMetadataV1;
-use std::ascii;
-use std::type_name;
 
 #[error(code = 0)]
 const EAuthenticatorFunctionRefV1AlreadyAttached: vector<u8> =
@@ -14,56 +12,10 @@ const EAuthenticatorFunctionRefV1AlreadyAttached: vector<u8> =
 #[error(code = 1)]
 const EAuthenticatorFunctionRefV1NotAttached: vector<u8> =
     b"'AuthenticatorFunctionRefV1' is not attached to the account.";
-#[error(code = 2)]
-const EAuthenticatorFunctionRefV1NotCompatibleWithAccount: vector<u8> =
-    b"The provided `AuthenticatorFunctionRefV1` is not compatible with the account type.";
 
 /// Dynamic field key, where the system will look for a potential
 /// authenticate function.
 public struct AuthenticatorFunctionRefV1Key has copy, drop, store {}
-
-/// Represents a validated authenticate function.
-#[allow(unused_field)]
-public struct AuthenticatorFunctionRefV1<phantom Account: key> has copy, drop, store {
-    package: ID,
-    module_name: ascii::String,
-    function_name: ascii::String,
-}
-
-/// Create an "AuthenticatorFunctionRefV1" using an `authenticate` function defined outside of this version of the package
-///
-/// The referred `package`, `module_name`, `function_name` can refer to any valid `authenticate` function,
-/// regardless of package dependencies or versions.
-/// For example package A has two versions V1 and V2. V2 of package A may refer to an `authenticate`
-/// function defined in V1. Or it can refer to any package B with an appropriate `authenticate` function
-/// even if package A does not have a dependency on package B.
-/// In fact package A may have a dependency on package B version 1, but can still refer to an `authenticate`
-/// function defined in package B version 2.
-/// Referring to an `authenticate` function with `create_auth_function_ref_v1` is a strictly runtime dependency and
-/// it does not collide with any compile time restrictions.
-///
-/// This function cannot be used in `move unit tests` as there is no mechanism to refer to the package being tested.
-public fun create_auth_function_ref_v1<Account: key>(
-    package_metadata: &PackageMetadataV1,
-    module_name: ascii::String,
-    function_name: ascii::String,
-): AuthenticatorFunctionRefV1<Account> {
-    let authenticator_metadata = package_metadata
-        .modules_metadata_v1(
-            &module_name,
-        )
-        .authenticator_metadata_v1(&function_name);
-
-    assert!(
-        type_name::get<Account>() == authenticator_metadata.account_type(),
-        EAuthenticatorFunctionRefV1NotCompatibleWithAccount,
-    );
-    AuthenticatorFunctionRefV1 {
-        package: package_metadata.storage_id(),
-        module_name,
-        function_name,
-    }
-}
 
 /// Create an account as a mutable shared object with the provided `authenticator`.
 /// The `authenticator` instance will be added to the account as a dynamic field specified by the `AuthenticatorFunctionRefV1Key` name.
@@ -129,8 +81,9 @@ fun auth_function_ref_v1_key(): AuthenticatorFunctionRefV1Key {
 }
 
 /// Add `authenticator` as a dynamic field to `account`.
-/// This function must be called only from the account functions protected by the compiler
-/// from being called outside the `Account` module.
+///
+/// IMPORTANT: This function is allowed to be called only by the functions that the IOTA Move bytecode verifier
+/// prevents from being invoked outside the module where `Account` is declared.
 fun attach_auth_function_ref_v1<Account: key>(
     account: &mut Account,
     authenticator: AuthenticatorFunctionRefV1<Account>,
@@ -158,13 +111,3 @@ native fun create_account_v1_impl<Account: key>(account: Account);
 /// IMPORTANT: This function is allowed to be called only by the functions that the IOTA Move bytecode verifier
 /// prevents from being invoked outside the module where `Account` is declared.
 native fun create_immutable_account_v1_impl<Account: key>(account: Account);
-
-/// Create an `AuthenticatorFunctionRefV1` instance for testing, skipping validation.
-#[test_only]
-public fun create_auth_function_ref_v1_for_testing<Account: key>(
-    package: address,
-    module_name: ascii::String,
-    function_name: ascii::String,
-): AuthenticatorFunctionRefV1<Account> {
-    AuthenticatorFunctionRefV1 { package: package.to_id(), module_name, function_name }
-}

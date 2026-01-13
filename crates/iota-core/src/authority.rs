@@ -55,7 +55,9 @@ use iota_storage::{
 use iota_types::committee::CommitteeTrait;
 use iota_types::{
     IOTA_SYSTEM_ADDRESS, TypeTag,
-    account::{self, AuthenticatorFunctionRefV1, AuthenticatorFunctionRefV1Key},
+    account_abstraction::{
+        account::AuthenticatorFunctionRefV1Key, authenticator_function::AuthenticatorFunctionRefV1,
+    },
     authenticator_state::get_authenticator_state,
     base_types::*,
     committee::{Committee, EpochId, ProtocolVersion},
@@ -5342,8 +5344,8 @@ impl AuthorityState {
 
         let authenticator_function_ref_field_id = dynamic_field::derive_dynamic_field_id(
             auth_account_object_id,
-            &account::AuthenticatorFunctionRefV1Key::tag().into(),
-            &account::AuthenticatorFunctionRefV1Key::default().to_bcs_bytes(),
+            &AuthenticatorFunctionRefV1Key::tag().into(),
+            &AuthenticatorFunctionRefV1Key::default().to_bcs_bytes(),
         )
         .map_err(|_| UserInputError::UnableToGetMoveAuthenticatorId {
             account_object_id: auth_account_object_id,

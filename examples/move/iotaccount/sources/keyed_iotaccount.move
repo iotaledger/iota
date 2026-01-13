@@ -3,8 +3,8 @@
 
 module iotaccount::keyed_iotaccount;
 
-use iota::account::AuthenticatorFunctionRefV1;
 use iota::auth_context::AuthContext;
+use iota::authenticator_function::AuthenticatorFunctionRefV1;
 use iota::ecdsa_k1;
 use iota::ecdsa_r1;
 use iota::ed25519;
