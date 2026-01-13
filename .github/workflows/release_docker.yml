@@ -156,7 +156,7 @@ jobs:
           build-args: |
             GIT_REVISION=${{ env.GIT_REVISION }}
             BUILD_DATE=${{ env.BUILD_DATE }}
-            RUST_IMAGE_VERSION=${{ env.TOOLCHAIN_VERSION }}-bookworm
+            RUST_IMAGE_VERSION=${{ env.TOOLCHAIN_VERSION }}-trixie
 
       - name: Export digest
         run: |

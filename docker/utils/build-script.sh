@@ -57,7 +57,7 @@ if [ -z "$RUST_VERSION" ]; then
     print_error "Failed to parse the rust toolchain version"
     exit 1
 fi
-RUST_IMAGE_VERSION=${RUST_VERSION}-bookworm
+RUST_IMAGE_VERSION=${RUST_VERSION}-trixie
 
 echo
 echo "Building \"$IMAGE_TAG\" docker image"

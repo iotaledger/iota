@@ -3,9 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 module tto::M1 {
-    use iota::object::{Self, UID};
-    use iota::tx_context::{Self, TxContext};
-    use iota::transfer::{Self, Receiving};
+    use iota::transfer::Receiving;
     use iota::dynamic_object_field;
 
     public struct A has key, store {

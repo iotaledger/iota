@@ -3,8 +3,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 module hero::hero {
-    use iota::tx_context::{TxContext};
-    use iota::object::{Self, UID};
     use iota::package;
 
     public struct Hero has key, store {

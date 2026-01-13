@@ -12,13 +12,17 @@ CLEANING=false
 
 # =================== CONSTANTS ===================
 DEFAULT_NUM_VALIDATORS=4
-DEFAULT_PROTOCOL="mysticeti"
+DEFAULT_PROTOCOL="starfish"
 DEFAULT_BUILD=true
 DEFAULT_GEODISTRIBUTED=false
 DEFAULT_SEED=42
 DEFAULT_PERCENT_BLOCK=0       # percent chance to block a connection
 DEFAULT_PERCENT_LOSS=0       # percent chance to apply netem loss
 DEFAULT_PERCENT_RESTART=0     # percent chance to restart a validator
+DEFAULT_RESTART_DURATION=120  # default restart duration in seconds
+DEFAULT_RESTART_TIMEOUT=60    # default timeout before restarting (seconds)
+DEFAULT_RESTART_MODE="preserve-consensus"  # restart mode: preserve-consensus | full-reset | simple-restart
+DEFAULT_EPOCH_DURATION_MS=1200000  # default epoch duration: 20 minutes (in milliseconds)
 DEFAULT_RUN_DURATION=3600  # default sleep at end: 1 hour
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 LOG_DIR="$SCRIPT_DIR/logs" # directory with logs
@@ -161,9 +165,11 @@ log() {
 
 # --- Usage ---
 usage() {
-  echo "Usage: $0 [-n num_validators(4..19)] [-p protocol(mysticeti|starfish)] [-b build_images(true|false)]"
+  echo "Usage: $0 [-n num_validators(4..30)] [-p protocol(mysticeti|starfish)] [-b build_images(true|false)]"
   echo "          [-g geodistributed(true|false)] [-s seed(number)] [-x percent_block_connection(0..100)] [-l percent_loss_packets(0..100)]"
-  echo "          [-t run_duration_seconds] [-r percent_restart(0..100)] [-m flag_to_output_network_statistics]"
+  echo "          [-t run_duration_seconds] [-d restart_duration_seconds] [-r percent_restart(0..100)]"
+  echo "          [-w restart_timeout_seconds] [-M restart_mode(preserve-consensus|full-reset|simple-restart)]"
+  echo "          [-E epoch_duration_ms] [-m flag_to_output_network_statistics]"
   echo "          [-S spammer_enable(true|false)] [-T spammer_tps(number)] [-Z spammer_size_per_tx(KiB)] [-C spammer_type(iota-spammer|stress)]"
 }
 
@@ -176,6 +182,10 @@ SEED=$DEFAULT_SEED
 PERCENT_BLOCK=$DEFAULT_PERCENT_BLOCK
 PERCENT_LOSS=$DEFAULT_PERCENT_LOSS
 PERCENT_RESTART=$DEFAULT_PERCENT_RESTART
+RESTART_DURATION=$DEFAULT_RESTART_DURATION
+RESTART_TIMEOUT=$DEFAULT_RESTART_TIMEOUT
+RESTART_MODE=$DEFAULT_RESTART_MODE
+EPOCH_DURATION_MS=$DEFAULT_EPOCH_DURATION_MS
 RUN_DURATION=$DEFAULT_RUN_DURATION
 NETWORK_METRIC=$DEFAULT_NETWORK_METRIC
 SPAMMER_ENABLE=$DEFAULT_SPAMMER_ENABLE
@@ -184,7 +194,7 @@ SPAMMER_SIZE_PER_TX=$DEFAULT_SPAMMER_SIZE
 SPAMMER_TYPE=$DEFAULT_SPAMMER_TYPE
 
 # --- Parse command-line arguments ---
-while getopts ":n:p:b:g:s:x:l:t:r:mS:T:Z:C:h" opt; do
+while getopts ":n:p:b:g:s:x:l:t:d:r:w:M:E:mS:T:Z:C:h" opt; do
   case "$opt" in
     n) NUM_VALIDATORS="$OPTARG" ;;
     p) PROTOCOL="$OPTARG" ;;
@@ -194,7 +204,11 @@ while getopts ":n:p:b:g:s:x:l:t:r:mS:T:Z:C:h" opt; do
     x) PERCENT_BLOCK="$OPTARG" ;;
     l) PERCENT_LOSS="$OPTARG" ;;
     t) RUN_DURATION="$OPTARG" ;;
+    d) RESTART_DURATION="$OPTARG" ;;
     r) PERCENT_RESTART="$OPTARG" ;;
+    w) RESTART_TIMEOUT="$OPTARG" ;;
+    M) RESTART_MODE="$OPTARG" ;;
+    E) EPOCH_DURATION_MS="$OPTARG" ;;
     m) NETWORK_METRIC=true ;;
     S) SPAMMER_ENABLE="$OPTARG" ;;
     T) SPAMMER_TPS="$OPTARG" ;;
@@ -221,6 +235,10 @@ log "Seed                       : $SEED"
 log "Percent block connection   : $PERCENT_BLOCK"
 log "Percent netem loss         : $PERCENT_LOSS"
 log "Percent restart validator  : $PERCENT_RESTART"
+log "Restart duration           : $RESTART_DURATION s"
+log "Restart timeout            : $RESTART_TIMEOUT s"
+log "Restart mode               : $RESTART_MODE"
+log "Epoch duration             : $EPOCH_DURATION_MS ms"
 log "Run experiments duration   : $RUN_DURATION s"
 log "Network metrics enabled    : $NETWORK_METRIC"
 log "Spammer enabled            : $SPAMMER_ENABLE"
@@ -269,7 +287,7 @@ else
 fi
 
 # --- 2) Bootstrap network ---
-(cd .. && ./bootstrap.sh -n "$NUM_VALIDATORS")
+(cd .. && ./bootstrap.sh -n "$NUM_VALIDATORS" -e "$EPOCH_DURATION_MS")
 
 # --- 3) Bring up docker network ---
 (cd .. && ./run.sh -n "$NUM_VALIDATORS" -p "$PROTOCOL")
@@ -299,6 +317,9 @@ cd - >/dev/null
     -b "$PERCENT_BLOCK" \
     -l "$PERCENT_LOSS" \
     -r "$PERCENT_RESTART" \
+    -d "$RESTART_DURATION" \
+    -w "$RESTART_TIMEOUT" \
+    -M "$RESTART_MODE" \
     -g "$GEODISTRIBUTED" \
     -o "$LOG_FILE" &
 

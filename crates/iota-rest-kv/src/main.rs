@@ -1,7 +1,7 @@
 // Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{fs, path::PathBuf};
+use std::{fs, num::NonZeroUsize, path::PathBuf};
 
 use anyhow::Result;
 use clap::Parser;
@@ -45,6 +45,12 @@ pub struct RestApiConfig {
     #[serde(flatten)]
     pub kv_store_config: KvStoreConfig,
     pub server_address: std::net::SocketAddr,
+    #[serde(default = "default_multiget_max_items")]
+    pub multiget_max_items: NonZeroUsize,
+}
+
+fn default_multiget_max_items() -> NonZeroUsize {
+    NonZeroUsize::new(100).expect("value should be greater than 0")
 }
 
 #[tokio::main]

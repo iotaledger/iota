@@ -29,7 +29,7 @@ type Merge<T> = T extends object ? { [K in keyof T]: T[K] } : never;
 function enumUnion<T extends Record<string, GenericSchema<any>>>(options: T) {
     return union(
         Object.entries(options).map(([key, value]) => object({ [key]: value })),
-    ) as GenericSchema<
+    ) as unknown as GenericSchema<
         EnumInputShape<
             Merge<{
                 [K in keyof T]: InferInput<T[K]>;

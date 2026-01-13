@@ -5,7 +5,7 @@
 use std::borrow::Cow;
 
 use axum::{Json, extract::State};
-use iota_sdk2::types::CheckpointDigest;
+use iota_sdk_types::Digest;
 use tap::Pipe;
 
 use crate::{
@@ -70,7 +70,7 @@ async fn get_node_info(State(state): State<RestService>) -> Result<Json<NodeInfo
         lowest_available_checkpoint_objects,
         timestamp_ms: latest_checkpoint.timestamp_ms,
         epoch: latest_checkpoint.epoch(),
-        chain_id: CheckpointDigest::new(state.chain_id().as_bytes().to_owned()),
+        chain_id: Digest::new(state.chain_id().as_bytes().to_owned()),
         chain: state.chain_id().chain().as_str().into(),
         software_version: state.software_version().into(),
     }
@@ -83,7 +83,7 @@ async fn get_node_info(State(state): State<RestService>) -> Result<Json<NodeInfo
 #[derive(Debug, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
 pub struct NodeInfo {
     /// The chain identifier of the chain that this Node is on
-    pub chain_id: CheckpointDigest,
+    pub chain_id: Digest,
 
     /// Human readable name of the chain that this Node is on
     pub chain: Cow<'static, str>,

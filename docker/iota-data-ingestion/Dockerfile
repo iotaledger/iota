@@ -1,5 +1,5 @@
-# Build image (the specific rust version can also be passed, e.g. "1.82-bookworm")
-ARG RUST_IMAGE_VERSION=bookworm
+# Build image (the specific rust version can also be passed, e.g. "1.91-trixie")
+ARG RUST_IMAGE_VERSION=trixie
 FROM rust:${RUST_IMAGE_VERSION} AS builder
 
 ARG PROFILE=release
@@ -36,7 +36,7 @@ RUN cargo build --profile ${PROFILE} \
     cp $TARGET_FOLDER/iota-data-ingestion ./iota-data-ingestion
 
 # Production image
-FROM debian:bookworm-slim AS runtime
+FROM debian:trixie-slim AS runtime
 
 # Install runtime dependencies and tools
 RUN apt update && apt install -y ca-certificates curl

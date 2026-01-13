@@ -577,7 +577,6 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
 
     /// Starts a task to fetch missing transactions from other authorities.
     async fn start_fetch_missing_transactions_task(&mut self) -> ConsensusResult<()> {
-        info!("Kick in periodic synchronizer to fetch missing transactions");
         // Get missing transactions from the core
         let missing_transactions = self
             .core_dispatcher

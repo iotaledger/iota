@@ -21,6 +21,7 @@
  */
 
 import * as amplitude from '@amplitude/analytics-browser';
+import { getAmplitudeConsentStatus } from '@iota/core';
 
 export type Environment = 'iotaevmbridge';
 
@@ -193,6 +194,11 @@ export class Ampli {
   }
 
   private isInitializedAndEnabled(): boolean {
+
+    // NOTE don't show error if consent is not given yet.
+    // Don't remove this check after `ampli pull web`
+    if (getAmplitudeConsentStatus() === 'declined') return;
+
     if (!this.amplitude) {
       console.error('ERROR: Ampli is not yet initialized. Have you called ampli.load() on app start?');
       return false;

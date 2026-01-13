@@ -174,12 +174,12 @@ https://github.com/iotaledger/notarization/tree/v0.1/bindings/wasm/notarization_
 
 ## Destruction Scenarios Summary
 
-| Lock Status | Can Destroy? | Notes |
-|-------------|--------------|-------|
-| No locks | ✅ Yes | Immediate destruction allowed |
-| Transfer lock (active) | ❌ No | Must wait for lock to expire |
-| Transfer lock (expired) | ✅ Yes | Can destroy after expiration |
-| UntilDestroyed lock | ❌ No | Cannot destroy while this lock exists |
+| Transfer Lock    | Can Destroy?  | Notes                                                                       |
+|------------------|---------------|-----------------------------------------------------------------------------|
+| No lock          | ✅ Yes        | Immediate destruction allowed                                               |
+| UnlockAt(future) | ❌ No         | Must wait for lock to expire                                                |
+| UnlockAt(past)   | ✅ Yes        | Can destroy after expiration                                                |
+| UntilDestroyed   | ✅ Yes        | Can not be transferred until object is destroyed but destruction is allowed |
 
 ## Error Handling
 

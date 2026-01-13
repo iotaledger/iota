@@ -4,7 +4,7 @@
     "description": "IOTA TypeScript API",
     "repository": "https://github.com/iotaledger/iota",
     "homepage": "https://docs.iota.org/developer/ts-sdk/typescript/",
-    "version": "1.8.0",
+    "version": "1.10.1",
     "license": "Apache-2.0",
     "sideEffects": false,
     "files": [
@@ -152,6 +152,6 @@
         "gql.tada": "^1.8.2",
         "graphql": "^16.9.0",
         "tweetnacl": "^1.0.3",
-        "valibot": "^0.36.0"
+        "valibot": "^1.2.0"
     }
 }
