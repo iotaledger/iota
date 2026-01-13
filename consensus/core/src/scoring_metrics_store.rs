@@ -388,12 +388,13 @@ fn calculate_scoring_metrics_for_range(
 
 fn should_update_provable_metrics(error: &ConsensusError, source: &str) -> bool {
     if source == "handle_send_block"
-        && (is_from_signed_block_verification(error)
-            || matches!(
-                error,
-                ConsensusError::BlockRejected { .. }
-                //| ConsensusError::MalformedAncestorBlock { .. }
-                ))
+        && (
+            is_from_signed_block_verification(error)
+            // || matches!(
+            //    error,
+            // ConsensusError::MalformedAncestorBlock { .. }
+            //)
+        )
     {
         return true;
     }
@@ -405,7 +406,9 @@ fn should_update_unprovable_metrics(error: &ConsensusError, source: &str) -> boo
         return is_from_unsigned_block_verification(error)
             || matches!(
                 error,
-                ConsensusError::MalformedBlock { .. } | ConsensusError::UnexpectedAuthority { .. }
+                ConsensusError::MalformedBlock { .. }
+                    | ConsensusError::UnexpectedAuthority { .. }
+                    | ConsensusError::BlockRejected { .. }
             );
     } else if source == "fetch_once" {
         return is_from_commit_syncer(error);
@@ -1578,11 +1581,14 @@ mod tests {
         // Create a set of errors to test
         let ignored_error = ConsensusError::Shutdown;
         let parsing_error = ConsensusError::MalformedBlock(bcs::Error::Eof);
-        let block_verification_error = ConsensusError::BlockRejected {
+        let block_verification_error = ConsensusError::InvalidAuthorityIndex {
+            index: AuthorityIndex::new_for_test(5),
+            max: 4,
+        };
+        let block_rejected_error = ConsensusError::BlockRejected {
             block_ref: BlockRef::new(10, AuthorityIndex::new_for_test(10), BlockDigest::MIN),
             reason: "string".to_string(),
         };
-
         // Update metrics for each authority with an error that should be ignored.
         // Metrics should not be updated for this error.
         for authority in context.committee.authorities() {
@@ -1682,6 +1688,42 @@ mod tests {
             [
                 vec![1, 1, 1, 1],
                 vec![1, 1, 1, 1],
+                vec![0, 0, 0, 0],
+                vec![0, 0, 0, 0],
+                vec![1, 1, 1, 1],
+                vec![0, 0, 0, 0],
+                vec![1, 1, 1, 1],
+                vec![0, 0, 0, 0]
+            ]
+        );
+
+        // Update metrics for each authority with a block rejected verification error.
+        // Only unprovable metrics should be updated for this error.
+        for authority in context.committee.authorities() {
+            context
+                .scoring_metrics_store
+                .update_scoring_metrics_on_block_receival(
+                    authority.0,
+                    authority.1.hostname.as_str(),
+                    block_rejected_error.clone(),
+                    source,
+                    &context.metrics.node_metrics,
+                );
+        }
+        assert_eq!(
+            [
+                scoring_metrics.faulty_blocks_provable_by_authority(),
+                scoring_metrics.faulty_blocks_unprovable_by_authority(),
+                get_faulty_blocks_provable(&context, source, ignored_error.name()),
+                get_faulty_blocks_provable(&context, source, parsing_error.name()),
+                get_faulty_blocks_provable(&context, source, block_verification_error.name()),
+                get_faulty_blocks_unprovable(&context, source, ignored_error.name()),
+                get_faulty_blocks_unprovable(&context, source, parsing_error.name()),
+                get_faulty_blocks_unprovable(&context, source, block_verification_error.name())
+            ],
+            [
+                vec![1, 1, 1, 1],
+                vec![2, 2, 2, 2],
                 vec![0, 0, 0, 0],
                 vec![0, 0, 0, 0],
                 vec![1, 1, 1, 1],
