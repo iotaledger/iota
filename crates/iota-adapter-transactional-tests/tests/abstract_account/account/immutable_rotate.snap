@@ -13,19 +13,19 @@ created: object(2,0)
 mutated: object(0,1)
 gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 9971200,  storage_rebate: 0, non_refundable_storage_fee: 0
 
-task 2, lines 10-17:
+task 2, lines 10-20:
 //# publish --sender A --dependencies simple_abstract_account
 created: object(3,0), object(3,1)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 8694400,  storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 10009200,  storage_rebate: 0, non_refundable_storage_fee: 0
 
-task 3, line 19:
-//# init-abstract-account --sender A --package-metadata object(3,1) --inputs "authenticate" "authenticate" --create-function simple_abstract_account::abstract_account::create --account-type simple_abstract_account::abstract_account::AbstractAccount
+task 3, line 22:
+//# init-abstract-account --sender A --package-metadata object(3,1) --inputs "authenticate" "authenticate1" --create-function simple_abstract_account::abstract_account::create --account-type simple_abstract_account::abstract_account::AbstractAccount
 created: object(4,0), object(4,1), object(4,2)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 6847600,  storage_rebate: 980400, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 6855200,  storage_rebate: 980400, non_refundable_storage_fee: 0
 
-task 4, line 21:
+task 4, line 24:
 //# view-object 4,2
 Owner: Shared( 3 )
 Version: 3
@@ -37,6 +37,7 @@ Contents: simple_abstract_account::abstract_account::AbstractAccount {
     },
 }
 
-task 5, lines 23-24:
-//# abstract --account object(4,2) --ptb-inputs 100 @A
-Error: Error checking transaction input objects: Unsupported("MoveAuthenticator cannot authenticate mutable shared objects")
+task 5, lines 26-27:
+//# abstract --account immshared(4,2) --ptb-inputs object(4,2) object(3,1) "authenticate" "authenticate2"
+mutated: object(4,0), object(4,1), object(4,2)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 5874800,  storage_rebate: 5874800, non_refundable_storage_fee: 0

@@ -20,14 +20,14 @@ mutated: object(0,0)
 gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 8694400,  storage_rebate: 0, non_refundable_storage_fee: 0
 
 task 3, line 19:
-//# init-abstract-account --sender A --package-metadata object(3,1) --inputs "authenticate" "authenticate" --create-function simple_abstract_account::abstract_account::create --account-type simple_abstract_account::abstract_account::AbstractAccount
+//# init-abstract-account --sender A --package-metadata object(3,1) --inputs "authenticate" "authenticate" --create-function simple_abstract_account::abstract_account::create_immutable --account-type simple_abstract_account::abstract_account::AbstractAccount
 created: object(4,0), object(4,1), object(4,2)
 mutated: object(0,0)
 gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 6847600,  storage_rebate: 980400, non_refundable_storage_fee: 0
 
 task 4, line 21:
 //# view-object 4,2
-Owner: Shared( 3 )
+Owner: Immutable
 Version: 3
 Contents: simple_abstract_account::abstract_account::AbstractAccount {
     id: iota::object::UID {
@@ -38,10 +38,9 @@ Contents: simple_abstract_account::abstract_account::AbstractAccount {
 }
 
 task 5, lines 23-25:
-//# abstract --account immshared(4,2) --sponsor A --ptb-inputs 100 @A
+//# abstract --account object(4,2) --ptb-inputs 100 @A
 created: object(6,0)
-mutated: object(0,0)
-unchanged_shared: object(4,2)
+mutated: object(4,0)
 gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 1960800,  storage_rebate: 980400, non_refundable_storage_fee: 0
 
 task 6, line 27:
