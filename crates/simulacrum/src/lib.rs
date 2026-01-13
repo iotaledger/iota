@@ -242,17 +242,18 @@ impl<R, S: store::SimulatorStore> Simulacrum<R, S> {
     /// Creates the next Checkpoint using the Transactions enqueued since the
     /// last checkpoint was created.
     pub fn create_checkpoint(&self) -> VerifiedCheckpoint {
-        let mut inner = self.inner.write().unwrap();
         let (checkpoint, contents) = {
+            let mut inner = self.inner.write().unwrap();
             let committee = CommitteeWithKeys::new(&inner.keystore, inner.epoch_state.committee());
             let timestamp_ms = inner.store.get_clock().timestamp_ms();
             let (checkpoint, contents, _) =
                 inner.checkpoint_builder.build(&committee, timestamp_ms);
+            inner.store.insert_checkpoint(checkpoint.clone());
+            inner.store.insert_checkpoint_contents(contents.clone());
             (checkpoint, contents)
         };
-        inner.store.insert_checkpoint(checkpoint.clone());
-        inner.store.insert_checkpoint_contents(contents.clone());
-        self.process_data_ingestion_locked(&inner, checkpoint.clone(), contents)
+        // Release lock before expensive data ingestion operation
+        self.process_data_ingestion(checkpoint.clone(), contents)
             .unwrap();
         checkpoint
     }
@@ -296,59 +297,89 @@ impl<R, S: store::SimulatorStore> Simulacrum<R, S> {
     /// NOTE: This function does not currently support updating the protocol
     /// version or the system packages
     pub fn advance_epoch(&self) {
-        let inner = self.inner.write().unwrap();
-        let current_epoch = inner.epoch_state.epoch();
-        let next_epoch = current_epoch + 1;
-        let next_epoch_protocol_version = inner.epoch_state.protocol_version();
-        let gas_cost_summary = inner.checkpoint_builder.epoch_rolling_gas_cost_summary();
-        let epoch_start_timestamp_ms = inner.store.get_clock().timestamp_ms();
-        let next_epoch_system_package_bytes = vec![];
+        let (
+            current_epoch,
+            next_epoch,
+            next_epoch_protocol_version,
+            storage_cost,
+            computation_cost,
+            computation_cost_burned,
+            storage_rebate,
+            non_refundable_storage_fee,
+            epoch_start_timestamp_ms,
+        ) = {
+            let inner = self.inner.read().unwrap();
+            let current_epoch = inner.epoch_state.epoch();
+            let next_epoch = current_epoch + 1;
+            let next_epoch_protocol_version = inner.epoch_state.protocol_version();
+            let gas_cost_summary = inner.checkpoint_builder.epoch_rolling_gas_cost_summary();
+            let epoch_start_timestamp_ms = inner.store.get_clock().timestamp_ms();
+            (
+                current_epoch,
+                next_epoch,
+                next_epoch_protocol_version,
+                gas_cost_summary.storage_cost,
+                gas_cost_summary.computation_cost,
+                gas_cost_summary.computation_cost_burned,
+                gas_cost_summary.storage_rebate,
+                gas_cost_summary.non_refundable_storage_fee,
+                epoch_start_timestamp_ms,
+            )
+        };
 
+        let next_epoch_system_package_bytes = vec![];
         let kinds = vec![EndOfEpochTransactionKind::new_change_epoch_v3(
             next_epoch,
             next_epoch_protocol_version,
-            gas_cost_summary.storage_cost,
-            gas_cost_summary.computation_cost,
-            gas_cost_summary.computation_cost_burned,
-            gas_cost_summary.storage_rebate,
-            gas_cost_summary.non_refundable_storage_fee,
+            storage_cost,
+            computation_cost,
+            computation_cost_burned,
+            storage_rebate,
+            non_refundable_storage_fee,
             epoch_start_timestamp_ms,
             next_epoch_system_package_bytes,
             vec![],
         )];
 
         let tx = VerifiedTransaction::new_end_of_epoch_transaction(kinds);
-        drop(inner);
         self.execute_transaction(tx.into())
             .expect("advancing the epoch cannot fail");
 
-        let mut inner = self.inner.write().unwrap();
-        let new_epoch_state = EpochState::new(inner.store.get_system_state());
-        let end_of_epoch_data = EndOfEpochData {
-            next_epoch_committee: new_epoch_state.committee().voting_rights.clone(),
-            next_epoch_protocol_version,
-            epoch_commitments: vec![],
-            // Do not simulate supply changes for now.
-            epoch_supply_change: 0,
-        };
-        let (checkpoint, contents, _) = {
-            let committee = CommitteeWithKeys::new(&inner.keystore, inner.epoch_state.committee());
-            let timestamp_ms = inner.store.get_clock().timestamp_ms();
-            inner.checkpoint_builder.build_end_of_epoch(
-                &committee,
-                timestamp_ms,
-                next_epoch,
-                end_of_epoch_data,
-            )
+        let (checkpoint, contents, new_epoch_state) = {
+            let mut inner = self.inner.write().unwrap();
+            let new_epoch_state = EpochState::new(inner.store.get_system_state());
+            let end_of_epoch_data = EndOfEpochData {
+                next_epoch_committee: new_epoch_state.committee().voting_rights.clone(),
+                next_epoch_protocol_version,
+                epoch_commitments: vec![],
+                // Do not simulate supply changes for now.
+                epoch_supply_change: 0,
+            };
+            let (checkpoint, contents, _) = {
+                let committee =
+                    CommitteeWithKeys::new(&inner.keystore, inner.epoch_state.committee());
+                let timestamp_ms = inner.store.get_clock().timestamp_ms();
+                inner.checkpoint_builder.build_end_of_epoch(
+                    &committee,
+                    timestamp_ms,
+                    next_epoch,
+                    end_of_epoch_data,
+                )
+            };
+
+            inner.store.insert_checkpoint(checkpoint.clone());
+            inner.store.insert_checkpoint_contents(contents.clone());
+            inner
+                .store
+                .update_last_checkpoint_of_epoch(current_epoch, *checkpoint.sequence_number());
+            (checkpoint, contents, new_epoch_state)
         };
 
-        inner.store.insert_checkpoint(checkpoint.clone());
-        inner.store.insert_checkpoint_contents(contents.clone());
-        inner
-            .store
-            .update_last_checkpoint_of_epoch(current_epoch, *checkpoint.sequence_number());
-        self.process_data_ingestion_locked(&inner, checkpoint, contents)
-            .unwrap();
+        // Process data ingestion without holding the lock
+        self.process_data_ingestion(checkpoint, contents).unwrap();
+
+        // Finally, update the epoch state
+        let mut inner = self.inner.write().unwrap();
         inner.epoch_state = new_epoch_state;
     }
 
@@ -460,14 +491,19 @@ impl<R, S: store::SimulatorStore> Simulacrum<R, S> {
     }
 
     pub fn set_data_ingestion_path(&self, data_ingestion_path: PathBuf) {
-        let mut inner = self.inner.write().unwrap();
-        inner.data_ingestion_path = Some(data_ingestion_path);
-        let checkpoint = inner.store.get_checkpoint_by_sequence_number(0).unwrap();
-        let contents = inner
-            .store
-            .get_checkpoint_contents_by_digest(&checkpoint.content_digest);
-        self.process_data_ingestion_locked(&inner, checkpoint, contents.unwrap())
-            .unwrap();
+        let checkpoint = {
+            let mut inner = self.inner.write().unwrap();
+            inner.data_ingestion_path = Some(data_ingestion_path);
+            let checkpoint = inner.store.get_checkpoint_by_sequence_number(0).unwrap();
+            let contents = inner
+                .store
+                .get_checkpoint_contents_by_digest(&checkpoint.content_digest);
+            (checkpoint, contents)
+        };
+        // Release lock before expensive data ingestion operation
+        if let (checkpoint, Some(contents)) = checkpoint {
+            self.process_data_ingestion(checkpoint, contents).unwrap();
+        }
     }
 
     /// Overrides the next checkpoint number indirectly by setting the previous
@@ -483,20 +519,20 @@ impl<R, S: store::SimulatorStore> Simulacrum<R, S> {
             .override_next_checkpoint_number(number, &committee);
     }
 
-    /// Creates a CheckpointData structure from the provided checkpoint and
-    /// contents and writes it to disk if "data_ingestion_path" is set.
-    fn process_data_ingestion_locked(
+    /// Process data ingestion without holding the inner lock.
+    /// This version should be used when you don't already hold the lock.
+    fn process_data_ingestion(
         &self,
-        inner: &SimulacrumInner<R, S>,
         checkpoint: VerifiedCheckpoint,
         checkpoint_contents: CheckpointContents,
     ) -> anyhow::Result<()> {
-        if let Some(path) = &inner.data_ingestion_path {
+        let path = self.inner.read().unwrap().data_ingestion_path.clone();
+        if let Some(data_path) = path {
             let file_name = format!("{}.chk", checkpoint.sequence_number);
             let checkpoint_data = self.try_get_checkpoint_data(checkpoint, checkpoint_contents)?;
-            std::fs::create_dir_all(path)?;
+            std::fs::create_dir_all(&data_path)?;
             let blob = Blob::encode(&checkpoint_data, BlobEncoding::Bcs)?;
-            std::fs::write(path.join(file_name), blob.to_bytes())?;
+            std::fs::write(data_path.join(file_name), blob.to_bytes())?;
         }
         Ok(())
     }
