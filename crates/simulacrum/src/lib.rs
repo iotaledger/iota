@@ -297,7 +297,8 @@ impl<R, S: store::SimulatorStore> Simulacrum<R, S> {
     /// version or the system packages
     pub fn advance_epoch(&self) {
         let inner = self.inner.write().unwrap();
-        let next_epoch = inner.epoch_state.epoch() + 1;
+        let current_epoch = inner.epoch_state.epoch();
+        let next_epoch = current_epoch + 1;
         let next_epoch_protocol_version = inner.epoch_state.protocol_version();
         let gas_cost_summary = inner.checkpoint_builder.epoch_rolling_gas_cost_summary();
         let epoch_start_timestamp_ms = inner.store.get_clock().timestamp_ms();
@@ -343,6 +344,9 @@ impl<R, S: store::SimulatorStore> Simulacrum<R, S> {
 
         inner.store.insert_checkpoint(checkpoint.clone());
         inner.store.insert_checkpoint_contents(contents.clone());
+        inner
+            .store
+            .update_last_checkpoint_of_epoch(current_epoch, *checkpoint.sequence_number());
         self.process_data_ingestion_locked(&inner, checkpoint, contents)
             .unwrap();
         inner.epoch_state = new_epoch_state;
