@@ -84,13 +84,10 @@ where
     let mut d_comps = dst.components().peekable();
 
     // (1). Strip matching prefix
-    loop {
-        let Some(s_comp) = s_comps.peek() else { break };
-        let Some(d_comp) = d_comps.peek() else { break };
+    while let (Some(s_comp), Some(d_comp)) = (s_comps.peek(), d_comps.peek()) {
         if s_comp != d_comp {
             break;
         }
-
         s_comps.next();
         d_comps.next();
     }

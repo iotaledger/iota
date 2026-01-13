@@ -22,8 +22,9 @@ export async function connectWallet(page: Page, context: BrowserContext, extensi
 }
 
 export async function createWallet(page: Page) {
-    await page.getByRole('button', { name: /Add Profile/ }).click({ timeout: 30000 });
-    await page.getByText('New Mnemonic Profile', { exact: true }).click();
+    await page.getByRole('button', { name: /Get Started/ }).click({ timeout: 30_000 });
+    await page.getByText('Create a new wallet').click();
+    await page.getByText('Mnemonic', { exact: true }).click();
     await page.getByTestId('password.input').fill('iotae2etests');
     await page.getByTestId('password.confirmation').fill('iotae2etests');
     await page.getByText('I read and agree').click();

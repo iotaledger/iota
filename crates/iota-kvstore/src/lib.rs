@@ -29,25 +29,33 @@ pub trait KeyValueStoreReader {
     type Error;
 
     /// Fetches a list of objects by their keys.
+    ///
+    /// Not found objects are omitted from the output list.
     async fn get_objects(&mut self, objects: &[ObjectKey]) -> Result<Vec<Object>, Self::Error>;
 
     /// Fetches a list of transactions by their digests.
+    ///
+    /// Not found transactions are omitted from the output list.
     async fn get_transactions(
         &mut self,
         transactions: &[TransactionDigest],
     ) -> Result<Vec<TransactionData>, Self::Error>;
 
     /// Fetches a list of checkpoints by their sequence numbers.
+    ///
+    /// Not found checkpoints are omitted from the output list.
     async fn get_checkpoints(
         &mut self,
         sequence_numbers: &[CheckpointSequenceNumber],
     ) -> Result<Vec<Checkpoint>, Self::Error>;
 
-    /// Fetches a checkpoint by its digest.
-    async fn get_checkpoint_by_digest(
+    /// Fetches a list of checkpoints by their digests.
+    ///
+    /// Not found checkpoints are omitted from the output list.
+    async fn get_checkpoints_by_digest(
         &mut self,
-        digest: CheckpointDigest,
-    ) -> Result<Option<Checkpoint>, Self::Error>;
+        digests: &[CheckpointDigest],
+    ) -> Result<Vec<Checkpoint>, Self::Error>;
 }
 
 /// Writing key-value data to a persistent store, such as objects, transactions,

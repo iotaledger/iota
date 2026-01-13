@@ -197,16 +197,18 @@ pub struct Settings {
     #[serde(default)]
     pub use_fullnode_for_execution: bool,
     /// The directory (on the local machine) where to save benchmarks
-    /// measurements.
+    /// results.
     #[serde(default = "default_results_dir")]
     pub results_dir: PathBuf,
-    /// The directory (on the local machine) where to download logs files from
-    /// the instances.
-    #[serde(default = "default_logs_dir")]
-    pub logs_dir: PathBuf,
     /// Binary build configuration.
     #[serde(default)]
     pub build_configs: HashMap<String, BinaryBuildConfig>,
+    /// Enable flamegraphs when running nodes.
+    #[serde(default)]
+    pub enable_flamegraph: bool,
+    /// Enable prometheus snapshots.
+    #[serde(default)]
+    pub enable_prometheus_snapshots: bool,
 }
 
 fn default_working_dir() -> PathBuf {
@@ -215,10 +217,6 @@ fn default_working_dir() -> PathBuf {
 
 fn default_results_dir() -> PathBuf {
     ["./", "results"].iter().collect()
-}
-
-fn default_logs_dir() -> PathBuf {
-    ["./", "logs"].iter().collect()
 }
 
 impl Settings {
@@ -233,7 +231,6 @@ impl Settings {
             let settings: Settings = serde_json::from_slice(data.as_bytes())?;
 
             fs::create_dir_all(&settings.results_dir)?;
-            fs::create_dir_all(&settings.logs_dir)?;
 
             Ok(settings)
         };
@@ -378,8 +375,9 @@ impl Settings {
             working_dir: "/path/to/working_dir".into(),
             use_fullnode_for_execution: false,
             results_dir: "results".into(),
-            logs_dir: "logs".into(),
             build_configs: HashMap::new(),
+            enable_flamegraph: false,
+            enable_prometheus_snapshots: false,
         }
     }
 }

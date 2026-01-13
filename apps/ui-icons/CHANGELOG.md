@@ -1,5 +1,17 @@
 # @iota/apps-ui-icons
 
+## 0.7.2
+
+### Patch Changes
+
+-   1925bea: Bump with no changes to fix NPM versions
+
+## 0.7.1
+
+### Patch Changes
+
+-   c395af9: Add Firefly and Wallet icons
+
 ## 0.7.0
 
 ### Minor Changes
