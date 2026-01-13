@@ -176,6 +176,9 @@ pub(crate) struct DagState {
     /// the next dag state flush. This is okay because we can recover
     /// reputation scores & last_committed_rounds from the commits as
     /// needed.
+    /// The index in CommitRef correspond to the first index of the next
+    /// scheduler window, while the reputation scores in CommitInfoare for
+    /// the previous window.
     commit_info_to_write: Vec<(CommitRef, CommitInfo)>,
 
     /// Persistent storage for blocks, commits and other consensus data.
@@ -1547,6 +1550,8 @@ impl DagState {
         self.commits_to_write.push(commit);
     }
 
+    /// Add commit info is callled before the first commit in a new leader
+    /// scheduler window
     pub(crate) fn add_commit_info(&mut self, reputation_scores: ReputationScores) {
         // We create an empty scoring subdag once reputation scores are calculated.
         // Note: It is okay for this to not be gated by protocol config as the
