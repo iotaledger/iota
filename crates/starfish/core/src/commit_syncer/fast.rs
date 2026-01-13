@@ -218,11 +218,14 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
 
         // Skip scheduling depending on sync type and gap threshold.
         let gap = quorum_commit_index.saturating_sub(local_commit_index);
-        let should_schedule = self
-            .inner
-            .sync_type
-            .should_schedule(gap, self.inner.context.parameters.commit_sync_gap_threshold)
-            || self.has_fetched_data;
+        let should_schedule = self.inner.sync_type.should_schedule(
+            gap,
+            self.inner.context.parameters.commit_sync_gap_threshold,
+            self.inner
+                .context
+                .protocol_config
+                .consensus_transaction_ref(),
+        ) || self.has_fetched_data;
 
         if should_schedule {
             let metrics = &self.inner.context.metrics.node_metrics;

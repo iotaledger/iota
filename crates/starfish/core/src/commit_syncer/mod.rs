@@ -83,10 +83,20 @@ impl CommitSyncType {
         }
     }
 
-    pub(crate) fn should_schedule(&self, gap: u32, commit_sync_gap_threshold: u32) -> bool {
+    pub(crate) fn should_schedule(
+        &self,
+        gap: u32,
+        commit_sync_gap_threshold: u32,
+        consensus_transaction_ref: bool,
+    ) -> bool {
         match self {
-            CommitSyncType::Fast => gap > commit_sync_gap_threshold,
-            CommitSyncType::Regular => gap <= commit_sync_gap_threshold,
+            // Fast syncer requires consensus_transaction_ref to be enabled
+            CommitSyncType::Fast => consensus_transaction_ref && gap > commit_sync_gap_threshold,
+            // Regular syncer handles all gaps when consensus_transaction_ref is disabled,
+            // otherwise only handles small gaps
+            CommitSyncType::Regular => {
+                !consensus_transaction_ref || gap <= commit_sync_gap_threshold
+            }
         }
     }
 }
