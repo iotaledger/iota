@@ -48,7 +48,7 @@ use tokio::{
     task::{JoinHandle, JoinSet},
     time::{MissedTickBehavior, sleep},
 };
-use tracing::{debug, info, instrument, warn};
+use tracing::{debug, info, instrument, trace, warn};
 
 use crate::{
     CommitConsumerMonitor, CommitIndex,
@@ -833,6 +833,7 @@ impl<C: NetworkClient> Inner<C> {
         let end_commit_ref = CommitRef::new(end_commit.index(), *end_commit_digest);
         let mut stake_aggregator = StakeAggregator::<QuorumThreshold>::new();
         let mut vote_blocks = Vec::new();
+        info!(blocks_num_to_verify = serialized_vote_blocks.len(), "CommitSyncer::verify_commits");
         for serialized in serialized_vote_blocks {
             let block: SignedBlock =
                 bcs::from_bytes(&serialized).map_err(ConsensusError::MalformedBlock)?;

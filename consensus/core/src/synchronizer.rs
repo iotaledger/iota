@@ -761,6 +761,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
         let mut verified_blocks = Vec::new();
         let mut skipped_count = 0u64;
 
+        info!(blocks_num_to_verify = serialized_blocks.len(), "Synchronizer::verify_blocks");
         for serialized_block in serialized_blocks {
             let block_digest = VerifiedBlock::compute_digest(&serialized_block);
 

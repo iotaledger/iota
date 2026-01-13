@@ -36,7 +36,7 @@ use tokio::{
     sync::oneshot,
     time::{Duration, timeout},
 };
-use tracing::{Instrument, debug, instrument, trace_span};
+use tracing::{Instrument, debug, info, instrument, trace_span};
 // Maximum amount of time we wait for a batch to fill up before verifying a
 // partial batch.
 const BATCH_TIMEOUT_MS: Duration = Duration::from_millis(10);
@@ -666,6 +666,11 @@ fn batch_verify(
     certs: &[&CertifiedTransaction],
     checkpoints: &[&SignedCheckpointSummary],
 ) -> IotaResult {
+    info!(
+        certs_num_to_verify = certs.len(),
+        checkpoints_num_to_verify = checkpoints.len(),
+        "signature_verifier::batch_verify"
+    );
     let mut obligation = VerificationObligation::default();
 
     for cert in certs {
