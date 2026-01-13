@@ -11,7 +11,7 @@ task 1, line 8:
 Output for 'crates/iota-adapter-transactional-tests/data/account_abstraction/simple_abstract_account.move':
 created: object(2,0)
 mutated: object(0,1)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 7584800,  storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 7759600,  storage_rebate: 0, non_refundable_storage_fee: 0
 
 task 2, lines 10-20:
 //# publish --sender A --dependencies simple_abstract_account
@@ -21,5 +21,5 @@ gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storag
 
 task 3, line 22:
 //# init-abstract-account --sender A --package-metadata object(3,1) --inputs "authenticate" "authenticate" --create-function simple_abstract_account::abstract_account::create --account-type simple_abstract_account::abstract_account::AbstractAccount
-Error: Transaction Effects Status: Move Runtime Abort. Location: iota::account::create_auth_info_v1 (function index 0) at offset 15, Abort Code: 13835621258638917637
-Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: MoveAbort(MoveLocation { module: ModuleId { address: iota, name: Identifier("account") }, function: 0, instruction: 15, function_name: Some("create_auth_info_v1") }, 13835621258638917637), source: Some(VMError { major_status: ABORTED, sub_status: Some(13835621258638917637), message: Some("iota::account::create_auth_info_v1 at offset 15"), exec_state: None, location: Module(ModuleId { address: iota, name: Identifier("account") }), indices: [], offsets: [(FunctionDefinitionIndex(0), 15)] }), command: Some(0) } }
+Error: Transaction Effects Status: Move Runtime Abort. Location: iota::account::create_auth_function_ref_v1 (function index 0) at offset 15, Abort Code: 13835621258638917637
+Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: MoveAbort(MoveLocation { module: ModuleId { address: iota, name: Identifier("account") }, function: 0, instruction: 15, function_name: Some("create_auth_function_ref_v1") }, 13835621258638917637), source: Some(VMError { major_status: ABORTED, sub_status: Some(13835621258638917637), message: Some("iota::account::create_auth_function_ref_v1 at offset 15"), exec_state: None, location: Module(ModuleId { address: iota, name: Identifier("account") }), indices: [], offsets: [(FunctionDefinitionIndex(0), 15)] }), command: Some(0) } }

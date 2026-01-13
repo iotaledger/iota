@@ -8,7 +8,7 @@ info:
 error[Iota E02010]: invalid private account call
   ┌─ tests/iota_mode/account/account_generic.move:7:9
   │
-6 │     public fun t1<A: key>(account: A, authenticator: AuthenticatorInfoV1<A>) {
+6 │     public fun t1<A: key>(account: A, authenticator: AuthenticatorFunctionRefV1<A>) {
   │                                    - The type 'A' is not declared in the current module
 7 │         account::create_account_v1(account, authenticator);
   │         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Invalid private account call. The function 'iota::account::create_account_v1' is restricted to being called in the object's module
@@ -16,7 +16,7 @@ error[Iota E02010]: invalid private account call
 error[Iota E02010]: invalid private account call
    ┌─ tests/iota_mode/account/account_generic.move:11:9
    │
-10 │     public fun t2<A: key>(account: A, authenticator: AuthenticatorInfoV1<A>) {
+10 │     public fun t2<A: key>(account: A, authenticator: AuthenticatorFunctionRefV1<A>) {
    │                                    - The type 'A' is not declared in the current module
 11 │         account::create_immutable_account_v1(account, authenticator);
    │         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Invalid private account call. The function 'iota::account::create_immutable_account_v1' is restricted to being called in the object's module
@@ -27,5 +27,5 @@ error[Iota E02010]: invalid private account call
 15 │         account: &mut A,
    │                       - The type 'A' is not declared in the current module
    ·
-18 │         account::rotate_auth_info_v1(account, authenticator)
-   │         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Invalid private account call. The function 'iota::account::rotate_auth_info_v1' is restricted to being called in the object's module
+18 │         account::rotate_auth_function_ref_v1(account, authenticator)
+   │         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Invalid private account call. The function 'iota::account::rotate_auth_function_ref_v1' is restricted to being called in the object's module

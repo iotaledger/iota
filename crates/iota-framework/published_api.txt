@@ -1420,13 +1420,13 @@ has_child_object
 has_child_object_with_ty
 	public(package) fun
 	0x2::dynamic_field
-AuthenticatorInfoV1Key
+AuthenticatorFunctionRefV1Key
 	public struct
 	0x2::account
-AuthenticatorInfoV1
+AuthenticatorFunctionRefV1
 	public struct
 	0x2::account
-create_auth_info_v1
+create_auth_function_ref_v1
 	public fun
 	0x2::account
 create_account_v1
@@ -1435,19 +1435,19 @@ create_account_v1
 create_immutable_account_v1
 	public fun
 	0x2::account
-rotate_auth_info_v1
+rotate_auth_function_ref_v1
 	public fun
 	0x2::account
-borrow_auth_info_v1
+borrow_auth_function_ref_v1
 	public fun
 	0x2::account
-has_auth_info_v1
+has_auth_function_ref_v1
 	public fun
 	0x2::account
-auth_info_v1_key
+auth_function_ref_v1_key
 	fun
 	0x2::account
-attach_auth_info_v1
+attach_auth_function_ref_v1
 	fun
 	0x2::account
 borrow_account_uid_mut

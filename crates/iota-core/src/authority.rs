@@ -55,7 +55,7 @@ use iota_storage::{
 use iota_types::committee::CommitteeTrait;
 use iota_types::{
     IOTA_SYSTEM_ADDRESS, TypeTag,
-    account::{self, AuthenticatorInfoV1, AuthenticatorInfoV1Key},
+    account::{self, AuthenticatorFunctionRefV1, AuthenticatorFunctionRefV1Key},
     authenticator_state::get_authenticator_state,
     base_types::*,
     committee::{Committee, EpochId, ProtocolVersion},
@@ -916,17 +916,21 @@ impl AuthorityState {
         // account object are also checked and must be provided.
         // It is also checked if there is enough gas to execute the transaction and its
         // authenticators.
-        let (gas_status, tx_checked_input_objects, auth_checked_input_objects, authenticator_info) =
-            self.check_transaction_inputs_for_signing(
-                protocol_config,
-                reference_gas_price,
-                tx_data,
-                tx_input_objects,
-                &tx_receiving_objects,
-                move_authenticator,
-                auth_input_objects,
-                account_object,
-            )?;
+        let (
+            gas_status,
+            tx_checked_input_objects,
+            auth_checked_input_objects,
+            authenticator_function_ref,
+        ) = self.check_transaction_inputs_for_signing(
+            protocol_config,
+            reference_gas_price,
+            tx_data,
+            tx_input_objects,
+            &tx_receiving_objects,
+            move_authenticator,
+            auth_input_objects,
+            account_object,
+        )?;
 
         check_coin_deny_list_v1_during_signing(
             tx_data.sender(),
@@ -942,8 +946,8 @@ impl AuthorityState {
 
             let auth_checked_input_objects = auth_checked_input_objects
                 .expect("MoveAuthenticator input objects must be provided");
-            let authenticator_info =
-                authenticator_info.expect("AuthenticatorInfoV1 object must be provided");
+            let authenticator_function_ref = authenticator_function_ref
+                .expect("AuthenticatorFunctionRefV1 object must be provided");
 
             let (kind, signer, _) = tx_data.execution_parts();
 
@@ -959,7 +963,7 @@ impl AuthorityState {
                     .epoch_start_timestamp(),
                 gas_status,
                 move_authenticator.to_owned(),
-                authenticator_info,
+                authenticator_function_ref,
                 auth_checked_input_objects,
                 kind,
                 signer,
@@ -1653,7 +1657,7 @@ impl AuthorityState {
             // that the account object is loaded.
             let account_object = account_object.expect("Account object must be provided");
 
-            let authenticator_info = self.check_move_account(
+            let authenticator_function_ref = self.check_move_account(
                 auth_account_object_id,
                 auth_account_object_seq_number,
                 auth_account_object_digest,
@@ -1703,7 +1707,7 @@ impl AuthorityState {
                     gas_status,
                     gas,
                     move_authenticator.to_owned(),
-                    authenticator_info,
+                    authenticator_function_ref,
                     authenticator_checked_input_objects,
                     authenticator_and_tx_checked_input_objects,
                     kind,
@@ -5258,7 +5262,7 @@ impl AuthorityState {
     }
 
     /// Checks if `authenticator` unlocks a valid Move account and returns the
-    /// account-related `AuthenticatorInfo` object.
+    /// account-related `AuthenticatorFunctionRef` object.
     fn check_move_account(
         &self,
         auth_account_object_id: ObjectID,
@@ -5266,7 +5270,7 @@ impl AuthorityState {
         auth_account_object_digest: Option<ObjectDigest>,
         account_object: ObjectReadResult,
         signer: &IotaAddress,
-    ) -> IotaResult<AuthenticatorInfoV1> {
+    ) -> IotaResult<AuthenticatorFunctionRefV1> {
         let account_object = match account_object.object {
             ObjectReadResultKind::Object(object) => Ok(object),
             ObjectReadResultKind::DeletedSharedObject(version, digest) => {
@@ -5336,38 +5340,39 @@ impl AuthorityState {
             );
         }
 
-        let authenticator_info_field_id = dynamic_field::derive_dynamic_field_id(
+        let authenticator_function_ref_field_id = dynamic_field::derive_dynamic_field_id(
             auth_account_object_id,
-            &account::AuthenticatorInfoV1Key::tag().into(),
-            &account::AuthenticatorInfoV1Key::default().to_bcs_bytes(),
+            &account::AuthenticatorFunctionRefV1Key::tag().into(),
+            &account::AuthenticatorFunctionRefV1Key::default().to_bcs_bytes(),
         )
         .map_err(|_| UserInputError::UnableToGetMoveAuthenticatorId {
             account_object_id: auth_account_object_id,
         })?;
 
-        let authenticator_info_field = self
+        let authenticator_function_ref_field = self
             .get_object_cache_reader()
             .try_find_object_lt_or_eq_version(
-                authenticator_info_field_id,
+                authenticator_function_ref_field_id,
                 auth_account_object_seq_number,
             )?;
 
-        if let Some(authenticator_info_field_obj) = authenticator_info_field {
-            let field_move_object = authenticator_info_field_obj
+        if let Some(authenticator_function_ref_field_obj) = authenticator_function_ref_field {
+            let field_move_object = authenticator_function_ref_field_obj
                 .data
                 .try_as_move()
                 .expect("dynamic field should never be a package object");
 
-            let field: Field<AuthenticatorInfoV1Key, AuthenticatorInfoV1> = field_move_object
-                .to_rust()
-                .ok_or(UserInputError::InvalidAuthenticatorInfoField {
-                    account_object_id: auth_account_object_id,
-                })?;
+            let field: Field<AuthenticatorFunctionRefV1Key, AuthenticatorFunctionRefV1> =
+                field_move_object.to_rust().ok_or(
+                    UserInputError::InvalidAuthenticatorFunctionRefField {
+                        account_object_id: auth_account_object_id,
+                    },
+                )?;
 
             Ok(field.value)
         } else {
             Err(UserInputError::MoveAuthenticatorNotFound {
-                authenticator_info_id: authenticator_info_field_id,
+                authenticator_function_ref_id: authenticator_function_ref_field_id,
                 account_object_id: auth_account_object_id,
                 account_object_version: auth_account_object_seq_number,
             }
@@ -5418,48 +5423,51 @@ impl AuthorityState {
         IotaGasStatus,
         CheckedInputObjects,
         Option<CheckedInputObjects>,
-        Option<AuthenticatorInfoV1>,
+        Option<AuthenticatorFunctionRefV1>,
     )> {
-        let (auth_checked_input_objects_union, authenticator_info, authenticator_gas_budget) =
-            if let Some(move_authenticator) = move_authenticator {
-                let auth_input_objects =
-                    auth_input_objects.expect("MoveAuthenticator input objects must be provided");
-                let account_object = account_object.expect("Move account object must be provided");
+        let (
+            auth_checked_input_objects_union,
+            authenticator_function_ref,
+            authenticator_gas_budget,
+        ) = if let Some(move_authenticator) = move_authenticator {
+            let auth_input_objects =
+                auth_input_objects.expect("MoveAuthenticator input objects must be provided");
+            let account_object = account_object.expect("Move account object must be provided");
 
-                // Check basic `object_to_authenticate` preconditions and get its components.
-                let (
-                    auth_account_object_id,
-                    auth_account_object_seq_number,
-                    auth_account_object_digest,
-                ) = move_authenticator.object_to_authenticate_components()?;
+            // Check basic `object_to_authenticate` preconditions and get its components.
+            let (
+                auth_account_object_id,
+                auth_account_object_seq_number,
+                auth_account_object_digest,
+            ) = move_authenticator.object_to_authenticate_components()?;
 
-                // Make sure the sender is a Move account.
-                let authenticator_info = self.check_move_account(
-                    auth_account_object_id,
-                    auth_account_object_seq_number,
-                    auth_account_object_digest,
-                    account_object,
-                    &tx_data.sender(),
+            // Make sure the sender is a Move account.
+            let authenticator_function_ref = self.check_move_account(
+                auth_account_object_id,
+                auth_account_object_seq_number,
+                auth_account_object_digest,
+                account_object,
+                &tx_data.sender(),
+            )?;
+
+            // Check the MoveAuthenticator input objects.
+            let auth_checked_input_objects =
+                iota_transaction_checks::check_move_authenticator_input_for_signing(
+                    auth_input_objects,
                 )?;
 
-                // Check the MoveAuthenticator input objects.
-                let auth_checked_input_objects =
-                    iota_transaction_checks::check_move_authenticator_input_for_signing(
-                        auth_input_objects,
-                    )?;
+            // `max_auth_gas` is used here as a Move authenticator gas budget until it is
+            // not a part of the transaction data.
+            let authenticator_gas_budget = protocol_config.max_auth_gas();
 
-                // `max_auth_gas` is used here as a Move authenticator gas budget until it is
-                // not a part of the transaction data.
-                let authenticator_gas_budget = protocol_config.max_auth_gas();
-
-                (
-                    Some(auth_checked_input_objects),
-                    Some(authenticator_info),
-                    authenticator_gas_budget,
-                )
-            } else {
-                (None, None, 0)
-            };
+            (
+                Some(auth_checked_input_objects),
+                Some(authenticator_function_ref),
+                authenticator_gas_budget,
+            )
+        } else {
+            (None, None, 0)
+        };
 
         // Check the transaction inputs.
         let (gas_status, tx_checked_input_objects) =
@@ -5478,7 +5486,7 @@ impl AuthorityState {
             gas_status,
             tx_checked_input_objects,
             auth_checked_input_objects_union,
-            authenticator_info,
+            authenticator_function_ref,
         ))
     }
 

@@ -351,17 +351,19 @@ pub enum UserInputError {
     },
 
     #[error(
-        "AuthenticatorInfo {authenticator_info_id:?} not found for account {account_object_id:?} with version {account_object_version:?}"
+        "AuthenticatorFunctionRef {authenticator_function_ref_id:?} not found for account {account_object_id:?} with version {account_object_version:?}"
     )]
     MoveAuthenticatorNotFound {
-        authenticator_info_id: ObjectID,
+        authenticator_function_ref_id: ObjectID,
         account_object_id: ObjectID,
         account_object_version: SequenceNumber,
     },
     #[error("Unable to get a Move authenticator object ID for account {account_object_id:?}")]
     UnableToGetMoveAuthenticatorId { account_object_id: ObjectID },
-    #[error("Invalid authenticator field value found for the account {account_object_id:?}")]
-    InvalidAuthenticatorInfoField { account_object_id: ObjectID },
+    #[error(
+        "Invalid authenticator function ref field value found for the account {account_object_id:?}"
+    )]
+    InvalidAuthenticatorFunctionRefField { account_object_id: ObjectID },
 
     #[error("Package {package_id:?} is in the `MoveAuthenticator` input that is unsupported")]
     PackageIsInMoveAuthenticatorInput { package_id: ObjectID },

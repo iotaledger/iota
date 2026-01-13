@@ -3,8 +3,8 @@
 
 module simple_abstract_account::abstract_account;
 
+use iota::account::{Self, AuthenticatorFunctionRefV1};
 use iota::package_metadata::PackageMetadataV1;
-use iota::account::{Self, AuthenticatorInfoV1};
 use std::ascii;
 
 public struct AbstractAccount has key {
@@ -17,20 +17,19 @@ public fun create(
     function_name: ascii::String,
     ctx: &mut TxContext,
 ): address {
-    let authenticator = account::create_auth_info_v1<AbstractAccount>(
+    let authenticator = account::create_auth_function_ref_v1<AbstractAccount>(
         package_metadata,
         module_name,
         function_name,
     );
 
-    create_with_auth_info(authenticator, ctx)
+    create_with_auth_function_ref(authenticator, ctx)
 }
 
-public fun create_with_auth_info(
-    authenticator: AuthenticatorInfoV1<AbstractAccount>,
+public fun create_with_auth_function_ref(
+    authenticator: AuthenticatorFunctionRefV1<AbstractAccount>,
     ctx: &mut TxContext,
 ): address {
-
     let account = AbstractAccount { id: object::new(ctx) };
 
     let account_address = object::id_address(&account);

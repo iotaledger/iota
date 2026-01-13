@@ -7,7 +7,7 @@ module iotaccount::iotaccount_builder_tests;
 use iota::test_scenario;
 use iota::test_utils::{assert_eq, assert_ref_eq};
 use iotaccount::iotaccount::{Self, IOTAccount};
-use iotaccount::test_utils::create_authenticator_info_v1_for_testing;
+use iotaccount::test_utils::create_authenticator_function_ref_v1_for_testing;
 
 // -------------------------------- Create IOTAccount --------------------------------
 
@@ -23,7 +23,7 @@ fun builder_all_mandatory_fields_set() {
 
     let dynamic_field_key = DynamicFieldKey {};
 
-    let authenticator = create_authenticator_info_v1_for_testing();
+    let authenticator = create_authenticator_function_ref_v1_for_testing();
     // Any field value can be set as a dynamic field, and for the purposes of this test
     // the exact value doesn't matter.
     iotaccount::builder(authenticator, ctx).add_dynamic_field(dynamic_field_key, 6).build();
@@ -34,8 +34,8 @@ fun builder_all_mandatory_fields_set() {
 
         // Check if authenticator has been set.
         assert_ref_eq(
-            account.borrow_auth_info_v1(),
-            &create_authenticator_info_v1_for_testing(),
+            account.borrow_auth_function_ref_v1(),
+            &create_authenticator_function_ref_v1_for_testing(),
         );
 
         // Check the added dynamic field contains the set value.
@@ -56,7 +56,7 @@ fun attempting_to_add_same_dynamic_field_twice() {
     let scenario = &mut scenario_val;
 
     let ctx = test_scenario::ctx(scenario);
-    let authenticator = create_authenticator_info_v1_for_testing();
+    let authenticator = create_authenticator_function_ref_v1_for_testing();
 
     let field_name = b"SomeData".to_ascii_string();
     iotaccount::builder(authenticator, ctx)
@@ -77,7 +77,7 @@ fun dynamic_fields_observe_the_value_not_just_the_type() {
     let scenario = &mut scenario_val;
 
     let ctx = test_scenario::ctx(scenario);
-    let authenticator = create_authenticator_info_v1_for_testing();
+    let authenticator = create_authenticator_function_ref_v1_for_testing();
 
     // These fields will are considered different, because the value within the Strings
     // are different.

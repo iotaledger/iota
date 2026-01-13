@@ -19,7 +19,7 @@ mod checked {
     use iota_types::{
         IOTA_AUTHENTICATOR_STATE_OBJECT_ID, IOTA_FRAMEWORK_ADDRESS, IOTA_FRAMEWORK_PACKAGE_ID,
         IOTA_RANDOMNESS_STATE_OBJECT_ID, IOTA_SYSTEM_PACKAGE_ID, Identifier,
-        account::AuthenticatorInfoV1,
+        account::AuthenticatorFunctionRefV1,
         auth_context::AuthContext,
         authenticator_state::{
             AUTHENTICATOR_STATE_CREATE_FUNCTION_NAME,
@@ -299,7 +299,7 @@ mod checked {
         gas_coins: Vec<ObjectRef>,
         // Authenticator
         authenticator: MoveAuthenticator,
-        authenticator_info: AuthenticatorInfoV1,
+        authenticator_function_ref: AuthenticatorFunctionRefV1,
         authenticator_input_objects: CheckedInputObjects,
         authenticator_and_transaction_input_objects: CheckedInputObjects,
         // Transaction
@@ -372,7 +372,7 @@ mod checked {
             metrics.clone(),
             &mut gas_charger,
             authenticator,
-            authenticator_info,
+            authenticator_function_ref,
             &authenticator_input_objects.into_inner(),
             transaction_kind.clone(),
             transaction_digest,
@@ -428,7 +428,7 @@ mod checked {
         gas_status: IotaGasStatus,
         // Authenticator
         authenticator: MoveAuthenticator,
-        authenticator_info: AuthenticatorInfoV1,
+        authenticator_function_ref: AuthenticatorFunctionRefV1,
         authenticator_input_objects: CheckedInputObjects,
         // Transaction
         transaction_kind: TransactionKind,
@@ -472,7 +472,7 @@ mod checked {
             metrics.clone(),
             &mut gas_charger,
             authenticator,
-            authenticator_info,
+            authenticator_function_ref,
             &input_objects,
             transaction_kind.clone(),
             transaction_digest,
@@ -487,7 +487,7 @@ mod checked {
     /// `MoveAuthenticator` PTB with a single move call for execution, then
     /// executes it through an inner execution method. The
     /// `MoveAuthenticator` provides the inputs to use for the
-    /// authentication function found in `AuthenticatorInfo`,
+    /// authentication function found in `AuthenticatorFunctionRef`,
     /// that is retrieved from an account.
     /// If the execution fails, it returns an execution error; otherwise it
     /// returns an empty value.
@@ -501,7 +501,7 @@ mod checked {
         gas_charger: &mut GasCharger,
         // Authenticator
         authenticator: MoveAuthenticator,
-        authenticator_info: AuthenticatorInfoV1,
+        authenticator_function_ref: AuthenticatorFunctionRefV1,
         authenticator_input_objects: &InputObjects,
         // Transaction
         transaction_kind: TransactionKind,
@@ -552,7 +552,7 @@ mod checked {
         let authentication_execution_result = execute_authenticator_move_call(
             temporary_store,
             authenticator,
-            authenticator_info,
+            authenticator_function_ref,
             gas_charger,
             tx_ctx,
             move_vm,
@@ -596,7 +596,7 @@ mod checked {
     fn execute_authenticator_move_call(
         temporary_store: &mut TemporaryStore<'_>,
         authenticator: MoveAuthenticator,
-        authenticator_info: AuthenticatorInfoV1,
+        authenticator_function_ref: AuthenticatorFunctionRefV1,
         gas_charger: &mut GasCharger,
         tx_ctx: &mut TxContext,
         move_vm: &Arc<MoveVM>,
@@ -624,7 +624,7 @@ mod checked {
         )
         .and_then(|()| {
             let authenticator_move_call =
-                setup_authenticator_move_call(authenticator, authenticator_info)?;
+                setup_authenticator_move_call(authenticator, authenticator_function_ref)?;
             programmable_transactions::execution::execute::<execution_mode::Authentication>(
                 protocol_config,
                 metrics.clone(),
@@ -1876,14 +1876,14 @@ mod checked {
     }
 
     /// Construct a PTB with a single move call. This calls the authenticator
-    /// function found in `AuthenticatorInfo`. The inputs for the function are
-    /// found in `MoveAuthenticator`.
+    /// function found in `AuthenticatorFunctionRef`. The inputs for the
+    /// function are found in `MoveAuthenticator`.
     /// `MoveAuthenticator::object_to_authenticate` is added as the first
     /// argument to the created PTB, followed by all arguments in
     /// `MoveAuthenticator::call_args`.
     fn setup_authenticator_move_call(
         authenticator: MoveAuthenticator,
-        authenticator_info: AuthenticatorInfoV1,
+        authenticator_function_ref: AuthenticatorFunctionRefV1,
     ) -> Result<ProgrammableTransaction, ExecutionError> {
         let mut builder = ProgrammableTransactionBuilder::new();
 
@@ -1904,11 +1904,13 @@ mod checked {
             .collect::<Result<Vec<_>, _>>()?;
 
         let res = builder.move_call(
-            authenticator_info.package,
-            Identifier::new(authenticator_info.module.clone())
-                .expect("`AuthenticatorInfoV1::module` is expected to be a valid `Identifier`"),
-            Identifier::new(authenticator_info.function.clone())
-                .expect("`AuthenticatorInfoV1::function` is expected to be a valid `Identifier`"),
+            authenticator_function_ref.package,
+            Identifier::new(authenticator_function_ref.module.clone()).expect(
+                "`AuthenticatorFunctionRefV1::module` is expected to be a valid `Identifier`",
+            ),
+            Identifier::new(authenticator_function_ref.function.clone()).expect(
+                "`AuthenticatorFunctionRefV1::function` is expected to be a valid `Identifier`",
+            ),
             type_arguments,
             args,
         );
