@@ -159,13 +159,13 @@ impl HttpRestKVClient {
             return Ok(Vec::new());
         }
 
-        let chunks: Vec<Vec<Key>> = keys
+        let requests: Vec<_> = keys
             .chunks(self.batch_size)
-            .map(|chunk| chunk.to_vec())
-            .collect();
+            .map(MultiGetRequest::try_from)
+            .collect::<Result<_, _>>()?;
 
-        let mut results = stream::iter(chunks)
-            .map(|chunk| async move { self.fetch_batch(&chunk).await })
+        let mut results = stream::iter(requests)
+            .map(|request| self.fetch_batch(request))
             .buffered(self.max_concurrent_batches);
 
         let mut flattened = Vec::new();
@@ -176,16 +176,15 @@ impl HttpRestKVClient {
         Ok(flattened)
     }
 
-    async fn fetch_batch(&self, keys: &[Key]) -> IndexerResult<Vec<Option<Bytes>>> {
-        let payload = MultiGetRequest::try_from(keys)?;
-        let url = self.base_url.join(&payload.item_type.to_string())?;
+    async fn fetch_batch(&self, request: MultiGetRequest) -> IndexerResult<Vec<Option<Bytes>>> {
+        let url = self.base_url.join(&request.item_type.to_string())?;
 
         trace!(
             "fetching batch of {} keys from url: {url}",
-            payload.keys.len()
+            request.keys.len()
         );
 
-        let resp = self.client.post(url.clone()).json(&payload).send().await?;
+        let resp = self.client.post(url.clone()).json(&request).send().await?;
 
         trace!(
             "got response {} for url: {url}, len: {:?}",
