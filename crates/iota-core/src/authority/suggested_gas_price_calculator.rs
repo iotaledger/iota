@@ -748,7 +748,7 @@ mod tests {
                     &mut shared_object_congestion_tracker,
                     &mut suggested_gas_price_calculator,
                 ),
-                "Transaction {tx_data:#?} must be scheduled"
+                "Transaction must be scheduled:\n{tx_data:#?}"
             );
         });
 
@@ -777,7 +777,7 @@ mod tests {
                     &mut shared_object_congestion_tracker,
                     &mut suggested_gas_price_calculator,
                 ),
-                "Transaction {tx_data:#?} must be scheduled"
+                "Transaction must be scheduled:\n{tx_data:#?}"
             );
         } else {
             let (congested_objects, suggested_gas_price) = try_defer(
@@ -785,7 +785,9 @@ mod tests {
                 &mut shared_object_congestion_tracker,
                 &mut suggested_gas_price_calculator,
             )
-            .unwrap();
+            .unwrap_or_else(|| {
+                panic!("Transaction must be deferred:\n{tx_data:#?}");
+            });
             assert_eq!(
                 congested_objects,
                 vec![object_2], // expected congested objects
@@ -810,7 +812,9 @@ mod tests {
                 &mut shared_object_congestion_tracker,
                 &mut suggested_gas_price_calculator,
             )
-            .unwrap();
+            .unwrap_or_else(|| {
+                panic!("Transaction must be deferred:\n{tx_data:#?}");
+            });
             assert_eq!(
                 congested_objects,
                 vec![object_2], // expected congested objects
@@ -837,7 +841,9 @@ mod tests {
                 &mut shared_object_congestion_tracker,
                 &mut suggested_gas_price_calculator,
             )
-            .unwrap();
+            .unwrap_or_else(|| {
+                panic!("Transaction must be deferred:\n{tx_data:#?}");
+            });
             assert_eq!(
                 congested_objects,
                 if assign_min_free_exec_slot {
@@ -879,7 +885,7 @@ mod tests {
                     &mut shared_object_congestion_tracker,
                     &mut suggested_gas_price_calculator,
                 ),
-                "Transaction {tx_data:#?} must be scheduled"
+                "Transaction must be scheduled:\n{tx_data:#?}"
             );
         });
 
@@ -898,7 +904,9 @@ mod tests {
                 &mut shared_object_congestion_tracker,
                 &mut suggested_gas_price_calculator,
             )
-            .unwrap();
+            .unwrap_or_else(|| {
+                panic!("Transaction must be deferred:\n{tx_data:#?}");
+            });
             assert_eq!(
                 congested_objects,
                 vec![object_1, object_2], // expected congested objects
@@ -989,7 +997,7 @@ mod tests {
                     &mut shared_object_congestion_tracker,
                     &mut suggested_gas_price_calculator,
                 ),
-                "Transaction {tx_data:#?} must be scheduled"
+                "Transaction must be scheduled:\n{tx_data:#?}"
             );
         });
 
@@ -1030,7 +1038,7 @@ mod tests {
                     &mut shared_object_congestion_tracker,
                     &mut suggested_gas_price_calculator,
                 ),
-                "Transaction {tx_data:#?} must be scheduled"
+                "Transaction must be scheduled:\n{tx_data:#?}"
             );
         } else {
             let (congested_objects, suggested_gas_price) = try_defer(
@@ -1038,7 +1046,9 @@ mod tests {
                 &mut shared_object_congestion_tracker,
                 &mut suggested_gas_price_calculator,
             )
-            .unwrap();
+            .unwrap_or_else(|| {
+                panic!("Transaction must be deferred:\n{tx_data:#?}");
+            });
             assert_eq!(
                 congested_objects,
                 vec![object_2], // expected congested objects
@@ -1063,7 +1073,9 @@ mod tests {
                 &mut shared_object_congestion_tracker,
                 &mut suggested_gas_price_calculator,
             )
-            .unwrap();
+            .unwrap_or_else(|| {
+                panic!("Transaction must be deferred:\n{tx_data:#?}");
+            });
             assert_eq!(
                 congested_objects,
                 vec![object_2], // expected congested objects
@@ -1088,7 +1100,9 @@ mod tests {
             &mut shared_object_congestion_tracker,
             &mut suggested_gas_price_calculator,
         )
-        .unwrap();
+        .unwrap_or_else(|| {
+            panic!("Transaction must be deferred:\n{tx_data:#?}");
+        });
         assert_eq!(
             congested_objects,
             if assign_min_free_exec_slot {
@@ -1115,7 +1129,9 @@ mod tests {
             &mut shared_object_congestion_tracker,
             &mut suggested_gas_price_calculator,
         )
-        .unwrap();
+        .unwrap_or_else(|| {
+            panic!("Transaction must be deferred:\n{tx_data:#?}");
+        });
         assert_eq!(
             congested_objects,
             vec![object_1, object_2], // expected congested objects
@@ -1164,7 +1180,7 @@ mod tests {
                     &mut shared_object_congestion_tracker,
                     &mut suggested_gas_price_calculator,
                 ),
-                "Transaction {tx_data:#?} must be scheduled"
+                "Transaction must be scheduled:\n{tx_data:#?}"
             );
         });
 
@@ -1178,7 +1194,9 @@ mod tests {
             &mut shared_object_congestion_tracker,
             &mut suggested_gas_price_calculator,
         )
-        .unwrap();
+        .unwrap_or_else(|| {
+            panic!("Transaction must be deferred:\n{tx_data:#?}");
+        });
         assert_eq!(
             congested_objects,
             vec![object_1, object_2], // expected congested objects
@@ -1200,7 +1218,9 @@ mod tests {
             &mut shared_object_congestion_tracker,
             &mut suggested_gas_price_calculator,
         )
-        .unwrap();
+        .unwrap_or_else(|| {
+            panic!("Transaction must be deferred:\n{tx_data:#?}");
+        });
         assert_eq!(
             congested_objects,
             vec![object_1, object_2], // expected congested objects
@@ -1223,7 +1243,9 @@ mod tests {
             &mut shared_object_congestion_tracker,
             &mut suggested_gas_price_calculator,
         )
-        .unwrap();
+        .unwrap_or_else(|| {
+            panic!("Transaction must be deferred:\n{tx_data:#?}");
+        });
         assert_eq!(
             congested_objects,
             vec![object_1, object_2], // expected congested objects
