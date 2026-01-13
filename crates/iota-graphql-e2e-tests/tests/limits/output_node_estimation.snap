@@ -433,6 +433,15 @@ Response: {
           "column": 21
         }
       ]
+    },
+    {
+      "message": "Failed to parse \"Int\": Invalid number",
+      "locations": [
+        {
+          "line": 3,
+          "column": 3
+        }
+      ]
     }
   ]
 }
