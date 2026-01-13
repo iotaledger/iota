@@ -561,7 +561,7 @@ impl Core {
                     // 3. Update leader swap table
                     // 4. Update metrics
                     self.leader_schedule.update_from_commit_scores(
-                        &self.dag_state,
+                        &mut dag_state,
                         commit.index(),
                         reputation_scores,
                     );

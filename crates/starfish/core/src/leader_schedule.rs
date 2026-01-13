@@ -246,7 +246,7 @@ impl LeaderSchedule {
     /// we may be processing commits from far ahead.
     pub(crate) fn update_from_commit_scores(
         &self,
-        dag_state: &RwLock<DagState>,
+        dag_state: &mut DagState,
         commit_index: CommitIndex,
         reputation_scores_desc: &[(AuthorityIndex, u64)],
     ) {
@@ -272,13 +272,11 @@ impl LeaderSchedule {
             self.context.own_index
         );
 
-        // Update dag_state: clear scoring_subdag and add commit_info
-        // This mirrors the flow in update_leader_schedule
-        {
-            let mut dag_state = dag_state.write();
-            dag_state.clear_scoring_subdag();
-            dag_state.add_commit_info(reputation_scores.clone());
-        }
+        // Update dag_state: clear scoring_subdag and add commit_info.
+        // This mirrors the flow in update_leader_schedule. The caller must
+        // already hold the dag_state write lock.
+        dag_state.clear_scoring_subdag();
+        dag_state.add_commit_info(reputation_scores.clone());
 
         let table =
             LeaderSwapTable::new(self.context.clone(), range_end, reputation_scores.clone());

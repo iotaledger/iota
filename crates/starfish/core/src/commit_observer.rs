@@ -212,8 +212,7 @@ impl CommitObserver {
                     .round;
                 self.linearizer
                     .evict_linearizer(max_solid_commit_leader_round);
-                self.dag_state
-                    .write()
+                dag_state_guard
                     .update_last_solid_commit_leader_round(max_solid_commit_leader_round);
             }
             dag_state_guard.flush();
