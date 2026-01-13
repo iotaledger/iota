@@ -67,18 +67,14 @@ impl GrpcStateReader for SimulacrumGrpcReader {
     fn get_checkpoint_data(&self, seq: u64) -> Option<CheckpointData> {
         self.simulacrum
             .with_store(|store| match store.get_checkpoint_by_sequence_number(seq) {
-                None => return None,
+                None => None,
                 Some(checkpoint) => {
-                    let Some(contents) = store
+                    let contents = store
                         .get_checkpoint_contents(&checkpoint.content_digest)
-                        .cloned()
-                    else {
-                        return None;
-                    };
-                    match store.try_get_checkpoint_data(checkpoint.clone(), contents) {
-                        Ok(data) => Some(data),
-                        Err(_) => None,
-                    }
+                        .cloned()?;
+                    store
+                        .try_get_checkpoint_data(checkpoint.clone(), contents)
+                        .ok()
                 }
             })
     }

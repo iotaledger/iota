@@ -362,25 +362,31 @@ impl ReadStore for InMemoryStore {
     }
 
     fn try_get_latest_checkpoint(&self) -> iota_types::storage::error::Result<VerifiedCheckpoint> {
-        Ok(self.get_highest_checkpoint().cloned().ok_or(
-            iota_types::storage::error::Error::missing("no checkpoints in store"),
-        )?)
+        self.get_highest_checkpoint()
+            .cloned()
+            .ok_or(iota_types::storage::error::Error::missing(
+                "no checkpoints in store",
+            ))
     }
 
     fn try_get_highest_verified_checkpoint(
         &self,
     ) -> iota_types::storage::error::Result<VerifiedCheckpoint> {
-        Ok(self.get_highest_checkpoint().cloned().ok_or(
-            iota_types::storage::error::Error::missing("no checkpoints in store"),
-        )?)
+        self.get_highest_checkpoint()
+            .cloned()
+            .ok_or(iota_types::storage::error::Error::missing(
+                "no checkpoints in store",
+            ))
     }
 
     fn try_get_highest_synced_checkpoint(
         &self,
     ) -> iota_types::storage::error::Result<VerifiedCheckpoint> {
-        Ok(self.get_highest_checkpoint().cloned().ok_or(
-            iota_types::storage::error::Error::missing("no checkpoints in store"),
-        )?)
+        self.get_highest_checkpoint()
+            .cloned()
+            .ok_or(iota_types::storage::error::Error::missing(
+                "no checkpoints in store",
+            ))
     }
 
     fn try_get_lowest_available_checkpoint(
