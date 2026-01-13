@@ -97,7 +97,7 @@ impl GenesisTransaction {
             let native_event = self.native.events[cursor.ix].clone();
 
             let event = Event {
-                stored: None,
+                checkpointed_info: None,
                 native: native_event,
                 checkpoint_viewed_at: cursor.c,
             };

@@ -25,6 +25,7 @@ fastcrypto = { workspace = true, features = ["copy_key"] }
 futures.workspace = true
 itertools.workspace = true
 jsonrpsee.workspace = true
+moka.workspace = true
 prometheus.workspace = true
 rand = { workspace = true, optional = true }
 reqwest.workspace = true

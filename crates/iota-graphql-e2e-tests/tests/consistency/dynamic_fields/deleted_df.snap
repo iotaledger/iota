@@ -88,57 +88,16 @@ task 11, lines 76-139:
 //# run-graphql
 Response: {
   "data": {
-    "latest": {
-      "version": 6,
-      "dynamicFields": {
-        "edges": [
-          {
-            "cursor": "IBdJyFZgAd3FF4kUA2ChBc3/KHCheQ4d6azocaJ074V0AQAAAAAAAAA=",
-            "node": {
-              "name": {
-                "bcs": "A2RmNA=="
-              },
-              "value": {
-                "json": "df4"
-              }
-            }
-          },
-          {
-            "cursor": "IHxoRI3Ce6B/guuh3eNs1qH336WmuI7nYdX85L26PEuAAQAAAAAAAAA=",
-            "node": {
-              "name": {
-                "bcs": "A2RmNQ=="
-              },
-              "value": {
-                "json": "df5"
-              }
-            }
-          },
-          {
-            "cursor": "IMqQupB6O4axj4yBPPakqB9dSiVLWP/F7L4oaURajy0AAQAAAAAAAAA=",
-            "node": {
-              "name": {
-                "bcs": "A2RmNg=="
-              },
-              "value": {
-                "json": "df6"
-              }
-            }
-          }
-        ]
-      },
-      "df1": null,
-      "df5": {
-        "name": {
-          "bcs": "A2RmNQ=="
-        },
-        "value": {
-          "json": "df5"
-        }
-      }
-    },
     "df123_removed": {
-      "version": 5,
+      "df1": null,
+      "df5": {
+        "name": {
+          "bcs": "A2RmNQ=="
+        },
+        "value": {
+          "json": "df5"
+        }
+      },
       "dynamicFields": {
         "edges": [
           {
@@ -176,18 +135,25 @@ Response: {
           }
         ]
       },
-      "df1": null,
-      "df5": {
-        "name": {
-          "bcs": "A2RmNQ=="
-        },
-        "value": {
-          "json": "df5"
-        }
-      }
+      "version": 5
     },
     "df456_added": {
-      "version": 4,
+      "df1": {
+        "name": {
+          "bcs": "A2RmMQ=="
+        },
+        "value": {
+          "json": "df1"
+        }
+      },
+      "df5": {
+        "name": {
+          "bcs": "A2RmNQ=="
+        },
+        "value": {
+          "json": "df5"
+        }
+      },
       "dynamicFields": {
         "edges": [
           {
@@ -258,14 +224,10 @@ Response: {
           }
         ]
       },
-      "df1": {
-        "name": {
-          "bcs": "A2RmMQ=="
-        },
-        "value": {
-          "json": "df1"
-        }
-      },
+      "version": 4
+    },
+    "latest": {
+      "df1": null,
       "df5": {
         "name": {
           "bcs": "A2RmNQ=="
@@ -273,16 +235,7 @@ Response: {
         "value": {
           "json": "df5"
         }
-      }
-    }
-  }
-}
-
-task 12, lines 141-179:
-//# run-graphql
-Response: {
-  "data": {
-    "latest_owner": {
+      },
       "dynamicFields": {
         "edges": [
           {
@@ -320,6 +273,16 @@ Response: {
           }
         ]
       },
+      "version": 6
+    }
+  }
+}
+
+task 12, lines 141-179:
+//# run-graphql
+Response: {
+  "data": {
+    "latest_owner": {
       "df1": null,
       "df5": {
         "name": {
@@ -328,6 +291,43 @@ Response: {
         "value": {
           "json": "df5"
         }
+      },
+      "dynamicFields": {
+        "edges": [
+          {
+            "cursor": "IBdJyFZgAd3FF4kUA2ChBc3/KHCheQ4d6azocaJ074V0AQAAAAAAAAA=",
+            "node": {
+              "name": {
+                "bcs": "A2RmNA=="
+              },
+              "value": {
+                "json": "df4"
+              }
+            }
+          },
+          {
+            "cursor": "IHxoRI3Ce6B/guuh3eNs1qH336WmuI7nYdX85L26PEuAAQAAAAAAAAA=",
+            "node": {
+              "name": {
+                "bcs": "A2RmNQ=="
+              },
+              "value": {
+                "json": "df5"
+              }
+            }
+          },
+          {
+            "cursor": "IMqQupB6O4axj4yBPPakqB9dSiVLWP/F7L4oaURajy0AAQAAAAAAAAA=",
+            "node": {
+              "name": {
+                "bcs": "A2RmNg=="
+              },
+              "value": {
+                "json": "df6"
+              }
+            }
+          }
+        ]
       }
     }
   }
