@@ -42,6 +42,7 @@ gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storag
 
 task 5, line 54:
 //# init-abstract-account --sender A --package-metadata object(5,1) --inputs "authenticate" "authenticate" --create-function simple_abstract_account::abstract_account::create --account-type simple_abstract_account::abstract_account::AbstractAccount
+events: Event { package_id: simple_abstract_account, transaction_module: Identifier("abstract_account"), sender: A, type_: StructTag { address: iota, module: Identifier("account"), name: Identifier("MutableAccountCreated"), type_params: [Struct(StructTag { address: simple_abstract_account, module: Identifier("abstract_account"), name: Identifier("AbstractAccount"), type_params: [] })] }, contents: [97, 208, 61, 161, 153, 161, 199, 127, 242, 198, 62, 232, 193, 121, 0, 59, 13, 12, 194, 255, 43, 238, 0, 31, 119, 197, 233, 224, 17, 51, 136, 74, 38, 86, 158, 254, 253, 100, 248, 20, 27, 181, 51, 68, 83, 188, 180, 20, 161, 104, 106, 234, 127, 224, 137, 157, 192, 93, 128, 2, 176, 0, 186, 28, 12, 97, 117, 116, 104, 101, 110, 116, 105, 99, 97, 116, 101, 12, 97, 117, 116, 104, 101, 110, 116, 105, 99, 97, 116, 101] }
 created: object(6,0), object(6,1), object(6,2)
 mutated: object(0,0)
 gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 6847600,  storage_rebate: 980400, non_refundable_storage_fee: 0
