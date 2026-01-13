@@ -17,12 +17,10 @@ use iota_types::{
     digests::{ChainIdentifier, TransactionDigest, TransactionEventsDigest},
     effects::{TransactionEffects, TransactionEvents},
     full_checkpoint_content::CheckpointData,
-    iota_system_state::{
-        IotaSystemState, epoch_start_iota_system_state::EpochStartSystemStateTrait,
-    },
+    iota_system_state::{IotaSystemState, IotaSystemStateTrait},
     messages_checkpoint::CertifiedCheckpointSummary,
     object::Object,
-    storage::EpochInfo,
+    storage::{EpochInfo, ReadStore, RestStateReader},
     transaction::VerifiedTransaction,
 };
 use move_core_types::annotated_value::MoveTypeLayout;
@@ -67,48 +65,32 @@ impl GrpcStateReader for SimulacrumGrpcReader {
     }
 
     fn get_checkpoint_data(&self, seq: u64) -> Option<CheckpointData> {
-        let checkpoint = self
-            .simulacrum
-            .with_store(|store| store.get_checkpoint_by_sequence_number(seq).cloned())?;
-
-        let contents = self.simulacrum.with_store(|store| {
-            store
-                .get_checkpoint_contents(&checkpoint.content_digest)
-                .cloned()
-        })?;
-
-        Some(CheckpointData {
-            checkpoint_summary: CertifiedCheckpointSummary::from(checkpoint),
-            checkpoint_contents: contents,
-            // TODO: we should return the transactions as well
-            transactions: vec![],
-        })
+        self.simulacrum
+            .with_store(|store| match store.get_checkpoint_by_sequence_number(seq) {
+                None => return None,
+                Some(checkpoint) => {
+                    let Some(contents) = store
+                        .get_checkpoint_contents(&checkpoint.content_digest)
+                        .cloned()
+                    else {
+                        return None;
+                    };
+                    match store.try_get_checkpoint_data(checkpoint.clone(), contents) {
+                        Ok(data) => Some(data),
+                        Err(_) => None,
+                    }
+                }
+            })
     }
 
     fn get_epoch_last_checkpoint(&self, epoch: u64) -> Result<Option<CertifiedCheckpointSummary>> {
-        // Simple implementation for simulacrum - find the last checkpoint of the given
-        // epoch
-        // TODO: optimize that by storing epoch -> last checkpoint mapping
-        let latest_seq = self
-            .simulacrum
-            .with_store(|store| {
-                store
-                    .get_highest_checkpoint()
-                    .map(|checkpoint| *checkpoint.sequence_number())
-            })
-            .unwrap_or(0);
-
-        for seq in (0..=latest_seq).rev() {
-            if let Some(checkpoint) = self
-                .simulacrum
-                .with_store(|store| store.get_checkpoint_by_sequence_number(seq).cloned())
-            {
-                if checkpoint.epoch() == epoch {
-                    return Ok(Some(CertifiedCheckpointSummary::from(checkpoint)));
-                }
-            }
-        }
-        Ok(None)
+        let summary = self.simulacrum.with_store(|store| {
+            store
+                .get_last_checkpoint_of_epoch(epoch)
+                .and_then(|seq| store.get_checkpoint_by_sequence_number(seq).cloned())
+                .map(CertifiedCheckpointSummary::from)
+        });
+        Ok(summary)
     }
 
     fn get_lowest_available_checkpoint(&self) -> Result<u64> {
@@ -132,62 +114,91 @@ impl GrpcStateReader for SimulacrumGrpcReader {
     }
 
     fn get_committee(&self, epoch: u64) -> Result<Option<Arc<Committee>>> {
-        let current_epoch = self.simulacrum.with_store(|store| {
-            store
-                .get_highest_checkpoint()
-                .map(|cp| cp.epoch())
-                .unwrap_or(0)
-        });
-
-        if epoch == current_epoch {
-            let epoch_start_state = self.simulacrum.epoch_start_state();
-            Ok(Some(Arc::new(epoch_start_state.get_iota_committee())))
-        } else {
-            // TODO: implement
-            Ok(None)
-        }
+        Ok(self
+            .simulacrum
+            .with_store(|store| store.get_committee_by_epoch(epoch).cloned())
+            .map(Arc::new))
     }
 
     fn get_system_state(&self) -> Result<IotaSystemState> {
         Ok(self.simulacrum.with_store(|store| store.get_system_state()))
     }
 
-    fn get_epoch_info(&self, _epoch: u64) -> Option<EpochInfo> {
-        // Not implemented for simulacrum gRPC reader
-        // TODO: implement
-        None
+    fn get_epoch_info(&self, epoch: u64) -> Option<EpochInfo> {
+        self.simulacrum.with_store(|store| {
+            // Get the start checkpoint of the epoch
+            let start_checkpoint_seq = store
+                .get_last_checkpoint_of_epoch(epoch - 1)
+                .map(|seq| seq + 1)
+                .unwrap_or(0);
+
+            let start_checkpoint = store
+                .get_checkpoint_by_sequence_number(start_checkpoint_seq)
+                .cloned()?;
+
+            let system_state = store.get_system_state();
+
+            Some(EpochInfo {
+                epoch,
+                protocol_version: system_state.protocol_version(),
+                start_timestamp_ms: start_checkpoint.data().timestamp_ms,
+                end_timestamp_ms: None,
+                start_checkpoint: start_checkpoint_seq,
+                end_checkpoint: None,
+                reference_gas_price: system_state.reference_gas_price(),
+                system_state,
+            })
+        })
     }
 
-    fn get_type_layout(&self, _type_tag: &TypeTag) -> Result<Option<MoveTypeLayout>> {
-        // Not implemented for simulacrum gRPC reader
-        // TODO: implement
-        Ok(None)
+    fn get_type_layout(&self, type_tag: &TypeTag) -> Result<Option<MoveTypeLayout>> {
+        self.simulacrum
+            .get_type_layout(type_tag)
+            .map_err(Into::into)
     }
 
-    fn get_transaction(&self, _digest: &TransactionDigest) -> Option<Arc<VerifiedTransaction>> {
-        // Not implemented for simulacrum gRPC reader
-        // TODO: implement
-        None
+    fn get_transaction(&self, digest: &TransactionDigest) -> Option<Arc<VerifiedTransaction>> {
+        self.simulacrum
+            .with_store(|store| store.get_transaction(digest).cloned().map(Arc::new))
     }
 
-    fn get_transaction_effects(&self, _digest: &TransactionDigest) -> Option<TransactionEffects> {
-        // Not implemented for simulacrum gRPC reader
-        // TODO: implement
-        None
+    fn get_transaction_effects(&self, digest: &TransactionDigest) -> Option<TransactionEffects> {
+        self.simulacrum
+            .with_store(|store| store.get_transaction_effects(digest).cloned())
     }
 
     fn get_transaction_events(
         &self,
-        _digest: &TransactionEventsDigest,
+        digest: &TransactionEventsDigest,
     ) -> Option<TransactionEvents> {
-        // Not implemented for simulacrum gRPC reader
-        // TODO: implement
-        None
+        self.simulacrum
+            .with_store(|store| store.get_transaction_events(digest).cloned())
     }
 
-    fn get_transaction_checkpoint(&self, _digest: &TransactionDigest) -> Option<u64> {
-        // Not implemented for simulacrum gRPC reader
-        // TODO: implement
-        None
+    fn get_transaction_checkpoint(&self, digest: &TransactionDigest) -> Option<u64> {
+        // TODO: Do we want to implement an index for this?
+        self.simulacrum.with_store(|store| {
+            let highest_seq = store
+                .get_highest_checkpoint()
+                .map(|cp| *cp.sequence_number())?;
+
+            // Search backwards from the highest checkpoint to find the transaction
+            for seq in (0..=highest_seq).rev() {
+                if let Some(checkpoint) = store.get_checkpoint_by_sequence_number(seq) {
+                    if let Some(contents) =
+                        store.get_checkpoint_contents(&checkpoint.content_digest)
+                    {
+                        // Check if this checkpoint contains the transaction
+                        if contents
+                            .iter()
+                            .any(|exec_digests| exec_digests.transaction == *digest)
+                        {
+                            return Some(*checkpoint.sequence_number());
+                        }
+                    }
+                }
+            }
+            None
+        })
     }
 }
