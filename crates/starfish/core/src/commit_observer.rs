@@ -198,27 +198,25 @@ impl CommitObserver {
         committed_subdags: Vec<CommittedSubDag>,
         source: CommittedSubDagSource,
     ) -> ConsensusResult<()> {
-        // Evict the ack tracker and update GC round BEFORE flush so that eviction
-        // uses the correct GC round.
-        if !committed_subdags.is_empty() {
-            let max_solid_commit_leader_round = committed_subdags
-                .last()
-                .expect("There should be at least one solid subdag")
-                .leader
-                .round;
-            self.linearizer
-                .evict_linearizer(max_solid_commit_leader_round);
-            // Update dag_state for GC to work correctly (covers both normal and fast sync
-            // paths)
-            self.dag_state
-                .write()
-                .update_last_solid_commit_leader_round(max_solid_commit_leader_round);
-        }
-
         // Committed headers and sequenced transactions must be persisted to storage
         // before sending them outside consensus.
         if !pending_sub_dags.is_empty() || !committed_subdags.is_empty() {
-            self.dag_state.write().flush();
+            let mut dag_state_guard = self.dag_state.write();
+            // Evict the ack tracker and update GC round BEFORE flush so that eviction
+            // uses the correct GC round.
+            if !committed_subdags.is_empty() {
+                let max_solid_commit_leader_round = committed_subdags
+                    .last()
+                    .expect("There should be at least one solid subdag")
+                    .leader
+                    .round;
+                self.linearizer
+                    .evict_linearizer(max_solid_commit_leader_round);
+                self.dag_state
+                    .write()
+                    .update_last_solid_commit_leader_round(max_solid_commit_leader_round);
+            }
+            dag_state_guard.flush();
         }
 
         let mut sent_sub_dags = Vec::with_capacity(committed_subdags.len());

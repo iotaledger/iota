@@ -60,6 +60,9 @@ pub(crate) enum TransactionSource {
     /// fetched for all the committed blocks in synced commits.
     CommitSyncer,
 
+    /// Transactions received via fast commit synchronization.
+    FastCommitSyncer,
+
     /// Data added during testing.
     /// Only used in test code.
     #[cfg(test)]
@@ -74,7 +77,8 @@ impl TransactionSource {
             TransactionSource::TransactionSynchronizer => "Transactions synchronizer",
             TransactionSource::BlockStreaming => "Block streaming",
             TransactionSource::ShardReconstructor => "Shard reconstructor",
-            TransactionSource::CommitSyncer => "Commit syncer",
+            TransactionSource::CommitSyncer => "Regular commit syncer",
+            TransactionSource::FastCommitSyncer => "Fast commit syncer",
             #[cfg(test)]
             TransactionSource::Test => "test",
         }

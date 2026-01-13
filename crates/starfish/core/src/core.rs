@@ -550,42 +550,34 @@ impl Core {
             let mut dag_state = self.dag_state.write();
             // Store commits for recovery and track those with reputation scores
             for commit in &commits {
+                // Update leader schedule for commits with reputation scores.
+                // This mirrors the flow in try_commit where update_leader_schedule is called
+                // when commits_until_update reaches 0.
+                let reputation_scores = commit.reputation_scores();
+                if !reputation_scores.is_empty() {
+                    // update_from_commit_scores will:
+                    // 1. Clear scoring_subdag
+                    // 2. Add commit_info for previous commit index to DagState
+                    // 3. Update leader swap table
+                    // 4. Update metrics
+                    self.leader_schedule.update_from_commit_scores(
+                        &self.dag_state,
+                        commit.index(),
+                        reputation_scores,
+                    );
+                }
+
                 dag_state.add_commit(commit.clone());
             }
 
             // Store transactions for each subdag
             for subdag in &committed_subdags {
                 for transactions in &subdag.transactions {
-                    dag_state
-                        .add_transactions(transactions.clone(), TransactionSource::CommitSyncer);
+                    dag_state.add_transactions(
+                        transactions.clone(),
+                        TransactionSource::FastCommitSyncer,
+                    );
                 }
-            }
-
-            // Note: We intentionally do NOT call add_scoring_subdags() here
-            // because during fast sync, CommittedSubDag.headers is
-            // empty (we only have committed_header_refs). The
-            // scoring_subdag would get corrupted with leaders but
-            // no votes, leading to incorrect score calculations.
-            // Instead, we use the reputation_scores embedded in the commits
-            // directly.
-        }
-
-        // Update leader schedule for commits with reputation scores.
-        // This mirrors the flow in try_commit where update_leader_schedule is called
-        // when commits_until_update reaches 0.
-        for commit in &commits {
-            let reputation_scores = commit.reputation_scores();
-            if !reputation_scores.is_empty() {
-                // update_from_commit_scores will:
-                // 1. Clear scoring_subdag
-                // 2. Add commit_info to DagState
-                // 3. Update leader swap table
-                // 4. Update metrics
-                self.leader_schedule.update_from_commit_scores(
-                    &self.dag_state,
-                    commit.index(),
-                    reputation_scores,
-                );
             }
         }
 

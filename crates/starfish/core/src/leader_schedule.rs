@@ -250,10 +250,6 @@ impl LeaderSchedule {
         commit_index: CommitIndex,
         reputation_scores_desc: &[(AuthorityIndex, u64)],
     ) {
-        if reputation_scores_desc.is_empty() {
-            return;
-        }
-
         // Determine the commit range for these scores.
         // Reputation scores are attached to the *first* commit after a schedule
         // update, so the scores correspond to the previous window ending at
