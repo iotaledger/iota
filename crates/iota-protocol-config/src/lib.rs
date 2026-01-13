@@ -2341,14 +2341,11 @@ impl ProtocolConfig {
                 17 => {
                     // Increase the committee size to 100 on all networks.
                     cfg.max_committee_members_count = Some(100);
-
-                    // TODO: when do we want to enable these features?
-                    // if chain != Chain::Mainnet && chain != Chain::Testnet {
-                    //    cfg.feature_flags.
-                    // record_additional_state_digest_in_prologue = true;
-                    //    cfg.consensus_commit_rate_estimation_window_size =
-                    // Some(10);
-                    //}
+                    // Enable recording additional state digest in prologue.
+                    if chain != Chain::Mainnet && chain != Chain::Testnet {
+                        cfg.feature_flags.record_additional_state_digest_in_prologue = true;
+                        cfg.consensus_commit_rate_estimation_window_size = Some(10);
+                    }
                 }
                 // Use this template when making changes:
                 //
