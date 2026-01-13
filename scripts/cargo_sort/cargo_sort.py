@@ -1555,7 +1555,7 @@ def run_consolidate_mode_with_loop(args, target_dir: str, root_cargo_toml: str, 
         except Exception as e:
             print(f"{RED}ERROR: Consolidation failed with error: {e}{RESET}")
             print("Stopping consolidation due to unresolvable conflicts.")
-            return 
+            return 1
         
         if not changes_made:  # No changes made
             if iteration == 1:

@@ -1,5 +1,7 @@
 #!/bin/bash
 
+set -e  # Exit immediately if any command fails
+
 source ./python_cmd.sh
 
 # Run consolidate, ignoring external-crates and nre
