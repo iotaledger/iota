@@ -95,12 +95,12 @@ impl std::fmt::Display for PTBCommandResult {
 
 /// Result of extracting auth arguments from the initial PTB args.
 struct ExtractedAuthArgs {
-    /// The remaining args after auth arguments are removed.
-    remaining_args: Vec<String>,
     /// The auth call arguments (values for `--auth-call-args`).
     auth_call_args: Option<Vec<String>>,
     /// The auth type arguments (values for `--auth-type-args`).
     auth_type_args: Option<Vec<String>>,
+    /// The remaining args after auth arguments are removed.
+    remaining_args: Vec<String>,
 }
 
 /// Extracts `--auth-call-args` and `--auth-type-args` from the given args.
@@ -132,9 +132,9 @@ fn extract_auth_args(args: &[String]) -> ExtractedAuthArgs {
     }
 
     ExtractedAuthArgs {
-        remaining_args,
         auth_call_args,
         auth_type_args,
+        remaining_args,
     }
 }
 
