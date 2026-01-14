@@ -10,10 +10,21 @@ use std::{
 
 use anyhow::Result;
 use bytes::Bytes;
-use iota_kvstore::{BigTableClient, KeyValueStoreReader};
+use iota_kvstore::{
+    BigTableClient, Cell,
+    client::{
+        CHECKPOINT_CONTENTS_COLUMN_QUALIFIER, CHECKPOINT_SUMMARY_COLUMN_QUALIFIER,
+        CHECKPOINTS_BY_DIGEST_TABLE, CHECKPOINTS_TABLE, DEFAULT_COLUMN_QUALIFIER,
+        EFFECTS_COLUMN_QUALIFIER, EVENTS_COLUMN_QUALIFIER, OBJECTS_TABLE,
+        TRANSACTION_COLUMN_QUALIFIER, TRANSACTION_TO_CHECKPOINT, TRANSACTIONS_TABLE,
+        raw_object_key,
+    },
+    proto::bigtable::v2::{RowFilter, row_filter::Filter},
+};
 use iota_storage::http_key_value_store::Key;
 use iota_types::storage::ObjectKey;
 use serde::{Deserialize, Serialize};
+use tracing::error;
 
 use crate::errors::ApiError;
 
@@ -101,12 +112,15 @@ impl KvStoreClient {
                     _ => None,
                 })?;
 
-                let transactions = client.get_transactions(&digests).await?;
+                let keys = digests.iter().map(|tx| tx.inner().to_vec()).collect();
 
-                let ordered = Self::restore_order(digests, transactions, |tx_data| {
-                    *tx_data.transaction.digest()
-                });
-                Self::extract_values_and_serialize(ordered, |tx_data| Some(&tx_data.transaction))
+                multi_get_cell(
+                    &mut client,
+                    TRANSACTIONS_TABLE,
+                    keys,
+                    TRANSACTION_COLUMN_QUALIFIER,
+                )
+                .await
             }
             Key::TransactionEffects(_) => {
                 let digests = Self::extract_keys(&keys, |k| match k {
@@ -114,12 +128,15 @@ impl KvStoreClient {
                     _ => None,
                 })?;
 
-                let transactions = client.get_transactions(&digests).await?;
+                let keys = digests.iter().map(|tx| tx.inner().to_vec()).collect();
 
-                let ordered = Self::restore_order(digests, transactions, |tx_data| {
-                    *tx_data.transaction.digest()
-                });
-                Self::extract_values_and_serialize(ordered, |tx_data| Some(&tx_data.effects))
+                multi_get_cell(
+                    &mut client,
+                    TRANSACTIONS_TABLE,
+                    keys,
+                    EFFECTS_COLUMN_QUALIFIER,
+                )
+                .await
             }
             Key::CheckpointContents(_) => {
                 let seq_nums = Self::extract_keys(&keys, |k| match k {
@@ -127,12 +144,18 @@ impl KvStoreClient {
                     _ => None,
                 })?;
 
-                let checkpoints = client.get_checkpoints(&seq_nums).await?;
+                let keys = seq_nums
+                    .iter()
+                    .map(|sq| sq.to_be_bytes().to_vec())
+                    .collect();
 
-                let ordered = Self::restore_order(seq_nums, checkpoints, |chk| {
-                    *chk.summary.data().sequence_number()
-                });
-                Self::extract_values_and_serialize(ordered, |chk| Some(&chk.contents))
+                multi_get_cell(
+                    &mut client,
+                    CHECKPOINTS_TABLE,
+                    keys,
+                    CHECKPOINT_CONTENTS_COLUMN_QUALIFIER,
+                )
+                .await
             }
             Key::CheckpointSummary(_) => {
                 let seq_nums = Self::extract_keys(&keys, |k| match k {
@@ -140,12 +163,18 @@ impl KvStoreClient {
                     _ => None,
                 })?;
 
-                let checkpoints = client.get_checkpoints(&seq_nums).await?;
+                let keys = seq_nums
+                    .iter()
+                    .map(|sq| sq.to_be_bytes().to_vec())
+                    .collect();
 
-                let ordered = Self::restore_order(seq_nums, checkpoints, |chk| {
-                    *chk.summary.data().sequence_number()
-                });
-                Self::extract_values_and_serialize(ordered, |chk| Some(&chk.summary))
+                multi_get_cell(
+                    &mut client,
+                    CHECKPOINTS_TABLE,
+                    keys,
+                    CHECKPOINT_SUMMARY_COLUMN_QUALIFIER,
+                )
+                .await
             }
             Key::CheckpointSummaryByDigest(_) => {
                 let checkpoint_digests = Self::extract_keys(&keys, |k| match k {
@@ -153,14 +182,79 @@ impl KvStoreClient {
                     _ => None,
                 })?;
 
-                let checkpoints = client
-                    .get_checkpoints_by_digest(&checkpoint_digests)
-                    .await?;
+                // pre-allocate results with None. Matching cells will replace None with
+                // Some(value), and unmatched keys will remain None.
+                let mut results = vec![None; keys.len()];
 
-                let ordered = Self::restore_order(checkpoint_digests, checkpoints, |chk| {
-                    *chk.summary.digest()
-                });
-                Self::extract_values_and_serialize(ordered, |chk| Some(&chk.summary))
+                let digest_keys = checkpoint_digests
+                    .iter()
+                    .map(|digest| digest.inner().to_vec())
+                    .collect::<Vec<Vec<u8>>>();
+
+                // map digest key bytes to original index for later lookup.
+                let digest_key_to_index = digest_keys
+                    .iter()
+                    .enumerate()
+                    .map(|(index, key)| (key.clone(), index))
+                    .collect::<HashMap<Vec<u8>, usize>>();
+
+                // get checkpoint sequence numbers from provided digest keys.
+                let digest_to_seq_num = client
+                    .multi_get(CHECKPOINTS_BY_DIGEST_TABLE, digest_keys.clone(), None)
+                    .await
+                    .map_err(anyhow::Error::from)?
+                    .into_iter()
+                    .filter_map(|row| {
+                        row.cells
+                            .into_iter()
+                            .next()
+                            .map(|cell| (row.key, cell.value))
+                    })
+                    .collect::<HashMap<Vec<u8>, Vec<u8>>>();
+
+                // map checkpoint sequence numbers to their digest indices to maintain order
+                // through second query.
+                let seq_num_to_digest_index = digest_to_seq_num
+                    .iter()
+                    .filter_map(|(digest_key, seq_num)| {
+                        digest_key_to_index
+                            .get(digest_key)
+                            .map(|&index| (seq_num.clone(), index))
+                    })
+                    .collect::<HashMap<Vec<u8>, usize>>();
+
+                // get checkpoint summaries using sequence numbers as keys.
+                let seq_nums = digest_to_seq_num
+                    .values()
+                    .cloned()
+                    .collect::<Vec<Vec<u8>>>();
+
+                // narrow the search to only the checkpoint summaries.
+                let exact_column_filter = RowFilter {
+                    filter: Some(Filter::ColumnQualifierRegexFilter(
+                        format!("^{CHECKPOINT_SUMMARY_COLUMN_QUALIFIER}$").into_bytes(),
+                    )),
+                };
+
+                for row in client
+                    .multi_get(CHECKPOINTS_TABLE, seq_nums, Some(exact_column_filter))
+                    .await
+                    .map_err(anyhow::Error::from)?
+                {
+                    for Cell { name, value } in row.cells {
+                        let cell_name = std::str::from_utf8(&name).map_err(anyhow::Error::from)?;
+                        if cell_name == CHECKPOINT_SUMMARY_COLUMN_QUALIFIER {
+                            // map from sequence number back to original digest index
+                            if let Some(&digest_index) = seq_num_to_digest_index.get(&row.key) {
+                                results[digest_index] = Some(Bytes::from(value));
+                            }
+                        } else {
+                            error!("unexpected column {cell_name:?} in checkpoints table")
+                        }
+                    }
+                }
+
+                Ok(results)
             }
             Key::TransactionToCheckpoint(_) => {
                 let digests = Self::extract_keys(&keys, |k| match k {
@@ -168,14 +262,15 @@ impl KvStoreClient {
                     _ => None,
                 })?;
 
-                let transactions = client.get_transactions(&digests).await?;
+                let keys = digests.iter().map(|tx| tx.inner().to_vec()).collect();
 
-                let ordered = Self::restore_order(digests, transactions, |tx_data| {
-                    *tx_data.transaction.digest()
-                });
-                Self::extract_values_and_serialize(ordered, |tx_data| {
-                    Some(&tx_data.checkpoint_number)
-                })
+                multi_get_cell(
+                    &mut client,
+                    TRANSACTIONS_TABLE,
+                    keys,
+                    TRANSACTION_TO_CHECKPOINT,
+                )
+                .await
             }
             Key::ObjectKey(_, _) => {
                 let object_keys = Self::extract_keys(&keys, |k| match k {
@@ -185,12 +280,9 @@ impl KvStoreClient {
                     _ => None,
                 })?;
 
-                let objects = client.get_objects(&object_keys).await?;
+                let keys = object_keys.iter().map(raw_object_key).collect();
 
-                let ordered = Self::restore_order(object_keys, objects, |object| {
-                    ObjectKey(object.id(), object.version())
-                });
-                Self::extract_values_and_serialize(ordered, |object| Some(object))
+                multi_get_cell(&mut client, OBJECTS_TABLE, keys, DEFAULT_COLUMN_QUALIFIER).await
             }
             Key::EventsByTransactionDigest(_) => {
                 let digests = Self::extract_keys(&keys, |k| match k {
@@ -198,12 +290,15 @@ impl KvStoreClient {
                     _ => None,
                 })?;
 
-                let transactions = client.get_transactions(&digests).await?;
+                let keys = digests.iter().map(|tx| tx.inner().to_vec()).collect();
 
-                let ordered = Self::restore_order(digests, transactions, |tx_data| {
-                    *tx_data.transaction.digest()
-                });
-                Self::extract_values_and_serialize(ordered, |tx_data| tx_data.events.as_ref())
+                multi_get_cell(
+                    &mut client,
+                    TRANSACTIONS_TABLE,
+                    keys,
+                    EVENTS_COLUMN_QUALIFIER,
+                )
+                .await
             }
         }
         .map_err(Into::into)
@@ -230,62 +325,56 @@ impl KvStoreClient {
             })
             .collect()
     }
+}
 
-    /// Maps `results` from KV back to original order specified by `keys`.
-    ///
-    /// Takes:
-    /// - `keys`: The original list of keys in the order they were requested
-    /// - `results`: The results returned from the KV client (may be in
-    ///   different order or missing items)
-    /// - `key_extractor`: Function to extract the key from a result item
-    ///
-    /// Returns a vector in the same order as `keys`, with `Some(T)` for found
-    /// items and `None` for missing items.
-    fn restore_order<K, T, F>(keys: Vec<K>, results: Vec<T>, key_extractor: F) -> Vec<Option<T>>
-    where
-        K: std::hash::Hash + Eq,
-        T: Clone,
-        F: Fn(&T) -> K,
+/// Fetch multiple values from a BigTable table with a specific key and column
+/// qualifier.
+///
+/// The result's length is guaranteed to match the input `keys` length. Each
+/// position in the result corresponds to the key at the same position in the
+/// input. This allows the caller to easily determine which requested keys have
+/// data:
+/// - `Some(value)` at index `i` means `key[i]` exists and has data
+/// - `None` at index `i` means `key[i]` was not found or has no matching data
+async fn multi_get_cell(
+    client: &mut BigTableClient,
+    table_name: &str,
+    keys: Vec<Vec<u8>>,
+    column_qualifier: &str,
+) -> Result<Vec<Option<Bytes>>, anyhow::Error> {
+    // pre-allocate results with None. Matching cells will replace None with
+    // Some(value), and unmatched keys will remain None.
+    let mut results = vec![None; keys.len()];
+
+    let key_to_index: HashMap<Vec<u8>, usize> = keys
+        .iter()
+        .enumerate()
+        .map(|(index, key)| (key.clone(), index))
+        .collect();
+
+    // create the exact match filter
+    // We use ^ and $ to ensure it's an exact byte match, not a substring match.
+    let exact_column_filter = RowFilter {
+        filter: Some(Filter::ColumnQualifierRegexFilter(
+            format!("^{column_qualifier}$").into_bytes(),
+        )),
+    };
+
+    for row in client
+        .multi_get(table_name, keys, Some(exact_column_filter))
+        .await?
     {
-        // Create a map from key to result data
-        let results_map: HashMap<K, T> = results
-            .into_iter()
-            .map(|item| (key_extractor(&item), item))
-            .collect();
-
-        // Map back to original order
-        keys.into_iter()
-            .map(|key| results_map.get(&key).cloned())
-            .collect()
+        for Cell { name, value } in row.cells {
+            let cell_name = std::str::from_utf8(&name)?;
+            if cell_name == column_qualifier {
+                if let Some(&index) = key_to_index.get(&row.key) {
+                    results[index] = Some(Bytes::from(value));
+                }
+            } else {
+                error!("unexpected column {cell_name:?} in checkpoints table")
+            }
+        }
     }
 
-    /// Extracts final values from KV response and serializes them.
-    ///
-    /// Takes:
-    /// - `ordered_results`: Results in the desired order (with None for missing
-    ///   items)
-    /// - `value_extractor`: Function to extract the value from a result item
-    ///
-    /// Returns a vector of serialized bytes, with `None` for missing or empty
-    /// values.
-    fn extract_values_and_serialize<T, V, G>(
-        ordered_results: Vec<Option<T>>,
-        value_extractor: G,
-    ) -> Result<Vec<Option<Bytes>>>
-    where
-        V: Serialize,
-        G: Fn(&T) -> Option<&V>,
-    {
-        ordered_results
-            .iter()
-            .map(|opt_item| {
-                opt_item
-                    .as_ref()
-                    .and_then(&value_extractor)
-                    .map(|value| bcs::to_bytes(value).map(Bytes::from))
-                    .transpose()
-                    .map_err(Into::into)
-            })
-            .collect::<Result<Vec<_>>>()
-    }
+    Ok(results)
 }
