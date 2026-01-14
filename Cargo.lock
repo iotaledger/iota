@@ -13983,7 +13983,7 @@ dependencies = [
  "iota-sdk-types",
  "iota-tls",
  "itertools 0.13.0",
- "lru",
+ "lru 0.12.4",
  "nom",
  "parking_lot 0.12.3",
  "prometheus",

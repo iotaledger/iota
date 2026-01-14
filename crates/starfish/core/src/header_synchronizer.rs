@@ -101,6 +101,15 @@ impl std::fmt::Display for SyncMethod {
     }
 }
 
+impl SyncMethod {
+    fn max_authorities_to_fetch_per_block_header(&self) -> usize {
+        match self {
+            SyncMethod::Live => MAX_AUTHORITIES_TO_LIVE_FETCH_PER_BLOCK_HEADER,
+            SyncMethod::Periodic => MAX_AUTHORITIES_TO_FETCH_PER_BLOCK_HEADER,
+        }
+    }
+}
+
 struct BlocksGuard {
     map: Arc<InflightBlockHeadersMap>,
     block_refs: BTreeSet<BlockRef>,
@@ -165,10 +174,7 @@ impl InflightBlockHeadersMap {
             let total_count = authorities.len();
 
             // Determine the limit based on the sync method
-            let max_limit = match method {
-                SyncMethod::Live => MAX_AUTHORITIES_TO_LIVE_FETCH_PER_BLOCK_HEADER,
-                SyncMethod::Periodic => MAX_AUTHORITIES_TO_FETCH_PER_BLOCK_HEADER,
-            };
+            let max_limit = method.max_authorities_to_fetch_per_block_header();
 
             // Check if we can acquire the lock
             if total_count < max_limit {
