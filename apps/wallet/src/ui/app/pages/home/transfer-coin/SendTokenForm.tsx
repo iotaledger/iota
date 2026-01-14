@@ -113,11 +113,11 @@ export function SendTokenForm({
         const isSendingToName = values.resolvedAddress && values.resolvedAddress.length > 0;
 
         if (!isSendingToName || !to || to === '@') return false;
-        const normalizedName = normalizeIotaName(to, 'dot');
-        const denormalizedName = normalizedName.replace(/\.iota$/i, '');
         const accountWithNickname = accounts?.find((account) => {
             if (!account.nickname) return;
-            return [to, denormalizedName, normalizedName].includes(account.nickname);
+
+            const nicknameLikeAIotaName = normalizeIotaName(account.nickname, 'at');
+            return [account.nickname, nicknameLikeAIotaName].includes(to);
         });
 
         return accountWithNickname && accountWithNickname.address !== resolvedAddress;
@@ -151,8 +151,8 @@ export function SendTokenForm({
                         {showNicknameWarning && (
                             <InfoBox
                                 type={InfoBoxType.Warning}
-                                title="You are sending to a name"
-                                supportingText="This name is owned by an address that is not associated with your nickname."
+                                title="Sending to a name"
+                                supportingText="You are sending to an address that is not associated with your nickname."
                                 style={InfoBoxStyle.Elevated}
                                 icon={<Exclamation />}
                             />
