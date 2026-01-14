@@ -1759,7 +1759,7 @@ async fn receive_argument_helper(
 ) -> Result<(), anyhow::Error> {
     // Start and then receive the object
     let start_call_result = IotaClientCommands::Call {
-        package: package_id.into(),
+        package: package_id,
         module: "tto".to_string(),
         function: "start".to_string(),
         type_args: vec![],
@@ -1800,7 +1800,7 @@ async fn receive_argument_helper(
         };
 
     let receive_result = IotaClientCommands::Call {
-        package: package_id.into(),
+        package: package_id,
         module: "tto".to_string(),
         function: function_name.to_string(),
         type_args: vec![],
