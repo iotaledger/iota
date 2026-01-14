@@ -64,7 +64,7 @@ fuzz_target!(|mix: Mixed| {
         ]
         .into_iter(),
     );
-    module.address_identifiers.push(AccountAddress::new(rand::random()));
+    module.address_identifiers.push(AccountAddress::random());
 
     module.constant_pool.push(Constant {
         type_: Address,

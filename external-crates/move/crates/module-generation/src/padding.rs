@@ -50,7 +50,7 @@ impl Pad {
 
     fn pad_address_identifier_table(&mut self, module: &mut CompiledModule) {
         module.address_identifiers = (0..(self.table_size + module.address_identifiers.len()))
-            .map(|_| AccountAddress::new(rand::random()))
+            .map(|_| AccountAddress::random())
             .collect()
     }
 

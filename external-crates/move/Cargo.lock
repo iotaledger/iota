@@ -939,6 +939,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "convert_case"
+version = "0.10.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "633458d4ef8c78b72454de2d54fd6ab2e60f9e02be22f3c6104cdc8a4e0fceb9"
+dependencies = [
+ "unicode-segmentation",
+]
+
+[[package]]
 name = "core-foundation-sys"
 version = "0.8.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1334,10 +1343,12 @@ version = "2.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "799a97264921d8623a957f6c3b9011f3b5492f557bbb7a5a19b7fa6d06ba8dcb"
 dependencies = [
+ "convert_case",
  "proc-macro2",
  "quote",
  "rustc_version",
  "syn 2.0.104",
+ "unicode-xid",
 ]
 
 [[package]]
@@ -2294,7 +2305,7 @@ dependencies = [
 [[package]]
 name = "iota-sdk"
 version = "3.0.0-alpha.1"
-source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=c3b4004802bbc291480419436be22a5b6699e182#c3b4004802bbc291480419436be22a5b6699e182"
+source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=2c44ab84a94b5dfb830e0e1f865e213d4a6936d3#2c44ab84a94b5dfb830e0e1f865e213d4a6936d3"
 dependencies = [
  "getrandom 0.3.3",
  "iota-sdk-crypto",
@@ -2307,7 +2318,7 @@ dependencies = [
 [[package]]
 name = "iota-sdk-crypto"
 version = "0.0.1-alpha.1"
-source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=c3b4004802bbc291480419436be22a5b6699e182#c3b4004802bbc291480419436be22a5b6699e182"
+source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=2c44ab84a94b5dfb830e0e1f865e213d4a6936d3#2c44ab84a94b5dfb830e0e1f865e213d4a6936d3"
 dependencies = [
  "ark-bn254",
  "ark-ff",
@@ -2327,7 +2338,6 @@ dependencies = [
  "p256",
  "pem-rfc7468",
  "pkcs8",
- "rand_core 0.6.4",
  "roaring",
  "serde_json",
  "sha2 0.10.9",
@@ -2339,7 +2349,7 @@ dependencies = [
 [[package]]
 name = "iota-sdk-graphql-client"
 version = "0.0.1-alpha.1"
-source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=c3b4004802bbc291480419436be22a5b6699e182#c3b4004802bbc291480419436be22a5b6699e182"
+source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=2c44ab84a94b5dfb830e0e1f865e213d4a6936d3#2c44ab84a94b5dfb830e0e1f865e213d4a6936d3"
 dependencies = [
  "base64ct",
  "bcs",
@@ -2363,7 +2373,7 @@ dependencies = [
 [[package]]
 name = "iota-sdk-graphql-client-build"
 version = "0.0.1-alpha.1"
-source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=c3b4004802bbc291480419436be22a5b6699e182#c3b4004802bbc291480419436be22a5b6699e182"
+source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=2c44ab84a94b5dfb830e0e1f865e213d4a6936d3#2c44ab84a94b5dfb830e0e1f865e213d4a6936d3"
 dependencies = [
  "cynic-codegen",
 ]
@@ -2371,7 +2381,7 @@ dependencies = [
 [[package]]
 name = "iota-sdk-transaction-builder"
 version = "0.0.1-alpha.1"
-source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=c3b4004802bbc291480419436be22a5b6699e182#c3b4004802bbc291480419436be22a5b6699e182"
+source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=2c44ab84a94b5dfb830e0e1f865e213d4a6936d3#2c44ab84a94b5dfb830e0e1f865e213d4a6936d3"
 dependencies = [
  "base64ct",
  "bcs",
@@ -2391,13 +2401,14 @@ dependencies = [
 [[package]]
 name = "iota-sdk-types"
 version = "0.0.1-alpha.1"
-source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=c3b4004802bbc291480419436be22a5b6699e182#c3b4004802bbc291480419436be22a5b6699e182"
+source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=2c44ab84a94b5dfb830e0e1f865e213d4a6936d3#2c44ab84a94b5dfb830e0e1f865e213d4a6936d3"
 dependencies = [
  "base64ct",
  "bcs",
  "blake2",
  "bnum",
  "bs58",
+ "derive_more",
  "hex",
  "itertools 0.13.0",
  "paste",

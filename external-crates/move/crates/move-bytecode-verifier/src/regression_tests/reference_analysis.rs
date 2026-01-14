@@ -61,9 +61,7 @@ fn unbalanced_stack_crash() {
         Identifier::from_str("aT7ZphKTrKcYCwCebJySrmrKlckmnL5").unwrap(),
         Identifier::from_str("arYpsFa2fvrpPJ").unwrap(),
     ]);
-    module
-        .address_identifiers
-        .push(AccountAddress::new(rand::random()));
+    module.address_identifiers.push(AccountAddress::random());
 
     module.constant_pool.push(Constant {
         type_: Address,

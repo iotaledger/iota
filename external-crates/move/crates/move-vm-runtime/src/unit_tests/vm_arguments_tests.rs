@@ -91,7 +91,7 @@ fn make_module_with_function(
             Identifier::new("X").unwrap(),
             function_name.clone(),
         ],
-        address_identifiers: vec![AccountAddress::new(rand::random())],
+        address_identifiers: vec![AccountAddress::random()],
         constant_pool: vec![],
         metadata: vec![],
 
@@ -316,7 +316,7 @@ fn good_signatures_and_arguments() -> Vec<(Signature, Vec<MoveValue>)> {
             vec![
                 MoveValue::Bool(true),
                 MoveValue::vector_u8(vec![0, 1]),
-                MoveValue::Address(AccountAddress::new(rand::random())),
+                MoveValue::Address(AccountAddress::random()),
             ],
         ),
         // vector<vector<address>>
@@ -333,16 +333,16 @@ fn good_signatures_and_arguments() -> Vec<(Signature, Vec<MoveValue>)> {
                 MoveValue::vector_u8(vec![0, 1]),
                 MoveValue::Vector(vec![
                     MoveValue::Vector(vec![
-                        MoveValue::Address(AccountAddress::new(rand::random())),
-                        MoveValue::Address(AccountAddress::new(rand::random())),
+                        MoveValue::Address(AccountAddress::random()),
+                        MoveValue::Address(AccountAddress::random()),
                     ]),
                     MoveValue::Vector(vec![
-                        MoveValue::Address(AccountAddress::new(rand::random())),
-                        MoveValue::Address(AccountAddress::new(rand::random())),
+                        MoveValue::Address(AccountAddress::random()),
+                        MoveValue::Address(AccountAddress::random()),
                     ]),
                     MoveValue::Vector(vec![
-                        MoveValue::Address(AccountAddress::new(rand::random())),
-                        MoveValue::Address(AccountAddress::new(rand::random())),
+                        MoveValue::Address(AccountAddress::random()),
+                        MoveValue::Address(AccountAddress::random()),
                     ]),
                 ]),
             ],
@@ -362,7 +362,7 @@ fn good_signatures_and_arguments() -> Vec<(Signature, Vec<MoveValue>)> {
                 SignatureToken::Address,
             ))]),
             vec![MoveValue::Vector(vec![MoveValue::Address(
-                AccountAddress::new(rand::random()),
+                AccountAddress::random(),
             )])],
         ),
         // multiple elems vector
@@ -371,11 +371,11 @@ fn good_signatures_and_arguments() -> Vec<(Signature, Vec<MoveValue>)> {
                 SignatureToken::Address,
             ))]),
             vec![MoveValue::Vector(vec![
-                MoveValue::Address(AccountAddress::new(rand::random())),
-                MoveValue::Address(AccountAddress::new(rand::random())),
-                MoveValue::Address(AccountAddress::new(rand::random())),
-                MoveValue::Address(AccountAddress::new(rand::random())),
-                MoveValue::Address(AccountAddress::new(rand::random())),
+                MoveValue::Address(AccountAddress::random()),
+                MoveValue::Address(AccountAddress::random()),
+                MoveValue::Address(AccountAddress::random()),
+                MoveValue::Address(AccountAddress::random()),
+                MoveValue::Address(AccountAddress::random()),
             ])],
         ),
         // empty vector of vector
@@ -462,7 +462,7 @@ fn general_cases() -> Vec<(
         (
             Signature(vec![SignatureToken::Signer, SignatureToken::Signer]),
             vec![],
-            vec![AccountAddress::new(rand::random())],
+            vec![AccountAddress::random()],
             Some(StatusCode::NUMBER_OF_ARGUMENTS_MISMATCH),
         ),
         // too few signers (3)
@@ -470,9 +470,9 @@ fn general_cases() -> Vec<(
             Signature(vec![SignatureToken::Signer, SignatureToken::Signer]),
             vec![],
             vec![
-                AccountAddress::new(rand::random()),
-                AccountAddress::new(rand::random()),
-                AccountAddress::new(rand::random()),
+                AccountAddress::random(),
+                AccountAddress::random(),
+                AccountAddress::random(),
             ],
             Some(StatusCode::NUMBER_OF_ARGUMENTS_MISMATCH),
         ),
@@ -480,17 +480,14 @@ fn general_cases() -> Vec<(
         (
             Signature(vec![SignatureToken::Signer, SignatureToken::Signer]),
             vec![],
-            vec![
-                AccountAddress::new(rand::random()),
-                AccountAddress::new(rand::random()),
-            ],
+            vec![AccountAddress::random(), AccountAddress::random()],
             None,
         ),
         // too many signers (1) in a script that expects 0 is no longer ok
         (
             Signature(vec![SignatureToken::U8]),
             vec![MoveValue::U8(0)],
-            vec![AccountAddress::new(rand::random())],
+            vec![AccountAddress::random()],
             Some(StatusCode::NUMBER_OF_ARGUMENTS_MISMATCH),
         ),
         // signer
@@ -502,9 +499,9 @@ fn general_cases() -> Vec<(
             ]),
             vec![
                 MoveValue::Bool(false),
-                MoveValue::Address(AccountAddress::new(rand::random())),
+                MoveValue::Address(AccountAddress::random()),
             ],
-            vec![AccountAddress::new(rand::random())],
+            vec![AccountAddress::random()],
             None,
         ),
     ]

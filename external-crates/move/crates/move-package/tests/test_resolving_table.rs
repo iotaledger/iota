@@ -17,8 +17,8 @@ fn definitions() {
     let p0 = PackageName::from("p0");
     let n0 = NamedAddress::from("n0");
     let n1 = NamedAddress::from("n1");
-    let a0 = AccountAddress::new(rand::random());
-    let a1 = AccountAddress::new(rand::random());
+    let a0 = AccountAddress::random();
+    let a1 = AccountAddress::random();
     assert_ne!(a0, a1);
 
     table.define((p0, n0), Some(a0)).expect("Definition");
@@ -45,8 +45,8 @@ fn unification() {
     let n2 = NamedAddress::from("n2");
     let n3 = NamedAddress::from("n3");
     let n4 = NamedAddress::from("n4");
-    let a0 = AccountAddress::new(rand::random());
-    let a1 = AccountAddress::new(rand::random());
+    let a0 = AccountAddress::random();
+    let a1 = AccountAddress::random();
     assert_ne!(a0, a1);
 
     table.define((p0, n0), Some(a0)).expect("Definition");
@@ -83,8 +83,8 @@ fn bindings() {
     let n0 = NamedAddress::from("n0");
     let n1 = NamedAddress::from("n1");
     let n2 = NamedAddress::from("n2");
-    let a0 = AccountAddress::new(rand::random());
-    let a1 = AccountAddress::new(rand::random());
+    let a0 = AccountAddress::random();
+    let a1 = AccountAddress::random();
 
     table.define((p0, n0), Some(a0)).unwrap();
     table.define((p0, n1), None).unwrap();
@@ -125,7 +125,7 @@ fn contains() {
     let p1 = PackageName::from("p1");
     let n0 = NamedAddress::from("n0");
     let n1 = NamedAddress::from("n1");
-    let a0 = AccountAddress::new(rand::random());
+    let a0 = AccountAddress::random();
 
     table.define((p0, p1), Some(a0)).unwrap();
     table.define((p0, n0), None).unwrap();
