@@ -25,6 +25,11 @@
 		},
 		"build": {
 			"dependsOn": ["^build"],
+			"inputs": [
+				"**",
+				"!crates/**",
+				"!external-crates/**"
+			],
 			"outputs": [
 				"build/**",
 				"dist/**",
@@ -38,6 +43,11 @@
 			"dependsOn": [
 				"^build"
 			],
+			"inputs": [
+				"**",
+				"!crates/**",
+				"!external-crates/**"
+			],
 			"outputs": [
 				"build/**",
 				"dist/**",
@@ -50,6 +60,11 @@
 		"build:nightly": {
 			"dependsOn": [
 				"^build"
+			],
+			"inputs": [
+				"**",
+				"!crates/**",
+				"!external-crates/**"
 			],
 			"outputs": [
 				"build/**",
@@ -67,6 +82,11 @@
 		},
 		"build:firefox": {
 			"dependsOn": ["^build"],
+			"inputs": [
+				"**",
+				"!crates/**",
+				"!external-crates/**"
+			],
 			"outputs": [
 				"build/**",
 				"dist/**",
@@ -80,6 +100,11 @@
 			"dependsOn": [
 				"^build"
 			],
+			"inputs": [
+				"**",
+				"!crates/**",
+				"!external-crates/**"
+			],
 			"outputs": [
 				"build/**",
 				"dist/**",
@@ -92,6 +117,11 @@
 		"build:firefox:nightly": {
 			"dependsOn": [
 				"^build"
+			],
+			"inputs": [
+				"**",
+				"!crates/**",
+				"!external-crates/**"
 			],
 			"outputs": [
 				"build/**",
