@@ -64,6 +64,7 @@ use crate::{
     dag_state::DagState,
     error::{ConsensusError, ConsensusResult},
     network::NetworkClient,
+    scoring_metrics_store::ErrorSource,
     stake_aggregator::{QuorumThreshold, StakeAggregator},
 };
 
@@ -517,7 +518,7 @@ impl<C: NetworkClient> CommitSyncer<C> {
                                 authority,
                                 hostname.as_str(),
                                 e.clone(),
-                                "fetch_once",
+                                ErrorSource::CommitSyncer,
                                 &inner.context.metrics.node_metrics,
                             );
                         warn!("Failed to fetch {commit_range:?} from {hostname}: {}", e);
