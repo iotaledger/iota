@@ -16,11 +16,11 @@ bcs.workspace = true
 bigdecimal = "0.4"
 camino.workspace = true
 clap.workspace = true
-csv = "1.2"
+csv.workspace = true
 fastcrypto.workspace = true
 flate2.workspace = true
 itertools.workspace = true
-packable = { version = "0.8", default-features = false, features = ["io"] }
+packable.workspace = true
 prefix-hex = "0.7"
 prometheus.workspace = true
 rand = { workspace = true, features = ["std_rng"] }

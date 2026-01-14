@@ -365,11 +365,7 @@ pub(crate) struct ConsensusOutputCache {
 }
 
 impl ConsensusOutputCache {
-    pub(crate) fn new(
-        epoch_start_configuration: &EpochStartConfiguration,
-        tables: &AuthorityEpochTables,
-        metrics: Arc<EpochMetrics>,
-    ) -> Self {
+    pub(crate) fn new(tables: &AuthorityEpochTables, metrics: Arc<EpochMetrics>) -> Self {
         let deferred_transactions = tables
             .get_all_deferred_transactions()
             .expect("load deferred transactions cannot fail");
@@ -378,28 +374,12 @@ impl ConsensusOutputCache {
             .get_all_deferred_transactions_v2()
             .expect("load deferred transactions v2 cannot fail");
 
-        if !epoch_start_configuration.is_data_quarantine_active_from_beginning_of_epoch() {
-            let shared_version_assignments = Self::get_all_shared_version_assignments(tables);
-
-            let user_signatures_for_checkpoints = tables
-                .get_all_user_signatures_for_checkpoints()
-                .expect("load user signatures for checkpoints cannot fail");
-
-            Self {
-                shared_version_assignments: shared_version_assignments.into_iter().collect(),
-                deferred_transactions: Mutex::new(deferred_transactions),
-                deferred_transactions_v2: Mutex::new(deferred_transactions_v2),
-                user_signatures_for_checkpoints: Mutex::new(user_signatures_for_checkpoints),
-                metrics,
-            }
-        } else {
-            Self {
-                shared_version_assignments: Default::default(),
-                deferred_transactions: Mutex::new(deferred_transactions),
-                deferred_transactions_v2: Mutex::new(deferred_transactions_v2),
-                user_signatures_for_checkpoints: Default::default(),
-                metrics,
-            }
+        Self {
+            shared_version_assignments: Default::default(),
+            deferred_transactions: Mutex::new(deferred_transactions),
+            deferred_transactions_v2: Mutex::new(deferred_transactions_v2),
+            user_signatures_for_checkpoints: Default::default(),
+            metrics,
         }
     }
 
@@ -457,19 +437,6 @@ impl ConsensusOutputCache {
         self.metrics
             .shared_object_assignments_size
             .sub(removed_count as i64);
-    }
-
-    // Used to read pre-existing shared object versions from the database after a
-    // crash. TODO: remove this once all nodes have upgraded to
-    // data-quarantining.
-    fn get_all_shared_version_assignments(
-        tables: &AuthorityEpochTables,
-    ) -> Vec<(TransactionKey, Vec<(ObjectID, SequenceNumber)>)> {
-        tables
-            .assigned_shared_object_versions
-            .safe_iter()
-            .collect::<Result<Vec<_>, _>>()
-            .expect("db error")
     }
 }
 

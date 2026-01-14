@@ -232,7 +232,7 @@ anemo = { git = "https://github.com/mystenlabs/anemo.git", rev = "c4e7e4cb4b624d
 anemo-build = { git = "https://github.com/mystenlabs/anemo.git", rev = "c4e7e4cb4b624d7738c2016d7b7885c6774ff9c2" }
 anemo-tower = { git = "https://github.com/mystenlabs/anemo.git", rev = "c4e7e4cb4b624d7738c2016d7b7885c6774ff9c2" }
 anyhow = "1.0.71"
-arc-swap = { version = "1.5.1", features = ["serde"] }
+arc-swap = { version = "1.7.1", features = ["serde"] }
 async-graphql = { version = "7.1.0", default-features = false }
 async-recursion = "1.0.4"
 async-stream = "0.3.6"
@@ -268,7 +268,9 @@ dashmap = "5.5.3"
 datatest-stable = { git = "https://github.com/nextest-rs/datatest-stable.git", rev = "72db7f6d1bbe36a5407e96b9488a581f763e106f" }
 derive_more = "1.0"
 diesel = "2.3.5"
+diffy = { version = "0.3" }
 dirs = "5.0"
+downcast = "0.11.0"
 ed25519-consensus = { version = "2.0.1", features = ["serde"] }
 either = "1.8.0"
 enum_dispatch = "^0.3"
@@ -278,20 +280,17 @@ fastcrypto = { git = "https://github.com/MystenLabs/fastcrypto", rev = "69d496c7
 fastcrypto-tbls = { git = "https://github.com/MystenLabs/fastcrypto", rev = "69d496c71fb37e3d22fe85e5bbfd4256d61422b9" }
 fastcrypto-vdf = { git = "https://github.com/MystenLabs/fastcrypto", rev = "69d496c71fb37e3d22fe85e5bbfd4256d61422b9", features = ["experimental"] }
 fastcrypto-zkp = { git = "https://github.com/MystenLabs/fastcrypto", rev = "69d496c71fb37e3d22fe85e5bbfd4256d61422b9", package = "fastcrypto-zkp" }
-fdlimit = "0.2.1"
 flate2 = "1.0.28"
 fs_extra = "1.3.0"
 futures = "0.3.28"
-getset = "0.1"
 git-version = "0.3.5"
-governor = "0.6.0"
 hdrhistogram = "7.5.1"
 hex = "0.4.3"
 http = "1"
-http-body = "1"
+http-body = "1.0"
+http-body-util = "0.1.2"
 humantime = "2.1.0"
 hyper = "1"
-hyper-rustls = { version = "0.27", default-features = false, features = ["webpki-roots", "http1", "http2", "ring", "tls12"] }
 hyper-util = { version = "0.1.4", features = ["tokio", "server-auto", "service"] }
 im = "15"
 indexmap = { version = "2.11.0", features = ["serde"] }
@@ -301,40 +300,40 @@ integer-encoding = "3.0.1"
 itertools = "0.13.0"
 json_to_table = { git = "https://github.com/zhiburt/tabled/", rev = "e449317a1c02eb6b29e409ad6617e5d9eb7b3bd4" }
 jsonrpsee = { version = "0.24", features = ["server", "macros", "client", "ws-client", "http-client"] }
-leb128 = "0.2.5"
 lru = "0.12"
+mime = "0.3"
 mockall = "0.11.4"
-moka = { version = "0.12", default-features = false, features = ["sync", "atomic64"] }
+moka = { version = "0.12.12", default-features = false, features = ["sync"] }
 more-asserts = "0.3.1"
 msim = { git = "https://github.com/iotaledger/iota-sim.git", branch = "tokio-1.46.1", package = "msim" }
+multiaddr = "0.17.0"
+nom = "7.1.3"
 nonempty = "0.9.0"
-notify = "6.1.1"
 num-bigint = "0.4.4"
 num_cpus = "1.15.0"
 num_enum = "0.7"
 object_store = { version = "0.10", features = ["aws", "gcp", "azure", "http"] }
 once_cell = "1.18.0"
 p256 = { version = "0.13.2", features = ["ecdsa"] }
+packable = { version = "0.8", features = ["io"], default-features = false }
 parking_lot = { version = "0.12.3", features = ["arc_lock"] }
 passkey-authenticator = "0.4.0"
 passkey-client = "0.4.0"
 passkey-types = "0.4.0"
+pin-project-lite = "0.2.15"
 pretty_assertions = "1.3.0"
 proc-macro2 = "1.0.95"
 prometheus = "0.14.0"
 proptest = "1.6.0"
 proptest-derive = "0.5.1"
 prost = "0.14"
-prost-types = "0.14"
-protobuf = { version = "3.7.2", features = ["with-bytes"] }
 quinn-proto = "0.11.7"
 quote = "1.0.23"
 rand = "0.8.5"
-rayon = "1.5.3"
 regex = "1.7.1"
 reqwest = { version = "0.12", default-features = false, features = ["http2", "json", "rustls-tls"] }
 roaring = "0.11.2"
-rocksdb = { version = "0.21.0", default-features = false, features = ["snappy", "lz4", "zstd", "zlib", "multi-threaded-cf"] }
+rs_merkle = "1.5.0"
 rstest = "0.16.0"
 rustls = { version = "0.23.18", default-features = false, features = ["std", "tls12", "ring"] }
 schemars = { version = "0.8.21", features = ["either"] }
@@ -345,11 +344,10 @@ serde_json = { version = "1.0.149", features = ["preserve_order"] }
 serde_spanned = "0.6.8"
 serde_with = "3.8"
 serde_yaml = "0.8.26"
+serial_test = "2.0.0"
 shellexpand = "3.1.0"
 # datatest-stable = "0.1.2"
 signature = "1.6.0"
-similar = "2.4.0"
-smallvec = "1.10.0"
 snap = "1.1.0"
 static_assertions = "1.1.0"
 strum = { version = "0.26.3", features = ["derive"] }
@@ -374,11 +372,10 @@ tonic-health = "0.14"
 tonic-prost = "0.14"
 tonic-prost-build = "0.14"
 tonic-rustls = "0.3.0"
-tower = { version = "0.4.12", features = ["full", "util", "timeout", "load-shed", "limit"] }
-tower-http = { version = "0.5", features = ["cors", "full", "trace", "set-header", "propagate-header"] }
+tower = { version = "0.4.12", features = ["util", "timeout", "load-shed", "limit"] }
+tower-http = { version = "0.5", features = ["cors", "timeout", "trace", "set-header", "propagate-header"] }
 tracing = "0.1.44"
 tracing-subscriber = { version = "0.3.22", default-features = false, features = ["std", "smallvec", "fmt", "ansi", "time", "json", "registry", "env-filter"] }
-unescape = "0.1.0"
 url = "2.3.1"
 uuid = { version = "1.1.2", features = ["v4", "fast-rng"] }
 

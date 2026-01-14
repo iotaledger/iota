@@ -22,13 +22,13 @@ chrono.workspace = true
 clap.workspace = true
 const-str.workspace = true
 diesel = { workspace = true, features = ["i-implement-a-third-party-backend-and-opt-into-breaking-changes"] }
-downcast = "0.11.0"
+downcast.workspace = true
 fastcrypto = { workspace = true, features = ["copy_key"] }
 fastcrypto-zkp.workspace = true
 futures.workspace = true
 hex.workspace = true
 http.workspace = true
-http-body-util = "0.1.2"
+http-body-util.workspace = true
 hyper.workspace = true
 im.workspace = true
 jsonrpsee.workspace = true
@@ -82,7 +82,7 @@ hyper.workspace = true
 insta.workspace = true
 rand.workspace = true
 serde_json.workspace = true
-serial_test = "2.0.0"
+serial_test.workspace = true
 tower.workspace = true
 
 # internal dependencies
