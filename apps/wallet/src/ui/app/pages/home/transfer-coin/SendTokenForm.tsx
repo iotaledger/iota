@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useActiveAddress } from '_hooks';
+import { useAccounts, useActiveAddress } from '_hooks';
 import { Loading } from '_components';
 import {
     useGetAllCoins,
@@ -17,6 +17,7 @@ import {
     type SendTokenFormValues,
     RECEIVING_ADDRESS_FIELD_IDS,
 } from '@iota/core';
+import { normalizeIotaName } from '@iota/iota-names-sdk';
 import { CoinFormat, IOTA_TYPE_ARG, safeParseAmount } from '@iota/iota-sdk/utils';
 import { Form, useFormikContext } from 'formik';
 import {
@@ -46,6 +47,7 @@ export function SendTokenForm({
     selectedCoinsQuery,
     onNext,
 }: SendTokenFormProps) {
+    const { data: accounts } = useAccounts();
     const activeAddress = useActiveAddress();
     const coinMetadata = useCoinMetadata(coinType);
     const { values, isValid, isSubmitting, setFieldValue } =
@@ -105,6 +107,22 @@ export function SendTokenForm({
         }
     }, [iotaBalance, isBuildingTransaction, isSendCoinErrored, sendCoinError]);
 
+    const showNicknameWarning = checkSameNicknameAsReceiver(values.to, values.resolvedAddress);
+
+    function checkSameNicknameAsReceiver(to: string, resolvedAddress?: string | null) {
+        const isSendingToName = values.resolvedAddress && values.resolvedAddress.length > 0;
+
+        if (!isSendingToName || !to || to === '@') return false;
+        const normalizedName = normalizeIotaName(to, 'dot');
+        const denormalizedName = normalizedName.replace(/\.iota$/i, '');
+        const accountWithNickname = accounts?.find((account) => {
+            if (!account.nickname) return;
+            return [denormalizedName, normalizedName].includes(account.nickname);
+        });
+
+        return accountWithNickname && accountWithNickname.address !== resolvedAddress;
+    }
+
     return (
         <Loading
             loading={
@@ -130,6 +148,15 @@ export function SendTokenForm({
                             {...RECEIVING_ADDRESS_FIELD_IDS}
                             placeholder="Enter Address"
                         />
+                        {showNicknameWarning && (
+                            <InfoBox
+                                type={InfoBoxType.Warning}
+                                title="You are sending to a name"
+                                supportingText="This name is owned by an address that is not associated with your nickname."
+                                style={InfoBoxStyle.Elevated}
+                                icon={<Exclamation />}
+                            />
+                        )}
                     </div>
                 </Form>
 
