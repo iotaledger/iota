@@ -3,7 +3,7 @@
 // Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-pub use iota_sdk::types::{
+pub use iota_sdk_types::{
     Address as AccountAddress, AddressParseError as AccountAddressParseError,
 };
 

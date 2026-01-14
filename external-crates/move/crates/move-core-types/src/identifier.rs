@@ -91,7 +91,7 @@ pub(crate) static ALLOWED_IDENTIFIERS: &str =
 pub(crate) static ALLOWED_NO_SELF_IDENTIFIERS: &str =
     r"(?:[a-zA-Z][a-zA-Z0-9_]*)|(?:_[a-zA-Z0-9_]+)";
 
-pub use iota_sdk::types::{Identifier, IdentifierRef as IdentStr};
+pub use iota_sdk_types::{Identifier, IdentifierRef as IdentStr};
 
 use crate::gas_algebra::AbstractMemorySize;
 

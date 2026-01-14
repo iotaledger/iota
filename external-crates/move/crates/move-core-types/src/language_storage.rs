@@ -30,7 +30,7 @@ pub const CORE_CODE_ADDRESS: AccountAddress = AccountAddress::STD;
 pub static TYPETAG_ENUM_ABSTRACT_SIZE: Lazy<AbstractMemorySize> =
     Lazy::new(|| ENUM_BASE_ABSTRACT_SIZE + BOX_ABSTRACT_SIZE);
 
-pub use iota_sdk::types::{StructTag, TypeTag};
+pub use iota_sdk_types::{StructTag, TypeTag};
 
 /// Represents the initial key into global storage where we first index by the
 /// address, and then the struct tag

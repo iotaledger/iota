@@ -54,7 +54,6 @@ indexmap = "2.11.0"
 inline_colorization = "0.1.6"
 insta = "1.42.0"
 internment = { version = "0.5.0", features = ["arc"] }
-iota-sdk = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "2c44ab84a94b5dfb830e0e1f865e213d4a6936d3", features = ["hash", "serde", "schemars"] }
 itertools = "0.10.0"
 json_comments = "0.2.2"
 leb128 = "0.2.5"
