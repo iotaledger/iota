@@ -206,10 +206,10 @@ impl ResolvedGraph {
                 let root_dev_addr = (graph.root_package_id, *name);
                 if !resolving_table.contains(root_dev_addr) {
                     bail!(
-                        "Found unbound dev address assignment '{} = 0x{}' in root package '{}'. \
+                        "Found unbound dev address assignment '{} = {}' in root package '{}'. \
                          Dev addresses cannot introduce new named addresses",
                         name,
-                        addr.short_str_lossless(),
+                        addr.to_short_string(true),
                         graph.root_package_name,
                     );
                 }
@@ -226,13 +226,13 @@ impl ResolvedGraph {
 
                 if let Some(conflicts) = addr_to_name_mapping.insert(*addr, vec![*name]) {
                     bail!(
-                        "Found non-unique dev address assignment '{name} = 0x{addr}' in root \
+                        "Found non-unique dev address assignment '{name} = {addr}' in root \
                          package '{pkg}'. Dev address assignments must not conflict with any other \
                          assignments in order to ensure that the package will compile with any \
                          possible address assignment. \
                          Assignment conflicts with previous assignments: {conflicts} = 0x{addr}",
                         name = name,
-                        addr = addr.short_str_lossless(),
+                        addr = addr.to_short_string(true),
                         pkg = graph.root_package_name,
                         conflicts = conflicts
                             .iter()
@@ -293,9 +293,9 @@ impl ResolvedGraph {
 
         for (name, addr) in &pkg.resolved_table {
             tree.push(Tree::root(format!(
-                "{}:0x{}",
+                "{}:{}",
                 name,
-                addr.short_str_lossless()
+                addr.to_short_string(true)
             )));
         }
 

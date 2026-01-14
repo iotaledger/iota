@@ -136,7 +136,7 @@ fn execute_function_in_module(
     };
     {
         let vm = MoveVM::new(move_stdlib_natives::all_natives(
-            AccountAddress::from_hex_literal("0x1").unwrap(),
+            AccountAddress::FRAMEWORK,
             move_stdlib_natives::GasParameters::zeros(),
             true, // silent debug
         ))

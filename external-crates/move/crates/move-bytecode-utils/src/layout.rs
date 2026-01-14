@@ -169,11 +169,16 @@ impl<'a, T: GetModule> SerdeLayoutBuilder<'a, T> {
     /// Add layouts for all types used in `t` to the registry
     pub fn build_data_layout(&mut self, s: &StructTag) -> Result<Format> {
         let serde_type_args = s
-            .type_params
+            .type_params()
             .iter()
             .map(|t| self.build_type_layout(t))
             .collect::<Result<Vec<Format>>>()?;
-        self.build_data_layout_(&s.module_id(), &s.name, &serde_type_args, 0)
+        self.build_data_layout_(
+            &ModuleId::new(s.address(), s.module().to_owned()),
+            &s.name(),
+            &serde_type_args,
+            0,
+        )
     }
 
     fn build_normalized_type_layout(
@@ -243,10 +248,7 @@ impl<'a, T: GetModule> SerdeLayoutBuilder<'a, T> {
             .map_err(|e| anyhow::format_err!("{:?}", e))?
             .expect("Failed to resolve module");
         let normalized = self.normalized_module(declaring_module.borrow());
-        let def = match (
-            normalized.structs.get(name.as_ident_str()),
-            normalized.enums.get(name.as_ident_str()),
-        ) {
+        let def = match (normalized.structs.get(name), normalized.enums.get(name)) {
             (Some(s), None) => Container::Struct(s.clone()),
             (None, Some(e)) => Container::Enum(e.clone()),
             (Some(_), Some(_)) => bail!("Found both struct and enum with name {}", name),
@@ -527,11 +529,17 @@ impl DatatypeLayoutBuilder {
     ) -> Result<A::MoveDatatypeLayout> {
         check_depth!(depth);
         let type_arguments = s
-            .type_params
+            .type_params()
             .iter()
             .map(|t| TypeLayoutBuilder::build(t, resolver, depth))
             .collect::<Result<Vec<A::MoveTypeLayout>>>()?;
-        Self::build_from_name(&s.module_id(), &s.name, type_arguments, resolver, depth)
+        Self::build_from_name(
+            &ModuleId::new(s.address(), s.module().to_owned()),
+            s.name(),
+            type_arguments,
+            resolver,
+            depth,
+        )
     }
 
     fn build_from_enum_definition(
@@ -566,12 +574,12 @@ impl DatatypeLayoutBuilder {
 
         let mid = m.self_id();
         let type_params: Vec<TypeTag> = type_arguments.iter().map(|t| t.into()).collect();
-        let type_ = StructTag {
-            address: *mid.address(),
-            module: mid.name().to_owned(),
-            name: m.identifier_at(e_handle.name).to_owned(),
+        let type_ = StructTag::new(
+            *mid.address(),
+            mid.name().to_owned(),
+            m.identifier_at(e_handle.name).to_owned(),
             type_params,
-        };
+        );
 
         Ok(A::MoveEnumLayout { type_, variants })
     }
@@ -608,12 +616,12 @@ impl DatatypeLayoutBuilder {
 
                 let mid = m.self_id();
                 let type_params: Vec<TypeTag> = type_arguments.iter().map(|t| t.into()).collect();
-                let type_ = StructTag {
-                    address: *mid.address(),
-                    module: mid.name().to_owned(),
-                    name: m.identifier_at(s_handle.name).to_owned(),
+                let type_ = StructTag::new(
+                    *mid.address(),
+                    mid.name().to_owned(),
+                    m.identifier_at(s_handle.name).to_owned(),
                     type_params,
-                };
+                );
                 let fields = fields
                     .iter()
                     .map(|f| m.identifier_at(f.name).to_owned())

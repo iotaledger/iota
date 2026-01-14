@@ -10,7 +10,10 @@ use crate::{
     account_address::AccountAddress,
     gas_algebra::AbstractMemorySize,
     identifier::{IdentStr, Identifier},
-    language_storage::{ModuleId, StructTag, TYPETAG_ENUM_ABSTRACT_SIZE, TypeTag},
+    language_storage::{
+        ModuleId, StructTag, TYPETAG_ENUM_ABSTRACT_SIZE, TypeTag,
+        struct_tag_abstract_size_for_gas_metering, type_tag_abstract_size_for_gas_metering,
+    },
 };
 
 proptest! {
@@ -30,26 +33,26 @@ fn test_type_tag_abstract_size() {
     let type_tag3 = TypeTag::Vector(Box::new(TypeTag::U128));
 
     assert_eq!(
-        type_tag1.abstract_size_for_gas_metering(),
+        type_tag_abstract_size_for_gas_metering(&type_tag1),
         *TYPETAG_ENUM_ABSTRACT_SIZE + *TYPETAG_ENUM_ABSTRACT_SIZE
     );
     assert_eq!(
-        type_tag2.abstract_size_for_gas_metering(),
+        type_tag_abstract_size_for_gas_metering(&type_tag2),
         *TYPETAG_ENUM_ABSTRACT_SIZE + *TYPETAG_ENUM_ABSTRACT_SIZE
     );
     assert_eq!(
-        type_tag3.abstract_size_for_gas_metering(),
+        type_tag_abstract_size_for_gas_metering(&type_tag3),
         *TYPETAG_ENUM_ABSTRACT_SIZE + *TYPETAG_ENUM_ABSTRACT_SIZE
     );
 
-    let struct_tag1 = StructTag {
+    let struct_tag1 = StructTag::new(
         // size = AccountAddress::LENGTH
-        address: AccountAddress::ONE,
+        AccountAddress::STD,
         // size = 10
-        module: Identifier::from(IdentStr::new("TestModule").unwrap()),
+        Identifier::from(IdentStr::const_new("TestModule")),
         // size = 10
-        name: Identifier::from(IdentStr::new("TestStruct").unwrap()),
-        type_params: vec![
+        Identifier::from(IdentStr::const_new("TestStruct")),
+        vec![
             // size = TYPETAG_ENUM_ABSTRACT_SIZE
             TypeTag::U8,
             // size = TYPETAG_ENUM_ABSTRACT_SIZE
@@ -75,10 +78,10 @@ fn test_type_tag_abstract_size() {
             // size = TYPETAG_ENUM_ABSTRACT_SIZE + TYPETAG_ENUM_ABSTRACT_SIZE
             type_tag3,
         ],
-    };
+    );
 
     assert_eq!(
-        struct_tag1.abstract_size_for_gas_metering(),
+        struct_tag_abstract_size_for_gas_metering(&struct_tag1),
         AbstractMemorySize::new(
             u64::from(*TYPETAG_ENUM_ABSTRACT_SIZE) * 15 + 10 + 10 + (AccountAddress::LENGTH as u64)
         )
@@ -87,18 +90,18 @@ fn test_type_tag_abstract_size() {
     let type_tag4 = TypeTag::Struct(Box::new(struct_tag1.clone()));
 
     assert_eq!(
-        type_tag4.abstract_size_for_gas_metering(),
-        struct_tag1.abstract_size_for_gas_metering() + *TYPETAG_ENUM_ABSTRACT_SIZE
+        type_tag_abstract_size_for_gas_metering(&type_tag4),
+        struct_tag_abstract_size_for_gas_metering(&struct_tag1) + *TYPETAG_ENUM_ABSTRACT_SIZE
     );
 }
 
 #[test]
 fn test_type_tag_deserialize_case_insensitive() {
-    let org_struct_tag = StructTag {
-        address: AccountAddress::ONE,
-        module: Identifier::from(IdentStr::new("TestModule").unwrap()),
-        name: Identifier::from(IdentStr::new("TestStruct").unwrap()),
-        type_params: vec![
+    let org_struct_tag = StructTag::new(
+        AccountAddress::STD,
+        Identifier::from(IdentStr::const_new("TestModule")),
+        Identifier::from(IdentStr::const_new("TestStruct")),
+        vec![
             TypeTag::U8,
             TypeTag::U16,
             TypeTag::U32,
@@ -109,20 +112,20 @@ fn test_type_tag_deserialize_case_insensitive() {
             TypeTag::Address,
             TypeTag::Signer,
         ],
-    };
+    );
 
     let current_json = serde_json::to_string(&org_struct_tag).unwrap();
 
     let upper_case_json = format!(
         r##"{{"address":"{}","module":"TestModule","name":"TestStruct","type_params":["U8","U16","U32","U64","U128","U256","Bool","Address","Signer"]}}"##,
-        AccountAddress::ONE
+        AccountAddress::STD
     );
     let upper_case_decoded = serde_json::from_str(upper_case_json.as_str()).unwrap();
     assert_eq!(org_struct_tag, upper_case_decoded);
 
     let lower_case_json = format!(
         r##"{{"address":"{}","module":"TestModule","name":"TestStruct","type_args":["u8","u16","u32","u64","u128","u256","bool","address","signer"]}}"##,
-        AccountAddress::ONE
+        AccountAddress::STD
     );
     let lower_case_decoded = serde_json::from_str(lower_case_json.as_str()).unwrap();
     assert_eq!(org_struct_tag, lower_case_decoded);

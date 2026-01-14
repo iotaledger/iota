@@ -80,8 +80,7 @@ impl CoverageMap {
             if !is_script {
                 let func_name = Identifier::new(context_segs.pop().unwrap()).unwrap();
                 let module_name = Identifier::new(context_segs.pop().unwrap()).unwrap();
-                let module_addr =
-                    AccountAddress::from_hex_literal(context_segs.pop().unwrap()).unwrap();
+                let module_addr = AccountAddress::from_hex(context_segs.pop().unwrap()).unwrap();
                 self.insert(exec_id, module_addr, module_name, func_name, pc);
             } else {
                 // Don't count scripts (for now)
@@ -285,8 +284,7 @@ impl TraceMap {
             if !is_script {
                 let func_name = Identifier::new(context_segs.pop().unwrap()).unwrap();
                 let module_name = Identifier::new(context_segs.pop().unwrap()).unwrap();
-                let module_addr =
-                    AccountAddress::from_hex_literal(context_segs.pop().unwrap()).unwrap();
+                let module_addr = AccountAddress::from_hex(context_segs.pop().unwrap()).unwrap();
                 self.insert(exec_id, module_addr, module_name, func_name, pc);
             } else {
                 // Don't count scripts (for now)

@@ -904,7 +904,7 @@ fn byte_offset_test() {
                 "\n[{:>3} .. {:>3}] {}: address",
                 driver.start(),
                 driver.position(),
-                value.to_canonical_display(/* with_prefix */ true),
+                value.to_canonical_string(/* with_prefix */ true),
             )
             .unwrap();
             Ok(())
@@ -920,7 +920,7 @@ fn byte_offset_test() {
                 "\n[{:>3} .. {:>3}] {}: address",
                 driver.start(),
                 driver.position(),
-                value.to_canonical_display(/* with_prefix */ true),
+                value.to_canonical_string(/* with_prefix */ true),
             )
             .unwrap();
             Ok(())

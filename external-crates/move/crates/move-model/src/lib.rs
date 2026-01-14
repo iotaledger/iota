@@ -442,7 +442,7 @@ pub fn addr_to_big_uint(addr: &AccountAddress) -> BigUint {
 pub fn big_uint_to_addr(i: &BigUint) -> AccountAddress {
     // TODO: do this in more efficient way (e.g., i.to_le_bytes() and pad out the
     // resulting Vec<u8> to ADDRESS_LENGTH
-    AccountAddress::from_hex_literal(&format!("{:#x}", i)).unwrap()
+    AccountAddress::from_hex(&format!("{:#x}", i)).unwrap()
 }
 
 pub fn parse_addresses_from_options(

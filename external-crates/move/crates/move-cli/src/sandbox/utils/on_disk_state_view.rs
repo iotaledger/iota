@@ -103,9 +103,8 @@ impl OnDiskStateView {
         let name = Identifier::new(p.file_stem().unwrap().to_str().unwrap()).unwrap();
         match p.parent().and_then(|parent| parent.parent()) {
             Some(parent) => {
-                let addr =
-                    AccountAddress::from_hex_literal(parent.file_stem().unwrap().to_str().unwrap())
-                        .unwrap();
+                let addr = AccountAddress::from_hex(parent.file_stem().unwrap().to_str().unwrap())
+                    .unwrap();
                 Some(ModuleId::new(addr, name))
             }
             None => None,

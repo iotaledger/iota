@@ -1871,7 +1871,7 @@ fn format_move_value(v: &MoveValue) -> String {
         MoveValue::U128(u) => format!("{}u128", u),
         MoveValue::Bool(true) => "true".to_owned(),
         MoveValue::Bool(false) => "false".to_owned(),
-        MoveValue::Address(a) => format!("0x{}", a.short_str_lossless()),
+        MoveValue::Address(a) => format!("{}", a.to_short_string(true)),
         MoveValue::Vector(v) => {
             let items = v
                 .iter()

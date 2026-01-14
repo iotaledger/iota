@@ -142,7 +142,7 @@ mod tests {
             TransactionArgument::U128(u128::MAX),
             TransactionArgument::U256(U256::max_value()),
             TransactionArgument::Bool(true),
-            TransactionArgument::Address(AccountAddress::from_hex_literal("0x1").unwrap()),
+            TransactionArgument::Address(AccountAddress::from_hex("0x1").unwrap()),
             TransactionArgument::U8Vector(vec![1, 2, 3, 4]),
         ];
         for val in vals {

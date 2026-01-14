@@ -445,7 +445,7 @@ impl Type {
                     panic!("Invariant violation: couldn't resolve datatype {:?}", s)
                 });
                 let type_args = s
-                    .type_params
+                    .type_params()
                     .iter()
                     .map(|arg| Self::from_type_tag(arg, env))
                     .collect();

@@ -91,7 +91,7 @@ fn make_module_with_function(
             Identifier::new("X").unwrap(),
             function_name.clone(),
         ],
-        address_identifiers: vec![AccountAddress::random()],
+        address_identifiers: vec![AccountAddress::new(rand::random())],
         constant_pool: vec![],
         metadata: vec![],
 
@@ -203,7 +203,7 @@ fn call_script_function_with_args_ty_args_signers(
 
     session.execute_function_bypass_visibility(
         &id,
-        function_name.as_ident_str(),
+        &function_name,
         ty_args,
         combine_signers_and_args(signers, non_signer_args),
         &mut UnmeteredGasMeter,
@@ -316,7 +316,7 @@ fn good_signatures_and_arguments() -> Vec<(Signature, Vec<MoveValue>)> {
             vec![
                 MoveValue::Bool(true),
                 MoveValue::vector_u8(vec![0, 1]),
-                MoveValue::Address(AccountAddress::random()),
+                MoveValue::Address(AccountAddress::new(rand::random())),
             ],
         ),
         // vector<vector<address>>
@@ -333,16 +333,16 @@ fn good_signatures_and_arguments() -> Vec<(Signature, Vec<MoveValue>)> {
                 MoveValue::vector_u8(vec![0, 1]),
                 MoveValue::Vector(vec![
                     MoveValue::Vector(vec![
-                        MoveValue::Address(AccountAddress::random()),
-                        MoveValue::Address(AccountAddress::random()),
+                        MoveValue::Address(AccountAddress::new(rand::random())),
+                        MoveValue::Address(AccountAddress::new(rand::random())),
                     ]),
                     MoveValue::Vector(vec![
-                        MoveValue::Address(AccountAddress::random()),
-                        MoveValue::Address(AccountAddress::random()),
+                        MoveValue::Address(AccountAddress::new(rand::random())),
+                        MoveValue::Address(AccountAddress::new(rand::random())),
                     ]),
                     MoveValue::Vector(vec![
-                        MoveValue::Address(AccountAddress::random()),
-                        MoveValue::Address(AccountAddress::random()),
+                        MoveValue::Address(AccountAddress::new(rand::random())),
+                        MoveValue::Address(AccountAddress::new(rand::random())),
                     ]),
                 ]),
             ],
@@ -362,7 +362,7 @@ fn good_signatures_and_arguments() -> Vec<(Signature, Vec<MoveValue>)> {
                 SignatureToken::Address,
             ))]),
             vec![MoveValue::Vector(vec![MoveValue::Address(
-                AccountAddress::random(),
+                AccountAddress::new(rand::random()),
             )])],
         ),
         // multiple elems vector
@@ -371,11 +371,11 @@ fn good_signatures_and_arguments() -> Vec<(Signature, Vec<MoveValue>)> {
                 SignatureToken::Address,
             ))]),
             vec![MoveValue::Vector(vec![
-                MoveValue::Address(AccountAddress::random()),
-                MoveValue::Address(AccountAddress::random()),
-                MoveValue::Address(AccountAddress::random()),
-                MoveValue::Address(AccountAddress::random()),
-                MoveValue::Address(AccountAddress::random()),
+                MoveValue::Address(AccountAddress::new(rand::random())),
+                MoveValue::Address(AccountAddress::new(rand::random())),
+                MoveValue::Address(AccountAddress::new(rand::random())),
+                MoveValue::Address(AccountAddress::new(rand::random())),
+                MoveValue::Address(AccountAddress::new(rand::random())),
             ])],
         ),
         // empty vector of vector
@@ -462,7 +462,7 @@ fn general_cases() -> Vec<(
         (
             Signature(vec![SignatureToken::Signer, SignatureToken::Signer]),
             vec![],
-            vec![AccountAddress::random()],
+            vec![AccountAddress::new(rand::random())],
             Some(StatusCode::NUMBER_OF_ARGUMENTS_MISMATCH),
         ),
         // too few signers (3)
@@ -470,9 +470,9 @@ fn general_cases() -> Vec<(
             Signature(vec![SignatureToken::Signer, SignatureToken::Signer]),
             vec![],
             vec![
-                AccountAddress::random(),
-                AccountAddress::random(),
-                AccountAddress::random(),
+                AccountAddress::new(rand::random()),
+                AccountAddress::new(rand::random()),
+                AccountAddress::new(rand::random()),
             ],
             Some(StatusCode::NUMBER_OF_ARGUMENTS_MISMATCH),
         ),
@@ -480,14 +480,17 @@ fn general_cases() -> Vec<(
         (
             Signature(vec![SignatureToken::Signer, SignatureToken::Signer]),
             vec![],
-            vec![AccountAddress::random(), AccountAddress::random()],
+            vec![
+                AccountAddress::new(rand::random()),
+                AccountAddress::new(rand::random()),
+            ],
             None,
         ),
         // too many signers (1) in a script that expects 0 is no longer ok
         (
             Signature(vec![SignatureToken::U8]),
             vec![MoveValue::U8(0)],
-            vec![AccountAddress::random()],
+            vec![AccountAddress::new(rand::random())],
             Some(StatusCode::NUMBER_OF_ARGUMENTS_MISMATCH),
         ),
         // signer
@@ -499,9 +502,9 @@ fn general_cases() -> Vec<(
             ]),
             vec![
                 MoveValue::Bool(false),
-                MoveValue::Address(AccountAddress::random()),
+                MoveValue::Address(AccountAddress::new(rand::random())),
             ],
-            vec![AccountAddress::random()],
+            vec![AccountAddress::new(rand::random())],
             None,
         ),
     ]
@@ -626,7 +629,7 @@ fn check_script_function() {
 fn call_missing_item() {
     let module = empty_module();
     let id = &module.self_id();
-    let function_name = IdentStr::new("foo").unwrap();
+    let function_name = IdentStr::const_new("foo");
     // missing module
     let move_vm = MoveVM::new(vec![]).unwrap();
     let mut remote_view = RemoteStore::new();

@@ -176,7 +176,7 @@ fn make_module() -> CompiledModule {
             // an address
             Constant {
                 type_: SignatureToken::Address,
-                data: AccountAddress::random().to_vec(),
+                data: AccountAddress::new(rand::random()).as_bytes().to_vec(),
             },
         ],
         metadata: vec![],

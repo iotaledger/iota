@@ -46,7 +46,7 @@ impl ParsedAddress {
 impl NumericalAddress {
     // bytes used for errors when an address is not known but is needed
     pub const DEFAULT_ERROR_ADDRESS: Self = NumericalAddress {
-        bytes: AccountAddress::ONE,
+        bytes: AccountAddress::STD,
         format: NumberFormat::Hex,
     };
 
@@ -92,7 +92,7 @@ impl fmt::Display for NumericalAddress {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self.format {
             NumberFormat::Decimal => {
-                let n = U256::from_be_bytes(&self.bytes);
+                let n = U256::from_be_bytes(self.bytes.bytes());
                 write!(f, "{}", n)
             }
             NumberFormat::Hex => write!(f, "{:#X}", self),

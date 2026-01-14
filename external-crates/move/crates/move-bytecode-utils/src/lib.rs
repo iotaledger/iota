@@ -189,8 +189,8 @@ pub fn format_signature_token_struct(
         &s
     };
     format!(
-        "0x{}::{}::{}{}",
-        address.short_str_lossless(),
+        "{}::{}::{}{}",
+        address.to_short_string(true),
         module_name,
         struct_name,
         ty_args_string

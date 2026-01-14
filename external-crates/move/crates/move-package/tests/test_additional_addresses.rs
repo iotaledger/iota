@@ -59,7 +59,7 @@ fn test_additional_addresses() {
                 install_dir: Some(tempdir().unwrap().path().to_path_buf()),
                 additional_named_addresses: BTreeMap::from([(
                     "A".to_string(),
-                    AccountAddress::from_hex_literal("0x1").unwrap()
+                    AccountAddress::from_hex("0x1").unwrap()
                 )]),
                 ..Default::default()
             },
@@ -124,7 +124,7 @@ fn test_additional_addresses_already_assigned_same_value() {
                 install_dir: Some(tempdir().unwrap().path().to_path_buf()),
                 additional_named_addresses: BTreeMap::from([(
                     "A".to_string(),
-                    AccountAddress::from_hex_literal("0x0").unwrap()
+                    AccountAddress::from_hex("0x0").unwrap()
                 )]),
                 ..Default::default()
             },
@@ -175,7 +175,7 @@ fn test_additional_addresses_already_assigned_different_value() {
                 install_dir: Some(tempdir().unwrap().path().to_path_buf()),
                 additional_named_addresses: BTreeMap::from([(
                     "A".to_string(),
-                    AccountAddress::from_hex_literal("0x1").unwrap()
+                    AccountAddress::from_hex("0x1").unwrap()
                 )]),
                 ..Default::default()
             },

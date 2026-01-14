@@ -512,34 +512,29 @@ impl<S> Datatype<S> {
             name,
             type_arguments,
         } = self;
-        StructTag {
-            address: module.address,
-            module: pool.as_ident_str(&module.name).to_owned(),
-            name: pool.as_ident_str(name).to_owned(),
-            type_params: type_arguments
+        StructTag::new(
+            module.address,
+            pool.as_ident_str(&module.name).to_owned(),
+            pool.as_ident_str(name).to_owned(),
+            type_arguments
                 .iter()
                 .map(|t| {
                     t.to_type_tag(pool)
                         .expect("Invariant violation: struct type argument contains reference")
                 })
                 .collect(),
-        }
+        )
     }
 
     pub fn from_struct_tag<Pool: StringPool<String = S>>(pool: &mut Pool, tag: &StructTag) -> Self {
-        let StructTag {
-            address,
-            module,
-            name,
-            type_params,
-        } = tag;
         Datatype {
             module: ModuleId {
-                address: *address,
-                name: pool.intern(module.as_ident_str()),
+                address: tag.address(),
+                name: pool.intern(tag.module()),
             },
-            name: pool.intern(name.as_ident_str()),
-            type_arguments: type_params
+            name: pool.intern(tag.name()),
+            type_arguments: tag
+                .type_params()
                 .iter()
                 .map(|t| Type::from_type_tag(pool, t))
                 .collect(),
@@ -1250,13 +1245,7 @@ impl<S: std::fmt::Display> std::fmt::Display for Datatype<S> {
             name,
             type_arguments,
         } = self;
-        write!(
-            f,
-            "0x{}::{}::{}",
-            address.short_str_lossless(),
-            module,
-            name
-        )?;
+        write!(f, "{}::{}::{}", address.to_short_string(true), module, name)?;
         if let Some(first_ty) = type_arguments.first() {
             write!(f, "<")?;
             write!(f, "{}", first_ty)?;
@@ -1288,7 +1277,7 @@ impl StringPool for NoPool {
     }
 
     fn as_ident_str<'a>(&'a self, s: &'a Identifier) -> &'a IdentStr {
-        s.as_ident_str()
+        s
     }
 }
 
@@ -1303,7 +1292,7 @@ impl Borrow<str> for RcIdentifier {
 
 impl Borrow<IdentStr> for RcIdentifier {
     fn borrow(&self) -> &IdentStr {
-        self.0.as_ident_str()
+        &self.0
     }
 }
 
@@ -1323,7 +1312,7 @@ impl Deref for RcIdentifier {
 
 impl std::fmt::Display for RcIdentifier {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.0.as_ident_str(), f)
+        std::fmt::Display::fmt(&self.0, f)
     }
 }
 
@@ -1350,7 +1339,7 @@ impl StringPool for RcPool {
     }
 
     fn as_ident_str<'a>(&'a self, s: &'a Self::String) -> &'a IdentStr {
-        s.0.as_ident_str()
+        &s.0
     }
 }
 
@@ -1365,7 +1354,7 @@ impl Borrow<str> for ArcIdentifier {
 
 impl Borrow<IdentStr> for ArcIdentifier {
     fn borrow(&self) -> &IdentStr {
-        self.0.as_ident_str()
+        &self.0
     }
 }
 
@@ -1385,7 +1374,7 @@ impl Deref for ArcIdentifier {
 
 impl std::fmt::Display for ArcIdentifier {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.0.as_ident_str(), f)
+        std::fmt::Display::fmt(&self.0, f)
     }
 }
 
@@ -1412,6 +1401,6 @@ impl StringPool for ArcPool {
     }
 
     fn as_ident_str<'a>(&'a self, s: &'a Self::String) -> &'a IdentStr {
-        s.0.as_ident_str()
+        &s.0
     }
 }

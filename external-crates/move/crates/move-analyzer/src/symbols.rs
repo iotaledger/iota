@@ -1345,7 +1345,7 @@ pub fn mod_ident_to_ide_string(
                     None => addr_value.to_string(),
                 };
 
-                let Ok(std_lib_pkg_address) = AccountAddress::from_hex_literal(pkg_addr) else {
+                let Ok(std_lib_pkg_address) = AccountAddress::from_hex(pkg_addr) else {
                     // getting stdlib address did not work - use the whole thing
                     return (false, format!("{pkg_name}::{}{}", mod_ident.module, suffix));
                 };

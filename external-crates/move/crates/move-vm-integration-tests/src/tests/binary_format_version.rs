@@ -22,7 +22,7 @@ fn test_publish_module_with_custom_max_binary_format_version() {
     {
         let storage = InMemoryStorage::new();
         let vm = MoveVM::new(move_stdlib_natives::all_natives(
-            AccountAddress::from_hex_literal("0x1").unwrap(),
+            AccountAddress::from_hex("0x1").unwrap(),
             move_stdlib_natives::GasParameters::zeros(),
             true, // silent debug
         ))
@@ -56,7 +56,7 @@ fn test_publish_module_with_custom_max_binary_format_version() {
 
         let vm = MoveVM::new_with_config(
             move_stdlib_natives::all_natives(
-                AccountAddress::from_hex_literal("0x1").unwrap(),
+                AccountAddress::from_hex("0x1").unwrap(),
                 move_stdlib_natives::GasParameters::zeros(),
                 true, // silent debug
             ),

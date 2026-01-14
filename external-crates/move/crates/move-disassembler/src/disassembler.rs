@@ -299,7 +299,7 @@ impl Disassembler<'_> {
             buffer,
             "// Move bytecode v{version}\nmodule {addr}.",
             version = self.source_mapper.bytecode.version(),
-            addr = addr.short_str_lossless(),
+            addr = addr.to_short_string(false),
         )?;
         let mod_name_loc = any_write!(buffer, "{name}", name = n)?;
         any_writeln!(buffer, " {{")?;

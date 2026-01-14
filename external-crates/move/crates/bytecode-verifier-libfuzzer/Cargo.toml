@@ -13,6 +13,7 @@ cargo-fuzz = true
 # external dependencies
 arbitrary.workspace = true
 libfuzzer-sys.workspace = true
+rand.workspace = true
 
 # internal dependencies
 move-binary-format = { workspace = true, features = ["fuzzing"] }

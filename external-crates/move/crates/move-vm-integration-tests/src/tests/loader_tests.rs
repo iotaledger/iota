@@ -864,7 +864,7 @@ fn relink_defining_module_successive() {
             panic!("Not a struct: {s:?}")
         };
 
-        assert_eq!(st.module_id(), c0);
+        assert_eq!(ModuleId::new(st.address(), st.module().to_owned()), c0);
     }
 
     for r in &[c1_r, c2_r] {
@@ -872,14 +872,14 @@ fn relink_defining_module_successive() {
             panic!("Not a struct: {r:?}")
         };
 
-        assert_eq!(st.module_id(), c1);
+        assert_eq!(ModuleId::new(st.address(), st.module().to_owned()), c1);
     }
 
     let TypeTag::Struct(st) = adapter.get_type_tag(&c2_q) else {
         panic!("Not a struct: {c2_q:?}")
     };
 
-    assert_eq!(st.module_id(), c2);
+    assert_eq!(ModuleId::new(st.address(), st.module().to_owned()), c2);
 }
 
 #[test]
@@ -927,9 +927,9 @@ fn relink_defining_module_oneshot() {
         panic!("Not a struct: {q:?}")
     };
 
-    assert_eq!(s.module_id(), c0);
-    assert_eq!(r.module_id(), c1);
-    assert_eq!(q.module_id(), c2);
+    assert_eq!(ModuleId::new(s.address(), s.module().to_owned()), c0);
+    assert_eq!(ModuleId::new(r.address(), r.module().to_owned()), c1);
+    assert_eq!(ModuleId::new(q.address(), q.module().to_owned()), c2);
 }
 
 #[test]

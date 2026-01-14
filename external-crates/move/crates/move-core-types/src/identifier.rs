@@ -30,17 +30,6 @@
 //! * specify keys for lookups in storage
 //! * do cross-module lookups while executing transactions
 
-use std::{borrow::Borrow, fmt, ops::Deref, str::FromStr};
-
-use anyhow::{Result, bail};
-#[cfg(any(test, feature = "fuzzing"))]
-use proptest::prelude::*;
-use ref_cast::RefCast;
-use serde::{Deserialize, Deserializer, Serialize};
-use serde_with::{DeserializeAs, SerializeAs};
-
-use crate::gas_algebra::AbstractMemorySize;
-
 /// Return true if this character can appear in a Move identifier.
 ///
 /// Note: there are stricter restrictions on whether a character can begin a
@@ -85,6 +74,12 @@ pub const fn is_valid(s: &str) -> bool {
     }
 }
 
+/// Returns the abstract size of the identifier
+/// TODO (ade): use macro to enforce determinism
+pub fn identifier_abstract_size_for_gas_metering(ident: &IdentStr) -> AbstractMemorySize {
+    AbstractMemorySize::new((ident.len()) as u64)
+}
+
 /// A regex describing what identifiers are allowed. Used for proptests.
 // TODO: "<SELF>" is coded as an exception. It should be removed once CompiledScript goes away.
 #[cfg(any(test, feature = "fuzzing"))]
@@ -92,229 +87,13 @@ pub const fn is_valid(s: &str) -> bool {
 pub(crate) static ALLOWED_IDENTIFIERS: &str =
     r"(?:[a-zA-Z][a-zA-Z0-9_]*)|(?:_[a-zA-Z0-9_]+)|(?:<SELF>)";
 #[cfg(any(test, feature = "fuzzing"))]
+#[allow(dead_code)]
 pub(crate) static ALLOWED_NO_SELF_IDENTIFIERS: &str =
     r"(?:[a-zA-Z][a-zA-Z0-9_]*)|(?:_[a-zA-Z0-9_]+)";
 
-/// An owned identifier.
-///
-/// For more details, see the module level documentation.
-#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
-#[cfg_attr(feature = "fuzzing", derive(arbitrary::Arbitrary))]
-pub struct Identifier(Box<str>);
-// An identifier cannot be mutated so use Box<str> instead of String -- it is 1
-// word smaller.
+pub use iota_sdk::types::{Identifier, IdentifierRef as IdentStr};
 
-impl Serialize for Identifier {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        serde_with::DisplayFromStr::serialize_as(self, serializer)
-    }
-}
-
-impl<'de> Deserialize<'de> for Identifier {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        serde_with::DisplayFromStr::deserialize_as(deserializer)
-    }
-}
-
-impl Identifier {
-    /// Creates a new `Identifier` instance.
-    pub fn new(s: impl Into<Box<str>>) -> Result<Self> {
-        let s = s.into();
-        if Self::is_valid(&s) {
-            Ok(Self(s))
-        } else {
-            bail!("Invalid identifier '{}'", s);
-        }
-    }
-
-    /// Creates a new `Identifier` from a string without checking if it is a
-    /// valid identifier. This should not be used under normal
-    /// circumstances, but is used in cases where we need to
-    /// preserve backwards compatibility.
-    ///
-    /// # Safety
-    ///
-    /// Only use this function when preserving backwards compatibility.
-    pub unsafe fn new_unchecked(s: impl Into<Box<str>>) -> Self {
-        Self(s.into())
-    }
-
-    /// Returns true if this string is a valid identifier.
-    pub fn is_valid(s: impl AsRef<str>) -> bool {
-        is_valid(s.as_ref())
-    }
-
-    /// Returns if this identifier is `<SELF>`.
-    /// TODO: remove once we fully separate CompiledScript & CompiledModule.
-    pub fn is_self(&self) -> bool {
-        &*self.0 == "<SELF>"
-    }
-
-    /// Converts a vector of bytes to an `Identifier`.
-    pub fn from_utf8(vec: Vec<u8>) -> Result<Self> {
-        let s = String::from_utf8(vec)?;
-        Self::new(s)
-    }
-
-    /// Creates a borrowed version of `self`.
-    pub fn as_ident_str(&self) -> &IdentStr {
-        self
-    }
-
-    /// Converts this `Identifier` into a `String`.
-    ///
-    /// This is not implemented as a `From` trait to discourage automatic
-    /// conversions -- these conversions should not typically happen.
-    pub fn into_string(self) -> String {
-        self.0.into()
-    }
-
-    /// Converts this `Identifier` into a UTF-8-encoded byte sequence.
-    pub fn into_bytes(self) -> Vec<u8> {
-        self.into_string().into_bytes()
-    }
-}
-
-impl FromStr for Identifier {
-    type Err = anyhow::Error;
-
-    fn from_str(data: &str) -> Result<Self> {
-        Self::new(data)
-    }
-}
-
-impl From<&IdentStr> for Identifier {
-    fn from(ident_str: &IdentStr) -> Self {
-        ident_str.to_owned()
-    }
-}
-
-impl AsRef<IdentStr> for Identifier {
-    fn as_ref(&self) -> &IdentStr {
-        self
-    }
-}
-
-impl Deref for Identifier {
-    type Target = IdentStr;
-
-    fn deref(&self) -> &IdentStr {
-        // Identifier and IdentStr maintain the same invariants, so it is safe to
-        // convert.
-        IdentStr::ref_cast(&self.0)
-    }
-}
-
-impl fmt::Display for Identifier {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", &self.0)
-    }
-}
-
-/// A borrowed identifier.
-///
-/// For more details, see the module level documentation.
-#[derive(Debug, Eq, Hash, Ord, PartialEq, PartialOrd, RefCast)]
-#[repr(transparent)]
-pub struct IdentStr(str);
-
-impl IdentStr {
-    pub fn new(s: &str) -> Result<&IdentStr> {
-        if Self::is_valid(s) {
-            Ok(IdentStr::ref_cast(s))
-        } else {
-            bail!("Invalid identifier '{}'", s);
-        }
-    }
-
-    /// Returns true if this string is a valid identifier.
-    pub fn is_valid(s: impl AsRef<str>) -> bool {
-        is_valid(s.as_ref())
-    }
-
-    /// Returns the length of `self` in bytes.
-    pub fn len(&self) -> usize {
-        self.0.len()
-    }
-
-    /// Returns `true` if `self` has a length of zero bytes.
-    pub fn is_empty(&self) -> bool {
-        self.0.is_empty()
-    }
-
-    /// Converts `self` to a `&str`.
-    ///
-    /// This is not implemented as a `From` trait to discourage automatic
-    /// conversions -- these conversions should not typically happen.
-    pub fn as_str(&self) -> &str {
-        &self.0
-    }
-
-    /// Converts `self` to a byte slice.
-    pub fn as_bytes(&self) -> &[u8] {
-        self.0.as_bytes()
-    }
-
-    /// Returns the abstract size of the struct
-    /// TODO (ade): use macro to enfornce determinism
-    pub fn abstract_size_for_gas_metering(&self) -> AbstractMemorySize {
-        AbstractMemorySize::new((self.len()) as u64)
-    }
-}
-
-impl Borrow<IdentStr> for Identifier {
-    fn borrow(&self) -> &IdentStr {
-        self
-    }
-}
-
-impl Borrow<str> for Identifier {
-    fn borrow(&self) -> &str {
-        &self.0
-    }
-}
-
-impl ToOwned for IdentStr {
-    type Owned = Identifier;
-
-    fn to_owned(&self) -> Identifier {
-        Identifier(self.0.into())
-    }
-}
-
-impl fmt::Display for IdentStr {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", &self.0)
-    }
-}
-
-#[cfg(any(test, feature = "fuzzing"))]
-impl Arbitrary for Identifier {
-    type Parameters = ();
-    type Strategy = BoxedStrategy<Self>;
-
-    fn arbitrary_with((): ()) -> Self::Strategy {
-        ALLOWED_NO_SELF_IDENTIFIERS
-            .prop_map(|s| {
-                // Identifier::new will verify that generated identifiers are correct.
-                Identifier::new(s).unwrap()
-            })
-            .boxed()
-    }
-}
-
-// const assert that IdentStr impls RefCast<From = str>
-// This assertion is what guarantees the unsafe transmute is safe.
-const _: fn() = || {
-    fn assert_impl_all<T: ?Sized + ::ref_cast::RefCast<From = str>>() {}
-    assert_impl_all::<IdentStr>();
-};
+use crate::gas_algebra::AbstractMemorySize;
 
 /// `ident_str!` is a compile-time validated macro that constructs a
 /// `&'static IdentStr` from a const `&'static str`.
@@ -343,30 +122,7 @@ const _: fn() = || {
 // (but not const-fn's).
 #[macro_export]
 macro_rules! ident_str {
-    ($ident:expr) => {{
-        // Only static strings allowed.
-        let s: &'static str = $ident;
-
-        // Only valid identifier strings are allowed.
-        // Note: Work-around hack to print an error message in a const block.
-        let is_valid = $crate::identifier::is_valid(s);
-        ["String is not a valid Move identifier"][!is_valid as usize];
-
-        // SAFETY: the following transmute is safe because
-        // (1) it's equivalent to the unsafe-reborrow inside IdentStr::ref_cast()
-        //     (which we can't use b/c it's not const).
-        // (2) we've just asserted that IdentStr impls RefCast<From = str>, which
-        //     already guarantees the transmute is safe (RefCast checks that
-        //     IdentStr(str) is #[repr(transparent)]).
-        // (3) both in and out lifetimes are 'static, so we're not widening the
-        // lifetime. (4) we've just asserted that the IdentStr passes the
-        // is_valid check.
-        //
-        // Note: this lint is unjustified and no longer checked. See issue:
-        // https://github.com/rust-lang/rust-clippy/issues/6372
-        #[allow(clippy::transmute_ptr_to_ptr)]
-        unsafe {
-            ::std::mem::transmute::<&'static str, &'static $crate::identifier::IdentStr>(s)
-        }
-    }};
+    ($ident:expr) => {
+        $crate::identifier::IdentStr::const_new($ident)
+    };
 }

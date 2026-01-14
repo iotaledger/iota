@@ -55,7 +55,7 @@ pub fn run(
 
     let signer_addresses = signers
         .iter()
-        .map(|s| AccountAddress::from_hex_literal(s))
+        .map(|s| AccountAddress::from_hex(s))
         .collect::<Result<Vec<AccountAddress>, _>>()?;
     // TODO: parse Value's directly instead of going through the indirection of
     // TransactionArgument?

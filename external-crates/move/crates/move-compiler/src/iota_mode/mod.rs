@@ -14,10 +14,10 @@ pub mod typing;
 
 // DEEPBOOK_ADDRESS / DEEPBOOK_PACKAGE_ID = 0xdee9;
 
-pub const STD_ADDR_VALUE: AccountAddress = AccountAddress::from_suffix(0x1);
-pub const IOTA_ADDR_VALUE: AccountAddress = AccountAddress::from_suffix(0x2);
-pub const IOTA_SYSTEM_ADDR_VALUE: AccountAddress = AccountAddress::from_suffix(0x3);
-pub const BRIDGE_ADDR_VALUE: AccountAddress = AccountAddress::from_suffix(0xb);
+pub const STD_ADDR_VALUE: AccountAddress = AccountAddress::STD;
+pub const IOTA_ADDR_VALUE: AccountAddress = AccountAddress::FRAMEWORK;
+pub const IOTA_SYSTEM_ADDR_VALUE: AccountAddress = AccountAddress::SYSTEM;
+pub const BRIDGE_ADDR_VALUE: AccountAddress = AccountAddress::GENESIS_BRIDGE;
 
 pub const INIT_FUNCTION_NAME: Symbol = symbol!("init");
 pub const ID_FIELD_NAME: Symbol = symbol!("id");

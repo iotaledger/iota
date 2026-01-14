@@ -7,6 +7,7 @@ use std::{
     collections::HashSet,
     convert::TryInto,
     io::{Cursor, Read},
+    str::FromStr,
 };
 
 use move_core_types::{
@@ -886,7 +887,11 @@ fn load_identifiers(
                 return Err(PartialVMError::new(StatusCode::MALFORMED)
                     .with_message("Bad Identifier pool size".to_string()));
             }
-            let s = Identifier::from_utf8(buffer).map_err(|_| {
+            let s = Identifier::from_str(&String::from_utf8(buffer).map_err(|_| {
+                PartialVMError::new(StatusCode::MALFORMED)
+                    .with_message("Invalid Identifier".to_string())
+            })?)
+            .map_err(|_| {
                 PartialVMError::new(StatusCode::MALFORMED)
                     .with_message("Invalid Identifier".to_string())
             })?;
@@ -909,7 +914,7 @@ fn load_address_identifiers(
     }
     for _i in 0..table.count as usize / AccountAddress::LENGTH {
         let end_addr = start + AccountAddress::LENGTH;
-        let address = binary.slice(start, end_addr).try_into();
+        let address = AccountAddress::from_bytes(binary.slice(start, end_addr));
         if address.is_err() {
             return Err(PartialVMError::new(StatusCode::MALFORMED)
                 .with_message("Invalid Address format".to_string()));

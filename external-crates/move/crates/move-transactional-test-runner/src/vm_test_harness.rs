@@ -36,7 +36,7 @@ use crate::{
     tasks::{EmptyCommand, InitCommand, SyntaxChoice, TaskInput},
 };
 
-const STD_ADDR: AccountAddress = AccountAddress::ONE;
+const STD_ADDR: AccountAddress = AccountAddress::STD;
 
 struct SimpleVMTestAdapter {
     compiled_state: CompiledState,
@@ -238,7 +238,7 @@ impl MoveTestAdapter<'_> for SimpleVMTestAdapter {
 pub fn format_vm_error(e: &VMError) -> String {
     let location_string = match e.location() {
         Location::Undefined => "undefined".to_owned(),
-        Location::Module(id) => format!("0x{}::{}", id.address().short_str_lossless(), id.name()),
+        Location::Module(id) => format!("{}::{}", id.address().to_short_string(true), id.name()),
     };
     format!(
         "{{

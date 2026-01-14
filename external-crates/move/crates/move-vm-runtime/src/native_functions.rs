@@ -48,7 +48,7 @@ pub fn make_table(
     make_table_from_iter(addr, elems.iter().cloned())
 }
 
-pub fn make_table_from_iter<S: Into<Box<str>>>(
+pub fn make_table_from_iter<S: AsRef<str>>(
     addr: AccountAddress,
     elems: impl IntoIterator<Item = (S, S, NativeFunction)>,
 ) -> NativeFunctionTable {
@@ -87,10 +87,10 @@ impl NativeFunctions {
         for (addr, module_name, func_name, func) in natives.into_iter() {
             let modules = map.entry(addr).or_insert_with(HashMap::new);
             let funcs = modules
-                .entry(module_name.into_string())
+                .entry(module_name.as_str().to_owned())
                 .or_insert_with(HashMap::new);
 
-            if funcs.insert(func_name.into_string(), func).is_some() {
+            if funcs.insert(func_name.as_str().to_owned(), func).is_some() {
                 return Err(PartialVMError::new(StatusCode::DUPLICATE_NATIVE_FUNCTION));
             }
         }

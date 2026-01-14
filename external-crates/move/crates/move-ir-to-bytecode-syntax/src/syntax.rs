@@ -205,7 +205,7 @@ fn parse_address_literal(
     literal: &str,
     location: Loc,
 ) -> Result<AccountAddress, ParseError<Loc, anyhow::Error>> {
-    let Some(addr) = AccountAddress::from_hex_literal(literal)
+    let Some(addr) = AccountAddress::from_hex(literal)
         .ok()
         .or_else(|| lexer.resolve_named_address(literal))
     else {

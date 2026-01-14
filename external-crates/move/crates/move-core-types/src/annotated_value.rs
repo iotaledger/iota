@@ -725,8 +725,8 @@ impl fmt::Display for MoveValue {
             MoveValue::U256(u) => write!(f, "{}u256", u),
             MoveValue::Bool(false) => write!(f, "false"),
             MoveValue::Bool(true) => write!(f, "true"),
-            MoveValue::Address(a) => write!(f, "{}", a.to_hex_literal()),
-            MoveValue::Signer(a) => write!(f, "signer({})", a.to_hex_literal()),
+            MoveValue::Address(a) => write!(f, "{a}"),
+            MoveValue::Signer(a) => write!(f, "signer({a})"),
             MoveValue::Vector(v) => {
                 use DebugAsDisplay as DD;
                 write!(f, "vector")?;

@@ -61,7 +61,9 @@ fn unbalanced_stack_crash() {
         Identifier::from_str("aT7ZphKTrKcYCwCebJySrmrKlckmnL5").unwrap(),
         Identifier::from_str("arYpsFa2fvrpPJ").unwrap(),
     ]);
-    module.address_identifiers.push(AccountAddress::random());
+    module
+        .address_identifiers
+        .push(AccountAddress::new(rand::random()));
 
     module.constant_pool.push(Constant {
         type_: Address,
@@ -143,7 +145,7 @@ fn too_many_locals() {
         field_instantiations: vec![],
         signatures: vec![Signature(sign_128)],
         identifiers: vec![Identifier::new("x").unwrap()],
-        address_identifiers: vec![AccountAddress::ONE],
+        address_identifiers: vec![AccountAddress::STD],
         constant_pool: vec![],
         metadata: vec![],
         struct_defs: vec![],
@@ -199,7 +201,7 @@ fn borrow_graph() {
             Reference(Box::new(U64)),
         ])],
         identifiers: vec![Identifier::new("a").unwrap()],
-        address_identifiers: vec![AccountAddress::ONE],
+        address_identifiers: vec![AccountAddress::STD],
         constant_pool: vec![],
         metadata: vec![],
         struct_defs: vec![],
@@ -308,7 +310,7 @@ fn indirect_code() {
             Signature(vec![SignatureToken::U64]),
         ],
         identifiers: vec![Identifier::new("a").unwrap()],
-        address_identifiers: vec![AccountAddress::ONE],
+        address_identifiers: vec![AccountAddress::STD],
         constant_pool: vec![],
         metadata: vec![],
         struct_defs: vec![],

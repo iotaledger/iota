@@ -6,11 +6,8 @@
 use serde_json::json;
 
 use crate::{
-    account_address::AccountAddress,
-    annotated_value as A, ident_str,
-    identifier::Identifier,
-    language_storage::{StructTag, TypeTag},
-    runtime_value as R,
+    account_address::AccountAddress, annotated_value as A, ident_str, identifier::Identifier,
+    language_storage::StructTag, runtime_value as R,
 };
 
 #[test]
@@ -21,12 +18,12 @@ fn check_layout_size() {
 
 #[test]
 fn struct_deserialization() {
-    let struct_type = StructTag {
-        address: AccountAddress::ZERO,
-        name: ident_str!("MyStruct").to_owned(),
-        module: ident_str!("MyModule").to_owned(),
-        type_params: vec![],
-    };
+    let struct_type = StructTag::new(
+        AccountAddress::ZERO,
+        ident_str!("MyStruct").to_owned(),
+        ident_str!("MyModule").to_owned(),
+        vec![],
+    );
     let values = vec![R::MoveValue::U64(7), R::MoveValue::Bool(true)];
     let avalues = vec![A::MoveValue::U64(7), A::MoveValue::Bool(true)];
     let fields = vec![ident_str!("f").to_owned(), ident_str!("g").to_owned()];
@@ -74,12 +71,12 @@ fn struct_deserialization() {
 
 #[test]
 fn enum_deserialization() {
-    let enum_type = StructTag {
-        address: AccountAddress::ZERO,
-        name: ident_str!("MyEnum").to_owned(),
-        module: ident_str!("MyModule").to_owned(),
-        type_params: vec![],
-    };
+    let enum_type = StructTag::new(
+        AccountAddress::ZERO,
+        ident_str!("MyEnum").to_owned(),
+        ident_str!("MyModule").to_owned(),
+        vec![],
+    );
 
     let values1 = vec![A::MoveValue::U64(7), A::MoveValue::Bool(true)];
     let fields1 = vec![ident_str!("f").to_owned(), ident_str!("g").to_owned()];
@@ -253,12 +250,12 @@ fn enum_deserialization_vec_option_runtime_layout_equiv() {
 
 #[test]
 fn struct_formatted_display() {
-    let struct_type = StructTag {
-        address: AccountAddress::ZERO,
-        name: ident_str!("MyStruct").to_owned(),
-        module: ident_str!("MyModule").to_owned(),
-        type_params: vec![],
-    };
+    let struct_type = StructTag::new(
+        AccountAddress::ZERO,
+        ident_str!("MyStruct").to_owned(),
+        ident_str!("MyModule").to_owned(),
+        vec![],
+    );
     let values = vec![R::MoveValue::U64(7), R::MoveValue::Bool(true)];
     let avalues = vec![A::MoveValue::U64(7), A::MoveValue::Bool(true)];
     let fields = vec![ident_str!("f").to_owned(), ident_str!("g").to_owned()];
@@ -318,18 +315,18 @@ fn struct_one_field_equiv_value() {
 
 #[test]
 fn nested_typed_struct_deserialization() {
-    let struct_type = StructTag {
-        address: AccountAddress::ZERO,
-        name: ident_str!("MyStruct").to_owned(),
-        module: ident_str!("MyModule").to_owned(),
-        type_params: vec![],
-    };
-    let nested_struct_type = StructTag {
-        address: AccountAddress::ZERO,
-        name: ident_str!("NestedStruct").to_owned(),
-        module: ident_str!("NestedModule").to_owned(),
-        type_params: vec![TypeTag::U8],
-    };
+    let struct_type = StructTag::new(
+        AccountAddress::ZERO,
+        ident_str!("MyStruct").to_owned(),
+        ident_str!("MyModule").to_owned(),
+        vec![],
+    );
+    let nested_struct_type = StructTag::new(
+        AccountAddress::ZERO,
+        ident_str!("NestedStruct").to_owned(),
+        ident_str!("NestedModule").to_owned(),
+        vec![],
+    );
 
     // test each deserialization scheme
     let nested_runtime_struct = R::MoveValue::Struct(R::MoveStruct(vec![R::MoveValue::U64(7)]));
@@ -360,18 +357,18 @@ fn nested_typed_struct_deserialization() {
 
 #[test]
 fn nested_typed_struct_formatted_display() {
-    let struct_type = StructTag {
-        address: AccountAddress::ZERO,
-        name: ident_str!("MyStruct").to_owned(),
-        module: ident_str!("MyModule").to_owned(),
-        type_params: vec![],
-    };
-    let nested_struct_type = StructTag {
-        address: AccountAddress::ZERO,
-        name: ident_str!("NestedStruct").to_owned(),
-        module: ident_str!("NestedModule").to_owned(),
-        type_params: vec![TypeTag::U8],
-    };
+    let struct_type = StructTag::new(
+        AccountAddress::ZERO,
+        ident_str!("MyStruct").to_owned(),
+        ident_str!("MyModule").to_owned(),
+        vec![],
+    );
+    let nested_struct_type = StructTag::new(
+        AccountAddress::ZERO,
+        ident_str!("NestedStruct").to_owned(),
+        ident_str!("NestedModule").to_owned(),
+        vec![],
+    );
 
     // test each deserialization scheme
     let nested_runtime_struct = R::MoveValue::Struct(R::MoveStruct(vec![R::MoveValue::U64(7)]));

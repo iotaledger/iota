@@ -3,8 +3,6 @@
 // Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::borrow::Borrow;
-
 use bcs::test_helpers::assert_canonical_encode_decode;
 use once_cell::sync::Lazy;
 use proptest::prelude::*;
@@ -12,7 +10,10 @@ use regex::Regex;
 
 use crate::{
     gas_algebra::AbstractMemorySize,
-    identifier::{ALLOWED_IDENTIFIERS, ALLOWED_NO_SELF_IDENTIFIERS, IdentStr, Identifier},
+    identifier::{
+        ALLOWED_IDENTIFIERS, ALLOWED_NO_SELF_IDENTIFIERS, Identifier,
+        identifier_abstract_size_for_gas_metering,
+    },
 };
 
 #[test]
@@ -100,35 +101,25 @@ proptest! {
         // This effectively checks that if a string doesn't match the ALLOWED_IDENTIFIERS regex, it
         // will be rejected by the is_valid validator. Note that the converse is checked by the
         // Arbitrary impl for Identifier.
-        prop_assert!(!Identifier::is_valid(identifier));
+        prop_assert!(!Identifier::is_valid(&identifier));
     }
 
     #[test]
     fn valid_identifiers_proptest(identifier in ALLOWED_NO_SELF_IDENTIFIERS) {
-        prop_assert!(Identifier::is_valid(identifier));
+        prop_assert!(Identifier::is_valid(&identifier));
     }
 
     #[test]
     fn identifier_string_roundtrip(identifier in any::<Identifier>()) {
-        let s = identifier.clone().into_string();
+        let s = identifier.to_string();
         let id2 = Identifier::new(s).expect("identifier should parse correctly");
         prop_assert_eq!(identifier, id2);
     }
 
     #[test]
-    fn identifier_ident_str_equivalence(identifier in any::<Identifier>()) {
-        let s = identifier.clone().into_string();
-        let ident_str = IdentStr::new(&s).expect("identifier should parse correctly");
-        prop_assert_eq!(ident_str, identifier.as_ident_str());
-        prop_assert_eq!(ident_str, identifier.as_ref());
-        prop_assert_eq!(ident_str, identifier.borrow());
-        prop_assert_eq!(ident_str.to_owned(), identifier);
-    }
-
-    #[test]
     fn serde_json_roundtrip(identifier in any::<Identifier>()) {
         let ser = serde_json::to_string(&identifier).expect("should serialize correctly");
-        let id2 = serde_json::from_str(&ser).expect("should deserialize correctly");
+        let id2 = serde_json::from_str::<Identifier>(&ser).expect("should deserialize correctly");
         prop_assert_eq!(identifier, id2);
     }
 
@@ -166,6 +157,6 @@ fn test_abstract_size() {
 
     // Size should be 6 chars * 1 byte/char + = 6 bytes.
     let expected = AbstractMemorySize::new(6);
-    let actual = foobar.abstract_size_for_gas_metering();
+    let actual = identifier_abstract_size_for_gas_metering(&foobar);
     assert_eq!(expected, actual);
 }

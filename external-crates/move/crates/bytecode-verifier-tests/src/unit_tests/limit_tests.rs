@@ -151,7 +151,7 @@ fn big_vec_unpacks() {
             Identifier::new("f").unwrap(),
             Identifier::new("generic_struct").unwrap(),
         ],
-        address_identifiers: vec![AccountAddress::ONE],
+        address_identifiers: vec![AccountAddress::STD],
         constant_pool: vec![],
         metadata: vec![],
         struct_defs: vec![StructDefinition {
@@ -822,6 +822,6 @@ fn multi_functions(module: &mut CompiledModule, count: usize) {
 fn leaf_module(name: &str) -> CompiledModule {
     let mut module = empty_module();
     module.identifiers[0] = Identifier::new(name).unwrap();
-    module.address_identifiers[0] = AccountAddress::ONE;
+    module.address_identifiers[0] = AccountAddress::STD;
     module
 }

@@ -145,7 +145,7 @@ impl<'a> Context<'a> {
     }
 
     fn module_alias(&mut self, module_id: ModuleId) -> &String {
-        let module_name = module_id.name().to_owned().into_string();
+        let module_name = module_id.name().as_str().to_owned();
         let counts = &mut self.counts;
         self.uses.entry(module_id).or_insert_with(|| {
             let count = *counts

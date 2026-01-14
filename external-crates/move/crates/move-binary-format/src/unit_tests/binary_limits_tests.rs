@@ -194,7 +194,7 @@ fn binary_limits_test() {
     check_limit!(
         module_test,
         address_identifiers,
-        AccountAddress::random(),
+        AccountAddress::generate(rand::thread_rng()),
         &binary_config,
         "ADDRESS_IDENTIFIERS"
     );

@@ -29,6 +29,7 @@ move-proc-macros.workspace = true
 # external dependencies
 proptest.workspace = true
 proptest-derive.workspace = true
+rand.workspace = true
 
 # internal dependencies
 move-core-types = { workspace = true, features = ["fuzzing"] }

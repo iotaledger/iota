@@ -499,7 +499,7 @@ fn make_module(
         // constants
         constant_pool: vec![Constant {
             type_: Address,
-            data: addr.to_vec(),
+            data: addr.as_bytes().to_vec(),
         }],
         // signatures
         signatures,
@@ -544,7 +544,7 @@ fn run_with_module(
         &mut Session<&'_ InMemoryStorage>,
     ) -> (ModuleId, Identifier, Vec<TypeTag>),
 ) -> (VMResult<SerializedReturnValues>, u128) {
-    let addr = AccountAddress::from_hex_literal("0xcafe").unwrap();
+    let addr = AccountAddress::from_hex("0xcafe").unwrap();
 
     // Start VM
     let vm = MoveVM::new(vec![]).unwrap();
@@ -753,12 +753,12 @@ fn vec_pack_gen_deep_it(
 
     let mut ty_arg = TypeTag::U128;
     for _ in 0..FUNC_TY_ARGS_DEPTH {
-        ty_arg = TypeTag::Struct(Box::new(StructTag {
-            address: addr,
-            module: Identifier::new(MODULE_NAME).unwrap(),
-            name: Identifier::new(STRUCT_NAME).unwrap(),
-            type_params: vec![ty_arg; STRUCT_TY_PARAMS],
-        }));
+        ty_arg = TypeTag::from(StructTag::new(
+            addr,
+            Identifier::new(MODULE_NAME).unwrap(),
+            Identifier::new(STRUCT_NAME).unwrap(),
+            vec![ty_arg; STRUCT_TY_PARAMS],
+        ));
     }
 
     // Entry specification
@@ -904,12 +904,12 @@ fn deep_gen_call_it(
 
     let mut ty_arg = TypeTag::U128;
     for _ in 0..FUNC_TY_ARGS_DEPTH {
-        ty_arg = TypeTag::Struct(Box::new(StructTag {
-            address: addr,
-            module: Identifier::new(MODULE_NAME).unwrap(),
-            name: Identifier::new(STRUCT_NAME).unwrap(),
-            type_params: vec![ty_arg; STRUCT_TY_PARAMS],
-        }));
+        ty_arg = TypeTag::from(StructTag::new(
+            addr,
+            Identifier::new(MODULE_NAME).unwrap(),
+            Identifier::new(STRUCT_NAME).unwrap(),
+            vec![ty_arg; STRUCT_TY_PARAMS],
+        ));
     }
 
     // Entry specification
@@ -1034,12 +1034,12 @@ fn deep_rec_gen_call(
 
     let mut ty_arg = TypeTag::U128;
     for _ in 0..FUNC_TY_ARGS_DEPTH {
-        ty_arg = TypeTag::Struct(Box::new(StructTag {
-            address: addr,
-            module: Identifier::new(MODULE_NAME).unwrap(),
-            name: Identifier::new(STRUCT_NAME).unwrap(),
-            type_params: vec![ty_arg; STRUCT_TY_PARAMS],
-        }));
+        ty_arg = TypeTag::from(StructTag::new(
+            addr,
+            Identifier::new(MODULE_NAME).unwrap(),
+            Identifier::new(STRUCT_NAME).unwrap(),
+            vec![ty_arg; STRUCT_TY_PARAMS],
+        ));
     }
 
     // Entry specification

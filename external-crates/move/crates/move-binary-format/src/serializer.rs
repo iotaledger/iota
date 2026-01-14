@@ -475,7 +475,7 @@ fn serialize_identifier(binary: &mut BinaryData, string: &str) -> Result<()> {
 /// A `AccountAddress` gets serialized as follows:
 /// - 32 bytes in increasing index order
 fn serialize_address(binary: &mut BinaryData, address: &AccountAddress) -> Result<()> {
-    for byte in address.as_ref() {
+    for byte in address.as_bytes() {
         binary.push(*byte)?;
     }
     Ok(())

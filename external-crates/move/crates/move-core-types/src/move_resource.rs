@@ -8,7 +8,7 @@ use serde::de::DeserializeOwned;
 use crate::{
     account_address::AccountAddress,
     identifier::{IdentStr, Identifier},
-    language_storage::{StructTag, TypeTag},
+    language_storage::{StructTag, TypeTag, access_vector},
 };
 
 pub trait MoveStructType {
@@ -29,17 +29,17 @@ pub trait MoveStructType {
     }
 
     fn struct_tag() -> StructTag {
-        StructTag {
-            address: Self::ADDRESS,
-            name: Self::struct_identifier(),
-            module: Self::module_identifier(),
-            type_params: Self::type_params(),
-        }
+        StructTag::new(
+            Self::ADDRESS,
+            Self::struct_identifier(),
+            Self::module_identifier(),
+            Self::type_params(),
+        )
     }
 }
 
 pub trait MoveResource: MoveStructType + DeserializeOwned {
     fn resource_path() -> Vec<u8> {
-        Self::struct_tag().access_vector()
+        access_vector(&Self::struct_tag())
     }
 }

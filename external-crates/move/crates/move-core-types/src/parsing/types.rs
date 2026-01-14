@@ -161,15 +161,15 @@ impl ParsedStructType {
         mapping: &impl Fn(&str) -> Option<AccountAddress>,
     ) -> anyhow::Result<StructTag> {
         let Self { fq_name, type_args } = self;
-        Ok(StructTag {
-            address: fq_name.module.address.into_account_address(mapping)?,
-            module: Identifier::new(fq_name.module.name)?,
-            name: Identifier::new(fq_name.name)?,
-            type_params: type_args
+        Ok(StructTag::new(
+            fq_name.module.address.into_account_address(mapping)?,
+            Identifier::new(fq_name.module.name)?,
+            Identifier::new(fq_name.name)?,
+            type_args
                 .into_iter()
                 .map(|t| t.into_type_tag(mapping))
                 .collect::<anyhow::Result<_>>()?,
-        })
+        ))
     }
 }
 

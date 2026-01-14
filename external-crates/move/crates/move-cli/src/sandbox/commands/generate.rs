@@ -29,12 +29,12 @@ pub fn generate_struct_layouts(
             // Generate for one struct
             let type_params = type_params_opt.as_ref().cloned().unwrap_or_default();
             let name = Identifier::new(struct_.as_str())?;
-            let struct_tag = StructTag {
-                address: *module_id.address(),
-                module: module_id.name().to_owned(),
+            let struct_tag = StructTag::new(
+                *module_id.address(),
+                module_id.name().to_owned(),
                 name,
                 type_params,
-            };
+            );
             let mut layout_builder = SerdeLayoutBuilder::new_with_config(
                 &state,
                 SerdeLayoutConfig {

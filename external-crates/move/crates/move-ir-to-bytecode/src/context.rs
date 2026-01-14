@@ -63,7 +63,7 @@ fn get_or_add_item<K: Eq + Hash>(m: &mut HashMap<K, TableIndex>, k: K) -> Result
 }
 
 pub fn ident_str(s: &str) -> Result<&IdentStr> {
-    IdentStr::new(s)
+    Ok(IdentStr::new(s)?)
 }
 
 #[derive(Clone, Debug)]

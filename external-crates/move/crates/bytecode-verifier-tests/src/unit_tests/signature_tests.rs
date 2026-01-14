@@ -167,7 +167,7 @@ fn big_signature_test() {
             Identifier::new("f").unwrap(),
             Identifier::new("generic_struct").unwrap(),
         ],
-        address_identifiers: vec![AccountAddress::ONE],
+        address_identifiers: vec![AccountAddress::STD],
         constant_pool: vec![],
         metadata: vec![],
         struct_defs: vec![StructDefinition {

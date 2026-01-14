@@ -11,6 +11,7 @@ description = "Move bytecode verifier tests"
 # external dependencies
 hex.workspace = true
 petgraph.workspace = true
+rand.workspace = true
 
 # internal dependencies
 move-abstract-interpreter.workspace = true

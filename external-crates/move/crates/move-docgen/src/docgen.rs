@@ -959,8 +959,8 @@ impl<'env> Docgen<'env> {
                 MoveValue::U256(u) => format!("{u}"),
                 MoveValue::Bool(false) => "false".to_owned(),
                 MoveValue::Bool(true) => "true".to_owned(),
-                MoveValue::Address(a) => a.to_hex_literal().to_string(),
-                MoveValue::Signer(a) => format!("signer({})", a.to_hex_literal()),
+                MoveValue::Address(a) => a.to_hex(),
+                MoveValue::Signer(a) => format!("signer({a})"),
                 MoveValue::Vector(v) => {
                     let inner = v
                         .iter()
@@ -1457,7 +1457,7 @@ impl<'env> Docgen<'env> {
         let module_opt = if parts.len() > 1 {
             let addr = if parts[0].starts_with("0x") {
                 // cannot resolve if it starts with an invalid address
-                Some(AccountAddress::from_hex_literal(parts[0]).ok()?)
+                Some(AccountAddress::from_hex(parts[0]).ok()?)
             } else {
                 // if it is not a named address, it might be a module so we do not return None
                 // in that case

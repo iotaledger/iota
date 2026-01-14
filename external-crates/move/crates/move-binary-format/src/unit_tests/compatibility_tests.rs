@@ -468,7 +468,9 @@ fn make_complex_module_perm(pool: &mut RcPool, p: Permutation) -> NormalizedModu
             // an address
             Constant {
                 type_: SignatureToken::Address,
-                data: AccountAddress::random().to_vec(),
+                data: AccountAddress::generate(rand::thread_rng())
+                    .as_bytes()
+                    .to_vec(),
             },
         ]),
         metadata: vec![],
@@ -1321,10 +1323,22 @@ fn check_new_changed_missing_declarations() {
 fn test_friend_linking() {
     let pool = &mut RcPool::new();
     let friend_modules = [
-        (Identifier::new("M1").unwrap(), AccountAddress::random()),
-        (Identifier::new("M2").unwrap(), AccountAddress::random()),
-        (Identifier::new("M3").unwrap(), AccountAddress::random()),
-        (Identifier::new("M4").unwrap(), AccountAddress::random()),
+        (
+            Identifier::new("M1").unwrap(),
+            AccountAddress::generate(rand::thread_rng()),
+        ),
+        (
+            Identifier::new("M2").unwrap(),
+            AccountAddress::generate(rand::thread_rng()),
+        ),
+        (
+            Identifier::new("M3").unwrap(),
+            AccountAddress::generate(rand::thread_rng()),
+        ),
+        (
+            Identifier::new("M4").unwrap(),
+            AccountAddress::generate(rand::thread_rng()),
+        ),
     ];
 
     // zero friends

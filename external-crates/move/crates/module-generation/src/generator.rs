@@ -341,7 +341,7 @@ impl<'a> ModuleGenerator<'a> {
             loc: Spanned::unsafe_no_loc(0).loc,
             identifier: ModuleIdent {
                 name: ModuleName(module_name.into()),
-                address: AccountAddress::random(),
+                address: AccountAddress::new(rand::random()),
             },
             friends: Vec::new(),
             imports: Self::imports(callable_modules),

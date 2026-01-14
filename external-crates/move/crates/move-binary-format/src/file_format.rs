@@ -46,7 +46,6 @@ use move_core_types::{
 };
 #[cfg(any(test, feature = "fuzzing"))]
 use proptest::{collection::vec, prelude::*, strategy::BoxedStrategy};
-use ref_cast::RefCast;
 use serde::{Deserialize, Serialize};
 use variant_count::VariantCount;
 
@@ -259,7 +258,7 @@ pub type SignaturePool = Vec<Signature>;
 // special cased. Whenever "<SELF>" is removed, so should the special case in
 // identifier.rs.
 pub fn self_module_name() -> &'static IdentStr {
-    IdentStr::ref_cast("<SELF>")
+    IdentStr::const_new("<SELF>")
 }
 
 /// Index 0 into the LocalsSignaturePool, which is guaranteed to be an empty
@@ -2394,8 +2393,10 @@ pub struct CompiledModule {
     pub signatures: SignaturePool,
 
     /// All identifiers used in this module.
+    #[cfg_attr(feature = "fuzzing", arbitrary(with = arbitrary_identifier_pool))]
     pub identifiers: IdentifierPool,
     /// All address identifiers used in this module.
+    #[cfg_attr(feature = "fuzzing", arbitrary(with = arbitrary_address_pool))]
     pub address_identifiers: AddressIdentifierPool,
     /// Constant pool. The constant values used in the module.
     pub constant_pool: ConstantPool,
@@ -2415,6 +2416,30 @@ pub struct CompiledModule {
     pub variant_handles: Vec<VariantHandle>,
     // Enum pack instantiations
     pub variant_instantiation_handles: Vec<VariantInstantiationHandle>,
+}
+
+#[cfg(feature = "fuzzing")]
+pub(crate) fn arbitrary_identifier_pool(
+    u: &mut arbitrary::Unstructured,
+) -> arbitrary::Result<IdentifierPool> {
+    let idents = <Vec<String> as arbitrary::Arbitrary>::arbitrary(u)?;
+    idents
+        .into_iter()
+        .map(Identifier::new)
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|_| arbitrary::Error::IncorrectFormat)
+}
+
+#[cfg(feature = "fuzzing")]
+pub(crate) fn arbitrary_address_pool(
+    u: &mut arbitrary::Unstructured,
+) -> arbitrary::Result<AddressIdentifierPool> {
+    let idents = <Vec<Vec<u8>> as arbitrary::Arbitrary>::arbitrary(u)?;
+    idents
+        .into_iter()
+        .map(AccountAddress::from_bytes)
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|_| arbitrary::Error::IncorrectFormat)
 }
 
 #[cfg(any(test, feature = "fuzzing"))]

@@ -46,7 +46,7 @@ impl ConstantPoolGen {
         for address in self.addresses {
             constants.push(Constant {
                 type_: SignatureToken::Address,
-                data: address.to_vec(),
+                data: address.as_bytes().to_vec(),
             });
         }
         for mut byte_array in self.byte_arrays {

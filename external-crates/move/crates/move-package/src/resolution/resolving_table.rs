@@ -179,8 +179,8 @@ impl ResolvingTable {
 
 fn unification_error(name: NamedAddress, a: AccountAddress, b: AccountAddress) -> anyhow::Error {
     anyhow!(
-        "Conflicting assignments for address '{name}': '0x{}' and '0x{}'.",
-        a.short_str_lossless(),
-        b.short_str_lossless(),
+        "Conflicting assignments for address '{name}': '{}' and '{}'.",
+        a.to_short_string(true),
+        b.to_short_string(true),
     )
 }

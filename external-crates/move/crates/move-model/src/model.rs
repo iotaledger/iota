@@ -1124,15 +1124,18 @@ impl GlobalEnv {
         &self,
         tag: &language_storage::StructTag,
     ) -> Option<QualifiedId<DatatypeId>> {
-        self.find_module(&self.to_module_name(&tag.module_id()))
-            .and_then(|menv| {
-                menv.find_struct_by_identifier(tag.name.clone())
-                    .map(|sid| menv.get_id().qualified(sid))
-                    .or_else(|| {
-                        menv.find_enum_by_identifier(tag.name.clone())
-                            .map(|sid| menv.get_id().qualified(sid))
-                    })
-            })
+        self.find_module(&self.to_module_name(&language_storage::ModuleId::new(
+            tag.address(),
+            tag.module().to_owned(),
+        )))
+        .and_then(|menv| {
+            menv.find_struct_by_identifier(tag.name().clone())
+                .map(|sid| menv.get_id().qualified(sid))
+                .or_else(|| {
+                    menv.find_enum_by_identifier(tag.name().clone())
+                        .map(|sid| menv.get_id().qualified(sid))
+                })
+        })
     }
 
     /// Return the module enclosing this location.
@@ -1240,15 +1243,14 @@ impl GlobalEnv {
                 menv.find_enum(sid.symbol())
                     .map(|eenv| eenv.get_identifier())
             })??;
-        Some(StructTag {
-            address: *menv.self_address(),
-            module: menv.get_identifier(),
+        Some(StructTag::new(
+            *menv.self_address(),
+            menv.get_identifier(),
             name,
-            type_params: ts
-                .iter()
+            ts.iter()
                 .map(|t| t.clone().into_type_tag(self).unwrap())
                 .collect(),
-        })
+        ))
     }
 
     /// Gets the location of the given node.

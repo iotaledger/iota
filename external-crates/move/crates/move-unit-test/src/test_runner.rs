@@ -141,7 +141,7 @@ impl TestRunner {
             setup_test_storage(modules, tests.bytecode_deps_modules.iter())?;
         let native_function_table = native_function_table.unwrap_or_else(|| {
             move_stdlib_natives::all_natives(
-                AccountAddress::from_hex_literal("0x1").unwrap(),
+                AccountAddress::from_hex("0x1").unwrap(),
                 move_stdlib_natives::GasParameters::zeros(),
                 false, // silent
             )

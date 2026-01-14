@@ -1123,8 +1123,13 @@ impl VMTracer<'_> {
                 let TypeTag::Struct(s_type) = loader.type_to_type_tag(&struct_type).ok()? else {
                     panic!("Expected struct, got {:#?}", struct_type);
                 };
-                self.trace
-                    .instruction(instruction, s_type.type_params, effects, remaining_gas, pc);
+                self.trace.instruction(
+                    instruction,
+                    s_type.type_params().to_vec(),
+                    effects,
+                    remaining_gas,
+                    pc,
+                );
             }
             B::Unpack(_) | B::UnpackGeneric(_) => {
                 let ty = self.type_stack.pop()?;
@@ -1304,7 +1309,7 @@ impl VMTracer<'_> {
                 self.type_stack.push(a_layout);
                 let value = self.resolve_stack_value(Some(frame), interpreter, 0)?;
                 let effects = self.register_post_effects(vec![EF::Push(value)]);
-                let ty_args = slayout.type_.type_params.clone();
+                let ty_args = slayout.type_.type_params().to_vec();
                 self.trace
                     .instruction(instruction, ty_args, effects, remaining_gas, pc);
             }

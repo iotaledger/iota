@@ -1074,14 +1074,14 @@ impl Loader {
             TypeTag::Signer => Type::Signer,
             TypeTag::Vector(tt) => Type::Vector(Box::new(self.load_type(tt, data_store)?)),
             TypeTag::Struct(struct_tag) => {
-                let runtime_id = ModuleId::new(struct_tag.address, struct_tag.module.clone());
+                let runtime_id = ModuleId::new(struct_tag.address(), struct_tag.module().clone());
                 let (idx, struct_type) =
-                    self.load_type_by_name(&struct_tag.name, &runtime_id, data_store)?;
-                if struct_type.type_parameters.is_empty() && struct_tag.type_params.is_empty() {
+                    self.load_type_by_name(struct_tag.name(), &runtime_id, data_store)?;
+                if struct_type.type_parameters.is_empty() && struct_tag.type_params().is_empty() {
                     Type::Datatype(idx)
                 } else {
                     let mut type_params = vec![];
-                    for ty_param in &struct_tag.type_params {
+                    for ty_param in struct_tag.type_params() {
                         type_params.push(self.load_type(ty_param, data_store)?);
                     }
                     self.verify_ty_args(struct_type.type_param_constraints(), &type_params)
@@ -1900,7 +1900,7 @@ impl LoadedModule {
                                 runtime_id, func_name
                             )));
                     }
-                    if function.name.as_ident_str() == func_name {
+                    if function.name == func_name {
                         function_refs.push(idx);
                         break;
                     }
@@ -2232,8 +2232,8 @@ impl Function {
     pub(crate) fn pretty_short_string(&self) -> String {
         let id = &self.module;
         format!(
-            "0x{}::{}::{}",
-            id.address().short_str_lossless(),
+            "{}::{}::{}",
+            id.address().to_short_string(true),
             id.name().as_str(),
             self.name.as_str()
         )
@@ -2438,24 +2438,24 @@ impl Loader {
 
         match tag_type {
             DatatypeTagType::Runtime => {
-                let tag = StructTag {
-                    address: *datatype.runtime_id.address(),
-                    module: datatype.runtime_id.name().to_owned(),
-                    name: datatype.name.clone(),
-                    type_params: ty_arg_tags,
-                };
+                let tag = StructTag::new(
+                    *datatype.runtime_id.address(),
+                    datatype.runtime_id.name().to_owned(),
+                    datatype.name.clone(),
+                    ty_arg_tags,
+                );
 
                 info.runtime_tag = Some(tag.clone());
                 Ok(tag)
             }
 
             DatatypeTagType::Defining => {
-                let tag = StructTag {
-                    address: *datatype.defining_id.address(),
-                    module: datatype.defining_id.name().to_owned(),
-                    name: datatype.name.clone(),
-                    type_params: ty_arg_tags,
-                };
+                let tag = StructTag::new(
+                    *datatype.defining_id.address(),
+                    datatype.defining_id.name().to_owned(),
+                    datatype.name.clone(),
+                    ty_arg_tags,
+                );
 
                 info.defining_tag = Some(tag.clone());
                 Ok(tag)

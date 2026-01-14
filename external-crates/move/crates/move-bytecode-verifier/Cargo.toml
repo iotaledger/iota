@@ -10,6 +10,7 @@ description = "Move bytecode verifier"
 [dependencies]
 # external dependencies
 petgraph.workspace = true
+rand.workspace = true
 
 # internal dependencies
 move-abstract-interpreter.workspace = true

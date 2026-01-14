@@ -106,25 +106,21 @@ fn tests_parse_value_positive() {
         (
             "@0x0",
             V::Address(ParsedAddress::Numerical(NumericalAddress::new(
-                AccountAddress::from_hex_literal("0x0")
-                    .unwrap()
-                    .into_bytes(),
+                AccountAddress::from_hex("0x0").unwrap().into_bytes(),
                 crate::parsing::parser::NumberFormat::Hex,
             ))),
         ),
         (
             "@0",
             V::Address(ParsedAddress::Numerical(NumericalAddress::new(
-                AccountAddress::from_hex_literal("0x0")
-                    .unwrap()
-                    .into_bytes(),
+                AccountAddress::from_hex("0x0").unwrap().into_bytes(),
                 crate::parsing::parser::NumberFormat::Hex,
             ))),
         ),
         (
             "@0x54afa3526",
             V::Address(ParsedAddress::Numerical(NumericalAddress::new(
-                AccountAddress::from_hex_literal("0x54afa3526")
+                AccountAddress::from_hex("0x54afa3526")
                     .unwrap()
                     .into_bytes(),
                 crate::parsing::parser::NumberFormat::Hex,
@@ -622,7 +618,7 @@ proptest! {
             result[(AccountAddress::LENGTH - bytes.len())..].clone_from_slice(&bytes);
             result
         };
-        let addr_parsed = AccountAddress::from_hex_literal(&s).unwrap().into_bytes();
+        let addr_parsed = AccountAddress::from_hex(&s).unwrap().into_bytes();
         let u256_parsed = AccountAddress::new(U256::from_str_radix(&s[2..], 16).unwrap().to_be_bytes()).into_bytes();
         prop_assert_eq!(bigint_parsed, addr_parsed, "Parsed addresses do not match: {}", s);
         prop_assert_eq!(addr_parsed, u256_parsed, "Parsed addresses do not match: {}", s);

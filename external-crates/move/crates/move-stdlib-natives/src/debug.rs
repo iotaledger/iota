@@ -526,7 +526,7 @@ mod testing {
                 let str = if canonicalize {
                     a.to_canonical_string(/* with_prefix */ false)
                 } else {
-                    a.to_hex_literal()
+                    a.to_hex()
                 };
                 write!(out, "@{}", str).map_err(fmt_error_to_partial_vm_error)?;
             }
@@ -534,7 +534,7 @@ mod testing {
                 let str = if canonicalize {
                     s.to_canonical_string(/* with_prefix */ false)
                 } else {
-                    s.to_hex_literal()
+                    s.to_hex()
                 };
                 write!(out, "signer({})", str).map_err(fmt_error_to_partial_vm_error)?;
             }
@@ -567,7 +567,7 @@ mod testing {
                 let type_tag = TypeTag::from(type_.clone());
 
                 // Check if struct is an std::string::String
-                if !canonicalize && type_.is_std_string(move_std_addr) {
+                if !canonicalize && type_.is_string() {
                     if fields.len() != 1 {
                         return Err(PartialVMError::new(StatusCode::INTERNAL_TYPE_ERROR)
                             .with_message(
@@ -577,7 +577,7 @@ mod testing {
                     }
 
                     let (id, val) = fields.pop().unwrap();
-                    if id.into_string() != "bytes" {
+                    if id.as_str() != "bytes" {
                         return Err(PartialVMError::new(StatusCode::INTERNAL_TYPE_ERROR)
                             .with_message(
                                 "Expected std::string::String struct to have a `bytes` field"
@@ -587,7 +587,7 @@ mod testing {
 
                     let str = move_value_as_escaped_string(val)?;
                     write!(out, "\"{}\"", str).map_err(fmt_error_to_partial_vm_error)?
-                } else if !canonicalize && type_.is_ascii_string(move_std_addr) {
+                } else if !canonicalize && type_.is_ascii_string() {
                     if fields.len() != 1 {
                         return Err(PartialVMError::new(StatusCode::INTERNAL_TYPE_ERROR)
                             .with_message(
@@ -597,7 +597,7 @@ mod testing {
                     }
 
                     let (id, val) = fields.pop().unwrap();
-                    if id.into_string() != "bytes" {
+                    if id.as_str() != "bytes" {
                         return Err(PartialVMError::new(StatusCode::INTERNAL_TYPE_ERROR)
                             .with_message(
                                 "Expected std::ascii::String struct to have a `bytes` field"
@@ -620,8 +620,7 @@ mod testing {
                             print_padding_at_depth(out, depth + 1)?;
                         }
 
-                        write!(out, "{}: ", field_name.into_string())
-                            .map_err(fmt_error_to_partial_vm_error)?;
+                        write!(out, "{}: ", field_name).map_err(fmt_error_to_partial_vm_error)?;
                         print_move_value(
                             out,
                             field_value,
@@ -642,7 +641,7 @@ mod testing {
                             } else {
                                 write!(out, " ").map_err(fmt_error_to_partial_vm_error)?;
                             }
-                            write!(out, "{}: ", field_name.into_string())
+                            write!(out, "{}: ", field_name)
                                 .map_err(fmt_error_to_partial_vm_error)?;
                             print_move_value(
                                 out,
@@ -684,8 +683,7 @@ mod testing {
                         print_padding_at_depth(out, depth + 1)?;
                     }
 
-                    write!(out, "{}: ", field_name.into_string())
-                        .map_err(fmt_error_to_partial_vm_error)?;
+                    write!(out, "{}: ", field_name).map_err(fmt_error_to_partial_vm_error)?;
                     print_move_value(
                         out,
                         field_value,
@@ -706,8 +704,7 @@ mod testing {
                         } else {
                             write!(out, " ").map_err(fmt_error_to_partial_vm_error)?;
                         }
-                        write!(out, "{}: ", field_name.into_string())
-                            .map_err(fmt_error_to_partial_vm_error)?;
+                        write!(out, "{}: ", field_name).map_err(fmt_error_to_partial_vm_error)?;
                         print_move_value(
                             out,
                             field_value,

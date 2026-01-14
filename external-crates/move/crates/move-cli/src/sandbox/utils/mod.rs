@@ -67,7 +67,7 @@ pub(crate) fn explain_publish_changeset(changeset: &ChangeSet) {
     for (addr, name, blob_op) in changeset.modules() {
         match blob_op {
             Op::New(module_bytes) => {
-                let bytes_written = addr.len() + name.len() + module_bytes.len();
+                let bytes_written = AccountAddress::LENGTH + name.len() + module_bytes.len();
                 total_bytes_written += bytes_written;
                 let module_id = ModuleId::new(addr, name.clone());
                 println!(
@@ -76,7 +76,7 @@ pub(crate) fn explain_publish_changeset(changeset: &ChangeSet) {
                 );
             }
             Op::Modify(module_bytes) => {
-                let bytes_written = addr.len() + name.len() + module_bytes.len();
+                let bytes_written = AccountAddress::LENGTH + name.len() + module_bytes.len();
                 total_bytes_written += bytes_written;
                 let module_id = ModuleId::new(addr, name.clone());
                 println!(

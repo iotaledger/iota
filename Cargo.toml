@@ -248,7 +248,7 @@ base64-url = "2"
 bcs = "0.1.4"
 better_any = "0.1.1"
 bincode = "1.3.3"
-bip32 = "0.5"
+bip32 = "0.5.3"
 byteorder = "1.4.3"
 bytes = { version = "1.5.0", features = ["serde"] }
 cached = "0.43.0"
@@ -455,7 +455,7 @@ iota-rest-kv = { path = "crates/iota-rest-kv" }
 iota-rosetta = { path = "crates/iota-rosetta" }
 iota-rpc-loadgen = { path = "crates/iota-rpc-loadgen" }
 iota-sdk = { path = "crates/iota-sdk" }
-iota-sdk-types = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "05608b7e4a5b96d85f84e1970a517f6f174beb8b", features = ["hash", "serde", "schemars"] }
+iota-sdk-types = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "c3b4004802bbc291480419436be22a5b6699e182", features = ["hash", "serde", "schemars"] }
 iota-simulator = { path = "crates/iota-simulator" }
 iota-snapshot = { path = "crates/iota-snapshot" }
 iota-source-validation = { path = "crates/iota-source-validation" }

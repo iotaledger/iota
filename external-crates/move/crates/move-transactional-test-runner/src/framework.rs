@@ -288,13 +288,7 @@ pub trait MoveTestAdapter<'a>: Sized + Send {
                 let args = self.compiled_state().resolve_args(args)?;
                 let (ret_output, return_values) = self
                     .call_function(
-                        &module_id,
-                        name.as_ident_str(),
-                        type_args,
-                        signers,
-                        args,
-                        gas_budget,
-                        extra_args,
+                        &module_id, &name, type_args, signers, args, gas_budget, extra_args,
                     )
                     .await?;
                 let output = merge_output(ret_output, output);
@@ -322,13 +316,7 @@ pub trait MoveTestAdapter<'a>: Sized + Send {
                 let args = self.compiled_state().resolve_args(args)?;
                 let (output, return_values) = self
                     .call_function(
-                        &module_id,
-                        name.as_ident_str(),
-                        type_args,
-                        signers,
-                        args,
-                        gas_budget,
-                        extra_args,
+                        &module_id, &name, type_args, signers, args, gas_budget, extra_args,
                     )
                     .await?;
                 let rendered_return_value = display_return_values(return_values);
