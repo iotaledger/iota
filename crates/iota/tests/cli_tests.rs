@@ -215,9 +215,9 @@ impl TreeShakingTest {
 }
 
 // cargo nextest run --cargo-profile simulator --test cli_tests
-// cargo nextest run --cargo-profile simulator test_simple_cli_commands
+// cargo nextest run --cargo-profile simulator test_cli_commands
 #[sim_test]
-async fn test_simple_cli_commands() -> Result<(), anyhow::Error> {
+async fn test_cli_commands() -> Result<(), anyhow::Error> {
     // Create genesis config with 30 accounts to have enough addresses for all tests
     let mut genesis_config = GenesisConfig::for_local_testing();
     genesis_config.accounts.clear();
@@ -247,7 +247,10 @@ async fn test_simple_cli_commands() -> Result<(), anyhow::Error> {
 
     macro_rules! pin {
         ($fut:expr) => {
-            Box::pin($fut) as std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), anyhow::Error>> + '_>>
+            Box::pin($fut)
+                as std::pin::Pin<
+                    Box<dyn std::future::Future<Output = Result<(), anyhow::Error>> + '_>,
+                >
         };
     }
 
@@ -255,19 +258,70 @@ async fn test_simple_cli_commands() -> Result<(), anyhow::Error> {
     let results = futures::future::join_all([
         pin!(pay_test_helper(&wallet_config, all_addresses[0], rgp)),
         pin!(pay_iota_test_helper(&wallet_config, all_addresses[1], rgp)),
-        pin!(pay_all_iota_test_helper(&wallet_config, all_addresses[2], rgp)),
+        pin!(pay_all_iota_test_helper(
+            &wallet_config,
+            all_addresses[2],
+            rgp
+        )),
         pin!(gas_command_helper(&wallet_config, all_addresses[8], rgp)),
-        pin!(ptb_gas_smashing_helper_parallel(&wallet_config, all_addresses[9], "gas-coin")),
-        pin!(ptb_gas_smashing_helper_parallel(&wallet_config, all_addresses[10], "gas-coins")),
-        pin!(serialize_tx_helper(&wallet_config, all_addresses[11], all_addresses[12], rgp)),
-        pin!(transfer_helper(&wallet_config, &client, all_addresses[13], rgp)),
-        pin!(transfer_gas_smash_helper(&wallet_config, &client, all_addresses[14], rgp)),
-        pin!(transfer_sponsored_helper(&wallet_config, all_addresses[15], all_addresses[16], rgp)),
-        pin!(transfer_serialized_data_helper(&wallet_config, &client, all_addresses[17], rgp)),
-        pin!(transfer_serialized_kind_helper(&wallet_config, &client, all_addresses[18], rgp)),
-        pin!(native_transfer_helper(&wallet_config, all_addresses[22], rgp)),
+        pin!(ptb_gas_smashing_helper_parallel(
+            &wallet_config,
+            all_addresses[9],
+            "gas-coin"
+        )),
+        pin!(ptb_gas_smashing_helper_parallel(
+            &wallet_config,
+            all_addresses[10],
+            "gas-coins"
+        )),
+        pin!(serialize_tx_helper(
+            &wallet_config,
+            all_addresses[11],
+            all_addresses[12],
+            rgp
+        )),
+        pin!(transfer_helper(
+            &wallet_config,
+            &client,
+            all_addresses[13],
+            rgp
+        )),
+        pin!(transfer_gas_smash_helper(
+            &wallet_config,
+            &client,
+            all_addresses[14],
+            rgp
+        )),
+        pin!(transfer_sponsored_helper(
+            &wallet_config,
+            all_addresses[15],
+            all_addresses[16],
+            rgp
+        )),
+        pin!(transfer_serialized_data_helper(
+            &wallet_config,
+            &client,
+            all_addresses[17],
+            rgp
+        )),
+        pin!(transfer_serialized_kind_helper(
+            &wallet_config,
+            &client,
+            all_addresses[18],
+            rgp
+        )),
+        pin!(native_transfer_helper(
+            &wallet_config,
+            all_addresses[22],
+            rgp
+        )),
         pin!(merge_coin_helper(&wallet_config, all_addresses[23], rgp)),
-        pin!(split_coin_helper(&wallet_config, all_addresses[24], all_addresses[19], rgp)),
+        pin!(split_coin_helper(
+            &wallet_config,
+            all_addresses[24],
+            all_addresses[19],
+            rgp
+        )),
         pin!(objects_command_helper(&wallet_config, all_addresses[5])),
         pin!(object_info_command_helper(&wallet_config, all_addresses[6])),
         pin!(balance_command_helper(&wallet_config, all_addresses[7])),
@@ -278,10 +332,22 @@ async fn test_simple_cli_commands() -> Result<(), anyhow::Error> {
         pin!(new_address_command_helper(&wallet_config)),
         pin!(remove_address_command_helper(&wallet_config)),
         pin!(active_address_command_helper(&wallet_config)),
-        pin!(switch_command_helper(&wallet_config, all_addresses[20], all_addresses[21])),
-        pin!(gas_estimation_helper(&wallet_config, all_addresses[26], rgp)),
+        pin!(switch_command_helper(
+            &wallet_config,
+            all_addresses[20],
+            all_addresses[21]
+        )),
+        pin!(gas_estimation_helper(
+            &wallet_config,
+            all_addresses[26],
+            rgp
+        )),
         pin!(dry_run_helper(&wallet_config, all_addresses[27], rgp)),
-        pin!(get_owned_objects_pagination_helper(&wallet_config, all_addresses[28], rgp)),
+        pin!(get_owned_objects_pagination_helper(
+            &wallet_config,
+            all_addresses[28],
+            rgp
+        )),
         pin!(ptb_sender_helper(&wallet_config, all_addresses[29], rgp)),
     ])
     .await;
@@ -557,9 +623,7 @@ async fn test_start() -> Result<(), anyhow::Error> {
 }
 
 /// Helper for test_addresses_command - tests listing all addresses
-async fn addresses_command_helper(
-    wallet_config: &std::path::Path,
-) -> Result<(), anyhow::Error> {
+async fn addresses_command_helper(wallet_config: &std::path::Path) -> Result<(), anyhow::Error> {
     // ===== test_addresses_command =====
     let mut context = WalletContext::new(wallet_config, None, None)?;
 
@@ -2727,7 +2791,6 @@ async fn test_package_management_on_upgrade_command_conflict() -> Result<(), any
     Ok(())
 }
 
-
 /// Helper for test_native_transfer - tests native object transfer
 async fn native_transfer_helper(
     wallet_config: &std::path::Path,
@@ -2738,7 +2801,7 @@ async fn native_transfer_helper(
     let mut context = WalletContext::new(wallet_config, None, None)?;
     context.config_mut().set_active_address(Some(address));
     let client = context.get_client().await?;
-    
+
     let recipient = IotaAddress::random_for_testing_only();
     let object_refs = client
         .read_api()
@@ -3031,10 +3094,9 @@ async fn switch_command_helper(
     Ok(())
 }
 
-/// Helper for test_new_address_command_by_flag - tests creating addresses with different schemes
-async fn new_address_command_helper(
-    wallet_config: &std::path::Path,
-) -> Result<(), anyhow::Error> {
+/// Helper for test_new_address_command_by_flag - tests creating addresses with
+/// different schemes
+async fn new_address_command_helper(wallet_config: &std::path::Path) -> Result<(), anyhow::Error> {
     // ===== test_new_address_command_by_flag =====
     let mut context = WalletContext::new(wallet_config, None, None)?;
 
@@ -3346,7 +3408,6 @@ async fn merge_coin_helper(
     Ok(())
 }
 
-
 /// Helper for test_split_coin - tests splitting coins
 async fn split_coin_helper(
     wallet_config: &std::path::Path,
@@ -3358,7 +3419,7 @@ async fn split_coin_helper(
     let mut context = WalletContext::new(wallet_config, None, None)?;
     context.config_mut().set_active_address(Some(address));
     let client = context.get_client().await?;
-    
+
     let object_refs = client
         .read_api()
         .get_owned_objects(
@@ -3442,8 +3503,11 @@ async fn split_coin_helper(
         .await?
         .data;
 
-    println!("[DEBUG] Second split: Found {} objects for address", object_refs.len());
-    
+    println!(
+        "[DEBUG] Second split: Found {} objects for address",
+        object_refs.len()
+    );
+
     // Find two coins with sufficient balance for gas and splitting
     let mut gas = ObjectID::ZERO;
     let mut coin = ObjectID::ZERO;
@@ -3503,16 +3567,23 @@ async fn split_coin_helper(
 
     // Check values expected (split into 3 = updated_coin + 2 new coins)
     assert_eq!(
-        get_gas_value(&updated_coin)
-            + get_gas_value(&new_coins[0])
-            + get_gas_value(&new_coins[1]),
+        get_gas_value(&updated_coin) + get_gas_value(&new_coins[0]) + get_gas_value(&new_coins[1]),
         orig_value
     );
     // Allow for rounding: each piece should be approximately orig_value / 3
     let expected_per_piece = orig_value / 3;
-    assert!(get_gas_value(&new_coins[0]) >= expected_per_piece && get_gas_value(&new_coins[0]) <= expected_per_piece + 2);
-    assert!(get_gas_value(&new_coins[1]) >= expected_per_piece && get_gas_value(&new_coins[1]) <= expected_per_piece + 2);
-    assert!(get_gas_value(&updated_coin) >= expected_per_piece && get_gas_value(&updated_coin) <= expected_per_piece + 2);
+    assert!(
+        get_gas_value(&new_coins[0]) >= expected_per_piece
+            && get_gas_value(&new_coins[0]) <= expected_per_piece + 2
+    );
+    assert!(
+        get_gas_value(&new_coins[1]) >= expected_per_piece
+            && get_gas_value(&new_coins[1]) <= expected_per_piece + 2
+    );
+    assert!(
+        get_gas_value(&updated_coin) >= expected_per_piece
+            && get_gas_value(&updated_coin) <= expected_per_piece + 2
+    );
 
     let object_refs = client
         .read_api()
@@ -3530,8 +3601,10 @@ async fn split_coin_helper(
         .await?
         .data;
 
-    println!("[DEBUG] Third split: Found {} objects for address", object_refs.len());
-    
+    println!(
+        "[DEBUG] Third split: Found {} objects for address",
+        object_refs.len()
+    );
     // Third split test - no gas specified (find a coin with sufficient balance)
     let mut coin2 = ObjectID::ZERO;
     for obj in &object_refs {
@@ -3683,7 +3756,7 @@ async fn execute_signed_tx_helper(
     let mut context = WalletContext::new(wallet_config, None, None)?;
     context.config_mut().set_active_address(Some(address));
     let client = context.get_client().await?;
-    
+
     // Get objects owned by this specific address
     let object_refs = client
         .read_api()
@@ -3697,24 +3770,31 @@ async fn execute_signed_tx_helper(
         )
         .await?
         .data;
-    
+
     let gas_obj_id = object_refs.first().unwrap().object().unwrap().object_id;
     let coin_obj_id = object_refs.get(1).unwrap().object().unwrap().object_id;
     let recipient = IotaAddress::random_for_testing_only();
-    
+
     // Build a simple transfer transaction for this specific address
     let rgp = client.read_api().get_reference_gas_price().await?;
     let tx_data = client
         .transaction_builder()
-        .transfer_object(address, coin_obj_id, Some(gas_obj_id), rgp * 1000, recipient)
+        .transfer_object(
+            address,
+            coin_obj_id,
+            Some(gas_obj_id),
+            rgp * 1000,
+            recipient,
+        )
         .await?;
-    
+
     // Sign the transaction
-    let signature = context
-        .config()
-        .keystore()
-        .sign_secure(&address, &tx_data, iota_sdk_types::crypto::Intent::iota_transaction())?;
-    
+    let signature = context.config().keystore().sign_secure(
+        &address,
+        &tx_data,
+        iota_sdk_types::crypto::Intent::iota_transaction(),
+    )?;
+
     // Execute the signed transaction
     IotaClientCommands::ExecuteSignedTx {
         tx_bytes: Base64::encode(bcs::to_bytes(&tx_data)?),
@@ -4243,7 +4323,6 @@ async fn dry_run_helper(
 
     Ok(())
 }
-
 
 /// Helper to get fresh objects for a given address
 async fn get_objects_for_address(
