@@ -117,7 +117,7 @@ export function SendTokenForm({
         const denormalizedName = normalizedName.replace(/\.iota$/i, '');
         const accountWithNickname = accounts?.find((account) => {
             if (!account.nickname) return;
-            return [denormalizedName, normalizedName].includes(account.nickname);
+            return [to, denormalizedName, normalizedName].includes(account.nickname);
         });
 
         return accountWithNickname && accountWithNickname.address !== resolvedAddress;
