@@ -4,8 +4,6 @@
 
 #[cfg(target_os = "windows")]
 use std::os::windows::fs::FileExt;
-#[cfg(not(msim))]
-use std::str::FromStr;
 use std::{
     collections::{BTreeMap, BTreeSet, HashSet},
     env,
@@ -14,7 +12,9 @@ use std::{
     io::{self, Read, Seek, SeekFrom, Write as IoWrite},
     net::SocketAddr,
     path::{Path, PathBuf},
-    str, thread,
+    str,
+    str::FromStr,
+    thread,
     time::Duration,
 };
 
