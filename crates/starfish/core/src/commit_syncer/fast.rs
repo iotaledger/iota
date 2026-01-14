@@ -10,6 +10,7 @@ use std::{
 
 use iota_metrics::spawn_logged_monitored_task;
 use parking_lot::RwLock;
+#[cfg(not(test))]
 use rand::{prelude::SliceRandom as _, rngs::ThreadRng};
 use starfish_config::AuthorityIndex;
 use tokio::{runtime::Handle, sync::oneshot, task::JoinSet, time::MissedTickBehavior};
@@ -32,6 +33,7 @@ use crate::{
     dag_state::DagState,
     error::{ConsensusError, ConsensusResult},
     network::{NetworkClient, SerializedTransactionsV2},
+    storage::Store,
     transaction_ref::{GenericTransactionRef, TransactionRef},
 };
 
@@ -79,6 +81,7 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
         network_client: Arc<C>,
         block_verifier: Arc<dyn BlockVerifier>,
         dag_state: Arc<RwLock<DagState>>,
+        store: Arc<dyn Store>,
     ) -> Self {
         let inner = Arc::new(Inner {
             context,
@@ -88,6 +91,7 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
             network_client,
             block_verifier,
             dag_state,
+            store,
             sync_type: CommitSyncType::Fast,
         });
         let synced_commit_index = inner.dag_state.read().last_commit_index();
@@ -490,7 +494,7 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
         // 2. Verify the response contains block headers that can certify the last
         //    returned commit, and the returned commits are chained by digest,
         // so earlier commits are certified as well.
-        let commits = Handle::current()
+        let (commits, voting_block_headers) = Handle::current()
             .spawn_blocking({
                 let inner = inner.clone();
                 move || {
@@ -504,6 +508,15 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
             })
             .await
             .expect("Spawn blocking should not fail")?;
+
+        // Store the voting block headers for later use when serving fetch_commits
+        // requests. The overhead is small since we store votes only for the last commit
+        // in a batch.
+        if !voting_block_headers.is_empty() {
+            inner
+                .store
+                .write_voting_block_headers(voting_block_headers)?;
+        }
 
         // 3. Collect all committed transaction block refs from commits
         let mut committed_tx_refs: BTreeSet<TransactionRef> = commits
@@ -653,6 +666,7 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
         );
 
         // Shuffle target authorities for load balancing
+        #[allow(unused_mut)]
         let mut target_authorities: Vec<_> = inner
             .context
             .committee
@@ -665,6 +679,7 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
                 }
             })
             .collect();
+        #[cfg(not(test))]
         target_authorities.shuffle(&mut ThreadRng::default());
 
         // Fetch headers in chunks to avoid overwhelming the network

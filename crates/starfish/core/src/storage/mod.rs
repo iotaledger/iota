@@ -147,8 +147,28 @@ pub(crate) trait Store: Send + Sync {
     /// Reads all blocks voting on a particular commit.
     fn read_commit_votes(&self, commit_index: CommitIndex) -> ConsensusResult<Vec<BlockRef>>;
 
+    /// Finds the highest commit index that has at least one vote, up to (and
+    /// including) the given index. Returns None if no votes exist for any
+    /// index <= up_to_index.
+    fn read_highest_commit_index_with_votes(
+        &self,
+        up_to_index: CommitIndex,
+    ) -> ConsensusResult<Option<CommitIndex>>;
+
     /// Reads the last commit info, written atomically with the last commit.
     fn read_last_commit_info(&self) -> ConsensusResult<Option<(CommitRef, CommitInfo)>>;
+
+    /// Writes voting block headers to a separate storage. These are block
+    /// headers that contain commit votes used to certify commits during
+    /// synchronization.
+    fn write_voting_block_headers(&self, headers: Vec<VerifiedBlockHeader>) -> ConsensusResult<()>;
+
+    /// Reads voting block headers from the separate voting storage.
+    /// Returns None for headers that are not found.
+    fn read_voting_block_headers(
+        &self,
+        refs: &[BlockRef],
+    ) -> ConsensusResult<Vec<Option<VerifiedBlockHeader>>>;
 }
 
 /// Represents data to be written to the store together atomically.

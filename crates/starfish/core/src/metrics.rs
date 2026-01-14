@@ -228,6 +228,8 @@ pub(crate) struct NodeMetrics {
     pub(crate) commit_sync_fetch_once_errors: IntCounterVec,
     pub(crate) commit_sync_fetch_missing_block_headers: IntCounterVec,
     pub(crate) commit_sync_fetch_missing_transactions: IntCounterVec,
+    pub(crate) commit_sync_voting_block_headers_hits: IntCounter,
+    pub(crate) commit_sync_voting_block_headers_fallbacks: IntCounter,
     pub(crate) uptime: Histogram,
 }
 
@@ -962,6 +964,16 @@ impl NodeMetrics {
                 "commit_sync_fetch_missing_transactions",
                 "Number of committed transactions that are missing when processing transactions via commit sync.",
                 &["authority", "source"],
+                registry
+            ).unwrap(),
+            commit_sync_voting_block_headers_hits: register_int_counter_with_registry!(
+                "commit_sync_voting_block_headers_hits",
+                "Number of voting block headers served from voting storage during commit sync.",
+                registry
+            ).unwrap(),
+            commit_sync_voting_block_headers_fallbacks: register_int_counter_with_registry!(
+                "commit_sync_voting_block_headers_fallbacks",
+                "Number of voting block headers served from regular storage (fallback) during commit sync.",
                 registry
             ).unwrap(),
             uptime: register_histogram_with_registry!(
