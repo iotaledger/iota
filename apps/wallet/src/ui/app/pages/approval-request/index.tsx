@@ -6,7 +6,7 @@ import {
     isSignPersonalMessageApprovalRequest,
     isTransactionApprovalRequest,
 } from '_src/shared/messaging/messages/payloads/transactions/approvalRequest';
-import { useEffect, useLayoutEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { Loading } from '_components';
 import { useAppSelector, useBackgroundClient, useAppDispatch } from '_hooks';
@@ -17,8 +17,6 @@ import {
 } from '../../redux/slices/transaction-requests';
 import { SignMessageRequest } from './SignMessageRequest';
 import { TransactionRequest } from './transaction-request';
-import { ExtensionViewType } from '../../redux/slices/app/appType';
-import { SidePanel } from '_src/polyfills/sidepanel';
 
 export function ApprovalRequestPage() {
     const { requestID } = useParams();
