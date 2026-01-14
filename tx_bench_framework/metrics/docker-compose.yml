@@ -6,9 +6,9 @@ services:
       - ./tempo.yaml:/etc/tempo.yaml:ro
       - ./tempo-data:/tmp/tempo
     ports:
-      - "3200:3200"   # Tempo HTTP API (Grafana datasource points here)
-      - "4317:4317"   # OTLP gRPC (your Rust exporter uses this)
-      - "4318:4318"   # OTLP HTTP (optional)
+      - "3200:3200" # Tempo HTTP API (Grafana datasource points here)
+      - "4317:4317" # OTLP gRPC (your Rust exporter uses this)
+      - "4318:4318" # OTLP HTTP (optional)
 
   grafana:
     image: grafana/grafana:latest

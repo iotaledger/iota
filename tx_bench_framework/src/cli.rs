@@ -10,11 +10,13 @@ pub const DEFAULT_GAS_BUDGET: u64 = 100_000_000;
 
 #[derive(Parser, Debug)]
 #[command(name = "tx-bench-framework")]
-#[command(about = "Publish AA Move package and print publish artifacts (step 1)", long_about = None)]
+#[command(about = "Benchmark tool for transaction latency", long_about = None)]
 pub struct Cli {
+    /// RPC endpoint. Defaults to local node.
     #[arg(long)]
     pub rpc: Option<String>,
 
+    /// Request tokens from local faucet before actions (dev only).
     #[arg(long)]
     pub use_faucet: bool,
 
@@ -28,11 +30,13 @@ pub struct Cli {
     pub cmd: Command,
 }
 
-#[derive(ValueEnum, Debug, Clone, Copy, Serialize, Deserialize)]
+#[derive(ValueEnum, Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 pub enum AuthenticatorKind {
     Ed25519,
     Ed25519Heavy,
     HelloWorld,
+    MaxArgs128,
+    MaxArgs255,
 }
 
 #[derive(ValueEnum, Debug, Clone, Copy, Serialize, Deserialize)]
@@ -41,15 +45,38 @@ pub enum SubmitMode {
     Standard,
 }
 
+#[derive(Debug)]
+pub struct BenchInitSpec {
+    pub entry_fn: &'static str,
+    pub expected_count: usize,
+}
+
 impl AuthenticatorKind {
     pub fn module_name(&self) -> &'static str {
         "abstract_account"
     }
+
     pub fn function_name(&self) -> &'static str {
         match self {
             AuthenticatorKind::Ed25519 => "authenticate_ed25519",
             AuthenticatorKind::Ed25519Heavy => "authenticate_ed25519_heavy",
             AuthenticatorKind::HelloWorld => "authenticate_hello_world",
+            AuthenticatorKind::MaxArgs128 => "authenticate_max_args_128",
+            AuthenticatorKind::MaxArgs255 => "authenticate_max_args_255",
+        }
+    }
+
+    pub fn bench_init_spec(&self) -> Option<BenchInitSpec> {
+        match self {
+            AuthenticatorKind::MaxArgs128 => Some(BenchInitSpec {
+                entry_fn: "create_125_bench_objects",
+                expected_count: 125,
+            }),
+            AuthenticatorKind::MaxArgs255 => Some(BenchInitSpec {
+                entry_fn: "create_252_bench_objects",
+                expected_count: 252,
+            }),
+            _ => None,
         }
     }
 }

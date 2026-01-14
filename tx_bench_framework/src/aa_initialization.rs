@@ -21,7 +21,25 @@ use iota_types::{
 };
 use move_core_types::ident_str;
 
-use crate::{AuthenticatorKind, utils::get_coin};
+use crate::{cli::AuthenticatorKind, utils::get_coin};
+
+fn find_created_shared_aa_object(changes: &[ObjectChange]) -> Option<ObjectRef> {
+    changes.iter().find_map(|change| match change {
+        ObjectChange::Created {
+            object_type, owner, ..
+        } => {
+            let ty = object_type.to_string();
+            let is_aa = ty.contains("::abstract_account::AbstractAccount");
+            let is_shared = matches!(owner, Owner::Shared { .. });
+            if is_aa && is_shared {
+                Some(change.object_ref())
+            } else {
+                None
+            }
+        }
+        _ => None,
+    })
+}
 
 pub async fn create_abstract_account<K: AccountKeystore>(
     client: &IotaClient,
@@ -35,11 +53,14 @@ pub async fn create_abstract_account<K: AccountKeystore>(
     let sender_pk = keystore.get_key(&sender)?.public();
 
     let gas_coin = get_coin(client, sender).await.context("get_coin failed")?;
-    let gas_price = client.read_api().get_reference_gas_price().await?;
+    let gas_price = client
+        .read_api()
+        .get_reference_gas_price()
+        .await
+        .context("get_reference_gas_price failed")?;
 
     let pt = {
         let mut builder = ProgrammableTransactionBuilder::new();
-
         let args = vec![
             builder.obj(ObjectArg::ImmOrOwnedObject(aa_package_metadata_ref))?,
             builder.pure(authenticator.module_name())?,
@@ -88,23 +109,7 @@ pub async fn create_abstract_account<K: AccountKeystore>(
     let aa_ref: ObjectRef = resp
         .object_changes
         .as_ref()
-        .and_then(|changes| {
-            changes.iter().find_map(|change| match change {
-                ObjectChange::Created {
-                    object_type, owner, ..
-                } => {
-                    let ty = object_type.to_string();
-                    let is_aa = ty.contains("::abstract_account::AbstractAccount");
-                    let is_shared = matches!(owner, Owner::Shared { .. });
-                    if is_aa && is_shared {
-                        Some(change.object_ref())
-                    } else {
-                        None
-                    }
-                }
-                _ => None,
-            })
-        })
+        .and_then(|changes| find_created_shared_aa_object(changes))
         .ok_or_else(|| anyhow!("Created shared AbstractAccount not found in object_changes"))?;
 
     let aa_addr: IotaAddress = aa_ref.0.into();

@@ -13,19 +13,18 @@ use anyhow::{Result, bail};
 use clap::Parser;
 
 use crate::{
-    cli::{AccountsCmd, AuthenticatorKind, Cli, Command},
+    cli::{AccountsCmd, Cli, Command},
     command_handlers::{handle_init_command, handle_submit_command},
     registry_state::{load_registry, save_registry},
-    utils::get_two_distinct_coins,
 };
 
 #[tokio::main]
 async fn main() -> Result<()> {
     let cli = Cli::parse();
-
     let rpc = cli
         .rpc
         .unwrap_or_else(|| "http://127.0.0.1:9000".to_string());
+
     match cli.cmd {
         Command::Init {
             name,
@@ -45,6 +44,7 @@ async fn main() -> Result<()> {
             )
             .await?;
         }
+
         Command::Accounts {
             cmd: AccountsCmd::List,
         } => {
@@ -53,6 +53,7 @@ async fn main() -> Result<()> {
                 "Active: {}",
                 reg.active_account.as_deref().unwrap_or("<none>")
             );
+
             if reg.accounts.is_empty() {
                 println!("No accounts in registry.");
             } else {
@@ -64,6 +65,7 @@ async fn main() -> Result<()> {
                 }
             }
         }
+
         Command::Accounts {
             cmd: AccountsCmd::Use { name },
         } => {
@@ -75,6 +77,7 @@ async fn main() -> Result<()> {
             save_registry(&cli.state_out, &reg)?;
             println!("Active account set to '{name}'");
         }
+
         Command::Submit {
             mode,
             count,
@@ -97,11 +100,6 @@ async fn main() -> Result<()> {
             .await?;
         }
     }
-    Ok(())
-}
 
-pub struct SubmitResult {
-    digest: String,
-    gas_used: Option<String>,
-    elapsed_ms: u128,
+    Ok(())
 }

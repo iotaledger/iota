@@ -8,7 +8,7 @@ use std::{
     time::Duration,
 };
 
-use anyhow::{Context, Result, anyhow, bail};
+use anyhow::{Context, Result, anyhow, bail, ensure};
 use iota_keys::keystore::{AccountKeystore, FileBasedKeystore};
 use iota_move_build::{BuildConfig, CompiledPackage};
 use iota_sdk::{
@@ -24,11 +24,15 @@ use iota_sdk::{
 };
 use iota_sdk_types::Intent;
 use iota_types::{base_types::ObjectRef, error::IotaResult, signature::GenericSignature};
+use move_core_types::{ident_str, identifier::Identifier};
 use reqwest::Client;
 use serde::Deserialize;
 use serde_json::json;
 
 const SPONSOR_ADDRESS_MNEMONIC: &str = "okay pottery arch air egg very cave cash poem gown sorry mind poem crack dawn wet car pink extra crane hen bar boring salt";
+
+const FAUCET_URL: &str = "http://127.0.0.1:9123";
+const FAUCET_TIMEOUT: Duration = Duration::from_secs(60);
 
 #[derive(Deserialize)]
 struct FaucetResponse {
@@ -42,17 +46,21 @@ pub async fn request_tokens(client: &IotaClient, address: IotaAddress) -> Result
     let body = json!({ "FixedAmountRequest": { "recipient": &address_str } });
 
     let response = reqwest_client
-        .post("http://127.0.0.1:9123/v1/gas")
+        .post(format!("{FAUCET_URL}/v1/gas"))
         .header("Content-Type", "application/json")
         .json(&body)
         .send()
-        .await?;
+        .await
+        .context("faucet POST failed")?;
 
     if !response.status().is_success() {
         bail!("Faucet request failed with status {}", response.status());
     }
 
-    let FaucetResponse { task, error } = response.json().await?;
+    let FaucetResponse { task, error } = response
+        .json()
+        .await
+        .context("faucet response json failed")?;
     if let Some(err) = error {
         bail!("Faucet request error: {}", err);
     }
@@ -66,16 +74,25 @@ async fn wait_for_faucet_completion(
     task_id: &str,
     expected_owner: &IotaAddress,
 ) -> Result<()> {
+    let started = std::time::Instant::now();
+
     let coin_id = loop {
+        if started.elapsed() > FAUCET_TIMEOUT {
+            bail!("Faucet timeout: task_id={task_id}");
+        }
+
         let response = reqwest_client
-            .get(format!("http://127.0.0.1:9123/v1/status/{task_id}"))
+            .get(format!("{FAUCET_URL}/v1/status/{task_id}"))
             .send()
-            .await?
+            .await
+            .context("faucet status GET failed")?
             .text()
-            .await?;
+            .await
+            .context("faucet status read body failed")?;
 
         if response.contains("SUCCEEDED") {
-            let json: serde_json::Value = serde_json::from_str(&response)?;
+            let json: serde_json::Value =
+                serde_json::from_str(&response).context("parse faucet status json failed")?;
             let id = json
                 .pointer("/status/transferred_gas_objects/sent/0/id")
                 .and_then(|v| v.as_str())
@@ -83,15 +100,21 @@ async fn wait_for_faucet_completion(
             break id.to_string();
         }
 
-        tokio::time::sleep(Duration::from_secs(1)).await;
+        tokio::time::sleep(Duration::from_millis(500)).await;
     };
 
     let object_id = IotaObjectDataOptions::new().with_owner();
+
     loop {
+        if started.elapsed() > FAUCET_TIMEOUT {
+            bail!("Faucet ownership wait timeout: coin_id={coin_id}");
+        }
+
         let object = client
             .read_api()
             .get_object_with_options(ObjectID::from_str(&coin_id)?, object_id.clone())
-            .await?;
+            .await
+            .context("get_object_with_options failed")?;
 
         if let Some(owner) = object.owner() {
             if owner.get_owner_address()? == *expected_owner {
@@ -99,7 +122,7 @@ async fn wait_for_faucet_completion(
             }
         }
 
-        tokio::time::sleep(Duration::from_secs(1)).await;
+        tokio::time::sleep(Duration::from_millis(500)).await;
     }
 
     Ok(())
@@ -108,21 +131,21 @@ async fn wait_for_faucet_completion(
 pub async fn get_two_distinct_coins(
     client: &IotaClient,
     owner: IotaAddress,
-) -> Result<(iota_sdk::rpc_types::Coin, iota_sdk::rpc_types::Coin)> {
+) -> Result<(Coin, Coin)> {
     let page = client
         .coin_read_api()
         .get_coins(owner, None, None, Some(50))
         .await
-        .expect("get_coins failed");
+        .context("get_coins failed")?;
 
     let mut coins = page.data;
     if coins.len() < 2 {
         bail!("need at least 2 coins for owner {owner}: one for gas, one to split/transfer");
     }
 
-    // We're getting 2 first coin_object_id
     coins.sort_by(|a, b| b.balance.cmp(&a.balance));
     let gas_coin = coins.remove(0);
+
     let pay_coin = coins
         .into_iter()
         .find(|c| c.coin_object_id != gas_coin.coin_object_id)
@@ -139,7 +162,8 @@ pub async fn get_coin(iota_client: &IotaClient, addr: IotaAddress) -> Result<Coi
     let coin_page = iota_client
         .coin_read_api()
         .get_coins(addr, None, None, None)
-        .await?;
+        .await
+        .context("get_coins failed")?;
 
     coin_page
         .data
@@ -148,29 +172,27 @@ pub async fn get_coin(iota_client: &IotaClient, addr: IotaAddress) -> Result<Coi
         .ok_or_else(|| anyhow!("No coin object found for address {addr}"))
 }
 
-pub fn setup_keystore() -> Result<FileBasedKeystore, anyhow::Error> {
+pub fn setup_keystore() -> Result<FileBasedKeystore> {
     let keystore_path = PathBuf::from("iotatempdb");
     if !keystore_path.exists() {
         let keystore = FileBasedKeystore::new(&keystore_path)?;
         keystore.save()?;
     }
-    FileBasedKeystore::new(&keystore_path)
+    FileBasedKeystore::new(&keystore_path).map_err(Into::into)
 }
 
-pub fn clean_keystore() -> Result<(), anyhow::Error> {
-    fs::remove_file("iotatempdb")?;
-    fs::remove_file("iotatempdb.aliases")?;
+pub fn clean_keystore() -> Result<()> {
+    fs::remove_file("iotatempdb").ok();
+    fs::remove_file("iotatempdb.aliases").ok();
     Ok(())
 }
 
-/// Utility function for funding an address using the transfer of a coin.
 pub async fn fund_address(
     iota_client: &IotaClient,
     keystore: &mut FileBasedKeystore,
     recipient: IotaAddress,
-) -> Result<(), anyhow::Error> {
+) -> Result<()> {
     let sponsor = keystore.import_from_mnemonic(SPONSOR_ADDRESS_MNEMONIC, ED25519, None, None)?;
-
     println!("Sponsor address: {sponsor:?}");
 
     let gas_coin = iota_client
@@ -214,8 +236,28 @@ pub async fn fund_address(
         "Funding transaction digest: {}",
         transaction_response.digest
     );
-
     Ok(())
+}
+
+fn extract_published_package_id(changes: &[ObjectChange]) -> Option<ObjectID> {
+    changes.iter().find_map(|change| match change {
+        ObjectChange::Published { .. } => Some(change.object_ref().0),
+        _ => None,
+    })
+}
+
+fn extract_package_metadata_ref(changes: &[ObjectChange]) -> Option<ObjectRef> {
+    changes.iter().find_map(|change| match change {
+        ObjectChange::Created { object_type, .. } => {
+            let ty = object_type.to_string();
+            if ty.contains("0x2::package_metadata::PackageMetadataV1") {
+                Some(change.object_ref())
+            } else {
+                None
+            }
+        }
+        _ => None,
+    })
 }
 
 pub async fn publish_move_package<K: AccountKeystore>(
@@ -265,35 +307,14 @@ pub async fn publish_move_package<K: AccountKeystore>(
     println!("\n--- Raw response (pretty) ---");
     println!("{}", serde_json::to_string_pretty(&resp)?);
 
-    let package_id: ObjectID = resp
+    let changes = resp
         .object_changes
         .as_ref()
-        .and_then(|changes| {
-            changes.iter().find_map(|change| match change {
-                ObjectChange::Published { .. } => Some(change.object_ref().0),
-                _ => None,
-            })
-        })
-        .expect("Expected a Published object in the transaction response");
+        .ok_or_else(|| anyhow!("No object_changes in response"))?;
+    let package_id = extract_published_package_id(changes)
+        .ok_or_else(|| anyhow!("Expected a Published object in the transaction response"))?;
 
-    let metadata_ref: ObjectRef = resp
-        .object_changes
-        .as_ref()
-        .and_then(|changes| {
-            changes.iter().find_map(|change| match change {
-                ObjectChange::Created { object_type, .. } => {
-                    let ty = object_type.to_string();
-                    let is_package_metadata =
-                        ty.contains("0x2::package_metadata::PackageMetadataV1");
-                    if is_package_metadata {
-                        Some(change.object_ref())
-                    } else {
-                        None
-                    }
-                }
-                _ => None,
-            })
-        })
+    let metadata_ref = extract_package_metadata_ref(changes)
         .ok_or_else(|| anyhow!("Expected a package metadata object in the transaction response"))?;
 
     Ok((resp.digest.to_string(), package_id, metadata_ref))
@@ -311,4 +332,83 @@ pub async fn build_client(rpc: &str) -> Result<IotaClient> {
         .build(rpc)
         .await
         .map_err(|e| anyhow!("Failed to build IotaClient for {rpc}: {e}"))
+}
+
+pub async fn create_immutable_bench_objects<K: AccountKeystore>(
+    client: &IotaClient,
+    payer: IotaAddress,
+    keystore: &K,
+    package_id: ObjectID,
+    gas_budget: u64,
+    entry_fn: &'static str,
+    expected_count: usize,
+) -> Result<Vec<ObjectRef>> {
+    let gas_coin = get_coin(client, payer).await.context("get_coin failed")?;
+    let gas_price = client
+        .read_api()
+        .get_reference_gas_price()
+        .await
+        .context("get_reference_gas_price failed")?;
+
+    let module = ident_str!("abstract_account").to_owned();
+    let function = Identifier::new(entry_fn)
+        .map_err(|e| anyhow!("Bad entry function name '{entry_fn}': {e}"))?;
+
+    let pt = {
+        let mut b = ProgrammableTransactionBuilder::new();
+        b.programmable_move_call(package_id, module, function, vec![], vec![]);
+        b.finish()
+    };
+
+    let tx_data = TransactionData::new_programmable(
+        payer,
+        vec![gas_coin.object_ref()],
+        pt,
+        gas_budget,
+        gas_price,
+    );
+
+    let sigs: Vec<GenericSignature> = vec![
+        keystore
+            .sign_secure(&payer, &tx_data, Intent::iota_transaction())?
+            .into(),
+    ];
+
+    let resp = client
+        .quorum_driver_api()
+        .execute_transaction_block(
+            Transaction::from_generic_sig_data(tx_data, sigs),
+            IotaTransactionBlockResponseOptions::full_content(),
+            Some(ExecuteTransactionRequestType::WaitForLocalExecution),
+        )
+        .await
+        .context("execute_transaction_block(create bench objects) failed")?;
+
+    let changes = resp
+        .object_changes
+        .as_ref()
+        .ok_or_else(|| anyhow!("No object_changes in response"))?;
+
+    let bench_refs: Vec<ObjectRef> = changes
+        .iter()
+        .filter_map(|ch| match ch {
+            ObjectChange::Created { object_type, .. } => {
+                let ty = object_type.to_string();
+                if ty.contains("::abstract_account::BenchObject") {
+                    Some(ch.object_ref())
+                } else {
+                    None
+                }
+            }
+            _ => None,
+        })
+        .collect();
+
+    ensure!(
+        bench_refs.len() == expected_count,
+        "Expected {expected_count} BenchObject, got {}",
+        bench_refs.len()
+    );
+
+    Ok(bench_refs)
 }
