@@ -59,6 +59,7 @@ pub struct IotaProtocol {
     use_fullnode_for_execution: bool,
     use_precompiled_binaries: bool,
     build_configs: HashMap<String, BinaryBuildConfig>,
+    enable_flamegraph: bool,
 }
 
 impl IotaProtocol {
@@ -71,6 +72,7 @@ impl IotaProtocol {
             use_fullnode_for_execution: settings.use_fullnode_for_execution,
             use_precompiled_binaries: settings.build_cache_enabled(),
             build_configs: settings.build_configs.clone(),
+            enable_flamegraph: settings.enable_flamegraph,
         }
     }
 
@@ -164,15 +166,20 @@ impl ProtocolCommands<IotaBenchmarkType> for IotaProtocol {
             .chain_start_timestamp_ms
             .map(|timestamp_ms| format!("--chain-start-timestamp-ms {timestamp_ms}"))
             .unwrap_or_default();
+        let additional_gas_accounts_flag = format!(
+            "--num-additional-gas-accounts {}",
+            parameters.additional_gas_accounts
+        );
 
         let iota_command = self.run_binary_command(
             "iota",
             &[&format!("mkdir -p {working_dir}")],
             &[
                 "genesis",
-                &format!("-f --working-dir {working_dir} --benchmark-ips {ips}"),
+                &format!("-f --working-dir {working_dir} --benchmark-ips {ips} --admin-interface-address=localhost:1337"),
                 &epoch_duration_flag,
                 &chain_start_timestamp_flag,
+                &additional_gas_accounts_flag,
             ],
         );
 
@@ -227,6 +234,11 @@ impl ProtocolCommands<IotaBenchmarkType> for IotaProtocol {
                             }
                         },
                         format!("export MAX_PIPELINE_DELAY={max_pipeline_delay}").as_str(),
+                        if self.enable_flamegraph {
+                            "export TRACE_FLAMEGRAPH=1"
+                        } else {
+                            ""
+                        },
                     ],
                     &[&format!(
                         "--config-path {} --listen-address {}",
@@ -269,11 +281,16 @@ impl ProtocolCommands<IotaBenchmarkType> for IotaProtocol {
                     &[
                         // Overwrite listen address and external address with 0.0.0.0 and actual fullnode IP.
                         // Escape quotes for proper handling inside tmux wrapper
-                        &format!(
+                        format!(
                             "sed -i 's|listen-address: \\\"127.0.0.1:|listen-address: \\\"0.0.0.0:|' {0} && sed -i 's|external-address: /ip4/127.0.0.1/|external-address: /ip4/{1}/|' {0}",
                             config_path.display(),
                             fullnode_ip
-                        )
+                        ),
+                        if self.enable_flamegraph {
+                            "export TRACE_FLAMEGRAPH=1".to_string()
+                        } else {
+                            "".to_string()
+                        },
                     ],
                     &[&format!("--config-path {}", config_path.display())],
                 );
@@ -312,7 +329,11 @@ impl ProtocolCommands<IotaBenchmarkType> for IotaProtocol {
         let shared_counter = parameters.benchmark_type.shared_objects_ratio;
         let transfer_objects = 100 - shared_counter;
         let metrics_port = Self::CLIENT_METRICS_PORT;
-        let gas_keys = GenesisConfig::benchmark_gas_keys(committee_size);
+        // Get gas keys for all validators and clients
+        let gas_keys =
+            GenesisConfig::benchmark_gas_keys(committee_size + parameters.additional_gas_accounts);
+        // Validators use the first `nodes` keys, so clients should start after that
+        let client_key_offset = committee_size;
 
         clients
             .into_iter()
@@ -320,7 +341,8 @@ impl ProtocolCommands<IotaBenchmarkType> for IotaProtocol {
             .map(|(i, instance)| {
                 let genesis = genesis_path.display().to_string();
                 let keystore = keystore_path.display().to_string();
-                let gas_key = &gas_keys[i % committee_size];
+                // Offset client key index to avoid colliding with validator keys
+                let gas_key = &gas_keys[client_key_offset + i];
                 let gas_address = IotaAddress::from(&gas_key.public());
 
                 let mut stress_args: Vec<String> = vec![
@@ -379,6 +401,7 @@ impl IotaProtocol {
             &ips,
             parameters.epoch_duration_ms,
             parameters.chain_start_timestamp_ms,
+            Some(parameters.additional_gas_accounts),
         );
         let mut addresses = Vec::new();
         if let Some(validator_configs) = genesis_config.validator_config_info.as_ref() {
@@ -424,6 +447,7 @@ impl ProtocolMetrics for IotaProtocol {
             &ips,
             parameters.epoch_duration_ms,
             parameters.chain_start_timestamp_ms,
+            Some(parameters.additional_gas_accounts),
         )
         .validator_config_info
         .expect("No validator in genesis")

@@ -29,8 +29,7 @@ pub struct IotaNamesConfig {
 
 impl Default for IotaNamesConfig {
     fn default() -> Self {
-        // TODO change to mainnet https://github.com/iotaledger/iota/issues/6532
-        Self::testnet()
+        Self::mainnet()
     }
 }
 
@@ -63,8 +62,7 @@ impl IotaNamesConfig {
 
     pub fn from_chain(chain: &Chain) -> Self {
         match chain {
-            // TODO switch to mainnet https://github.com/iotaledger/iota/issues/6532
-            Chain::Mainnet => IotaNamesConfig::testnet(),
+            Chain::Mainnet => IotaNamesConfig::mainnet(),
             Chain::Testnet => IotaNamesConfig::testnet(),
             Chain::Unknown => IotaNamesConfig::devnet(),
         }
@@ -91,7 +89,33 @@ impl IotaNamesConfig {
         .unwrap()
     }
 
-    // TODO add mainnet https://github.com/iotaledger/iota/issues/6532
+    // Create a config based on the package and object ids published on mainnet.
+    pub fn mainnet() -> Self {
+        const PACKAGE_ADDRESS: &str =
+            "0x6d2c743607ef275bd6934fe5c2a7e5179cca6fbd2049cfa79de2310b74f3cf83";
+        const OBJECT_ID: &str =
+            "0xa14e5d0481a7aa346157078e6facba3cd895d97038cd87b9f2cc24b0c6102d75";
+        const PAYMENTS_PACKAGE_ADDRESS: &str =
+            "0x53d3d37f00949a1baad95fa4fca0b3d0d70ff6121be316f9e46d37c2d29c71eb";
+        const REGISTRY_ID: &str =
+            "0xa773cef7d762871354f6ae19ad174dfb1153d2d247c4886ada0b5330b9543b57";
+        const REVERSE_REGISTRY_ID: &str =
+            "0x18fa62ab8b0ab95ae61088082bd5db796863016fda8f3205b1ea7d13b1792317";
+
+        let package_address = IotaAddress::from_str(PACKAGE_ADDRESS).unwrap();
+        let object_id = ObjectID::from_str(OBJECT_ID).unwrap();
+        let payments_package_address = IotaAddress::from_str(PAYMENTS_PACKAGE_ADDRESS).unwrap();
+        let registry_id = ObjectID::from_str(REGISTRY_ID).unwrap();
+        let reverse_registry_id = ObjectID::from_str(REVERSE_REGISTRY_ID).unwrap();
+
+        Self::new(
+            package_address,
+            object_id,
+            payments_package_address,
+            registry_id,
+            reverse_registry_id,
+        )
+    }
 
     // Create a config based on the package and object ids published on testnet.
     pub fn testnet() -> Self {

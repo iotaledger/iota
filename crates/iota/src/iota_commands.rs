@@ -288,6 +288,11 @@ pub enum IotaCommand {
             default_value_t = DEFAULT_COMMITTEE_SIZE
         )]
         committee_size: usize,
+        #[arg(
+            long,
+            help = "Number of additional gas accounts to create for benchmarks (use for dedicated clients)"
+        )]
+        num_additional_gas_accounts: Option<usize>,
         /// The path to local migration snapshot files
         #[arg(long, name = "path", num_args(0..))]
         local_migration_snapshots: Vec<PathBuf>,
@@ -296,6 +301,14 @@ pub enum IotaCommand {
         remote_migration_snapshots: Vec<SnapshotUrl>,
         #[arg(long, help = "Specify the delegator address")]
         delegator: Option<IotaAddress>,
+        /// Set `admin-interface-address` config. This flag
+        /// accepts also a port, a host, or both (e.g., 0.0.0.0:1337).
+        /// When providing a specific value, please use the = sign between the
+        /// flag and value: `--admin-interface-address=1337` or
+        /// `--admin-interface-address=0.0.0.0`, or
+        /// `--admin-interface-address=0.0.0.0:1337`
+        #[arg(long, require_equals = true, value_name = "ADMIN_INTERFACE_HOST_PORT")]
+        admin_interface_address: Option<String>,
     },
     /// Create an IOTA Genesis Ceremony with multiple remote validators.
     GenesisCeremony(Ceremony),
@@ -359,7 +372,7 @@ pub enum IotaCommand {
     #[cfg(feature = "iota-names")]
     /// Manage names registered in IOTA-Names.
     /// By using this service, you agree to the Terms & Conditions:
-    /// testnet.iotanames.com/?modal=terms_conditions."
+    /// iotanames.com/terms-of-service."
     Name {
         /// The file storing the state of the user accounts
         #[arg(long = "client.config")]
@@ -437,9 +450,11 @@ impl IotaCommand {
                 benchmark_ips,
                 with_faucet,
                 committee_size,
+                num_additional_gas_accounts,
                 local_migration_snapshots: with_local_migration_snapshot,
                 remote_migration_snapshots: with_remote_migration_snapshot,
                 delegator,
+                admin_interface_address,
             } => {
                 genesis(
                     from_config,
@@ -451,9 +466,11 @@ impl IotaCommand {
                     benchmark_ips,
                     with_faucet,
                     committee_size,
+                    num_additional_gas_accounts,
                     with_local_migration_snapshot,
                     with_remote_migration_snapshot,
                     delegator,
+                    admin_interface_address,
                 )
                 .await
             }
@@ -614,7 +631,7 @@ impl IotaCommand {
             IotaCommand::Name { config, json, cmd } => {
                 eprintln!(
                     "{}",
-                    "By using this service, you agree to the Terms & Conditions: testnet.iotanames.com/?modal=terms_conditions."
+                    "By using this service, you agree to the Terms & Conditions: iotanames.com/terms-of-service"
                         .bold()
                         .yellow()
                 );
@@ -747,9 +764,11 @@ async fn start(
                 None,
                 false,
                 committee_size.unwrap_or(DEFAULT_COMMITTEE_SIZE),
+                None,
                 local_migration_snapshots,
                 remote_migration_snapshots,
                 delegator,
+                None,
             )
             .await
             .map_err(|e| anyhow!("{e}: {}. \n\n\
@@ -1016,9 +1035,11 @@ async fn genesis(
     benchmark_ips: Option<Vec<String>>,
     with_faucet: bool,
     committee_size: usize,
+    num_additional_gas_accounts: Option<usize>,
     local_migration_snapshots: Vec<PathBuf>,
     remote_migration_snapshots: Vec<SnapshotUrl>,
     delegator: Option<IotaAddress>,
+    admin_interface_address: Option<String>,
 ) -> Result<(), anyhow::Error> {
     let iota_config_dir = &match working_dir {
         // if a directory is specified, it must exist (it
@@ -1095,14 +1116,21 @@ async fn genesis(
                 // Make a keystore containing the key for the genesis gas object.
                 let path = iota_config_dir.join(IOTA_BENCHMARK_GENESIS_GAS_KEYSTORE_FILENAME);
                 let mut keystore = FileBasedKeystore::new(&path)?;
-                for gas_key in GenesisConfig::benchmark_gas_keys(ips.len()) {
+                for gas_key in GenesisConfig::benchmark_gas_keys(
+                    ips.len() + num_additional_gas_accounts.unwrap_or(0),
+                ) {
                     keystore.add_key(None, gas_key)?;
                 }
                 keystore.save()?;
 
                 // Make a new genesis config from the provided ip addresses with given epoch
                 // duration and timestamp.
-                GenesisConfig::new_for_benchmarks(&ips, epoch_duration_ms, chain_start_timestamp_ms)
+                GenesisConfig::new_for_benchmarks(
+                    &ips,
+                    epoch_duration_ms,
+                    chain_start_timestamp_ms,
+                    num_additional_gas_accounts,
+                )
             } else if keystore_path.exists() {
                 let existing_keys = FileBasedKeystore::new(&keystore_path)?.addresses();
                 GenesisConfig::for_local_testing_with_addresses(existing_keys)
@@ -1147,6 +1175,15 @@ async fn genesis(
     if let Some(epoch_duration_ms) = epoch_duration_ms {
         genesis_conf.parameters.epoch_duration_ms = epoch_duration_ms;
     }
+
+    let admin_interface_address_with_port = admin_interface_address
+        .map(|input| {
+            let default_port = iota_config::node::default_admin_interface_address().port();
+            parse_host_port(input, default_port)
+                .map_err(|_| anyhow!("Invalid admin interface host and port"))
+        })
+        .transpose()?;
+
     let mut builder = ConfigBuilder::new(iota_config_dir)
         .with_genesis_config(genesis_conf)
         .with_empty_validator_genesis();
@@ -1155,6 +1192,11 @@ async fn genesis(
     } else {
         builder.committee_size(NonZeroUsize::new(committee_size).unwrap())
     };
+
+    if let Some(address) = admin_interface_address_with_port {
+        builder = builder.with_admin_interface_address(address);
+    }
+
     let network_config = tokio::task::spawn_blocking(move || builder.build()).await?;
     let mut keystore = FileBasedKeystore::new(&keystore_path)?;
     for key in &network_config.account_keys {
@@ -1184,6 +1226,7 @@ async fn genesis(
         .with_config_directory(FULL_NODE_DB_PATH.into())
         .with_rpc_addr(iota_config::node::default_json_rpc_address())
         .with_genesis(genesis.clone())
+        .with_admin_interface_address(admin_interface_address_with_port)
         .build_from_parts(&mut OsRng, network_config.validator_configs(), genesis);
 
     fullnode_config.save(iota_config_dir.join(IOTA_FULLNODE_CONFIG))?;
@@ -1202,7 +1245,7 @@ async fn genesis(
                 .with_db_path(PathBuf::from("/opt/iota/db/authorities_db/full_node_db"))
                 .with_network_address("/ip4/0.0.0.0/tcp/8080/http".parse()?)
                 .with_metrics_address(([0, 0, 0, 0], 9184))
-                .with_admin_interface_address(([127, 0, 0, 1], 1337))
+                .with_admin_interface_address(admin_interface_address_with_port)
                 .with_json_rpc_address(([0, 0, 0, 0], 9000))
                 .with_genesis(genesis.clone())
                 .build_from_parts(&mut OsRng, network_config.validator_configs(), genesis);

@@ -3,12 +3,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 module move_building_blocks::limits {
-    use iota::object::UID;
-    use iota::object;
-    use iota::tx_context::TxContext;
-    use std::vector;
-    use iota::transfer;
-    use iota::tx_context;
     use iota::dynamic_field;
 
     public struct ObjectWithVector has key, store {

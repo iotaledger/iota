@@ -33,4 +33,8 @@ export const LEGAL_LINKS = [
         title: 'Privacy Policy',
         href: 'https://iota.org/privacy-policy',
     },
+    {
+        title: 'Cookie Policy',
+        href: '/cookie-policy',
+    },
 ];

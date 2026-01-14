@@ -13,9 +13,10 @@ use std::{
 };
 
 use bytes::Bytes;
+use iota_metrics::monitored_mpsc::UnboundedSender;
 use itertools::Itertools as _;
 use starfish_config::AuthorityIndex;
-use tokio::{sync::mpsc::UnboundedSender, time::Instant};
+use tokio::time::Instant;
 use tracing::{debug, error, info, trace, warn};
 
 use crate::{
@@ -466,7 +467,7 @@ impl DagState {
         self.recent_block_headers
             .insert(block_ref, block_header.clone());
         self.recent_headers_refs_by_authority[block_ref.author].insert(block_ref);
-        self.threshold_clock.add_block(block_ref);
+        self.threshold_clock.add_block_header(block_ref);
         self.highest_accepted_round = max(self.highest_accepted_round, block_header.round());
         self.context
             .metrics

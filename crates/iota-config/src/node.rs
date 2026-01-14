@@ -268,6 +268,13 @@ pub struct NodeConfig {
         skip_serializing_if = "Option::is_none"
     )]
     pub grpc_api_config: Option<GrpcApiConfig>,
+
+    /// Allow overriding the chain for testing purposes. For instance, it allows
+    /// you to create a test network that believes it is mainnet or testnet.
+    /// Attempting to override this value on production networks will result
+    /// in an error.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub chain_override_for_testing: Option<Chain>,
 }
 
 /// Configuration for the gRPC API service

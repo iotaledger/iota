@@ -19,6 +19,14 @@ pub mod diesel_macro {
         pub static CALLED_FROM_BLOCKING_POOL: std::cell::RefCell<bool> = const { std::cell::RefCell::new(false) };
     }
 
+    /// Marks the current thread as being in a blocking pool.
+    ///
+    /// Call this at the start of any `spawn_blocking` closure that will perform
+    /// blocking DB operations.
+    pub fn mark_in_blocking_pool() {
+        CALLED_FROM_BLOCKING_POOL.with(|in_blocking_pool| *in_blocking_pool.borrow_mut() = true);
+    }
+
     #[macro_export]
     macro_rules! read_only_repeatable_blocking {
         ($pool:expr, $query:expr) => {{
@@ -145,12 +153,11 @@ pub mod diesel_macro {
             use $crate::{
                 db::{PoolConnection, get_pool_connection},
                 errors::IndexerError,
-                store::diesel_macro::CALLED_FROM_BLOCKING_POOL,
+                store::diesel_macro::mark_in_blocking_pool,
             };
             let current_span = tracing::Span::current();
             tokio::task::spawn_blocking(move || {
-                CALLED_FROM_BLOCKING_POOL
-                    .with(|in_blocking_pool| *in_blocking_pool.borrow_mut() = true);
+                mark_in_blocking_pool();
                 let _guard = current_span.enter();
                 let mut pool_conn = get_pool_connection($pool).unwrap();
 
