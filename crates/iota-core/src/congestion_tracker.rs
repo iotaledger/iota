@@ -7,8 +7,10 @@ use std::{
     fs::OpenOptions,
     io::Write,
     path::PathBuf,
+    sync::Arc,
 };
 
+use iota_metrics::monitored_scope;
 use iota_types::{
     base_types::ObjectID,
     digests::TransactionDigest,
@@ -18,20 +20,18 @@ use iota_types::{
     transaction::{TransactionData, TransactionDataAPI},
 };
 use moka::{ops::compute::Op, sync::Cache};
+use prometheus::Registry;
 use serde::Deserialize;
+use tracing::info;
+
 #[cfg(feature = "gas-nn")]
 use crate::model_updater::{
-    build_cp_update_batch, build_train_tx_batch, InNodeModelUpdater, ObjectCheckpointStats,
-    ObjectSnapshot, RawTxItem, ModelUpdater, ModelReader,
+    InNodeModelUpdater, ModelReader, ModelUpdater, ObjectCheckpointStats, ObjectSnapshot,
+    RawTxItem, build_cp_update_batch, build_train_tx_batch,
 };
-use tracing::info;
-use iota_metrics::monitored_scope;
-use prometheus::Registry;
-use std::sync::Arc;
-use crate::gas_metrics::{GasMetrics, init_gas_metrics};
-
 use crate::{
-    execution_cache::TransactionCacheRead
+    execution_cache::TransactionCacheRead,
+    gas_metrics::{GasMetrics, init_gas_metrics},
 };
 
 /// Capacity of the congestion tracker's cache.
@@ -162,7 +162,8 @@ pub struct CongestionTracker {
 }
 
 impl CongestionTracker {
-    /// Compose and send model update and training batches for the given checkpoint.
+    /// Compose and send model update and training batches for the given
+    /// checkpoint.
     #[cfg(feature = "gas-nn")]
     fn inform_model(
         &self,
@@ -266,7 +267,8 @@ impl CongestionTracker {
         self.metrics.record_hw_sample("congestion.inform_model");
     }
 
-    /// Fallback when gas-nn is disabled: still record metrics, but skip NN work.
+    /// Fallback when gas-nn is disabled: still record metrics, but skip NN
+    /// work.
     #[cfg(not(feature = "gas-nn"))]
     fn inform_model(
         &self,
@@ -315,7 +317,9 @@ impl CongestionTracker {
         effects: &[TransactionEffects],
     ) {
         let _scope = monitored_scope("CongestionTracker::process_checkpoint_effects");
-        let h = self.metrics.latency_component("congestion.process_checkpoint_effects");
+        let h = self
+            .metrics
+            .latency_component("congestion.process_checkpoint_effects");
         let timer = h.start_timer();
         // Containers for checkpoint's congestion and clearing transactions data.
         let mut congestion_txs_data: Vec<TxData> = Vec::with_capacity(effects.len());
@@ -353,7 +357,7 @@ impl CongestionTracker {
                         .predict_for_tx(tx_data, this.reference_gas_price),
                 )
             }
-                .unwrap_or(self.reference_gas_price);
+            .unwrap_or(self.reference_gas_price);
 
             // Skip system transactions
             if gas_price == 1 {
@@ -413,8 +417,12 @@ impl CongestionTracker {
         );
         // Record touched objects histogram
         let mut touched: std::collections::HashSet<ObjectID> = std::collections::HashSet::new();
-        for tx in &congestion_txs_data { touched.extend(tx.objects.iter().cloned()); }
-        for tx in &clearing_txs_data { touched.extend(tx.objects.iter().cloned()); }
+        for tx in &congestion_txs_data {
+            touched.extend(tx.objects.iter().cloned());
+        }
+        for tx in &clearing_txs_data {
+            touched.extend(tx.objects.iter().cloned());
+        }
         self.metrics.touched_hist().observe(touched.len() as u64);
 
         drop(timer);
@@ -522,7 +530,10 @@ impl CongestionTracker {
     /// Non-blocking: reads from lock-free snapshot of per-object tips.
     #[cfg(feature = "gas-nn")]
     pub fn get_suggested_gas_price_with_nn(&self, transaction: &TransactionData) -> Option<u64> {
-        Some(self.model_reader.predict_for_tx(transaction, self.reference_gas_price))
+        Some(
+            self.model_reader
+                .predict_for_tx(transaction, self.reference_gas_price),
+        )
     }
 
     /// Returns a map of all objects and their hotness values.
@@ -568,7 +579,10 @@ impl CongestionTracker {
 
         // Write header if the file is new
         if !file_exists {
-            writeln!(file, "checkpoint,digest,gasprice,feedback,sui,ogd,nn,cleared")?;
+            writeln!(
+                file,
+                "checkpoint,digest,gasprice,feedback,sui,ogd,nn,cleared"
+            )?;
         }
 
         // Build row

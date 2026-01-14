@@ -1,3 +1,6 @@
+// Copyright (c) 2025 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 //! Libtorch (tch) port of the hotness-aware gas predictor.
 //!
 //! Parity with Python model:
@@ -241,7 +244,7 @@ impl GasLearner {
     /// One-time warm-up to avoid first-call stalls (parity with Python
     /// startup).
     pub fn warmup(&self) {
-        let _ = tch::no_grad(|| {
+        tch::no_grad(|| {
             let dummy = Tensor::zeros([1, T, F], (Kind::Float, self.vs.device()));
             let (_pred, _attn) = self
                 .model

@@ -1,8 +1,14 @@
+// Copyright (c) 2025 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 use std::sync::{Arc, Mutex};
 
 use iota_metrics::histogram::{Histogram, HistogramVec};
 use once_cell::sync::OnceCell;
-use prometheus::{IntCounterVec, IntGauge, IntGaugeVec, Registry, register_int_counter_vec_with_registry, register_int_gauge_vec_with_registry, register_int_gauge_with_registry};
+use prometheus::{
+    IntCounterVec, IntGauge, IntGaugeVec, Registry, register_int_counter_vec_with_registry,
+    register_int_gauge_vec_with_registry, register_int_gauge_with_registry,
+};
 use sysinfo::{ProcessRefreshKind, ProcessesToUpdate, System, UpdateKind, get_current_pid};
 
 /// Percentiles to export for latency histograms (in 1/1000ths).
@@ -21,12 +27,14 @@ pub struct GasMetrics {
     /// Pending training items gauge.
     pub pending_train_items: IntGauge,
 
-    /// Batches accounting. Labels: type ("update"|"train"), status ("received"|"dropped").
+    /// Batches accounting. Labels: type ("update"|"train"), status
+    /// ("received"|"dropped").
     pub batches_total: IntCounterVec,
     /// Inference accounting. Label: status ("success"|"fallback"|"none").
     pub infer_total: IntCounterVec,
 
-    /// Per-operation process CPU usage (percent) as histogram; label: component.
+    /// Per-operation process CPU usage (percent) as histogram; label:
+    /// component.
     pub proc_cpu_pct: HistogramVec,
     /// Per-operation process RSS memory (bytes) as histogram; label: component.
     pub proc_mem_bytes: HistogramVec,
@@ -63,7 +71,8 @@ impl GasMetrics {
             "gas_predict_pending_train_items",
             "Pending training items count",
             registry,
-        ).unwrap();
+        )
+        .unwrap();
 
         let batches_total = register_int_counter_vec_with_registry!(
             "gas_predict_batches_total",
@@ -111,8 +120,9 @@ impl GasMetrics {
         }
     }
 
-    /// Pre-create time series for common components so that dashboards show lines even
-    /// when NN is disabled or idle. This sends a single zero sample per series.
+    /// Pre-create time series for common components so that dashboards show
+    /// lines even when NN is disabled or idle. This sends a single zero
+    /// sample per series.
     pub fn warmup_series(&self) {
         let components = [
             "model_updater.predict",
@@ -139,10 +149,12 @@ impl GasMetrics {
     }
 
     pub fn touched_hist(&self) -> Histogram {
-        self.touched_per_cp.with_label_values(&["congestion.touched"]) 
+        self.touched_per_cp
+            .with_label_values(&["congestion.touched"])
     }
 
-    /// Sample process CPU% and RSS memory and record to histograms for the given component.
+    /// Sample process CPU% and RSS memory and record to histograms for the
+    /// given component.
     pub fn record_hw_sample(&self, component: &str) {
         if let Some((cpu_pct, rss_bytes)) = self.sampler.sample_proc() {
             self.proc_cpu_pct
@@ -150,7 +162,7 @@ impl GasMetrics {
                 .observe(cpu_pct as u64);
             self.proc_mem_bytes
                 .with_label_values(&[component])
-                .observe(rss_bytes as u64);
+                .observe(rss_bytes);
         }
     }
 }
@@ -158,7 +170,9 @@ impl GasMetrics {
 static GLOBAL: OnceCell<Arc<GasMetrics>> = OnceCell::new();
 
 pub fn init_gas_metrics(registry: &Registry) -> Arc<GasMetrics> {
-    let m = GLOBAL.get_or_init(|| Arc::new(GasMetrics::new(registry))).clone();
+    let m = GLOBAL
+        .get_or_init(|| Arc::new(GasMetrics::new(registry)))
+        .clone();
     // warmup once per process
     m.warmup_series();
     m
@@ -193,7 +207,11 @@ impl GasHwSampler {
 
     fn sample_proc(&self) -> Option<(f32, u64)> {
         let mut sys = self.sys.lock().ok()?;
-        let _ = sys.refresh_processes_specifics(ProcessesToUpdate::Some(&[self.pid]), false, self.refresh_kind);
+        let _ = sys.refresh_processes_specifics(
+            ProcessesToUpdate::Some(&[self.pid]),
+            false,
+            self.refresh_kind,
+        );
         let p = sys.process(self.pid)?;
         let cpu = p.cpu_usage();
         let rss = p.memory();

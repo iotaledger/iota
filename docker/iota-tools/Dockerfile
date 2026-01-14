@@ -64,10 +64,17 @@ mv $TARGET_DIR/iota-genesis-builder ./;
 FROM debian:bookworm-slim AS runtime
 
 ARG WORKDIR="/iota"
+ARG PROFILE=release
 WORKDIR "$WORKDIR"
 
 # Install runtime dependencies and tools
 RUN apt update && apt install -y libpq5 ca-certificates curl git
+
+# Copy LibTorch runtime so iota-node can load predictor components
+COPY --from=builder /iota/target/${PROFILE}/build/torch-sys-*/out/libtorch/libtorch/lib/ /opt/libtorch/lib/
+# Set an explicit LD_LIBRARY_PATH without referencing an undefined variable to satisfy linters
+ENV LD_LIBRARY_PATH=/opt/libtorch/lib
+RUN echo "/opt/libtorch/lib" > /etc/ld.so.conf.d/libtorch.conf && ldconfig
 
 COPY --from=builder /iota/iota-node /usr/local/bin
 COPY --from=builder /iota/stress /usr/local/bin
