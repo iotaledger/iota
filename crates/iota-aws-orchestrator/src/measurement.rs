@@ -355,6 +355,75 @@ impl<T: BenchmarkType> MeasurementsCollection<T> {
         fs::write(file, json).unwrap();
     }
 
+    pub fn aggregates_metrics_from_files<M: ProtocolMetrics>(
+        &mut self,
+        num_clients: usize,
+        log_dir: &Path,
+    ) {
+        display::action("Processing metrics files");
+        let duration_secs = self.parameters.duration.as_secs();
+
+        for i in 0..num_clients {
+            let metrics_file = log_dir.join(format!("metrics-{i}.log"));
+
+            if metrics_file.exists() {
+                match fs::read_to_string(&metrics_file) {
+                    Ok(content) => {
+                        display::action(format!("Processing: {}\n", metrics_file.display()));
+
+                        let chunks = self.split_into_chunks(&content);
+                        for chunk in chunks.iter() {
+                            let mut measurements: HashMap<String, Measurement> =
+                                Measurement::from_prometheus::<M>(chunk);
+                            // Retain only measurements within the benchmark duration
+                            measurements.retain(|_, m| m.timestamp.as_secs() <= duration_secs);
+
+                            self.add(i, measurements);
+                        }
+
+                        display::action(format!("Processed metrics for client {i}\n"));
+                    }
+                    Err(e) => display::warn(format!("Failed to read metrics file {i}: {e}")),
+                }
+            }
+        }
+        display::done();
+    }
+
+    /// Split metrics content into chunks separated by "# HELP
+    /// benchmark_duration" lines
+    fn split_into_chunks(&self, text: &str) -> Vec<String> {
+        let mut chunks = Vec::new();
+        let mut current_chunk = String::new();
+        let mut found_first_help = false;
+
+        for line in text.lines() {
+            let trimmed = line.trim();
+
+            // Skip everything until we find the first "# HELP benchmark_duration"
+            if trimmed.starts_with("# HELP benchmark_duration") {
+                if found_first_help && !current_chunk.is_empty() {
+                    // We've found another chunk boundary, save the previous one
+                    chunks.push(current_chunk);
+                    current_chunk = String::new();
+                }
+                found_first_help = true;
+            }
+
+            if found_first_help {
+                current_chunk.push_str(line);
+                current_chunk.push('\n');
+            }
+        }
+
+        // Add the last chunk
+        if !current_chunk.is_empty() {
+            chunks.push(current_chunk);
+        }
+
+        chunks
+    }
+
     /// Display a summary of the measurements.
     pub fn display_summary(&self) {
         let duration = self.benchmark_duration();
@@ -682,5 +751,82 @@ mod test {
         assert_eq!(data.count, 1870);
         assert_eq!(data.timestamp.as_secs(), 30);
         assert_eq!(data.squared_sum.as_secs(), 455);
+    }
+
+    #[test]
+    #[ignore]
+    // This test could be used to debug / test existed metrics aggregation
+    fn debug_real_metrics_aggregation() {
+        use std::{path::PathBuf, time::Duration};
+
+        // Put the path to the metrics log directory
+        let metrics_dir = PathBuf::from("PATH/TO/YOUR/METRICS/DIR");
+
+        println!("\n\n========== METRICS AGGREGATION DEBUG ==========\n");
+        println!("Reading metrics from: {}\n", metrics_dir.display());
+
+        let settings = Settings::new_for_test();
+        let num_clients = 10;
+        // Define benchmark parameters matching the real benchmark
+        let benchmark_parameters = BenchmarkParameters {
+            duration: Duration::from_secs(180),
+            load: 1000,
+            nodes: num_clients,
+            ..Default::default()
+        };
+
+        let mut aggregator =
+            MeasurementsCollection::<TestBenchmarkType>::new(&settings, benchmark_parameters);
+
+        // Parse all metrics files
+        aggregator.aggregates_metrics_from_files::<TestProtocolMetrics>(num_clients, &metrics_dir);
+
+        println!("========== DISPLAY SUMMARY ==========\n");
+        aggregator.display_summary();
+    }
+
+    #[test]
+    #[ignore]
+    // Load measurements from measurement-*.json and parse associated metrics files
+    fn debug_metrics_from_saved_measurements() {
+        use std::{fs, path::PathBuf};
+
+        use crate::IotaBenchmarkType;
+
+        let benchmark_dir = PathBuf::from("PATH/TO/YOUR/SAVED/MEASUREMENTS/DIR");
+
+        // Find and parse the measurement-*.json file to get parameters
+        let mut aggregator: Option<MeasurementsCollection<IotaBenchmarkType>> = None;
+        if let Ok(entries) = fs::read_dir(&benchmark_dir) {
+            for entry in entries.filter_map(|e| e.ok()) {
+                let path = entry.path();
+                if let Some(filename) = path.file_name() {
+                    let filename_str = filename.to_string_lossy();
+
+                    if filename_str.starts_with("measurements-") {
+                        match MeasurementsCollection::<IotaBenchmarkType>::load(&path) {
+                            Ok(loaded) => {
+                                println!("Loaded parameters from: {}\n", filename_str);
+                                aggregator = Some(loaded);
+                                break;
+                            }
+                            Err(e) => {
+                                println!("Failed to load {}: {}\n", filename_str, e);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        let aggregator = match aggregator {
+            Some(agg) => agg,
+            None => {
+                panic!("No measurement-*.json file found or failed to load");
+            }
+        };
+
+        println!("========== DISPLAY SUMMARY ==========\n");
+        aggregator.display_summary();
     }
 }

@@ -31,12 +31,6 @@ Response: {
         {
           "effects": {
             "objectChanges": {
-              "pageInfo": {
-                "hasPreviousPage": false,
-                "hasNextPage": false,
-                "startCursor": "eyJpIjowLCJjIjoxfQ",
-                "endCursor": "eyJpIjoxOSwiYyI6MX0"
-              },
               "edges": [
                 {
                   "cursor": "eyJpIjowLCJjIjoxfQ"
@@ -98,7 +92,13 @@ Response: {
                 {
                   "cursor": "eyJpIjoxOSwiYyI6MX0"
                 }
-              ]
+              ],
+              "pageInfo": {
+                "endCursor": "eyJpIjoxOSwiYyI6MX0",
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "eyJpIjowLCJjIjoxfQ"
+              }
             }
           }
         }
@@ -116,12 +116,6 @@ Response: {
         {
           "effects": {
             "objectChanges": {
-              "pageInfo": {
-                "hasPreviousPage": true,
-                "hasNextPage": true,
-                "startCursor": "eyJpIjoxMSwiYyI6MX0",
-                "endCursor": "eyJpIjoxNSwiYyI6MX0"
-              },
               "edges": [
                 {
                   "cursor": "eyJpIjoxMSwiYyI6MX0"
@@ -138,7 +132,13 @@ Response: {
                 {
                   "cursor": "eyJpIjoxNSwiYyI6MX0"
                 }
-              ]
+              ],
+              "pageInfo": {
+                "endCursor": "eyJpIjoxNSwiYyI6MX0",
+                "hasNextPage": true,
+                "hasPreviousPage": true,
+                "startCursor": "eyJpIjoxMSwiYyI6MX0"
+              }
             }
           }
         }

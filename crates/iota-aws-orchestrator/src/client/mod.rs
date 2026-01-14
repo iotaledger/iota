@@ -49,6 +49,7 @@ impl Display for InstanceLifecycle {
         write!(f, "{self:?}")
     }
 }
+
 /// Represents a cloud provider instance.
 #[derive(Debug, Deserialize, Clone, Eq, PartialEq, Hash)]
 pub struct Instance {
@@ -70,6 +71,12 @@ pub struct Instance {
     pub role: InstanceRole,
     // The lifecycle of the instance. "Spot" | "OnDemand"
     pub lifecycle: InstanceLifecycle,
+}
+
+impl Display for Instance {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}-{}", self.role, self.main_ip)
+    }
 }
 
 impl Instance {

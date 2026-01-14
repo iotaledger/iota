@@ -30,6 +30,44 @@ task 4, lines 21-78:
 //# run-graphql
 Response: {
   "data": {
+    "bothAddresses": {
+      "nodes": [
+        {
+          "effects": {
+            "objectChanges": {
+              "nodes": [
+                {
+                  "inputState": null,
+                  "outputState": {
+                    "asMoveObject": {
+                      "asCoin": {
+                        "coinBalance": "1000000"
+                      }
+                    }
+                  }
+                },
+                {
+                  "inputState": {
+                    "asMoveObject": {
+                      "asCoin": {
+                        "coinBalance": "300000000000000"
+                      }
+                    }
+                  },
+                  "outputState": {
+                    "asMoveObject": {
+                      "asCoin": {
+                        "coinBalance": "299999996039200"
+                      }
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
     "bySentAddress": {
       "nodes": [
         {
@@ -106,7 +144,7 @@ Response: {
         }
       ]
     },
-    "bothAddresses": {
+    "compoundBothAddresses": {
       "nodes": [
         {
           "effects": {
@@ -143,9 +181,6 @@ Response: {
           }
         }
       ]
-    },
-    "differentAddresses": {
-      "nodes": []
     },
     "compoundBySentAddress": {
       "nodes": [
@@ -223,45 +258,10 @@ Response: {
         }
       ]
     },
-    "compoundBothAddresses": {
-      "nodes": [
-        {
-          "effects": {
-            "objectChanges": {
-              "nodes": [
-                {
-                  "inputState": null,
-                  "outputState": {
-                    "asMoveObject": {
-                      "asCoin": {
-                        "coinBalance": "1000000"
-                      }
-                    }
-                  }
-                },
-                {
-                  "inputState": {
-                    "asMoveObject": {
-                      "asCoin": {
-                        "coinBalance": "300000000000000"
-                      }
-                    }
-                  },
-                  "outputState": {
-                    "asMoveObject": {
-                      "asCoin": {
-                        "coinBalance": "299999996039200"
-                      }
-                    }
-                  }
-                }
-              ]
-            }
-          }
-        }
-      ]
-    },
     "compoundDifferentAddresses": {
+      "nodes": []
+    },
+    "differentAddresses": {
       "nodes": []
     },
     "sentViaAddress": {

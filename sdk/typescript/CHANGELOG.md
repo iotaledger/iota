@@ -1,5 +1,11 @@
 # @iota/iota-sdk
 
+## 1.10.1
+
+### Patch Changes
+
+-   1925bea: Bump with no changes to fix NPM versions
+
 ## 1.10.0
 
 ### Minor Changes

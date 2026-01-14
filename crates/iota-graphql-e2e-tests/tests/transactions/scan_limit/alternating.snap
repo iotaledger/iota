@@ -89,12 +89,6 @@ task 15, lines 58-79:
 Response: {
   "data": {
     "transactionBlocks": {
-      "pageInfo": {
-        "hasPreviousPage": false,
-        "hasNextPage": true,
-        "startCursor": "eyJjIjozLCJ0IjoyLCJpIjp0cnVlfQ",
-        "endCursor": "eyJjIjozLCJ0IjozLCJpIjp0cnVlfQ"
-      },
       "edges": [
         {
           "cursor": "eyJjIjozLCJ0IjoyLCJpIjpmYWxzZX0",
@@ -107,7 +101,13 @@ Response: {
             }
           }
         }
-      ]
+      ],
+      "pageInfo": {
+        "endCursor": "eyJjIjozLCJ0IjozLCJpIjp0cnVlfQ",
+        "hasNextPage": true,
+        "hasPreviousPage": false,
+        "startCursor": "eyJjIjozLCJ0IjoyLCJpIjp0cnVlfQ"
+      }
     }
   }
 }
@@ -117,12 +117,6 @@ task 16, lines 81-105:
 Response: {
   "data": {
     "transactionBlocks": {
-      "pageInfo": {
-        "hasPreviousPage": false,
-        "hasNextPage": true,
-        "startCursor": "eyJjIjozLCJ0Ijo0LCJpIjpmYWxzZX0",
-        "endCursor": "eyJjIjozLCJ0Ijo2LCJpIjpmYWxzZX0"
-      },
       "edges": [
         {
           "cursor": "eyJjIjozLCJ0Ijo0LCJpIjpmYWxzZX0",
@@ -146,7 +140,13 @@ Response: {
             }
           }
         }
-      ]
+      ],
+      "pageInfo": {
+        "endCursor": "eyJjIjozLCJ0Ijo2LCJpIjpmYWxzZX0",
+        "hasNextPage": true,
+        "hasPreviousPage": false,
+        "startCursor": "eyJjIjozLCJ0Ijo0LCJpIjpmYWxzZX0"
+      }
     }
   }
 }
@@ -156,12 +156,6 @@ task 17, lines 107-130:
 Response: {
   "data": {
     "transactionBlocks": {
-      "pageInfo": {
-        "hasPreviousPage": true,
-        "hasNextPage": true,
-        "startCursor": "eyJjIjozLCJ0Ijo0LCJpIjp0cnVlfQ",
-        "endCursor": "eyJjIjozLCJ0Ijo1LCJpIjp0cnVlfQ"
-      },
       "edges": [
         {
           "cursor": "eyJjIjozLCJ0Ijo0LCJpIjpmYWxzZX0",
@@ -174,7 +168,13 @@ Response: {
             }
           }
         }
-      ]
+      ],
+      "pageInfo": {
+        "endCursor": "eyJjIjozLCJ0Ijo1LCJpIjp0cnVlfQ",
+        "hasNextPage": true,
+        "hasPreviousPage": true,
+        "startCursor": "eyJjIjozLCJ0Ijo0LCJpIjp0cnVlfQ"
+      }
     }
   }
 }
@@ -184,12 +184,6 @@ task 18, lines 132-156:
 Response: {
   "data": {
     "transactionBlocks": {
-      "pageInfo": {
-        "hasPreviousPage": true,
-        "hasNextPage": true,
-        "startCursor": "eyJjIjozLCJ0Ijo3LCJpIjp0cnVlfQ",
-        "endCursor": "eyJjIjozLCJ0Ijo4LCJpIjp0cnVlfQ"
-      },
       "edges": [
         {
           "cursor": "eyJjIjozLCJ0Ijo4LCJpIjpmYWxzZX0",
@@ -202,7 +196,13 @@ Response: {
             }
           }
         }
-      ]
+      ],
+      "pageInfo": {
+        "endCursor": "eyJjIjozLCJ0Ijo4LCJpIjp0cnVlfQ",
+        "hasNextPage": true,
+        "hasPreviousPage": true,
+        "startCursor": "eyJjIjozLCJ0Ijo3LCJpIjp0cnVlfQ"
+      }
     }
   }
 }
@@ -212,12 +212,6 @@ task 19, lines 158-185:
 Response: {
   "data": {
     "transactionBlocks": {
-      "pageInfo": {
-        "hasPreviousPage": true,
-        "hasNextPage": true,
-        "startCursor": "eyJjIjozLCJ0Ijo2LCJpIjp0cnVlfQ",
-        "endCursor": "eyJjIjozLCJ0Ijo4LCJpIjpmYWxzZX0"
-      },
       "edges": [
         {
           "cursor": "eyJjIjozLCJ0Ijo2LCJpIjpmYWxzZX0",
@@ -241,7 +235,13 @@ Response: {
             }
           }
         }
-      ]
+      ],
+      "pageInfo": {
+        "endCursor": "eyJjIjozLCJ0Ijo4LCJpIjpmYWxzZX0",
+        "hasNextPage": true,
+        "hasPreviousPage": true,
+        "startCursor": "eyJjIjozLCJ0Ijo2LCJpIjp0cnVlfQ"
+      }
     }
   }
 }
@@ -251,12 +251,6 @@ task 20, lines 187-210:
 Response: {
   "data": {
     "transactionBlocks": {
-      "pageInfo": {
-        "hasPreviousPage": true,
-        "hasNextPage": false,
-        "startCursor": "eyJjIjozLCJ0IjoxMCwiaSI6ZmFsc2V9",
-        "endCursor": "eyJjIjozLCJ0IjoxMCwiaSI6ZmFsc2V9"
-      },
       "edges": [
         {
           "cursor": "eyJjIjozLCJ0IjoxMCwiaSI6ZmFsc2V9",
@@ -269,7 +263,13 @@ Response: {
             }
           }
         }
-      ]
+      ],
+      "pageInfo": {
+        "endCursor": "eyJjIjozLCJ0IjoxMCwiaSI6ZmFsc2V9",
+        "hasNextPage": false,
+        "hasPreviousPage": true,
+        "startCursor": "eyJjIjozLCJ0IjoxMCwiaSI6ZmFsc2V9"
+      }
     }
   }
 }
@@ -279,12 +279,6 @@ task 21, lines 212-236:
 Response: {
   "data": {
     "transactionBlocks": {
-      "pageInfo": {
-        "hasPreviousPage": true,
-        "hasNextPage": false,
-        "startCursor": "eyJjIjozLCJ0Ijo5LCJpIjp0cnVlfQ",
-        "endCursor": "eyJjIjozLCJ0IjoxMSwiaSI6dHJ1ZX0"
-      },
       "edges": [
         {
           "cursor": "eyJjIjozLCJ0IjoxMCwiaSI6ZmFsc2V9",
@@ -297,7 +291,13 @@ Response: {
             }
           }
         }
-      ]
+      ],
+      "pageInfo": {
+        "endCursor": "eyJjIjozLCJ0IjoxMSwiaSI6dHJ1ZX0",
+        "hasNextPage": false,
+        "hasPreviousPage": true,
+        "startCursor": "eyJjIjozLCJ0Ijo5LCJpIjp0cnVlfQ"
+      }
     }
   }
 }
