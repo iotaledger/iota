@@ -44,7 +44,7 @@ jobs:
       - name: Check Rust formatting
         run: cargo +nightly-2026-01-07 ci-fmt
 
-  cargo-consolidate-and-sort:
+  cargo-sort:
     if: (!cancelled() && inputs.isRust)
     runs-on: [self-hosted-x64]
     steps:
