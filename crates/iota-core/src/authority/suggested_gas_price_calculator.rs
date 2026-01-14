@@ -2001,4 +2001,156 @@ mod tests {
             "Calculated suggested gas price does not match expected; transaction:\n{tx_data:#?}"
         );
     }
+
+    // Test `SuggestedGasPriceCalculator::calculate_suggested_gas_price`
+    // with congestion limit overshoot disabled in the tracker for a
+    // transaction whose estimated execution duration is larger than
+    // congestion limit per commit.
+    #[rstest]
+    fn calculate_suggested_gas_price_for_unschedulable_transaction_without_overshoot(
+        #[values(false, true)] assign_min_free_exec_slot: bool,
+        // Whether to use congestion limit overshoot in the gas price feedback
+        // mechanism, i.e., this is only used in `SuggestedGasPriceCalculator`.
+        // This is used to test that `SuggestedGasPriceCalculator` behaves in
+        // the same way regardless of `use_congestion_limit_overshoot` values
+        // if `max_congestion_limit_overshoot_per_commit` is `None`.
+        #[values(false, true)] use_congestion_limit_overshoot: bool,
+        #[values(
+            PerObjectCongestionControlMode::TotalTxCount,
+            PerObjectCongestionControlMode::TotalGasBudget
+        )]
+        per_object_congestion_control_mode: PerObjectCongestionControlMode,
+    ) {
+        let object_1 = ObjectID::random();
+        let object_2 = ObjectID::random();
+
+        // Congestion control and other parameters used in
+        // `SharedObjectCongestionTracker` and `SuggestedGasPriceCalculator`
+        let max_gas_price = ProtocolConfig::get_for_max_version_UNSAFE().max_gas_price();
+        let max_execution_duration_per_commit = match per_object_congestion_control_mode {
+            PerObjectCongestionControlMode::None => unreachable!(),
+            PerObjectCongestionControlMode::TotalTxCount => 0,
+            PerObjectCongestionControlMode::TotalGasBudget => 2_999_999,
+        };
+        let congestion_control_parameters = CongestionControlParameters::new_for_test(
+            per_object_congestion_control_mode,
+            assign_min_free_exec_slot,
+            Some(max_execution_duration_per_commit),
+            None, // max_congestion_limit_overshoot_per_commit
+            max_gas_price,
+            use_congestion_limit_overshoot,
+        );
+
+        // Initialize `SharedObjectCongestionTracker` and `SuggestedGasPriceCalculator`
+        let mut shared_object_congestion_tracker = SharedObjectCongestionTracker::new_for_test(
+            [], // initial_object_debts
+            congestion_control_parameters.clone(),
+        );
+        let mut suggested_gas_price_calculator = SuggestedGasPriceCalculator::new_for_test(
+            congestion_control_parameters,
+            REFERENCE_GAS_PRICE,
+        );
+
+        // Create some data for transactions and process each for scheduling
+        let txs_data = build_transactions_data_for_test(max_gas_price, object_1, object_2);
+
+        // Transaction
+        // 0: (maxgp, 3_000_000, vec![(object_1, true), (object_2, false)])
+        // must be deferred, with objects 1 and 2 being labeled congested
+        // and suggested gas price being equal the reference gas price.
+        let tx_data = &txs_data[0];
+        let (congested_objects, suggested_gas_price) = try_defer(
+            tx_data,
+            &mut shared_object_congestion_tracker,
+            &mut suggested_gas_price_calculator,
+        )
+        .unwrap_or_else(|| {
+            panic!("Transaction must be deferred:\n{tx_data:#?}");
+        });
+        assert_eq!(
+            congested_objects,
+            vec![object_1, object_2], // expected congested objects
+            "Calculated congested objects do not match expected: transaction:\n{tx_data:#?}"
+        );
+        assert_eq!(
+            suggested_gas_price,
+            REFERENCE_GAS_PRICE, // expected suggested gas price
+            "Calculated suggested gas price does not match expected; transaction:\n{tx_data:#?}"
+        );
+    }
+
+    // Test `SuggestedGasPriceCalculator::calculate_suggested_gas_price`
+    // with congestion limit overshoot enabled in the tracker for a
+    // transaction whose estimated execution duration is larger than
+    // congestion limit per commit.
+    #[rstest]
+    fn calculate_suggested_gas_price_for_unschedulable_transaction_with_overshoot(
+        #[values(false, true)] assign_min_free_exec_slot: bool,
+        // Whether to use congestion limit overshoot in the gas price feedback
+        // mechanism, i.e., this is only used in `SuggestedGasPriceCalculator`.
+        #[values(false, true)] use_congestion_limit_overshoot: bool,
+        #[values(
+            PerObjectCongestionControlMode::TotalTxCount,
+            PerObjectCongestionControlMode::TotalGasBudget
+        )]
+        per_object_congestion_control_mode: PerObjectCongestionControlMode,
+    ) {
+        let object_1 = ObjectID::random();
+        let object_2 = ObjectID::random();
+
+        // Congestion control and other parameters used in
+        // `SharedObjectCongestionTracker` and `SuggestedGasPriceCalculator`
+        let max_gas_price = ProtocolConfig::get_for_max_version_UNSAFE().max_gas_price();
+        let (max_execution_duration_per_commit, max_congestion_limit_overshoot_per_commit) =
+            match per_object_congestion_control_mode {
+                PerObjectCongestionControlMode::None => unreachable!(),
+                PerObjectCongestionControlMode::TotalTxCount => (1, 2),
+                PerObjectCongestionControlMode::TotalGasBudget => (1_000_000, 2_000_000),
+            };
+        let congestion_control_parameters = CongestionControlParameters::new_for_test(
+            per_object_congestion_control_mode,
+            assign_min_free_exec_slot,
+            Some(max_execution_duration_per_commit),
+            Some(max_congestion_limit_overshoot_per_commit),
+            max_gas_price,
+            use_congestion_limit_overshoot,
+        );
+
+        // Initialize `SharedObjectCongestionTracker` and `SuggestedGasPriceCalculator`
+        let mut shared_object_congestion_tracker = SharedObjectCongestionTracker::new_for_test(
+            [(object_1, 3), (object_2, 3)], // initial_object_debts
+            congestion_control_parameters.clone(),
+        );
+        let mut suggested_gas_price_calculator = SuggestedGasPriceCalculator::new_for_test(
+            congestion_control_parameters,
+            REFERENCE_GAS_PRICE,
+        );
+
+        // Create some data for transactions and process each for scheduling
+        let txs_data = build_transactions_data_for_test(max_gas_price, object_1, object_2);
+
+        // Transaction
+        // 0: (maxgp, 3_000_000, vec![(object_1, true), (object_2, false)])
+        // must be deferred, with objects 1 and 2 being labeled congested
+        // and suggested gas price being equal the reference gas price.
+        let tx_data = &txs_data[0];
+        let (congested_objects, suggested_gas_price) = try_defer(
+            tx_data,
+            &mut shared_object_congestion_tracker,
+            &mut suggested_gas_price_calculator,
+        )
+        .unwrap_or_else(|| {
+            panic!("Transaction must be deferred:\n{tx_data:#?}");
+        });
+        assert_eq!(
+            congested_objects,
+            vec![object_1, object_2], // expected congested objects
+            "Calculated congested objects do not match expected: transaction:\n{tx_data:#?}"
+        );
+        assert_eq!(
+            suggested_gas_price,
+            REFERENCE_GAS_PRICE, // expected suggested gas price
+            "Calculated suggested gas price does not match expected; transaction:\n{tx_data:#?}"
+        );
+    }
 }
