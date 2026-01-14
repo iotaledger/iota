@@ -50,7 +50,7 @@ export function SiteConnectPage() {
         return preselectedAccounts.concat(previouslyPermittedAccounts);
     });
 
-    function handleOnClose() {
+    function handleOnFinish() {
         if (extensionViewType === ExtensionViewType.SidePanel) {
             SidePanel.enableAndGoTo(`${location.pathname}`);
         } else {
@@ -75,14 +75,14 @@ export function SiteConnectPage() {
                     applicationUrl: permissionRequest.origin,
                     approvedConnection: allowed,
                 });
-                handleOnClose();
+                handleOnFinish();
             }
         },
         [requestID, accountsToConnect, permissionRequest, dispatch],
     );
     useEffect(() => {
         if (!loading && !permissionRequest) {
-            handleOnClose();
+            handleOnFinish();
         }
     }, [loading, permissionRequest]);
 

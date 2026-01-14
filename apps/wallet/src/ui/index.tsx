@@ -116,7 +116,7 @@ function AppWrapper() {
                                                                             'relative flex h-screen flex-col flex-nowrap items-center justify-center overflow-hidden',
                                                                             extensionViewType ===
                                                                                 ExtensionViewType.SidePanel
-                                                                                ? 'min-h-sidepanel-minimum max-h-sidepanel-height w-full max-w-sidepanel-width'
+                                                                                ? 'min-h-sidepanel-minimum max-h-sidepanel-height w-sidepanel-width'
                                                                                 : 'max-h-popup-height min-h-popup-minimum w-popup-width',
                                                                             extensionViewType !==
                                                                                 ExtensionViewType.Popup &&
