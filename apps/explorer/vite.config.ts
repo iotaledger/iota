@@ -21,7 +21,7 @@ export default defineConfig({
         svgr(),
         {
             name: 'copy-wasm-files',
-            generateBundle() {
+            buildStart() {
                 // Copy WASM files to public directory
                 try {
                     copyFileSync(
