@@ -1,0 +1,25 @@
+services:
+  prometheus:
+    image: prom/prometheus:latest
+    user: "0:0"
+    command:
+      - --config.file=/etc/prometheus.yaml
+      - --storage.tsdb.path=/prometheus
+    volumes:
+      - ./prometheus-snapshot.yaml:/etc/prometheus.yaml:ro
+      - ${SNAPSHOT_DIR_PATH}:/prometheus
+    ports:
+      - "9090:9090"
+
+  grafana:
+    image: grafana/grafana:10.1.1
+    volumes:
+      - ./grafana-datasources.yaml:/etc/grafana/provisioning/datasources/datasources.yaml
+      - ./dashboards:/etc/grafana/provisioning/dashboards
+    environment:
+      - GF_AUTH_ANONYMOUS_ENABLED=true
+      - GF_AUTH_ANONYMOUS_ORG_ROLE=Admin
+      - GF_AUTH_DISABLE_LOGIN_FORM=true
+      - GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH=/etc/grafana/provisioning/dashboards/cluster-status-dashboard.json
+    ports:
+      - "3000:3000"

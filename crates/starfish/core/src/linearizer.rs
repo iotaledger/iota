@@ -156,7 +156,7 @@ impl Linearizer {
         let sub_dag = PendingSubDag::new(
             leader_block.reference(),
             to_commit,
-            commit.committed_transactions(),
+            commit.committed_transactions().to_vec(),
             timestamp_ms,
             commit.reference(),
             reputation_scores_desc,
@@ -339,6 +339,25 @@ impl Linearizer {
         }
 
         acknowledged_map
+    }
+
+    /// Record headers as traversed when recovering state so transaction commit
+    /// checks can succeed after a restart.
+    pub(crate) fn record_traversed_headers<'a>(
+        &mut self,
+        headers: impl IntoIterator<Item = &'a VerifiedBlockHeader>,
+    ) {
+        if !self
+            .context
+            .protocol_config
+            .consensus_commit_transactions_only_for_traversed_headers()
+        {
+            return;
+        }
+
+        for header in headers {
+            self.traversed_headers_tracker.insert(header.reference());
+        }
     }
 
     /// Calculates the commit's timestamp using the median of leader's parents

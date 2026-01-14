@@ -24,7 +24,7 @@ export function useGetDefaultIotaName(
         queryFn: async () => {
             if (!address) return null;
 
-            const defaultName = await iotaNamesClient?.getDefaultName(address);
+            const defaultName = await iotaNamesClient?.getPublicName(address);
 
             if (!defaultName) return null;
 

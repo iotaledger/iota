@@ -102,6 +102,7 @@ use iota_network::{
 use iota_network_stack::server::{IOTA_TLS_SERVER_NAME, ServerBuilder};
 use iota_protocol_config::ProtocolConfig;
 use iota_rest_api::RestMetrics;
+use iota_sdk_types::crypto::{Intent, IntentMessage, IntentScope};
 use iota_snapshot::uploader::StateSnapshotUploader;
 use iota_storage::{
     FileCompression, StorageFormat,
@@ -133,7 +134,6 @@ use iota_types::{
     transaction::{Transaction, VerifiedCertificate},
 };
 use prometheus::Registry;
-use shared_crypto::intent::{Intent, IntentMessage, IntentScope};
 #[cfg(msim)]
 pub use simulator::set_jwk_injector;
 #[cfg(msim)]
@@ -582,6 +582,12 @@ impl IotaNode {
             )))
         };
 
+        let chain_id = ChainIdentifier::from(*genesis.checkpoint().digest());
+        let chain = match config.chain_override_for_testing {
+            Some(chain) => chain,
+            None => ChainIdentifier::from(*genesis.checkpoint().digest()).chain(),
+        };
+
         let epoch_options = default_db_options().optimize_db_for_write_throughput(4);
         let epoch_store = AuthorityPerEpochStore::new(
             config.authority_public_key(),
@@ -595,7 +601,7 @@ impl IotaNode {
             cache_metrics,
             signature_verifier_metrics,
             &config.expensive_safety_check_config,
-            ChainIdentifier::from(*genesis.checkpoint().digest()),
+            (chain_id, chain),
             checkpoint_store
                 .get_highest_executed_checkpoint_seq_number()
                 .expect("checkpoint store read cannot fail")
@@ -1433,15 +1439,6 @@ impl IotaNode {
                 ),
             )
             .await;
-
-        if !epoch_store
-            .epoch_start_config()
-            .is_data_quarantine_active_from_beginning_of_epoch()
-        {
-            checkpoint_store
-                .reexecute_local_checkpoints(&state, &epoch_store)
-                .await;
-        }
 
         info!("Spawning checkpoint service");
         let checkpoint_service_tasks = checkpoint_service.spawn().await;

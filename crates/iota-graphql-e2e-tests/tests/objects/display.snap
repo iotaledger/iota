@@ -53,19 +53,19 @@ Response: {
           {
             "display": [
               {
+                "error": "Vector of name vec is not supported as a Display value",
                 "key": "vectors",
-                "value": null,
-                "error": "Vector of name vec is not supported as a Display value"
+                "value": null
               },
               {
+                "error": "Field 'idd' not found",
                 "key": "idd",
-                "value": null,
-                "error": "Field 'idd' not found"
+                "value": null
               },
               {
+                "error": "Field 'namee' not found",
                 "key": "namee",
-                "value": null,
-                "error": "Field 'namee' not found"
+                "value": null
               }
             ]
           }
@@ -100,24 +100,24 @@ Response: {
           {
             "display": [
               {
+                "error": "Vector of name vec is not supported as a Display value",
                 "key": "vectors",
-                "value": null,
-                "error": "Vector of name vec is not supported as a Display value"
+                "value": null
               },
               {
+                "error": "Field 'idd' not found",
                 "key": "idd",
-                "value": null,
-                "error": "Field 'idd' not found"
+                "value": null
               },
               {
+                "error": "Field 'namee' not found",
                 "key": "namee",
-                "value": null,
-                "error": "Field 'namee' not found"
+                "value": null
               },
               {
+                "error": null,
                 "key": "nums",
-                "value": "420",
-                "error": null
+                "value": "420"
               }
             ]
           }
@@ -152,79 +152,79 @@ Response: {
           {
             "display": [
               {
+                "error": "Vector of name vec is not supported as a Display value",
                 "key": "vectors",
-                "value": null,
-                "error": "Vector of name vec is not supported as a Display value"
+                "value": null
               },
               {
+                "error": "Field 'idd' not found",
                 "key": "idd",
-                "value": null,
-                "error": "Field 'idd' not found"
+                "value": null
               },
               {
+                "error": "Field 'namee' not found",
                 "key": "namee",
-                "value": null,
-                "error": "Field 'namee' not found"
+                "value": null
               },
               {
+                "error": null,
                 "key": "nums",
-                "value": "420",
-                "error": null
+                "value": "420"
               },
               {
+                "error": null,
                 "key": "bools",
-                "value": "true",
-                "error": null
+                "value": "true"
               },
               {
+                "error": null,
                 "key": "buyer",
-                "value": "0x8cca4e1ce0ba5904cea61df9242da2f7d29e3ef328fb7ec07c086b3bf47ca61a",
-                "error": null
+                "value": "0x8cca4e1ce0ba5904cea61df9242da2f7d29e3ef328fb7ec07c086b3bf47ca61a"
               },
               {
+                "error": null,
                 "key": "name",
-                "value": "First Boar",
-                "error": null
+                "value": "First Boar"
               },
               {
+                "error": null,
                 "key": "creator",
-                "value": "Will",
-                "error": null
+                "value": "Will"
               },
               {
+                "error": null,
                 "key": "price",
-                "value": "",
-                "error": null
+                "value": ""
               },
               {
+                "error": null,
                 "key": "project_url",
-                "value": "Unique Boar from the Boars collection with First Boar and 0x7c5e2ec1e9d03c438f6509cae805d274aa363b6dbf18bc69d36d92de3e8b3164",
-                "error": null
+                "value": "Unique Boar from the Boars collection with First Boar and 0x7c5e2ec1e9d03c438f6509cae805d274aa363b6dbf18bc69d36d92de3e8b3164"
               },
               {
+                "error": null,
                 "key": "base_url",
-                "value": "https://get-a-boar.com/first.png",
-                "error": null
+                "value": "https://get-a-boar.com/first.png"
               },
               {
+                "error": null,
                 "key": "no_template",
-                "value": "https://get-a-boar.com/",
-                "error": null
+                "value": "https://get-a-boar.com/"
               },
               {
+                "error": null,
                 "key": "age",
-                "value": "10",
-                "error": null
+                "value": "10"
               },
               {
+                "error": null,
                 "key": "full_url",
-                "value": "https://get-a-boar.fullurl.com/",
-                "error": null
+                "value": "https://get-a-boar.fullurl.com/"
               },
               {
+                "error": null,
                 "key": "escape_syntax",
-                "value": "{name}",
-                "error": null
+                "value": "{name}"
               }
             ]
           }

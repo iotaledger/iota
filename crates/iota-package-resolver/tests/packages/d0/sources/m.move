@@ -4,8 +4,6 @@
 
 #[allow(unused_field)]
 module d::m {
-    use iota::object::UID;
-
     public struct O<T, phantom U> has key, store {
         id: UID,
         xs: vector<T>,

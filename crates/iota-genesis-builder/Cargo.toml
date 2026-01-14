@@ -16,11 +16,11 @@ bcs.workspace = true
 bigdecimal = "0.4"
 camino.workspace = true
 clap.workspace = true
-csv = "1.2"
+csv.workspace = true
 fastcrypto.workspace = true
 flate2.workspace = true
 itertools.workspace = true
-packable = { version = "0.8", default-features = false, features = ["io"] }
+packable.workspace = true
 prefix-hex = "0.7"
 prometheus.workspace = true
 rand = { workspace = true, features = ["std_rng"] }
@@ -35,7 +35,7 @@ serde_yaml.workspace = true
 tempfile.workspace = true
 tokio.workspace = true
 tracing.workspace = true
-tracing-subscriber = "0.3"
+tracing-subscriber.workspace = true
 
 # internal dependencies
 iota-adapter-latest = { path = "../../iota-execution/latest/iota-adapter/" }
@@ -48,13 +48,13 @@ iota-move-build.workspace = true
 iota-move-natives-latest = { path = "../../iota-execution/latest/iota-move-natives" }
 iota-protocol-config.workspace = true
 iota-sdk = { version = "1.1", default-features = false, features = ["irc_27", "irc_30", "std"] }
+iota-sdk-types.workspace = true
 iota-types.workspace = true
 move-binary-format.workspace = true
 move-compiler.workspace = true
 move-core-types.workspace = true
 move-package.workspace = true
 move-vm-runtime-latest = { path = "../../external-crates/move/crates/move-vm-runtime", package = "move-vm-runtime" }
-shared-crypto.workspace = true
 
 [target.'cfg(msim)'.dependencies]
 iota-simulator.workspace = true

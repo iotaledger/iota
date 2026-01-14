@@ -14,16 +14,9 @@ Response: {
       "asMovePackage": {
         "coin": {
           "struct": {
-            "name": "Coin",
             "abilities": [
               "STORE",
               "KEY"
-            ],
-            "typeParameters": [
-              {
-                "constraints": [],
-                "isPhantom": true
-              }
             ],
             "fields": [
               {
@@ -31,15 +24,15 @@ Response: {
                 "type": {
                   "repr": "0x0000000000000000000000000000000000000000000000000000000000000002::object::UID",
                   "signature": {
-                    "ref": null,
                     "body": {
                       "datatype": {
-                        "package": "0x0000000000000000000000000000000000000000000000000000000000000002",
                         "module": "object",
+                        "package": "0x0000000000000000000000000000000000000000000000000000000000000002",
                         "type": "UID",
                         "typeParameters": []
                       }
-                    }
+                    },
+                    "ref": null
                   }
                 }
               },
@@ -48,11 +41,10 @@ Response: {
                 "type": {
                   "repr": "0x0000000000000000000000000000000000000000000000000000000000000002::balance::Balance<$0>",
                   "signature": {
-                    "ref": null,
                     "body": {
                       "datatype": {
-                        "package": "0x0000000000000000000000000000000000000000000000000000000000000002",
                         "module": "balance",
+                        "package": "0x0000000000000000000000000000000000000000000000000000000000000002",
                         "type": "Balance",
                         "typeParameters": [
                           {
@@ -60,28 +52,34 @@ Response: {
                           }
                         ]
                       }
-                    }
+                    },
+                    "ref": null
                   }
                 }
+              }
+            ],
+            "name": "Coin",
+            "typeParameters": [
+              {
+                "constraints": [],
+                "isPhantom": true
               }
             ]
           }
         },
         "tx_context": {
           "struct": {
-            "name": "TxContext",
             "abilities": [
               "DROP"
             ],
-            "typeParameters": [],
             "fields": [
               {
                 "name": "sender",
                 "type": {
                   "repr": "address",
                   "signature": {
-                    "ref": null,
-                    "body": "address"
+                    "body": "address",
+                    "ref": null
                   }
                 }
               },
@@ -90,10 +88,10 @@ Response: {
                 "type": {
                   "repr": "vector<u8>",
                   "signature": {
-                    "ref": null,
                     "body": {
                       "vector": "u8"
-                    }
+                    },
+                    "ref": null
                   }
                 }
               },
@@ -102,8 +100,8 @@ Response: {
                 "type": {
                   "repr": "u64",
                   "signature": {
-                    "ref": null,
-                    "body": "u64"
+                    "body": "u64",
+                    "ref": null
                   }
                 }
               },
@@ -112,8 +110,8 @@ Response: {
                 "type": {
                   "repr": "u64",
                   "signature": {
-                    "ref": null,
-                    "body": "u64"
+                    "body": "u64",
+                    "ref": null
                   }
                 }
               },
@@ -122,12 +120,14 @@ Response: {
                 "type": {
                   "repr": "u64",
                   "signature": {
-                    "ref": null,
-                    "body": "u64"
+                    "body": "u64",
+                    "ref": null
                   }
                 }
               }
-            ]
+            ],
+            "name": "TxContext",
+            "typeParameters": []
           }
         }
       }
@@ -173,24 +173,24 @@ Response: {
                     "asMovePackage": {
                       "module": {
                         "struct": {
-                          "name": "S",
                           "abilities": [
                             "COPY",
                             "DROP"
                           ],
-                          "typeParameters": [],
                           "fields": [
                             {
                               "name": "x",
                               "type": {
                                 "repr": "u64",
                                 "signature": {
-                                  "ref": null,
-                                  "body": "u64"
+                                  "body": "u64",
+                                  "ref": null
                                 }
                               }
                             }
-                          ]
+                          ],
+                          "name": "S",
+                          "typeParameters": []
                         }
                       }
                     }
@@ -231,54 +231,40 @@ Response: {
                     "asMovePackage": {
                       "module": {
                         "s": {
-                          "module": {
-                            "package": {
-                              "address": "0xe6e035ec075902afc05abd85c974cfb5748f96a220563286796c1ce36c396d15"
-                            }
-                          },
-                          "name": "S",
                           "abilities": [
                             "COPY",
                             "DROP"
                           ],
-                          "typeParameters": [],
                           "fields": [
                             {
                               "name": "x",
                               "type": {
                                 "repr": "u64",
                                 "signature": {
-                                  "ref": null,
-                                  "body": "u64"
+                                  "body": "u64",
+                                  "ref": null
                                 }
                               }
                             }
-                          ]
-                        },
-                        "t": {
+                          ],
                           "module": {
                             "package": {
-                              "address": "0x3ff1040dea7ec5b167af21519aba55912c98f18f56ebc6df8d5712a3938cb4ad"
+                              "address": "0xe6e035ec075902afc05abd85c974cfb5748f96a220563286796c1ce36c396d15"
                             }
                           },
-                          "name": "T",
+                          "name": "S",
+                          "typeParameters": []
+                        },
+                        "t": {
                           "abilities": [],
-                          "typeParameters": [
-                            {
-                              "constraints": [
-                                "DROP"
-                              ],
-                              "isPhantom": false
-                            }
-                          ],
                           "fields": [
                             {
                               "name": "y",
                               "type": {
                                 "repr": "u64",
                                 "signature": {
-                                  "ref": null,
-                                  "body": "u64"
+                                  "body": "u64",
+                                  "ref": null
                                 }
                               }
                             },
@@ -287,15 +273,15 @@ Response: {
                               "type": {
                                 "repr": "0xe6e035ec075902afc05abd85c974cfb5748f96a220563286796c1ce36c396d15::m::S",
                                 "signature": {
-                                  "ref": null,
                                   "body": {
                                     "datatype": {
-                                      "package": "0xe6e035ec075902afc05abd85c974cfb5748f96a220563286796c1ce36c396d15",
                                       "module": "m",
+                                      "package": "0xe6e035ec075902afc05abd85c974cfb5748f96a220563286796c1ce36c396d15",
                                       "type": "S",
                                       "typeParameters": []
                                     }
-                                  }
+                                  },
+                                  "ref": null
                                 }
                               }
                             },
@@ -304,17 +290,30 @@ Response: {
                               "type": {
                                 "repr": "$0",
                                 "signature": {
-                                  "ref": null,
                                   "body": {
                                     "typeParameter": 0
-                                  }
+                                  },
+                                  "ref": null
                                 }
                               }
+                            }
+                          ],
+                          "module": {
+                            "package": {
+                              "address": "0x3ff1040dea7ec5b167af21519aba55912c98f18f56ebc6df8d5712a3938cb4ad"
+                            }
+                          },
+                          "name": "T",
+                          "typeParameters": [
+                            {
+                              "constraints": [
+                                "DROP"
+                              ],
+                              "isPhantom": false
                             }
                           ]
                         },
                         "v": {
-                          "name": "V",
                           "fields": [
                             {
                               "name": "t",
@@ -322,7 +321,8 @@ Response: {
                                 "repr": "0xe6e035ec075902afc05abd85c974cfb5748f96a220563286796c1ce36c396d15::m::T<0xe6e035ec075902afc05abd85c974cfb5748f96a220563286796c1ce36c396d15::m::S>"
                               }
                             }
-                          ]
+                          ],
+                          "name": "V"
                         }
                       }
                     }
@@ -405,10 +405,41 @@ Response: {
     "object": {
       "asMovePackage": {
         "module": {
+          "after": {
+            "edges": [
+              {
+                "cursor": "eyJuIjoiQ29pbk1ldGFkYXRhIiwiYyI6Mn0",
+                "node": {
+                  "name": "CoinMetadata"
+                }
+              },
+              {
+                "cursor": "eyJuIjoiRGVueUNhcFYxIiwiYyI6Mn0",
+                "node": {
+                  "name": "DenyCapV1"
+                }
+              },
+              {
+                "cursor": "eyJuIjoiUmVndWxhdGVkQ29pbk1ldGFkYXRhIiwiYyI6Mn0",
+                "node": {
+                  "name": "RegulatedCoinMetadata"
+                }
+              },
+              {
+                "cursor": "eyJuIjoiVHJlYXN1cnlDYXAiLCJjIjoyfQ",
+                "node": {
+                  "name": "TreasuryCap"
+                }
+              }
+            ],
+            "pageInfo": {
+              "hasNextPage": false,
+              "hasPreviousPage": true
+            }
+          },
           "all": {
             "nodes": [
               {
-                "name": "Coin",
                 "fields": [
                   {
                     "name": "id",
@@ -422,10 +453,10 @@ Response: {
                       "repr": "0x0000000000000000000000000000000000000000000000000000000000000002::balance::Balance<$0>"
                     }
                   }
-                ]
+                ],
+                "name": "Coin"
               },
               {
-                "name": "CoinMetadata",
                 "fields": [
                   {
                     "name": "id",
@@ -463,10 +494,10 @@ Response: {
                       "repr": "0x0000000000000000000000000000000000000000000000000000000000000001::option::Option<0x0000000000000000000000000000000000000000000000000000000000000002::url::Url>"
                     }
                   }
-                ]
+                ],
+                "name": "CoinMetadata"
               },
               {
-                "name": "DenyCapV1",
                 "fields": [
                   {
                     "name": "id",
@@ -480,10 +511,10 @@ Response: {
                       "repr": "bool"
                     }
                   }
-                ]
+                ],
+                "name": "DenyCapV1"
               },
               {
-                "name": "RegulatedCoinMetadata",
                 "fields": [
                   {
                     "name": "id",
@@ -503,10 +534,10 @@ Response: {
                       "repr": "0x0000000000000000000000000000000000000000000000000000000000000002::object::ID"
                     }
                   }
-                ]
+                ],
+                "name": "RegulatedCoinMetadata"
               },
               {
-                "name": "TreasuryCap",
                 "fields": [
                   {
                     "name": "id",
@@ -520,44 +551,13 @@ Response: {
                       "repr": "0x0000000000000000000000000000000000000000000000000000000000000002::balance::Supply<$0>"
                     }
                   }
-                ]
+                ],
+                "name": "TreasuryCap"
               }
             ],
             "pageInfo": {
               "hasNextPage": false,
               "hasPreviousPage": false
-            }
-          },
-          "after": {
-            "edges": [
-              {
-                "cursor": "eyJuIjoiQ29pbk1ldGFkYXRhIiwiYyI6Mn0",
-                "node": {
-                  "name": "CoinMetadata"
-                }
-              },
-              {
-                "cursor": "eyJuIjoiRGVueUNhcFYxIiwiYyI6Mn0",
-                "node": {
-                  "name": "DenyCapV1"
-                }
-              },
-              {
-                "cursor": "eyJuIjoiUmVndWxhdGVkQ29pbk1ldGFkYXRhIiwiYyI6Mn0",
-                "node": {
-                  "name": "RegulatedCoinMetadata"
-                }
-              },
-              {
-                "cursor": "eyJuIjoiVHJlYXN1cnlDYXAiLCJjIjoyfQ",
-                "node": {
-                  "name": "TreasuryCap"
-                }
-              }
-            ],
-            "pageInfo": {
-              "hasNextPage": false,
-              "hasPreviousPage": true
             }
           },
           "before": {

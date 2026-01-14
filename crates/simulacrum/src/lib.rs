@@ -596,6 +596,14 @@ impl<T: Send + Sync, V: store::SimulatorStore + Send + Sync> RestStateReader for
     fn indexes(&self) -> Option<&dyn iota_types::storage::RestIndexes> {
         None
     }
+
+    fn get_struct_layout(
+        &self,
+        _: &move_core_types::language_storage::StructTag,
+    ) -> iota_types::storage::error::Result<Option<move_core_types::annotated_value::MoveTypeLayout>>
+    {
+        Ok(None)
+    }
 }
 
 impl Simulacrum {

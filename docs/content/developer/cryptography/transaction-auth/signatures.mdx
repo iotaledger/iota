@@ -54,7 +54,7 @@ An accepted pure Ed25519 signature must follow:
 1. The signature must be produced according to [RFC 8032](https://www.rfc-editor.org/rfc/rfc8032.html#section-5.1.6). The internal hash used is SHA-512.
 1. The signature must be valid according to [ZIP215](https://github.com/zcash/zips/blob/main/zip-0215.rst).
 
-See a concrete example for offline signing using CLI in the [Offline Signing](offline-signing.mdx) topic.
+See a concrete example for offline signing using CLI in the [Offline Signing](../../ts-sdk/typescript/transaction-building/offline.mdx) topic.
 
 ## Authority signature
 
@@ -78,7 +78,7 @@ The account that the authority uses to receive payments on staking rewards is se
 
 ### Network key pair
 
-The private key is used to perform the TLS handshake required by QUIC for Narwhal primary and its worker network interface. The public key is used for validator peer ID. Pure Ed25519 is used as the signing scheme.
+The private key is used to perform the TLS handshake required by QUIC for validator primary and its worker network interface. The public key is used for validator peer ID. Pure Ed25519 is used as the signing scheme.
 
 See more authority key toolings in [Validator Tool](https://github.com/iotaledger/iota/blob/f8b5ad9aaecc3c4b30a060ec5e00bdad9ba75a93/nre/validator_tool.md).
 

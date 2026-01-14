@@ -47,35 +47,6 @@ task 7, lines 23-65:
 Response: {
   "data": {
     "epoch": {
-      "epochId": 1,
-      "referenceGasPrice": "1000",
-      "validatorSet": {
-        "totalStake": "2267000000000000",
-        "activeValidators": {
-          "nodes": [
-            {
-              "name": "validator-0"
-            }
-          ]
-        }
-      },
-      "startTimestamp": "1970-01-01T00:00:00Z",
-      "totalCheckpoints": 1,
-      "totalTransactions": null,
-      "totalGasFees": null,
-      "totalStakeRewards": null,
-      "fundSize": "0",
-      "netInflow": null,
-      "fundInflow": null,
-      "fundOutflow": null,
-      "storageFund": {
-        "totalObjectStorageRebates": "0",
-        "nonRefundableBalance": "0"
-      },
-      "safeMode": {
-        "enabled": false
-      },
-      "systemStateVersion": 2,
       "checkpoints": {
         "nodes": [
           {
@@ -83,6 +54,26 @@ Response: {
           }
         ]
       },
+      "endTimestamp": null,
+      "epochId": 1,
+      "fundInflow": null,
+      "fundOutflow": null,
+      "fundSize": "0",
+      "netInflow": null,
+      "referenceGasPrice": "1000",
+      "safeMode": {
+        "enabled": false
+      },
+      "startTimestamp": "1970-01-01T00:00:00Z",
+      "storageFund": {
+        "nonRefundableBalance": "0",
+        "totalObjectStorageRebates": "0"
+      },
+      "systemStateVersion": 2,
+      "totalCheckpoints": 1,
+      "totalGasFees": null,
+      "totalStakeRewards": null,
+      "totalTransactions": null,
       "transactionBlocks": {
         "nodes": [
           {
@@ -90,7 +81,16 @@ Response: {
           }
         ]
       },
-      "endTimestamp": null
+      "validatorSet": {
+        "activeValidators": {
+          "nodes": [
+            {
+              "name": "validator-0"
+            }
+          ]
+        },
+        "totalStake": "2267000000000000"
+      }
     }
   }
 }
@@ -112,35 +112,6 @@ task 11, lines 73-115:
 Response: {
   "data": {
     "epoch": {
-      "epochId": 1,
-      "referenceGasPrice": "1000",
-      "validatorSet": {
-        "totalStake": "2267000000000000",
-        "activeValidators": {
-          "nodes": [
-            {
-              "name": "validator-0"
-            }
-          ]
-        }
-      },
-      "startTimestamp": "1970-01-01T00:00:00Z",
-      "totalCheckpoints": 3,
-      "totalTransactions": 4,
-      "totalGasFees": "3000000",
-      "totalStakeRewards": "767000000000000",
-      "fundSize": "0",
-      "netInflow": "15610400",
-      "fundInflow": "18551600",
-      "fundOutflow": "2941200",
-      "storageFund": {
-        "totalObjectStorageRebates": "0",
-        "nonRefundableBalance": "0"
-      },
-      "safeMode": {
-        "enabled": false
-      },
-      "systemStateVersion": 2,
       "checkpoints": {
         "nodes": [
           {
@@ -148,6 +119,26 @@ Response: {
           }
         ]
       },
+      "endTimestamp": "1970-01-01T00:00:00Z",
+      "epochId": 1,
+      "fundInflow": "18551600",
+      "fundOutflow": "2941200",
+      "fundSize": "0",
+      "netInflow": "15610400",
+      "referenceGasPrice": "1000",
+      "safeMode": {
+        "enabled": false
+      },
+      "startTimestamp": "1970-01-01T00:00:00Z",
+      "storageFund": {
+        "nonRefundableBalance": "0",
+        "totalObjectStorageRebates": "0"
+      },
+      "systemStateVersion": 2,
+      "totalCheckpoints": 3,
+      "totalGasFees": "3000000",
+      "totalStakeRewards": "767000000000000",
+      "totalTransactions": 4,
       "transactionBlocks": {
         "nodes": [
           {
@@ -155,7 +146,16 @@ Response: {
           }
         ]
       },
-      "endTimestamp": "1970-01-01T00:00:00Z"
+      "validatorSet": {
+        "activeValidators": {
+          "nodes": [
+            {
+              "name": "validator-0"
+            }
+          ]
+        },
+        "totalStake": "2267000000000000"
+      }
     }
   }
 }
@@ -165,35 +165,6 @@ task 12, lines 117-159:
 Response: {
   "data": {
     "epoch": {
-      "epochId": 2,
-      "referenceGasPrice": "1000",
-      "validatorSet": {
-        "totalStake": "3034010000000000",
-        "activeValidators": {
-          "nodes": [
-            {
-              "name": "validator-0"
-            }
-          ]
-        }
-      },
-      "startTimestamp": "1970-01-01T00:00:00Z",
-      "totalCheckpoints": 1,
-      "totalTransactions": null,
-      "totalGasFees": null,
-      "totalStakeRewards": null,
-      "fundSize": "15610400",
-      "netInflow": null,
-      "fundInflow": null,
-      "fundOutflow": null,
-      "storageFund": {
-        "totalObjectStorageRebates": "15610400",
-        "nonRefundableBalance": "0"
-      },
-      "safeMode": {
-        "enabled": false
-      },
-      "systemStateVersion": 2,
       "checkpoints": {
         "nodes": [
           {
@@ -201,10 +172,39 @@ Response: {
           }
         ]
       },
+      "endTimestamp": null,
+      "epochId": 2,
+      "fundInflow": null,
+      "fundOutflow": null,
+      "fundSize": "15610400",
+      "netInflow": null,
+      "referenceGasPrice": "1000",
+      "safeMode": {
+        "enabled": false
+      },
+      "startTimestamp": "1970-01-01T00:00:00Z",
+      "storageFund": {
+        "nonRefundableBalance": "0",
+        "totalObjectStorageRebates": "15610400"
+      },
+      "systemStateVersion": 2,
+      "totalCheckpoints": 1,
+      "totalGasFees": null,
+      "totalStakeRewards": null,
+      "totalTransactions": null,
       "transactionBlocks": {
         "nodes": []
       },
-      "endTimestamp": null
+      "validatorSet": {
+        "activeValidators": {
+          "nodes": [
+            {
+              "name": "validator-0"
+            }
+          ]
+        },
+        "totalStake": "3034010000000000"
+      }
     }
   }
 }

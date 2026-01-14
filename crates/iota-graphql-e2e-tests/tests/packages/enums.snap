@@ -32,38 +32,37 @@ Response: {
                     "asMovePackage": {
                       "module": {
                         "enum": {
-                          "name": "S",
                           "abilities": [
                             "COPY",
                             "DROP"
                           ],
+                          "name": "S",
                           "typeParameters": [],
                           "variants": [
                             {
-                              "name": "V1",
                               "fields": [
                                 {
                                   "name": "pos0",
                                   "type": {
                                     "repr": "u64",
                                     "signature": {
-                                      "ref": null,
-                                      "body": "u64"
+                                      "body": "u64",
+                                      "ref": null
                                     }
                                   }
                                 }
-                              ]
+                              ],
+                              "name": "V1"
                             },
                             {
-                              "name": "V2",
                               "fields": [
                                 {
                                   "name": "x",
                                   "type": {
                                     "repr": "bool",
                                     "signature": {
-                                      "ref": null,
-                                      "body": "bool"
+                                      "body": "bool",
+                                      "ref": null
                                     }
                                   }
                                 },
@@ -72,12 +71,13 @@ Response: {
                                   "type": {
                                     "repr": "u64",
                                     "signature": {
-                                      "ref": null,
-                                      "body": "u64"
+                                      "body": "u64",
+                                      "ref": null
                                     }
                                   }
                                 }
-                              ]
+                              ],
+                              "name": "V2"
                             }
                           ]
                         }
@@ -144,43 +144,42 @@ Response: {
                     "asMovePackage": {
                       "module": {
                         "s": {
+                          "abilities": [
+                            "COPY",
+                            "DROP"
+                          ],
                           "module": {
                             "package": {
                               "address": "0x10c3c7bd79faaeda6c85ce314060261a114292e5cf8c0bb626462dd82ea476b7"
                             }
                           },
                           "name": "S",
-                          "abilities": [
-                            "COPY",
-                            "DROP"
-                          ],
                           "typeParameters": [],
                           "variants": [
                             {
-                              "name": "V1",
                               "fields": [
                                 {
                                   "name": "pos0",
                                   "type": {
                                     "repr": "u64",
                                     "signature": {
-                                      "ref": null,
-                                      "body": "u64"
+                                      "body": "u64",
+                                      "ref": null
                                     }
                                   }
                                 }
-                              ]
+                              ],
+                              "name": "V1"
                             },
                             {
-                              "name": "V2",
                               "fields": [
                                 {
                                   "name": "x",
                                   "type": {
                                     "repr": "bool",
                                     "signature": {
-                                      "ref": null,
-                                      "body": "bool"
+                                      "body": "bool",
+                                      "ref": null
                                     }
                                   }
                                 },
@@ -189,23 +188,24 @@ Response: {
                                   "type": {
                                     "repr": "u64",
                                     "signature": {
-                                      "ref": null,
-                                      "body": "u64"
+                                      "body": "u64",
+                                      "ref": null
                                     }
                                   }
                                 }
-                              ]
+                              ],
+                              "name": "V2"
                             }
                           ]
                         },
                         "t": {
+                          "abilities": [],
                           "module": {
                             "package": {
                               "address": "0xfecc5b14ea3a92e2730f4b738c78ec423ff078489c6d62bdd0bd1f3902e80d99"
                             }
                           },
                           "name": "T",
-                          "abilities": [],
                           "typeParameters": [
                             {
                               "constraints": [
@@ -216,15 +216,14 @@ Response: {
                           ],
                           "variants": [
                             {
-                              "name": "VV",
                               "fields": [
                                 {
                                   "name": "y",
                                   "type": {
                                     "repr": "u64",
                                     "signature": {
-                                      "ref": null,
-                                      "body": "u64"
+                                      "body": "u64",
+                                      "ref": null
                                     }
                                   }
                                 },
@@ -233,15 +232,15 @@ Response: {
                                   "type": {
                                     "repr": "0x10c3c7bd79faaeda6c85ce314060261a114292e5cf8c0bb626462dd82ea476b7::m::S",
                                     "signature": {
-                                      "ref": null,
                                       "body": {
                                         "datatype": {
-                                          "package": "0x10c3c7bd79faaeda6c85ce314060261a114292e5cf8c0bb626462dd82ea476b7",
                                           "module": "m",
+                                          "package": "0x10c3c7bd79faaeda6c85ce314060261a114292e5cf8c0bb626462dd82ea476b7",
                                           "type": "S",
                                           "typeParameters": []
                                         }
-                                      }
+                                      },
+                                      "ref": null
                                     }
                                   }
                                 },
@@ -250,14 +249,15 @@ Response: {
                                   "type": {
                                     "repr": "$0",
                                     "signature": {
-                                      "ref": null,
                                       "body": {
                                         "typeParameter": 0
-                                      }
+                                      },
+                                      "ref": null
                                     }
                                   }
                                 }
-                              ]
+                              ],
+                              "name": "VV"
                             }
                           ]
                         },
@@ -265,7 +265,6 @@ Response: {
                           "name": "V",
                           "variants": [
                             {
-                              "name": "V",
                               "fields": [
                                 {
                                   "name": "t",
@@ -273,7 +272,8 @@ Response: {
                                     "repr": "0x10c3c7bd79faaeda6c85ce314060261a114292e5cf8c0bb626462dd82ea476b7::m::T<0x10c3c7bd79faaeda6c85ce314060261a114292e5cf8c0bb626462dd82ea476b7::m::S>"
                                   }
                                 }
-                              ]
+                              ],
+                              "name": "V"
                             }
                           ]
                         }

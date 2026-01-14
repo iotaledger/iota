@@ -646,7 +646,7 @@ impl RandomnessEventLoop {
         // Try to verify the aggregated signature all at once. (Should work in the happy
         // path.)
         if ThresholdBls12381MinSig::verify(vss_pk.c0(), &round.signature_message(), &sig).is_err() {
-            // If verifiation fails, some of the inputs must be invalid. We have to go
+            // If verification fails, some of the inputs must be invalid. We have to go
             // through one-by-one to find which.
             // TODO: add test for individual sig verification.
             self.received_partial_sigs

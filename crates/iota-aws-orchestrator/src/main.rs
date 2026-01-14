@@ -12,6 +12,7 @@ use faults::FaultsType;
 use measurement::MeasurementsCollection;
 use orchestrator::Orchestrator;
 use protocol::iota::{IotaBenchmarkType, IotaProtocol};
+use serde::{Deserialize, Serialize};
 use settings::{CloudProvider, Settings};
 use ssh::SshConnectionManager;
 use testbed::Testbed;
@@ -19,10 +20,12 @@ use testbed::Testbed;
 use crate::net_latency::TopologyLayout;
 
 pub mod benchmark;
+pub mod build_cache;
 pub mod client;
 pub mod display;
 pub mod error;
 pub mod faults;
+pub mod logger;
 pub mod logs;
 pub mod measurement;
 mod monitor;
@@ -164,8 +167,35 @@ pub enum Operation {
 
         /// Switch protocols between mysticeti and starfish every epoch,
         /// default: false, aka use starfish in every epoch.
-        #[clap(long, action, default_value_t = false, global = true)]
-        protocol_switch_each_epoch: bool,
+        #[arg(long, default_value = "starfish", global = true)]
+        consensus_protocol: ConsensusProtocol,
+
+        /// Optional: Epoch duration in milliseconds, default is 1h
+        #[arg(long, value_name = "INT", global = true)]
+        epoch_duration_ms: Option<u64>,
+
+        /// Maximum pipeline delay
+        #[arg(long, value_name = "INT", default_value = "400", global = true)]
+        max_pipeline_delay: u32,
+
+        /// Number of blocking connections in the blocking
+        /// latency_perturbation_spec
+        #[arg(long, value_name = "INT", default_value = "1", global = true)]
+        blocking_connections: usize,
+
+        /// Use current system time as genesis chain start timestamp instead of
+        /// 0
+        #[arg(long, action, default_value_t = false)]
+        use_current_timestamp_for_genesis: bool,
+
+        /// Shared counter hotness factor (0-100). Higher values concentrate
+        /// load on fewer counters.
+        #[arg(long, value_name = "INT", global = true)]
+        shared_counter_hotness_factor: Option<u8>,
+
+        /// Number of shared counters to use in the benchmark
+        #[arg(long, value_name = "INT", global = true)]
+        num_shared_counters: Option<usize>,
     },
 
     /// Print a summary of the specified measurements collection.
@@ -200,6 +230,11 @@ pub enum TestbedAction {
         /// Note: stop and start commands are not available for spot instances
         #[arg(long, action, default_value = "false", global = true)]
         use_spot_instances: bool,
+
+        /// Id tag added to each deployment, used for cost tracking, should be
+        /// unique for each test run deployment.
+        #[arg(long)]
+        id: String,
     },
 
     /// Start at most the specified number of instances per region on an
@@ -230,6 +265,10 @@ pub enum TestbedAction {
         /// Keeps the monitoring instance running
         #[arg(long, action, default_value = "false", global = true)]
         keep_monitoring: bool,
+
+        /// Force destroy without confirmation prompt
+        #[arg(short = 'f', long, action, default_value = "false", global = true)]
+        force: bool,
     },
 }
 
@@ -261,6 +300,7 @@ pub enum Load {
 #[derive(ValueEnum, Clone, Debug)]
 pub enum PerturbationSpec {
     BrokenTriangle,
+    Blocking,
     // potentially other options later
 }
 
@@ -268,12 +308,21 @@ pub enum PerturbationSpec {
 pub enum LatencyTopology {
     /// Generates a latency matrix for each node, randomly positioned on a
     /// cylinder.
-    Geographical,
-    /// Generates a latency matrix by clustering nodes into clusters and
-    /// randomly positioning clusters on a cylinder.
-    Clustered,
-    /// Uses a hardcoded clustered matrix 10x10 in the net_latency module.
-    HardCoded,
+    RandomGeographical,
+    /// Generates a latency matrix by randomly clustering nodes into clusters
+    /// and randomly positioning clusters on a cylinder.
+    RandomClustered,
+    /// Uses a hardcoded 10x10 matrix with 10 equal-sized regions.
+    HardCodedClustered,
+    /// Uses mainnet validator region distribution for latencies.
+    Mainnet,
+}
+
+#[derive(ValueEnum, Clone, Debug, Deserialize, Serialize)]
+pub enum ConsensusProtocol {
+    Starfish,
+    Mysticeti,
+    SwapEachEpoch,
 }
 
 fn parse_duration(arg: &str) -> Result<Duration, std::num::ParseIntError> {
@@ -317,12 +366,14 @@ async fn run<C: ServerProviderClient>(settings: Settings, client: C, opts: Opts)
                 dedicated_clients,
                 skip_monitoring,
                 use_spot_instances,
+                id,
             } => testbed
                 .deploy(
                     instances,
                     skip_monitoring,
                     dedicated_clients,
                     use_spot_instances,
+                    id,
                 )
                 .await
                 .wrap_err("Failed to deploy testbed")?,
@@ -344,8 +395,11 @@ async fn run<C: ServerProviderClient>(settings: Settings, client: C, opts: Opts)
                 .wrap_err("Failed to stop testbed")?,
 
             // Destroy the testbed and terminal all instances.
-            TestbedAction::Destroy { keep_monitoring } => testbed
-                .destroy(keep_monitoring)
+            TestbedAction::Destroy {
+                keep_monitoring,
+                force,
+            } => testbed
+                .destroy(keep_monitoring, force)
                 .await
                 .wrap_err("Failed to destroy testbed")?,
         },
@@ -373,8 +427,14 @@ async fn run<C: ServerProviderClient>(settings: Settings, client: C, opts: Opts)
             added_latency,
             number_of_triangles,
             number_of_clusters,
-            protocol_switch_each_epoch,
+            consensus_protocol,
             maximum_latency,
+            epoch_duration_ms,
+            blocking_connections,
+            use_current_timestamp_for_genesis,
+            max_pipeline_delay,
+            shared_counter_hotness_factor,
+            num_shared_counters,
         } => {
             // Create a new orchestrator to instruct the testbed.
             let username = testbed.username();
@@ -425,27 +485,49 @@ async fn run<C: ServerProviderClient>(settings: Settings, client: C, opts: Opts)
                         number_of_triangles,
                     }
                 }
+                Some(PerturbationSpec::Blocking) => net_latency::PerturbationSpec::Blocking {
+                    number_of_blocked_connections: blocking_connections,
+                },
                 None => net_latency::PerturbationSpec::None,
             };
 
             let latency_topology = match latency_topology {
-                Some(LatencyTopology::Geographical) => Some(TopologyLayout::Geographical),
-                Some(LatencyTopology::Clustered) => {
-                    Some(TopologyLayout::Clustered { number_of_clusters })
+                Some(LatencyTopology::RandomGeographical) => {
+                    Some(TopologyLayout::RandomGeographical)
                 }
-                Some(LatencyTopology::HardCoded) => Some(TopologyLayout::HardCoded),
+                Some(LatencyTopology::RandomClustered) => {
+                    Some(TopologyLayout::RandomClustered { number_of_clusters })
+                }
+                Some(LatencyTopology::HardCodedClustered) => {
+                    Some(TopologyLayout::HardCodedClustered)
+                }
+                Some(LatencyTopology::Mainnet) => Some(TopologyLayout::Mainnet),
                 None => None,
             };
 
-            let generator =
-                BenchmarkParametersGenerator::new(committee, load, use_internal_ip_addresses)
-                    .with_benchmark_type(benchmark_type)
-                    .with_custom_duration(duration)
-                    .with_perturbation_spec(perturbation_spec)
-                    .with_latency_topology(latency_topology)
-                    .with_protocol_switch_each_epoch(protocol_switch_each_epoch)
-                    .with_max_latency(maximum_latency)
-                    .with_faults(fault_type);
+            let mut generator = BenchmarkParametersGenerator::new(
+                committee,
+                dedicated_clients,
+                load,
+                use_internal_ip_addresses,
+            )
+            .with_benchmark_type(benchmark_type)
+            .with_custom_duration(duration)
+            .with_perturbation_spec(perturbation_spec)
+            .with_latency_topology(latency_topology)
+            .with_consensus_protocol(consensus_protocol)
+            .with_max_latency(maximum_latency)
+            .with_epoch_duration(epoch_duration_ms)
+            .with_max_pipeline_delay(max_pipeline_delay)
+            .with_current_timestamp_for_genesis(use_current_timestamp_for_genesis)
+            .with_faults(fault_type);
+
+            if let Some(factor) = shared_counter_hotness_factor {
+                generator = generator.with_shared_counter_hotness_factor(factor);
+            }
+            if let Some(counters) = num_shared_counters {
+                generator = generator.with_num_shared_counters(counters);
+            }
 
             Orchestrator::new(
                 settings,

@@ -38,6 +38,16 @@ pub trait ProtocolCommands<T: BenchmarkType> {
     where
         I: IntoIterator<Item = Instance>;
 
+    /// The command to run a fullnode. The function returns a vector of commands
+    /// along with the associated instance on which to run the command.
+    fn fullnode_command<I>(
+        &self,
+        instances: I,
+        parameters: &BenchmarkParameters<T>,
+    ) -> Vec<(Instance, String)>
+    where
+        I: IntoIterator<Item = Instance>;
+
     fn monitor_command<I>(&self, instances: I) -> Vec<(Instance, String)>
     where
         I: IntoIterator<Item = Instance>;
@@ -72,57 +82,69 @@ pub trait ProtocolMetrics {
     const LATENCY_SQUARED_SUM: &'static str;
 
     /// The network path where the nodes expose prometheus metrics.
-    fn nodes_metrics_path<I, T>(
+    fn nodes_metrics_path<I>(
         &self,
         instances: I,
-        parameters: &BenchmarkParameters<T>,
+        use_internal_ip_address: bool,
     ) -> Vec<(Instance, String)>
     where
-        I: IntoIterator<Item = Instance>,
-        T: BenchmarkType;
+        I: IntoIterator<Item = Instance>;
     /// The command to retrieve the metrics from the nodes.
-    fn nodes_metrics_command<I, T>(
+    fn nodes_metrics_command<I>(
         &self,
         instances: I,
-        parameters: &BenchmarkParameters<T>,
+        use_internal_ip_address: bool,
     ) -> Vec<(Instance, String)>
     where
         I: IntoIterator<Item = Instance>,
-        T: BenchmarkType,
     {
-        self.nodes_metrics_path(instances, parameters)
+        self.nodes_metrics_path(instances, use_internal_ip_address)
             .into_iter()
             .map(|(instance, path)| {
+                let cmd = format!("curl '{path}'");
+                display::action(format!("\n{cmd}"));
+                (instance, cmd)
+            })
+            .collect()
+    }
+
+    /// The command to retrieve the flamegraphs from the nodes.
+    fn nodes_flamegraph_command<I>(&self, instances: I, query: &str) -> Vec<(Instance, String)>
+    where
+        I: IntoIterator<Item = Instance>,
+    {
+        instances
+            .into_iter()
+            .map(|instance| {
                 (instance, {
-                    display::action(format!("\ncurl {path}"));
-                    format!("curl {path}")
+                    let cmd = format!("curl 'http://localhost:1337/flamegraph{query}'");
+                    display::action(format!("\n{cmd}"));
+                    cmd.to_string()
                 })
             })
             .collect()
     }
 
     /// The network path where the clients expose prometheus metrics.
-    fn clients_metrics_path<I, T>(
+    fn clients_metrics_path<I>(
         &self,
         instances: I,
-        parameters: &BenchmarkParameters<T>,
+        use_internal_ip_address: bool,
     ) -> Vec<(Instance, String)>
     where
-        I: IntoIterator<Item = Instance>,
-        T: BenchmarkType;
+        I: IntoIterator<Item = Instance>;
     /// The command to retrieve the metrics from the clients.
-    fn clients_metrics_command<I, T>(
+    fn clients_metrics_command<I>(
         &self,
         instances: I,
-        parameters: &BenchmarkParameters<T>,
+        use_internal_ip_address: bool,
     ) -> Vec<(Instance, String)>
     where
         I: IntoIterator<Item = Instance>,
-        T: BenchmarkType,
     {
-        self.clients_metrics_path(instances, parameters)
+        self.clients_metrics_path(instances, use_internal_ip_address)
             .into_iter()
-            .map(|(instance, path)| (instance, format!("curl {path}")))
+            .map(|(instance, path)| (instance, format!("curl -s '{path}'")))
             .collect()
     }
 }
@@ -130,10 +152,7 @@ pub trait ProtocolMetrics {
 #[cfg(test)]
 pub mod test_protocol_metrics {
     use super::ProtocolMetrics;
-    use crate::{
-        benchmark::{BenchmarkParameters, BenchmarkType},
-        client::Instance,
-    };
+    use crate::client::Instance;
 
     pub struct TestProtocolMetrics;
 
@@ -144,14 +163,13 @@ pub mod test_protocol_metrics {
         const LATENCY_SUM: &'static str = "latency_s_sum";
         const LATENCY_SQUARED_SUM: &'static str = "latency_squared_s";
 
-        fn nodes_metrics_path<I, T>(
+        fn nodes_metrics_path<I>(
             &self,
             instances: I,
-            _parameters: &BenchmarkParameters<T>,
+            _use_internal_ip_address: bool,
         ) -> Vec<(Instance, String)>
         where
             I: IntoIterator<Item = Instance>,
-            T: BenchmarkType,
         {
             instances
                 .into_iter()
@@ -160,14 +178,13 @@ pub mod test_protocol_metrics {
                 .collect()
         }
 
-        fn clients_metrics_path<I, T>(
+        fn clients_metrics_path<I>(
             &self,
             instances: I,
-            _parameters: &BenchmarkParameters<T>,
+            _use_internal_ip_address: bool,
         ) -> Vec<(Instance, String)>
         where
             I: IntoIterator<Item = Instance>,
-            T: BenchmarkType,
         {
             instances
                 .into_iter()

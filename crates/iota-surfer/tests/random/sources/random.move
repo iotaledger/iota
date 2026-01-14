@@ -3,10 +3,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 module random::random_test {
-    use iota::object::UID;
-    use iota::object;
-    use iota::tx_context::TxContext;
-    use iota::transfer;
     use iota::random;
 
 

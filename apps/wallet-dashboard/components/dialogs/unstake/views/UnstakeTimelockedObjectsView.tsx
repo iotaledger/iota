@@ -110,8 +110,9 @@ export function UnstakeTimelockedObjectsView({
                     });
                 },
             },
-        ).catch(() => {
+        ).catch((error) => {
             toast.error('Unstake transaction was not sent');
+            console.error('Error executing unstake transaction:', error);
         });
     }
 
@@ -120,6 +121,8 @@ export function UnstakeTimelockedObjectsView({
             setIsMaxTransactionSizeError(true);
             reductionSize.current += REDUCTION_STEP_SIZE;
         }
+
+        console.error('[DEBUG]: Timelocked Unstake Error:', unstakeError);
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [isUnstakeError, unstakeError]);
 

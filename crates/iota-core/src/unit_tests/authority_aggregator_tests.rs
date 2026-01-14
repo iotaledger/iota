@@ -14,6 +14,7 @@ use iota_framework::BuiltInFramework;
 use iota_macros::sim_test;
 use iota_move_build::BuildConfig;
 use iota_protocol_config::Chain::Unknown;
+use iota_sdk_types::crypto::{Intent, IntentMessage, IntentScope};
 #[cfg(msim)]
 use iota_simulator::configs::constant_latency_ms;
 use iota_types::{
@@ -36,7 +37,6 @@ use iota_types::{
 };
 use move_core_types::{account_address::AccountAddress, ident_str};
 use rand::{SeedableRng, rngs::StdRng};
-use shared_crypto::intent::{Intent, IntentMessage, IntentScope};
 use tokio::time::Instant;
 
 use super::*;
@@ -2667,7 +2667,7 @@ enum CapabilityNotificationErrorType {
 
 impl CapabilityNotificationErrorType {
     fn create_non_retryable_errors(count: usize) -> Vec<Self> {
-        let base_errors = vec![
+        let base_errors = [
             Self::NonRetryable(IotaError::FullNodeCantHandleAuthorityCapabilities),
             Self::NonRetryable(IotaError::UnsupportedFeature {
                 error: "Test unsupported feature".to_string(),
