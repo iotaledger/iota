@@ -272,6 +272,14 @@ impl StoredKey {
             StoredKey::External { .. } => bail!("Cannot get key pair for External keys."),
         }
     }
+
+    pub fn source(&self) -> &str {
+        match self {
+            StoredKey::KeyPair(_) => "keypair",
+            StoredKey::Account(_) => "account",
+            StoredKey::External { source, .. } => source,
+        }
+    }
 }
 
 #[derive(Default)]

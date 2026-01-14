@@ -967,11 +967,13 @@ impl IotaClientCommands {
                     .into_iter()
                     .map(|(address, alias)| {
                         // Unwrap is safe here because the address comes from iterating the keystore
-                        let source = match context.config().keystore().get_key(address).unwrap() {
-                            StoredKey::KeyPair(_) => "keypair".to_string(),
-                            StoredKey::Account(_) => "account".to_string(),
-                            StoredKey::External { source, .. } => source.to_string(),
-                        };
+                        let source = context
+                            .config()
+                            .keystore()
+                            .get_key(address)
+                            .unwrap()
+                            .source()
+                            .to_string();
                         (alias.alias.to_string(), *address, source)
                     })
                     .collect::<Vec<_>>();
@@ -1758,8 +1760,8 @@ impl IotaClientCommands {
                 IotaClientCommandResult::NewAddress(NewAddressOutput {
                     alias,
                     address,
-                    public_base64_key: key.public_base64_key,
-                    public_base64_key_with_flag: key.public_base64_key_with_flag,
+                    public_base64_key: key.public_base64_key.unwrap(),
+                    public_base64_key_with_flag: key.public_base64_key_with_flag.unwrap(),
                     key_scheme: scheme,
                     recovery_phrase: phrase,
                 })
