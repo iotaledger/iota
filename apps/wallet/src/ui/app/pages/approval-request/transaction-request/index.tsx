@@ -20,6 +20,8 @@ import {
     TransactionSummary,
     GasFees,
     useRecognizedPackages,
+    DRY_RUN_UI_ERROR_TITLE,
+    getUserFriendlyDryRunExecutionError,
 } from '@iota/core';
 import { Transaction } from '@iota/iota-sdk/transactions';
 import { useMemo, useState } from 'react';
@@ -27,7 +29,6 @@ import { ConfirmationModal } from '../../../shared/ConfirmationModal';
 import { TransactionDetails } from './transaction-details';
 import { Warning } from '@iota/apps-ui-icons';
 import { InfoBox, InfoBoxType, InfoBoxStyle } from '@iota/apps-ui-kit';
-import { DRY_RUN_ERROR_TITLE, getDryRunExecutionSupportingText } from './error.constants';
 
 export interface TransactionRequestProps {
     txRequest: TransactionApprovalRequest;
@@ -75,7 +76,7 @@ export function TransactionRequest({ txRequest }: TransactionRequestProps) {
     const isDryRunExecutionFailed = data?.effects.status.status === 'failure';
     const dryRunExecutionError = data?.effects.status.error;
     const dryRunExecutionSupportingText = dryRunExecutionError
-        ? getDryRunExecutionSupportingText(dryRunExecutionError)
+        ? getUserFriendlyDryRunExecutionError(dryRunExecutionError)
         : undefined;
     const txHasErrors = isError || isDryRunExecutionFailed;
 
@@ -115,7 +116,7 @@ export function TransactionRequest({ txRequest }: TransactionRequestProps) {
                 <div className="-mr-3 flex flex-col gap-md">
                     {isDryRunExecutionFailed && dryRunExecutionSupportingText && (
                         <InfoBox
-                            title={DRY_RUN_ERROR_TITLE}
+                            title={DRY_RUN_UI_ERROR_TITLE}
                             supportingText={dryRunExecutionSupportingText}
                             icon={<Warning />}
                             type={InfoBoxType.Error}

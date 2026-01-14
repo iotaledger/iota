@@ -1,7 +1,7 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-export const DRY_RUN_ERROR_TITLE = 'Transaction failed during dry run';
+export const DRY_RUN_UI_ERROR_TITLE = 'Transaction failed during dry run';
 const DRY_RUN_ERROR_DESCRIPTIONS: { match: string; description: string }[] = [
     {
         match: 'InsufficientGas',
@@ -45,7 +45,7 @@ const DRY_RUN_ERROR_DESCRIPTIONS: { match: string; description: string }[] = [
     },
 ];
 
-export function getDryRunExecutionSupportingText(errorText: string): string {
+export function getUserFriendlyDryRunExecutionError(errorText: string): string {
     const matched = DRY_RUN_ERROR_DESCRIPTIONS.find(({ match }) => errorText.includes(match));
     return matched ? matched.description : errorText;
 }
