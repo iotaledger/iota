@@ -17,11 +17,8 @@ pub fn print_tempo_traceql_queries(
 ) {
     let digest_re = build_tempo_digest_regex(digests);
 
-    println!("\n=== Tempo / TraceQL (paste) ===");
-
     println!("\n--- Tempo / TraceQL Metrics (Explore → Metrics mode) ---");
 
-    println!("\n--- Average latency over time ---");
     println!(
         r#"{{
   resource.service.name = "{svc}" &&
