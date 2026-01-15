@@ -554,7 +554,7 @@ impl ReadStore for PersistedStore {
         &self,
         _sequence_number: CheckpointSequenceNumber,
     ) -> iota_types::storage::error::Result<Option<CheckpointContents>> {
-        todo!()
+        unimplemented!()
     }
 
     fn try_get_transaction(
@@ -598,7 +598,7 @@ impl ReadStore for PersistedStore {
     ) -> iota_types::storage::error::Result<
         Option<iota_types::messages_checkpoint::FullCheckpointContents>,
     > {
-        todo!()
+        unimplemented!()
     }
 
     fn try_get_full_checkpoint_contents(
@@ -607,7 +607,7 @@ impl ReadStore for PersistedStore {
     ) -> iota_types::storage::error::Result<
         Option<iota_types::messages_checkpoint::FullCheckpointContents>,
     > {
-        todo!()
+        unimplemented!()
     }
 }
 
