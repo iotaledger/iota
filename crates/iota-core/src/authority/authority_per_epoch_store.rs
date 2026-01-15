@@ -294,12 +294,12 @@ impl CongestionControlParameters {
         self.use_congestion_limit_overshoot_in_gas_price_feedback_mechanism
     }
 
-    /// Get the total congestion limit per commit, i.e.,
-    /// `max_congestion_limit_overshoot_per_commit` plus
-    /// `max_execution_duration_per_commit`.
+    /// Get effective congestion limit per commit, i.e.,
+    /// `max_execution_duration_per_commit` plus
+    /// `max_congestion_limit_overshoot_per_commit`.
     /// Returns `None` if `max_execution_duration_per_commit` is not set,
     /// i.e., shared-object congestion control is disabled.
-    pub(super) fn get_total_congestion_limit_per_commit(&self) -> Option<ExecutionTime> {
+    pub(super) fn get_effective_congestion_limit_per_commit(&self) -> Option<ExecutionTime> {
         self.max_execution_duration_per_commit
             .map(|max_execution_duration_per_commit| {
                 max_execution_duration_per_commit.saturating_add(

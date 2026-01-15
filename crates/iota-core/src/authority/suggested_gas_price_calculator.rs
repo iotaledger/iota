@@ -156,7 +156,8 @@ impl SuggestedGasPriceCalculator {
         &self,
         certificate: &VerifiedExecutableTransaction,
     ) -> u64 {
-        if let Some(congestion_limit_per_commit) = self.get_congestion_limit_per_commit() {
+        if let Some(congestion_limit_per_commit) = self.get_effective_congestion_limit_per_commit()
+        {
             let clearing_gas_price =
                 self.find_clearing_gas_price(certificate, congestion_limit_per_commit);
 
@@ -176,16 +177,18 @@ impl SuggestedGasPriceCalculator {
         }
     }
 
-    /// Get congestion limit per commit using `CongestionControlParameters`
-    /// of the calculator. Returns `None` if shared-object congestion control
-    /// is disabled.
-    fn get_congestion_limit_per_commit(&self) -> Option<ExecutionTime> {
+    /// Get effective congestion limit per commit: that is, this will take
+    /// overshoot into account if the calculator uses the overshoot feature.
+    /// If the overshoot feature is not used in the calculator, this will
+    /// return maximum execution duration per commit (i.e., without overshoot).
+    /// Returns `None` if shared-object congestion control is disabled.
+    fn get_effective_congestion_limit_per_commit(&self) -> Option<ExecutionTime> {
         if self
             .congestion_control_parameters
             .use_congestion_limit_overshoot_in_gas_price_feedback_mechanism()
         {
             self.congestion_control_parameters
-                .get_total_congestion_limit_per_commit()
+                .get_effective_congestion_limit_per_commit()
         } else {
             self.congestion_control_parameters
                 .max_execution_duration_per_commit()

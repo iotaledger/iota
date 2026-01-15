@@ -442,7 +442,7 @@ impl SharedObjectCongestionTracker {
 
         let congestion_limit = if let Some(congestion_limit) = self
             .congestion_control_parameters
-            .get_total_congestion_limit_per_commit()
+            .get_effective_congestion_limit_per_commit()
         {
             congestion_limit
         } else {
