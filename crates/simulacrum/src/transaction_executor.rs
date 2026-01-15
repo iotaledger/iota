@@ -85,25 +85,42 @@ impl TransactionExecutorTrait for TransactionExecutor {
         let response = ExecuteTransactionResponseV1 {
             effects: FinalizedEffects::new_from_effects_cert(verified_effects.into()),
             events: if request.include_events {
-                // TODO: get events from simulacrum store
-                None
+                self.simulacrum.with_store(|store| {
+                    store
+                        .get_transaction_events(effects.events_digest().unwrap())
+                        .cloned()
+                })
             } else {
                 None
             },
             input_objects: if request.include_input_objects {
-                // TODO: get input objects from simulacrum store
-                None
+                self.simulacrum.with_store(|store| {
+                    let mut objs = vec![];
+                    for (obj_id, version) in effects.modified_at_versions() {
+                        if let Some(obj) = store.get_object_at_version(&obj_id, version) {
+                            objs.push(obj.clone());
+                        }
+                    }
+                    Some(objs)
+                })
             } else {
                 None
             },
             output_objects: if request.include_output_objects {
-                // TODO: get output objects from simulacrum store
-                None
+                self.simulacrum.with_store(|store| {
+                    let mut objs = vec![];
+                    for (obj_ref, _, _) in effects.all_changed_objects() {
+                        if let Some(obj) = store.get_object_at_version(&obj_ref.0, obj_ref.1) {
+                            objs.push(obj.clone());
+                        }
+                    }
+                    Some(objs)
+                })
             } else {
                 None
             },
             auxiliary_data: if request.include_auxiliary_data {
-                // TODO: get auxiliary data
+                // TODO: Auxiliary data is not supported
                 None
             } else {
                 None
