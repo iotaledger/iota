@@ -5,7 +5,7 @@ import { AccountType, type SerializedUIAccount } from '_src/background/accounts/
 import { useState, useRef } from 'react';
 import clsx from 'clsx';
 import { formatAddress } from '@iota/iota-sdk/utils';
-import { ExplorerLinkType, NicknameDialog, useUnlockAccount } from '_components';
+import { ExplorerLinkType, NicknameDialog, useUnlockAccounts } from '_components';
 import { useNavigate } from 'react-router-dom';
 import { useAccounts, useExplorerLink, useBackgroundClient } from '_hooks';
 import { toast, useGetDefaultIotaName } from '@iota/core';
@@ -38,7 +38,7 @@ export function AccountGroupItem({
     const anchorRef = useRef<HTMLDivElement>(null);
     const [isDialogNicknameOpen, setDialogNicknameOpen] = useState(false);
     const [isDialogRemoveOpen, setDialogRemoveOpen] = useState(false);
-    const { unlockAccount, lockAccount } = useUnlockAccount();
+    const { unlockAccounts, lockAccounts } = useUnlockAccounts();
     const navigate = useNavigate();
     const allAccounts = useAccounts();
     const backgroundClient = useBackgroundClient();
@@ -61,9 +61,11 @@ export function AccountGroupItem({
     function handleToggleLock(e: React.MouseEvent<HTMLButtonElement>) {
         e.stopPropagation();
         if (account.isLocked) {
-            unlockAccount(account);
+            if (account.isPasswordUnlockable) {
+                unlockAccounts();
+            }
         } else {
-            lockAccount(account);
+            lockAccounts();
         }
     }
 

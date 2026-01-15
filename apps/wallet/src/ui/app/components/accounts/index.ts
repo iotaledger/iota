@@ -18,7 +18,7 @@ export * from './ProtectAccountForm';
 export * from './RecoverAccountsGroup';
 export * from './SelectAllButton';
 export * from './UnlockAccountButton';
-export * from './UnlockAccountContext';
+export * from './UnlockAccountsContext';
 export * from './UnlockAccountModal';
 export * from './VerifyPasswordModal';
 export * from './OffBalanceAddressesInfo';

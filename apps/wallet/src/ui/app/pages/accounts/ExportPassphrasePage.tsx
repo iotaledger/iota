@@ -40,7 +40,7 @@ export function ExportPassphrasePage() {
                     <VerifyPasswordModal
                         open
                         onVerify={async (password) => {
-                            await backgroundClient.unlockAllAccounts({ password });
+                            await backgroundClient.unlockAllAccountsAndSources({ password });
                             await exportMutation.mutateAsync({
                                 password,
                                 accountSourceID: accountSource!.id,

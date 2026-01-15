@@ -79,12 +79,12 @@ export class MnemonicAccount
         return await mnemonicSource.isLocked();
     }
 
-    async lock(allowRead = false): Promise<void> {
+    async lock(): Promise<void> {
         const mnemonicSource = await this.#getMnemonicSource();
         const isLocked = await mnemonicSource.isLocked();
         if (!isLocked) {
             await mnemonicSource.lock();
-            await this.onLocked(allowRead);
+            await this.onLocked();
         }
     }
 

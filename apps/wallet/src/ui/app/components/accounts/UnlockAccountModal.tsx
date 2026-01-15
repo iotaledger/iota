@@ -24,7 +24,7 @@ export function UnlockAccountModal({ onClose, onSuccess, open }: UnlockAccountMo
                 cancelText: 'Back',
                 showForgotPassword: true,
                 onSubmit: async (password: string) => {
-                    await backgroundService.unlockAllAccounts({
+                    await backgroundService.unlockAllAccountsAndSources({
                         password,
                     });
                     toast('Accounts unlocked');

@@ -8,7 +8,7 @@ import { Card, CardBody, CardImage, CardType, ImageShape, ImageType } from '@iot
 import { useAccountByAddress } from '_hooks';
 import { AccountIcon } from './accounts/AccountIcon';
 import { AccountItem } from './accounts/AccountItem';
-import { useUnlockAccount } from './accounts/UnlockAccountContext';
+import { useUnlockAccounts } from './accounts/UnlockAccountsContext';
 import { DAppPermissionList } from './DAppPermissionList';
 import { SummaryCard } from './SummaryCard';
 import { Link } from 'react-router-dom';
@@ -32,13 +32,15 @@ export function DAppInfoCard({
 }: DAppInfoCardProps) {
     const validDAppUrl = getValidDAppUrl(url);
     const { data: account } = useAccountByAddress(connectedAddress);
-    const { unlockAccount, lockAccount } = useUnlockAccount();
+    const { unlockAccounts, lockAccounts } = useUnlockAccounts();
     function handleLockAndUnlockClick() {
         if (!account) return;
         if (account?.isLocked) {
-            unlockAccount(account);
+            if (account.isPasswordUnlockable) {
+                unlockAccounts();
+            }
         } else {
-            lockAccount(account);
+            lockAccounts();
         }
     }
     return (

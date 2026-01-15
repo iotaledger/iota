@@ -14,7 +14,7 @@ export function useExportPassphraseMutation() {
         mutationKey: ['export passphrase'],
         mutationFn: async (args: MethodPayload<'getAccountSourceEntropy'>['args']) => {
             if (args.password) {
-                await backgroundClient.unlockAllAccounts({ password: args.password });
+                await backgroundClient.unlockAllAccountsAndSources({ password: args.password });
             }
             return entropyToMnemonic(
                 toEntropy((await backgroundClient.getAccountSourceEntropy(args)).entropy),
