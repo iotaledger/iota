@@ -3,19 +3,15 @@
 
 'use client';
 
-import { useIotaClient } from '@iota/dapp-kit';
+import { useIotaClient, useIotaClientContext } from '@iota/dapp-kit';
 import { type IdentityClientReadOnly } from '@iota/identity-wasm/web';
 import { type PropsWithChildren, useEffect, useMemo, useState } from 'react';
-import {
-    TrustFrameworkContext,
-    useNetworkContext,
-    type TrustFrameworkProviderContext,
-} from '~/contexts';
+import { TrustFrameworkContext, type TrustFrameworkProviderContext } from '~/contexts';
 import { createIdentityClientReadOnly } from '~/lib/utils/trust-framework/identity';
 
 export function TrustFrameworkProvider({ children }: PropsWithChildren) {
+    const { network } = useIotaClientContext();
     const iotaClient = useIotaClient();
-    const [network] = useNetworkContext();
     const [identityClient, setIdentityClient] = useState<IdentityClientReadOnly | null>(null);
 
     useEffect(() => {
