@@ -10,7 +10,7 @@ use std::{net::SocketAddr, sync::Arc, time::Duration};
 use anyhow::Result;
 use clap::Parser;
 use iota_swarm_config::genesis_config::AccountConfig;
-use iota_types::digests::{ChainIdentifier, CheckpointDigest};
+use iota_types::storage::RestStateReader;
 use simulacrum::Simulacrum;
 use tokio::signal;
 use tokio_util::sync::CancellationToken;
@@ -160,7 +160,10 @@ async fn main() -> Result<()> {
     let app_state = AppState {
         simulacrum: simulacrum.clone(),
         faucet_request_amount: args.faucet_request_amount,
-        chain_id: ChainIdentifier::from(CheckpointDigest::default()).to_string(),
+        chain_id: simulacrum
+            .get_chain_identifier()
+            .expect("chain identifier should be set")
+            .to_string(),
     };
 
     // Start gRPC server

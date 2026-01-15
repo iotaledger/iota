@@ -740,7 +740,7 @@ impl<T: Send + Sync, V: store::SimulatorStore + Send + Sync> RestStateReader for
     ) -> iota_types::storage::error::Result<iota_types::digests::ChainIdentifier> {
         Ok(self
             .with_store(|store| store.get_checkpoint_by_sequence_number(0))
-            .unwrap()
+            .expect("lowest available checkpoint should exist")
             .digest()
             .to_owned()
             .into())

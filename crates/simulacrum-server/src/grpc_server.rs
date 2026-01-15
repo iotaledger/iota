@@ -8,8 +8,7 @@ use std::sync::Arc;
 use anyhow::Result;
 use iota_grpc_server::{GrpcReader, GrpcServerHandle, start_grpc_server};
 use iota_types::{
-    digests::{ChainIdentifier, CheckpointDigest},
-    transaction_executor::TransactionExecutor as TransactionExecutorTrait,
+    storage::RestStateReader, transaction_executor::TransactionExecutor as TransactionExecutorTrait,
 };
 use simulacrum::{
     Simulacrum, state_reader::SimulacrumGrpcReader, transaction_executor::TransactionExecutor,
@@ -35,7 +34,9 @@ pub async fn start_simulacrum_grpc_server(
     config: iota_config::node::GrpcApiConfig,
     shutdown_token: tokio_util::sync::CancellationToken,
 ) -> Result<GrpcServerHandle> {
-    let chain_id = ChainIdentifier::from(CheckpointDigest::default());
+    let chain_id = simulacrum
+        .get_chain_identifier()
+        .expect("chain identifier should be set");
 
     // Create a transaction executor for simulacrum to enable transaction execution
     // and simulation via gRPC
