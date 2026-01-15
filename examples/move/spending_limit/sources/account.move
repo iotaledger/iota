@@ -202,10 +202,7 @@ public fun authenticator_function_ref(
 /// Looks up for withdraw calls and calculates total withdrawal amount.
 /// Returns the total amount from all withdraw commands.
 /// Returns 0 if no withdraw commands are found.
-public(package) fun lookup_and_calculate_withdrawals(
-    auth_ctx: &AuthContext,
-    ctx: &TxContext,
-): u64 {
+public(package) fun lookup_and_calculate_withdrawals(auth_ctx: &AuthContext, ctx: &TxContext): u64 {
     let commands = tx_commands(auth_ctx);
     let inputs = tx_inputs(auth_ctx);
     let mut total_amount = 0u64;
@@ -252,11 +249,7 @@ public(package) fun lookup_and_calculate_withdrawals(
 // === Private Functions ===
 
 // Helper function to check if a MoveCall is a withdraw_from_balance_reserve call from the account module.
-fun is_withdraw_call(
-    call: &ProgrammableMoveCall,
-    auth_ctx: &AuthContext,
-    ctx: &TxContext,
-): bool {
+fun is_withdraw_call(call: &ProgrammableMoveCall, auth_ctx: &AuthContext, ctx: &TxContext): bool {
     // Check first argument equals sender.
     if (!first_arg_equals_sender(call, auth_ctx, ctx)) {
         return false
