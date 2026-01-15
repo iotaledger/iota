@@ -480,7 +480,7 @@ importers:
         specifier: 1.7.0-beta.1
         version: 1.7.0-beta.1(@iota/iota-sdk@sdk+typescript)
       '@iota/iota-names-sdk':
-        specifier: ^0.5.0
+        specifier: ^0.5.1
         version: 0.5.1(@iota/iota-sdk@sdk+typescript)
       '@iota/iota-sdk':
         specifier: workspace:*
