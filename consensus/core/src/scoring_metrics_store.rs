@@ -469,7 +469,8 @@ fn classify_block_verifier_error(error: &ConsensusError) -> MetricType {
 // those that can be proven to a third party by providing the signed faulty
 // block itself. Obs: BlockRejected errors are unprovable because even though
 // the rejected block signature can be verified, the reason for the rejection
-// is not provable with the block alone.
+// is not objective, so authorities cannot prove (or won't even agree) that the
+// block should be rejected.
 fn classify_subscriber_error(error: &ConsensusError) -> MetricType {
     match error {
         ConsensusError::MalformedBlock { .. } => MetricType::Unprovable,
@@ -1666,7 +1667,8 @@ mod tests {
                 get_faulty_blocks_provable(&context, &source, block_verification_error.name()),
                 get_faulty_blocks_unprovable(&context, &source, ignored_error.name()),
                 get_faulty_blocks_unprovable(&context, &source, parsing_error.name()),
-                get_faulty_blocks_unprovable(&context, &source, block_verification_error.name())
+                get_faulty_blocks_unprovable(&context, &source, block_verification_error.name()),
+                get_faulty_blocks_unprovable(&context, &source, block_rejected_error.name())
             ],
             [
                 vec![0, 0, 0, 0],
@@ -1676,7 +1678,8 @@ mod tests {
                 vec![0, 0, 0, 0],
                 vec![0, 0, 0, 0],
                 vec![0, 0, 0, 0],
-                vec![0, 0, 0, 0]
+                vec![0, 0, 0, 0],
+                vec![0, 0, 0, 0],
             ]
         );
 
@@ -1702,7 +1705,8 @@ mod tests {
                 get_faulty_blocks_provable(&context, &source, block_verification_error.name()),
                 get_faulty_blocks_unprovable(&context, &source, ignored_error.name()),
                 get_faulty_blocks_unprovable(&context, &source, parsing_error.name()),
-                get_faulty_blocks_unprovable(&context, &source, block_verification_error.name())
+                get_faulty_blocks_unprovable(&context, &source, block_verification_error.name()),
+                get_faulty_blocks_unprovable(&context, &source, block_rejected_error.name())
             ],
             [
                 vec![0, 0, 0, 0],
@@ -1712,12 +1716,13 @@ mod tests {
                 vec![0, 0, 0, 0],
                 vec![0, 0, 0, 0],
                 vec![1, 1, 1, 1],
+                vec![0, 0, 0, 0],
                 vec![0, 0, 0, 0]
             ]
         );
 
-        // Update metrics for each authority with a signed block verification error.
-        // Only provable metrics should be updated for this error.
+        // Update metrics for each authority with a unsigned block verification error.
+        // Only unprovable metrics should be updated for this error.
         for authority in context.committee.authorities() {
             context
                 .scoring_metrics_store
@@ -1738,17 +1743,19 @@ mod tests {
                 get_faulty_blocks_provable(&context, &source, block_verification_error.name()),
                 get_faulty_blocks_unprovable(&context, &source, ignored_error.name()),
                 get_faulty_blocks_unprovable(&context, &source, parsing_error.name()),
-                get_faulty_blocks_unprovable(&context, &source, block_verification_error.name())
+                get_faulty_blocks_unprovable(&context, &source, block_verification_error.name()),
+                get_faulty_blocks_unprovable(&context, &source, block_rejected_error.name())
             ],
             [
-                vec![1, 1, 1, 1],
-                vec![1, 1, 1, 1],
+                vec![0, 0, 0, 0],
+                vec![2, 2, 2, 2],
+                vec![0, 0, 0, 0],
+                vec![0, 0, 0, 0],
                 vec![0, 0, 0, 0],
                 vec![0, 0, 0, 0],
                 vec![1, 1, 1, 1],
-                vec![0, 0, 0, 0],
                 vec![1, 1, 1, 1],
-                vec![0, 0, 0, 0]
+                vec![0, 0, 0, 0],
             ]
         );
 
@@ -1774,17 +1781,19 @@ mod tests {
                 get_faulty_blocks_provable(&context, &source, block_verification_error.name()),
                 get_faulty_blocks_unprovable(&context, &source, ignored_error.name()),
                 get_faulty_blocks_unprovable(&context, &source, parsing_error.name()),
-                get_faulty_blocks_unprovable(&context, &source, block_verification_error.name())
+                get_faulty_blocks_unprovable(&context, &source, block_verification_error.name()),
+                get_faulty_blocks_unprovable(&context, &source, block_rejected_error.name())
             ],
             [
-                vec![1, 1, 1, 1],
-                vec![2, 2, 2, 2],
+                vec![0, 0, 0, 0],
+                vec![3, 3, 3, 3],
+                vec![0, 0, 0, 0],
+                vec![0, 0, 0, 0],
                 vec![0, 0, 0, 0],
                 vec![0, 0, 0, 0],
                 vec![1, 1, 1, 1],
-                vec![0, 0, 0, 0],
                 vec![1, 1, 1, 1],
-                vec![0, 0, 0, 0]
+                vec![1, 1, 1, 1],
             ]
         );
     }
