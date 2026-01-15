@@ -41,7 +41,7 @@ export abstract class Account<
         }
     }
 
-    abstract lock(allowRead?: boolean): Promise<void>;
+    abstract lock(): Promise<void>;
     /**
      * Indicates if the account is unlocked and allows write actions (eg. signing)
      */
@@ -106,13 +106,7 @@ export abstract class Account<
         await (await getDB()).accounts.update(this.id, { lastUnlockedOn: Date.now() });
     }
 
-    protected async onLocked(allowRead: boolean) {
-        // skip clearing last unlocked value to allow read access
-        // when possible (last unlocked within time limits)
-        if (allowRead) {
-            return;
-        }
-
+    protected async onLocked() {
         await (await getDB()).accounts.update(this.id, { lastUnlockedOn: null });
     }
 
@@ -148,7 +142,6 @@ export interface SerializedUIAccount {
     /**
      * Timestamp of the last time the account was unlocked. It is cleared when the account is locked
      * because of a user action (manual lock) or lock timer.
-     * This is used to determine if the account is locked for read or not. (eg. lastUnlockedOn more than 4 hours ago -> read locked)
      */
     readonly lastUnlockedOn: number | null;
     /**

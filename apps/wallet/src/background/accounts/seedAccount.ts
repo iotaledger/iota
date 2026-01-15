@@ -77,12 +77,12 @@ export class SeedAccount
         return seedSource.isLocked();
     }
 
-    async lock(allowRead: boolean = false): Promise<void> {
+    async lock(): Promise<void> {
         const seedSource = await this.#getSeedSource();
         const isLocked = await seedSource.isLocked();
         if (!isLocked) {
             await seedSource.lock();
-            await this.onLocked(allowRead);
+            await this.onLocked();
         }
     }
 

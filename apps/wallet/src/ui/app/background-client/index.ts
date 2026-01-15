@@ -386,24 +386,26 @@ export class BackgroundClient {
         );
     }
 
-    public unlockAllAccounts(inputs: MethodPayload<'unlockAllAccounts'>['args']) {
+    public unlockAllAccountsAndSources(
+        inputs: MethodPayload<'unlockAllAccountsAndSources'>['args'],
+    ) {
         return lastValueFrom(
             this.sendMessage(
-                createMessage<MethodPayload<'unlockAllAccounts'>>({
+                createMessage<MethodPayload<'unlockAllAccountsAndSources'>>({
                     type: 'method-payload',
-                    method: 'unlockAllAccounts',
+                    method: 'unlockAllAccountsAndSources',
                     args: inputs,
                 }),
             ).pipe(take(1)),
         );
     }
 
-    public lockAllAccounts(args: MethodPayload<'lockAllAccounts'>['args']) {
+    public lockAllAccountsAndSources(args: MethodPayload<'lockAllAccountsAndSources'>['args']) {
         return lastValueFrom(
             this.sendMessage(
-                createMessage<MethodPayload<'lockAllAccounts'>>({
+                createMessage<MethodPayload<'lockAllAccountsAndSources'>>({
                     type: 'method-payload',
-                    method: 'lockAllAccounts',
+                    method: 'lockAllAccountsAndSources',
                     args,
                 }),
             ).pipe(take(1)),

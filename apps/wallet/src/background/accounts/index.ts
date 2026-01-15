@@ -155,7 +155,7 @@ export async function addNewAccounts<T extends SerializedAccount>(accounts: Omit
     return accountsCreated;
 }
 
-export async function lockAllAccounts() {
+export async function lockAllAccountsAndSources() {
     const sources = await getAccountSources();
 
     for (const source of sources) {
@@ -177,7 +177,7 @@ export async function lockAllAccounts() {
     accountsEvents.emit('accountsChanged');
 }
 
-export async function unlockAllAccounts(password?: string) {
+export async function unlockAllAccountsAndSources(password?: string) {
     const sources = await getAccountSources();
     for (const source of sources) {
         if (password) {
@@ -243,14 +243,14 @@ async function clearStateAfterManyFailedAttempts() {
 
 export async function accountsHandleUIMessage(msg: Message, uiConnection: UiConnection) {
     const { payload } = msg;
-    if (isMethodPayload(payload, 'lockAllAccounts')) {
-        await lockAllAccounts();
+    if (isMethodPayload(payload, 'lockAllAccountsAndSources')) {
+        await lockAllAccountsAndSources();
         uiConnection.send(createMessage({ type: 'done' }, msg.id));
         return true;
     }
-    if (isMethodPayload(payload, 'unlockAllAccounts')) {
+    if (isMethodPayload(payload, 'unlockAllAccountsAndSources')) {
         const { password } = payload.args;
-        await unlockAllAccounts(password);
+        await unlockAllAccountsAndSources(password);
         uiConnection.send(createMessage({ type: 'done' }, msg.id));
         return true;
     }

@@ -75,11 +75,11 @@ export class KeystoneAccount
         return this.getCachedData().then(({ sourceID }) => sourceID);
     }
 
-    async lock(allowRead = false): Promise<void> {
+    async lock(): Promise<void> {
         const isLocked = await this.isLocked();
         if (!isLocked) {
             await (await this.#getKeystoneSource()).lock();
-            await this.onLocked(allowRead);
+            await this.onLocked();
         }
     }
 

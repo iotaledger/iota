@@ -2,73 +2,53 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { type SerializedUIAccount } from '_src/background/accounts/account';
-import { createContext, useCallback, useContext, useState, type ReactNode, useRef } from 'react';
+import { createContext, useCallback, useContext, useState, type ReactNode } from 'react';
 import { toast } from '@iota/core';
 import { useUnlockMutation, useBackgroundClient } from '_hooks';
 import { UnlockAccountModal } from './UnlockAccountModal';
 
-type OnSuccessCallback = () => void | Promise<void>;
-
-interface UnlockAccountContextType {
+interface UnlockAccountsContextType {
     isUnlockModalOpen: boolean;
-    unlockAccount: (account: SerializedUIAccount, onSuccessCallback?: OnSuccessCallback) => void;
-    lockAccount: (account: SerializedUIAccount) => void;
+    unlockAccounts: () => void;
+    lockAccounts: () => void;
     isPending: boolean;
     hideUnlockModal: () => void;
 }
 
-const UnlockAccountContext = createContext<UnlockAccountContextType | null>(null);
+const UnlockAccountsContext = createContext<UnlockAccountsContextType | null>(null);
 
-interface UnlockAccountProviderProps {
+interface UnlockAccountsProviderProps {
     children: ReactNode;
 }
 
-export function UnlockAccountProvider({ children }: UnlockAccountProviderProps) {
+export function UnlockAccountsProvider({ children }: UnlockAccountsProviderProps) {
     const [isUnlockModalOpen, setIsUnlockModalOpen] = useState(false);
-    const onSuccessCallbackRef = useRef<OnSuccessCallback | undefined>();
     const unlockAccountMutation = useUnlockMutation();
     const backgroundClient = useBackgroundClient();
     const hideUnlockModal = useCallback(() => {
         setIsUnlockModalOpen(false);
-        onSuccessCallbackRef.current && onSuccessCallbackRef.current();
     }, []);
 
-    const unlockAccount = useCallback(
-        async (account: SerializedUIAccount, onSuccessCallback?: OnSuccessCallback) => {
-            if (account) {
-                if (account.isPasswordUnlockable) {
-                    // for password-unlockable accounts, show the unlock modal
-                    setIsUnlockModalOpen(true);
+    const unlockAccounts = useCallback(async () => {
+        setIsUnlockModalOpen(true);
+    }, []);
 
-                    if (onSuccessCallback) {
-                        onSuccessCallbackRef.current = onSuccessCallback;
-                    }
-                }
-            }
-        },
-        [unlockAccountMutation],
-    );
-
-    const lockAccount = useCallback(
-        async (account: SerializedUIAccount) => {
-            try {
-                await backgroundClient.lockAllAccounts({ id: account.id });
-                toast('Accounts locked');
-            } catch (e) {
-                toast.error((e as Error).message || 'Failed to lock account');
-            }
-        },
-        [backgroundClient],
-    );
+    const lockAccounts = useCallback(async () => {
+        try {
+            await backgroundClient.lockAllAccountsAndSources({});
+            toast('Accounts locked');
+        } catch (e) {
+            toast.error((e as Error).message || 'Failed to lock account');
+        }
+    }, [backgroundClient]);
 
     return (
-        <UnlockAccountContext.Provider
+        <UnlockAccountsContext.Provider
             value={{
                 isUnlockModalOpen,
-                unlockAccount,
+                unlockAccounts,
                 hideUnlockModal,
-                lockAccount,
+                lockAccounts,
                 isPending: unlockAccountMutation.isPending,
             }}
         >
@@ -78,14 +58,14 @@ export function UnlockAccountProvider({ children }: UnlockAccountProviderProps) 
                 onSuccess={hideUnlockModal}
                 open={isUnlockModalOpen}
             />
-        </UnlockAccountContext.Provider>
+        </UnlockAccountsContext.Provider>
     );
 }
 
-export function useUnlockAccount(): UnlockAccountContextType {
-    const context = useContext(UnlockAccountContext);
+export function useUnlockAccounts(): UnlockAccountsContextType {
+    const context = useContext(UnlockAccountsContext);
     if (!context) {
-        throw new Error('useUnlockAccount must be used within an UnlockAccountProvider');
+        throw new Error('useUnlockAccounts must be used within an UnlockAccountsProvider');
     }
     return context;
 }

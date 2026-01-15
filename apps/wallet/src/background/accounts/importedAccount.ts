@@ -75,11 +75,11 @@ export class ImportedAccount
         });
     }
 
-    async lock(allowRead: boolean = false): Promise<void> {
+    async lock(): Promise<void> {
         const isLocked = await this.isLocked();
         if (!isLocked) {
             await this.clearEphemeralValue();
-            await this.onLocked(allowRead);
+            await this.onLocked();
         }
     }
 
