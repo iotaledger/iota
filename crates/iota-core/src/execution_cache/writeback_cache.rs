@@ -941,8 +941,6 @@ impl WritebackCache {
         Ok(())
     }
 
-    // Commits dirty data for the given TransactionDigest to the db.
-    #[instrument(level = "debug", skip_all)]
     fn build_db_batch(&self, epoch: EpochId, digests: &[TransactionDigest]) -> Batch {
         let _metrics_guard = iota_metrics::monitored_scope("WritebackCache::build_db_batch");
         let mut all_outputs = Vec::with_capacity(digests.len());
