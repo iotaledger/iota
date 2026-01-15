@@ -130,7 +130,7 @@ impl SuggestedGasPriceCalculator {
                 tx.estimated_execution_duration(),
             );
 
-            tx.object_ids().iter().for_each(|obj_id| {
+            for obj_id in tx.object_ids() {
                 let prev_info = self.congestion_info.entry(*obj_id).or_default().insert(
                     tx.execution_start_time(),
                     scheduled_transaction_congestion_info,
@@ -144,7 +144,7 @@ impl SuggestedGasPriceCalculator {
                         for the same shared object {obj_id:?}",
                     tx.execution_start_time(),
                 );
-            });
+            }
         }
     }
 
@@ -225,7 +225,9 @@ impl SuggestedGasPriceCalculator {
                             .iter()
                             .filter_map(|(execution_start_time, tx_congestion_info)| {
                                 let end_time_of_scheduled_cert = execution_start_time
-                                    + tx_congestion_info.estimated_execution_duration;
+                                    .saturating_add(
+                                        tx_congestion_info.estimated_execution_duration,
+                                    );
 
                                 if end_time_of_scheduled_cert > start_time_of_deferred_cert {
                                     // Store gas price of that scheduled certificate
