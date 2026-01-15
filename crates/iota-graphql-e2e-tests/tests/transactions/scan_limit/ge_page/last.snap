@@ -157,12 +157,6 @@ task 27, lines 80-101:
 Response: {
   "data": {
     "transactionBlocks": {
-      "pageInfo": {
-        "hasPreviousPage": false,
-        "hasNextPage": false,
-        "startCursor": "eyJjIjo1LCJ0IjoyLCJpIjpmYWxzZX0",
-        "endCursor": "eyJjIjo1LCJ0IjoyMSwiaSI6ZmFsc2V9"
-      },
       "edges": [
         {
           "cursor": "eyJjIjo1LCJ0IjoyLCJpIjpmYWxzZX0",
@@ -208,7 +202,13 @@ Response: {
             }
           }
         }
-      ]
+      ],
+      "pageInfo": {
+        "endCursor": "eyJjIjo1LCJ0IjoyMSwiaSI6ZmFsc2V9",
+        "hasNextPage": false,
+        "hasPreviousPage": false,
+        "startCursor": "eyJjIjo1LCJ0IjoyLCJpIjpmYWxzZX0"
+      }
     }
   }
 }
@@ -218,12 +218,6 @@ task 28, lines 104-126:
 Response: {
   "data": {
     "transactionBlocks": {
-      "pageInfo": {
-        "hasPreviousPage": true,
-        "hasNextPage": false,
-        "startCursor": "eyJjIjo1LCJ0IjoyMSwiaSI6ZmFsc2V9",
-        "endCursor": "eyJjIjo1LCJ0IjoyMSwiaSI6dHJ1ZX0"
-      },
       "edges": [
         {
           "cursor": "eyJjIjo1LCJ0IjoyMSwiaSI6ZmFsc2V9",
@@ -236,7 +230,13 @@ Response: {
             }
           }
         }
-      ]
+      ],
+      "pageInfo": {
+        "endCursor": "eyJjIjo1LCJ0IjoyMSwiaSI6dHJ1ZX0",
+        "hasNextPage": false,
+        "hasPreviousPage": true,
+        "startCursor": "eyJjIjo1LCJ0IjoyMSwiaSI6ZmFsc2V9"
+      }
     }
   }
 }
@@ -246,12 +246,6 @@ task 29, lines 128-153:
 Response: {
   "data": {
     "transactionBlocks": {
-      "pageInfo": {
-        "hasPreviousPage": true,
-        "hasNextPage": true,
-        "startCursor": "eyJjIjo3LCJ0IjoxNiwiaSI6dHJ1ZX0",
-        "endCursor": "eyJjIjo3LCJ0IjoyMCwiaSI6dHJ1ZX0"
-      },
       "edges": [
         {
           "cursor": "eyJjIjo3LCJ0IjoxNywiaSI6ZmFsc2V9",
@@ -264,7 +258,13 @@ Response: {
             }
           }
         }
-      ]
+      ],
+      "pageInfo": {
+        "endCursor": "eyJjIjo3LCJ0IjoyMCwiaSI6dHJ1ZX0",
+        "hasNextPage": true,
+        "hasPreviousPage": true,
+        "startCursor": "eyJjIjo3LCJ0IjoxNiwiaSI6dHJ1ZX0"
+      }
     }
   }
 }
@@ -274,13 +274,13 @@ task 30, lines 155-178:
 Response: {
   "data": {
     "transactionBlocks": {
+      "edges": [],
       "pageInfo": {
-        "hasPreviousPage": true,
+        "endCursor": "eyJjIjo3LCJ0IjoxNSwiaSI6dHJ1ZX0",
         "hasNextPage": true,
-        "startCursor": "eyJjIjo3LCJ0IjoxMSwiaSI6dHJ1ZX0",
-        "endCursor": "eyJjIjo3LCJ0IjoxNSwiaSI6dHJ1ZX0"
-      },
-      "edges": []
+        "hasPreviousPage": true,
+        "startCursor": "eyJjIjo3LCJ0IjoxMSwiaSI6dHJ1ZX0"
+      }
     }
   }
 }
@@ -290,13 +290,13 @@ task 31, lines 180-202:
 Response: {
   "data": {
     "transactionBlocks": {
+      "edges": [],
       "pageInfo": {
-        "hasPreviousPage": true,
+        "endCursor": "eyJjIjo3LCJ0IjoxMCwiaSI6dHJ1ZX0",
         "hasNextPage": true,
-        "startCursor": "eyJjIjo3LCJ0Ijo2LCJpIjp0cnVlfQ",
-        "endCursor": "eyJjIjo3LCJ0IjoxMCwiaSI6dHJ1ZX0"
-      },
-      "edges": []
+        "hasPreviousPage": true,
+        "startCursor": "eyJjIjo3LCJ0Ijo2LCJpIjp0cnVlfQ"
+      }
     }
   }
 }
@@ -306,12 +306,6 @@ task 32, lines 204-228:
 Response: {
   "data": {
     "transactionBlocks": {
-      "pageInfo": {
-        "hasPreviousPage": true,
-        "hasNextPage": true,
-        "startCursor": "eyJjIjo3LCJ0IjozLCJpIjpmYWxzZX0",
-        "endCursor": "eyJjIjo3LCJ0Ijo1LCJpIjp0cnVlfQ"
-      },
       "edges": [
         {
           "cursor": "eyJjIjo3LCJ0IjozLCJpIjpmYWxzZX0",
@@ -324,7 +318,13 @@ Response: {
             }
           }
         }
-      ]
+      ],
+      "pageInfo": {
+        "endCursor": "eyJjIjo3LCJ0Ijo1LCJpIjp0cnVlfQ",
+        "hasNextPage": true,
+        "hasPreviousPage": true,
+        "startCursor": "eyJjIjo3LCJ0IjozLCJpIjpmYWxzZX0"
+      }
     }
   }
 }
@@ -334,12 +334,6 @@ task 33, lines 230-252:
 Response: {
   "data": {
     "transactionBlocks": {
-      "pageInfo": {
-        "hasPreviousPage": false,
-        "hasNextPage": true,
-        "startCursor": "eyJjIjo3LCJ0IjoyLCJpIjp0cnVlfQ",
-        "endCursor": "eyJjIjo3LCJ0IjoyLCJpIjp0cnVlfQ"
-      },
       "edges": [
         {
           "cursor": "eyJjIjo3LCJ0IjoyLCJpIjpmYWxzZX0",
@@ -352,7 +346,13 @@ Response: {
             }
           }
         }
-      ]
+      ],
+      "pageInfo": {
+        "endCursor": "eyJjIjo3LCJ0IjoyLCJpIjp0cnVlfQ",
+        "hasNextPage": true,
+        "hasPreviousPage": false,
+        "startCursor": "eyJjIjo3LCJ0IjoyLCJpIjp0cnVlfQ"
+      }
     }
   }
 }

@@ -247,6 +247,10 @@ impl Workload<dyn Payload> for SharedCounterWorkload {
             });
         }
         self.counters = join_all(futures).await;
+        info!(
+            "Created {} shared counters for workload",
+            self.counters.len()
+        );
     }
     async fn make_test_payloads(
         &self,

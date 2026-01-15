@@ -46,6 +46,10 @@ transferer = "transferrer"
 # not in the correction dictionary
 checkpoitn = "checkpoint"
 typ = "typ"
+# crates
+bimap = "bimap"
+# plurals
+pendings = "pendings"
 
 [default.extend-identifiers]
 numer = "numer"

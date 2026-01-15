@@ -39,20 +39,20 @@ Response: {
       "nodes": [
         {
           "effects": {
-            "status": "FAILURE",
-            "errors": "Error in 1st command, from '0x907c510b67cf9bc0cfe868250a8991c6e92eafbb1a2f10d8c6a1652c8c29ad18::m::t_a' (line 21)"
+            "errors": "Error in 1st command, from '0x907c510b67cf9bc0cfe868250a8991c6e92eafbb1a2f10d8c6a1652c8c29ad18::m::t_a' (line 21)",
+            "status": "FAILURE"
           }
         },
         {
           "effects": {
-            "status": "FAILURE",
-            "errors": "Error in 1st command, from '0x907c510b67cf9bc0cfe868250a8991c6e92eafbb1a2f10d8c6a1652c8c29ad18::m::t_calls_a' (line 24)"
+            "errors": "Error in 1st command, from '0x907c510b67cf9bc0cfe868250a8991c6e92eafbb1a2f10d8c6a1652c8c29ad18::m::t_calls_a' (line 24)",
+            "status": "FAILURE"
           }
         },
         {
           "effects": {
-            "status": "FAILURE",
-            "errors": "Error in 1st command, from '0x907c510b67cf9bc0cfe868250a8991c6e92eafbb1a2f10d8c6a1652c8c29ad18::m::t_const_assert' (line 10), abort 'EMsg': This is a string"
+            "errors": "Error in 1st command, from '0x907c510b67cf9bc0cfe868250a8991c6e92eafbb1a2f10d8c6a1652c8c29ad18::m::t_const_assert' (line 10), abort 'EMsg': This is a string",
+            "status": "FAILURE"
           }
         }
       ]

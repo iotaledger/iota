@@ -1,0 +1,7 @@
+global:
+  scrape_interval: 1h
+  evaluation_interval: 1h
+
+# No scrape jobs -> Prometheus will NOT ingest anything new,
+# it will only serve the data from the snapshot.
+scrape_configs: []

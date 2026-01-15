@@ -34,13 +34,13 @@ Response: {
                     "address": "0xd6a6f9571d194335b08e9d94cb89c1cd3a9c383caf1bf74e399076657e0fdba4",
                     "asMovePackage": {
                       "module": {
+                        "bytes": "oRzrCwYAAAAIAQAGAgYKAxARBCEEBSUfB0QkCGhADKgBMAAGAQMBBQEADAEAAQIBAgAABAABAQIAAgIBAAEHBQEBAAIEAAYCAwYLAAEJAAEDAQYLAAEIAQABCQABBgsAAQkAAQgBBENvaW4ESU9UQQNiYXIEY29pbgNmb28EaW90YQFtBXZhbHVl1qb5Vx0ZQzWwjp2Uy4nBzTqcODyvG/dOOZB2ZX4P26QAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAgABAAADBQsBOAALABYCAQEAAAMIBioAAAAAAAAACgA4AQYrAAAAAAAAAAsAOAEYAgA=",
+                        "disassembly": "// Move bytecode v6\nmodule d6a6f9571d194335b08e9d94cb89c1cd3a9c383caf1bf74e399076657e0fdba4.m {\nuse 0000000000000000000000000000000000000000000000000000000000000002::coin;\nuse 0000000000000000000000000000000000000000000000000000000000000002::iota;\n\npublic foo<Ty0: drop>(Arg0: u64, Arg1: &Coin<Ty0>): u64 {\nB0:\n\t0: MoveLoc[1](Arg1: &Coin<Ty0>)\n\t1: Call coin::value<Ty0>(&Coin<Ty0>): u64\n\t2: MoveLoc[0](Arg0: u64)\n\t3: Add\n\t4: Ret\n}\n\npublic bar(Arg0: &Coin<IOTA>): u64 {\nB0:\n\t0: LdU64(42)\n\t1: CopyLoc[0](Arg0: &Coin<IOTA>)\n\t2: Call foo<IOTA>(u64, &Coin<IOTA>): u64\n\t3: LdU64(43)\n\t4: MoveLoc[0](Arg0: &Coin<IOTA>)\n\t5: Call foo<IOTA>(u64, &Coin<IOTA>): u64\n\t6: Mul\n\t7: Ret\n}\n\n}\n",
+                        "fileFormatVersion": 6,
                         "name": "m",
                         "package": {
                           "address": "0xd6a6f9571d194335b08e9d94cb89c1cd3a9c383caf1bf74e399076657e0fdba4"
-                        },
-                        "fileFormatVersion": 6,
-                        "bytes": "oRzrCwYAAAAIAQAGAgYKAxARBCEEBSUfB0QkCGhADKgBMAAGAQMBBQEADAEAAQIBAgAABAABAQIAAgIBAAEHBQEBAAIEAAYCAwYLAAEJAAEDAQYLAAEIAQABCQABBgsAAQkAAQgBBENvaW4ESU9UQQNiYXIEY29pbgNmb28EaW90YQFtBXZhbHVl1qb5Vx0ZQzWwjp2Uy4nBzTqcODyvG/dOOZB2ZX4P26QAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAgABAAADBQsBOAALABYCAQEAAAMIBioAAAAAAAAACgA4AQYrAAAAAAAAAAsAOAEYAgA=",
-                        "disassembly": "// Move bytecode v6\nmodule d6a6f9571d194335b08e9d94cb89c1cd3a9c383caf1bf74e399076657e0fdba4.m {\nuse 0000000000000000000000000000000000000000000000000000000000000002::coin;\nuse 0000000000000000000000000000000000000000000000000000000000000002::iota;\n\npublic foo<Ty0: drop>(Arg0: u64, Arg1: &Coin<Ty0>): u64 {\nB0:\n\t0: MoveLoc[1](Arg1: &Coin<Ty0>)\n\t1: Call coin::value<Ty0>(&Coin<Ty0>): u64\n\t2: MoveLoc[0](Arg0: u64)\n\t3: Add\n\t4: Ret\n}\n\npublic bar(Arg0: &Coin<IOTA>): u64 {\nB0:\n\t0: LdU64(42)\n\t1: CopyLoc[0](Arg0: &Coin<IOTA>)\n\t2: Call foo<IOTA>(u64, &Coin<IOTA>): u64\n\t3: LdU64(43)\n\t4: MoveLoc[0](Arg0: &Coin<IOTA>)\n\t5: Call foo<IOTA>(u64, &Coin<IOTA>): u64\n\t6: Mul\n\t7: Ret\n}\n\n}\n"
+                        }
                       }
                     }
                   }
@@ -74,6 +74,26 @@ Response: {
                   "outputState": {
                     "address": "0xd6a6f9571d194335b08e9d94cb89c1cd3a9c383caf1bf74e399076657e0fdba4",
                     "asMovePackage": {
+                      "after": {
+                        "edges": [
+                          {
+                            "cursor": "eyJuIjoibiIsImMiOjF9",
+                            "node": {
+                              "name": "n"
+                            }
+                          },
+                          {
+                            "cursor": "eyJuIjoibyIsImMiOjF9",
+                            "node": {
+                              "name": "o"
+                            }
+                          }
+                        ],
+                        "pageInfo": {
+                          "hasNextPage": false,
+                          "hasPreviousPage": true
+                        }
+                      },
                       "all": {
                         "edges": [
                           {
@@ -98,26 +118,6 @@ Response: {
                         "pageInfo": {
                           "hasNextPage": false,
                           "hasPreviousPage": false
-                        }
-                      },
-                      "after": {
-                        "edges": [
-                          {
-                            "cursor": "eyJuIjoibiIsImMiOjF9",
-                            "node": {
-                              "name": "n"
-                            }
-                          },
-                          {
-                            "cursor": "eyJuIjoibyIsImMiOjF9",
-                            "node": {
-                              "name": "o"
-                            }
-                          }
-                        ],
-                        "pageInfo": {
-                          "hasNextPage": false,
-                          "hasPreviousPage": true
                         }
                       },
                       "before": {

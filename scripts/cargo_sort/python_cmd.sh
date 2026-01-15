@@ -9,5 +9,3 @@ else
     echo "Neither python nor python3 binary is installed. Please install Python."
     exit 1
 fi
-
-$PYTHON_CMD cargo_sort.py "$@"
