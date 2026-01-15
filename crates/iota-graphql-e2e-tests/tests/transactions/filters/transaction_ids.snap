@@ -31,13 +31,13 @@ task 5, lines 28-46:
 Response: {
   "data": {
     "transactionBlocks": {
+      "nodes": [],
       "pageInfo": {
+        "endCursor": null,
         "hasNextPage": false,
         "hasPreviousPage": false,
-        "endCursor": null,
         "startCursor": null
-      },
-      "nodes": []
+      }
     }
   }
 }
@@ -47,13 +47,13 @@ task 6, lines 48-66:
 Response: {
   "data": {
     "transactionBlocks": {
+      "nodes": [],
       "pageInfo": {
+        "endCursor": null,
         "hasNextPage": false,
         "hasPreviousPage": false,
-        "endCursor": null,
         "startCursor": null
-      },
-      "nodes": []
+      }
     }
   }
 }
@@ -86,13 +86,13 @@ task 8, lines 88-106:
 Response: {
   "data": {
     "transactionBlocks": {
+      "nodes": [],
       "pageInfo": {
+        "endCursor": "eyJjIjoyLCJ0IjoyLCJpIjp0cnVlfQ",
         "hasNextPage": false,
         "hasPreviousPage": false,
-        "endCursor": "eyJjIjoyLCJ0IjoyLCJpIjp0cnVlfQ",
         "startCursor": "eyJjIjoyLCJ0IjowLCJpIjp0cnVlfQ"
-      },
-      "nodes": []
+      }
     }
   }
 }

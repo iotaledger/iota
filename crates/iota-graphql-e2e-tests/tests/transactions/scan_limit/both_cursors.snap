@@ -89,12 +89,6 @@ task 15, lines 59-82:
 Response: {
   "data": {
     "transactionBlocks": {
-      "pageInfo": {
-        "hasPreviousPage": true,
-        "hasNextPage": true,
-        "startCursor": "eyJjIjo0LCJ0IjozLCJpIjp0cnVlfQ",
-        "endCursor": "eyJjIjo0LCJ0Ijo0LCJpIjpmYWxzZX0"
-      },
       "edges": [
         {
           "cursor": "eyJjIjo0LCJ0Ijo0LCJpIjpmYWxzZX0",
@@ -107,7 +101,13 @@ Response: {
             }
           }
         }
-      ]
+      ],
+      "pageInfo": {
+        "endCursor": "eyJjIjo0LCJ0Ijo0LCJpIjpmYWxzZX0",
+        "hasNextPage": true,
+        "hasPreviousPage": true,
+        "startCursor": "eyJjIjo0LCJ0IjozLCJpIjp0cnVlfQ"
+      }
     }
   }
 }
@@ -117,12 +117,6 @@ task 16, lines 84-109:
 Response: {
   "data": {
     "transactionBlocks": {
-      "pageInfo": {
-        "hasPreviousPage": true,
-        "hasNextPage": true,
-        "startCursor": "eyJjIjo0LCJ0IjozLCJpIjp0cnVlfQ",
-        "endCursor": "eyJjIjo0LCJ0Ijo2LCJpIjp0cnVlfQ"
-      },
       "edges": [
         {
           "cursor": "eyJjIjo0LCJ0Ijo0LCJpIjpmYWxzZX0",
@@ -146,7 +140,13 @@ Response: {
             }
           }
         }
-      ]
+      ],
+      "pageInfo": {
+        "endCursor": "eyJjIjo0LCJ0Ijo2LCJpIjp0cnVlfQ",
+        "hasNextPage": true,
+        "hasPreviousPage": true,
+        "startCursor": "eyJjIjo0LCJ0IjozLCJpIjp0cnVlfQ"
+      }
     }
   }
 }
@@ -156,12 +156,6 @@ task 17, lines 111-134:
 Response: {
   "data": {
     "transactionBlocks": {
-      "pageInfo": {
-        "hasPreviousPage": true,
-        "hasNextPage": true,
-        "startCursor": "eyJjIjo0LCJ0Ijo1LCJpIjp0cnVlfQ",
-        "endCursor": "eyJjIjo0LCJ0Ijo1LCJpIjpmYWxzZX0"
-      },
       "edges": [
         {
           "cursor": "eyJjIjo0LCJ0Ijo1LCJpIjpmYWxzZX0",
@@ -174,7 +168,13 @@ Response: {
             }
           }
         }
-      ]
+      ],
+      "pageInfo": {
+        "endCursor": "eyJjIjo0LCJ0Ijo1LCJpIjpmYWxzZX0",
+        "hasNextPage": true,
+        "hasPreviousPage": true,
+        "startCursor": "eyJjIjo0LCJ0Ijo1LCJpIjp0cnVlfQ"
+      }
     }
   }
 }

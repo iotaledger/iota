@@ -16,6 +16,7 @@ use iota_types::messages_checkpoint::CheckpointDigest;
 use serde::{Deserialize, Serialize};
 
 use crate::{
+    config::DEFAULT_PAGE_SIZE,
     connection::ScanConnection,
     consistency::Checkpointed,
     data::{self, Conn, DataLoader, Db, DbConnection, QueryExecutor},
@@ -92,12 +93,14 @@ impl Checkpoint {
     /// in Base58. This hash can be used to verify checkpoint contents by
     /// checking signatures against the committee, Hashing contents to match
     /// digest, and checking that the previous checkpoint digest matches.
+    #[graphql(complexity = 0)]
     async fn digest(&self) -> Result<String> {
         Ok(self.digest_impl().extend()?.base58_encode())
     }
 
     /// This checkpoint's position in the total order of finalized checkpoints,
     /// agreed upon by consensus.
+    #[graphql(complexity = 0)]
     async fn sequence_number(&self) -> UInt53 {
         self.sequence_number_impl().into()
     }
@@ -105,17 +108,20 @@ impl Checkpoint {
     /// The timestamp at which the checkpoint is agreed to have happened
     /// according to consensus. Transactions that access time in this
     /// checkpoint will observe this timestamp.
+    #[graphql(complexity = 0)]
     async fn timestamp(&self) -> Result<DateTime> {
         DateTime::from_ms(self.stored.timestamp_ms).extend()
     }
 
     /// This is an aggregation of signatures from a quorum of validators for the
     /// checkpoint proposal.
+    #[graphql(complexity = 0)]
     async fn validator_signatures(&self) -> Base64 {
         Base64::from(&self.stored.validator_signature)
     }
 
     /// The digest of the checkpoint at the previous sequence number.
+    #[graphql(complexity = 0)]
     async fn previous_checkpoint_digest(&self) -> Option<String> {
         self.stored
             .previous_checkpoint_digest
@@ -125,6 +131,7 @@ impl Checkpoint {
 
     /// The total number of transaction blocks in the network by the end of this
     /// checkpoint.
+    #[graphql(complexity = 0)]
     async fn network_total_transactions(&self) -> Option<UInt53> {
         Some(self.network_total_transactions_impl().into())
     }
@@ -133,6 +140,7 @@ impl Checkpoint {
     /// storage fee accumulated during this epoch, up to and including this
     /// checkpoint. These values increase monotonically across checkpoints
     /// in the same epoch, and reset on epoch boundaries.
+    #[graphql(complexity = 0)]
     async fn rolling_gas_summary(&self) -> Option<GasCostSummary> {
         Some(GasCostSummary {
             computation_cost: self.stored.computation_cost as u64,
@@ -177,6 +185,9 @@ impl Checkpoint {
     ///
     /// By default, the scanning range consists of all transactions in this
     /// checkpoint.
+    #[graphql(
+        complexity = "first.or(last).unwrap_or(DEFAULT_PAGE_SIZE as u64) as usize * child_complexity"
+    )]
     async fn transaction_blocks(
         &self,
         ctx: &Context<'_>,
