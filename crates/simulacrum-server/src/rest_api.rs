@@ -31,6 +31,7 @@ use crate::faucet;
 pub struct AppState {
     pub simulacrum: Arc<Simulacrum>,
     pub faucet_request_amount: u64,
+    pub chain_id: String,
 }
 
 /// REST API response types
@@ -121,8 +122,7 @@ pub async fn get_status(
     let reference_gas_price = simulacrum.reference_gas_price();
 
     let response = SimulacrumStatus {
-        // we should pass the chain ID here as well.
-        chain_id: "simulacrum".to_string(),
+        chain_id: state.chain_id.clone(),
         current_epoch,
         highest_checkpoint,
         timestamp_ms,
