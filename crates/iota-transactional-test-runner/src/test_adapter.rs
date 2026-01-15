@@ -2328,39 +2328,43 @@ async fn init_sim_executor(
     sim.set_data_ingestion_path(data_ingestion_path.clone());
 
     // Get the actual object values from the simulator
-    for (name, (addr, kp)) in account_kps {
-        let o = sim.with_store(|store| store.owned_objects(addr).next().unwrap());
-        objects.push(o.clone());
-        account_objects.insert(name.clone(), o.id());
+    let default_account = sim.with_store(|store| {
+        for (name, (addr, kp)) in account_kps {
+            let o = store.owned_objects(addr).next().unwrap();
+            objects.push(o.clone());
+            account_objects.insert(name.clone(), o.id());
 
-        accounts.insert(
-            name.to_owned(),
-            TestAccount {
-                address: addr,
-                key_pair: kp,
-                gas: o.id(),
-            },
-        );
-    }
-    let o = sim.with_store(|store| store.owned_objects(default_account_kp.0).next().unwrap());
-    let default_account = TestAccount {
-        address: default_account_kp.0,
-        key_pair: default_account_kp.1,
-        gas: o.id(),
-    };
-    objects.push(o.clone());
-
-    if let (Some(v_addr), Some(v_key)) = (validator_addr, validator_key) {
-        let o = sim.with_store(|store| store.owned_objects(v_addr).next().unwrap());
-        let validator_account = TestAccount {
-            address: v_addr,
-            key_pair: v_key,
+            accounts.insert(
+                name.to_owned(),
+                TestAccount {
+                    address: addr,
+                    key_pair: kp,
+                    gas: o.id(),
+                },
+            );
+        }
+        let o = store.owned_objects(default_account_kp.0).next().unwrap();
+        let default_account = TestAccount {
+            address: default_account_kp.0,
+            key_pair: default_account_kp.1,
             gas: o.id(),
         };
         objects.push(o.clone());
-        account_objects.insert("validator_0".to_string(), o.id());
-        accounts.insert("validator_0".to_string(), validator_account);
-    }
+
+        if let (Some(v_addr), Some(v_key)) = (validator_addr, validator_key) {
+            let o = store.owned_objects(v_addr).next().unwrap();
+            let validator_account = TestAccount {
+                address: v_addr,
+                key_pair: v_key,
+                gas: o.id(),
+            };
+            objects.push(o.clone());
+            account_objects.insert("validator_0".to_string(), o.id());
+            accounts.insert("validator_0".to_string(), validator_account);
+        }
+
+        default_account
+    });
 
     let sim = Box::new(sim);
     update_named_address_mapping(
