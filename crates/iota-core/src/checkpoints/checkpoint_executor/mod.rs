@@ -288,8 +288,14 @@ impl CheckpointExecutor {
                 // Commit all transaction effects to disk
                 let cache_commit = self.state.get_cache_commit();
                 debug!(?seq, "committing checkpoint transactions to disk");
+                let batch = cache_commit.build_db_batch(
+                    self.epoch_store.epoch(),
+                    &ckpt_state.data.tx_digests,
+                );
+
                 cache_commit.commit_transaction_outputs(
                     self.epoch_store.epoch(),
+                    batch,
                     &ckpt_state.data.tx_digests,
                 );
 

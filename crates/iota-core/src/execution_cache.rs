@@ -25,6 +25,7 @@ use iota_types::{
 };
 use prometheus::Registry;
 use tracing::instrument;
+use typed_store::rocks::DBBatch;
 
 use crate::{
     authority::{
@@ -154,19 +155,30 @@ pub fn build_execution_cache_from_env(
     }
 }
 
+pub type Batch = (Vec<Arc<TransactionOutputs>>, DBBatch);
+
 pub trait ExecutionCacheCommit: Send + Sync {
+    /// Build a DBBatch containing the given transaction outputs.
+    fn build_db_batch(&self, epoch: EpochId, digests: &[TransactionDigest]) -> Batch;
+
     /// Durably commit the outputs of the given transactions to the database.
     /// Will be called by CheckpointExecutor to ensure that transaction outputs
     /// are written durably before marking a checkpoint as finalized.
     fn try_commit_transaction_outputs(
         &self,
         epoch: EpochId,
+        batch: Batch,
         digests: &[TransactionDigest],
     ) -> IotaResult;
 
     /// Non-fallible version of `try_commit_transaction_outputs`.
-    fn commit_transaction_outputs(&self, epoch: EpochId, digests: &[TransactionDigest]) {
-        self.try_commit_transaction_outputs(epoch, digests)
+    fn commit_transaction_outputs(
+        &self,
+        epoch: EpochId,
+        batch: Batch,
+        digests: &[TransactionDigest],
+    ) {
+        self.try_commit_transaction_outputs(epoch, batch, digests)
             .expect("storage access failed");
     }
 
