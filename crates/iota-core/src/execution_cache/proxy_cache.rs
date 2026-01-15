@@ -22,7 +22,7 @@ use iota_types::{
 use tracing::instrument;
 
 use super::{
-    CheckpointCache, ExecutionCacheCommit, ExecutionCacheConfig, ExecutionCacheMetrics,
+    Batch, CheckpointCache, ExecutionCacheCommit, ExecutionCacheConfig, ExecutionCacheMetrics,
     ExecutionCacheReconfigAPI, ExecutionCacheType, ExecutionCacheWrite, ObjectCacheRead,
     PassthroughCache, StateSyncAPI, TestingAPI, TransactionCacheRead, WritebackCache,
 };
@@ -318,12 +318,17 @@ impl AccumulatorStore for ProxyCache {
 }
 
 impl ExecutionCacheCommit for ProxyCache {
+    fn build_db_batch(&self, epoch: EpochId, digests: &[TransactionDigest]) -> super::Batch {
+        delegate_method!(self.build_db_batch(epoch, digests))
+    }
+
     fn try_commit_transaction_outputs(
         &self,
         epoch: EpochId,
+        batch: Batch,
         digests: &[TransactionDigest],
     ) -> IotaResult {
-        delegate_method!(self.try_commit_transaction_outputs(epoch, digests))
+        delegate_method!(self.try_commit_transaction_outputs(epoch, batch, digests))
     }
 
     fn try_persist_transaction(&self, tx: &VerifiedExecutableTransaction) -> IotaResult {
