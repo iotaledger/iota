@@ -38,7 +38,7 @@ export function RemoveDialog({ isOpen, setOpen, accountID }: RemoveDialogProps) 
     const [isPasswordModalVisible, setPasswordModalVisible] = useState(true);
 
     const totalAccounts = allAccounts?.data?.length || 0;
-    const unlockAccountSourceMutation = useUnlockMutation();
+    const unlockAllAccountsMutation = useUnlockMutation();
 
     function handleCancel() {
         setPasswordModalVisible(true);
@@ -57,7 +57,7 @@ export function RemoveDialog({ isOpen, setOpen, accountID }: RemoveDialogProps) 
             <VerifyPasswordModal
                 open={isOpen}
                 onVerify={async (password) => {
-                    await unlockAccountSourceMutation.mutateAsync({
+                    await unlockAllAccountsMutation.mutateAsync({
                         password,
                     });
                     setPasswordModalVisible(false);
