@@ -305,13 +305,15 @@ pub mod suggested_gas_price_calculator_test_utils {
                     suggested_gas_price_calculator.update_congestion_info(bump_result);
                 }
                 PerObjectCongestionControlMode::TotalTxCount => {
+                    let tx_duration = 1; // since this is TotalTxCount mode
                     for _ in 0..*duration {
-                        let certificate = build_transaction(&[(*object_id, true)], 1, *gas_price);
+                        let certificate =
+                            build_transaction(&[(*object_id, true)], tx_duration, *gas_price);
 
                         let execution_start_time = initialize_tracker_and_compute_tx_start_time(
                             &mut shared_object_congestion_tracker,
                             &certificate.shared_input_objects().collect::<Vec<_>>(),
-                            *duration,
+                            tx_duration,
                         )
                         .expect(
                             "initial value should fit within the available range of slots in \
