@@ -287,7 +287,7 @@ export function AccountGroup({
                 <VerifyPasswordModal
                     open
                     onVerify={async (password) => {
-                        await backgroundClient.unlockAllAccounts({
+                        await backgroundClient.unlockAllAccountsAndSources({
                             password,
                         });
 

@@ -9,7 +9,6 @@ import {
     type SerializedUIAccount,
 } from './account';
 import { KeystoneAccountSource } from '../account-sources/keystoneAccountSource';
-import type { LockAccountOptions, UnlockAccountOptions } from './events';
 
 export interface KeystoneAccountSerialized extends SerializedAccount {
     type: AccountType.KeystoneDerived;
@@ -76,16 +75,11 @@ export class KeystoneAccount
         return this.getCachedData().then(({ sourceID }) => sourceID);
     }
 
-    async lock(
-        options: LockAccountOptions = {
-            allowRead: false,
-            skipEventEmit: true,
-        },
-    ): Promise<void> {
-        const isUnlocked = !(await this.isLocked());
-        if (isUnlocked) {
+    async lock(): Promise<void> {
+        const isLocked = await this.isLocked();
+        if (!isLocked) {
             await (await this.#getKeystoneSource()).lock();
-            await this.onLocked(options);
+            await this.onLocked();
         }
     }
 
@@ -93,10 +87,7 @@ export class KeystoneAccount
         return (await this.#getKeystoneSource()).isLocked();
     }
 
-    async passwordUnlock(
-        password?: string,
-        options: UnlockAccountOptions = { skipEventEmit: true },
-    ): Promise<void> {
+    async passwordUnlock(password?: string): Promise<void> {
         const keystoneSource = await this.#getKeystoneSource();
         const isLocked = await keystoneSource.isLocked();
         if (isLocked) {
@@ -105,7 +96,7 @@ export class KeystoneAccount
             }
 
             await keystoneSource.unlock(password);
-            await this.onUnlocked(options);
+            await this.onUnlocked();
         }
     }
 

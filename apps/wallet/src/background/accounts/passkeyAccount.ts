@@ -10,7 +10,6 @@ import {
     type SerializedUIAccount,
 } from './account';
 import { type BrowserPasswordProviderOptions } from '@iota/iota-sdk/keypairs/passkey';
-import type { LockAccountOptions, UnlockAccountOptions } from './events';
 
 export interface PasskeyAccountSerialized extends SerializedAccount {
     type: AccountType.PasskeyDerived;
@@ -75,11 +74,11 @@ export class PasskeyAccount
         super({ type: AccountType.PasskeyDerived, id, cachedData });
     }
 
-    async lock(options?: LockAccountOptions): Promise<void> {
-        const isUnlocked = !(await this.isLocked());
-        if (isUnlocked) {
+    async lock(): Promise<void> {
+        const isLocked = await this.isLocked();
+        if (!isLocked) {
             await this.clearEphemeralValue();
-            await this.onLocked(options);
+            await this.onLocked();
         }
     }
 
@@ -87,14 +86,14 @@ export class PasskeyAccount
         return !(await this.getEphemeralValue())?.unlocked;
     }
 
-    async passwordUnlock(password?: string, options?: UnlockAccountOptions): Promise<void> {
+    async passwordUnlock(password?: string): Promise<void> {
         if (!password) {
             throw new Error('Missing password to unlock the account');
         }
         const { encrypted } = await this.getStoredData();
         await decrypt<string>(password, encrypted);
         await this.setEphemeralValue({ unlocked: true });
-        await this.onUnlocked(options);
+        await this.onUnlocked();
     }
 
     async verifyPassword(password: string): Promise<void> {

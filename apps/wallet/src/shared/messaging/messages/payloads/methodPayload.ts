@@ -49,8 +49,8 @@ type MethodPayloads = {
           };
     accountSourceCreationResponse: { accountSource: AccountSourceSerializedUI };
     unlockAccountSource: { id: string; password?: string };
-    lockAllAccounts: {};
-    unlockAllAccounts: { password?: string };
+    lockAllAccountsAndSources: {};
+    unlockAllAccountsAndSources: { password?: string };
     createAccounts:
         | { type: AccountType.MnemonicDerived; sourceID: string }
         | { type: AccountType.SeedDerived; sourceID: string }
