@@ -358,7 +358,6 @@ mod tests {
     struct TransactionData {
         /// Index of transaction in the set ordered by gas price in
         /// descending order. Used for debugging purposes.
-        #[allow(dead_code)]
         order_idx: usize,
         gas_price: u64,
         gas_budget: u64,
@@ -753,7 +752,10 @@ mod tests {
             ) {
                 assert_eq!(execution_start_time, i as u64);
             } else {
-                panic!("Transaction must be scheduled:\n{tx_data:#?}");
+                panic!(
+                    "Transaction {} must be scheduled:\n{tx_data:#?}",
+                    tx_data.order_idx
+                );
             }
         });
 
@@ -783,7 +785,10 @@ mod tests {
             ) {
                 assert_eq!(execution_start_time, 0);
             } else {
-                panic!("Transaction must be scheduled:\n{tx_data:#?}");
+                panic!(
+                    "Transaction {} must be scheduled:\n{tx_data:#?}",
+                    tx_data.order_idx
+                );
             }
         } else {
             let (congested_objects, suggested_gas_price) = try_defer(
@@ -792,17 +797,24 @@ mod tests {
                 &mut suggested_gas_price_calculator,
             )
             .unwrap_or_else(|| {
-                panic!("Transaction must be deferred:\n{tx_data:#?}");
+                panic!(
+                    "Transaction {} must be deferred:\n{tx_data:#?}",
+                    tx_data.order_idx
+                );
             });
             assert_eq!(
                 congested_objects,
                 vec![object_2], // expected congested objects
-                "Calculated congested objects do not match expected: transaction:\n{tx_data:#?}"
+                "Calculated congested objects do not match expected for transaction {}:\n{:#?}",
+                tx_data.order_idx,
+                tx_data,
             );
             assert_eq!(
                 suggested_gas_price,
                 txs_data[2].gas_price + 1, // expected suggested gas price
-                "Calculated suggested gas price does not match expected; transaction:\n{tx_data:#?}"
+                "Calculated suggested gas price does not match expected for transaction {}:\n{:#?}",
+                tx_data.order_idx,
+                tx_data,
             );
         }
 
@@ -819,17 +831,24 @@ mod tests {
                 &mut suggested_gas_price_calculator,
             )
             .unwrap_or_else(|| {
-                panic!("Transaction must be deferred:\n{tx_data:#?}");
+                panic!(
+                    "Transaction {} must be deferred:\n{tx_data:#?}",
+                    tx_data.order_idx
+                );
             });
             assert_eq!(
                 congested_objects,
                 vec![object_2], // expected congested objects
-                "Calculated congested objects do not match expected: transaction:\n{tx_data:#?}"
+                "Calculated congested objects do not match expected for transaction {}:\n{:#?}",
+                tx_data.order_idx,
+                tx_data,
             );
             assert_eq!(
                 suggested_gas_price,
                 txs_data[2].gas_price + 1, // expected suggested gas price
-                "Calculated suggested gas price does not match expected; transaction:\n{tx_data:#?}"
+                "Calculated suggested gas price does not match expected for transaction {}:\n{:#?}",
+                tx_data.order_idx,
+                tx_data,
             );
         });
 
@@ -848,7 +867,10 @@ mod tests {
                 &mut suggested_gas_price_calculator,
             )
             .unwrap_or_else(|| {
-                panic!("Transaction must be deferred:\n{tx_data:#?}");
+                panic!(
+                    "Transaction {} must be deferred:\n{tx_data:#?}",
+                    tx_data.order_idx
+                );
             });
             assert_eq!(
                 congested_objects,
@@ -857,12 +879,16 @@ mod tests {
                 } else {
                     vec![object_2]
                 }, // expected congested objects
-                "Calculated congested objects do not match expected: transaction:\n{tx_data:#?}"
+                "Calculated congested objects do not match expected for transaction {}:\n{:#?}",
+                tx_data.order_idx,
+                tx_data,
             );
             assert_eq!(
                 suggested_gas_price,
                 txs_data[2].gas_price + 1, // expected suggested gas price
-                "Calculated suggested gas price does not match expected; transaction:\n{tx_data:#?}"
+                "Calculated suggested gas price does not match expected for transaction {}:\n{:#?}",
+                tx_data.order_idx,
+                tx_data,
             );
         });
 
@@ -892,7 +918,10 @@ mod tests {
             ) {
                 assert_eq!(execution_start_time, i as u64 - 7);
             } else {
-                panic!("Transaction must be scheduled:\n{tx_data:#?}");
+                panic!(
+                    "Transaction {} must be scheduled:\n{tx_data:#?}",
+                    tx_data.order_idx
+                );
             }
         });
 
@@ -912,17 +941,24 @@ mod tests {
                 &mut suggested_gas_price_calculator,
             )
             .unwrap_or_else(|| {
-                panic!("Transaction must be deferred:\n{tx_data:#?}");
+                panic!(
+                    "Transaction {} must be deferred:\n{tx_data:#?}",
+                    tx_data.order_idx
+                );
             });
             assert_eq!(
                 congested_objects,
                 vec![object_1, object_2], // expected congested objects
-                "Calculated congested objects do not match expected: transaction:\n{tx_data:#?}"
+                "Calculated congested objects do not match expected for transaction {}:\n{:#?}",
+                tx_data.order_idx,
+                tx_data,
             );
             assert_eq!(
                 suggested_gas_price,
                 txs_data[2].gas_price + 1, // expected suggested gas price
-                "Calculated suggested gas price does not match expected; transaction:\n{tx_data:#?}"
+                "Calculated suggested gas price does not match expected for transaction {}:\n{:#?}",
+                tx_data.order_idx,
+                tx_data,
             );
         });
     }
@@ -1005,7 +1041,10 @@ mod tests {
         ) {
             assert_eq!(execution_start_time, 0);
         } else {
-            panic!("Transaction must be scheduled:\n{tx_data:#?}");
+            panic!(
+                "Transaction {} must be scheduled:\n{tx_data:#?}",
+                tx_data.order_idx
+            );
         }
         // 1:
         let tx_data = &txs_data[1];
@@ -1016,7 +1055,10 @@ mod tests {
         ) {
             assert_eq!(execution_start_time, 3_000_000);
         } else {
-            panic!("Transaction must be scheduled:\n{tx_data:#?}");
+            panic!(
+                "Transaction {} must be scheduled:\n{tx_data:#?}",
+                tx_data.order_idx
+            );
         }
         // 2:
         let tx_data = &txs_data[2];
@@ -1027,7 +1069,10 @@ mod tests {
         ) {
             assert_eq!(execution_start_time, 4_000_000);
         } else {
-            panic!("Transaction must be scheduled:\n{tx_data:#?}");
+            panic!(
+                "Transaction {} must be scheduled:\n{tx_data:#?}",
+                tx_data.order_idx
+            );
         }
 
         // If `assign_min_free_exec_slot` is `true`, transaction
@@ -1068,7 +1113,10 @@ mod tests {
             ) {
                 assert_eq!(execution_start_time, 0);
             } else {
-                panic!("Transaction must be scheduled:\n{tx_data:#?}");
+                panic!(
+                    "Transaction {} must be scheduled:\n{tx_data:#?}",
+                    tx_data.order_idx
+                );
             }
         } else {
             let (congested_objects, suggested_gas_price) = try_defer(
@@ -1077,17 +1125,24 @@ mod tests {
                 &mut suggested_gas_price_calculator,
             )
             .unwrap_or_else(|| {
-                panic!("Transaction must be deferred:\n{tx_data:#?}");
+                panic!(
+                    "Transaction {} must be deferred:\n{tx_data:#?}",
+                    tx_data.order_idx
+                );
             });
             assert_eq!(
                 congested_objects,
                 vec![object_2], // expected congested objects
-                "Calculated congested objects do not match expected: transaction:\n{tx_data:#?}"
+                "Calculated congested objects do not match expected for transaction {}:\n{:#?}",
+                tx_data.order_idx,
+                tx_data,
             );
             assert_eq!(
                 suggested_gas_price,
                 txs_data[2].gas_price + 1, // expected suggested gas price
-                "Calculated suggested gas price does not match expected; transaction:\n{tx_data:#?}"
+                "Calculated suggested gas price does not match expected for transaction {}:\n{:#?}",
+                tx_data.order_idx,
+                tx_data,
             );
         }
 
@@ -1104,17 +1159,24 @@ mod tests {
                 &mut suggested_gas_price_calculator,
             )
             .unwrap_or_else(|| {
-                panic!("Transaction must be deferred:\n{tx_data:#?}");
+                panic!(
+                    "Transaction {} must be deferred:\n{tx_data:#?}",
+                    tx_data.order_idx
+                );
             });
             assert_eq!(
                 congested_objects,
                 vec![object_2], // expected congested objects
-                "Calculated congested objects do not match expected: transaction:\n{tx_data:#?}"
+                "Calculated congested objects do not match expected for transaction {}:\n{:#?}",
+                tx_data.order_idx,
+                tx_data,
             );
             assert_eq!(
                 suggested_gas_price,
                 txs_data[2].gas_price + 1, // expected suggested gas price
-                "Calculated suggested gas price does not match expected; transaction:\n{tx_data:#?}"
+                "Calculated suggested gas price does not match expected for transaction {}:\n{:#?}",
+                tx_data.order_idx,
+                tx_data,
             );
         });
 
@@ -1131,7 +1193,10 @@ mod tests {
             &mut suggested_gas_price_calculator,
         )
         .unwrap_or_else(|| {
-            panic!("Transaction must be deferred:\n{tx_data:#?}");
+            panic!(
+                "Transaction {} must be deferred:\n{tx_data:#?}",
+                tx_data.order_idx
+            );
         });
         assert_eq!(
             congested_objects,
@@ -1140,12 +1205,16 @@ mod tests {
             } else {
                 vec![object_2]
             }, // expected congested objects
-            "Calculated congested objects do not match expected: transaction:\n{tx_data:#?}"
+            "Calculated congested objects do not match expected for transaction {}:\n{:#?}",
+            tx_data.order_idx,
+            tx_data,
         );
         assert_eq!(
             suggested_gas_price,
             txs_data[1].gas_price + 1, // expected suggested gas price
-            "Calculated suggested gas price does not match expected; transaction:\n{tx_data:#?}"
+            "Calculated suggested gas price does not match expected for transaction {}:\n{:#?}",
+            tx_data.order_idx,
+            tx_data,
         );
 
         // Transaction
@@ -1160,17 +1229,24 @@ mod tests {
             &mut suggested_gas_price_calculator,
         )
         .unwrap_or_else(|| {
-            panic!("Transaction must be deferred:\n{tx_data:#?}");
+            panic!(
+                "Transaction {} must be deferred:\n{tx_data:#?}",
+                tx_data.order_idx
+            );
         });
         assert_eq!(
             congested_objects,
             vec![object_1, object_2], // expected congested objects
-            "Calculated congested objects do not match expected: transaction:\n{tx_data:#?}"
+            "Calculated congested objects do not match expected for transaction {}:\n{:#?}",
+            tx_data.order_idx,
+            tx_data,
         );
         assert_eq!(
             suggested_gas_price,
             txs_data[0].gas_price, // expected suggested gas price
-            "Calculated suggested gas price does not match expected; transaction:\n{tx_data:#?}"
+            "Calculated suggested gas price does not match expected for transaction {}:\n{:#?}",
+            tx_data.order_idx,
+            tx_data,
         );
 
         // Transactions
@@ -1211,7 +1287,10 @@ mod tests {
         ) {
             assert_eq!(execution_start_time, 3_000_000);
         } else {
-            panic!("Transaction must be scheduled:\n{tx_data:#?}");
+            panic!(
+                "Transaction {} must be scheduled:\n{tx_data:#?}",
+                tx_data.order_idx
+            );
         }
         // 9:
         let tx_data = &txs_data[9];
@@ -1222,7 +1301,10 @@ mod tests {
         ) {
             assert_eq!(execution_start_time, 7_000_000);
         } else {
-            panic!("Transaction must be scheduled:\n{tx_data:#?}");
+            panic!(
+                "Transaction {} must be scheduled:\n{tx_data:#?}",
+                tx_data.order_idx
+            );
         }
 
         // Transaction
@@ -1236,17 +1318,24 @@ mod tests {
             &mut suggested_gas_price_calculator,
         )
         .unwrap_or_else(|| {
-            panic!("Transaction must be deferred:\n{tx_data:#?}");
+            panic!(
+                "Transaction {} must be deferred:\n{tx_data:#?}",
+                tx_data.order_idx
+            );
         });
         assert_eq!(
             congested_objects,
             vec![object_1, object_2], // expected congested objects
-            "Calculated congested objects do not match expected: transaction:\n{tx_data:#?}"
+            "Calculated congested objects do not match expected for transaction {}:\n{:#?}",
+            tx_data.order_idx,
+            tx_data,
         );
         assert_eq!(
             suggested_gas_price,
             txs_data[2].gas_price + 1, // expected suggested gas price
-            "Calculated suggested gas price does not match expected; transaction:\n{tx_data:#?}"
+            "Calculated suggested gas price does not match expected for transaction {}:\n{:#?}",
+            tx_data.order_idx,
+            tx_data,
         );
 
         // Transaction
@@ -1260,17 +1349,24 @@ mod tests {
             &mut suggested_gas_price_calculator,
         )
         .unwrap_or_else(|| {
-            panic!("Transaction must be deferred:\n{tx_data:#?}");
+            panic!(
+                "Transaction {} must be deferred:\n{tx_data:#?}",
+                tx_data.order_idx
+            );
         });
         assert_eq!(
             congested_objects,
             vec![object_1, object_2], // expected congested objects
-            "Calculated congested objects do not match expected: transaction:\n{tx_data:#?}"
+            "Calculated congested objects do not match expected for transaction {}:\n{:#?}",
+            tx_data.order_idx,
+            tx_data,
         );
         assert_eq!(
             suggested_gas_price,
             txs_data[1].gas_price + 1, // expected suggested gas price
-            "Calculated suggested gas price does not match expected; transaction:\n{tx_data:#?}"
+            "Calculated suggested gas price does not match expected for transaction {}:\n{:#?}",
+            tx_data.order_idx,
+            tx_data,
         );
 
         // Transaction
@@ -1285,17 +1381,24 @@ mod tests {
             &mut suggested_gas_price_calculator,
         )
         .unwrap_or_else(|| {
-            panic!("Transaction must be deferred:\n{tx_data:#?}");
+            panic!(
+                "Transaction {} must be deferred:\n{tx_data:#?}",
+                tx_data.order_idx
+            );
         });
         assert_eq!(
             congested_objects,
             vec![object_1, object_2], // expected congested objects
-            "Calculated congested objects do not match expected: transaction:\n{tx_data:#?}"
+            "Calculated congested objects do not match expected for transaction {}:\n{:#?}",
+            tx_data.order_idx,
+            tx_data,
         );
         assert_eq!(
             suggested_gas_price,
             txs_data[0].gas_price, // expected suggested gas price
-            "Calculated suggested gas price does not match expected; transaction:\n{tx_data:#?}"
+            "Calculated suggested gas price does not match expected for transaction {}:\n{:#?}",
+            tx_data.order_idx,
+            tx_data,
         );
     }
 
@@ -1370,7 +1473,10 @@ mod tests {
             ) {
                 assert_eq!(execution_start_time, i as u64 + 2);
             } else {
-                panic!("Transaction must be scheduled:\n{tx_data:#?}");
+                panic!(
+                    "Transaction {} must be scheduled:\n{tx_data:#?}",
+                    tx_data.order_idx
+                );
             }
         });
 
@@ -1407,7 +1513,10 @@ mod tests {
             ) {
                 assert_eq!(execution_start_time, 2);
             } else {
-                panic!("Transaction must be scheduled:\n{tx_data:#?}");
+                panic!(
+                    "Transaction {} must be scheduled:\n{tx_data:#?}",
+                    tx_data.order_idx
+                );
             }
         } else {
             let (congested_objects, suggested_gas_price) = try_defer(
@@ -1416,18 +1525,25 @@ mod tests {
                 &mut suggested_gas_price_calculator,
             )
             .unwrap_or_else(|| {
-                panic!("Transaction must be deferred:\n{tx_data:#?}");
+                panic!(
+                    "Transaction {} must be deferred:\n{tx_data:#?}",
+                    tx_data.order_idx
+                );
             });
             assert_eq!(
                 congested_objects,
                 vec![object_2], // expected congested objects
-                "Calculated congested objects do not match expected: transaction:\n{tx_data:#?}"
+                "Calculated congested objects do not match expected for transaction {}:\n{:#?}",
+                tx_data.order_idx,
+                tx_data,
             );
             assert_eq!(
                 suggested_gas_price,
                 // expected suggested gas price
                 txs_data[if use_congestion_limit_overshoot { 2 } else { 1 }].gas_price + 1,
-                "Calculated suggested gas price does not match expected; transaction:\n{tx_data:#?}"
+                "Calculated suggested gas price does not match expected for transaction {}:\n{:#?}",
+                tx_data.order_idx,
+                tx_data,
             );
         }
 
@@ -1447,18 +1563,25 @@ mod tests {
                 &mut suggested_gas_price_calculator,
             )
             .unwrap_or_else(|| {
-                panic!("Transaction must be deferred:\n{tx_data:#?}");
+                panic!(
+                    "Transaction {} must be deferred:\n{tx_data:#?}",
+                    tx_data.order_idx
+                );
             });
             assert_eq!(
                 congested_objects,
                 vec![object_2], // expected congested objects
-                "Calculated congested objects do not match expected: transaction:\n{tx_data:#?}"
+                "Calculated congested objects do not match expected for transaction {}:\n{:#?}",
+                tx_data.order_idx,
+                tx_data,
             );
             assert_eq!(
                 suggested_gas_price,
                 // expected suggested gas price
                 txs_data[if use_congestion_limit_overshoot { 2 } else { 1 }].gas_price + 1,
-                "Calculated suggested gas price does not match expected; transaction:\n{tx_data:#?}"
+                "Calculated suggested gas price does not match expected for transaction {}:\n{:#?}",
+                tx_data.order_idx,
+                tx_data,
             );
         });
 
@@ -1479,7 +1602,10 @@ mod tests {
                 &mut suggested_gas_price_calculator,
             )
             .unwrap_or_else(|| {
-                panic!("Transaction must be deferred:\n{tx_data:#?}");
+                panic!(
+                    "Transaction {} must be deferred:\n{tx_data:#?}",
+                    tx_data.order_idx
+                );
             });
             assert_eq!(
                 congested_objects,
@@ -1488,7 +1614,9 @@ mod tests {
                 } else {
                     vec![object_2]
                 }, // expected congested objects
-                "Calculated congested objects do not match expected: transaction:\n{tx_data:#?}"
+                "Calculated congested objects do not match expected for transaction {}:\n{:#?}",
+                tx_data.order_idx,
+                tx_data,
             );
             assert_eq!(
                 suggested_gas_price,
@@ -1498,7 +1626,9 @@ mod tests {
                 } else {
                     txs_data[0].gas_price
                 },
-                "Calculated suggested gas price does not match expected; transaction:\n{tx_data:#?}"
+                "Calculated suggested gas price does not match expected for transaction {}:\n{:#?}",
+                tx_data.order_idx,
+                tx_data,
             );
         });
 
@@ -1536,7 +1666,10 @@ mod tests {
                 if assign_min_free_exec_slot { 1 } else { 3 }
             );
         } else {
-            panic!("Transaction must be scheduled:\n{tx_data:#?}");
+            panic!(
+                "Transaction {} must be scheduled:\n{tx_data:#?}",
+                tx_data.order_idx
+            );
         }
         // Tx 9:
         let tx_data = &txs_data[9];
@@ -1550,7 +1683,10 @@ mod tests {
                 if assign_min_free_exec_slot { 3 } else { 4 }
             );
         } else {
-            panic!("Transaction must be scheduled:\n{tx_data:#?}");
+            panic!(
+                "Transaction {} must be scheduled:\n{tx_data:#?}",
+                tx_data.order_idx
+            );
         }
 
         // Transactions
@@ -1571,12 +1707,17 @@ mod tests {
                 &mut suggested_gas_price_calculator,
             )
             .unwrap_or_else(|| {
-                panic!("Transaction must be deferred:\n{tx_data:#?}");
+                panic!(
+                    "Transaction {} must be deferred:\n{tx_data:#?}",
+                    tx_data.order_idx
+                );
             });
             assert_eq!(
                 congested_objects,
                 vec![object_1, object_2], // expected congested objects
-                "Calculated congested objects do not match expected: transaction:\n{tx_data:#?}"
+                "Calculated congested objects do not match expected for transaction {}:\n{:#?}",
+                tx_data.order_idx,
+                tx_data,
             );
             assert_eq!(
                 suggested_gas_price,
@@ -1586,7 +1727,9 @@ mod tests {
                 } else {
                     txs_data[0].gas_price
                 },
-                "Calculated suggested gas price does not match expected; transaction:\n{tx_data:#?}"
+                "Calculated suggested gas price does not match expected for transaction {}:\n{:#?}",
+                tx_data.order_idx,
+                tx_data,
             );
         });
     }
@@ -1674,7 +1817,10 @@ mod tests {
         ) {
             assert_eq!(execution_start_time, 2_000_000);
         } else {
-            panic!("Transaction must be scheduled:\n{tx_data:#?}");
+            panic!(
+                "Transaction {} must be scheduled:\n{tx_data:#?}",
+                tx_data.order_idx
+            );
         }
         // 1:
         let tx_data = &txs_data[1];
@@ -1685,7 +1831,10 @@ mod tests {
         ) {
             assert_eq!(execution_start_time, 5_000_000);
         } else {
-            panic!("Transaction must be scheduled:\n{tx_data:#?}");
+            panic!(
+                "Transaction {} must be scheduled:\n{tx_data:#?}",
+                tx_data.order_idx
+            );
         }
         // 2:
         let tx_data = &txs_data[2];
@@ -1696,7 +1845,10 @@ mod tests {
         ) {
             assert_eq!(execution_start_time, 6_000_000);
         } else {
-            panic!("Transaction must be scheduled:\n{tx_data:#?}");
+            panic!(
+                "Transaction {} must be scheduled:\n{tx_data:#?}",
+                tx_data.order_idx
+            );
         }
 
         // If `assign_min_free_exec_slot` is `true`, transactions
@@ -1752,7 +1904,10 @@ mod tests {
                         }
                     );
                 } else {
-                    panic!("Transaction must be scheduled:\n{tx_data:#?}");
+                    panic!(
+                        "Transaction {} must be scheduled:\n{tx_data:#?}",
+                        tx_data.order_idx
+                    );
                 }
             } else {
                 let (congested_objects, suggested_gas_price) = try_defer(
@@ -1761,19 +1916,25 @@ mod tests {
                     &mut suggested_gas_price_calculator,
                 )
                 .unwrap_or_else(|| {
-                    panic!("Transaction must be deferred:\n{tx_data:#?}");
+                    panic!(
+                        "Transaction {} must be deferred:\n{tx_data:#?}",
+                        tx_data.order_idx
+                    );
                 });
                 assert_eq!(
                     congested_objects,
                     vec![object_2], // expected congested objects
-                    "Calculated congested objects do not match expected: transaction:\
-                        \n{tx_data:#?}"
+                    "Calculated congested objects do not match expected for transaction {}:\n{:#?}",
+                    tx_data.order_idx,
+                    tx_data,
                 );
                 assert_eq!(
                     suggested_gas_price,
                     txs_data[2].gas_price + 1, // expected suggested gas price
-                    "Calculated suggested gas price does not match expected; transaction:\
-                        \n{tx_data:#?}"
+                    "Calculated suggested gas price does not match expected for transaction {}:\
+                        \n{:#?}",
+                    tx_data.order_idx,
+                    tx_data,
                 );
             }
         });
@@ -1792,18 +1953,25 @@ mod tests {
             &mut suggested_gas_price_calculator,
         )
         .unwrap_or_else(|| {
-            panic!("Transaction must be deferred:\n{tx_data:#?}");
+            panic!(
+                "Transaction {} must be deferred:\n{tx_data:#?}",
+                tx_data.order_idx
+            );
         });
         assert_eq!(
             congested_objects,
             vec![object_2], // expected congested objects
-            "Calculated congested objects do not match expected: transaction:\n{tx_data:#?}"
+            "Calculated congested objects do not match expected for transaction {}:\n{:#?}",
+            tx_data.order_idx,
+            tx_data,
         );
         assert_eq!(
             suggested_gas_price,
             // expected suggested gas price
             txs_data[if use_congestion_limit_overshoot { 2 } else { 1 }].gas_price + 1,
-            "Calculated suggested gas price does not match expected; transaction:\n{tx_data:#?}"
+            "Calculated suggested gas price does not match expected for transaction {}:\n{:#?}",
+            tx_data.order_idx,
+            tx_data,
         );
 
         // Transaction
@@ -1821,7 +1989,10 @@ mod tests {
             &mut suggested_gas_price_calculator,
         )
         .unwrap_or_else(|| {
-            panic!("Transaction must be deferred:\n{tx_data:#?}");
+            panic!(
+                "Transaction {} must be deferred:\n{tx_data:#?}",
+                tx_data.order_idx
+            );
         });
         assert_eq!(
             congested_objects,
@@ -1830,7 +2001,9 @@ mod tests {
             } else {
                 vec![object_2]
             }, // expected congested objects
-            "Calculated congested objects do not match expected: transaction:\n{tx_data:#?}"
+            "Calculated congested objects do not match expected for transaction {}:\n{:#?}",
+            tx_data.order_idx,
+            tx_data,
         );
         assert_eq!(
             suggested_gas_price,
@@ -1840,7 +2013,9 @@ mod tests {
             } else {
                 txs_data[0].gas_price
             },
-            "Calculated suggested gas price does not match expected; transaction:\n{tx_data:#?}"
+            "Calculated suggested gas price does not match expected for transaction {}:\n{:#?}",
+            tx_data.order_idx,
+            tx_data,
         );
 
         // Transaction
@@ -1855,17 +2030,24 @@ mod tests {
             &mut suggested_gas_price_calculator,
         )
         .unwrap_or_else(|| {
-            panic!("Transaction must be deferred:\n{tx_data:#?}");
+            panic!(
+                "Transaction {} must be deferred:\n{tx_data:#?}",
+                tx_data.order_idx
+            );
         });
         assert_eq!(
             congested_objects,
             vec![object_1, object_2], // expected congested objects
-            "Calculated congested objects do not match expected: transaction:\n{tx_data:#?}"
+            "Calculated congested objects do not match expected for transaction {}:\n{:#?}",
+            tx_data.order_idx,
+            tx_data,
         );
         assert_eq!(
             suggested_gas_price,
             txs_data[0].gas_price, // expected suggested gas price
-            "Calculated suggested gas price does not match expected; transaction:\n{tx_data:#?}"
+            "Calculated suggested gas price does not match expected for transaction {}:\n{:#?}",
+            tx_data.order_idx,
+            tx_data,
         );
 
         // Transactions
@@ -1910,7 +2092,10 @@ mod tests {
         ) {
             assert_eq!(execution_start_time, 5_000_000);
         } else {
-            panic!("Transaction must be scheduled:\n{tx_data:#?}");
+            panic!(
+                "Transaction {} must be scheduled:\n{tx_data:#?}",
+                tx_data.order_idx
+            );
         }
         // 9:
         let tx_data = &txs_data[9];
@@ -1921,7 +2106,10 @@ mod tests {
         ) {
             assert_eq!(execution_start_time, 9_000_000);
         } else {
-            panic!("Transaction must be scheduled:\n{tx_data:#?}");
+            panic!(
+                "Transaction {} must be scheduled:\n{tx_data:#?}",
+                tx_data.order_idx
+            );
         }
 
         // Transaction
@@ -1935,17 +2123,24 @@ mod tests {
             &mut suggested_gas_price_calculator,
         )
         .unwrap_or_else(|| {
-            panic!("Transaction must be deferred:\n{tx_data:#?}");
+            panic!(
+                "Transaction {} must be deferred:\n{tx_data:#?}",
+                tx_data.order_idx
+            );
         });
         assert_eq!(
             congested_objects,
             vec![object_1, object_2], // expected congested objects
-            "Calculated congested objects do not match expected: transaction:\n{tx_data:#?}"
+            "Calculated congested objects do not match expected for transaction {}:\n{:#?}",
+            tx_data.order_idx,
+            tx_data,
         );
         assert_eq!(
             suggested_gas_price,
             txs_data[2].gas_price + 1, // expected suggested gas price
-            "Calculated suggested gas price does not match expected; transaction:\n{tx_data:#?}"
+            "Calculated suggested gas price does not match expected for transaction {}:\n{:#?}",
+            tx_data.order_idx,
+            tx_data,
         );
 
         // Transaction
@@ -1961,12 +2156,17 @@ mod tests {
             &mut suggested_gas_price_calculator,
         )
         .unwrap_or_else(|| {
-            panic!("Transaction must be deferred:\n{tx_data:#?}");
+            panic!(
+                "Transaction {} must be deferred:\n{tx_data:#?}",
+                tx_data.order_idx
+            );
         });
         assert_eq!(
             congested_objects,
             vec![object_1, object_2], // expected congested objects
-            "Calculated congested objects do not match expected: transaction:\n{tx_data:#?}"
+            "Calculated congested objects do not match expected for transaction {}:\n{:#?}",
+            tx_data.order_idx,
+            tx_data,
         );
         assert_eq!(
             suggested_gas_price,
@@ -1976,7 +2176,9 @@ mod tests {
             } else {
                 txs_data[0].gas_price
             },
-            "Calculated suggested gas price does not match expected; transaction:\n{tx_data:#?}"
+            "Calculated suggested gas price does not match expected for transaction {}:\n{:#?}",
+            tx_data.order_idx,
+            tx_data,
         );
 
         // Transaction
@@ -1991,17 +2193,24 @@ mod tests {
             &mut suggested_gas_price_calculator,
         )
         .unwrap_or_else(|| {
-            panic!("Transaction must be deferred:\n{tx_data:#?}");
+            panic!(
+                "Transaction {} must be deferred:\n{tx_data:#?}",
+                tx_data.order_idx
+            );
         });
         assert_eq!(
             congested_objects,
             vec![object_1, object_2], // expected congested objects
-            "Calculated congested objects do not match expected: transaction:\n{tx_data:#?}"
+            "Calculated congested objects do not match expected for transaction {}:\n{:#?}",
+            tx_data.order_idx,
+            tx_data,
         );
         assert_eq!(
             suggested_gas_price,
             txs_data[0].gas_price, // expected suggested gas price
-            "Calculated suggested gas price does not match expected; transaction:\n{tx_data:#?}"
+            "Calculated suggested gas price does not match expected for transaction {}:\n{:#?}",
+            tx_data.order_idx,
+            tx_data,
         );
     }
 
@@ -2068,17 +2277,24 @@ mod tests {
             &mut suggested_gas_price_calculator,
         )
         .unwrap_or_else(|| {
-            panic!("Transaction must be deferred:\n{tx_data:#?}");
+            panic!(
+                "Transaction {} must be deferred:\n{tx_data:#?}",
+                tx_data.order_idx
+            );
         });
         assert_eq!(
             congested_objects,
             vec![object_1, object_2], // expected congested objects
-            "Calculated congested objects do not match expected: transaction:\n{tx_data:#?}"
+            "Calculated congested objects do not match expected for transaction {}:\n{:#?}",
+            tx_data.order_idx,
+            tx_data,
         );
         assert_eq!(
             suggested_gas_price,
             REFERENCE_GAS_PRICE, // expected suggested gas price
-            "Calculated suggested gas price does not match expected; transaction:\n{tx_data:#?}"
+            "Calculated suggested gas price does not match expected for transaction {}:\n{:#?}",
+            tx_data.order_idx,
+            tx_data,
         );
     }
 
@@ -2143,17 +2359,24 @@ mod tests {
             &mut suggested_gas_price_calculator,
         )
         .unwrap_or_else(|| {
-            panic!("Transaction must be deferred:\n{tx_data:#?}");
+            panic!(
+                "Transaction {} must be deferred:\n{tx_data:#?}",
+                tx_data.order_idx
+            );
         });
         assert_eq!(
             congested_objects,
             vec![object_1, object_2], // expected congested objects
-            "Calculated congested objects do not match expected: transaction:\n{tx_data:#?}"
+            "Calculated congested objects do not match expected for transaction {}:\n{:#?}",
+            tx_data.order_idx,
+            tx_data,
         );
         assert_eq!(
             suggested_gas_price,
             REFERENCE_GAS_PRICE, // expected suggested gas price
-            "Calculated suggested gas price does not match expected; transaction:\n{tx_data:#?}"
+            "Calculated suggested gas price does not match expected for transaction {}:\n{:#?}",
+            tx_data.order_idx,
+            tx_data,
         );
     }
 }
