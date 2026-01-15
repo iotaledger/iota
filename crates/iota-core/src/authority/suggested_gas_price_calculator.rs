@@ -219,7 +219,7 @@ impl SuggestedGasPriceCalculator {
             .filter_map(|object| {
                 self.congestion_info
                     .get(&object.id)
-                    .map(|per_object_congestion_info| {
+                    .and_then(|per_object_congestion_info| {
                         per_object_congestion_info
                             .iter()
                             .filter_map(|(execution_start_time, tx_congestion_info)| {
@@ -247,7 +247,6 @@ impl SuggestedGasPriceCalculator {
             // will be insufficient to guarantee scheduling if the same set of certificates
             // was repeated again in a commit.
             .max()
-            .flatten()
     }
 }
 
