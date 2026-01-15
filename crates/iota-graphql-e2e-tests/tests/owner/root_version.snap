@@ -121,71 +121,71 @@ task 14, lines 127-142:
 //# run-graphql
 Response: {
   "data": {
-    "latest": {
+    "beforeBump": {
       "asObject": {
         "asMoveObject": {
-          "version": 11,
           "contents": {
             "json": {
+              "count": "0",
               "id": "0x4499c0d9b70efe271eb32db1d8b2f054dcadc8c4fcf1a39f269beb70c66feec9",
-              "count": "1",
               "wrapped": {
-                "id": "0x91f223ce13ca294c9bd33e4760c613b6719734983e8b4b39c0f74bb4a260a2ea",
-                "count": "1"
+                "count": "0",
+                "id": "0x91f223ce13ca294c9bd33e4760c613b6719734983e8b4b39c0f74bb4a260a2ea"
               }
             }
-          }
-        }
-      }
-    },
-    "versioned": {
-      "asObject": {
-        "asMoveObject": {
-          "version": 10,
-          "contents": {
-            "json": {
-              "id": "0x4499c0d9b70efe271eb32db1d8b2f054dcadc8c4fcf1a39f269beb70c66feec9",
-              "count": "1",
-              "wrapped": {
-                "id": "0x91f223ce13ca294c9bd33e4760c613b6719734983e8b4b39c0f74bb4a260a2ea",
-                "count": "1"
-              }
-            }
-          }
+          },
+          "version": 7
         }
       }
     },
     "beforeWrappedBump": {
       "asObject": {
         "asMoveObject": {
-          "version": 8,
           "contents": {
             "json": {
-              "id": "0x4499c0d9b70efe271eb32db1d8b2f054dcadc8c4fcf1a39f269beb70c66feec9",
               "count": "1",
+              "id": "0x4499c0d9b70efe271eb32db1d8b2f054dcadc8c4fcf1a39f269beb70c66feec9",
               "wrapped": {
-                "id": "0x91f223ce13ca294c9bd33e4760c613b6719734983e8b4b39c0f74bb4a260a2ea",
-                "count": "0"
+                "count": "0",
+                "id": "0x91f223ce13ca294c9bd33e4760c613b6719734983e8b4b39c0f74bb4a260a2ea"
               }
             }
-          }
+          },
+          "version": 8
         }
       }
     },
-    "beforeBump": {
+    "latest": {
       "asObject": {
         "asMoveObject": {
-          "version": 7,
           "contents": {
             "json": {
+              "count": "1",
               "id": "0x4499c0d9b70efe271eb32db1d8b2f054dcadc8c4fcf1a39f269beb70c66feec9",
-              "count": "0",
               "wrapped": {
-                "id": "0x91f223ce13ca294c9bd33e4760c613b6719734983e8b4b39c0f74bb4a260a2ea",
-                "count": "0"
+                "count": "1",
+                "id": "0x91f223ce13ca294c9bd33e4760c613b6719734983e8b4b39c0f74bb4a260a2ea"
               }
             }
-          }
+          },
+          "version": 11
+        }
+      }
+    },
+    "versioned": {
+      "asObject": {
+        "asMoveObject": {
+          "contents": {
+            "json": {
+              "count": "1",
+              "id": "0x4499c0d9b70efe271eb32db1d8b2f054dcadc8c4fcf1a39f269beb70c66feec9",
+              "wrapped": {
+                "count": "1",
+                "id": "0x91f223ce13ca294c9bd33e4760c613b6719734983e8b4b39c0f74bb4a260a2ea"
+              }
+            }
+          },
+          "version": 10
         }
       }
     }
@@ -196,68 +196,68 @@ task 15, lines 144-172:
 //# run-graphql
 Response: {
   "data": {
-    "unversioned": {
-      "dynamicObjectField": {
-        "value": {
-          "version": 7,
-          "contents": {
-            "json": {
-              "id": "0xcb046b48ef417f382a5a2fdf13c7f9acf85cfd22cd2b165bb07ea3f1028c60fb",
-              "count": "0"
-            }
-          }
-        }
-      }
-    },
-    "latest": {
-      "dynamicObjectField": {
-        "value": {
-          "version": 10,
-          "contents": {
-            "json": {
-              "id": "0xcb046b48ef417f382a5a2fdf13c7f9acf85cfd22cd2b165bb07ea3f1028c60fb",
-              "count": "1"
-            }
-          }
-        }
-      }
-    },
     "afterFirstInnerBump": {
       "dynamicObjectField": {
         "value": {
-          "version": 10,
           "contents": {
             "json": {
-              "id": "0xcb046b48ef417f382a5a2fdf13c7f9acf85cfd22cd2b165bb07ea3f1028c60fb",
-              "count": "1"
+              "count": "1",
+              "id": "0xcb046b48ef417f382a5a2fdf13c7f9acf85cfd22cd2b165bb07ea3f1028c60fb"
             }
-          }
-        }
-      }
-    },
-    "beforeFirstInnerBump": {
-      "dynamicObjectField": {
-        "value": {
-          "version": 7,
-          "contents": {
-            "json": {
-              "id": "0xcb046b48ef417f382a5a2fdf13c7f9acf85cfd22cd2b165bb07ea3f1028c60fb",
-              "count": "0"
-            }
-          }
+          },
+          "version": 10
         }
       }
     },
     "beforeBumps": {
       "dynamicObjectField": {
         "value": {
-          "version": 7,
           "contents": {
             "json": {
-              "id": "0xcb046b48ef417f382a5a2fdf13c7f9acf85cfd22cd2b165bb07ea3f1028c60fb",
-              "count": "0"
+              "count": "0",
+              "id": "0xcb046b48ef417f382a5a2fdf13c7f9acf85cfd22cd2b165bb07ea3f1028c60fb"
             }
-          }
+          },
+          "version": 7
+        }
+      }
+    },
+    "beforeFirstInnerBump": {
+      "dynamicObjectField": {
+        "value": {
+          "contents": {
+            "json": {
+              "count": "0",
+              "id": "0xcb046b48ef417f382a5a2fdf13c7f9acf85cfd22cd2b165bb07ea3f1028c60fb"
+            }
+          },
+          "version": 7
+        }
+      }
+    },
+    "latest": {
+      "dynamicObjectField": {
+        "value": {
+          "contents": {
+            "json": {
+              "count": "1",
+              "id": "0xcb046b48ef417f382a5a2fdf13c7f9acf85cfd22cd2b165bb07ea3f1028c60fb"
+            }
+          },
+          "version": 10
+        }
+      }
+    },
+    "unversioned": {
+      "dynamicObjectField": {
+        "value": {
+          "contents": {
+            "json": {
+              "count": "0",
+              "id": "0xcb046b48ef417f382a5a2fdf13c7f9acf85cfd22cd2b165bb07ea3f1028c60fb"
+            }
+          },
+          "version": 7
         }
       }
     }
@@ -268,42 +268,42 @@ task 16, lines 174-195:
 //# run-graphql
 Response: {
   "data": {
-    "unversioned": {
+    "beforeInnerBump": {
       "dynamicObjectField": {
         "value": {
-          "version": 7,
           "contents": {
             "json": {
-              "id": "0x355985113ab2d9e4b9dd1011cacacbe4eb4e182196db4c854284e5a7a19d862e",
-              "count": "0"
+              "count": "0",
+              "id": "0x355985113ab2d9e4b9dd1011cacacbe4eb4e182196db4c854284e5a7a19d862e"
             }
-          }
+          },
+          "version": 7
         }
       }
     },
     "latest": {
       "dynamicObjectField": {
         "value": {
-          "version": 11,
           "contents": {
             "json": {
-              "id": "0x355985113ab2d9e4b9dd1011cacacbe4eb4e182196db4c854284e5a7a19d862e",
-              "count": "1"
+              "count": "1",
+              "id": "0x355985113ab2d9e4b9dd1011cacacbe4eb4e182196db4c854284e5a7a19d862e"
             }
-          }
+          },
+          "version": 11
         }
       }
     },
-    "beforeInnerBump": {
+    "unversioned": {
       "dynamicObjectField": {
         "value": {
-          "version": 7,
           "contents": {
             "json": {
-              "id": "0x355985113ab2d9e4b9dd1011cacacbe4eb4e182196db4c854284e5a7a19d862e",
-              "count": "0"
+              "count": "0",
+              "id": "0x355985113ab2d9e4b9dd1011cacacbe4eb4e182196db4c854284e5a7a19d862e"
             }
-          }
+          },
+          "version": 7
         }
       }
     }

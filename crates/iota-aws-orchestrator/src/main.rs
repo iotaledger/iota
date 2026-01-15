@@ -187,6 +187,15 @@ pub enum Operation {
         /// 0
         #[arg(long, action, default_value_t = false)]
         use_current_timestamp_for_genesis: bool,
+
+        /// Shared counter hotness factor (0-100). Higher values concentrate
+        /// load on fewer counters.
+        #[arg(long, value_name = "INT", global = true)]
+        shared_counter_hotness_factor: Option<u8>,
+
+        /// Number of shared counters to use in the benchmark
+        #[arg(long, value_name = "INT", global = true)]
+        num_shared_counters: Option<usize>,
     },
 
     /// Print a summary of the specified measurements collection.
@@ -256,6 +265,10 @@ pub enum TestbedAction {
         /// Keeps the monitoring instance running
         #[arg(long, action, default_value = "false", global = true)]
         keep_monitoring: bool,
+
+        /// Force destroy without confirmation prompt
+        #[arg(short = 'f', long, action, default_value = "false", global = true)]
+        force: bool,
     },
 }
 
@@ -382,8 +395,11 @@ async fn run<C: ServerProviderClient>(settings: Settings, client: C, opts: Opts)
                 .wrap_err("Failed to stop testbed")?,
 
             // Destroy the testbed and terminal all instances.
-            TestbedAction::Destroy { keep_monitoring } => testbed
-                .destroy(keep_monitoring)
+            TestbedAction::Destroy {
+                keep_monitoring,
+                force,
+            } => testbed
+                .destroy(keep_monitoring, force)
                 .await
                 .wrap_err("Failed to destroy testbed")?,
         },
@@ -417,6 +433,8 @@ async fn run<C: ServerProviderClient>(settings: Settings, client: C, opts: Opts)
             blocking_connections,
             use_current_timestamp_for_genesis,
             max_pipeline_delay,
+            shared_counter_hotness_factor,
+            num_shared_counters,
         } => {
             // Create a new orchestrator to instruct the testbed.
             let username = testbed.username();
@@ -487,7 +505,7 @@ async fn run<C: ServerProviderClient>(settings: Settings, client: C, opts: Opts)
                 None => None,
             };
 
-            let generator = BenchmarkParametersGenerator::new(
+            let mut generator = BenchmarkParametersGenerator::new(
                 committee,
                 dedicated_clients,
                 load,
@@ -503,6 +521,13 @@ async fn run<C: ServerProviderClient>(settings: Settings, client: C, opts: Opts)
             .with_max_pipeline_delay(max_pipeline_delay)
             .with_current_timestamp_for_genesis(use_current_timestamp_for_genesis)
             .with_faults(fault_type);
+
+            if let Some(factor) = shared_counter_hotness_factor {
+                generator = generator.with_shared_counter_hotness_factor(factor);
+            }
+            if let Some(counters) = num_shared_counters {
+                generator = generator.with_num_shared_counters(counters);
+            }
 
             Orchestrator::new(
                 settings,

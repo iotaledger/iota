@@ -20,29 +20,8 @@ task 3, lines 14-51:
 //# run-graphql
 Response: {
   "data": {
-    "latestPackage": {
-      "version": 1,
-      "module": {
-        "functions": {
-          "nodes": [
-            {
-              "name": "f"
-            }
-          ]
-        }
-      },
-      "packageVersions": {
-        "nodes": [
-          {
-            "address": "0x7ae980d7a348710ad8df5c0f521d7b90ff39d33868535528bfc2eba8ecb0ffb9",
-            "version": 1
-          }
-        ]
-      }
-    },
     "firstPackage": {
       "address": "0x7ae980d7a348710ad8df5c0f521d7b90ff39d33868535528bfc2eba8ecb0ffb9",
-      "version": 1,
       "module": {
         "functions": {
           "nodes": [
@@ -59,7 +38,28 @@ Response: {
             "version": 1
           }
         ]
-      }
+      },
+      "version": 1
+    },
+    "latestPackage": {
+      "module": {
+        "functions": {
+          "nodes": [
+            {
+              "name": "f"
+            }
+          ]
+        }
+      },
+      "packageVersions": {
+        "nodes": [
+          {
+            "address": "0x7ae980d7a348710ad8df5c0f521d7b90ff39d33868535528bfc2eba8ecb0ffb9",
+            "version": 1
+          }
+        ]
+      },
+      "version": 1
     },
     "packages": {
       "nodes": [
@@ -106,8 +106,32 @@ task 6, lines 61-98:
 //# run-graphql
 Response: {
   "data": {
+    "firstPackage": {
+      "address": "0x7ae980d7a348710ad8df5c0f521d7b90ff39d33868535528bfc2eba8ecb0ffb9",
+      "module": {
+        "functions": {
+          "nodes": [
+            {
+              "name": "f"
+            }
+          ]
+        }
+      },
+      "packageVersions": {
+        "nodes": [
+          {
+            "address": "0x7ae980d7a348710ad8df5c0f521d7b90ff39d33868535528bfc2eba8ecb0ffb9",
+            "version": 1
+          },
+          {
+            "address": "0x8973e7a75735281f583c75e7762dd21a4ef8d29d82f94413ea140265f754f57c",
+            "version": 2
+          }
+        ]
+      },
+      "version": 1
+    },
     "latestPackage": {
-      "version": 2,
       "module": {
         "functions": {
           "nodes": [
@@ -131,32 +155,8 @@ Response: {
             "version": 2
           }
         ]
-      }
-    },
-    "firstPackage": {
-      "address": "0x7ae980d7a348710ad8df5c0f521d7b90ff39d33868535528bfc2eba8ecb0ffb9",
-      "version": 1,
-      "module": {
-        "functions": {
-          "nodes": [
-            {
-              "name": "f"
-            }
-          ]
-        }
       },
-      "packageVersions": {
-        "nodes": [
-          {
-            "address": "0x7ae980d7a348710ad8df5c0f521d7b90ff39d33868535528bfc2eba8ecb0ffb9",
-            "version": 1
-          },
-          {
-            "address": "0x8973e7a75735281f583c75e7762dd21a4ef8d29d82f94413ea140265f754f57c",
-            "version": 2
-          }
-        ]
-      }
+      "version": 2
     },
     "packages": {
       "nodes": [
@@ -207,8 +207,36 @@ task 9, lines 109-146:
 //# run-graphql
 Response: {
   "data": {
+    "firstPackage": {
+      "address": "0x7ae980d7a348710ad8df5c0f521d7b90ff39d33868535528bfc2eba8ecb0ffb9",
+      "module": {
+        "functions": {
+          "nodes": [
+            {
+              "name": "f"
+            }
+          ]
+        }
+      },
+      "packageVersions": {
+        "nodes": [
+          {
+            "address": "0x7ae980d7a348710ad8df5c0f521d7b90ff39d33868535528bfc2eba8ecb0ffb9",
+            "version": 1
+          },
+          {
+            "address": "0x8973e7a75735281f583c75e7762dd21a4ef8d29d82f94413ea140265f754f57c",
+            "version": 2
+          },
+          {
+            "address": "0x41e3e6640be55e1f724cff2a20724f7805cc3d706d5f57d6b9c38bf5831f8288",
+            "version": 3
+          }
+        ]
+      },
+      "version": 1
+    },
     "latestPackage": {
-      "version": 3,
       "module": {
         "functions": {
           "nodes": [
@@ -239,36 +267,8 @@ Response: {
             "version": 3
           }
         ]
-      }
-    },
-    "firstPackage": {
-      "address": "0x7ae980d7a348710ad8df5c0f521d7b90ff39d33868535528bfc2eba8ecb0ffb9",
-      "version": 1,
-      "module": {
-        "functions": {
-          "nodes": [
-            {
-              "name": "f"
-            }
-          ]
-        }
       },
-      "packageVersions": {
-        "nodes": [
-          {
-            "address": "0x7ae980d7a348710ad8df5c0f521d7b90ff39d33868535528bfc2eba8ecb0ffb9",
-            "version": 1
-          },
-          {
-            "address": "0x8973e7a75735281f583c75e7762dd21a4ef8d29d82f94413ea140265f754f57c",
-            "version": 2
-          },
-          {
-            "address": "0x41e3e6640be55e1f724cff2a20724f7805cc3d706d5f57d6b9c38bf5831f8288",
-            "version": 3
-          }
-        ]
-      }
+      "version": 3
     },
     "packages": {
       "nodes": [
@@ -314,15 +314,6 @@ task 10, lines 148-185:
 Response: {
   "data": {
     "v1": {
-      "module": {
-        "functions": {
-          "nodes": [
-            {
-              "name": "f"
-            }
-          ]
-        }
-      },
       "latestPackage": {
         "module": {
           "functions": {
@@ -339,9 +330,35 @@ Response: {
             ]
           }
         }
+      },
+      "module": {
+        "functions": {
+          "nodes": [
+            {
+              "name": "f"
+            }
+          ]
+        }
       }
     },
     "v2": {
+      "latestPackage": {
+        "module": {
+          "functions": {
+            "nodes": [
+              {
+                "name": "f"
+              },
+              {
+                "name": "g"
+              },
+              {
+                "name": "h"
+              }
+            ]
+          }
+        }
+      },
       "module": {
         "functions": {
           "nodes": [
@@ -353,7 +370,9 @@ Response: {
             }
           ]
         }
-      },
+      }
+    },
+    "v3": {
       "latestPackage": {
         "module": {
           "functions": {
@@ -370,9 +389,7 @@ Response: {
             ]
           }
         }
-      }
-    },
-    "v3": {
+      },
       "module": {
         "functions": {
           "nodes": [
@@ -386,23 +403,6 @@ Response: {
               "name": "h"
             }
           ]
-        }
-      },
-      "latestPackage": {
-        "module": {
-          "functions": {
-            "nodes": [
-              {
-                "name": "f"
-              },
-              {
-                "name": "g"
-              },
-              {
-                "name": "h"
-              }
-            ]
-          }
         }
       }
     }
@@ -656,88 +656,88 @@ task 14, lines 313-344:
 //# run-graphql
 Response: {
   "data": {
-    "before": {
-      "nodes": [
-        {
-          "address": "0x0000000000000000000000000000000000000000000000000000000000000001",
-          "version": 1,
-          "previousTransactionBlock": {
-            "effects": {
-              "checkpoint": {
-                "sequenceNumber": 0
-              }
-            }
-          }
-        },
-        {
-          "address": "0x0000000000000000000000000000000000000000000000000000000000000002",
-          "version": 1,
-          "previousTransactionBlock": {
-            "effects": {
-              "checkpoint": {
-                "sequenceNumber": 0
-              }
-            }
-          }
-        },
-        {
-          "address": "0x0000000000000000000000000000000000000000000000000000000000000003",
-          "version": 1,
-          "previousTransactionBlock": {
-            "effects": {
-              "checkpoint": {
-                "sequenceNumber": 0
-              }
-            }
-          }
-        },
-        {
-          "address": "0x000000000000000000000000000000000000000000000000000000000000000b",
-          "version": 1,
-          "previousTransactionBlock": {
-            "effects": {
-              "checkpoint": {
-                "sequenceNumber": 0
-              }
-            }
-          }
-        },
-        {
-          "address": "0x000000000000000000000000000000000000000000000000000000000000107a",
-          "version": 1,
-          "previousTransactionBlock": {
-            "effects": {
-              "checkpoint": {
-                "sequenceNumber": 0
-              }
-            }
-          }
-        }
-      ]
-    },
     "after": {
       "nodes": [
         {
           "address": "0x8973e7a75735281f583c75e7762dd21a4ef8d29d82f94413ea140265f754f57c",
-          "version": 2,
           "previousTransactionBlock": {
             "effects": {
               "checkpoint": {
                 "sequenceNumber": 2
               }
             }
-          }
+          },
+          "version": 2
         },
         {
           "address": "0x41e3e6640be55e1f724cff2a20724f7805cc3d706d5f57d6b9c38bf5831f8288",
-          "version": 3,
           "previousTransactionBlock": {
             "effects": {
               "checkpoint": {
                 "sequenceNumber": 3
               }
             }
-          }
+          },
+          "version": 3
+        }
+      ]
+    },
+    "before": {
+      "nodes": [
+        {
+          "address": "0x0000000000000000000000000000000000000000000000000000000000000001",
+          "previousTransactionBlock": {
+            "effects": {
+              "checkpoint": {
+                "sequenceNumber": 0
+              }
+            }
+          },
+          "version": 1
+        },
+        {
+          "address": "0x0000000000000000000000000000000000000000000000000000000000000002",
+          "previousTransactionBlock": {
+            "effects": {
+              "checkpoint": {
+                "sequenceNumber": 0
+              }
+            }
+          },
+          "version": 1
+        },
+        {
+          "address": "0x0000000000000000000000000000000000000000000000000000000000000003",
+          "previousTransactionBlock": {
+            "effects": {
+              "checkpoint": {
+                "sequenceNumber": 0
+              }
+            }
+          },
+          "version": 1
+        },
+        {
+          "address": "0x000000000000000000000000000000000000000000000000000000000000000b",
+          "previousTransactionBlock": {
+            "effects": {
+              "checkpoint": {
+                "sequenceNumber": 0
+              }
+            }
+          },
+          "version": 1
+        },
+        {
+          "address": "0x000000000000000000000000000000000000000000000000000000000000107a",
+          "previousTransactionBlock": {
+            "effects": {
+              "checkpoint": {
+                "sequenceNumber": 0
+              }
+            }
+          },
+          "version": 1
         }
       ]
     },
@@ -745,14 +745,14 @@ Response: {
       "nodes": [
         {
           "address": "0x8973e7a75735281f583c75e7762dd21a4ef8d29d82f94413ea140265f754f57c",
-          "version": 2,
           "previousTransactionBlock": {
             "effects": {
               "checkpoint": {
                 "sequenceNumber": 2
               }
             }
-          }
+          },
+          "version": 2
         }
       ]
     }
@@ -763,22 +763,6 @@ task 15, lines 346-381:
 //# run-graphql
 Response: {
   "data": {
-    "packageVersions": {
-      "nodes": [
-        {
-          "address": "0x7ae980d7a348710ad8df5c0f521d7b90ff39d33868535528bfc2eba8ecb0ffb9",
-          "version": 1
-        },
-        {
-          "address": "0x8973e7a75735281f583c75e7762dd21a4ef8d29d82f94413ea140265f754f57c",
-          "version": 2
-        },
-        {
-          "address": "0x41e3e6640be55e1f724cff2a20724f7805cc3d706d5f57d6b9c38bf5831f8288",
-          "version": 3
-        }
-      ]
-    },
     "after": {
       "nodes": [
         {
@@ -810,6 +794,22 @@ Response: {
           "version": 2
         }
       ]
+    },
+    "packageVersions": {
+      "nodes": [
+        {
+          "address": "0x7ae980d7a348710ad8df5c0f521d7b90ff39d33868535528bfc2eba8ecb0ffb9",
+          "version": 1
+        },
+        {
+          "address": "0x8973e7a75735281f583c75e7762dd21a4ef8d29d82f94413ea140265f754f57c",
+          "version": 2
+        },
+        {
+          "address": "0x41e3e6640be55e1f724cff2a20724f7805cc3d706d5f57d6b9c38bf5831f8288",
+          "version": 3
+        }
+      ]
     }
   }
 }
@@ -818,14 +818,6 @@ task 16, lines 383-401:
 //# run-graphql
 Response: {
   "data": {
-    "packageVersions": {
-      "nodes": [
-        {
-          "address": "0x0000000000000000000000000000000000000000000000000000000000000001",
-          "version": 1
-        }
-      ]
-    },
     "package": {
       "packageVersions": {
         "nodes": [
@@ -835,6 +827,14 @@ Response: {
           }
         ]
       }
+    },
+    "packageVersions": {
+      "nodes": [
+        {
+          "address": "0x0000000000000000000000000000000000000000000000000000000000000001",
+          "version": 1
+        }
+      ]
     }
   }
 }

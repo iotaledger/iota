@@ -299,9 +299,7 @@ impl GenesisConfig {
     pub const BENCHMARKS_RNG_SEED: u64 = 0;
     /// Port offset for benchmarks' genesis configs.
     pub const BENCHMARKS_PORT_OFFSET: u16 = 2000;
-    /// The gas amount for each genesis gas object.
-    const BENCHMARK_GAS_AMOUNT: u64 = 1_000_000_000_000_000_000;
-    /// Trigger epoch change every hour minutes.
+    /// Trigger epoch change every hour.
     const BENCHMARK_EPOCH_DURATION_MS: u64 = 60 * 60 * 1000;
 
     pub fn for_local_testing() -> Self {
@@ -357,11 +355,16 @@ impl GenesisConfig {
     ///
     /// `num_additional_gas_accounts` specifies how many additional gas accounts
     /// to create. This can be used to support more dedicated client instances.
+    ///
+    /// `total_available_amount` specifies the total amount of tokens available
+    /// for all allocations. The function will divide the available amount
+    /// among all account gas objects.
     pub fn new_for_benchmarks(
         ips: &[String],
         epoch_duration_ms: Option<u64>,
         chain_start_timestamp_ms: Option<u64>,
         num_additional_gas_accounts: Option<usize>,
+        total_available_amount: u64,
     ) -> Self {
         // Set the validator's configs. They should be the same across multiple runs to
         // ensure reproducibility.
@@ -379,7 +382,17 @@ impl GenesisConfig {
             .collect();
 
         // Set the initial gas objects with a predictable owner address.
-        let num_accounts = num_additional_gas_accounts.unwrap_or(0) + validator_config_info.len();
+        let num_validators = validator_config_info.len();
+        let num_accounts = num_additional_gas_accounts.unwrap_or(0) + num_validators;
+
+        // Divide the total available amount among all account gas objects.
+        let total_gas_objects = num_accounts * DEFAULT_NUMBER_OF_OBJECT_PER_ACCOUNT;
+        let gas_amount_per_object = if total_gas_objects > 0 {
+            total_available_amount / total_gas_objects as u64
+        } else {
+            0
+        };
+
         let account_configs = Self::benchmark_gas_keys(num_accounts)
             .iter()
             .map(|gas_key| {
@@ -387,16 +400,7 @@ impl GenesisConfig {
 
                 AccountConfig {
                     address: Some(gas_address),
-                    // Generate one genesis gas object per validator (this seems a good rule of
-                    // thumb to produce enough gas objects for most types of
-                    // benchmarks), or more if specified via `num_additional_gas_accounts`.
-                    gas_amounts: vec![
-                        u64::min(
-                            Self::BENCHMARK_GAS_AMOUNT,
-                            u64::MAX / (6u64 * num_accounts as u64),
-                        );
-                        5
-                    ],
+                    gas_amounts: vec![gas_amount_per_object; DEFAULT_NUMBER_OF_OBJECT_PER_ACCOUNT],
                 }
             })
             .collect();
