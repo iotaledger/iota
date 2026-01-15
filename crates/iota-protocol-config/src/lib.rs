@@ -19,7 +19,7 @@ use tracing::{info, warn};
 
 /// The minimum and maximum protocol versions supported by this build.
 const MIN_PROTOCOL_VERSION: u64 = 1;
-pub const MAX_PROTOCOL_VERSION: u64 = 18;
+pub const MAX_PROTOCOL_VERSION: u64 = 19;
 
 // Record history of protocol version allocations here:
 //
@@ -93,7 +93,7 @@ pub const MAX_PROTOCOL_VERSION: u64 = 18;
 //             Starfish.
 // Version 17: Increase the committee size to 100 on all networks.
 // Version 18: Enable passkey authentication support in testnet.
-//             Enable congestion limit overshoot in the gas price feedback
+// Version 19: Enable congestion limit overshoot in the gas price feedback
 //             mechanism on devnet.
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
@@ -2338,7 +2338,8 @@ impl ProtocolConfig {
                         // Enable passkey authentication support in testnet.
                         cfg.feature_flags.passkey_auth = true;
                     }
-
+                }
+                19 => {
                     if chain != Chain::Testnet && chain != Chain::Mainnet {
                         // Enable congestion limit overshoot in the gas price feedback
                         // mechanism on devnet.
