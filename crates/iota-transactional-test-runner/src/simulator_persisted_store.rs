@@ -64,7 +64,7 @@ pub struct PersistedStoreInner {
     events_tx_digest_index: DBMap<TransactionDigest, TransactionEventsDigest>,
 
     // Committee data
-    epoch_to_committee: DBMap<(), Vec<Committee>>,
+    epoch_to_committee: DBMap<EpochId, Committee>,
 
     // Epoch data
     last_checkpoints_per_epoch: DBMap<EpochId, CheckpointSequenceNumber>,
@@ -257,27 +257,21 @@ impl SimulatorStore for PersistedStore {
     }
 
     fn insert_committee(&mut self, committee: Committee) {
-        let epoch = committee.epoch as usize;
+        let epoch = committee.epoch();
 
-        let mut committees = self
+        let committees = self
             .read_write
             .epoch_to_committee
-            .get(&())
-            .expect("Fatal: DB read failed")
-            .unwrap_or_default();
+            .get(&epoch)
+            .expect("Fatal: DB read failed");
 
-        if committees.get(epoch).is_some() {
+        if committees.is_some() {
             return;
         }
 
-        if committees.len() == epoch {
-            committees.push(committee);
-        } else {
-            panic!("committee was inserted into EpochCommitteeMap out of order");
-        }
         self.read_write
             .epoch_to_committee
-            .insert(&(), &committees)
+            .insert(&epoch, &committee)
             .expect("Fatal: DB write failed");
     }
 
@@ -483,9 +477,8 @@ impl ReadStore for PersistedStore {
         Ok(self
             .read_write
             .epoch_to_committee
-            .get(&())
+            .get(&epoch)
             .expect("Fatal: DB read failed")
-            .and_then(|committees| committees.get(epoch as usize).cloned())
             .map(std::sync::Arc::new))
     }
 
@@ -658,9 +651,8 @@ impl ReadStore for PersistedStoreInnerReadOnlyWrapper {
         Ok(self
             .inner
             .epoch_to_committee
-            .get(&())
+            .get(&epoch)
             .expect("Fatal: DB read failed")
-            .and_then(|committees| committees.get(epoch as usize).cloned())
             .map(std::sync::Arc::new))
     }
 
