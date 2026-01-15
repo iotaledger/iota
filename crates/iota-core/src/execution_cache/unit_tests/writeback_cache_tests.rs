@@ -359,7 +359,8 @@ impl Scenario {
 
     // commit a transaction to the database
     pub async fn commit(&mut self, tx: TransactionDigest) {
-        self.cache().commit_transaction_outputs(1, &[tx]);
+        let batch = self.cache().build_db_batch(1, &[tx]);
+        self.cache().commit_transaction_outputs(1, batch, &[tx]);
         self.count_action();
     }
 
@@ -555,7 +556,8 @@ async fn test_committed() {
 
         s.assert_live(&[1, 2]);
         s.assert_dirty(&[1, 2]);
-        s.cache().commit_transaction_outputs(1, &[tx]);
+        let batch = s.cache().build_db_batch(1, &[tx]);
+        s.cache().commit_transaction_outputs(1, batch, &[tx]);
         s.assert_not_dirty(&[1, 2]);
         s.assert_cached(&[1, 2]);
 

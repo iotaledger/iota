@@ -79,7 +79,7 @@ use tap::TapOptional;
 use tracing::{debug, info, instrument, trace, warn};
 
 use super::{
-    CheckpointCache, ExecutionCacheAPI, ExecutionCacheCommit, ExecutionCacheMetrics,
+    Batch, CheckpointCache, ExecutionCacheAPI, ExecutionCacheCommit, ExecutionCacheMetrics,
     ExecutionCacheReconfigAPI, ExecutionCacheWrite, ObjectCacheRead, StateSyncAPI, TestingAPI,
     TransactionCacheRead,
     cache_types::{CacheResult, CachedVersionMap, IsNewer, MonotonicCache, Ticket},
@@ -941,16 +941,8 @@ impl WritebackCache {
         Ok(())
     }
 
-    // Commits dirty data for the given TransactionDigest to the db.
-    #[instrument(level = "debug", skip_all)]
-    fn commit_transaction_outputs(
-        &self,
-        epoch: EpochId,
-        digests: &[TransactionDigest],
-    ) -> IotaResult {
-        fail_point!("writeback-cache-commit");
-        trace!(?digests);
-
+    fn build_db_batch(&self, epoch: EpochId, digests: &[TransactionDigest]) -> Batch {
+        let _metrics_guard = iota_metrics::monitored_scope("WritebackCache::build_db_batch");
         let mut all_outputs = Vec::with_capacity(digests.len());
         for tx in digests {
             let Some(outputs) = self
@@ -972,11 +964,33 @@ impl WritebackCache {
             all_outputs.push(outputs);
         }
 
+        let batch = self
+            .store
+            .build_db_batch(epoch, &all_outputs)
+            .expect("db error");
+        (all_outputs, batch)
+    }
+
+    // Commits dirty data for the given TransactionDigest to the db.
+    #[instrument(level = "debug", skip_all)]
+    fn commit_transaction_outputs(
+        &self,
+        epoch: EpochId,
+        (all_outputs, db_batch): Batch,
+        digests: &[TransactionDigest],
+    ) -> IotaResult {
+        let _metrics_guard =
+            iota_metrics::monitored_scope("WritebackCache::commit_transaction_outputs");
+        fail_point!("writeback-cache-commit");
+        trace!(?digests);
+
         // Flush writes to disk before removing anything from dirty set. otherwise,
         // a cache eviction could cause a value to disappear briefly, even if we insert
         // to the cache before removing from the dirty set.
-        self.store.write_transaction_outputs(epoch, &all_outputs)?;
+        db_batch.write().expect("db error");
 
+        let _metrics_guard =
+            iota_metrics::monitored_scope("WritebackCache::commit_transaction_outputs::flush");
         for outputs in all_outputs.iter() {
             let tx_digest = outputs.transaction.digest();
             assert!(
@@ -1290,12 +1304,17 @@ impl WritebackCache {
 impl ExecutionCacheAPI for WritebackCache {}
 
 impl ExecutionCacheCommit for WritebackCache {
+    fn build_db_batch(&self, epoch: EpochId, digests: &[TransactionDigest]) -> Batch {
+        self.build_db_batch(epoch, digests)
+    }
+
     fn try_commit_transaction_outputs(
         &self,
         epoch: EpochId,
+        batch: Batch,
         digests: &[TransactionDigest],
     ) -> IotaResult {
-        WritebackCache::commit_transaction_outputs(self, epoch, digests)
+        WritebackCache::commit_transaction_outputs(self, epoch, batch, digests)
     }
 
     fn try_persist_transaction(&self, tx: &VerifiedExecutableTransaction) -> IotaResult {
