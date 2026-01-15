@@ -13,7 +13,6 @@ export function TrustFrameworkProvider({ children }: PropsWithChildren) {
     const { network } = useIotaClientContext();
     const iotaClient = useIotaClient();
     const [identityClient, setIdentityClient] = useState<IdentityClientReadOnly | null>(null);
-    console.info('provider, network:', network);
 
     useEffect(() => {
         if (!iotaClient) return;

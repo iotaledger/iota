@@ -10,6 +10,7 @@ import {
     IOTA_IDENTITY_PKG_ID,
 } from '~/lib/constants/trustFramework.constants';
 
+const regularNetworks = new Set([Network.Mainnet, Network.Testnet, Network.Devnet]);
 let initPromise: Promise<void> | null = null;
 
 /**
@@ -41,9 +42,8 @@ export const createIdentityClientReadOnly = async (
         );
     }
 
-    console.log('network is present', !!network && network.trim() != '');
     // Well-known networks have well-known identity package id
-    if (network in [Network.Mainnet, Network.Testnet, Network.Devnet]) {
+    if (regularNetworks.has(network as Network)) {
         return await identity.IdentityClientReadOnly.create(iotaClient);
     }
 
