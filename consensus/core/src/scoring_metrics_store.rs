@@ -467,15 +467,14 @@ fn classify_block_verifier_error(error: &ConsensusError) -> MetricType {
 // Classifies errors returned by the subscriber into provable or unprovable, and
 // errors not returned by it as untracked. Errors classified as provable are
 // those that can be proven to a third party by providing the signed faulty
-// block itself. Obs: BlockRejected errors are unprovable because even though
+// block itself. Obs: BlockRejected errors are untracked because even though
 // the rejected block signature can be verified, the reason for the rejection
-// is not objective, so authorities cannot prove (or won't even agree) that the
-// block should be rejected.
+// is not objective nor clearly the block author's fault.
 fn classify_subscriber_error(error: &ConsensusError) -> MetricType {
     match error {
         ConsensusError::MalformedBlock { .. } => MetricType::Unprovable,
         ConsensusError::UnexpectedAuthority(..) => MetricType::Unprovable,
-        ConsensusError::BlockRejected { .. } => MetricType::Unprovable,
+        ConsensusError::BlockRejected { .. } => MetricType::Untracked,
         error => classify_block_verifier_error(error),
     }
 }
