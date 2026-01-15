@@ -27,7 +27,7 @@ export function ExportAccountPage() {
                 return null;
             }
             if (password) {
-                await backgroundClient.unlockAllAccounts({ password });
+                await backgroundClient.unlockAllAccountsAndSources({ password });
             }
             return (
                 await backgroundClient.exportAccountKeyPair({

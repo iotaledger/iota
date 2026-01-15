@@ -81,7 +81,7 @@ export function ProtectAccountPage() {
                     password,
                 });
 
-                await backgroundClient.unlockAllAccounts({ password });
+                await backgroundClient.unlockAllAccountsAndSources({ password });
 
                 if (
                     type === AccountsFormType.NewMnemonic &&
@@ -154,7 +154,7 @@ export function ProtectAccountPage() {
                         open
                         onClose={() => navigate(-1)}
                         onVerify={async (password) => {
-                            const unlockAllPromise = backgroundClient.unlockAllAccounts({
+                            const unlockAllPromise = backgroundClient.unlockAllAccountsAndSources({
                                 password,
                             });
                             await createAccountCallback(
