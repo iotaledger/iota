@@ -172,7 +172,6 @@ impl GrpcStateReader for SimulacrumGrpcReader {
     }
 
     fn get_transaction_checkpoint(&self, digest: &TransactionDigest) -> Option<u64> {
-        // TODO: Do we want to implement an index for this?
         self.simulacrum.with_store(|store| {
             let highest_seq = store
                 .get_highest_checkpoint()

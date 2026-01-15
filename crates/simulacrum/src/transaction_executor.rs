@@ -47,7 +47,7 @@ impl TransactionExecutorTrait for TransactionExecutor {
     ) -> Result<ExecuteTransactionResponseV1, QuorumDriverError> {
         let simulacrum = &*self.simulacrum;
 
-        // Execute the transaction directly (it's already a Transaction type)
+        // Execute the transaction directly
         let (effects, _execution_error) = simulacrum
             .execute_transaction(request.transaction.clone())
             .map_err(|e| {
@@ -118,7 +118,6 @@ impl TransactionExecutorTrait for TransactionExecutor {
         transaction: TransactionData,
         checks: VmChecks,
     ) -> Result<SimulateTransactionResult, iota_types::error::IotaError> {
-        // Simulacrum is already thread-safe, no locking needed
         self.simulacrum.simulate_transaction(transaction, checks)
     }
 }

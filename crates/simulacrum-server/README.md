@@ -5,7 +5,7 @@ A gRPC and REST API server for IOTA Simulacrum that allows external clients to i
 ## Features
 
 - **REST API**: Full control interface for managing the simulacrum
-- **gRPC API**: High-performance streaming interface
+- **gRPC API**: High-performance node interface
 - **Faucet Service**: Request gas tokens for testing
 - **Command-line Interface**: Configurable server settings
 
