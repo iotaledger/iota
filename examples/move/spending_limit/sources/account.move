@@ -166,7 +166,7 @@ public fun authenticate(
 ) {
     owner_public_key::authenticate_ed25519(&account.id, signature, ctx.digest());
 
-    let total_amount = validate_and_calculate_withdrawals(auth_ctx, ctx);
+    let total_amount = lookup_and_calculate_withdrawals(auth_ctx, ctx);
 
     spending_limit::check_amount_against_spending_limit(&account.id, total_amount);
 }
@@ -199,10 +199,10 @@ public fun authenticator_function_ref(
 
 // === Package Functions ===
 
-/// Validates withdraw calls and calculates total withdrawal amount.
-/// Returns the total amount from all valid withdraw commands.
-/// Returns 0 if no valid withdraw commands are found.
-public(package) fun validate_and_calculate_withdrawals(
+/// Looks up for withdraw calls and calculates total withdrawal amount.
+/// Returns the total amount from all withdraw commands.
+/// Returns 0 if no withdraw commands are found.
+public(package) fun lookup_and_calculate_withdrawals(
     auth_ctx: &AuthContext,
     ctx: &TxContext,
 ): u64 {
@@ -220,7 +220,7 @@ public(package) fun validate_and_calculate_withdrawals(
         if (option::is_some(&call_opt)) {
             let call = option::borrow(&call_opt);
 
-            if (is_valid_withdraw_call(call, auth_ctx, ctx)) {
+            if (is_withdraw_call(call, auth_ctx, ctx)) {
                 // Extract amount inline.
                 let args = arguments(call);
                 assert!(args.length() > 1, EInvalidAmount);
@@ -251,8 +251,8 @@ public(package) fun validate_and_calculate_withdrawals(
 
 // === Private Functions ===
 
-// Helper function to validate if a MoveCall is a valid withdraw call.
-fun is_valid_withdraw_call(
+// Helper function to check if a MoveCall is a withdraw_from_balance_reserve call from the account module.
+fun is_withdraw_call(
     call: &ProgrammableMoveCall,
     auth_ctx: &AuthContext,
     ctx: &TxContext,

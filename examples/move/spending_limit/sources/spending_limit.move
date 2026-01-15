@@ -63,7 +63,7 @@ public fun rotate(account_id: &mut UID, amount: u64): u64 {
 }
 
 // Returns a mutable reference to the spending limit for the given account ID.
-public fun borrow_mut(account_id: &mut UID): &mut u64 {
+public(package) fun borrow_mut(account_id: &mut UID): &mut u64 {
     dynamic_field::borrow_mut(account_id, SpendingLimit {})
 }
 
