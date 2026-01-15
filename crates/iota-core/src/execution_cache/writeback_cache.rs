@@ -72,7 +72,7 @@ use iota_types::{
     storage::{MarkerValue, ObjectKey, ObjectOrTombstone, ObjectStore, PackageObject},
     transaction::{VerifiedSignedTransaction, VerifiedTransaction},
 };
-use moka::sync::Cache as MokaCache;
+use moka::sync::SegmentedCache as MokaCache;
 use parking_lot::Mutex;
 use prometheus::Registry;
 use tap::TapOptional;
@@ -242,12 +242,12 @@ struct UncommittedData {
 impl UncommittedData {
     fn new() -> Self {
         Self {
-            objects: DashMap::new(),
-            markers: DashMap::new(),
-            transaction_effects: DashMap::new(),
-            executed_effects_digests: DashMap::new(),
-            pending_transaction_writes: DashMap::new(),
-            transaction_events: DashMap::new(),
+            objects: DashMap::with_shard_amount(2048),
+            markers: DashMap::with_shard_amount(2048),
+            transaction_effects: DashMap::with_shard_amount(2048),
+            executed_effects_digests: DashMap::with_shard_amount(2048),
+            pending_transaction_writes: DashMap::with_shard_amount(2048),
+            transaction_events: DashMap::with_shard_amount(2048),
             total_transaction_inserts: AtomicU64::new(0),
             total_transaction_commits: AtomicU64::new(0),
         }
@@ -343,10 +343,10 @@ struct CachedCommittedData {
 
 impl CachedCommittedData {
     fn new(config: &WritebackCacheConfig) -> Self {
-        let object_cache = MokaCache::builder()
+        let object_cache = MokaCache::builder(8)
             .max_capacity(config.object_cache_size())
             .build();
-        let marker_cache = MokaCache::builder()
+        let marker_cache = MokaCache::builder(8)
             .max_capacity(config.marker_cache_size())
             .build();
 
@@ -355,7 +355,7 @@ impl CachedCommittedData {
         let transaction_events = MonotonicCache::new(config.events_cache_size());
         let executed_effects_digests = MonotonicCache::new(config.executed_effect_cache_size());
 
-        let transaction_objects = MokaCache::builder()
+        let transaction_objects = MokaCache::builder(8)
             .max_capacity(config.transaction_objects_cache_size())
             .build();
 
@@ -471,7 +471,7 @@ impl WritebackCache {
         metrics: Arc<ExecutionCacheMetrics>,
         backpressure_manager: Arc<BackpressureManager>,
     ) -> Self {
-        let packages = MokaCache::builder()
+        let packages = MokaCache::builder(8)
             .max_capacity(config.package_cache_size())
             .build();
         Self {
