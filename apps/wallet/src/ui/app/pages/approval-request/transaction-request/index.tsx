@@ -110,6 +110,7 @@ export function TransactionRequest({ txRequest }: TransactionRequestProps) {
                         isError={isDryRunError}
                         summary={summary}
                         renderExplorerLink={ExplorerLinkHelper}
+                        transaction={transaction}
                     />
                     {(!summary || isDryRunError) && (
                         <InfoBox
