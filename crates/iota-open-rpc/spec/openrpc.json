@@ -10850,6 +10850,45 @@
             }
           },
           {
+            "description": "Unwrapped object",
+            "type": "object",
+            "required": [
+              "digest",
+              "objectId",
+              "objectType",
+              "owner",
+              "sender",
+              "type",
+              "version"
+            ],
+            "properties": {
+              "digest": {
+                "$ref": "#/components/schemas/ObjectDigest"
+              },
+              "objectId": {
+                "$ref": "#/components/schemas/ObjectID"
+              },
+              "objectType": {
+                "type": "string"
+              },
+              "owner": {
+                "$ref": "#/components/schemas/Owner"
+              },
+              "sender": {
+                "$ref": "#/components/schemas/IotaAddress"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "unwrapped"
+                ]
+              },
+              "version": {
+                "$ref": "#/components/schemas/SequenceNumber2"
+              }
+            }
+          },
+          {
             "description": "New object creation",
             "type": "object",
             "required": [
