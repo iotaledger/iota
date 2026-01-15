@@ -11,7 +11,7 @@ use std::{
 
 use iota_common::debug_fatal;
 use iota_types::base_types::SequenceNumber;
-use moka::sync::Cache as MokaCache;
+use moka::sync::SegmentedCache as MokaCache;
 use parking_lot::Mutex;
 
 pub enum CacheResult<T> {
@@ -156,7 +156,7 @@ where
 {
     pub fn new(cache_size: u64) -> Self {
         Self {
-            cache: MokaCache::builder().max_capacity(cache_size).build(),
+            cache: MokaCache::builder(8).max_capacity(cache_size).build(),
             key_generation: (0..KEY_GENERATION_SIZE)
                 .map(|_| AtomicU64::new(0))
                 .collect(),
