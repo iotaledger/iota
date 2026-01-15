@@ -41,6 +41,7 @@ export const createIdentityClientReadOnly = async (
         );
     }
 
+    console.log('network is present', !!network && network.trim() != '');
     // Well-known networks have well-known identity package id
     if (network in [Network.Mainnet, Network.Testnet, Network.Devnet]) {
         return await identity.IdentityClientReadOnly.create(iotaClient);
