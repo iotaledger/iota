@@ -76,14 +76,14 @@ pub(crate) async fn sign_transaction(
 ) -> Result<GenericSignature> {
     let iota_client = context.get_client().await?;
 
-    if let Some((auth_call_args, type_arguments)) = auth_args {
+    if let Some((auth_call_args, auth_type_args)) = auth_args {
         let initial_shared_version =
             get_shared_object_version(&iota_client, signer_address).await?;
 
         return Ok(GenericSignature::MoveAuthenticator(
             MoveAuthenticator::new_for_testing(
                 auth_call_args,
-                type_arguments,
+                auth_type_args,
                 CallArg::Object(iota_types::transaction::ObjectArg::SharedObject {
                     id: ObjectID::from(*signer_address),
                     initial_shared_version,

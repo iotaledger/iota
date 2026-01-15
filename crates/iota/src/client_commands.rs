@@ -245,7 +245,7 @@ pub enum IotaClientCommands {
         auth_call_args: Option<Vec<String>>,
         /// Auth type arguments for the Move authenticate function
         #[arg(long, num_args = 1..)]
-        auth_type_arguments: Option<Vec<String>>,
+        auth_type_args: Option<Vec<String>>,
     },
     /// Request gas coin from faucet. By default, it will use the active address
     /// and the active network.
@@ -757,7 +757,7 @@ pub struct TxProcessingArgs {
     pub auth_call_args: Option<Vec<String>>,
     /// Auth type arguments for the Move authenticate function
     #[arg(long, num_args = 1..)]
-    pub auth_type_arguments: Option<Vec<String>>,
+    pub auth_type_args: Option<Vec<String>>,
 }
 
 impl TxProcessingArgs {
@@ -2043,7 +2043,7 @@ impl IotaClientCommands {
                 data,
                 intent,
                 auth_call_args,
-                auth_type_arguments,
+                auth_type_args,
             } => {
                 let address = get_identity_address_from_keystore(
                     address,
@@ -2060,13 +2060,13 @@ impl IotaClientCommands {
                 hasher.update(bcs::to_bytes(&intent_msg)?);
                 let digest = hasher.finalize().digest;
 
-                let iota_signature = if auth_call_args.is_some() || auth_type_arguments.is_some() {
+                let iota_signature = if auth_call_args.is_some() || auth_type_args.is_some() {
                     let client = context.get_client().await?;
                     create_move_authenticator_signature(
                         &client,
                         address,
                         auth_call_args.as_ref(),
-                        auth_type_arguments.as_ref(),
+                        auth_type_args.as_ref(),
                     )
                     .await?
                 } else {
@@ -3501,7 +3501,7 @@ pub(crate) async fn dry_run_or_execute_or_serialize(
         sender,
         display,
         auth_call_args,
-        auth_type_arguments,
+        auth_type_args,
     } = processing;
     ensure!(
         !serialize_unsigned_transaction || !serialize_signed_transaction,
@@ -3605,13 +3605,10 @@ pub(crate) async fn dry_run_or_execute_or_serialize(
     } else if tx_digest {
         Ok(IotaClientCommandResult::ComputeTransactionDigest(tx_data))
     } else {
-        let auth_args = if auth_call_args.is_some() || auth_type_arguments.is_some() {
+        let auth_args = if auth_call_args.is_some() || auth_type_args.is_some() {
             let auth_info = fetch_auth_info(&client, signer).await?;
-            let (type_args, json_args) = process_auth_args(
-                auth_call_args.as_ref(),
-                auth_type_arguments.as_ref(),
-                signer,
-            )?;
+            let (type_args, json_args) =
+                process_auth_args(auth_call_args.as_ref(), auth_type_args.as_ref(), signer)?;
             let call_args = resolve_auth_call_args(
                 &client,
                 auth_info.value.package,
@@ -3977,10 +3974,10 @@ pub(crate) async fn fetch_auth_info(
 /// Processes authentication arguments.
 pub(crate) fn process_auth_args(
     auth_call_args: Option<&Vec<String>>,
-    auth_type_arguments: Option<&Vec<String>>,
+    auth_type_args: Option<&Vec<String>>,
     signer: IotaAddress,
 ) -> Result<(Vec<TypeTag>, Vec<IotaJsonValue>), anyhow::Error> {
-    let type_args = auth_type_arguments
+    let type_args = auth_type_args
         .as_ref()
         .map(|args| {
             args.iter()
@@ -4012,11 +4009,11 @@ async fn create_move_authenticator_signature(
     client: &IotaClient,
     address: IotaAddress,
     auth_call_args: Option<&Vec<String>>,
-    auth_type_arguments: Option<&Vec<String>>,
+    auth_type_args: Option<&Vec<String>>,
 ) -> Result<GenericSignature, anyhow::Error> {
     let auth_info = fetch_auth_info(client, address).await?;
 
-    let (type_args, json_args) = process_auth_args(auth_call_args, auth_type_arguments, address)?;
+    let (type_args, json_args) = process_auth_args(auth_call_args, auth_type_args, address)?;
 
     let call_args = resolve_auth_call_args(
         client,

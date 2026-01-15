@@ -148,7 +148,7 @@ impl PTB {
 
         let extracted = extract_auth_args(&self.args);
         let auth_call_args = extracted.auth_call_args;
-        let auth_type_arguments = extracted.auth_type_args;
+        let auth_type_args = extracted.auth_type_args;
 
         if extracted.remaining_args.is_empty() {
             return Ok(PTBCommandResult::Help { long: false });
@@ -264,7 +264,7 @@ impl PTB {
             sender: program_metadata.sender.map(|x| x.value.into_inner().into()),
             display: self.display,
             auth_call_args,
-            auth_type_arguments,
+            auth_type_args,
         };
 
         let gas_payment = client.transaction_builder().input_refs(&gas).await?;

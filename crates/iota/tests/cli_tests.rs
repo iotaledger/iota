@@ -6719,7 +6719,7 @@ async fn test_move_authenticator() -> Result<(), anyhow::Error> {
         data: Base64::encode(bcs::to_bytes(&tx_data).unwrap()),
         intent: None,
         auth_call_args: Some(vec!["hello".to_string()]),
-        auth_type_arguments: None,
+        auth_type_args: None,
     }
     .execute(context)
     .await?;
