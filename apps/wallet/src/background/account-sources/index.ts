@@ -15,7 +15,7 @@ import { MnemonicAccountSource } from './mnemonicAccountSource';
 import { SeedAccountSource } from './seedAccountSource';
 import { toEntropy } from '_src/shared/utils';
 import { KeystoneAccountSource } from './keystoneAccountSource';
-import { lockAllAccounts, unlockAllAccounts } from '../accounts';
+import { accountSourcesEvents } from './events';
 
 function toAccountSource(accountSource: AccountSourceSerialized) {
     if (MnemonicAccountSource.isOfType(accountSource)) {
@@ -90,13 +90,6 @@ async function createAccountSource({ type, params }: MethodPayload<'createAccoun
     }
 }
 
-export async function lockAllAccountSources() {
-    const allAccountSources = await getAccountSources();
-    for (const anAccountSource of allAccountSources) {
-        await anAccountSource.lock();
-    }
-}
-
 export async function accountSourcesHandleUIMessage(msg: Message, uiConnection: UiConnection) {
     const { payload } = msg;
     if (isMethodPayload(payload, 'createAccountSource')) {
@@ -114,24 +107,17 @@ export async function accountSourcesHandleUIMessage(msg: Message, uiConnection: 
     }
     if (isMethodPayload(payload, 'unlockAccountSource')) {
         const { id, password } = payload.args;
-        const accountSource = await getAccountSourceByID(id);
-        if (accountSource) {
-            if (!password) {
-                throw new Error('Missing password');
-            }
-            await accountSource.unlock(password);
-            uiConnection.send(createMessage({ type: 'done' }, msg.id));
-            return true;
+        if (!password) {
+            throw new Error('Missing password');
         }
-    }
-    if (isMethodPayload(payload, 'unlockAllAccounts')) {
-        const { password } = payload.args;
-        await unlockAllAccounts(password);
-        uiConnection.send(createMessage({ type: 'done' }, msg.id));
-        return true;
-    }
-    if (isMethodPayload(payload, 'lockAllAccounts')) {
-        await lockAllAccounts();
+        const accountSource = await getAccountSourceByID(id);
+        if (!accountSource) {
+            throw new Error('Account source not found');
+        }
+        await accountSource.unlock(password);
+        accountSourcesEvents.emit('accountSourceStatusUpdated', {
+            accountSourceID: accountSource.id,
+        });
         uiConnection.send(createMessage({ type: 'done' }, msg.id));
         return true;
     }

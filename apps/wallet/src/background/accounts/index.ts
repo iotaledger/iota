@@ -10,7 +10,7 @@ import {
 import { type WalletStatusChange } from '_src/shared/messaging/messages/payloads/wallet-status-change';
 import { fromBase64 } from '@iota/iota-sdk/utils';
 import Dexie from 'dexie';
-import { getAccountSourceByID, getAccountSources, lockAllAccountSources } from '../account-sources';
+import { getAccountSourceByID, getAccountSources } from '../account-sources';
 import { accountSourcesEvents } from '../account-sources/events';
 import { MnemonicAccountSource } from '../account-sources/mnemonicAccountSource';
 import { SeedAccountSource } from '../account-sources/seedAccountSource';
@@ -162,7 +162,7 @@ export async function lockAllAccounts() {
         const isUnlocked = !(await source.isLocked());
 
         if (isUnlocked) {
-            await source.lock({ skipEventEmit: true });
+            await source.lock();
         }
     }
 
@@ -172,7 +172,7 @@ export async function lockAllAccounts() {
     );
 
     for (const account of accounts) {
-        await account.lock({ skipEventEmit: true });
+        await account.lock();
     }
 
     accountsEvents.emit('accountsChanged');
@@ -182,7 +182,7 @@ export async function unlockAllAccounts(password?: string) {
     const sources = await getAccountSources();
     for (const source of sources) {
         if (password) {
-            await source.unlock(password, { skipEventEmit: true });
+            await source.unlock(password);
         }
     }
 
@@ -195,7 +195,7 @@ export async function unlockAllAccounts(password?: string) {
         const isPasswordUnlockable = isPasswordUnLockable(account);
         const isLocked = await account.isLocked();
         if (isPasswordUnlockable && isLocked) {
-            await account.passwordUnlock(password, { skipEventEmit: true });
+            await account.passwordUnlock(password);
         }
     }
     accountsEvents.emit('accountsChanged');
@@ -244,20 +244,14 @@ async function clearStateAfterManyFailedAttempts() {
 
 export async function accountsHandleUIMessage(msg: Message, uiConnection: UiConnection) {
     const { payload } = msg;
-    if (isMethodPayload(payload, 'unlockAccountSource')) {
-        const { id, password } = payload.args;
-        const account = await getAccountByID(id);
-        if (account) {
-            if (isPasswordUnLockable(account)) {
-                await account.passwordUnlock(password);
-            }
-            await uiConnection.send(createMessage({ type: 'done' }, msg.id));
-            return true;
-        }
-    }
     if (isMethodPayload(payload, 'lockAllAccounts')) {
         await lockAllAccounts();
-        await lockAllAccountSources();
+        uiConnection.send(createMessage({ type: 'done' }, msg.id));
+        return true;
+    }
+    if (isMethodPayload(payload, 'unlockAllAccounts')) {
+        const { password } = payload.args;
+        await unlockAllAccounts(password);
         uiConnection.send(createMessage({ type: 'done' }, msg.id));
         return true;
     }
@@ -269,12 +263,6 @@ export async function accountsHandleUIMessage(msg: Message, uiConnection: UiConn
             await uiConnection.send(createMessage({ type: 'done' }, msg.id));
             return true;
         }
-    }
-    if (isMethodPayload(payload, 'unlockAllAccounts')) {
-        const { password } = payload.args;
-        await unlockAllAccounts(password);
-        uiConnection.send(createMessage({ type: 'done' }, msg.id));
-        return true;
     }
     if (isMethodPayload(payload, 'signData')) {
         const { id, data } = payload.args;
