@@ -22,7 +22,7 @@ export function TrustFrameworkProvider({ children }: PropsWithChildren) {
             setIdentityClient(_identityClient);
         };
         instantiateIdentityClient();
-    }, [iotaClient]);
+    }, [iotaClient, network]);
 
     const ctx = useMemo(
         (): TrustFrameworkProviderContext => ({
