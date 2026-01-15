@@ -17,6 +17,7 @@ use iota_types::{
         ExecuteTransactionRequestV1, ExecuteTransactionResponseV1, FinalizedEffects,
         QuorumDriverError,
     },
+    storage,
     transaction::TransactionData,
     transaction_executor::{
         SimulateTransactionResult, TransactionExecutor as TransactionExecutorTrait, VmChecks,
@@ -95,32 +96,20 @@ impl TransactionExecutorTrait for TransactionExecutor {
             },
             input_objects: if request.include_input_objects {
                 self.simulacrum.with_store(|store| {
-                    let mut objs = vec![];
-                    for (obj_id, version) in effects.modified_at_versions() {
-                        if let Some(obj) = store.get_object_at_version(&obj_id, version) {
-                            objs.push(obj.clone());
-                        }
-                    }
-                    Some(objs)
+                    storage::get_transaction_input_objects(store, &effects).ok()
                 })
             } else {
                 None
             },
             output_objects: if request.include_output_objects {
                 self.simulacrum.with_store(|store| {
-                    let mut objs = vec![];
-                    for (obj_ref, _, _) in effects.all_changed_objects() {
-                        if let Some(obj) = store.get_object_at_version(&obj_ref.0, obj_ref.1) {
-                            objs.push(obj.clone());
-                        }
-                    }
-                    Some(objs)
+                    storage::get_transaction_output_objects(store, &effects).ok()
                 })
             } else {
                 None
             },
             auxiliary_data: if request.include_auxiliary_data {
-                // TODO: Auxiliary data is not supported
+                // We don't have any aux data generated presently, also in the real network
                 None
             } else {
                 None
