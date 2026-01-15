@@ -13,7 +13,7 @@ import {
     getEphemeralValue,
     setEphemeralValue,
 } from '../sessionEphemeralValues';
-import { accountsEvents, type UnlockAccountOptions, type LockAccountOptions } from './events';
+import { accountsEvents } from './events';
 
 export enum AccountType {
     MnemonicDerived = 'mnemonic-derived',
@@ -41,7 +41,7 @@ export abstract class Account<
         }
     }
 
-    abstract lock(options?: LockAccountOptions): Promise<void>;
+    abstract lock(allowRead?: boolean): Promise<void>;
     /**
      * Indicates if the account is unlocked and allows write actions (eg. signing)
      */
@@ -101,30 +101,19 @@ export abstract class Account<
     protected clearEphemeralValue() {
         return clearEphemeralValue(this.id);
     }
-    protected async onUnlocked(options?: UnlockAccountOptions) {
+    protected async onUnlocked() {
         await setupAutoLockAlarm();
         await (await getDB()).accounts.update(this.id, { lastUnlockedOn: Date.now() });
-        if (!options?.skipEventEmit) {
-            accountsEvents.emit('accountStatusChanged', { accountID: this.id });
-        }
     }
 
-    protected async onLocked(
-        options: LockAccountOptions = {
-            allowRead: false,
-            skipEventEmit: false,
-        },
-    ) {
+    protected async onLocked(allowRead: boolean) {
         // skip clearing last unlocked value to allow read access
         // when possible (last unlocked within time limits)
-        if (options.allowRead) {
+        if (allowRead) {
             return;
         }
 
         await (await getDB()).accounts.update(this.id, { lastUnlockedOn: null });
-        if (!options.skipEventEmit) {
-            accountsEvents.emit('accountStatusChanged', { accountID: this.id });
-        }
     }
 
     public async setNickname(nickname: string | null) {
@@ -173,7 +162,7 @@ export interface SerializedUIAccount {
 
 export interface PasswordUnlockableAccount {
     readonly unlockType: 'password';
-    passwordUnlock(password?: string, options?: UnlockAccountOptions): Promise<void>;
+    passwordUnlock(password?: string): Promise<void>;
     verifyPassword(password: string): Promise<void>;
 }
 

@@ -13,7 +13,6 @@ import {
     type SerializedUIAccount,
     type SigningAccount,
 } from './account';
-import type { LockAccountOptions, UnlockAccountOptions } from './events';
 
 export interface SeedSerializedAccount extends SerializedAccount {
     type: AccountType.SeedDerived;
@@ -78,24 +77,16 @@ export class SeedAccount
         return seedSource.isLocked();
     }
 
-    async lock(
-        options: LockAccountOptions = {
-            allowRead: false,
-            skipEventEmit: true,
-        },
-    ): Promise<void> {
-        const isUnlocked = !(await this.isLocked());
-        if (isUnlocked) {
-            const seedSource = await this.#getSeedSource();
+    async lock(allowRead: boolean = false): Promise<void> {
+        const seedSource = await this.#getSeedSource();
+        const isLocked = await seedSource.isLocked();
+        if (!isLocked) {
             await seedSource.lock();
-            await this.onLocked(options);
+            await this.onLocked(allowRead);
         }
     }
 
-    async passwordUnlock(
-        password?: string,
-        options: UnlockAccountOptions = { skipEventEmit: true },
-    ): Promise<void> {
+    async passwordUnlock(password?: string): Promise<void> {
         const seedSource = await this.#getSeedSource();
         const isLocked = await seedSource.isLocked();
         if (isLocked) {
@@ -103,7 +94,7 @@ export class SeedAccount
                 throw new Error('Missing password to unlock the account');
             }
             await seedSource.unlock(password);
-            await this.onUnlocked(options);
+            await this.onUnlocked();
         }
     }
 

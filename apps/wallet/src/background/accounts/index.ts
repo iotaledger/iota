@@ -159,9 +159,8 @@ export async function lockAllAccounts() {
     const sources = await getAccountSources();
 
     for (const source of sources) {
-        const isUnlocked = !(await source.isLocked());
-
-        if (isUnlocked) {
+        const isLocked = await source.isLocked();
+        if (!isLocked) {
             await source.lock();
         }
     }

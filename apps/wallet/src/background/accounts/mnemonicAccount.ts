@@ -14,7 +14,6 @@ import {
     type SerializedUIAccount,
     type SigningAccount,
 } from './account';
-import type { LockAccountOptions, UnlockAccountOptions } from './events';
 
 export interface MnemonicSerializedAccount extends SerializedAccount {
     type: AccountType.MnemonicDerived;
@@ -80,25 +79,16 @@ export class MnemonicAccount
         return await mnemonicSource.isLocked();
     }
 
-    async lock(
-        options: LockAccountOptions = {
-            allowRead: false,
-            skipEventEmit: true,
-        },
-    ): Promise<void> {
+    async lock(allowRead = false): Promise<void> {
         const mnemonicSource = await this.#getMnemonicSource();
-        const isSourceUnlocked = !(await mnemonicSource.isLocked());
-
-        if (isSourceUnlocked) {
+        const isLocked = await mnemonicSource.isLocked();
+        if (!isLocked) {
             await mnemonicSource.lock();
-            await this.onLocked(options);
+            await this.onLocked(allowRead);
         }
     }
 
-    async passwordUnlock(
-        password?: string,
-        options: UnlockAccountOptions = { skipEventEmit: true },
-    ): Promise<void> {
+    async passwordUnlock(password?: string): Promise<void> {
         const mnemonicSource = await this.#getMnemonicSource();
         const isLocked = await mnemonicSource.isLocked();
 
@@ -108,7 +98,7 @@ export class MnemonicAccount
             }
 
             await mnemonicSource.unlock(password);
-            await this.onUnlocked(options);
+            await this.onUnlocked();
         }
     }
 
