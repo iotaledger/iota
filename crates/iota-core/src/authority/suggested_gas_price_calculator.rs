@@ -131,18 +131,19 @@ impl SuggestedGasPriceCalculator {
             );
 
             tx.object_ids().iter().for_each(|obj_id| {
-                self.congestion_info
-                    .entry(*obj_id)
-                    .and_modify(|per_object_congestion_info| {
-                        per_object_congestion_info.insert(
-                            tx.execution_start_time(),
-                            scheduled_transaction_congestion_info,
-                        );
-                    })
-                    .or_insert(PerObjectCongestionInfo::from([(
-                        tx.execution_start_time(),
-                        scheduled_transaction_congestion_info,
-                    )]));
+                let prev_info = self.congestion_info.entry(*obj_id).or_default().insert(
+                    tx.execution_start_time(),
+                    scheduled_transaction_congestion_info,
+                );
+                // The sequencer should not schedule multiple transactions with the same
+                // execution start time for the same shared object, but just in case,
+                // check this during development/testing.
+                debug_assert!(
+                    prev_info.is_none(),
+                    "Multiple transactions were scheduled at the same execution start time {} \
+                        for the same shared object {obj_id:?}",
+                    tx.execution_start_time(),
+                );
             });
         }
     }
