@@ -182,79 +182,12 @@ impl KvStoreClient {
                     _ => None,
                 })?;
 
-                // pre-allocate results with None. Matching cells will replace None with
-                // Some(value), and unmatched keys will remain None.
-                let mut results = vec![None; keys.len()];
-
                 let digest_keys = checkpoint_digests
                     .iter()
                     .map(|digest| digest.inner().to_vec())
                     .collect::<Vec<Vec<u8>>>();
 
-                // map digest key bytes to original index for later lookup.
-                let digest_key_to_index = digest_keys
-                    .iter()
-                    .enumerate()
-                    .map(|(index, key)| (key.clone(), index))
-                    .collect::<HashMap<Vec<u8>, usize>>();
-
-                // get checkpoint sequence numbers from provided digest keys.
-                let digest_to_seq_num = client
-                    .multi_get(CHECKPOINTS_BY_DIGEST_TABLE, digest_keys.clone(), None)
-                    .await
-                    .map_err(anyhow::Error::from)?
-                    .into_iter()
-                    .filter_map(|row| {
-                        row.cells
-                            .into_iter()
-                            .next()
-                            .map(|cell| (row.key, cell.value))
-                    })
-                    .collect::<HashMap<Vec<u8>, Vec<u8>>>();
-
-                // map checkpoint sequence numbers to their digest indices to maintain order
-                // through second query.
-                let seq_num_to_digest_index = digest_to_seq_num
-                    .iter()
-                    .filter_map(|(digest_key, seq_num)| {
-                        digest_key_to_index
-                            .get(digest_key)
-                            .map(|&index| (seq_num.clone(), index))
-                    })
-                    .collect::<HashMap<Vec<u8>, usize>>();
-
-                // get checkpoint summaries using sequence numbers as keys.
-                let seq_nums = digest_to_seq_num
-                    .values()
-                    .cloned()
-                    .collect::<Vec<Vec<u8>>>();
-
-                // narrow the search to only the checkpoint summaries.
-                let exact_column_filter = RowFilter {
-                    filter: Some(Filter::ColumnQualifierRegexFilter(
-                        format!("^{CHECKPOINT_SUMMARY_COLUMN_QUALIFIER}$").into_bytes(),
-                    )),
-                };
-
-                for row in client
-                    .multi_get(CHECKPOINTS_TABLE, seq_nums, Some(exact_column_filter))
-                    .await
-                    .map_err(anyhow::Error::from)?
-                {
-                    for Cell { name, value } in row.cells {
-                        let cell_name = std::str::from_utf8(&name).map_err(anyhow::Error::from)?;
-                        if cell_name == CHECKPOINT_SUMMARY_COLUMN_QUALIFIER {
-                            // map from sequence number back to original digest index
-                            if let Some(&digest_index) = seq_num_to_digest_index.get(&row.key) {
-                                results[digest_index] = Some(Bytes::from(value));
-                            }
-                        } else {
-                            error!("unexpected column {cell_name:?} in checkpoints table")
-                        }
-                    }
-                }
-
-                Ok(results)
+                fetch_checkpoint_summary_by_digests(&mut client, digest_keys).await
             }
             Key::TransactionToCheckpoint(_) => {
                 let digests = Self::extract_keys(&keys, |k| match k {
@@ -372,6 +305,67 @@ async fn multi_get_cell(
                 }
             } else {
                 error!("unexpected column {cell_name:?} in checkpoints table")
+            }
+        }
+    }
+
+    Ok(results)
+}
+
+/// Fetch multiple checkpoint summaries by its checkpoint digest.
+async fn fetch_checkpoint_summary_by_digests(
+    client: &mut BigTableClient,
+    keys: Vec<Vec<u8>>,
+) -> Result<Vec<Option<Bytes>>, anyhow::Error> {
+    let keys_len = keys.len();
+
+    let sequence_numbers = multi_get_cell(
+        client,
+        CHECKPOINTS_BY_DIGEST_TABLE,
+        keys,
+        DEFAULT_COLUMN_QUALIFIER,
+    )
+    .await?;
+
+    let seq_numbers_keys = sequence_numbers
+        .iter()
+        .flatten()
+        .map(|bytes| bytes.to_vec())
+        .collect::<Vec<Vec<u8>>>();
+
+    let checkpoint_summaries = multi_get_cell(
+        client,
+        CHECKPOINTS_TABLE,
+        seq_numbers_keys.clone(),
+        CHECKPOINT_SUMMARY_COLUMN_QUALIFIER,
+    )
+    .await?;
+
+    // the response len matches the original requested keys, meaning all data was
+    // found.
+    if keys_len == checkpoint_summaries.len() {
+        return Ok(checkpoint_summaries);
+    }
+
+    let mut results = vec![None; keys_len];
+
+    let seq_nums_to_index = sequence_numbers
+        .iter()
+        .enumerate()
+        .filter_map(|(index, opt_seq_num)| {
+            opt_seq_num.as_ref().map(|seq_num| {
+                let seq_num_vec = seq_num.to_vec();
+                (seq_num_vec.clone(), index)
+            })
+        })
+        .collect::<HashMap<Vec<u8>, usize>>();
+
+    // fill the checkpoint summary in the same order as the original requested keys
+    for (index, opt_summary) in checkpoint_summaries.into_iter().enumerate() {
+        if let Some(summary) = opt_summary {
+            let seq_num = &seq_numbers_keys[index];
+            if let Some(&original_index) = seq_nums_to_index.get(seq_num) {
+                results[original_index] = Some(summary);
             }
         }
     }
