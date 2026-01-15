@@ -60,7 +60,6 @@ task 9, lines 77-157:
 Response: {
   "data": {
     "latest": {
-      "version": 7,
       "dynamicFields": {
         "edges": [
           {
@@ -72,8 +71,8 @@ Response: {
               "value": {
                 "contents": {
                   "json": {
-                    "id": "0xb9a8b3024f6bb1444ce781bb2be1e2f5c886c75f194d7973f7d644a227c8f5b4",
-                    "count": "0"
+                    "count": "0",
+                    "id": "0xb9a8b3024f6bb1444ce781bb2be1e2f5c886c75f194d7973f7d644a227c8f5b4"
                   }
                 }
               }
@@ -88,12 +87,13 @@ Response: {
         "value": {
           "contents": {
             "json": {
-              "id": "0xb9a8b3024f6bb1444ce781bb2be1e2f5c886c75f194d7973f7d644a227c8f5b4",
-              "count": "0"
+              "count": "0",
+              "id": "0xb9a8b3024f6bb1444ce781bb2be1e2f5c886c75f194d7973f7d644a227c8f5b4"
             }
           }
         }
-      }
+      },
+      "version": 7
     },
     "owner_view": {
       "dynamicFields": {
@@ -107,8 +107,8 @@ Response: {
               "value": {
                 "contents": {
                   "json": {
-                    "id": "0xb9a8b3024f6bb1444ce781bb2be1e2f5c886c75f194d7973f7d644a227c8f5b4",
-                    "count": "0"
+                    "count": "0",
+                    "id": "0xb9a8b3024f6bb1444ce781bb2be1e2f5c886c75f194d7973f7d644a227c8f5b4"
                   }
                 }
               }
@@ -123,22 +123,21 @@ Response: {
         "value": {
           "contents": {
             "json": {
-              "id": "0xb9a8b3024f6bb1444ce781bb2be1e2f5c886c75f194d7973f7d644a227c8f5b4",
-              "count": "0"
+              "count": "0",
+              "id": "0xb9a8b3024f6bb1444ce781bb2be1e2f5c886c75f194d7973f7d644a227c8f5b4"
             }
           }
         }
       }
     },
     "v2": {
-      "version": 2,
       "dynamicFields": {
         "edges": []
       },
-      "dynamicObjectField": null
+      "dynamicObjectField": null,
+      "version": 2
     },
     "v3": {
-      "version": 3,
       "dynamicFields": {
         "edges": [
           {
@@ -150,8 +149,8 @@ Response: {
               "value": {
                 "contents": {
                   "json": {
-                    "id": "0xb9a8b3024f6bb1444ce781bb2be1e2f5c886c75f194d7973f7d644a227c8f5b4",
-                    "count": "0"
+                    "count": "0",
+                    "id": "0xb9a8b3024f6bb1444ce781bb2be1e2f5c886c75f194d7973f7d644a227c8f5b4"
                   }
                 }
               }
@@ -166,22 +165,22 @@ Response: {
         "value": {
           "contents": {
             "json": {
-              "id": "0xb9a8b3024f6bb1444ce781bb2be1e2f5c886c75f194d7973f7d644a227c8f5b4",
-              "count": "0"
+              "count": "0",
+              "id": "0xb9a8b3024f6bb1444ce781bb2be1e2f5c886c75f194d7973f7d644a227c8f5b4"
             }
           }
         }
-      }
+      },
+      "version": 3
     },
     "v4": {
-      "version": 4,
       "dynamicFields": {
         "edges": []
       },
-      "dynamicObjectField": null
+      "dynamicObjectField": null,
+      "version": 4
     },
     "v7": {
-      "version": 7,
       "dynamicFields": {
         "edges": [
           {
@@ -193,8 +192,8 @@ Response: {
               "value": {
                 "contents": {
                   "json": {
-                    "id": "0xb9a8b3024f6bb1444ce781bb2be1e2f5c886c75f194d7973f7d644a227c8f5b4",
-                    "count": "0"
+                    "count": "0",
+                    "id": "0xb9a8b3024f6bb1444ce781bb2be1e2f5c886c75f194d7973f7d644a227c8f5b4"
                   }
                 }
               }
@@ -209,12 +208,13 @@ Response: {
         "value": {
           "contents": {
             "json": {
-              "id": "0xb9a8b3024f6bb1444ce781bb2be1e2f5c886c75f194d7973f7d644a227c8f5b4",
-              "count": "0"
+              "count": "0",
+              "id": "0xb9a8b3024f6bb1444ce781bb2be1e2f5c886c75f194d7973f7d644a227c8f5b4"
             }
           }
         }
-      }
+      },
+      "version": 7
     }
   }
 }

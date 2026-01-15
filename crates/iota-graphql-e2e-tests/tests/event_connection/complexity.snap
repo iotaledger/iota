@@ -1,0 +1,842 @@
+---
+source: external-crates/move/crates/move-transactional-test-runner/src/framework.rs
+---
+processed 12 tasks
+
+init:
+A: object(0,0)
+
+task 1, lines 6-21:
+//# publish
+created: object(1,0)
+mutated: object(0,1)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 4841200,  storage_rebate: 0, non_refundable_storage_fee: 0
+
+task 2, line 23:
+//# run Test::M1::emit_100 --sender A
+events: Event { package_id: Test, transaction_module: Identifier("M1"), sender: A, type_: StructTag { address: Test, module: Identifier("M1"), name: Identifier("EventA"), type_params: [] }, contents: [0, 0, 0, 0, 0, 0, 0, 0] }, Event { package_id: Test, transaction_module: Identifier("M1"), sender: A, type_: StructTag { address: Test, module: Identifier("M1"), name: Identifier("EventA"), type_params: [] }, contents: [1, 0, 0, 0, 0, 0, 0, 0] }, Event { package_id: Test, transaction_module: Identifier("M1"), sender: A, type_: StructTag { address: Test, module: Identifier("M1"), name: Identifier("EventA"), type_params: [] }, contents: [2, 0, 0, 0, 0, 0, 0, 0] }, Event { package_id: Test, transaction_module: Identifier("M1"), sender: A, type_: StructTag { address: Test, module: Identifier("M1"), name: Identifier("EventA"), type_params: [] }, contents: [3, 0, 0, 0, 0, 0, 0, 0] }, Event { package_id: Test, transaction_module: Identifier("M1"), sender: A, type_: StructTag { address: Test, module: Identifier("M1"), name: Identifier("EventA"), type_params: [] }, contents: [4, 0, 0, 0, 0, 0, 0, 0] }, Event { package_id: Test, transaction_module: Identifier("M1"), sender: A, type_: StructTag { address: Test, module: Identifier("M1"), name: Identifier("EventA"), type_params: [] }, contents: [5, 0, 0, 0, 0, 0, 0, 0] }, Event { package_id: Test, transaction_module: Identifier("M1"), sender: A, type_: StructTag { address: Test, module: Identifier("M1"), name: Identifier("EventA"), type_params: [] }, contents: [6, 0, 0, 0, 0, 0, 0, 0] }, Event { package_id: Test, transaction_module: Identifier("M1"), sender: A, type_: StructTag { address: Test, module: Identifier("M1"), name: Identifier("EventA"), type_params: [] }, contents: [7, 0, 0, 0, 0, 0, 0, 0] }, Event { package_id: Test, transaction_module: Identifier("M1"), sender: A, type_: StructTag { address: Test, module: Identifier("M1"), name: Identifier("EventA"), type_params: [] }, contents: [8, 0, 0, 0, 0, 0, 0, 0] }, Event { package_id: Test, transaction_module: Identifier("M1"), sender: A, type_: StructTag { address: Test, module: Identifier("M1"), name: Identifier("EventA"), type_params: [] }, contents: [9, 0, 0, 0, 0, 0, 0, 0] }, Event { package_id: Test, transaction_module: Identifier("M1"), sender: A, type_: StructTag { address: Test, module: Identifier("M1"), name: Identifier("EventA"), type_params: [] }, contents: [10, 0, 0, 0, 0, 0, 0, 0] }, Event { package_id: Test, transaction_module: Identifier("M1"), sender: A, type_: StructTag { address: Test, module: Identifier("M1"), name: Identifier("EventA"), type_params: [] }, contents: [11, 0, 0, 0, 0, 0, 0, 0] }, Event { package_id: Test, transaction_module: Identifier("M1"), sender: A, type_: StructTag { address: Test, module: Identifier("M1"), name: Identifier("EventA"), type_params: [] }, contents: [12, 0, 0, 0, 0, 0, 0, 0] }, Event { package_id: Test, transaction_module: Identifier("M1"), sender: A, type_: StructTag { address: Test, module: Identifier("M1"), name: Identifier("EventA"), type_params: [] }, contents: [13, 0, 0, 0, 0, 0, 0, 0] }, Event { package_id: Test, transaction_module: Identifier("M1"), sender: A, type_: StructTag { address: Test, module: Identifier("M1"), name: Identifier("EventA"), type_params: [] }, contents: [14, 0, 0, 0, 0, 0, 0, 0] }, Event { package_id: Test, transaction_module: Identifier("M1"), sender: A, type_: StructTag { address: Test, module: Identifier("M1"), name: Identifier("EventA"), type_params: [] }, contents: [15, 0, 0, 0, 0, 0, 0, 0] }, Event { package_id: Test, transaction_module: Identifier("M1"), sender: A, type_: StructTag { address: Test, module: Identifier("M1"), name: Identifier("EventA"), type_params: [] }, contents: [16, 0, 0, 0, 0, 0, 0, 0] }, Event { package_id: Test, transaction_module: Identifier("M1"), sender: A, type_: StructTag { address: Test, module: Identifier("M1"), name: Identifier("EventA"), type_params: [] }, contents: [17, 0, 0, 0, 0, 0, 0, 0] }, Event { package_id: Test, transaction_module: Identifier("M1"), sender: A, type_: StructTag { address: Test, module: Identifier("M1"), name: Identifier("EventA"), type_params: [] }, contents: [18, 0, 0, 0, 0, 0, 0, 0] }, Event { package_id: Test, transaction_module: Identifier("M1"), sender: A, type_: StructTag { address: Test, module: Identifier("M1"), name: Identifier("EventA"), type_params: [] }, contents: [19, 0, 0, 0, 0, 0, 0, 0] }, Event { package_id: Test, transaction_module: Identifier("M1"), sender: A, type_: StructTag { address: Test, module: Identifier("M1"), name: Identifier("EventA"), type_params: [] }, contents: [20, 0, 0, 0, 0, 0, 0, 0] }, Event { package_id: Test, transaction_module: Identifier("M1"), sender: A, type_: StructTag { address: Test, module: Identifier("M1"), name: Identifier("EventA"), type_params: [] }, contents: [21, 0, 0, 0, 0, 0, 0, 0] }, Event { package_id: Test, transaction_module: Identifier("M1"), sender: A, type_: StructTag { address: Test, module: Identifier("M1"), name: Identifier("EventA"), type_params: [] }, contents: [22, 0, 0, 0, 0, 0, 0, 0] }, Event { package_id: Test, transaction_module: Identifier("M1"), sender: A, type_: StructTag { address: Test, module: Identifier("M1"), name: Identifier("EventA"), type_params: [] }, contents: [23, 0, 0, 0, 0, 0, 0, 0] }, Event { package_id: Test, transaction_module: Identifier("M1"), sender: A, type_: StructTag { address: Test, module: Identifier("M1"), name: Identifier("EventA"), type_params: [] }, contents: [24, 0, 0, 0, 0, 0, 0, 0] }, Event { package_id: Test, transaction_module: Identifier("M1"), sender: A, type_: StructTag { address: Test, module: Identifier("M1"), name: Identifier("EventA"), type_params: [] }, contents: [25, 0, 0, 0, 0, 0, 0, 0] }, Event { package_id: Test, transaction_module: Identifier("M1"), sender: A, type_: StructTag { address: Test, module: Identifier("M1"), name: Identifier("EventA"), type_params: [] }, contents: [26, 0, 0, 0, 0, 0, 0, 0] }, Event { package_id: Test, transaction_module: Identifier("M1"), sender: A, type_: StructTag { address: Test, module: Identifier("M1"), name: Identifier("EventA"), type_params: [] }, contents: [27, 0, 0, 0, 0, 0, 0, 0] }, Event { package_id: Test, transaction_module: Identifier("M1"), sender: A, type_: StructTag { address: Test, module: Identifier("M1"), name: Identifier("EventA"), type_params: [] }, contents: [28, 0, 0, 0, 0, 0, 0, 0] }, Event { package_id: Test, transaction_module: Identifier("M1"), sender: A, type_: StructTag { address: Test, module: Identifier("M1"), name: Identifier("EventA"), type_params: [] }, contents: [29, 0, 0, 0, 0, 0, 0, 0] }, Event { package_id: Test, transaction_module: Identifier("M1"), sender: A, type_: StructTag { address: Test, module: Identifier("M1"), name: Identifier("EventA"), type_params: [] }, contents: [30, 0, 0, 0, 0, 0, 0, 0] }, Event { package_id: Test, transaction_module: Identifier("M1"), sender: A, type_: StructTag { address: Test, module: Identifier("M1"), name: Identifier("EventA"), type_params: [] }, contents: [31, 0, 0, 0, 0, 0, 0, 0] }, Event { package_id: Test, transaction_module: Identifier("M1"), sender: A, type_: StructTag { address: Test, module: Identifier("M1"), name: Identifier("EventA"), type_params: [] }, contents: [32, 0, 0, 0, 0, 0, 0, 0] }, Event { package_id: Test, transaction_module: Identifier("M1"), sender: A, type_: StructTag { address: Test, module: Identifier("M1"), name: Identifier("EventA"), type_params: [] }, contents: [33, 0, 0, 0, 0, 0, 0, 0] }, Event { package_id: Test, transaction_module: Identifier("M1"), sender: A, type_: StructTag { address: Test, module: Identifier("M1"), name: Identifier("EventA"), type_params: [] }, contents: [34, 0, 0, 0, 0, 0, 0, 0] }, Event { package_id: Test, transaction_module: Identifier("M1"), sender: A, type_: StructTag { address: Test, module: Identifier("M1"), name: Identifier("EventA"), type_params: [] }, contents: [35, 0, 0, 0, 0, 0, 0, 0] }, Event { package_id: Test, transaction_module: Identifier("M1"), sender: A, type_: StructTag { address: Test, module: Identifier("M1"), name: Identifier("EventA"), type_params: [] }, contents: [36, 0, 0, 0, 0, 0, 0, 0] }, Event { package_id: Test, transaction_module: Identifier("M1"), sender: A, type_: StructTag { address: Test, module: Identifier("M1"), name: Identifier("EventA"), type_params: [] }, contents: [37, 0, 0, 0, 0, 0, 0, 0] }, Event { package_id: Test, transaction_module: Identifier("M1"), sender: A, type_: StructTag { address: Test, module: Identifier("M1"), name: Identifier("EventA"), type_params: [] }, contents: [38, 0, 0, 0, 0, 0, 0, 0] }, Event { package_id: Test, transaction_module: Identifier("M1"), sender: A, type_: StructTag { address: Test, module: Identifier("M1"), name: Identifier("EventA"), type_params: [] }, contents: [39, 0, 0, 0, 0, 0, 0, 0] }, Event { package_id: Test, transaction_module: Identifier("M1"), sender: A, type_: StructTag { address: Test, module: Identifier("M1"), name: Identifier("EventA"), type_params: [] }, contents: [40, 0, 0, 0, 0, 0, 0, 0] }, Event { package_id: Test, transaction_module: Identifier("M1"), sender: A, type_: StructTag { address: Test, module: Identifier("M1"), name: Identifier("EventA"), type_params: [] }, contents: [41, 0, 0, 0, 0, 0, 0, 0] }, Event { package_id: Test, transaction_module: Identifier("M1"), sender: A, type_: StructTag { address: Test, module: Identifier("M1"), name: Identifier("EventA"), type_params: [] }, contents: [42, 0, 0, 0, 0, 0, 0, 0] }, Event { package_id: Test, transaction_module: Identifier("M1"), sender: A, type_: StructTag { address: Test, module: Identifier("M1"), name: Identifier("EventA"), type_params: [] }, contents: [43, 0, 0, 0, 0, 0, 0, 0] }, Event { package_id: Test, transaction_module: Identifier("M1"), sender: A, type_: StructTag { address: Test, module: Identifier("M1"), name: Identifier("EventA"), type_params: [] }, contents: [44, 0, 0, 0, 0, 0, 0, 0] }, Event { package_id: Test, transaction_module: Identifier("M1"), sender: A, type_: StructTag { address: Test, module: Identifier("M1"), name: Identifier("EventA"), type_params: [] }, contents: [45, 0, 0, 0, 0, 0, 0, 0] }, Event { package_id: Test, transaction_module: Identifier("M1"), sender: A, type_: StructTag { address: Test, module: Identifier("M1"), name: Identifier("EventA"), type_params: [] }, contents: [46, 0, 0, 0, 0, 0, 0, 0] }, Event { package_id: Test, transaction_module: Identifier("M1"), sender: A, type_: StructTag { address: Test, module: Identifier("M1"), name: Identifier("EventA"), type_params: [] }, contents: [47, 0, 0, 0, 0, 0, 0, 0] }, Event { package_id: Test, transaction_module: Identifier("M1"), sender: A, type_: StructTag { address: Test, module: Identifier("M1"), name: Identifier("EventA"), type_params: [] }, contents: [48, 0, 0, 0, 0, 0, 0, 0] }, Event { package_id: Test, transaction_module: Identifier("M1"), sender: A, type_: StructTag { address: Test, module: Identifier("M1"), name: Identifier("EventA"), type_params: [] }, contents: [49, 0, 0, 0, 0, 0, 0, 0] }, Event { package_id: Test, transaction_module: Identifier("M1"), sender: A, type_: StructTag { address: Test, module: Identifier("M1"), name: Identifier("EventA"), type_params: [] }, contents: [50, 0, 0, 0, 0, 0, 0, 0] }, Event { package_id: Test, transaction_module: Identifier("M1"), sender: A, type_: StructTag { address: Test, module: Identifier("M1"), name: Identifier("EventA"), type_params: [] }, contents: [51, 0, 0, 0, 0, 0, 0, 0] }, Event { package_id: Test, transaction_module: Identifier("M1"), sender: A, type_: StructTag { address: Test, module: Identifier("M1"), name: Identifier("EventA"), type_params: [] }, contents: [52, 0, 0, 0, 0, 0, 0, 0] }, Event { package_id: Test, transaction_module: Identifier("M1"), sender: A, type_: StructTag { address: Test, module: Identifier("M1"), name: Identifier("EventA"), type_params: [] }, contents: [53, 0, 0, 0, 0, 0, 0, 0] }, Event { package_id: Test, transaction_module: Identifier("M1"), sender: A, type_: StructTag { address: Test, module: Identifier("M1"), name: Identifier("EventA"), type_params: [] }, contents: [54, 0, 0, 0, 0, 0, 0, 0] }, Event { package_id: Test, transaction_module: Identifier("M1"), sender: A, type_: StructTag { address: Test, module: Identifier("M1"), name: Identifier("EventA"), type_params: [] }, contents: [55, 0, 0, 0, 0, 0, 0, 0] }, Event { package_id: Test, transaction_module: Identifier("M1"), sender: A, type_: StructTag { address: Test, module: Identifier("M1"), name: Identifier("EventA"), type_params: [] }, contents: [56, 0, 0, 0, 0, 0, 0, 0] }, Event { package_id: Test, transaction_module: Identifier("M1"), sender: A, type_: StructTag { address: Test, module: Identifier("M1"), name: Identifier("EventA"), type_params: [] }, contents: [57, 0, 0, 0, 0, 0, 0, 0] }, Event { package_id: Test, transaction_module: Identifier("M1"), sender: A, type_: StructTag { address: Test, module: Identifier("M1"), name: Identifier("EventA"), type_params: [] }, contents: [58, 0, 0, 0, 0, 0, 0, 0] }, Event { package_id: Test, transaction_module: Identifier("M1"), sender: A, type_: StructTag { address: Test, module: Identifier("M1"), name: Identifier("EventA"), type_params: [] }, contents: [59, 0, 0, 0, 0, 0, 0, 0] }, Event { package_id: Test, transaction_module: Identifier("M1"), sender: A, type_: StructTag { address: Test, module: Identifier("M1"), name: Identifier("EventA"), type_params: [] }, contents: [60, 0, 0, 0, 0, 0, 0, 0] }, Event { package_id: Test, transaction_module: Identifier("M1"), sender: A, type_: StructTag { address: Test, module: Identifier("M1"), name: Identifier("EventA"), type_params: [] }, contents: [61, 0, 0, 0, 0, 0, 0, 0] }, Event { package_id: Test, transaction_module: Identifier("M1"), sender: A, type_: StructTag { address: Test, module: Identifier("M1"), name: Identifier("EventA"), type_params: [] }, contents: [62, 0, 0, 0, 0, 0, 0, 0] }, Event { package_id: Test, transaction_module: Identifier("M1"), sender: A, type_: StructTag { address: Test, module: Identifier("M1"), name: Identifier("EventA"), type_params: [] }, contents: [63, 0, 0, 0, 0, 0, 0, 0] }, Event { package_id: Test, transaction_module: Identifier("M1"), sender: A, type_: StructTag { address: Test, module: Identifier("M1"), name: Identifier("EventA"), type_params: [] }, contents: [64, 0, 0, 0, 0, 0, 0, 0] }, Event { package_id: Test, transaction_module: Identifier("M1"), sender: A, type_: StructTag { address: Test, module: Identifier("M1"), name: Identifier("EventA"), type_params: [] }, contents: [65, 0, 0, 0, 0, 0, 0, 0] }, Event { package_id: Test, transaction_module: Identifier("M1"), sender: A, type_: StructTag { address: Test, module: Identifier("M1"), name: Identifier("EventA"), type_params: [] }, contents: [66, 0, 0, 0, 0, 0, 0, 0] }, Event { package_id: Test, transaction_module: Identifier("M1"), sender: A, type_: StructTag { address: Test, module: Identifier("M1"), name: Identifier("EventA"), type_params: [] }, contents: [67, 0, 0, 0, 0, 0, 0, 0] }, Event { package_id: Test, transaction_module: Identifier("M1"), sender: A, type_: StructTag { address: Test, module: Identifier("M1"), name: Identifier("EventA"), type_params: [] }, contents: [68, 0, 0, 0, 0, 0, 0, 0] }, Event { package_id: Test, transaction_module: Identifier("M1"), sender: A, type_: StructTag { address: Test, module: Identifier("M1"), name: Identifier("EventA"), type_params: [] }, contents: [69, 0, 0, 0, 0, 0, 0, 0] }, Event { package_id: Test, transaction_module: Identifier("M1"), sender: A, type_: StructTag { address: Test, module: Identifier("M1"), name: Identifier("EventA"), type_params: [] }, contents: [70, 0, 0, 0, 0, 0, 0, 0] }, Event { package_id: Test, transaction_module: Identifier("M1"), sender: A, type_: StructTag { address: Test, module: Identifier("M1"), name: Identifier("EventA"), type_params: [] }, contents: [71, 0, 0, 0, 0, 0, 0, 0] }, Event { package_id: Test, transaction_module: Identifier("M1"), sender: A, type_: StructTag { address: Test, module: Identifier("M1"), name: Identifier("EventA"), type_params: [] }, contents: [72, 0, 0, 0, 0, 0, 0, 0] }, Event { package_id: Test, transaction_module: Identifier("M1"), sender: A, type_: StructTag { address: Test, module: Identifier("M1"), name: Identifier("EventA"), type_params: [] }, contents: [73, 0, 0, 0, 0, 0, 0, 0] }, Event { package_id: Test, transaction_module: Identifier("M1"), sender: A, type_: StructTag { address: Test, module: Identifier("M1"), name: Identifier("EventA"), type_params: [] }, contents: [74, 0, 0, 0, 0, 0, 0, 0] }, Event { package_id: Test, transaction_module: Identifier("M1"), sender: A, type_: StructTag { address: Test, module: Identifier("M1"), name: Identifier("EventA"), type_params: [] }, contents: [75, 0, 0, 0, 0, 0, 0, 0] }, Event { package_id: Test, transaction_module: Identifier("M1"), sender: A, type_: StructTag { address: Test, module: Identifier("M1"), name: Identifier("EventA"), type_params: [] }, contents: [76, 0, 0, 0, 0, 0, 0, 0] }, Event { package_id: Test, transaction_module: Identifier("M1"), sender: A, type_: StructTag { address: Test, module: Identifier("M1"), name: Identifier("EventA"), type_params: [] }, contents: [77, 0, 0, 0, 0, 0, 0, 0] }, Event { package_id: Test, transaction_module: Identifier("M1"), sender: A, type_: StructTag { address: Test, module: Identifier("M1"), name: Identifier("EventA"), type_params: [] }, contents: [78, 0, 0, 0, 0, 0, 0, 0] }, Event { package_id: Test, transaction_module: Identifier("M1"), sender: A, type_: StructTag { address: Test, module: Identifier("M1"), name: Identifier("EventA"), type_params: [] }, contents: [79, 0, 0, 0, 0, 0, 0, 0] }, Event { package_id: Test, transaction_module: Identifier("M1"), sender: A, type_: StructTag { address: Test, module: Identifier("M1"), name: Identifier("EventA"), type_params: [] }, contents: [80, 0, 0, 0, 0, 0, 0, 0] }, Event { package_id: Test, transaction_module: Identifier("M1"), sender: A, type_: StructTag { address: Test, module: Identifier("M1"), name: Identifier("EventA"), type_params: [] }, contents: [81, 0, 0, 0, 0, 0, 0, 0] }, Event { package_id: Test, transaction_module: Identifier("M1"), sender: A, type_: StructTag { address: Test, module: Identifier("M1"), name: Identifier("EventA"), type_params: [] }, contents: [82, 0, 0, 0, 0, 0, 0, 0] }, Event { package_id: Test, transaction_module: Identifier("M1"), sender: A, type_: StructTag { address: Test, module: Identifier("M1"), name: Identifier("EventA"), type_params: [] }, contents: [83, 0, 0, 0, 0, 0, 0, 0] }, Event { package_id: Test, transaction_module: Identifier("M1"), sender: A, type_: StructTag { address: Test, module: Identifier("M1"), name: Identifier("EventA"), type_params: [] }, contents: [84, 0, 0, 0, 0, 0, 0, 0] }, Event { package_id: Test, transaction_module: Identifier("M1"), sender: A, type_: StructTag { address: Test, module: Identifier("M1"), name: Identifier("EventA"), type_params: [] }, contents: [85, 0, 0, 0, 0, 0, 0, 0] }, Event { package_id: Test, transaction_module: Identifier("M1"), sender: A, type_: StructTag { address: Test, module: Identifier("M1"), name: Identifier("EventA"), type_params: [] }, contents: [86, 0, 0, 0, 0, 0, 0, 0] }, Event { package_id: Test, transaction_module: Identifier("M1"), sender: A, type_: StructTag { address: Test, module: Identifier("M1"), name: Identifier("EventA"), type_params: [] }, contents: [87, 0, 0, 0, 0, 0, 0, 0] }, Event { package_id: Test, transaction_module: Identifier("M1"), sender: A, type_: StructTag { address: Test, module: Identifier("M1"), name: Identifier("EventA"), type_params: [] }, contents: [88, 0, 0, 0, 0, 0, 0, 0] }, Event { package_id: Test, transaction_module: Identifier("M1"), sender: A, type_: StructTag { address: Test, module: Identifier("M1"), name: Identifier("EventA"), type_params: [] }, contents: [89, 0, 0, 0, 0, 0, 0, 0] }, Event { package_id: Test, transaction_module: Identifier("M1"), sender: A, type_: StructTag { address: Test, module: Identifier("M1"), name: Identifier("EventA"), type_params: [] }, contents: [90, 0, 0, 0, 0, 0, 0, 0] }, Event { package_id: Test, transaction_module: Identifier("M1"), sender: A, type_: StructTag { address: Test, module: Identifier("M1"), name: Identifier("EventA"), type_params: [] }, contents: [91, 0, 0, 0, 0, 0, 0, 0] }, Event { package_id: Test, transaction_module: Identifier("M1"), sender: A, type_: StructTag { address: Test, module: Identifier("M1"), name: Identifier("EventA"), type_params: [] }, contents: [92, 0, 0, 0, 0, 0, 0, 0] }, Event { package_id: Test, transaction_module: Identifier("M1"), sender: A, type_: StructTag { address: Test, module: Identifier("M1"), name: Identifier("EventA"), type_params: [] }, contents: [93, 0, 0, 0, 0, 0, 0, 0] }, Event { package_id: Test, transaction_module: Identifier("M1"), sender: A, type_: StructTag { address: Test, module: Identifier("M1"), name: Identifier("EventA"), type_params: [] }, contents: [94, 0, 0, 0, 0, 0, 0, 0] }, Event { package_id: Test, transaction_module: Identifier("M1"), sender: A, type_: StructTag { address: Test, module: Identifier("M1"), name: Identifier("EventA"), type_params: [] }, contents: [95, 0, 0, 0, 0, 0, 0, 0] }, Event { package_id: Test, transaction_module: Identifier("M1"), sender: A, type_: StructTag { address: Test, module: Identifier("M1"), name: Identifier("EventA"), type_params: [] }, contents: [96, 0, 0, 0, 0, 0, 0, 0] }, Event { package_id: Test, transaction_module: Identifier("M1"), sender: A, type_: StructTag { address: Test, module: Identifier("M1"), name: Identifier("EventA"), type_params: [] }, contents: [97, 0, 0, 0, 0, 0, 0, 0] }, Event { package_id: Test, transaction_module: Identifier("M1"), sender: A, type_: StructTag { address: Test, module: Identifier("M1"), name: Identifier("EventA"), type_params: [] }, contents: [98, 0, 0, 0, 0, 0, 0, 0] }, Event { package_id: Test, transaction_module: Identifier("M1"), sender: A, type_: StructTag { address: Test, module: Identifier("M1"), name: Identifier("EventA"), type_params: [] }, contents: [99, 0, 0, 0, 0, 0, 0, 0] }
+mutated: object(0,0)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 980400,  storage_rebate: 0, non_refundable_storage_fee: 0
+
+task 3, line 25:
+//# create-checkpoint
+Checkpoint created: 1
+
+task 4, lines 27-41:
+//# run-graphql
+Response: {
+  "data": {
+    "events": {
+      "nodes": [
+        {
+          "bcs": "AAAAAAAAAAA=",
+          "json": {
+            "new_value": "0"
+          },
+          "sendingModule": {
+            "name": "M1"
+          },
+          "transactionBlock": {
+            "digest": "FN31rqGck1n9bBEdgPZWoum1ZVQn64bgWAp2YPfgEmjj"
+          }
+        },
+        {
+          "bcs": "AQAAAAAAAAA=",
+          "json": {
+            "new_value": "1"
+          },
+          "sendingModule": {
+            "name": "M1"
+          },
+          "transactionBlock": {
+            "digest": "FN31rqGck1n9bBEdgPZWoum1ZVQn64bgWAp2YPfgEmjj"
+          }
+        },
+        {
+          "bcs": "AgAAAAAAAAA=",
+          "json": {
+            "new_value": "2"
+          },
+          "sendingModule": {
+            "name": "M1"
+          },
+          "transactionBlock": {
+            "digest": "FN31rqGck1n9bBEdgPZWoum1ZVQn64bgWAp2YPfgEmjj"
+          }
+        },
+        {
+          "bcs": "AwAAAAAAAAA=",
+          "json": {
+            "new_value": "3"
+          },
+          "sendingModule": {
+            "name": "M1"
+          },
+          "transactionBlock": {
+            "digest": "FN31rqGck1n9bBEdgPZWoum1ZVQn64bgWAp2YPfgEmjj"
+          }
+        },
+        {
+          "bcs": "BAAAAAAAAAA=",
+          "json": {
+            "new_value": "4"
+          },
+          "sendingModule": {
+            "name": "M1"
+          },
+          "transactionBlock": {
+            "digest": "FN31rqGck1n9bBEdgPZWoum1ZVQn64bgWAp2YPfgEmjj"
+          }
+        },
+        {
+          "bcs": "BQAAAAAAAAA=",
+          "json": {
+            "new_value": "5"
+          },
+          "sendingModule": {
+            "name": "M1"
+          },
+          "transactionBlock": {
+            "digest": "FN31rqGck1n9bBEdgPZWoum1ZVQn64bgWAp2YPfgEmjj"
+          }
+        },
+        {
+          "bcs": "BgAAAAAAAAA=",
+          "json": {
+            "new_value": "6"
+          },
+          "sendingModule": {
+            "name": "M1"
+          },
+          "transactionBlock": {
+            "digest": "FN31rqGck1n9bBEdgPZWoum1ZVQn64bgWAp2YPfgEmjj"
+          }
+        },
+        {
+          "bcs": "BwAAAAAAAAA=",
+          "json": {
+            "new_value": "7"
+          },
+          "sendingModule": {
+            "name": "M1"
+          },
+          "transactionBlock": {
+            "digest": "FN31rqGck1n9bBEdgPZWoum1ZVQn64bgWAp2YPfgEmjj"
+          }
+        },
+        {
+          "bcs": "CAAAAAAAAAA=",
+          "json": {
+            "new_value": "8"
+          },
+          "sendingModule": {
+            "name": "M1"
+          },
+          "transactionBlock": {
+            "digest": "FN31rqGck1n9bBEdgPZWoum1ZVQn64bgWAp2YPfgEmjj"
+          }
+        },
+        {
+          "bcs": "CQAAAAAAAAA=",
+          "json": {
+            "new_value": "9"
+          },
+          "sendingModule": {
+            "name": "M1"
+          },
+          "transactionBlock": {
+            "digest": "FN31rqGck1n9bBEdgPZWoum1ZVQn64bgWAp2YPfgEmjj"
+          }
+        },
+        {
+          "bcs": "CgAAAAAAAAA=",
+          "json": {
+            "new_value": "10"
+          },
+          "sendingModule": {
+            "name": "M1"
+          },
+          "transactionBlock": {
+            "digest": "FN31rqGck1n9bBEdgPZWoum1ZVQn64bgWAp2YPfgEmjj"
+          }
+        },
+        {
+          "bcs": "CwAAAAAAAAA=",
+          "json": {
+            "new_value": "11"
+          },
+          "sendingModule": {
+            "name": "M1"
+          },
+          "transactionBlock": {
+            "digest": "FN31rqGck1n9bBEdgPZWoum1ZVQn64bgWAp2YPfgEmjj"
+          }
+        },
+        {
+          "bcs": "DAAAAAAAAAA=",
+          "json": {
+            "new_value": "12"
+          },
+          "sendingModule": {
+            "name": "M1"
+          },
+          "transactionBlock": {
+            "digest": "FN31rqGck1n9bBEdgPZWoum1ZVQn64bgWAp2YPfgEmjj"
+          }
+        },
+        {
+          "bcs": "DQAAAAAAAAA=",
+          "json": {
+            "new_value": "13"
+          },
+          "sendingModule": {
+            "name": "M1"
+          },
+          "transactionBlock": {
+            "digest": "FN31rqGck1n9bBEdgPZWoum1ZVQn64bgWAp2YPfgEmjj"
+          }
+        },
+        {
+          "bcs": "DgAAAAAAAAA=",
+          "json": {
+            "new_value": "14"
+          },
+          "sendingModule": {
+            "name": "M1"
+          },
+          "transactionBlock": {
+            "digest": "FN31rqGck1n9bBEdgPZWoum1ZVQn64bgWAp2YPfgEmjj"
+          }
+        },
+        {
+          "bcs": "DwAAAAAAAAA=",
+          "json": {
+            "new_value": "15"
+          },
+          "sendingModule": {
+            "name": "M1"
+          },
+          "transactionBlock": {
+            "digest": "FN31rqGck1n9bBEdgPZWoum1ZVQn64bgWAp2YPfgEmjj"
+          }
+        },
+        {
+          "bcs": "EAAAAAAAAAA=",
+          "json": {
+            "new_value": "16"
+          },
+          "sendingModule": {
+            "name": "M1"
+          },
+          "transactionBlock": {
+            "digest": "FN31rqGck1n9bBEdgPZWoum1ZVQn64bgWAp2YPfgEmjj"
+          }
+        },
+        {
+          "bcs": "EQAAAAAAAAA=",
+          "json": {
+            "new_value": "17"
+          },
+          "sendingModule": {
+            "name": "M1"
+          },
+          "transactionBlock": {
+            "digest": "FN31rqGck1n9bBEdgPZWoum1ZVQn64bgWAp2YPfgEmjj"
+          }
+        },
+        {
+          "bcs": "EgAAAAAAAAA=",
+          "json": {
+            "new_value": "18"
+          },
+          "sendingModule": {
+            "name": "M1"
+          },
+          "transactionBlock": {
+            "digest": "FN31rqGck1n9bBEdgPZWoum1ZVQn64bgWAp2YPfgEmjj"
+          }
+        },
+        {
+          "bcs": "EwAAAAAAAAA=",
+          "json": {
+            "new_value": "19"
+          },
+          "sendingModule": {
+            "name": "M1"
+          },
+          "transactionBlock": {
+            "digest": "FN31rqGck1n9bBEdgPZWoum1ZVQn64bgWAp2YPfgEmjj"
+          }
+        }
+      ]
+    }
+  }
+}
+
+task 5, lines 43-67:
+//# run-graphql
+Response: {
+  "data": null,
+  "errors": [
+    {
+      "message": "Query is too complex."
+    }
+  ]
+}
+
+task 6, lines 69-86:
+//# run-graphql
+Response: {
+  "data": {
+    "transactionBlocks": {
+      "nodes": [
+        {
+          "effects": {
+            "events": {
+              "edges": [
+                {
+                  "node": {
+                    "sendingModule": {
+                      "name": "M1"
+                    }
+                  }
+                },
+                {
+                  "node": {
+                    "sendingModule": {
+                      "name": "M1"
+                    }
+                  }
+                },
+                {
+                  "node": {
+                    "sendingModule": {
+                      "name": "M1"
+                    }
+                  }
+                },
+                {
+                  "node": {
+                    "sendingModule": {
+                      "name": "M1"
+                    }
+                  }
+                },
+                {
+                  "node": {
+                    "sendingModule": {
+                      "name": "M1"
+                    }
+                  }
+                },
+                {
+                  "node": {
+                    "sendingModule": {
+                      "name": "M1"
+                    }
+                  }
+                },
+                {
+                  "node": {
+                    "sendingModule": {
+                      "name": "M1"
+                    }
+                  }
+                },
+                {
+                  "node": {
+                    "sendingModule": {
+                      "name": "M1"
+                    }
+                  }
+                },
+                {
+                  "node": {
+                    "sendingModule": {
+                      "name": "M1"
+                    }
+                  }
+                },
+                {
+                  "node": {
+                    "sendingModule": {
+                      "name": "M1"
+                    }
+                  }
+                },
+                {
+                  "node": {
+                    "sendingModule": {
+                      "name": "M1"
+                    }
+                  }
+                },
+                {
+                  "node": {
+                    "sendingModule": {
+                      "name": "M1"
+                    }
+                  }
+                },
+                {
+                  "node": {
+                    "sendingModule": {
+                      "name": "M1"
+                    }
+                  }
+                },
+                {
+                  "node": {
+                    "sendingModule": {
+                      "name": "M1"
+                    }
+                  }
+                },
+                {
+                  "node": {
+                    "sendingModule": {
+                      "name": "M1"
+                    }
+                  }
+                },
+                {
+                  "node": {
+                    "sendingModule": {
+                      "name": "M1"
+                    }
+                  }
+                },
+                {
+                  "node": {
+                    "sendingModule": {
+                      "name": "M1"
+                    }
+                  }
+                },
+                {
+                  "node": {
+                    "sendingModule": {
+                      "name": "M1"
+                    }
+                  }
+                },
+                {
+                  "node": {
+                    "sendingModule": {
+                      "name": "M1"
+                    }
+                  }
+                },
+                {
+                  "node": {
+                    "sendingModule": {
+                      "name": "M1"
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    }
+  }
+}
+
+task 7, lines 88-109:
+//# run-graphql
+Response: {
+  "data": null,
+  "errors": [
+    {
+      "message": "Query is too complex."
+    }
+  ]
+}
+
+task 8, lines 111-144:
+//# run-graphql
+Response: {
+  "data": {
+    "transactionBlocks": {
+      "nodes": [
+        {
+          "effects": {
+            "dependencies": {
+              "nodes": [
+                {
+                  "digest": "2T97RmNS4FSm8cVVQjhFaYobDxN9efZ2sJrgnBjNFqeP",
+                  "effects": {
+                    "events": {
+                      "edges": [
+                        {
+                          "node": {
+                            "sendingModule": {
+                              "name": "nft"
+                            }
+                          }
+                        },
+                        {
+                          "node": {
+                            "sendingModule": {
+                              "name": "nft"
+                            }
+                          }
+                        }
+                      ]
+                    }
+                  }
+                },
+                {
+                  "digest": "5Hb1xThFNfHqHXb8P35FdoFNWfudxSmwXDTRfRHMvHYL",
+                  "effects": {
+                    "events": {
+                      "edges": []
+                    }
+                  }
+                }
+              ]
+            },
+            "events": {
+              "edges": [
+                {
+                  "node": {
+                    "sendingModule": {
+                      "name": "M1"
+                    }
+                  }
+                },
+                {
+                  "node": {
+                    "sendingModule": {
+                      "name": "M1"
+                    }
+                  }
+                },
+                {
+                  "node": {
+                    "sendingModule": {
+                      "name": "M1"
+                    }
+                  }
+                },
+                {
+                  "node": {
+                    "sendingModule": {
+                      "name": "M1"
+                    }
+                  }
+                },
+                {
+                  "node": {
+                    "sendingModule": {
+                      "name": "M1"
+                    }
+                  }
+                },
+                {
+                  "node": {
+                    "sendingModule": {
+                      "name": "M1"
+                    }
+                  }
+                },
+                {
+                  "node": {
+                    "sendingModule": {
+                      "name": "M1"
+                    }
+                  }
+                },
+                {
+                  "node": {
+                    "sendingModule": {
+                      "name": "M1"
+                    }
+                  }
+                },
+                {
+                  "node": {
+                    "sendingModule": {
+                      "name": "M1"
+                    }
+                  }
+                },
+                {
+                  "node": {
+                    "sendingModule": {
+                      "name": "M1"
+                    }
+                  }
+                },
+                {
+                  "node": {
+                    "sendingModule": {
+                      "name": "M1"
+                    }
+                  }
+                },
+                {
+                  "node": {
+                    "sendingModule": {
+                      "name": "M1"
+                    }
+                  }
+                },
+                {
+                  "node": {
+                    "sendingModule": {
+                      "name": "M1"
+                    }
+                  }
+                },
+                {
+                  "node": {
+                    "sendingModule": {
+                      "name": "M1"
+                    }
+                  }
+                },
+                {
+                  "node": {
+                    "sendingModule": {
+                      "name": "M1"
+                    }
+                  }
+                },
+                {
+                  "node": {
+                    "sendingModule": {
+                      "name": "M1"
+                    }
+                  }
+                },
+                {
+                  "node": {
+                    "sendingModule": {
+                      "name": "M1"
+                    }
+                  }
+                },
+                {
+                  "node": {
+                    "sendingModule": {
+                      "name": "M1"
+                    }
+                  }
+                },
+                {
+                  "node": {
+                    "sendingModule": {
+                      "name": "M1"
+                    }
+                  }
+                },
+                {
+                  "node": {
+                    "sendingModule": {
+                      "name": "M1"
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    }
+  }
+}
+
+task 9, lines 146-183:
+//# run-graphql
+Response: {
+  "data": null,
+  "errors": [
+    {
+      "message": "Query is too complex."
+    }
+  ]
+}
+
+task 10, lines 185-209:
+//# run-graphql
+Response: {
+  "data": {
+    "transactionBlocks": {
+      "nodes": [
+        {
+          "effects": {
+            "checkpoint": {
+              "transactionBlocks": {
+                "nodes": [
+                  {
+                    "digest": "5Hb1xThFNfHqHXb8P35FdoFNWfudxSmwXDTRfRHMvHYL"
+                  },
+                  {
+                    "digest": "FN31rqGck1n9bBEdgPZWoum1ZVQn64bgWAp2YPfgEmjj"
+                  }
+                ]
+              }
+            },
+            "events": {
+              "edges": [
+                {
+                  "node": {
+                    "sendingModule": {
+                      "name": "M1"
+                    }
+                  }
+                },
+                {
+                  "node": {
+                    "sendingModule": {
+                      "name": "M1"
+                    }
+                  }
+                },
+                {
+                  "node": {
+                    "sendingModule": {
+                      "name": "M1"
+                    }
+                  }
+                },
+                {
+                  "node": {
+                    "sendingModule": {
+                      "name": "M1"
+                    }
+                  }
+                },
+                {
+                  "node": {
+                    "sendingModule": {
+                      "name": "M1"
+                    }
+                  }
+                },
+                {
+                  "node": {
+                    "sendingModule": {
+                      "name": "M1"
+                    }
+                  }
+                },
+                {
+                  "node": {
+                    "sendingModule": {
+                      "name": "M1"
+                    }
+                  }
+                },
+                {
+                  "node": {
+                    "sendingModule": {
+                      "name": "M1"
+                    }
+                  }
+                },
+                {
+                  "node": {
+                    "sendingModule": {
+                      "name": "M1"
+                    }
+                  }
+                },
+                {
+                  "node": {
+                    "sendingModule": {
+                      "name": "M1"
+                    }
+                  }
+                },
+                {
+                  "node": {
+                    "sendingModule": {
+                      "name": "M1"
+                    }
+                  }
+                },
+                {
+                  "node": {
+                    "sendingModule": {
+                      "name": "M1"
+                    }
+                  }
+                },
+                {
+                  "node": {
+                    "sendingModule": {
+                      "name": "M1"
+                    }
+                  }
+                },
+                {
+                  "node": {
+                    "sendingModule": {
+                      "name": "M1"
+                    }
+                  }
+                },
+                {
+                  "node": {
+                    "sendingModule": {
+                      "name": "M1"
+                    }
+                  }
+                },
+                {
+                  "node": {
+                    "sendingModule": {
+                      "name": "M1"
+                    }
+                  }
+                },
+                {
+                  "node": {
+                    "sendingModule": {
+                      "name": "M1"
+                    }
+                  }
+                },
+                {
+                  "node": {
+                    "sendingModule": {
+                      "name": "M1"
+                    }
+                  }
+                },
+                {
+                  "node": {
+                    "sendingModule": {
+                      "name": "M1"
+                    }
+                  }
+                },
+                {
+                  "node": {
+                    "sendingModule": {
+                      "name": "M1"
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    }
+  }
+}
+
+task 11, lines 211-250:
+//# run-graphql
+Response: {
+  "data": null,
+  "errors": [
+    {
+      "message": "Query is too complex."
+    }
+  ]
+}

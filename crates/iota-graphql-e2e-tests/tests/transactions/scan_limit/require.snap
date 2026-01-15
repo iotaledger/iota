@@ -89,12 +89,6 @@ task 15, lines 56-75:
 Response: {
   "data": {
     "transactionBlocks": {
-      "pageInfo": {
-        "hasNextPage": false,
-        "hasPreviousPage": false,
-        "endCursor": "eyJjIjozLCJ0IjoxMSwiaSI6ZmFsc2V9",
-        "startCursor": "eyJjIjozLCJ0IjoyLCJpIjpmYWxzZX0"
-      },
       "nodes": [
         {
           "digest": "HwRcMnKbBuAC1co626aK74p6SbC78rmXT2qN7jxiKzJ3",
@@ -176,7 +170,13 @@ Response: {
             }
           }
         }
-      ]
+      ],
+      "pageInfo": {
+        "endCursor": "eyJjIjozLCJ0IjoxMSwiaSI6ZmFsc2V9",
+        "hasNextPage": false,
+        "hasPreviousPage": false,
+        "startCursor": "eyJjIjozLCJ0IjoyLCJpIjpmYWxzZX0"
+      }
     }
   }
 }
@@ -186,12 +186,6 @@ task 16, lines 77-96:
 Response: {
   "data": {
     "transactionBlocks": {
-      "pageInfo": {
-        "hasNextPage": false,
-        "hasPreviousPage": false,
-        "endCursor": "eyJjIjozLCJ0IjoxMSwiaSI6ZmFsc2V9",
-        "startCursor": "eyJjIjozLCJ0IjoyLCJpIjpmYWxzZX0"
-      },
       "nodes": [
         {
           "digest": "HwRcMnKbBuAC1co626aK74p6SbC78rmXT2qN7jxiKzJ3",
@@ -273,7 +267,13 @@ Response: {
             }
           }
         }
-      ]
+      ],
+      "pageInfo": {
+        "endCursor": "eyJjIjozLCJ0IjoxMSwiaSI6ZmFsc2V9",
+        "hasNextPage": false,
+        "hasPreviousPage": false,
+        "startCursor": "eyJjIjozLCJ0IjoyLCJpIjpmYWxzZX0"
+      }
     }
   }
 }
@@ -306,12 +306,6 @@ task 18, lines 119-138:
 Response: {
   "data": {
     "transactionBlocks": {
-      "pageInfo": {
-        "hasNextPage": false,
-        "hasPreviousPage": false,
-        "endCursor": "eyJjIjozLCJ0IjoxMSwiaSI6dHJ1ZX0",
-        "startCursor": "eyJjIjozLCJ0IjoyLCJpIjp0cnVlfQ"
-      },
       "nodes": [
         {
           "digest": "HwRcMnKbBuAC1co626aK74p6SbC78rmXT2qN7jxiKzJ3",
@@ -393,7 +387,13 @@ Response: {
             }
           }
         }
-      ]
+      ],
+      "pageInfo": {
+        "endCursor": "eyJjIjozLCJ0IjoxMSwiaSI6dHJ1ZX0",
+        "hasNextPage": false,
+        "hasPreviousPage": false,
+        "startCursor": "eyJjIjozLCJ0IjoyLCJpIjp0cnVlfQ"
+      }
     }
   }
 }
@@ -426,12 +426,6 @@ task 20, lines 161-180:
 Response: {
   "data": {
     "transactionBlocks": {
-      "pageInfo": {
-        "hasNextPage": false,
-        "hasPreviousPage": false,
-        "endCursor": "eyJjIjozLCJ0IjoxMSwiaSI6dHJ1ZX0",
-        "startCursor": "eyJjIjozLCJ0IjoyLCJpIjp0cnVlfQ"
-      },
       "nodes": [
         {
           "digest": "HwRcMnKbBuAC1co626aK74p6SbC78rmXT2qN7jxiKzJ3",
@@ -513,7 +507,13 @@ Response: {
             }
           }
         }
-      ]
+      ],
+      "pageInfo": {
+        "endCursor": "eyJjIjozLCJ0IjoxMSwiaSI6dHJ1ZX0",
+        "hasNextPage": false,
+        "hasPreviousPage": false,
+        "startCursor": "eyJjIjozLCJ0IjoyLCJpIjp0cnVlfQ"
+      }
     }
   }
 }
@@ -546,13 +546,13 @@ task 22, lines 203-222:
 Response: {
   "data": {
     "transactionBlocks": {
+      "nodes": [],
       "pageInfo": {
+        "endCursor": "eyJjIjozLCJ0IjoxMSwiaSI6dHJ1ZX0",
         "hasNextPage": false,
         "hasPreviousPage": false,
-        "endCursor": "eyJjIjozLCJ0IjoxMSwiaSI6dHJ1ZX0",
         "startCursor": "eyJjIjozLCJ0IjoyLCJpIjp0cnVlfQ"
-      },
-      "nodes": []
+      }
     }
   }
 }
@@ -585,12 +585,6 @@ task 24, lines 246-270:
 Response: {
   "data": {
     "transactionBlocks": {
-      "pageInfo": {
-        "hasPreviousPage": false,
-        "hasNextPage": false,
-        "startCursor": "eyJjIjozLCJ0IjoyLCJpIjp0cnVlfQ",
-        "endCursor": "eyJjIjozLCJ0IjoxMSwiaSI6dHJ1ZX0"
-      },
       "edges": [
         {
           "cursor": "eyJjIjozLCJ0IjoyLCJpIjpmYWxzZX0",
@@ -603,7 +597,13 @@ Response: {
             }
           }
         }
-      ]
+      ],
+      "pageInfo": {
+        "endCursor": "eyJjIjozLCJ0IjoxMSwiaSI6dHJ1ZX0",
+        "hasNextPage": false,
+        "hasPreviousPage": false,
+        "startCursor": "eyJjIjozLCJ0IjoyLCJpIjp0cnVlfQ"
+      }
     }
   }
 }
