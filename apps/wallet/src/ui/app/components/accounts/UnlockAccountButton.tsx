@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { type SerializedUIAccount } from '_src/background/accounts/account';
-import { useUnlockAccounts } from './UnlockAccountContext';
+import { useUnlockAccounts } from './UnlockAccountsContext';
 import { Button, ButtonType } from '@iota/apps-ui-kit';
 
 export interface UnlockAccountButtonProps {
