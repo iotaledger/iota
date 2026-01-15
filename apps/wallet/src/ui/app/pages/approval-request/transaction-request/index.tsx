@@ -27,6 +27,7 @@ import { ConfirmationModal } from '../../../shared/ConfirmationModal';
 import { TransactionDetails } from './transaction-details';
 import { Warning } from '@iota/apps-ui-icons';
 import { InfoBox, InfoBoxType, InfoBoxStyle } from '@iota/apps-ui-kit';
+import { LedgerSigner } from '../../../ledgerSigner';
 
 export interface TransactionRequestProps {
     txRequest: TransactionApprovalRequest;
@@ -110,7 +111,7 @@ export function TransactionRequest({ txRequest }: TransactionRequestProps) {
                         isError={isDryRunError}
                         summary={summary}
                         renderExplorerLink={ExplorerLinkHelper}
-                        transaction={transaction}
+                        transaction={signer instanceof LedgerSigner ? transaction : undefined}
                     />
                     {(!summary || isDryRunError) && (
                         <InfoBox
