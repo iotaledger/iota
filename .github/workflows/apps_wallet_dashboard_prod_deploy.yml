@@ -36,8 +36,6 @@ jobs:
         run: vercel pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }}
       - name: Copy the .env file
         run: cp ./.vercel/.env.production.local ./sdk/.env
-      - name: Build Wallet Dashboard
-        run: pnpm wallet-dashboard build
       - name: Build Vercel Project Artifacts
         run: vercel build --prod --token=${{ secrets.VERCEL_TOKEN }}
       - name: Deploy Project Artifacts to Vercel
