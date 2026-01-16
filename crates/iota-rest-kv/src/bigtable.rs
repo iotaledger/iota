@@ -112,7 +112,7 @@ impl KvStoreClient {
                     _ => None,
                 })?;
 
-                let keys = digests.iter().map(|tx| tx.inner().to_vec()).collect();
+                let keys = digests.iter().map(|tx| Some(tx.inner().to_vec())).collect();
 
                 multi_get_cell(
                     &mut client,
@@ -128,7 +128,7 @@ impl KvStoreClient {
                     _ => None,
                 })?;
 
-                let keys = digests.iter().map(|tx| tx.inner().to_vec()).collect();
+                let keys = digests.iter().map(|tx| Some(tx.inner().to_vec())).collect();
 
                 multi_get_cell(
                     &mut client,
@@ -146,7 +146,7 @@ impl KvStoreClient {
 
                 let keys = seq_nums
                     .iter()
-                    .map(|sq| sq.to_be_bytes().to_vec())
+                    .map(|sq| Some(sq.to_be_bytes().to_vec()))
                     .collect();
 
                 multi_get_cell(
@@ -165,7 +165,7 @@ impl KvStoreClient {
 
                 let keys = seq_nums
                     .iter()
-                    .map(|sq| sq.to_be_bytes().to_vec())
+                    .map(|sq| Some(sq.to_be_bytes().to_vec()))
                     .collect();
 
                 multi_get_cell(
@@ -184,8 +184,8 @@ impl KvStoreClient {
 
                 let digest_keys = checkpoint_digests
                     .iter()
-                    .map(|digest| digest.inner().to_vec())
-                    .collect::<Vec<Vec<u8>>>();
+                    .map(|digest| Some(digest.inner().to_vec()))
+                    .collect::<Vec<Option<Vec<u8>>>>();
 
                 fetch_checkpoint_summary_by_digests(&mut client, digest_keys).await
             }
@@ -195,7 +195,7 @@ impl KvStoreClient {
                     _ => None,
                 })?;
 
-                let keys = digests.iter().map(|tx| tx.inner().to_vec()).collect();
+                let keys = digests.iter().map(|tx| Some(tx.inner().to_vec())).collect();
 
                 multi_get_cell(
                     &mut client,
@@ -213,7 +213,10 @@ impl KvStoreClient {
                     _ => None,
                 })?;
 
-                let keys = object_keys.iter().map(raw_object_key).collect();
+                let keys = object_keys
+                    .iter()
+                    .map(|key| Some(raw_object_key(key)))
+                    .collect();
 
                 multi_get_cell(&mut client, OBJECTS_TABLE, keys, DEFAULT_COLUMN_QUALIFIER).await
             }
@@ -223,7 +226,7 @@ impl KvStoreClient {
                     _ => None,
                 })?;
 
-                let keys = digests.iter().map(|tx| tx.inner().to_vec()).collect();
+                let keys = digests.iter().map(|tx| Some(tx.inner().to_vec())).collect();
 
                 multi_get_cell(
                     &mut client,
@@ -263,6 +266,11 @@ impl KvStoreClient {
 /// Fetch multiple values from a BigTable table with a specific key and column
 /// qualifier.
 ///
+/// Keys wrapped in `Option<Vec<u8>>` allow chaining multiple queries: the
+/// result from one `multi_get_cell` (which contains `None` for missing keys)
+/// can be directly passed as input to the next call. `None` keys are skipped in
+/// the query but preserve their position in the result.
+///
 /// The result's length is guaranteed to match the input `keys` length. Each
 /// position in the result corresponds to the key at the same position in the
 /// input. This allows the caller to easily determine which requested keys have
@@ -272,18 +280,18 @@ impl KvStoreClient {
 async fn multi_get_cell(
     client: &mut BigTableClient,
     table_name: &str,
-    keys: Vec<Vec<u8>>,
+    keys: Vec<Option<Vec<u8>>>,
     column_qualifier: &str,
 ) -> Result<Vec<Option<Bytes>>, anyhow::Error> {
     // pre-allocate results with None. Matching cells will replace None with
     // Some(value), and unmatched keys will remain None.
     let mut results = vec![None; keys.len()];
 
-    let key_to_index: HashMap<Vec<u8>, usize> = keys
+    let key_to_index = keys
         .iter()
         .enumerate()
-        .map(|(index, key)| (key.clone(), index))
-        .collect();
+        .filter_map(|(index, key)| key.as_ref().map(|k| (k.clone(), index)))
+        .collect::<HashMap<Vec<u8>, usize>>();
 
     // create the exact match filter
     // We use ^ and $ to ensure it's an exact byte match, not a substring match.
@@ -294,7 +302,11 @@ async fn multi_get_cell(
     };
 
     for row in client
-        .multi_get(table_name, keys, Some(exact_column_filter))
+        .multi_get(
+            table_name,
+            key_to_index.keys().cloned().collect(),
+            Some(exact_column_filter),
+        )
         .await?
     {
         for Cell { name, value } in row.cells {
@@ -315,10 +327,8 @@ async fn multi_get_cell(
 /// Fetch multiple checkpoint summaries by its checkpoint digest.
 async fn fetch_checkpoint_summary_by_digests(
     client: &mut BigTableClient,
-    keys: Vec<Vec<u8>>,
+    keys: Vec<Option<Vec<u8>>>,
 ) -> Result<Vec<Option<Bytes>>, anyhow::Error> {
-    let keys_len = keys.len();
-
     let sequence_numbers = multi_get_cell(
         client,
         CHECKPOINTS_BY_DIGEST_TABLE,
@@ -328,47 +338,15 @@ async fn fetch_checkpoint_summary_by_digests(
     .await?;
 
     let seq_numbers_keys = sequence_numbers
-        .iter()
-        .flatten()
-        .map(|bytes| bytes.to_vec())
-        .collect::<Vec<Vec<u8>>>();
+        .into_iter()
+        .map(|bytes| bytes.map(|b| b.to_vec()))
+        .collect::<Vec<Option<Vec<u8>>>>();
 
-    let checkpoint_summaries = multi_get_cell(
+    multi_get_cell(
         client,
         CHECKPOINTS_TABLE,
-        seq_numbers_keys.clone(),
+        seq_numbers_keys,
         CHECKPOINT_SUMMARY_COLUMN_QUALIFIER,
     )
-    .await?;
-
-    // the response len matches the original requested keys, meaning all data was
-    // found.
-    if keys_len == checkpoint_summaries.len() {
-        return Ok(checkpoint_summaries);
-    }
-
-    let mut results = vec![None; keys_len];
-
-    let seq_nums_to_index = sequence_numbers
-        .iter()
-        .enumerate()
-        .filter_map(|(index, opt_seq_num)| {
-            opt_seq_num.as_ref().map(|seq_num| {
-                let seq_num_vec = seq_num.to_vec();
-                (seq_num_vec.clone(), index)
-            })
-        })
-        .collect::<HashMap<Vec<u8>, usize>>();
-
-    // fill the checkpoint summary in the same order as the original requested keys
-    for (index, opt_summary) in checkpoint_summaries.into_iter().enumerate() {
-        if let Some(summary) = opt_summary {
-            let seq_num = &seq_numbers_keys[index];
-            if let Some(&original_index) = seq_nums_to_index.get(seq_num) {
-                results[original_index] = Some(summary);
-            }
-        }
-    }
-
-    Ok(results)
+    .await
 }
