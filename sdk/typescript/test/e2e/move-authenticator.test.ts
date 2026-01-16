@@ -165,11 +165,11 @@ describe('MoveAuthenticator', () => {
         const builder = new MoveAuthenticatorBuilder(fakeImmutableAccountId);
         const data = await builder.finish(toolbox.client);
 
-        expect(data.account.$kind).toBe('Immutable');
-        if (data.account.$kind === 'Immutable') {
-            expect(data.account.Immutable.objectId).toBe(fakeImmutableAccountId);
-            expect(data.account.Immutable.version).toBe('1');
-            expect(data.account.Immutable.digest).toBe('ImmutableDigest');
+        expect(data.objectToAuthenticate.$kind).toBe('Immutable');
+        if (data.objectToAuthenticate.$kind === 'Immutable') {
+            expect(data.objectToAuthenticate.Immutable.objectId).toBe(fakeImmutableAccountId);
+            expect(data.objectToAuthenticate.Immutable.version).toBe('1');
+            expect(data.objectToAuthenticate.Immutable.digest).toBe('ImmutableDigest');
         }
 
         vi.restoreAllMocks();

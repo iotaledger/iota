@@ -21,7 +21,7 @@ export class MoveSigner extends Signer {
     /**
      * Creates a new MoveSigner with the provided MoveAuthenticator data.
      *
-     * @param data - The MoveAuthenticator data containing account, call arguments, and type arguments
+     * @param data - The MoveAuthenticator data containing object to authenticate, call arguments, and type arguments
      */
     constructor(data: MoveAuthenticatorData) {
         super();
@@ -38,14 +38,14 @@ export class MoveSigner extends Signer {
     /**
      * Return the public key for this MoveAuthenticator.
      * Since MoveAuthenticator uses account abstraction, this returns a public key
-     * based on the account object ID.
+     * based on the object ID.
      */
     getPublicKey(): PublicKey {
-        const accountId =
-            this.data.account.$kind === 'Immutable'
-                ? this.data.account.Immutable.objectId
-                : this.data.account.Shared.objectId;
-        return new MoveAuthenticatorPublicKey(accountId);
+        const authenticatedObjectId =
+            this.data.objectToAuthenticate.$kind === 'Immutable'
+                ? this.data.objectToAuthenticate.Immutable.objectId
+                : this.data.objectToAuthenticate.Shared.objectId;
+        return new MoveAuthenticatorPublicKey(authenticatedObjectId);
     }
 
     /**
@@ -82,18 +82,19 @@ export class MoveSigner extends Signer {
         });
 
         const bcsAccount =
-            this.data.account.$kind === 'Immutable'
+            this.data.objectToAuthenticate.$kind === 'Immutable'
                 ? {
                       Immutable: {
-                          objectId: this.data.account.Immutable.objectId,
-                          version: this.data.account.Immutable.version,
-                          digest: this.data.account.Immutable.digest,
+                          objectId: this.data.objectToAuthenticate.Immutable.objectId,
+                          version: this.data.objectToAuthenticate.Immutable.version,
+                          digest: this.data.objectToAuthenticate.Immutable.digest,
                       },
                   }
                 : {
                       Shared: {
-                          objectId: this.data.account.Shared.objectId,
-                          initialSharedVersion: this.data.account.Shared.initialSharedVersion,
+                          objectId: this.data.objectToAuthenticate.Shared.objectId,
+                          initialSharedVersion:
+                              this.data.objectToAuthenticate.Shared.initialSharedVersion,
                       },
                   };
 

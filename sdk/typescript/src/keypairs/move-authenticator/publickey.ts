@@ -6,34 +6,36 @@ import { SIGNATURE_SCHEME_TO_FLAG } from '../../cryptography/signature-scheme.js
 
 /**
  * A MoveAuthenticator public key. Since MoveAuthenticator uses account abstraction,
- * this uses the account object ID as the identity rather than a traditional cryptographic public key.
+ * this uses the object ID as the identity rather than a traditional cryptographic public key.
  */
 export class MoveAuthenticatorPublicKey extends PublicKey {
-    private accountId: Uint8Array;
+    private authenticatedObjectId: Uint8Array;
 
     /**
      * Creates a new MoveAuthenticatorPublicKey from an account object ID.
      *
-     * @param accountId - The account object ID as bytes (32 bytes)
+     * @param authenticatedObjectId - The object ID as bytes (32 bytes)
      */
-    constructor(accountId: Uint8Array | string) {
+    constructor(authenticatedObjectId: Uint8Array | string) {
         super();
-        if (typeof accountId === 'string') {
+        if (typeof authenticatedObjectId === 'string') {
             // Convert hex string to bytes (remove 0x prefix if present)
-            const hex = accountId.startsWith('0x') ? accountId.slice(2) : accountId;
-            this.accountId = new Uint8Array(
+            const hex = authenticatedObjectId.startsWith('0x')
+                ? authenticatedObjectId.slice(2)
+                : authenticatedObjectId;
+            this.authenticatedObjectId = new Uint8Array(
                 hex.match(/.{1,2}/g)?.map((byte) => parseInt(byte, 16)) || [],
             );
         } else {
-            this.accountId = accountId;
+            this.authenticatedObjectId = authenticatedObjectId;
         }
     }
 
     /**
-     * Return the byte array representation of the account ID
+     * Return the byte array representation of the object ID
      */
     toRawBytes(): Uint8Array {
-        return this.accountId;
+        return this.authenticatedObjectId;
     }
 
     /**

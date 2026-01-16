@@ -71,13 +71,13 @@ function parseSignature(signature: string) {
     }
 
     if (parsedSignature.signatureScheme === 'MoveAuthenticator') {
+        const authenticatedObjectId =
+            parsedSignature.moveAuthenticator.account.$kind === 'Immutable'
+                ? parsedSignature.moveAuthenticator.account.Immutable.objectId
+                : parsedSignature.moveAuthenticator.account.Shared.objectId;
         return {
             ...parsedSignature,
-            publicKey: new MoveAuthenticatorPublicKey(
-                parsedSignature.moveAuthenticator.account.Immutable?.objectId ||
-                    parsedSignature.moveAuthenticator.account.Shared?.objectId ||
-                    '',
-            ),
+            publicKey: new MoveAuthenticatorPublicKey(authenticatedObjectId),
         };
     }
 

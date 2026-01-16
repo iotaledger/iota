@@ -67,5 +67,5 @@ export type MoveAuthenticatorAccount =
 export interface MoveAuthenticatorData {
     callArgs: MoveAuthenticatorInput[];
     typeArgs: string[];
-    account: MoveAuthenticatorAccount;
+    objectToAuthenticate: MoveAuthenticatorAccount;
 }

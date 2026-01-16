@@ -71,6 +71,7 @@ export function parseSerializedSignature(serializedSignature: string) {
             return {
                 serializedSignature,
                 signatureScheme,
+                signature: bytes,
                 moveAuthenticator,
                 bytes,
             };

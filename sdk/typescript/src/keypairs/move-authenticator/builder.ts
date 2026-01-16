@@ -20,7 +20,7 @@ export class InvalidMoveAuthArgError extends Error {
 }
 
 /**
- * Error thrown when an invalid account is provided to MoveAuthenticator.
+ * Error thrown when an invalid objectToAuthenticate is provided to MoveAuthenticator.
  */
 export class InvalidMoveAuthAccountError extends Error {
     constructor(message: string) {
@@ -37,16 +37,16 @@ export class InvalidMoveAuthAccountError extends Error {
 export class MoveAuthenticatorBuilder {
     private callArgs: InputKind[] = [];
     private typeArgs: string[] = [];
-    private accountId: string;
+    private objectToAuthenticate: string;
 
     /**
-     * Create a new Move Authenticator builder from an account ID, which is the
+     * Create a new Move Authenticator builder from an object ID, which is the
      * sender of a transaction that this will be used to authenticate.
      *
-     * @param accountId - The object ID of the account (sender of the transaction)
+     * @param objectToAuthenticate - The object ID of the objectToAuthenticate (sender of the transaction)
      */
-    constructor(accountId: string) {
-        this.accountId = accountId;
+    constructor(objectToAuthenticate: string) {
+        this.objectToAuthenticate = objectToAuthenticate;
     }
 
     /**
@@ -136,21 +136,23 @@ export class MoveAuthenticatorBuilder {
      * @param client - The IOTA client to use for fetching object data
      * @returns The resolved MoveAuthenticator data
      * @throws InvalidMoveAuthArgError if call arguments are invalid
-     * @throws InvalidMoveAuthAccountError if the account is invalid
+     * @throws InvalidMoveAuthAccountError if the object is invalid
      */
     async finish(client: IotaClient): Promise<MoveAuthenticatorData> {
-        // Fetch the account object
-        const accountResponse = await client.getObject({
-            id: this.accountId,
+        // Fetch the object
+        const objectToAuthenticateResponse = await client.getObject({
+            id: this.objectToAuthenticate,
             options: { showOwner: true },
         });
 
-        if (!accountResponse.data) {
-            throw new InvalidMoveAuthArgError(`missing account ${this.accountId}`);
+        if (!objectToAuthenticateResponse.data) {
+            throw new InvalidMoveAuthArgError(
+                `missing objectToAuthenticate ${this.objectToAuthenticate}`,
+            );
         }
 
-        const accountData = accountResponse.data;
-        const accountOwner = accountData.owner;
+        const objectToAuthenticateData = objectToAuthenticateResponse.data;
+        const objectToAuthenticateOwner = objectToAuthenticateData.owner;
 
         // Resolve call arguments
         const resolvedCallArgs: MoveAuthenticatorInput[] = [];
@@ -220,34 +222,40 @@ export class MoveAuthenticatorBuilder {
             }
         }
 
-        // Resolve account
-        let account: MoveAuthenticatorAccount;
+        // Resolve objectToAuthenticate
+        let objectToAuthenticate: MoveAuthenticatorAccount;
 
-        if (accountOwner === 'Immutable') {
-            account = {
+        if (objectToAuthenticateOwner === 'Immutable') {
+            objectToAuthenticate = {
                 $kind: 'Immutable',
                 Immutable: {
-                    objectId: accountData.objectId,
-                    version: accountData.version!,
-                    digest: accountData.digest!,
+                    objectId: objectToAuthenticateData.objectId,
+                    version: objectToAuthenticateData.version!,
+                    digest: objectToAuthenticateData.digest!,
                 },
             };
-        } else if (accountOwner && typeof accountOwner === 'object' && 'Shared' in accountOwner) {
-            account = {
+        } else if (
+            objectToAuthenticateOwner &&
+            typeof objectToAuthenticateOwner === 'object' &&
+            'Shared' in objectToAuthenticateOwner
+        ) {
+            objectToAuthenticate = {
                 $kind: 'Shared',
                 Shared: {
-                    objectId: accountData.objectId,
-                    initialSharedVersion: accountOwner.Shared.initial_shared_version,
+                    objectId: objectToAuthenticateData.objectId,
+                    initialSharedVersion: objectToAuthenticateOwner.Shared.initial_shared_version,
                 },
             };
         } else {
-            throw new InvalidMoveAuthAccountError('account must be immutable or shared');
+            throw new InvalidMoveAuthAccountError(
+                'objectToAuthenticate must be immutable or shared',
+            );
         }
 
         return {
             callArgs: resolvedCallArgs,
             typeArgs: this.typeArgs,
-            account,
+            objectToAuthenticate,
         };
     }
 }
