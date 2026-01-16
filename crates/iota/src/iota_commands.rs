@@ -57,6 +57,7 @@ use move_core_types::account_address::AccountAddress;
 use move_package::BuildConfig;
 use rand::rngs::OsRng;
 use serde_json::json;
+use telemetry_subscribers::TracingHandle;
 use tempfile::tempdir;
 use tracing::{self, info, warn};
 use url::Url;
@@ -250,6 +251,8 @@ pub enum IotaCommand {
         remote_migration_snapshots: Vec<SnapshotUrl>,
         #[arg(long, help = "Specify the delegator address")]
         delegator: Option<IotaAddress>,
+        #[arg(long, help = "Port offset for validators' deterministic ports")]
+        port_offset: Option<u16>,
     },
     /// Bootstrap and initialize a new IOTA network
     Genesis {
@@ -397,7 +400,7 @@ pub enum IotaCommand {
 }
 
 impl IotaCommand {
-    pub async fn execute(self) -> Result<(), anyhow::Error> {
+    pub async fn execute(self, tracing_handle: Option<TracingHandle>) -> Result<(), anyhow::Error> {
         move_package::package_hooks::register_package_hooks(Box::new(IotaPackageHooks));
         match self {
             IotaCommand::Start {
@@ -417,6 +420,7 @@ impl IotaCommand {
                 local_migration_snapshots,
                 remote_migration_snapshots,
                 delegator,
+                port_offset,
             } => {
                 start(
                     config_dir.clone(),
@@ -435,6 +439,8 @@ impl IotaCommand {
                     local_migration_snapshots,
                     remote_migration_snapshots,
                     delegator,
+                    port_offset,
+                    tracing_handle,
                 )
                 .await?;
 
@@ -668,6 +674,8 @@ async fn start(
     local_migration_snapshots: Vec<PathBuf>,
     remote_migration_snapshots: Vec<SnapshotUrl>,
     delegator: Option<IotaAddress>,
+    port_offset: Option<u16>,
+    tracing_handle: Option<TracingHandle>,
 ) -> Result<(), anyhow::Error> {
     if force_regenesis {
         ensure!(
@@ -868,6 +876,13 @@ async fn start(
         swarm_builder = swarm_builder
             .with_fullnode_count(1)
             .with_fullnode_rpc_addr(fullnode_url);
+    }
+
+    if let Some(port_offset) = port_offset {
+        swarm_builder = swarm_builder.with_port_offset(port_offset);
+    }
+    if let Some(tracing_handle) = tracing_handle {
+        swarm_builder = swarm_builder.with_tracing_handle(tracing_handle);
     }
 
     let mut swarm = tokio::task::spawn_blocking(move || swarm_builder.build()).await?;

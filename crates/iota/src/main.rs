@@ -33,7 +33,7 @@ async fn main() {
     colored::control::set_virtual_terminal(true).unwrap();
 
     let args = Args::parse();
-    let _guard = match args.command {
+    let (_guard, tracing_handle) = match args.command {
         IotaCommand::KeyTool { .. } | IotaCommand::Move { .. } => Some(
             telemetry_subscribers::TelemetryConfig::new()
                 .with_log_level("error")
@@ -91,7 +91,8 @@ async fn main() {
                 .with_env()
                 .init(),
         ),
-    };
+    }
+    .unzip();
     debug!("IOTA CLI version: {VERSION}");
-    exit_main!(args.command.execute().await);
+    exit_main!(args.command.execute(tracing_handle).await);
 }

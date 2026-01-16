@@ -48,7 +48,11 @@ impl Drop for Container {
 
 impl Container {
     /// Spawn a new Node.
-    pub async fn spawn(config: NodeConfig, runtime: RuntimeType) -> Self {
+    pub async fn spawn(
+        config: NodeConfig,
+        runtime: RuntimeType,
+        tracing_handle: Option<telemetry_subscribers::TracingHandle>,
+    ) -> Self {
         let (startup_sender, startup_receiver) = tokio::sync::oneshot::channel();
         let (cancel_sender, cancel_receiver) = tokio::sync::oneshot::channel();
         let name = AuthorityPublicKeyBytes::from(config.authority_key_pair().public())
@@ -106,7 +110,15 @@ impl Container {
                     "Started Prometheus HTTP endpoint. To query metrics use\n\tcurl -s http://{}/metrics",
                     config.metrics_address
                 );
+                let admin_interface_address = config.admin_interface_address;
                 let server = IotaNode::start(config, registry_service, None).await.unwrap();
+
+                if let Some(tracing_handle) = tracing_handle {
+                    let node = server.clone();
+                    tokio::task::spawn(async move {
+                        iota_node::admin::run_admin_server(node, admin_interface_address, tracing_handle).await
+                    });
+                }
                 // Notify that we've successfully started the node
                 let _ = startup_sender.send(Arc::downgrade(&server));
                 // run until canceled

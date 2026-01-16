@@ -59,16 +59,28 @@ impl Node {
     }
 
     /// Start this Node
-    pub async fn spawn(&self) -> Result<()> {
+    pub async fn spawn(
+        &self,
+        tracing_handle: Option<telemetry_subscribers::TracingHandle>,
+    ) -> Result<()> {
         info!(name =% self.name().concise(), "starting in-memory node");
         let config = self.config().clone();
-        *self.container.lock().unwrap() = Some(Container::spawn(config, self.runtime_type).await);
+        *self.container.lock().unwrap() =
+            Some(Container::spawn(config, self.runtime_type, tracing_handle).await);
         Ok(())
     }
 
     /// Start this Node, waiting until its completely started up.
     pub async fn start(&self) -> Result<()> {
-        self.spawn().await
+        self.spawn(None).await
+    }
+
+    /// Start this Node, waiting until its completely started up.
+    pub async fn start_with_tracing(
+        &self,
+        tracing_handle: Option<telemetry_subscribers::TracingHandle>,
+    ) -> Result<()> {
+        self.spawn(tracing_handle).await
     }
 
     /// Stop this Node

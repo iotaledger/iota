@@ -99,6 +99,7 @@ pub struct ConfigBuilder<R = OsRng> {
     state_accumulator_config: Option<StateAccumulatorV1EnabledConfig>,
     empty_validator_genesis: bool,
     admin_interface_address: Option<SocketAddr>,
+    port_offset: Option<u16>,
 }
 
 impl ConfigBuilder {
@@ -127,6 +128,7 @@ impl ConfigBuilder {
             state_accumulator_config: Some(StateAccumulatorV1EnabledConfig::Global(true)),
             empty_validator_genesis: false,
             admin_interface_address: None,
+            port_offset: None,
         }
     }
 
@@ -306,6 +308,11 @@ impl<R> ConfigBuilder<R> {
         self
     }
 
+    pub fn with_port_offset(mut self, port_offset: u16) -> Self {
+        self.port_offset = Some(port_offset);
+        self
+    }
+
     pub fn rng<N: rand::RngCore + rand::CryptoRng>(self, rng: N) -> ConfigBuilder<N> {
         ConfigBuilder {
             rng: Some(rng),
@@ -329,6 +336,7 @@ impl<R> ConfigBuilder<R> {
             state_accumulator_config: self.state_accumulator_config,
             empty_validator_genesis: self.empty_validator_genesis,
             admin_interface_address: self.admin_interface_address,
+            port_offset: self.port_offset,
         }
     }
 
@@ -365,11 +373,15 @@ impl<R: rand::RngCore + rand::CryptoRng> ConfigBuilder<R> {
                 let (_, keys) = Committee::new_simple_test_committee_of_size(size.into());
 
                 keys.into_iter()
-                    .map(|authority_key| {
+                    .enumerate()
+                    .map(|(i, authority_key)| {
                         let mut builder = ValidatorGenesisConfigBuilder::new()
                             .with_authority_key_pair(authority_key);
                         if let Some(rgp) = self.reference_gas_price {
                             builder = builder.with_gas_price(rgp);
+                        }
+                        if let Some(port_offset) = self.port_offset {
+                            builder = builder.with_deterministic_ports(port_offset + i as u16 * 10);
                         }
                         builder.build(&mut rng)
                     })

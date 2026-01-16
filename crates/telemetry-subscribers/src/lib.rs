@@ -136,6 +136,7 @@ impl FilterHandle {
     }
 }
 
+#[derive(Clone)]
 pub struct TracingHandle {
     log: FilterHandle,
     trace: Option<FilterHandle>,

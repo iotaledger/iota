@@ -75,6 +75,8 @@ pub struct SwarmBuilder<R = OsRng> {
     iota_names_config: Option<IotaNamesConfig>,
     fullnode_grpc_api_config: Option<GrpcApiConfig>,
     disable_address_verification_cooldown: bool,
+    port_offset: Option<u16>,
+    tracing_handle: Option<telemetry_subscribers::TracingHandle>,
 }
 
 impl SwarmBuilder {
@@ -110,6 +112,8 @@ impl SwarmBuilder {
             iota_names_config: None,
             fullnode_grpc_api_config: None,
             disable_address_verification_cooldown: false,
+            port_offset: None,
+            tracing_handle: None,
         }
     }
 }
@@ -147,6 +151,8 @@ impl<R> SwarmBuilder<R> {
             iota_names_config: self.iota_names_config,
             fullnode_grpc_api_config: self.fullnode_grpc_api_config,
             disable_address_verification_cooldown: self.disable_address_verification_cooldown,
+            port_offset: self.port_offset,
+            tracing_handle: self.tracing_handle,
         }
     }
 
@@ -369,6 +375,19 @@ impl<R> SwarmBuilder<R> {
         self.disable_address_verification_cooldown = true;
         self
     }
+
+    pub fn with_port_offset(mut self, port_offset: u16) -> Self {
+        self.port_offset = Some(port_offset);
+        self
+    }
+
+    pub fn with_tracing_handle(
+        mut self,
+        tracing_handle: telemetry_subscribers::TracingHandle,
+    ) -> Self {
+        self.tracing_handle = Some(tracing_handle);
+        self
+    }
 }
 
 impl<R: rand::RngCore + rand::CryptoRng> SwarmBuilder<R> {
@@ -427,6 +446,10 @@ impl<R: rand::RngCore + rand::CryptoRng> SwarmBuilder<R> {
             {
                 config_builder = config_builder
                     .with_submit_delay_step_override_millis(submit_delay_step_override_millis);
+            }
+
+            if let Some(port_offset) = self.port_offset {
+                config_builder = config_builder.with_port_offset(port_offset);
             }
 
             let mut network_config = config_builder
@@ -542,18 +565,29 @@ impl<R: rand::RngCore + rand::CryptoRng> SwarmBuilder<R> {
             network_config,
             nodes,
             fullnode_config_builder,
+            tracing_handle: self.tracing_handle,
         }
     }
 }
 
 /// A handle to an in-memory IOTA Network.
-#[derive(Debug)]
 pub struct Swarm {
     dir: SwarmDirectory,
     network_config: NetworkConfig,
     nodes: HashMap<AuthorityName, Node>,
     // Save a copy of the fullnode config builder to build future fullnodes.
     fullnode_config_builder: FullnodeConfigBuilder,
+    tracing_handle: Option<telemetry_subscribers::TracingHandle>,
+}
+impl std::fmt::Debug for Swarm {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Swarm")
+            .field("dir", &self.dir)
+            .field("network_config", &self.network_config)
+            .field("nodes", &self.nodes)
+            .field("fullnode_config_builder", &self.fullnode_config_builder)
+            .finish()
+    }
 }
 
 impl Drop for Swarm {
@@ -574,7 +608,12 @@ impl Swarm {
 
     /// Start all nodes associated with this Swarm
     pub async fn launch(&mut self) -> Result<()> {
-        try_join_all(self.nodes_iter_mut().map(|node| node.start())).await?;
+        let tracing_handle = self.tracing_handle.clone();
+        try_join_all(
+            self.nodes_iter_mut()
+                .map(|node| node.start_with_tracing(tracing_handle.clone())),
+        )
+        .await?;
         tracing::info!("Successfully launched Swarm");
         Ok(())
     }
