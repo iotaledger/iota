@@ -439,7 +439,7 @@ async fn test_tto_invalid_receiving_arguments() {
                 Box::new(|err| matches!(err, UserInputError::ObjectNotFound { .. })),
             ),
             (
-                Box::new(|x: ObjectRef| (x.0, x.1.next(), x.2)),
+                Box::new(|x: ObjectRef| (x.0, x.1 + 1, x.2)),
                 Box::new(|err| {
                     matches!(
                         err,
@@ -448,7 +448,7 @@ async fn test_tto_invalid_receiving_arguments() {
                 }),
             ),
             (
-                Box::new(|x: ObjectRef| (x.0, x.1.one_before().unwrap(), x.2)),
+                Box::new(|x: ObjectRef| (x.0, x.1 - 1, x.2)),
                 Box::new(|err| {
                     matches!(
                         err,
@@ -1773,7 +1773,7 @@ async fn test_have_deleted_owned_object() {
         assert!(cache.have_deleted_owned_object_at_version_or_after(&deleted_child.0, new_child.0.1, 0));
         assert!(cache.have_deleted_owned_object_at_version_or_after(&deleted_child.0, child.0.1, 0));
         // Should not show as deleted for versions after this though
-        assert!(!cache.have_deleted_owned_object_at_version_or_after(&deleted_child.0, deleted_child.1.next(), 0));
+        assert!(!cache.have_deleted_owned_object_at_version_or_after(&deleted_child.0, deleted_child.1 + 1, 0));
         // Should not show as deleted for other epochs outside of our current epoch too
         assert!(!cache.have_deleted_owned_object_at_version_or_after(&deleted_child.0, deleted_child.1, 1));
     }

@@ -185,7 +185,7 @@ impl Display for ObjectChange {
                     f,
                     " ┌──\n │ PackageID: {} \n │ Version: {} \n │ Digest: {}\n │ Modules: {}\n └──",
                     package_id,
-                    u64::from(*version),
+                    version,
                     digest,
                     modules.join(", ")
                 )
@@ -201,12 +201,7 @@ impl Display for ObjectChange {
                 write!(
                     f,
                     " ┌──\n │ ObjectID: {}\n │ Sender: {} \n │ Recipient: {}\n │ ObjectType: {} \n │ Version: {}\n │ Digest: {}\n └──",
-                    object_id,
-                    sender,
-                    recipient,
-                    object_type,
-                    u64::from(*version),
-                    digest
+                    object_id, sender, recipient, object_type, version, digest
                 )
             }
             ObjectChange::Mutated {
@@ -221,12 +216,7 @@ impl Display for ObjectChange {
                 write!(
                     f,
                     " ┌──\n │ ObjectID: {}\n │ Sender: {} \n │ Owner: {}\n │ ObjectType: {} \n │ Version: {}\n │ Digest: {}\n └──",
-                    object_id,
-                    sender,
-                    owner,
-                    object_type,
-                    u64::from(*version),
-                    digest
+                    object_id, sender, owner, object_type, version, digest
                 )
             }
             ObjectChange::Deleted {
@@ -238,10 +228,7 @@ impl Display for ObjectChange {
                 write!(
                     f,
                     " ┌──\n │ ObjectID: {}\n │ Sender: {} \n │ ObjectType: {} \n │ Version: {}\n └──",
-                    object_id,
-                    sender,
-                    object_type,
-                    u64::from(*version)
+                    object_id, sender, object_type, version
                 )
             }
             ObjectChange::Wrapped {
@@ -253,10 +240,7 @@ impl Display for ObjectChange {
                 write!(
                     f,
                     " ┌──\n │ ObjectID: {}\n │ Sender: {} \n │ ObjectType: {} \n │ Version: {}\n └──",
-                    object_id,
-                    sender,
-                    object_type,
-                    u64::from(*version)
+                    object_id, sender, object_type, version
                 )
             }
             ObjectChange::Created {
@@ -270,12 +254,7 @@ impl Display for ObjectChange {
                 write!(
                     f,
                     " ┌──\n │ ObjectID: {}\n │ Sender: {} \n │ Owner: {}\n │ ObjectType: {} \n │ Version: {}\n │ Digest: {}\n └──",
-                    object_id,
-                    sender,
-                    owner,
-                    object_type,
-                    u64::from(*version),
-                    digest
+                    object_id, sender, owner, object_type, version, digest
                 )
             }
         }

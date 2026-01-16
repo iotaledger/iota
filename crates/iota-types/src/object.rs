@@ -45,7 +45,7 @@ pub mod bounded_visitor;
 pub mod option_visitor;
 
 pub const GAS_VALUE_FOR_TESTING: u64 = 300_000_000_000_000;
-pub const OBJECT_START_VERSION: SequenceNumber = SequenceNumber::from_u64(1);
+pub const OBJECT_START_VERSION: SequenceNumber = SequenceNumber(1);
 
 #[serde_as]
 #[derive(Eq, PartialEq, Debug, Clone, Deserialize, Serialize, Hash)]
@@ -249,11 +249,21 @@ impl MoveObject {
     /// Sets the version of this object to a new value which is assumed to be
     /// higher (and checked to be higher in debug).
     pub fn increment_version_to(&mut self, next: SequenceNumber) {
-        self.version.increment_to(next);
+        debug_assert!(
+            self.version < next,
+            "Not an increment: {} to {next}",
+            self.version
+        );
+        self.version = next;
     }
 
     pub fn decrement_version_to(&mut self, prev: SequenceNumber) {
-        self.version.decrement_to(prev);
+        debug_assert!(
+            prev < self.version,
+            "Not a decrement: {} to {prev}",
+            self.version
+        );
+        self.version = prev;
     }
 
     pub fn contents(&self) -> &[u8] {

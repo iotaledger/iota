@@ -1106,7 +1106,7 @@ impl Object {
 /// See [`Object::root_version`] for more details on parent/child object version
 /// mechanics.
 fn version_for_dynamic_fields(native: &NativeObject) -> u64 {
-    native.as_inner().version().into()
+    native.as_inner().version().0
 }
 
 impl ObjectFilter {

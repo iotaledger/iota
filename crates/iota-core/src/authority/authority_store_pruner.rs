@@ -214,7 +214,7 @@ impl AuthorityStorePruner {
             for ObjectKey(object_id, seq_number) in object_tombstones_to_prune {
                 for result in perpetual_db.objects.safe_iter_with_bounds(
                     Some(ObjectKey(object_id, VersionNumber::MIN_VALID_INCL)),
-                    Some(ObjectKey(object_id, seq_number.next())),
+                    Some(ObjectKey(object_id, seq_number + 1)),
                 ) {
                     let (object_key, _) = result?;
                     assert_eq!(object_key.0, object_id);
@@ -912,7 +912,7 @@ mod tests {
         let ids = ObjectID::in_range(ObjectID::ZERO, total_unique_object_ids.into())?;
         for id in ids {
             for (counter, seq) in (0..num_versions_per_object).rev().enumerate() {
-                let object_key = ObjectKey(id, SequenceNumber::from_u64(seq));
+                let object_key = ObjectKey(id, SequenceNumber(seq));
                 if counter < num_object_versions_to_retain.try_into().unwrap() {
                     // latest `num_object_versions_to_retain` should not have been pruned
                     to_keep.push(object_key);

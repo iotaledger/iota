@@ -697,7 +697,7 @@ mod tests {
         Coin {
             coin_type: coin_type_string,
             coin_object_id: object_id,
-            version: SequenceNumber::from_u64(1),
+            version: SequenceNumber(1),
             digest: ObjectDigest::from(arr),
             balance,
             previous_transaction: TransactionDigest::from(arr),

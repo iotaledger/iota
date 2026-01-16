@@ -102,13 +102,10 @@ impl ListAccountOwnedObjectsQueryParameters {
     }
 }
 
-#[serde_with::serde_as]
 #[derive(Debug, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
 pub struct AccountOwnedObjectInfo {
     pub owner: Address,
     pub object_id: ObjectId,
-    #[serde_as(as = "iota_types::iota_serde::BigInt<u64>")]
-    #[schemars(with = "crate::_schemars::U64")]
     pub version: Version,
     #[serde(rename = "type")]
     pub type_: StructTag,

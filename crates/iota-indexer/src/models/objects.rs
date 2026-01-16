@@ -176,7 +176,7 @@ impl StoredHistoryObject {
         if let ObjectStatus::WrappedOrDeleted = object_status {
             let object_ref = (
                 ObjectID::from_bytes(self.object_id.clone())?,
-                SequenceNumber::from_u64(self.object_version as u64),
+                SequenceNumber(self.object_version as u64),
                 ObjectDigest::OBJECT_DIGEST_DELETED,
             );
             return Ok(PastObjectRead::ObjectDeleted(object_ref));

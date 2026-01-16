@@ -16,7 +16,7 @@ use crate::{operations::Operations, types::ConstructionMetadata};
 async fn test_operation_data_parsing() -> Result<(), anyhow::Error> {
     let gas = (
         ObjectID::random(),
-        SequenceNumber::new(),
+        SequenceNumber::default(),
         ObjectDigest::random(),
     );
 

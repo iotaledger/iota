@@ -131,7 +131,7 @@ impl ObjectHandler {
             let entry = ObjectEntry {
                 object_id: object_ref.0.to_string(),
                 digest: object_ref.2.to_string(),
-                version: u64::from(object_ref.1),
+                version: object_ref.1.0,
                 type_: None,
                 checkpoint,
                 epoch,

@@ -738,7 +738,7 @@ pub mod shared_object_test_utils {
                             .map(|(id, mutable)| {
                                 CallArg::Object(ObjectArg::SharedObject {
                                     id: *id,
-                                    initial_shared_version: SequenceNumber::new(),
+                                    initial_shared_version: SequenceNumber::default(),
                                     mutable: *mutable,
                                 })
                             })
@@ -801,7 +801,7 @@ pub mod shared_object_test_utils {
             .iter()
             .map(|(id, mutable)| SharedInputObject {
                 id: *id,
-                initial_shared_version: SequenceNumber::new(),
+                initial_shared_version: SequenceNumber::default(),
                 mutable: *mutable,
             })
             .collect()

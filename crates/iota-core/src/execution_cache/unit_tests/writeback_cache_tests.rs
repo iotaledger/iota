@@ -214,7 +214,7 @@ impl Scenario {
             .data
             .try_as_move_mut()
             .unwrap()
-            .increment_version_to(SequenceNumber::from_u64(version.value() + delta));
+            .increment_version_to(SequenceNumber(version.value() + delta));
         inner.into()
     }
 
@@ -296,7 +296,7 @@ impl Scenario {
             let mut object_ref = object.compute_object_reference();
             self.outputs.live_object_markers_to_delete.push(object_ref);
             // in the authority this would be set to the lamport version of the tx
-            object_ref.1.increment();
+            object_ref.1 += 1;
             self.outputs.deleted.push(object_ref.into());
         }
     }
@@ -310,7 +310,7 @@ impl Scenario {
             let mut object_ref = object.compute_object_reference();
             self.outputs.live_object_markers_to_delete.push(object_ref);
             // in the authority this would be set to the lamport version of the tx
-            object_ref.1.increment();
+            object_ref.1 += 1;
             self.outputs.wrapped.push(object_ref.into());
         }
     }
@@ -706,7 +706,7 @@ async fn test_lt_or_eq() {
     Scenario::iterate(|mut s| async move {
         let check_all_versions = |s: &Scenario| {
             for i in 1u64..=3 {
-                let v = SequenceNumber::from_u64(i);
+                let v = SequenceNumber(i);
                 assert_eq!(
                     s.cache()
                         .find_object_lt_or_eq_version(s.obj_id(1), v)
@@ -757,8 +757,8 @@ async fn test_lt_or_eq_caching() {
         s.reset_cache();
 
         let check_version = |lookup_version: u64, expected_version: u64| {
-            let lookup_version = SequenceNumber::from_u64(lookup_version);
-            let expected_version = SequenceNumber::from_u64(expected_version);
+            let lookup_version = SequenceNumber(lookup_version);
+            let expected_version = SequenceNumber(expected_version);
             assert_eq!(
                 s.cache()
                     .find_object_lt_or_eq_version(s.obj_id(1), lookup_version)
@@ -819,12 +819,12 @@ async fn test_lt_or_eq_with_cached_tombstone() {
         s.reset_cache();
 
         let check_version = |lookup_version: u64, expected_version: Option<u64>| {
-            let lookup_version = SequenceNumber::from_u64(lookup_version);
+            let lookup_version = SequenceNumber(lookup_version);
             assert_eq!(
                 s.cache()
                     .find_object_lt_or_eq_version(s.obj_id(1), lookup_version)
                     .map(|v| v.version()),
-                expected_version.map(SequenceNumber::from_u64)
+                expected_version.map(SequenceNumber)
             );
         };
 
@@ -1221,7 +1221,7 @@ async fn latest_object_cache_race_test() {
 
                 cache.write_object_entry(&object_id, version, object.into());
 
-                version = version.next();
+                version = version + 1;
             }
         })
     };
@@ -1404,7 +1404,7 @@ async fn concurrent_latest_object_cache_race_test() {
 
         cache.write_object_entry(&object_id, write_version, object.into());
 
-        write_version = write_version.next();
+        write_version = write_version + 1;
     };
 
     // invalidate the cache on request
@@ -1526,7 +1526,7 @@ async fn concurrent_latest_object_cache_collision_test() {
 
         cache.write_object_entry(&object_id, *write_version, object.into());
 
-        *write_version = write_version.next();
+        *write_version += 1;
     };
 
     // invalidate the cache on request
@@ -1587,7 +1587,7 @@ async fn concurrent_latest_object_cache_collision_test() {
             .lock()
             .version()
             .unwrap(),
-        OBJECT_START_VERSION.next()
+        OBJECT_START_VERSION + 1
     );
     // but now we get a cache miss on object2 instead of getting the latest version
     assert!(cache.cached.object_by_id_cache.get(&object2_id).is_none());

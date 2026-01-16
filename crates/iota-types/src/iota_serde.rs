@@ -341,7 +341,7 @@ impl<'de> DeserializeAs<'de, crate::base_types::SequenceNumber> for SequenceNumb
         D: Deserializer<'de>,
     {
         let b = BigInt::deserialize(deserializer)?;
-        Ok(crate::base_types::SequenceNumber::from_u64(*b))
+        Ok(crate::base_types::SequenceNumber(*b))
     }
 }
 

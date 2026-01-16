@@ -693,7 +693,7 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
                     latest_epoch,
                     RandomnessRound(randomness_round),
                     random_bytes,
-                    SequenceNumber::from_u64(randomness_initial_version),
+                    SequenceNumber(randomness_initial_version),
                 );
 
                 self.execute_txn(tx.into()).await?;

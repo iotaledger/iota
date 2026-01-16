@@ -490,7 +490,7 @@ async fn get_object_impl(
             generate_layout: LayoutGenerationOption::Generate,
             request_kind: match version {
                 None => ObjectInfoRequestKind::LatestObjectInfo,
-                Some(v) => ObjectInfoRequestKind::PastObjectInfoDebug(SequenceNumber::from_u64(v)),
+                Some(v) => ObjectInfoRequestKind::PastObjectInfoDebug(SequenceNumber(v)),
             },
         })
         .await

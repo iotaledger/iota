@@ -290,7 +290,7 @@ mod tests {
     fn test_object_ref() -> ObjectRef {
         (
             ObjectID::ZERO,
-            SequenceNumber::from_u64(0),
+            SequenceNumber(0),
             ObjectDigest::new([0; 32]),
         )
     }

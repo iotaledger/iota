@@ -3134,7 +3134,7 @@ mod tests {
     ) -> Package {
         let storage_id = package_storage_id(package);
         let runtime_id = package_runtime_id(package);
-        let version = SequenceNumber::from_u64(version);
+        let version = SequenceNumber(version);
 
         let mut modules = BTreeMap::new();
         for unit in &package.package.root_compiled_units {

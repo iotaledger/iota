@@ -146,7 +146,7 @@ impl RemovedObject {
         let indexed_object = IndexedDeletedObject {
             checkpoint_sequence_number,
             object_id,
-            object_version: object_version.into(),
+            object_version: object_version.0,
         };
         Self {
             indexed_object,

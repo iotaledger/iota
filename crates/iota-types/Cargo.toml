@@ -65,7 +65,7 @@ iota-enum-compat-util.workspace = true
 iota-macros.workspace = true
 iota-network-stack.workspace = true
 iota-protocol-config.workspace = true
-iota-sdk-types.workspace = true
+iota-sdk-types = { workspace = true, features = ["serde", "schemars", "proptest"] }
 iota-stardust-sdk = { version = "1.1", default-features = false, features = ["irc_27", "irc_30", "std"], package = "iota-sdk" }
 move-binary-format.workspace = true
 move-bytecode-utils.workspace = true
