@@ -95,6 +95,8 @@ pub const MAX_PROTOCOL_VERSION: u64 = 19;
 // Version 18: Enable passkey authentication support in testnet.
 // Version 19: Enable congestion limit overshoot in the gas price feedback
 //             mechanism on devnet.
+//             Enable a separate gas price feedback mechanism for transactions
+//             using randomness on devnet.
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
 
@@ -378,6 +380,11 @@ struct FeatureFlags {
     // To enable/disable congestion limit overshoot in the gas price feedback mechanism.
     #[serde(skip_serializing_if = "is_false")]
     congestion_limit_overshoot_in_gas_price_feedback_mechanism: bool,
+
+    // To enable/disable a separate gas price feedback mechanism for transactions using
+    // randomness.
+    #[serde(skip_serializing_if = "is_false")]
+    separate_gas_price_feedback_mechanism_for_randomness: bool,
 }
 
 fn is_true(b: &bool) -> bool {
@@ -1459,6 +1466,13 @@ impl ProtocolConfig {
         self.feature_flags
             .congestion_limit_overshoot_in_gas_price_feedback_mechanism
     }
+
+    /// Check whether a separate gas price feedback mechanism is used for
+    /// randomness transactions.
+    pub fn separate_gas_price_feedback_mechanism_for_randomness(&self) -> bool {
+        self.feature_flags
+            .separate_gas_price_feedback_mechanism_for_randomness
+    }
 }
 
 #[cfg(not(msim))]
@@ -2345,6 +2359,10 @@ impl ProtocolConfig {
                         // mechanism on devnet.
                         cfg.feature_flags
                             .congestion_limit_overshoot_in_gas_price_feedback_mechanism = true;
+                        // Enable a separate gas price feedback mechanism for transactions using
+                        // randomness on devnet.
+                        cfg.feature_flags
+                            .separate_gas_price_feedback_mechanism_for_randomness = true;
                     }
                 }
                 // Use this template when making changes:
@@ -2543,6 +2561,14 @@ impl ProtocolConfig {
     ) {
         self.feature_flags
             .congestion_limit_overshoot_in_gas_price_feedback_mechanism = val;
+    }
+
+    pub fn set_separate_gas_price_feedback_mechanism_for_randomness_for_testing(
+        &mut self,
+        val: bool,
+    ) {
+        self.feature_flags
+            .separate_gas_price_feedback_mechanism_for_randomness = val;
     }
 }
 

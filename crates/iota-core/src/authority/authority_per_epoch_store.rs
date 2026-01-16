@@ -3482,6 +3482,12 @@ impl AuthorityPerEpochStore {
                 .clone(),
             self.reference_gas_price(),
         );
+        let mut suggested_gas_price_calculator_for_randomness = SuggestedGasPriceCalculator::new(
+            shared_object_using_randomness_congestion_tracker
+                .congestion_control_parameters()
+                .clone(),
+            self.reference_gas_price(),
+        );
 
         fail_point_arg!(
             "initial_suggested_gas_price_calculator",
@@ -3499,10 +3505,23 @@ impl AuthorityPerEpochStore {
             let key = tx.0.transaction.key();
             let mut ignored = false;
             let mut filter_roots = false;
-            let congestion_tracker = if tx.0.is_user_tx_with_randomness() {
-                &mut shared_object_using_randomness_congestion_tracker
+            let (congestion_tracker, sgp_calculator) = if tx.0.is_user_tx_with_randomness() {
+                (
+                    &mut shared_object_using_randomness_congestion_tracker,
+                    if self
+                        .protocol_config
+                        .separate_gas_price_feedback_mechanism_for_randomness()
+                    {
+                        &mut suggested_gas_price_calculator_for_randomness
+                    } else {
+                        &mut suggested_gas_price_calculator
+                    },
+                )
             } else {
-                &mut shared_object_congestion_tracker
+                (
+                    &mut shared_object_congestion_tracker,
+                    &mut suggested_gas_price_calculator,
+                )
             };
             match self
                 .process_consensus_transaction(
@@ -3515,7 +3534,7 @@ impl AuthorityPerEpochStore {
                     dkg_failed,
                     randomness_round.is_some(),
                     congestion_tracker,
-                    &mut suggested_gas_price_calculator,
+                    sgp_calculator,
                     authority_metrics,
                 )
                 .await?

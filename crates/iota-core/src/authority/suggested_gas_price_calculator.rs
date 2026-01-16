@@ -124,15 +124,15 @@ impl SuggestedGasPriceCalculator {
     ) {
         // If we don't have a `BumpObjectExecutionSlotsResult`, we don't need
         // to update the congestion info.
-        if let Some(tx) = bump_object_execution_slots_result {
+        if let Some(res) = bump_object_execution_slots_result {
             let scheduled_transaction_congestion_info = ScheduledTransactionCongestionInfo::new(
-                tx.gas_price(),
-                tx.estimated_execution_duration(),
+                res.gas_price(),
+                res.estimated_execution_duration(),
             );
 
-            for obj_id in tx.object_ids() {
+            for obj_id in res.object_ids() {
                 let prev_info = self.congestion_info.entry(*obj_id).or_default().insert(
-                    tx.execution_start_time(),
+                    res.execution_start_time(),
                     scheduled_transaction_congestion_info,
                 );
                 // The sequencer should not schedule multiple transactions with the same
@@ -142,7 +142,7 @@ impl SuggestedGasPriceCalculator {
                     prev_info.is_none(),
                     "Multiple transactions were scheduled at the same execution start time {} \
                         for the same shared object {obj_id:?}",
-                    tx.execution_start_time(),
+                    res.execution_start_time(),
                 );
             }
         }
