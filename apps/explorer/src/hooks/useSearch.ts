@@ -129,6 +129,7 @@ const getResultsForEpoch = async (
         // Try to get epochs data for the given sequence number
         const epochNumber = Number(query);
         const { data } = await client.getEpochs({
+            // Note: endpoint returns no data for epoch 0 when using cursor
             cursor: epochNumber > 0 ? (epochNumber - 1).toString() : undefined,
             limit: 1,
         });
@@ -136,7 +137,7 @@ const getResultsForEpoch = async (
         if (!data || data.length === 0) return null;
         
         const epochData = data[0];
-        // Verify we got the correct epoch
+        // Verify we got the correct epoch (epoch is a string in the API)
         if (epochData.epoch !== query) return null;
 
         return [
