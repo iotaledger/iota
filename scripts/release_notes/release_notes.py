@@ -37,6 +37,16 @@ RE_NOTE = re.compile(
     re.MULTILINE | re.IGNORECASE,
 )
 
+RE_ATTENTION = re.compile(
+    r"#+\s*Attention(.*)",
+    re.DOTALL | re.IGNORECASE,
+)
+
+RE_ATTENTION_NOTE = re.compile(
+    r"^\s*-\s*\[( |x)?\]\s*(.+)$",
+    re.MULTILINE | re.IGNORECASE,
+)
+
 # Only commits that affect changes in these directories will be
 # considered when generating release notes.
 INTERESTING_DIRECTORIES = [
@@ -66,6 +76,12 @@ NOTE_ORDER = [
     "REST API",
     "Internal gRPC API",
 ]
+
+ATTENTION_MESSAGES = {
+    "Protocol Types Changed": "Users of iota-data-ingestion-core need to update their application.",
+}
+
+ATTENTION_ICON = "⚠️"
 
 
 class Note(NamedTuple):
@@ -170,6 +186,30 @@ def extract_notes_from_pr(pr_number):
         return pr_notes
 
 
+def extract_attention(notes):
+    """Extract checked attention items from a PR description."""
+    if not notes:
+        return []
+
+    match = RE_ATTENTION.search(notes)
+    if not match:
+        return []
+
+    section = match.group(1)
+    next_heading = re.search(r"^\s*#+\s", section, re.MULTILINE)
+    if next_heading:
+        section = section[: next_heading.start()]
+
+    items = []
+    for m in RE_ATTENTION_NOTE.finditer(section):
+        checked = m.group(1)
+        label = m.group(2).strip()
+        if checked and checked.lower() == "x":
+            items.append(label)
+
+    return items
+
+
 def extract_notes(commit_or_pr, seen, is_pr):
     """Get release notes from a commit message or a PR description.
 
@@ -196,17 +236,18 @@ def extract_notes(commit_or_pr, seen, is_pr):
             pr, notes = extract_notes_from_commit(commit_or_pr)
 
     result = {}
+    attention = extract_attention(notes)
 
     # Otherwise, find the release notes section from the squashed commit message
     match = RE_HEADING.search(notes)
     if not match:
-        return pr, []
+        return pr, [], attention
     notes = match.group(1)
 
     if pr in seen:
         # a PR can be in multiple commits if it's from a rebase,
         # so we only want to process it once
-        return pr, []
+        return pr, [], []
 
     start = 0
     while True:
@@ -229,7 +270,7 @@ def extract_notes(commit_or_pr, seen, is_pr):
         )
         start = end
 
-    return pr, result.items()
+    return pr, result.items(), attention
 
 
 def extract_protocol_version(commit):
@@ -268,7 +309,7 @@ def do_check(commit_or_pr, is_pr):
 
     """
 
-    _, notes = extract_notes(commit_or_pr, set(), is_pr)
+    _, notes, _ = extract_notes(commit_or_pr, set(), is_pr)
 
     issues = []
     any_checked = False
@@ -313,6 +354,8 @@ def do_generate(from_, to):
 
     """
     results = defaultdict(list)
+    attention_results = defaultdict(list)
+    attention_seen = defaultdict(set)
 
     root = git("rev-parse", "--show-toplevel")
     os.chdir(root)
@@ -333,11 +376,16 @@ def do_generate(from_, to):
 
     seen_prs = set()
     for commit in commits.split("\n"):
-        pr, notes = extract_notes(commit, seen_prs, False)
+        pr, notes, attention = extract_notes(commit, seen_prs, False)
         seen_prs.add(pr)
         for impacted, note in notes:
             if note.checked:
                 results[impacted].append((pr, note.note))
+        for label in attention:
+            if pr in attention_seen[label]:
+                continue
+            attention_seen[label].add(pr)
+            attention_results[label].append(pr)
 
     # Print the impact areas we know about first
     for impacted in NOTE_ORDER:
@@ -365,6 +413,14 @@ def do_generate(from_, to):
         for pr, note in reversed(notes):
             print_changelog(pr, note)
             print()
+
+    if attention_results:
+        print(f"## {ATTENTION_ICON} Attention {ATTENTION_ICON}\n")
+        for label in sorted(attention_results):
+            message = ATTENTION_MESSAGES.get(label, label)
+            for pr in reversed(attention_results[label]):
+                print(message)
+                print()
 
 
 args = parse_args()

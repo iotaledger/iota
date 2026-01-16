@@ -40,3 +40,7 @@ For each box you select, include information after the relevant heading that des
 - [ ] CLI:
 - [ ] Rust SDK:
 - [ ] gRPC:
+
+#### Attention
+
+- [ ] Protocol Types Changed

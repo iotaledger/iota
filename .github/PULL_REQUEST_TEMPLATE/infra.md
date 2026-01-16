@@ -33,3 +33,7 @@ Make sure to provide instructions for the maintainer as well as any relevant con
 - [ ] CLI:
 - [ ] Rust SDK:
 - [ ] gRPC:
+
+#### Attention
+
+- [ ] Protocol Types Changed
