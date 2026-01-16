@@ -17,7 +17,6 @@ import {
     type SendTokenFormValues,
     RECEIVING_ADDRESS_FIELD_IDS,
 } from '@iota/core';
-import { normalizeIotaName } from '@iota/iota-names-sdk';
 import { CoinFormat, IOTA_TYPE_ARG, safeParseAmount } from '@iota/iota-sdk/utils';
 import { Form, useFormikContext } from 'formik';
 import {
@@ -107,20 +106,21 @@ export function SendTokenForm({
         }
     }, [iotaBalance, isBuildingTransaction, isSendCoinErrored, sendCoinError]);
 
-    const showNicknameWarning = checkSameNicknameAsReceiver(values.to, values.resolvedAddress);
+    const isSendingToIotaName = values.resolvedAddress ? values.resolvedAddress.length > 0 : false;
 
-    function checkSameNicknameAsReceiver(to: string, resolvedAddress?: string | null) {
-        const isSendingToName = values.resolvedAddress && values.resolvedAddress.length > 0;
+    const matchedAccountWithNickname = isSendingToIotaName
+        ? accounts?.find(({ nickname }) => {
+              if (!nickname || !values.to || values.to === '@') return;
 
-        if (!isSendingToName || !to || to === '@') return false;
-        const accountWithNickname = accounts?.find((account) => {
-            if (!account.nickname) return;
+              return denormalizeIotaName(values.to) === denormalizeIotaName(nickname);
+          })
+        : undefined;
 
-            const nicknameLikeAIotaName = normalizeIotaName(account.nickname, 'at');
-            return [account.nickname, nicknameLikeAIotaName].includes(to);
-        });
+    const showNicknameWarning =
+        matchedAccountWithNickname && matchedAccountWithNickname.address !== values.resolvedAddress;
 
-        return accountWithNickname && accountWithNickname.address !== resolvedAddress;
+    function denormalizeIotaName(name: string) {
+        return name.replace(/^@/, '').replace(/\.iota$/i, '');
     }
 
     return (
@@ -151,8 +151,8 @@ export function SendTokenForm({
                         {showNicknameWarning && (
                             <InfoBox
                                 type={InfoBoxType.Warning}
-                                title="Sending to a name"
-                                supportingText="You are sending to an address that is not associated with your nickname."
+                                title="Sending to an IOTA Name"
+                                supportingText={`You have an account named '${matchedAccountWithNickname.nickname}' but you are sending to the IOTA Name '${values.to}'. These are different addresses. Please verify the recipient’s address before sending.`}
                                 style={InfoBoxStyle.Elevated}
                                 icon={<Exclamation />}
                             />
