@@ -55,39 +55,39 @@ export async function getAllSerializedUIAccountSources() {
 
 async function createAccountSource({ type, params }: MethodPayload<'createAccountSource'>['args']) {
     const { password } = params;
+    let accountSource;
     switch (type) {
         case AccountSourceType.Mnemonic:
             const entropy = params.entropy;
-            return (
-                await MnemonicAccountSource.save(
-                    await MnemonicAccountSource.createNew({
-                        password,
-                        entropyInput: entropy ? toEntropy(entropy) : undefined,
-                    }),
-                )
-            ).toUISerialized();
+            accountSource = await MnemonicAccountSource.save(
+                await MnemonicAccountSource.createNew({
+                    password,
+                    entropyInput: entropy ? toEntropy(entropy) : undefined,
+                }),
+            );
+            break;
         case AccountSourceType.Seed:
-            return (
-                await SeedAccountSource.save(
-                    await SeedAccountSource.createNew({
-                        password,
-                        seed: params.seed,
-                    }),
-                )
-            ).toUISerialized();
+            accountSource = await SeedAccountSource.save(
+                await SeedAccountSource.createNew({
+                    password,
+                    seed: params.seed,
+                }),
+            );
+            break;
         case AccountSourceType.Keystone:
-            return (
-                await KeystoneAccountSource.save(
-                    await KeystoneAccountSource.createNew({
-                        password,
-                        masterFingerprint: params.masterFingerprint,
-                    }),
-                )
-            ).toUISerialized();
+            accountSource = await KeystoneAccountSource.save(
+                await KeystoneAccountSource.createNew({
+                    password,
+                    masterFingerprint: params.masterFingerprint,
+                }),
+            );
+            break;
         default: {
             throw new Error(`Unknown Account source type ${type}`);
         }
     }
+    accountSourcesEvents.emit('accountSourcesChanged');
+    return accountSource.toUISerialized();
 }
 
 export async function accountSourcesHandleUIMessage(msg: Message, uiConnection: UiConnection) {
