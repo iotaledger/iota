@@ -243,34 +243,6 @@ impl SharedObjectCongestionTracker {
         }
     }
 
-    /// Create a new `SharedObjectCongestionTracker` for testing for the given
-    /// `CongestionControlParameters` and taking into account
-    /// `initial_object_debts`.
-    #[cfg(test)]
-    pub(super) fn new_for_test(
-        initial_object_debts: impl IntoIterator<Item = (ObjectID, u64)>,
-        congestion_control_parameters: CongestionControlParameters,
-    ) -> Self {
-        let object_execution_slots = initial_object_debts
-            .into_iter()
-            .map(|(object_id, debt)| {
-                let mut slots = ObjectExecutionSlots::new();
-                if debt > 0 {
-                    // If there is an initial debt, remove the occupied slot from time 0 to
-                    // debt.
-                    slots.remove(ExecutionSlot::new(0, debt));
-                }
-
-                (object_id, slots)
-            })
-            .collect::<HashMap<_, _>>();
-
-        Self {
-            object_execution_slots,
-            congestion_control_parameters,
-        }
-    }
-
     /// Get congestion control parameters used in the tracker.
     pub(super) fn congestion_control_parameters(&self) -> &CongestionControlParameters {
         &self.congestion_control_parameters
@@ -325,33 +297,20 @@ impl SharedObjectCongestionTracker {
             // If `assign_min_free_execution_slot` is false, we assign the transaction start
             // time based on the maximum start time of free execution slots for the
             // transaction over all its shared objects.
-            let _span =
-                tracing::trace_span!("get_max_start_time_of_free_execution_slots").entered();
-            let object_start_times: Vec<_> = shared_input_objects
+            let _span = tracing::trace_span!("max_object_free_slot_start_time").entered();
+            shared_input_objects
                 .iter()
                 .map(|obj| {
+                    // `start_time`
                     self.object_execution_slots
                         .get(&obj.id)
                         .expect("object should have been inserted at the start of this function.")
+                        .max_object_free_slot_start_time(tx_duration)
                 })
-                .map(|slots| slots.max_object_free_slot_start_time(tx_duration))
-                .collect();
-
-            if object_start_times
-                .iter()
-                .all(|start_time| start_time.is_some())
-            {
-                Some(
-                    object_start_times
-                        .iter()
-                        .map(|start_time| start_time.unwrap())
-                        .max()
-                        .unwrap(),
-                )
-            } else {
-                // If any object does not have a free slot, return None.
-                None
-            }
+                // If any `start_time` is `None` (i.e., the corresponding object
+                // does not have a free slot), the collect will return `None`
+                .collect::<Option<Vec<_>>>()
+                .and_then(|object_start_times| object_start_times.into_iter().max())
         }
     }
 
@@ -888,7 +847,7 @@ pub mod shared_object_test_utils {
         init_values: &[(ObjectID, ExecutionTime)],
         congestion_control_parameters: CongestionControlParameters,
     ) -> SharedObjectCongestionTracker {
-        SharedObjectCongestionTracker::new_for_test(
+        SharedObjectCongestionTracker::new(
             init_values.iter().map(|(id, debt)| (*id, *debt)),
             congestion_control_parameters,
         )
@@ -1223,7 +1182,7 @@ mod object_cost_tests {
                 0,
             );
             if assign_min_free_execution_slot {
-                matches!(sequencing_result, SequencingResult::Schedule(1));
+                assert!(matches!(sequencing_result, SequencingResult::Schedule(1)));
             } else if let SequencingResult::Defer(_, congested_objects) = sequencing_result {
                 assert_eq!(congested_objects.len(), 1);
                 assert_eq!(congested_objects[0], shared_obj_1);
@@ -1820,7 +1779,7 @@ mod object_cost_tests {
                 //     299| xxxxxxxx   |          _____ 100 + max_overshoot_per_commit = 300
                 //     300| xxxxxxxx   |
                 //     301|            |
-                SharedObjectCongestionTracker::new_for_test(
+                SharedObjectCongestionTracker::new(
                     [(shared_obj_0, 301), (shared_obj_1, 199)],
                     congestion_control_parameters.clone(),
                 )
@@ -1833,7 +1792,7 @@ mod object_cost_tests {
                 //        2| xxxxxxxx   | xxxxxxxx
                 //        3| xxxxxxxx   |          _____ 2 + max_overshoot_per_commit = 4
                 //        4|            |
-                SharedObjectCongestionTracker::new_for_test(
+                SharedObjectCongestionTracker::new(
                     [(shared_obj_0, 4), (shared_obj_1, 3)],
                     congestion_control_parameters,
                 )
@@ -1929,7 +1888,7 @@ mod object_cost_tests {
             PerObjectCongestionControlMode::TotalTxCount => 2,
         };
 
-        let mut shared_object_congestion_tracker = SharedObjectCongestionTracker::new_for_test(
+        let mut shared_object_congestion_tracker = SharedObjectCongestionTracker::new(
             [
                 (shared_obj_0, initial_object_debt),
                 (shared_obj_1, initial_object_debt),

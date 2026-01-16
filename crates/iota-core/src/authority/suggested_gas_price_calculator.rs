@@ -274,10 +274,8 @@ pub mod suggested_gas_price_calculator_test_utils {
         congestion_control_parameters: CongestionControlParameters,
         reference_gas_price: u64,
     ) -> SuggestedGasPriceCalculator {
-        let mut shared_object_congestion_tracker = SharedObjectCongestionTracker::new_for_test(
-            vec![],
-            congestion_control_parameters.clone(),
-        );
+        let mut shared_object_congestion_tracker =
+            SharedObjectCongestionTracker::new(vec![], congestion_control_parameters.clone());
 
         let mut suggested_gas_price_calculator = SuggestedGasPriceCalculator::new(
             congestion_control_parameters.clone(),
@@ -719,7 +717,7 @@ mod tests {
         );
 
         // Initialize `SharedObjectCongestionTracker` and `SuggestedGasPriceCalculator`
-        let mut shared_object_congestion_tracker = SharedObjectCongestionTracker::new_for_test(
+        let mut shared_object_congestion_tracker = SharedObjectCongestionTracker::new(
             [], // initial_object_debts
             congestion_control_parameters.clone(),
         );
@@ -996,7 +994,7 @@ mod tests {
         );
 
         // Initialize `SharedObjectCongestionTracker` and `SuggestedGasPriceCalculator`
-        let mut shared_object_congestion_tracker = SharedObjectCongestionTracker::new_for_test(
+        let mut shared_object_congestion_tracker = SharedObjectCongestionTracker::new(
             [], // initial_object_debts
             congestion_control_parameters.clone(),
         );
@@ -1436,7 +1434,7 @@ mod tests {
         );
 
         // Initialize `SharedObjectCongestionTracker` and `SuggestedGasPriceCalculator`
-        let mut shared_object_congestion_tracker = SharedObjectCongestionTracker::new_for_test(
+        let mut shared_object_congestion_tracker = SharedObjectCongestionTracker::new(
             [(object_1, 1), (object_2, 2)], // initial_object_debts
             congestion_control_parameters.clone(),
         );
@@ -1768,7 +1766,7 @@ mod tests {
         );
 
         // Initialize `SharedObjectCongestionTracker` and `SuggestedGasPriceCalculator`
-        let mut shared_object_congestion_tracker = SharedObjectCongestionTracker::new_for_test(
+        let mut shared_object_congestion_tracker = SharedObjectCongestionTracker::new(
             [(object_1, 2_000_000), (object_2, 1_000_000)], // initial_object_debts
             congestion_control_parameters.clone(),
         );
@@ -2258,7 +2256,7 @@ mod tests {
         );
 
         // Initialize `SharedObjectCongestionTracker` and `SuggestedGasPriceCalculator`
-        let mut shared_object_congestion_tracker = SharedObjectCongestionTracker::new_for_test(
+        let mut shared_object_congestion_tracker = SharedObjectCongestionTracker::new(
             [], // initial_object_debts
             congestion_control_parameters.clone(),
         );
@@ -2340,7 +2338,7 @@ mod tests {
         );
 
         // Initialize `SharedObjectCongestionTracker` and `SuggestedGasPriceCalculator`
-        let mut shared_object_congestion_tracker = SharedObjectCongestionTracker::new_for_test(
+        let mut shared_object_congestion_tracker = SharedObjectCongestionTracker::new(
             [(object_1, 3), (object_2, 3)], // initial_object_debts
             congestion_control_parameters.clone(),
         );
