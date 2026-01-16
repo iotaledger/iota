@@ -514,16 +514,6 @@ impl Core {
         self.add_block_headers(block_headers)
     }
 
-    #[allow(dead_code)]
-    pub(crate) fn handle_committed_sub_dags(
-        &mut self,
-        committed_subdags: Vec<CommittedSubDag>,
-        source: CommittedSubDagSource,
-    ) -> ConsensusResult<()> {
-        self.commit_observer
-            .handle_committed_sub_dags(committed_subdags, source)
-    }
-
     /// Handle committed subdags from fast sync.
     /// First stores the commits, transactions in DagState, then processes the
     /// subdags. Also updates the leader schedule from commits that contain

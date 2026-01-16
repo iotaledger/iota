@@ -578,7 +578,7 @@ mod tests {
         block_header::{
             BlockHeaderDigest, BlockRef, BlockTimestampMs, TestBlockHeader, VerifiedBlockHeader,
         },
-        commit::{CommitDigest, CommitInfo, CommitRef, CommittedSubDag, TrustedCommit},
+        commit::{CommitAPI, CommitDigest, CommitInfo, CommitRef, CommittedSubDag, TrustedCommit},
         storage::{Store, WriteBatch, mem_store::MemStore},
         test_dag_builder::DagBuilder,
     };
@@ -924,8 +924,8 @@ mod tests {
         let unscored_subdags = vec![
             CommittedSubDag::new(
                 leader_ref,
-                blocks.clone(),
-                blocks.iter().map(|b| b.reference()).collect::<Vec<_>>(),
+                blocks,
+                last_commit.block_headers().to_vec(),
                 vec![], // Committed transactions are not important for this test.
                 context.clock.timestamp_utc_ms(),
                 last_commit.reference(),
