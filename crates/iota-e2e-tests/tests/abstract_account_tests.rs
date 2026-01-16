@@ -515,9 +515,11 @@ impl TestEnvironment {
         .take(Ed25519Signature::LENGTH * 2)
         .collect();
         let signature_call_arg = CallArg::Pure(bcs::to_bytes(&hex_encoded_signature)?);
-        Ok(GenericSignature::MoveAuthenticator(
-            MoveAuthenticator::new_for_testing(vec![signature_call_arg], vec![], self_call_arg),
-        ))
+        Ok(GenericSignature::MoveAuthenticator(MoveAuthenticator::new(
+            vec![signature_call_arg],
+            vec![],
+            self_call_arg,
+        )))
     }
 
     // Create the MoveAuthenticator for the free access authenticator:
@@ -535,9 +537,11 @@ impl TestEnvironment {
             initial_shared_version: aa_ref.1,
             mutable: false,
         });
-        Ok(GenericSignature::MoveAuthenticator(
-            MoveAuthenticator::new_for_testing(vec![], vec![], self_call_arg),
-        ))
+        Ok(GenericSignature::MoveAuthenticator(MoveAuthenticator::new(
+            vec![],
+            vec![],
+            self_call_arg,
+        )))
     }
 
     fn craft_aa_simple_ptb(&self) -> anyhow::Result<ProgrammableTransaction> {

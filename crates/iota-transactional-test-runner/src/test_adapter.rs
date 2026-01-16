@@ -1424,7 +1424,7 @@ impl IotaTestAdapter {
 
         Ok((
             aa_id,
-            GenericSignature::MoveAuthenticator(MoveAuthenticator::new_for_testing(
+            GenericSignature::MoveAuthenticator(MoveAuthenticator::new(
                 auth_inputs,
                 vec![],
                 CallArg::Object(aa_arg),
