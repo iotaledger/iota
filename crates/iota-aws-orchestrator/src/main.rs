@@ -196,6 +196,10 @@ pub enum Operation {
         /// Number of shared counters to use in the benchmark
         #[arg(long, value_name = "INT", global = true)]
         num_shared_counters: Option<usize>,
+
+        /// RUST_LOG
+        #[arg(long, value_name = "INT", global = true)]
+        rust_log: Option<String>,
     },
 
     /// Print a summary of the specified measurements collection.
@@ -435,6 +439,7 @@ async fn run<C: ServerProviderClient>(settings: Settings, client: C, opts: Opts)
             max_pipeline_delay,
             shared_counter_hotness_factor,
             num_shared_counters,
+            rust_log,
         } => {
             // Create a new orchestrator to instruct the testbed.
             let username = testbed.username();
@@ -520,7 +525,8 @@ async fn run<C: ServerProviderClient>(settings: Settings, client: C, opts: Opts)
             .with_epoch_duration(epoch_duration_ms)
             .with_max_pipeline_delay(max_pipeline_delay)
             .with_current_timestamp_for_genesis(use_current_timestamp_for_genesis)
-            .with_faults(fault_type);
+            .with_faults(fault_type)
+            .with_rust_log(rust_log);
 
             if let Some(factor) = shared_counter_hotness_factor {
                 generator = generator.with_shared_counter_hotness_factor(factor);

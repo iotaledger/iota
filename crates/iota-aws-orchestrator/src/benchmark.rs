@@ -80,6 +80,8 @@ pub struct BenchmarkParameters<T> {
     pub num_shared_counters: Option<usize>,
     /// Directory to store benchmark results
     pub benchmark_dir: PathBuf,
+    /// RUST_LOG
+    pub rust_log: Option<String>,
 }
 
 impl<T: BenchmarkType> Default for BenchmarkParameters<T> {
@@ -102,6 +104,7 @@ impl<T: BenchmarkType> Default for BenchmarkParameters<T> {
             shared_counter_hotness_factor: None,
             num_shared_counters: None,
             benchmark_dir: PathBuf::default(),
+            rust_log: None,
         }
     }
 }
@@ -155,6 +158,7 @@ impl<T> BenchmarkParameters<T> {
         shared_counter_hotness_factor: Option<u8>,
         num_shared_counters: Option<usize>,
         benchmark_dir: PathBuf,
+        rust_log: Option<String>,
     ) -> Self {
         Self {
             benchmark_type,
@@ -174,6 +178,7 @@ impl<T> BenchmarkParameters<T> {
             shared_counter_hotness_factor,
             num_shared_counters,
             benchmark_dir,
+            rust_log,
         }
     }
 }
@@ -239,6 +244,8 @@ pub struct BenchmarkParametersGenerator<T> {
     shared_counter_hotness_factor: Option<u8>,
     /// Number of shared counters to use
     num_shared_counters: Option<usize>,
+    /// RUST_LOG
+    rust_log: Option<String>,
 }
 
 impl<T: BenchmarkType> Iterator for BenchmarkParametersGenerator<T> {
@@ -277,6 +284,7 @@ impl<T: BenchmarkType> Iterator for BenchmarkParametersGenerator<T> {
                 self.shared_counter_hotness_factor,
                 self.num_shared_counters,
                 PathBuf::default(),
+                self.rust_log.clone(),
             )
         })
     }
@@ -324,6 +332,7 @@ impl<T: BenchmarkType> BenchmarkParametersGenerator<T> {
             max_pipeline_delay: 400,
             shared_counter_hotness_factor: None,
             num_shared_counters: None,
+            rust_log: None,
         }
     }
 
@@ -387,6 +396,11 @@ impl<T: BenchmarkType> BenchmarkParametersGenerator<T> {
 
     pub fn with_num_shared_counters(mut self, counters: usize) -> Self {
         self.num_shared_counters = Some(counters);
+        self
+    }
+
+    pub fn with_rust_log(mut self, rust_log: Option<String>) -> Self {
+        self.rust_log = rust_log;
         self
     }
 

@@ -218,6 +218,12 @@ impl ProtocolCommands<IotaBenchmarkType> for IotaProtocol {
                     iota_config::validator_config_file(network_address.clone(), i);
                 let config_path: PathBuf = working_dir.join(validator_config);
                 let max_pipeline_delay = parameters.max_pipeline_delay;
+                let rust_log = parameters
+                    .rust_log
+                    .as_ref()
+                    .map_or(String::new(), |rust_log| {
+                        format!("export RUST_LOG={rust_log}")
+                    });
                 let iota_node_command = self.run_binary_command(
                     "iota-node",
                     &[
@@ -234,6 +240,7 @@ impl ProtocolCommands<IotaBenchmarkType> for IotaProtocol {
                         } else {
                             ""
                         },
+                        rust_log.as_str(),
                     ],
                     &[&format!(
                         "--config-path {} --listen-address {}",
