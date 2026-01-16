@@ -669,7 +669,7 @@ fn batch_verify(
     info!(
         certs_num_to_verify = certs.len(),
         checkpoints_num_to_verify = checkpoints.len(),
-        "signature_verifier::batch_verify"
+        "batch_verify"
     );
     let mut obligation = VerificationObligation::default();
 
