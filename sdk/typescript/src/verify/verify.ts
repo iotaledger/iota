@@ -12,6 +12,7 @@ import { Secp256r1PublicKey } from '../keypairs/secp256r1/publickey.js';
 // eslint-disable-next-line import/no-cycle
 import { MultiSigPublicKey } from '../multisig/publickey.js';
 import { PasskeyPublicKey } from '../keypairs/passkey/publickey.js';
+import { MoveAuthenticatorPublicKey } from '../keypairs/move-authenticator/publickey.js';
 
 export async function verifySignature(bytes: Uint8Array, signature: string): Promise<PublicKey> {
     const parsedSignature = parseSignature(signature);
@@ -66,6 +67,17 @@ function parseSignature(signature: string) {
         return {
             ...parsedSignature,
             publicKey: new MultiSigPublicKey(parsedSignature.multisig.multisig_pk),
+        };
+    }
+
+    if (parsedSignature.signatureScheme === 'MoveAuthenticator') {
+        return {
+            ...parsedSignature,
+            publicKey: new MoveAuthenticatorPublicKey(
+                parsedSignature.moveAuthenticator.account.Immutable?.objectId ||
+                    parsedSignature.moveAuthenticator.account.Shared?.objectId ||
+                    '',
+            ),
         };
     }
 
