@@ -1661,7 +1661,7 @@ fn try_get_past_object_object_deleted() {
             IotaPastObjectResponse::ObjectDeleted(IotaObjectRef {
                 object_id: nft_object_ref.0,
                 version: deleted_version,
-                digest: ObjectDigest::OBJECT_DIGEST_DELETED,
+                digest: ObjectDigest::OBJECT_DELETED,
             }),
             "mismatch in ObjectDeleted response"
         );
@@ -1677,7 +1677,7 @@ fn try_get_past_object_object_deleted() {
             IotaPastObjectResponse::ObjectDeleted(IotaObjectRef {
                 object_id: nft_object_ref.0,
                 version: deleted_version,
-                digest: ObjectDigest::OBJECT_DIGEST_DELETED,
+                digest: ObjectDigest::OBJECT_DELETED,
             }),
             "mismatch in ObjectDeleted response"
         );

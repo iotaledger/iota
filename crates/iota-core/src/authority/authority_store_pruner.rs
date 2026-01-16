@@ -281,13 +281,14 @@ impl AuthorityStorePruner {
             effect_digests.push(effects_digest);
 
             if let Some(event_digest) = effects.events_digest() {
-                if let Some(next_digest) = event_digest.next_lexicographical() {
-                    perpetual_batch.schedule_delete_range(
-                        &perpetual_db.events,
-                        &(*event_digest, 0),
-                        &(next_digest, 0),
-                    )?;
-                }
+                // TODO: Maybe we need a next_lexicographical which returns an option? How
+                // important is this?
+                let next_digest = event_digest.next_lexicographical();
+                perpetual_batch.schedule_delete_range(
+                    &perpetual_db.events,
+                    &(*event_digest, 0),
+                    &(next_digest, 0),
+                )?;
             }
         }
         perpetual_batch.delete_batch(&perpetual_db.effects, effect_digests)?;

@@ -1101,32 +1101,6 @@ impl TryFrom<TransactionEffects> for crate::effects::TransactionEffects {
     }
 }
 
-macro_rules! impl_convert_digest {
-    ($name:ident) => {
-        impl From<crate::digests::$name> for Digest {
-            fn from(value: crate::digests::$name) -> Self {
-                Self::new(value.into_inner())
-            }
-        }
-
-        impl From<Digest> for crate::digests::$name {
-            fn from(value: Digest) -> Self {
-                Self::new(value.into_inner())
-            }
-        }
-    };
-}
-
-impl_convert_digest!(Digest);
-impl_convert_digest!(ObjectDigest);
-impl_convert_digest!(CheckpointDigest);
-impl_convert_digest!(TransactionDigest);
-impl_convert_digest!(TransactionEffectsDigest);
-impl_convert_digest!(TransactionEventsDigest);
-impl_convert_digest!(CheckpointContentsDigest);
-impl_convert_digest!(ConsensusCommitDigest);
-impl_convert_digest!(EffectsAuxDataDigest);
-
 impl From<crate::execution_status::ExecutionStatus> for ExecutionStatus {
     fn from(value: crate::execution_status::ExecutionStatus) -> Self {
         match value {
