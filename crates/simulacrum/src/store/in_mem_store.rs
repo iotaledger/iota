@@ -428,16 +428,9 @@ impl ReadStore for InMemoryStore {
     ) -> iota_types::storage::error::Result<
         Option<iota_types::messages_checkpoint::CheckpointContents>,
     > {
-        let checkpoint = self.get_checkpoint_by_sequence_number(sequence_number);
-
-        match checkpoint {
-            None => Ok(None),
-            Some(checkpoint) => {
-                let contents_digest = checkpoint.content_digest;
-                let contents = self.get_checkpoint_contents(&contents_digest);
-                Ok(contents.cloned())
-            }
-        }
+        Ok(self
+            .get_checkpoint_by_sequence_number(sequence_number)
+            .and_then(|c| self.get_checkpoint_contents(&c.content_digest).cloned()))
     }
 
     fn try_get_transaction(
@@ -467,14 +460,13 @@ impl ReadStore for InMemoryStore {
     ) -> iota_types::storage::error::Result<
         Option<iota_types::messages_checkpoint::FullCheckpointContents>,
     > {
-        let checkpoint = self.get_checkpoint_contents_by_sequence_number(sequence_number);
-        match checkpoint {
-            None => Ok(None),
-            Some(contents) => iota_types::messages_checkpoint::FullCheckpointContents::try_from_checkpoint_contents(
-                self,
-                contents,
-            ),
-        }
+        self.try_get_checkpoint_contents_by_sequence_number(sequence_number)?
+            .map_or(Ok(None), |contents| {
+                iota_types::messages_checkpoint::FullCheckpointContents::try_from_checkpoint_contents(
+                    self,
+                    contents,
+                )
+            })
     }
 
     fn try_get_full_checkpoint_contents(
@@ -483,15 +475,13 @@ impl ReadStore for InMemoryStore {
     ) -> iota_types::storage::error::Result<
         Option<iota_types::messages_checkpoint::FullCheckpointContents>,
     > {
-        let contents = match self.get_checkpoint_contents(digest) {
-            Some(c) => c,
-            None => return Ok(None),
-        };
-
-        iota_types::messages_checkpoint::FullCheckpointContents::try_from_checkpoint_contents(
-            self,
-            contents.clone(),
-        )
+        self.get_checkpoint_contents(digest)
+            .map_or(Ok(None), |contents| {
+                iota_types::messages_checkpoint::FullCheckpointContents::try_from_checkpoint_contents(
+                    self,
+                    contents.clone(),
+                )
+            })
     }
 }
 

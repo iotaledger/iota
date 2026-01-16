@@ -263,15 +263,11 @@ impl<R, S: store::SimulatorStore> Simulacrum<R, S> {
     /// This creates and executes a ConsensusCommitPrologue transaction which
     /// advances the chain Clock by the provided duration.
     pub fn advance_clock(&self, duration: std::time::Duration) -> TransactionEffects {
-        let epoch;
-        let round;
-        let timestamp_ms;
-        {
-            let mut inner = self.inner.write().unwrap();
-            epoch = inner.epoch_state.epoch();
-            round = inner.epoch_state.next_consensus_round();
-            timestamp_ms = inner.store.get_clock().timestamp_ms() + duration.as_millis() as u64;
-        }
+        let mut inner = self.inner.write().unwrap();
+        let epoch = inner.epoch_state.epoch();
+        let round = inner.epoch_state.next_consensus_round();
+        let timestamp_ms = inner.store.get_clock().timestamp_ms() + duration.as_millis() as u64;
+        drop(inner);
 
         let consensus_commit_prologue_transaction =
             VerifiedTransaction::new_consensus_commit_prologue_v1(
@@ -297,45 +293,26 @@ impl<R, S: store::SimulatorStore> Simulacrum<R, S> {
     /// NOTE: This function does not currently support updating the protocol
     /// version or the system packages
     pub fn advance_epoch(&self) {
-        let (
-            current_epoch,
-            next_epoch,
-            next_epoch_protocol_version,
-            storage_cost,
-            computation_cost,
-            computation_cost_burned,
-            storage_rebate,
-            non_refundable_storage_fee,
-            epoch_start_timestamp_ms,
-        ) = {
-            let inner = self.inner.read().unwrap();
-            let current_epoch = inner.epoch_state.epoch();
-            let next_epoch = current_epoch + 1;
-            let next_epoch_protocol_version = inner.epoch_state.protocol_version();
-            let gas_cost_summary = inner.checkpoint_builder.epoch_rolling_gas_cost_summary();
-            let epoch_start_timestamp_ms = inner.store.get_clock().timestamp_ms();
-            (
-                current_epoch,
-                next_epoch,
-                next_epoch_protocol_version,
-                gas_cost_summary.storage_cost,
-                gas_cost_summary.computation_cost,
-                gas_cost_summary.computation_cost_burned,
-                gas_cost_summary.storage_rebate,
-                gas_cost_summary.non_refundable_storage_fee,
-                epoch_start_timestamp_ms,
-            )
-        };
+        let inner = self.inner.read().unwrap();
+        let current_epoch = inner.epoch_state.epoch();
+        let next_epoch = current_epoch + 1;
+        let next_epoch_protocol_version = inner.epoch_state.protocol_version();
+        let gas_cost_summary = inner
+            .checkpoint_builder
+            .epoch_rolling_gas_cost_summary()
+            .clone();
+        let epoch_start_timestamp_ms = inner.store.get_clock().timestamp_ms();
+        drop(inner);
 
         let next_epoch_system_package_bytes = vec![];
         let kinds = vec![EndOfEpochTransactionKind::new_change_epoch_v3(
             next_epoch,
             next_epoch_protocol_version,
-            storage_cost,
-            computation_cost,
-            computation_cost_burned,
-            storage_rebate,
-            non_refundable_storage_fee,
+            gas_cost_summary.storage_cost,
+            gas_cost_summary.computation_cost,
+            gas_cost_summary.computation_cost_burned,
+            gas_cost_summary.storage_rebate,
+            gas_cost_summary.non_refundable_storage_fee,
             epoch_start_timestamp_ms,
             next_epoch_system_package_bytes,
             vec![],
@@ -645,18 +622,13 @@ impl<T, V: store::SimulatorStore> ReadStore for Simulacrum<T, V> {
     ) -> iota_types::storage::error::Result<
         Option<iota_types::messages_checkpoint::CheckpointContents>,
     > {
-        self.with_store(|store| {
-            let checkpoint = store.get_checkpoint_by_sequence_number(sequence_number);
-
-            match checkpoint {
-                None => Ok(None),
-                Some(checkpoint) => {
-                    let contents_digest = checkpoint.content_digest;
-                    let contents = store.get_checkpoint_contents_by_digest(&contents_digest);
-                    Ok(contents)
-                }
-            }
-        })
+        Ok(self.with_store(|store| {
+            store
+                .get_checkpoint_by_sequence_number(sequence_number)
+                .and_then(|checkpoint| {
+                    store.get_checkpoint_contents_by_digest(&checkpoint.content_digest)
+                })
+        }))
     }
 
     fn try_get_transaction(
@@ -687,24 +659,15 @@ impl<T, V: store::SimulatorStore> ReadStore for Simulacrum<T, V> {
         Option<iota_types::messages_checkpoint::FullCheckpointContents>,
     > {
         self.with_store(|store| {
-            let checkpoint = store.get_checkpoint_by_sequence_number(sequence_number);
-
-            match checkpoint {
-                None => Ok(None),
-                Some(checkpoint) => {
-                    let contents_digest = checkpoint.content_digest;
-                    let contents = store.get_checkpoint_contents_by_digest(&contents_digest);
-
-                    if let Some(contents) = contents {
-                        iota_types::messages_checkpoint::FullCheckpointContents::try_from_checkpoint_contents(
-                            store,
-                            contents,
-                        )
-                    } else {
-                        Ok(None)
-                    }
-                }
-            }
+            store
+                .try_get_checkpoint_by_sequence_number(sequence_number)?
+                .and_then(|chk| store.get_checkpoint_contents_by_digest(&chk.content_digest))
+                .map_or(Ok(None), |contents| {
+                    iota_types::messages_checkpoint::FullCheckpointContents::try_from_checkpoint_contents(
+                        store,
+                        contents.clone(),
+                    )
+                })
         })
     }
 
@@ -715,15 +678,13 @@ impl<T, V: store::SimulatorStore> ReadStore for Simulacrum<T, V> {
         Option<iota_types::messages_checkpoint::FullCheckpointContents>,
     > {
         self.with_store(|store| {
-            let contents = match store.get_checkpoint_contents_by_digest(digest) {
-                Some(c) => c,
-                None => return Ok(None),
-            };
-
-            iota_types::messages_checkpoint::FullCheckpointContents::try_from_checkpoint_contents(
-                store,
-                contents.clone(),
-            )
+            store.get_checkpoint_contents_by_digest(digest)
+            .map_or(Ok(None), |contents| {
+                iota_types::messages_checkpoint::FullCheckpointContents::try_from_checkpoint_contents(
+                    self,
+                    contents.clone(),
+                )
+            })
         })
     }
 }
