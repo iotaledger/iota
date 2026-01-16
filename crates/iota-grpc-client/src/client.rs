@@ -2,18 +2,16 @@
 // Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{
-    sync::{Arc, OnceLock},
-    time::Duration,
-};
+use std::time::Duration;
 
-use iota_grpc_types::v0::ledger_service::ledger_service_client::LedgerServiceClient;
-use tap::Pipe;
+use iota_grpc_types::v0::{
+    ledger_service::ledger_service_client::LedgerServiceClient,
+    transaction_execution_service::transaction_execution_service_client::TransactionExecutionServiceClient,
+};
 use tonic::{codec::CompressionEncoding, transport::channel::ClientTlsConfig};
 
-use crate::interceptors::HeadersInterceptor;
+use crate::{api::Result, interceptors::HeadersInterceptor};
 
-type Result<T, E = tonic::Status> = std::result::Result<T, E>;
 type BoxError = Box<dyn std::error::Error + Send + Sync + 'static>;
 
 type InterceptedChannel =
@@ -30,9 +28,6 @@ pub struct Client {
     headers: HeadersInterceptor,
     /// Maximum decoding message size for responses
     max_decoding_message_size: Option<usize>,
-
-    /// Cached ledger client (singleton)
-    ledger_client: Arc<OnceLock<LedgerServiceClient<InterceptedChannel>>>,
 }
 
 impl Client {
@@ -66,7 +61,6 @@ impl Client {
             channel,
             headers: Default::default(),
             max_decoding_message_size: None,
-            ledger_client: Arc::new(OnceLock::new()),
         })
     }
 
@@ -100,35 +94,62 @@ impl Client {
         self
     }
 
-    // ========================================
-    // Service Client Factories
-    // ========================================
-
     /// Get a ledger service client.
-    ///
-    /// Returns `Some(LedgerClient)` if the server supports ledger-related
-    /// operations, `None` otherwise. The client is created only once and
-    /// cached for subsequent calls.
-    pub fn ledger_service_client(&self) -> Option<LedgerServiceClient<InterceptedChannel>> {
-        // For now, always return Some since ledger service is always available
-        // In the future, this could check server capabilities first
-        Some(
-            self.ledger_client
-                .get_or_init(|| {
-                    LedgerServiceClient::with_interceptor(
-                        self.channel.clone(),
-                        self.headers.clone(),
-                    )
-                    .accept_compressed(CompressionEncoding::Zstd)
-                    .pipe(|client| {
-                        if let Some(limit) = self.max_decoding_message_size {
-                            client.max_decoding_message_size(limit)
-                        } else {
-                            client
-                        }
-                    })
-                })
-                .clone(),
-        )
+    pub fn ledger_service_client(&self) -> LedgerServiceClient<InterceptedChannel> {
+        self.configure_client(LedgerServiceClient::with_interceptor(
+            self.channel.clone(),
+            self.headers.clone(),
+        ))
+    }
+
+    /// Get a transaction execution service client.
+    pub fn execution_service_client(
+        &self,
+    ) -> TransactionExecutionServiceClient<InterceptedChannel> {
+        self.configure_client(TransactionExecutionServiceClient::with_interceptor(
+            self.channel.clone(),
+            self.headers.clone(),
+        ))
+    }
+
+    /// Apply common client configuration (compression, message size limits).
+    fn configure_client<C: GrpcClientConfig>(&self, client: C) -> C {
+        let client = client.accept_compressed(CompressionEncoding::Zstd);
+        if let Some(limit) = self.max_decoding_message_size {
+            client.max_decoding_message_size(limit)
+        } else {
+            client
+        }
     }
 }
+
+/// Trait for common gRPC client configuration methods.
+///
+/// This trait abstracts over the common configuration methods shared by
+/// tonic-generated service clients, allowing `configure_client` to work
+/// generically.
+trait GrpcClientConfig: Sized {
+    fn accept_compressed(self, encoding: CompressionEncoding) -> Self;
+    fn max_decoding_message_size(self, limit: usize) -> Self;
+}
+
+/// Implement `GrpcClientConfig` for tonic-generated service clients.
+macro_rules! impl_grpc_client_config {
+    ($($client:ty),* $(,)?) => {
+        $(
+            impl GrpcClientConfig for $client {
+                fn accept_compressed(self, encoding: CompressionEncoding) -> Self {
+                    self.accept_compressed(encoding)
+                }
+                fn max_decoding_message_size(self, limit: usize) -> Self {
+                    self.max_decoding_message_size(limit)
+                }
+            }
+        )*
+    };
+}
+
+impl_grpc_client_config!(
+    LedgerServiceClient<InterceptedChannel>,
+    TransactionExecutionServiceClient<InterceptedChannel>,
+);
