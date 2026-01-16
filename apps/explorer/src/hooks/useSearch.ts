@@ -95,19 +95,60 @@ const getResultsForCheckpoint = async (
     client: IotaClient,
     query: string,
 ): Promise<Results | null> => {
+    // Check if query is a sequence number (numeric string)
+    const isSequenceNumber = /^\d+$/.test(query);
+    
     // Checkpoint digests have the same format as transaction digests:
-    if (!isValidTransactionDigest(query)) return null;
+    if (!isSequenceNumber && !isValidTransactionDigest(query)) return null;
 
-    const { digest } = await client.getCheckpoint({ id: query });
-    if (!digest) return null;
+    try {
+        const checkpoint = await client.getCheckpoint({ id: query });
+        if (!checkpoint?.digest) return null;
 
-    return [
-        {
-            id: digest,
-            label: digest,
-            type: 'checkpoint',
-        },
-    ];
+        return [
+            {
+                id: checkpoint.sequenceNumber,
+                label: `Checkpoint ${checkpoint.sequenceNumber}`,
+                type: 'checkpoint',
+            },
+        ];
+    } catch (error) {
+        return null;
+    }
+};
+
+const getResultsForEpoch = async (
+    client: IotaClient,
+    query: string,
+): Promise<Results | null> => {
+    // Only search for epochs if query is a sequence number (numeric string)
+    const isSequenceNumber = /^\d+$/.test(query);
+    if (!isSequenceNumber) return null;
+
+    try {
+        // Try to get epochs data for the given sequence number
+        const epochNumber = Number(query);
+        const { data } = await client.getEpochs({
+            cursor: epochNumber > 0 ? (epochNumber - 1).toString() : undefined,
+            limit: 1,
+        });
+
+        if (!data || data.length === 0) return null;
+        
+        const epochData = data[0];
+        // Verify we got the correct epoch
+        if (epochData.epoch !== query) return null;
+
+        return [
+            {
+                id: epochData.epoch,
+                label: `Epoch ${epochData.epoch}`,
+                type: 'epoch',
+            },
+        ];
+    } catch (error) {
+        return null;
+    }
 };
 
 const getResultsForAddress = async (
@@ -228,6 +269,7 @@ export function useSearch(query: string): UseQueryResult<Results, Error> {
                 await Promise.allSettled([
                     getResultsForTransaction(client, query),
                     getResultsForCheckpoint(client, query),
+                    getResultsForEpoch(client, query),
                     getResultsForAddress(client, query, isNamesEnabled, iotaNamesClient),
                     getResultsForDid(identityClient, isTFIdentityEnabled, query),
                     getResultsForObject(client, query),

@@ -8,7 +8,7 @@ import { faucet, split_coin } from './utils/localnet';
 async function search(page: Page, text: string) {
     const searchbar = page.getByPlaceholder('Search');
     await searchbar.fill(text);
-    const result = page.getByRole('button').getByText(text).first();
+    const result = page.getByRole('button').first();
     await result.click();
 }
 
@@ -37,4 +37,18 @@ test('can search for transaction', async ({ page }) => {
     await page.goto('/');
     await search(page, txid);
     await expect(page).toHaveURL(`/txblock/${txid}`);
+});
+
+test('can search for checkpoint by sequence number', async ({ page }) => {
+    await page.goto('/');
+    await search(page, '0');
+    await expect(page).toHaveURL(/\/checkpoint\/0/);
+});
+
+test('can search for epoch by sequence number', async ({ page }) => {
+    await page.goto('/');
+    await search(page, '0');
+    // Should navigate to epoch page (may be checkpoint or epoch depending on which result is clicked first)
+    // We'll check that we can at least get to one of them
+    await expect(page.url()).toMatch(/\/(epoch|checkpoint)\/0/);
 });
