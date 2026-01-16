@@ -4,7 +4,7 @@
 //! Types and associated logic to use while persisting
 //! data to the database.
 
-use std::collections::BTreeMap;
+use std::{collections::BTreeMap, time::Duration};
 
 use async_trait::async_trait;
 use futures::{FutureExt, StreamExt};
@@ -95,11 +95,16 @@ pub trait Writer<T: Send + Sync + 'static>: Send + Sync {
                 return Ok(());
             }
 
+            let next_cp_present = unprocessed.contains_key(&next_cp_to_process);
+
             // Try to fetch new data tuple from the stream
-            if unprocessed.len() >= UNPROCESSED_CHECKPOINT_SIZE_LIMIT {
+            if unprocessed.len() >= UNPROCESSED_CHECKPOINT_SIZE_LIMIT && next_cp_present {
                 tracing::debug!(
-                    "Unprocessed checkpoint size reached limit {UNPROCESSED_CHECKPOINT_SIZE_LIMIT}, skip reading from stream..."
+                    "Unprocessed checkpoint size reached limit {UNPROCESSED_CHECKPOINT_SIZE_LIMIT} \
+                     at checkpoint {next_cp_to_process}. Current queue size: {}. Skip reading from stream...",
+                    unprocessed.len()
                 );
+                tokio::time::sleep(Duration::from_secs(1)).await;
             } else {
                 // Try to fetch new data tuple from the stream
                 match stream.next().now_or_never() {

@@ -19,7 +19,7 @@ use move_core_types::account_address::AccountAddress;
 use serde::de::DeserializeOwned;
 
 use crate::{
-    config::ServiceConfig,
+    config::{DEFAULT_PAGE_SIZE, ServiceConfig},
     connection::ScanConnection,
     error::Error,
     mutation::Mutation,
@@ -384,9 +384,8 @@ impl Query {
         digest: Digest,
     ) -> Result<Option<TransactionBlock>> {
         let Watermark { checkpoint, .. } = *ctx.data()?;
-        TransactionBlock::query(ctx, digest, checkpoint)
-            .await
-            .extend()
+        let key = transaction_block::DigestKey::new(digest, checkpoint);
+        TransactionBlock::query(ctx, key.into()).await.extend()
     }
 
     /// Fetch multiple transaction blocks by their digests.
@@ -497,6 +496,9 @@ impl Query {
     /// cursors, and the `beforeCheckpoint`, `afterCheckpoint` and
     /// `atCheckpoint` filters. Transactions that don't have a checkpoint yet
     /// are always omitted.
+    #[graphql(
+        complexity = "first.or(last).unwrap_or(DEFAULT_PAGE_SIZE as u64) as usize * child_complexity"
+    )]
     async fn transaction_blocks(
         &self,
         ctx: &Context<'_>,
@@ -526,6 +528,9 @@ impl Query {
     /// We currently do not support filtering by emitting module and event type
     /// at the same time so if both are provided in one filter, the query will
     /// error.
+    #[graphql(
+        complexity = "first.or(last).unwrap_or(DEFAULT_PAGE_SIZE as u64) as usize * child_complexity"
+    )]
     async fn events(
         &self,
         ctx: &Context<'_>,

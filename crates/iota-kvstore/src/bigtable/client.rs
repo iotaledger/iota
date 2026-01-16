@@ -209,24 +209,26 @@ impl KeyValueStoreReader for BigTableClient {
         Ok(checkpoints)
     }
 
-    async fn get_checkpoint_by_digest(
+    async fn get_checkpoints_by_digest(
         &mut self,
-        digest: CheckpointDigest,
-    ) -> Result<Option<Checkpoint>, Self::Error> {
-        let key = digest.inner().to_vec();
-        let latest_row_cells = self
-            .multi_get(CHECKPOINTS_BY_DIGEST_TABLE, vec![key], None)
+        digests: &[CheckpointDigest],
+    ) -> Result<Vec<Checkpoint>, Self::Error> {
+        let keys = digests
+            .iter()
+            .map(|digest| digest.inner().to_vec())
+            .collect::<Vec<_>>();
+        let seq_nums = self
+            .multi_get(CHECKPOINTS_BY_DIGEST_TABLE, keys, None)
             .await?
-            .pop();
-        if let Some(cells) = latest_row_cells {
-            if let Some(cell) = cells.into_iter().next() {
-                let sequence_number = u64::from_be_bytes(cell.value.as_slice().try_into()?);
-                if let Some(chk) = self.get_checkpoints(&[sequence_number]).await?.pop() {
-                    return Ok(Some(chk));
-                }
-            }
-        }
-        Ok(None)
+            .into_iter()
+            .filter_map(|row_cells| {
+                row_cells
+                    .into_iter()
+                    .next()
+                    .map(|cell| cell.value.as_slice().try_into().map(u64::from_be_bytes))
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        self.get_checkpoints(&seq_nums).await
     }
 }
 

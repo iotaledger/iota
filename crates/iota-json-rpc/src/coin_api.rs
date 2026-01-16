@@ -133,13 +133,12 @@ impl CoinReadApiServer for CoinReadApi {
                     let obj = self.internal.get_object(&object_id).await?;
                     match obj {
                         Some(obj) => {
-                            let coin_type = obj.coin_type_maybe();
-                            if coin_type.is_none() {
+                            if let Some(coin_type) = obj.coin_type_maybe() {
+                                Ok((coin_type.to_string(), object_id))
+                            } else {
                                 Err(IotaRpcInputError::GenericInvalid(
                                     "cursor is not a coin".to_string(),
                                 ))
-                            } else {
-                                Ok((coin_type.unwrap().to_string(), object_id))
                             }
                         }
                         None => Err(IotaRpcInputError::GenericInvalid(

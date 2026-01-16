@@ -41,9 +41,10 @@ const TYPE_UID: &IdentStr = ident_str!("UID");
 #[graphql(complex)]
 pub(crate) struct MoveValue {
     /// The value's Move type.
-    #[graphql(name = "type")]
+    #[graphql(name = "type", complexity = 0)]
     type_: MoveType,
     /// The BCS representation of this value, Base64 encoded.
+    #[graphql(complexity = 0)]
     bcs: Base64,
 }
 
@@ -100,6 +101,7 @@ pub(crate) struct MoveField {
 #[ComplexObject]
 impl MoveValue {
     /// Structured contents of a Move value.
+    #[graphql(complexity = 0)]
     async fn data(&self, ctx: &Context<'_>) -> Result<MoveData> {
         let resolver: &PackageResolver = ctx
             .data()
@@ -131,6 +133,7 @@ impl MoveValue {
     ///
     /// This form is offered as a less verbose convenience in cases where the
     /// layout of the type is known by the client.
+    #[graphql(complexity = 0)]
     async fn json(&self, ctx: &Context<'_>) -> Result<Json> {
         let resolver: &PackageResolver = ctx
             .data()
