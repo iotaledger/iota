@@ -93,15 +93,7 @@ accountsEvents.on('accountsChanged', async () => {
         ),
     );
 });
-accountsEvents.on('accountStatusChanged', () => {
-    connections.notifyUI({ event: 'storedEntitiesUpdated', type: 'accounts' });
-});
-accountsEvents.on('activeAccountChanged', () => {
-    connections.notifyUI({ event: 'storedEntitiesUpdated', type: 'accounts' });
-});
-accountSourcesEvents.on('accountSourceStatusUpdated', () => {
-    connections.notifyUI({ event: 'storedEntitiesUpdated', type: 'accountSources' });
-});
+
 accountSourcesEvents.on('accountSourcesChanged', () => {
     connections.notifyUI({ event: 'storedEntitiesUpdated', type: 'accountSources' });
 });

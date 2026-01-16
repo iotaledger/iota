@@ -113,7 +113,7 @@ export async function changeActiveAccount(accountID: string) {
         }
         await db.accounts.where('id').notEqual(accountID).modify({ selected: false });
         await db.accounts.update(accountID, { selected: true });
-        accountsEvents.emit('activeAccountChanged', { accountID });
+        accountsEvents.emit('accountsChanged');
     });
 }
 
@@ -173,7 +173,7 @@ export async function lockAllAccountsAndSources() {
     for (const account of accounts) {
         await account.lock();
     }
-
+    accountSourcesEvents.emit('accountSourcesChanged');
     accountsEvents.emit('accountsChanged');
 }
 
@@ -197,6 +197,7 @@ export async function unlockAllAccountsAndSources(password?: string) {
             await account.passwordUnlock(password);
         }
     }
+    accountSourcesEvents.emit('accountSourcesChanged');
     accountsEvents.emit('accountsChanged');
 }
 
@@ -259,6 +260,7 @@ export async function accountsHandleUIMessage(msg: Message, uiConnection: UiConn
         const account = await getAccountByID(id);
         if (account) {
             await account.setNickname(nickname);
+            accountsEvents.emit('accountsChanged');
             await uiConnection.send(createMessage({ type: 'done' }, msg.id));
             return true;
         }

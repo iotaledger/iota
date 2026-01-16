@@ -115,9 +115,7 @@ export async function accountSourcesHandleUIMessage(msg: Message, uiConnection: 
             throw new Error('Account source not found');
         }
         await accountSource.unlock(password);
-        accountSourcesEvents.emit('accountSourceStatusUpdated', {
-            accountSourceID: accountSource.id,
-        });
+        accountSourcesEvents.emit('accountSourcesChanged');
         uiConnection.send(createMessage({ type: 'done' }, msg.id));
         return true;
     }

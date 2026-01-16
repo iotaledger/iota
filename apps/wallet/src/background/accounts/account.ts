@@ -13,7 +13,6 @@ import {
     getEphemeralValue,
     setEphemeralValue,
 } from '../sessionEphemeralValues';
-import { accountsEvents } from './events';
 
 export enum AccountType {
     MnemonicDerived = 'mnemonic-derived',
@@ -112,7 +111,6 @@ export abstract class Account<
 
     public async setNickname(nickname: string | null) {
         await (await getDB()).accounts.update(this.id, { nickname });
-        accountsEvents.emit('accountStatusChanged', { accountID: this.id });
     }
 }
 
