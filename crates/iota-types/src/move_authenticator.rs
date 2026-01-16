@@ -55,7 +55,7 @@ impl Hash for MoveAuthenticator {
 }
 
 impl MoveAuthenticator {
-    pub fn new_for_testing(
+    pub fn new(
         call_args: Vec<CallArg>,
         type_arguments: Vec<TypeInput>,
         object_to_authenticate: CallArg,
