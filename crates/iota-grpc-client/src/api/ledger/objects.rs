@@ -76,7 +76,7 @@ impl Client {
         let request = GetObjectsRequest {
             requests: Some(requests),
             read_mask: Some(field_mask_with_default(read_mask, OBJECTS_READ_MASK)),
-            max_message_size_bytes: None,
+            max_message_size_bytes: self.max_decoding_message_size().map(|s| s as u32),
         };
 
         let mut client = self.ledger_service_client();

@@ -97,7 +97,7 @@ impl Client {
             transaction_read_mask: None,
             events_filter: None,
             event_read_mask: None,
-            max_message_size_bytes: None,
+            max_message_size_bytes: self.max_decoding_message_size().map(|s| s as u32),
         };
 
         let mut client = self.ledger_service_client();
