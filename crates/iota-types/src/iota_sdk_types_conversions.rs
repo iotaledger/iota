@@ -253,7 +253,7 @@ fn sdk_object_type_to_move(
         type_params: type_
             .type_params()
             .iter()
-            .map(|type_tag| type_tag_sdk_to_core(type_tag))
+            .map(type_tag_sdk_to_core)
             .collect::<Result<_, _>>()?,
     })
     .pipe(Ok)
@@ -2387,7 +2387,7 @@ pub fn struct_tag_sdk_to_core(
     let type_params = value
         .type_params()
         .iter()
-        .map(|type_tag| type_tag_sdk_to_core(type_tag))
+        .map(type_tag_sdk_to_core)
         .collect::<Result<_, _>>()?;
     move_core_types::language_storage::StructTag {
         address,
