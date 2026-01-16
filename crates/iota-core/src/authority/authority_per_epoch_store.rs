@@ -203,6 +203,10 @@ pub(crate) struct CongestionControlParameters {
     /// Whether to use congestion limit overshoot in the gas price feedback
     /// mechanism, i.e., this is only used in `SuggestedGasPriceCalculator`.
     use_congestion_limit_overshoot_in_gas_price_feedback_mechanism: bool,
+
+    /// Whether to use a separate gas price feedback mechanism for transactions
+    /// using randomness.
+    use_separate_gas_price_feedback_mechanism_for_randomness: bool,
 }
 
 impl CongestionControlParameters {
@@ -220,6 +224,8 @@ impl CongestionControlParameters {
             max_gas_price: protocol_config.max_gas_price(),
             use_congestion_limit_overshoot_in_gas_price_feedback_mechanism: protocol_config
                 .congestion_limit_overshoot_in_gas_price_feedback_mechanism(),
+            use_separate_gas_price_feedback_mechanism_for_randomness: protocol_config
+                .separate_gas_price_feedback_mechanism_for_randomness(),
         }
     }
 
@@ -232,6 +238,7 @@ impl CongestionControlParameters {
         max_congestion_limit_overshoot_per_commit: Option<ExecutionTime>,
         max_gas_price: u64,
         use_congestion_limit_overshoot_in_gas_price_feedback_mechanism: bool,
+        use_separate_gas_price_feedback_mechanism_for_randomness: bool,
     ) -> Self {
         Self {
             per_object_congestion_control_mode,
@@ -240,6 +247,7 @@ impl CongestionControlParameters {
             max_congestion_limit_overshoot_per_commit,
             max_gas_price,
             use_congestion_limit_overshoot_in_gas_price_feedback_mechanism,
+            use_separate_gas_price_feedback_mechanism_for_randomness,
         }
     }
 
@@ -292,6 +300,12 @@ impl CongestionControlParameters {
     /// mechanism.
     pub(super) fn use_congestion_limit_overshoot_in_gas_price_feedback_mechanism(&self) -> bool {
         self.use_congestion_limit_overshoot_in_gas_price_feedback_mechanism
+    }
+
+    /// Whether to use a separate gas price feedback mechanism for transactions
+    /// using randomness.
+    pub(super) fn use_separate_gas_price_feedback_mechanism_for_randomness(&self) -> bool {
+        self.use_separate_gas_price_feedback_mechanism_for_randomness
     }
 
     /// Get effective congestion limit per commit, i.e.,

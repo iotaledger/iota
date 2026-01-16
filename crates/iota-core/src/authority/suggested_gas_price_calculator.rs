@@ -135,15 +135,25 @@ impl SuggestedGasPriceCalculator {
                     res.execution_start_time(),
                     scheduled_transaction_congestion_info,
                 );
-                // The sequencer should not schedule multiple transactions with the same
-                // execution start time for the same shared object, but just in case,
-                // check this during development/testing.
-                debug_assert!(
-                    prev_info.is_none(),
-                    "Multiple transactions were scheduled at the same execution start time {} \
+
+                if self
+                    .congestion_control_parameters
+                    .use_separate_gas_price_feedback_mechanism_for_randomness()
+                {
+                    // The sequencer should not schedule multiple transactions with the same
+                    // execution start time for the same shared object, but just in case,
+                    // check this during development/testing. Note that we only have this
+                    // check if `use_separate_gas_price_feedback_mechanism_for_randomness`
+                    // if `true`, since otherwise it is quite possible to have a `prev_info`
+                    // when a single `SuggestedGasPriceCalculator` is used for regular
+                    // shared-object transactions and transactions using randomness.
+                    debug_assert!(
+                        prev_info.is_none(),
+                        "Multiple transactions were scheduled at the same execution start time {} \
                         for the same shared object {obj_id:?}",
-                    res.execution_start_time(),
-                );
+                        res.execution_start_time(),
+                    );
+                }
             }
         }
     }
@@ -500,6 +510,7 @@ mod tests {
                 None,
                 ProtocolConfig::get_for_max_version_UNSAFE().max_gas_price(),
                 false,
+                true,
             ),
             REFERENCE_GAS_PRICE,
         );
@@ -714,6 +725,7 @@ mod tests {
             None,          // max_congestion_limit_overshoot_per_commit
             max_gas_price, // max_gas_price
             use_congestion_limit_overshoot,
+            true,
         );
 
         // Initialize `SharedObjectCongestionTracker` and `SuggestedGasPriceCalculator`
@@ -991,6 +1003,7 @@ mod tests {
             None,            // max_congestion_limit_overshoot_per_commit
             max_gas_price,   // max_gas_price
             use_congestion_limit_overshoot,
+            true,
         );
 
         // Initialize `SharedObjectCongestionTracker` and `SuggestedGasPriceCalculator`
@@ -1431,6 +1444,7 @@ mod tests {
             Some(2),       // max_congestion_limit_overshoot_per_commit
             max_gas_price, // max_gas_price
             use_congestion_limit_overshoot,
+            true,
         );
 
         // Initialize `SharedObjectCongestionTracker` and `SuggestedGasPriceCalculator`
@@ -1763,6 +1777,7 @@ mod tests {
             Some(2_000_000), // max_congestion_limit_overshoot_per_commit
             max_gas_price,   // max_gas_price
             use_congestion_limit_overshoot,
+            true,
         );
 
         // Initialize `SharedObjectCongestionTracker` and `SuggestedGasPriceCalculator`
@@ -2253,6 +2268,7 @@ mod tests {
             None, // max_congestion_limit_overshoot_per_commit
             max_gas_price,
             use_congestion_limit_overshoot,
+            true,
         );
 
         // Initialize `SharedObjectCongestionTracker` and `SuggestedGasPriceCalculator`
@@ -2335,6 +2351,7 @@ mod tests {
             Some(max_congestion_limit_overshoot_per_commit),
             max_gas_price,
             use_congestion_limit_overshoot,
+            true,
         );
 
         // Initialize `SharedObjectCongestionTracker` and `SuggestedGasPriceCalculator`

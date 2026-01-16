@@ -350,6 +350,9 @@ async fn test_congestion_control_execution_cancellation() {
         test_setup
             .protocol_config
             .congestion_limit_overshoot_in_gas_price_feedback_mechanism(),
+        test_setup
+            .protocol_config
+            .separate_gas_price_feedback_mechanism_for_randomness(),
     );
 
     // Initialize shared object queue in the tracker and gas price calculator so

@@ -891,6 +891,7 @@ mod object_cost_tests {
                     None,  // not important in this test
                     0,     // not important in this test
                     false, // not important in this test
+                    true,  // not important in this test
                 ),
             );
 
@@ -1111,6 +1112,7 @@ mod object_cost_tests {
                     Some(max_overshoot_per_commit),
                     0,     // not important in this test
                     false, // not important in this test
+                    true,  // not important in this test
                 ),
             );
         // add a transaction with gas budget 1 that writes to object 0 and 1.
@@ -1242,6 +1244,7 @@ mod object_cost_tests {
                     Some(max_overshoot_per_commit),
                     0,     // not important in this test
                     false, // not important in this test
+                    true,  // not important in this test
                 ),
             );
 
@@ -1361,6 +1364,7 @@ mod object_cost_tests {
             None,  // not important in this test
             0,     // not important in this test
             false, // not important in this test
+            true,  // not important in this test
         );
 
         let mut shared_object_congestion_tracker =
@@ -1532,6 +1536,7 @@ mod object_cost_tests {
             Some(max_overshoot_per_commit),
             0,     // not important in this test
             false, // not important in this test
+            true,  // not important in this test
         );
 
         // case 1: large initial duration, small tx duration
@@ -1758,6 +1763,7 @@ mod object_cost_tests {
             Some(max_overshoot_per_commit),
             0,     // not important in this test
             false, // not important in this test
+            true,  // not important in this test
         );
 
         // instantiate the tracker with some initial debts such that 1 transaction
@@ -1900,6 +1906,7 @@ mod object_cost_tests {
                 None,  // not important in this test
                 0,     // not important in this test
                 false, // not important in this test
+                true,  // not important in this test
             ),
         );
 
