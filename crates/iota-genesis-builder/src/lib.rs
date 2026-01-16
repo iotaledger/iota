@@ -1035,11 +1035,7 @@ fn create_genesis_context(
     let hash = hasher.finalize();
     let genesis_transaction_digest = TransactionDigest::new(hash.into());
 
-    TxContext::new(
-        &IotaAddress::default(),
-        &genesis_transaction_digest,
-        epoch_data,
-    )
+    TxContext::new(&IotaAddress::ZERO, &genesis_transaction_digest, epoch_data)
 }
 
 fn build_unsigned_genesis_data<'info>(
@@ -1835,7 +1831,7 @@ mod test {
         node::{DEFAULT_COMMISSION_RATE, DEFAULT_VALIDATOR_GAS_PRICE},
     };
     use iota_types::{
-        base_types::IotaAddress,
+        base_types::{IotaAddress, address_from_iota_pub_key},
         crypto::{
             AccountKeyPair, AuthorityKeyPair, NetworkKeyPair, generate_proof_of_possession,
             get_key_pair_from_rng,
@@ -1847,8 +1843,8 @@ mod test {
     #[test]
     fn allocation_csv() {
         let schedule = TokenDistributionSchedule::new_for_validators_with_default_allocation([
-            IotaAddress::random_for_testing_only(),
-            IotaAddress::random_for_testing_only(),
+            IotaAddress::random(),
+            IotaAddress::random(),
         ]);
         let mut output = Vec::new();
 
@@ -1874,7 +1870,7 @@ mod test {
             name: "0".into(),
             authority_key: authority_key.public().into(),
             protocol_key: protocol_key.public().clone(),
-            account_address: IotaAddress::from(account_key.public()),
+            account_address: address_from_iota_pub_key(account_key.public()),
             network_key: network_key.public().clone(),
             gas_price: DEFAULT_VALIDATOR_GAS_PRICE,
             commission_rate: DEFAULT_COMMISSION_RATE,
@@ -1885,7 +1881,10 @@ mod test {
             image_url: String::new(),
             project_url: String::new(),
         };
-        let pop = generate_proof_of_possession(&authority_key, account_key.public().into());
+        let pop = generate_proof_of_possession(
+            &authority_key,
+            address_from_iota_pub_key(account_key.public()),
+        );
         let mut builder = Builder::new().add_validator(validator, pop);
 
         let genesis = builder.get_or_build_unsigned_genesis();

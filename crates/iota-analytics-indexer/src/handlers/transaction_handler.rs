@@ -215,7 +215,7 @@ mod tests {
         let mut sim = Simulacrum::new();
 
         // Execute a simple transaction.
-        let transfer_recipient = IotaAddress::random_for_testing_only();
+        let transfer_recipient = IotaAddress::random();
         let (transaction, _) = sim.transfer_txn(transfer_recipient);
         let (_effects, err) = sim.execute_transaction(transaction.clone()).unwrap();
         assert!(err.is_none());

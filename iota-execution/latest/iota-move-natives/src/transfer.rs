@@ -5,7 +5,7 @@
 use std::collections::VecDeque;
 
 use iota_types::{
-    base_types::{MoveObjectType, ObjectID, SequenceNumber},
+    base_types::{IotaAddress, MoveObjectType, ObjectID, SequenceNumber},
     object::Owner,
 };
 use move_binary_format::errors::{PartialVMError, PartialVMResult};
@@ -142,7 +142,7 @@ pub fn transfer_internal(
     let recipient = pop_arg!(args, AccountAddress);
     let obj = args.pop_back().unwrap();
 
-    let owner = Owner::AddressOwner(recipient.into());
+    let owner = Owner::AddressOwner(IotaAddress::new(recipient.into_bytes()));
     object_runtime_transfer(context, owner, ty, obj)?;
     let cost = context.gas_used();
     Ok(NativeResult::ok(cost, smallvec![]))

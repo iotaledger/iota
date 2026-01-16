@@ -42,7 +42,7 @@ use iota_sdk_types::{
     crypto::{Intent, IntentMessage},
 };
 use iota_types::{
-    base_types::IotaAddress,
+    base_types::{IotaAddress, address_from_iota_pub_key},
     crypto::{
         DefaultHash, EncodeDecodeBase64, IotaKeyPair, IotaSignature, PublicKey, SignatureScheme,
         get_authority_key_pair,
@@ -821,7 +821,7 @@ impl KeyToolCommand {
                             );
                             CommandOutput::Show(Key {
                                 alias: None, // alias does not get stored in key files
-                                iota_address: (keypair.public()).into(),
+                                iota_address: address_from_iota_pub_key(keypair.public()),
                                 public_base64_key,
                                 public_base64_key_with_flag,
                                 key_scheme: SignatureScheme::BLS12381.to_string(),
