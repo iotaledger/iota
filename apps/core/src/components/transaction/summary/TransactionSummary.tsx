@@ -6,8 +6,7 @@ import { type TransactionSummaryType } from '../../..';
 import { BalanceChanges, ObjectChanges } from '../../cards';
 import { Header, KeyValueInfo, LoadingIndicator, Panel, Title, TitleSize } from '@iota/apps-ui-kit';
 import { RenderExplorerLink } from '../../../types';
-import { toHex, fromBase64 } from '@iota/iota-sdk/utils';
-import { signingDigest } from '@iota/iota-sdk/cryptography';
+import { Transaction } from '@iota/iota-sdk/transactions';
 import { useMemo } from 'react';
 
 interface TransactionSummaryProps {
@@ -16,7 +15,7 @@ interface TransactionSummaryProps {
     isLoading?: boolean;
     isError?: boolean;
     isDryRun?: boolean;
-    transactionBytes?: string;
+    transaction?: Transaction;
 }
 
 export function TransactionSummary({
@@ -25,21 +24,19 @@ export function TransactionSummary({
     isError,
     isDryRun = false,
     renderExplorerLink,
-    transactionBytes,
+    transaction,
 }: TransactionSummaryProps) {
     const txHash = useMemo(() => {
-        if (transactionBytes) {
+        if (transaction) {
             try {
-                const bytes = fromBase64(transactionBytes);
-                const digest = signingDigest(bytes, 'TransactionData');
-                return '0x' + toHex(digest);
+                return Transaction.getSigningDigest(transaction);
             } catch (error) {
                 console.error('Error calculating transaction hash:', error);
                 return '';
             }
         }
         return '';
-    }, [transactionBytes]);
+    }, [transaction]);
 
     if (isError) return null;
     return (

@@ -37,8 +37,10 @@ export abstract class Signer {
      * Sign messages with a specific intent. By combining the message bytes with the intent before hashing.
      * Returns the digest.
      */
-    signingDigest(bytes: Uint8Array, intent: IntentScope): Uint8Array {
-        return signingDigest(bytes, intent);
+    static signingDigest(bytes: Uint8Array, intent: IntentScope): Uint8Array {
+        const intentMessage = messageWithIntent(intent, bytes);
+        const digest = blake2b(intentMessage, { dkLen: 32 });
+        return digest;
     }
 
     /**
@@ -46,7 +48,7 @@ export abstract class Signer {
      * it ensures that a signed message is tied to a specific purpose and domain separator is provided
      */
     async signWithIntent(bytes: Uint8Array, intent: IntentScope): Promise<SignatureWithBytes> {
-        const digest = this.signingDigest(bytes, intent);
+        const digest = Signer.signingDigest(bytes, intent);
 
         const signature = toSerializedSignature({
             signature: await this.sign(digest),
@@ -136,15 +138,4 @@ export function encodeIotaPrivateKey(bytes: Uint8Array, scheme: SignatureScheme)
     privKeyBytes.set([flag]);
     privKeyBytes.set(bytes, 1);
     return bech32.encode(IOTA_PRIVATE_KEY_PREFIX, bech32.toWords(privKeyBytes));
-}
-
-/**
- * Calculate signing digest for a message with a specific intent.
- * By combining the message bytes with the intent before hashing.
- * Returns the digest.
- */
-export function signingDigest(bytes: Uint8Array, intent: IntentScope): Uint8Array {
-    const intentMessage = messageWithIntent(intent, bytes);
-    const digest = blake2b(intentMessage, { dkLen: 32 });
-    return digest;
 }
