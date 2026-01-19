@@ -1759,7 +1759,7 @@ mod tests {
         );
 
         // Update metrics for each authority with a block rejected verification error.
-        // Only unprovable metrics should be updated for this error.
+        // No metrics should be updated for this error.
         for authority in context.committee.authorities() {
             context
                 .scoring_metrics_store
@@ -1785,14 +1785,14 @@ mod tests {
             ],
             [
                 vec![0, 0, 0, 0],
-                vec![3, 3, 3, 3],
+                vec![2, 2, 2, 2],
                 vec![0, 0, 0, 0],
                 vec![0, 0, 0, 0],
                 vec![0, 0, 0, 0],
                 vec![0, 0, 0, 0],
                 vec![1, 1, 1, 1],
                 vec![1, 1, 1, 1],
-                vec![1, 1, 1, 1],
+                vec![0, 0, 0, 0],
             ]
         );
     }
