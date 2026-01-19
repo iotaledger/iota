@@ -246,7 +246,7 @@ fn sdk_object_type_to_move(
 ) -> Result<crate::base_types::MoveObjectType, SdkTypeConversionError> {
     crate::base_types::MoveObjectType::from(move_core_types::language_storage::StructTag {
         address: move_core_types::account_address::AccountAddress::new(
-            type_.address().into_bytes(),
+            type_.address().into_inner(),
         ),
         module: crate::Identifier::new(type_.module().as_str())?,
         name: crate::Identifier::new(type_.name().as_str())?,
@@ -1593,7 +1593,7 @@ impl From<MoveLocation> for crate::execution_status::MoveLocation {
     fn from(value: MoveLocation) -> Self {
         Self {
             module: ModuleId::new(
-                move_core_types::account_address::AccountAddress::new(value.package.into_bytes()),
+                move_core_types::account_address::AccountAddress::new(value.package.into_inner()),
                 crate::Identifier::new(value.module.as_str()).expect("invalid module name"),
             ),
             function: value.function,
@@ -2224,7 +2224,7 @@ impl From<crate::base_types::IotaAddress> for Address {
 
 impl From<Address> for crate::base_types::IotaAddress {
     fn from(value: Address) -> Self {
-        crate::base_types::ObjectID::new(value.into_bytes()).into()
+        crate::base_types::ObjectID::new(value.into_inner()).into()
     }
 }
 
@@ -2236,7 +2236,7 @@ impl From<crate::base_types::ObjectID> for ObjectId {
 
 impl From<ObjectId> for crate::base_types::ObjectID {
     fn from(value: ObjectId) -> Self {
-        Self::new(value.into_bytes())
+        Self::new(value.into_inner())
     }
 }
 
@@ -2248,7 +2248,7 @@ impl From<crate::base_types::IotaAddress> for ObjectId {
 
 impl From<ObjectId> for crate::base_types::IotaAddress {
     fn from(value: ObjectId) -> Self {
-        crate::base_types::ObjectID::new(value.into_bytes()).into()
+        crate::base_types::ObjectID::new(value.into_inner()).into()
     }
 }
 
@@ -2378,7 +2378,7 @@ pub fn struct_tag_sdk_to_core(
     value: &StructTag,
 ) -> Result<move_core_types::language_storage::StructTag, SdkTypeConversionError> {
     let address =
-        move_core_types::account_address::AccountAddress::new(value.address().into_bytes());
+        move_core_types::account_address::AccountAddress::new(value.address().into_inner());
     let module = move_core_types::identifier::Identifier::new(value.module().as_str())?;
     let name = move_core_types::identifier::Identifier::new(value.name().as_str())?;
     let type_params = value

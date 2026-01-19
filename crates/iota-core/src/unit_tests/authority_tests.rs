@@ -1340,7 +1340,7 @@ async fn test_handle_transfer_transaction_ok() {
 
     let before_object_version = object.version();
     let after_object_version =
-        SequenceNumber::lamport_increment([object.version(), gas_object.version()]);
+        SequenceNumber::lamport_increment([object.version(), gas_object.version()]).unwrap();
 
     assert!(before_object_version < after_object_version);
 
@@ -2266,7 +2266,7 @@ async fn test_handle_confirmation_transaction_ok() {
     let gas_object = authority_state.get_object(&gas_object_id).await.unwrap();
 
     let next_sequence_number =
-        SequenceNumber::lamport_increment([object.version(), gas_object.version()]);
+        SequenceNumber::lamport_increment([object.version(), gas_object.version()]).unwrap();
 
     let certified_transfer_transaction = init_certified_transfer_transaction(
         sender,
@@ -2407,7 +2407,7 @@ async fn test_move_call_mutable_object_not_mutated() {
         .unwrap()
         .version();
 
-    let next_object_version = SequenceNumber::lamport_increment([gas_version, seq1, seq2]);
+    let next_object_version = SequenceNumber::lamport_increment([gas_version, seq1, seq2]).unwrap();
 
     let effects = call_move(
         &authority_state,
@@ -2506,7 +2506,7 @@ async fn test_move_call_insufficient_gas() {
         .unwrap()
         .compute_object_reference();
 
-    let next_object_version = SequenceNumber::lamport_increment([obj_ref.1, gas_ref.1]);
+    let next_object_version = SequenceNumber::lamport_increment([obj_ref.1, gas_ref.1]).unwrap();
 
     let gas_used = if gas_used > kind_of_rebate_to_remove {
         if gas_used - kind_of_rebate_to_remove < 2000 {
@@ -2648,7 +2648,8 @@ async fn test_get_latest_parent_entry() {
     .unwrap();
     let (new_object_id2, seq2, _) = effects.created()[0].0;
 
-    let update_version = SequenceNumber::lamport_increment([seq1, seq2, effects.gas_object().0.1]);
+    let update_version =
+        SequenceNumber::lamport_increment([seq1, seq2, effects.gas_object().0.1]).unwrap();
 
     let effects = call_move(
         &authority_state,
@@ -2675,7 +2676,8 @@ async fn test_get_latest_parent_entry() {
     assert_eq!(obj_ref.0, new_object_id1);
     assert_eq!(obj_ref.1, update_version);
 
-    let delete_version = SequenceNumber::lamport_increment([obj_ref.1, effects.gas_object().0.1]);
+    let delete_version =
+        SequenceNumber::lamport_increment([obj_ref.1, effects.gas_object().0.1]).unwrap();
 
     let _effects = call_move(
         &authority_state,
@@ -6598,10 +6600,12 @@ async fn test_consensus_handler_congestion_control_transaction_cancellation() {
             (
                 shared_objects[0].id(),
                 SequenceNumber::new_congested_with_suggested_gas_price(suggested_gas_price)
+                    .unwrap()
             ),
             (
                 shared_objects[1].id(),
                 SequenceNumber::new_congested_with_suggested_gas_price(suggested_gas_price)
+                    .unwrap()
             )
         ]
         .into_iter()
@@ -6636,10 +6640,12 @@ async fn test_consensus_handler_congestion_control_transaction_cancellation() {
             SharedInput::Cancelled((
                 shared_objects[0].id(),
                 SequenceNumber::new_congested_with_suggested_gas_price(suggested_gas_price)
+                    .unwrap()
             )),
             SharedInput::Cancelled((
                 shared_objects[1].id(),
                 SequenceNumber::new_congested_with_suggested_gas_price(suggested_gas_price)
+                    .unwrap()
             ))
         ]
     );
@@ -6652,7 +6658,7 @@ async fn test_consensus_handler_congestion_control_transaction_cancellation() {
     );
     assert_eq!(
         cancellation_reason,
-        SequenceNumber::new_congested_with_suggested_gas_price(suggested_gas_price)
+        SequenceNumber::new_congested_with_suggested_gas_price(suggested_gas_price).unwrap()
     );
 
     // Consensus commit prologue contains cancelled txn shared object version
@@ -6670,13 +6676,13 @@ async fn test_consensus_handler_congestion_control_transaction_cancellation() {
                         shared_objects[0].id(),
                         SequenceNumber::new_congested_with_suggested_gas_price(
                             suggested_gas_price
-                        ),
+                        ).unwrap(),
                     ),
                     (
                         shared_objects[1].id(),
                         SequenceNumber::new_congested_with_suggested_gas_price(
                             suggested_gas_price
-                        ),
+                        ).unwrap(),
                     )
                 ]
             )]

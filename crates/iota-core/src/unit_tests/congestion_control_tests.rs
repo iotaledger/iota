@@ -408,10 +408,12 @@ async fn test_congestion_control_execution_cancellation() {
             InputSharedObject::Cancelled(
                 shared_object_1.0,
                 SequenceNumber::new_congested_with_suggested_gas_price(suggested_gas_price)
+                    .unwrap()
             ),
             InputSharedObject::Cancelled(
                 shared_object_2.0,
                 SequenceNumber::new_congested_with_suggested_gas_price(suggested_gas_price)
+                    .unwrap()
             )
         ]
     );
@@ -629,6 +631,7 @@ async fn test_congestion_control_debt_tracking() {
         vec![InputSharedObject::Cancelled(
             shared_object_2.0,
             SequenceNumber::new_congested_with_suggested_gas_price(expected_suggested_gas_price)
+                .unwrap()
         ),]
     );
 
@@ -773,12 +776,14 @@ async fn test_congestion_control_debt_tracking() {
                 SequenceNumber::new_congested_with_suggested_gas_price(
                     expected_suggested_gas_price
                 )
+                .unwrap()
             ),
             InputSharedObject::Cancelled(
                 shared_object_2.0,
                 SequenceNumber::new_congested_with_suggested_gas_price(
                     expected_suggested_gas_price
                 )
+                .unwrap()
             )
         ]
     );

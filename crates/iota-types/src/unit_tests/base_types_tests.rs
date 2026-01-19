@@ -123,7 +123,7 @@ fn test_lamport_increment_version() {
         SequenceNumber::from(42),
     ];
 
-    let incremented = SequenceNumber::lamport_increment(versions);
+    let incremented = SequenceNumber::lamport_increment(versions).unwrap();
 
     for version in versions {
         assert!(version < incremented, "Expected: {version} < {incremented}");
