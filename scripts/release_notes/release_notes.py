@@ -354,8 +354,7 @@ def do_generate(from_, to):
 
     """
     results = defaultdict(list)
-    attention_results = defaultdict(list)
-    attention_seen = defaultdict(set)
+    attention_labels = set()
 
     root = git("rev-parse", "--show-toplevel")
     os.chdir(root)
@@ -382,10 +381,7 @@ def do_generate(from_, to):
             if note.checked:
                 results[impacted].append((pr, note.note))
         for label in attention:
-            if pr in attention_seen[label]:
-                continue
-            attention_seen[label].add(pr)
-            attention_results[label].append(pr)
+            attention_labels.add(label)
 
     # Print the impact areas we know about first
     for impacted in NOTE_ORDER:
@@ -414,13 +410,12 @@ def do_generate(from_, to):
             print_changelog(pr, note)
             print()
 
-    if attention_results:
+    if attention_labels:
         print(f"## {ATTENTION_ICON} Attention {ATTENTION_ICON}\n")
-        for label in sorted(attention_results):
+        for label in sorted(attention_labels):
             message = ATTENTION_MESSAGES.get(label, label)
-            for pr in reversed(attention_results[label]):
-                print(message)
-                print()
+            print(message)
+            print()
 
 
 args = parse_args()
