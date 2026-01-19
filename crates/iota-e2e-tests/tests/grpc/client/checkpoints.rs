@@ -69,9 +69,5 @@ async fn get_checkpoint_future_sequence() {
 
     let future_sequence = latest.checkpoint.sequence_number + 100;
     let result = client.get_checkpoint(future_sequence).await;
-
-    assert!(
-        result.is_err(),
-        "Fetching future checkpoint should return an error"
-    );
+    assert_not_found_error(result);
 }
