@@ -311,12 +311,11 @@ async fn test_abstract_account_post_consensus_failure() -> Result<(), anyhow::Er
     Ok(())
 }
 
-
-
 // NOTE:
-// We intentionally do NOT execute TX1 certificate here:
-// currently that path panics inside validator execution_driver.rs on
-// ObjectVersionUnavailableForConsumption, and MSIM treats it as fatal.
+// The call below is intentionally included to demonstrate the current validator
+// panic. It will panic inside `crates/iota-core/src/execution_driver.rs` with
+// `ObjectVersionUnavailableForConsumption` once TX2 bumps the coin version.
+// MSIM treats this as fatal.
 
 #[sim_test]
 async fn test_receiving_gas_in_two_separate_txs() -> Result<(), anyhow::Error> {
@@ -350,7 +349,7 @@ async fn test_receiving_gas_in_two_separate_txs() -> Result<(), anyhow::Error> {
         .fund_address_and_return_gas(rgp, Some(20_000_000_000), bob)
         .await;
 
-    // 3) Fund AA with setup gas + conflict coin (must be large enough for AA gas budget)
+    // 3) Fund AA with setup gas + conflict coin
     let aa_setup_gas = test_env
         .test_cluster
         .fund_address_and_return_gas(rgp, Some(20_000_000_000), aa_sender)
@@ -362,9 +361,8 @@ async fn test_receiving_gas_in_two_separate_txs() -> Result<(), anyhow::Error> {
         .await;
     let conflict_coin_id = conflict_coin.0;
 
-    // 4) Setup: receive the conflict coin into the AA.
-    let setup_pt =
-        test_env.craft_aa_receive_gas_ptb(conflict_coin, true)?;
+    // 4) Setup: receive the conflict coin into the AA (checked variant)
+    let setup_pt = test_env.craft_aa_receive_gas_ptb(conflict_coin, true)?;
     let setup_tx_data = test_env
         .craft_tx_from_pt(setup_pt, aa_setup_gas, aa_sender, None)
         .await?;
@@ -378,52 +376,51 @@ async fn test_receiving_gas_in_two_separate_txs() -> Result<(), anyhow::Error> {
         .get_latest_object_ref(&conflict_coin_id)
         .await;
 
-    // 5) TX1: AA sender uses conflict coin as GAS; create certificate (locks at validators)
+    // 5) TX1: AA sender uses conflict coin as GAS; create certificate (locks at
+    //    validators)
     let tx1_pt = test_env.craft_aa_simple_ptb()?;
     let tx1_data = test_env
         .craft_tx_from_pt(tx1_pt, conflict_coin_ref_before, aa_sender, None)
         .await?;
 
-    // Keep the exact gas payment ref TX1 is certified with (this is what will become stale)
+    // Keep the exact gas payment ref TX1 is certified with (this is what will
+    // become stale)
     let tx_clone = tx1_data.clone();
     let tx1_gas_payment_ref = tx_clone.gas();
 
     let aa_sig_tx1 = test_env.create_move_authenticator_for_free_access()?;
     let tx1 = Transaction::from_generic_sig_data(tx1_data, vec![aa_sig_tx1]);
 
-    let _tx1_cert = test_env
+    let tx1_cert = test_env
         .test_cluster
         .create_certificate(tx1, Some(client_ip))
         .await
         .expect("TX1 certificate creation should succeed");
 
-    // 6) TX2: Bob executes receive WITHOUT sender check, passing SAME coin as Receiving input.
-    let tx2_pt =
-        test_env.craft_aa_receive_gas_ptb(conflict_coin_ref_before, false)?;
+    // 6) TX2: Bob executes receive WITHOUT sender check, passing SAME coin as
+    //    Receiving input.
+    let tx2_pt = test_env.craft_aa_receive_gas_ptb(conflict_coin_ref_before, false)?;
     let tx2_data = test_env
         .craft_tx_from_pt(tx2_pt, bob_gas, bob, None)
         .await?;
     let tx2 = test_env.test_cluster.wallet.sign_transaction(&tx2_data);
 
     let tx2_resp = test_env.test_cluster.execute_transaction(tx2).await;
+    let tx2_ok = tx2_resp.confirmed_local_execution.unwrap_or(false) && tx2_resp.errors.is_empty();
 
-    let tx2_ok = tx2_resp
-        .confirmed_local_execution
-        .unwrap_or(false)
-        && tx2_resp.errors.is_empty();
     assert!(
         tx2_ok,
         "TX2 must succeed to reproduce the intended race. Resp={:#?}",
         tx2_resp
     );
 
-    // 7) Assert the core race outcome without executing TX1 (execution currently panics in validator).
+    // 7) Assert the core race outcome without executing TX1 (execution currently
+    //    panics in validator).
     let conflict_coin_ref_after = test_env
         .test_cluster
         .get_latest_object_ref(&conflict_coin_id)
         .await;
 
-    // Strong check: the conflict coin version advanced (TX2 mutated it)
     assert!(
         conflict_coin_ref_after.1 > tx1_gas_payment_ref[0].1,
         "Expected conflict coin version to advance after TX2. \
@@ -431,6 +428,18 @@ async fn test_receiving_gas_in_two_separate_txs() -> Result<(), anyhow::Error> {
         tx1_gas_payment_ref,
         conflict_coin_ref_after
     );
+
+    // 8) Demonstrate the current panic by executing the certified TX1.
+    // This triggers: ObjectVersionUnavailableForConsumption (provided v5, current
+    // v6) and panics in iota-core execution_driver.rs
+    let _ = test_env
+        .test_cluster
+        .authority_aggregator()
+        .process_certificate(
+            HandleCertificateRequestV1::new(tx1_cert).with_events(),
+            Some(client_ip),
+        )
+        .await;
 
     Ok(())
 }
@@ -804,9 +813,9 @@ impl TestEnvironment {
         };
         let mut b = ProgrammableTransactionBuilder::new();
         let receive_function = if has_sender_check {
-                "receive_object"
+            "receive_object"
         } else {
-             "receive_object_without_sender_check"
+            "receive_object_without_sender_check"
         };
         let args = vec![
             b.obj(ObjectArg::SharedObject {
@@ -828,7 +837,6 @@ impl TestEnvironment {
         Ok(b.finish())
     }
 }
-
 
 fn abstract_account_type_tag(aa_package_id: &ObjectID) -> TypeTag {
     TypeTag::from_str(format!("{aa_package_id}::{AA_MODULE_NAME}::{AA_ACCOUNT_NAME}").as_str())
