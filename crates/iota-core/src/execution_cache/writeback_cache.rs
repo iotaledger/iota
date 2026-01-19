@@ -55,7 +55,7 @@ use std::{
 
 use dashmap::{DashMap, mapref::entry::Entry as DashMapEntry};
 use futures::{FutureExt, future::BoxFuture};
-use iota_common::sync::notify_read::NotifyRead;
+use iota_common::{sync::notify_read::NotifyRead, util::randomize_cache_capacity_in_tests};
 use iota_config::WritebackCacheConfig;
 use iota_macros::fail_point;
 use iota_types::{
@@ -351,24 +351,40 @@ struct CachedCommittedData {
 impl CachedCommittedData {
     fn new(config: &WritebackCacheConfig) -> Self {
         let object_cache = MokaCache::builder(8)
-            .max_capacity(config.object_cache_size())
+            .max_capacity(randomize_cache_capacity_in_tests(
+                config.object_cache_size(),
+            ))
             .build();
         let marker_cache = MokaCache::builder(8)
-            .max_capacity(config.marker_cache_size())
+            .max_capacity(randomize_cache_capacity_in_tests(
+                config.marker_cache_size(),
+            ))
             .build();
 
-        let transactions = MonotonicCache::new(config.transaction_cache_size());
-        let transaction_effects = MonotonicCache::new(config.effect_cache_size());
-        let transaction_events = MonotonicCache::new(config.events_cache_size());
-        let executed_effects_digests = MonotonicCache::new(config.executed_effect_cache_size());
+        let transactions = MonotonicCache::new(randomize_cache_capacity_in_tests(
+            config.transaction_cache_size(),
+        ));
+        let transaction_effects = MonotonicCache::new(randomize_cache_capacity_in_tests(
+            config.effect_cache_size(),
+        ));
+        let transaction_events = MonotonicCache::new(randomize_cache_capacity_in_tests(
+            config.events_cache_size(),
+        ));
+        let executed_effects_digests = MonotonicCache::new(randomize_cache_capacity_in_tests(
+            config.executed_effect_cache_size(),
+        ));
 
         let transaction_objects = MokaCache::builder(8)
-            .max_capacity(config.transaction_objects_cache_size())
+            .max_capacity(randomize_cache_capacity_in_tests(
+                config.transaction_objects_cache_size(),
+            ))
             .build();
 
         Self {
             object_cache,
-            object_by_id_cache: MonotonicCache::new(config.object_by_id_cache_size()),
+            object_by_id_cache: MonotonicCache::new(randomize_cache_capacity_in_tests(
+                config.object_by_id_cache_size(),
+            )),
             marker_cache,
             transactions,
             transaction_effects,
@@ -479,7 +495,9 @@ impl WritebackCache {
         backpressure_manager: Arc<BackpressureManager>,
     ) -> Self {
         let packages = MokaCache::builder(8)
-            .max_capacity(config.package_cache_size())
+            .max_capacity(randomize_cache_capacity_in_tests(
+                config.package_cache_size(),
+            ))
             .build();
         Self {
             dirty: UncommittedData::new(),
@@ -804,21 +822,32 @@ impl WritebackCache {
         id: &ObjectID,
     ) -> IotaResult<Option<Object>> {
         let ticket = self.cached.object_by_id_cache.get_ticket_for_read(id);
-        match self.get_object_by_id_cache_only(request_type, id) {
-            CacheResult::Hit((_, object)) => Ok(Some(object)),
+        match self.get_object_entry_by_id_cache_only(request_type, id) {
+            CacheResult::Hit((_, object)) => match object {
+                ObjectEntry::Object(object) => Ok(Some(object)),
+                ObjectEntry::Deleted | ObjectEntry::Wrapped => Ok(None),
+            },
             CacheResult::NegativeHit => Ok(None),
             CacheResult::Miss => {
-                let obj = self.store.try_get_object(id)?;
-                if let Some(obj) = &obj {
-                    self.cache_latest_object_by_id(
-                        id,
-                        LatestObjectCacheEntry::Object(obj.version(), obj.clone().into()),
-                        ticket,
-                    );
-                } else {
-                    self.cache_object_not_found(id, ticket);
+                let obj = self.store.get_latest_object_or_tombstone(*id);
+                match obj {
+                    Ok(Some((key, obj))) => {
+                        self.cache_latest_object_by_id(
+                            id,
+                            LatestObjectCacheEntry::Object(key.1, obj.clone().into()),
+                            ticket,
+                        );
+                        match obj {
+                            ObjectOrTombstone::Object(object) => Ok(Some(object)),
+                            ObjectOrTombstone::Tombstone(_) => Ok(None),
+                        }
+                    }
+                    Ok(None) => {
+                        self.cache_object_not_found(id, ticket);
+                        Ok(None)
+                    }
+                    Err(e) => Err(format!("failed to get latest object or tomebstone: {e}").into()),
                 }
-                Ok(obj)
             }
         }
     }

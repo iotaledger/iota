@@ -17,7 +17,7 @@ use std::{
 };
 
 use diffy::create_patch;
-use iota_common::{debug_fatal, fatal, sync::notify_read::NotifyRead};
+use iota_common::{debug_fatal, fatal, random::get_rng, sync::notify_read::NotifyRead};
 use iota_macros::fail_point;
 use iota_metrics::{MonitoredFutureExt, monitored_future, monitored_scope};
 use iota_network::default_iota_network_config;
@@ -50,7 +50,7 @@ use iota_types::{
 use itertools::Itertools;
 use nonempty::NonEmpty;
 use parking_lot::Mutex;
-use rand::{rngs::OsRng, seq::SliceRandom};
+use rand::seq::SliceRandom;
 use serde::{Deserialize, Serialize};
 use tokio::{
     sync::{Notify, watch},
@@ -2160,7 +2160,7 @@ async fn diagnose_split_brain(
         .iter()
         .filter_map(|(digest, (validators, _))| {
             if *digest != local_summary.digest() {
-                let random_validator = validators.choose(&mut OsRng).unwrap();
+                let random_validator = validators.choose(&mut get_rng()).unwrap();
                 Some((*digest, *random_validator))
             } else {
                 None
