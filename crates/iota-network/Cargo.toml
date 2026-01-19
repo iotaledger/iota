@@ -18,7 +18,7 @@ dashmap.workspace = true
 fastcrypto.workspace = true
 fastcrypto-tbls.workspace = true
 futures.workspace = true
-governor.workspace = true
+governor = "0.6.0"
 prometheus.workspace = true
 rand.workspace = true
 serde.workspace = true
@@ -45,7 +45,7 @@ tonic-build.workspace = true
 [dev-dependencies]
 # external dependencies
 ed25519-consensus.workspace = true
-tempfile = "3.3.0"
+tempfile.workspace = true
 tokio = { workspace = true, features = ["test-util"] }
 
 # internal dependencies

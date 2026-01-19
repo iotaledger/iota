@@ -15,4 +15,4 @@ itertools.workspace = true
 proc-macro2.workspace = true
 quote.workspace = true
 syn.workspace = true
-unescape.workspace = true
+unescape = "0.1.0"

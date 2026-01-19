@@ -1587,6 +1587,15 @@ export type Event = {
   sendingModule?: Maybe<MoveModule>;
   /** UTC timestamp in milliseconds since epoch (1/1/1970) */
   timestamp?: Maybe<Scalars['DateTime']['output']>;
+  /**
+   * The transaction block that emitted this event. This information is only
+   * available for events from transactions included in a checkpoint.
+   *
+   * For simulated transactions (e.g. dry run), or transactions that have
+   * been just executed but not yet included in a checkpoint this returns
+   * null.
+   */
+  transactionBlock?: Maybe<TransactionBlock>;
   /** The value's Move type. */
   type: MoveType;
 };
@@ -2864,6 +2873,8 @@ export type MovePackage = IObject & IOwner & {
    * package's original ID, but has the specified `version`).
    */
   packageAtVersion?: Maybe<MovePackage>;
+  /** BCS representation of the package itself, as a MovePackage. */
+  packageBcs?: Maybe<Scalars['Base64']['output']>;
   /**
    * Fetch all versions of this package (packages that share this package's
    * original ID), optionally bounding the versions exclusively from
@@ -5432,11 +5443,14 @@ export type TransactionBlockEffects = {
   balanceChanges: BalanceChangeConnection;
   /** Base64 encoded bcs serialization of the on-chain transaction effects. */
   bcs: Scalars['Base64']['output'];
-  /** The checkpoint this transaction was finalized in. */
+  /**
+   * The checkpoint this transaction was finalized in, if it is within the
+   * available range.
+   */
   checkpoint?: Maybe<Checkpoint>;
   /** Transactions whose outputs this transaction depends upon. */
   dependencies: DependencyConnection;
-  /** The epoch this transaction was finalized in. */
+  /** The epoch this transaction was executed in. */
   epoch?: Maybe<Epoch>;
   /**
    * The reason for a transaction failure, if it did fail.

@@ -143,13 +143,14 @@ export function AddAccountPage() {
             onBack={() => navigate('/')}
         >
             <div className="flex h-full w-full flex-col">
-                <div className="flex w-full flex-1 flex-col gap-4 py-md--rs text-center">
+                <div className="flex w-full flex-1 flex-col pb-md--rs text-center">
                     <img
                         src={theme === Theme.Dark ? AddProfileImageDark : AddProfileImage}
                         alt="Add Profile"
                         height={187}
-                        className="mx-auto aspect-[4/3] h-[187px] w-auto object-cover"
+                        className="mx-auto aspect-[4/3] max-h-[187px] w-auto object-cover"
                     />
+
                     <div className="flex flex-1 flex-col items-center gap-xxs">
                         <h2 className="text-headline-sm font-medium leading-[120%] tracking-[-0.4px] text-iota-neutral-10 dark:text-iota-neutral-92">
                             Your journey into Web3
@@ -161,7 +162,7 @@ export function AddAccountPage() {
                     </div>
                 </div>
 
-                <div className="flex flex-col gap-lg pt-md--rs">
+                <div className="flex flex-col gap-lg">
                     <div className="flex flex-col gap-y-xs text-start">
                         {cardLinks.map((card) => (
                             <Link
