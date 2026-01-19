@@ -835,10 +835,11 @@ impl WritebackCache {
                             ObjectOrTombstone::Tombstone(_) => Ok(None),
                         }
                     }
-                    _ => {
+                    Ok(None) => {
                         self.cache_object_not_found(id, ticket);
                         Ok(None)
                     }
+                    Err(e) => Err(format!("failed to get latest object or tomebstone: {e}").into()),
                 }
             }
         }
