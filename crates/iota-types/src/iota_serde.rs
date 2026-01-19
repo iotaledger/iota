@@ -4,18 +4,13 @@
 
 use std::{
     fmt,
-    fmt::{Debug, Display, Formatter, Write},
+    fmt::{Debug, Display, Formatter},
     marker::PhantomData,
     ops::Deref,
     str::FromStr,
 };
 
-use fastcrypto::encoding::Hex;
 use iota_protocol_config::ProtocolVersion;
-use move_core_types::{
-    account_address::AccountAddress,
-    language_storage::{StructTag, TypeTag},
-};
 use schemars::JsonSchema;
 use serde::{
     self, Deserialize, Serialize,
@@ -23,11 +18,6 @@ use serde::{
     ser::{Error as SerError, Serializer},
 };
 use serde_with::{Bytes, DeserializeAs, DisplayFromStr, SerializeAs, serde_as};
-
-use crate::{
-    IOTA_CLOCK_ADDRESS, IOTA_FRAMEWORK_ADDRESS, IOTA_SYSTEM_ADDRESS, IOTA_SYSTEM_STATE_ADDRESS,
-    STARDUST_ADDRESS, parse_iota_struct_tag, parse_iota_type_tag,
-};
 
 #[inline]
 fn to_custom_error<'de, D, E>(e: E) -> D::Error
@@ -101,33 +91,6 @@ where
     }
 }
 
-/// custom serde for AccountAddress
-pub struct HexAccountAddress;
-
-impl SerializeAs<AccountAddress> for HexAccountAddress {
-    fn serialize_as<S>(value: &AccountAddress, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        Hex::serialize_as(value, serializer)
-    }
-}
-
-impl<'de> DeserializeAs<'de, AccountAddress> for HexAccountAddress {
-    fn deserialize_as<D>(deserializer: D) -> Result<AccountAddress, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        let s = String::deserialize(deserializer)?;
-        if s.starts_with("0x") {
-            AccountAddress::from_hex_literal(&s)
-        } else {
-            AccountAddress::from_hex(&s)
-        }
-        .map_err(to_custom_error::<'de, D, _>)
-    }
-}
-
 /// Serializes a bitmap according to the roaring bitmap on-disk standard.
 /// <https://github.com/RoaringBitmap/RoaringFormatSpec>
 pub struct IotaBitmap;
@@ -153,89 +116,6 @@ impl<'de> DeserializeAs<'de, roaring::RoaringBitmap> for IotaBitmap {
     {
         let bytes: Vec<u8> = Bytes::deserialize_as(deserializer)?;
         roaring::RoaringBitmap::deserialize_from(&bytes[..]).map_err(to_custom_error::<'de, D, _>)
-    }
-}
-
-pub struct IotaStructTag;
-
-impl SerializeAs<StructTag> for IotaStructTag {
-    fn serialize_as<S>(value: &StructTag, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        let f = to_iota_struct_tag_string(value).map_err(S::Error::custom)?;
-        f.serialize(serializer)
-    }
-}
-
-const IOTA_ADDRESSES: [AccountAddress; 7] = [
-    AccountAddress::ZERO,
-    AccountAddress::ONE,
-    IOTA_FRAMEWORK_ADDRESS,
-    IOTA_SYSTEM_ADDRESS,
-    STARDUST_ADDRESS,
-    IOTA_SYSTEM_STATE_ADDRESS,
-    IOTA_CLOCK_ADDRESS,
-];
-/// Serialize StructTag as a string, retaining the leading zeros in the address.
-pub fn to_iota_struct_tag_string(value: &StructTag) -> Result<String, fmt::Error> {
-    let mut f = String::new();
-    // trim leading zeros if address is in IOTA_ADDRESSES
-    let address = if IOTA_ADDRESSES.contains(&value.address) {
-        value.address.short_str_lossless()
-    } else {
-        value.address.to_canonical_string(/* with_prefix */ false)
-    };
-
-    write!(f, "0x{}::{}::{}", address, value.module, value.name)?;
-    if let Some(first_ty) = value.type_params.first() {
-        write!(f, "<")?;
-        write!(f, "{}", to_iota_type_tag_string(first_ty)?)?;
-        for ty in value.type_params.iter().skip(1) {
-            write!(f, ", {}", to_iota_type_tag_string(ty)?)?;
-        }
-        write!(f, ">")?;
-    }
-    Ok(f)
-}
-
-fn to_iota_type_tag_string(value: &TypeTag) -> Result<String, fmt::Error> {
-    match value {
-        TypeTag::Vector(t) => Ok(format!("vector<{}>", to_iota_type_tag_string(t)?)),
-        TypeTag::Struct(s) => to_iota_struct_tag_string(s),
-        _ => Ok(value.to_string()),
-    }
-}
-
-impl<'de> DeserializeAs<'de, StructTag> for IotaStructTag {
-    fn deserialize_as<D>(deserializer: D) -> Result<StructTag, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        let s = String::deserialize(deserializer)?;
-        parse_iota_struct_tag(&s).map_err(D::Error::custom)
-    }
-}
-
-pub struct IotaTypeTag;
-
-impl SerializeAs<TypeTag> for IotaTypeTag {
-    fn serialize_as<S>(value: &TypeTag, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        let s = to_iota_type_tag_string(value).map_err(S::Error::custom)?;
-        s.serialize(serializer)
-    }
-}
-
-impl<'de> DeserializeAs<'de, TypeTag> for IotaTypeTag {
-    fn deserialize_as<D>(deserializer: D) -> Result<TypeTag, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        let s = String::deserialize(deserializer)?;
-        parse_iota_type_tag(&s).map_err(D::Error::custom)
     }
 }
 

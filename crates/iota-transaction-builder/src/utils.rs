@@ -13,6 +13,7 @@ use iota_json::{
 use iota_json_rpc_types::{IotaArgument, IotaData, IotaObjectDataOptions, IotaRawData, PtbInput};
 use iota_protocol_config::ProtocolConfig;
 use iota_types::{
+    Identifier, TypeTag,
     base_types::{IotaAddress, ObjectID, ObjectRef, ObjectType, TxContext, TxContextKind},
     error::UserInputError,
     fp_ensure,
@@ -25,7 +26,6 @@ use iota_types::{
 use move_binary_format::{
     CompiledModule, binary_config::BinaryConfig, file_format::SignatureToken,
 };
-use move_core_types::{identifier::Identifier, language_storage::TypeTag};
 
 use crate::TransactionBuilder;
 

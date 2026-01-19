@@ -21,6 +21,7 @@ use iota_common::try_iterator_ext::TryIteratorExt;
 use iota_json_rpc_types::{IotaObjectDataFilter, TransactionFilter};
 use iota_storage::{mutex_table::MutexTable, sharded_lru::ShardedLruCache};
 use iota_types::{
+    TypeTag,
     base_types::{
         IotaAddress, ObjectDigest, ObjectID, ObjectInfo, ObjectRef, SequenceNumber,
         TransactionDigest, TxSequenceNumber,
@@ -34,10 +35,7 @@ use iota_types::{
     parse_iota_struct_tag,
 };
 use itertools::Itertools;
-use move_core_types::{
-    account_address::AccountAddress,
-    language_storage::{ModuleId, StructTag, TypeTag},
-};
+use move_core_types::{account_address::AccountAddress, language_storage::ModuleId};
 use parking_lot::ArcMutexGuard;
 use prometheus::{
     IntCounter, IntCounterVec, Registry, register_int_counter_vec_with_registry,

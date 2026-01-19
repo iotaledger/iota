@@ -2,6 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use iota_sdk_types::IdentifierRef;
 use move_binary_format::{CompiledModule, file_format::SignatureToken};
 use move_bytecode_utils::resolve_struct;
 use move_core_types::{account_address::AccountAddress, ident_str, identifier::IdentStr};
@@ -14,14 +15,16 @@ use crate::{
     storage::ObjectStore,
 };
 
-pub const RANDOMNESS_MODULE_NAME: &IdentStr = ident_str!("random");
-pub const RANDOMNESS_STATE_STRUCT_NAME: &IdentStr = ident_str!("Random");
-pub const RANDOMNESS_STATE_UPDATE_FUNCTION_NAME: &IdentStr = ident_str!("update_randomness_state");
-pub const RANDOMNESS_STATE_CREATE_FUNCTION_NAME: &IdentStr = ident_str!("create");
+pub const RANDOMNESS_MODULE_NAME: &IdentifierRef = IdentifierRef::const_new("random");
+pub const RANDOMNESS_STATE_STRUCT_NAME: &IdentifierRef = IdentifierRef::const_new("Random");
+pub const RANDOMNESS_STATE_UPDATE_FUNCTION_NAME: &IdentifierRef =
+    IdentifierRef::const_new("update_randomness_state");
+pub const RANDOMNESS_STATE_CREATE_FUNCTION_NAME: &IdentifierRef =
+    IdentifierRef::const_new("create");
 pub const RESOLVED_IOTA_RANDOMNESS_STATE: (&AccountAddress, &IdentStr, &IdentStr) = (
     &IOTA_FRAMEWORK_ADDRESS,
-    RANDOMNESS_MODULE_NAME,
-    RANDOMNESS_STATE_STRUCT_NAME,
+    ident_str!(RANDOMNESS_MODULE_NAME.as_str()),
+    ident_str!(RANDOMNESS_STATE_STRUCT_NAME.as_str()),
 );
 
 pub fn get_randomness_state_obj_initial_shared_version(

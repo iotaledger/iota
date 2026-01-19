@@ -12,7 +12,7 @@ use fastcrypto::{
     ed25519::Ed25519KeyPair,
     traits::{AggregateAuthenticator, KeyPair},
 };
-use move_core_types::{account_address::AccountAddress, language_storage::StructTag};
+use iota_sdk_types::StructTag;
 use roaring::RoaringBitmap;
 
 use super::*;
@@ -1114,12 +1114,12 @@ fn test_move_input_objects() {
 
     let gas_object_ref = random_object_ref();
     let mk_st = |package: ObjectID, type_args| {
-        TypeTag::Struct(Box::new(StructTag {
-            address: AccountAddress::new(package.into_bytes()),
-            module: Identifier::new("foo").unwrap(),
-            name: Identifier::new("bar").unwrap(),
-            type_params: type_args,
-        }))
+        TypeTag::Struct(Box::new(StructTag::new(
+            IotaAddress::from_object_id(package),
+            IdentifierRef::const_new("foo"),
+            IdentifierRef::const_new("bar"),
+            type_args,
+        )))
     };
     let t1 = mk_st(p1, vec![]);
     let t2 = mk_st(p2, vec![mk_st(p3, vec![]), mk_st(p4, vec![])]);
@@ -1146,8 +1146,8 @@ fn test_move_input_objects() {
     ];
     builder.command(Command::move_call(
         package,
-        Identifier::new("foo").unwrap(),
-        Identifier::new("bar").unwrap(),
+        IdentifierRef::const_new("foo").to_owned(),
+        IdentifierRef::const_new("bar").to_owned(),
         type_args,
         args,
     ));
@@ -1203,12 +1203,12 @@ fn test_unique_input_objects() {
     let shared = random_object_ref();
 
     let mk_st = |package: ObjectID, type_args| {
-        TypeTag::Struct(Box::new(StructTag {
-            address: AccountAddress::new(package.into_bytes()),
-            module: Identifier::new("foo").unwrap(),
-            name: Identifier::new("bar").unwrap(),
-            type_params: type_args,
-        }))
+        TypeTag::Struct(Box::new(StructTag::new(
+            IotaAddress::from_object_id(package),
+            IdentifierRef::const_new("foo"),
+            IdentifierRef::const_new("bar"),
+            type_args,
+        )))
     };
     let t1 = mk_st(p1, vec![]);
     let t2 = mk_st(p2, vec![mk_st(p3, vec![]), mk_st(p4, vec![])]);

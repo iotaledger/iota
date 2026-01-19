@@ -2,24 +2,20 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use move_core_types::{
-    account_address::AccountAddress,
-    ident_str,
-    identifier::IdentStr,
-    language_storage::{StructTag, TypeTag},
-};
+use iota_sdk_types::{IdentifierRef, StructTag, TypeTag};
+use move_core_types::{account_address::AccountAddress, ident_str, identifier::IdentStr};
 use serde::{Deserialize, Serialize};
 
 use crate::{IOTA_FRAMEWORK_ADDRESS, MoveTypeTagTrait, base_types::EpochId, id::UID};
 
-pub const CONFIG_MODULE_NAME: &IdentStr = ident_str!("config");
-pub const CONFIG_STRUCT_NAME: &IdentStr = ident_str!("Config");
-pub const SETTING_STRUCT_NAME: &IdentStr = ident_str!("Setting");
-pub const SETTING_DATA_STRUCT_NAME: &IdentStr = ident_str!("SettingData");
+pub const CONFIG_MODULE_NAME: &IdentifierRef = IdentifierRef::const_new("config");
+pub const CONFIG_STRUCT_NAME: &IdentifierRef = IdentifierRef::const_new("Config");
+pub const SETTING_STRUCT_NAME: &IdentifierRef = IdentifierRef::const_new("Setting");
+pub const SETTING_DATA_STRUCT_NAME: &IdentifierRef = IdentifierRef::const_new("SettingData");
 pub const RESOLVED_IOTA_CONFIG: (&AccountAddress, &IdentStr, &IdentStr) = (
     &IOTA_FRAMEWORK_ADDRESS,
-    CONFIG_MODULE_NAME,
-    CONFIG_STRUCT_NAME,
+    ident_str!(CONFIG_MODULE_NAME.as_str()),
+    ident_str!(CONFIG_STRUCT_NAME.as_str()),
 );
 
 /// Rust representation of the Move type 0x2::config::Config.
@@ -44,22 +40,12 @@ pub struct SettingData<V> {
 
 impl Config {
     pub fn type_() -> StructTag {
-        StructTag {
-            address: IOTA_FRAMEWORK_ADDRESS,
-            module: CONFIG_MODULE_NAME.to_owned(),
-            name: CONFIG_STRUCT_NAME.to_owned(),
-            type_params: vec![],
-        }
+        StructTag::new_config()
     }
 }
 
 pub fn setting_type(value_tag: TypeTag) -> StructTag {
-    StructTag {
-        address: IOTA_FRAMEWORK_ADDRESS,
-        module: CONFIG_MODULE_NAME.to_owned(),
-        name: SETTING_STRUCT_NAME.to_owned(),
-        type_params: vec![value_tag],
-    }
+    StructTag::new_config_setting(value_tag)
 }
 
 impl MoveTypeTagTrait for Config {
@@ -75,16 +61,7 @@ impl<V: MoveTypeTagTrait> MoveTypeTagTrait for Setting<V> {
 }
 
 pub fn is_setting(tag: &StructTag) -> bool {
-    let StructTag {
-        address,
-        module,
-        name,
-        type_params,
-    } = tag;
-    *address == IOTA_FRAMEWORK_ADDRESS
-        && module.as_ident_str() == CONFIG_MODULE_NAME
-        && name.as_ident_str() == SETTING_STRUCT_NAME
-        && type_params.len() == 1
+    tag.is_config_setting()
 }
 
 impl<V> Setting<V> {

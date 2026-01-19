@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use iota_types::{
-    IOTA_FRAMEWORK_ADDRESS,
+    IOTA_FRAMEWORK_ADDRESS, Identifier,
     base_types::{TX_CONTEXT_MODULE_NAME, TX_CONTEXT_STRUCT_NAME, TxContext, TxContextKind},
     clock::Clock,
     error::ExecutionError,
@@ -48,10 +48,10 @@ pub fn verify_module(
 
     for func_def in &module.function_defs {
         let handle = module.function_handle_at(func_def.function);
-        let name = module.identifier_at(handle.name);
+        let name = Identifier::new(module.identifier_at(handle.name).as_str()).unwrap();
 
         // allow calling init function in the test code
-        if !is_test_fun(name, module, fn_info_map) {
+        if !is_test_fun(&name, module, fn_info_map) {
             verify_init_not_called(module, func_def).map_err(verification_failure)?;
         }
 
@@ -91,7 +91,7 @@ fn verify_init_not_called(
             _ => None,
         })
         .try_for_each(|(idx, fhandle)| {
-            let name = module.identifier_at(fhandle.name);
+            let name = Identifier::new(module.identifier_at(fhandle.name).as_str()).unwrap();
             if name == INIT_FN_NAME {
                 Err(format!(
                     "{}::{} at offset {}. Cannot call a module's '{}' function from another Move function",

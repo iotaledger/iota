@@ -7,7 +7,6 @@ use axum::{
     extract::{Path, State},
 };
 use iota_sdk_types::{ObjectId, StructTag};
-use iota_types::iota_sdk_types_conversions::struct_tag_sdk_to_core;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -57,13 +56,11 @@ async fn get_coin_info(
 ) -> Result<Json<CoinInfo>> {
     let indexes = state.inner().indexes().ok_or_else(RestError::not_found)?;
 
-    let core_coin_type = struct_tag_sdk_to_core(&coin_type)?;
-
     let iota_types::storage::CoinInfo {
         coin_metadata_object_id,
         treasury_object_id,
     } = indexes
-        .get_coin_info(&core_coin_type)?
+        .get_coin_info(&coin_type)?
         .ok_or_else(|| CoinNotFoundError(coin_type.clone()))?;
 
     let metadata = if let Some(coin_metadata_object_id) = coin_metadata_object_id {
@@ -75,7 +72,7 @@ async fn get_coin_info(
             .map_err(|_| {
                 RestError::new(
                     axum::http::StatusCode::INTERNAL_SERVER_ERROR,
-                    format!("Unable to read object {coin_metadata_object_id} for coin type {core_coin_type} as CoinMetadata"),
+                    format!("Unable to read object {coin_metadata_object_id} for coin type {coin_type} as CoinMetadata"),
                 )
             })?
             .map(CoinMetadata::from)
@@ -92,14 +89,14 @@ async fn get_coin_info(
             .map_err(|_| {
                 RestError::new(
                     axum::http::StatusCode::INTERNAL_SERVER_ERROR,
-                    format!("Unable to read object {treasury_object_id} for coin type {core_coin_type} as TreasuryCap"),
+                    format!("Unable to read object {treasury_object_id} for coin type {coin_type} as TreasuryCap"),
                 )
             })?
             .map(|treasury| CoinTreasury {
                 id: treasury.id.id.bytes,
                 total_supply: treasury.total_supply.value,
             })
-    } else if iota_types::gas_coin::GAS::is_gas(&core_coin_type) {
+    } else if iota_types::gas_coin::GAS::is_gas(&coin_type) {
         let system_state_summary = state.get_system_state_summary()?;
 
         Some(CoinTreasury {

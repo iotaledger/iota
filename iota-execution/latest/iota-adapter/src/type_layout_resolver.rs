@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use iota_types::{
+    StructTag,
     base_types::ObjectID,
     error::{IotaError, IotaResult},
     execution::TypeLayoutStore,
@@ -10,8 +11,7 @@ use iota_types::{
     storage::{BackingPackageStore, PackageObject},
 };
 use move_core_types::{
-    account_address::AccountAddress, annotated_value as A, language_storage::StructTag,
-    resolver::ResourceResolver,
+    account_address::AccountAddress, annotated_value as A, resolver::ResourceResolver,
 };
 use move_vm_runtime::move_vm::MoveVM;
 
@@ -70,7 +70,7 @@ impl ResourceResolver for NullIotaResolver<'_> {
     fn get_resource(
         &self,
         _address: &AccountAddress,
-        _type: &StructTag,
+        _type: &move_core_types::language_storage::StructTag,
     ) -> Result<Option<Vec<u8>>, Self::Error> {
         Ok(None)
     }

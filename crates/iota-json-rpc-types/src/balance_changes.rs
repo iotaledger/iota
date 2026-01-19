@@ -4,8 +4,7 @@
 
 use std::fmt::{Display, Formatter, Result};
 
-use iota_types::{iota_serde::IotaTypeTag, object::Owner};
-use move_core_types::language_storage::TypeTag;
+use iota_types::{TypeTag, object::Owner};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_with::{DisplayFromStr, serde_as};
@@ -16,8 +15,6 @@ use serde_with::{DisplayFromStr, serde_as};
 pub struct BalanceChange {
     /// Owner of the balance change
     pub owner: Owner,
-    #[schemars(with = "String")]
-    #[serde_as(as = "IotaTypeTag")]
     pub coin_type: TypeTag,
     /// The amount indicate the balance value changes,
     /// negative amount means spending coin value and positive means receiving

@@ -15,8 +15,8 @@ use iota_json_rpc_types::{
     IotaObjectDataOptions, IotaObjectResponse, IotaTypeTag, PtbInput, RPCTransactionRequestParams,
 };
 use iota_types::{
-    IOTA_FRAMEWORK_PACKAGE_ID,
-    base_types::{IotaAddress, ObjectID},
+    IOTA_FRAMEWORK_PACKAGE_ID, Identifier, StructTag,
+    base_types::{IotaAddress, ObjectID, ObjectInfo},
     coin,
     error::UserInputError,
     fp_ensure,
@@ -24,7 +24,6 @@ use iota_types::{
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     transaction::{CallArg, Command, InputObjectKind, ObjectArg, TransactionData, TransactionKind},
 };
-use move_core_types::{identifier::Identifier, language_storage::StructTag};
 
 #[async_trait]
 pub trait DataReader {

@@ -15,7 +15,7 @@ mod checked {
     use iota_move_natives::object_runtime::ObjectRuntime;
     use iota_protocol_config::ProtocolConfig;
     use iota_types::{
-        IOTA_FRAMEWORK_ADDRESS, auth_context,
+        IOTA_FRAMEWORK_ADDRESS, Identifier, IdentifierRef, TypeTag, auth_context,
         base_types::{
             IotaAddress, MoveObjectType, ObjectID, RESOLVED_ASCII_STR, RESOLVED_STD_OPTION,
             RESOLVED_UTF8_STR, TX_CONTEXT_MODULE_NAME, TX_CONTEXT_STRUCT_NAME, TxContext,
@@ -26,6 +26,7 @@ mod checked {
         execution_config_utils::to_binary_config,
         execution_status::{CommandArgumentError, PackageUpgradeError},
         id::RESOLVED_IOTA_ID,
+        iota_sdk_types_conversions::type_tag_core_to_sdk,
         metrics::LimitsMetrics,
         move_package::{
             IotaAttribute, MovePackage, PackageMetadata, RuntimeModuleMetadata,
@@ -56,9 +57,7 @@ mod checked {
         normalized,
     };
     use move_core_types::{
-        account_address::AccountAddress,
-        identifier::{IdentStr, Identifier},
-        language_storage::{ModuleId, TypeTag},
+        account_address::AccountAddress, identifier::IdentStr, language_storage::ModuleId,
         u256::U256,
     };
     use move_trace_format::format::MoveTraceBuilder;
@@ -354,9 +353,14 @@ mod checked {
                 }
 
                 let original_address = context.set_link_context(package)?;
-                let storage_id =
-                    ModuleId::new(AccountAddress::new(package.into_bytes()), module.clone());
-                let runtime_id = ModuleId::new(original_address, module);
+                let storage_id = ModuleId::new(
+                    AccountAddress::new(package.into_bytes()),
+                    move_core_types::identifier::Identifier::new(module.as_str()).unwrap(),
+                );
+                let runtime_id = ModuleId::new(
+                    original_address,
+                    move_core_types::identifier::Identifier::new(module.as_str()).unwrap(),
+                );
                 let return_values = execute_move_call::<Mode>(
                     context,
                     &mut argument_updates,
@@ -403,7 +407,7 @@ mod checked {
         argument_updates: &mut Mode::ArgumentUpdates,
         storage_id: &ModuleId,
         runtime_id: &ModuleId,
-        function: &IdentStr,
+        function: &IdentifierRef,
         type_arguments: Vec<Type>,
         arguments: Vec<Arg>,
         is_init: bool,
@@ -1044,7 +1048,7 @@ mod checked {
     fn vm_move_call(
         context: &mut ExecutionContext<'_, '_, '_>,
         module_id: &ModuleId,
-        function: &IdentStr,
+        function: &IdentifierRef,
         type_arguments: Vec<Type>,
         tx_context_kind: TxContextKind,
         has_auth_context: bool,
@@ -1180,7 +1184,7 @@ mod checked {
         let modules_to_init = modules.iter().filter_map(|module| {
             for fdef in &module.function_defs {
                 let fhandle = module.function_handle_at(fdef.function);
-                let fname = module.identifier_at(fhandle.name);
+                let fname = Identifier::new(module.identifier_at(fhandle.name).as_str()).unwrap();
                 if fname == INIT_FN_NAME {
                     return Some(module.self_id());
                 }
@@ -1256,7 +1260,7 @@ mod checked {
     fn check_visibility_and_signature<Mode: ExecutionMode>(
         context: &mut ExecutionContext<'_, '_, '_>,
         module_id: &ModuleId,
-        function: &IdentStr,
+        function: &IdentifierRef,
         type_arguments: &[Type],
         from_init: bool,
     ) -> Result<LoadedFunctionInfo, ExecutionError> {
@@ -1279,7 +1283,10 @@ mod checked {
             .iter()
             .enumerate()
             .find(|(_index, fdef)| {
-                module.identifier_at(module.function_handle_at(fdef.function).name) == function
+                module
+                    .identifier_at(module.function_handle_at(fdef.function).name)
+                    .as_str()
+                    == function.as_str()
             })
         else {
             return Err(ExecutionError::new_with_source(
@@ -1384,7 +1391,7 @@ mod checked {
     fn check_non_entry_signature<Mode: ExecutionMode>(
         context: &mut ExecutionContext<'_, '_, '_>,
         _module_id: &ModuleId,
-        _function: &IdentStr,
+        _function: &IdentifierRef,
         signature: &LoadedFunctionInstantiation,
     ) -> Result<Vec<ValueKind>, ExecutionError> {
         signature
@@ -1422,6 +1429,7 @@ mod checked {
                             .get_runtime()
                             .get_type_tag(return_type)
                             .map_err(|e| context.convert_vm_error(e))?;
+                        let type_tag = type_tag_core_to_sdk(&type_tag);
                         let TypeTag::Struct(struct_tag) = type_tag else {
                             invariant_violation!("Struct type make a non struct type tag")
                         };
@@ -1453,18 +1461,21 @@ mod checked {
     fn check_private_generics(
         _context: &mut ExecutionContext,
         module_id: &ModuleId,
-        function: &IdentStr,
+        function: &IdentifierRef,
         _type_arguments: &[Type],
     ) -> Result<(), ExecutionError> {
-        let module_ident = (module_id.address(), module_id.name());
-        if module_ident == (&IOTA_FRAMEWORK_ADDRESS, EVENT_MODULE) {
+        let module_ident = (
+            IotaAddress::new(module_id.address().into_bytes()),
+            IdentifierRef::new(module_id.name().as_str()).unwrap(),
+        );
+        if module_ident == (IotaAddress::FRAMEWORK, EVENT_MODULE) {
             return Err(ExecutionError::new_with_source(
                 ExecutionErrorKind::NonEntryFunctionInvoked,
                 format!("Cannot directly call functions in iota::{EVENT_MODULE}"),
             ));
         }
 
-        if module_ident == (&IOTA_FRAMEWORK_ADDRESS, TRANSFER_MODULE)
+        if module_ident == (IotaAddress::FRAMEWORK, TRANSFER_MODULE)
             && PRIVATE_TRANSFER_FUNCTIONS.contains(&function)
         {
             let msg = format!(
@@ -1503,7 +1514,7 @@ mod checked {
     fn build_move_args<Mode: ExecutionMode>(
         context: &mut ExecutionContext<'_, '_, '_>,
         module_id: &ModuleId,
-        function: &IdentStr,
+        function: &IdentifierRef,
         function_kind: FunctionKind,
         signature: &LoadedFunctionInstantiation,
         args: &[Arg],
@@ -1563,7 +1574,7 @@ mod checked {
         let mut serialized_args = Vec::with_capacity(num_args);
         let command_kind = CommandKind::MoveCall {
             package: ObjectID::new(module_id.address().into_bytes()),
-            module: module_id.name(),
+            module: IdentifierRef::new(module_id.name().as_str()).unwrap(),
             function,
         };
         // an init function can have one or two arguments, with the last one always
@@ -1586,6 +1597,7 @@ mod checked {
                             .get_runtime()
                             .get_type_tag(type_)
                             .map_err(|e| context.convert_vm_error(e))?;
+                        let type_tag = type_tag_core_to_sdk(&type_tag);
                         let TypeTag::Struct(struct_tag) = type_tag else {
                             invariant_violation!("Struct type make a non struct type tag")
                         };
@@ -1736,7 +1748,7 @@ mod checked {
             })
         } else {
             // SAFETY: Preserving existing behaviour for identifier deserialization.
-            Ok(unsafe { Identifier::new_unchecked(ident) })
+            Ok(Identifier::new(ident).unwrap())
         }
     }
 

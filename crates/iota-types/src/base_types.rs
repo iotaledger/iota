@@ -12,19 +12,15 @@ use std::{
 use anyhow::anyhow;
 use fastcrypto::hash::HashFunction;
 use fastcrypto_zkp::bn254::zk_login::ZkLoginInputs;
+use iota_sdk_types::{IdentifierRef, StructTag, TypeTag};
 use move_binary_format::{CompiledModule, file_format::SignatureToken};
 use move_bytecode_utils::resolve_struct;
 use move_core_types::{
-    account_address::AccountAddress,
-    annotated_value as A, ident_str,
-    identifier::IdentStr,
-    language_storage::{ModuleId, StructTag, TypeTag},
+    account_address::AccountAddress, annotated_value as A, ident_str, identifier::IdentStr,
+    language_storage::ModuleId,
 };
 use schemars::JsonSchema;
-use serde::{
-    Deserialize, Serialize, Serializer,
-    ser::{Error, SerializeSeq},
-};
+use serde::{Deserialize, Serialize, Serializer, ser::SerializeSeq};
 
 use crate::{
     IOTA_FRAMEWORK_ADDRESS, IOTA_SYSTEM_ADDRESS, MOVE_STDLIB_ADDRESS,
@@ -43,7 +39,6 @@ use crate::{
     gas_coin::{GAS, GasCoin},
     governance::{STAKED_IOTA_STRUCT_NAME, STAKING_POOL_MODULE_NAME, StakedIota},
     id::RESOLVED_IOTA_ID,
-    iota_serde::to_iota_struct_tag_string,
     messages_checkpoint::CheckpointTimestamp,
     multisig::MultiSigPublicKey,
     object::{Object, Owner},
@@ -156,27 +151,27 @@ impl MoveObjectType {
         Self(MoveObjectType_::Other(Nft::tag()))
     }
 
-    pub fn address(&self) -> AccountAddress {
+    pub fn address(&self) -> IotaAddress {
         match &self.0 {
-            MoveObjectType_::GasCoin | MoveObjectType_::Coin(_) => IOTA_FRAMEWORK_ADDRESS,
-            MoveObjectType_::StakedIota => IOTA_SYSTEM_ADDRESS,
-            MoveObjectType_::Other(s) => s.address,
+            MoveObjectType_::GasCoin | MoveObjectType_::Coin(_) => IotaAddress::FRAMEWORK,
+            MoveObjectType_::StakedIota => IotaAddress::SYSTEM,
+            MoveObjectType_::Other(s) => s.address(),
         }
     }
 
-    pub fn module(&self) -> &IdentStr {
+    pub fn module(&self) -> &IdentifierRef {
         match &self.0 {
             MoveObjectType_::GasCoin | MoveObjectType_::Coin(_) => COIN_MODULE_NAME,
             MoveObjectType_::StakedIota => STAKING_POOL_MODULE_NAME,
-            MoveObjectType_::Other(s) => &s.module,
+            MoveObjectType_::Other(s) => s.module(),
         }
     }
 
-    pub fn name(&self) -> &IdentStr {
+    pub fn name(&self) -> &IdentifierRef {
         match &self.0 {
             MoveObjectType_::GasCoin | MoveObjectType_::Coin(_) => COIN_STRUCT_NAME,
             MoveObjectType_::StakedIota => STAKED_IOTA_STRUCT_NAME,
-            MoveObjectType_::Other(s) => &s.name,
+            MoveObjectType_::Other(s) => s.name(),
         }
     }
 
@@ -185,7 +180,7 @@ impl MoveObjectType {
             MoveObjectType_::GasCoin => vec![GAS::type_tag()],
             MoveObjectType_::StakedIota => vec![],
             MoveObjectType_::Coin(inner) => vec![inner.clone()],
-            MoveObjectType_::Other(s) => s.type_params.clone(),
+            MoveObjectType_::Other(s) => s.type_params().to_vec(),
         }
     }
 
@@ -194,7 +189,7 @@ impl MoveObjectType {
             MoveObjectType_::GasCoin => vec![GAS::type_tag()],
             MoveObjectType_::StakedIota => vec![],
             MoveObjectType_::Coin(inner) => vec![inner],
-            MoveObjectType_::Other(s) => s.type_params,
+            MoveObjectType_::Other(s) => s.type_params().to_vec(),
         }
     }
 
@@ -208,7 +203,10 @@ impl MoveObjectType {
     }
 
     pub fn module_id(&self) -> ModuleId {
-        ModuleId::new(self.address(), self.module().to_owned())
+        ModuleId::new(
+            AccountAddress::new(self.address().into_bytes()),
+            move_core_types::identifier::Identifier::new(self.module().as_str()).unwrap(),
+        )
     }
 
     pub fn size_for_gas_metering(&self) -> usize {
@@ -281,15 +279,15 @@ impl MoveObjectType {
     }
 
     pub fn is_regulated_coin_metadata(&self) -> bool {
-        self.address() == IOTA_FRAMEWORK_ADDRESS
-            && self.module().as_str() == "coin"
-            && self.name().as_str() == "RegulatedCoinMetadata"
+        self.address() == IotaAddress::FRAMEWORK
+            && self.module() == IdentifierRef::const_new("coin")
+            && self.name() == IdentifierRef::const_new("RegulatedCoinMetadata")
     }
 
     pub fn is_coin_deny_cap_v1(&self) -> bool {
-        self.address() == IOTA_FRAMEWORK_ADDRESS
-            && self.module().as_str() == "coin"
-            && self.name().as_str() == "DenyCapV1"
+        self.address() == IotaAddress::FRAMEWORK
+            && self.module() == IdentifierRef::const_new("coin")
+            && self.name() == IdentifierRef::const_new("DenyCapV1")
     }
 
     pub fn is_dynamic_field(&self) -> bool {
@@ -393,7 +391,7 @@ impl MoveObjectType {
             MoveObjectType_::GasCoin => GasCoin::is_gas_coin(s),
             MoveObjectType_::StakedIota => StakedIota::is_staked_iota(s),
             MoveObjectType_::Coin(inner) => {
-                Coin::is_coin(s) && s.type_params.len() == 1 && inner == &s.type_params[0]
+                Coin::is_coin(s) && s.type_params().len() == 1 && inner == &s.type_params()[0]
             }
             MoveObjectType_::Other(o) => s == o,
         }
@@ -414,13 +412,28 @@ impl MoveObjectType {
     }
 }
 
-impl From<StructTag> for MoveObjectType {
-    fn from(mut s: StructTag) -> Self {
+impl From<&StructTag> for MoveObjectType {
+    fn from(s: &StructTag) -> Self {
         Self(if GasCoin::is_gas_coin(&s) {
             MoveObjectType_::GasCoin
         } else if Coin::is_coin(&s) {
             // unwrap safe because a coin has exactly one type parameter
-            MoveObjectType_::Coin(s.type_params.pop().unwrap())
+            MoveObjectType_::Coin(s.type_params()[0].clone())
+        } else if StakedIota::is_staked_iota(&s) {
+            MoveObjectType_::StakedIota
+        } else {
+            MoveObjectType_::Other(s.clone())
+        })
+    }
+}
+
+impl From<StructTag> for MoveObjectType {
+    fn from(s: StructTag) -> Self {
+        Self(if GasCoin::is_gas_coin(&s) {
+            MoveObjectType_::GasCoin
+        } else if Coin::is_coin(&s) {
+            // unwrap safe because a coin has exactly one type parameter
+            MoveObjectType_::Coin(s.type_params()[0].clone())
         } else if StakedIota::is_staked_iota(&s) {
             MoveObjectType_::StakedIota
         } else {
@@ -455,13 +468,11 @@ pub fn is_primitive_type_tag(t: &TypeTag) -> bool {
         T::Bool | T::U8 | T::U16 | T::U32 | T::U64 | T::U128 | T::U256 | T::Address => true,
         T::Vector(inner) => is_primitive_type_tag(inner),
         T::Struct(st) => {
-            let StructTag {
-                address,
-                module,
-                name,
-                type_params: type_args,
-            } = &**st;
-            let resolved_struct = (address, module.as_ident_str(), name.as_ident_str());
+            let resolved_struct = (
+                &AccountAddress::new(st.address().into_bytes()),
+                move_core_types::identifier::IdentStr::new(st.module().as_str()).unwrap(),
+                move_core_types::identifier::IdentStr::new(st.name().as_str()).unwrap(),
+            );
             // is id or..
             if resolved_struct == RESOLVED_IOTA_ID {
                 return true;
@@ -476,8 +487,8 @@ pub fn is_primitive_type_tag(t: &TypeTag) -> bool {
             }
             // is option of a primitive
             resolved_struct == RESOLVED_STD_OPTION
-                && type_args.len() == 1
-                && is_primitive_type_tag(&type_args[0])
+                && st.type_params().len() == 1
+                && is_primitive_type_tag(&st.type_params()[0])
         }
         T::Signer => false,
     }
@@ -806,7 +817,7 @@ pub const URL_STRUCT_NAME: &IdentStr = ident_str!("Url");
 
 pub fn move_ascii_str_layout() -> A::MoveStructLayout {
     A::MoveStructLayout {
-        type_: StructTag {
+        type_: move_core_types::language_storage::StructTag {
             address: MOVE_STDLIB_ADDRESS,
             module: STD_ASCII_MODULE_NAME.to_owned(),
             name: STD_ASCII_STRUCT_NAME.to_owned(),
@@ -821,7 +832,7 @@ pub fn move_ascii_str_layout() -> A::MoveStructLayout {
 
 pub fn move_utf8_str_layout() -> A::MoveStructLayout {
     A::MoveStructLayout {
-        type_: StructTag {
+        type_: move_core_types::language_storage::StructTag {
             address: MOVE_STDLIB_ADDRESS,
             module: STD_UTF8_MODULE_NAME.to_owned(),
             name: STD_UTF8_STRUCT_NAME.to_owned(),
@@ -836,7 +847,7 @@ pub fn move_utf8_str_layout() -> A::MoveStructLayout {
 
 pub fn url_layout() -> A::MoveStructLayout {
     A::MoveStructLayout {
-        type_: StructTag {
+        type_: move_core_types::language_storage::StructTag {
             address: IOTA_FRAMEWORK_ADDRESS,
             module: URL_MODULE_NAME.to_owned(),
             name: URL_STRUCT_NAME.to_owned(),
@@ -1001,11 +1012,7 @@ pub enum ObjectIDParseError {
 impl fmt::Display for MoveObjectType {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> std::fmt::Result {
         let s: StructTag = self.clone().into();
-        write!(
-            f,
-            "{}",
-            to_iota_struct_tag_string(&s).map_err(fmt::Error::custom)?
-        )
+        write!(f, "{s}")
     }
 }
 

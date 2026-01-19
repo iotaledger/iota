@@ -2,7 +2,9 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_types::{IOTA_FRAMEWORK_ADDRESS, error::ExecutionError};
+use iota_types::{
+    IOTA_FRAMEWORK_ADDRESS, IdentifierRef, base_types::IotaAddress, error::ExecutionError,
+};
 use move_binary_format::{
     CompiledModule,
     file_format::{
@@ -11,33 +13,33 @@ use move_binary_format::{
     },
 };
 use move_bytecode_utils::format_signature_token;
-use move_core_types::{account_address::AccountAddress, ident_str, identifier::IdentStr};
+use move_core_types::identifier::IdentStr;
 
 use crate::{TEST_SCENARIO_MODULE_NAME, verification_failure};
 
-pub const TRANSFER_MODULE: &IdentStr = ident_str!("transfer");
-pub const ACCOUNT_MODULE: &IdentStr = ident_str!("account");
-pub const EVENT_MODULE: &IdentStr = ident_str!("event");
-pub const EVENT_FUNCTION: &IdentStr = ident_str!("emit");
-pub const GET_EVENTS_TEST_FUNCTION: &IdentStr = ident_str!("events_by_type");
-pub const PUBLIC_TRANSFER_FUNCTIONS: &[&IdentStr] = &[
-    ident_str!("public_transfer"),
-    ident_str!("public_freeze_object"),
-    ident_str!("public_share_object"),
-    ident_str!("public_receive"),
-    ident_str!("receiving_object_id"),
+pub const TRANSFER_MODULE: &IdentifierRef = IdentifierRef::const_new("transfer");
+pub const ACCOUNT_MODULE: &IdentifierRef = IdentifierRef::const_new("account");
+pub const EVENT_MODULE: &IdentifierRef = IdentifierRef::const_new("event");
+pub const EVENT_FUNCTION: &IdentifierRef = IdentifierRef::const_new("emit");
+pub const GET_EVENTS_TEST_FUNCTION: &IdentifierRef = IdentifierRef::const_new("events_by_type");
+pub const PUBLIC_TRANSFER_FUNCTIONS: &[&IdentifierRef] = &[
+    IdentifierRef::const_new("public_transfer"),
+    IdentifierRef::const_new("public_freeze_object"),
+    IdentifierRef::const_new("public_share_object"),
+    IdentifierRef::const_new("public_receive"),
+    IdentifierRef::const_new("receiving_object_id"),
 ];
-pub const PRIVATE_TRANSFER_FUNCTIONS: &[&IdentStr] = &[
-    ident_str!("transfer"),
-    ident_str!("freeze_object"),
-    ident_str!("share_object"),
-    ident_str!("receive"),
+pub const PRIVATE_TRANSFER_FUNCTIONS: &[&IdentifierRef] = &[
+    IdentifierRef::const_new("transfer"),
+    IdentifierRef::const_new("freeze_object"),
+    IdentifierRef::const_new("share_object"),
+    IdentifierRef::const_new("receive"),
 ];
-pub const TRANSFER_IMPL_FUNCTIONS: &[&IdentStr] = &[
-    ident_str!("transfer_impl"),
-    ident_str!("freeze_object_impl"),
-    ident_str!("share_object_impl"),
-    ident_str!("receive_impl"),
+pub const TRANSFER_IMPL_FUNCTIONS: &[&IdentifierRef] = &[
+    IdentifierRef::const_new("transfer_impl"),
+    IdentifierRef::const_new("freeze_object_impl"),
+    IdentifierRef::const_new("share_object_impl"),
+    IdentifierRef::const_new("receive_impl"),
 ];
 
 pub const PUBLIC_ACCOUNT_FUNCTIONS: &[&IdentStr] = &[
@@ -100,11 +102,11 @@ fn verify_function(view: &CompiledModule, fdef: &FunctionDefinition) -> Result<(
 
             let type_arguments = &view.signature_at(*type_parameters).0;
             let ident = addr_module(view, mhandle);
-            if ident == (IOTA_FRAMEWORK_ADDRESS, TRANSFER_MODULE) {
+            if ident == (IotaAddress::FRAMEWORK, TRANSFER_MODULE) {
                 verify_private_transfer_module_functions(view, fhandle, type_arguments)?
-            } else if ident == (IOTA_FRAMEWORK_ADDRESS, EVENT_MODULE) {
+            } else if ident == (IotaAddress::FRAMEWORK, EVENT_MODULE) {
                 verify_private_event_emit(view, fhandle, type_arguments)?
-            } else if ident == (IOTA_FRAMEWORK_ADDRESS, ACCOUNT_MODULE) {
+            } else if ident == (IotaAddress::FRAMEWORK, ACCOUNT_MODULE) {
                 verify_private_account_module_functions(view, fhandle, type_arguments)?
             }
         }
@@ -118,10 +120,10 @@ fn verify_private_transfer_module_functions(
     type_arguments: &[SignatureToken],
 ) -> Result<(), String> {
     let self_handle = view.module_handle_at(view.self_handle_idx());
-    if addr_module(view, self_handle) == (IOTA_FRAMEWORK_ADDRESS, TRANSFER_MODULE) {
+    if addr_module(view, self_handle) == (IotaAddress::FRAMEWORK, TRANSFER_MODULE) {
         return Ok(());
     }
-    let fident = view.identifier_at(fhandle.name);
+    let fident = IdentifierRef::new(view.identifier_at(fhandle.name).as_str()).unwrap();
     // public transfer functions require `store` and have no additional rules
     if PUBLIC_TRANSFER_FUNCTIONS.contains(&fident) {
         return Ok(());
@@ -159,7 +161,7 @@ fn verify_private_account_module_functions(
     type_arguments: &[SignatureToken],
 ) -> Result<(), String> {
     let self_handle = view.module_handle_at(view.self_handle_idx());
-    if addr_module(view, self_handle) == (IOTA_FRAMEWORK_ADDRESS, ACCOUNT_MODULE) {
+    if addr_module(view, self_handle) == (IotaAddress::FRAMEWORK, ACCOUNT_MODULE) {
         return Ok(());
     }
     let fident = view.identifier_at(fhandle.name);
@@ -199,11 +201,11 @@ fn verify_private_event_emit(
     type_arguments: &[SignatureToken],
 ) -> Result<(), String> {
     let fident = view.identifier_at(fhandle.name);
-    if fident == GET_EVENTS_TEST_FUNCTION {
+    if fident.as_str() == GET_EVENTS_TEST_FUNCTION.as_str() {
         // test-only function with no params--no need to verify
         return Ok(());
     }
-    if fident != EVENT_FUNCTION {
+    if fident.as_str() != EVENT_FUNCTION.as_str() {
         debug_assert!(false, "unknown event function {fident}");
         return Err(format!("Calling unknown event function, {fident}"));
     };
@@ -257,8 +259,11 @@ fn is_defined_in_current_module(view: &CompiledModule, type_arg: &SignatureToken
 fn addr_module<'a>(
     view: &'a CompiledModule,
     mhandle: &ModuleHandle,
-) -> (AccountAddress, &'a IdentStr) {
+) -> (IotaAddress, &'a IdentifierRef) {
     let maddr = view.address_identifier_at(mhandle.address);
     let mident = view.identifier_at(mhandle.name);
-    (*maddr, mident)
+    (
+        IotaAddress::new(maddr.into_bytes()),
+        IdentifierRef::new(mident.as_str()).unwrap(),
+    )
 }

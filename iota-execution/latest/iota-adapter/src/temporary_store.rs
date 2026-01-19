@@ -24,6 +24,7 @@ use iota_types::{
     fp_bail,
     gas::GasCostSummary,
     inner_temporary_store::InnerTemporaryStore,
+    iota_sdk_types_conversions::struct_tag_core_to_sdk,
     iota_system_state::{AdvanceEpochParams, get_iota_system_state_wrapper},
     layout_resolver::LayoutResolver,
     object::{Data, Object, Owner},
@@ -33,9 +34,7 @@ use iota_types::{
     },
     transaction::InputObjects,
 };
-use move_core_types::{
-    account_address::AccountAddress, language_storage::StructTag, resolver::ResourceResolver,
-};
+use move_core_types::{account_address::AccountAddress, resolver::ResourceResolver};
 use parking_lot::RwLock;
 
 use crate::gas_charger::GasCharger;
@@ -1141,7 +1140,7 @@ impl ResourceResolver for TemporaryStore<'_> {
     fn get_resource(
         &self,
         address: &AccountAddress,
-        struct_tag: &StructTag,
+        struct_tag: &move_core_types::language_storage::StructTag,
     ) -> Result<Option<Vec<u8>>, Self::Error> {
         let object = match self.read_object(&ObjectID::new(address.into_bytes())) {
             Some(x) => x,
@@ -1159,7 +1158,7 @@ impl ResourceResolver for TemporaryStore<'_> {
         match &object.data {
             Data::Move(m) => {
                 assert!(
-                    m.is_type(struct_tag),
+                    m.is_type(&struct_tag_core_to_sdk(struct_tag)),
                     "Invariant violation: ill-typed object in storage \
                     or bad object request from caller"
                 );

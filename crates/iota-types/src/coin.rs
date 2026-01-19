@@ -2,33 +2,33 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use iota_sdk_types::{IdentifierRef, StructTag, TypeTag};
 use move_core_types::{
     annotated_value::{MoveFieldLayout, MoveStructLayout, MoveTypeLayout},
     ident_str,
-    identifier::IdentStr,
-    language_storage::{StructTag, TypeTag},
 };
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    IOTA_FRAMEWORK_ADDRESS,
+    IotaAddress,
     balance::{Balance, Supply},
     base_types::ObjectID,
     error::{ExecutionError, ExecutionErrorKind, IotaError},
     id::UID,
+    iota_sdk_types_conversions::struct_tag_sdk_to_core,
     object::{Data, Object},
 };
 
-pub const COIN_MODULE_NAME: &IdentStr = ident_str!("coin");
-pub const COIN_STRUCT_NAME: &IdentStr = ident_str!("Coin");
-pub const COIN_METADATA_STRUCT_NAME: &IdentStr = ident_str!("CoinMetadata");
-pub const COIN_TREASURE_CAP_NAME: &IdentStr = ident_str!("TreasuryCap");
-pub const COIN_JOIN_FUNC_NAME: &IdentStr = ident_str!("join");
+pub const COIN_MODULE_NAME: &IdentifierRef = IdentifierRef::const_new("coin");
+pub const COIN_STRUCT_NAME: &IdentifierRef = IdentifierRef::const_new("Coin");
+pub const COIN_METADATA_STRUCT_NAME: &IdentifierRef = IdentifierRef::const_new("CoinMetadata");
+pub const COIN_TREASURE_CAP_NAME: &IdentifierRef = IdentifierRef::const_new("TreasuryCap");
+pub const COIN_JOIN_FUNC_NAME: &IdentifierRef = IdentifierRef::const_new("join");
 
-pub const PAY_MODULE_NAME: &IdentStr = ident_str!("pay");
-pub const PAY_SPLIT_N_FUNC_NAME: &IdentStr = ident_str!("divide_and_keep");
-pub const PAY_SPLIT_VEC_FUNC_NAME: &IdentStr = ident_str!("split_vec");
+pub const PAY_MODULE_NAME: &IdentifierRef = IdentifierRef::const_new("pay");
+pub const PAY_SPLIT_N_FUNC_NAME: &IdentifierRef = IdentifierRef::const_new("divide_and_keep");
+pub const PAY_SPLIT_VEC_FUNC_NAME: &IdentifierRef = IdentifierRef::const_new("split_vec");
 
 // Rust version of the Move iota::coin::Coin type
 #[derive(Debug, Serialize, Deserialize, Clone, JsonSchema, Eq, PartialEq)]
@@ -46,19 +46,12 @@ impl Coin {
     }
 
     pub fn type_(type_param: TypeTag) -> StructTag {
-        StructTag {
-            address: IOTA_FRAMEWORK_ADDRESS,
-            name: COIN_STRUCT_NAME.to_owned(),
-            module: COIN_MODULE_NAME.to_owned(),
-            type_params: vec![type_param],
-        }
+        StructTag::new_coin(type_param)
     }
 
     /// Is this other StructTag representing a Coin?
     pub fn is_coin(other: &StructTag) -> bool {
-        other.address == IOTA_FRAMEWORK_ADDRESS
-            && other.module.as_ident_str() == COIN_MODULE_NAME
-            && other.name.as_ident_str() == COIN_STRUCT_NAME
+        other.is_coin()
     }
 
     /// Create a coin from BCS bytes
@@ -96,7 +89,7 @@ impl Coin {
 
     pub fn layout(type_param: TypeTag) -> MoveStructLayout {
         MoveStructLayout {
-            type_: Self::type_(type_param.clone()),
+            type_: struct_tag_sdk_to_core(&Self::type_(type_param.clone())),
             fields: vec![
                 MoveFieldLayout::new(
                     ident_str!("id").to_owned(),
@@ -141,9 +134,7 @@ pub struct TreasuryCap {
 
 impl TreasuryCap {
     pub fn is_treasury_type(other: &StructTag) -> bool {
-        other.address == IOTA_FRAMEWORK_ADDRESS
-            && other.module.as_ident_str() == COIN_MODULE_NAME
-            && other.name.as_ident_str() == COIN_TREASURE_CAP_NAME
+        other.is_treasury_cap()
     }
 
     /// Create a TreasuryCap from BCS bytes
@@ -154,19 +145,19 @@ impl TreasuryCap {
     }
 
     pub fn type_(type_param: StructTag) -> StructTag {
-        StructTag {
-            address: IOTA_FRAMEWORK_ADDRESS,
-            name: COIN_TREASURE_CAP_NAME.to_owned(),
-            module: COIN_MODULE_NAME.to_owned(),
-            type_params: vec![TypeTag::Struct(Box::new(type_param))],
-        }
+        StructTag::new(
+            IotaAddress::FRAMEWORK,
+            COIN_MODULE_NAME,
+            COIN_TREASURE_CAP_NAME,
+            vec![TypeTag::Struct(Box::new(type_param))],
+        )
     }
 
     /// Checks if the provided type is `TreasuryCap<T>`, returning the type T if
     /// so.
     pub fn is_treasury_with_coin_type(other: &StructTag) -> Option<&StructTag> {
-        if Self::is_treasury_type(other) && other.type_params.len() == 1 {
-            match other.type_params.first() {
+        if Self::is_treasury_type(other) && other.type_params().len() == 1 {
+            match other.type_params().first() {
                 Some(TypeTag::Struct(coin_type)) => Some(coin_type),
                 _ => None,
             }
@@ -213,9 +204,9 @@ pub struct CoinMetadata {
 impl CoinMetadata {
     /// Is this other StructTag representing a CoinMetadata?
     pub fn is_coin_metadata(other: &StructTag) -> bool {
-        other.address == IOTA_FRAMEWORK_ADDRESS
-            && other.module.as_ident_str() == COIN_MODULE_NAME
-            && other.name.as_ident_str() == COIN_METADATA_STRUCT_NAME
+        other.address() == IotaAddress::FRAMEWORK
+            && other.module() == COIN_MODULE_NAME
+            && other.name() == COIN_METADATA_STRUCT_NAME
     }
 
     /// Create a coin from BCS bytes
@@ -226,19 +217,19 @@ impl CoinMetadata {
     }
 
     pub fn type_(type_param: StructTag) -> StructTag {
-        StructTag {
-            address: IOTA_FRAMEWORK_ADDRESS,
-            name: COIN_METADATA_STRUCT_NAME.to_owned(),
-            module: COIN_MODULE_NAME.to_owned(),
-            type_params: vec![TypeTag::Struct(Box::new(type_param))],
-        }
+        StructTag::new(
+            IotaAddress::FRAMEWORK,
+            COIN_MODULE_NAME,
+            COIN_METADATA_STRUCT_NAME,
+            vec![TypeTag::Struct(Box::new(type_param))],
+        )
     }
 
     /// Checks if the provided type is `CoinMetadata<T>`, returning the type T
     /// if so.
     pub fn is_coin_metadata_with_coin_type(other: &StructTag) -> Option<&StructTag> {
-        if Self::is_coin_metadata(other) && other.type_params.len() == 1 {
-            match other.type_params.first() {
+        if Self::is_coin_metadata(other) && other.type_params().len() == 1 {
+            match other.type_params().first() {
                 Some(TypeTag::Struct(coin_type)) => Some(coin_type),
                 _ => None,
             }

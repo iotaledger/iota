@@ -11,21 +11,19 @@
 
 use base_types::{IotaAddress, ObjectID, SequenceNumber};
 pub use iota_network_stack::multiaddr;
+pub use iota_sdk_types::{Identifier, IdentifierRef, StructTag, TypeTag};
 use move_binary_format::{
     CompiledModule,
     file_format::{AbilitySet, SignatureToken},
 };
 use move_bytecode_utils::resolve_struct;
-use move_core_types::{
-    account_address::AccountAddress,
-    language_storage::{ModuleId, StructTag},
-};
-pub use move_core_types::{identifier::Identifier, language_storage::TypeTag};
+use move_core_types::{account_address::AccountAddress, language_storage::ModuleId};
 use object::OBJECT_START_VERSION;
 
 use crate::{
     base_types::{RESOLVED_ASCII_STR, RESOLVED_STD_OPTION, RESOLVED_UTF8_STR},
     id::RESOLVED_IOTA_ID,
+    iota_sdk_types_conversions::{struct_tag_core_to_sdk, type_tag_core_to_sdk},
 };
 
 #[macro_use]
@@ -202,7 +200,9 @@ pub fn parse_iota_fq_name(s: &str) -> anyhow::Result<(ModuleId, String)> {
 /// intended for use within the authority codebase.
 pub fn parse_iota_struct_tag(s: &str) -> anyhow::Result<StructTag> {
     use move_core_types::parsing::types::ParsedStructType;
-    ParsedStructType::parse(s)?.into_struct_tag(&resolve_address)
+    ParsedStructType::parse(s)?
+        .into_struct_tag(&resolve_address)
+        .map(|s| struct_tag_core_to_sdk(&s))
 }
 
 /// Parse `s` as a type: Either a struct type (see `parse_iota_struct_tag`), a
@@ -211,7 +211,9 @@ pub fn parse_iota_struct_tag(s: &str) -> anyhow::Result<StructTag> {
 /// function is intended for use within the authority codebase.
 pub fn parse_iota_type_tag(s: &str) -> anyhow::Result<TypeTag> {
     use move_core_types::parsing::types::ParsedType;
-    ParsedType::parse(s)?.into_type_tag(&resolve_address)
+    ParsedType::parse(s)?
+        .into_type_tag(&resolve_address)
+        .map(|s| type_tag_core_to_sdk(&s))
 }
 
 /// Resolve well-known named addresses into numeric addresses.

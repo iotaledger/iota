@@ -19,7 +19,7 @@ use iota_package_management::{
 };
 use iota_types::{
     IOTA_FRAMEWORK_ADDRESS, IOTA_SYSTEM_ADDRESS, MOVE_STDLIB_ADDRESS, STARDUST_ADDRESS,
-    base_types::ObjectID,
+    base_types::{IotaAddress, ObjectID},
     error::{IotaError, IotaResult},
     move_package::{
         FnInfo, FnInfoKey, FnInfoMap, IotaAttribute, MovePackage, RuntimeModuleMetadata,
@@ -156,7 +156,7 @@ impl BuildConfig {
     fn fn_info(units: &[AnnotatedCompiledModule]) -> FnInfoMap {
         let mut fn_info_map = BTreeMap::new();
         for u in units {
-            let mod_addr = u.named_module.address.into_inner();
+            let mod_addr = IotaAddress::new(u.named_module.address.into_bytes());
             let mod_name = u.named_module.module.name().to_string();
             let mod_is_test = u.attributes.is_test_or_test_only();
             for (_, s, info) in &u.function_infos {

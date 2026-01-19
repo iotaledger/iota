@@ -7,16 +7,12 @@ use std::{
     fmt,
 };
 
-use move_core_types::{
-    ident_str,
-    identifier::IdentStr,
-    language_storage::{StructTag, TypeTag},
-};
+use iota_sdk_types::{IdentifierRef, StructTag, TypeTag};
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use tracing::{error, instrument};
 
 use crate::{
-    IOTA_DENY_LIST_OBJECT_ID, IOTA_FRAMEWORK_ADDRESS, MoveTypeTagTrait,
+    IOTA_DENY_LIST_OBJECT_ID, MoveTypeTagTrait,
     base_types::{EpochId, IotaAddress, ObjectID, SequenceNumber},
     config::{Config, Setting},
     dynamic_field::{DOFWrapper, get_dynamic_field_from_store},
@@ -27,8 +23,8 @@ use crate::{
     transaction::{CheckedInputObjects, ReceivingObjects},
 };
 
-pub const DENY_LIST_MODULE: &IdentStr = ident_str!("deny_list");
-pub const DENY_LIST_CREATE_FUNC: &IdentStr = ident_str!("create");
+pub const DENY_LIST_MODULE: &IdentifierRef = IdentifierRef::const_new("deny_list");
+pub const DENY_LIST_CREATE_FUNC: &IdentifierRef = IdentifierRef::const_new("create");
 
 pub const DENY_LIST_COIN_TYPE_INDEX: u64 = 0;
 
@@ -58,12 +54,7 @@ struct ConfigKey {
 
 impl ConfigKey {
     pub fn type_() -> StructTag {
-        StructTag {
-            address: IOTA_FRAMEWORK_ADDRESS,
-            module: DENY_LIST_MODULE.to_owned(),
-            name: ident_str!("ConfigKey").to_owned(),
-            type_params: vec![],
-        }
+        StructTag::new_deny_list_config_key()
     }
 }
 
@@ -79,12 +70,7 @@ struct AddressKey(IotaAddress);
 
 impl AddressKey {
     pub fn type_() -> StructTag {
-        StructTag {
-            address: IOTA_FRAMEWORK_ADDRESS,
-            module: DENY_LIST_MODULE.to_owned(),
-            name: ident_str!("AddressKey").to_owned(),
-            type_params: vec![],
-        }
+        StructTag::new_deny_list_address_key()
     }
 }
 
@@ -105,12 +91,7 @@ impl GlobalPauseKey {
         Self(false)
     }
     pub fn type_() -> StructTag {
-        StructTag {
-            address: IOTA_FRAMEWORK_ADDRESS,
-            module: DENY_LIST_MODULE.to_owned(),
-            name: ident_str!("GlobalPauseKey").to_owned(),
-            type_params: vec![],
-        }
+        StructTag::new_deny_list_global_pause_key()
     }
 }
 

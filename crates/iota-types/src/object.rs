@@ -11,12 +11,10 @@ use std::{
 };
 
 use iota_protocol_config::ProtocolConfig;
+use iota_sdk_types::{StructTag, TypeTag};
 use move_binary_format::CompiledModule;
 use move_bytecode_utils::{layout::TypeLayoutBuilder, module_cache::GetModule};
-use move_core_types::{
-    annotated_value::{MoveStruct, MoveStructLayout, MoveTypeLayout, MoveValue},
-    language_storage::{StructTag, TypeTag},
-};
+use move_core_types::annotated_value::{MoveStruct, MoveStructLayout, MoveTypeLayout, MoveValue};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_with::{Bytes, serde_as};
@@ -34,6 +32,7 @@ use crate::{
         ExecutionError, ExecutionErrorKind, IotaError, IotaResult, UserInputError, UserInputResult,
     },
     gas_coin::{GAS, GasCoin},
+    iota_sdk_types_conversions::type_tag_sdk_to_core,
     layout_resolver::LayoutResolver,
     move_package::MovePackage,
     timelock::timelock::TimeLock,
@@ -295,10 +294,9 @@ impl MoveObject {
         resolver: &impl GetModule,
     ) -> Result<MoveStructLayout, IotaError> {
         let type_ = TypeTag::Struct(Box::new(struct_tag));
-        let layout = TypeLayoutBuilder::build_with_types(&type_, resolver).map_err(|e| {
-            IotaError::ObjectSerialization {
-                error: e.to_string(),
-            }
+        let layout = TypeLayoutBuilder::build_with_types(&type_tag_sdk_to_core(&type_), resolver)
+            .map_err(|e| IotaError::ObjectSerialization {
+            error: e.to_string(),
         })?;
         match layout {
             MoveTypeLayout::Struct(l) => Ok(*l),
@@ -874,13 +872,13 @@ impl ObjectInner {
             error: "Object must be a Move object".to_owned(),
         })?;
         fp_ensure!(
-            move_struct.type_params.len() == 1,
+            move_struct.type_params().len() == 1,
             IotaError::Type {
                 error: "Move object struct must have one type parameter".to_owned()
             }
         );
         // Index access safe due to checks above.
-        let type_tag = move_struct.type_params[0].clone();
+        let type_tag = move_struct.type_params()[0].clone();
         Ok(type_tag)
     }
 

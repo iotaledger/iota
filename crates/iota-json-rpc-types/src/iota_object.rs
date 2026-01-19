@@ -14,6 +14,7 @@ use colored::Colorize;
 use fastcrypto::encoding::Base64;
 use iota_protocol_config::ProtocolConfig;
 use iota_types::{
+    Identifier, StructTag,
     base_types::{
         IotaAddress, ObjectDigest, ObjectID, ObjectInfo, ObjectRef, ObjectType, SequenceNumber,
         TransactionDigest,
@@ -23,17 +24,13 @@ use iota_types::{
         UserInputResult,
     },
     gas_coin::GasCoin,
-    iota_serde::{BigInt, IotaStructTag, SequenceNumber as AsSequenceNumber},
+    iota_serde::{BigInt, SequenceNumber as AsSequenceNumber},
     messages_checkpoint::CheckpointSequenceNumber,
     move_package::{MovePackage, TypeOrigin, UpgradeInfo},
     object::{Data, MoveObject, Object, ObjectInner, ObjectRead, Owner},
 };
 use move_bytecode_utils::module_cache::GetModule;
-use move_core_types::{
-    annotated_value::{MoveStructLayout, MoveValue},
-    identifier::Identifier,
-    language_storage::StructTag,
-};
+use move_core_types::annotated_value::{MoveStructLayout, MoveValue};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -861,8 +858,6 @@ pub trait IotaMoveObject: Sized {
 #[serde(rename = "MoveObject", rename_all = "camelCase")]
 pub struct IotaParsedMoveObject {
     #[serde(rename = "type")]
-    #[serde_as(as = "IotaStructTag")]
-    #[schemars(with = "String")]
     pub type_: StructTag,
     pub fields: IotaMoveStruct,
 }
@@ -941,9 +936,7 @@ pub fn type_and_fields_from_move_event_data(
 #[derive(Debug, Deserialize, Serialize, JsonSchema, Clone, Eq, PartialEq)]
 #[serde(rename = "RawMoveObject", rename_all = "camelCase")]
 pub struct IotaRawMoveObject {
-    #[schemars(with = "String")]
     #[serde(rename = "type")]
-    #[serde_as(as = "IotaStructTag")]
     pub type_: StructTag,
     pub version: SequenceNumber,
     #[serde_as(as = "Base64")]
@@ -1146,16 +1139,10 @@ pub enum IotaObjectDataFilter {
         /// the Move package ID
         package: ObjectID,
         /// the module name
-        #[schemars(with = "String")]
-        #[serde_as(as = "DisplayFromStr")]
         module: Identifier,
     },
     /// Query by type
-    StructType(
-        #[schemars(with = "String")]
-        #[serde_as(as = "IotaStructTag")]
-        StructTag,
-    ),
+    StructType(StructTag),
     AddressOwner(IotaAddress),
     ObjectOwner(ObjectID),
     ObjectId(ObjectID),
@@ -1195,20 +1182,20 @@ impl IotaObjectDataFilter {
                 };
                 // If people do not provide type_params, we will match all type_params
                 // e.g. `0x2::coin::Coin` can match `0x2::coin::Coin<0x2::iota::IOTA>`
-                if !s.type_params.is_empty() && s.type_params != obj_tag.type_params {
+                if !s.type_params().is_empty() && s.type_params() != obj_tag.type_params() {
                     false
                 } else {
-                    obj_tag.address == s.address
-                        && obj_tag.module == s.module
-                        && obj_tag.name == s.name
+                    obj_tag.address() == s.address()
+                        && obj_tag.module() == s.module()
+                        && obj_tag.name() == s.name()
                 }
             }
             IotaObjectDataFilter::MoveModule { package, module } => {
-                matches!(&object.type_, ObjectType::Struct(s) if &ObjectID::new(s.address().into_bytes()) == package
-                        && s.module() == module.as_ident_str())
+                matches!(&object.type_, ObjectType::Struct(s) if &ObjectID::from(s.address()) == package
+                        && s.module() == module)
             }
             IotaObjectDataFilter::Package(p) => {
-                matches!(&object.type_, ObjectType::Struct(s) if &ObjectID::new(s.address().into_bytes()) == p)
+                matches!(&object.type_, ObjectType::Struct(s) if &ObjectID::from(s.address()) == p)
             }
             IotaObjectDataFilter::AddressOwner(a) => {
                 matches!(object.owner, Owner::AddressOwner(addr) if &addr == a)

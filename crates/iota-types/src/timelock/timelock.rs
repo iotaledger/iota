@@ -1,15 +1,12 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use move_core_types::{
-    ident_str,
-    identifier::IdentStr,
-    language_storage::{StructTag, TypeTag},
-};
+use iota_protocol_config::ProtocolConfig;
+use iota_sdk_types::{IdentifierRef, StructTag, TypeTag};
+use iota_stardust_sdk::types::block::output::{BasicOutput, OutputId};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    IOTA_FRAMEWORK_ADDRESS,
     balance::Balance,
     base_types::ObjectID,
     error::IotaError,
@@ -18,8 +15,8 @@ use crate::{
     object::{Data, Object},
 };
 
-pub const TIMELOCK_MODULE_NAME: &IdentStr = ident_str!("timelock");
-pub const TIMELOCK_STRUCT_NAME: &IdentStr = ident_str!("TimeLock");
+pub const TIMELOCK_MODULE_NAME: &IdentifierRef = IdentifierRef::const_new("timelock");
+pub const TIMELOCK_STRUCT_NAME: &IdentifierRef = IdentifierRef::const_new("TimeLock");
 
 /// All basic outputs whose IDs start with this prefix represent vested rewards
 /// that were created during the stardust upgrade on IOTA mainnet.
@@ -51,12 +48,12 @@ impl<T> TimeLock<T> {
 
     /// Get the TimeLock's `type`.
     pub fn type_(type_param: TypeTag) -> StructTag {
-        StructTag {
-            address: IOTA_FRAMEWORK_ADDRESS,
-            module: TIMELOCK_MODULE_NAME.to_owned(),
-            name: TIMELOCK_STRUCT_NAME.to_owned(),
-            type_params: vec![type_param],
-        }
+        StructTag::new(
+            IotaAddress::FRAMEWORK,
+            TIMELOCK_STRUCT_NAME,
+            TIMELOCK_MODULE_NAME,
+            vec![type_param],
+        )
     }
 
     /// Get the TimeLock's `id`.
@@ -99,9 +96,7 @@ where
 
 /// Is this other StructTag representing a TimeLock?
 pub fn is_timelock(other: &StructTag) -> bool {
-    other.address == IOTA_FRAMEWORK_ADDRESS
-        && other.module.as_ident_str() == TIMELOCK_MODULE_NAME
-        && other.name.as_ident_str() == TIMELOCK_STRUCT_NAME
+    other.is_time_lock()
 }
 
 /// Is this other StructTag representing a `TimeLock<Balance<T>>`?
@@ -110,11 +105,11 @@ pub fn is_timelocked_balance(other: &StructTag) -> bool {
         return false;
     }
 
-    if other.type_params.len() != 1 {
+    if other.type_params().len() != 1 {
         return false;
     }
 
-    match &other.type_params[0] {
+    match &other.type_params()[0] {
         TypeTag::Struct(tag) => Balance::is_balance(tag),
         _ => false,
     }
@@ -126,11 +121,11 @@ pub fn is_timelocked_gas_balance(other: &StructTag) -> bool {
         return false;
     }
 
-    if other.type_params.len() != 1 {
+    if other.type_params().len() != 1 {
         return false;
     }
 
-    match &other.type_params[0] {
+    match &other.type_params()[0] {
         TypeTag::Struct(tag) => GasCoin::is_gas_balance(tag),
         _ => false,
     }

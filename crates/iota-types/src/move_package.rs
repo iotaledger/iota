@@ -33,6 +33,7 @@
 //! with `Runtime ID` and `Storage ID` depending on the context. While `Runtime
 //! ID` is mostly used in name resolution during runtime, when a package with
 //! its modules has been loaded.
+
 use std::{
     collections::{BTreeMap, BTreeSet},
     hash::Hash,
@@ -41,22 +42,18 @@ use std::{
 use derive_more::Display;
 use fastcrypto::hash::HashFunction;
 use iota_protocol_config::ProtocolConfig;
+use iota_sdk_types::{Identifier, IdentifierRef, StructTag};
 use move_binary_format::{
     binary_config::BinaryConfig, file_format::CompiledModule, file_format_common::VERSION_6,
     normalized,
 };
-use move_core_types::{
-    account_address::AccountAddress,
-    ident_str,
-    identifier::{IdentStr, Identifier},
-    language_storage::{ModuleId, StructTag},
-};
+use move_core_types::language_storage::ModuleId;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_with::{Bytes, serde_as};
 
 use crate::{
-    IOTA_FRAMEWORK_ADDRESS,
+    IotaAddress,
     base_types::{ObjectID, SequenceNumber},
     collection_types::{Entry, VecMap},
     crypto::DefaultHash,
@@ -68,10 +65,14 @@ use crate::{
     type_input::TypeName,
 };
 
-pub const PACKAGE_MODULE_NAME: &IdentStr = ident_str!("package");
-pub const UPGRADECAP_STRUCT_NAME: &IdentStr = ident_str!("UpgradeCap");
-pub const UPGRADETICKET_STRUCT_NAME: &IdentStr = ident_str!("UpgradeTicket");
-pub const UPGRADERECEIPT_STRUCT_NAME: &IdentStr = ident_str!("UpgradeReceipt");
+#[cfg(test)]
+#[path = "unit_tests/base_types_tests.rs"]
+mod base_types_tests;
+
+pub const PACKAGE_MODULE_NAME: &IdentifierRef = IdentifierRef::const_new("package");
+pub const UPGRADECAP_STRUCT_NAME: &IdentifierRef = IdentifierRef::const_new("UpgradeCap");
+pub const UPGRADETICKET_STRUCT_NAME: &IdentifierRef = IdentifierRef::const_new("UpgradeTicket");
+pub const UPGRADERECEIPT_STRUCT_NAME: &IdentifierRef = IdentifierRef::const_new("UpgradeReceipt");
 
 pub const PACKAGE_METADATA_MODULE_NAME: &IdentStr = ident_str!("package_metadata");
 pub const PACKAGE_METADATA_V1_STRUCT_NAME: &IdentStr = ident_str!("PackageMetadataV1");
@@ -93,7 +94,7 @@ pub struct FnInfo {
 pub struct FnInfoKey {
     pub fn_name: String,
     pub mod_name: String,
-    pub mod_addr: AccountAddress,
+    pub mod_addr: IotaAddress,
 }
 
 /// A map from function info keys to function info
@@ -614,12 +615,7 @@ impl MovePackage {
 
 impl UpgradeCap {
     pub fn type_() -> StructTag {
-        StructTag {
-            address: IOTA_FRAMEWORK_ADDRESS,
-            module: PACKAGE_MODULE_NAME.to_owned(),
-            name: UPGRADECAP_STRUCT_NAME.to_owned(),
-            type_params: vec![],
-        }
+        StructTag::new_upgrade_cap()
     }
 
     /// Create an `UpgradeCap` for the newly published package at `package_id`,
@@ -636,23 +632,13 @@ impl UpgradeCap {
 
 impl UpgradeTicket {
     pub fn type_() -> StructTag {
-        StructTag {
-            address: IOTA_FRAMEWORK_ADDRESS,
-            module: PACKAGE_MODULE_NAME.to_owned(),
-            name: UPGRADETICKET_STRUCT_NAME.to_owned(),
-            type_params: vec![],
-        }
+        StructTag::new_upgrade_ticket()
     }
 }
 
 impl UpgradeReceipt {
     pub fn type_() -> StructTag {
-        StructTag {
-            address: IOTA_FRAMEWORK_ADDRESS,
-            module: PACKAGE_MODULE_NAME.to_owned(),
-            name: UPGRADERECEIPT_STRUCT_NAME.to_owned(),
-            type_params: vec![],
-        }
+        StructTag::new_upgrade_receipt()
     }
 
     /// Create an `UpgradeReceipt` for the upgraded package at `package_id`
@@ -666,10 +652,14 @@ impl UpgradeReceipt {
 }
 
 /// Checks if a function is annotated with one of the test-related annotations
-pub fn is_test_fun(name: &IdentStr, module: &CompiledModule, fn_info_map: &FnInfoMap) -> bool {
+pub fn is_test_fun(name: &IdentifierRef, module: &CompiledModule, fn_info_map: &FnInfoMap) -> bool {
     let fn_name = name.to_string();
     let mod_handle = module.self_handle();
-    let mod_addr = *module.address_identifier_at(mod_handle.address);
+    let mod_addr = IotaAddress::new(
+        module
+            .address_identifier_at(mod_handle.address)
+            .into_bytes(),
+    );
     let mod_name = module.name().to_string();
     let fn_info_key = FnInfoKey {
         fn_name,

@@ -7,19 +7,18 @@ use std::{fmt, fmt::Display, str::FromStr};
 use fastcrypto::encoding::{Base58, Base64};
 use iota_metrics::monitored_scope;
 use iota_types::{
+    Identifier, StructTag,
     base_types::{IotaAddress, ObjectID, TransactionDigest},
     error::IotaResult,
     event::{Event, EventEnvelope, EventID},
-    iota_serde::{BigInt, IotaStructTag},
+    iota_serde::BigInt,
 };
 use json_to_table::json_to_table;
-use move_core_types::{
-    annotated_value::MoveDatatypeLayout, identifier::Identifier, language_storage::StructTag,
-};
+use move_core_types::annotated_value::MoveDatatypeLayout;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
-use serde_with::{DisplayFromStr, serde_as};
+use serde_with::serde_as;
 use tabled::settings::Style as TableStyle;
 
 use crate::{Page, type_and_fields_from_move_event_data};
@@ -38,14 +37,10 @@ pub struct IotaEvent {
     pub id: EventID,
     /// Move package where this event was emitted.
     pub package_id: ObjectID,
-    #[schemars(with = "String")]
-    #[serde_as(as = "DisplayFromStr")]
     /// Move module where this event was emitted.
     pub transaction_module: Identifier,
     /// Sender's IOTA address.
     pub sender: IotaAddress,
-    #[schemars(with = "String")]
-    #[serde_as(as = "IotaStructTag")]
     /// Move event type.
     pub type_: StructTag,
     /// Parsed json value of the event
@@ -304,18 +299,12 @@ pub enum EventFilter {
         /// the Move package ID
         package: ObjectID,
         /// the module name
-        #[schemars(with = "String")]
-        #[serde_as(as = "DisplayFromStr")]
         module: Identifier,
     },
     /// Return events with the given Move event struct name (struct tag).
     /// For example, if the event is defined in `0xabcd::MyModule`, and named
     /// `Foo`, then the struct tag is `0xabcd::MyModule::Foo`.
-    MoveEventType(
-        #[schemars(with = "String")]
-        #[serde_as(as = "IotaStructTag")]
-        StructTag,
-    ),
+    MoveEventType(StructTag),
     /// Return events with the given Move module name where the event struct is
     /// defined. If the event is defined in Module A but emitted in a tx
     /// with Module B, query `MoveEventModule` by module A returns the
@@ -324,8 +313,6 @@ pub enum EventFilter {
         /// the Move package ID
         package: ObjectID,
         /// the module name
-        #[schemars(with = "String")]
-        #[serde_as(as = "DisplayFromStr")]
         module: Identifier,
     },
     MoveEventField {
@@ -384,8 +371,7 @@ impl EventFilter {
                 }
             }
             EventFilter::MoveEventModule { package, module } => {
-                &item.type_.module == module
-                    && &ObjectID::new(item.type_.address.into_bytes()) == package
+                item.type_.module() == module && ObjectID::from(item.type_.address()) == *package
             }
         })
     }

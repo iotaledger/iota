@@ -5,11 +5,11 @@
 use std::fmt::{Display, Formatter, Result};
 
 use iota_types::{
+    StructTag,
     base_types::{IotaAddress, ObjectDigest, ObjectID, ObjectRef, SequenceNumber},
-    iota_serde::{IotaStructTag, SequenceNumber as AsSequenceNumber},
+    iota_serde::SequenceNumber as AsSequenceNumber,
     object::Owner,
 };
-use move_core_types::language_storage::StructTag;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
@@ -35,8 +35,6 @@ pub enum ObjectChange {
     Transferred {
         sender: IotaAddress,
         recipient: Owner,
-        #[schemars(with = "String")]
-        #[serde_as(as = "IotaStructTag")]
         object_type: StructTag,
         object_id: ObjectID,
         #[schemars(with = "AsSequenceNumber")]
@@ -49,8 +47,6 @@ pub enum ObjectChange {
     Mutated {
         sender: IotaAddress,
         owner: Owner,
-        #[schemars(with = "String")]
-        #[serde_as(as = "IotaStructTag")]
         object_type: StructTag,
         object_id: ObjectID,
         #[schemars(with = "AsSequenceNumber")]
@@ -65,8 +61,6 @@ pub enum ObjectChange {
     #[serde(rename_all = "camelCase")]
     Deleted {
         sender: IotaAddress,
-        #[schemars(with = "String")]
-        #[serde_as(as = "IotaStructTag")]
         object_type: StructTag,
         object_id: ObjectID,
         #[schemars(with = "AsSequenceNumber")]
@@ -77,8 +71,6 @@ pub enum ObjectChange {
     #[serde(rename_all = "camelCase")]
     Wrapped {
         sender: IotaAddress,
-        #[schemars(with = "String")]
-        #[serde_as(as = "IotaStructTag")]
         object_type: StructTag,
         object_id: ObjectID,
         #[schemars(with = "AsSequenceNumber")]
@@ -90,8 +82,6 @@ pub enum ObjectChange {
     Created {
         sender: IotaAddress,
         owner: Owner,
-        #[schemars(with = "String")]
-        #[serde_as(as = "IotaStructTag")]
         object_type: StructTag,
         object_id: ObjectID,
         #[schemars(with = "AsSequenceNumber")]

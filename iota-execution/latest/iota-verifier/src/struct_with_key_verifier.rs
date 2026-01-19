@@ -65,9 +65,9 @@ fn verify_key_structs(module: &CompiledModule) -> Result<(), ExecutionError> {
         let uid_type_module_address = module.address_identifier_at(uid_type_module.address);
         let uid_type_module_name = module.identifier_at(uid_type_module.name);
         fp_ensure!(
-            uid_type_struct_name == UID_STRUCT_NAME
+            uid_type_struct_name.as_str() == UID_STRUCT_NAME.as_str()
                 && uid_type_module_address == &IOTA_FRAMEWORK_ADDRESS
-                && uid_type_module_name == OBJECT_MODULE_NAME,
+                && uid_type_module_name.as_str() == OBJECT_MODULE_NAME.as_str(),
             verification_failure(format!(
                 "First field of struct {name} must be of type {IOTA_FRAMEWORK_ADDRESS}::object::UID, \
                 {uid_type_module_address}::{uid_type_module_name}::{uid_type_struct_name} type found"
