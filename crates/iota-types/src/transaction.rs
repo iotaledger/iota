@@ -16,6 +16,7 @@ use anyhow::bail;
 use enum_dispatch::enum_dispatch;
 use fastcrypto::{encoding::Base64, hash::HashFunction};
 use iota_protocol_config::ProtocolConfig;
+use iota_sdk_types::crypto::{Intent, IntentMessage, IntentScope};
 use itertools::Either;
 use move_core_types::{
     ident_str,
@@ -24,10 +25,9 @@ use move_core_types::{
 };
 use nonempty::{NonEmpty, nonempty};
 use serde::{Deserialize, Serialize};
-use shared_crypto::intent::{Intent, IntentMessage, IntentScope};
 use strum::IntoStaticStr;
 use tap::Pipe;
-use tracing::trace;
+use tracing::{instrument, trace};
 
 use super::{base_types::*, error::*};
 use crate::{
@@ -2129,6 +2129,7 @@ impl TransactionDataAPI for TransactionDataV1 {
 
     // Keep all the logic for validity here, we need this for dry run where the gas
     // may not be provided and created "on the fly"
+    #[instrument(level = "trace", skip_all)]
     fn validity_check_no_gas_check(&self, config: &ProtocolConfig) -> UserInputResult {
         self.kind().validity_check(config)?;
         self.check_sponsorship()

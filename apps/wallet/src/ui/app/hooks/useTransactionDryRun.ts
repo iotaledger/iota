@@ -7,15 +7,20 @@ import { useQuery } from '@tanstack/react-query';
 
 import { useAccountByAddress } from './useAccountByAddress';
 import { useSigner } from './useSigner';
+import type { ChainType } from '@iota/iota-sdk/client';
 
-export function useTransactionDryRun(sender: string | undefined, transaction: Transaction) {
+export function useTransactionDryRun(
+    sender: string | undefined,
+    transaction: Transaction,
+    chain?: ChainType,
+) {
     const { data: account } = useAccountByAddress(sender);
     const signer = useSigner(account || null);
     const response = useQuery({
         // eslint-disable-next-line @tanstack/query/exhaustive-deps
         queryKey: ['dryRunTransaction', transaction.getData()],
         queryFn: () => {
-            return signer!.dryRunTransactionBlock({ transactionBlock: transaction });
+            return signer!.dryRunTransactionBlock({ transactionBlock: transaction, chain });
         },
         enabled: !!signer,
     });

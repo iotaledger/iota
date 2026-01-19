@@ -8,10 +8,12 @@ publish = false
 description = "Move bytecode verifier tests"
 
 [dev-dependencies]
+# external dependencies
 hex.workspace = true
 petgraph.workspace = true
 proptest.workspace = true
 
+# internal dependencies
 invalid-mutations.workspace = true
 move-binary-format = { workspace = true, features = ["fuzzing"] }
 move-bytecode-verifier.workspace = true

@@ -11,6 +11,7 @@ use fastcrypto::{
     traits::ToFromBytes,
 };
 use iota_keys::keystore::{AccountKeystore, FileBasedKeystore, InMemKeystore, Keystore, StoredKey};
+use iota_sdk_types::crypto::{Intent, IntentScope};
 use iota_types::{
     base_types::{IotaAddress, ObjectDigest, ObjectID, SequenceNumber},
     crypto::{
@@ -22,7 +23,6 @@ use iota_types::{
     transaction::{TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionData},
 };
 use rand::{SeedableRng, rngs::StdRng};
-use shared_crypto::intent::{Intent, IntentScope};
 use tempfile::TempDir;
 use tokio::test;
 
@@ -731,6 +731,63 @@ async fn test_multi_sig_combine_partial_sig() -> Result<(), anyhow::Error> {
         data.multisig_serialized,
         "AwIA/nyhgGk1lGxHxF4MvTlH/fujyXm3z175F0EMh3vIDT47G38X+OV8LDxucVHn3rOFWL0I3X1tvRpamfxTRwQ1CgCBvgjzxH6XyQv9QDEl63zxpieISu59pxkae2U62Ft5j4DOsxifr3qRpPgi9BfYoZ83QPvgjNg1FAmDr+Kx60AKAwADAIKM0+W7wvP6pitTgJQVB7Yfn2oMO3aZd3votkb6x87lAQCAOM93GP+281M/yo9Zj3uSPZPNoKS9yf1qaVo5wed0iAEA8Ev1C4ojUyNI2fkm3TDTM5RZ0JDFufzhSUqYm0Zu5TgBAgA="
     );
+
+    Ok(())
+}
+
+#[test]
+async fn test_tx_digest() -> Result<(), anyhow::Error> {
+    let mut keystore = Keystore::from(InMemKeystore::new_insecure_for_tests(0));
+
+    // Test unsigned transaction data
+    let result = KeyToolCommand::TxDigest {
+        tx_bytes: "AAACAAgAypo7AAAAAAAgERERERUE6TUOY11lzTjM0sApQ0xqOkgNiUepumoVshUCAgABAQAAAQEDAAAAAAEBABEREREVBOk1DmNdZc04zNLAKUNMajpIDYlHqbpqFbIVAU4PMbTXGjSXQkjCr1LNtHK9EpH/1O8JRuHyWt6uUtBZP247KQAAAAAgFOO+ZFsHJj7S4YIF5O9JdCdReidVJ0ky484jB8YJn/gRERERFQTpNQ5jXWXNOMzSwClDTGo6SA2JR6m6ahWyFegDAAAAAAAA4G88AAAAAAAA".to_string(),
+    }
+    .execute(&mut keystore)
+    .await?;
+
+    match result {
+        CommandOutput::TxDigest(output) => {
+            assert_eq!(
+                &output.digest,
+                "Fv6odr6tuuVmpDw5tyheRBQ2oivAnmudLtKBDv4T4MPE"
+            );
+            assert_eq!(
+                &output.digest_hex,
+                "0xdd9df6678f2fcdac1b1e13751afb74b0f81c9993699954ee2f0f459dd0a0da11"
+            );
+            assert_eq!(
+                &output.signing_digest_hex,
+                "0x7cfef332628f699c2aac858c5566a5bab8c7c43407038a5a76561df5c33f1eba"
+            );
+        }
+        _ => panic!("Wrong output type"),
+    }
+
+    // Test signed transaction data
+    let result = KeyToolCommand::TxDigest {
+        tx_bytes: "AQAAAAAAAgAIAMqaOwAAAAAAIBEREREVBOk1DmNdZc04zNLAKUNMajpIDYlHqbpqFbIVAgIAAQEAAAEBAwAAAAABAQARERERFQTpNQ5jXWXNOMzSwClDTGo6SA2JR6m6ahWyFQFODzG01xo0l0JIwq9SzbRyvRKR/9TvCUbh8lrerlLQWT9uOykAAAAAIBTjvmRbByY+0uGCBeTvSXQnUXonVSdJMuPOIwfGCZ/4ERERERUE6TUOY11lzTjM0sApQ0xqOkgNiUepumoVshXoAwAAAAAAAOBvPAAAAAAAAAFhAKFqV1NustAADKOOOfAZIA/9HrnmA9PqwAmOrqTs7OKjaEXylfywifj2XZyBmEJYodGE89xlkDOthe+bpBIrkwEoe8lptdiMUw3h3rcxQJf3bWp9zFLP4Eq3rpQOam52cw==".to_string(),
+    }
+    .execute(&mut keystore)
+    .await?;
+
+    match result {
+        CommandOutput::TxDigest(output) => {
+            assert_eq!(
+                &output.digest,
+                "Fv6odr6tuuVmpDw5tyheRBQ2oivAnmudLtKBDv4T4MPE"
+            );
+            assert_eq!(
+                &output.digest_hex,
+                "0xdd9df6678f2fcdac1b1e13751afb74b0f81c9993699954ee2f0f459dd0a0da11"
+            );
+            assert_eq!(
+                &output.signing_digest_hex,
+                "0x7cfef332628f699c2aac858c5566a5bab8c7c43407038a5a76561df5c33f1eba"
+            );
+        }
+        _ => panic!("Wrong output type"),
+    }
 
     Ok(())
 }

@@ -3,7 +3,8 @@
     "author": "IOTA Foundation <info@iota.org>",
     "description": "A CLI for creating new IOTA dApps",
     "homepage": "https://docs.iota.org/ts-sdk/typescript/",
-    "version": "0.3.13",
+    "repository": "https://github.com/iotaledger/iota",
+    "version": "0.4.3",
     "license": "Apache-2.0",
     "files": [
         "CHANGELOG.md",

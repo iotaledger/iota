@@ -16,6 +16,7 @@
 /crates/iota-authority-aggregation/ @iotaledger/node @iotaledger/consensus
 /crates/iota-aws-orchestrator/ @iotaledger/consensus
 /crates/iota-benchmark/ @iotaledger/node
+/crates/iota-build-cache-server/ @iotaledger/node
 /crates/iota-cluster-test/ @iotaledger/infrastructure
 /crates/iota-common/ @iotaledger/core-protocol
 /crates/iota-config/ @iotaledger/node
@@ -32,8 +33,7 @@
 /crates/iota-genesis-builder/ @iotaledger/vm-language
 /crates/iota-genesis-common/ @iotaledger/vm-language
 /crates/iota-graphql*/ @iotaledger/infrastructure
-/crates/iota-grpc-api/ @iotaledger/node
-/crates/iota-grpc-types/ @iotaledger/node
+/crates/iota-grpc-*/ @iotaledger/node
 /crates/iota-http/ @iotaledger/node
 /crates/iota-indexer*/ @iotaledger/infrastructure
 /crates/iota-json/ @iotaledger/infrastructure
@@ -56,6 +56,7 @@
 /crates/iota-node/ @iotaledger/node
 /crates/iota-open-rpc/ @iotaledger/dev-tools
 /crates/iota-open-rpc-macros/ @iotaledger/dev-tools
+/crates/iota-package-alt/ @iotaledger/vm-language
 /crates/iota-package-dump/ @iotaledger/infrastructure
 /crates/iota-package-management/ @iotaledger/vm-language
 /crates/iota-package-resolver/ @iotaledger/vm-language
@@ -89,7 +90,6 @@
 /crates/iota-upgrade-compatibility-transactional-tests/ @iotaledger/vm-language
 /crates/iota-verifier-transactional-tests/ @iotaledger/vm-language
 /crates/prometheus-closure-metric/ @iotaledger/node
-/crates/shared-crypto/ @iotaledger/core-protocol
 /crates/simulacrum/ @iotaledger/vm-language
 /crates/starfish/ @iotaledger/consensus
 /crates/telemetry-subscribers/ @iotaledger/core-protocol
@@ -152,6 +152,7 @@ vercel.json @iotaledger/tooling
 /scripts/generate_files/ @muXxer
 /scripts/tooling/ @iotaledger/tooling
 /scripts/utils/ @muXxer
+/scripts/release_notes/ @iotaledger/dev-tools
 
 # Other
 /kiosk/ @iotaledger/vm-language

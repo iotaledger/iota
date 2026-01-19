@@ -92,6 +92,7 @@ use crate::{
     authority::{
         AuthorityMetrics, ResolverWrapper,
         epoch_start_configuration::EpochStartConfiguration,
+        shared_object_congestion_tracker::CongestionPerObjectDebt,
         shared_object_version_manager::{
             AssignedTxAndVersions, ConsensusSharedObjVerAssignment, SharedObjVerManager,
         },
@@ -280,7 +281,7 @@ pub trait ConsensusStatsAPI {
     fn is_initialized(&self) -> bool;
 
     fn get_num_messages(&self, authority: usize) -> u64;
-    fn inc_num_messages(&mut self, authority: usize) -> u64;
+    fn inc_num_messages(&mut self, authority: usize, num_of_new_messages: u64) -> u64;
 
     fn get_num_user_transactions(&self, authority: usize) -> u64;
     fn inc_num_user_transactions(&mut self, authority: usize) -> u64;
@@ -322,8 +323,8 @@ impl ConsensusStatsAPI for ConsensusStatsV1 {
         self.num_messages[authority]
     }
 
-    fn inc_num_messages(&mut self, authority: usize) -> u64 {
-        self.num_messages[authority] += 1;
+    fn inc_num_messages(&mut self, authority: usize, num_of_new_messages: u64) -> u64 {
+        self.num_messages[authority] += num_of_new_messages;
         self.num_messages[authority]
     }
 
@@ -494,7 +495,10 @@ pub struct AuthorityPerEpochStore {
     execution_component: ExecutionComponents,
 
     /// Chain identifier
-    chain_identifier: ChainIdentifier,
+    /// ChainIdentifier is always the true id (digest of genesis checkpoint).
+    /// Chain is the nominal identifier and can be overridden for testing
+    /// purposes.
+    chain: (ChainIdentifier, Chain),
 
     /// aggregator for JWK votes
     jwk_aggregator: Mutex<JwkAggregator>,
@@ -539,12 +543,17 @@ pub struct AuthorityEpochTables {
     /// Transactions that were executed in the current epoch.
     executed_in_epoch: DBMap<TransactionDigest, ()>,
 
+    // TODO: delete the deprecated tables in the next release
     #[allow(dead_code)]
+    #[deprecated]
     assigned_shared_object_versions: DBMap<TransactionKey, Vec<(ObjectID, SequenceNumber)>>,
+
     /// Next available shared object versions for each shared object.
     next_shared_object_versions: DBMap<ObjectID, SequenceNumber>,
 
-    // TODO: delete after DQ is rolled out
+    // TODO: delete the deprecated tables in the next release
+    #[allow(dead_code)]
+    #[deprecated]
     pub(crate) pending_execution: DBMap<TransactionDigest, TrustedExecutableTransaction>,
 
     /// Track which transactions have been processed in
@@ -564,7 +573,9 @@ pub struct AuthorityEpochTables {
     pending_consensus_transactions: DBMap<ConsensusTransactionKey, ConsensusTransaction>,
 
     /// this table is not used
+    // TODO: delete the deprecated tables in the next release
     #[allow(dead_code)]
+    #[deprecated]
     last_consensus_index: DBMap<(), ()>,
 
     /// The following table is used to store a single value (the corresponding
@@ -581,7 +592,9 @@ pub struct AuthorityEpochTables {
     /// Validators that have sent EndOfPublish message in this epoch
     end_of_publish: DBMap<AuthorityName, ()>,
 
+    // TODO: delete the deprecated tables in the next release
     #[allow(dead_code)]
+    #[deprecated]
     pending_checkpoints: DBMap<CheckpointHeight, PendingCheckpoint>,
 
     /// Checkpoint builder maintains internal list of transactions it included
@@ -599,7 +612,9 @@ pub struct AuthorityEpochTables {
         DBMap<(CheckpointSequenceNumber, u64), CheckpointSignatureMessage>,
 
     /// Deprecated - pending signatures are now stored in memory.
+    // TODO: delete the deprecated tables in the next release
     #[allow(dead_code)]
+    #[deprecated]
     user_signatures_for_checkpoints: DBMap<TransactionDigest, Vec<GenericSignature>>,
 
     /// Maps sequence number to checkpoint summary, used by CheckpointBuilder to
@@ -675,6 +690,15 @@ pub struct AuthorityEpochTables {
 
     /// Holds the timestamp of the most recently generated round of randomness.
     pub(crate) randomness_last_round_timestamp: DBMap<u64, CommitTimestampMs>,
+
+    // Tables for recording per-object debts for congestion control.
+
+    //
+    /// Accumulated per-object debts for congestion control.
+    congestion_control_object_debts: DBMap<ObjectID, CongestionPerObjectDebt>,
+
+    /// Accumulated per-object debts for randomness congestion control.
+    congestion_control_randomness_object_debts: DBMap<ObjectID, CongestionPerObjectDebt>,
 }
 
 fn signed_transactions_table_default_config() -> DBOptions {
@@ -823,15 +847,6 @@ impl AuthorityEpochTables {
             .safe_iter()
             .collect::<Result<_, _>>()?)
     }
-
-    fn get_all_user_signatures_for_checkpoints(
-        &self,
-    ) -> IotaResult<HashMap<TransactionDigest, Vec<GenericSignature>>> {
-        Ok(self
-            .user_signatures_for_checkpoints
-            .safe_iter()
-            .collect::<Result<_, _>>()?)
-    }
 }
 
 pub(crate) const MUTEX_TABLE_SIZE: usize = 1024;
@@ -850,7 +865,7 @@ impl AuthorityPerEpochStore {
         cache_metrics: Arc<ResolverMetrics>,
         signature_verifier_metrics: Arc<SignatureVerifierMetrics>,
         expensive_safety_check_config: &ExpensiveSafetyCheckConfig,
-        chain_identifier: ChainIdentifier,
+        chain: (ChainIdentifier, Chain),
         highest_executed_checkpoint: CheckpointSequenceNumber,
     ) -> Arc<Self> {
         let current_time = Instant::now();
@@ -890,8 +905,16 @@ impl AuthorityPerEpochStore {
         let protocol_version = epoch_start_configuration
             .epoch_start_state()
             .protocol_version();
-        let protocol_config =
-            ProtocolConfig::get_for_version(protocol_version, chain_identifier.chain());
+
+        let chain_from_id = chain.0.chain();
+        if chain_from_id == Chain::Mainnet || chain_from_id == Chain::Testnet {
+            assert_eq!(
+                chain_from_id, chain.1,
+                "cannot override chain on production networks!"
+            );
+        }
+
+        let protocol_config = ProtocolConfig::get_for_version(protocol_version, chain.1);
 
         let execution_component = ExecutionComponents::new(
             &protocol_config,
@@ -900,7 +923,7 @@ impl AuthorityPerEpochStore {
             expensive_safety_check_config,
         );
 
-        let zklogin_env = match chain_identifier.chain() {
+        let zklogin_env = match chain.1 {
             // Testnet and mainnet are treated the same since it is permanent.
             Chain::Mainnet | Chain::Testnet => ZkLoginEnv::Prod,
             _ => ZkLoginEnv::Test,
@@ -956,8 +979,7 @@ impl AuthorityPerEpochStore {
 
         let jwk_aggregator = Mutex::new(jwk_aggregator);
 
-        let consensus_output_cache =
-            ConsensusOutputCache::new(&epoch_start_configuration, &tables, metrics.clone());
+        let consensus_output_cache = ConsensusOutputCache::new(&tables, metrics.clone());
 
         let s = Arc::new(Self {
             name,
@@ -990,7 +1012,7 @@ impl AuthorityPerEpochStore {
             metrics,
             epoch_start_configuration,
             execution_component,
-            chain_identifier,
+            chain,
             jwk_aggregator,
             randomness_manager: OnceCell::new(),
             randomness_reporter: OnceCell::new(),
@@ -1069,7 +1091,11 @@ impl AuthorityPerEpochStore {
     }
 
     pub fn get_chain_identifier(&self) -> ChainIdentifier {
-        self.chain_identifier
+        self.chain.0
+    }
+
+    pub fn get_chain(&self) -> Chain {
+        self.chain.1
     }
 
     pub fn new_at_next_epoch(
@@ -1080,7 +1106,6 @@ impl AuthorityPerEpochStore {
         backing_package_store: Arc<dyn BackingPackageStore + Send + Sync>,
         object_store: Arc<dyn ObjectStore + Send + Sync>,
         expensive_safety_check_config: &ExpensiveSafetyCheckConfig,
-        chain_identifier: ChainIdentifier,
         previous_epoch_last_checkpoint: CheckpointSequenceNumber,
     ) -> Arc<Self> {
         assert_eq!(self.epoch() + 1, new_committee.epoch);
@@ -1098,7 +1123,7 @@ impl AuthorityPerEpochStore {
             self.execution_component.metrics(),
             self.signature_verifier.metrics.clone(),
             expensive_safety_check_config,
-            chain_identifier,
+            self.chain,
             previous_epoch_last_checkpoint,
         )
     }
@@ -1123,7 +1148,6 @@ impl AuthorityPerEpochStore {
             backing_package_store,
             object_store,
             expensive_safety_check_config,
-            self.chain_identifier,
             previous_epoch_last_checkpoint,
         )
     }
@@ -1481,16 +1505,6 @@ impl AuthorityPerEpochStore {
         .await;
 
         Ok(result)
-    }
-
-    /// Gets all pending certificates. Used during recovery.
-    pub fn all_pending_execution(&self) -> IotaResult<Vec<VerifiedExecutableTransaction>> {
-        Ok(self
-            .tables()?
-            .pending_execution
-            .unbounded_iter()
-            .map(|(_, cert)| cert.into())
-            .collect())
     }
 
     /// Called when transaction outputs are committed to disk
@@ -1914,12 +1928,19 @@ impl AuthorityPerEpochStore {
         }
     }
 
-    fn get_max_execution_duration_per_commit(&self) -> Option<ExecutionTime> {
+    fn get_max_execution_duration_per_commit_as_option(&self) -> Option<ExecutionTime> {
         // The old name for this config parameter referred to "cost", but the current
         // implementation of the shared object congestion tracker uses the term
         // "execution duration" to describe the same concept.
         self.protocol_config()
             .max_accumulated_txn_cost_per_object_in_mysticeti_commit_as_option()
+    }
+
+    fn get_max_congestion_limit_overshoot_per_commit(&self) -> u64 {
+        // If not set, defaults to 0 which means no overshoot allowed.
+        self.protocol_config()
+            .max_congestion_limit_overshoot_per_commit_as_option()
+            .unwrap_or_default()
     }
 
     #[instrument("transactions_sequencing", level = "trace", skip_all, fields(cert_digest = ?cert.digest(), scheduling_result = tracing::field::Empty))]
@@ -1955,7 +1976,7 @@ impl AuthorityPerEpochStore {
         }
 
         let result = if let Some(max_execution_duration_per_commit) =
-            self.get_max_execution_duration_per_commit()
+            self.get_max_execution_duration_per_commit_as_option()
         {
             // Initialise the free execution slots for the objects that are not in the
             // tracker.
@@ -1966,6 +1987,7 @@ impl AuthorityPerEpochStore {
             match shared_object_congestion_tracker.try_schedule(
                 cert,
                 max_execution_duration_per_commit,
+                self.get_max_congestion_limit_overshoot_per_commit(),
                 previously_deferred_tx_digests,
                 commit_round,
             ) {
@@ -2512,11 +2534,11 @@ impl AuthorityPerEpochStore {
         }
     }
 
-    pub fn get_reconfig_state_read_lock_guard(&self) -> RwLockReadGuard<ReconfigState> {
+    pub fn get_reconfig_state_read_lock_guard(&self) -> RwLockReadGuard<'_, ReconfigState> {
         self.reconfig_state_mem.read()
     }
 
-    pub fn get_reconfig_state_write_lock_guard(&self) -> RwLockWriteGuard<ReconfigState> {
+    pub fn get_reconfig_state_write_lock_guard(&self) -> RwLockWriteGuard<'_, ReconfigState> {
         self.reconfig_state_mem.write()
     }
 
@@ -2786,7 +2808,7 @@ impl AuthorityPerEpochStore {
             }
         }
 
-        let mut output = ConsensusCommitOutput::new();
+        let mut output = ConsensusCommitOutput::new(consensus_commit_info.round);
 
         // Load transactions deferred from previous commits.
         let deferred_txs: Vec<(DeferralKey, Vec<DeferredTransaction>)> = self
@@ -2921,6 +2943,28 @@ impl AuthorityPerEpochStore {
             &mut sequenced_randomness_transactions,
             self.protocol_config.consensus_transaction_ordering(),
         );
+
+        // We track transaction shared object congestion separately for regular
+        // transactions and transactions using randomness.
+        let shared_object_congestion_tracker = SharedObjectCongestionTracker::new(
+            self.consensus_quarantine.read().load_initial_object_debts(
+                self,
+                consensus_commit_info.round,
+                false,
+                &sequenced_transactions,
+            )?,
+            self.protocol_config(),
+        );
+        let shared_object_using_randomness_congestion_tracker = SharedObjectCongestionTracker::new(
+            self.consensus_quarantine.read().load_initial_object_debts(
+                self,
+                consensus_commit_info.round,
+                true,
+                &sequenced_randomness_transactions,
+            )?,
+            self.protocol_config(),
+        );
+
         let consensus_transactions: Vec<_> = system_transactions
             .into_iter()
             .chain(sequenced_transactions)
@@ -2948,6 +2992,8 @@ impl AuthorityPerEpochStore {
                 dkg_failed,
                 randomness_round,
                 authority_metrics,
+                shared_object_congestion_tracker,
+                shared_object_using_randomness_congestion_tracker,
             )
             .await?;
         self.finish_consensus_certificate_process(&verified_transactions);
@@ -3031,6 +3077,7 @@ impl AuthorityPerEpochStore {
             }
         }
 
+        // Write details of the this consensus commit to consensus output quarantine.
         self.consensus_quarantine
             .write()
             .push_consensus_output(output, self)?;
@@ -3214,7 +3261,7 @@ impl AuthorityPerEpochStore {
         cache_reader: &dyn ObjectCacheRead,
         transactions: &[VerifiedExecutableTransaction],
     ) -> IotaResult {
-        let mut output = ConsensusCommitOutput::new();
+        let mut output = ConsensusCommitOutput::new(0);
         self.process_consensus_transaction_shared_object_versions(
             cache_reader,
             transactions,
@@ -3265,10 +3312,12 @@ impl AuthorityPerEpochStore {
         dkg_failed: bool,
         randomness_round: Option<RandomnessRound>,
         authority_metrics: &Arc<AuthorityMetrics>,
+        mut shared_object_congestion_tracker: SharedObjectCongestionTracker,
+        mut shared_object_using_randomness_congestion_tracker: SharedObjectCongestionTracker,
     ) -> IotaResult<(
         Vec<VerifiedExecutableTransaction>,    // transactions to schedule
         Vec<SequencedConsensusTransactionKey>, // keys to notify as complete
-        Option<RwLockWriteGuard<ReconfigState>>,
+        Option<RwLockWriteGuard<'_, ReconfigState>>,
         bool,                   // true if final round
         Option<TransactionKey>, // consensus commit prologue root
     )> {
@@ -3284,21 +3333,6 @@ impl AuthorityPerEpochStore {
         let mut cancelled_txns: BTreeMap<TransactionDigest, CancelConsensusCertificateReason> =
             BTreeMap::new();
 
-        // We track transaction execution duration separately for regular transactions
-        // and transactions using randomness, since they will be in different
-        // checkpoints.
-        let mut shared_object_congestion_tracker = SharedObjectCongestionTracker::new(
-            self.protocol_config().per_object_congestion_control_mode(),
-            self.protocol_config()
-                .congestion_control_min_free_execution_slot(),
-        );
-        let mut shared_object_using_randomness_congestion_tracker =
-            SharedObjectCongestionTracker::new(
-                self.protocol_config().per_object_congestion_control_mode(),
-                self.protocol_config()
-                    .congestion_control_min_free_execution_slot(),
-            );
-
         fail_point_arg!(
             "initial_congestion_tracker",
             |tracker: SharedObjectCongestionTracker| {
@@ -3311,7 +3345,7 @@ impl AuthorityPerEpochStore {
         );
 
         let mut suggested_gas_price_calculator = SuggestedGasPriceCalculator::new(
-            self.get_max_execution_duration_per_commit(),
+            self.get_max_execution_duration_per_commit_as_option(),
             self.reference_gas_price(),
             self.protocol_config().max_gas_price(),
         );
@@ -3470,6 +3504,22 @@ impl AuthorityPerEpochStore {
                     as i64,
             );
 
+        // Record accumulated debts from this consensus commit following sequencing.
+        // This output will be written to consensus quarantine so the debts can be
+        // loaded in the future consensus commit rounds where the objects are involved.
+        if let Some(max_execution_duration_per_commit) =
+            self.get_max_execution_duration_per_commit_as_option()
+        {
+            output.set_congestion_control_object_debts(
+                shared_object_congestion_tracker
+                    .accumulated_debts(max_execution_duration_per_commit),
+            );
+            output.set_congestion_control_randomness_object_debts(
+                shared_object_using_randomness_congestion_tracker
+                    .accumulated_debts(max_execution_duration_per_commit),
+            );
+        }
+
         if randomness_state_updated {
             if let Some(randomness_manager) = randomness_manager.as_mut() {
                 randomness_manager
@@ -3518,7 +3568,7 @@ impl AuthorityPerEpochStore {
         transactions: &[VerifiedSequencedConsensusTransaction],
         commit_has_deferred_txns: bool,
     ) -> IotaResult<(
-        Option<RwLockWriteGuard<ReconfigState>>,
+        Option<RwLockWriteGuard<'_, ReconfigState>>,
         bool, // true if final round
     )> {
         let mut lock = None;
@@ -3820,7 +3870,10 @@ impl AuthorityPerEpochStore {
                         // - shared object execution slots (for congestion tracker);
                         // - shared object congestion info (for suggested gas price calculator).
                         if certificate.contains_shared_object() {
-                            if self.get_max_execution_duration_per_commit().is_some() {
+                            if self
+                                .get_max_execution_duration_per_commit_as_option()
+                                .is_some()
+                            {
                                 // We only need to do this if `max_execution_duration_per_commit`
                                 // is `Some`, since otherwise this bumping will panic as object
                                 // execution slots are only initialized if
@@ -4056,35 +4109,10 @@ impl AuthorityPerEpochStore {
         &self,
         last: Option<CheckpointHeight>,
     ) -> IotaResult<Vec<(CheckpointHeight, PendingCheckpoint)>> {
-        let db_results = if !self
-            .epoch_start_config()
-            .is_data_quarantine_active_from_beginning_of_epoch()
-        {
-            // Reading from the db table is only needed when upgrading to data quarantining
-            // for the first time.
-            let tables = self.tables()?;
-            let db_iter = tables
-                .pending_checkpoints
-                .safe_iter_with_bounds(last.map(|height| height + 1), None);
-            db_iter.collect::<Result<Vec<(CheckpointHeight, PendingCheckpoint)>, _>>()?
-        } else {
-            vec![]
-        };
-
-        let mut quarantine_results = self
+        Ok(self
             .consensus_quarantine
             .read()
-            .get_pending_checkpoints(last);
-
-        // retain only the checkpoints with heights greater than the highest height in
-        // the db
-        if let Some(db_highest_height) = db_results.last().map(|(h, _)| h) {
-            quarantine_results.retain(|(h, _)| h > db_highest_height);
-        }
-
-        let mut db_results = db_results;
-        db_results.extend(quarantine_results);
-        Ok(db_results)
+            .get_pending_checkpoints(last))
     }
 
     pub fn pending_checkpoint_exists(&self, index: &CheckpointHeight) -> IotaResult<bool> {
@@ -4370,6 +4398,18 @@ impl AuthorityPerEpochStore {
                 ),
             }
         }
+    }
+
+    // Only for testing purposes. Loads initial object debts from the consensus
+    // quarantine.
+    pub fn load_stored_object_debts_for_testing(
+        &self,
+        for_randomness: bool,
+        object_ids: &[ObjectID],
+    ) -> IotaResult<Vec<Option<CongestionPerObjectDebt>>> {
+        self.consensus_quarantine
+            .read()
+            .load_stored_object_debts_for_testing(for_randomness, object_ids)
     }
 }
 

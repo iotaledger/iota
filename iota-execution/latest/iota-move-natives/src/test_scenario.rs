@@ -143,7 +143,7 @@ pub fn end_transaction(
     let object_runtime_state = object_runtime_ref.take_state();
     // Determine writes and deletes
     // We pass the received objects since they should be viewed as "loaded" for the
-    // purposes of of calculating the effects of the transaction.
+    // purposes of calculating the effects of the transaction.
     let results = object_runtime_state.finish(received, ChildObjectEffects::empty());
     let RuntimeResults {
         writes,
@@ -775,7 +775,7 @@ fn most_recent_at_ty_opt(
     ty: Type,
 ) -> Option<Value> {
     let s = inv.get(&ty)?;
-    let most_recent_id = s.iter().filter(|id| !taken.contains_key(id)).next_back()?;
+    let most_recent_id = s.iter().rfind(|id| !taken.contains_key(id))?;
     Some(pack_id(*most_recent_id))
 }
 

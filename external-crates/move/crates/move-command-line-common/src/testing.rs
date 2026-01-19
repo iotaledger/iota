@@ -77,43 +77,48 @@ impl InstaOptions {
 pub use insta;
 
 #[macro_export]
-/// A wrapper around `insta::assert_snapshort` to promote uniformity in the Move codebase, intended
-/// to be used with datatest-stable and as a replacement for the hand-rolled baseline tests.
-/// The snapshot file will be saved in the same directory as the input file with the name specified.
-/// In essence, it will be saved at the path `{input_path}/{name}.snap` (and
-/// `{input_path}/{name}@{suffix}.snap` if `suffix` is specified).
+/// A wrapper around `insta::assert_snapshort` to promote uniformity in the Move
+/// codebase, intended to be used with datatest-stable and as a replacement for
+/// the hand-rolled baseline tests. The snapshot file will be saved in the same
+/// directory as the input file with the name specified. In essence, it will be
+/// saved at the path `{input_path}/{name}.snap` (and `{input_path}/{name}@
+/// {suffix}.snap` if `suffix` is specified).
 ///
-/// For ease of use and reviewing, `insta_assert` should be used at most once per test. When it
-/// fails, it will stop the test. So if there are multiple snapshots in a given test, it would
-/// require multiple test runs to review all the failures.
-/// If you do need multiple snapshots in a test, you may want to disable assertions for your test
-/// run by setting `INSTA_FORCE_PASS=1` see
+/// For ease of use and reviewing, `insta_assert` should be used at most once
+/// per test. When it fails, it will stop the test. So if there are multiple
+/// snapshots in a given test, it would require multiple test runs to review all
+/// the failures. If you do need multiple snapshots in a test, you may want to
+/// disable assertions for your test run by setting `INSTA_FORCE_PASS=1` see
 /// https://insta.rs/docs/advanced/#disabling-assertion-failure for more information.
 ///
 /// # Arguments
 /// The macro has three required arguments:
 ///
-/// - `input_path`: The path to the input file. This is used to determine the snapshot path.
+/// - `input_path`: The path to the input file. This is used to determine the
+///   snapshot path.
 /// - `contents`: The contents to snapshot.
 ///
 ///
-/// The macro also accepts an optional arguments to that are used with `InstaOptions` to customize
-/// the snapshot. If needed the `InstaOptions` struct can be used directly by specifying the
-/// `options` argument. Options include:
+/// The macro also accepts an optional arguments to that are used with
+/// `InstaOptions` to customize the snapshot. If needed the `InstaOptions`
+/// struct can be used directly by specifying the `options` argument. Options
+/// include:
 ///
-///  - `name`: The name of the test. This will be used to name the snapshot file. By default, the
-///            file stem (the name without the extension) of the input path is used.
-///  - `info`: Additional information to include in the header of the snapshot file. This can be
-///           useful for debugging tests. The value can be any type that implements
-///           `serde::Serialize`.
-/// - `suffix`: A suffix to append to the snapshot file name. This changes the snapshot path to
-///            `{input_path}/{name}@{suffix}.snap`.
+///  - `name`: The name of the test. This will be used to name the snapshot
+///    file. By default, the file stem (the name without the extension) of the
+///    input path is used.
+///  - `info`: Additional information to include in the header of the snapshot
+///    file. This can be useful for debugging tests. The value can be any type
+///    that implements `serde::Serialize`.
+/// - `suffix`: A suffix to append to the snapshot file name. This changes the
+///   snapshot path to `{input_path}/{name}@{suffix}.snap`.
 ///
 /// # Updating snapshots
 ///
 /// After running the test, the `.snap` files can be updated in two ways:
 ///
-/// 1. By using `cargo insta review`, which will open an interactive UI to review the changes.
+/// 1. By using `cargo insta review`, which will open an interactive UI to
+///    review the changes.
 /// 2. Running the tests with the environment variable `INSTA_UPDATE=alawys`
 ///
 /// See https://docs.rs/insta/latest/insta/#updating-snapshots for more information.

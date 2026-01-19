@@ -51,6 +51,8 @@ pub struct CommandContext {
     pub path: Option<PathBuf>,
     /// The log file to redirect all stdout and stderr.
     pub log_file: Option<PathBuf>,
+    /// The number of retries before giving up to execute the command.
+    pub retries: usize,
 }
 
 impl CommandContext {
@@ -60,6 +62,7 @@ impl CommandContext {
             background: None,
             path: None,
             log_file: None,
+            retries: 0,
         }
     }
 
@@ -78,6 +81,12 @@ impl CommandContext {
     /// Set the log file where to redirect stdout and stderr.
     pub fn with_log_file(mut self, path: PathBuf) -> Self {
         self.log_file = Some(path);
+        self
+    }
+
+    /// Set the number of retries before giving up to execute the command.
+    pub fn with_retries(mut self, retries: usize) -> Self {
+        self.retries = retries;
         self
     }
 
@@ -193,6 +202,26 @@ impl SshConnectionManager {
             .collect::<SshResult<_>>()
     }
 
+    /// Execute the ssh command associated with each instance and return every
+    /// individual result.
+    pub async fn execute_per_instance_with_results<I, S>(
+        &self,
+        instances: I,
+        context: CommandContext,
+    ) -> Vec<SshResult<(String, String)>>
+    where
+        I: IntoIterator<Item = (Instance, S)>,
+        S: Into<String> + Send + 'static,
+    {
+        let handles = self.run_per_instance(instances, context).await;
+
+        try_join_all(handles)
+            .await
+            .unwrap()
+            .into_iter()
+            .collect::<Vec<_>>()
+    }
+
     async fn run_per_instance<I, S>(
         &self,
         instances: I,
@@ -209,9 +238,36 @@ impl SshConnectionManager {
                 let context = context.clone();
 
                 tokio::spawn(async move {
-                    let connection = ssh_manager.connect(instance.ssh_address()).await?;
-                    // SshConnection::execute is a blocking call, needs to go to blocking pool
-                    connection.execute(context.apply(command)).await
+                    let connection = match ssh_manager.connect(instance.ssh_address()).await {
+                        Ok(c) => c,
+                        Err(e) => {
+                            println!("Failed to connect to {}: error {e}", instance.ssh_address());
+                            return Err(e);
+                        }
+                    };
+
+                    let command_str = command.into();
+                    let mut consecutive_errors = 0;
+                    loop {
+                        match connection.execute(context.apply(command_str.clone())).await {
+                            Ok(output) => {
+                                return Ok(output);
+                            }
+                            Err(err) => {
+                                consecutive_errors += 1;
+
+                                if consecutive_errors > context.retries {
+                                    println!(
+                                        "Failed to execute command {command_str} at {}: {err}",
+                                        instance.ssh_address()
+                                    );
+                                    return Err(err);
+                                }
+                            }
+                        }
+
+                        sleep(Self::RETRY_DELAY).await;
+                    }
                 })
             })
             .collect::<Vec<_>>()
@@ -227,21 +283,33 @@ impl SshConnectionManager {
     where
         I: IntoIterator<Item = Instance> + Clone,
     {
+        let mut consecutive_errors = 0;
         loop {
             sleep(Self::RETRY_DELAY).await;
 
-            let result = self
+            match self
                 .execute(
                     instances.clone(),
                     "(tmux ls || true)",
                     CommandContext::default(),
                 )
-                .await?;
-            if result
-                .iter()
-                .all(|(stdout, _)| CommandStatus::status(command_id, stdout) == status)
+                .await
             {
-                break;
+                Ok(result) => {
+                    consecutive_errors = 0;
+                    if result
+                        .iter()
+                        .all(|(stdout, _)| CommandStatus::status(command_id, stdout) == status)
+                    {
+                        break;
+                    }
+                }
+                Err(e) => {
+                    consecutive_errors += 1;
+                    if consecutive_errors >= 5 {
+                        return Err(e);
+                    }
+                }
             }
         }
         Ok(())
@@ -252,15 +320,14 @@ impl SshConnectionManager {
         I: IntoIterator<Item = (Instance, S)> + Clone,
         S: Into<String> + Send + 'static + Clone,
     {
-        loop {
-            sleep(Self::RETRY_DELAY).await;
-
-            if self
-                .execute_per_instance(instances.clone(), CommandContext::default())
-                .await
-                .is_ok()
-            {
-                break;
+        match self
+            .execute_per_instance(instances.clone(), CommandContext::default().with_retries(5))
+            .await
+        {
+            Ok(_) => {}
+            Err(e) => {
+                // Handle failure case
+                panic!("Command execution failed on one or more instances: {e}");
             }
         }
     }
@@ -272,7 +339,7 @@ impl SshConnectionManager {
     {
         let ssh_command = format!("(tmux kill-session -t {command_id} || true)");
         let targets = instances.into_iter().map(|x| (x, ssh_command.clone()));
-        self.execute_per_instance(targets, CommandContext::default())
+        self.execute_per_instance(targets, CommandContext::default().with_retries(5))
             .await?;
         Ok(())
     }
@@ -373,7 +440,7 @@ impl SshConnection {
         command: String,
     ) -> SshResult<(String, String)> {
         channel
-            .exec(true, command)
+            .exec(true, command.clone())
             .await
             .map_err(|e| self.make_session_error(e))?;
 
@@ -400,7 +467,8 @@ impl SshConnection {
             SshError::NonZeroExitCode {
                 address: self.address,
                 code: exit_code.unwrap(),
-                message: output_str
+                message: output_str,
+                command,
             }
         );
 

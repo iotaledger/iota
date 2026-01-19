@@ -75,12 +75,12 @@ where
                 .into_iter()
                 .collect::<Result<Vec<_>, _>>()
                 .tap_err(|e| {
-                    error!("Error joining address persist tasks: {:?}", e);
+                    error!("error joining address persist tasks: {e:?}");
                 })?
                 .into_iter()
                 .collect::<Result<Vec<_>, _>>()
                 .tap_err(|e| {
-                    error!("Error persisting addresses or active addresses: {:?}", e);
+                    error!("error persisting addresses or active addresses: {e:?}");
                 })?;
             last_processed_tx_seq += self.address_processor_batch_size as i64;
             info!(

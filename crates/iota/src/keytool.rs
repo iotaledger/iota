@@ -37,6 +37,10 @@ use iota_keys::{
     keystore::{AccountKeystore, Keystore, StoredKey},
 };
 use iota_ledger::Ledger;
+use iota_sdk_types::{
+    SenderSignedTransaction, Transaction,
+    crypto::{Intent, IntentMessage},
+};
 use iota_types::{
     base_types::IotaAddress,
     crypto::{
@@ -52,7 +56,6 @@ use iota_types::{
 use json_to_table::{Orientation, json_to_table};
 use serde::Serialize;
 use serde_json::json;
-use shared_crypto::intent::{Intent, IntentMessage};
 use tabled::{
     builder::Builder,
     settings::{Modify, Rotate, Width, object::Rows},
@@ -97,6 +100,8 @@ pub enum KeyToolCommand {
         #[arg(long, default_value = "0")]
         cur_epoch: u64,
     },
+    /// Compute the digest of a transaction from its Base64 encoded bytes.
+    TxDigest { tx_bytes: String },
     /// Output the private key of the given key identity in IOTA CLI Keystore as
     /// Bech32 encoded string starting with `iotaprivkey`.
     Export {
@@ -424,6 +429,15 @@ pub struct SignData {
     iota_signature: String,
 }
 
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TxDigestOutput {
+    // Base58
+    digest: String,
+    digest_hex: String,
+    signing_digest_hex: String,
+}
+
 // Commented for now: https://github.com/iotaledger/iota/issues/1777
 // #[derive(Serialize)]
 // #[serde(rename_all = "camelCase")]
@@ -464,6 +478,7 @@ pub enum CommandOutput {
     Show(Key),
     Sign(SignData),
     SignKMS(SerializedSig),
+    TxDigest(TxDigestOutput),
     UpdateAlias(AliasUpdate),
     // Commented for now: https://github.com/iotaledger/iota/issues/1777
     // ZkLoginSignAndExecuteTx(ZkLoginSignAndExecuteTx),
@@ -538,6 +553,22 @@ impl KeyToolCommand {
                 };
 
                 CommandOutput::DecodeMultiSig(output)
+            }
+            KeyToolCommand::TxDigest { tx_bytes } => {
+                let tx_bytes = Base64::decode(&tx_bytes)
+                    .map_err(|e| anyhow!("Invalid base64 tx bytes: {e:?}"))?;
+                let tx = match bcs::from_bytes::<Transaction>(&tx_bytes) {
+                    Ok(tx) => tx,
+                    Err(_) => {
+                        let deserialized_tx = bcs::from_bytes::<SenderSignedTransaction>(&tx_bytes)?;
+                       deserialized_tx.0.transaction
+                    }
+                };
+                CommandOutput::TxDigest(TxDigestOutput {
+                    digest: tx.digest().to_string(),
+                    digest_hex: format!("0x{}", Hex::encode(tx.digest())),
+                    signing_digest_hex: format!("0x{}", Hex::encode(tx.signing_digest())),
+                })
             }
             KeyToolCommand::DecodeOrVerifyTx {
                 tx_bytes,
@@ -787,7 +818,6 @@ impl KeyToolCommand {
             } => {
                 let address = get_identity_address_from_keystore(address, keystore)?;
                 let intent = intent.unwrap_or_else(Intent::iota_transaction);
-                let intent_clone = intent.clone();
                 let msg: TransactionData =
                     bcs::from_bytes(&Base64::decode(&data).map_err(|e| {
                         anyhow!("Cannot deserialize data as TransactionData {:?}", e)
@@ -804,7 +834,7 @@ impl KeyToolCommand {
                 CommandOutput::Sign(SignData {
                     iota_address: address,
                     raw_tx_data: data,
-                    intent: intent_clone,
+                    intent,
                     raw_intent_msg,
                     digest: Base64::encode(digest),
                     iota_signature: iota_signature.encode_base64(),
@@ -880,9 +910,7 @@ impl KeyToolCommand {
                 })
             } /* Commented for now: https://github.com/iotaledger/iota/issues/1777
                * KeyToolCommand::ZkLoginInsecureSignPersonalMessage { data, max_epoch } => {
-               *     let msg = PersonalMessage {
-               *         message: data.as_bytes().to_vec(),
-               *     };
+               *     let msg = PersonalMessage(data.as_bytes().to_vec().into());
                *     let sub = "1";
                *     let user_salt = "1";
                *     let intent_msg = IntentMessage::new(Intent::personal_message(),
@@ -1198,11 +1226,9 @@ impl KeyToolCommand {
                *                     (serde_json::to_string(&tx_data)?, res)
                *                 }
                *                 IntentScope::PersonalMessage => {
-               *                     let data = PersonalMessage {
-               *                         message: Base64::decode(&bytes.unwrap()).map_err(|e| {
+               *                     let data = PersonalMessage(Base64::decode(&bytes.unwrap()).map_err(|e| {
                *                             anyhow!("Invalid base64 personal message data:
-               * {:?}", e)                         })?,
-               *                     }; */
+               * {:?}", e)                         })?.into()); */
 
               /*                     let sig =
                * GenericSignature::ZkLoginAuthenticator(zk.clone());

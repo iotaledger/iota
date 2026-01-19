@@ -34,7 +34,6 @@ use crate::{
         move_object::MoveObject,
         object::Object,
         owner::Owner,
-        system_state_summary::SystemStateSummaryView,
         uint53::UInt53,
         validator_credentials::ValidatorCredentials,
     },
@@ -376,16 +375,16 @@ impl Validator {
             return Ok(connection);
         };
 
-        let Some((prev, next, _, cs)) =
+        let Some(consistent_page) =
             page.paginate_consistent_indices(addresses.len(), self.checkpoint_viewed_at)?
         else {
             return Ok(connection);
         };
 
-        connection.has_previous_page = prev;
-        connection.has_next_page = next;
+        connection.has_previous_page = consistent_page.has_previous_page;
+        connection.has_next_page = consistent_page.has_next_page;
 
-        for c in cs {
+        for c in consistent_page.cursors {
             connection.edges.push(Edge::new(
                 c.encode_cursor(),
                 Address {

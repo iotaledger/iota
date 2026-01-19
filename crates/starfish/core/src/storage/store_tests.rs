@@ -71,7 +71,7 @@ async fn read_and_contain_block_headers(
     // Test basic header read
     let refs = vec![written_blocks[0].reference()];
     let read_headers = store
-        .read_block_headers(&refs)
+        .read_verified_block_headers(&refs)
         .expect("Read headers should not fail");
     assert_eq!(read_headers.len(), 1);
     assert_eq!(
@@ -86,7 +86,7 @@ async fn read_and_contain_block_headers(
         written_blocks[1].reference(),
     ];
     let read_headers = store
-        .read_block_headers(&refs)
+        .read_verified_block_headers(&refs)
         .expect("Read headers should not fail");
     assert_eq!(read_headers.len(), 3);
     assert_eq!(
@@ -113,7 +113,7 @@ async fn read_and_contain_block_headers(
         written_blocks[2].reference(),
     ];
     let read_headers = store
-        .read_block_headers(&refs)
+        .read_verified_block_headers(&refs)
         .expect("Read headers should not fail");
     assert_eq!(read_headers.len(), 3);
     assert_eq!(
@@ -155,7 +155,7 @@ async fn scan_block_headers(
 ) {
     let store = test_store.store();
 
-    let written_blocks = vec![
+    let written_blocks = [
         VerifiedBlock::new_for_test(TestBlockHeader::new(9, 0).build()),
         VerifiedBlock::new_for_test(TestBlockHeader::new(10, 0).build()),
         VerifiedBlock::new_for_test(TestBlockHeader::new(10, 1).build()),
@@ -205,7 +205,7 @@ async fn scan_block_headers(
     );
 
     // Add more headers and test scanning
-    let additional_blocks = vec![
+    let additional_blocks = [
         VerifiedBlock::new_for_test(TestBlockHeader::new(14, 2).build()),
         VerifiedBlock::new_for_test(TestBlockHeader::new(15, 0).build()),
         VerifiedBlock::new_for_test(TestBlockHeader::new(15, 1).build()),
@@ -271,7 +271,7 @@ async fn read_and_contain_transactions(
 ) {
     let store = test_store.store();
 
-    let written_blocks = vec![
+    let written_blocks = [
         VerifiedBlock::new_for_test(TestBlockHeader::new(9, 0).build()),
         VerifiedBlock::new_for_test(TestBlockHeader::new(10, 0).build()),
         VerifiedBlock::new_for_test(TestBlockHeader::new(10, 1).build()),
@@ -299,7 +299,7 @@ async fn read_and_contain_transactions(
     // Test reading all transactions
     let refs: Vec<_> = written_blocks.iter().map(|b| b.reference()).collect();
     let read_txs = store
-        .read_transactions(&refs)
+        .read_verified_transactions(&refs)
         .expect("Read txs should not fail");
 
     assert_eq!(read_txs.len(), written_blocks.len());
@@ -318,7 +318,7 @@ async fn read_and_contain_transactions(
     // Test reading subset of transactions
     let subset_refs = vec![refs[1], refs[3], refs[5]];
     let read_subset = store
-        .read_transactions(&subset_refs)
+        .read_verified_transactions(&subset_refs)
         .expect("Read subset should not fail");
     assert_eq!(read_subset.len(), 3);
     assert_eq!(
@@ -347,7 +347,7 @@ async fn read_and_contain_transactions(
         BlockHeaderDigest::default(),
     );
     let read_missing = store
-        .read_transactions(&[missing_ref])
+        .read_verified_transactions(&[missing_ref])
         .expect("Read missing should not fail");
     assert_eq!(read_missing.len(), 1);
     assert!(read_missing[0].is_none());

@@ -21,6 +21,7 @@
  */
 
 import * as amplitude from '@amplitude/analytics-browser';
+import { getAmplitudeConsentStatus } from '@iota/core';
 
 export type Environment = 'iotawalletdashboard';
 
@@ -94,6 +95,7 @@ export interface MigrationProperties {
      * | Type | number |
      */
     basicOutputObjects?: number;
+    isTimelocked?: boolean;
     /**
      * | Rule | Value |
      * |---|---|
@@ -152,10 +154,22 @@ export interface TimelockStakeProperties {
 }
 
 export interface TimelockUnstakeProperties {
+    /**
+     * | Rule | Value |
+     * |---|---|
+     * | Type | number |
+     */
+    stakedAmount?: number;
     validatorAddress?: string;
 }
 
 export interface UnstakedIotaProperties {
+    /**
+     * | Rule | Value |
+     * |---|---|
+     * | Type | number |
+     */
+    stakedAmount?: number;
     validatorAddress?: string;
 }
 
@@ -286,6 +300,11 @@ export class Ampli {
   }
 
   private isInitializedAndEnabled(): boolean {
+
+    // NOTE don't show error if consent is not given yet.
+    // Don't remove this check after `ampli pull web`
+    if (getAmplitudeConsentStatus() === 'declined') return;
+
     if (!this.amplitude) {
       console.error('ERROR: Ampli is not yet initialized. Have you called ampli.load() on app start?');
       return false;
@@ -602,7 +621,7 @@ export class Ampli {
    *
    * Event has no description in tracking plan.
    *
-   * @param properties The event's properties (e.g. validatorAddress)
+   * @param properties The event's properties (e.g. stakedAmount)
    * @param options Amplitude event options.
    */
   unstakedIota(

@@ -12,7 +12,7 @@ anyhow.workspace = true
 async-recursion.workspace = true
 async-trait.workspace = true
 bcs.workspace = true
-clap = { version = "4.1.4", features = ["derive"] }
+clap.workspace = true
 futures.workspace = true
 http.workspace = true
 jsonrpsee.workspace = true
@@ -26,7 +26,7 @@ serde_json.workspace = true
 serde_with.workspace = true
 serde_yaml.workspace = true
 shellexpand.workspace = true
-similar.workspace = true
+similar = "2.4.0"
 tabled.workspace = true
 tempfile.workspace = true
 thiserror.workspace = true

@@ -11,9 +11,9 @@ use std::{
 
 use bytes::Bytes;
 use fastcrypto::hash::{Digest, HashFunction};
+use iota_sdk_types::crypto::{Intent, IntentMessage, IntentScope};
 use rs_merkle::{MerkleProof, MerkleTree};
 use serde::{Deserialize, Serialize};
-use shared_crypto::intent::{Intent, IntentMessage, IntentScope};
 use starfish_config::{
     AuthorityIndex, DIGEST_LENGTH, DefaultHashFunction, DefaultHashFunctionWrapper, Epoch,
     ProtocolKeyPair, ProtocolKeySignature, ProtocolPublicKey,
@@ -23,7 +23,6 @@ use crate::{
     commit::CommitVote,
     context::Context,
     encoder::ShardEncoder,
-    ensure,
     error::{ConsensusError, ConsensusResult},
 };
 
@@ -68,19 +67,23 @@ impl Transaction {
     /// Create a vector of random transactions for testing.
     #[cfg(test)]
     pub fn random_transactions(count: usize, max_len: usize) -> Vec<Self> {
+        (0..count)
+            .map(|_| Self::random_transaction(max_len))
+            .collect()
+    }
+
+    // Create one random transaction for testing
+    #[cfg(test)]
+    pub fn random_transaction(max_len: usize) -> Self {
         use rand::{Rng, RngCore};
 
         let mut rng = rand::thread_rng();
-        (0..count)
-            .map(|_| {
-                let len = rng.gen_range(0..=max_len);
-                let mut buf = vec![0u8; len];
-                rng.fill_bytes(&mut buf);
-                Transaction {
-                    data: Bytes::from(buf),
-                }
-            })
-            .collect()
+        let len = rng.gen_range(0..=max_len);
+        let mut buf = vec![0u8; len];
+        rng.fill_bytes(&mut buf);
+        Transaction {
+            data: Bytes::from(buf),
+        }
     }
 }
 
@@ -199,12 +202,12 @@ impl BlockHeaderV1 {
         )
     }
 
-    fn genesis_block_header(epoch: Epoch, author: AuthorityIndex) -> Self {
+    fn genesis_block_header(context: &Context, author: AuthorityIndex) -> Self {
         Self {
-            epoch,
+            epoch: context.committee.epoch(),
             round: GENESIS_ROUND,
             author,
-            timestamp_ms: 0,
+            timestamp_ms: context.epoch_start_timestamp_ms,
             references: vec![],
             overlap_start_index: 0,
             overlap_end_index: 0,
@@ -427,12 +430,6 @@ impl AsRef<[u8]> for BlockHeaderDigest {
     }
 }
 
-// TODO: https://github.com/iotaledger/iota/issues/8220
-// We might need to join TransactionDigest with BlockDigest since we use
-// the same parameters for both structures. TransactionDigest is used for
-// including a commitment for a transaction data to a block header. This digest
-// is used for BlockDigest computations of BlockHeader does not include
-// explicitly the transaction data.
 #[derive(Clone, Copy, Serialize, Deserialize, Default, PartialEq, Eq, PartialOrd, Ord)]
 pub struct TransactionsCommitment([u8; starfish_config::DIGEST_LENGTH]);
 pub type MerkleProofBytes = Vec<u8>;
@@ -649,15 +646,11 @@ impl SignedBlockHeader {
     /// the full block header should be done via BlockHeaderVerifier.
     pub(crate) fn verify_signature(&self, context: &Context) -> ConsensusResult<()> {
         let block_header = &self.inner;
-        let committee = &context.committee;
-        ensure!(
-            committee.is_valid_index(block_header.author()),
-            ConsensusError::InvalidAuthorityIndex {
-                index: block_header.author(),
-                max: committee.size() - 1
-            }
-        );
-        let authority = committee.authority(block_header.author());
+        ConsensusError::quick_validation_authority_indices(
+            &[block_header.author()],
+            &context.committee,
+        )?;
+        let authority = context.committee.authority(block_header.author());
         verify_block_header_signature(block_header, self.signature(), &authority.protocol_key)
     }
 
@@ -933,6 +926,10 @@ impl VerifiedTransactions {
     pub fn serialized(&self) -> &Bytes {
         &self.serialized
     }
+
+    pub fn has_transactions(&self) -> bool {
+        !self.transactions.is_empty()
+    }
 }
 
 /// VerifiedBlock is a pair of verified block header and transactions. It is
@@ -1025,13 +1022,13 @@ impl Deref for VerifiedBlock {
 
 /// Generates the genesis blocks for the current Committee.
 /// The blocks are returned in authority index order.
-pub(crate) fn genesis_blocks(context: Arc<Context>) -> Vec<VerifiedBlock> {
+pub(crate) fn genesis_blocks(context: &Context) -> Vec<VerifiedBlock> {
     context
         .committee
         .authorities()
         .map(|(authority_index, _)| {
             let signed_block = SignedBlockHeader::new_genesis(BlockHeader::V1(
-                BlockHeaderV1::genesis_block_header(context.committee.epoch(), authority_index),
+                BlockHeaderV1::genesis_block_header(context, authority_index),
             ));
             let serialized = signed_block
                 .serialize()
@@ -1051,13 +1048,13 @@ pub(crate) fn genesis_blocks(context: Arc<Context>) -> Vec<VerifiedBlock> {
         .collect::<Vec<VerifiedBlock>>()
 }
 
-pub(crate) fn genesis_block_headers(context: Arc<Context>) -> Vec<VerifiedBlockHeader> {
+pub(crate) fn genesis_block_headers(context: &Context) -> Vec<VerifiedBlockHeader> {
     context
         .committee
         .authorities()
         .map(|(authority_index, _)| {
             let signed_block = SignedBlockHeader::new_genesis(BlockHeader::V1(
-                BlockHeaderV1::genesis_block_header(context.committee.epoch(), authority_index),
+                BlockHeaderV1::genesis_block_header(context, authority_index),
             ));
             let serialized = signed_block
                 .serialize()
@@ -1069,7 +1066,6 @@ pub(crate) fn genesis_block_headers(context: Arc<Context>) -> Vec<VerifiedBlockH
 }
 
 /// This struct is public for testing in other crates.
-#[cfg(test)]
 #[derive(Clone)]
 pub struct TestBlockHeader {
     ancestors: Vec<BlockRef>,
@@ -1077,12 +1073,11 @@ pub struct TestBlockHeader {
     block_header: BlockHeaderV1,
 }
 
-#[cfg(test)]
 impl TestBlockHeader {
     /// Creates a simple block with no transactions and without real computation
     /// of transactions commitment. Use it when you don't need to check the
     /// commitment and don't want to create and pass the encoder.
-    pub(crate) fn new(round: Round, author: u8) -> Self {
+    pub fn new(round: Round, author: u8) -> Self {
         Self {
             block_header: BlockHeaderV1 {
                 round,
@@ -1094,6 +1089,8 @@ impl TestBlockHeader {
             acknowledgments: vec![],
         }
     }
+
+    #[cfg(test)]
     pub(crate) fn new_with_commitment(
         round: Round,
         author: u8,
@@ -1120,6 +1117,7 @@ impl TestBlockHeader {
         }
     }
 
+    #[cfg(test)]
     pub(crate) fn new_with_transaction(
         round: Round,
         author: u8,
@@ -1211,7 +1209,10 @@ mod tests {
     use fastcrypto::error::FastCryptoError;
 
     use crate::{
-        block_header::{BlockHeaderDigest, SignedBlockHeader, TestBlockHeader},
+        BlockHeaderAPI,
+        block_header::{
+            BlockHeaderDigest, SignedBlockHeader, TestBlockHeader, genesis_block_headers,
+        },
         context::Context,
         error::ConsensusError,
     };
@@ -1248,6 +1249,20 @@ mod tests {
             err => panic!("Unexpected error: {err:?}"),
         }
     }
+
+    #[tokio::test]
+    async fn test_genesis_block_headers() {
+        let (context, _) = Context::new_for_test(4);
+        const TIMESTAMP_MS: u64 = 1000;
+        let context = Arc::new(context.with_epoch_start_timestamp_ms(TIMESTAMP_MS));
+        let block_headers = genesis_block_headers(&context);
+        for (i, header) in block_headers.into_iter().enumerate() {
+            assert_eq!(header.author().value(), i);
+            assert_eq!(header.round(), 0);
+            assert_eq!(header.timestamp_ms(), TIMESTAMP_MS);
+        }
+    }
+
     #[tokio::test]
     async fn test_compress_references() {
         use crate::block_header::BlockRef;
@@ -1303,7 +1318,7 @@ mod tests {
                 acknowledgments.clone(),
             );
 
-        let expected = vec![ref_a, ref_b, ref_c, ref_d, ref_e, ref_a];
+        let expected = [ref_a, ref_b, ref_c, ref_d, ref_e, ref_a];
         assert_eq!(references.len(), expected.len());
         for r in references.iter() {
             assert!(expected.contains(r));

@@ -17,7 +17,7 @@ use iota_config::{
     Config, ExecutionCacheConfig, ExecutionCacheType, IOTA_CLIENT_CONFIG, IOTA_KEYSTORE_FILENAME,
     IOTA_NETWORK_CONFIG, NodeConfig, PersistedConfig,
     genesis::Genesis,
-    node::{AuthorityOverloadConfig, DBCheckpointConfig, RunWithRange},
+    node::{AuthorityOverloadConfig, DBCheckpointConfig, GrpcApiConfig, RunWithRange},
 };
 use iota_core::{
     authority_aggregator::AuthorityAggregator, authority_client::NetworkAuthorityClient,
@@ -31,7 +31,7 @@ use iota_json_rpc_types::{
 };
 use iota_keys::keystore::{AccountKeystore, FileBasedKeystore, Keystore};
 use iota_node::IotaNodeHandle;
-use iota_protocol_config::ProtocolVersion;
+use iota_protocol_config::{Chain, ProtocolVersion};
 use iota_sdk::{
     IotaClient, IotaClientBuilder,
     apis::QuorumDriverApi,
@@ -53,6 +53,7 @@ use iota_types::{
     base_types::{AuthorityName, ConciseableName, IotaAddress, ObjectID, ObjectRef},
     committee::{Committee, CommitteeTrait, EpochId},
     crypto::{AccountKeyPair, IotaKeyPair, KeypairTraits, get_key_pair},
+    digests::TransactionDigest,
     effects::{TransactionEffects, TransactionEvents},
     error::IotaResult,
     governance::MIN_VALIDATOR_JOINING_STAKE_NANOS,
@@ -313,7 +314,7 @@ impl TestCluster {
             }
         })
             .await
-            .expect("Timed out waiting for cluster to hit target epoch and recv shutdown signal from iota-node")
+            .expect("timed out waiting for cluster to hit target epoch and recv shutdown signal from iota-node")
     }
 
     pub async fn wait_for_protocol_version(
@@ -341,7 +342,7 @@ impl TestCluster {
             }
         })
         .await
-        .expect("Timed out waiting for cluster to target protocol version")
+        .expect("timed out waiting for cluster to target protocol version")
     }
 
     /// Ask 2f+1 validators to close epoch actively, and wait for the entire
@@ -363,7 +364,7 @@ impl TestCluster {
                 .with_async(|node| async {
                     node.close_epoch_for_testing().await.unwrap_or_else(|_| {
                         fatal!(
-                            "Failed to close epoch for validator {:?}",
+                            "failed to close epoch for validator {:?}",
                             node.state().name
                         );
                     });
@@ -421,15 +422,15 @@ impl TestCluster {
                     _ => (),
                 }
             }
-            unreachable!("Broken reconfig channel");
+            unreachable!("broken reconfig channel");
         })
             .await
             .unwrap_or_else(|_| {
-                error!("Timed out waiting for cluster to reach epoch {target_epoch:?}");
+                error!("timed out waiting for cluster to reach epoch {target_epoch:?}");
                 if let Some(state) = state {
-                    panic!("Timed out waiting for cluster to reach epoch {target_epoch:?}. Current epoch: {}", state.epoch());
+                    panic!("timed out waiting for cluster to reach epoch {target_epoch:?}. Current epoch: {}", state.epoch());
                 }
-                panic!("Timed out waiting for cluster to target epoch {target_epoch:?}")
+                panic!("timed out waiting for cluster to target epoch {target_epoch:?}")
             })
     }
 
@@ -469,7 +470,7 @@ impl TestCluster {
                         tokio::time::sleep(Duration::from_secs(1)).await;
                         retries += 1;
                         if retries % 5 == 0 {
-                            tracing::warn!(validator=?node.state().name.concise(), "Waiting for {:?} seconds to reach epoch {:?}. Currently at epoch {:?}", retries, target_epoch, epoch);
+                            tracing::warn!(validator=?node.state().name.concise(), "waiting for {retries:?} seconds to reach epoch {target_epoch:?}. Currently at epoch {epoch:?}");
                         }
                     }
                 })
@@ -543,13 +544,13 @@ impl TestCluster {
                         match &tx.data().intent_message().value.kind() {
                             TransactionKind::EndOfEpochTransaction(_) => (),
                             TransactionKind::AuthenticatorStateUpdateV1(_) => break,
-                            _ => panic!("{tx:?}"),
+                            _ => panic!("received unexpected transaction kind: {tx:?}"),
                         }
                     }
                 }),
         )
         .await
-        .expect("Timed out waiting for authenticator state update");
+        .expect("timed out waiting for authenticator state update");
     }
 
     /// Return the highest observed protocol version in the test cluster.
@@ -728,18 +729,19 @@ impl TestCluster {
     }
 
     /// This call sends some funds from the seeded faucet address to the funding
-    /// address for the given amount and returns the gas object ref. This
-    /// is useful to construct transactions from the funding address.
-    pub async fn fund_address_and_return_gas(
+    /// address for the given amount and returns the gas object ref and
+    /// transaction digest. This is useful to construct transactions from
+    /// the funding address.
+    pub async fn fund_address_and_return_gas_and_tx(
         &self,
         rgp: u64,
         amount: Option<u64>,
         funding_address: IotaAddress,
-    ) -> ObjectRef {
+    ) -> (ObjectRef, TransactionDigest) {
         let Faucet { address, keypair } = &self
             .faucet
             .as_ref()
-            .expect("Faucet not initialized: incompatible with `NetworkConfig`.");
+            .expect("faucet not initialized: incompatible with `NetworkConfig`.");
 
         let keypair = &*keypair.lock().await;
 
@@ -768,14 +770,34 @@ impl TestCluster {
             .await
             .unwrap();
 
-        response
+        let object_ref = response
             .effects
+            .as_ref()
             .unwrap()
             .created()
             .first()
             .unwrap()
             .reference
-            .to_object_ref()
+            .to_object_ref();
+
+        let tx_digest = response.digest;
+
+        (object_ref, tx_digest)
+    }
+
+    /// This call sends some funds from the seeded faucet address to the funding
+    /// address for the given amount and returns the gas object ref. This
+    /// is useful to construct transactions from the funding address.
+    pub async fn fund_address_and_return_gas(
+        &self,
+        rgp: u64,
+        amount: Option<u64>,
+        funding_address: IotaAddress,
+    ) -> ObjectRef {
+        let (object_ref, _tx_digest) = self
+            .fund_address_and_return_gas_and_tx(rgp, amount, funding_address)
+            .await;
+        object_ref
     }
 
     pub async fn transfer_iota_must_exceed(
@@ -825,7 +847,7 @@ impl TestCluster {
             }
         })
         .await
-        .expect("Timeout waiting for indexer to catchup to checkpoint");
+        .expect("timeout waiting for indexer to catchup to checkpoint");
     }
 
     /// Get all objects owned by an address
@@ -1002,11 +1024,12 @@ pub struct TestClusterBuilder {
     fullnode_run_with_range: Option<RunWithRange>,
     fullnode_policy_config: Option<PolicyConfig>,
     fullnode_fw_config: Option<RemoteFirewallConfig>,
-    fullnode_grpc_api_config: Option<iota_grpc_api::Config>,
+    fullnode_grpc_api_config: Option<GrpcApiConfig>,
     max_submit_position: Option<usize>,
     submit_delay_step_override_millis: Option<u64>,
     validator_state_accumulator_config: StateAccumulatorV1EnabledConfig,
     disable_address_verification_cooldown: bool,
+    chain_override: Option<Chain>,
 }
 
 impl TestClusterBuilder {
@@ -1014,6 +1037,7 @@ impl TestClusterBuilder {
         TestClusterBuilder {
             genesis_config: None,
             network_config: None,
+            chain_override: None,
             additional_objects: vec![],
             fullnode_rpc_port: None,
             fullnode_rpc_addr: None,
@@ -1273,6 +1297,11 @@ impl TestClusterBuilder {
         self
     }
 
+    pub fn with_chain_override(mut self, chain: Chain) -> Self {
+        self.chain_override = Some(chain);
+        self
+    }
+
     pub async fn build(mut self) -> TestCluster {
         // We can add a faucet account to the `GenesisConfig` if there was no
         // `NetworkConfig` provided. Only either a `GenesisConfig` or a
@@ -1373,6 +1402,10 @@ impl TestClusterBuilder {
             .with_fullnode_run_with_range(self.fullnode_run_with_range)
             .with_fullnode_policy_config(self.fullnode_policy_config.clone())
             .with_fullnode_fw_config(self.fullnode_fw_config.clone());
+
+        if let Some(chain) = self.chain_override {
+            builder = builder.with_chain_override(chain);
+        }
 
         if let Some(genesis_config) = self.genesis_config.take() {
             builder = builder.with_genesis_config(genesis_config);

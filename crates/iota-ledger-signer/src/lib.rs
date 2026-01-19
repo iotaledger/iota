@@ -10,7 +10,7 @@ use iota_sdk::{
         transaction::TransactionData,
     },
 };
-use shared_crypto::intent::Intent;
+use iota_sdk_types::Intent;
 use tracing::warn;
 
 mod errors;

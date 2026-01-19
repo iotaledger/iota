@@ -9,16 +9,19 @@ description = "Move stdlib"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 [dependencies]
+# external dependencies
 anyhow.workspace = true
 hex.workspace = true
 log.workspace = true
+sha2.workspace = true
+walkdir.workspace = true
+
+# internal dependencies
 move-binary-format.workspace = true
 move-command-line-common.workspace = true
 move-core-types.workspace = true
 move-docgen.workspace = true
 move-package.workspace = true
-sha2.workspace = true
-walkdir.workspace = true
 
 [dev-dependencies]
 tempfile.workspace = true

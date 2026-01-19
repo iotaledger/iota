@@ -54,7 +54,7 @@ async fn main() -> Result<()> {
     tokio::spawn(async move {
         signal::ctrl_c()
             .await
-            .expect("Failed to install Ctrl+C handler");
+            .expect("failed to install Ctrl+C handler");
         token.cancel();
     });
     executor.await?;

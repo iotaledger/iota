@@ -2,10 +2,8 @@
 // Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::{
-    interpreter::{Frame, Interpreter},
-    loader::{Function, Loader},
-};
+use std::collections::BTreeMap;
+
 use move_binary_format::{
     errors::{PartialVMError, VMError, VMResult},
     file_format::{ConstantPoolIndex, SignatureIndex},
@@ -21,9 +19,14 @@ use move_trace_format::format::{
 };
 use move_vm_types::{loaded_data::runtime_types::Type, values::Value};
 use smallvec::SmallVec;
-use std::collections::BTreeMap;
 
-/// Internal state for the tracer. This is where the actual tracing logic is implemented.
+use crate::{
+    interpreter::{Frame, Interpreter},
+    loader::{Function, Loader},
+};
+
+/// Internal state for the tracer. This is where the actual tracing logic is
+/// implemented.
 pub(crate) struct VMTracer<'a> {
     trace: &'a mut MoveTraceBuilder,
     link_context: Option<AccountAddress>,
@@ -43,9 +46,10 @@ struct FrameInfo {
     return_types: Vec<TagWithLayoutInfoOpt>,
 }
 
-/// A type tag, and the move type layout and reference information for that type if it is
-/// computable without error. Due to runtime value depth restrictions you can have a valid type
-/// whose type layout is not computable at runtime without error.
+/// A type tag, and the move type layout and reference information for that type
+/// if it is computable without error. Due to runtime value depth restrictions
+/// you can have a valid type whose type layout is not computable at runtime
+/// without error.
 #[derive(Debug, Clone)]
 struct TagWithLayoutInfoOpt {
     tag: TypeTag,
@@ -61,10 +65,11 @@ struct FunctionTypeInfo {
     return_types: Vec<TagWithLayoutInfoOpt>,
 }
 
-/// A runtime location can refer to the stack to make it easier to refer to values on the stack and
-/// resolving them. However, the stack is not a valid location for a reference and all references
-/// are rooted in a local or global so the Trace `Location` does not include the stack, and
-/// only `Local`, `Global`, and `Indexed` locations.
+/// A runtime location can refer to the stack to make it easier to refer to
+/// values on the stack and resolving them. However, the stack is not a valid
+/// location for a reference and all references are rooted in a local or global
+/// so the Trace `Location` does not include the stack, and only `Local`,
+/// `Global`, and `Indexed` locations.
 #[derive(Debug, Clone)]
 enum RuntimeLocation {
     Stack(usize),
@@ -73,14 +78,15 @@ enum RuntimeLocation {
     Global(TraceIndex),
 }
 
-/// The reference information for a local. This is used to track the state of a local in a frame.
+/// The reference information for a local. This is used to track the state of a
+/// local in a frame.
 /// * It can be a value, in which case the reference type is `Value`.
-/// * It can be a local that does not currently hold a value (is "empty"), in which case
-///   we track the reference type and the type of the local, but we don't have a `RuntimeLocation`
-///   for the reference. This is e.g., the case when we open a frame and the local is not
-///   initialized yet.
-/// * It can be a local that holds a value (is "filled"), in which case we track the reference type and the
-///   location the reference resolves to.
+/// * It can be a local that does not currently hold a value (is "empty"), in
+///   which case we track the reference type and the type of the local, but we
+///   don't have a `RuntimeLocation` for the reference. This is e.g., the case
+///   when we open a frame and the local is not initialized yet.
+/// * It can be a local that holds a value (is "filled"), in which case we track
+///   the reference type and the location the reference resolves to.
 #[derive(Debug, Clone)]
 enum ReferenceType {
     Value,
@@ -93,8 +99,8 @@ enum ReferenceType {
     },
 }
 
-/// A `RootedType` is a a type layout with reference information, where any reference type is
-/// fully rooted back to a specific location.
+/// A `RootedType` is a type layout with reference information, where any
+/// reference type is fully rooted back to a specific location.
 #[derive(Debug, Clone)]
 struct RootedType {
     layout: MoveTypeLayout,
@@ -102,9 +108,10 @@ struct RootedType {
 }
 
 /// A `LocalType` layout where a reference type may not be rooted to a
-/// specific location (or it may be rooted to a specific location if the location is filled with a
-/// value at the time). Note the type layout may be `None` in the case where the type is not
-/// calculable at runtime without error.
+/// specific location (or it may be rooted to a specific location if the
+/// location is filled with a value at the time). Note the type layout may be
+/// `None` in the case where the type is not calculable at runtime without
+/// error.
 #[derive(Debug, Clone)]
 struct LocalType {
     layout: Option<MoveTypeLayout>,
@@ -195,13 +202,15 @@ impl VMTracer<'_> {
         Some(self.current_frame()?.locals_types.as_slice())
     }
 
-    /// Return the current frame identifier. This is trace index of the frame and is used to
-    /// identify reference locations rooted higher up the call stack.
+    /// Return the current frame identifier. This is trace index of the frame
+    /// and is used to identify reference locations rooted higher up the
+    /// call stack.
     fn current_frame_identifier(&self) -> Option<TraceIndex> {
         Some(self.current_frame()?.frame_identifier)
     }
 
-    /// Given the trace index for a frame, return the index of the frame in the call stack.
+    /// Given the trace index for a frame, return the index of the frame in the
+    /// call stack.
     fn trace_index_to_frame_index(&self, idx: TraceIndex) -> Option<usize> {
         self.active_frames
             .range(..=idx)
@@ -216,8 +225,8 @@ impl VMTracer<'_> {
         self.effects = effects;
     }
 
-    /// Register the post-effects for the instruction (i.e., pushes, writes) and return the total
-    /// effects for the instruction.
+    /// Register the post-effects for the instruction (i.e., pushes, writes) and
+    /// return the total effects for the instruction.
     fn register_post_effects(&mut self, effects: Vec<EF>) -> Vec<EF> {
         self.effects.extend(effects);
         std::mem::take(&mut self.effects)
@@ -232,8 +241,8 @@ impl VMTracer<'_> {
         Some(())
     }
 
-    /// Invalidate a local in the current frame. This is used to mark a local as uninitialized and
-    /// remove its reference information.
+    /// Invalidate a local in the current frame. This is used to mark a local as
+    /// uninitialized and remove its reference information.
     fn invalidate_local(&mut self, local_index: usize) -> Option<()> {
         let local = self
             .current_frame_mut()?
@@ -251,8 +260,8 @@ impl VMTracer<'_> {
         Some(())
     }
 
-    /// Resolve a value on the stack to a TraceValue. References are fully rooted all the way back
-    /// to their location in a local.
+    /// Resolve a value on the stack to a TraceValue. References are fully
+    /// rooted all the way back to their location in a local.
     fn resolve_stack_value(
         &self,
         frame: Option<&Frame>,
@@ -270,8 +279,8 @@ impl VMTracer<'_> {
         )
     }
 
-    /// Resolve a value in a local to a TraceValue. References are fully rooted all the way back to
-    /// their root location in a local.
+    /// Resolve a value in a local to a TraceValue. References are fully rooted
+    /// all the way back to their root location in a local.
     fn resolve_local(
         &self,
         frame: &Frame,
@@ -285,8 +294,8 @@ impl VMTracer<'_> {
         )
     }
 
-    /// Shared utility function that creates a TraceValue from a runtime location along with
-    /// grabbing the snapshot of the value.
+    /// Shared utility function that creates a TraceValue from a runtime
+    /// location along with grabbing the snapshot of the value.
     fn make_trace_value(
         &self,
         location: RuntimeLocation,
@@ -308,8 +317,8 @@ impl VMTracer<'_> {
         })
     }
 
-    /// Given a location, resolve it to the value it points to or the value itself in the case
-    /// where it's not a reference.
+    /// Given a location, resolve it to the value it points to or the value
+    /// itself in the case where it's not a reference.
     fn resolve_location(
         &self,
         loc: &RuntimeLocation,
@@ -351,8 +360,8 @@ impl VMTracer<'_> {
         })
     }
 
-    /// Snapshot the value at the root of a location. This is used to create the value snapshots
-    /// for TraceValue references.
+    /// Snapshot the value at the root of a location. This is used to create the
+    /// value snapshots for TraceValue references.
     fn root_location_snapshot(
         &self,
         loc: &RuntimeLocation,
@@ -413,12 +422,13 @@ impl VMTracer<'_> {
             .expect("Link context always set by this point")
     }
 
-    /// Load global data into the tracer state returning back the `TraceValue` and the `TraceIndex`
-    /// of the load (suitable for use in global locations).
+    /// Load global data into the tracer state returning back the `TraceValue`
+    /// and the `TraceIndex` of the load (suitable for use in global
+    /// locations).
     fn emit_data_load(&mut self, value: MoveValue, ref_type: &RefType) -> (TraceIndex, TraceValue) {
         // We treat any references coming out of a native as global reference.
-        // This generally works fine as long as you don't have a native function returning a
-        // mutable reference within a mutable reference passed-in.
+        // This generally works fine as long as you don't have a native function
+        // returning a mutable reference within a mutable reference passed-in.
         let id = self.trace.current_trace_offset();
 
         let location = RuntimeLocation::Global(id);
@@ -442,7 +452,8 @@ impl VMTracer<'_> {
     }
 
     /// Load data returned by a native function into the tracer state.
-    /// We also emit a data load event for the data loaded from the native function.
+    /// We also emit a data load event for the data loaded from the native
+    /// function.
     fn load_data(
         &mut self,
         layout: &MoveTypeLayout,
@@ -503,9 +514,8 @@ impl VMTracer<'_> {
         let function_type_info = FunctionTypeInfo::new(function, loader, ty_args, link_context)?;
 
         assert!(function_type_info.local_types.len() == function.local_count());
-        let start_trace_index = self.trace.current_trace_offset();
 
-        let call_args: Vec<_> = args
+        let call_args: Vec<(_, _)> = args
             .iter()
             .zip(function_type_info.local_types.iter().cloned())
             .map(|(value, tag_with_layout_info_opt)| {
@@ -515,9 +525,9 @@ impl VMTracer<'_> {
                     Some(ref_type) => {
                         let (id, trace_value) = self.emit_data_load(move_value, &ref_type);
                         self.loaded_data.insert(id, trace_value.clone());
-                        Some(trace_value)
+                        Some((trace_value, Some(id)))
                     }
-                    None => Some(TraceValue::RuntimeValue { value: move_value }),
+                    None => Some((TraceValue::RuntimeValue { value: move_value }, None)),
                 }
             })
             .collect::<Option<_>>()?;
@@ -533,9 +543,8 @@ impl VMTracer<'_> {
                     layout,
                     ref_type: ref_type
                         .map(|r_type| {
-                            let possible_location = start_trace_index + i;
-                            if self.loaded_data.contains_key(&possible_location) {
-                                let location = RuntimeLocation::Global(possible_location);
+                            if let Some(location) = call_args.get(i).and_then(|(_, id)| *id) {
+                                let location = RuntimeLocation::Global(location);
                                 ReferenceType::Filled {
                                     ref_type: r_type,
                                     location,
@@ -565,7 +574,10 @@ impl VMTracer<'_> {
             function.index(),
             function.name().to_string(),
             function.module_id().clone(),
-            call_args,
+            call_args
+                .into_iter()
+                .map(|(trace_value, _)| trace_value)
+                .collect(),
             function_type_info.ty_args,
             function_type_info
                 .return_types
@@ -717,8 +729,8 @@ impl VMTracer<'_> {
             .map(|i| self.resolve_stack_value(Some(frame), interpreter, i))
             .collect::<Option<Vec<_>>>()?;
 
-        // Note that when a native function frame closes the values returned by the native function
-        // are all pushed on the operand stack.
+        // Note that when a native function frame closes the values returned by the
+        // native function are all pushed on the operand stack.
         if function.is_native() {
             for val in &return_values {
                 self.trace.effect(EF::Push(val.clone()));
@@ -920,16 +932,17 @@ impl VMTracer<'_> {
     ) -> Option<()> {
         use move_binary_format::file_format::Bytecode as B;
 
-        // NB: Do _not_ use the frames pc here, as it will be incremented by the interpreter to the
-        // next instruction already.
+        // NB: Do _not_ use the frames pc here, as it will be incremented by the
+        // interpreter to the next instruction already.
         let pc = self
             .pc
             .expect("PC always set by this point by `open_instruction`");
 
-        // NB: At the start of this function (i.e., at this point) the operand stack in the VM, and
-        // the type stack in the tracer are _out of sync_. This is because the VM has already
-        // executed the instruction and we now need to manage the type transition of the
-        // instruction along with snapshoting the effects of the instruction's execution.
+        // NB: At the start of this function (i.e., at this point) the operand stack in
+        // the VM, and the type stack in the tracer are _out of sync_. This is
+        // because the VM has already executed the instruction and we now need
+        // to manage the type transition of the instruction along with
+        // snapshoting the effects of the instruction's execution.
         let instruction = &frame.function.code()[pc as usize];
         match instruction {
             B::Pop | B::BrTrue(_) | B::BrFalse(_) => {
@@ -1042,8 +1055,8 @@ impl VMTracer<'_> {
             | B::Shl
             | B::Shr => {
                 self.type_stack.pop()?;
-                // NB in the case of shift left and shift right the second operand is the resultant
-                // value type.
+                // NB in the case of shift left and shift right the second operand is the
+                // resultant value type.
                 let a_ty = self.type_stack.pop()?;
                 self.type_stack.push(a_ty);
 
@@ -1473,7 +1486,7 @@ impl VMTracer<'_> {
                 let MoveTypeLayout::Enum(e) = ty.layout else {
                     panic!("Expected enum, got {:#?}", ty.layout);
                 };
-                let variant_layout = e.variants.iter().find(|v| v.0 .1 == tag)?;
+                let variant_layout = e.variants.iter().find(|v| v.0.1 == tag)?;
                 let mut effects = vec![];
                 for f_layout in variant_layout.1.iter() {
                     let a_layout = RootedType {
@@ -1516,7 +1529,7 @@ impl VMTracer<'_> {
                 let MoveTypeLayout::Enum(e) = ty.layout else {
                     panic!("Expected enum, got {:#?}", ty.layout);
                 };
-                let variant_layout = e.variants.iter().find(|v| v.0 .1 == tag)?;
+                let variant_layout = e.variants.iter().find(|v| v.0.1 == tag)?;
                 let location = ty.ref_type.as_ref()?.1.clone();
 
                 let mut effects = vec![];
@@ -1677,8 +1690,8 @@ impl<'a> VMTracer<'a> {
             .is_none()
         {
             // If we fail to close the instruction, we need to emit an error event.
-            // This can be the case where the instruction itself failed -- e.g. with a division by
-            // zero, invalid cast, etc.
+            // This can be the case where the instruction itself failed -- e.g. with a
+            // division by zero, invalid cast, etc.
             let error_string = match err {
                 Some(err) => format!("{:?}", err.major_status()),
                 None => "VM tracer failed to close instruction but interpreter was OK -- this is most likely a bug in the tracer".to_string(),
@@ -1699,8 +1712,8 @@ impl<'a> VMTracer<'a> {
 }
 
 impl FunctionTypeInfo {
-    /// Resolve a function to all of its type information (type arguments, local types, and return
-    /// types).
+    /// Resolve a function to all of its type information (type arguments, local
+    /// types, and return types).
     fn new(
         function: &Function,
         loader: &Loader,

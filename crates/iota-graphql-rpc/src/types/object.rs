@@ -32,6 +32,7 @@ use move_core_types::{
 use serde::{Deserialize, Serialize};
 
 use crate::{
+    config::DEFAULT_PAGE_SIZE,
     connection::ScanConnection,
     consistency::{Checkpointed, View, build_objects_query},
     data::{DataLoader, Db, DbConnection, QueryExecutor, package_resolver::PackageResolver},
@@ -133,11 +134,8 @@ pub(crate) struct ObjectRef {
 ///   `objectKeys`.
 #[derive(InputObject, Default, Debug, Clone, Eq, PartialEq)]
 pub(crate) struct ObjectFilter {
-    /// This field is used to specify the type of objects that should be
-    /// included in the query results.
-    ///
-    /// Objects can be filtered by their type's package, package::module, or
-    /// their fully qualified type name.
+    /// Filter objects by their type's `package`, `package::module`, or their
+    /// fully qualified type name.
     ///
     /// Generic types can be queried by either the generic type name, e.g.
     /// `0x2::coin::Coin`, or by the full type name, such as
@@ -260,14 +258,16 @@ pub(crate) struct HistoricalObjectCursor {
     field(
         name = "status",
         ty = "ObjectStatus",
-        desc = "The current status of the object as read from the off-chain store. The possible \
-                states are: NOT_INDEXED, the object is loaded from serialized data, such as the \
-                contents of a genesis or system package upgrade transaction. LIVE, the version \
-                returned is the most recent for the object, and it is not deleted or wrapped at \
-                that version. HISTORICAL, the object was referenced at a specific version or \
-                checkpoint, so is fetched from historical tables and may not be the latest version \
-                of the object. WRAPPED_OR_DELETED, the object is deleted or wrapped and only \
-                partial information can be loaded."
+        desc = r#"
+            The current status of the object as read from the off-chain store. The
+            possible states are:
+            - NOT_INDEXED: The object is loaded from serialized data, such as the
+            contents of a genesis or system package upgrade transaction.
+            - INDEXED: The object is retrieved from the off-chain index and
+            represents the most recent or historical state of the object.
+            - WRAPPED_OR_DELETED: The object is deleted or wrapped and only partial
+            information can be loaded.
+        "#
     ),
     field(
         name = "digest",
@@ -465,14 +465,13 @@ impl Object {
     }
 
     /// The current status of the object as read from the off-chain store. The
-    /// possible states are: NOT_INDEXED, the object is loaded from
-    /// serialized data, such as the contents of a genesis or system package
-    /// upgrade transaction. LIVE, the version returned is the most recent for
-    /// the object, and it is not deleted or wrapped at that version.
-    /// HISTORICAL, the object was referenced at a specific version or
-    /// checkpoint, so is fetched from historical tables and may not be the
-    /// latest version of the object. WRAPPED_OR_DELETED, the object is deleted
-    /// or wrapped and only partial information can be loaded."
+    /// possible states are:
+    /// - NOT_INDEXED: The object is loaded from serialized data, such as the
+    ///   contents of a genesis or system package upgrade transaction.
+    /// - INDEXED: The object is retrieved from the off-chain index and
+    ///   represents the most recent or historical state of the object.
+    /// - WRAPPED_OR_DELETED: The object is deleted or wrapped and only partial
+    ///   information can be loaded.
     pub(crate) async fn status(&self) -> ObjectStatus {
         ObjectImpl(self).status().await
     }
@@ -529,6 +528,9 @@ impl Object {
     /// GraphQL, but it can be restricted by the `after` and `before`
     /// cursors, and the `beforeCheckpoint`, `afterCheckpoint` and
     /// `atCheckpoint` filters.
+    #[graphql(
+        complexity = "first.or(last).unwrap_or(DEFAULT_PAGE_SIZE as u64) as usize * child_complexity"
+    )]
     pub(crate) async fn received_transaction_blocks(
         &self,
         ctx: &Context<'_>,
@@ -678,10 +680,9 @@ impl ObjectImpl<'_> {
             return Ok(None);
         };
         let digest = native.previous_transaction;
+        let key = transaction_block::DigestKey::new(digest.into(), self.0.checkpoint_viewed_at);
 
-        TransactionBlock::query(ctx, digest.into(), self.0.checkpoint_viewed_at)
-            .await
-            .extend()
+        TransactionBlock::query(ctx, key.into()).await.extend()
     }
 
     pub(crate) async fn storage_rebate(&self) -> Option<BigInt> {
@@ -1055,6 +1056,43 @@ impl Object {
             }),
         }
     }
+
+    pub(crate) fn try_from_stored_object(
+        stored_object: StoredObject,
+        checkpoint_viewed_at: u64,
+    ) -> Result<Self, Error> {
+        let address = addr(&stored_object.object_id)?;
+
+        let native_object = bcs::from_bytes(&stored_object.serialized_object)
+            .map_err(|_| Error::Internal(format!("Failed to deserialize object {address}")))?;
+
+        let root_version = version_for_dynamic_fields(&native_object);
+
+        let stored_history_like = StoredHistoryObject {
+            object_id: stored_object.object_id,
+            object_version: stored_object.object_version,
+            object_digest: Some(stored_object.object_digest),
+            object_status: NativeObjectStatus::Active as i16,
+            checkpoint_sequence_number: checkpoint_viewed_at as i64,
+            serialized_object: Some(stored_object.serialized_object),
+            object_type: stored_object.object_type,
+            object_type_package: stored_object.object_type_package,
+            object_type_module: stored_object.object_type_module,
+            object_type_name: stored_object.object_type_name,
+            owner_type: Some(stored_object.owner_type),
+            owner_id: stored_object.owner_id,
+            coin_type: stored_object.coin_type,
+            coin_balance: stored_object.coin_balance,
+            df_kind: stored_object.df_kind,
+        };
+
+        Ok(Self {
+            address,
+            kind: ObjectKind::Indexed(native_object, stored_history_like),
+            checkpoint_viewed_at,
+            root_version,
+        })
+    }
 }
 
 /// We're deliberately choosing to use a child object's version as the root
@@ -1302,6 +1340,10 @@ impl Loader<HistoricalKey> for Db {
         use objects_history::dsl as h;
         use objects_version::dsl as v;
 
+        if keys.is_empty() {
+            return Ok(HashMap::new());
+        }
+
         let id_versions: BTreeSet<_> = keys
             .iter()
             .map(|key| (key.id.into_vec(), key.version as i64))
@@ -1370,6 +1412,10 @@ impl Loader<OptimisticKey> for Db {
     async fn load(&self, keys: &[OptimisticKey]) -> Result<HashMap<OptimisticKey, Object>, Error> {
         use objects::dsl as o;
 
+        if keys.is_empty() {
+            return Ok(HashMap::new());
+        }
+
         let id_versions: BTreeSet<_> = keys
             .iter()
             .map(|key| (key.id.into_vec(), key.version as i64))
@@ -1401,14 +1447,7 @@ impl Loader<OptimisticKey> for Db {
         let mut missing_keys = Vec::new();
         for key in keys {
             if let Some(stored) = id_version_to_stored.get(&(key.id, key.version)) {
-                let object = Object::from_native(
-                    key.id,
-                    bcs::from_bytes(&stored.serialized_object).map_err(|_| {
-                        Error::Internal(format!("Failed to deserialize object {}", key.id))
-                    })?,
-                    u64::MAX,
-                    None,
-                );
+                let object = Object::try_from_stored_object(stored.clone(), u64::MAX)?;
                 result.insert(*key, object);
             } else {
                 missing_keys.push(*key);

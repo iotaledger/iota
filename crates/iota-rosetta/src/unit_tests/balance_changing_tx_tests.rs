@@ -22,6 +22,7 @@ use iota_sdk::{
         IotaTransactionBlockResponse, OwnedObjectRef,
     },
 };
+use iota_sdk_types::crypto::Intent;
 use iota_types::{
     TypeTag,
     base_types::{IotaAddress, ObjectID, ObjectRef},
@@ -39,7 +40,6 @@ use iota_types::{
 use move_core_types::{identifier::Identifier, language_storage::StructTag};
 use rand::seq::{IteratorRandom, SliceRandom};
 use serde_json::json;
-use shared_crypto::intent::Intent;
 use signature::rand_core::OsRng;
 use test_cluster::TestClusterBuilder;
 
@@ -753,7 +753,7 @@ async fn test_transaction(
             Some(ExecuteTransactionRequestType::WaitForLocalExecution),
         )
         .await
-        .map_err(|e| anyhow!("TX execution failed for {data:#?}, error : {e}"))
+        .map_err(|e| anyhow!("tx execution failed for {data:#?}, error : {e}"))
         .unwrap();
 
     let effects = response.effects.as_ref().unwrap();
@@ -762,7 +762,7 @@ async fn test_transaction(
         assert_eq!(
             IotaExecutionStatus::Success,
             *effects.status(),
-            "TX execution failed for {data:#?}"
+            "tx execution failed for {data:#?}"
         );
     } else {
         assert!(matches!(

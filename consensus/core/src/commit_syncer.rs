@@ -561,6 +561,10 @@ impl<C: NetworkClient> CommitSyncer<C> {
         commit_range: CommitRange,
         timeout: Duration,
     ) -> ConsensusResult<CertifiedCommits> {
+        // Maximum delay between consecutive pipelined requests, to avoid
+        // overwhelming the peer while still maintaining reasonable throughput.
+        const MAX_PIPELINE_DELAY: Duration = Duration::from_secs(1);
+
         let hostname = inner
             .context
             .committee
@@ -614,7 +618,8 @@ impl<C: NetworkClient> CommitSyncer<C> {
                 async move {
                     // 4. Send out pipelined fetch requests to avoid overloading the target
                     //    authority.
-                    sleep(timeout * i as u32 / num_chunks).await;
+                    let individual_delay = (timeout / num_chunks).min(MAX_PIPELINE_DELAY);
+                    sleep(individual_delay * i as u32).await;
                     // TODO: add some retries.
                     let serialized_blocks = inner
                         .network_client
@@ -690,18 +695,27 @@ impl<C: NetworkClient> CommitSyncer<C> {
                 .context
                 .metrics
                 .node_metrics
-                .block_timestamp_drift_wait_ms
+                .block_timestamp_drift_ms
                 .with_label_values(&[peer_hostname.as_str(), "commit_syncer"])
                 .inc_by(forward_drift);
-            let forward_drift = Duration::from_millis(forward_drift);
-            if forward_drift >= inner.context.parameters.max_forward_time_drift {
-                warn!(
-                    "Local clock is behind a quorum of peers: local ts {}, certified block ts {}",
-                    now_ms,
-                    block.timestamp_ms()
-                );
+
+            // We want to run the following checks only if the median based commit timestamp
+            // is not enabled.
+            if !inner
+                .context
+                .protocol_config
+                .consensus_median_timestamp_with_checkpoint_enforcement()
+            {
+                let forward_drift = Duration::from_millis(forward_drift);
+                if forward_drift >= inner.context.parameters.max_forward_time_drift {
+                    warn!(
+                        "Local clock is behind a quorum of peers: local ts {}, committed block ts {}",
+                        now_ms,
+                        block.timestamp_ms()
+                    );
+                }
+                sleep(forward_drift).await;
             }
-            sleep(forward_drift).await;
         }
 
         // 9. Now create the Certified commits by assigning the blocks to each commit

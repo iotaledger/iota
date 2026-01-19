@@ -13,10 +13,11 @@ use iota_json_rpc_types::{
     IotaObjectResponse, IotaPastObjectResponse, IotaTransactionBlockResponse,
     IotaTransactionBlockResponseOptions,
 };
+use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
 use iota_sdk::IotaClient;
 use iota_types::{
     base_types::{ObjectID, SequenceNumber, VersionNumber},
-    digests::TransactionDigest,
+    digests::{ChainIdentifier, TransactionDigest},
     object::Object,
     transaction::{
         EndOfEpochTransactionKind, SenderSignedData, TransactionDataAPI, TransactionKind,
@@ -27,7 +28,7 @@ use move_core_types::language_storage::StructTag;
 use parking_lot::RwLock;
 use rand::Rng;
 
-use crate::types::{EPOCH_CHANGE_STRUCT_TAG, ReplayEngineError};
+use crate::types::{EPOCH_CHANGE_STRUCT_TAGS, ReplayEngineError};
 
 /// This trait defines the interfaces for fetching data from some local or
 /// remote store
@@ -342,6 +343,25 @@ impl RemoteFetcher {
         // All other caches should be valid as long as the network doesn't change.
         self.latest_object_cache.write().clear();
     }
+
+    async fn get_protocol_config(
+        &self,
+        protocol_version: u64,
+    ) -> Result<ProtocolConfig, ReplayEngineError> {
+        // Get chain identifier to determine which chain we're on
+        let chain_id = self.get_chain_id().await?;
+
+        // Get protocol config for this version
+        let protocol_config = ProtocolConfig::get_for_version(
+            ProtocolVersion::new(protocol_version),
+            match ChainIdentifier::from_chain_short_id(chain_id.as_str()) {
+                Some(chain_id) => chain_id.chain(),
+                None => Chain::Unknown,
+            },
+        );
+
+        Ok(protocol_config)
+    }
 }
 
 #[async_trait]
@@ -519,13 +539,8 @@ impl DataFetcher for RemoteFetcher {
             })
             .ok_or(ReplayEngineError::EventNotFound { epoch: epoch_id })?;
 
-        let reference_gas_price = if let serde_json::Value::Object(w) = event.parsed_json {
-            u64::from_str(&w["reference_gas_price"].to_string().replace('\"', "")).unwrap()
-        } else {
-            return Err(ReplayEngineError::UnexpectedEventFormat {
-                event: Box::new(event.clone()),
-            });
-        };
+        // Extract protocol version from the event
+        let (_, protocol_version) = extract_epoch_and_version(event.clone())?;
 
         let epoch_change_tx = event.id.tx_digest;
 
@@ -537,15 +552,48 @@ impl DataFetcher for RemoteFetcher {
 
         if let TransactionKind::EndOfEpochTransaction(kinds) = tx_kind_orig {
             for kind in kinds {
-                if let EndOfEpochTransactionKind::ChangeEpoch(change) = kind {
-                    // Backfill cache
-                    self.epoch_info_cache.write().put(
-                        epoch_id,
-                        (change.epoch_start_timestamp_ms, reference_gas_price),
-                    );
+                let (epoch_start_timestamp_ms, reference_gas_price) = match kind {
+                    EndOfEpochTransactionKind::ChangeEpoch(change) => {
+                        let rgp = if let serde_json::Value::Object(ref w) = event.parsed_json {
+                            w.get("reference_gas_price")
+                                .and_then(|v| {
+                                    // Handle both JSON number and string representations
+                                    v.as_u64()
+                                        .or_else(|| v.as_str().and_then(|s| s.parse().ok()))
+                                })
+                                .ok_or_else(|| ReplayEngineError::UnexpectedEventFormat {
+                                    event: Box::new(event.clone()),
+                                })?
+                        } else {
+                            return Err(ReplayEngineError::UnexpectedEventFormat {
+                                event: Box::new(event.clone()),
+                            });
+                        };
 
-                    return Ok((change.epoch_start_timestamp_ms, reference_gas_price));
-                }
+                        (change.epoch_start_timestamp_ms, rgp)
+                    }
+                    EndOfEpochTransactionKind::ChangeEpochV2(change) => (
+                        change.epoch_start_timestamp_ms,
+                        self.get_protocol_config(protocol_version)
+                            .await?
+                            .base_gas_price(),
+                    ),
+                    EndOfEpochTransactionKind::ChangeEpochV3(change) => (
+                        change.epoch_start_timestamp_ms,
+                        self.get_protocol_config(protocol_version)
+                            .await?
+                            .base_gas_price(),
+                    ),
+                    EndOfEpochTransactionKind::AuthenticatorStateCreate
+                    | EndOfEpochTransactionKind::AuthenticatorStateExpire(_) => continue,
+                };
+
+                // Backfill cache
+                self.epoch_info_cache
+                    .write()
+                    .put(epoch_id, (epoch_start_timestamp_ms, reference_gas_price));
+
+                return Ok((epoch_start_timestamp_ms, reference_gas_price));
             }
         }
         Err(ReplayEngineError::InvalidEpochChangeTx { epoch: epoch_id })
@@ -555,30 +603,32 @@ impl DataFetcher for RemoteFetcher {
         &self,
         reverse: bool,
     ) -> Result<Vec<IotaEvent>, ReplayEngineError> {
-        let struct_tag_str = EPOCH_CHANGE_STRUCT_TAG.to_string();
-        let struct_tag = StructTag::from_str(&struct_tag_str)?;
+        let struct_tags: Vec<StructTag> = EPOCH_CHANGE_STRUCT_TAGS
+            .iter()
+            .map(|tag| StructTag::from_str(tag))
+            .collect::<Result<_, _>>()?;
 
         let mut epoch_change_events: Vec<IotaEvent> = vec![];
-        let mut has_next_page = true;
-        let mut cursor = None;
 
-        while has_next_page {
-            let page_data = self
-                .rpc_client
-                .event_api()
-                .query_events(
-                    EventFilter::MoveEventType(struct_tag.clone()),
-                    cursor,
-                    None,
-                    reverse,
-                )
-                .await
-                .map_err(|e| ReplayEngineError::UnableToQuerySystemEvents {
-                    rpc_err: e.to_string(),
-                })?;
-            epoch_change_events.extend(page_data.data);
-            has_next_page = page_data.has_next_page;
-            cursor = page_data.next_cursor;
+        // Query each struct tag separately since fullnode doesn't support Any filter
+        for struct_tag in struct_tags {
+            let event_filter = EventFilter::MoveEventType(struct_tag);
+            let mut has_next_page = true;
+            let mut cursor = None;
+
+            while has_next_page {
+                let page_data = self
+                    .rpc_client
+                    .event_api()
+                    .query_events(event_filter.clone(), cursor, None, reverse)
+                    .await
+                    .map_err(|e| ReplayEngineError::UnableToQuerySystemEvents {
+                        rpc_err: e.to_string(),
+                    })?;
+                epoch_change_events.extend(page_data.data);
+                has_next_page = page_data.has_next_page;
+                cursor = page_data.next_cursor;
+            }
         }
 
         Ok(epoch_change_events)

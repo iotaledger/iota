@@ -23,7 +23,7 @@ use move_core_types::{
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use tokio::time::Duration;
-use tracing::{error, warn};
+use tracing::warn;
 
 use crate::config::ReplayableNetworkConfigSet;
 
@@ -33,8 +33,10 @@ pub(crate) const RPC_TIMEOUT_ERR_NUM_RETRIES: u32 = 3;
 pub(crate) const MAX_CONCURRENT_REQUESTS: usize = 1_000;
 
 // Struct tag used in system epoch change events
-pub(crate) const EPOCH_CHANGE_STRUCT_TAG: &str =
-    "0x3::iota_system_state_inner::SystemEpochInfoEventV1";
+pub(crate) const EPOCH_CHANGE_STRUCT_TAGS: [&str; 2] = [
+    "0x3::iota_system_state_inner::SystemEpochInfoEventV2",
+    "0x3::iota_system_state_inner::SystemEpochInfoEventV1",
+];
 
 // TODO: A lot of the information in OnChainTransactionInfo is redundant from
 // what's already in SenderSignedData. We should consider removing them.

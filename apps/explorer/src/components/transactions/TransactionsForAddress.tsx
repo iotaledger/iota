@@ -72,7 +72,7 @@ export function TransactionsForAddressTable({
         );
     }
 
-    const tableColumns = generateTransactionsTableColumns();
+    const tableColumns = generateTransactionsTableColumns(address);
     const hasTxns = data?.length > 0;
 
     if (!hasTxns) {
@@ -122,6 +122,7 @@ export function TransactionsForAddress({ address }: TransactionsForAddressProps)
                 options: {
                     showEffects: true,
                     showInput: true,
+                    showBalanceChanges: true,
                 },
                 cursor,
                 limit,

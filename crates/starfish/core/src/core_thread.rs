@@ -27,9 +27,9 @@ use crate::{
     block_header::{BlockRef, Round, VerifiedBlock, VerifiedOwnShard, VerifiedTransactions},
     commit::CertifiedCommits,
     context::Context,
-    core::Core,
+    core::{Core, ReasonToCreateBlock},
     core_thread::CoreError::Shutdown,
-    dag_state::DagState,
+    dag_state::{DagState, TransactionSource},
     error::{ConsensusError, ConsensusResult},
 };
 
@@ -68,13 +68,17 @@ enum CoreThreadCommand {
     NewBlock(
         Round,
         oneshot::Sender<BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>>,
-        bool,
+        ReasonToCreateBlock,
     ),
     /// Request missing blocks that need to be synced together with authorities
     /// that have these blocks.
     GetMissingBlocks(oneshot::Sender<BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>>),
     /// Add transactions to be processed and accepted
-    AddTransactions(Vec<VerifiedTransactions>, oneshot::Sender<()>, &'static str),
+    AddTransactions(
+        Vec<VerifiedTransactions>,
+        oneshot::Sender<()>,
+        TransactionSource,
+    ),
     /// Add shards to the dag_state
     AddShards(Vec<VerifiedOwnShard>, oneshot::Sender<()>),
     /// Get missing transaction data that need to be synced
@@ -116,7 +120,7 @@ pub trait CoreThreadDispatcher: Sync + Send + 'static {
     async fn add_transactions(
         &self,
         transactions: Vec<VerifiedTransactions>,
-        source: &'static str,
+        source: TransactionSource,
     ) -> Result<(), CoreError>;
 
     async fn add_shards(&self, shards: Vec<VerifiedOwnShard>) -> Result<(), CoreError>;
@@ -139,7 +143,7 @@ pub trait CoreThreadDispatcher: Sync + Send + 'static {
     async fn new_block(
         &self,
         round: Round,
-        force: bool,
+        reason: ReasonToCreateBlock,
     ) -> Result<BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>, CoreError>;
 
     async fn get_missing_block_headers(
@@ -207,9 +211,9 @@ impl CoreThread {
                             let (missing_block_refs, missing_committed_txns) = self.core.add_certified_commits(commits)?;
                             sender.send((missing_block_refs, missing_committed_txns)).ok();
                         }
-                        CoreThreadCommand::NewBlock(round, sender, force) => {
+                        CoreThreadCommand::NewBlock(round, sender, reason) => {
                             let _scope = monitored_scope("CoreThread::loop::new_block");
-                            let (_new_block_opt, missing_committed_txns) = self.core.new_block(round, force)?;
+                            let (_new_block_opt, missing_committed_txns) = self.core.new_block(round, reason)?;
                             sender.send(missing_committed_txns).ok();
                         }
                         CoreThreadCommand::GetMissingBlocks(sender) => {
@@ -236,7 +240,7 @@ impl CoreThread {
                     let _scope = monitored_scope("CoreThread::loop::set_last_known_proposed_round");
                     let round = *self.rx_last_known_proposed_round.borrow();
                     self.core.set_last_known_proposed_round(round);
-                    self.core.new_block(round + 1, true)?;
+                    self.core.new_block(round + 1, ReasonToCreateBlock::KnownLastBlock)?;
                 }
                 _ = self.rx_quorum_subscribers_exists.changed() => {
                     let _scope = monitored_scope("CoreThread::loop::set_quorum_subscribers_exists");
@@ -246,7 +250,7 @@ impl CoreThread {
                     if !should_propose_before && self.core.should_propose() {
                         // If core cannot propose before but can propose now, try to produce a new block to ensure liveness,
                         // because block proposal could have been skipped.
-                        self.core.new_block(Round::MAX, true)?;
+                        self.core.new_block(Round::MAX, ReasonToCreateBlock::QuorumSubscribersExist)?;
                     }
                 }
             }
@@ -382,7 +386,7 @@ impl CoreThreadDispatcher for ChannelCoreThreadDispatcher {
     async fn add_transactions(
         &self,
         transactions: Vec<VerifiedTransactions>,
-        source: &'static str,
+        source: TransactionSource,
     ) -> Result<(), CoreError> {
         let (sender, receiver) = oneshot::channel();
         self.send(CoreThreadCommand::AddTransactions(
@@ -421,7 +425,7 @@ impl CoreThreadDispatcher for ChannelCoreThreadDispatcher {
         CoreError,
     > {
         for commit in commits.commits() {
-            for block in commit.blocks() {
+            for block in commit.block_headers() {
                 self.highest_received_rounds[block.author()]
                     .fetch_max(block.round(), Ordering::AcqRel);
             }
@@ -435,10 +439,10 @@ impl CoreThreadDispatcher for ChannelCoreThreadDispatcher {
     async fn new_block(
         &self,
         round: Round,
-        force: bool,
+        reason: ReasonToCreateBlock,
     ) -> Result<BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>, CoreError> {
         let (sender, receiver) = oneshot::channel();
-        self.send(CoreThreadCommand::NewBlock(round, sender, force))
+        self.send(CoreThreadCommand::NewBlock(round, sender, reason))
             .await;
         receiver.await.map_err(|e| Shutdown(e.to_string()))
     }
@@ -497,7 +501,7 @@ pub(crate) mod tests {
         block_headers: Mutex<Vec<VerifiedBlockHeader>>,
         missing_block_headers: parking_lot::Mutex<BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>>,
         last_known_proposed_round: Mutex<Vec<Round>>,
-        new_block_calls: Arc<Mutex<Vec<(Round, bool, Instant)>>>,
+        new_block_calls: Arc<Mutex<Vec<(Round, ReasonToCreateBlock, Instant)>>>,
         quorum_subscribers_exists: Mutex<bool>,
     }
 
@@ -532,7 +536,9 @@ pub(crate) mod tests {
             last_known_proposed_round.clone()
         }
 
-        pub(crate) async fn get_new_block_calls(&self) -> Vec<(Round, bool, Instant)> {
+        pub(crate) async fn get_new_block_calls(
+            &self,
+        ) -> Vec<(Round, ReasonToCreateBlock, Instant)> {
             let mut binding = self.new_block_calls.lock();
             let all_calls = binding.drain(0..);
             all_calls.into_iter().collect()
@@ -551,9 +557,8 @@ pub(crate) mod tests {
             ),
             CoreError,
         > {
-            let block_refs = blocks.iter().map(|b| b.reference()).collect();
             self.blocks.lock().extend(blocks);
-            Ok((block_refs, BTreeMap::new()))
+            Ok((BTreeSet::default(), BTreeMap::new()))
         }
 
         async fn add_block_headers(
@@ -566,22 +571,20 @@ pub(crate) mod tests {
             ),
             CoreError,
         > {
-            let block_refs = block_headers
-                .iter()
-                .map(|b| b.reference())
-                .collect::<BTreeSet<_>>();
-            self.block_headers.lock().extend(block_headers);
             let mut missing_block_headers = self.missing_block_headers.lock();
-            for block_ref in &block_refs {
-                missing_block_headers.remove(block_ref);
+            for header in &block_headers {
+                missing_block_headers.remove(&header.reference());
             }
-            Ok((block_refs, BTreeMap::new()))
+
+            self.block_headers.lock().extend(block_headers);
+
+            Ok((BTreeSet::default(), BTreeMap::new()))
         }
 
         async fn add_transactions(
             &self,
             _transactions: Vec<VerifiedTransactions>,
-            _source: &'static str,
+            _source: TransactionSource,
         ) -> Result<(), CoreError> {
             unimplemented!()
         }
@@ -612,11 +615,11 @@ pub(crate) mod tests {
         async fn new_block(
             &self,
             round: Round,
-            force: bool,
+            reason: ReasonToCreateBlock,
         ) -> Result<BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>, CoreError> {
             self.new_block_calls
                 .lock()
-                .push((round, force, Instant::now()));
+                .push((round, reason, Instant::now()));
             Ok(BTreeMap::new())
         }
 

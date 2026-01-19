@@ -124,7 +124,6 @@ const developer = [
                             'developer/cryptography/transaction-auth/keys-addresses',
                             'developer/cryptography/transaction-auth/signatures',
                             'developer/cryptography/transaction-auth/multisig',
-                            'developer/cryptography/transaction-auth/offline-signing',
                             'developer/cryptography/transaction-auth/intent-signing',
                         ],
                     },
@@ -470,6 +469,66 @@ const developer = [
     },
     {
         type: 'category',
+        label: 'Workshops',
+        link: {
+            type: 'doc',
+            id: 'developer/workshops/index',
+        },
+        items: [
+            {
+                type: 'doc',
+                id: 'developer/workshops/core/I-introduction-to-smart-contracts',
+                label: 'Core I: Init and Deploy a Grants package',
+            },
+            {
+                type: 'doc',
+                id: 'developer/workshops/core/II-shared-objects-dynamic-fields-ptbs',
+                label: 'Core II: Coordination with Shared Objects, Dynamic Fields, and PTBs',
+            },
+            {
+                type: 'doc',
+                id: 'developer/workshops/core/III-capabilities-state-tests',
+                label: 'Core III: Capabilities, Type-State, Abilities & Tests',
+            },
+            {
+                type: 'doc',
+                id: 'developer/workshops/core/IV-capstone-dapp-kit',
+                label: 'Core IV: Wrapping it up - Dapp',
+            },
+            {
+                type: 'doc',
+                id: 'developer/workshops/minting-and-managing-tokens',
+                label: 'Minting and Managing Tokens',
+            },
+            {
+                type: 'doc',
+                id: 'developer/workshops/iota-notarization-truedoc',
+                label: 'IOTA Notarization Workshop',
+            },
+            {
+                type: 'doc',
+                id: 'developer/workshops/identity-workshop',
+                label: 'IOTA Identity Workshop',
+            },
+                {
+                type: 'doc',
+                id: 'developer/workshops/gas-station-workshop',
+                label: 'IOTA Gas Station Workshop',
+            },
+            {
+                type: 'doc',
+                id: 'developer/workshops/building-decentralized-applications-with-dapp-kit',
+                label: 'Building Decentralized Applications with dapp-kit Workshop',
+            },
+            {
+                type: 'doc',
+                id: 'developer/workshops/hierarchy-workshop',
+                label: 'IOTA Hierarchy Workshop',
+            },
+        ],
+    },
+    {
+        type: 'category',
         label: 'Standards',
         link: {
             type: 'generated-index',
@@ -635,7 +694,7 @@ const developer = [
         ]
     },
     {
-        type:'category',
+        type: 'category',
         label: 'IOTA EVM',
         items: iotaEvm,
     },

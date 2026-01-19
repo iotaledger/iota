@@ -382,7 +382,7 @@ mod checked {
             }
 
             if execution_result.is_ok() {
-                let gas_check = check_written_objects_limit::<Mode>(
+                let gas_check = check_written_objects_limit(
                     temporary_store,
                     gas_charger,
                     protocol_config,
@@ -473,7 +473,7 @@ mod checked {
                 result = Err(conservation_err);
                 gas_charger.reset(temporary_store);
                 gas_charger.charge_gas(temporary_store, &mut result);
-                // check conservation once more more
+                // check conservation once more
                 if let Err(recovery_err) = {
                     temporary_store
                         .check_iota_conserved(cost_summary)
@@ -558,7 +558,7 @@ mod checked {
     /// transactions, it enforces a hard limit, while for system transactions,
     /// it allows a soft limit with warnings.
     #[instrument(name = "check_written_objects_limit", level = "debug", skip_all)]
-    fn check_written_objects_limit<Mode: ExecutionMode>(
+    fn check_written_objects_limit(
         temporary_store: &mut TemporaryStore<'_>,
         gas_charger: &mut GasCharger,
         protocol_config: &ProtocolConfig,

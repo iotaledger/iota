@@ -32,6 +32,7 @@ import { DialogLayout, DialogLayoutFooter, DialogLayoutBody } from '../../layout
 
 import { IotaSignAndExecuteTransactionOutput } from '@iota/wallet-standard';
 import { ampli } from '@/lib/utils/analytics';
+import { useEffect } from 'react';
 
 interface UnstakeDialogProps {
     extendedStake: ExtendedDelegatedStake;
@@ -53,6 +54,7 @@ export function UnstakeView({
         data: unstakeData,
         isPending: isUnstakeTxPending,
         error,
+        isError: isUnstakeError,
     } = useNewUnstakeTransaction(activeAddress, extendedStake.stakedIotaId);
     const [gasFormatted] = useFormatCoin({
         balance: unstakeData?.gasSummary?.totalGas,
@@ -69,6 +71,16 @@ export function UnstakeView({
             stakeId: extendedStake.stakedIotaId,
             unstake: true,
         });
+
+    const [totalStakeFormatted] = useFormatCoin({
+        balance: totalStakeOriginal,
+    });
+
+    useEffect(() => {
+        if (isUnstakeError && error) {
+            console.error('[DEBUG]: Unstake Error:', error);
+        }
+    }, [isUnstakeError, error]);
 
     const { isLoading: loadingValidators, error: errorValidators } = systemDataResult;
     const {
@@ -96,12 +108,14 @@ export function UnstakeView({
                     onSuccess(tx);
 
                     ampli.unstakedIota({
+                        stakedAmount: Number(totalStakeFormatted),
                         validatorAddress: extendedStake.validatorAddress,
                     });
                 },
             },
-        ).catch(() => {
+        ).catch((error) => {
             toast.error('Unstake transaction was not sent');
+            console.error('Error executing unstake transaction:', error);
         });
     }
 

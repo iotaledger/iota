@@ -5,21 +5,42 @@ use async_graphql::*;
 use diesel::{BoolExpressionMethods, ExpressionMethods, JoinOnDsl, QueryDsl, SelectableHelper};
 use fastcrypto::encoding::Base64;
 use iota_indexer::{
-    models::transactions::OptimisticTransaction,
-    optimistic_indexing::OptimisticTransactionExecutor,
-    schema::{optimistic_transactions, tx_global_order},
+    models::transactions::{OptimisticTransaction, StoredTransaction},
+    schema::{optimistic_transactions, transactions, tx_digests, tx_global_order},
 };
+use iota_json_rpc_api::WriteApiServer;
 use iota_json_rpc_types::IotaTransactionBlockResponseOptions;
 
 use crate::{
     data::{Db, DbConnection, QueryExecutor},
     error::Error,
+    server::builder::get_write_api,
     types::{
-        execution_result::ExecutionResult,
-        transaction_block_effects::{TransactionBlockEffects, TransactionBlockEffectsKind},
+        execution_result::ExecutionResult, transaction_block::TransactionBlock,
+        transaction_block_effects::TransactionBlockEffects,
     },
 };
 pub struct Mutation;
+
+/// Query checkpointed transaction by digest from the database
+async fn query_checkpointed_transaction_by_digest(
+    db: &Db,
+    digest_bytes: Vec<u8>,
+) -> Result<StoredTransaction, Error> {
+    db.execute_repeatable(move |conn| {
+        conn.first(move || {
+            transactions::table
+                .inner_join(
+                    tx_digests::table
+                        .on(transactions::tx_sequence_number.eq(tx_digests::tx_sequence_number)),
+                )
+                .filter(tx_digests::tx_digest.eq(digest_bytes.clone()))
+                .select(StoredTransaction::as_select())
+        })
+    })
+    .await
+    .map_err(|e| Error::Internal(format!("Unable to query checkpointed transaction: {e}")))
+}
 
 /// Query optimistic transaction by digest from the database
 async fn query_optimistic_transaction_by_digest(
@@ -60,31 +81,20 @@ impl Mutation {
     /// that was not possible. A transaction is final when its effects are
     /// guaranteed on chain (it cannot be revoked).
     ///
-    /// There may be a delay between transaction finality and when GraphQL
-    /// requests (including the request that issued the transaction) reflect
-    /// its effects. As a result, queries that depend on indexing the state
-    /// of the chain (e.g. contents of output objects, address-level balance
-    /// information at the time of the transaction), must wait for indexing to
-    /// catch up by polling for the transaction digest using
-    /// `Query.transactionBlock`.
+    /// Transaction effects are now available immediately after execution
+    /// through `Query.transactionBlock`. However, other queries that depend
+    /// on the chain’s indexed state (e.g., address-level balance updates)
+    /// may still lag until the transaction has been checkpointed.
+    /// To confirm that a transaction has been included in a checkpoint, query
+    /// `Query.transactionBlock` and check whether the `effects.checkpoint`
+    /// field is set (or `null` if not yet checkpointed).
     async fn execute_transaction_block(
         &self,
         ctx: &Context<'_>,
         tx_bytes: String,
         signatures: Vec<String>,
     ) -> Result<ExecutionResult> {
-        let optimistic_tx_executor: &Option<OptimisticTransactionExecutor> = ctx
-            .data()
-            .map_err(|_| {
-                Error::Internal("Unable to fetch OptimisticTransactionExecutor".to_string())
-            })
-            .extend()?;
-        let optimistic_tx_executor = optimistic_tx_executor
-            .as_ref()
-            .ok_or_else(|| {
-                Error::Internal("OptimisticTransactionExecutor not initialized".to_string())
-            })
-            .extend()?;
+        let write_api = get_write_api(ctx).extend()?;
         let tx_data = Base64::try_from(tx_bytes)
             .map_err(|e| {
                 Error::Client(format!(
@@ -110,8 +120,8 @@ impl Mutation {
             .with_raw_input()
             .with_raw_effects();
 
-        let result = optimistic_tx_executor
-            .execute_and_index_transaction(tx_data, sigs, Some(options))
+        let result = write_api
+            .execute_transaction_block(tx_data, sigs, Some(options), None)
             .await
             .map_err(|e| Error::Internal(format!("Unable to execute transaction: {e}")))
             .extend()?;
@@ -120,7 +130,22 @@ impl Mutation {
         let digest_bytes = tx_digest.inner().to_vec();
 
         let db: &Db = ctx.data_unchecked();
-        let optimistic_tx = query_optimistic_transaction_by_digest(db, digest_bytes).await?;
+        let query_optimistic_tx = query_optimistic_transaction_by_digest(db, digest_bytes.clone());
+        let query_checkpointed_tx = query_checkpointed_transaction_by_digest(db, digest_bytes);
+        tokio::pin!(query_optimistic_tx, query_checkpointed_tx);
+
+        let effects: Result<TransactionBlockEffects, _> = tokio::select! {
+                checkpointed_tx = &mut query_checkpointed_tx => match checkpointed_tx {
+                    Ok(checkpointed_tx) => TransactionBlock::try_from(checkpointed_tx)?.try_into(),
+                    _ => query_optimistic_tx.await?.try_into()
+                },
+                optimistic_tx = &mut query_optimistic_tx => {
+                    match optimistic_tx {
+                        Ok(optimistic_tx) => optimistic_tx.try_into(),
+                        _ => TransactionBlock::try_from(query_checkpointed_tx.await?)?.try_into(),
+                    }
+                }
+        };
 
         Ok(ExecutionResult {
             errors: if result.errors.is_empty() {
@@ -128,17 +153,9 @@ impl Mutation {
             } else {
                 Some(result.errors)
             },
-            effects: TransactionBlockEffects {
-                kind: TransactionBlockEffectsKind::try_from(optimistic_tx)
-                    .map_err(|e| {
-                        Error::Internal(format!(
-                            "Unable to create TransactionBlockEffectsKind: {e}"
-                        ))
-                    })
-                    .extend()?,
-                // set to u64::MAX, as the executed transaction has not been indexed yet
-                checkpoint_viewed_at: u64::MAX,
-            },
+            effects: effects
+                .map_err(|_| Error::Internal("Transaction not indexed after execution".into()))
+                .extend()?,
         })
     }
 }

@@ -31,7 +31,7 @@ use iota_json_rpc_types::{
     IotaTransactionBlockEffectsAPI, IotaTransactionBlockResponse,
     IotaTransactionBlockResponseOptions,
 };
-use iota_keys::keystore::AccountKeystore;
+use iota_keys::keystore::{AccountKeystore, StoredKey};
 use iota_move::manage_package::resolve_lock_file_path;
 use iota_move_build::{
     BuildConfig, CompiledPackage, build_from_resolution_graph, check_invalid_dependencies,
@@ -198,7 +198,7 @@ pub enum IotaClientCommands {
         tx_bytes: String,
         /// A list of Base64 encoded signatures `flag || signature || pubkey`,
         /// separated by space.
-        #[arg(long, num_args(1..))]
+        #[arg(long, num_args(1..), required = true)]
         signatures: Vec<String>,
     },
     /// Execute a combined serialized SenderSignedData string.
@@ -334,10 +334,10 @@ pub enum IotaClientCommands {
         #[command(flatten)]
         processing: TxProcessingArgs,
     },
-    /// Pay IOTA coins to recipients following following specified amounts, with
-    /// input coins. Length of recipients must be the same as that of
-    /// amounts. The input coins also include the coin for gas payment, so
-    /// no extra gas coin is required.
+    /// Pay IOTA coins to recipients following specified amounts, with input
+    /// coins. Length of recipients must be the same as that of amounts.
+    /// The input coins also include the coin for gas payment, so no extra gas
+    /// coin is required.
     PayIota {
         /// The input coins to be used for pay recipients, including the gas
         /// coin. If not provided, coins will be selected automatically which
@@ -875,15 +875,22 @@ impl IotaClientCommands {
             }
             IotaClientCommands::Addresses { sort_by_alias } => {
                 let active_address = context.active_address()?;
-                let mut addresses: Vec<(String, IotaAddress)> = context
+                let mut addresses = context
                     .config()
                     .keystore()
                     .addresses_with_alias()
                     .into_iter()
-                    .map(|(address, alias)| (alias.alias.to_string(), *address))
-                    .collect();
+                    .map(|(address, alias)| {
+                        let source = match context.config().keystore().get_key(address).unwrap() {
+                            StoredKey::KeyPair(_) => "keypair".to_string(),
+                            StoredKey::External { source, .. } => source.to_string(),
+                        };
+                        (alias.alias.to_string(), *address, source)
+                    })
+                    .collect::<Vec<_>>();
+
                 if sort_by_alias {
-                    addresses.sort();
+                    addresses.sort_by(|a, b| a.0.cmp(&b.0));
                 }
 
                 let output = AddressesOutput {
@@ -984,19 +991,12 @@ impl IotaClientCommands {
                 let client = context.get_client().await?;
                 let read_api = client.read_api();
                 let chain_id = read_api.get_chain_identifier().await.ok();
-                let protocol_version = read_api.get_protocol_config(None).await?.protocol_version;
-                let protocol_config = ProtocolConfig::get_for_version(
-                    protocol_version,
-                    match chain_id
-                        .as_ref()
-                        .and_then(ChainIdentifier::from_chain_short_id)
-                    {
-                        Some(chain_id) => chain_id.chain(),
-                        None => Chain::Unknown,
-                    },
-                );
 
                 check_protocol_version_and_warn(read_api).await?;
+
+                if !package_path.exists() {
+                    bail!("Package path '{}' does not exist", package_path.display());
+                }
 
                 let package_path =
                     package_path
@@ -1030,11 +1030,11 @@ impl IotaClientCommands {
                 .await;
 
                 // Restore original ID, then check result.
-                if let (Some(chain_id), Some(previous_id)) = (chain_id, previous_id) {
+                if let (Some(chain_id), Some(previous_id)) = (&chain_id, previous_id) {
                     let _ = iota_package_management::set_package_id(
                         &package_path,
                         build_config.install_dir.clone(),
-                        &chain_id,
+                        chain_id,
                         previous_id,
                     )?;
                 }
@@ -1050,6 +1050,28 @@ impl IotaClientCommands {
                 let dep_ids = compiled_package.get_published_dependencies_ids();
 
                 if verify_compatibility {
+                    let protocol_version =
+                        read_api.get_protocol_config(None).await?.protocol_version;
+
+                    ensure!(
+                        ProtocolVersion::MAX >= protocol_version,
+                        "On-chain protocol version ({}) is ahead of the latest known version ({}) in the CLI.\
+                        Please update the CLI to the latest version if you want to use --verify-compatibility flag.",
+                        protocol_version.as_u64(),
+                        ProtocolVersion::MAX.as_u64()
+                    );
+
+                    let protocol_config = ProtocolConfig::get_for_version(
+                        protocol_version,
+                        match chain_id
+                            .as_ref()
+                            .and_then(ChainIdentifier::from_chain_short_id)
+                        {
+                            Some(chain_id) => chain_id.chain(),
+                            None => Chain::Unknown,
+                        },
+                    );
+
                     check_compatibility(
                         read_api,
                         package_id,
@@ -1143,6 +1165,10 @@ impl IotaClientCommands {
                 let chain_id = read_api.get_chain_identifier().await.ok();
 
                 check_protocol_version_and_warn(read_api).await?;
+
+                if !package_path.exists() {
+                    bail!("Package path '{}' does not exist", package_path.display());
+                }
 
                 let package_path =
                     package_path
@@ -2331,14 +2357,19 @@ impl Display for IotaClientCommandResult {
         match self {
             IotaClientCommandResult::Addresses(addresses) => {
                 let mut builder = TableBuilder::default();
-                builder.set_header(vec!["alias", "address", "active address"]);
-                for (alias, address) in &addresses.addresses {
+                builder.set_header(vec!["alias", "address", "source", "active"]);
+                for (alias, address, source) in &addresses.addresses {
                     let active_address = if address == &addresses.active_address {
                         "*".to_string()
                     } else {
                         "".to_string()
                     };
-                    builder.push_record([alias.to_string(), address.to_string(), active_address]);
+                    builder.push_record([
+                        alias.to_string(),
+                        address.to_string(),
+                        source.to_string(),
+                        active_address,
+                    ]);
                 }
                 let mut table = builder.build();
                 let style = TableStyle::rounded();
@@ -2771,7 +2802,7 @@ impl PrintableResult for IotaClientCommandResult {}
 #[serde(rename_all = "camelCase")]
 pub struct AddressesOutput {
     pub active_address: IotaAddress,
-    pub addresses: Vec<(String, IotaAddress)>,
+    pub addresses: Vec<(String, IotaAddress, String)>,
 }
 
 #[derive(Serialize)]

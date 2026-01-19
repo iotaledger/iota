@@ -63,7 +63,7 @@ jobs:
 
       - name: Build move-analyzer
         run: |
-          cargo build --bin move-analyzer
+          cargo build -p iota-move-lsp --bin move-analyzer
           mkdir -p ~/.iota/bin
           cp ./target/debug/move-analyzer* ~/.iota/bin
 

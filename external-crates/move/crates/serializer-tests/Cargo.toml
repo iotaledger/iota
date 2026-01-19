@@ -8,9 +8,12 @@ publish = false
 description = "Move serializer tests"
 
 [dev-dependencies]
-move-binary-format = { workspace = true, features = ["fuzzing"] }
+# external dependencies
 proptest.workspace = true
 proptest-derive.workspace = true
+
+# internal dependencies
+move-binary-format = { workspace = true, features = ["fuzzing"] }
 
 [features]
 fuzzing = ["move-binary-format/fuzzing"]

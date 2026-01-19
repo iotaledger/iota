@@ -720,14 +720,9 @@ fn resolve_call_arg(
     // (depth == 1) vectors of objects (but not, for example, vectors of
     // references)
     match param {
-        SignatureToken::Datatype(_)
-        | SignatureToken::DatatypeInstantiation(_)
-        | SignatureToken::TypeParameter(_)
-        | SignatureToken::Reference(_)
-        | SignatureToken::MutableReference(_) => Ok(ResolvedCallArg::Object(resolve_object_arg(
-            idx,
-            &arg.to_json_value(),
-        )?)),
+        SignatureToken::Reference(inner) | SignatureToken::MutableReference(inner) => {
+            resolve_call_arg(view, type_args, idx, arg, inner)
+        }
         SignatureToken::Vector(inner) => match &**inner {
             SignatureToken::Datatype(_) | SignatureToken::DatatypeInstantiation(_) => {
                 Ok(ResolvedCallArg::ObjVec(resolve_object_vec_arg(idx, arg)?))
@@ -741,6 +736,12 @@ fn resolve_call_arg(
                 );
             }
         },
+        SignatureToken::Datatype(_)
+        | SignatureToken::DatatypeInstantiation(_)
+        | SignatureToken::TypeParameter(_) => Ok(ResolvedCallArg::Object(resolve_object_arg(
+            idx,
+            &arg.to_json_value(),
+        )?)),
         _ => bail!(
             "Unexpected non-primitive arg {:?} at {} with value {:?}",
             param,
@@ -766,7 +767,7 @@ pub fn is_receiving_argument(view: &CompiledModule, arg_type: &SignatureToken) -
     )
 }
 
-fn resolve_call_args(
+pub fn resolve_call_args(
     view: &CompiledModule,
     type_args: &[TypeTag],
     json_args: &[IotaJsonValue],
@@ -823,6 +824,7 @@ pub fn resolve_move_function_args(
             combined_args_json.len()
         );
     }
+
     // Check that the args are valid and convert to the correct format
     let call_args = resolve_call_args(&module, type_args, &combined_args_json, parameters)?;
     let tupled_call_args = call_args

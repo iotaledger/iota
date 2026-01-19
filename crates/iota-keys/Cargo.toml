@@ -22,8 +22,8 @@ tiny-bip39 = "1.0"
 tracing.workspace = true
 
 # internal dependencies
+iota-sdk-types.workspace = true
 iota-types.workspace = true
-shared-crypto.workspace = true
 
 [dev-dependencies]
 tempfile.workspace = true

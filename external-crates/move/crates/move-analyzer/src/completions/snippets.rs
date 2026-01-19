@@ -2,30 +2,32 @@
 // Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-// Snippets auto-completion for various language elements, such as `init` function
-// or structs representing objects.
+// Snippets auto-completion for various language elements, such as `init`
+// function or structs representing objects.
 
-use crate::{
-    completions::utils::mod_defs,
-    symbols::{CursorContext, CursorDefinition, DefInfo, Symbols},
-};
+use std::path::Path;
+
 use lsp_types::{CompletionItem, CompletionItemKind, Documentation, InsertTextFormat, Position};
 use move_command_line_common::files::FileHash;
 use move_compiler::{expansion::ast::Visibility, parser::ast::Ability_, shared::Identifier};
 use move_ir_types::location::Loc;
 use move_symbol_pool::Symbol;
 
-use std::path::Path;
+use crate::{
+    completions::utils::mod_defs,
+    symbols::{CursorContext, CursorDefinition, DefInfo, Symbols},
+};
 
-/// Checks if the cursor is at the opening brace of a struct definition and returns
-/// auto-completion of this struct into an object if the struct has the `key` ability.
+/// Checks if the cursor is at the opening brace of a struct definition and
+/// returns auto-completion of this struct into an object if the struct has the
+/// `key` ability.
 pub fn object_completion(
     symbols: &Symbols,
     cursor: &CursorContext,
 ) -> (Option<CompletionItem>, bool) {
     let mut completion_finalized = false;
-    // look for a struct definition on the line that contains `{`, check its abilities,
-    // and do auto-completion if `key` ability is present
+    // look for a struct definition on the line that contains `{`, check its
+    // abilities, and do auto-completion if `key` ability is present
     let Some(CursorDefinition::Struct(sname)) = &cursor.defn_name else {
         return (None, completion_finalized);
     };
@@ -133,7 +135,9 @@ pub fn init_completion(
             // the init function has a struct thats an one-time-witness candidate struct
             let otw_candidate = Symbol::from(mod_ident.module.value().to_uppercase());
             let init_snippet = if mdef.structs().contains_key(&otw_candidate) {
-                format!("{INIT_FN_NAME}(${{1:witness}}: {otw_candidate}, {iota_ctx_arg}) {{\n\t${{2:}}\n}}\n")
+                format!(
+                    "{INIT_FN_NAME}(${{1:witness}}: {otw_candidate}, {iota_ctx_arg}) {{\n\t${{2:}}\n}}\n"
+                )
             } else {
                 format!("{INIT_FN_NAME}({iota_ctx_arg}) {{\n\t${{1:}}\n}}\n")
             };
@@ -156,8 +160,8 @@ pub fn init_completion(
     (completions, completion_finalized)
 }
 
-/// Finds white-space separated strings on the line containing auto-completion request and their
-/// locations.
+/// Finds white-space separated strings on the line containing auto-completion
+/// request and their locations.
 fn preceding_strings(buffer: &str, position: &Position) -> Vec<(String, u32)> {
     let mut strings = vec![];
     let line = match buffer.lines().nth(position.line as usize) {

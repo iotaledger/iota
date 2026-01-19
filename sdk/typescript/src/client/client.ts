@@ -99,6 +99,8 @@ import type {
     IotaNamesReverseLookupParams,
     IotaNamesFindAllRegistrationNFTsParams,
     IsTransactionIndexedOnNodeParams,
+    IotaMoveViewCallResults,
+    ViewParams,
 } from './types/index.js';
 
 export interface PaginationArguments<Cursor> {
@@ -919,6 +921,7 @@ export class IotaClient {
         signal,
         timeout = 60 * 1000,
         pollInterval = 2 * 1000,
+        waitMode,
         ...input
     }: {
         /** An optional abort signal that can be used to cancel */
@@ -927,6 +930,10 @@ export class IotaClient {
         timeout?: number;
         /** The amount of time to wait between checks for the transaction block. Defaults to 2 seconds. */
         pollInterval?: number;
+        /** Whether to wait the transaction to have been checkpointed or indexed on the node.
+         * A transaction might be indexed but not checkpointed yet, but a checkpointed transaction is guaranteed to be indexed.
+         */
+        waitMode?: 'checkpoint' | 'indexed-on-node';
     } & Parameters<IotaClient['getTransactionBlock']>[0]): Promise<IotaTransactionBlockResponse> {
         const timeoutSignal = AbortSignal.timeout(timeout);
         const timeoutPromise = new Promise((_, reject) => {
@@ -939,14 +946,32 @@ export class IotaClient {
 
         while (!timeoutSignal.aborted) {
             signal?.throwIfAborted();
-            try {
-                return await this.getTransactionBlock(input);
-            } catch (e) {
+            const wait = async () => {
                 // Wait for either the next poll interval, or the timeout.
                 await Promise.race([
                     new Promise((resolve) => setTimeout(resolve, pollInterval)),
                     timeoutPromise,
                 ]);
+            };
+            try {
+                if (waitMode === 'indexed-on-node') {
+                    const isIndexedOnNode = await this.isTransactionIndexedOnNode({
+                        digest: input.digest,
+                    });
+                    if (isIndexedOnNode) {
+                        return await this.getTransactionBlock(input);
+                    }
+                } else if (waitMode === 'checkpoint') {
+                    const transaction = await this.getTransactionBlock(input);
+                    if (transaction.checkpoint) {
+                        return transaction;
+                    }
+                } else {
+                    return await this.getTransactionBlock(input);
+                }
+                await wait();
+            } catch (e) {
+                await wait();
             }
         }
 
@@ -995,6 +1020,16 @@ export class IotaClient {
         return await this.transport.request({
             method: 'iota_isTransactionIndexedOnNode',
             params: [input.digest],
+        });
+    }
+
+    /**
+     * Calls a move view function.
+     */
+    async view(input: ViewParams): Promise<IotaMoveViewCallResults> {
+        return await this.transport.request({
+            method: 'iota_view',
+            params: [input.functionName, input.typeArgs, input.arguments],
         });
     }
 }

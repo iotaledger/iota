@@ -3,8 +3,9 @@
 // Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use criterion::Criterion;
 use std::time::Duration;
+
+use criterion::Criterion;
 
 pub fn wall_time_measurement() -> Criterion {
     Criterion::default()

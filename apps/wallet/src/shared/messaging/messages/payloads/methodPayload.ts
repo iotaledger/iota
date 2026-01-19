@@ -11,6 +11,7 @@ import { type Status } from '_src/background/storageMigration';
 
 import { isBasePayload } from './basePayload';
 import type { Payload } from './payload';
+import { type BrowserPasswordProviderOptions } from '@iota/iota-sdk/keypairs/passkey';
 
 export type UIAccessibleEntityType = 'accountSources' | 'accounts';
 export type LedgerAccountsPublicKeys = {
@@ -54,7 +55,16 @@ type MethodPayloads = {
         | { type: AccountType.SeedDerived; sourceID: string }
         | { type: AccountType.PrivateKeyDerived; keyPair: string; password: string }
         | {
+              type: AccountType.PasskeyDerived;
+              address: string;
+              publicKey: string;
+              providerOptions: BrowserPasswordProviderOptions;
+              credentialId: number[];
+              password: string;
+          }
+        | {
               type: AccountType.LedgerDerived;
+              mainPublicKey: string;
               accounts: { publicKey: string; derivationPath: string; address: string }[];
               password: string;
           }
@@ -66,7 +76,6 @@ type MethodPayloads = {
                   derivationPath: string;
                   address: string;
               }[];
-              password: string;
           };
     accountsCreatedResponse: { accounts: SerializedUIAccount[] };
     signData: { data: string; id: string };

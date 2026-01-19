@@ -18,6 +18,7 @@ use iota_json_rpc_types::{
     StakeStatus,
 };
 use iota_sdk::rpc_types::IotaExecutionStatus;
+use iota_sdk_types::crypto::{Intent, IntentMessage};
 use iota_types::{
     base_types::IotaAddress,
     crypto::{DefaultHash, SignatureScheme, ToFromBytes},
@@ -26,7 +27,6 @@ use iota_types::{
     signature_verification::{VerifiedDigestCache, verify_sender_signed_data_message_signatures},
     transaction::{Transaction, TransactionData, TransactionDataAPI},
 };
-use shared_crypto::intent::{Intent, IntentMessage};
 
 use crate::{
     IotaEnv, OnlineServerContext,
@@ -79,7 +79,7 @@ pub async fn payloads(
     let intent_msg_bytes = bcs::to_bytes(&intent_msg)?;
 
     let mut hasher = DefaultHash::default();
-    hasher.update(bcs::to_bytes(&intent_msg).expect("Message serialization should not fail"));
+    hasher.update(bcs::to_bytes(&intent_msg).expect("message serialization should not fail"));
     let digest = hasher.finalize().digest;
 
     Ok(ConstructionPayloadsResponse {
@@ -180,7 +180,7 @@ pub async fn submit(
 
     if let IotaExecutionStatus::Failure { error } = response
         .effects
-        .expect("Execute transaction should return effects")
+        .expect("execute transaction should return effects")
         .status()
     {
         return Err(Error::TransactionExecution(error.to_string()));

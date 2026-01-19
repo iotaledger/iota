@@ -87,7 +87,7 @@ fn setup_env(token: CancellationToken) {
         #[cfg(unix)]
         let terminate = async {
             tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
-                .expect("Cannot listen to SIGTERM signal")
+                .expect("cannot listen to SIGTERM signal")
                 .recv()
                 .await;
         };
@@ -96,8 +96,8 @@ fn setup_env(token: CancellationToken) {
         let terminate = std::future::pending::<()>();
 
         tokio::select! {
-            _ = tokio::signal::ctrl_c() => tracing::info!("CTRL+C signal received, shutting down"),
-            _ = terminate => tracing::info!("SIGTERM signal received, shutting down")
+            _ = tokio::signal::ctrl_c() => tracing::info!("shutting down, CTRL+C signal received"),
+            _ = terminate => tracing::info!("shutting down, SIGTERM signal received")
         };
 
         token.cancel();

@@ -1,12 +1,12 @@
 import { Close, MenuIcon } from '@iota/apps-ui-icons';
 import { IOTABridgeLogo, ThemeSwitcher } from '..';
-import { ConnectButton } from '@iota/dapp-kit';
-import { ConnectButtonL2 } from './connect-buttons';
+import { ConnectButtonL1, ConnectButtonL2 } from './connect-buttons';
 import { useState } from 'react';
 import { Button, ButtonType, Divider } from '@iota/apps-ui-kit';
 import clsx from 'clsx';
 import { useNetwork, useFeatureEnabledByNetwork, Feature } from '@iota/core';
 import type { Network } from '@iota/iota-sdk/client';
+import { Link } from '../link';
 
 export function Header(): React.JSX.Element {
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -17,13 +17,14 @@ export function Header(): React.JSX.Element {
     return (
         <div className="fixed top-0 left-0 py-md--rs backdrop-blur-lg z-10 w-full">
             <div className="container flex justify-between items-center">
-                <IOTABridgeLogo className="dark:text-iota-neutral-92 text-iota-neutral-10" />
+                <Link href="/" aria-label="IOTA EVM Bridge Home">
+                    <IOTABridgeLogo className="dark:text-iota-neutral-92 text-iota-neutral-10" />
+                </Link>
                 <div className="flex flex-row gap-xs">
                     <ThemeSwitcher />
 
                     <div className="hidden md:flex flex-row gap-xs items-center">
-                        <ConnectButton
-                            data-testid="connect-l1-wallet"
+                        <ConnectButtonL1
                             className="text-label-lg h-10"
                             connectText="Connect L1 Wallet"
                             size="md"
@@ -48,8 +49,7 @@ export function Header(): React.JSX.Element {
                 )}
             >
                 <div className="flex flex-col gap-md items-end p-lg">
-                    <ConnectButton
-                        data-testid="connect-l1-wallet"
+                    <ConnectButtonL1
                         className="text-label-lg h-10"
                         connectText="Connect L1 Wallet"
                         size="md"

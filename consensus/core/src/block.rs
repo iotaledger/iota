@@ -16,8 +16,8 @@ use consensus_config::{
 };
 use enum_dispatch::enum_dispatch;
 use fastcrypto::hash::{Digest, HashFunction};
+use iota_sdk_types::crypto::{Intent, IntentMessage, IntentScope};
 use serde::{Deserialize, Serialize};
-use shared_crypto::intent::{Intent, IntentMessage, IntentScope};
 
 use crate::{
     commit::CommitVote,
@@ -113,12 +113,20 @@ impl BlockV1 {
         }
     }
 
-    fn genesis_block(epoch: Epoch, author: AuthorityIndex) -> Self {
+    fn genesis_block(context: &Context, author: AuthorityIndex) -> Self {
+        let timestamp_ms = if context
+            .protocol_config
+            .consensus_median_timestamp_with_checkpoint_enforcement()
+        {
+            context.epoch_start_timestamp_ms
+        } else {
+            0
+        };
         Self {
-            epoch,
+            epoch: context.committee.epoch(),
             round: GENESIS_ROUND,
             author,
-            timestamp_ms: 0,
+            timestamp_ms,
             ancestors: vec![],
             transactions: vec![],
             commit_votes: vec![],
@@ -451,6 +459,18 @@ impl VerifiedBlock {
         }
     }
 
+    pub(crate) fn new_verified_with_digest(
+        signed_block: SignedBlock,
+        serialized: Bytes,
+        digest: BlockDigest,
+    ) -> Self {
+        VerifiedBlock {
+            block: Arc::new(signed_block),
+            digest,
+            serialized,
+        }
+    }
+
     /// This method is public for testing in other crates.
     pub fn new_for_test(block: Block) -> Self {
         let signed_block = SignedBlock {
@@ -542,13 +562,13 @@ pub(crate) struct ExtendedBlock {
 
 /// Generates the genesis blocks for the current Committee.
 /// The blocks are returned in authority index order.
-pub(crate) fn genesis_blocks(context: Arc<Context>) -> Vec<VerifiedBlock> {
+pub(crate) fn genesis_blocks(context: &Context) -> Vec<VerifiedBlock> {
     context
         .committee
         .authorities()
         .map(|(authority_index, _)| {
             let signed_block = SignedBlock::new_genesis(Block::V1(BlockV1::genesis_block(
-                context.committee.epoch(),
+                context,
                 authority_index,
             )));
             let serialized = signed_block
@@ -641,7 +661,8 @@ mod tests {
     use fastcrypto::error::FastCryptoError;
 
     use crate::{
-        block::{SignedBlock, TestBlock},
+        BlockAPI,
+        block::{SignedBlock, TestBlock, genesis_blocks},
         context::Context,
         error::ConsensusError,
     };
@@ -674,6 +695,19 @@ mod tests {
                 assert_eq!(err, FastCryptoError::InvalidSignature);
             }
             err => panic!("Unexpected error: {err:?}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_genesis_blocks() {
+        let (context, _) = Context::new_for_test(4);
+        const TIMESTAMP_MS: u64 = 1000;
+        let context = Arc::new(context.with_epoch_start_timestamp_ms(TIMESTAMP_MS));
+        let blocks = genesis_blocks(&context);
+        for (i, block) in blocks.into_iter().enumerate() {
+            assert_eq!(block.author().value(), i);
+            assert_eq!(block.round(), 0);
+            assert_eq!(block.timestamp_ms(), TIMESTAMP_MS);
         }
     }
 }

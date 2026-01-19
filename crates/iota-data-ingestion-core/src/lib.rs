@@ -43,7 +43,10 @@ use std::{
 
 use async_trait::async_trait;
 pub use errors::{IngestionError, IngestionResult};
-pub use executor::{IndexerExecutor, MAX_CHECKPOINTS_IN_PROGRESS, setup_single_workflow};
+pub use executor::{
+    IndexerExecutor, IngestionLimit, MAX_CHECKPOINTS_IN_PROGRESS, ShutdownAction,
+    setup_single_workflow,
+};
 use iota_types::full_checkpoint_content::CheckpointData;
 pub use metrics::DataIngestionMetrics;
 pub use progress_store::{FileProgressStore, ProgressStore, ShimProgressStore};

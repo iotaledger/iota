@@ -14,9 +14,9 @@ use byteorder::{BigEndian, ReadBytesExt};
 use fastcrypto::{error::FastCryptoResult, groups::bls12381, hash::HashFunction};
 use fastcrypto_tbls::dkg_v1;
 use fastcrypto_zkp::bn254::zk_login::{JWK, JwkId};
+use iota_sdk_types::crypto::IntentScope;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use shared_crypto::intent::IntentScope;
 
 use crate::{
     base_types::{
@@ -90,6 +90,8 @@ pub enum ConsensusTransactionKey {
     NewJWKFetched(Box<(AuthorityName, JwkId, JWK)>),
     RandomnessDkgMessage(AuthorityName),
     RandomnessDkgConfirmation(AuthorityName),
+    // New entries should be added at the end to preserve serialization compatibility. DO NOT
+    // CHANGE THE ORDER OF EXISTING ENTRIES!
 }
 
 impl Debug for ConsensusTransactionKey {
@@ -258,6 +260,8 @@ pub enum ConsensusTransactionKind {
     // of `RandomnessDkgMessages` have been received locally, to complete the key generation
     // process. Contents are a serialized `fastcrypto_tbls::dkg::Confirmation`.
     RandomnessDkgConfirmation(AuthorityName, Vec<u8>),
+    // New entries should be added at the end to preserve serialization compatibility. DO NOT
+    // CHANGE THE ORDER OF EXISTING ENTRIES!
 }
 
 impl ConsensusTransactionKind {

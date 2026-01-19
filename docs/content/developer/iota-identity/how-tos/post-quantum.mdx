@@ -1,0 +1,446 @@
+---
+title: Post-Quantum Cryptography
+sidebar_label: Post-Quantum
+description: Explain how to create and verify quantum resistant VCs and VPs.
+image: /img/identity/icon.png
+teams:
+  - iotaledger/identity
+tags:
+  - how-to
+  - identity
+---
+
+## Introduction
+
+The emergence of quantum computing poses a significant threat to our current cryptographic systems,
+which are foundational to securing digital communication and data. 
+In particular, Verifiable Credentials (VCs) rely on digital signatures to ensure the integrity and
+authenticity of their data. The cryptographic algorithms currently used for these signatures - 
+e.g. RSA, EdDSA, ECDSA - are vulnerable to quantum attacks. In fact, sufficiently powerful quantum
+computer could efficiently break these signatures, enabling malicious actors to forge VCs and
+impersonate their holders or issuers. To protect against this threat, it is essential to adopt post-quantum
+cryptographic techniques.
+
+## New Post-Quantum Cryptographic Capabilities
+
+The release of IOTA Identity v1.7 introduces
+support for post-quantum cryptography techniques. This new functionality enables users of IOTA
+Identity to issue and verify VCs and VPs able to withstand the security threats from
+powerful quantum computers. The update specifically adds support for several post-quantum digital
+signature algorithms, ensuring the integrity and authenticity of digital credentials remain secure
+in the long term.
+
+IOTA Identity can verify JWT-based VCs and VPs that are signed using various PQC algorithms, as
+well as handling PQC cryptomaterial in JWK format. This includes:
+- **ML-DSA** (Module-Lattice-based Digital Signature Algorithm), a part of the CRYSTALS-Dilithium
+  standard, with three security levels: 44, 65, and 87.
+
+- **SLH-DSA** (Stateless Hashed-based Digital Signature Algorithm), part of the LMS and HSS
+  standards, with security levels 128, 192, and 256 bits.
+
+- **FALCON** (Fast-Fourier Lattice-based Compact Signatures over NTRU), with security
+  levels 512 and 1024 bits.
+
+:::caution
+Although the IOTA Identity library supports the aforementioned PQC techniques, users of the
+library will be able to use them only if their key-storage does as well.
+:::
+
+### Example: Issuing and Verification of Post-Quantum VCs
+
+The issuance and verification workflow of PQ VCs doesn't look much different from that of VCs
+that rely on digital signatures created through traditional algorithms.
+The most significant difference can be observed in the crypto-material involved: PQ keys
+represented as [JWK](https://datatracker.ietf.org/doc/html/rfc7517)s use the Algorithm Key Pair
+([AKP](https://www.ietf.org/archive/id/draft-ietf-cose-dilithium-05.html#name-algorithm-key-pair-type))
+key type (the property `kty` is set to the value of `"AKP"`); and in the type of signature verifier
+needed to prove the integrity and authenticity of the digital signatures performed through these
+keys.
+
+For instance, assuming the given `Storage` supports the creation of an ML-DSA-87 key pair, the
+following code snippet creates a DID Document with a `JsonWebKey2020` verification method
+containing the JWK-encoded public key, of a freshly created key pair.
+
+<Tabs groupId="language" queryString>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts 
+const issuerDocument = new IotaDocument(issuerClient.network());
+const issuerFragment = await issuerDocument.generateMethodPQC(
+    issuerStorage,
+    JwkPqMemStore.mldsaKeyType(),
+    JwsAlgorithm.MLDSA87,
+    "#0",
+    MethodScope.VerificationMethod(),
+);
+```
+
+</TabItem>
+<TabItem value="rust" label="Rust">
+
+```rust
+let mut issuer_document = IotaDocument::new(identity_client.network_name());
+issuer_document.generate_method_pqc(
+  &issuer_storage, 
+  "AKP".into(), // This depends on the key store.
+  JwsAlgorithm::ML_DSA_87,
+  None,
+  MethodScope::VerificationMethod,
+).await?;
+```
+
+</TabItem>
+</Tabs>
+
+Inspecting the resulting DID Document, should yield a JSON object similar to this:
+{ /* spellchecker:off */ }
+```json
+{
+  "doc": {
+    "id": "did:iota:a9c98038:0x86a591bae160e6756a218dc38a362f18f69ce08d06d96a382d0c8afb40c85b35",
+    "verificationMethod": [
+      {
+        "id": "did:iota:a9c98038:0x86a591bae160e6756a218dc38a362f18f69ce08d06d96a382d0c8afb40c85b35#4McZHmTX3QnRqyE1KUfuJw31-MQDSFEQz0jb_2DMxqs",
+        "controller": "did:iota:a9c98038:0x86a591bae160e6756a218dc38a362f18f69ce08d06d96a382d0c8afb40c85b35",
+        "type": "JsonWebKey2020",
+        "publicKeyJwk": {
+          "kty": "AKP",
+          "alg": "ML-DSA-87",
+          "kid": "4McZHmTX3QnRqyE1KUfuJw31-MQDSFEQz0jb_2DMxqs",
+          "pub": "n12CaRg4MjzXlj8GNC9l0yVbIrSUllF6A2FbUosecB2OQrjEGjDIVBaOdjN4qhLtJEvm7P7Mw4Cnd6Ag9frC5e3oNrmGTGVgtTVj13t1UYBevALXAPgZzULkNj1rlp2qtzxri4a63soPijqQs5rGY-eZa1iLajh59I0DjI9gihWGW22Pv2IRXFd2s4T82ZpSWxEGTRp1ZWH6MfcD9NcOgg2QzB6b5a3tl8H4lJriNh3jnBSj_K2baoUGTaOszMUG7YZ0Makcg-64MXvuiaGhcaMmjxYS8m30FK29KsDZOkHI5ccKEO53nIG6IGKQ8XNbwAvtdzyEvmEXW-wWbU-PeP3kY9qA-Oghv_3i5BZyVb_sjDERz0uEBTdKba5Ctztp9WgrKhi0bKUoOTd1GKlwR_zFBoy-_xywMCApUr27CNBgqdVpbDPTzQb4G8_beHw0H0lH7cws7mCy57clVJPsbWmnJmMVMzxfDbCSlXASqtVbcCBm6q10VJ80JuNQTXWOrdZqa6fpGhfhjNTs6e3k3KDVW5XFFGTH9qBUNITgq6LvgsykmEsDGuybF8046V9QrLL78poim16hAkr5os_0v3YoQ6jKe_SDaJYaDNbPXFQxCv7BqcKSGHB_HVhDZRVFY4t2sStbjEjbTy4oM_hPDRsJjjtzz_PnrxOntH0moqYQm5xt9XQUBOePA8DGnp_NkkMq6FUmhGN4Yr-z0_t6dbcZuc6kmNhw8VkK8BleY_DUyI_Urxy6XRjEspNyFni6RYS0_FAnFV8J0YmMvDqmrEhPsYhsObkiiYSNhG2-3BObKH4h_-RDjih_lq6nCFckEreVqt3Og_6AZa8byUqke20FK9PJ7jqXldgf-lVqKakp24Upr0qnjgGTbyIjkrEnhUYO_wD-Vt45df8WdwG4K5-5PPY3g8GElN85zSBOwt-YM_FOBonuovX0XepF2AiJPafYI-W9ShkvnQIwp7AyegZDbamZ7oEZFkPOLX2JrSjQvsutz7B1qZtvQQFZAQBC8tZJ22cLXxkzg9rVUQn-C55Us0hQHwbd1UkcNNQXIe_x_G0NurQAacpsmNrP7wrqpsC1qlquRjd9eP1gyMWPpU1c4NDZ6L_hcvVqRA9xFtF7rh38BRefakeER8fEYzxVK7u7dQJh47aMqVOZujBGQbvSU6d0vLgG9A2IH7hncgzco4H8Wbvpzp6MUyeWezOAxPBlBblPHqOD5zT10m8s5RvCPUCedxqeV4ZGAhsLX5T8nM3r2uWpT9rwiX7QIW4FNLH8S9WCvxd8gHlzN1pQ6LUiKkkdMFZiKIe7WSz9SVlbXZbP1s0f-FQOhZCuPqx2pstfZ4oBG2amtRuz23BZZ7EclVzIXWpRCxeUBzb74CuiT-GY3P8KeFWG4JoP5_JJ6UOYi8QOBTDTcn15EDk4SFVmxZQuo9k8YueLwyhKHa9smwhytWh94AlK8aE13J_Qj4Y-Wmw4HEYY1DsyOv-mSelcgP1-F2DwaL7gCRq9n2scFxGdedUcKc9XF7Fy0PY2w279rVJHKBXjSdZtf9SXXQglCZ9h9unO9y3bUQ9SJAXKpH3xL-63_tdkxTCZ21Kr4pUU95WlDZBlT_q2VMxs_-SwC8f79_nEUXj9yVFeS8-UjGi-6T3WOSDm52OKYNB0PukpX-cZY3UIaRLVQxS6f0-vS1v_VAlTng0ZXEFBm1zIOKINHKZWr9QZPMSE3xclcphn8hDIu2_6jgkYIYD1glaYWo3YUkiLriX0HKm0IiOEsj5a0ER1Y5b9UL8L7CtiUZCwFzoDDDWFn6OjBAiaQw4wbVz0QbjaxKfTIZ2HGFWp3xzIKwQz9vSAMUd6gU_jLG53GooQon5Vsti_Q_k1QKan9eB3YQjzjshMMvaNNlWcdCdKVFo_1eIyg3m0m6WO81BcJ0A5M42g1uiRwTaCeNRKRfhvid4-Je6sTD0dpCLzWXTG2FsP8HEVqqxmc5I8IKJsxyIN1xhCEE-239_AMIUlOW3GaFXQbJlgPdReGN9x4yMy_MVQZvh1qSAZzpAqx-hBLLhSuA1olkBt2bmPNb5jFUR8OMaMllu75R1pfX5Iy5A6J-koX-4efiI6qrl2UEctcbmjZynGXXIqFBjm06jkdAQaQufBqjNZWS6FR8eOMZYfuWBwBCJAF4Qwpqakr_M4tx0tpwPSm7FAx7K0Kx23HDrQ2fhLvkArrSJmGtM2zjGNiV6dHf62bgYGrwMBqUD-jrktyeEocfECvCzlGK0XV9nGk5U-A_RREvuYmc_Ea9p-vTxcOHp0nP_IUaFzriQwAoHlskDjedgVPVorPZscuDytqxrvBoQPH64v_Gm9LNAJZ95h7fs9CI_3qiEzodfVMMeZW91pUP5lCv3-AVKalr7VZYIaEwlXGwjoJqXo4DEVNiF8CVwrN_PhDuuKAig6gOgqKYJstIgypsQqc1zONBjdaEG8IoBBpgcay_FHEd_2fnbFF04FizjHx4zIh3rgWQwsNwfBJ2CYOCecs2isHhnCBlu1aseBq9N66ArSKconCbSDtQ4tmwgiirNl4xnaZ4bSpCCkhy7gGsB5pZHZkK4H3x6ltMpxTUlAcNmdM9fMv3C-AGPn3Qaou2q8vYOYJD2QQ5toFRbaCh0IzzAe_M1NO4iAw428iS83trwsLYY9YcHbs4qvK-OArOCl_Ia5CAwTK3hqbG0sNR1y2XRWkZdfMAb21fzQWETz1QRuk8ivr3fCF0A3tTCjdR4KcIPdEH49teN1Gr9EZSI2_84UcTxGJ0lCJmqdsHvdlBRYA6CNWVHkBNHtbqMy9Zk9J2mjPHt6QG57EpvhIrvkGlRwNoDpNR2VAH3hQ1hBHN9hGHRb91O97XdlnJhyE1Lh23IrMM8UwV4iKiKCLvBAEMKeRR8hvE06aZESEtwJ5KR2L6bb8hS9O5rL8EJ_yjsV9Wf_AZnfdZlABvvgIEKC_9N3Xc4Qtbu4ltrNgGiCpekz7yHgwbXC9ta0uBYzzs4F-gSeIQ1uSNGGK_b7iuL0v1-we2qve-rXWKT85aKddKOPnExM326k7I4h5zIuVG2zkSZlOkOfsvCxRd4PnLZ7A0vSUi4NoVianu3TxpFErM_LmaJWri7HxNHl-lMXyx4lUNwiafIDtFKp9cVP8VFZJQZwI7OB7bYrzuYIY8JafV3gcvBsHvi9IOeP3y-QlAkm77En-7SICCRuF2OzLmGdqRZuGHlZH9UbMuKXkNurcR683BY3_rm8mZRNooubRMPXAKiIE8Pv7KjBPGBXFTD3zE1t85Yqg9-UdYZHaiL2ZUjIb0gRBXQLdyfDmbnhm4QR6n-AcEtOgkogzuW2DS_195Uu_3Ahpa-_TIKf_N7CtzLVdrsvDvLp6nSVw-7U780Bj0XC8jRTV-VhYmEx0YFU0HrC6OUn79IQeqIaU2tbu8Niv-IPNyCJ3_bzFCu2k1Xn"
+        }
+      }
+    ]
+  },
+  "meta": {
+    "created": "2025-09-13T12:49:03Z",
+    "updated": "2025-09-13T12:49:03Z"
+  }
+}
+```
+{ /* spellchecker:on */ }
+
+As expected we see a DID verification method of type `JsonWebKey2020` encapsulating an ML-DSA-87
+public key with all its outstanding 2592 bytes!
+
+For signing a VC with a PQ key, users can invoke the `create_credential_jwt_pqc` on their DID
+document, passing to it a reference to their key store and the DID verification method's fragment
+they want to use.
+
+<Tabs groupId="language" queryString>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts 
+const credentialJwt = await issuerDocument.createCredentialJwtPqc(
+  issuerStorage,
+  issuerFragment,
+  unsignedVc,
+  new JwsSignatureOptions(),
+);
+```
+
+</TabItem>
+<TabItem value="rust" label="Rust">
+
+```rust
+let credential_jwt = issuer_document
+  .create_credential_jwt_pqc(
+    &credential,
+    &issuer_storage,
+    &issuer_fragment,
+    &JwsSignatureOptions::default(),
+    None,
+  )
+  .await?;
+```
+
+</TabItem>
+</Tabs>
+
+The result of this operation is a JWT encoded VC, with an algorithm (`alg` property) matching that
+of the verification method used, and a particularly long signature: 4627 bytes when using ML-DSA-87.
+
+To verify the signature on a JWT-encoded VC or VP that is using a PQ algorithm, the `PQCJwsVerifier`
+must be used. Using a JWT-encoded VC as an example:
+
+<Tabs groupId="language" queryString>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts 
+new JwtCredentialValidator(new PQJwsVerifier()).validate(
+  credentialJwt,
+  issuerDocument,
+  new JwtCredentialValidationOptions(),
+  FailFast.FirstError,
+);
+```
+
+</TabItem>
+<TabItem value="rust" label="Rust">
+
+```rust
+JwtCredentialValidator::with_signature_verifier(PQCJwsVerifier::default())
+  .validate(
+    &credential_jwt,
+    &issuer_document,
+    &JwtCredentialValidationOptions::default(),
+    FailFast::FirstError,
+  )?;
+```
+
+</TabItem>
+</Tabs>
+
+## Transitioning to Post-Quantum Cryptography: Hybrid Signatures
+
+Hybrid signatures can ease the transition to post-quantum cryptography (PQC) by providing a "best of
+both worlds" approach. They combine a traditional, well-understood signature algorithm (like ECDSA)
+with a newly developed PQC algorithm. This allows for a smooth, phased migration as it 
+ensures that the signature remains secure against current threats while also providing forward
+secrecy against future quantum computer attacks. Organizations can adopt hybrid signatures
+immediately, validating the PQC component in a real-world setting without compromising existing
+security. 
+
+Such an approach would allow issuers to sign credentials able to withstand the passing of time.
+Verifiers can validate these credentials by verifying only the credential's traditional signature
+for as long as the signature's algorithm is considered secure. After that, once traditional digital 
+signature algorithms will be deemed unsecure, the credential's PQC signature can still be used to
+prove the credential's authenticity and integrity.
+
+In order to make this approach work with the current DID infrastructure the LINKS Foundation
+developed a new DID verification material called [**compositeJwk**](https://zenodo.org/records/14780453)
+that combines a traditional JWK-encoded public key, with a PQ JWK-encoded public key.
+The currently supported algorithms for `compositeJwk` are: `id-MLDSA44-Ed25519` and
+`id-MLDSA65-Ed25519`.
+
+### Example: Issuing and Verification of a VC Secured by an Hybrid Signature Scheme
+
+The process of creating a DID Document with an hybrid verification method doesn't differ much from
+what users may be already accustomed to:
+
+<Tabs groupId="language" queryString>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts 
+const issuerDocument = new IotaDocument(issuerClient.network());
+const issuerFragment = await issuerDocument.generateMethodHybrid(
+    issuerStorage,
+    CompositeAlgId.IdMldsa44Ed25519,
+    "#0",
+    MethodScope.VerificationMethod(),
+);
+```
+
+</TabItem>
+<TabItem value="rust" label="Rust">
+
+```rust
+let mut issuer_document = IotaDocument::new(identity_client.network());
+issuer_document
+  .generate_method_hybrid(
+    &issuer_storage,
+    CompositeAlgId::IdMlDsa44Ed25519,
+    None,
+    MethodScope::VerificationMethod,
+  )
+  .await?;
+```
+
+</TabItem>
+</Tabs>
+
+Users may notice the above snippet uses the `generate_method_hybrid` which doesn't require a
+`KeyType` parameter, and the use of `CompositeAlgId` instead of `JwsAlgorithm`.
+Inspecting the resulting JSON DID Document, yield something similar to this:
+
+{ /* spellchecker:off */ }
+```json
+{
+  "doc": {
+    "id": "did:iota:14dc0ad6:0xefd52e019eb7112f726f979c9958984a25f5f3e3e4d720be17a2286af2829259",
+    "verificationMethod": [
+      {
+        "id": "did:iota:14dc0ad6:0xefd52e019eb7112f726f979c9958984a25f5f3e3e4d720be17a2286af2829259#5nSUQkxVvX_BEsBv9SkaPTXdPEgKZwtWCc1bg6c9ci4~HA1-XRnItW_e1eG1HigEl91T8IzEouTaNv4X9KMu6OM",
+        "controller": "did:iota:14dc0ad6:0xefd52e019eb7112f726f979c9958984a25f5f3e3e4d720be17a2286af2829259",
+        "type": "CompositeJsonWebKey",
+        "compositeJwk": {
+          "algId": "id-MLDSA44-Ed25519",
+          "traditionalPublicKey": {
+            "kty": "OKP",
+            "alg": "EdDSA",
+            "kid": "5nSUQkxVvX_BEsBv9SkaPTXdPEgKZwtWCc1bg6c9ci4",
+            "crv": "Ed25519",
+            "x": "baKxi90ymbagxAH2jR9Ps5zy9jK-0HDkTMaFSndXmqU"
+          },
+          "pqPublicKey": {
+            "kty": "AKP",
+            "alg": "ML-DSA-44",
+            "kid": "HA1-XRnItW_e1eG1HigEl91T8IzEouTaNv4X9KMu6OM",
+            "pub": "xi2ISbtmdLIAfgeRlr8kExUWRccVJdm2_dKNSeHlMHGa9yfjfLKJNeNYrWxq2apb4tp1W9y4p4VFaJljMcIbRvcCcAgq8HRFUALLmckPNK9014nIZOzXMW9ltaD5NOdoWKemw4qOU2FL32LREcACV_RoqYP-yt7k001Lpx0lqjd-PPtcd60oWZ_Jp5jdsiIyXYQf9pg3zmQGtbk0F-1QlKkRWQT8hE_cuWLDqGch96xxehbvYXTfT4R8Y9p3Fwfr_pG2Kl5s9C4yBMYPnrHtEoEyEAM4cgLh7qQjgPQKzWgE05fK12njoOPtXw79BvKIxKCrQOW_cPZNQ5EciS28mjovMdzJKmStPXIxYPusGyKANrhESrsQFKvaWXkeeWl27fBTmOuJrAh0M85LHCZ4tAgaNo4JbXsfRJmfftJlJ4gzdlJDEPQ91_ZQCybav43kfTWdWC6SVljJXxYUeSk0h4djfcs6szI6FdlieJusgHAV0-BA3EJXLeErW04j4u5rUUHw3uWyaBmAvfiOa3m2Ba6z8LAVuLOraRyr_Prlq3ZzKlB_LMCFjRdGlnCLscdxYGcOHosCu3CScy5193H7YX0SNvQVZrxk_RnKJOAgNHyOJ1ZhomivL8b3mUjfE19sUFh7Ukd82mliuR4UFUfyidbIk-C5RkQyEadP6PEIoL8McQ8cD_PIuhFAqXYCu1meN9uDQ_eSocNpwHrjlPo_DgZOnPbfIGiXdPcNP8xV-SPZlTGMG4tEu_sSrtX4b2GQfLpxqlcGSfKeLjS60ghrL7PJE9fAcLd2U8pcsTDHkog3UWeiTKLt1a8cATcnNCZt3t2Wjg_Vh2km5ih57yfrQ7_DT3gVFbg3OJZt_Ty1lS8WcH_KtgPQ5Ald0YSK9yl5gW-1r--JxXrhA8g0VLxvmhxsn5rwUd5DNJjPbzdoSGK-D_z9SZeA9iKPNFJyLhs_Hzps1MHkyArXKtQxnVSR-0kWMxONwFOYZMcbZ8KmYFJC2ZQF-m1YOI5GgMqzUA6dV_rJdL0eHWG8Vd0zqulN9w5hByhXYs5w2MFLfIB_IY902kD9U4SxaSYwkxr9JSyMA7GnLGryQY_yx44lUZDklzM7ZTrdeNx4x7teLu_--d6UQeDTD0mNPfExCI2RXZ3TRTfLv4ls9hNCcj-Yg_SWUZMBIFp5nicFv9aSEhX6XGMez1z9DB9gY5E4AimeRtdawPINA05nKsrFTIZ8Cbn1Xkt8npuVz05VfyRLWgLZNfDHASO94oMP8D9OyvpZTD_Oa399wJA-YHAl2CfUE86hAXPnHqHBCnY3sEr4hQUrat22X0QF5lWbMPCsOAskkdcrQtsQiGSqNbc9KQzHm-V3YD3qPWQ6Z7Xcd5_tyUd2mCnYEGj5UKfZsJffW3pio3tr4hMz0wEdNo7nNom8Q6D57EdBEK3PeQ5l3--7zvIdSw9chNouYeNVBG9IWmKv_0byrUOca_aqWgGYWlNnOolrPxPtL8cmVp9BE1WPkbTahWyaU8-Gm3-jtX93BphBg6fwQcBYfurLsR_s1KfD7SzttUtc5qsMJOXKeAeOwv4eCMj24iqti0-UvkZXEj1upEGnGNRHUlPP-7RQlvf2Zmd_m8jocf7YUQxplm3s9fsoAloFDoe_U6kc6omDP4saHjpnzQoP-PZnvSVEPISM3yZzQvTNZ5bdvoIYjU7IJJYPtcq-XyQgTf_r8kDPyIrEY5nSh1kvkjug-rO9W5-gg3rQag"
+          }
+        }
+      }
+    ]
+  },
+  "meta": {
+    "created": "2025-09-17T12:44:26Z",
+    "updated": "2025-09-17T12:44:26Z"
+  }
+}
+```
+{ /* spellchecker:on */ }
+
+As expected we can see a verification method of type `CompositeJsonWebKey`, containing a composite
+JWK that uses the algorithm `id-MLDSA44-Ed25519`.
+
+To validate JWT-encoded VCs that rely on hybrid signatures users can leverage the new 
+`JwtCredentialValidatorHybrid` which takes two signature verifiers: one for the traditional
+signature, and another for the PQC signature. Here is what it looks like in code:
+
+<Tabs groupId="language" queryString>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+```ts 
+new JwtCredentialValidatorHybrid(new EdDSAJwsVerifier(), new PQJwsVerifier()).validate(
+  credentialJwt,
+  issuerDocument,
+  new JwtCredentialValidationOptions(),
+  FailFast.FirstError,
+);
+```
+</TabItem>
+<TabItem value="rust" label="Rust">
+```rust
+JwtCredentialValidatorHybrid::with_signature_verifiers(EdDSAJwsVerifier::default(), PQCJwsVerifier::default())
+  .validate(
+    &credential_jwt,
+    &issuer_document,
+    &JwtCredentialValidationOptions::default(),
+    FailFast::FirstError,
+  )?;
+```
+</TabItem>
+</Tabs>
+
+## Security Considerations
+
+Although VCs and VPs secured through PQC signatures would indeed be resilient against quantum 
+attacks, it is important to consider the security of the issuer's DID Document as well. If the DID 
+document, containing a signature's verification method, were to be compromised, the ability to 
+verify all signatures that rely on it would be compromised as well.
+
+In the context of quantum attacks, storing such a DID Document on a non-PQC-capable DLT would be
+unsafe.
+
+Until DLTs migrate to use PQC techniques, users may still rely on off-chain VPs and VCs
+either by storing the verification key on a PQ medium or by leveraging ephemeral DID documents such
+as as: `did:jwk`, `did:key`, or `did:compositejwk`. These types of DIDs don't require a derefering
+or resolution operation in order to obtain the corresponding DID document. Instead, they encode
+within themselves a verification method, that can be used to derive a whole DID document that
+contains it.
+
+Let's check out a small example:
+
+<Tabs groupId="language" queryString>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+```ts 
+const issuerJwk = await (issuerStorage.keyStorage() as JwkPqMemStore)
+  .generatePQKey(JwkPqMemStore.mldsaKeyType(), JwsAlgorithm.MLDSA44)
+  .then(res => res.jwk());
+
+// We use the issuer's public key (as JWK) to construct an ephemeral DID document.
+const issuerDid = DIDJwk.fromJwk(issuerJwk);
+const issuerDocument = CoreDocument.expandDIDJwk(issuerDid);
+
+// Expanding the did-jwk into a did document generates a did document with one verification method.
+console.assert(issuerDocument.verificationMethod().length == 1, "expected a single VM");
+
+
+// The expanded did document's verification method contains the issuer's public key as JWK.
+const vmJwk = issuerDocument.verificationMethod()[0].data().tryPublicKeyJwk();
+console.assert(JSON.stringify(issuerJwk) == JSON.stringify(vmJwk), "expected the same JWK");
+
+const credentialJwt = await issuerDocument.createCredentialJwtPqc(
+  issuerStorage,
+  "0", // Expanding a DID JWK into a DID document always creates a VM with fragment "0".
+  credential,
+  new JwsSignatureOptions(),
+);
+
+// The generated JWT has a "iss" header set to "did:jwk:<issuer-jwk>", and a "kid" header set to
+// "did:jwk:<issuer-jwk>#0", enabling verifiers to validate the credential, by simply expanding the
+// issuer's did:jwk and using it's VM "0".
+const issuerDid = new DIDJwk(JwtCredentialValidator.extractIssuerFromJwt(credentialJwt));
+const issuerDocument = CoreDocument.expandDIDJwk(issuerDid);
+
+new JwtCredentialValidator(new PQJwsVerifier()).validate(
+  credentialJwt,
+  issuerDocument,
+  new JwtCredentialValidationOptions(),
+  FailFast.FirstError,
+);
+```
+</TabItem>
+<TabItem value="rust" label="Rust">
+```rust
+let JwkGenOutput { jwk: issuer_jwk } = issuer_storage
+  .key_storage()
+  .generate_pq_key(JwkMemStore::PQ_KEY_TYPE, JwsAlgorithm::ML_DSA_44)
+  .await?;
+
+// We use the issuer's public key (as JWK) to construct an ephemeral DID document.
+let issuer_did = DIDJwk::new(issuer_jwk.clone());
+let issuer_document = CoreDocument::expand_did_jwk(issuer_did)?;
+
+// Expanding the did-jwk into a did document generates a did document with one verification method.
+let mut verification_methods = issuer_document.verification_methods();
+assert_eq!(verification_methods.len(), 1);
+
+// The expanded did document's verification method contains the issuer's public key as JWK.
+let vm = verification_methods.into_vec().pop().unwrap();
+assert_eq!(vm.data().public_key_jwk(), Some(&issuer_jwk));
+
+let credential_jwt = issuer_document
+  .create_credential_jwt_pqc(
+    &credential,
+    &issuer_storage,
+    "0", // Expanding a DID JWK into a DID document always creates a VM with fragment "0".
+    &JwsSignatureOptions::default(),
+    None,
+  )
+  .await?;
+
+// The generated JWT has a "iss" header set to "did:jwk:<issuer-jwk>", and a "kid" header set to
+// "did:jwk:<issuer-jwk>#0", enabling verifiers to validate the credential, by simply expanding the
+// issuer's did:jwk and using it's VM "0".
+let issuer_did = JwtCredentialValidatorUtils::extract_issuer_from_jwt::<DIDJwk>(&credential_jwt)?;
+let issuer_document = CoreDocument::expand_did_jwk(issuer_did)?;
+
+JwtCredentialValidator::with_signature_verifier(PQCJwsVerifier::default())
+  .validate(
+    &credential_jwt,
+    &issuer_document,
+    &JwtCredentialValidationOptions::default(),
+    FailFast::FirstError,
+  )?;
+```
+</TabItem>
+</Tabs>
+
+## Full Examples
+
+<Tabs groupId="language" queryString>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/identity/blob/wasm-v1.7.0-beta.1/bindings/wasm/identity_wasm/examples/src/1_advanced/pq.ts
+```
+
+</TabItem>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/identity/blob/v1.7.0-beta.1/examples/1_advanced/pq.rs
+```
+
+</TabItem>
+</Tabs>

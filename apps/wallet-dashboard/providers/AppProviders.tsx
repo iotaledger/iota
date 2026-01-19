@@ -5,10 +5,10 @@
 
 import { GrowthBookProvider } from '@growthbook/growthbook-react';
 import { IotaClientProvider, lightTheme, darkTheme, WalletProvider } from '@iota/dapp-kit';
-import { getAllNetworks, getDefaultNetwork } from '@iota/iota-sdk/client';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { getAllNetworks, getDefaultNetwork, getNetwork } from '@iota/iota-sdk/client';
+import { MutationCache, QueryCache, QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
-import { useState } from 'react';
+import React, { useState } from 'react';
 import {
     KioskClientProvider,
     StardustIndexerClientProvider,
@@ -17,18 +17,41 @@ import {
     ClipboardPasteSafetyWrapper,
     IotaGraphQLClientProvider,
     IotaNamesClientProvider,
+    Disclaimer,
+    setCookieAccepted,
 } from '@iota/core';
 import { growthbook } from '@/lib/utils';
 import { ThemeProvider } from '@iota/core';
 import { createIotaClient } from '@/lib/utils/defaultRpcClient';
+import { captureException } from '@/instrumentation';
+import { LEGAL_LINKS } from '@/lib/constants/routes.constants';
+import Link from 'next/link';
 
 growthbook.init();
 
 export function AppProviders({ children }: React.PropsWithChildren) {
-    const [queryClient] = useState(() => new QueryClient());
+    const [queryClient] = useState(
+        () =>
+            new QueryClient({
+                queryCache: new QueryCache({
+                    onError: (error) => {
+                        captureException(error);
+                    },
+                }),
+                mutationCache: new MutationCache({
+                    onError: (error) => {
+                        captureException(error);
+                    },
+                }),
+            }),
+    );
     const allNetworks = getAllNetworks();
-    const defaultNetwork = getDefaultNetwork();
-    const [persistedNetwork] = useLocalStorage<string>('network_iota-dashboard', defaultNetwork);
+    const defaultNetworkId = getDefaultNetwork();
+    const [persistedNetworkId] = useLocalStorage<string>(
+        'network_iota-dashboard',
+        defaultNetworkId,
+    );
+    const persistedNetwork = getNetwork(persistedNetworkId);
 
     function handleNetworkChange() {
         queryClient.resetQueries();
@@ -40,7 +63,7 @@ export function AppProviders({ children }: React.PropsWithChildren) {
                 <IotaClientProvider
                     networks={allNetworks}
                     createClient={createIotaClient}
-                    defaultNetwork={persistedNetwork}
+                    defaultNetwork={persistedNetworkId}
                     onNetworkChange={handleNetworkChange}
                 >
                     <StardustIndexerClientProvider>
@@ -58,11 +81,35 @@ export function AppProviders({ children }: React.PropsWithChildren) {
                                                 variables: darkTheme,
                                             },
                                         ]}
+                                        chain={persistedNetwork.chain}
                                     >
                                         <ClipboardPasteSafetyWrapper>
                                             <ThemeProvider appId="iota-dashboard">
                                                 {children}
                                                 <Toaster containerClassName="!right-8" />
+                                                <Disclaimer onClose={setCookieAccepted}>
+                                                    <div>
+                                                        By using this website, you agree with our{' '}
+                                                        {LEGAL_LINKS.map(
+                                                            ({ title, href }, index) => (
+                                                                <React.Fragment key={href}>
+                                                                    <Link
+                                                                        key={href}
+                                                                        href={href}
+                                                                        target="_blank"
+                                                                        rel="noopener noreferrer"
+                                                                        className="text-iota-primary-30 hover:text-iota-primary-50 dark:text-iota-primary-80 dark:hover:text-iota-primary-60"
+                                                                    >
+                                                                        {title}
+                                                                    </Link>
+                                                                    {index < LEGAL_LINKS.length - 1
+                                                                        ? ', '
+                                                                        : ''}
+                                                                </React.Fragment>
+                                                            ),
+                                                        )}
+                                                    </div>
+                                                </Disclaimer>
                                             </ThemeProvider>
                                         </ClipboardPasteSafetyWrapper>
                                     </WalletProvider>

@@ -38,9 +38,6 @@ Response: {
                   "outputState": {
                     "asMoveObject": {
                       "contents": {
-                        "type": {
-                          "repr": "0x0000000000000000000000000000000000000000000000000000000000000002::coin::Coin<0x0000000000000000000000000000000000000000000000000000000000000002::iota::IOTA>"
-                        },
                         "data": {
                           "Struct": [
                             {
@@ -98,10 +95,13 @@ Response: {
                           ]
                         },
                         "json": {
-                          "id": "0x6f61e4afc1e9f023c116945245ff9fcb1c60ab5ce8b20e2b20eae3d83e6f4fe0",
                           "balance": {
                             "value": "299999995982800"
-                          }
+                          },
+                          "id": "0x6f61e4afc1e9f023c116945245ff9fcb1c60ab5ce8b20e2b20eae3d83e6f4fe0"
+                        },
+                        "type": {
+                          "repr": "0x0000000000000000000000000000000000000000000000000000000000000002::coin::Coin<0x0000000000000000000000000000000000000000000000000000000000000002::iota::IOTA>"
                         }
                       }
                     }
@@ -111,9 +111,6 @@ Response: {
                   "outputState": {
                     "asMoveObject": {
                       "contents": {
-                        "type": {
-                          "repr": "0xf210a282fd5df957e40bdf8c7536a035233e6ebd306132390cb10d67b4ae3d77::m::Foo"
-                        },
                         "data": {
                           "Struct": [
                             {
@@ -279,8 +276,8 @@ Response: {
                               "name": "f8",
                               "value": {
                                 "Variant": {
-                                  "name": "A",
-                                  "fields": []
+                                  "fields": [],
+                                  "name": "A"
                                 }
                               }
                             },
@@ -288,8 +285,8 @@ Response: {
                               "name": "f9",
                               "value": {
                                 "Variant": {
-                                  "name": "B",
-                                  "fields": []
+                                  "fields": [],
+                                  "name": "B"
                                 }
                               }
                             },
@@ -297,7 +294,6 @@ Response: {
                               "name": "f10",
                               "value": {
                                 "Variant": {
-                                  "name": "C",
                                   "fields": [
                                     {
                                       "name": "pos0",
@@ -305,7 +301,8 @@ Response: {
                                         "Number": "45"
                                       }
                                     }
-                                  ]
+                                  ],
+                                  "name": "C"
                                 }
                               }
                             },
@@ -313,7 +310,6 @@ Response: {
                               "name": "f11",
                               "value": {
                                 "Variant": {
-                                  "name": "D",
                                   "fields": [
                                     {
                                       "name": "x",
@@ -321,16 +317,26 @@ Response: {
                                         "Number": "46"
                                       }
                                     }
-                                  ]
+                                  ],
+                                  "name": "D"
                                 }
                               }
                             }
                           ]
                         },
                         "json": {
-                          "id": "0xeb11cc2453e1c0ba742c56cfefb1f535b091b3d8daf3a1afd06b9e318d0a252a",
                           "f0": "0xeb11cc2453e1c0ba742c56cfefb1f535b091b3d8daf3a1afd06b9e318d0a252a",
                           "f1": true,
+                          "f10": {
+                            "C": {
+                              "pos0": 45
+                            }
+                          },
+                          "f11": {
+                            "D": {
+                              "x": "46"
+                            }
+                          },
                           "f2": 42,
                           "f3": "43",
                           "f4": "hello",
@@ -345,16 +351,10 @@ Response: {
                           "f9": {
                             "B": {}
                           },
-                          "f10": {
-                            "C": {
-                              "pos0": 45
-                            }
-                          },
-                          "f11": {
-                            "D": {
-                              "x": "46"
-                            }
-                          }
+                          "id": "0xeb11cc2453e1c0ba742c56cfefb1f535b091b3d8daf3a1afd06b9e318d0a252a"
+                        },
+                        "type": {
+                          "repr": "0xf210a282fd5df957e40bdf8c7536a035233e6ebd306132390cb10d67b4ae3d77::m::Foo"
                         }
                       }
                     }

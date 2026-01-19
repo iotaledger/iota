@@ -2,7 +2,10 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{fmt::Display, io::stdout};
+use std::{
+    fmt::Display,
+    io::{self, Write, stdout},
+};
 
 use crossterm::{
     cursor::{RestorePosition, SavePosition},
@@ -11,31 +14,28 @@ use crossterm::{
 };
 use prettytable::format::{self};
 
+use crate::logger;
+
 pub fn header<S: Display>(message: S) {
-    crossterm::execute!(
-        stdout(),
-        PrintStyledContent(format!("\n{message}\n").green().bold()),
-    )
-    .unwrap();
+    let msg = format!("\n{message}\n");
+    logger::log(&msg);
+    crossterm::execute!(stdout(), PrintStyledContent(msg.green().bold()),).unwrap();
 }
 
 pub fn error<S: Display>(message: S) {
-    crossterm::execute!(
-        stdout(),
-        PrintStyledContent(format!("\n{message}\n").red().bold()),
-    )
-    .unwrap();
+    let msg = format!("\n{message}\n");
+    logger::log(&msg);
+    crossterm::execute!(stdout(), PrintStyledContent(msg.red().bold()),).unwrap();
 }
 
 pub fn warn<S: Display>(message: S) {
-    crossterm::execute!(
-        stdout(),
-        PrintStyledContent(format!("\n{message}\n").bold()),
-    )
-    .unwrap();
+    let msg = format!("\n{message}\n");
+    logger::log(&msg);
+    crossterm::execute!(stdout(), PrintStyledContent(msg.bold()),).unwrap();
 }
 
 pub fn config<N: Display, V: Display>(name: N, value: V) {
+    logger::log(&format!("{name}: {value}\n"));
     crossterm::execute!(
         stdout(),
         PrintStyledContent(format!("{name}: ").bold()),
@@ -44,22 +44,50 @@ pub fn config<N: Display, V: Display>(name: N, value: V) {
     .unwrap();
 }
 
+pub fn confirm<S: Display>(message: S) -> bool {
+    // Print the prompt
+    crossterm::execute!(
+        stdout(),
+        PrintStyledContent(format!("{message} ").bold()),
+        Print("[y/N]: ")
+    )
+    .unwrap();
+
+    // Make sure prompt is visible before waiting for input
+    stdout().flush().unwrap();
+
+    // Read input
+    let mut input = String::new();
+    match io::stdin().read_line(&mut input) {
+        Ok(_) => {
+            let normalized = input.trim().to_lowercase();
+            matches!(normalized.as_str(), "y" | "yes")
+        }
+        Err(_) => false,
+    }
+}
+
 pub fn action<S: Display>(message: S) {
-    crossterm::execute!(stdout(), Print(format!("{message} ... ")), SavePosition).unwrap();
+    let msg: String = format!("{message} ... ");
+    logger::log(&msg);
+    crossterm::execute!(stdout(), Print(&msg), SavePosition).unwrap();
 }
 
 pub fn status<S: Display>(status: S) {
+    let msg = format!("[{status}]");
+    logger::log(&msg);
     crossterm::execute!(
         stdout(),
         RestorePosition,
         SavePosition,
         Clear(ClearType::UntilNewLine),
-        Print(format!("[{status}]"))
+        Print(&msg)
     )
     .unwrap();
 }
 
 pub fn done() {
+    logger::log("[Ok]\n");
     crossterm::execute!(
         stdout(),
         RestorePosition,
@@ -70,6 +98,7 @@ pub fn done() {
 }
 
 pub fn newline() {
+    logger::log("\n");
     crossterm::execute!(stdout(), Print("\n")).unwrap();
 }
 

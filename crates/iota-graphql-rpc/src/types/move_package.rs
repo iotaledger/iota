@@ -19,6 +19,7 @@ use iota_types::{is_system_package, move_package::MovePackage as NativeMovePacka
 use serde::{Deserialize, Serialize};
 
 use crate::{
+    config::DEFAULT_PAGE_SIZE,
     connection::ScanConnection,
     consistency::{Checkpointed, ConsistentNamedCursor},
     data::{DataLoader, Db, DbConnection, QueryExecutor},
@@ -312,14 +313,13 @@ impl MovePackage {
     }
 
     /// The current status of the object as read from the off-chain store. The
-    /// possible states are: NOT_INDEXED, the object is loaded from
-    /// serialized data, such as the contents of a genesis or system package
-    /// upgrade transaction. LIVE, the version returned is the most recent for
-    /// the object, and it is not deleted or wrapped at that version.
-    /// HISTORICAL, the object was referenced at a specific version or
-    /// checkpoint, so is fetched from historical tables and may not be the
-    /// latest version of the object. WRAPPED_OR_DELETED, the object is deleted
-    /// or wrapped and only partial information can be loaded."
+    /// possible states are:
+    /// - NOT_INDEXED: The object is loaded from serialized data, such as the
+    ///   contents of a genesis or system package upgrade transaction.
+    /// - INDEXED: The object is retrieved from the off-chain index and
+    ///   represents the most recent or historical state of the object.
+    /// - WRAPPED_OR_DELETED: The object is deleted or wrapped and only partial
+    ///   information can be loaded.
     pub(crate) async fn status(&self) -> ObjectStatus {
         ObjectImpl(&self.super_).status().await
     }
@@ -383,6 +383,9 @@ impl MovePackage {
     /// GraphQL, but it can be restricted by the `after` and `before`
     /// cursors, and the `beforeCheckpoint`, `afterCheckpoint` and
     /// `atCheckpoint` filters.
+    #[graphql(
+        complexity = "first.or(last).unwrap_or(DEFAULT_PAGE_SIZE as u64) as usize * child_complexity"
+    )]
     pub(crate) async fn received_transaction_blocks(
         &self,
         ctx: &Context<'_>,
@@ -571,6 +574,17 @@ impl MovePackage {
             .collect();
 
         Some(type_origins)
+    }
+
+    /// BCS representation of the package itself, as a MovePackage.
+    async fn package_bcs(&self) -> Result<Option<Base64>> {
+        let bcs = bcs::to_bytes(&self.native)
+            .map_err(|_| {
+                Error::Internal(format!("Failed to serialize package {}", self.native.id()))
+            })
+            .extend()?;
+
+        Ok(Some(bcs.into()))
     }
 
     /// BCS representation of the package's modules.  Modules appear as a

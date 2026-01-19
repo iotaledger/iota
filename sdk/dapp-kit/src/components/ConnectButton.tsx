@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import type { ReactNode } from 'react';
+import type { WalletWithRequiredFeatures } from '@iota/wallet-standard';
 
 import { useCurrentAccount } from '../hooks/wallet/useCurrentAccount.js';
 import { AccountDropdownMenu } from './AccountDropdownMenu.js';
@@ -14,12 +15,14 @@ type ConnectButtonProps = {
     connectText?: ReactNode;
     size?: React.ComponentProps<typeof Button>['size'];
     iotaNamesEnabled?: boolean;
+    onConnected?: (params: { wallet: WalletWithRequiredFeatures }) => void;
 } & React.ComponentProps<typeof Button>;
 
 export function ConnectButton({
     connectText = 'Connect Wallet',
     size,
     iotaNamesEnabled = true,
+    onConnected,
     ...buttonProps
 }: ConnectButtonProps) {
     const currentAccount = useCurrentAccount();
@@ -31,6 +34,7 @@ export function ConnectButton({
         />
     ) : (
         <ConnectModal
+            onConnected={onConnected}
             trigger={
                 <StyleMarker>
                     <Button {...buttonProps} size={size}>

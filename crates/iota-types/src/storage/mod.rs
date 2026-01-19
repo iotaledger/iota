@@ -111,7 +111,7 @@ pub enum DeleteKind {
 #[derive(Debug, PartialEq, Eq, Clone, Copy, Serialize, Deserialize)]
 pub enum MarkerValue {
     /// An object was received at the given version in the transaction and is no
-    /// longer able to be received at that version in subequent
+    /// longer able to be received at that version in subsequent
     /// transactions.
     Received,
     /// An owned object was deleted (or wrapped) at the given version, and is no

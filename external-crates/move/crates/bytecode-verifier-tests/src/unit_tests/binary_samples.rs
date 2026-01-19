@@ -8,7 +8,7 @@
 //! metering working as expected. Those tests represent cases which we want to
 //! continue to succeed.
 
-use move_binary_format::{errors::VMResult, CompiledModule};
+use move_binary_format::{CompiledModule, errors::VMResult};
 use move_bytecode_verifier::verifier;
 use move_bytecode_verifier_meter::bound::BoundMeter;
 

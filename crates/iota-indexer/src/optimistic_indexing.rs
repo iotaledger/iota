@@ -20,10 +20,11 @@ use iota_types::{
 
 use crate::{
     errors::IndexerError,
-    handlers::{
-        TransactionObjectChangesToCommit,
-        checkpoint_handler::{
-            CheckpointHandler, IndexedTransactionComponents, try_extract_df_kind,
+    ingestion::{
+        common::prepare::extract_df_kind,
+        primary::{
+            persist::TransactionObjectChangesToCommit,
+            prepare::{IndexedTransactionComponents, PrimaryWorker},
         },
     },
     metrics::IndexerMetrics,
@@ -50,7 +51,7 @@ type TransactionDataToCommit = (
 #[derive(Clone)]
 pub struct OptimisticTransactionExecutor {
     rpc_client: iota_rest_api::Client,
-    read: IndexerReader,
+    pub(crate) read: IndexerReader,
     store: PgIndexerStore,
     metrics: IndexerMetrics,
 }
@@ -93,9 +94,13 @@ impl OptimisticTransactionExecutor {
         };
 
         backoff::future::retry(backoff, async || {
+            let digests: Vec<Vec<u8>> = expected_dependencies
+                .iter()
+                .map(|d| d.inner().to_vec())
+                .collect();
             let count = self
                 .read
-                .count_indexed_tx_global_orders_in_blocking_task(expected_dependencies.clone())
+                .count_indexed_tx_global_orders_in_blocking_task(digests.into_iter())
                 .await?;
             if count as usize != expected_dependencies.len() {
                 return Err(IndexerError::TransactionDependenciesNotIndexed)?;
@@ -128,24 +133,36 @@ impl OptimisticTransactionExecutor {
         let tx_digest = transaction.digest();
         let (Some(input_objects), Some(output_objects)) = (input_objects, output_objects) else {
             tracing::warn!(
-                "Cannot optimistically index because of missing in/out objs for tx: {tx_digest}"
+                "cannot optimistically index because of missing in/out objs for tx: {tx_digest}"
             );
+            self.metrics.optimistic_tx_with_missing_objects_counts.inc();
             return Ok(());
         };
 
         if input_objects.is_empty() || output_objects.is_empty() {
             tracing::warn!(
-                "Cannot optimistically index because of missing in/out objs for tx: {tx_digest}"
+                "cannot optimistically index because of missing in/out objs for tx: {tx_digest}"
             );
+            self.metrics.optimistic_tx_with_missing_objects_counts.inc();
             return Ok(());
         }
+        let deps_timer = self
+            .metrics
+            .optimistic_tx_dependencies_wait_time
+            .start_timer();
         tokio::select! {
-            Ok(_) = self.wait_for_tx_dependencies(&effects) => (),
-            Ok(true) = self.deep_check_all_dependencies_are_indexed(&effects) => (),
+            Ok(_) = self.wait_for_tx_dependencies(&effects) => {
+                deps_timer.stop_and_record();
+            },
+            Ok(true) = self.deep_check_all_dependencies_are_indexed(&effects) => {
+                deps_timer.stop_and_record();
+            },
             else => {
+                deps_timer.stop_and_discard();
                 tracing::warn!(
-                    "Transaction {tx_digest} dependencies are not indexed, skipping optimistic indexing",
+                    "transaction {tx_digest} dependencies are not indexed, skipping optimistic indexing",
                 );
+                self.metrics.optimistic_tx_with_missing_dependencies_count.inc();
                 return Ok(());
             }
         };
@@ -156,6 +173,7 @@ impl OptimisticTransactionExecutor {
             input_objects,
             output_objects,
         };
+
         self.index_transaction_in_blocking_task(&full_tx_data).await
     }
 
@@ -171,9 +189,7 @@ impl OptimisticTransactionExecutor {
         effects: &TransactionEffects,
     ) -> Result<bool, IndexerError> {
         self.read
-            .deep_check_all_transactions_are_indexed_in_blocking_task(
-                effects.dependencies().to_vec(),
-            )
+            .deep_check_all_transactions_are_indexed_in_blocking_task(effects.dependencies())
             .await
     }
 
@@ -183,6 +199,11 @@ impl OptimisticTransactionExecutor {
         signatures: Vec<Base64>,
         options: Option<IotaTransactionBlockResponseOptions>,
     ) -> Result<IotaTransactionBlockResponse, IndexerError> {
+        let _total_execution_time = self
+            .metrics
+            .optimistic_tx_total_execution_and_indexing_time
+            .start_timer();
+        self.metrics.optimistic_tx_count.inc();
         let tx_data: TransactionData = bcs::from_bytes(&tx_bytes.to_vec()?)?;
         let sigs = signatures
             .into_iter()
@@ -190,6 +211,11 @@ impl OptimisticTransactionExecutor {
             .collect::<Result<Vec<_>, FastCryptoError>>()?;
 
         let transaction = Transaction::from_generic_sig_data(tx_data, sigs);
+
+        let node_timer = self
+            .metrics
+            .optimistic_tx_node_response_wait_time
+            .start_timer();
         let response = self
             .rpc_client
             .execute_transaction(
@@ -201,15 +227,32 @@ impl OptimisticTransactionExecutor {
                 },
                 &transaction,
             )
-            .await
-            .map_err(|e| IndexerError::Generic(e.to_string()))?;
+            .await;
+
+        let response = match response {
+            Ok(response) => {
+                node_timer.stop_and_record();
+                response
+            }
+            Err(e) => {
+                node_timer.stop_and_discard();
+                self.metrics.optimistic_tx_failed_node_requests_count.inc();
+                return Err(IndexerError::Generic(e.to_string()));
+            }
+        };
 
         let tx_digest = *response.effects.transaction_digest();
         self.maybe_index_executed_transaction(transaction, response)
             .await?;
+
+        let db_read_timer = self
+            .metrics
+            .optimistic_tx_db_wait_and_read_time
+            .start_timer();
         let tx_block_response = self
             .wait_for_local_indexing(tx_digest, options.clone())
             .await?;
+        db_read_timer.stop_and_record();
 
         Ok(IotaTransactionBlockResponseWithOptions {
             response: tx_block_response,
@@ -257,6 +300,7 @@ impl OptimisticTransactionExecutor {
         &self,
         full_tx_data: &CheckpointTransaction,
     ) -> Result<(), IndexerError> {
+        let db_write_timer = self.metrics.optimistic_tx_db_write_time.start_timer();
         match tokio::task::spawn_blocking({
             let this: OptimisticTransactionExecutor = self.clone();
             let full_tx_data = full_tx_data.clone();
@@ -264,16 +308,31 @@ impl OptimisticTransactionExecutor {
         })
         .await
         .map_err(|e| {
-            tracing::error!("Failed to join optimistic index_transaction: {e}");
+            tracing::error!("failed to join optimistic index_transaction: {e}");
             IndexerError::from(e)
         })? {
+            Ok(_) => {
+                db_write_timer.stop_and_record();
+                self.metrics.optimistic_tx_successful_db_writes_count.inc();
+                Ok(())
+            }
             // The unique violation error means that checkpoint indexing was faster than the
             // optimistic indexing. Let's just return and let checkpoint indexing handle
             // the transaction.
-            Ok(_) | Err(IndexerError::PostgresUniqueTxGlobalOrderViolation(_)) => Ok(()),
-            Err(e) => Err(IndexerError::PostgresWrite(format!(
-                "Failed to persist optimistic tx: {e:?}",
-            ))),
+            Err(IndexerError::PostgresUniqueTxGlobalOrderViolation(_)) => {
+                db_write_timer.stop_and_discard();
+                self.metrics
+                    .optimistic_tx_unique_global_order_violations_count
+                    .inc();
+                Ok(())
+            }
+            Err(e) => {
+                db_write_timer.stop_and_discard();
+                self.metrics.optimistic_tx_failed_db_writes_count.inc();
+                Err(IndexerError::PostgresWrite(format!(
+                    "Failed to persist optimistic tx: {e:?}",
+                )))
+            }
         }
     }
 
@@ -292,7 +351,7 @@ impl OptimisticTransactionExecutor {
                     full_tx_data,
                     assigned_global_order
                         .optimistic_sequence_number
-                        .expect("Optimistic sequence number is always set for data read from DB")
+                        .expect("optimistic sequence number is always set for data read from DB")
                         .try_into()
                         .map_err(|e| {
                             IndexerError::PersistentStorageDataCorruption(format!(
@@ -389,15 +448,14 @@ impl<'a> TransactionExtractor<'a> {
             .output_objects
             .iter()
             .map(|o| {
-                try_extract_df_kind(o).map(|df_kind| {
-                    IndexedObject::from_object(
-                        0, // checkpoint sequence number, ignored in further processing
-                        o.clone(),
-                        df_kind,
-                    )
-                })
+                let df_kind = extract_df_kind(o);
+                IndexedObject::from_object(
+                    0, // checkpoint sequence number, ignored in further processing
+                    o.clone(),
+                    df_kind,
+                )
             })
-            .collect::<Result<Vec<_>, _>>()?;
+            .collect::<Vec<_>>();
 
         Ok(TransactionObjectChangesToCommit {
             changed_objects,
@@ -410,7 +468,7 @@ impl<'a> TransactionExtractor<'a> {
     ) -> IndexerResult<IndexedTransactionComponents> {
         let handle = tokio::runtime::Handle::current();
         handle.block_on(async move {
-            CheckpointHandler::index_transaction(
+            PrimaryWorker::index_transaction_components(
                 self.full_tx_data,
                 self.optimistic_sequence_number,
                 0, // checkpoint sequence number - unknown
