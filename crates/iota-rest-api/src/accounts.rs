@@ -63,7 +63,7 @@ async fn list_account_objects(
             AccountOwnedObjectInfo {
                 owner: info.owner.into(),
                 object_id: info.object_id.into(),
-                version: info.version.into(),
+                version: info.version,
                 type_: struct_tag_core_to_sdk(info.type_.into())?,
             }
             .pipe(Ok)

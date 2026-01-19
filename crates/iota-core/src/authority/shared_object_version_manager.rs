@@ -69,7 +69,7 @@ impl SharedObjVerManager {
                 TransactionKey::RandomnessRound(epoch_store.epoch(), round),
                 vec![(IOTA_RANDOMNESS_STATE_OBJECT_ID, *version)],
             ));
-            *version += 1;
+            version.increment().unwrap();
         }
         for cert in certificates {
             if !cert.contains_shared_object() {

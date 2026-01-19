@@ -194,7 +194,7 @@ fn move_package_to_sdk(package: crate::move_package::MovePackage) -> MovePackage
 fn sdk_package_to_move(package: MovePackage) -> crate::move_package::MovePackage {
     crate::move_package::MovePackage {
         id: package.id.into(),
-        version: package.version.into(),
+        version: package.version,
         module_map: package
             .modules
             .into_iter()
@@ -226,7 +226,7 @@ fn sdk_object_to_move(
 ) -> Result<crate::object::MoveObject, SdkTypeConversionError> {
     crate::object::MoveObject {
         type_: sdk_object_type_to_move(obj.type_)?,
-        version: obj.version.into(),
+        version: obj.version,
         contents: obj.contents,
     }
     .pipe(Ok)
@@ -287,7 +287,7 @@ fn move_upgrade_info_to_sdk(info: crate::move_package::UpgradeInfo) -> UpgradeIn
 fn sdk_upgrade_info_to_move(info: UpgradeInfo) -> crate::move_package::UpgradeInfo {
     crate::move_package::UpgradeInfo {
         upgraded_id: info.upgraded_id.into(),
-        upgraded_version: info.upgraded_version.into(),
+        upgraded_version: info.upgraded_version,
     }
 }
 
@@ -373,7 +373,7 @@ impl TryFrom<TransactionV1> for crate::transaction::TransactionDataV1 {
                     .objects
                     .into_iter()
                     .map(ObjectReference::into_parts)
-                    .map(|(id, seq, digest)| (id.into(), seq.into(), digest.into()))
+                    .map(|(id, seq, digest)| (id.into(), seq, digest.into()))
                     .collect(),
                 owner: value.gas_payment.owner.into(),
                 price: value.gas_payment.price,
@@ -588,7 +588,7 @@ impl TryFrom<TransactionKind> for crate::transaction::TransactionKind {
                                 value
                                     .version_assignments
                                     .into_iter()
-                                    .map(|value| (value.object_id.into(), value.version.into()))
+                                    .map(|value| (value.object_id.into(), value.version))
                                     .collect()
                             )
                         ).collect()
@@ -630,8 +630,7 @@ impl TryFrom<TransactionKind> for crate::transaction::TransactionKind {
                         })
                         .collect(),
                     authenticator_obj_initial_shared_version: authenticator_state_update_v1
-                        .authenticator_obj_initial_shared_version
-                        .into(),
+                        .authenticator_obj_initial_shared_version,
                 })
             }
             TransactionKind::EndOfEpoch(vec) => {
@@ -645,8 +644,7 @@ impl TryFrom<TransactionKind> for crate::transaction::TransactionKind {
                     ),
                     random_bytes: randomness_state_update.random_bytes,
                     randomness_obj_initial_shared_version: randomness_state_update
-                        .randomness_obj_initial_shared_version
-                        .into(),
+                        .randomness_obj_initial_shared_version,
                 })
             }
             _ => unimplemented!("a new enum variant was added and needs to be handled"),
@@ -671,7 +669,7 @@ impl From<crate::transaction::EndOfEpochTransactionKind> for EndOfEpochTransacti
                         .system_packages
                         .into_iter()
                         .map(|(version, modules, dependencies)| SystemPackage {
-                            version: version,
+                            version,
                             modules,
                             dependencies: dependencies.into_iter().map(Into::into).collect(),
                         })
@@ -692,7 +690,7 @@ impl From<crate::transaction::EndOfEpochTransactionKind> for EndOfEpochTransacti
                         .system_packages
                         .into_iter()
                         .map(|(version, modules, dependencies)| SystemPackage {
-                            version: version,
+                            version,
                             modules,
                             dependencies: dependencies.into_iter().map(Into::into).collect(),
                         })
@@ -713,7 +711,7 @@ impl From<crate::transaction::EndOfEpochTransactionKind> for EndOfEpochTransacti
                         .system_packages
                         .into_iter()
                         .map(|(version, modules, dependencies)| SystemPackage {
-                            version: version,
+                            version,
                             modules,
                             dependencies: dependencies.into_iter().map(Into::into).collect(),
                         })
@@ -752,7 +750,7 @@ impl From<EndOfEpochTransactionKind> for crate::transaction::EndOfEpochTransacti
                         .into_iter()
                         .map(|package| {
                             (
-                                package.version.into(),
+                                package.version,
                                 package.modules,
                                 package.dependencies.into_iter().map(Into::into).collect(),
                             )
@@ -775,7 +773,7 @@ impl From<EndOfEpochTransactionKind> for crate::transaction::EndOfEpochTransacti
                         .into_iter()
                         .map(|package| {
                             (
-                                package.version.into(),
+                                package.version,
                                 package.modules,
                                 package.dependencies.into_iter().map(Into::into).collect(),
                             )
@@ -798,7 +796,7 @@ impl From<EndOfEpochTransactionKind> for crate::transaction::EndOfEpochTransacti
                         .into_iter()
                         .map(|package| {
                             (
-                                package.version.into(),
+                                package.version,
                                 package.modules,
                                 package.dependencies.into_iter().map(Into::into).collect(),
                             )
@@ -812,8 +810,7 @@ impl From<EndOfEpochTransactionKind> for crate::transaction::EndOfEpochTransacti
                 Self::AuthenticatorStateExpire(crate::transaction::AuthenticatorStateExpire {
                     min_epoch: authenticator_state_expire.min_epoch,
                     authenticator_obj_initial_shared_version: authenticator_state_expire
-                        .authenticator_obj_initial_shared_version
-                        .into(),
+                        .authenticator_obj_initial_shared_version,
                 })
             }
             _ => unimplemented!("a new enum variant was added and needs to be handled"),
@@ -835,7 +832,7 @@ impl From<crate::transaction::CallArg> for Input {
                     mutable,
                 } => Self::Shared {
                     object_id: id.into(),
-                    initial_shared_version: initial_shared_version,
+                    initial_shared_version,
                     mutable,
                 },
                 crate::transaction::ObjectArg::Receiving(obj_ref) => {
@@ -860,7 +857,7 @@ impl From<Input> for crate::transaction::CallArg {
                 mutable,
             } => Self::Object(ObjectArg::SharedObject {
                 id: object_id.into(),
-                initial_shared_version: initial_shared_version.into(),
+                initial_shared_version,
                 mutable,
             }),
             Input::Receiving(object_reference) => {
@@ -877,7 +874,7 @@ fn core_obj_ref_to_sdk(obj_ref: crate::base_types::ObjectRef) -> ObjectReference
 
 fn sdk_obj_ref_to_core(obj_ref: ObjectReference) -> crate::base_types::ObjectRef {
     let (id, seq, digest) = obj_ref.into_parts();
-    (id.into(), seq.into(), digest.into())
+    (id.into(), seq, digest.into())
 }
 
 impl TryFrom<crate::effects::TransactionEffects> for TransactionEffects {
@@ -909,7 +906,7 @@ impl TryFrom<crate::effects::TransactionEffects> for TransactionEffects {
                                 crate::effects::ObjectIn::NotExist => ObjectIn::Missing,
                                 crate::effects::ObjectIn::Exist(((version, digest), owner)) => {
                                     ObjectIn::Data {
-                                        version: version,
+                                        version,
                                         digest: digest.into(),
                                         owner: owner.into(),
                                     }
@@ -947,7 +944,7 @@ impl TryFrom<crate::effects::TransactionEffects> for TransactionEffects {
                                     version,
                                     digest,
                                 )) => UnchangedSharedKind::ReadOnlyRoot {
-                                    version: version,
+                                    version,
                                     digest: digest.into(),
                                 },
                                 crate::effects::UnchangedSharedKind::MutateDeleted(
@@ -1005,7 +1002,7 @@ impl TryFrom<TransactionEffects> for crate::effects::TransactionEffects {
                             .into_iter()
                             .map(Into::into)
                             .collect(),
-                        lamport_version: transaction_effects_v1.lamport_version.into(),
+                        lamport_version: transaction_effects_v1.lamport_version,
                         changed_objects: transaction_effects_v1
                             .changed_objects
                             .into_iter()
@@ -1020,7 +1017,7 @@ impl TryFrom<TransactionEffects> for crate::effects::TransactionEffects {
                                                 digest,
                                                 owner,
                                             } => crate::effects::ObjectIn::Exist((
-                                                (version.into(), digest.into()),
+                                                (version, digest.into()),
                                                 owner.into(),
                                             )),
                                             _ => unimplemented!("a new enum variant was added and needs to be handled"),
@@ -1037,7 +1034,7 @@ impl TryFrom<TransactionEffects> for crate::effects::TransactionEffects {
                                             }
                                             ObjectOut::PackageWrite { version, digest } => {
                                                 crate::effects::ObjectOut::PackageWrite((
-                                                    version.into(),
+                                                    version,
                                                     digest.into(),
                                                 ))
                                             }
@@ -1066,23 +1063,23 @@ impl TryFrom<TransactionEffects> for crate::effects::TransactionEffects {
                                     match obj.kind {
                                         UnchangedSharedKind::ReadOnlyRoot { version, digest } => {
                                             crate::effects::UnchangedSharedKind::ReadOnlyRoot((
-                                                version.into(),
+                                                version,
                                                 digest.into(),
                                             ))
                                         }
                                         UnchangedSharedKind::MutateDeleted { version } => {
                                             crate::effects::UnchangedSharedKind::MutateDeleted(
-                                                version.into(),
+                                                version,
                                             )
                                         }
                                         UnchangedSharedKind::ReadDeleted { version } => {
                                             crate::effects::UnchangedSharedKind::ReadDeleted(
-                                                version.into(),
+                                                version,
                                             )
                                         }
                                         UnchangedSharedKind::Cancelled { version } => {
                                             crate::effects::UnchangedSharedKind::Cancelled(
-                                                version.into(),
+                                                version,
                                             )
                                         }
                                         UnchangedSharedKind::PerEpochConfig => {
@@ -2211,7 +2208,7 @@ impl From<Owner> for crate::object::Owner {
             Owner::Address(address) => crate::object::Owner::AddressOwner(address.into()),
             Owner::Object(object_id) => crate::object::Owner::ObjectOwner(object_id.into()),
             Owner::Shared(initial_shared_version) => crate::object::Owner::Shared {
-                initial_shared_version: initial_shared_version.into(),
+                initial_shared_version,
             },
             Owner::Immutable => crate::object::Owner::Immutable,
             _ => unimplemented!("a new enum variant was added and needs to be handled"),
@@ -2444,11 +2441,11 @@ impl From<UnchangedSharedKind> for crate::effects::UnchangedSharedKind {
     fn from(value: UnchangedSharedKind) -> Self {
         match value {
             UnchangedSharedKind::ReadOnlyRoot { version, digest } => {
-                Self::ReadOnlyRoot((version.into(), digest.into()))
+                Self::ReadOnlyRoot((version, digest.into()))
             }
-            UnchangedSharedKind::MutateDeleted { version } => Self::MutateDeleted(version.into()),
-            UnchangedSharedKind::ReadDeleted { version } => Self::ReadDeleted(version.into()),
-            UnchangedSharedKind::Cancelled { version } => Self::Cancelled(version.into()),
+            UnchangedSharedKind::MutateDeleted { version } => Self::MutateDeleted(version),
+            UnchangedSharedKind::ReadDeleted { version } => Self::ReadDeleted(version),
+            UnchangedSharedKind::Cancelled { version } => Self::Cancelled(version),
             UnchangedSharedKind::PerEpochConfig => Self::PerEpochConfig,
             _ => unimplemented!("a new enum variant was added and needs to be handled"),
         }
@@ -2460,19 +2457,17 @@ impl From<crate::effects::UnchangedSharedKind> for UnchangedSharedKind {
         match value {
             crate::effects::UnchangedSharedKind::ReadOnlyRoot((version, digest)) => {
                 Self::ReadOnlyRoot {
-                    version: version.into(),
+                    version,
                     digest: digest.into(),
                 }
             }
-            crate::effects::UnchangedSharedKind::MutateDeleted(version) => Self::MutateDeleted {
-                version: version.into(),
-            },
-            crate::effects::UnchangedSharedKind::ReadDeleted(version) => Self::ReadDeleted {
-                version: version.into(),
-            },
-            crate::effects::UnchangedSharedKind::Cancelled(version) => Self::Cancelled {
-                version: version.into(),
-            },
+            crate::effects::UnchangedSharedKind::MutateDeleted(version) => {
+                Self::MutateDeleted { version }
+            }
+            crate::effects::UnchangedSharedKind::ReadDeleted(version) => {
+                Self::ReadDeleted { version }
+            }
+            crate::effects::UnchangedSharedKind::Cancelled(version) => Self::Cancelled { version },
             crate::effects::UnchangedSharedKind::PerEpochConfig => Self::PerEpochConfig,
         }
     }

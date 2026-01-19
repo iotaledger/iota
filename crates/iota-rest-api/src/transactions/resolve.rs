@@ -336,7 +336,7 @@ fn resolve_object_reference(
     let (v, d) = if let Some(version) = version {
         let object = reader
             .inner()
-            .try_get_object_by_key(&id, version.into())?
+            .try_get_object_by_key(&id, version)?
             .ok_or_else(|| ObjectNotFoundError::new_with_version(object_id, version))?;
         (object.version(), object.digest())
     } else {

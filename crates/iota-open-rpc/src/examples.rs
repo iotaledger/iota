@@ -192,11 +192,7 @@ impl RpcExampleProvider {
         let gas_price = 10;
         let data = TransactionData::new_programmable(
             signer,
-            vec![(
-                gas_id,
-                SequenceNumber(1),
-                ObjectDigest::new(self.rng.gen()),
-            )],
+            vec![(gas_id, SequenceNumber(1), ObjectDigest::new(self.rng.gen()))],
             pt,
             TEST_ONLY_GAS_UNIT_FOR_TRANSFER * gas_price,
             gas_price,
@@ -681,11 +677,7 @@ impl RpcExampleProvider {
             SequenceNumber(2),
             ObjectDigest::new(self.rng.gen()),
         );
-        let object_ref = (
-            obj_id,
-            SequenceNumber(2),
-            ObjectDigest::new(self.rng.gen()),
-        );
+        let object_ref = (obj_id, SequenceNumber(2), ObjectDigest::new(self.rng.gen()));
 
         let data = TransactionData::new_transfer(
             recipient,

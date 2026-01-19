@@ -1565,7 +1565,7 @@ fn try_get_past_object_version_not_found() {
 
         wait_for_objects_history(tx_digest, store, client).await;
 
-        let missing_version = gas_ref.1 - 1;
+        let missing_version = gas_ref.1.previous().unwrap();
 
         let result = client
             .try_get_past_object(gas_ref.0, missing_version, None)
@@ -1605,7 +1605,7 @@ fn try_get_past_object_version_too_high() {
         wait_for_objects_history(tx_digest, store, client).await;
 
         let latest_version = gas_ref.1;
-        let asked_version = latest_version + 1;
+        let asked_version = latest_version.next().unwrap();
 
         let result = client
             .try_get_past_object(gas_ref.0, asked_version, None)
@@ -1649,7 +1649,7 @@ fn try_get_past_object_object_deleted() {
         let delete_nft_tx = delete_nft(context, sender, package_id, nft_object_ref).await;
         wait_for_objects_history(delete_nft_tx.digest, store, client).await;
 
-        let deleted_version = nft_object_ref.1 + 1;
+        let deleted_version = nft_object_ref.1.next().unwrap();
 
         let result = client
             .try_get_object_before_version(nft_object_id, SequenceNumber::MAX_VALID_EXCL)
@@ -1684,7 +1684,7 @@ fn try_get_past_object_object_deleted() {
 
         // Try fetching the object before the deleted version.
         let result = client
-            .try_get_past_object(nft_object_id, deleted_version - 1, None)
+            .try_get_past_object(nft_object_id, deleted_version.previous().unwrap(), None)
             .await
             .expect("rpc call should succeed");
 

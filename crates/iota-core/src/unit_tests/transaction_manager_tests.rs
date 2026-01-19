@@ -454,7 +454,7 @@ async fn transaction_manager_receiving_notify_commit() {
             txn.digest(),
             vec![InputKey::VersionedObject {
                 id: object.id(),
-                version: object.version() + 1,
+                version: object.version().next().unwrap(),
             }],
             &state.epoch_store_for_testing(),
         );
