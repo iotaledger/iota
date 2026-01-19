@@ -45,6 +45,7 @@ iota-config.workspace = true
 iota-core.workspace = true
 iota-framework.workspace = true
 iota-genesis-builder.workspace = true
+iota-grpc-client.workspace = true
 iota-grpc-types.workspace = true
 iota-json-rpc.workspace = true
 iota-json-rpc-api.workspace = true

@@ -34,7 +34,7 @@ impl Client {
     ///
     /// **Required fields** (must be included in custom masks):
     /// - `transaction.bcs` - Transaction data
-    /// - `signatures.bcs` - User signatures
+    /// - `signatures` - User signatures
     /// - `effects.bcs` - Transaction effects
     ///
     /// **Optional fields:**
@@ -56,10 +56,7 @@ impl Client {
     ///
     /// // Custom: only required fields (smaller response)
     /// let txs = client
-    ///     .get_transactions(
-    ///         &[digest],
-    ///         Some("transaction.bcs,signatures.bcs,effects.bcs"),
-    ///     )
+    ///     .get_transactions(&[digest], Some("transaction.bcs,signatures,effects.bcs"))
     ///     .await?;
     /// # Ok(())
     /// # }
