@@ -7,7 +7,7 @@ import { BalanceChanges, ObjectChanges } from '../../cards';
 import { Header, KeyValueInfo, LoadingIndicator, Panel, Title, TitleSize } from '@iota/apps-ui-kit';
 import { RenderExplorerLink } from '../../../types';
 import { Transaction } from '@iota/iota-sdk/transactions';
-import { useMemo } from 'react';
+import { useEffect, useState } from 'react';
 
 interface TransactionSummaryProps {
     summary: TransactionSummaryType;
@@ -26,16 +26,21 @@ export function TransactionSummary({
     renderExplorerLink,
     transaction,
 }: TransactionSummaryProps) {
-    const txHash = useMemo(() => {
-        if (transaction) {
-            try {
-                return Transaction.getSigningDigest(transaction);
-            } catch (error) {
-                console.error('Error calculating transaction hash:', error);
-                return '';
+    const [txHash, setTxHash] = useState<string>('');
+    useEffect(() => {
+        async function calculateHash() {
+            if (transaction) {
+                try {
+                    const bytes = await transaction.build();
+                    const hash = Transaction.getSigningDigest(bytes);
+                    setTxHash(hash);
+                } catch (error) {
+                    console.error('Error building transaction for hash:', error);
+                }
             }
         }
-        return '';
+
+        calculateHash();
     }, [transaction]);
 
     if (isError) return null;
