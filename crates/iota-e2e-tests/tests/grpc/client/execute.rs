@@ -95,9 +95,11 @@ async fn execute_transaction_invalid_signature() {
         "Transaction should have at least one signature"
     );
     let mut sig_bytes = bcs::to_bytes(&signed_tx.signatures[0]).expect("BCS serialization failed");
-    // Flip bits in the signature data to corrupt it (skip the enum discriminant
-    // byte)
-    for byte in sig_bytes.iter_mut().skip(1) {
+    // Only flip bytes near the end of the signature data where the actual
+    // cryptographic signature bytes are. We must preserve the BCS length
+    // prefixes at the beginning to allow deserialization.
+    let corrupt_count = sig_bytes.len().min(32);
+    for byte in sig_bytes.iter_mut().rev().take(corrupt_count) {
         *byte = !*byte;
     }
     let corrupted_sig: UserSignature =
