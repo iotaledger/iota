@@ -19,7 +19,7 @@ use tracing::{info, warn};
 
 /// The minimum and maximum protocol versions supported by this build.
 const MIN_PROTOCOL_VERSION: u64 = 1;
-pub const MAX_PROTOCOL_VERSION: u64 = 18;
+pub const MAX_PROTOCOL_VERSION: u64 = 19;
 
 // Record history of protocol version allocations here:
 //
@@ -373,6 +373,7 @@ struct FeatureFlags {
     // leader's ancestors, and (3) enforces checkpoint timestamps are non-decreasing.
     #[serde(skip_serializing_if = "is_false")]
     consensus_median_timestamp_with_checkpoint_enforcement: bool,
+
     // If true, then transactions are committed only for traversed headers
     #[serde(skip_serializing_if = "is_false")]
     consensus_commit_transactions_only_for_traversed_headers: bool,
@@ -2368,8 +2369,8 @@ impl ProtocolConfig {
                         cfg.feature_flags.publish_package_metadata = true;
                         // Enable Move authentication in devnet
                         cfg.feature_flags.enable_move_authentication = true;
-                        // Max auth gas budget is in NANOS and an absolute value 1IOTA
-                        cfg.max_auth_gas = Some(1_000_000_000);
+                        // Max auth gas budget is in NANOS and an absolute value 0.25 IOTA
+                        cfg.max_auth_gas = Some(250_000_000);
                     }
                 }
                 // Use this template when making changes:
