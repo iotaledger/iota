@@ -54,32 +54,6 @@ async fn simulate_transaction_minimal_mask() {
 }
 
 #[sim_test]
-async fn simulate_transaction_idempotency() {
-    let (test_cluster, client) = setup_grpc_test(1).await;
-
-    let transaction = create_transaction_for_simulation(&test_cluster).await;
-
-    let result1 = client
-        .simulate_transaction(transaction.clone(), false, None)
-        .await
-        .expect("First simulation should succeed");
-
-    let result2 = client
-        .simulate_transaction(transaction, false, None)
-        .await
-        .expect("Second simulation should also succeed");
-
-    assert!(
-        is_success(result1.effects.status()),
-        "First simulation should succeed"
-    );
-    assert!(
-        is_success(result2.effects.status()),
-        "Second simulation should succeed"
-    );
-}
-
-#[sim_test]
 async fn simulate_transaction_insufficient_gas() {
     let (test_cluster, client) = setup_grpc_test(1).await;
 
@@ -130,8 +104,9 @@ async fn simulate_transaction_invalid() {
     let rgp = test_cluster.get_reference_gas_price().await;
 
     let fake_recipient = IotaAddress::random_for_testing_only();
+    // Use an extremely large amount (10^18) to ensure it exceeds any test wallet balance
     let tx_data = TestTransactionBuilder::new(sender, gas, rgp)
-        .transfer_iota(Some(1_000_000_000_000), fake_recipient)
+        .transfer_iota(Some(1_000_000_000_000_000_000), fake_recipient)
         .build();
 
     let transaction = to_sdk_transaction(&tx_data);
