@@ -173,7 +173,7 @@ async fn test_receive_object_in_main_tx_succeeds() -> Result<(), anyhow::Error> 
         .await;
 
     // Main PTB: actually receive the Gas into the AA
-    let pt = test_env.craft_aa_receive_gas_ptb(gas_to_send)?;
+    let pt = test_env.craft_aa_receive_gas_ptb(gas_to_send, true)?;
     let tx_data = test_env
         .craft_tx_from_pt(pt, aa_gas, aa_sender, None)
         .await?;
@@ -306,6 +306,130 @@ async fn test_abstract_account_post_consensus_failure() -> Result<(), anyhow::Er
             && ErrorBitset::from_u64(abort_code).unwrap().error_code() == Some(0)
         ),
         "Expected failure to be a Move abort in basic_keyed_aa::authenticate_ed25519",
+    );
+
+    Ok(())
+}
+
+
+
+// NOTE:
+// We intentionally do NOT execute TX1 certificate here:
+// currently that path panics inside validator execution_driver.rs on
+// ObjectVersionUnavailableForConsumption, and MSIM treats it as fatal.
+
+#[sim_test]
+async fn test_receiving_gas_in_two_separate_txs() -> Result<(), anyhow::Error> {
+    use iota_types::transaction::TransactionDataAPI;
+    telemetry_subscribers::init_for_testing();
+    let client_ip = SocketAddr::new([127, 0, 0, 1].into(), 0);
+
+    // 1) Setup AA
+    let mut test_env = TestEnvironment::new().await;
+    test_env
+        .setup_abstract_account(AA_AUTHENTICATE_FN_NAME_FREE_ACCESS)
+        .await?;
+    let aa_ref = test_env.aa_ref.unwrap();
+    let aa_sender: IotaAddress = aa_ref.0.into();
+
+    let rgp = test_env.test_cluster.get_reference_gas_price().await;
+
+    // 2) Create second address (Bob)
+    let bob = {
+        let keystore = test_env.test_cluster.wallet.config_mut().keystore_mut();
+        keystore
+            .generate_and_add_new_key(SignatureScheme::ED25519, None, None, None)
+            .expect("ED25519 key generation should not fail")
+            .0
+    };
+    assert!(bob != aa_sender);
+
+    // Fund Bob gas
+    let bob_gas = test_env
+        .test_cluster
+        .fund_address_and_return_gas(rgp, Some(20_000_000_000), bob)
+        .await;
+
+    // 3) Fund AA with setup gas + conflict coin (must be large enough for AA gas budget)
+    let aa_setup_gas = test_env
+        .test_cluster
+        .fund_address_and_return_gas(rgp, Some(20_000_000_000), aa_sender)
+        .await;
+
+    let conflict_coin = test_env
+        .test_cluster
+        .fund_address_and_return_gas(rgp, Some(20_000_000_000), aa_sender)
+        .await;
+    let conflict_coin_id = conflict_coin.0;
+
+    // 4) Setup: receive the conflict coin into the AA.
+    let setup_pt =
+        test_env.craft_aa_receive_gas_ptb(conflict_coin, true)?;
+    let setup_tx_data = test_env
+        .craft_tx_from_pt(setup_pt, aa_setup_gas, aa_sender, None)
+        .await?;
+    let aa_sig_setup = test_env.create_move_authenticator_for_free_access()?;
+    let setup_tx = Transaction::from_generic_sig_data(setup_tx_data, vec![aa_sig_setup]);
+    test_env.execute_and_check_tx_correctness(setup_tx).await?;
+
+    // Refresh conflict coin ref after setup
+    let conflict_coin_ref_before = test_env
+        .test_cluster
+        .get_latest_object_ref(&conflict_coin_id)
+        .await;
+
+    // 5) TX1: AA sender uses conflict coin as GAS; create certificate (locks at validators)
+    let tx1_pt = test_env.craft_aa_simple_ptb()?;
+    let tx1_data = test_env
+        .craft_tx_from_pt(tx1_pt, conflict_coin_ref_before, aa_sender, None)
+        .await?;
+
+    // Keep the exact gas payment ref TX1 is certified with (this is what will become stale)
+    let tx_clone = tx1_data.clone();
+    let tx1_gas_payment_ref = tx_clone.gas();
+
+    let aa_sig_tx1 = test_env.create_move_authenticator_for_free_access()?;
+    let tx1 = Transaction::from_generic_sig_data(tx1_data, vec![aa_sig_tx1]);
+
+    let _tx1_cert = test_env
+        .test_cluster
+        .create_certificate(tx1, Some(client_ip))
+        .await
+        .expect("TX1 certificate creation should succeed");
+
+    // 6) TX2: Bob executes receive WITHOUT sender check, passing SAME coin as Receiving input.
+    let tx2_pt =
+        test_env.craft_aa_receive_gas_ptb(conflict_coin_ref_before, false)?;
+    let tx2_data = test_env
+        .craft_tx_from_pt(tx2_pt, bob_gas, bob, None)
+        .await?;
+    let tx2 = test_env.test_cluster.wallet.sign_transaction(&tx2_data);
+
+    let tx2_resp = test_env.test_cluster.execute_transaction(tx2).await;
+
+    let tx2_ok = tx2_resp
+        .confirmed_local_execution
+        .unwrap_or(false)
+        && tx2_resp.errors.is_empty();
+    assert!(
+        tx2_ok,
+        "TX2 must succeed to reproduce the intended race. Resp={:#?}",
+        tx2_resp
+    );
+
+    // 7) Assert the core race outcome without executing TX1 (execution currently panics in validator).
+    let conflict_coin_ref_after = test_env
+        .test_cluster
+        .get_latest_object_ref(&conflict_coin_id)
+        .await;
+
+    // Strong check: the conflict coin version advanced (TX2 mutated it)
+    assert!(
+        conflict_coin_ref_after.1 > tx1_gas_payment_ref[0].1,
+        "Expected conflict coin version to advance after TX2. \
+         TX1 gas ref={:?}, latest ref={:?}",
+        tx1_gas_payment_ref,
+        conflict_coin_ref_after
     );
 
     Ok(())
@@ -673,12 +797,17 @@ impl TestEnvironment {
     fn craft_aa_receive_gas_ptb(
         &self,
         gas_ref: ObjectRef,
+        has_sender_check: bool,
     ) -> anyhow::Result<ProgrammableTransaction> {
         let (Some(aa_ref), Some(aa_package_id)) = (self.aa_ref, self.aa_package_id) else {
             anyhow::bail!("Abstract account not created yet");
         };
         let mut b = ProgrammableTransactionBuilder::new();
-
+        let receive_function = if has_sender_check {
+                "receive_object"
+        } else {
+             "receive_object_without_sender_check"
+        };
         let args = vec![
             b.obj(ObjectArg::SharedObject {
                 id: aa_ref.0,
@@ -692,13 +821,14 @@ impl TestEnvironment {
         b.programmable_move_call(
             aa_package_id,
             ident_str!(AA_MODULE_NAME).to_owned(), // abstract_account
-            ident_str!("receive_object").to_owned(),
+            ident_str!(receive_function).to_owned(),
             vec![],
             args,
         );
         Ok(b.finish())
     }
 }
+
 
 fn abstract_account_type_tag(aa_package_id: &ObjectID) -> TypeTag {
     TypeTag::from_str(format!("{aa_package_id}::{AA_MODULE_NAME}::{AA_ACCOUNT_NAME}").as_str())

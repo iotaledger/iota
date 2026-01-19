@@ -194,6 +194,17 @@ public fun receive_object(
     let received_coin = transfer::public_receive(&mut self.id, coin);
     transfer::public_transfer(received_coin, self.account_address());
 }
+
+/// Receive an object that was previously sent to this AbstractAccount.
+/// This variant does not check the transaction sender.
+public fun receive_object_without_sender_check(
+    self: &mut AbstractAccount,
+    coin: transfer::Receiving<Coin<IOTA>>,
+    _ctx: &TxContext,
+) {
+    let received_coin = transfer::public_receive(&mut self.id, coin);
+    transfer::public_transfer(received_coin, self.account_address());
+}
 // === Admin Functions ===
 
 /// Check that the sender of this transaction is the account.
