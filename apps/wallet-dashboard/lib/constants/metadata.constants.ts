@@ -3,14 +3,14 @@
 
 import type { Metadata } from 'next';
 
-const PRODUCTION_BASE_URL = 'https://wallet-dashboard.iota.org';
-const IS_PRODUCTION = process.env.NODE_ENV === 'production';
+const PRODUCTION_BASE_URL = 'wallet-dashboard.iota.org';
+const VERCEL_URL = process.env.VERCEL_URL;
 
 const METADATA_INFO = {
     title: 'IOTA Wallet Dashboard',
     description: 'IOTA Wallet Dashboard - Connecting you to the decentralized web and IOTA network',
     image: '/metadata-image.png',
-    metadataBase: IS_PRODUCTION ? new URL(PRODUCTION_BASE_URL) : undefined,
+    metadataBase: new URL(`https://${VERCEL_URL ?? PRODUCTION_BASE_URL}`),
 };
 
 export const METADATA: Metadata = {
