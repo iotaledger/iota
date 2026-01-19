@@ -104,7 +104,8 @@ async fn simulate_transaction_invalid() {
     let rgp = test_cluster.get_reference_gas_price().await;
 
     let fake_recipient = IotaAddress::random_for_testing_only();
-    // Use an extremely large amount (10^18) to ensure it exceeds any test wallet balance
+    // Use an extremely large amount (10^18) to ensure it exceeds any test wallet
+    // balance
     let tx_data = TestTransactionBuilder::new(sender, gas, rgp)
         .transfer_iota(Some(1_000_000_000_000_000_000), fake_recipient)
         .build();
