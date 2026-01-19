@@ -97,21 +97,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "250f629c0161ad8107cf89319e990051fae62832fd343083bea452d93e2205fd"
 
 [[package]]
-name = "alloc-no-stdlib"
-version = "2.0.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cc7bb162ec39d46ab1ca8c77bf72e890535becd1751bb45f64c597edb4c8c6b3"
-
-[[package]]
-name = "alloc-stdlib"
-version = "0.2.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "94fb8275041c72129eb51b7d0322c29b8387a0386127718b096429201a5d6ece"
-dependencies = [
- "alloc-no-stdlib",
-]
-
-[[package]]
 name = "allocator-api2"
 version = "0.2.21"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -252,12 +237,6 @@ checksum = "dde20b3d026af13f561bdd0f15edf01fc734f0dafcedbaf42bba506a9517f223"
 dependencies = [
  "derive_arbitrary",
 ]
-
-[[package]]
-name = "arc-swap"
-version = "1.7.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "69f7f8c3906b62b754cd5326047894316021dcfe5a194c8ea52bdd94934a3457"
 
 [[package]]
 name = "ark-bn254"
@@ -495,22 +474,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "async-compression"
-version = "0.4.18"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "df895a515f70646414f4b45c0b79082783b80552b373a68283012928df56f522"
-dependencies = [
- "brotli",
- "flate2",
- "futures-core",
- "memchr",
- "pin-project-lite",
- "tokio",
- "zstd",
- "zstd-safe",
-]
-
-[[package]]
 name = "async-trait"
 version = "0.1.85"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -604,29 +567,6 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.96",
-]
-
-[[package]]
-name = "axum-server"
-version = "0.6.1"
-source = "git+https://github.com/bmwill/axum-server.git?rev=f44323e271afdd1365fd0c8b0a4c0bbdf4956cb7#f44323e271afdd1365fd0c8b0a4c0bbdf4956cb7"
-dependencies = [
- "arc-swap",
- "bytes",
- "futures-util",
- "http",
- "http-body",
- "http-body-util",
- "hyper",
- "hyper-util",
- "pin-project-lite",
- "rustls",
- "rustls-pemfile",
- "rustls-pki-types",
- "tokio",
- "tokio-rustls",
- "tower 0.4.13",
- "tower-service",
 ]
 
 [[package]]
@@ -742,7 +682,7 @@ dependencies = [
 
 [[package]]
 name = "bin-version"
-version = "1.14.0-alpha"
+version = "1.15.0-alpha"
 dependencies = [
  "const-str",
  "git-version",
@@ -961,27 +901,6 @@ name = "bnum"
 version = "0.12.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f781dba93de3a5ef6dc5b17c9958b208f6f3f021623b360fb605ea51ce443f10"
-
-[[package]]
-name = "brotli"
-version = "7.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cc97b8f16f944bba54f0433f07e30be199b6dc2bd25937444bbad560bcea29bd"
-dependencies = [
- "alloc-no-stdlib",
- "alloc-stdlib",
- "brotli-decompressor",
-]
-
-[[package]]
-name = "brotli-decompressor"
-version = "4.0.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "74fa05ad7d803d413eb8380983b092cbbaf9a85f151b871360e7b00cd7060b37"
-dependencies = [
- "alloc-no-stdlib",
- "alloc-stdlib",
-]
 
 [[package]]
 name = "bs58"
@@ -1820,7 +1739,7 @@ dependencies = [
  "hex",
  "iota-keys",
  "iota-move-build",
- "iota-sdk 1.14.0-alpha",
+ "iota-sdk 1.15.0-alpha",
  "iota-sdk-types",
  "iota-types",
  "move-binary-format",
@@ -1956,6 +1875,15 @@ name = "equivalent"
 version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5443807d6dff69373d433ab9ef5378ad8df50ca6298caf15de6e52e24aaf54d5"
+
+[[package]]
+name = "erased-discriminant"
+version = "1.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c1a6df962265a53221f29081896c412ef325c17fa7d638cd9578febe53d3c82c"
+dependencies = [
+ "typeid",
+]
 
 [[package]]
 name = "errno"
@@ -2716,12 +2644,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "http-range-header"
-version = "0.4.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9171a2ea8a68358193d15dd5d70c1c10a2afc3e7e4c5bc92bc9f025cebd7359c"
-
-[[package]]
 name = "httparse"
 version = "1.9.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3147,13 +3069,12 @@ dependencies = [
 
 [[package]]
 name = "iota-common"
-version = "1.14.0-alpha"
+version = "1.15.0-alpha"
 dependencies = [
  "anyhow",
  "fastcrypto",
  "futures",
  "iota-metrics",
- "iota-tls",
  "iota-types",
  "parking_lot 0.12.3",
  "prometheus",
@@ -3166,7 +3087,7 @@ dependencies = [
 
 [[package]]
 name = "iota-config"
-version = "1.14.0-alpha"
+version = "1.15.0-alpha"
 dependencies = [
  "anemo",
  "anyhow",
@@ -3230,7 +3151,7 @@ dependencies = [
 
 [[package]]
 name = "iota-enum-compat-util"
-version = "1.14.0-alpha"
+version = "1.15.0-alpha"
 dependencies = [
  "serde_yaml",
 ]
@@ -3254,7 +3175,7 @@ dependencies = [
 
 [[package]]
 name = "iota-framework"
-version = "1.14.0-alpha"
+version = "1.15.0-alpha"
 dependencies = [
  "bcs",
  "iota-types",
@@ -3266,7 +3187,7 @@ dependencies = [
 
 [[package]]
 name = "iota-framework-snapshot"
-version = "1.14.0-alpha"
+version = "1.15.0-alpha"
 dependencies = [
  "anyhow",
  "bcs",
@@ -3281,7 +3202,7 @@ dependencies = [
 
 [[package]]
 name = "iota-genesis-common"
-version = "1.14.0-alpha"
+version = "1.15.0-alpha"
 dependencies = [
  "iota-execution",
  "iota-protocol-config",
@@ -3291,7 +3212,7 @@ dependencies = [
 
 [[package]]
 name = "iota-http"
-version = "1.14.0-alpha"
+version = "1.15.0-alpha"
 dependencies = [
  "bytes",
  "http",
@@ -3310,7 +3231,7 @@ dependencies = [
 
 [[package]]
 name = "iota-json"
-version = "1.14.0-alpha"
+version = "1.15.0-alpha"
 dependencies = [
  "anyhow",
  "bcs",
@@ -3326,7 +3247,7 @@ dependencies = [
 
 [[package]]
 name = "iota-json-rpc-api"
-version = "1.14.0-alpha"
+version = "1.15.0-alpha"
 dependencies = [
  "anyhow",
  "fastcrypto",
@@ -3345,7 +3266,7 @@ dependencies = [
 
 [[package]]
 name = "iota-json-rpc-types"
-version = "1.14.0-alpha"
+version = "1.15.0-alpha"
 dependencies = [
  "anyhow",
  "bcs",
@@ -3379,7 +3300,7 @@ dependencies = [
 
 [[package]]
 name = "iota-keys"
-version = "1.14.0-alpha"
+version = "1.15.0-alpha"
 dependencies = [
  "anyhow",
  "bip32",
@@ -3399,7 +3320,7 @@ dependencies = [
 
 [[package]]
 name = "iota-macros"
-version = "1.14.0-alpha"
+version = "1.15.0-alpha"
 dependencies = [
  "futures",
  "iota-proc-macros",
@@ -3409,7 +3330,7 @@ dependencies = [
 
 [[package]]
 name = "iota-metrics"
-version = "1.14.0-alpha"
+version = "1.15.0-alpha"
 dependencies = [
  "anemo",
  "anemo-tower",
@@ -3434,7 +3355,7 @@ dependencies = [
 
 [[package]]
 name = "iota-move-build"
-version = "1.14.0-alpha"
+version = "1.15.0-alpha"
 dependencies = [
  "anyhow",
  "fastcrypto",
@@ -3477,7 +3398,7 @@ dependencies = [
 
 [[package]]
 name = "iota-names"
-version = "1.14.0-alpha"
+version = "1.15.0-alpha"
 dependencies = [
  "anyhow",
  "bcs",
@@ -3489,7 +3410,7 @@ dependencies = [
 
 [[package]]
 name = "iota-network-stack"
-version = "1.14.0-alpha"
+version = "1.15.0-alpha"
 dependencies = [
  "anemo",
  "bcs",
@@ -3518,7 +3439,7 @@ dependencies = [
 
 [[package]]
 name = "iota-open-rpc"
-version = "1.14.0-alpha"
+version = "1.15.0-alpha"
 dependencies = [
  "schemars",
  "serde",
@@ -3528,7 +3449,7 @@ dependencies = [
 
 [[package]]
 name = "iota-open-rpc-macros"
-version = "1.14.0-alpha"
+version = "1.15.0-alpha"
 dependencies = [
  "derive-syn-parse",
  "itertools 0.13.0",
@@ -3540,13 +3461,13 @@ dependencies = [
 
 [[package]]
 name = "iota-package-management"
-version = "1.14.0-alpha"
+version = "1.15.0-alpha"
 dependencies = [
  "anyhow",
  "iota-framework-snapshot",
  "iota-json-rpc-types",
  "iota-protocol-config",
- "iota-sdk 1.14.0-alpha",
+ "iota-sdk 1.15.0-alpha",
  "iota-types",
  "move-core-types",
  "move-package",
@@ -3556,7 +3477,7 @@ dependencies = [
 
 [[package]]
 name = "iota-package-resolver"
-version = "1.14.0-alpha"
+version = "1.15.0-alpha"
 dependencies = [
  "async-trait",
  "bcs",
@@ -3571,7 +3492,7 @@ dependencies = [
 
 [[package]]
 name = "iota-proc-macros"
-version = "1.14.0-alpha"
+version = "1.15.0-alpha"
 dependencies = [
  "msim-macros",
  "proc-macro2",
@@ -3581,7 +3502,7 @@ dependencies = [
 
 [[package]]
 name = "iota-protocol-config"
-version = "1.14.0-alpha"
+version = "1.15.0-alpha"
 dependencies = [
  "clap",
  "iota-protocol-config-macros",
@@ -3595,7 +3516,7 @@ dependencies = [
 
 [[package]]
 name = "iota-protocol-config-macros"
-version = "1.14.0-alpha"
+version = "1.15.0-alpha"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -3604,7 +3525,7 @@ dependencies = [
 
 [[package]]
 name = "iota-rest-api"
-version = "1.14.0-alpha"
+version = "1.15.0-alpha"
 dependencies = [
  "anyhow",
  "axum",
@@ -3664,7 +3585,7 @@ dependencies = [
 
 [[package]]
 name = "iota-sdk"
-version = "1.14.0-alpha"
+version = "1.15.0-alpha"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -3699,14 +3620,13 @@ dependencies = [
 [[package]]
 name = "iota-sdk-types"
 version = "0.0.1-alpha.1"
-source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=05608b7e4a5b96d85f84e1970a517f6f174beb8b#05608b7e4a5b96d85f84e1970a517f6f174beb8b"
+source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=fda182869d0b4d4016beb80808057b5a593abaf2#fda182869d0b4d4016beb80808057b5a593abaf2"
 dependencies = [
  "base64ct",
  "bcs",
  "blake2",
  "bnum",
  "bs58 0.5.1",
- "eyre",
  "hex",
  "itertools 0.13.0",
  "paste",
@@ -3722,29 +3642,8 @@ dependencies = [
 ]
 
 [[package]]
-name = "iota-tls"
-version = "1.14.0-alpha"
-dependencies = [
- "anyhow",
- "arc-swap",
- "axum",
- "axum-server",
- "ed25519",
- "fastcrypto",
- "pkcs8 0.10.2",
- "rcgen",
- "reqwest",
- "rustls",
- "rustls-webpki 0.103.1",
- "tokio",
- "tokio-rustls",
- "tower-layer",
- "x509-parser",
-]
-
-[[package]]
 name = "iota-transaction-builder"
-version = "1.14.0-alpha"
+version = "1.15.0-alpha"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -3760,11 +3659,12 @@ dependencies = [
 
 [[package]]
 name = "iota-types"
-version = "1.14.0-alpha"
+version = "1.15.0-alpha"
 dependencies = [
  "anemo",
  "anyhow",
  "async-trait",
+ "base64 0.21.7",
  "bcs",
  "better_any",
  "bincode",
@@ -3802,6 +3702,7 @@ dependencies = [
  "parking_lot 0.12.3",
  "passkey-types",
  "prometheus",
+ "prost-types",
  "rand 0.8.5",
  "roaring",
  "schemars",
@@ -3858,16 +3759,6 @@ name = "ipnet"
 version = "2.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "469fb0b9cefa57e3ef31275ee7cacb78f2fdca44e4765491884a2b119d4eb130"
-
-[[package]]
-name = "iri-string"
-version = "0.7.7"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "dc0f0a572e8ffe56e2ff4f769f32ffe919282c3916799f8b68688b6030063bea"
-dependencies = [
- "memchr",
- "serde",
-]
 
 [[package]]
 name = "is_terminal_polyfill"
@@ -4354,16 +4245,6 @@ name = "mime"
 version = "0.3.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6877bb514081ee2a7ff5ef9de3281f14a4dd4bceac4c09388074a6b5df8a139a"
-
-[[package]]
-name = "mime_guess"
-version = "2.0.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f7c44f8e672c00fe5308fa235f821cb4198414e1c77935c1ab6948d3fd78550e"
-dependencies = [
- "mime",
- "unicase",
-]
 
 [[package]]
 name = "minimal-lexical"
@@ -5801,7 +5682,7 @@ dependencies = [
 
 [[package]]
 name = "prometheus-closure-metric"
-version = "1.14.0-alpha"
+version = "1.15.0-alpha"
 dependencies = [
  "anyhow",
  "prometheus",
@@ -5840,9 +5721,9 @@ dependencies = [
 
 [[package]]
 name = "prost"
-version = "0.14.1"
+version = "0.14.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7231bd9b3d3d33c86b58adbac74b5ec0ad9f496b19d22801d773636feaa95f3d"
+checksum = "d2ea70524a2f82d518bce41317d0fae74151505651af45faf1ffbd6fd33f0568"
 dependencies = [
  "bytes",
  "prost-derive",
@@ -5850,15 +5731,24 @@ dependencies = [
 
 [[package]]
 name = "prost-derive"
-version = "0.14.1"
+version = "0.14.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9120690fafc389a67ba3803df527d0ec9cbbc9cc45e4cc20b332996dfb672425"
+checksum = "27c6023962132f4b30eb4c172c91ce92d933da334c59c23cddee82358ddafb0b"
 dependencies = [
  "anyhow",
  "itertools 0.13.0",
  "proc-macro2",
  "quote",
  "syn 2.0.96",
+]
+
+[[package]]
+name = "prost-types"
+version = "0.14.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8991c4cbdb8bc5b11f0b074ffe286c30e523de90fee5ba8132f1399f23cb3dd7"
+dependencies = [
+ "prost",
 ]
 
 [[package]]
@@ -6780,13 +6670,16 @@ dependencies = [
 
 [[package]]
 name = "serde-reflection"
-version = "0.4.0"
+version = "0.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5b6798a64289ff550d8d79847467789a5fd30b42c9c406a4d6dc0bc9b567e55c"
+checksum = "bfe23e63efbe7af1bc1859ead4a05014bdd5478be550762a40f6fcf91ad5473c"
 dependencies = [
+ "erased-discriminant",
  "once_cell",
  "serde",
+ "serde_json",
  "thiserror 1.0.69",
+ "typeid",
 ]
 
 [[package]]
@@ -6831,15 +6724,16 @@ dependencies = [
 
 [[package]]
 name = "serde_json"
-version = "1.0.137"
+version = "1.0.149"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "930cfb6e6abf99298aaad7d29abbef7a9999a9a8806a40088f55f0dcec03146b"
+checksum = "83fc039473c5595ace860d8c4fafa220ff474b3fc6bfdb4293327f1a37e94d86"
 dependencies = [
  "indexmap 2.12.1",
  "itoa",
  "memchr",
- "ryu",
  "serde",
+ "serde_core",
+ "zmij",
 ]
 
 [[package]]
@@ -7857,29 +7751,16 @@ version = "0.5.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1e9cd434a998747dd2c4276bc96ee2e0c7a2eadf3cae88e52be55a05fa9053f5"
 dependencies = [
- "async-compression",
- "base64 0.21.7",
  "bitflags 2.8.0",
  "bytes",
- "futures-core",
- "futures-util",
  "http",
  "http-body",
  "http-body-util",
- "http-range-header",
- "httpdate",
- "iri-string",
- "mime",
- "mime_guess",
- "percent-encoding",
  "pin-project-lite",
  "tokio",
- "tokio-util",
- "tower 0.4.13",
  "tower-layer",
  "tower-service",
  "tracing",
- "uuid",
 ]
 
 [[package]]
@@ -7896,9 +7777,9 @@ checksum = "8df9b6e13f2d32c91b9bd719c00d1958837bc7dec474d94952798cc8e69eeec3"
 
 [[package]]
 name = "tracing"
-version = "0.1.41"
+version = "0.1.44"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "784e0ac535deb450455cbfa28a6f0df145ea1bb7ae51b821cf5e7927fdcfbdd0"
+checksum = "63e71662fa4b2a2c3a26f570f037eb95bb1f85397f3cd8076caed2f026a6d100"
 dependencies = [
  "log",
  "pin-project-lite",
@@ -7908,9 +7789,9 @@ dependencies = [
 
 [[package]]
 name = "tracing-attributes"
-version = "0.1.28"
+version = "0.1.31"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "395ae124c09f9e6918a2310af6038fba074bcf474ac352496d5910dd59a2226d"
+checksum = "7490cfa5ec963746568740651ac6781f701c9c5ea257c58e057f3ba8cf69e8da"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -7919,9 +7800,9 @@ dependencies = [
 
 [[package]]
 name = "tracing-core"
-version = "0.1.33"
+version = "0.1.36"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e672c95779cf947c5311f83787af4fa8fffd12fb27e4993211a84bdfd9610f9c"
+checksum = "db97caf9d906fbde555dd62fa95ddba9eecfd14cb388e4f491a66d74cd5fb79a"
 dependencies = [
  "once_cell",
 ]
@@ -7968,11 +7849,17 @@ dependencies = [
 
 [[package]]
 name = "typed-store-error"
-version = "1.14.0-alpha"
+version = "1.15.0-alpha"
 dependencies = [
  "serde",
  "thiserror 1.0.69",
 ]
+
+[[package]]
+name = "typeid"
+version = "1.0.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bc7d623258602320d5c55d1bc22793b57daff0ec7efc270ea7d55ce1d5f5471c"
 
 [[package]]
 name = "typenum"
@@ -8025,12 +7912,6 @@ name = "unescape"
 version = "0.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ccb97dac3243214f8d8507998906ca3e2e0b900bf9bf4870477f125b82e68f6e"
-
-[[package]]
-name = "unicase"
-version = "2.8.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "75b844d17643ee918803943289730bec8aac480150456169e647ed0b576ba539"
 
 [[package]]
 name = "unicode-ident"
@@ -8998,6 +8879,12 @@ dependencies = [
  "thiserror 2.0.11",
  "zopfli",
 ]
+
+[[package]]
+name = "zmij"
+version = "1.0.14"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bd8f3f50b848df28f887acb68e41201b5aea6bc8a8dacc00fb40635ff9a72fea"
 
 [[package]]
 name = "zopfli"
