@@ -31,6 +31,7 @@ export * from './mapTimelockObjects';
 export * from './formatDelegatedTimelockedStake';
 export * from './formatIotaName';
 export * from './isLegacyBrowser';
+export * from './formatUIErrors';
 
 export * from './stake';
 export * from './transaction';
