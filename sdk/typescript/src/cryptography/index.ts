@@ -32,6 +32,7 @@ export {
     Keypair,
     decodeIotaPrivateKey,
     encodeIotaPrivateKey,
+    signingDigest,
 } from './keypair.js';
 
 export { PublicKey } from './publickey.js';

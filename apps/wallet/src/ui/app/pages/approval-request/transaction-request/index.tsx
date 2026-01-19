@@ -142,7 +142,9 @@ export function TransactionRequest({ txRequest }: TransactionRequestProps) {
                         isError={isDryRunError}
                         summary={summary}
                         renderExplorerLink={ExplorerLinkHelper}
-                        transaction={signer instanceof LedgerSigner ? transaction : undefined}
+                        transactionBytes={
+                            signer instanceof LedgerSigner ? txRequest.tx.data : undefined
+                        }
                     />
                     <GasFees
                         sender={addressForTransaction}

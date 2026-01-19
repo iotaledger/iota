@@ -6,11 +6,9 @@ import { type TransactionSummaryType } from '../../..';
 import { BalanceChanges, ObjectChanges } from '../../cards';
 import { Header, KeyValueInfo, LoadingIndicator, Panel, Title, TitleSize } from '@iota/apps-ui-kit';
 import { RenderExplorerLink } from '../../../types';
-import type { Transaction } from '@iota/iota-sdk/transactions';
-import { useEffect, useState } from 'react';
-import { toHex } from '@iota/iota-sdk/utils';
-import { messageWithIntent } from '@iota/iota-sdk/cryptography';
-import { blake2b } from '@noble/hashes/blake2b';
+import { toHex, fromBase64 } from '@iota/iota-sdk/utils';
+import { signingDigest } from '@iota/iota-sdk/cryptography';
+import { useMemo } from 'react';
 
 interface TransactionSummaryProps {
     summary: TransactionSummaryType;
@@ -18,7 +16,7 @@ interface TransactionSummaryProps {
     isLoading?: boolean;
     isError?: boolean;
     isDryRun?: boolean;
-    transaction?: Transaction;
+    transactionBytes?: string;
 }
 
 export function TransactionSummary({
@@ -27,26 +25,21 @@ export function TransactionSummary({
     isError,
     isDryRun = false,
     renderExplorerLink,
-    transaction,
+    transactionBytes,
 }: TransactionSummaryProps) {
-    const [txHash, setTxHash] = useState<string>('');
-
-    useEffect(() => {
-        async function calculateHash() {
-            if (transaction) {
-                try {
-                    const txBytes = await transaction.build();
-                    const intentMessage = messageWithIntent('TransactionData', txBytes);
-                    const hash = blake2b(intentMessage, { dkLen: 32 });
-                    setTxHash('0x' + toHex(hash));
-                } catch (error) {
-                    console.error('Error calculating transaction hash:', error);
-                }
+    const txHash = useMemo(() => {
+        if (transactionBytes) {
+            try {
+                const bytes = fromBase64(transactionBytes);
+                const digest = signingDigest(bytes, 'TransactionData');
+                return '0x' + toHex(digest);
+            } catch (error) {
+                console.error('Error calculating transaction hash:', error);
+                return '';
             }
         }
-
-        calculateHash();
-    }, [transaction]);
+        return '';
+    }, [transactionBytes]);
 
     if (isError) return null;
     return (
