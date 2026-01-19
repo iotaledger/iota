@@ -98,7 +98,7 @@ test.describe('Staking functionality', () => {
             await submitAndVerifyUnstaking(page);
         });
 
-        test('should stake using multiple small objects and then unstake', async ({
+        test('should stake using multiple small-amount coin objects and then unstake', async ({
             page,
             extensionUrl,
         }) => {
@@ -120,7 +120,7 @@ test.describe('Staking functionality', () => {
             await submitAndVerifyUnstaking(page);
         });
 
-        test('should show error message when using over 50 small objects', async ({
+        test('should show error message when staking with over 50 small-amount coin objects', async ({
             page,
             extensionUrl,
         }) => {
