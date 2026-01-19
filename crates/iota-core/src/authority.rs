@@ -884,7 +884,7 @@ impl AuthorityState {
         epoch_store: &Arc<AuthorityPerEpochStore>,
     ) -> IotaResult<VerifiedSignedTransaction> {
         // Ensure that validator cannot reconfigure while we are signing the tx
-        let _execution_lock = self.execution_lock_for_signing();
+        let _execution_lock = self.execution_lock_for_signing()?;
 
         let protocol_config = epoch_store.protocol_config();
         let reference_gas_price = epoch_store.reference_gas_price();
