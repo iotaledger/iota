@@ -4,13 +4,13 @@ use std::sync::Arc;
 
 use diesel::{ExpressionMethods, RunQueryDsl};
 use downcast::Any;
-use iota_types::full_checkpoint_content::CheckpointData;
+use iota_types::{effects::TransactionEffectsAPI, full_checkpoint_content::CheckpointData};
 
 use crate::{
     Duration, IndexerMetrics, Registry, backfill::ingestion::IngestionBackfill, db::ConnectionPool,
     errors::IndexerError, ingestion::primary::prepare::PrimaryWorker,
     models::transactions::StoredTransaction, schema::transactions,
-    transactional_blocking_with_retry, types::IndexedObjectChange,
+    transactional_blocking_with_retry,
 };
 
 const PG_DB_COMMIT_SLEEP_DURATION: Duration = Duration::from_secs(3600);
@@ -43,7 +43,12 @@ impl IngestionBackfill for ObjectChangesUnwrappedBackfill {
 
         let mut results = Vec::new();
 
-        for (tx, (expected_digest, tx_sequence_number)) in transactions.iter().zip(tx_seq_numbers) {
+        // Only transactions with unwrapped objects need to be backfilled
+        for (tx, (expected_digest, tx_sequence_number)) in transactions
+            .iter()
+            .zip(tx_seq_numbers)
+            .filter(|(tx, _)| !tx.effects.unwrapped().is_empty())
+        {
             let actual_digest = tx.transaction.digest();
 
             if expected_digest != *actual_digest {
@@ -61,14 +66,7 @@ impl IngestionBackfill for ObjectChangesUnwrappedBackfill {
             )
             .await?;
 
-            // Only transactions with Unwrapped need to be backfilled
-            let has_unwrapped = indexed_tx
-                .object_changes
-                .iter()
-                .any(|change| matches!(change, IndexedObjectChange::Unwrapped { .. }));
-            if has_unwrapped {
-                results.push(StoredTransaction::from(&indexed_tx));
-            }
+            results.push(StoredTransaction::from(&indexed_tx));
         }
 
         Ok(results)
