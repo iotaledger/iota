@@ -15,7 +15,6 @@ import {
     type AccountSourceSerialized,
     type AccountSourceSerializedUI,
 } from './accountSource';
-import { accountSourcesEvents } from './events';
 
 interface KeystoneAccountSourceSerialized extends AccountSourceSerialized {
     type: AccountSourceType.Keystone;
@@ -65,20 +64,9 @@ export class KeystoneAccountSource extends AccountSource<KeystoneAccountSourceSe
         return serialized.type === AccountSourceType.Keystone;
     }
 
-    static async save(
-        serialized: KeystoneAccountSourceSerialized,
-        {
-            skipBackup = false,
-            skipEventEmit = false,
-        }: { skipBackup?: boolean; skipEventEmit?: boolean } = {},
-    ) {
+    static async save(serialized: KeystoneAccountSourceSerialized) {
         await (await Dexie.waitFor(getDB())).accountSources.put(serialized);
-        if (!skipBackup) {
-            await backupDB();
-        }
-        if (!skipEventEmit) {
-            accountSourcesEvents.emit('accountSourcesChanged');
-        }
+        await backupDB();
         return new KeystoneAccountSource(serialized.id);
     }
 
