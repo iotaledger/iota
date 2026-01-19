@@ -126,6 +126,47 @@ pub struct HistoricFallbackOptions {
         help = "Experimental: REST KV store URL for historic fallback. Depends on the iota-rest-kv API which is still being finalized."
     )]
     pub fallback_kv_url: Option<Url>,
+
+    #[arg(
+        long,
+        default_value_t = Self::DEFAULT_MULTI_FETCH_BATCH_SIZE,
+        env = "FALLBACK_KV_MULTI_FETCH_BATCH_SIZE",
+        help = "Experimental: Maximum number of keys per batch request to fallback KV store."
+    )]
+    pub fallback_kv_multi_fetch_batch_size: usize,
+
+    #[arg(
+        long,
+        default_value_t = Self::DEFAULT_CONCURRENT_FETCHES,
+        env = "FALLBACK_KV_CONCURRENT_FETCHES",
+        help = "Experimental: Maximum number of concurrent batch requests to fallback KV store."
+    )]
+    pub fallback_kv_concurrent_fetches: usize,
+
+    #[arg(
+        long,
+        default_value_t = Self::DEFAULT_CACHE_SIZE,
+        env = "FALLBACK_KV_CACHE_SIZE",
+        help = "Experimental: Cache size for historic fallback."
+    )]
+    pub fallback_kv_cache_size: u64,
+}
+
+impl HistoricFallbackOptions {
+    pub const DEFAULT_MULTI_FETCH_BATCH_SIZE: usize = 100;
+    pub const DEFAULT_CONCURRENT_FETCHES: usize = 10;
+    pub const DEFAULT_CACHE_SIZE: u64 = 100_000;
+}
+
+impl Default for HistoricFallbackOptions {
+    fn default() -> Self {
+        Self {
+            fallback_kv_url: None,
+            fallback_kv_multi_fetch_batch_size: Self::DEFAULT_MULTI_FETCH_BATCH_SIZE,
+            fallback_kv_concurrent_fetches: Self::DEFAULT_CONCURRENT_FETCHES,
+            fallback_kv_cache_size: Self::DEFAULT_CACHE_SIZE,
+        }
+    }
 }
 
 #[derive(Args, Debug, Default, Clone)]
@@ -407,8 +448,8 @@ pub mod deprecated {
 
     use crate::{
         config::{
-            Command, HistoricFallbackOptions, IndexerConfig, IngestionConfig, IngestionSources,
-            IotaNamesOptions, JsonRpcConfig, PruningOptions, SnapshotLagConfig,
+            Command, IndexerConfig, IngestionConfig, IngestionSources, IotaNamesOptions,
+            JsonRpcConfig, PruningOptions, SnapshotLagConfig,
         },
         db::ConnectionPoolConfig,
         errors::IndexerError,
@@ -613,9 +654,7 @@ pub mod deprecated {
                         old_conf.rpc_server_port,
                     ),
                     rpc_client_url: old_conf.rpc_client_url,
-                    historic_fallback_options: HistoricFallbackOptions {
-                        fallback_kv_url: None,
-                    },
+                    historic_fallback_options: Default::default(),
                 })
             } else if old_conf.fullnode_sync_worker {
                 Command::Indexer {

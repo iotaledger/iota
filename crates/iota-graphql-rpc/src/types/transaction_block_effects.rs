@@ -17,7 +17,8 @@ use iota_types::{
 };
 
 use crate::{
-    consistency::ConsistentIndexCursor,
+    config::DEFAULT_PAGE_SIZE,
+    consistency::{ConsistentIndexCursor, UNAVAILABLE_CHECKPOINT_SEQUENCE_NUMBER},
     data::package_resolver::PackageResolver,
     error::Error,
     types::{
@@ -96,11 +97,13 @@ type CEvent = JsonCursor<ConsistentIndexCursor>;
 #[Object]
 impl TransactionBlockEffects {
     /// The transaction that ran to produce these effects.
+    #[graphql(complexity = "child_complexity")]
     async fn transaction_block(&self) -> Result<Option<TransactionBlock>> {
         Ok(Some(self.clone().try_into().extend()?))
     }
 
     /// Whether the transaction executed successfully or not.
+    #[graphql(complexity = 0)]
     async fn status(&self) -> Option<ExecutionStatus> {
         Some(match self.native().status() {
             NativeExecutionStatus::Success => ExecutionStatus::Success,
@@ -111,6 +114,7 @@ impl TransactionBlockEffects {
     /// The latest version of all objects (apart from packages) that have been
     /// created or modified by this transaction, immediately following this
     /// transaction.
+    #[graphql(complexity = 0)]
     async fn lamport_version(&self) -> UInt53 {
         self.native().lamport_version().value().into()
     }
@@ -119,6 +123,7 @@ impl TransactionBlockEffects {
     /// If the error is a Move abort, the error message will be resolved to a
     /// human-readable form if possible, otherwise it will fall back to
     /// displaying the abort code and location.
+    #[graphql(complexity = 0)]
     async fn errors(&self, ctx: &Context<'_>) -> Result<Option<String>> {
         let resolver: &PackageResolver = ctx.data_unchecked();
 
@@ -198,6 +203,7 @@ impl TransactionBlockEffects {
     }
 
     /// Transactions whose outputs this transaction depends upon.
+    #[graphql(complexity = "child_complexity")]
     async fn dependencies(
         &self,
         ctx: &Context<'_>,
@@ -262,12 +268,14 @@ impl TransactionBlockEffects {
     }
 
     /// Effects to the gas object.
+    #[graphql(complexity = "child_complexity")]
     async fn gas_effects(&self) -> Option<GasEffects> {
         Some(GasEffects::from(self.native(), self.checkpoint_viewed_at))
     }
 
     /// Shared objects that are referenced by but not changed by this
     /// transaction.
+    #[graphql(complexity = "child_complexity")]
     async fn unchanged_shared_objects(
         &self,
         ctx: &Context<'_>,
@@ -307,6 +315,7 @@ impl TransactionBlockEffects {
     }
 
     /// The effect this transaction had on objects on-chain.
+    #[graphql(complexity = "child_complexity")]
     async fn object_changes(
         &self,
         ctx: &Context<'_>,
@@ -353,6 +362,7 @@ impl TransactionBlockEffects {
 
     /// The effect this transaction had on the balances (sum of coin values per
     /// coin type) of addresses and objects.
+    #[graphql(complexity = "child_complexity")]
     async fn balance_changes(
         &self,
         ctx: &Context<'_>,
@@ -409,6 +419,9 @@ impl TransactionBlockEffects {
     }
 
     /// Events emitted by this transaction block.
+    #[graphql(
+        complexity = "first.or(last).unwrap_or(DEFAULT_PAGE_SIZE as u64) as usize * child_complexity"
+    )]
     async fn events(
         &self,
         ctx: &Context<'_>,
@@ -446,7 +459,7 @@ impl TransactionBlockEffects {
                     Event::try_from_optimistic_transaction(optimistic_tx, c.ix, c.c).extend()?
                 }
                 TransactionBlockEffectsKind::DryRun { events, .. } => Event {
-                    stored: None,
+                    checkpointed_info: None,
                     native: events[c.ix].clone(),
                     checkpoint_viewed_at: c.c,
                 },
@@ -459,6 +472,7 @@ impl TransactionBlockEffects {
 
     /// Timestamp corresponding to the checkpoint this transaction was finalized
     /// in.
+    #[graphql(complexity = 0)]
     async fn timestamp(&self) -> Result<Option<DateTime>, Error> {
         let TransactionBlockEffectsKind::Checkpointed { stored_tx, .. } = &self.kind else {
             return Ok(None);
@@ -466,7 +480,8 @@ impl TransactionBlockEffects {
         Ok(Some(DateTime::from_ms(stored_tx.timestamp_ms)?))
     }
 
-    /// The epoch this transaction was finalized in.
+    /// The epoch this transaction was executed in.
+    #[graphql(complexity = "child_complexity")]
     async fn epoch(&self, ctx: &Context<'_>) -> Result<Option<Epoch>> {
         Epoch::query(
             ctx,
@@ -477,13 +492,18 @@ impl TransactionBlockEffects {
         .extend()
     }
 
-    /// The checkpoint this transaction was finalized in.
+    /// The checkpoint this transaction was finalized in, if it is within the
+    /// available range.
+    #[graphql(complexity = "child_complexity")]
     async fn checkpoint(&self, ctx: &Context<'_>) -> Result<Option<Checkpoint>> {
         // If the transaction data is not a checkpointed transaction, it's not in the
         // checkpoint yet so we return None.
         let TransactionBlockEffectsKind::Checkpointed { stored_tx, .. } = &self.kind else {
             return Ok(None);
         };
+        if !self.is_available() {
+            return Ok(None);
+        }
 
         Checkpoint::query(
             ctx,
@@ -495,6 +515,7 @@ impl TransactionBlockEffects {
     }
 
     /// Base64 encoded bcs serialization of the on-chain transaction effects.
+    #[graphql(complexity = 0)]
     async fn bcs(&self) -> Result<Base64> {
         let bytes = match &self.kind {
             TransactionBlockEffectsKind::Checkpointed { stored_tx, .. } => {
@@ -519,6 +540,11 @@ impl TransactionBlockEffects {
             TransactionBlockEffectsKind::DryRun { native, .. } => native,
             TransactionBlockEffectsKind::Executed { native, .. } => native,
         }
+    }
+
+    /// Returns whether the parent transaction is within the available range.
+    pub(crate) fn is_available(&self) -> bool {
+        self.checkpoint_viewed_at < UNAVAILABLE_CHECKPOINT_SEQUENCE_NUMBER
     }
 }
 
@@ -571,16 +597,13 @@ impl TryFrom<TransactionBlock> for TransactionBlockEffectsKind {
         match block.inner {
             TransactionBlockInner::Checkpointed { stored_tx, .. } => {
                 bcs::from_bytes(&stored_tx.raw_effects)
-                    .map(|native| TransactionBlockEffectsKind::Checkpointed {
-                        stored_tx: stored_tx.clone(),
-                        native,
-                    })
+                    .map(|native| TransactionBlockEffectsKind::Checkpointed { stored_tx, native })
                     .map_err(|e| {
                         Error::Internal(format!("Error deserializing transaction effects: {e}"))
                     })
             }
             TransactionBlockInner::Executed { optimistic_tx, .. } => {
-                TransactionBlockEffectsKind::try_from(optimistic_tx.clone())
+                TransactionBlockEffectsKind::try_from(optimistic_tx)
             }
 
             TransactionBlockInner::DryRun {

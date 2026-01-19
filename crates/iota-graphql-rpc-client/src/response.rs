@@ -62,6 +62,28 @@ impl GraphqlResponse {
         serde_json::to_string_pretty(&self.full_response).unwrap()
     }
 
+    /// Sort the response data. Specifically, this sorts the [`Value::Object`]
+    /// map wherever it exists.
+    pub fn sort_response_body(&mut self) {
+        fn sort_response_value(value: &mut Value) {
+            match value {
+                Value::List(const_values) => {
+                    for value in const_values.iter_mut() {
+                        sort_response_value(value);
+                    }
+                }
+                Value::Object(index_map) => {
+                    for value in index_map.values_mut() {
+                        sort_response_value(value);
+                    }
+                    index_map.sort_keys();
+                }
+                _ => (),
+            }
+        }
+        sort_response_value(&mut self.full_response.data);
+    }
+
     pub fn http_status(&self) -> reqwest::StatusCode {
         self.status
     }

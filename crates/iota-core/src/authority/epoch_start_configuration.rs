@@ -37,11 +37,6 @@ pub trait EpochStartConfigTrait {
             ExecutionCacheType::PassthroughCache
         }
     }
-
-    fn is_data_quarantine_active_from_beginning_of_epoch(&self) -> bool {
-        self.flags()
-            .contains(&EpochFlag::DataQuarantineFromBeginningOfEpoch)
-    }
 }
 
 // IMPORTANT: Assign explicit values to each variant to ensure that the values
@@ -54,15 +49,16 @@ pub trait EpochStartConfigTrait {
 // inconsistent with the released branch, and must be fixed.
 #[derive(Clone, Debug, Serialize, Deserialize, Eq, PartialEq)]
 pub enum EpochFlag {
+    // The deprecated flags have all been in production for long enough that
+    // we have deleted the old code paths they were guarding.
+    // We retain them here in order not to break deserialization.
+    _DataQuarantineFromBeginningOfEpochDeprecated = 1,
+
     // When switching between different cache types mid-epoch, partial checkpoint transactions
     // might already be on disk. During lock initialization, we check if there is any existing
     // lock or not, depending on the used implementation. That's why we should not switch
     // mid-epoch.
     WritebackCacheEnabled = 0,
-
-    // This flag indicates whether data quarantining has been enabled from the
-    // beginning of the epoch.
-    DataQuarantineFromBeginningOfEpoch = 1,
 }
 
 impl EpochFlag {
@@ -77,7 +73,7 @@ impl EpochFlag {
     }
 
     fn default_flags_impl(cache_type: ExecutionCacheType) -> Vec<Self> {
-        let mut new_flags = vec![EpochFlag::DataQuarantineFromBeginningOfEpoch];
+        let mut new_flags = vec![];
 
         // Load cache type from env
         if matches!(cache_type.cache_type(), ExecutionCacheType::WritebackCache) {
@@ -94,8 +90,8 @@ impl fmt::Display for EpochFlag {
         // is used as metric key
         match self {
             EpochFlag::WritebackCacheEnabled => write!(f, "WritebackCacheEnabled"),
-            EpochFlag::DataQuarantineFromBeginningOfEpoch => {
-                write!(f, "DataQuarantineFromBeginningOfEpoch")
+            EpochFlag::_DataQuarantineFromBeginningOfEpochDeprecated => {
+                write!(f, "DataQuarantineFromBeginningOfEpoch (DEPRECATED)")
             }
         }
     }

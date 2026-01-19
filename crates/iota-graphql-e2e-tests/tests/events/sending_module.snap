@@ -36,10 +36,10 @@ Response: {
       "nodes": [
         {
           "sendingModule": {
+            "name": "nft",
             "package": {
               "address": "0x000000000000000000000000000000000000000000000000000000000000107a"
-            },
-            "name": "nft"
+            }
           },
           "type": {
             "repr": "0x0000000000000000000000000000000000000000000000000000000000000002::display::DisplayCreated<0x000000000000000000000000000000000000000000000000000000000000107a::nft::Nft>"
@@ -47,10 +47,10 @@ Response: {
         },
         {
           "sendingModule": {
+            "name": "nft",
             "package": {
               "address": "0x000000000000000000000000000000000000000000000000000000000000107a"
-            },
-            "name": "nft"
+            }
           },
           "type": {
             "repr": "0x0000000000000000000000000000000000000000000000000000000000000002::display::VersionUpdated<0x000000000000000000000000000000000000000000000000000000000000107a::nft::Nft>"
@@ -58,10 +58,10 @@ Response: {
         },
         {
           "sendingModule": {
+            "name": "M1",
             "package": {
               "address": "0x934651be6b43ab4be1a9c32f46618c5269e1049ead23579490e5015bc68ef6c6"
-            },
-            "name": "M1"
+            }
           },
           "type": {
             "repr": "0xfb95b4b6a9b1243e0680beadf28da32ff6ffbde035b56fc8f5e008b4aadc8d27::M0::Event"

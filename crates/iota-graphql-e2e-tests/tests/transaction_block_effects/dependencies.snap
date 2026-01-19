@@ -71,12 +71,6 @@ Response: {
           "digest": "DQksYB2JPRWufX92ZMRifWJHtS6HFduwsts9wZLy84zn",
           "effects": {
             "dependencies": {
-              "pageInfo": {
-                "hasPreviousPage": false,
-                "hasNextPage": false,
-                "startCursor": "eyJpIjowLCJjIjoxfQ",
-                "endCursor": "eyJpIjoxLCJjIjoxfQ"
-              },
               "edges": [
                 {
                   "cursor": "eyJpIjowLCJjIjoxfQ",
@@ -87,20 +81,20 @@ Response: {
                       "transactions": {
                         "nodes": [
                           {
-                            "module": "M1",
-                            "functionName": "sum"
+                            "functionName": "sum",
+                            "module": "M1"
                           },
                           {
-                            "module": "M1",
-                            "functionName": "sum"
+                            "functionName": "sum",
+                            "module": "M1"
                           },
                           {
-                            "module": "M1",
-                            "functionName": "sum"
+                            "functionName": "sum",
+                            "module": "M1"
                           },
                           {
-                            "module": "M1",
-                            "functionName": "create"
+                            "functionName": "create",
+                            "module": "M1"
                           }
                         ]
                       }
@@ -115,17 +109,23 @@ Response: {
                       "__typename": "ProgrammableTransactionBlock",
                       "transactions": {
                         "nodes": [
-                          {},
+                          null,
                           {
-                            "module": "package",
-                            "functionName": "make_immutable"
+                            "functionName": "make_immutable",
+                            "module": "package"
                           }
                         ]
                       }
                     }
                   }
                 }
-              ]
+              ],
+              "pageInfo": {
+                "endCursor": "eyJpIjoxLCJjIjoxfQ",
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "eyJpIjowLCJjIjoxfQ"
+              }
             }
           }
         }
@@ -144,12 +144,6 @@ Response: {
           "digest": "DQksYB2JPRWufX92ZMRifWJHtS6HFduwsts9wZLy84zn",
           "effects": {
             "dependencies": {
-              "pageInfo": {
-                "hasPreviousPage": true,
-                "hasNextPage": false,
-                "startCursor": "eyJpIjoxLCJjIjoxfQ",
-                "endCursor": "eyJpIjoxLCJjIjoxfQ"
-              },
               "edges": [
                 {
                   "cursor": "eyJpIjoxLCJjIjoxfQ",
@@ -159,17 +153,23 @@ Response: {
                       "__typename": "ProgrammableTransactionBlock",
                       "transactions": {
                         "nodes": [
-                          {},
+                          null,
                           {
-                            "module": "package",
-                            "functionName": "make_immutable"
+                            "functionName": "make_immutable",
+                            "module": "package"
                           }
                         ]
                       }
                     }
                   }
                 }
-              ]
+              ],
+              "pageInfo": {
+                "endCursor": "eyJpIjoxLCJjIjoxfQ",
+                "hasNextPage": false,
+                "hasPreviousPage": true,
+                "startCursor": "eyJpIjoxLCJjIjoxfQ"
+              }
             }
           }
         }

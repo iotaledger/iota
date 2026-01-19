@@ -20,7 +20,6 @@
     },
     "dependencies": {
         "@amplitude/analytics-browser": "^2.32.2",
-        "@boxfish-studio/react-cookie-manager": "^1.0.5",
         "@fontsource-variable/inter": "^5.0.5",
         "@growthbook/growthbook": "^1.0.0",
         "@growthbook/growthbook-react": "^1.0.0",
@@ -29,6 +28,7 @@
         "@iota/apps-ui-kit": "workspace:*",
         "@iota/core": "workspace:*",
         "@iota/dapp-kit": "workspace:*",
+        "@iota/identity-wasm": "1.7.0-beta.1",
         "@iota/iota-names-sdk": "^0.5.1",
         "@iota/iota-sdk": "workspace:*",
         "@sentry/react": "^7.120.3",
@@ -57,7 +57,7 @@
         "react-error-boundary": "^4.0.10",
         "react-hook-form": "^7.45.2",
         "react-resizable-panels": "^0.0.39",
-        "react-router-dom": "^6.24.1",
+        "react-router-dom": "^6.30.3",
         "throttle-debounce": "^5.0.0",
         "zod": "^3.21.4"
     },
