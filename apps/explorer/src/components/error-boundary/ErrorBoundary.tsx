@@ -2,6 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+import * as Sentry from '@sentry/react';
 import { ErrorBoundary as ReactErrorBoundary } from 'react-error-boundary';
 import { useLocation } from 'react-router-dom';
 import type { ReactNode } from 'react';
@@ -28,7 +29,15 @@ type ErrorBoundaryProps = {
 export function ErrorBoundary({ children }: ErrorBoundaryProps): JSX.Element {
     const location = useLocation();
     return (
-        <ReactErrorBoundary FallbackComponent={Fallback} resetKeys={[location]}>
+        <ReactErrorBoundary
+            FallbackComponent={Fallback}
+            resetKeys={[location]}
+            onError={(error, errorInfo) => {
+                Sentry.captureException(error, {
+                    contexts: { react: { componentStack: errorInfo.componentStack } },
+                });
+            }}
+        >
             {children}
         </ReactErrorBoundary>
     );
