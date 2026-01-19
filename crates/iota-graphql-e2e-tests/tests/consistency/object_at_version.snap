@@ -27,8 +27,6 @@ task 4, lines 61-74:
 Response: {
   "data": {
     "object": {
-      "status": "INDEXED",
-      "version": 3,
       "asMoveObject": {
         "contents": {
           "json": {
@@ -36,7 +34,9 @@ Response: {
             "value": "0"
           }
         }
-      }
+      },
+      "status": "INDEXED",
+      "version": 3
     }
   }
 }
@@ -55,8 +55,6 @@ task 7, lines 80-106:
 Response: {
   "data": {
     "latest_version": {
-      "status": "INDEXED",
-      "version": 4,
       "asMoveObject": {
         "contents": {
           "json": {
@@ -64,11 +62,11 @@ Response: {
             "value": "1"
           }
         }
-      }
+      },
+      "status": "INDEXED",
+      "version": 4
     },
     "previous_version": {
-      "status": "INDEXED",
-      "version": 3,
       "asMoveObject": {
         "contents": {
           "json": {
@@ -76,7 +74,9 @@ Response: {
             "value": "0"
           }
         }
-      }
+      },
+      "status": "INDEXED",
+      "version": 3
     }
   }
 }
@@ -97,13 +97,11 @@ task 10, lines 112-138:
 Response: {
   "data": {
     "latest_wrapped": {
+      "asMoveObject": null,
       "status": "WRAPPED_OR_DELETED",
-      "version": 5,
-      "asMoveObject": null
+      "version": 5
     },
     "previous_version": {
-      "status": "INDEXED",
-      "version": 4,
       "asMoveObject": {
         "contents": {
           "json": {
@@ -111,7 +109,9 @@ Response: {
             "value": "1"
           }
         }
-      }
+      },
+      "status": "INDEXED",
+      "version": 4
     }
   }
 }
@@ -131,26 +131,7 @@ task 13, lines 144-182:
 //# run-graphql
 Response: {
   "data": {
-    "latest_unwrapped": {
-      "status": "INDEXED",
-      "version": 6,
-      "asMoveObject": {
-        "contents": {
-          "json": {
-            "id": "0x81feb1a34ea6905c132aee5e89e94ed24da787154def48644c561e1f3326fac6",
-            "value": "1"
-          }
-        }
-      }
-    },
-    "previous_version": {
-      "status": "WRAPPED_OR_DELETED",
-      "version": 5,
-      "asMoveObject": null
-    },
     "first_version": {
-      "status": "INDEXED",
-      "version": 3,
       "asMoveObject": {
         "contents": {
           "json": {
@@ -158,7 +139,26 @@ Response: {
             "value": "0"
           }
         }
-      }
+      },
+      "status": "INDEXED",
+      "version": 3
+    },
+    "latest_unwrapped": {
+      "asMoveObject": {
+        "contents": {
+          "json": {
+            "id": "0x81feb1a34ea6905c132aee5e89e94ed24da787154def48644c561e1f3326fac6",
+            "value": "1"
+          }
+        }
+      },
+      "status": "INDEXED",
+      "version": 6
+    },
+    "previous_version": {
+      "asMoveObject": null,
+      "status": "WRAPPED_OR_DELETED",
+      "version": 5
     }
   }
 }
@@ -178,14 +178,14 @@ task 16, lines 188-214:
 Response: {
   "data": {
     "latest_deleted": {
+      "asMoveObject": null,
       "status": "WRAPPED_OR_DELETED",
-      "version": 7,
-      "asMoveObject": null
+      "version": 7
     },
     "version_specified": {
+      "asMoveObject": null,
       "status": "WRAPPED_OR_DELETED",
-      "version": 7,
-      "asMoveObject": null
+      "version": 7
     }
   }
 }
@@ -267,8 +267,6 @@ Response: {
       }
     },
     "indexed_object": {
-      "status": "INDEXED",
-      "version": 6,
       "asMoveObject": {
         "contents": {
           "json": {
@@ -276,16 +274,11 @@ Response: {
             "value": "1"
           }
         }
-      }
-    },
-    "wrapped_or_deleted_object": {
-      "status": "WRAPPED_OR_DELETED",
-      "version": 5,
-      "asMoveObject": null
+      },
+      "status": "INDEXED",
+      "version": 6
     },
     "object_not_in_snapshot": {
-      "status": "INDEXED",
-      "version": 3,
       "asMoveObject": {
         "contents": {
           "json": {
@@ -293,7 +286,14 @@ Response: {
             "value": "0"
           }
         }
-      }
+      },
+      "status": "INDEXED",
+      "version": 3
+    },
+    "wrapped_or_deleted_object": {
+      "asMoveObject": null,
+      "status": "WRAPPED_OR_DELETED",
+      "version": 5
     }
   }
 }
@@ -301,7 +301,16 @@ Response: {
 task 32, lines 293-313:
 //# run-graphql --cursors bcs(@{obj_1_0},6)
 Response: {
-  "data": null,
+  "data": {
+    "availableRange": {
+      "first": {
+        "sequenceNumber": 7
+      },
+      "last": {
+        "sequenceNumber": 12
+      }
+    }
+  },
   "errors": [
     {
       "message": "Requested data is outside the available range",

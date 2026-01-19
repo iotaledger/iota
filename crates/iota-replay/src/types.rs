@@ -23,7 +23,7 @@ use move_core_types::{
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use tokio::time::Duration;
-use tracing::{error, warn};
+use tracing::warn;
 
 use crate::config::ReplayableNetworkConfigSet;
 

@@ -13,7 +13,6 @@ import {
 } from './hooks';
 import { setNavVisibility } from '_redux/slices/app';
 import { isLedgerAccountSerializedUI } from '_src/background/accounts/ledgerAccount';
-import { persistableStorage } from '_src/shared/analytics/amplitude';
 import { type LedgerAccountsPublicKeys } from '_src/shared/messaging/messages/payloads/methodPayload';
 import { toBase64 } from '@iota/iota-sdk/utils';
 import { useEffect, useMemo } from 'react';
@@ -63,6 +62,8 @@ import { AccountsFinderIntroPage } from './pages/accounts/manage/accounts-finder
 import { PasskeyAccountPage } from './pages/accounts/PasskeyAccountPage';
 import { ImportKeystone } from './pages/accounts/ImportKeystone';
 import { Feature, useFeatureEnabledByNetwork } from '@iota/core';
+import { CreateNewWallet } from './pages/accounts/CreateNewWallet';
+import { ImportExistingWallet } from './pages/accounts/ImportExistingWallet';
 
 const HIDDEN_MENU_PATHS = [
     '/nft-details',
@@ -97,15 +98,6 @@ export function App() {
     );
     const backgroundClient = useBackgroundClient();
     const { connectToLedger, iotaLedgerClient } = useIotaLedgerClient();
-    useEffect(() => {
-        if (accounts?.length) {
-            // The user has accepted our terms of service after their primary
-            // account has been initialized (either by creating a new wallet
-            // or importing a previous account). This means we've gained
-            // consent and can persist device data to cookie storage
-            persistableStorage.persist();
-        }
-    }, [accounts]);
     useEffect(() => {
         // update ledger accounts without the public key
         (async () => {
@@ -193,6 +185,8 @@ export function App() {
             <Route path="accounts/*" element={<AccountsPage />}>
                 <Route path="welcome" element={<WelcomePage />} />
                 <Route path="add-account" element={<AddAccountPage />} />
+                <Route path="create-new" element={<CreateNewWallet />} />
+                <Route path="import-existing" element={<ImportExistingWallet />} />
                 <Route path="import-ledger-accounts" element={<ImportLedgerAccountsPage />} />
                 <Route path="import-passphrase" element={<ImportPassphrasePage />} />
                 <Route path="import-private-key" element={<ImportPrivateKeyPage />} />

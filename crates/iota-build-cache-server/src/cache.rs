@@ -690,9 +690,9 @@ impl BuildCache {
         };
 
         let features_arg = if !features.is_empty() {
-            let features_str = features.join(" ");
+            let features_str = features.join(",");
             info!("Building with features: \"{features_str}\"");
-            Some(format!("--features=\"{features_str}\""))
+            Some(format!("--features={features_str}"))
         } else {
             None
         };

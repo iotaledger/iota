@@ -40,43 +40,51 @@ use crate::common::{
 static COMMON_TESTING_ADDR_AND_CUSTOM_COIN_NAME: OnceCell<(IotaAddress, IotaKeyPair, String)> =
     OnceCell::const_new();
 
+/// Creates a new address with 5 IOTA coins and 1 custom coin.
+async fn create_addr_and_custom_coins(
+    cluster: &TestCluster,
+    indexer_client: &HttpClient,
+) -> (IotaAddress, IotaKeyPair, String) {
+    let (address, keypair): (_, AccountKeyPair) = get_key_pair();
+    let keypair = IotaKeyPair::Ed25519(keypair);
+
+    for _ in 0..5 {
+        cluster
+            .fund_address_and_return_gas(
+                cluster.get_reference_gas_price().await,
+                Some(500_000_000),
+                address,
+            )
+            .await;
+    }
+
+    let (coin_name, _) = create_trusted_coins(cluster, address, &keypair)
+        .await
+        .unwrap();
+
+    let coin_object_ref = mint_trusted_coin(cluster, coin_name.clone(), address, &keypair, 100_000)
+        .await
+        .unwrap();
+
+    indexer_wait_for_object(
+        indexer_client,
+        coin_object_ref.object_id,
+        coin_object_ref.version,
+    )
+    .await;
+
+    (address, keypair, coin_name)
+}
+
+/// Returns a shared, cached address with 5 IOTA coins and 1 custom coin.
+/// The address is initialized once and reused across multiple tests.
+/// WARNING: Tests using this function should NOT modify the address state.
 async fn get_or_init_addr_and_custom_coins(
     cluster: &TestCluster,
     indexer_client: &HttpClient,
 ) -> &'static (IotaAddress, IotaKeyPair, String) {
     COMMON_TESTING_ADDR_AND_CUSTOM_COIN_NAME
-        .get_or_init(|| async {
-            let (address, keypair): (_, AccountKeyPair) = get_key_pair();
-            let keypair = IotaKeyPair::Ed25519(keypair);
-
-            for _ in 0..5 {
-                cluster
-                    .fund_address_and_return_gas(
-                        cluster.get_reference_gas_price().await,
-                        Some(500_000_000),
-                        address,
-                    )
-                    .await;
-            }
-
-            let (coin_name, _) = create_trusted_coins(cluster, address, &keypair)
-                .await
-                .unwrap();
-
-            let coin_object_ref =
-                mint_trusted_coin(cluster, coin_name.clone(), address, &keypair, 100_000)
-                    .await
-                    .unwrap();
-
-            indexer_wait_for_object(
-                indexer_client,
-                coin_object_ref.object_id,
-                coin_object_ref.version,
-            )
-            .await;
-
-            (address, keypair, coin_name)
-        })
+        .get_or_init(|| async { create_addr_and_custom_coins(cluster, indexer_client).await })
         .await
 }
 
@@ -328,17 +336,17 @@ fn get_all_balances_with_zero_iotas() {
         store,
     } = ApiTestSetup::get_or_init();
     runtime.block_on(async move {
-        let (owner, keypair, _) = get_or_init_addr_and_custom_coins(cluster, client).await;
+        let (owner, keypair, _) = create_addr_and_custom_coins(cluster, client).await;
         let coins_dump_address = IotaAddress::random_for_testing_only();
 
         // first call is to make node and potentially the indexer cache the result
         // and increase chance of producing wrong result on the second call
-        get_all_balances_fullnode_indexer(cluster, client, *owner).await;
+        get_all_balances_fullnode_indexer(cluster, client, owner).await;
 
-        transfer_all_coins(cluster, client, store, *owner, keypair, coins_dump_address).await;
+        transfer_all_coins(cluster, client, store, owner, &keypair, coins_dump_address).await;
 
         let (mut result_fullnode, mut result_indexer) =
-            get_all_balances_fullnode_indexer(cluster, client, *owner).await;
+            get_all_balances_fullnode_indexer(cluster, client, owner).await;
 
         result_fullnode.sort_by_key(|balance: &Balance| balance.coin_type.clone());
         result_indexer.sort_by_key(|balance: &Balance| balance.coin_type.clone());
@@ -376,9 +384,9 @@ fn fullnode_get_coin_metadata_with_migrated_coin_manager_coins() {
         store,
     } = ApiTestSetup::get_or_init();
     runtime.block_on(async move {
-        let (address, address_kp, _) = get_or_init_addr_and_custom_coins(cluster, client).await;
+        let (address, address_kp, _) = create_addr_and_custom_coins(cluster, client).await;
         let (coin_name, immutable_metadata_coin_name) =
-            create_migrated_coin_manager_coins(cluster, client, store, *address, address_kp)
+            create_migrated_coin_manager_coins(cluster, client, store, address, &address_kp)
                 .await
                 .unwrap();
 

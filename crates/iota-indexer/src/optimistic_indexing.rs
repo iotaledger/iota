@@ -21,7 +21,7 @@ use iota_types::{
 use crate::{
     errors::IndexerError,
     ingestion::{
-        common::prepare::try_extract_df_kind,
+        common::prepare::extract_df_kind,
         primary::{
             persist::TransactionObjectChangesToCommit,
             prepare::{IndexedTransactionComponents, PrimaryWorker},
@@ -94,9 +94,13 @@ impl OptimisticTransactionExecutor {
         };
 
         backoff::future::retry(backoff, async || {
+            let digests: Vec<Vec<u8>> = expected_dependencies
+                .iter()
+                .map(|d| d.inner().to_vec())
+                .collect();
             let count = self
                 .read
-                .count_indexed_tx_global_orders_in_blocking_task(expected_dependencies.clone())
+                .count_indexed_tx_global_orders_in_blocking_task(digests.into_iter())
                 .await?;
             if count as usize != expected_dependencies.len() {
                 return Err(IndexerError::TransactionDependenciesNotIndexed)?;
@@ -185,9 +189,7 @@ impl OptimisticTransactionExecutor {
         effects: &TransactionEffects,
     ) -> Result<bool, IndexerError> {
         self.read
-            .deep_check_all_transactions_are_indexed_in_blocking_task(
-                effects.dependencies().to_vec(),
-            )
+            .deep_check_all_transactions_are_indexed_in_blocking_task(effects.dependencies())
             .await
     }
 
@@ -446,15 +448,14 @@ impl<'a> TransactionExtractor<'a> {
             .output_objects
             .iter()
             .map(|o| {
-                try_extract_df_kind(o).map(|df_kind| {
-                    IndexedObject::from_object(
-                        0, // checkpoint sequence number, ignored in further processing
-                        o.clone(),
-                        df_kind,
-                    )
-                })
+                let df_kind = extract_df_kind(o);
+                IndexedObject::from_object(
+                    0, // checkpoint sequence number, ignored in further processing
+                    o.clone(),
+                    df_kind,
+                )
             })
-            .collect::<Result<Vec<_>, _>>()?;
+            .collect::<Vec<_>>();
 
         Ok(TransactionObjectChangesToCommit {
             changed_objects,
@@ -467,7 +468,7 @@ impl<'a> TransactionExtractor<'a> {
     ) -> IndexerResult<IndexedTransactionComponents> {
         let handle = tokio::runtime::Handle::current();
         handle.block_on(async move {
-            PrimaryWorker::index_transaction(
+            PrimaryWorker::index_transaction_components(
                 self.full_tx_data,
                 self.optimistic_sequence_number,
                 0, // checkpoint sequence number - unknown

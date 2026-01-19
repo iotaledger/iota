@@ -295,6 +295,10 @@ impl<C: CheckpointServiceNotify + Send + Sync> ConsensusHandler<C> {
             .with_label_values(&[&leader_author.to_string()])
             .inc();
 
+        self.metrics
+            .consensus_handler_leader_round
+            .set(round as i64);
+
         for (authority_index, number_of_committed_headers) in
             consensus_output.number_of_headers_in_commit_by_authority()
         {

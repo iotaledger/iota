@@ -700,15 +700,23 @@ impl RestStateReader for PersistedStoreInnerReadOnlyWrapper {
         Ok((*self.get_checkpoint_by_sequence_number(0).unwrap().digest()).into())
     }
 
-    fn indexes(&self) -> Option<&dyn iota_types::storage::RestIndexes> {
-        None
-    }
-
     fn get_epoch_last_checkpoint(
         &self,
         _epoch_id: EpochId,
     ) -> iota_types::storage::error::Result<Option<VerifiedCheckpoint>> {
         todo!()
+    }
+
+    fn indexes(&self) -> Option<&dyn iota_types::storage::RestIndexes> {
+        None
+    }
+
+    fn get_struct_layout(
+        &self,
+        _: &move_core_types::language_storage::StructTag,
+    ) -> iota_types::storage::error::Result<Option<move_core_types::annotated_value::MoveTypeLayout>>
+    {
+        Ok(None)
     }
 }
 

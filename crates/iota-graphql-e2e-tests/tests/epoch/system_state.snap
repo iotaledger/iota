@@ -100,11 +100,11 @@ Response: {
   "data": {
     "epoch": {
       "epochId": 4,
-      "systemStateVersion": 2,
       "storageFund": {
-        "totalObjectStorageRebates": "15610400",
-        "nonRefundableBalance": "0"
-      }
+        "nonRefundableBalance": "0",
+        "totalObjectStorageRebates": "15610400"
+      },
+      "systemStateVersion": 2
     }
   }
 }
@@ -115,11 +115,11 @@ Response: {
   "data": {
     "epoch": {
       "epochId": 3,
-      "systemStateVersion": 2,
       "storageFund": {
-        "totalObjectStorageRebates": "14630000",
-        "nonRefundableBalance": "0"
-      }
+        "nonRefundableBalance": "0",
+        "totalObjectStorageRebates": "14630000"
+      },
+      "systemStateVersion": 2
     }
   }
 }
@@ -130,11 +130,11 @@ Response: {
   "data": {
     "epoch": {
       "epochId": 2,
-      "systemStateVersion": 2,
       "storageFund": {
-        "totalObjectStorageRebates": "14630000",
-        "nonRefundableBalance": "0"
-      }
+        "nonRefundableBalance": "0",
+        "totalObjectStorageRebates": "14630000"
+      },
+      "systemStateVersion": 2
     }
   }
 }
@@ -145,11 +145,11 @@ Response: {
   "data": {
     "epoch": {
       "epochId": 1,
-      "systemStateVersion": 2,
       "storageFund": {
-        "totalObjectStorageRebates": "0",
-        "nonRefundableBalance": "0"
-      }
+        "nonRefundableBalance": "0",
+        "totalObjectStorageRebates": "0"
+      },
+      "systemStateVersion": 2
     }
   }
 }
@@ -160,11 +160,11 @@ Response: {
   "data": {
     "epoch": {
       "epochId": 4,
-      "systemStateVersion": 2,
       "storageFund": {
-        "totalObjectStorageRebates": "15610400",
-        "nonRefundableBalance": "0"
-      }
+        "nonRefundableBalance": "0",
+        "totalObjectStorageRebates": "15610400"
+      },
+      "systemStateVersion": 2
     }
   }
 }

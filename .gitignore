@@ -29,6 +29,10 @@ Move.lock
 .trace
 .coverage_map.mvcov
 
+# Flamegraph output
+flamegraph.svg
+flamegraph-mem.svg
+
 # Thumbnails
 ._*
 
@@ -102,3 +106,6 @@ crates/iota-aws-orchestrator/venv/
 crates/iota-aws-orchestrator/assets/plots/
 crates/iota-aws-orchestrator/assets/results/
 crates/iota-aws-orchestrator/assets/logs/
+
+# ignore explorer files
+apps/explorer/public/*.wasm

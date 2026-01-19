@@ -156,7 +156,7 @@ impl Linearizer {
         let sub_dag = PendingSubDag::new(
             leader_block.reference(),
             to_commit,
-            commit.committed_transactions(),
+            commit.committed_transactions().to_vec(),
             timestamp_ms,
             commit.reference(),
             reputation_scores_desc,

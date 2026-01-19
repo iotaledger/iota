@@ -193,7 +193,7 @@ export interface ViewParams {
      */
     functionName: string;
     typeArgs?: string[] | null | undefined;
-    callArgs: unknown[];
+    arguments: unknown[];
 }
 /** Return the total coin balance for all coin type, owned by the address owner. */
 export interface GetAllBalancesParams {
