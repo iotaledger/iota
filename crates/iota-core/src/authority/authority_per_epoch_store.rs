@@ -1869,23 +1869,24 @@ impl AuthorityPerEpochStore {
         Vec<DeferralKey>,
         Vec<(DeferralKey, Vec<DeferredTransaction>)>,
     ) {
-        let mut keys = Vec::new();
-        let mut txns = Vec::new();
-        let mut deferred_transactions = self.consensus_output_cache.deferred_transactions_v2.lock();
+        let (keys, txns) = {
+            let mut keys = Vec::new();
+            let mut txns = Vec::new();
 
-        for (key, transactions) in deferred_transactions.range(min..max) {
-            debug!(
-                "Loaded {:?} deferred txn with deferral key {:?}",
-                transactions.len(),
-                key
-            );
-            keys.push(*key);
-            txns.push((*key, transactions.clone()));
-        }
+            let deferred_transactions = self.consensus_output_cache.deferred_transactions_v2.lock();
 
-        for key in &keys {
-            deferred_transactions.remove(key);
-        }
+            for (key, transactions) in deferred_transactions.range(min..max) {
+                debug!(
+                    "Loaded {:?} deferred txn with deferral key {:?}",
+                    transactions.len(),
+                    key
+                );
+                keys.push(*key);
+                txns.push((*key, transactions.clone()));
+            }
+
+            (keys, txns)
+        };
 
         (keys, txns)
     }
@@ -1898,29 +1899,30 @@ impl AuthorityPerEpochStore {
         Vec<DeferralKey>,
         Vec<(DeferralKey, Vec<DeferredTransaction>)>,
     ) {
-        let mut keys = Vec::new();
-        let mut txns = Vec::new();
-        let mut deferred_transactions = self.consensus_output_cache.deferred_transactions.lock();
+        let (keys, txns) = {
+            let mut keys = Vec::new();
+            let mut txns = Vec::new();
 
-        for (key, transactions) in deferred_transactions.range(min..max) {
-            debug!(
-                "Loaded {:?} deferred txn with deferral key {:?}",
-                transactions.len(),
-                key
-            );
-            keys.push(*key);
-            txns.push((
-                *key,
-                transactions
-                    .iter()
-                    .map(|tx| DeferredTransaction::new(tx.clone(), None))
-                    .collect(),
-            ));
-        }
+            let deferred_transactions = self.consensus_output_cache.deferred_transactions.lock();
 
-        for key in &keys {
-            deferred_transactions.remove(key);
-        }
+            for (key, transactions) in deferred_transactions.range(min..max) {
+                debug!(
+                    "Loaded {:?} deferred txn with deferral key {:?}",
+                    transactions.len(),
+                    key
+                );
+                keys.push(*key);
+                txns.push((
+                    *key,
+                    transactions
+                        .iter()
+                        .map(|tx| DeferredTransaction::new(tx.clone(), None))
+                        .collect(),
+                ));
+            }
+
+            (keys, txns)
+        };
 
         (keys, txns)
     }
@@ -3100,6 +3102,25 @@ impl AuthorityPerEpochStore {
                     },
                 });
                 self.write_pending_checkpoint(&mut output, &pending_checkpoint)?;
+            }
+        }
+
+        {
+            if self
+                .protocol_config
+                .congestion_control_gas_price_feedback_mechanism()
+            {
+                let mut deferred_transactions =
+                    self.consensus_output_cache.deferred_transactions_v2.lock();
+                for deleted_deferred_key in output.get_deleted_deferred_txn_keys() {
+                    deferred_transactions.remove(&deleted_deferred_key);
+                }
+            } else {
+                let mut deferred_transactions =
+                    self.consensus_output_cache.deferred_transactions.lock();
+                for deleted_deferred_key in output.get_deleted_deferred_txn_keys() {
+                    deferred_transactions.remove(&deleted_deferred_key);
+                }
             }
         }
 
