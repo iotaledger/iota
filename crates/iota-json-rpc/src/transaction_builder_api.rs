@@ -107,7 +107,7 @@ impl DataReader for AuthorityStateDataReader {
             .into_iter()
             .map(|info| {
                 let object_read = self.0.get_object_read(&info.object_id)?;
-                Ok((object_read, options.clone()).try_into()?)
+                (object_read, options.clone()).try_into()
             })
             .collect::<Result<Vec<_>, anyhow::Error>>()?;
 
