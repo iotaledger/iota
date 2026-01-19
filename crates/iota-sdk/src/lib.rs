@@ -104,7 +104,8 @@ use iota_json_rpc_api::{
 };
 pub use iota_json_rpc_types as rpc_types;
 use iota_json_rpc_types::{
-    IotaObjectDataFilter, IotaObjectDataOptions, IotaObjectResponse, IotaObjectResponseQuery, Page,
+    IotaObjectDataFilter, IotaObjectDataOptions, IotaObjectResponse, IotaObjectResponseQuery,
+    ObjectsPage, Page,
 };
 use iota_transaction_builder::{DataReader, TransactionBuilder};
 pub use iota_types as types;
@@ -668,6 +669,23 @@ impl DataReader for ReadApi {
     /// Return the reference gas price as a u64 or an error otherwise
     async fn get_reference_gas_price(&self) -> Result<u64, anyhow::Error> {
         Ok(self.get_reference_gas_price().await?)
+    }
+
+    async fn get_owned_objects_page(
+        &self,
+        address: IotaAddress,
+        object_type: StructTag,
+        cursor: Option<ObjectID>,
+        limit: Option<usize>,
+        options: IotaObjectDataOptions,
+    ) -> Result<ObjectsPage, anyhow::Error> {
+        let query = Some(IotaObjectResponseQuery {
+            filter: Some(IotaObjectDataFilter::StructType(object_type)),
+            options: Some(options),
+        });
+        Ok(self
+            .get_owned_objects(address, query, cursor, limit)
+            .await?)
     }
 }
 

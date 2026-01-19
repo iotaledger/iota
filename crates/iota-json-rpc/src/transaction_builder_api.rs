@@ -76,6 +76,47 @@ impl DataReader for AuthorityStateDataReader {
         let epoch_store = self.0.load_epoch_store_one_call_per_task();
         Ok(epoch_store.reference_gas_price())
     }
+
+    async fn get_owned_objects_page(
+        &self,
+        address: IotaAddress,
+        object_type: StructTag,
+        cursor: Option<ObjectID>,
+        limit: Option<usize>,
+        options: IotaObjectDataOptions,
+    ) -> Result<iota_json_rpc_types::ObjectsPage, anyhow::Error> {
+        let limit = limit.unwrap_or(50);
+        let fetch_limit = if limit < 50 { limit + 1 } else { limit }; // Avoid fetching beyond API limit
+
+        let objects = self.0.get_owner_objects_with_limit(
+            address,
+            cursor,
+            fetch_limit,
+            Some(IotaObjectDataFilter::StructType(object_type)),
+        )?;
+
+        let has_next_page = if limit < 50 {
+            objects.len() == fetch_limit
+        } else {
+            false
+        }; // Can't detect when at limit
+        let objects = objects.into_iter().take(limit).collect::<Vec<_>>();
+        let next_cursor = objects.last().map(|o| o.object_id);
+
+        let data = objects
+            .into_iter()
+            .map(|info| {
+                let object_read = self.0.get_object_read(&info.object_id)?;
+                Ok((object_read, options.clone()).try_into()?)
+            })
+            .collect::<Result<Vec<_>, anyhow::Error>>()?;
+
+        Ok(iota_json_rpc_types::ObjectsPage {
+            data,
+            next_cursor,
+            has_next_page,
+        })
+    }
 }
 
 #[async_trait]

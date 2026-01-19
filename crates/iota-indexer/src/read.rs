@@ -26,8 +26,8 @@ use iota_json_rpc_types::{
     AddressMetrics, Balance, CheckpointId, Coin as IotaCoin, DisplayFieldsResponse, EpochInfo,
     EventFilter, IotaCoinMetadata, IotaEvent, IotaMoveValue, IotaObjectDataFilter,
     IotaObjectDataOptions, IotaObjectResponse, IotaTransactionBlockResponse, IotaTransactionKind,
-    MoveCallMetrics, MoveFunctionName, NetworkMetrics, ParticipationMetrics, TransactionFilter,
-    TransactionFilterV2,
+    MoveCallMetrics, MoveFunctionName, NetworkMetrics, ObjectsPage, ParticipationMetrics,
+    TransactionFilter, TransactionFilterV2,
 };
 use iota_package_resolver::{Package, PackageStore, PackageStoreWithLruCache, Resolver};
 use iota_transaction_builder::DataReader;
@@ -2404,6 +2404,55 @@ impl DataReader for IndexerReader {
         Ok(epoch_info
             .reference_gas_price
             .ok_or_else(|| anyhow::anyhow!("missing latest reference_gas_price"))?)
+    }
+
+    async fn get_owned_objects_page(
+        &self,
+        address: IotaAddress,
+        object_type: StructTag,
+        cursor: Option<ObjectID>,
+        limit: Option<usize>,
+        options: IotaObjectDataOptions,
+    ) -> Result<ObjectsPage, anyhow::Error> {
+        let limit = limit.unwrap_or(50);
+        let fetch_limit = limit + 1; // Fetch one extra to check for next page
+
+        let stored_objects = self
+            .get_owned_objects_in_blocking_task(
+                address,
+                Some(IotaObjectDataFilter::StructType(object_type)),
+                cursor,
+                fetch_limit,
+            )
+            .await?;
+
+        let mut object_futures = vec![];
+        for object in stored_objects {
+            object_futures.push(tokio::task::spawn(
+                object.try_into_object_read(self.package_resolver()),
+            ));
+        }
+
+        let objects = futures::future::try_join_all(object_futures)
+            .await
+            .map_err(|e| anyhow::anyhow!("Error joining object read futures: {}", e))?
+            .into_iter()
+            .collect::<Result<Vec<_>, _>>()?;
+
+        let has_next_page = objects.len() == fetch_limit;
+        let objects = objects.into_iter().take(limit).collect::<Vec<_>>();
+        let next_cursor = objects.last().map(|o_read| o_read.object_id());
+
+        let data = objects
+            .into_iter()
+            .map(|o_read| (o_read, options.clone()).try_into())
+            .collect::<Result<Vec<_>, _>>()?;
+
+        Ok(ObjectsPage {
+            data,
+            next_cursor,
+            has_next_page,
+        })
     }
 }
 

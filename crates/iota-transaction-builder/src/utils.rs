@@ -47,26 +47,44 @@ impl TransactionBuilder {
         if let Some(gas) = input_gas.into() {
             self.get_object_ref(gas).await
         } else {
-            let gas_objs = self.0.get_owned_objects(signer, GasCoin::type_()).await?;
+            // Fetch gas coins page by page, and break early when a suitable coin is found
+            let mut cursor = None;
+            let limit = Some(50); // Fetch 50 objects per page
 
-            for obj in gas_objs {
-                let response = self
+            loop {
+                let page = self
                     .0
-                    .get_object_with_options(obj.object_id, IotaObjectDataOptions::new().with_bcs())
+                    .get_owned_objects_page(
+                        signer,
+                        GasCoin::type_(),
+                        cursor,
+                        limit,
+                        IotaObjectDataOptions::new().with_bcs(),
+                    )
                     .await?;
-                let obj = response.object()?;
-                let gas: GasCoin = bcs::from_bytes(
-                    &obj.bcs
-                        .as_ref()
-                        .ok_or_else(|| anyhow!("bcs field is unexpectedly empty"))?
-                        .try_as_move()
-                        .ok_or_else(|| anyhow!("Cannot parse move object to gas object"))?
-                        .bcs_bytes,
-                )?;
-                if !input_objects.contains(&obj.object_id) && gas.value() >= gas_budget {
-                    return Ok(obj.object_ref());
+
+                for obj_response in &page.data {
+                    let obj = obj_response.object()?;
+                    let gas: GasCoin = bcs::from_bytes(
+                        &obj.bcs
+                            .as_ref()
+                            .ok_or_else(|| anyhow!("bcs field is unexpectedly empty"))?
+                            .try_as_move()
+                            .ok_or_else(|| anyhow!("Cannot parse move object to gas object"))?
+                            .bcs_bytes,
+                    )?;
+                    if !input_objects.contains(&obj.object_id) && gas.value() >= gas_budget {
+                        return Ok(obj.object_ref());
+                    }
                 }
+
+                // Check if there are more pages
+                if !page.has_next_page {
+                    break;
+                }
+                cursor = page.next_cursor;
             }
+
             Err(anyhow!(
                 "Cannot find gas coin for signer address {signer} with amount sufficient for the required gas budget {gas_budget}. If you are using the pay or transfer commands, you can use the pay-iota command instead, which will use the only object as gas payment."
             ))

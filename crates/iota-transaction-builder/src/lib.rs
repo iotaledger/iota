@@ -41,6 +41,16 @@ pub trait DataReader {
     ) -> Result<IotaObjectResponse, anyhow::Error>;
 
     async fn get_reference_gas_price(&self) -> Result<u64, anyhow::Error>;
+
+    /// Get a page of owned objects with the specified options.
+    async fn get_owned_objects_page(
+        &self,
+        address: IotaAddress,
+        object_type: StructTag,
+        cursor: Option<ObjectID>,
+        limit: Option<usize>,
+        options: IotaObjectDataOptions,
+    ) -> Result<iota_json_rpc_types::ObjectsPage, anyhow::Error>;
 }
 
 #[derive(Clone)]
