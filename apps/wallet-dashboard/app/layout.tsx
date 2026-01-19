@@ -43,13 +43,13 @@ export default function RootLayout({
     return (
         <html lang="en">
             <body className={inter.className}>
-                <ErrorBoundary>
-                    <AppProviders>
-                        <FontLinks />
-                        <Amplitude />
-                        <ConnectionGuard>{children}</ConnectionGuard>
-                    </AppProviders>
-                </ErrorBoundary>
+                <AppProviders>
+                    <FontLinks />
+                    <Amplitude />
+                    <ConnectionGuard>
+                        <ErrorBoundary>{children}</ErrorBoundary>
+                    </ConnectionGuard>
+                </AppProviders>
             </body>
         </html>
     );
