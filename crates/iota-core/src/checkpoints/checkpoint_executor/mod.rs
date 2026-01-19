@@ -522,7 +522,9 @@ impl CheckpointExecutor {
     }
 
     fn checkpoint_data_enabled(&self) -> bool {
-        self.state.rest_index.is_some() || self.config.data_ingestion_dir.is_some()
+        self.state.rest_index.is_some()
+            || self.config.data_ingestion_dir.is_some()
+            || self.data_sender.is_some()
     }
 
     fn process_checkpoint_data(
