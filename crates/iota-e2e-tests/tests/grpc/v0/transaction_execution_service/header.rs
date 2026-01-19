@@ -56,7 +56,7 @@ async fn test_response_headers() {
                 .iter()
                 .map(|s| UserSignature {
                     bcs: Some(BcsData {
-                        data: s.as_ref().to_vec().into(),
+                        data: bcs::to_bytes(s).unwrap().into(),
                     }),
                 })
                 .collect(),
