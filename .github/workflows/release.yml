@@ -198,6 +198,8 @@ jobs:
         run: |
           choco install checksum
           export iota_sha=$(checksum -t sha256 ${{ env.TMP_BUILD_DIR }}/iota.exe)
+          # It is not allowed to have a 'v' in the choco version
+          export choco_version=$(echo "${{ needs.generate-tag.outputs.iota_ref }}" | sed s/'^v'//)
           cd chocolatey
 
           cat <<EOF >>VERIFICATION.txt
@@ -208,9 +210,8 @@ jobs:
           4. Verify file 'LICENSE.txt': https://github.com/iotaledger/iota/blob/develop/LICENSE
           EOF
 
-          choco pack --version ${{ needs.generate-tag.outputs.iota_ref }} configuration=release
-          choco apikey --api-key ${{ secrets.CHOCO_API_KEY }} --source https://push.chocolatey.org/
-          choco push iota.${{ needs.generate-tag.outputs.iota_ref }}.nupkg --source https://push.chocolatey.org/
+          choco pack --version ${choco_version} configuration=release
+          choco push --source https://push.chocolatey.org/ --api-key ${{ secrets.CHOCO_API_KEY }}
 
       - name: Upload artifacts for ${{ matrix.os_type }} platform
         uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
