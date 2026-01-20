@@ -61,9 +61,7 @@ export function AccountGroupItem({
     function handleToggleLock(e: React.MouseEvent<HTMLButtonElement>) {
         e.stopPropagation();
         if (account.isLocked) {
-            if (account.isPasswordUnlockable) {
-                unlockAccounts();
-            }
+            unlockAccounts();
         } else {
             lockAccounts();
         }
