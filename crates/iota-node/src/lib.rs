@@ -580,10 +580,9 @@ impl IotaNode {
             )))
         };
 
-        let chain_id = ChainIdentifier::from(*genesis.checkpoint().digest());
         let chain = match config.chain_override_for_testing {
             Some(chain) => chain,
-            None => ChainIdentifier::from(*genesis.checkpoint().digest()).chain(),
+            None => chain_identifier.chain(),
         };
 
         let epoch_options = default_db_options().optimize_db_for_write_throughput(4);
@@ -599,7 +598,7 @@ impl IotaNode {
             cache_metrics,
             signature_verifier_metrics,
             &config.expensive_safety_check_config,
-            (chain_id, chain),
+            (chain_identifier, chain),
             checkpoint_store
                 .get_highest_executed_checkpoint_seq_number()
                 .expect("checkpoint store read cannot fail")
