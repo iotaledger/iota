@@ -777,7 +777,16 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
 
     #[cfg(test)]
     #[allow(dead_code)]
-    fn fetched_ranges(&self) -> BTreeMap<CommitRange, (Vec<TrustedCommit>, Vec<CommittedSubDag>, Vec<VerifiedBlockHeader>)> {
+    fn fetched_ranges(
+        &self,
+    ) -> BTreeMap<
+        CommitRange,
+        (
+            Vec<TrustedCommit>,
+            Vec<CommittedSubDag>,
+            Vec<VerifiedBlockHeader>,
+        ),
+    > {
         self.fetched_ranges.clone()
     }
 
