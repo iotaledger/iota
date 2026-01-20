@@ -575,7 +575,8 @@ export class Transaction {
      * Get the signing digest for transaction bytes.
      * This is the Blake2b hash of the intent message that Ledger displays.
      */
-    static getSigningDigest(transactionBytes: Uint8Array): string {
+    async getSigningDigest(): Promise<string> {
+        const transactionBytes = await this.build();
         const digest = Signer.signingDigest(transactionBytes, 'TransactionData');
         return '0x' + toHex(digest);
     }

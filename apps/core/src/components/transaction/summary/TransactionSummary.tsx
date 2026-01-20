@@ -7,7 +7,7 @@ import { BalanceChanges, ObjectChanges } from '../../cards';
 import { Header, KeyValueInfo, LoadingIndicator, Panel, Title, TitleSize } from '@iota/apps-ui-kit';
 import { RenderExplorerLink } from '../../../types';
 import { Transaction } from '@iota/iota-sdk/transactions';
-import { useEffect, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 
 interface TransactionSummaryProps {
     summary: TransactionSummaryType;
@@ -26,22 +26,13 @@ export function TransactionSummary({
     renderExplorerLink,
     transaction,
 }: TransactionSummaryProps) {
-    const [txHash, setTxHash] = useState<string>('');
-    useEffect(() => {
-        async function calculateHash() {
-            if (transaction) {
-                try {
-                    const bytes = await transaction.build();
-                    const hash = Transaction.getSigningDigest(bytes);
-                    setTxHash(hash);
-                } catch (error) {
-                    console.error('Error building transaction for hash:', error);
-                }
-            }
-        }
-
-        calculateHash();
-    }, [transaction]);
+    const { data: txHash } = useQuery({
+        queryKey: ['transaction-signing-digest', transaction?.getData(), transaction],
+        async queryFn() {
+            if (!transaction) throw new Error('Missing transaction');
+            return transaction.getSigningDigest();
+        },
+    });
 
     if (isError) return null;
     return (
