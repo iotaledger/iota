@@ -6,8 +6,11 @@ use std::{collections::HashMap, sync::Arc};
 
 use iota_common::fatal;
 use iota_types::{
-    base_types::{EpochId, ObjectRef, TransactionDigest},
+    account_abstraction::account::AuthenticatorFunctionRefV1Key,
+    base_types::{EpochId, ObjectID, ObjectRef, SequenceNumber, TransactionDigest},
+    dynamic_field::{self},
     error::{IotaError, IotaResult, UserInputError},
+    object::Owner,
     storage::ObjectKey,
     transaction::{
         InputObjectKind, InputObjects, ObjectReadResult, ObjectReadResultKind,
@@ -109,14 +112,15 @@ impl TransactionInputLoader {
         let receiving_results =
             self.read_receiving_objects_for_signing(receiving_objects, epoch_id)?;
 
-        Ok((
-            input_results
-                .into_iter()
-                .map(Option::unwrap)
-                .collect::<Vec<_>>()
-                .into(),
-            receiving_results,
-        ))
+        let input_results: InputObjects = input_results
+            .into_iter()
+            .map(Option::unwrap)
+            .collect::<Vec<_>>()
+            .into();
+
+        self.validate_receiving_objects_not_in_account_objects(&input_results, &receiving_results)?;
+
+        Ok((input_results, receiving_results))
     }
 
     /// Read the inputs for a transaction that is ready to be executed.
@@ -290,5 +294,66 @@ impl TransactionInputLoader {
             receiving_results.push(ReceivingObjectReadResult::new(*objref, object.into()));
         }
         Ok(receiving_results.into())
+    }
+
+    /// Tries to find receiving objects owned by input objects that have a valid
+    /// AuthenticatorFunctionRefV1 dynamic field (i.e., are account objects).
+    fn validate_receiving_objects_not_in_account_objects(
+        &self,
+        input_results: &InputObjects,
+        receiving_results: &ReceivingObjects,
+    ) -> IotaResult<()> {
+        if receiving_results.objects.is_empty() {
+            return Ok(());
+        }
+
+        // Build a lookup: input object ID -> version
+        let input_objects_map: HashMap<ObjectID, SequenceNumber> = input_results
+            .iter_objects()
+            .map(|obj| (obj.id(), obj.version()))
+            .collect();
+
+        // for each receiving object, check if its owner is an account object
+        for receiving in receiving_results.iter_objects() {
+            let Owner::AddressOwner(owner_address) = receiving.owner() else {
+                // if not an address owner, it will fail in later checks
+                continue;
+            };
+
+            let owner_id: ObjectID = (*owner_address).into();
+            let Some(&version) = input_objects_map.get(&owner_id) else {
+                continue;
+            };
+
+            // Derive the dynamic field ID for AuthenticatorFunctionRefV1
+            let auth_field_id = dynamic_field::derive_dynamic_field_id(
+                owner_id,
+                &AuthenticatorFunctionRefV1Key::tag().into(),
+                &AuthenticatorFunctionRefV1Key::default().to_bcs_bytes(),
+            )
+            .expect("derive_dynamic_field_id should not fail");
+
+            // Try to fetch the authenticator field at or before the shared version
+            if let Some(_auth_field_obj) = self
+                .cache
+                .try_find_object_lt_or_eq_version(auth_field_id, version)
+                .ok()
+                .flatten()
+            {
+                // It does not parse and validate the dynamic field to be
+                // AuthenticatorFunctionRefV1, it just assumes that the key was generated
+                // correctly and uniquely maps a AuthenticatorFunctionRefV1.
+
+                // Finally, we have confirmed that the receiving object's owner is an account
+                // object. Raise an error.
+                return Err(UserInputError::ReceivingObjectForAccountObject {
+                    receiving_object_id: receiving.id(),
+                    account_object_id: owner_id,
+                }
+                .into());
+            }
+        }
+
+        Ok(())
     }
 }
