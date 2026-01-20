@@ -13,7 +13,7 @@ use crate::{
     block_header::{
         BlockHeaderAPI, BlockHeaderDigest, BlockRef, Slot, TestBlockHeader, VerifiedBlock,
     },
-    commit::{CommitDigest, TrustedCommit},
+    commit::{CommitDigest, CommitRef, TrustedCommit},
     context::Context,
     transaction_ref::GenericTransactionRef,
 };
@@ -38,6 +38,15 @@ impl TestStore {
             TestStore::RocksDB((_, _, enabled)) => *enabled,
             TestStore::Mem(_, enabled) => *enabled,
         }
+    }
+
+    /// Creates a context with the same configuration as the store.
+    fn context(&self) -> Arc<Context> {
+        let (mut context, _) = Context::new_for_test(4);
+        context
+            .protocol_config
+            .set_consensus_transaction_ref_for_testing(self.transaction_ref_enabled());
+        Arc::new(context)
     }
 }
 
@@ -556,4 +565,183 @@ async fn read_and_scan_commits(
         assert_eq!(scanned_commits.len(), 4, "{scanned_commits:?}");
         assert_eq!(scanned_commits, written_commits,);
     }
+}
+
+#[rstest]
+#[tokio::test]
+async fn test_voting_block_headers_storage(
+    #[values(new_rocksdb_teststore(true), new_mem_teststore(true))] test_store: TestStore,
+) {
+    let store = test_store.store();
+
+    // Create blocks with commit votes
+    let voting_blocks: Vec<VerifiedBlock> = vec![
+        VerifiedBlock::new_for_test(
+            TestBlockHeader::new(10, 0)
+                .set_commit_votes(vec![CommitRef::new(5, CommitDigest::MIN)])
+                .build(),
+        ),
+        VerifiedBlock::new_for_test(
+            TestBlockHeader::new(10, 1)
+                .set_commit_votes(vec![CommitRef::new(5, CommitDigest::MIN)])
+                .build(),
+        ),
+        VerifiedBlock::new_for_test(
+            TestBlockHeader::new(11, 0)
+                .set_commit_votes(vec![CommitRef::new(6, CommitDigest::MIN)])
+                .build(),
+        ),
+    ];
+
+    let voting_headers: Vec<_> = voting_blocks
+        .iter()
+        .map(|b| b.verified_block_header.clone())
+        .collect();
+
+    // Write to voting storage
+    store
+        .write_voting_block_headers(voting_headers.clone())
+        .expect("Write voting block headers should not fail");
+
+    // Read back
+    let refs: Vec<_> = voting_blocks.iter().map(|b| b.reference()).collect();
+    let read_headers = store
+        .read_voting_block_headers(&refs)
+        .expect("Read voting block headers should not fail");
+
+    assert_eq!(read_headers.len(), 3);
+    assert_eq!(read_headers[0].as_ref().unwrap(), &voting_headers[0]);
+    assert_eq!(read_headers[1].as_ref().unwrap(), &voting_headers[1]);
+    assert_eq!(read_headers[2].as_ref().unwrap(), &voting_headers[2]);
+
+    // Verify NOT in regular storage (isolation)
+    let regular_headers = store
+        .read_verified_block_headers(&refs)
+        .expect("Read verified block headers should not fail");
+    assert!(regular_headers[0].is_none());
+    assert!(regular_headers[1].is_none());
+    assert!(regular_headers[2].is_none());
+
+    // Test missing ref returns None
+    let missing_ref = BlockRef::new(
+        99,
+        AuthorityIndex::new_for_test(0),
+        BlockHeaderDigest::default(),
+    );
+    let missing = store
+        .read_voting_block_headers(&[missing_ref])
+        .expect("Read missing should not fail");
+    assert!(missing[0].is_none());
+
+    // Test reading subset with some missing
+    let mixed_refs = vec![refs[0], missing_ref, refs[2]];
+    let mixed_results = store
+        .read_voting_block_headers(&mixed_refs)
+        .expect("Read mixed should not fail");
+    assert_eq!(mixed_results.len(), 3);
+    assert!(mixed_results[0].is_some());
+    assert!(mixed_results[1].is_none());
+    assert!(mixed_results[2].is_some());
+}
+
+#[rstest]
+#[tokio::test]
+async fn test_read_highest_commit_index_with_votes(
+    #[values(new_rocksdb_teststore(true), new_mem_teststore(true))] test_store: TestStore,
+) {
+    let store = test_store.store();
+    let context = test_store.context();
+
+    // Create blocks voting on commits at indexes 1, 2, 5, 10 (with gaps at 3, 4,
+    // 6-9)
+    let blocks_with_votes = [
+        VerifiedBlock::new_for_test(
+            TestBlockHeader::new(5, 0)
+                .set_commit_votes(vec![CommitRef::new(1, CommitDigest::MIN)])
+                .build(),
+        ),
+        VerifiedBlock::new_for_test(
+            TestBlockHeader::new(6, 0)
+                .set_commit_votes(vec![CommitRef::new(2, CommitDigest::MIN)])
+                .build(),
+        ),
+        VerifiedBlock::new_for_test(
+            TestBlockHeader::new(10, 0)
+                .set_commit_votes(vec![CommitRef::new(5, CommitDigest::MIN)])
+                .build(),
+        ),
+        VerifiedBlock::new_for_test(
+            TestBlockHeader::new(15, 0)
+                .set_commit_votes(vec![CommitRef::new(10, CommitDigest::MIN)])
+                .build(),
+        ),
+    ];
+
+    // Write blocks (this records commit votes in the commit_votes table)
+    store
+        .write(
+            WriteBatch::default().block_headers(
+                blocks_with_votes
+                    .iter()
+                    .map(|b| b.verified_block_header.clone())
+                    .collect(),
+            ),
+            context,
+        )
+        .expect("Write should not fail");
+
+    // Test read_highest_commit_index_with_votes - should find highest index with
+    // votes
+    assert_eq!(
+        store.read_highest_commit_index_with_votes(10).unwrap(),
+        Some(10),
+        "Should find votes at index 10"
+    );
+    assert_eq!(
+        store.read_highest_commit_index_with_votes(9).unwrap(),
+        Some(5),
+        "Should skip gap 6-9 and find votes at index 5"
+    );
+    assert_eq!(
+        store.read_highest_commit_index_with_votes(7).unwrap(),
+        Some(5),
+        "Should skip gap and find votes at index 5"
+    );
+    assert_eq!(
+        store.read_highest_commit_index_with_votes(5).unwrap(),
+        Some(5),
+        "Should find votes at index 5"
+    );
+    assert_eq!(
+        store.read_highest_commit_index_with_votes(4).unwrap(),
+        Some(2),
+        "Should skip gap 3-4 and find votes at index 2"
+    );
+    assert_eq!(
+        store.read_highest_commit_index_with_votes(3).unwrap(),
+        Some(2),
+        "Should skip gap and find votes at index 2"
+    );
+    assert_eq!(
+        store.read_highest_commit_index_with_votes(2).unwrap(),
+        Some(2),
+        "Should find votes at index 2"
+    );
+    assert_eq!(
+        store.read_highest_commit_index_with_votes(1).unwrap(),
+        Some(1),
+        "Should find votes at index 1"
+    );
+    assert_eq!(
+        store.read_highest_commit_index_with_votes(0).unwrap(),
+        None,
+        "Should return None when no votes exist at or below index 0"
+    );
+
+    // Test with very high index
+    assert_eq!(
+        store.read_highest_commit_index_with_votes(1000).unwrap(),
+        Some(10),
+        "Should find highest votes at index 10 even when searching up to 1000"
+    );
 }
