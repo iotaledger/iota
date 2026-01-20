@@ -1948,7 +1948,7 @@ async fn failed_stored_tx_into_transaction_block() {
         failed_tx
             .try_into_iota_transaction_block_response(
                 IotaTransactionBlockResponseOptions::full_content(),
-                package_resolver
+                &package_resolver
             )
             .await
             .is_ok()
