@@ -9,10 +9,23 @@ async function search(page: Page, text: string, resultLabel?: string) {
     const searchbar = page.getByPlaceholder('Search');
     await searchbar.fill(text);
 
-    // If a specific result label is provided, click that one; otherwise click the first
-    const result = resultLabel
-        ? page.getByRole('button').filter({ hasText: resultLabel }).first()
-        : page.getByRole('button').first();
+    let result;
+
+    if (resultLabel === 'checkpoint') {
+        result = page
+            .getByRole('button')
+            .filter({ hasText: /^Checkpoint\s+\d+/i })
+            .first();
+    } else if (resultLabel === 'epoch') {
+        result = page
+            .getByRole('button')
+            .filter({ hasText: /^Epoch\s+\d+/i })
+            .first();
+    } else {
+        result = page.getByRole('button').filter({ hasText: text }).first();
+    }
+
+    await expect(result).toBeVisible();
     await result.click();
 }
 
@@ -45,12 +58,12 @@ test('can search for transaction', async ({ page }) => {
 
 test('can search for checkpoint by sequence number', async ({ page }) => {
     await page.goto('/');
-    await search(page, '0', 'Checkpoint');
-    await expect(page).toHaveURL(/\/checkpoint\/0/);
+    await search(page, '1', 'checkpoint');
+    await expect(page).toHaveURL('/checkpoint/1');
 });
 
 test('can search for epoch by sequence number', async ({ page }) => {
     await page.goto('/');
-    await search(page, '0', 'Epoch');
-    await expect(page).toHaveURL(/\/epoch\/0/);
+    await search(page, '1', 'epoch');
+    await expect(page).toHaveURL(/\/epoch\/\d+$/);
 });

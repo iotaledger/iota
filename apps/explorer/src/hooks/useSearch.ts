@@ -118,28 +118,16 @@ const getResultsForCheckpoint = async (
 };
 
 const getResultsForEpoch = async (client: IotaClient, query: string): Promise<Results | null> => {
-    // Only search for epochs if query is a sequence number (numeric string)
-    const isSequenceNumber = /^\d+$/.test(query);
-    if (!isSequenceNumber) return null;
+    if (!/^\d+$/.test(query)) return null;
 
     try {
-        // Try to get epochs data for the given sequence number
-        const epochNumber = Number(query);
-        const { data } = await client.getEpochs({
-            // Note: endpoint returns no data for epoch 0 when using cursor
-            cursor: epochNumber > 0 ? (epochNumber - 1).toString() : undefined,
-            limit: 1,
-        });
-
-        if (!data || data.length === 0) return null;
-        const epochData = data[0];
-        // Verify we got the correct epoch (epoch is a string in the API)
-        if (epochData.epoch !== query) return null;
+        const committeeInfo = await client.getCommitteeInfo({ epoch: query });
+        if (!committeeInfo?.epoch || committeeInfo.epoch !== query) return null;
 
         return [
             {
-                id: epochData.epoch,
-                label: `Epoch ${epochData.epoch}`,
+                id: committeeInfo.epoch,
+                label: `Epoch ${committeeInfo.epoch}`,
                 type: 'epoch',
             },
         ];
