@@ -902,8 +902,43 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             .store
             .scan_commits((commit_range.start()..=inclusive_end).into())?;
         let mut certifier_block_refs = vec![];
-        'commit: while let Some(c) = commits.last() {
+        // Find the highest commit index with votes, skipping any gaps in indexes
+        // without votes.
+        let mut search_up_to = inclusive_end;
+        'commit: loop {
+            // Find the highest index with at least some votes, up to our search bound.
+            let Some(index_with_votes) = self
+                .store
+                .read_highest_commit_index_with_votes(search_up_to)?
+            else {
+                // No votes found for any index in the range, return empty commits.
+                commits.clear();
+                break 'commit;
+            };
+
+            // If the index with votes is below our commit range start, there are no
+            // certifiable commits.
+            if index_with_votes < commit_range.start() {
+                commits.clear();
+                break 'commit;
+            }
+
+            // Truncate commits to only include those up to index_with_votes.
+            while commits.last().is_some_and(|c| c.index() > index_with_votes) {
+                commits.pop();
+            }
+
+            let Some(c) = commits.last() else {
+                break 'commit;
+            };
+
             let index = c.index();
+            if index != index_with_votes {
+                warn!(
+                    "Commit index {} does not match index with votes {}, expected them to be equal",
+                    index, index_with_votes
+                );
+            }
             let votes = self.store.read_commit_votes(index)?;
             let mut stake_aggregator = StakeAggregator::<QuorumThreshold>::new();
             for v in &votes {
@@ -926,14 +961,61 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
                     .with_label_values(&[commit_sync_type.as_str()])
                     .inc();
                 commits.pop();
+                // Continue searching from index - 1
+                search_up_to = index.saturating_sub(1);
+                if search_up_to < commit_range.start() {
+                    commits.clear();
+                    break 'commit;
+                }
             }
         }
-        let certifier_block_headers = self
+        // Try reading from voting block headers storage first, then fallback to regular
+        // block headers for any that weren't found.
+        let voting_headers = self
             .store
-            .read_verified_block_headers(&certifier_block_refs)?
-            .into_iter()
-            .flatten()
+            .read_voting_block_headers(&certifier_block_refs)?;
+
+        // Collect refs that weren't found in voting storage
+        let missing_refs: Vec<BlockRef> = certifier_block_refs
+            .iter()
+            .zip(voting_headers.iter())
+            .filter_map(|(r, h)| if h.is_none() { Some(*r) } else { None })
             .collect();
+
+        // Track metrics for voting storage hits vs fallbacks
+        let voting_hits = voting_headers.iter().filter(|h| h.is_some()).count();
+        self.context
+            .metrics
+            .node_metrics
+            .commit_sync_voting_block_headers_hits
+            .inc_by(voting_hits as u64);
+
+        // Read missing headers from regular block storage
+        let fallback_headers = if !missing_refs.is_empty() {
+            self.context
+                .metrics
+                .node_metrics
+                .commit_sync_voting_block_headers_fallbacks
+                .inc_by(missing_refs.len() as u64);
+            self.store.read_verified_block_headers(&missing_refs)?
+        } else {
+            vec![]
+        };
+
+        // Merge results: use voting headers where available, fallback headers otherwise
+        let mut fallback_iter = fallback_headers.into_iter();
+        let certifier_block_headers: Vec<VerifiedBlockHeader> = voting_headers
+            .into_iter()
+            .zip(certifier_block_refs.iter())
+            .map(|(h, block_ref)| {
+                h.or_else(|| fallback_iter.next().flatten()).ok_or(
+                    ConsensusError::MissingVoringBlockHeaderInStorage {
+                        block_ref: *block_ref,
+                    },
+                )
+            })
+            .collect::<ConsensusResult<Vec<_>>>()?;
+
         Ok((commits, certifier_block_headers))
     }
 

@@ -277,6 +277,9 @@ pub(crate) enum ConsensusError {
 
     #[error("Failed to fetch {num_requested} block headers from any peer")]
     FailedToFetchBlockHeaders { num_requested: usize },
+
+    #[error("Voting block header {block_ref:?} for commit certification was not found in storage")]
+    MissingVoringBlockHeaderInStorage { block_ref: BlockRef },
 }
 
 impl ConsensusError {
