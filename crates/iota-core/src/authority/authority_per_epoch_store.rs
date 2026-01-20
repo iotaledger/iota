@@ -26,7 +26,9 @@ use iota_config::node::ExpensiveSafetyCheckConfig;
 use iota_execution::{self, Executor};
 use iota_macros::{fail_point, fail_point_arg};
 use iota_metrics::monitored_scope;
-use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
+use iota_protocol_config::{
+    Chain, PerObjectCongestionControlMode, ProtocolConfig, ProtocolVersion,
+};
 use iota_storage::mutex_table::{MutexGuard, MutexTable};
 use iota_types::{
     accumulator::Accumulator,
@@ -165,6 +167,165 @@ impl CertLockGuard {
 }
 
 type JwkAggregator = GenericMultiStakeAggregator<(JwkId, JWK), true>;
+
+/// Container for congestion control parameters commonly used in
+/// `SharedObjectCongestionTracker` and `SuggestedGasPriceCalculator`.
+/// It can be initialized from a `ProtocolConfig` instance.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct CongestionControlParameters {
+    /// Controls the behavior of per-object congestion control. This
+    /// field determines how the estimated execution duration of a
+    /// transaction is calculated.
+    per_object_congestion_control_mode: PerObjectCongestionControlMode,
+
+    /// This field determines how the start time of a transaction should be
+    /// assigned. If `true`, the tracker will assign the start time according
+    /// to the minimum free execution slot for a transaction over all its
+    /// shared objects. If `false`, the tracker will assign the start time
+    /// according to the maximum end time of the occupied execution slots
+    /// for a transaction over all its shared objects.
+    congestion_control_min_free_execution_slot: bool,
+
+    /// Maximum execution duration per shared object per commit. If `None`,
+    /// it means that shared-object congestion control is disabled.
+    max_execution_duration_per_commit: Option<ExecutionTime>,
+
+    /// Maximum amount that is allowed to overshoot
+    /// `max_execution_duration_per_commit`. If `None`, it means that
+    /// congestion limit overshoot is disabled.
+    max_congestion_limit_overshoot_per_commit: Option<ExecutionTime>,
+
+    /// Maximum gas price that can be set in transactions. This field
+    /// is only used in `SuggestedGasPriceCalculator` to prevent
+    /// suggesting feedback gas price larger this value.
+    max_gas_price: u64,
+
+    /// Whether to use congestion limit overshoot in the gas price feedback
+    /// mechanism, i.e., this is only used in `SuggestedGasPriceCalculator`.
+    use_congestion_limit_overshoot_in_gas_price_feedback_mechanism: bool,
+
+    /// Whether to use a separate gas price feedback mechanism for transactions
+    /// using randomness.
+    use_separate_gas_price_feedback_mechanism_for_randomness: bool,
+}
+
+impl CongestionControlParameters {
+    /// Create a new `CongestionControlParameters` from `ProtocolConfig`.
+    fn new(protocol_config: &ProtocolConfig) -> Self {
+        Self {
+            per_object_congestion_control_mode: protocol_config
+                .per_object_congestion_control_mode(),
+            congestion_control_min_free_execution_slot: protocol_config
+                .congestion_control_min_free_execution_slot(),
+            max_execution_duration_per_commit: protocol_config
+                .max_accumulated_txn_cost_per_object_in_mysticeti_commit_as_option(),
+            max_congestion_limit_overshoot_per_commit: protocol_config
+                .max_congestion_limit_overshoot_per_commit_as_option(),
+            max_gas_price: protocol_config.max_gas_price(),
+            use_congestion_limit_overshoot_in_gas_price_feedback_mechanism: protocol_config
+                .congestion_limit_overshoot_in_gas_price_feedback_mechanism(),
+            use_separate_gas_price_feedback_mechanism_for_randomness: protocol_config
+                .separate_gas_price_feedback_mechanism_for_randomness(),
+        }
+    }
+
+    /// Create a new `CongestionControlParameters` for testing.
+    #[cfg(test)]
+    pub(crate) fn new_for_test(
+        per_object_congestion_control_mode: PerObjectCongestionControlMode,
+        congestion_control_min_free_execution_slot: bool,
+        max_execution_duration_per_commit: Option<ExecutionTime>,
+        max_congestion_limit_overshoot_per_commit: Option<ExecutionTime>,
+        max_gas_price: u64,
+        use_congestion_limit_overshoot_in_gas_price_feedback_mechanism: bool,
+        use_separate_gas_price_feedback_mechanism_for_randomness: bool,
+    ) -> Self {
+        Self {
+            per_object_congestion_control_mode,
+            congestion_control_min_free_execution_slot,
+            max_execution_duration_per_commit,
+            max_congestion_limit_overshoot_per_commit,
+            max_gas_price,
+            use_congestion_limit_overshoot_in_gas_price_feedback_mechanism,
+            use_separate_gas_price_feedback_mechanism_for_randomness,
+        }
+    }
+
+    /// Get per-object congestion control mode.
+    #[cfg(test)]
+    pub(super) fn per_object_congestion_control_mode_for_test(
+        &self,
+    ) -> PerObjectCongestionControlMode {
+        self.per_object_congestion_control_mode
+    }
+
+    /// Depending on the `PerObjectCongestionControlMode`, different metrics are
+    /// used to approximate the expected execution duration of a transaction.
+    /// The expected execution duration is what is used to schedule transactions
+    /// and allocate resources based on how many transactions can be executed
+    /// from a given consensus commit.
+    pub(super) fn get_estimated_execution_duration(
+        &self,
+        cert: &VerifiedExecutableTransaction,
+    ) -> ExecutionTime {
+        match self.per_object_congestion_control_mode {
+            PerObjectCongestionControlMode::None => 0,
+            PerObjectCongestionControlMode::TotalGasBudget => cert.gas_budget(),
+            PerObjectCongestionControlMode::TotalTxCount => 1,
+        }
+    }
+
+    /// Check whether to use the minimum free execution slot to schedule
+    /// execution of a transaction.
+    pub(super) fn congestion_control_min_free_execution_slot(&self) -> bool {
+        self.congestion_control_min_free_execution_slot
+    }
+
+    /// Check whether shared-object congestion control is enabled.
+    fn is_congestion_control_enabled(&self) -> bool {
+        self.max_execution_duration_per_commit.is_some()
+    }
+
+    /// Get maximum execution duration per shared object per commit.
+    pub(super) fn max_execution_duration_per_commit(&self) -> Option<ExecutionTime> {
+        self.max_execution_duration_per_commit
+    }
+
+    /// Get the maximum gas price that can be set in transactions.
+    pub(super) fn max_gas_price(&self) -> u64 {
+        self.max_gas_price
+    }
+
+    /// Whether to use congestion limit overshoot in the gas price feedback
+    /// mechanism.
+    pub(super) fn use_congestion_limit_overshoot_in_gas_price_feedback_mechanism(&self) -> bool {
+        self.use_congestion_limit_overshoot_in_gas_price_feedback_mechanism
+    }
+
+    /// Whether to use a separate gas price feedback mechanism for transactions
+    /// using randomness.
+    pub(super) fn use_separate_gas_price_feedback_mechanism_for_randomness(&self) -> bool {
+        self.use_separate_gas_price_feedback_mechanism_for_randomness
+    }
+
+    /// Get effective congestion limit per commit, i.e.,
+    /// `max_execution_duration_per_commit` plus
+    /// `max_congestion_limit_overshoot_per_commit`.
+    /// Returns `None` if `max_execution_duration_per_commit` is not set,
+    /// i.e., shared-object congestion control is disabled.
+    pub(super) fn get_effective_congestion_limit_per_commit(&self) -> Option<ExecutionTime> {
+        self.max_execution_duration_per_commit
+            .map(|max_execution_duration_per_commit| {
+                max_execution_duration_per_commit.saturating_add(
+                    // If `max_congestion_limit_overshoot_per_commit` is not set,
+                    // add 0 to `max_execution_duration_per_commit`, that is,
+                    // ignore congestion limit overshoot.
+                    self.max_congestion_limit_overshoot_per_commit
+                        .unwrap_or_default(),
+                )
+            })
+    }
+}
 
 /// An alias type for a collection used to hold previously deferred
 /// transactions, where `Option<u64>` is used to hold suggested gas
@@ -1928,21 +2089,6 @@ impl AuthorityPerEpochStore {
         }
     }
 
-    fn get_max_execution_duration_per_commit_as_option(&self) -> Option<ExecutionTime> {
-        // The old name for this config parameter referred to "cost", but the current
-        // implementation of the shared object congestion tracker uses the term
-        // "execution duration" to describe the same concept.
-        self.protocol_config()
-            .max_accumulated_txn_cost_per_object_in_mysticeti_commit_as_option()
-    }
-
-    fn get_max_congestion_limit_overshoot_per_commit(&self) -> u64 {
-        // If not set, defaults to 0 which means no overshoot allowed.
-        self.protocol_config()
-            .max_congestion_limit_overshoot_per_commit_as_option()
-            .unwrap_or_default()
-    }
-
     #[instrument("transactions_sequencing", level = "trace", skip_all, fields(cert_digest = ?cert.digest(), scheduling_result = tracing::field::Empty))]
     fn try_schedule(
         &self,
@@ -1975,8 +2121,9 @@ impl AuthorityPerEpochStore {
             return result;
         }
 
-        let result = if let Some(max_execution_duration_per_commit) =
-            self.get_max_execution_duration_per_commit_as_option()
+        let result = if shared_object_congestion_tracker
+            .congestion_control_parameters()
+            .is_congestion_control_enabled()
         {
             // Initialise the free execution slots for the objects that are not in the
             // tracker.
@@ -1986,8 +2133,6 @@ impl AuthorityPerEpochStore {
             // Defer transaction if it uses shared objects that are congested.
             match shared_object_congestion_tracker.try_schedule(
                 cert,
-                max_execution_duration_per_commit,
-                self.get_max_congestion_limit_overshoot_per_commit(),
                 previously_deferred_tx_digests,
                 commit_round,
             ) {
@@ -2000,8 +2145,7 @@ impl AuthorityPerEpochStore {
                 SequencingResult::Schedule(start_time) => SchedulingResult::Schedule(start_time),
             }
         } else {
-            // If we don't have a max execution duration, we don't need to check for
-            // congestion.
+            // This means shared-object congestion control is disabled.
             SchedulingResult::Schedule(0)
         };
 
@@ -2944,6 +3088,8 @@ impl AuthorityPerEpochStore {
             self.protocol_config.consensus_transaction_ordering(),
         );
 
+        let congestion_control_parameters = CongestionControlParameters::new(&self.protocol_config);
+
         // We track transaction shared object congestion separately for regular
         // transactions and transactions using randomness.
         let shared_object_congestion_tracker = SharedObjectCongestionTracker::new(
@@ -2953,7 +3099,7 @@ impl AuthorityPerEpochStore {
                 false,
                 &sequenced_transactions,
             )?,
-            self.protocol_config(),
+            congestion_control_parameters.clone(),
         );
         let shared_object_using_randomness_congestion_tracker = SharedObjectCongestionTracker::new(
             self.consensus_quarantine.read().load_initial_object_debts(
@@ -2962,7 +3108,7 @@ impl AuthorityPerEpochStore {
                 true,
                 &sequenced_randomness_transactions,
             )?,
-            self.protocol_config(),
+            congestion_control_parameters,
         );
 
         let consensus_transactions: Vec<_> = system_transactions
@@ -3337,7 +3483,7 @@ impl AuthorityPerEpochStore {
             "initial_congestion_tracker",
             |tracker: SharedObjectCongestionTracker| {
                 info!(
-                    "Initialize shared_object_congestion_tracker to  {:?}",
+                    "Initialize shared_object_congestion_tracker to {:?}",
                     tracker
                 );
                 shared_object_congestion_tracker = tracker;
@@ -3345,16 +3491,23 @@ impl AuthorityPerEpochStore {
         );
 
         let mut suggested_gas_price_calculator = SuggestedGasPriceCalculator::new(
-            self.get_max_execution_duration_per_commit_as_option(),
+            shared_object_congestion_tracker
+                .congestion_control_parameters()
+                .clone(),
             self.reference_gas_price(),
-            self.protocol_config().max_gas_price(),
+        );
+        let mut suggested_gas_price_calculator_for_randomness = SuggestedGasPriceCalculator::new(
+            shared_object_using_randomness_congestion_tracker
+                .congestion_control_parameters()
+                .clone(),
+            self.reference_gas_price(),
         );
 
         fail_point_arg!(
             "initial_suggested_gas_price_calculator",
             |calculator: SuggestedGasPriceCalculator| {
                 info!(
-                    "Initialize suggested_gas_price_calculator to  {:?}",
+                    "Initialize suggested_gas_price_calculator to {:?}",
                     calculator
                 );
                 suggested_gas_price_calculator = calculator;
@@ -3366,10 +3519,23 @@ impl AuthorityPerEpochStore {
             let key = tx.0.transaction.key();
             let mut ignored = false;
             let mut filter_roots = false;
-            let congestion_tracker = if tx.0.is_user_tx_with_randomness() {
-                &mut shared_object_using_randomness_congestion_tracker
+            let (congestion_tracker, sgp_calculator) = if tx.0.is_user_tx_with_randomness() {
+                (
+                    &mut shared_object_using_randomness_congestion_tracker,
+                    if self
+                        .protocol_config
+                        .separate_gas_price_feedback_mechanism_for_randomness()
+                    {
+                        &mut suggested_gas_price_calculator_for_randomness
+                    } else {
+                        &mut suggested_gas_price_calculator
+                    },
+                )
             } else {
-                &mut shared_object_congestion_tracker
+                (
+                    &mut shared_object_congestion_tracker,
+                    &mut suggested_gas_price_calculator,
+                )
             };
             match self
                 .process_consensus_transaction(
@@ -3382,7 +3548,7 @@ impl AuthorityPerEpochStore {
                     dkg_failed,
                     randomness_round.is_some(),
                     congestion_tracker,
-                    &mut suggested_gas_price_calculator,
+                    sgp_calculator,
                     authority_metrics,
                 )
                 .await?
@@ -3507,8 +3673,9 @@ impl AuthorityPerEpochStore {
         // Record accumulated debts from this consensus commit following sequencing.
         // This output will be written to consensus quarantine so the debts can be
         // loaded in the future consensus commit rounds where the objects are involved.
-        if let Some(max_execution_duration_per_commit) =
-            self.get_max_execution_duration_per_commit_as_option()
+        if let Some(max_execution_duration_per_commit) = shared_object_congestion_tracker
+            .congestion_control_parameters()
+            .max_execution_duration_per_commit()
         {
             output.set_congestion_control_object_debts(
                 shared_object_congestion_tracker
@@ -3757,8 +3924,6 @@ impl AuthorityPerEpochStore {
                     previously_deferred_tx_digests,
                     shared_object_congestion_tracker,
                 );
-                let estimated_execution_duration =
-                    shared_object_congestion_tracker.get_estimated_execution_duration(&certificate);
 
                 match scheduling_result {
                     SchedulingResult::Defer(deferral_key, deferral_reason) => {
@@ -3787,10 +3952,7 @@ impl AuthorityPerEpochStore {
                                 {
                                     let current_commit_suggested_gas_price =
                                         suggested_gas_price_calculator
-                                            .calculate_suggested_gas_price(
-                                                &certificate,
-                                                estimated_execution_duration,
-                                            );
+                                            .calculate_suggested_gas_price(&certificate);
 
                                     let suggested_gas_price = previously_deferred_tx_digests
                                         .get(certificate.digest())
@@ -3833,8 +3995,7 @@ impl AuthorityPerEpochStore {
                                         "Cancelling consensus certificate for transaction {:?} \
                                             with deferral key {deferral_key:?} due to congestion \
                                             on objects {congested_objects:?}: actual gas price: \
-                                            {}, suggested gas price: \
-                                        {suggested_gas_price:?}",
+                                            {}, suggested gas price: {suggested_gas_price:?}",
                                         certificate.digest(),
                                         certificate.transaction_data().gas_price(),
                                     );
@@ -3869,24 +4030,19 @@ impl AuthorityPerEpochStore {
                         // we have to update the following:
                         // - shared object execution slots (for congestion tracker);
                         // - shared object congestion info (for suggested gas price calculator).
-                        if certificate.contains_shared_object() {
-                            if self
-                                .get_max_execution_duration_per_commit_as_option()
-                                .is_some()
-                            {
-                                // We only need to do this if `max_execution_duration_per_commit`
-                                // is `Some`, since otherwise this bumping will panic as object
-                                // execution slots are only initialized if
-                                // `max_execution_duration_per_commit` is not `None`.
-                                shared_object_congestion_tracker
-                                    .bump_object_execution_slots(&certificate, start_time);
-                            }
+                        if certificate.contains_shared_object()
+                            && shared_object_congestion_tracker
+                                .congestion_control_parameters()
+                                .is_congestion_control_enabled()
+                        {
+                            // We only need to do this if shared-object congestion control is
+                            // enabled, since otherwise this bumping will panic as object
+                            // execution slots are only initialized if
+                            // `max_execution_duration_per_commit` is not `None`.
+                            let bump_result = shared_object_congestion_tracker
+                                .bump_object_execution_slots(&certificate, start_time);
 
-                            suggested_gas_price_calculator.update_congestion_info(
-                                &certificate,
-                                start_time,
-                                estimated_execution_duration,
-                            );
+                            suggested_gas_price_calculator.update_congestion_info(bump_result);
                         }
 
                         Ok(ConsensusCertificateResult::Scheduled {
@@ -4402,7 +4558,8 @@ impl AuthorityPerEpochStore {
 
     // Only for testing purposes. Loads initial object debts from the consensus
     // quarantine.
-    pub fn load_stored_object_debts_for_testing(
+    #[cfg(test)]
+    pub(crate) fn load_stored_object_debts_for_testing(
         &self,
         for_randomness: bool,
         object_ids: &[ObjectID],
