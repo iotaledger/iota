@@ -534,6 +534,7 @@ impl Core {
         &mut self,
         commits: Vec<TrustedCommit>,
         committed_subdags: Vec<CommittedSubDag>,
+        voting_block_headers: Vec<VerifiedBlockHeader>,
     ) -> ConsensusResult<()> {
         let _scope = monitored_scope("Core::handle_committed_sub_dags_from_fast_sync");
         let _s = self
@@ -577,6 +578,9 @@ impl Core {
                     );
                 }
             }
+
+            // Store voting block headers for later use when serving fetch_commits requests
+            dag_state.add_voting_block_headers(voting_block_headers);
         }
 
         // Flush commits to storage so they're available for

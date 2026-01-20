@@ -135,6 +135,19 @@ impl Store for MemStore {
                 .insert((commit_ref.index, commit_ref.digest), commit_info);
         }
 
+        // Handle voting block headers
+        for header in write_batch.voting_block_headers {
+            let key = (header.round(), header.author(), header.digest());
+            let block_ref = header.reference();
+            // Store commit votes from this block header
+            for vote in header.commit_votes() {
+                inner
+                    .commit_votes
+                    .insert((vote.index, vote.digest, block_ref));
+            }
+            inner.voting_block_headers.insert(key, header);
+        }
+
         Ok(())
     }
 
@@ -475,22 +488,6 @@ impl Store for MemStore {
             })
             .collect();
         Ok(exist)
-    }
-
-    fn write_voting_block_headers(&self, headers: Vec<VerifiedBlockHeader>) -> ConsensusResult<()> {
-        let mut inner = self.inner.write();
-        for header in headers {
-            let key = (header.round(), header.author(), header.digest());
-            let block_ref = header.reference();
-            // Store commit votes from this block header
-            for vote in header.commit_votes() {
-                inner
-                    .commit_votes
-                    .insert((vote.index, vote.digest, block_ref));
-            }
-            inner.voting_block_headers.insert(key, header);
-        }
-        Ok(())
     }
 
     fn read_voting_block_headers(

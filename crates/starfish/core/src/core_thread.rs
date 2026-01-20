@@ -85,6 +85,7 @@ enum CoreThreadCommand {
     AddSubdagFromFastSync(
         Vec<TrustedCommit>,
         Vec<CommittedSubDag>,
+        Vec<VerifiedBlockHeader>, // voting block headers
         oneshot::Sender<()>,
     ),
     /// Reinitialize consensus components after fast sync completes.
@@ -160,6 +161,7 @@ pub trait CoreThreadDispatcher: Sync + Send + 'static {
         &self,
         commits: Vec<TrustedCommit>,
         subdags: Vec<CommittedSubDag>,
+        voting_block_headers: Vec<VerifiedBlockHeader>,
     ) -> Result<(), CoreError>;
 
     /// Reinitialize consensus components after fast sync completes.
@@ -252,11 +254,11 @@ impl CoreThread {
                     }
 
                     match command {
-                        CoreThreadCommand::AddSubdagFromFastSync(commits, subdags, sender) => {
+                        CoreThreadCommand::AddSubdagFromFastSync(commits, subdags, voting_block_headers, sender) => {
                             info!("Adding subdags from fast sync, entering fast sync mode; {} index_start and {} index_end", subdags.first().map(|sd| sd.base.leader.round).unwrap_or(0), subdags.last().map(|sd| sd.base.leader.round).unwrap_or(0));
                             fast_sync_ongoing = true;
                             let _scope = monitored_scope("CoreThread::loop::add_subdags_from_fast_sync");
-                            self.core.handle_committed_sub_dags_from_fast_sync(commits, subdags)?;
+                            self.core.handle_committed_sub_dags_from_fast_sync(commits, subdags, voting_block_headers)?;
                             sender.send(()).ok();
                         }
                         CoreThreadCommand::AddBlocks(blocks, sender) => {
@@ -487,10 +489,11 @@ impl CoreThreadDispatcher for ChannelCoreThreadDispatcher {
         &self,
         commits: Vec<TrustedCommit>,
         subdags: Vec<CommittedSubDag>,
+        voting_block_headers: Vec<VerifiedBlockHeader>,
     ) -> Result<(), CoreError> {
         let (sender, receiver) = oneshot::channel();
         self.send(CoreThreadCommand::AddSubdagFromFastSync(
-            commits, subdags, sender,
+            commits, subdags, voting_block_headers, sender,
         ))
         .await;
         Ok(receiver.await.map_err(|e| Shutdown(e.to_string()))?)
@@ -685,6 +688,7 @@ pub(crate) mod tests {
             &self,
             _commits: Vec<TrustedCommit>,
             _subdags: Vec<CommittedSubDag>,
+            _voting_block_headers: Vec<VerifiedBlockHeader>,
         ) -> Result<(), CoreError> {
             unimplemented!()
         }

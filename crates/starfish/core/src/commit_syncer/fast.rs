@@ -49,11 +49,11 @@ pub(crate) struct FastCommitSyncer<C: NetworkClient> {
     // States only used by the scheduler.
 
     // Inflight requests to fetch commits from different authorities.
-    inflight_fetches: JoinSet<(u32, Vec<TrustedCommit>, Vec<CommittedSubDag>)>,
+    inflight_fetches: JoinSet<(u32, Vec<TrustedCommit>, Vec<CommittedSubDag>, Vec<VerifiedBlockHeader>)>,
     // Additional ranges of commits to fetch.
     pending_fetches: BTreeSet<CommitRange>,
     // Fetched commits and blocks by commit range.
-    fetched_ranges: BTreeMap<CommitRange, (Vec<TrustedCommit>, Vec<CommittedSubDag>)>,
+    fetched_ranges: BTreeMap<CommitRange, (Vec<TrustedCommit>, Vec<CommittedSubDag>, Vec<VerifiedBlockHeader>)>,
     // Highest commit index among inflight and pending fetches.
     // Used to determine the start of new ranges to be fetched.
     highest_scheduled_index: Option<CommitIndex>,
@@ -139,8 +139,8 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
                             return;
                         }
                     }
-                    let (target_end, commits, committed_subdags) = result.unwrap();
-                    self.handle_fetch_result(target_end, commits, committed_subdags).await;
+                    let (target_end, commits, committed_subdags, voting_block_headers) = result.unwrap();
+                    self.handle_fetch_result(target_end, commits, committed_subdags, voting_block_headers).await;
                 }
                 _ = &mut rx_shutdown => {
                     // Shutdown requested.
@@ -331,6 +331,7 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
         target_end: CommitIndex,
         commits: Vec<TrustedCommit>,
         committed_subdags: Vec<CommittedSubDag>,
+        voting_block_headers: Vec<VerifiedBlockHeader>,
     ) {
         assert!(!committed_subdags.is_empty());
 
@@ -374,14 +375,14 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
         if self.synced_commit_index < commit_end {
             self.fetched_ranges.insert(
                 (commit_start..=commit_end).into(),
-                (commits, committed_subdags),
+                (commits, committed_subdags, voting_block_headers),
             );
         }
         // Try to process as many fetched blocks as possible.
         while let Some((fetched_commit_range, _)) = self.fetched_ranges.first_key_value() {
             // Only pop fetched_ranges if there is no gap with blocks already synced.
             // Note: start, end and synced_commit_index are all inclusive.
-            let (fetched_commit_range, (commits, subdags)) =
+            let (fetched_commit_range, (commits, subdags, voting_headers)) =
                 if fetched_commit_range.start() <= self.synced_commit_index + 1 {
                     self.fetched_ranges.pop_first().unwrap()
                 } else {
@@ -410,7 +411,7 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
             if let Err(e) = self
                 .inner
                 .core_thread_dispatcher
-                .add_subdags_from_fast_sync(commits, subdags)
+                .add_subdags_from_fast_sync(commits, subdags, voting_headers)
                 .await
             {
                 info!(
@@ -461,10 +462,10 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
     async fn fetch_loop(
         inner: Arc<Inner<C>>,
         commit_range: CommitRange,
-    ) -> (CommitIndex, Vec<TrustedCommit>, Vec<CommittedSubDag>) {
-        let (end_index, (commits, committed_subdags)) =
+    ) -> (CommitIndex, Vec<TrustedCommit>, Vec<CommittedSubDag>, Vec<VerifiedBlockHeader>) {
+        let (end_index, (commits, committed_subdags, voting_block_headers)) =
             shared_fetch_loop(inner, commit_range, 2, Self::fetch_once).await;
-        (end_index, commits, committed_subdags)
+        (end_index, commits, committed_subdags, voting_block_headers)
     }
 
     // Fetches commits and transactions from a single authority.
@@ -473,7 +474,7 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
         target_authority: AuthorityIndex,
         commit_range: CommitRange,
         timeout: Duration,
-    ) -> ConsensusResult<(Vec<TrustedCommit>, Vec<CommittedSubDag>)> {
+    ) -> ConsensusResult<(Vec<TrustedCommit>, Vec<CommittedSubDag>, Vec<VerifiedBlockHeader>)> {
         let _timer = inner
             .context
             .metrics
@@ -508,13 +509,6 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
             })
             .await
             .expect("Spawn blocking should not fail")?;
-
-        // Store the voting block headers for later use when serving fetch_commits
-        // requests. The overhead is small since we store votes only for the last commit
-        // in a batch.
-        inner
-            .store
-            .write_voting_block_headers(voting_block_headers)?;
 
         // 3. Collect all committed transaction block refs from commits
         let mut committed_tx_refs: BTreeSet<TransactionRef> = commits
@@ -612,7 +606,7 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
             ));
         }
 
-        Ok((commits, committed_subdags))
+        Ok((commits, committed_subdags, voting_block_headers))
     }
 
     /// Fetches block headers needed for component reinitialization from the

@@ -273,6 +273,26 @@ impl Store for RocksDBStore {
                 .map_err(ConsensusError::RocksDBFailure)?;
         }
 
+        // Handle voting block headers
+        for header in write_batch.voting_block_headers {
+            let block_ref = header.reference();
+            batch
+                .insert_batch(
+                    &self.voting_block_headers,
+                    [((block_ref.round, block_ref.author, block_ref.digest), header.serialized().clone())],
+                )
+                .map_err(ConsensusError::RocksDBFailure)?;
+            // Store commit votes from this block header
+            for vote in header.commit_votes() {
+                batch
+                    .insert_batch(
+                        &self.commit_votes,
+                        [((vote.index, vote.digest, block_ref), ())],
+                    )
+                    .map_err(ConsensusError::RocksDBFailure)?;
+            }
+        }
+
         batch.write()?;
         fail_point!("consensus-store-after-write");
         Ok(())
@@ -718,33 +738,6 @@ impl Store for RocksDBStore {
         };
         let (key, commit_info) = result.map_err(ConsensusError::RocksDBFailure)?;
         Ok(Some((CommitRef::new(key.0, key.1), commit_info)))
-    }
-
-    fn write_voting_block_headers(&self, headers: Vec<VerifiedBlockHeader>) -> ConsensusResult<()> {
-        if headers.is_empty() {
-            return Ok(());
-        }
-        let mut batch = self.voting_block_headers.batch();
-        for header in &headers {
-            let key = (header.round(), header.author(), header.digest());
-            batch
-                .insert_batch(
-                    &self.voting_block_headers,
-                    [(key, header.serialized().clone())],
-                )
-                .map_err(ConsensusError::RocksDBFailure)?;
-            // Store commit votes from this block header
-            let block_ref = header.reference();
-            for vote in header.commit_votes() {
-                batch
-                    .insert_batch(
-                        &self.commit_votes,
-                        [((vote.index, vote.digest, block_ref), ())],
-                    )
-                    .map_err(ConsensusError::RocksDBFailure)?;
-            }
-        }
-        batch.write().map_err(ConsensusError::RocksDBFailure)
     }
 
     fn read_voting_block_headers(

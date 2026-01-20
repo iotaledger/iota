@@ -172,6 +172,11 @@ pub(crate) struct DagState {
     block_headers_to_write: Vec<VerifiedBlockHeader>,
     commits_to_write: Vec<TrustedCommit>,
 
+    /// Voting block headers to be flushed to storage. These are block headers
+    /// received during fast sync that contain commit votes used to certify
+    /// commits.
+    voting_block_headers_to_write: Vec<VerifiedBlockHeader>,
+
     /// Buffer the reputation scores & last_committed_rounds to be flushed with
     /// the next dag state flush. This is okay because we can recover
     /// reputation scores & last_committed_rounds from the commits as
@@ -272,6 +277,7 @@ impl DagState {
             transactions_to_write: vec![],
             block_headers_to_write: vec![],
             commits_to_write: vec![],
+            voting_block_headers_to_write: vec![],
             commit_info_to_write: vec![],
             pending_acknowledgments: BTreeSet::new(),
             scoring_subdag,
@@ -528,6 +534,13 @@ impl DagState {
                 }
             }
         }
+    }
+
+    /// Adds voting block headers to be flushed to storage. These are block
+    /// headers received during fast sync that contain commit votes used to
+    /// certify commits.
+    pub(crate) fn add_voting_block_headers(&mut self, headers: Vec<VerifiedBlockHeader>) {
+        self.voting_block_headers_to_write.extend(headers);
     }
 
     #[cfg_attr(not(test), expect(dead_code))]
@@ -1833,12 +1846,14 @@ impl DagState {
         let block_headers = std::mem::take(&mut self.block_headers_to_write);
         let commits = std::mem::take(&mut self.commits_to_write);
         let commit_info = std::mem::take(&mut self.commit_info_to_write);
+        let voting_block_headers = std::mem::take(&mut self.voting_block_headers_to_write);
 
         // Early return if there's nothing to flush
         if transactions.is_empty()
             && block_headers.is_empty()
             && commits.is_empty()
             && commit_info.is_empty()
+            && voting_block_headers.is_empty()
         {
             return;
         }
@@ -1867,7 +1882,7 @@ impl DagState {
         // Write all buffered data to storage
         self.store
             .write(
-                WriteBatch::new(transactions, block_headers, commits, commit_info),
+                WriteBatch::new(transactions, block_headers, commits, commit_info, voting_block_headers),
                 self.context.clone(),
             )
             .unwrap_or_else(|e| panic!("Failed to write to storage: {e:?}"));
