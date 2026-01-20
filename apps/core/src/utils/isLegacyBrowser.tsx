@@ -6,6 +6,7 @@
 import { useEffect, useState } from 'react';
 import { InfoBox, InfoBoxStyle, InfoBoxType } from '@iota/apps-ui-kit';
 import { Warning } from '@iota/apps-ui-icons';
+import { MIN_BROWSER_VERSION } from '../constants/minBrowserVersion';
 
 export function getBrowserCompatibilityMessage(): string | null {
     if (typeof navigator === 'undefined') return null;
@@ -15,13 +16,14 @@ export function getBrowserCompatibilityMessage(): string | null {
         const version = (re: RegExp) => Number(ua.match(re)?.[1] || 999);
 
         const isLegacy =
-            version(/Chrome\/(\d+)/) < 98 ||
-            version(/Firefox\/(\d+)/) < 94 ||
+            version(/Chrome\/(\d+)/) < MIN_BROWSER_VERSION.chrome ||
+            version(/Firefox\/(\d+)/) < MIN_BROWSER_VERSION.firefox ||
             (/Safari/.test(ua) &&
                 !/Chrome/.test(ua) &&
-                parseFloat(ua.match(/Version\/(\d+\.\d+)/)?.[1] || '99') < 15.4) ||
-            version(/Edg\/(\d+)/) < 98 ||
-            version(/OPR\/(\d+)/) < 84;
+                parseFloat(ua.match(/Version\/(\d+\.\d+)/)?.[1] || '99') <
+                    MIN_BROWSER_VERSION.safari) ||
+            version(/Edg\/(\d+)/) < MIN_BROWSER_VERSION.edge ||
+            version(/OPR\/(\d+)/) < MIN_BROWSER_VERSION.opera;
 
         return isLegacy
             ? 'Your browser version is outdated and may not be compatible. Please update it to the latest version.'
