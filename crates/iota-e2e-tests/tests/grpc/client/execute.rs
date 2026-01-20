@@ -110,23 +110,9 @@ async fn execute_transaction_invalid_signature() {
 
     // Transaction with invalid signature should be rejected
     assert!(
-        result.is_err(),
-        "Transaction with invalid signature should fail"
+        matches!(result, Err(Error::Grpc(_)) | Err(Error::Signature(_))),
+        "Expected Grpc or Signature error, got: {result:?}"
     );
-
-    match result {
-        Err(Error::Grpc(status)) => {
-            assert!(
-                status.code() != tonic::Code::Ok,
-                "Should fail with a non-OK status"
-            );
-        }
-        Err(Error::Signature(_)) => {
-            // Signature validation failed on client side
-        }
-        Err(e) => panic!("Unexpected error type: {e:?}"),
-        Ok(_) => unreachable!(),
-    }
 }
 
 #[sim_test]
