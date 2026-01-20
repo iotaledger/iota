@@ -8,9 +8,9 @@ import { faucet, split_coin } from './utils/localnet';
 async function search(page: Page, text: string, resultLabel?: string) {
     const searchbar = page.getByPlaceholder('Search');
     await searchbar.fill(text);
-    
+
     // If a specific result label is provided, click that one; otherwise click the first
-    const result = resultLabel 
+    const result = resultLabel
         ? page.getByRole('button').filter({ hasText: resultLabel }).first()
         : page.getByRole('button').first();
     await result.click();
