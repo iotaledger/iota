@@ -49,6 +49,8 @@ struct Inner {
     commits: BTreeMap<(CommitIndex, CommitDigest), TrustedCommit>,
     commit_votes: BTreeSet<(CommitIndex, CommitDigest, BlockRef)>,
     commit_info: BTreeMap<(CommitIndex, CommitDigest), CommitInfo>,
+    /// Stores voting block headers separately from regular block headers.
+    voting_block_headers: BTreeMap<(Round, AuthorityIndex, BlockHeaderDigest), VerifiedBlockHeader>,
 }
 
 impl MemStore {
@@ -63,6 +65,7 @@ impl MemStore {
                 commits: BTreeMap::new(),
                 commit_votes: BTreeSet::new(),
                 commit_info: BTreeMap::new(),
+                voting_block_headers: BTreeMap::new(),
             }),
             context,
         }
@@ -435,6 +438,23 @@ impl Store for MemStore {
         Ok(votes)
     }
 
+    fn read_highest_commit_index_with_votes(
+        &self,
+        up_to_index: CommitIndex,
+    ) -> ConsensusResult<Option<CommitIndex>> {
+        let inner = self.inner.read();
+        // Do a reverse iteration to find the highest index with votes <= up_to_index
+        let result = inner
+            .commit_votes
+            .range((
+                Included((CommitIndex::MIN, CommitDigest::MIN, BlockRef::MIN)),
+                Included((up_to_index, CommitDigest::MAX, BlockRef::MAX)),
+            ))
+            .next_back()
+            .map(|(index, _, _)| *index);
+        Ok(result)
+    }
+
     fn read_last_commit_info(&self) -> ConsensusResult<Option<(CommitRef, CommitInfo)>> {
         let inner = self.inner.read();
         Ok(inner
@@ -455,5 +475,38 @@ impl Store for MemStore {
             })
             .collect();
         Ok(exist)
+    }
+
+    fn write_voting_block_headers(&self, headers: Vec<VerifiedBlockHeader>) -> ConsensusResult<()> {
+        let mut inner = self.inner.write();
+        for header in headers {
+            let key = (header.round(), header.author(), header.digest());
+            let block_ref = header.reference();
+            // Store commit votes from this block header
+            for vote in header.commit_votes() {
+                inner
+                    .commit_votes
+                    .insert((vote.index, vote.digest, block_ref));
+            }
+            inner.voting_block_headers.insert(key, header);
+        }
+        Ok(())
+    }
+
+    fn read_voting_block_headers(
+        &self,
+        refs: &[BlockRef],
+    ) -> ConsensusResult<Vec<Option<VerifiedBlockHeader>>> {
+        let inner = self.inner.read();
+        let headers = refs
+            .iter()
+            .map(|r| {
+                inner
+                    .voting_block_headers
+                    .get(&(r.round, r.author, r.digest))
+                    .cloned()
+            })
+            .collect();
+        Ok(headers)
     }
 }

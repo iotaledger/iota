@@ -55,6 +55,10 @@ pub(crate) struct RocksDBStore {
     commit_votes: DBMap<(CommitIndex, CommitDigest, BlockRef), ()>,
     /// Stores info related to Commit that helps recovery.
     commit_info: DBMap<(CommitIndex, CommitDigest), CommitInfo>,
+    /// Stores voting block headers separately from regular block headers.
+    /// These are block headers that contain commit votes used to certify
+    /// commits.
+    voting_block_headers: DBMap<(Round, AuthorityIndex, BlockHeaderDigest), Bytes>,
     /// Context to access protocol configuration
     #[cfg_attr(not(test), allow(dead_code))]
     context: Arc<Context>,
@@ -70,6 +74,7 @@ impl RocksDBStore {
     const COMMITS_CF: &'static str = "commits";
     const COMMIT_VOTES_CF: &'static str = "commit_votes";
     const COMMIT_INFO_CF: &'static str = "commit_info";
+    const VOTING_BLOCK_HEADERS_CF: &'static str = "voting_block_headers";
 
     /// Creates a new instance of RocksDB storage.
     pub(crate) fn new(path: &str, context: Arc<Context>) -> Self {
@@ -112,6 +117,9 @@ impl RocksDBStore {
             (Self::COMMITS_CF, cf_options.clone()),
             (Self::COMMIT_VOTES_CF, cf_options.clone()),
             (Self::COMMIT_INFO_CF, cf_options.clone()),
+            // Voting block headers are much fewer than regular block headers,
+            // so using standard options is sufficient.
+            (Self::VOTING_BLOCK_HEADERS_CF, cf_options.clone()),
         ];
         let rocksdb = open_cf_opts(
             path,
@@ -130,6 +138,7 @@ impl RocksDBStore {
             commits,
             commit_votes,
             commit_info,
+            voting_block_headers,
         ) = reopen!(&rocksdb,
             Self::BLOCK_HEADERS_CF;<(Round, AuthorityIndex, BlockHeaderDigest), Bytes>,
             Self::TRANSACTIONS_CF;<(Round, AuthorityIndex, BlockHeaderDigest), Bytes>,
@@ -138,7 +147,8 @@ impl RocksDBStore {
             Self::TRANSACTION_COMMITMENTS_BY_AUTHORITIES_CF;<(AuthorityIndex, Round, TransactionsCommitment, BlockHeaderDigest), ()>,
             Self::COMMITS_CF;<(CommitIndex, CommitDigest), Bytes>,
             Self::COMMIT_VOTES_CF;<(CommitIndex, CommitDigest, BlockRef), ()>,
-            Self::COMMIT_INFO_CF;<(CommitIndex, CommitDigest), CommitInfo>
+            Self::COMMIT_INFO_CF;<(CommitIndex, CommitDigest), CommitInfo>,
+            Self::VOTING_BLOCK_HEADERS_CF;<(Round, AuthorityIndex, BlockHeaderDigest), Bytes>
         );
 
         Self {
@@ -150,6 +160,7 @@ impl RocksDBStore {
             commits,
             commit_votes,
             commit_info,
+            voting_block_headers,
             context,
         }
     }
@@ -676,6 +687,27 @@ impl Store for RocksDBStore {
         Ok(votes)
     }
 
+    fn read_highest_commit_index_with_votes(
+        &self,
+        up_to_index: CommitIndex,
+    ) -> ConsensusResult<Option<CommitIndex>> {
+        // Do a reverse iteration from up_to_index to find the first entry with votes.
+        // The commit_votes table is keyed by (CommitIndex, CommitDigest, BlockRef).
+        let result = self
+            .commit_votes
+            .reversed_safe_iter_with_bounds(
+                Some((CommitIndex::MIN, CommitDigest::MIN, BlockRef::MIN)),
+                Some((up_to_index, CommitDigest::MAX, BlockRef::MAX)),
+            )?
+            .next();
+
+        match result {
+            Some(Ok(((index, _, _), _))) => Ok(Some(index)),
+            Some(Err(e)) => Err(ConsensusError::RocksDBFailure(e)),
+            None => Ok(None),
+        }
+    }
+
     fn read_last_commit_info(&self) -> ConsensusResult<Option<(CommitRef, CommitInfo)>> {
         let Some(result) = self
             .commit_info
@@ -686,6 +718,48 @@ impl Store for RocksDBStore {
         };
         let (key, commit_info) = result.map_err(ConsensusError::RocksDBFailure)?;
         Ok(Some((CommitRef::new(key.0, key.1), commit_info)))
+    }
+
+    fn write_voting_block_headers(&self, headers: Vec<VerifiedBlockHeader>) -> ConsensusResult<()> {
+        if headers.is_empty() {
+            return Ok(());
+        }
+        let mut batch = self.voting_block_headers.batch();
+        for header in &headers {
+            let key = (header.round(), header.author(), header.digest());
+            batch
+                .insert_batch(
+                    &self.voting_block_headers,
+                    [(key, header.serialized().clone())],
+                )
+                .map_err(ConsensusError::RocksDBFailure)?;
+            // Store commit votes from this block header
+            let block_ref = header.reference();
+            for vote in header.commit_votes() {
+                batch
+                    .insert_batch(
+                        &self.commit_votes,
+                        [((vote.index, vote.digest, block_ref), ())],
+                    )
+                    .map_err(ConsensusError::RocksDBFailure)?;
+            }
+        }
+        batch.write().map_err(ConsensusError::RocksDBFailure)
+    }
+
+    fn read_voting_block_headers(
+        &self,
+        refs: &[BlockRef],
+    ) -> ConsensusResult<Vec<Option<VerifiedBlockHeader>>> {
+        let keys: Vec<_> = refs.iter().map(|r| (r.round, r.author, r.digest)).collect();
+        let results = self
+            .voting_block_headers
+            .multi_get(keys)
+            .map_err(ConsensusError::RocksDBFailure)?;
+        results
+            .into_iter()
+            .map(|r| r.map(VerifiedBlockHeader::new_from_bytes).transpose())
+            .collect()
     }
 }
 

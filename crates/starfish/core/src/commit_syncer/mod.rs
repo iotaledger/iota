@@ -41,6 +41,7 @@ use std::{
 use bytes::Bytes;
 use itertools::Itertools;
 use parking_lot::RwLock;
+#[cfg(not(test))]
 use rand::{prelude::SliceRandom as _, rngs::ThreadRng};
 use starfish_config::AuthorityIndex;
 use tokio::{sync::oneshot, task::JoinHandle, time::sleep};
@@ -161,6 +162,7 @@ pub(crate) struct Inner<C: NetworkClient> {
     pub(crate) network_client: Arc<C>,
     pub(crate) block_verifier: Arc<dyn BlockVerifier>,
     pub(crate) dag_state: Arc<RwLock<DagState>>,
+    pub(crate) store: Arc<dyn crate::storage::Store>,
     pub(crate) sync_type: CommitSyncType,
 }
 
@@ -176,14 +178,14 @@ impl<C: NetworkClient> Inner<C> {
 
     /// Verifies the commits and also certifies them using the provided vote
     /// blocks for the last commit. The method returns the trusted commits
-    /// and the votes as verified blocks.
+    /// and the verified voting block headers.
     pub(crate) fn verify_commits(
         &self,
         peer: AuthorityIndex,
         commit_range: CommitRange,
         serialized_commits: Vec<Bytes>,
         serialized_vote_blocks_headers: Vec<Bytes>,
-    ) -> ConsensusResult<Vec<TrustedCommit>> {
+    ) -> ConsensusResult<(Vec<TrustedCommit>, Vec<VerifiedBlockHeader>)> {
         // Parse and verify commits.
         let mut commits = Vec::new();
         for serialized in &serialized_commits {
@@ -226,7 +228,8 @@ impl<C: NetworkClient> Inner<C> {
         // Parse and verify blocks. Then accumulate votes on the end commit.
         let end_commit_ref = CommitRef::new(end_commit.index(), *end_commit_digest);
         let mut stake_aggregator = StakeAggregator::<QuorumThreshold>::new();
-        for serialized_block_header in serialized_vote_blocks_headers.into_iter() {
+        let mut verified_voting_headers = Vec::new();
+        for serialized_block_header in serialized_vote_blocks_headers {
             let signed_block_header: SignedBlockHeader = bcs::from_bytes(&serialized_block_header)
                 .map_err(ConsensusError::MalformedHeader)?;
             // The block signature needs to be verified.
@@ -236,6 +239,11 @@ impl<C: NetworkClient> Inner<C> {
                     stake_aggregator.add(signed_block_header.author(), &self.context.committee);
                 }
             }
+            // Store the verified voting block header
+            verified_voting_headers.push(VerifiedBlockHeader::new_verified(
+                signed_block_header,
+                serialized_block_header,
+            ));
         }
 
         // Check if the end commit has enough votes.
@@ -252,7 +260,7 @@ impl<C: NetworkClient> Inner<C> {
             .zip(serialized_commits)
             .map(|((_d, c), s)| TrustedCommit::new_trusted(c, s))
             .collect();
-        Ok(trusted_commits)
+        Ok((trusted_commits, verified_voting_headers))
     }
 }
 
@@ -416,7 +424,10 @@ where
     Fut: std::future::Future<Output = ConsensusResult<T>> + Send,
 {
     // Individual request base timeout.
+    #[cfg(not(test))]
     const TIMEOUT: Duration = Duration::from_secs(10);
+    #[cfg(test)]
+    const TIMEOUT: Duration = Duration::from_millis(500);
     // Max per-request timeout will be base timeout times a multiplier.
     // At the extreme, this means there will be 120s timeout to fetch
     // max_blocks_per_fetch blocks.
@@ -451,6 +462,7 @@ where
                 }
             })
             .collect_vec();
+        #[cfg(not(test))]
         target_authorities.shuffle(&mut ThreadRng::default());
         target_authorities.truncate(MAX_NUM_TARGETS);
         // Increase timeout multiplier for each loop until MAX_TIMEOUT_MULTIPLIER.

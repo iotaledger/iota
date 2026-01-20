@@ -39,6 +39,7 @@ use crate::{
     dag_state::DagState,
     error::{ConsensusError, ConsensusResult},
     network::{NetworkClient, SerializedTransactionsV1, SerializedTransactionsV2},
+    storage::Store,
     transaction_ref::{GenericTransactionRef, GenericTransactionRefAPI as _},
 };
 
@@ -76,6 +77,7 @@ impl<C: NetworkClient> RegularCommitSyncer<C> {
         network_client: Arc<C>,
         block_verifier: Arc<dyn BlockVerifier>,
         dag_state: Arc<RwLock<DagState>>,
+        store: Arc<dyn Store>,
     ) -> Self {
         let inner = Arc::new(Inner {
             context,
@@ -85,6 +87,7 @@ impl<C: NetworkClient> RegularCommitSyncer<C> {
             network_client,
             block_verifier,
             dag_state,
+            store,
             sync_type: CommitSyncType::Regular,
         });
         let synced_commit_index = inner.dag_state.read().last_commit_index();
@@ -504,7 +507,7 @@ impl<C: NetworkClient> RegularCommitSyncer<C> {
         //    returned commit,
         // and the returned commits are chained by digest, so earlier commits are
         // certified as well.
-        let commits = Handle::current()
+        let (commits, _) = Handle::current()
             .spawn_blocking({
                 let inner = inner.clone();
                 move || {
@@ -848,7 +851,7 @@ mod tests {
         dag_state::DagState,
         error::ConsensusResult,
         network::{BlockBundleStream, NetworkClient},
-        storage::mem_store::MemStore,
+        storage::{Store, mem_store::MemStore},
         transaction_ref::GenericTransactionRef,
     };
 
@@ -934,8 +937,8 @@ mod tests {
         let block_verifier = Arc::new(NoopBlockVerifier {});
         let core_thread_dispatcher = Arc::new(MockCoreThreadDispatcher::default());
         let network_client = Arc::new(FakeNetworkClient::default());
-        let store = Arc::new(MemStore::new(context.clone()));
-        let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
+        let store: Arc<dyn Store> = Arc::new(MemStore::new(context.clone()));
+        let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
         let commit_vote_monitor = Arc::new(CommitVoteMonitor::new(context.clone()));
         let commit_consumer_monitor = Arc::new(CommitConsumerMonitor::new(0));
 
@@ -947,6 +950,7 @@ mod tests {
             network_client,
             block_verifier,
             dag_state,
+            store,
         );
 
         // Check initial state.
