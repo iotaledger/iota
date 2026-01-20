@@ -192,6 +192,7 @@ impl InMemory {
                     let (client, connection) = match pg_config.connect(NoTls).await {
                         Ok(value) => value,
                         Err(e) => {
+                            error!("unable to connect to postgres: {e}");
                             Self::publish_error(e.into(), &event_tx, &transaction_tx);
                             tokio::time::sleep(RETRY_POSTGRES_CONNECTION_DELAY).await;
                             continue;
@@ -222,6 +223,7 @@ impl InMemory {
                     // client query to execute while the connection is being actively polled
                     // for incoming notifications.
                     if let Err(e) = futures::try_join!(query_fut, process_notification_fut) {
+                        error!("processing checkpoint notifications failed: {e}");
                         Self::publish_error(e, &event_tx, &transaction_tx);
                     }
                 }
