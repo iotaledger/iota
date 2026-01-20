@@ -277,12 +277,14 @@ impl SharedObjectCongestionTracker {
         shared_input_objects: &[SharedInputObject],
         tx_duration: ExecutionTime,
     ) -> Option<ExecutionTime> {
-        if self.congestion_control_parameters
-            .congestion_control_min_free_execution_slot() {
-            // If `congestion_control_min_free_execution_slot` is true, we assign the transaction start
-            // time based on the lowest free execution slot that can accommodate the
-            // transaction. We start the search from the full range of the slots
-            // available with no constraints from previous objects.
+        if self
+            .congestion_control_parameters
+            .congestion_control_min_free_execution_slot()
+        {
+            // If `congestion_control_min_free_execution_slot` is true, we assign the
+            // transaction start time based on the lowest free execution slot that
+            // can accommodate the transaction. We start the search from the full
+            // range of the slots available with no constraints from previous objects.
             let _span = tracing::trace_span!("compute_min_free_execution_slot").entered();
             let initial_free_slot = ExecutionSlot::max_duration_slot();
             self.compute_min_free_execution_slot(
@@ -291,9 +293,9 @@ impl SharedObjectCongestionTracker {
                 initial_free_slot,
             )
         } else {
-            // If `assign_min_free_execution_slot` is false, we assign the transaction start
-            // time based on the maximum start time of free execution slots for the
-            // transaction over all its shared objects.
+            // If `congestion_control_min_free_execution_slot` is false, we assign the
+            // transaction start time based on the maximum start time of free execution
+            // slots for the transaction over all its shared objects.
             let _span = tracing::trace_span!("max_object_free_slot_start_time").entered();
             shared_input_objects
                 .iter()
@@ -417,19 +419,19 @@ impl SharedObjectCongestionTracker {
             }
         }
 
-        let assign_min_free_execution_slot = self
-            .congestion_control_parameters
-            .congestion_control_min_free_execution_slot();
-
         // The transaction cannot be scheduled. We need to defer it and return a list
         // of the IDs of shared input objects to explain the congestion reason.
-        let congested_objects: Vec<ObjectID> = if assign_min_free_execution_slot {
-            // if `assign_min_free_execution_slot` is true, we return all the shared input
-            // objects as no individual object can be identified as the cause of congestion.
+        let congested_objects: Vec<ObjectID> = if self
+            .congestion_control_parameters
+            .congestion_control_min_free_execution_slot()
+        {
+            // If `congestion_control_min_free_execution_slot` is true, we return all the
+            // shared input objects as no individual object can be identified as
+            // the cause of congestion.
             shared_input_objects.iter().map(|obj| obj.id).collect()
         } else {
-            // if `assign_min_free_execution_slot` is false, we return only shared objects
-            // that can be identified as the cause of congestion.
+            // If `congestion_control_min_free_execution_slot` is false, we return
+            // only shared objects that can be identified as the cause of congestion.
             shared_input_objects
                 .iter()
                 .filter(|obj| {
@@ -578,7 +580,7 @@ pub(super) struct BumpObjectExecutionSlotsResult {
 }
 
 impl BumpObjectExecutionSlotsResult {
-    /// Crate a new `BumpObjectExecutionSlotsResult`.
+    /// Create a new `BumpObjectExecutionSlotsResult`.
     fn new(
         object_ids: Vec<ObjectID>,
         execution_start_time: ExecutionTime,
