@@ -63,6 +63,14 @@ impl BlockManager {
         }
     }
 
+    /// Reinitialize BlockManager after fast sync completes.
+    /// Clears suspended blocks and resets the block suspender.
+    pub(crate) fn reinitialize(&mut self) {
+        self.suspended_blocks.clear();
+        self.block_suspender.reinitialize();
+        self.received_block_rounds = vec![None; self.context.committee.size()];
+    }
+
     /// Does all the same things as try_accept_block_headers and additionally
     /// saves blocks with transaction data into recent_blocks in DagState
     #[tracing::instrument(skip_all)]

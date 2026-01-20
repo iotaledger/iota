@@ -197,7 +197,8 @@ impl CommitAPI for CommitV1 {
     }
 
     fn reputation_scores(&self) -> &[(AuthorityIndex, u64)] {
-        &[] // CommitV1 doesn't have reputation scores
+        // CommitV1 does not have reputation scores
+        &[]
     }
 }
 
@@ -601,11 +602,6 @@ impl CommittedSubDag {
             },
             transactions,
         }
-    }
-
-    /// Returns the leader round of the sub-dag.
-    pub(crate) fn leader_round(&self) -> Round {
-        self.base.leader.round
     }
 
     /// Helper method to format transaction refs in a consistent way
