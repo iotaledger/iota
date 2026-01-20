@@ -1301,7 +1301,7 @@
             "name": "Result",
             "value": {
               "minSupportedProtocolVersion": "1",
-              "maxSupportedProtocolVersion": "18",
+              "maxSupportedProtocolVersion": "19",
               "protocolVersion": "6",
               "featureFlags": {
                 "accept_passkey_in_multisig": false,
@@ -1309,6 +1309,7 @@
                 "additional_multisig_checks": false,
                 "congestion_control_gas_price_feedback_mechanism": false,
                 "congestion_control_min_free_execution_slot": false,
+                "congestion_limit_overshoot_in_gas_price_feedback_mechanism": false,
                 "consensus_batched_block_sync": false,
                 "consensus_commit_transactions_only_for_traversed_headers": false,
                 "consensus_distributed_vote_scoring_strategy": false,
@@ -1337,6 +1338,7 @@
                 "rethrow_serialization_type_layout_errors": true,
                 "select_committee_from_eligible_validators": false,
                 "select_committee_supporting_next_epoch_version": false,
+                "separate_gas_price_feedback_mechanism_for_randomness": false,
                 "track_non_committee_eligible_validators": false,
                 "uncompressed_g1_group_elements": true,
                 "validate_identifier_inputs": false,

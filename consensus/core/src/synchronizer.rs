@@ -2195,6 +2195,139 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_process_fetched_blocks_duplicates() {
+        // GIVEN
+        let (context, _) = Context::new_for_test(4);
+        let context = Arc::new(context);
+        let block_verifier = Arc::new(NoopBlockVerifier {});
+        let core_dispatcher = Arc::new(MockCoreThreadDispatcher::default());
+        let commit_vote_monitor = Arc::new(CommitVoteMonitor::new(context.clone()));
+        let (commands_sender, _commands_receiver) =
+            monitored_mpsc::channel("consensus_synchronizer_commands", 1000);
+
+        // Create input test blocks:
+        // - Authority 0 block at round 60.
+        // - Authority 1 blocks from round 30 to 60.
+        let mut expected_blocks = vec![VerifiedBlock::new_for_test(TestBlock::new(60, 0).build())];
+        expected_blocks.extend(
+            (30..=60).map(|round| VerifiedBlock::new_for_test(TestBlock::new(round, 1).build())),
+        );
+        assert_eq!(
+            expected_blocks.len(),
+            context.parameters.max_blocks_per_sync
+        );
+
+        let expected_serialized_blocks = expected_blocks
+            .iter()
+            .map(|b| b.serialized().clone())
+            .collect::<Vec<_>>();
+
+        let expected_block_refs = expected_blocks
+            .iter()
+            .map(|b| b.reference())
+            .collect::<BTreeSet<_>>();
+
+        // GIVEN peer to fetch blocks from
+        let peer_index = AuthorityIndex::new_for_test(2);
+
+        // Create blocks_guard
+        let inflight_blocks_map = InflightBlocksMap::new();
+        let blocks_guard = inflight_blocks_map
+            .lock_blocks(expected_block_refs.clone(), peer_index, SyncMethod::Live)
+            .expect("Failed to lock blocks");
+
+        assert_eq!(
+            inflight_blocks_map.num_of_locked_blocks(),
+            expected_block_refs.len()
+        );
+
+        // Create a shared LruCache that will be reused to verify duplicate prevention
+        let verified_cache = Arc::new(SyncMutex::new(LruCache::new(
+            NonZeroUsize::new(VERIFIED_BLOCKS_CACHE_CAP).unwrap(),
+        )));
+
+        // WHEN process fetched blocks for the first time
+        let result = Synchronizer::<
+            MockNetworkClient,
+            NoopBlockVerifier,
+            MockCoreThreadDispatcher,
+        >::process_fetched_blocks(
+            expected_serialized_blocks.clone(),
+            peer_index,
+            blocks_guard,
+            core_dispatcher.clone(),
+            block_verifier.clone(),
+            verified_cache.clone(),
+            commit_vote_monitor.clone(),
+            context.clone(),
+            commands_sender.clone(),
+            "test",
+        )
+        .await;
+
+        // THEN
+        assert!(result.is_ok());
+
+        // Check blocks were sent to core
+        let added_blocks = core_dispatcher.get_add_blocks().await;
+        assert_eq!(
+            added_blocks
+                .iter()
+                .map(|b| b.reference())
+                .collect::<BTreeSet<_>>(),
+            expected_block_refs,
+        );
+
+        // Check blocks were unlocked
+        assert_eq!(inflight_blocks_map.num_of_locked_blocks(), 0);
+
+        // PART 2: Verify LruCache prevents duplicate processing
+        // Try to process the same blocks again (simulating duplicate fetch)
+        let blocks_guard_second = inflight_blocks_map
+            .lock_blocks(expected_block_refs.clone(), peer_index, SyncMethod::Live)
+            .expect("Failed to lock blocks for second call");
+
+        let result_second = Synchronizer::<
+            MockNetworkClient,
+            NoopBlockVerifier,
+            MockCoreThreadDispatcher,
+        >::process_fetched_blocks(
+            expected_serialized_blocks,
+            peer_index,
+            blocks_guard_second,
+            core_dispatcher.clone(),
+            block_verifier,
+            verified_cache.clone(),
+            commit_vote_monitor,
+            context.clone(),
+            commands_sender,
+            "test",
+        )
+        .await;
+
+        assert!(result_second.is_ok());
+
+        // Verify NO blocks were sent to core on the second call
+        // because they were already in the LruCache
+        let added_blocks_second_call = core_dispatcher.get_add_blocks().await;
+        assert!(
+            added_blocks_second_call.is_empty(),
+            "Expected no blocks to be added on second call due to LruCache, but got {} blocks",
+            added_blocks_second_call.len()
+        );
+
+        // Verify the cache contains all the block digests
+        let cache_size = verified_cache.lock().len();
+        assert_eq!(
+            cache_size,
+            expected_block_refs.len(),
+            "Expected {} entries in the LruCache, but got {}",
+            expected_block_refs.len(),
+            cache_size
+        );
+    }
+
+    #[tokio::test]
     async fn test_successful_fetch_blocks_from_peer() {
         // GIVEN
         let (context, _) = Context::new_for_test(4);

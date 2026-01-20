@@ -8,7 +8,6 @@ import { QueryClientProvider } from '@tanstack/react-query';
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { RouterProvider } from 'react-router-dom';
-import { CookieManagerProvider } from '@boxfish-studio/react-cookie-manager';
 import { growthbook, initAmplitude, initSentry, queryClient } from './lib/utils';
 import { router } from './pages';
 
@@ -34,30 +33,28 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
     <React.StrictMode>
         <GrowthBookProvider growthbook={growthbook}>
             <QueryClientProvider client={queryClient}>
-                <CookieManagerProvider>
-                    <RouterProvider router={router} />
-                    <Disclaimer
-                        onClose={() => {
-                            handleConsentAccepted();
-                        }}
-                    >
-                        <div className="text-body-md text-iota-neutral-10 dark:text-iota-neutral-92">
-                            By using this website, you agree with our{' '}
-                            {LEGAL_LINKS.map(({ title, href }, index) => (
-                                <React.Fragment key={title}>
-                                    <Link
-                                        className="text-iota-primary-30 hover:text-iota-primary-50 dark:text-iota-primary-80 dark:hover:text-iota-primary-60"
-                                        variant="mono"
-                                        href={href}
-                                    >
-                                        {title}
-                                    </Link>
-                                    {index < LEGAL_LINKS.length - 1 ? ', ' : ''}
-                                </React.Fragment>
-                            ))}
-                        </div>
-                    </Disclaimer>
-                </CookieManagerProvider>
+                <RouterProvider router={router} />
+                <Disclaimer
+                    onClose={() => {
+                        handleConsentAccepted();
+                    }}
+                >
+                    <div className="text-body-md text-iota-neutral-10 dark:text-iota-neutral-92">
+                        By using this website, you agree with our{' '}
+                        {LEGAL_LINKS.map(({ title, href }, index) => (
+                            <React.Fragment key={title}>
+                                <Link
+                                    className="text-iota-primary-30 hover:text-iota-primary-50 dark:text-iota-primary-80 dark:hover:text-iota-primary-60"
+                                    variant="mono"
+                                    href={href}
+                                >
+                                    {title}
+                                </Link>
+                                {index < LEGAL_LINKS.length - 1 ? ', ' : ''}
+                            </React.Fragment>
+                        ))}
+                    </div>
+                </Disclaimer>
             </QueryClientProvider>
         </GrowthBookProvider>
     </React.StrictMode>,
