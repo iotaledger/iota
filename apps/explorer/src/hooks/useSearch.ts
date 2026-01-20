@@ -97,7 +97,7 @@ const getResultsForCheckpoint = async (
 ): Promise<Results | null> => {
     // Check if query is a sequence number (numeric string)
     const isSequenceNumber = /^\d+$/.test(query);
-    
+
     // Checkpoint digests have the same format as transaction digests:
     if (!isSequenceNumber && !isValidTransactionDigest(query)) return null;
 
@@ -117,10 +117,7 @@ const getResultsForCheckpoint = async (
     }
 };
 
-const getResultsForEpoch = async (
-    client: IotaClient,
-    query: string,
-): Promise<Results | null> => {
+const getResultsForEpoch = async (client: IotaClient, query: string): Promise<Results | null> => {
     // Only search for epochs if query is a sequence number (numeric string)
     const isSequenceNumber = /^\d+$/.test(query);
     if (!isSequenceNumber) return null;
@@ -135,7 +132,6 @@ const getResultsForEpoch = async (
         });
 
         if (!data || data.length === 0) return null;
-        
         const epochData = data[0];
         // Verify we got the correct epoch (epoch is a string in the API)
         if (epochData.epoch !== query) return null;
