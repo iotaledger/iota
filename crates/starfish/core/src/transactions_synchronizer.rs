@@ -2372,7 +2372,15 @@ mod tests {
 
         async fn add_subdags_from_fast_sync(
             &self,
+            _commits: Vec<crate::commit::TrustedCommit>,
             _subdags: Vec<crate::commit::CommittedSubDag>,
+        ) -> Result<(), CoreError> {
+            unimplemented!()
+        }
+
+        async fn reinitialize_components(
+            &self,
+            _block_headers: Vec<crate::block_header::VerifiedBlockHeader>,
         ) -> Result<(), CoreError> {
             unimplemented!()
         }

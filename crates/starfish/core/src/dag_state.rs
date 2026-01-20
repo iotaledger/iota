@@ -60,6 +60,9 @@ pub(crate) enum TransactionSource {
     /// fetched for all the committed blocks in synced commits.
     CommitSyncer,
 
+    /// Transactions received via fast commit synchronization.
+    FastCommitSyncer,
+
     /// Data added during testing.
     /// Only used in test code.
     #[cfg(test)]
@@ -74,7 +77,8 @@ impl TransactionSource {
             TransactionSource::TransactionSynchronizer => "Transactions synchronizer",
             TransactionSource::BlockStreaming => "Block streaming",
             TransactionSource::ShardReconstructor => "Shard reconstructor",
-            TransactionSource::CommitSyncer => "Commit syncer",
+            TransactionSource::CommitSyncer => "Regular commit syncer",
+            TransactionSource::FastCommitSyncer => "Fast commit syncer",
             #[cfg(test)]
             TransactionSource::Test => "test",
         }
@@ -172,6 +176,9 @@ pub(crate) struct DagState {
     /// the next dag state flush. This is okay because we can recover
     /// reputation scores & last_committed_rounds from the commits as
     /// needed.
+    /// The index in CommitRef correspond to the first index of the next
+    /// scheduler window, while the reputation scores in CommitInfoare for
+    /// the previous window.
     commit_info_to_write: Vec<(CommitRef, CommitInfo)>,
 
     /// Persistent storage for blocks, commits and other consensus data.
@@ -207,7 +214,13 @@ impl DagState {
         let (mut last_committed_rounds, commit_recovery_start_index) =
             if let Some((commit_ref, commit_info)) = commit_info {
                 tracing::info!("Recovering committed state from {commit_ref} {commit_info:?}");
-                (commit_info.committed_rounds, commit_ref.index + 1)
+                let range_end = commit_info.reputation_scores.commit_range.end();
+                let recovery_start = if range_end == GENESIS_COMMIT_INDEX {
+                    commit_ref.index.saturating_add(1)
+                } else {
+                    range_end.saturating_add(1)
+                };
+                (commit_info.committed_rounds, recovery_start)
             } else {
                 tracing::info!("Found no stored CommitInfo to recover from");
                 (vec![0; num_authorities], GENESIS_COMMIT_INDEX + 1)
@@ -268,43 +281,10 @@ impl DagState {
             cordial_knowledge_sender: None,
         };
 
+        // Load cached data for each authority from storage
         for (i, round) in last_committed_rounds.into_iter().enumerate() {
             let authority_index = state.context.committee.to_authority_index(i).unwrap();
-            let (block_headers, transactions_by_author, eviction_round) = {
-                let eviction_round = Self::eviction_round(round, cached_rounds);
-                let block_headers = state
-                    .store
-                    .scan_block_headers_by_author(authority_index, eviction_round + 1)
-                    .expect("Database error");
-                let transactions_by_author = state
-                    .store
-                    .scan_transactions_by_author(
-                        authority_index,
-                        eviction_round + 1,
-                        context.clone(),
-                    )
-                    .expect("Database error");
-                (block_headers, transactions_by_author, eviction_round)
-            };
-
-            state.evicted_rounds[authority_index] = eviction_round;
-
-            // Update the block metadata for the authority.
-            for block_header in &block_headers {
-                state.update_block_header_metadata(block_header);
-            }
-            for transactions in &transactions_by_author {
-                state.update_transaction_metadata(transactions);
-            }
-
-            info!(
-                "Recovered block headers {}: {:?}",
-                authority_index,
-                block_headers
-                    .iter()
-                    .map(|b| b.reference())
-                    .collect::<Vec<BlockRef>>()
-            );
+            state.load_cached_data_for_authority(authority_index, round);
         }
         state
     }
@@ -314,6 +294,113 @@ impl DagState {
         sender: UnboundedSender<CordialKnowledgeMessage>,
     ) {
         self.cordial_knowledge_sender = Some(sender);
+    }
+
+    /// Loads cached data (block headers and transactions) for a single
+    /// authority from storage. Updates eviction round and populates
+    /// in-memory caches.
+    fn load_cached_data_for_authority(
+        &mut self,
+        authority_index: AuthorityIndex,
+        committed_round: Round,
+    ) {
+        let eviction_round = Self::eviction_round(committed_round, self.cached_rounds);
+        self.evicted_rounds[authority_index] = eviction_round;
+
+        // Reload block headers from storage
+        let block_headers = self
+            .store
+            .scan_block_headers_by_author(authority_index, eviction_round + 1)
+            .expect("Database error");
+        for block_header in &block_headers {
+            self.update_block_header_metadata(block_header);
+        }
+
+        // Reload transactions from storage
+        let transactions = self
+            .store
+            .scan_transactions_by_author(authority_index, eviction_round + 1, self.context.clone())
+            .expect("Database error");
+        for txn in &transactions {
+            self.update_transaction_metadata(txn);
+        }
+
+        info!(
+            "Loaded cached data for authority {}: {} block headers, {} transactions",
+            authority_index,
+            block_headers.len(),
+            transactions.len()
+        );
+    }
+
+    /// Reinitialize DagState after fast sync completes.
+    /// This clears in-memory caches and reloads from storage for the
+    /// cached_rounds window. Should be called after block headers have been
+    /// stored via accept_block_headers() and flush().
+    pub(crate) fn reinitialize(&mut self) {
+        let num_authorities = self.context.committee.size();
+
+        info!(
+            "Reinitializing DagState with cached_rounds={}, last_committed_rounds={:?}",
+            self.cached_rounds, self.last_committed_rounds
+        );
+
+        // 1. Clear all in-memory caches
+        // Note: scoring_subdag IS cleared because during fast sync,
+        // CommittedSubDag.headers is empty, so scoring_subdag cannot be
+        // properly populated (it would have leaders but no votes). After
+        // reinitialize, regular operation will rebuild it correctly.
+        self.scoring_subdag.clear();
+        self.recent_block_headers.clear();
+        self.recent_transactions_by_authority = vec![BTreeMap::new(); num_authorities];
+        self.recent_shards_by_authority = vec![BTreeMap::new(); num_authorities];
+        self.recent_headers_refs_by_authority = vec![BTreeSet::new(); num_authorities];
+        self.pending_commit_votes.clear();
+        self.pending_acknowledgments.clear();
+
+        // 2. Reinitialize threshold_clock with current round
+        let current_round = self.threshold_clock.get_round();
+        self.threshold_clock = ThresholdClock::new(current_round, self.context.clone());
+
+        // 3. Reload cached data for each authority
+        for (i, &committed_round) in self.last_committed_rounds.clone().iter().enumerate() {
+            let authority_index = self.context.committee.to_authority_index(i).unwrap();
+            self.load_cached_data_for_authority(authority_index, committed_round);
+        }
+
+        // Rebuild scoring_subdag from stored commits so leader schedule state
+        // matches peers after fast sync reinitialization.
+        self.rebuild_scoring_subdag_from_store();
+
+        info!("DagState reinitialized successfully");
+    }
+
+    fn rebuild_scoring_subdag_from_store(&mut self) {
+        let Some(last_commit) = self.last_commit.as_ref() else {
+            return;
+        };
+
+        let commit_recovery_start_index = self.last_commit_info_index().saturating_add(1);
+
+        if commit_recovery_start_index > last_commit.index() {
+            return;
+        }
+
+        let commits = self
+            .store
+            .scan_commits((commit_recovery_start_index..=last_commit.index()).into())
+            .unwrap_or_else(|e| panic!("Failed to read from storage: {e:?}"));
+
+        let mut unscored_subdags = Vec::with_capacity(commits.len());
+        for commit in commits {
+            let pending_subdag =
+                load_pending_subdag_from_store(self.store.as_ref(), commit, vec![]);
+            unscored_subdags.push(pending_subdag.base);
+        }
+
+        if !unscored_subdags.is_empty() {
+            self.scoring_subdag.add_subdags(unscored_subdags);
+        }
     }
 
     /// Accepts a block header into DagState and keeps it in memory.
@@ -1463,6 +1550,8 @@ impl DagState {
         self.commits_to_write.push(commit);
     }
 
+    /// Add commit info is called before the first commit in a new leader
+    /// scheduler window
     pub(crate) fn add_commit_info(&mut self, reputation_scores: ReputationScores) {
         // We create an empty scoring subdag once reputation scores are calculated.
         // Note: It is okay for this to not be gated by protocol config as the
@@ -1698,6 +1787,36 @@ impl DagState {
         self.last_committed_rounds.clone()
     }
 
+    /// Returns block refs from the last `num_commits` commits stored in the
+    /// database. This is used by the fast commit syncer to determine which
+    /// block headers to fetch for the cached_rounds window before
+    /// reinitializing components.
+    pub(crate) fn get_block_refs_for_recent_commits(&self, num_commits: u32) -> Vec<BlockRef> {
+        let last_commit_index = self.last_commit_index();
+        if last_commit_index == 0 {
+            return vec![];
+        }
+
+        let start_index = last_commit_index.saturating_sub(num_commits).max(1);
+        let commits = self
+            .store
+            .scan_commits((start_index..=last_commit_index).into())
+            .unwrap_or_else(|e| {
+                warn!("Failed to scan commits for block refs: {:?}", e);
+                vec![]
+            });
+
+        // Collect block refs from all commits, deduplicating them
+        let mut block_refs: BTreeSet<BlockRef> = BTreeSet::new();
+        for commit in &commits {
+            for block_ref in commit.block_headers() {
+                block_refs.insert(*block_ref);
+            }
+        }
+
+        block_refs.into_iter().collect()
+    }
+
     /// After each flush, DagState becomes persisted in storage and is expected
     /// to recover all internal states from storage after restarts.
     pub(crate) fn flush(&mut self) {
@@ -1803,6 +1922,22 @@ impl DagState {
         self.store
             .read_last_commit_info()
             .unwrap_or_else(|e| panic!("Failed to read from storage: {e:?}"))
+    }
+
+    /// Returns the commit index of the last stored commit info, or
+    /// GENESIS_COMMIT_INDEX if none. This is the end of the reputation
+    /// score commit range (or the commit ref index for genesis).
+    pub(crate) fn last_commit_info_index(&self) -> CommitIndex {
+        self.recover_last_commit_info()
+            .map(|(commit_ref, commit_info)| {
+                let range_end = commit_info.reputation_scores.commit_range.end();
+                if range_end == GENESIS_COMMIT_INDEX {
+                    commit_ref.index
+                } else {
+                    range_end
+                }
+            })
+            .unwrap_or(GENESIS_COMMIT_INDEX)
     }
 
     pub(crate) fn add_scoring_subdags(&mut self, scoring_subdags: Vec<SubDagBase>) {
