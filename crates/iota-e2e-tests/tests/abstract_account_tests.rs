@@ -44,7 +44,7 @@ use iota_types::{
     },
 };
 use move_command_line_common::error_bitset::ErrorBitset;
-use move_core_types::ident_str;
+use move_core_types::{ident_str, identifier::Identifier};
 use test_cluster::{TestCluster, TestClusterBuilder};
 
 const AA_PACKAGE_PATH: &str = "tests/abstract_account/abstract_account";
@@ -185,7 +185,25 @@ async fn test_receive_object_in_main_tx_succeeds() -> Result<(), anyhow::Error> 
     let tx = Transaction::from_generic_sig_data(tx_data, vec![aa_sig]);
 
     // Should succeed
-    test_env.execute_and_check_tx_correctness(tx).await
+    let tx_result = test_env
+        .test_cluster
+        .wallet
+        .execute_transaction_may_fail(tx)
+        .await;
+
+    // Assert received a ReceivingObjectForAccountObject error
+    assert!(
+        tx_result.is_err(),
+        "Expected TX2 certificate creation to fail due to conflict on receiving object"
+    );
+    let error_string = format!("{:#?}", tx_result.err().unwrap());
+    assert!(
+        error_string.contains("Receiving object"),
+        "Expected ReceivingObjectForAccountObject error, got: {}",
+        error_string
+    );
+
+    Ok(())
 }
 
 /// Test in 3 steps the failure of an Abstract Account transaction
@@ -372,7 +390,7 @@ async fn test_receiving_gas_in_two_separate_txs() -> Result<(), anyhow::Error> {
     let signatures = vec![test_env.create_move_authenticator_for_free_access()?];
     // Create the TX envelope and send it for validators signing
     let tx1 = Transaction::from_generic_sig_data(tx1_data, signatures);
-    let cert = test_env
+    let tx1_cert = test_env
         .test_cluster
         .create_certificate(tx1, Some(client_ip))
         .await
@@ -383,30 +401,38 @@ async fn test_receiving_gas_in_two_separate_txs() -> Result<(), anyhow::Error> {
     let pt2 = test_env
         .craft_aa_receive_gas_ptb(conflict_coin_ref, AA_RECEIVE_OBJECT_FN_NAME_NO_SENDER_CHECK)?;
     let tx2_data = test_env.craft_tx_from_pt(pt2, bob_gas, bob, None).await?;
+    // Create the TX envelope and send it for validators signing
     let tx2 = test_env.test_cluster.wallet.sign_transaction(&tx2_data);
     // This must fail during signing because of the conflict Coin
-    let tx2_resp = test_env.test_cluster.execute_transaction(tx2).await;
+    let tx2_cert = test_env
+        .test_cluster
+        .create_certificate(tx2, Some(client_ip))
+        .await;
+    // Assert received a ReceivingObjectForAccountObject error
     assert!(
-        tx2_resp.confirmed_local_execution.unwrap_or(false) && !tx2_resp.errors.is_empty(),
-        "TX2 must succeed to reproduce the intended race. Resp={:#?}",
-        tx2_resp
+        tx2_cert.is_err(),
+        "Expected TX2 certificate creation to fail due to conflict on receiving object"
+    );
+    let error_string = format!("{:#?}", tx2_cert.err().unwrap());
+    assert!(
+        error_string.contains("ReceivingObjectForAccountObject"),
+        "Expected ReceivingObjectForAccountObject error, got: {}",
+        error_string
     );
 
-    // Step 3: submit the original certificate TX1 which should NOT fail the
+    // Step 3: submit the original certificate TX1 which should NOT fail during the
     // execution
     let QuorumDriverResponse { effects_cert, .. } = test_env
         .test_cluster
         .authority_aggregator()
         .process_certificate(
-            HandleCertificateRequestV1::new(cert).with_events(),
+            HandleCertificateRequestV1::new(tx1_cert).with_events(),
             Some(client_ip),
         )
         .await
         .unwrap();
-    let summary = effects_cert.summary_for_debug();
-
     assert!(
-        summary.status.is_ok(),
+        effects_cert.summary_for_debug().status.is_ok(),
         "Expected the TX execution to succeed"
     );
 
@@ -795,7 +821,7 @@ impl TestEnvironment {
         b.programmable_move_call(
             aa_package_id,
             ident_str!(AA_MODULE_NAME).to_owned(), // abstract_account
-            ident_str!(receive_fn_name).to_owned(),
+            Identifier::new(receive_fn_name)?,
             vec![],
             args,
         );
