@@ -499,7 +499,7 @@ impl IotaProtocol {
             parameters.epoch_duration_ms,
             parameters.chain_start_timestamp_ms,
             Some(parameters.additional_gas_accounts),
-            u64::MAX,
+            u64::MAX - 1,
         );
         let mut addresses = Vec::new();
         if let Some(validator_configs) = genesis_config.validator_config_info.as_ref() {
