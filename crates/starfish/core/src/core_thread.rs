@@ -557,9 +557,8 @@ pub(crate) mod tests {
             ),
             CoreError,
         > {
-            let block_refs = blocks.iter().map(|b| b.reference()).collect();
             self.blocks.lock().extend(blocks);
-            Ok((block_refs, BTreeMap::new()))
+            Ok((BTreeSet::default(), BTreeMap::new()))
         }
 
         async fn add_block_headers(
@@ -572,16 +571,14 @@ pub(crate) mod tests {
             ),
             CoreError,
         > {
-            let block_refs = block_headers
-                .iter()
-                .map(|b| b.reference())
-                .collect::<BTreeSet<_>>();
-            self.block_headers.lock().extend(block_headers);
             let mut missing_block_headers = self.missing_block_headers.lock();
-            for block_ref in &block_refs {
-                missing_block_headers.remove(block_ref);
+            for header in &block_headers {
+                missing_block_headers.remove(&header.reference());
             }
-            Ok((block_refs, BTreeMap::new()))
+
+            self.block_headers.lock().extend(block_headers);
+
+            Ok((BTreeSet::default(), BTreeMap::new()))
         }
 
         async fn add_transactions(

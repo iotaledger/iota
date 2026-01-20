@@ -55,11 +55,14 @@ impl OffchainStateReader for OffchainReaderForAdapter {
         query: String,
         show_usage: bool,
     ) -> Result<TestResponse, anyhow::Error> {
-        let result = self
+        let mut result = self
             .cluster
             .graphql_client
             .execute_to_graphql(query, show_usage, vec![], vec![])
             .await?;
+        // Sort because these will be used to create snapshots that should be
+        // deterministically ordered
+        result.sort_response_body();
 
         Ok(TestResponse {
             http_headers: Some(result.http_headers_without_date()),

@@ -46,7 +46,7 @@ typed-store.workspace = true
 # external dependencies
 rand.workspace = true
 reqwest.workspace = true
-signature = { version = "1.6.0", features = ["rand-preview"] }
+signature = { workspace = true, features = ["rand-preview"] }
 tempfile.workspace = true
 
 # internal dependencies
