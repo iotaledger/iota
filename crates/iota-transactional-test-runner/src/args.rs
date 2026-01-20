@@ -409,7 +409,7 @@ impl IotaExtraValueArgs {
             parser.advance(ValueToken::AtSign)?;
             let v_str = parser.advance(ValueToken::Number)?;
             let (v, _) = parse_u64(v_str)?;
-            Some(SequenceNumber(v))
+            Some(SequenceNumber::from_u64(v))
         } else {
             None
         };

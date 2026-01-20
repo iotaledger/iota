@@ -195,7 +195,7 @@ impl AuthorityStorePruner {
                 }
                 None => {
                     let start_range = ObjectKey(object_id, min_version);
-                    let end_range = ObjectKey(object_id, (max_version.value() + 1).into());
+                    let end_range = ObjectKey(object_id, (max_version.as_u64() + 1).into());
                     wb.schedule_delete_range(&perpetual_db.objects, &start_range, &end_range)?;
                 }
             }
@@ -912,7 +912,7 @@ mod tests {
         let ids = ObjectID::in_range(ObjectID::ZERO, total_unique_object_ids.into())?;
         for id in ids {
             for (counter, seq) in (0..num_versions_per_object).rev().enumerate() {
-                let object_key = ObjectKey(id, SequenceNumber(seq));
+                let object_key = ObjectKey(id, SequenceNumber::from_u64(seq));
                 if counter < num_object_versions_to_retain.try_into().unwrap() {
                     // latest `num_object_versions_to_retain` should not have been pruned
                     to_keep.push(object_key);

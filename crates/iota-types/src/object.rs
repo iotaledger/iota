@@ -45,7 +45,7 @@ pub mod bounded_visitor;
 pub mod option_visitor;
 
 pub const GAS_VALUE_FOR_TESTING: u64 = 300_000_000_000_000;
-pub const OBJECT_START_VERSION: SequenceNumber = SequenceNumber(1);
+pub const OBJECT_START_VERSION: SequenceNumber = SequenceNumber::from_u64(1);
 
 #[serde_as]
 #[derive(Eq, PartialEq, Debug, Clone, Deserialize, Serialize, Hash)]
@@ -546,7 +546,7 @@ impl Display for Owner {
             Self::Shared {
                 initial_shared_version,
             } => {
-                write!(f, "Shared( {} )", initial_shared_version.value())
+                write!(f, "Shared( {} )", initial_shared_version.as_u64())
             }
         }
     }

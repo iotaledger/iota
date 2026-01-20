@@ -640,7 +640,7 @@ impl ObjectRefIter {
         let sha3_digest = &buf[OBJECT_ID_BYTES + SEQUENCE_NUM_BYTES..OBJECT_REF_BYTES];
         let object_ref: ObjectRef = (
             ObjectID::from_bytes(object_id)?,
-            SequenceNumber(*sequence_number),
+            SequenceNumber::from_u64(*sequence_number),
             ObjectDigest::try_from(sha3_digest)?,
         );
         Ok(object_ref)

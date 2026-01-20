@@ -279,7 +279,7 @@ impl std::fmt::Display for ConciseObjectOutput {
                 f,
                 "{:<20} {:<8}",
                 format!("{:?}", name.concise()),
-                version.map(|s| s.value()).opt_debug("-")
+                version.map(|s| s.as_u64()).opt_debug("-")
             )?;
             match resp {
                 Err(_) => writeln!(
@@ -490,14 +490,14 @@ async fn get_object_impl(
             generate_layout: LayoutGenerationOption::Generate,
             request_kind: match version {
                 None => ObjectInfoRequestKind::LatestObjectInfo,
-                Some(v) => ObjectInfoRequestKind::PastObjectInfoDebug(SequenceNumber(v)),
+                Some(v) => ObjectInfoRequestKind::PastObjectInfoDebug(SequenceNumber::from_u64(v)),
             },
         })
         .await
         .map_err(anyhow::Error::from);
     let elapsed = start.elapsed().as_secs_f64();
 
-    let resp_version = resp.as_ref().ok().map(|r| r.object.version().value());
+    let resp_version = resp.as_ref().ok().map(|r| r.object.version().as_u64());
     (resp_version.map(SequenceNumber::from), resp, elapsed)
 }
 

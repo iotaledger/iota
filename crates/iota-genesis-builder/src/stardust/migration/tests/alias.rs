@@ -84,11 +84,11 @@ fn migrate_alias(
     // timestamp. When the alias is attached to the alias output, the version
     // should be incremented.
     assert!(
-        alias_object.version().value() > 1,
+        alias_object.version().as_u64() > 1,
         "alias object version should have been incremented"
     );
     assert!(
-        alias_output_object.version().value() > 1,
+        alias_output_object.version().as_u64() > 1,
         "alias output object version should have been incremented"
     );
 

@@ -693,7 +693,7 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
                     latest_epoch,
                     RandomnessRound(randomness_round),
                     random_bytes,
-                    SequenceNumber(randomness_initial_version),
+                    SequenceNumber::from_u64(randomness_initial_version),
                 );
 
                 self.execute_txn(tx.into()).await?;
@@ -711,7 +711,7 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
                         self.stabilize_str(format!(
                             "Owner: {}\nVersion: {}\nContents: {:#}",
                             &obj.owner,
-                            obj.version().value(),
+                            obj.version().as_u64(),
                             move_struct
                         ))
                     }

@@ -236,7 +236,7 @@ fn dump_package(output_dir: &Path, pkg: &packages::MovePackage) -> Result<()> {
         })
         .collect();
 
-    let package_dir = output_dir.join(format!("{}.{}", id, package.version().value()));
+    let package_dir = output_dir.join(format!("{}.{}", id, package.version().as_u64()));
     fs::create_dir(&package_dir).context("failed to make output directory")?;
 
     let linkage_json = serde_json::to_string_pretty(package.linkage_table())

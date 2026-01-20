@@ -603,7 +603,7 @@ fn parse_configs_versions(
             .map(|chunk| {
                 let object_id =
                     ObjectID::from_str(&chunk[0]).expect("Invalid object id for config");
-                let object_version = SequenceNumber(
+                let object_version = SequenceNumber::from_u64(
                     chunk[1]
                         .parse::<u64>()
                         .expect("Invalid object version for config"),

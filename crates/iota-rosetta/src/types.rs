@@ -248,7 +248,7 @@ impl Serialize for CoinID {
     where
         S: Serializer,
     {
-        format!("{}:{}", self.id, self.version.value()).serialize(serializer)
+        format!("{}:{}", self.id, self.version.as_u64()).serialize(serializer)
     }
 }
 
@@ -265,7 +265,7 @@ impl<'de> Deserialize<'de> for CoinID {
         );
         let version = version.trim_start_matches(':');
         let id = ObjectID::from_hex_literal(id).map_err(D::Error::custom)?;
-        let version = SequenceNumber(u64::from_str(version).map_err(D::Error::custom)?);
+        let version = SequenceNumber::from_u64(u64::from_str(version).map_err(D::Error::custom)?);
 
         Ok(Self { id, version })
     }
@@ -276,7 +276,7 @@ fn test_coin_id_serde() {
     let id = ObjectID::random();
     let coin_id = CoinID {
         id,
-        version: SequenceNumber(10),
+        version: SequenceNumber::from_u64(10),
     };
     let s = serde_json::to_string(&coin_id).unwrap();
     assert_eq!(format!("\"{}:{}\"", id, 10), s);
@@ -284,7 +284,7 @@ fn test_coin_id_serde() {
     let deserialized: CoinID = serde_json::from_str(&s).unwrap();
 
     assert_eq!(id, deserialized.id);
-    assert_eq!(SequenceNumber(10), deserialized.version)
+    assert_eq!(SequenceNumber::from_u64(10), deserialized.version)
 }
 
 impl From<ObjectRef> for CoinID {

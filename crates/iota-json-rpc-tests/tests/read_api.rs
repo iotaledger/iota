@@ -1435,7 +1435,7 @@ async fn try_get_past_object_not_exists() {
     let http_client = cluster.rpc_client();
 
     let rpc_past_obj = http_client
-        .try_get_past_object(ObjectID::ZERO, SequenceNumber(1), None)
+        .try_get_past_object(ObjectID::ZERO, SequenceNumber::from_u64(1), None)
         .await
         .unwrap();
 
@@ -1452,7 +1452,7 @@ async fn try_get_past_object_version_too_high() {
 
     let fullnode_objects = cluster.get_owned_objects(address, None).await.unwrap();
 
-    let seq_num = SequenceNumber(5);
+    let seq_num = SequenceNumber::from_u64(5);
     for object in fullnode_objects.iter() {
         let object_id = object.object_id().unwrap();
 
@@ -1462,7 +1462,7 @@ async fn try_get_past_object_version_too_high() {
             .unwrap();
 
         assert!(
-            matches!(rpc_past_obj, IotaPastObjectResponse::VersionTooHigh{object_id: obj_id, asked_version, latest_version} if obj_id == object_id && asked_version == seq_num && latest_version == SequenceNumber(1))
+            matches!(rpc_past_obj, IotaPastObjectResponse::VersionTooHigh{object_id: obj_id, asked_version, latest_version} if obj_id == object_id && asked_version == seq_num && latest_version.as_u64() == 1)
         );
     }
 }
@@ -1495,13 +1495,13 @@ async fn try_get_past_object_version_not_found() {
         .flat_map(|tx| {
             assert_eq!(tx.status_ok(), Some(true));
             tx.mutated_objects()
-                .filter(|(_, seq_num, _)| seq_num > &SequenceNumber(2))
+                .filter(|(_, seq_num, _)| seq_num > &SequenceNumber::from_u64(2))
                 .map(|(object_id, _, _)| object_id)
                 .collect::<Vec<ObjectID>>()
         })
         .collect::<Vec<_>>();
 
-    let seq_num = SequenceNumber(2);
+    let seq_num = SequenceNumber::from_u64(2);
     let mut at_least_one_version_not_found = false;
 
     for mutated_obj_id in mutated_objects {
@@ -1621,7 +1621,7 @@ async fn try_get_past_object_deleted() {
         1
     );
 
-    let seq_num = SequenceNumber(4);
+    let seq_num = SequenceNumber::from_u64(4);
     let rpc_past_obj = http_client
         .try_get_past_object(created_object_id, seq_num, None)
         .await
@@ -1694,7 +1694,7 @@ async fn try_get_object_before_version_not_exists() {
     let http_client = cluster.rpc_client();
 
     let rpc_obj_before_ver = http_client
-        .try_get_object_before_version(ObjectID::ZERO, SequenceNumber(1))
+        .try_get_object_before_version(ObjectID::ZERO, SequenceNumber::from_u64(1))
         .await
         .unwrap();
 

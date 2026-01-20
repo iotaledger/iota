@@ -697,7 +697,7 @@ pub fn allocate_receiving_ticket_for_object(
 
     Ok(NativeResult::ok(
         legacy_test_cost(),
-        smallvec![Value::u64(object_version.value())],
+        smallvec![Value::u64(object_version.as_u64())],
     ))
 }
 

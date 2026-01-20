@@ -1087,7 +1087,7 @@ async fn test_dry_run_dev_inspect_max_gas_version() {
     let (fullnode, _object_basics) = publish_object_basics(fullnode).await;
     let gas_object = Object::with_id_owner_version_for_testing(
         gas_object_id,
-        SequenceNumber(SequenceNumber::MAX_VALID_EXCL.value() - 1),
+        SequenceNumber::MAX_VALID_EXCL - 1,
         Owner::AddressOwner(sender),
     );
     let gas_object_ref = gas_object.compute_object_reference();
@@ -4202,8 +4202,8 @@ async fn test_iter_live_object_set() {
         &starting_live_set,
         &[
             (package.0, package.1),
-            (gas, SequenceNumber(8)),
-            (obj_id, SequenceNumber(2)),
+            (gas, SequenceNumber::from_u64(8)),
+            (obj_id, SequenceNumber::from_u64(2)),
             (upgrade_cap.0, upgrade_cap.1),
         ],
     );

@@ -262,17 +262,17 @@ mod tests {
         let obj_digest = ObjectDigest::new(Default::default());
         e5.unsafe_add_input_shared_object_for_testing(InputSharedObject::ReadOnly((
             o(1),
-            SequenceNumber(1),
+            SequenceNumber::from_u64(1),
             obj_digest,
         )));
         e2.unsafe_add_input_shared_object_for_testing(InputSharedObject::ReadOnly((
             o(1),
-            SequenceNumber(1),
+            SequenceNumber::from_u64(1),
             obj_digest,
         )));
         e3.unsafe_add_input_shared_object_for_testing(InputSharedObject::Mutate((
             o(1),
-            SequenceNumber(1),
+            SequenceNumber::from_u64(1),
             obj_digest,
         )));
 

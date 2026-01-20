@@ -360,7 +360,7 @@ mod tests {
         // the last transaction.
         assert_eq!(
             shared_input_next_versions,
-            HashMap::from([(id, SequenceNumber(12))])
+            HashMap::from([(id, SequenceNumber::from_u64(12))])
         );
         // Check that the version assignment for each transaction is correct.
         // For a transaction that uses the shared object with mutable=false, it won't
@@ -371,9 +371,9 @@ mod tests {
             assigned_versions,
             vec![
                 (certs[0].key(), vec![(id, init_shared_version),]),
-                (certs[1].key(), vec![(id, SequenceNumber(4)),]),
-                (certs[2].key(), vec![(id, SequenceNumber(4)),]),
-                (certs[3].key(), vec![(id, SequenceNumber(10)),]),
+                (certs[1].key(), vec![(id, SequenceNumber::from_u64(4)),]),
+                (certs[2].key(), vec![(id, SequenceNumber::from_u64(4)),]),
+                (certs[3].key(), vec![(id, SequenceNumber::from_u64(10)),]),
             ]
         );
     }
@@ -578,9 +578,9 @@ mod tests {
         assert_eq!(
             shared_input_next_versions,
             HashMap::from([
-                (id1, SequenceNumber(5)),                             // determined by tx3
-                (id2, SequenceNumber(4)),                             // determined by tx1
-                (IOTA_RANDOMNESS_STATE_OBJECT_ID, SequenceNumber(1)), // not mutable
+                (id1, SequenceNumber::from_u64(5)), // determined by tx3
+                (id2, SequenceNumber::from_u64(4)), // determined by tx1
+                (IOTA_RANDOMNESS_STATE_OBJECT_ID, SequenceNumber::from_u64(1)), // not mutable
             ])
         );
 
@@ -605,7 +605,7 @@ mod tests {
                         (id2, SequenceNumber::CANCELLED_READ),
                     ]
                 ),
-                (certs[2].key(), vec![(id1, SequenceNumber(4)),]),
+                (certs[2].key(), vec![(id1, SequenceNumber::from_u64(4)),]),
                 (
                     certs[3].key(),
                     vec![
@@ -657,13 +657,13 @@ mod tests {
         let effects = [
             TestEffectsBuilder::new(certs[0].data()).build(),
             TestEffectsBuilder::new(certs[1].data())
-                .with_shared_input_versions(BTreeMap::from([(id, SequenceNumber(4))]))
+                .with_shared_input_versions(BTreeMap::from([(id, SequenceNumber::from_u64(4))]))
                 .build(),
             TestEffectsBuilder::new(certs[2].data())
-                .with_shared_input_versions(BTreeMap::from([(id, SequenceNumber(4))]))
+                .with_shared_input_versions(BTreeMap::from([(id, SequenceNumber::from_u64(4))]))
                 .build(),
             TestEffectsBuilder::new(certs[3].data())
-                .with_shared_input_versions(BTreeMap::from([(id, SequenceNumber(10))]))
+                .with_shared_input_versions(BTreeMap::from([(id, SequenceNumber::from_u64(10))]))
                 .build(),
         ];
         let epoch_store = authority.epoch_store_for_testing();
@@ -686,9 +686,9 @@ mod tests {
             assigned_versions,
             vec![
                 (certs[0].key(), vec![(id, init_shared_version),]),
-                (certs[1].key(), vec![(id, SequenceNumber(4)),]),
-                (certs[2].key(), vec![(id, SequenceNumber(4)),]),
-                (certs[3].key(), vec![(id, SequenceNumber(10)),]),
+                (certs[1].key(), vec![(id, SequenceNumber::from_u64(4)),]),
+                (certs[2].key(), vec![(id, SequenceNumber::from_u64(4)),]),
+                (certs[3].key(), vec![(id, SequenceNumber::from_u64(10)),]),
             ]
         );
     }
@@ -716,7 +716,7 @@ mod tests {
             IotaAddress::ZERO,
             (
                 ObjectID::random(),
-                SequenceNumber(gas_object_version),
+                SequenceNumber::from_u64(gas_object_version),
                 ObjectDigest::random(),
             ),
             0,
