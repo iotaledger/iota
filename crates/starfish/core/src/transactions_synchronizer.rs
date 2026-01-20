@@ -2374,6 +2374,7 @@ mod tests {
             &self,
             _commits: Vec<crate::commit::TrustedCommit>,
             _subdags: Vec<crate::commit::CommittedSubDag>,
+            _voting_block_headers: Vec<crate::block_header::VerifiedBlockHeader>,
         ) -> Result<(), CoreError> {
             unimplemented!()
         }
