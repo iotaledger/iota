@@ -106,6 +106,14 @@ impl CheckpointExecutionState {
             full_data: None,
         }
     }
+
+    pub fn new_with_accumulator(data: CheckpointExecutionData, accumulator: Accumulator) -> Self {
+        Self {
+            data,
+            accumulator: Some(accumulator),
+            full_data: None,
+        }
+    }
 }
 
 pub struct CheckpointExecutor {
@@ -431,6 +439,16 @@ impl CheckpointExecutor {
 
         // Checkpoint builder triggers accumulation of the checkpoint, so this is
         // guaranteed to finish.
+        let accumulator = self
+            .epoch_store
+            .notify_read_checkpoint_state_accumulator(&[sequence_number])
+            .await
+            .unwrap()
+            .pop()
+            .unwrap();
+
+        // Checkpoint builder triggers accumulation of the checkpoint, so this is
+        // guaranteed to finish.
 
         let checkpoint_contents = self
             .checkpoint_store
@@ -447,12 +465,15 @@ impl CheckpointExecutor {
             .insert_finalized_transactions(&tx_digests, sequence_number)
             .expect("failed to insert finalized transactions");
 
-        CheckpointExecutionState::new(CheckpointExecutionData {
-            checkpoint,
-            checkpoint_contents,
-            tx_digests,
-            fx_digests,
-        })
+        CheckpointExecutionState::new_with_accumulator(
+            CheckpointExecutionData {
+                checkpoint,
+                checkpoint_contents,
+                tx_digests,
+                fx_digests,
+            },
+            accumulator,
+        )
     }
 
     async fn execute_checkpoint_fullnode(
