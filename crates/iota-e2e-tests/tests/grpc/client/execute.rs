@@ -131,28 +131,16 @@ async fn execute_transaction_idempotency() {
         "First execution should succeed"
     );
 
-    let result2 = client.execute_transaction(signed_tx, None).await;
+    // Re-submitting the same transaction must return the cached successful result.
+    // The server uses TransactionOrchestrator with a NotifyRead pub-sub mechanism
+    // that naturally returns cached effects for duplicates.
+    let result2 = client
+        .execute_transaction(signed_tx, None)
+        .await
+        .expect("Re-execution should return cached result");
 
-    // Re-submitting the same transaction may either:
-    // - Return the cached successful result
-    // - Return an error indicating the transaction was already executed
-    // Both behaviors are acceptable for idempotency
-    match result2 {
-        Ok(response) => {
-            assert!(
-                is_success(response.effects.status()),
-                "Re-execution should show success (cached result)"
-            );
-        }
-        Err(Error::Grpc(status)) => {
-            // Server may reject duplicate transaction
-            assert!(
-                status.code() == tonic::Code::AlreadyExists
-                    || status.code() == tonic::Code::InvalidArgument,
-                "Expected AlreadyExists or InvalidArgument for duplicate, got: {:?}",
-                status.code()
-            );
-        }
-        Err(e) => panic!("Unexpected error for duplicate transaction: {e:?}"),
-    }
+    assert!(
+        is_success(result2.effects.status()),
+        "Re-execution should show success (cached result)"
+    );
 }
