@@ -959,8 +959,9 @@ impl ConsensusOutputQuarantine {
             }))
     }
 
-    // Used in testing to load debts. Only looks in the in-memory quarantine.
-    pub(crate) fn load_stored_object_debts_for_testing(
+    /// Used in testing to load debts. Only looks in the in-memory quarantine.
+    #[cfg(test)]
+    pub(super) fn load_stored_object_debts_for_testing(
         &self,
         for_randomness: bool,
         object_ids: &[ObjectID],
