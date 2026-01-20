@@ -758,6 +758,7 @@ where
 
 #[cfg(test)]
 mod test {
+    use futures::StreamExt;
     use iota_json_rpc_types::Page;
 
     use super::*;
