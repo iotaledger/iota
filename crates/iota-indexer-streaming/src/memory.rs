@@ -328,7 +328,7 @@ impl InMemory {
         transaction_tx: &broadcast::Sender<IndexerStreamingResult<StoredTransaction>>,
     ) -> IndexerStreamingResult<()> {
         let mut backoff = backoff::ExponentialBackoff::default();
-        backoff.max_elapsed_time = Some(Duration::from_secs(60));
+        backoff.max_elapsed_time = Some(Duration::from_secs(5));
         backoff.initial_interval = Duration::from_millis(100);
         backoff.current_interval = backoff.initial_interval;
         backoff.multiplier = 1.0;
