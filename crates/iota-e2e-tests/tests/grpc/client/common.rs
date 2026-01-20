@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use iota_grpc_client::{Client, Error};
-use iota_sdk_types::{Digest, ExecutionStatus, SignedTransaction, Transaction, UserSignature};
+use iota_sdk_types::{Digest, ExecutionStatus, SignedTransaction, Transaction};
 use iota_test_transaction_builder::{TestTransactionBuilder, make_transfer_iota_transaction};
 use iota_types::base_types::IotaAddress;
 use test_cluster::{TestCluster, TestClusterBuilder};
@@ -33,42 +33,11 @@ pub fn is_success(status: &ExecutionStatus) -> bool {
     matches!(status, ExecutionStatus::Success)
 }
 
-/// Convert `iota_types::transaction::TransactionData` to
-/// `iota_sdk_types::Transaction`.
-///
-/// BCS round-trip is required because iota_types and iota_sdk_types are
-/// separate type systems that happen to have compatible BCS representations.
-pub fn to_sdk_transaction(tx_data: &iota_types::transaction::TransactionData) -> Transaction {
-    let bcs_bytes = bcs::to_bytes(tx_data).expect("BCS serialization failed");
-    bcs::from_bytes(&bcs_bytes).expect("BCS deserialization failed")
-}
-
-/// Convert `iota_types::transaction::Transaction` to
-/// `iota_sdk_types::SignedTransaction`.
-pub fn to_sdk_signed_transaction(tx: iota_types::transaction::Transaction) -> SignedTransaction {
-    let transaction = to_sdk_transaction(tx.transaction_data());
-
-    let signatures: Vec<UserSignature> = tx
-        .tx_signatures()
-        .iter()
-        .map(|sig| {
-            // BCS round-trip for type system compatibility
-            let sig_bytes = bcs::to_bytes(sig).expect("BCS serialization failed");
-            bcs::from_bytes(&sig_bytes).expect("Signature deserialization failed")
-        })
-        .collect();
-
-    SignedTransaction {
-        transaction,
-        signatures,
-    }
-}
-
 /// Create a signed transaction for testing (IOTA transfer to random recipient).
 pub async fn create_signed_transaction(test_cluster: &TestCluster) -> SignedTransaction {
     let recipient = IotaAddress::random_for_testing_only();
     let tx = make_transfer_iota_transaction(&test_cluster.wallet, Some(recipient), Some(100)).await;
-    to_sdk_signed_transaction(tx)
+    tx.try_into().expect("SDK type conversion failed")
 }
 
 /// Create an unsigned transaction for simulation testing.
@@ -86,7 +55,7 @@ pub async fn create_transaction_for_simulation(test_cluster: &TestCluster) -> Tr
         .transfer_iota(None, sender)
         .build();
 
-    to_sdk_transaction(&tx_data)
+    tx_data.try_into().expect("SDK type conversion failed")
 }
 
 /// Execute a transaction and return its digest.

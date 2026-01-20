@@ -2,12 +2,11 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use iota_macros::sim_test;
+use iota_sdk_types::Transaction;
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::base_types::IotaAddress;
 
-use super::common::{
-    create_transaction_for_simulation, is_success, setup_grpc_test, to_sdk_transaction,
-};
+use super::common::{create_transaction_for_simulation, is_success, setup_grpc_test};
 
 #[sim_test]
 async fn simulate_transaction_scenarios() {
@@ -57,7 +56,7 @@ async fn simulate_transaction_scenarios() {
         .transfer_iota(None, sender)
         .with_gas_budget(1)
         .build();
-    let transaction = to_sdk_transaction(&tx_data);
+    let transaction: Transaction = tx_data.try_into().expect("SDK type conversion failed");
     let result = client.simulate_transaction(transaction, false, None).await;
     // With insufficient gas budget, simulation may either:
     // - Return an error from the server
@@ -86,7 +85,7 @@ async fn simulate_transaction_scenarios() {
     let tx_data = TestTransactionBuilder::new(sender, gas, rgp)
         .transfer_iota(Some(1_000_000_000_000_000_000), fake_recipient)
         .build();
-    let transaction = to_sdk_transaction(&tx_data);
+    let transaction: Transaction = tx_data.try_into().expect("SDK type conversion failed");
     let result = client.simulate_transaction(transaction, false, None).await;
     // Transferring more than available balance should either:
     // - Return an error from the server
