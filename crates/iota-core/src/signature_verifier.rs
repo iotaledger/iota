@@ -39,14 +39,16 @@ use tokio::{
 use tracing::{debug, instrument};
 // Maximum amount of time we wait for a batch to fill up before verifying a
 // partial batch.
-const BATCH_TIMEOUT_MS: Duration = Duration::from_millis(10);
+// const BATCH_TIMEOUT_MS: Duration = Duration::from_millis(10);
+pub static BATCH_TIMEOUT_MS: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(10);
 
 // Maximum size of batch to verify. Increasing this value will slightly improve
 // CPU utilization (batching starts to hit steeply diminishing marginal returns
 // around batch sizes of 16), at the cost of slightly increasing latency
 // (BATCH_TIMEOUT_MS will be hit more frequently if system is not heavily
 // loaded).
-const MAX_BATCH_SIZE: usize = 8;
+// const MAX_BATCH_SIZE: usize = 8;
+pub static MAX_BATCH_SIZE: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(8);
 
 type Sender = oneshot::Sender<IotaResult<VerifiedCertificate>>;
 
@@ -197,7 +199,8 @@ impl SignatureVerifier {
         Self::new_with_batch_size(
             committee,
             non_committee_validators,
-            MAX_BATCH_SIZE,
+            // MAX_BATCH_SIZE,
+            MAX_BATCH_SIZE.load(std::sync::atomic::Ordering::Relaxed),
             metrics,
             zklogin_env,
             accept_zklogin_in_multisig,
@@ -302,7 +305,7 @@ impl SignatureVerifier {
             }
         };
 
-        if let Ok(res) = timeout(BATCH_TIMEOUT_MS, &mut rx).await {
+        if let Ok(res) = timeout(Duration::from_millis(BATCH_TIMEOUT_MS.load(std::sync::atomic::Ordering::Relaxed)), &mut rx).await {
             // unwrap ok - tx cannot have been dropped without sending a result.
             return res.unwrap();
         }

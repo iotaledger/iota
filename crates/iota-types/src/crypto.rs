@@ -67,6 +67,11 @@ mod crypto_tests;
 #[path = "unit_tests/intent_tests.rs"]
 mod intent_tests;
 
+pub static MOCK_VERIFY_ALL: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+pub static MOCK_ADD_SIGNATURE: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+pub static MOCK_NEW_SECURE: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+pub static MOCK_VERIFY_SECURE: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
 ////////////////////////////////////////////////////////////////////////
 // Type aliases selecting the signature algorithm for the code base.
 ////////////////////////////////////////////////////////////////////////
@@ -580,6 +585,10 @@ impl IotaAuthoritySignature for AuthoritySignature {
     where
         T: Serialize,
     {
+        if MOCK_NEW_SECURE.load(std::sync::atomic::Ordering::Relaxed) {
+            use fastcrypto::traits::ToFromBytes as _;
+            return Self::from_bytes(&[1; 48]).unwrap();
+        }
         let mut intent_msg_bytes =
             bcs::to_bytes(&value).expect("Message serialization should not fail");
         epoch.write(&mut intent_msg_bytes);
@@ -596,6 +605,9 @@ impl IotaAuthoritySignature for AuthoritySignature {
     where
         T: Serialize,
     {
+        if MOCK_VERIFY_SECURE.load(std::sync::atomic::Ordering::Relaxed) {
+            return Ok(());
+        }
         let mut message = bcs::to_bytes(&value).expect("Message serialization should not fail");
         epoch.write(&mut message);
 
@@ -1609,6 +1621,9 @@ impl<'a> VerificationObligation<'a> {
             .get_mut(idx)
             .ok_or(IotaError::InvalidAuthenticator)?
             .push(public_key);
+        if MOCK_ADD_SIGNATURE.load(std::sync::atomic::Ordering::Relaxed) {
+            return Ok(());
+        }
         self.signatures
             .get_mut(idx)
             .ok_or(IotaError::InvalidAuthenticator)?
@@ -1620,6 +1635,9 @@ impl<'a> VerificationObligation<'a> {
     }
 
     pub fn verify_all(self) -> IotaResult<()> {
+        if MOCK_VERIFY_ALL.load(std::sync::atomic::Ordering::Relaxed) {
+            return Ok(());
+        }
         let mut pks = Vec::with_capacity(self.public_keys.len());
         for pk in self.public_keys.clone() {
             pks.push(pk.into_iter());
