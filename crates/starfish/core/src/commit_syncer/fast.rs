@@ -33,7 +33,6 @@ use crate::{
     dag_state::DagState,
     error::{ConsensusError, ConsensusResult},
     network::{NetworkClient, SerializedTransactionsV2},
-    storage::Store,
     transaction_ref::{GenericTransactionRef, TransactionRef},
 };
 
@@ -81,7 +80,6 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
         network_client: Arc<C>,
         block_verifier: Arc<dyn BlockVerifier>,
         dag_state: Arc<RwLock<DagState>>,
-        store: Arc<dyn Store>,
     ) -> Self {
         let inner = Arc::new(Inner {
             context,
@@ -91,7 +89,6 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
             network_client,
             block_verifier,
             dag_state,
-            store,
             sync_type: CommitSyncType::Fast,
         });
         let synced_commit_index = inner.dag_state.read().last_commit_index();
