@@ -148,6 +148,7 @@ pub(crate) struct NodeMetrics {
     pub(crate) synchronizer_fetch_block_headers_scheduler_inflight: IntGauge,
     pub(crate) synchronizer_fetch_block_headers_scheduler_skipped: IntCounterVec,
     pub(crate) synchronizer_fetched_block_headers_by_peer: IntCounterVec,
+    pub(crate) synchronizer_skipped_block_headers_by_peer: IntCounterVec,
     pub(crate) synchronizer_requested_block_headers_by_peer: IntCounterVec,
     pub(crate) synchronizer_missing_block_headers_by_authority: IntCounterVec,
     pub(crate) synchronizer_current_missing_block_headers_by_authority: IntGaugeVec,
@@ -513,6 +514,12 @@ impl NodeMetrics {
                 "synchronizer_fetched_block_headers_by_peer",
                 "Number of fetched block headers per peer authority via the synchronizer and also by block authority",
                 &["peer", "type"],
+                registry,
+            ).unwrap(),
+            synchronizer_skipped_block_headers_by_peer: register_int_counter_vec_with_registry!(
+                "synchronizer_skipped_block_headers_by_peer",
+                "Number of skipped block headers per peer due to already being verified, by sync method",
+                &["peer", "method"],
                 registry,
             ).unwrap(),
             cordial_knowledge_useful_headers_authors: register_int_counter_vec_with_registry!(
