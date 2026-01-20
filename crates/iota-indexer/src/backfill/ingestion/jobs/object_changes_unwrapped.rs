@@ -42,6 +42,7 @@ impl IngestionBackfill for ObjectChangesUnwrappedBackfill {
             .map(|(seq, digest)| (digest.transaction, seq));
 
         let mut results = Vec::new();
+        let dummy_metrics = IndexerMetrics::new(&Registry::new());
 
         // Only transactions with unwrapped objects need to be backfilled
         for (tx, (expected_digest, tx_sequence_number)) in transactions
@@ -62,7 +63,7 @@ impl IngestionBackfill for ObjectChangesUnwrappedBackfill {
                 tx_sequence_number,
                 checkpoint_seq,
                 checkpoint_summary.timestamp_ms,
-                &IndexerMetrics::new(&Registry::new()),
+                &dummy_metrics,
             )
             .await?;
 
