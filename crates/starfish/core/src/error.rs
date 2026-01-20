@@ -274,6 +274,9 @@ pub(crate) enum ConsensusError {
         expected_variant: &'static str,
         received_variant: &'static str,
     },
+
+    #[error("Failed to fetch {num_requested} block headers from any peer")]
+    FailedToFetchBlockHeaders { num_requested: usize },
 }
 
 impl ConsensusError {
