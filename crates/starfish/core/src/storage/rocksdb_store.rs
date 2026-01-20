@@ -279,7 +279,10 @@ impl Store for RocksDBStore {
             batch
                 .insert_batch(
                     &self.voting_block_headers,
-                    [((block_ref.round, block_ref.author, block_ref.digest), header.serialized().clone())],
+                    [(
+                        (block_ref.round, block_ref.author, block_ref.digest),
+                        header.serialized().clone(),
+                    )],
                 )
                 .map_err(ConsensusError::RocksDBFailure)?;
             // Store commit votes from this block header

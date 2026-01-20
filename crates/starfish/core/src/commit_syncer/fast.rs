@@ -48,11 +48,23 @@ pub(crate) struct FastCommitSyncer<C: NetworkClient> {
     // States only used by the scheduler.
 
     // Inflight requests to fetch commits from different authorities.
-    inflight_fetches: JoinSet<(u32, Vec<TrustedCommit>, Vec<CommittedSubDag>, Vec<VerifiedBlockHeader>)>,
+    inflight_fetches: JoinSet<(
+        u32,
+        Vec<TrustedCommit>,
+        Vec<CommittedSubDag>,
+        Vec<VerifiedBlockHeader>,
+    )>,
     // Additional ranges of commits to fetch.
     pending_fetches: BTreeSet<CommitRange>,
     // Fetched commits and blocks by commit range.
-    fetched_ranges: BTreeMap<CommitRange, (Vec<TrustedCommit>, Vec<CommittedSubDag>, Vec<VerifiedBlockHeader>)>,
+    fetched_ranges: BTreeMap<
+        CommitRange,
+        (
+            Vec<TrustedCommit>,
+            Vec<CommittedSubDag>,
+            Vec<VerifiedBlockHeader>,
+        ),
+    >,
     // Highest commit index among inflight and pending fetches.
     // Used to determine the start of new ranges to be fetched.
     highest_scheduled_index: Option<CommitIndex>,
@@ -459,7 +471,12 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
     async fn fetch_loop(
         inner: Arc<Inner<C>>,
         commit_range: CommitRange,
-    ) -> (CommitIndex, Vec<TrustedCommit>, Vec<CommittedSubDag>, Vec<VerifiedBlockHeader>) {
+    ) -> (
+        CommitIndex,
+        Vec<TrustedCommit>,
+        Vec<CommittedSubDag>,
+        Vec<VerifiedBlockHeader>,
+    ) {
         let (end_index, (commits, committed_subdags, voting_block_headers)) =
             shared_fetch_loop(inner, commit_range, 2, Self::fetch_once).await;
         (end_index, commits, committed_subdags, voting_block_headers)
@@ -471,7 +488,11 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
         target_authority: AuthorityIndex,
         commit_range: CommitRange,
         timeout: Duration,
-    ) -> ConsensusResult<(Vec<TrustedCommit>, Vec<CommittedSubDag>, Vec<VerifiedBlockHeader>)> {
+    ) -> ConsensusResult<(
+        Vec<TrustedCommit>,
+        Vec<CommittedSubDag>,
+        Vec<VerifiedBlockHeader>,
+    )> {
         let _timer = inner
             .context
             .metrics

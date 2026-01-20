@@ -493,7 +493,10 @@ impl CoreThreadDispatcher for ChannelCoreThreadDispatcher {
     ) -> Result<(), CoreError> {
         let (sender, receiver) = oneshot::channel();
         self.send(CoreThreadCommand::AddSubdagFromFastSync(
-            commits, subdags, voting_block_headers, sender,
+            commits,
+            subdags,
+            voting_block_headers,
+            sender,
         ))
         .await;
         Ok(receiver.await.map_err(|e| Shutdown(e.to_string()))?)

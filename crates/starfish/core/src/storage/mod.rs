@@ -220,7 +220,10 @@ impl WriteBatch {
     }
 
     #[cfg(test)]
-    pub(crate) fn voting_block_headers(mut self, voting_block_headers: Vec<VerifiedBlockHeader>) -> Self {
+    pub(crate) fn voting_block_headers(
+        mut self,
+        voting_block_headers: Vec<VerifiedBlockHeader>,
+    ) -> Self {
         self.voting_block_headers = voting_block_headers;
         self
     }
