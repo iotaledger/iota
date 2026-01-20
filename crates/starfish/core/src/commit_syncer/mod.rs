@@ -450,7 +450,6 @@ where
     loop {
         // Attempt to fetch commits and blocks through min(committee size,
         // MAX_NUM_TARGETS) peers.
-        #[allow(unused_mut)]
         let mut target_authorities = inner
             .context
             .committee

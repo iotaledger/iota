@@ -512,11 +512,9 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
         // Store the voting block headers for later use when serving fetch_commits
         // requests. The overhead is small since we store votes only for the last commit
         // in a batch.
-        if !voting_block_headers.is_empty() {
-            inner
-                .store
-                .write_voting_block_headers(voting_block_headers)?;
-        }
+        inner
+            .store
+            .write_voting_block_headers(voting_block_headers)?;
 
         // 3. Collect all committed transaction block refs from commits
         let mut committed_tx_refs: BTreeSet<TransactionRef> = commits
@@ -666,7 +664,7 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
         );
 
         // Shuffle target authorities for load balancing
-        #[allow(unused_mut)]
+        #[cfg_attr(test, expect(unused_mut))]
         let mut target_authorities: Vec<_> = inner
             .context
             .committee
