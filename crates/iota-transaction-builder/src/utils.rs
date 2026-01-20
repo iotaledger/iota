@@ -54,7 +54,7 @@ impl TransactionBuilder {
             loop {
                 let page = self
                     .0
-                    .get_owned_objects_page(
+                    .get_owned_objects(
                         signer,
                         GasCoin::type_(),
                         cursor,

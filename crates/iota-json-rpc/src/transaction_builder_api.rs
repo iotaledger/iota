@@ -17,7 +17,7 @@ use iota_json_rpc_types::{
 use iota_open_rpc::Module;
 use iota_transaction_builder::{DataReader, TransactionBuilder};
 use iota_types::{
-    base_types::{IotaAddress, ObjectID, ObjectInfo},
+    base_types::{IotaAddress, ObjectID},
     iota_serde::BigInt,
 };
 use jsonrpsee::{RpcModule, core::RpcResult};
@@ -49,35 +49,6 @@ impl AuthorityStateDataReader {
 #[async_trait]
 impl DataReader for AuthorityStateDataReader {
     async fn get_owned_objects(
-        &self,
-        address: IotaAddress,
-        object_type: StructTag,
-    ) -> Result<Vec<ObjectInfo>, anyhow::Error> {
-        Ok(self
-            .0
-            // DataReader is used internally, don't need a limit
-            .get_owner_objects(
-                address,
-                None,
-                Some(IotaObjectDataFilter::StructType(object_type)),
-            )?)
-    }
-
-    async fn get_object_with_options(
-        &self,
-        object_id: ObjectID,
-        options: IotaObjectDataOptions,
-    ) -> Result<IotaObjectResponse, anyhow::Error> {
-        let result = self.0.get_object_read(&object_id)?;
-        Ok((result, options).try_into()?)
-    }
-
-    async fn get_reference_gas_price(&self) -> Result<u64, anyhow::Error> {
-        let epoch_store = self.0.load_epoch_store_one_call_per_task();
-        Ok(epoch_store.reference_gas_price())
-    }
-
-    async fn get_owned_objects_page(
         &self,
         address: IotaAddress,
         object_type: StructTag,
@@ -116,6 +87,20 @@ impl DataReader for AuthorityStateDataReader {
             next_cursor,
             has_next_page,
         })
+    }
+
+    async fn get_object_with_options(
+        &self,
+        object_id: ObjectID,
+        options: IotaObjectDataOptions,
+    ) -> Result<IotaObjectResponse, anyhow::Error> {
+        let result = self.0.get_object_read(&object_id)?;
+        Ok((result, options).try_into()?)
+    }
+
+    async fn get_reference_gas_price(&self) -> Result<u64, anyhow::Error> {
+        let epoch_store = self.0.load_epoch_store_one_call_per_task();
+        Ok(epoch_store.reference_gas_price())
     }
 }
 

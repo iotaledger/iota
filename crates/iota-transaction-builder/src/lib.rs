@@ -16,7 +16,7 @@ use iota_json_rpc_types::{
 };
 use iota_types::{
     IOTA_FRAMEWORK_PACKAGE_ID,
-    base_types::{IotaAddress, ObjectID, ObjectInfo},
+    base_types::{IotaAddress, ObjectID},
     coin,
     error::UserInputError,
     fp_ensure,
@@ -28,11 +28,15 @@ use move_core_types::{identifier::Identifier, language_storage::StructTag};
 
 #[async_trait]
 pub trait DataReader {
+    /// Get a page of owned objects with the specified options.
     async fn get_owned_objects(
         &self,
         address: IotaAddress,
         object_type: StructTag,
-    ) -> Result<Vec<ObjectInfo>, anyhow::Error>;
+        cursor: Option<ObjectID>,
+        limit: Option<usize>,
+        options: IotaObjectDataOptions,
+    ) -> Result<iota_json_rpc_types::ObjectsPage, anyhow::Error>;
 
     async fn get_object_with_options(
         &self,
@@ -41,16 +45,6 @@ pub trait DataReader {
     ) -> Result<IotaObjectResponse, anyhow::Error>;
 
     async fn get_reference_gas_price(&self) -> Result<u64, anyhow::Error>;
-
-    /// Get a page of owned objects with the specified options.
-    async fn get_owned_objects_page(
-        &self,
-        address: IotaAddress,
-        object_type: StructTag,
-        cursor: Option<ObjectID>,
-        limit: Option<usize>,
-        options: IotaObjectDataOptions,
-    ) -> Result<iota_json_rpc_types::ObjectsPage, anyhow::Error>;
 }
 
 #[derive(Clone)]

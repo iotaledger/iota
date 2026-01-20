@@ -34,7 +34,7 @@ use iota_transaction_builder::DataReader;
 use iota_types::{
     TypeTag,
     balance::Supply,
-    base_types::{IotaAddress, ObjectID, ObjectInfo, SequenceNumber, VersionNumber},
+    base_types::{IotaAddress, ObjectID, SequenceNumber, VersionNumber},
     coin::{CoinMetadata, TreasuryCap},
     coin_manager::CoinManager,
     committee::EpochId,
@@ -2367,49 +2367,6 @@ impl DataReader for IndexerReader {
         &self,
         address: IotaAddress,
         object_type: StructTag,
-    ) -> Result<Vec<ObjectInfo>, anyhow::Error> {
-        let stored_objects = self
-            .get_owned_objects_in_blocking_task(
-                address,
-                Some(IotaObjectDataFilter::StructType(object_type)),
-                None,
-                50, // Limit the number of objects returned to 50
-            )
-            .await?;
-
-        stored_objects
-            .into_iter()
-            .map(|object| {
-                let object = Object::try_from(object)?;
-                let object_ref = object.compute_object_reference();
-                let info = ObjectInfo::new(&object_ref, &object);
-                Ok(info)
-            })
-            .collect::<Result<Vec<_>, _>>()
-    }
-
-    async fn get_object_with_options(
-        &self,
-        object_id: ObjectID,
-        options: IotaObjectDataOptions,
-    ) -> Result<IotaObjectResponse, anyhow::Error> {
-        let result = self.get_object_read_in_blocking_task(object_id).await?;
-        Ok((result, options).try_into()?)
-    }
-
-    async fn get_reference_gas_price(&self) -> Result<u64, anyhow::Error> {
-        let epoch_info = GovernanceReadApi::new(self.clone())
-            .get_epoch_info(None)
-            .await?;
-        Ok(epoch_info
-            .reference_gas_price
-            .ok_or_else(|| anyhow::anyhow!("missing latest reference_gas_price"))?)
-    }
-
-    async fn get_owned_objects_page(
-        &self,
-        address: IotaAddress,
-        object_type: StructTag,
         cursor: Option<ObjectID>,
         limit: Option<usize>,
         options: IotaObjectDataOptions,
@@ -2453,6 +2410,24 @@ impl DataReader for IndexerReader {
             next_cursor,
             has_next_page,
         })
+    }
+
+    async fn get_object_with_options(
+        &self,
+        object_id: ObjectID,
+        options: IotaObjectDataOptions,
+    ) -> Result<IotaObjectResponse, anyhow::Error> {
+        let result = self.get_object_read_in_blocking_task(object_id).await?;
+        Ok((result, options).try_into()?)
+    }
+
+    async fn get_reference_gas_price(&self) -> Result<u64, anyhow::Error> {
+        let epoch_info = GovernanceReadApi::new(self.clone())
+            .get_epoch_info(None)
+            .await?;
+        Ok(epoch_info
+            .reference_gas_price
+            .ok_or_else(|| anyhow::anyhow!("missing latest reference_gas_price"))?)
     }
 }
 
