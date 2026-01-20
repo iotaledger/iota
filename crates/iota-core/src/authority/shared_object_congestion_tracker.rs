@@ -277,12 +277,9 @@ impl SharedObjectCongestionTracker {
         shared_input_objects: &[SharedInputObject],
         tx_duration: ExecutionTime,
     ) -> Option<ExecutionTime> {
-        let assign_min_free_execution_slot = self
-            .congestion_control_parameters
-            .congestion_control_min_free_execution_slot();
-
-        if assign_min_free_execution_slot {
-            // If `assign_min_free_execution_slot` is true, we assign the transaction start
+        if self.congestion_control_parameters
+            .congestion_control_min_free_execution_slot() {
+            // If `congestion_control_min_free_execution_slot` is true, we assign the transaction start
             // time based on the lowest free execution slot that can accommodate the
             // transaction. We start the search from the full range of the slots
             // available with no constraints from previous objects.
@@ -619,7 +616,7 @@ impl BumpObjectExecutionSlotsResult {
         self.gas_price
     }
 
-    /// Crate a new `BumpObjectExecutionSlotsResult` for test.
+    /// Create a new `BumpObjectExecutionSlotsResult` for test.
     #[cfg(test)]
     pub(super) fn new_for_test(
         object_ids: Vec<ObjectID>,
