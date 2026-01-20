@@ -1,5 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
-// Modifications Copyright (c) 2024 IOTA Stiftung
+// Modifications Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
@@ -10,20 +10,28 @@ use std::{
 
 use bytes::Bytes;
 use futures::{StreamExt as _, stream::FuturesOrdered};
+use iota_metrics::spawn_logged_monitored_task;
 use itertools::Itertools as _;
 use parking_lot::RwLock;
 use starfish_config::AuthorityIndex;
-use tokio::{runtime::Handle, task::JoinSet, time::sleep};
+use tokio::{
+    runtime::Handle,
+    sync::oneshot,
+    task::JoinSet,
+    time::{MissedTickBehavior, sleep},
+};
 use tracing::{debug, info, warn};
 
 use crate::{
-    CommitConsumerMonitor, CommitIndex, VerifiedBlockHeader,
+    CommitConsumerMonitor, CommitIndex,
     block_header::BlockRef,
     block_verifier::BlockVerifier,
     commit::{CertifiedCommit, CertifiedCommits, CommitAPI as _, CommitRange},
     commit_syncer::{
-        CommitSyncType, CommitSyncer, Inner, verify_transactions_with_headers,
-        verify_transactions_with_transactions_refs,
+        CommitSyncType, CommitSyncerHandle, Inner, fetch_loop as shared_fetch_loop,
+        handle_fetch_join_error, requeue_partial_range, schedule_commit_ranges,
+        try_start_fetches as shared_try_start_fetches, verify_fetched_headers,
+        verify_transactions_with_headers, verify_transactions_with_transactions_refs,
     },
     commit_vote_monitor::CommitVoteMonitor,
     context::Context,
@@ -90,57 +98,135 @@ impl<C: NetworkClient> RegularCommitSyncer<C> {
             synced_commit_index,
         }
     }
-}
-#[async_trait::async_trait]
-impl<C: NetworkClient> CommitSyncer<C> for RegularCommitSyncer<C> {
-    type FetchedData = CertifiedCommits;
 
-    fn inner(&self) -> &Arc<Inner<C>> {
-        &self.inner
+    pub(crate) fn start(self) -> CommitSyncerHandle {
+        let (tx_shutdown, rx_shutdown) = oneshot::channel();
+        let schedule_task = spawn_logged_monitored_task!(self.schedule_loop(rx_shutdown,));
+        CommitSyncerHandle {
+            schedule_task,
+            tx_shutdown,
+        }
+    }
+    #[cfg_attr(test,tracing::instrument(skip_all, name ="",fields(authority = %self.inner.context.own_index)))]
+    async fn schedule_loop(mut self, mut rx_shutdown: oneshot::Receiver<()>) {
+        let mut interval = tokio::time::interval(Duration::from_secs(2));
+        interval.set_missed_tick_behavior(MissedTickBehavior::Skip);
+
+        loop {
+            tokio::select! {
+                // Periodically, schedule new fetches if the node is falling behind.
+                _ = interval.tick() => {
+                    self.try_schedule_once();
+                }
+                // Handles results from fetch tasks.
+                Some(result) = self.inflight_fetches.join_next(), if !self.inflight_fetches.is_empty() => {
+                    if let Err(ref e) = result {
+                        if e.is_panic() {
+                            std::panic::resume_unwind(result.unwrap_err().into_panic());
+                        }
+                        if handle_fetch_join_error(e, &self.inner.sync_type) {
+                            // If any fetch is cancelled or panicked, try to shutdown and exit the loop.
+                            self.inflight_fetches.shutdown().await;
+                            return;
+                        }
+                    }
+                    let (target_end, commits) = result.unwrap();
+                    self.handle_fetch_result(target_end, commits).await;
+                }
+                _ = &mut rx_shutdown => {
+                    // Shutdown requested.
+                    info!("[{}] CommitSyncer shutting down ...", self.inner.sync_type.as_str());
+                    self.inflight_fetches.shutdown().await;
+                    return;
+                }
+            }
+
+            self.try_start_fetches();
+        }
     }
 
-    fn inflight_fetches(&mut self) -> &mut JoinSet<(u32, Self::FetchedData)> {
-        &mut self.inflight_fetches
-    }
+    fn try_schedule_once(&mut self) {
+        let quorum_commit_index = self.inner.commit_vote_monitor.quorum_commit_index();
+        let dag_state_commit_index = self.inner.dag_state.read().last_commit_index();
 
-    fn inflight_fetches_len(&self) -> usize {
-        self.inflight_fetches.len()
-    }
+        // Skip scheduling depending on sync type and gap threshold.
+        let gap = quorum_commit_index.saturating_sub(dag_state_commit_index);
+        if !self.inner.sync_type.should_schedule(
+            gap,
+            self.inner.context.parameters.commit_sync_gap_threshold,
+            self.inner
+                .context
+                .protocol_config
+                .consensus_transaction_ref(),
+        ) {
+            return;
+        }
 
-    fn pending_fetches_len(&self) -> usize {
-        self.pending_fetches.len()
-    }
+        let metrics = &self.inner.context.metrics.node_metrics;
+        metrics
+            .commit_sync_quorum_index
+            .set(quorum_commit_index as i64);
+        metrics
+            .commit_sync_local_index
+            .set(dag_state_commit_index as i64);
+        let highest_handled_index = self.inner.commit_consumer_monitor.highest_handled_commit();
+        let highest_scheduled_index = self.highest_scheduled_index.unwrap_or(0);
+        // Update synced_commit_index periodically to make sure it is not smaller than
+        // local commit index.
+        self.synced_commit_index = self.synced_commit_index.max(dag_state_commit_index);
+        let unhandled_commits_threshold = self.inner.unhandled_commits_threshold();
 
-    fn highest_scheduled_index(&mut self) -> &mut Option<CommitIndex> {
-        &mut self.highest_scheduled_index
-    }
+        // TODO: cleanup inflight fetches that are no longer needed.
+        let fetch_after_index = self
+            .synced_commit_index
+            .max(self.highest_scheduled_index.unwrap_or(0));
 
-    fn synced_commit_index(&mut self) -> &mut CommitIndex {
-        &mut self.synced_commit_index
-    }
+        info!(
+            "[{}] Checking to schedule fetches: synced_commit_index={}, highest_handled_index={}, highest_scheduled_index={}, quorum_commit_index={}, unhandled_commits_threshold={}, fetch_after_index={}",
+            self.inner.sync_type.as_str(),
+            self.synced_commit_index,
+            highest_handled_index,
+            highest_scheduled_index,
+            quorum_commit_index,
+            unhandled_commits_threshold,
+            fetch_after_index,
+        );
 
-    fn pending_fetches(&mut self) -> &mut BTreeSet<CommitRange> {
-        &mut self.pending_fetches
-    }
+        // Schedule commit ranges for fetching using shared helper
+        let schedule_result = schedule_commit_ranges(
+            &self.inner,
+            fetch_after_index,
+            quorum_commit_index,
+            highest_handled_index,
+            unhandled_commits_threshold,
+        );
 
-    fn fetched_ranges(&mut self) -> &mut BTreeMap<CommitRange, Self::FetchedData> {
-        &mut self.fetched_ranges
-    }
+        // Add scheduled ranges to pending fetches
+        for range in schedule_result.ranges_scheduled {
+            info!(
+                "[{}] Scheduling fetch for commit range {}..={}",
+                self.inner.sync_type.as_str(),
+                range.start(),
+                range.end()
+            );
+            self.pending_fetches.insert(range);
+        }
 
-    #[cfg(test)]
-    fn highest_fetched_commit_index(&self) -> CommitIndex {
-        self.highest_fetched_commit_index
+        // Update highest scheduled index
+        if let Some(new_highest) = schedule_result.new_highest_scheduled {
+            self.highest_scheduled_index = Some(new_highest);
+        }
     }
 
     async fn handle_fetch_result(
         &mut self,
         target_end: CommitIndex,
-        fetched_data_set: Self::FetchedData,
+        certified_commits: CertifiedCommits,
     ) {
-        assert!(!fetched_data_set.commits().is_empty());
+        assert!(!certified_commits.commits().is_empty());
 
         let (total_blocks_fetched, total_headers_size_bytes, total_transactions_size_bytes) =
-            fetched_data_set.commits().iter().fold(
+            certified_commits.commits().iter().fold(
                 (0, 0, 0),
                 |(blocks, header_bytes, transaction_bytes), c| {
                     (
@@ -164,7 +250,7 @@ impl<C: NetworkClient> CommitSyncer<C> for RegularCommitSyncer<C> {
         metrics
             .commit_sync_fetched_commits
             .with_label_values(&[sync_label])
-            .inc_by(fetched_data_set.commits().len() as u64);
+            .inc_by(certified_commits.commits().len() as u64);
         metrics
             .commit_sync_fetched_block_headers
             .inc_by(total_blocks_fetched as u64);
@@ -177,8 +263,8 @@ impl<C: NetworkClient> CommitSyncer<C> for RegularCommitSyncer<C> {
             .inc_by(total_transactions_size_bytes);
 
         let (commit_start, commit_end) = (
-            fetched_data_set.commits().first().unwrap().index(),
-            fetched_data_set.commits().last().unwrap().index(),
+            certified_commits.commits().first().unwrap().index(),
+            certified_commits.commits().last().unwrap().index(),
         );
         self.highest_fetched_commit_index = self.highest_fetched_commit_index.max(commit_end);
         metrics
@@ -187,10 +273,7 @@ impl<C: NetworkClient> CommitSyncer<C> for RegularCommitSyncer<C> {
             .set(self.highest_fetched_commit_index as i64);
 
         // Allow returning partial results, and try fetching the rest separately.
-        if commit_end < target_end {
-            self.pending_fetches
-                .insert((commit_end + 1..=target_end).into());
-        }
+        requeue_partial_range(&mut self.pending_fetches, commit_end, target_end);
         // Make sure synced_commit_index is up to date.
         self.synced_commit_index = self
             .synced_commit_index
@@ -198,7 +281,7 @@ impl<C: NetworkClient> CommitSyncer<C> for RegularCommitSyncer<C> {
         // Only add new blocks if at least some of them are not already synced.
         if self.synced_commit_index < commit_end {
             self.fetched_ranges
-                .insert((commit_start..=commit_end).into(), fetched_data_set);
+                .insert((commit_start..=commit_end).into(), certified_commits);
         }
         // Try to process as many fetched blocks as possible.
         while let Some((fetched_commit_range, _commits)) = self.fetched_ranges.first_key_value() {
@@ -356,6 +439,39 @@ impl<C: NetworkClient> CommitSyncer<C> for RegularCommitSyncer<C> {
             .with_label_values(&[sync_label])
             .set(self.synced_commit_index as i64);
     }
+
+    fn try_start_fetches(&mut self) {
+        let inner = self.inner.clone();
+        shared_try_start_fetches(
+            &self.inner,
+            &mut self.pending_fetches,
+            self.fetched_ranges.len(),
+            self.inflight_fetches.len(),
+            self.synced_commit_index,
+            |commit_range| {
+                self.inflight_fetches
+                    .spawn(Self::fetch_loop(inner.clone(), commit_range));
+            },
+        );
+    }
+
+    // Retries fetching commits and block headers from available authorities, until
+    // a request succeeds where at least a prefix of the commit range is
+    // fetched. Returns the fetched commits and block headers referenced by the
+    // commits.
+    #[cfg_attr(test,tracing::instrument(skip_all, name ="",fields(authority = %inner.context.own_index)))]
+    async fn fetch_loop(
+        inner: Arc<Inner<C>>,
+        commit_range: CommitRange,
+    ) -> (CommitIndex, CertifiedCommits) {
+        // Regular syncer uses 4x timeout multiplier to account for:
+        // - Fetching commits and commit certifying block headers
+        // - Fetching block headers referenced by the commits
+        // - Time spent on pipelining requests
+        // - Headroom to allow fetch_once() to timeout gracefully
+        shared_fetch_loop(inner, commit_range, 4, Self::fetch_once).await
+    }
+
     // Fetches commits and blocks from a single authority. At a high level, first
     // the commits are fetched and verified. After that, blocks referenced in
     // the certified commits are fetched and sent to Core for processing.
@@ -364,7 +480,7 @@ impl<C: NetworkClient> CommitSyncer<C> for RegularCommitSyncer<C> {
         target_authority: AuthorityIndex,
         commit_range: CommitRange,
         timeout: Duration,
-    ) -> ConsensusResult<Self::FetchedData> {
+    ) -> ConsensusResult<CertifiedCommits> {
         // Maximum delay between consecutive pipelined requests, to avoid
         // overwhelming the peer while still maintaining reasonable throughput.
         const MAX_PIPELINE_DELAY: Duration = Duration::from_secs(1);
@@ -470,40 +586,12 @@ impl<C: NetworkClient> CommitSyncer<C> for RegularCommitSyncer<C> {
                             timeout,
                         )
                         .await?;
-                    // 5. Verify the same number of block headers is returned as requested.
-                    if request_block_refs.len() != serialized_block_headers.len() {
-                        return Err(ConsensusError::UnexpectedNumberOfHeadersFetched {
-                            authority: target_authority,
-                            requested: request_block_refs.len(),
-                            received_headers: serialized_block_headers.len(),
-                        });
-                    }
-                    // 6. Verify returned block headers have valid formats.
-                    let verified_block_headers = serialized_block_headers
-                        .iter()
-                        .cloned()
-                        .zip(request_block_refs)
-                        .map(|(serialized_block_header, requested_block_ref)| {
-                            // we don't verify the header, we only check the block reference below
-                            let block_header =
-                                VerifiedBlockHeader::new_from_bytes(serialized_block_header)?;
-
-                            // 7. Verify the returned block headers match the requested block refs.
-                            // If they do match, the returned block headers can be considered
-                            // verified as well.
-                            if *requested_block_ref != block_header.reference() {
-                                return Err(ConsensusError::UnexpectedBlockHeaderForCommit {
-                                    peer: target_authority,
-                                    requested: *requested_block_ref,
-                                    received: block_header.reference(),
-                                });
-                            }
-
-                            Ok(block_header)
-                        })
-                        .collect::<ConsensusResult<Vec<_>>>()?;
-
-                    Ok(verified_block_headers)
+                    // 5. Verify headers: count matches and each reference matches requested.
+                    verify_fetched_headers(
+                        target_authority,
+                        request_block_refs,
+                        serialized_block_headers,
+                    )
                 }
             })
             .collect();
@@ -708,39 +796,37 @@ impl<C: NetworkClient> CommitSyncer<C> for RegularCommitSyncer<C> {
 
         Ok(CertifiedCommits::new(certified_commits))
     }
-}
 
-//     fn unhandled_commits_threshold(&self) -> CommitIndex {
-//         self.inner.context.parameters.commit_sync_batch_size
-//             * (self.inner.context.parameters.commit_sync_batches_ahead as
-//               u32)
-//     }
-//
-//     #[cfg(test)]
-//     fn pending_fetches(&self) -> BTreeSet<CommitRange> {
-//         self.pending_fetches.clone()
-//     }
-//
-//     #[cfg(test)]
-//     fn fetched_ranges(&self) -> BTreeMap<CommitRange, CertifiedCommits> {
-//         self.fetched_ranges.clone()
-//     }
-//
-//     #[cfg(test)]
-//     fn highest_scheduled_index(&self) -> Option<CommitIndex> {
-//         self.highest_scheduled_index
-//     }
-//
-//     #[cfg(test)]
-//     fn highest_fetched_commit_index(&self) -> CommitIndex {
-//         self.highest_fetched_commit_index
-//     }
-//
-//     #[cfg(test)]
-//     fn synced_commit_index(&self) -> CommitIndex {
-//         self.synced_commit_index
-//     }
-// }
+    #[cfg(test)]
+    fn unhandled_commits_threshold(&self) -> CommitIndex {
+        self.inner.unhandled_commits_threshold()
+    }
+
+    #[cfg(test)]
+    fn pending_fetches(&self) -> BTreeSet<CommitRange> {
+        self.pending_fetches.clone()
+    }
+
+    #[cfg(test)]
+    fn fetched_ranges(&self) -> BTreeMap<CommitRange, CertifiedCommits> {
+        self.fetched_ranges.clone()
+    }
+
+    #[cfg(test)]
+    fn highest_scheduled_index(&self) -> Option<CommitIndex> {
+        self.highest_scheduled_index
+    }
+
+    #[cfg(test)]
+    fn highest_fetched_commit_index(&self) -> CommitIndex {
+        self.highest_fetched_commit_index
+    }
+
+    #[cfg(test)]
+    fn synced_commit_index(&self) -> CommitIndex {
+        self.synced_commit_index
+    }
+}
 
 #[cfg(test)]
 mod tests {
@@ -755,7 +841,7 @@ mod tests {
         block_header::{BlockRef, TestBlockHeader, VerifiedBlockHeader},
         block_verifier::NoopBlockVerifier,
         commit::CommitRange,
-        commit_syncer::{CommitSyncer, regular::RegularCommitSyncer},
+        commit_syncer::regular::RegularCommitSyncer,
         commit_vote_monitor::CommitVoteMonitor,
         context::Context,
         core_thread::tests::MockCoreThreadDispatcher,
@@ -868,7 +954,7 @@ mod tests {
         assert!(commit_syncer.fetched_ranges().is_empty());
         assert!(commit_syncer.highest_scheduled_index().is_none());
         assert_eq!(commit_syncer.highest_fetched_commit_index(), 0);
-        assert_eq!(*commit_syncer.synced_commit_index(), 0);
+        assert_eq!(commit_syncer.synced_commit_index(), 0);
 
         // Observe round 15 blocks voting for commit 10 from authorities 0 to 2 in
         // CommitVoteMonitor
@@ -886,9 +972,9 @@ mod tests {
         // Verify state.
         assert_eq!(commit_syncer.pending_fetches().len(), 2);
         assert!(commit_syncer.fetched_ranges().is_empty());
-        assert_eq!(*commit_syncer.highest_scheduled_index(), Some(10));
+        assert_eq!(commit_syncer.highest_scheduled_index(), Some(10));
         assert_eq!(commit_syncer.highest_fetched_commit_index(), 0);
-        assert_eq!(*commit_syncer.synced_commit_index(), 0);
+        assert_eq!(commit_syncer.synced_commit_index(), 0);
 
         // Observe round 40 blocks voting for commit 35 from authorities 0 to 2 in
         // CommitVoteMonitor
@@ -905,7 +991,7 @@ mod tests {
 
         // Verify commit syncer is paused after scheduling 15 commits to index 25.
         assert_eq!(commit_syncer.unhandled_commits_threshold(), 25);
-        assert_eq!(*commit_syncer.highest_scheduled_index(), Some(25));
+        assert_eq!(commit_syncer.highest_scheduled_index(), Some(25));
         let pending_fetches = commit_syncer.pending_fetches();
         assert_eq!(pending_fetches.len(), 5);
 
@@ -914,7 +1000,7 @@ mod tests {
         commit_syncer.try_schedule_once();
 
         // Verify commit syncer schedules fetches up to index 35.
-        assert_eq!(*commit_syncer.highest_scheduled_index(), Some(35));
+        assert_eq!(commit_syncer.highest_scheduled_index(), Some(35));
         let pending_fetches = commit_syncer.pending_fetches();
         assert_eq!(pending_fetches.len(), 7);
 

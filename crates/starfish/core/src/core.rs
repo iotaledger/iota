@@ -39,7 +39,7 @@ use crate::{
         VerifiedOwnShard, VerifiedTransactions,
     },
     block_manager::BlockManager,
-    commit::{CertifiedCommits, PendingSubDag},
+    commit::{CertifiedCommits, CommitAPI, PendingSubDag, TrustedCommit},
     commit_observer::{CommitObserver, CommittedSubDagSource},
     context::Context,
     dag_state::{DagState, DataSource},
@@ -122,6 +122,8 @@ pub(crate) enum ReasonToCreateBlock {
     Recover,
     QuorumSubscribersExist,
     KnownLastBlock,
+    #[allow(dead_code)]
+    FastSyncComplete,
 }
 
 impl ReasonToCreateBlock {
@@ -134,6 +136,7 @@ impl ReasonToCreateBlock {
             ReasonToCreateBlock::Recover => "Recover",
             ReasonToCreateBlock::QuorumSubscribersExist => "QuorumSubscribersExist",
             ReasonToCreateBlock::KnownLastBlock => "KnownLastBlock",
+            ReasonToCreateBlock::FastSyncComplete => "FastSyncComplete",
         }
     }
 
@@ -148,6 +151,7 @@ impl ReasonToCreateBlock {
             ReasonToCreateBlock::Recover => true,
             ReasonToCreateBlock::QuorumSubscribersExist => true,
             ReasonToCreateBlock::KnownLastBlock => true,
+            ReasonToCreateBlock::FastSyncComplete => true,
         }
     }
 }
@@ -513,13 +517,131 @@ impl Core {
         self.add_block_headers(block_headers, DataSource::CommitSyncer)
     }
 
-    pub(crate) fn handle_committed_sub_dags(
+    /// Handle committed subdags from fast sync.
+    /// First stores the commits, transactions in DagState, then processes the
+    /// subdags. Also updates the leader schedule from commits that contain
+    /// reputation scores.
+    ///
+    /// This method follows a similar flow to `try_commit`:
+    /// 1. Store commits and transactions in DagState
+    /// 2. For commits with reputation scores, update leader schedule and store
+    ///    CommitInfo
+    /// 3. Flush to storage
+    /// 4. Process subdags via commit_observer
+    ///
+    /// Commits must be stored so that recovery/reinitialization can rebuild
+    /// the Linearizer's transaction acknowledgment tracker.
+    /// Transactions must be stored so they are available for recovery and
+    /// cache.
+    pub(crate) fn handle_committed_sub_dags_from_fast_sync(
         &mut self,
+        commits: Vec<TrustedCommit>,
         committed_subdags: Vec<CommittedSubDag>,
-        source: CommittedSubDagSource,
     ) -> ConsensusResult<()> {
+        let _scope = monitored_scope("Core::handle_committed_sub_dags_from_fast_sync");
+        let _s = self
+            .context
+            .metrics
+            .node_metrics
+            .scope_processing_time
+            .with_label_values(&["Core::handle_committed_sub_dags_from_fast_sync"])
+            .start_timer();
+        // First, store commits and transactions in DagState
+        {
+            let mut dag_state = self.dag_state.write();
+            // Store commits for recovery and track those with reputation scores
+            for commit in &commits {
+                // Update leader schedule for commits with reputation scores.
+                // This mirrors the flow in try_commit where update_leader_schedule is called
+                // when commits_until_update reaches 0.
+                let reputation_scores = commit.reputation_scores();
+                if !reputation_scores.is_empty() {
+                    // update_from_commit_scores will:
+                    // 1. Clear scoring_subdag
+                    // 2. Add commit_info for previous commit index to DagState
+                    // 3. Update leader swap table
+                    // 4. Update metrics
+                    self.leader_schedule.update_from_commit_scores(
+                        &mut dag_state,
+                        commit.index(),
+                        reputation_scores,
+                    );
+                }
+
+                dag_state.add_commit(commit.clone());
+            }
+
+            // Store transactions for each subdag
+            for subdag in &committed_subdags {
+                for transactions in &subdag.transactions {
+                    dag_state.add_transactions(transactions.clone(), DataSource::FastCommitSyncer);
+                }
+            }
+        }
+
+        // Flush commits to storage so they're available for
+        // get_block_refs_for_recent_commits when close-to-quorum mode
+        // triggers header fetching.
+        self.dag_state.write().flush();
+
+        // Then process subdags as usual
         self.commit_observer
-            .handle_committed_sub_dags(committed_subdags, source)
+            .handle_committed_sub_dags(committed_subdags, CommittedSubDagSource::FastCommitSyncer)
+    }
+
+    /// Reinitialize consensus components after fast sync completes.
+    /// This stores block headers on disk and reinitializes DagState,
+    /// BlockManager, and CommitObserver so that regular syncer can take
+    /// over.
+    ///
+    /// Block headers should cover the cached_rounds window (~500 rounds).
+    pub(crate) fn reinitialize_components(
+        &mut self,
+        block_headers: Vec<VerifiedBlockHeader>,
+    ) -> ConsensusResult<()> {
+        info!(
+            "Reinitializing components with {} block headers",
+            block_headers.len(),
+        );
+
+        // Hold the dag_state lock for the entire flow to ensure consistency
+        let (last_commit_index, threshold_round, last_commit_leader) = {
+            let mut dag_state = self.dag_state.write();
+
+            // 1. Store block headers on disk
+            dag_state.accept_block_headers(block_headers, DataSource::FastCommitSyncer);
+
+            // 2. Flush everything to storage
+            dag_state.flush();
+
+            // 3. Get current state before reinitializing
+            let last_commit_index = dag_state.last_commit_index();
+
+            // 4. Reinitialize DagState
+            dag_state.reinitialize();
+
+            let threshold_round = dag_state.threshold_clock_round();
+            let last_commit_leader = dag_state.last_commit_leader();
+            (last_commit_index, threshold_round, last_commit_leader)
+        };
+
+        // 5. Reinitialize LeaderSchedule from stored commit info
+        self.leader_schedule.reinitialize(&self.dag_state);
+
+        // 6. Reinitialize BlockManager
+        self.block_manager.reinitialize();
+
+        // 7. Update last_decided_leader to match the new DAG state
+        self.last_decided_leader = last_commit_leader;
+
+        // 8. Reinitialize CommitObserver with recovery (uses recover_and_send_commits)
+        self.commit_observer.reinitialize(last_commit_index);
+
+        // 9. Reset signaling state
+        self.last_signaled_round = threshold_round.saturating_sub(1);
+
+        info!("Components reinitialized successfully");
+        Ok(())
     }
 
     /// If needed, signals a new clock round and sets up leader timeout.

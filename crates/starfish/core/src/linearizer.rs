@@ -64,6 +64,13 @@ impl Linearizer {
         }
     }
 
+    /// Reinitialize Linearizer after fast sync completes.
+    /// Clears tracked state for a fresh start.
+    pub(crate) fn reinitialize(&mut self) {
+        self.transactions_ack_tracker.clear();
+        self.traversed_headers_tracker.clear();
+    }
+
     /// Collect the sub-dag and the corresponding commit from a specific leader,
     /// excluding any duplicates or blocks that have already been committed
     /// (within previous sub-dags).

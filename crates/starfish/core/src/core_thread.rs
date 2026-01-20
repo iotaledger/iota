@@ -21,8 +21,7 @@ use tracing::{info, warn};
 use crate::{
     CommittedSubDag, VerifiedBlockHeader,
     block_header::{BlockRef, Round, VerifiedBlock, VerifiedOwnShard, VerifiedTransactions},
-    commit::CertifiedCommits,
-    commit_observer::CommittedSubDagSource,
+    commit::{CertifiedCommits, TrustedCommit},
     context::Context,
     core::{Core, ReasonToCreateBlock},
     core_thread::CoreError::Shutdown,
@@ -81,7 +80,23 @@ enum CoreThreadCommand {
     GetMissingTransactionData(
         oneshot::Sender<BTreeMap<GenericTransactionRef, BTreeSet<AuthorityIndex>>>,
     ),
-    AddSubdagFromFastSync(Vec<CommittedSubDag>, oneshot::Sender<()>),
+    AddSubdagFromFastSync(
+        Vec<TrustedCommit>,
+        Vec<CommittedSubDag>,
+        oneshot::Sender<()>,
+    ),
+    /// Reinitialize consensus components after fast sync completes.
+    /// Stores the block headers on disk (for the cached_rounds window)
+    /// and reinitializes DagState, BlockManager, CommitObserver, etc.
+    /// After this, regular syncer can take over.
+    ///
+    /// Block headers are for blocks from commits in the cached_rounds window
+    /// (~500 rounds). Commits and transactions are already stored during
+    /// fast sync via handle_committed_sub_dags.
+    ReinitializeComponents {
+        block_headers: Vec<VerifiedBlockHeader>,
+        sender: oneshot::Sender<()>,
+    },
 }
 
 #[derive(Error, Debug)]
@@ -143,7 +158,16 @@ pub trait CoreThreadDispatcher: Sync + Send + 'static {
 
     async fn add_subdags_from_fast_sync(
         &self,
+        commits: Vec<TrustedCommit>,
         subdags: Vec<CommittedSubDag>,
+    ) -> Result<(), CoreError>;
+
+    /// Reinitialize consensus components after fast sync completes.
+    /// Stores block headers and reinitializes DagState, BlockManager,
+    /// CommitObserver, etc.
+    async fn reinitialize_components(
+        &self,
+        block_headers: Vec<VerifiedBlockHeader>,
     ) -> Result<(), CoreError>;
 
     async fn new_block(
@@ -200,8 +224,8 @@ impl CoreThread {
                     };
                     self.context.metrics.node_metrics.core_lock_dequeued.inc();
 
-                    // During fast sync, ignore all commands except AddSubdagFromFastSync
-                    if fast_sync_ongoing && !matches!(command, CoreThreadCommand::AddSubdagFromFastSync(..)) {
+                    // During fast sync, ignore all commands except AddSubdagFromFastSync and ReinitializeComponents
+                    if fast_sync_ongoing && !matches!(command, CoreThreadCommand::AddSubdagFromFastSync(..) | CoreThreadCommand::ReinitializeComponents { .. }) {
                         match command {
                             CoreThreadCommand::AddBlocks(_, _, sender) |
                             CoreThreadCommand::AddBlockHeaders(_, _, sender) |
@@ -221,17 +245,18 @@ impl CoreThread {
                             CoreThreadCommand::GetMissingTransactionData(sender) => {
                                 sender.send(Default::default()).ok();
                             }
-                            CoreThreadCommand::AddSubdagFromFastSync(..) => unreachable!(),
+                            CoreThreadCommand::AddSubdagFromFastSync(..) |
+                            CoreThreadCommand::ReinitializeComponents { .. } => unreachable!(),
                         }
                         continue;
                     }
 
                     match command {
-                        CoreThreadCommand::AddSubdagFromFastSync(subdags, sender) => {
+                        CoreThreadCommand::AddSubdagFromFastSync(commits, subdags, sender) => {
                             info!("Adding subdags from fast sync, entering fast sync mode; {} index_start and {} index_end", subdags.first().map(|sd| sd.base.leader.round).unwrap_or(0), subdags.last().map(|sd| sd.base.leader.round).unwrap_or(0));
                             fast_sync_ongoing = true;
                             let _scope = monitored_scope("CoreThread::loop::add_subdags_from_fast_sync");
-                            self.core.handle_committed_sub_dags(subdags, CommittedSubDagSource::FastCommitSyncer)?;
+                            self.core.handle_committed_sub_dags_from_fast_sync(commits, subdags)?;
                             sender.send(()).ok();
                         }
                         CoreThreadCommand::AddBlocks(blocks, source, sender) => {
@@ -272,6 +297,16 @@ impl CoreThread {
                         CoreThreadCommand::GetMissingTransactionData(sender) => {
                             let _scope = monitored_scope("CoreThread::loop::get_missing_transaction_data");
                             sender.send(self.core.get_missing_transaction_data()).ok();
+                        }
+                        CoreThreadCommand::ReinitializeComponents { block_headers, sender } => {
+                            let _scope = monitored_scope("CoreThread::loop::reinitialize_components");
+                            info!(
+                                "Reinitializing components with {} block headers, exiting fast sync mode",
+                                block_headers.len()
+                            );
+                            self.core.reinitialize_components(block_headers)?;
+                            fast_sync_ongoing = false;
+                            sender.send(()).ok();
                         }
                     }
                 }
@@ -457,12 +492,28 @@ impl CoreThreadDispatcher for ChannelCoreThreadDispatcher {
 
     async fn add_subdags_from_fast_sync(
         &self,
+        commits: Vec<TrustedCommit>,
         subdags: Vec<CommittedSubDag>,
     ) -> Result<(), CoreError> {
         let (sender, receiver) = oneshot::channel();
-        self.send(CoreThreadCommand::AddSubdagFromFastSync(subdags, sender))
-            .await;
+        self.send(CoreThreadCommand::AddSubdagFromFastSync(
+            commits, subdags, sender,
+        ))
+        .await;
         Ok(receiver.await.map_err(|e| Shutdown(e.to_string()))?)
+    }
+
+    async fn reinitialize_components(
+        &self,
+        block_headers: Vec<VerifiedBlockHeader>,
+    ) -> Result<(), CoreError> {
+        let (sender, receiver) = oneshot::channel();
+        self.send(CoreThreadCommand::ReinitializeComponents {
+            block_headers,
+            sender,
+        })
+        .await;
+        receiver.await.map_err(|e| Shutdown(e.to_string()))
     }
 
     async fn new_block(
@@ -638,7 +689,15 @@ pub(crate) mod tests {
 
         async fn add_subdags_from_fast_sync(
             &self,
+            _commits: Vec<TrustedCommit>,
             _subdags: Vec<CommittedSubDag>,
+        ) -> Result<(), CoreError> {
+            unimplemented!()
+        }
+
+        async fn reinitialize_components(
+            &self,
+            _block_headers: Vec<VerifiedBlockHeader>,
         ) -> Result<(), CoreError> {
             unimplemented!()
         }
