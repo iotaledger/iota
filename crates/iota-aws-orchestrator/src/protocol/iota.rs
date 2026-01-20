@@ -129,13 +129,10 @@ impl ProtocolCommands<IotaBenchmarkType> for IotaProtocol {
     }
 
     fn db_directories(&self) -> Vec<PathBuf> {
-        let authorities_db = [&self.working_dir, &iota_config::AUTHORITIES_DB_NAME.into()]
-            .iter()
-            .collect();
-        let consensus_db = [&self.working_dir, &iota_config::CONSENSUS_DB_NAME.into()]
-            .iter()
-            .collect();
-        vec![authorities_db, consensus_db]
+        let authorities_db = self.working_dir.join(iota_config::AUTHORITIES_DB_NAME);
+        let consensus_db = self.working_dir.join(iota_config::CONSENSUS_DB_NAME);
+        let full_node_db: PathBuf = self.working_dir.join(iota_config::FULL_NODE_DB_PATH);
+        vec![authorities_db, consensus_db, full_node_db]
     }
 
     fn genesis_command<'a, I>(
@@ -182,8 +179,6 @@ impl ProtocolCommands<IotaBenchmarkType> for IotaProtocol {
                 &additional_gas_accounts_flag,
             ],
         );
-
-        display::action(format!("\n Genesis Command: {iota_command}"));
 
         iota_command
     }
@@ -355,9 +350,17 @@ impl ProtocolCommands<IotaBenchmarkType> for IotaProtocol {
                     format!(
                         "--shared-counter {shared_counter} --transfer-object {transfer_objects}"
                     ),
-                    "--shared-counter-hotness-factor 50".to_string(),
                     format!("--client-metric-host 0.0.0.0 --client-metric-port {metrics_port}"),
                 ];
+
+                // Add optional shared counter hotness factor if specified
+                let hotness_factor = parameters.shared_counter_hotness_factor.unwrap_or(50);
+                stress_args.push(format!("--shared-counter-hotness-factor {hotness_factor}"));
+
+                // Add optional num shared counters if specified
+                if let Some(num_counters) = parameters.num_shared_counters {
+                    stress_args.push(format!("--num-shared-counters {num_counters}"));
+                }
 
                 if self.use_fullnode_for_execution {
                     stress_args.push("--use-fullnode-for-execution true".to_string());
@@ -368,7 +371,10 @@ impl ProtocolCommands<IotaBenchmarkType> for IotaProtocol {
                     "stress",
                     // required for stress binary, otherwise it will use the CARGO_MANIFEST_DIR,
                     // which is set during compilation time
-                    &["export MOVE_EXAMPLES_DIR=$(pwd)/examples/move"],
+                    &[
+                        "export MOVE_EXAMPLES_DIR=$(pwd)/examples/move",
+                        "export RUST_LOG=iota_benchmark=debug",
+                    ],
                     &stress_args,
                 );
 
@@ -402,6 +408,7 @@ impl IotaProtocol {
             parameters.epoch_duration_ms,
             parameters.chain_start_timestamp_ms,
             Some(parameters.additional_gas_accounts),
+            u64::MAX,
         );
         let mut addresses = Vec::new();
         if let Some(validator_configs) = genesis_config.validator_config_info.as_ref() {
@@ -421,68 +428,55 @@ impl ProtocolMetrics for IotaProtocol {
     const LATENCY_SUM: &'static str = "latency_s_sum";
     const LATENCY_SQUARED_SUM: &'static str = "latency_squared_s";
 
-    fn nodes_metrics_path<I, T>(
+    fn nodes_metrics_path<I>(
         &self,
         instances: I,
-        parameters: &BenchmarkParameters<T>,
+        use_internal_ip_address: bool,
     ) -> Vec<(Instance, String)>
     where
         I: IntoIterator<Item = Instance>,
-        T: BenchmarkType,
     {
-        let (ips, instances): (Vec<_>, Vec<_>) = instances
-            .into_iter()
-            .map(|x| {
-                (
-                    match parameters.use_internal_ip_address {
-                        true => x.private_ip,
-                        false => x.main_ip,
-                    }
-                    .to_string(),
-                    x,
-                )
+        let instances = instances.into_iter().collect::<Vec<_>>();
+        let ips = (0..instances.len())
+            .map(|_| "0.0.0.0".to_string())
+            .collect::<Vec<_>>();
+        // From GenesisConfig we only need validators' `metrics_address` port which is
+        // computed from validator's offset in `ips`. The values of (the rest
+        // of) the arguments are irrelevant.
+        GenesisConfig::new_for_benchmarks(&ips, None, None, None, u64::MAX)
+            .validator_config_info
+            .expect("No validator in genesis")
+            .iter()
+            .zip(instances)
+            .map(|(config, instance)| {
+                let path = format!(
+                    "{}:{}{}",
+                    match use_internal_ip_address {
+                        true => instance.private_ip,
+                        false => instance.main_ip,
+                    },
+                    config.metrics_address.port(),
+                    iota_metrics::METRICS_ROUTE
+                );
+                (instance, path)
             })
-            .unzip();
-        GenesisConfig::new_for_benchmarks(
-            &ips,
-            parameters.epoch_duration_ms,
-            parameters.chain_start_timestamp_ms,
-            Some(parameters.additional_gas_accounts),
-        )
-        .validator_config_info
-        .expect("No validator in genesis")
-        .iter()
-        .zip(instances)
-        .map(|(config, instance)| {
-            let path = format!(
-                "{}:{}{}",
-                match parameters.use_internal_ip_address {
-                    true => instance.private_ip,
-                    false => instance.main_ip,
-                },
-                config.metrics_address.port(),
-                iota_metrics::METRICS_ROUTE
-            );
-            (instance, path)
-        })
-        .collect()
+            .collect()
     }
 
-    fn clients_metrics_path<I, T>(
+    fn clients_metrics_path<I>(
         &self,
         instances: I,
-        parameters: &BenchmarkParameters<T>,
+        use_internal_ip_address: bool,
     ) -> Vec<(Instance, String)>
     where
         I: IntoIterator<Item = Instance>,
-        T: BenchmarkType,
     {
         instances
             .into_iter()
             .map(|instance| {
                 let path = format!(
                     "{}:{}{}",
-                    match parameters.use_internal_ip_address {
+                    match use_internal_ip_address {
                         true => instance.private_ip,
                         false => instance.main_ip,
                     },

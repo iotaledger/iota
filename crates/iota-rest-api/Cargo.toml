@@ -8,11 +8,11 @@ publish = false
 [dependencies]
 # external dependencies
 anyhow.workspace = true
-axum = { workspace = true, features = ["matched-path"] }
+axum.workspace = true
 bcs.workspace = true
 fastcrypto.workspace = true
 itertools.workspace = true
-mime = "0.3"
+mime.workspace = true
 openapiv3 = { git = "https://github.com/bmwill/openapiv3.git", rev = "ca4b4845b7c159a39f5c68ad8f7f76cb6f4d6963" }
 prometheus.workspace = true
 reqwest.workspace = true
@@ -33,4 +33,4 @@ iota-types.workspace = true
 move-binary-format.workspace = true
 
 [dev-dependencies]
-diffy = "0.3"
+diffy.workspace = true

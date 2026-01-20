@@ -25,8 +25,13 @@ import { useAppSelector, useCheckCameraPermissionStatus, useFullscreenGuard } fr
 import { AppType } from '../../redux/slices/app/appType';
 import { Warning } from '@iota/apps-ui-icons';
 
+export enum SignatureType {
+    Transaction = 'transaction',
+    Message = 'message',
+}
+
 interface KeystoneContextValue {
-    requestSignature: (ur: UR) => Promise<string>;
+    requestSignature: (ur: UR, signatureType?: SignatureType) => Promise<string>;
 }
 
 const KeystoneContext = createContext<KeystoneContextValue | undefined>(undefined);
@@ -37,6 +42,7 @@ interface KeystoneProviderProps {
 
 interface Request {
     ur: UR;
+    signatureType: SignatureType;
     reply: (signature: string) => void;
     cancel: () => void;
 }
@@ -69,10 +75,11 @@ export function KeystoneProvider({ children }: KeystoneProviderProps) {
 
     const context = useMemo(() => {
         return {
-            requestSignature: (ur: UR) =>
+            requestSignature: (ur: UR, signatureType = SignatureType.Transaction) =>
                 new Promise<string>((resolve, reject) => {
                     setCurrentRequest({
                         ur,
+                        signatureType,
                         reply: (signature) => {
                             setCurrentRequest(null);
                             resolve(signature);
@@ -103,7 +110,11 @@ enum Step {
     ScanQr,
 }
 
-export function ScanBothWays({ request: { ur, reply, cancel } }: { request: Request }) {
+export function ScanBothWays({
+    request: { ur, signatureType, reply, cancel },
+}: {
+    request: Request;
+}) {
     const [step, setStep] = useState<Step>(Step.ShowQr);
     const [cameraPermissionStatus] = useCheckCameraPermissionStatus();
 
@@ -128,10 +139,13 @@ export function ScanBothWays({ request: { ur, reply, cancel } }: { request: Requ
         toast.error(`Error while scanning QR: ${error}`);
     }
 
+    const headerTitle =
+        signatureType === SignatureType.Message ? 'Confirm Message' : 'Confirm Transaction';
+
     return (
         <Dialog open onOpenChange={(open) => {}}>
             <DialogContent containerId="overlay-portal-container">
-                <Header title="Confirm Transaction" titleCentered onClose={() => onCancel()} />
+                <Header title={headerTitle} titleCentered onClose={() => onCancel()} />
                 <DialogBody>
                     <div className="flex flex-col items-center gap-2">
                         {step === Step.ShowQr ? (
@@ -186,13 +200,13 @@ export function ScanBothWays({ request: { ur, reply, cancel } }: { request: Requ
                         <div className="flex flex-col items-center justify-center">
                             <Link
                                 to="https://docs.iota.org/users/iota-wallet/how-to/basics#using-keystone-wallet"
-                                className="mb-1 text-body-md text-iota-primary-30 no-underline dark:text-iota-primary-80"
+                                className="dark:text-iota-primary-80 mb-1 text-body-md text-iota-primary-30 no-underline"
                                 target="_blank"
                                 rel="noreferrer"
                             >
                                 {step === Step.ShowQr ? 'Step 1' : 'Step 2'}
                             </Link>
-                            <span className="text-center text-body-md text-iota-neutral-40 dark:text-iota-neutral-60">
+                            <span className="dark:text-iota-neutral-60 text-center text-body-md text-iota-neutral-40">
                                 {step === Step.ShowQr
                                     ? 'Scan this QR code with your Keystone device, then press continue'
                                     : 'Scan the QR code displayed on your keystone device'}
@@ -200,12 +214,12 @@ export function ScanBothWays({ request: { ur, reply, cancel } }: { request: Requ
                         </div>
                         <div className="flex w-full flex-col">
                             <div className="mb-2 flex items-center justify-center gap-x-1">
-                                <span className="text-body-md text-iota-neutral-40 dark:text-iota-neutral-60">
+                                <span className="dark:text-iota-neutral-60 text-body-md text-iota-neutral-40">
                                     Need more help?
                                 </span>
                                 <Link
                                     to="https://docs.iota.org/users/iota-wallet/how-to/basics#using-keystone-wallet"
-                                    className="text-body-md text-iota-primary-30 no-underline dark:text-iota-primary-80"
+                                    className="dark:text-iota-primary-80 text-body-md text-iota-primary-30 no-underline"
                                     target="_blank"
                                     rel="noreferrer"
                                 >

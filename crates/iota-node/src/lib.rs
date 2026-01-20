@@ -1440,15 +1440,6 @@ impl IotaNode {
             )
             .await;
 
-        if !epoch_store
-            .epoch_start_config()
-            .is_data_quarantine_active_from_beginning_of_epoch()
-        {
-            checkpoint_store
-                .reexecute_local_checkpoints(&state, &epoch_store)
-                .await;
-        }
-
         info!("Spawning checkpoint service");
         let checkpoint_service_tasks = checkpoint_service.spawn().await;
 

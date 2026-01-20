@@ -161,6 +161,17 @@ cargo run --bin iota-indexer -- help-deprecated
 cargo run --bin iota-indexer -- help
 ```
 
+### Experimental Features
+
+#### Historic Fallback (REST KV Store)
+
+The indexer supports an experimental historic fallback feature via the `--fallback-kv-url` flag.
+This feature allows the indexer to fall back to a REST KV store for historical data when it's not available in the primary database.
+It depends on the API served by the `iota-rest-kv` crate, which is still being finalized and subject to change.
+
+> [!WARNING]
+> This is an experimental feature and is subject to change without notice.
+
 ### Running tests
 
 To run the tests, a running postgres instance is required.
