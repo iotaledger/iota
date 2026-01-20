@@ -36,9 +36,7 @@ export function DAppInfoCard({
     function handleLockAndUnlockClick() {
         if (!account) return;
         if (account?.isLocked) {
-            if (account.isPasswordUnlockable) {
-                unlockAccounts();
-            }
+            unlockAccounts();
         } else {
             lockAccounts();
         }
