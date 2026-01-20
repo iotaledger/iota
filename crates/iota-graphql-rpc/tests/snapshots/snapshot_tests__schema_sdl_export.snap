@@ -1293,6 +1293,15 @@ type Epoch {
 
 type Event {
 	"""
+	The transaction block that emitted this event. This information is only
+	available for events from transactions included in a checkpoint.
+	
+	For simulated transactions (e.g. dry run), or transactions that have
+	been just executed but not yet included in a checkpoint this returns
+	null.
+	"""
+	transactionBlock: TransactionBlock
+	"""
 	The Move module containing some function that when called by
 	a programmable transaction block (PTB) emitted this event.
 	For example, if a PTB invokes A::m1::foo, which internally
@@ -2512,6 +2521,10 @@ type MovePackage implements IObject & IOwner {
 	The (previous) versions of this package that introduced its types.
 	"""
 	typeOrigins: [TypeOrigin!]
+	"""
+	BCS representation of the package itself, as a MovePackage.
+	"""
+	packageBcs: Base64
 	"""
 	BCS representation of the package's modules.  Modules appear as a
 	sequence of pairs (module name, followed by module bytes), in
@@ -4617,11 +4630,12 @@ type TransactionBlockEffects {
 	"""
 	timestamp: DateTime
 	"""
-	The epoch this transaction was finalized in.
+	The epoch this transaction was executed in.
 	"""
 	epoch: Epoch
 	"""
-	The checkpoint this transaction was finalized in.
+	The checkpoint this transaction was finalized in, if it is within the
+	available range.
 	"""
 	checkpoint: Checkpoint
 	"""

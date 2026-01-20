@@ -37,7 +37,10 @@ use iota_keys::{
     keystore::{AccountKeystore, Keystore, StoredKey},
 };
 use iota_ledger::Ledger;
-use iota_sdk_types::crypto::{Intent, IntentMessage};
+use iota_sdk_types::{
+    SenderSignedTransaction, Transaction,
+    crypto::{Intent, IntentMessage},
+};
 use iota_types::{
     base_types::IotaAddress,
     crypto::{
@@ -97,6 +100,8 @@ pub enum KeyToolCommand {
         #[arg(long, default_value = "0")]
         cur_epoch: u64,
     },
+    /// Compute the digest of a transaction from its Base64 encoded bytes.
+    TxDigest { tx_bytes: String },
     /// Output the private key of the given key identity in IOTA CLI Keystore as
     /// Bech32 encoded string starting with `iotaprivkey`.
     Export {
@@ -424,6 +429,15 @@ pub struct SignData {
     iota_signature: String,
 }
 
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TxDigestOutput {
+    // Base58
+    digest: String,
+    digest_hex: String,
+    signing_digest_hex: String,
+}
+
 // Commented for now: https://github.com/iotaledger/iota/issues/1777
 // #[derive(Serialize)]
 // #[serde(rename_all = "camelCase")]
@@ -464,6 +478,7 @@ pub enum CommandOutput {
     Show(Key),
     Sign(SignData),
     SignKMS(SerializedSig),
+    TxDigest(TxDigestOutput),
     UpdateAlias(AliasUpdate),
     // Commented for now: https://github.com/iotaledger/iota/issues/1777
     // ZkLoginSignAndExecuteTx(ZkLoginSignAndExecuteTx),
@@ -538,6 +553,22 @@ impl KeyToolCommand {
                 };
 
                 CommandOutput::DecodeMultiSig(output)
+            }
+            KeyToolCommand::TxDigest { tx_bytes } => {
+                let tx_bytes = Base64::decode(&tx_bytes)
+                    .map_err(|e| anyhow!("Invalid base64 tx bytes: {e:?}"))?;
+                let tx = match bcs::from_bytes::<Transaction>(&tx_bytes) {
+                    Ok(tx) => tx,
+                    Err(_) => {
+                        let deserialized_tx = bcs::from_bytes::<SenderSignedTransaction>(&tx_bytes)?;
+                       deserialized_tx.0.transaction
+                    }
+                };
+                CommandOutput::TxDigest(TxDigestOutput {
+                    digest: tx.digest().to_string(),
+                    digest_hex: format!("0x{}", Hex::encode(tx.digest())),
+                    signing_digest_hex: format!("0x{}", Hex::encode(tx.signing_digest())),
+                })
             }
             KeyToolCommand::DecodeOrVerifyTx {
                 tx_bytes,

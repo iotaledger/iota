@@ -206,6 +206,9 @@ pub struct Settings {
     /// Enable flamegraphs when running nodes.
     #[serde(default)]
     pub enable_flamegraph: bool,
+    /// Enable prometheus snapshots.
+    #[serde(default)]
+    pub enable_prometheus_snapshots: bool,
 }
 
 fn default_working_dir() -> PathBuf {
@@ -374,6 +377,7 @@ impl Settings {
             results_dir: "results".into(),
             build_configs: HashMap::new(),
             enable_flamegraph: false,
+            enable_prometheus_snapshots: false,
         }
     }
 }

@@ -3,10 +3,15 @@
 
 //! This module includes types and useful conversions.
 
-use std::sync::Arc;
+use std::{num::NonZeroUsize, sync::Arc};
 
 use crate::bigtable::KvStoreClient;
 
-/// Represents a shared instance of the [`KvStoreClient`], primerely used by the
+/// Represents a shared instance of the application state, used by the
 /// REST API server global [`State`](axum::extract::State).
-pub type SharedKvStoreClient = Arc<KvStoreClient>;
+pub type SharedRestServerAppState = Arc<RestServerAppState>;
+
+pub struct RestServerAppState {
+    pub kv_store_client: Arc<KvStoreClient>,
+    pub multiget_max_items: NonZeroUsize,
+}

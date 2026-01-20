@@ -25,7 +25,7 @@ serde.workspace = true
 serde_json.workspace = true
 snowflake-api = "0.11"
 strum.workspace = true
-tap = "1.0"
+tap.workspace = true
 tempfile.workspace = true
 thiserror.workspace = true
 tokio = { workspace = true, features = ["full"] }
