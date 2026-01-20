@@ -149,9 +149,6 @@ task 10, lines 53-64:
 Response: {
   "data": {
     "checkpoints": {
-      "pageInfo": {
-        "hasNextPage": false
-      },
       "nodes": [
         {
           "transactionBlocks": {
@@ -207,7 +204,10 @@ Response: {
             ]
           }
         }
-      ]
+      ],
+      "pageInfo": {
+        "hasNextPage": false
+      }
     }
   }
 }

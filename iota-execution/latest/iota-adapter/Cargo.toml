@@ -14,7 +14,7 @@ workspace = true
 # external dependencies
 anyhow = { workspace = true, features = ["backtrace"] }
 bcs.workspace = true
-leb128.workspace = true
+leb128 = "0.2.5"
 parking_lot.workspace = true
 serde.workspace = true
 tracing.workspace = true

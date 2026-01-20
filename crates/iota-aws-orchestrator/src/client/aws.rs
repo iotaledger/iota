@@ -339,6 +339,7 @@ impl ServerProviderClient for AwsClient {
                 }
             }
         }
+        instances.sort_by_key(|i| i.main_ip);
 
         Ok(instances)
     }

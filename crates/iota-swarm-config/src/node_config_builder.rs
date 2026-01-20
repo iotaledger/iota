@@ -208,9 +208,7 @@ impl ValidatorConfigBuilder {
             db_path,
             network_address,
             metrics_address: validator.metrics_address,
-            admin_interface_address: local_ip_utils::new_tcp_address_for_testing(&localhost)
-                .to_socket_addr()
-                .unwrap(),
+            admin_interface_address: validator.admin_interface_address,
             json_rpc_address: local_ip_utils::new_tcp_address_for_testing(&localhost)
                 .to_socket_addr()
                 .unwrap(),
@@ -390,9 +388,9 @@ impl FullnodeConfigBuilder {
 
     pub fn with_admin_interface_address(
         mut self,
-        admin_interface_address: impl Into<SocketAddr>,
+        admin_interface_address: Option<impl Into<SocketAddr>>,
     ) -> Self {
-        self.admin_interface_address = Some(admin_interface_address.into());
+        self.admin_interface_address = admin_interface_address.map(|addr| addr.into());
         self
     }
 

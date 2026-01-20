@@ -79,7 +79,19 @@ where
 
 /// Represents the supported items the REST API accepts when fetching the data
 /// based on Digest or Sequence number.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Deserialize, strum::EnumString, strum::Display)]
+#[derive(
+    Clone,
+    Copy,
+    Debug,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    Hash,
+    Deserialize,
+    strum::EnumString,
+    strum::Display,
+)]
 pub enum ItemType {
     #[strum(serialize = "tx")]
     #[serde(rename = "tx")]
@@ -104,7 +116,7 @@ pub enum ItemType {
     EventTransactionDigest,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Key {
     Transaction(TransactionDigest),
     TransactionEffects(TransactionDigest),

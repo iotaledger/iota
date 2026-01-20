@@ -69,7 +69,7 @@ Response: {
 task 4, lines 53-57:
 //# run-graphql
 Response: {
-  "data": {}
+  "data": null
 }
 
 task 5, lines 59-63:
@@ -91,5 +91,5 @@ Response: {
 task 7, lines 71-75:
 //# run-graphql
 Response: {
-  "data": {}
+  "data": null
 }
