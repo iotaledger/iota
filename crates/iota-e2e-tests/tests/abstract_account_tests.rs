@@ -54,6 +54,8 @@ const AA_CREATE_MODULE_NAME: &str = "basic_keyed_aa";
 const AA_AUTHENTICATE_MODULE_NAME: &str = "basic_keyed_aa";
 const AA_AUTHENTICATE_FN_NAME_ED25519: &str = "authenticate_ed25519";
 const AA_AUTHENTICATE_FN_NAME_FREE_ACCESS: &str = "authenticate_free_access";
+const AA_RECEIVE_OBJECT_FN_NAME: &str = "receive_object";
+const AA_RECEIVE_OBJECT_FN_NAME_NO_SENDER_CHECK: &str = "receive_object_without_sender_check";
 
 /// Test the creation of an Abstract Account and the issuance of a simple
 /// transaction from it using the Move-based Ed25519 signature authenticator.
@@ -173,7 +175,7 @@ async fn test_receive_object_in_main_tx_succeeds() -> Result<(), anyhow::Error> 
         .await;
 
     // Main PTB: actually receive the Gas into the AA
-    let pt = test_env.craft_aa_receive_gas_ptb(gas_to_send, true)?;
+    let pt = test_env.craft_aa_receive_gas_ptb(gas_to_send, AA_RECEIVE_OBJECT_FN_NAME)?;
     let tx_data = test_env
         .craft_tx_from_pt(pt, aa_gas, aa_sender, None)
         .await?;
@@ -186,7 +188,6 @@ async fn test_receive_object_in_main_tx_succeeds() -> Result<(), anyhow::Error> 
     test_env.execute_and_check_tx_correctness(tx).await
 }
 
-/// Test environment for Abstract Account tests
 /// Test in 3 steps the failure of an Abstract Account transaction
 /// post-consensus:
 /// 1) Create a TX certificate signed by the validators where the authentication
@@ -311,29 +312,32 @@ async fn test_abstract_account_post_consensus_failure() -> Result<(), anyhow::Er
     Ok(())
 }
 
-// NOTE:
-// The call below is intentionally included to demonstrate the current validator
-// panic. It will panic inside `crates/iota-core/src/execution_driver.rs` with
-// `ObjectVersionUnavailableForConsumption` once TX2 bumps the coin version.
-// MSIM treats this as fatal.
-
+/// Test in 3 steps
+/// 1) Create a valid TX1 certificate signed by validators where sender is an AA
+///    account using the a owned Coin as gas
+/// 2) Tamper with the AA shared object state by creating a second TX2, sender
+///    being a random Bob address, altering the state calling the “receive“
+///    function for the Coin used as gas in TX1
+/// 3) Submit the original certificate TX1 which should NOT fail during
+///    post-consensus, because validators originally run the authenticate and it
+///    passed. What fails is the signing of TX2.
 #[sim_test]
 async fn test_receiving_gas_in_two_separate_txs() -> Result<(), anyhow::Error> {
-    use iota_types::transaction::TransactionDataAPI;
     telemetry_subscribers::init_for_testing();
     let client_ip = SocketAddr::new([127, 0, 0, 1].into(), 0);
 
-    // 1) Setup AA
+    // Build a test environment and create an abstract account
     let mut test_env = TestEnvironment::new().await;
     test_env
         .setup_abstract_account(AA_AUTHENTICATE_FN_NAME_FREE_ACCESS)
         .await?;
     let aa_ref = test_env.aa_ref.unwrap();
-    let aa_sender: IotaAddress = aa_ref.0.into();
-
     let rgp = test_env.test_cluster.get_reference_gas_price().await;
 
-    // 2) Create second address (Bob)
+    // AA account address
+    let aa_sender: IotaAddress = aa_ref.0.into();
+
+    // Retrieve the keystore and setup secondary random account (Bob)
     let bob = {
         let keystore = test_env.test_cluster.wallet.config_mut().keystore_mut();
         keystore
@@ -343,103 +347,68 @@ async fn test_receiving_gas_in_two_separate_txs() -> Result<(), anyhow::Error> {
     };
     assert!(bob != aa_sender);
 
-    // Fund Bob gas
+    // Fund AA and Bob with gas; AA account's gas coin is the conflicting one
     let bob_gas = test_env
         .test_cluster
         .fund_address_and_return_gas(rgp, Some(20_000_000_000), bob)
         .await;
-
-    // 3) Fund AA with setup gas + conflict coin
-    let aa_setup_gas = test_env
-        .test_cluster
-        .fund_address_and_return_gas(rgp, Some(20_000_000_000), aa_sender)
-        .await;
-
     let conflict_coin = test_env
         .test_cluster
         .fund_address_and_return_gas(rgp, Some(20_000_000_000), aa_sender)
         .await;
     let conflict_coin_id = conflict_coin.0;
-
-    // 4) Setup: receive the conflict coin into the AA (checked variant)
-    let setup_pt = test_env.craft_aa_receive_gas_ptb(conflict_coin, true)?;
-    let setup_tx_data = test_env
-        .craft_tx_from_pt(setup_pt, aa_setup_gas, aa_sender, None)
-        .await?;
-    let aa_sig_setup = test_env.create_move_authenticator_for_free_access()?;
-    let setup_tx = Transaction::from_generic_sig_data(setup_tx_data, vec![aa_sig_setup]);
-    test_env.execute_and_check_tx_correctness(setup_tx).await?;
-
-    // Refresh conflict coin ref after setup
-    let conflict_coin_ref_before = test_env
+    let conflict_coin_ref = test_env
         .test_cluster
         .get_latest_object_ref(&conflict_coin_id)
         .await;
 
-    // 5) TX1: AA sender uses conflict coin as GAS; create certificate (locks at
-    //    validators)
-    let tx1_pt = test_env.craft_aa_simple_ptb()?;
+    // Step 1: create TX1 where the sender is the AA using the owned "conflict" Coin
+    // as gas
+    let pt1 = test_env.craft_aa_simple_ptb()?;
     let tx1_data = test_env
-        .craft_tx_from_pt(tx1_pt, conflict_coin_ref_before, aa_sender, None)
+        .craft_tx_from_pt(pt1, conflict_coin_ref, aa_sender, None)
         .await?;
-
-    // Keep the exact gas payment ref TX1 is certified with (this is what will
-    // become stale)
-    let tx_clone = tx1_data.clone();
-    let tx1_gas_payment_ref = tx_clone.gas();
-
-    let aa_sig_tx1 = test_env.create_move_authenticator_for_free_access()?;
-    let tx1 = Transaction::from_generic_sig_data(tx1_data, vec![aa_sig_tx1]);
-
-    let tx1_cert = test_env
+    // Create the MoveAuthenticator for the free access authenticator
+    let signatures = vec![test_env.create_move_authenticator_for_free_access()?];
+    // Create the TX envelope and send it for validators signing
+    let tx1 = Transaction::from_generic_sig_data(tx1_data, signatures);
+    let cert = test_env
         .test_cluster
         .create_certificate(tx1, Some(client_ip))
         .await
         .expect("TX1 certificate creation should succeed");
 
-    // 6) TX2: Bob executes receive WITHOUT sender check, passing SAME coin as
-    //    Receiving input.
-    let tx2_pt = test_env.craft_aa_receive_gas_ptb(conflict_coin_ref_before, false)?;
-    let tx2_data = test_env
-        .craft_tx_from_pt(tx2_pt, bob_gas, bob, None)
-        .await?;
+    // Step 2: create TX2 where the sender is Bob, calling the receiving function on
+    // the same "conflict" Coin used by TX1
+    let pt2 = test_env
+        .craft_aa_receive_gas_ptb(conflict_coin_ref, AA_RECEIVE_OBJECT_FN_NAME_NO_SENDER_CHECK)?;
+    let tx2_data = test_env.craft_tx_from_pt(pt2, bob_gas, bob, None).await?;
     let tx2 = test_env.test_cluster.wallet.sign_transaction(&tx2_data);
-
+    // This must fail during signing because of the conflict Coin
     let tx2_resp = test_env.test_cluster.execute_transaction(tx2).await;
-    let tx2_ok = tx2_resp.confirmed_local_execution.unwrap_or(false) && tx2_resp.errors.is_empty();
-
     assert!(
-        tx2_ok,
+        tx2_resp.confirmed_local_execution.unwrap_or(false) && !tx2_resp.errors.is_empty(),
         "TX2 must succeed to reproduce the intended race. Resp={:#?}",
         tx2_resp
     );
 
-    // 7) Assert the core race outcome without executing TX1 (execution currently
-    //    panics in validator).
-    let conflict_coin_ref_after = test_env
-        .test_cluster
-        .get_latest_object_ref(&conflict_coin_id)
-        .await;
-
-    assert!(
-        conflict_coin_ref_after.1 > tx1_gas_payment_ref[0].1,
-        "Expected conflict coin version to advance after TX2. \
-         TX1 gas ref={:?}, latest ref={:?}",
-        tx1_gas_payment_ref,
-        conflict_coin_ref_after
-    );
-
-    // 8) Demonstrate the current panic by executing the certified TX1.
-    // This triggers: ObjectVersionUnavailableForConsumption (provided v5, current
-    // v6) and panics in iota-core execution_driver.rs
-    let _ = test_env
+    // Step 3: submit the original certificate TX1 which should NOT fail the
+    // execution
+    let QuorumDriverResponse { effects_cert, .. } = test_env
         .test_cluster
         .authority_aggregator()
         .process_certificate(
-            HandleCertificateRequestV1::new(tx1_cert).with_events(),
+            HandleCertificateRequestV1::new(cert).with_events(),
             Some(client_ip),
         )
-        .await;
+        .await
+        .unwrap();
+    let summary = effects_cert.summary_for_debug();
+
+    assert!(
+        summary.status.is_ok(),
+        "Expected the TX execution to succeed"
+    );
 
     Ok(())
 }
@@ -806,17 +775,13 @@ impl TestEnvironment {
     fn craft_aa_receive_gas_ptb(
         &self,
         gas_ref: ObjectRef,
-        has_sender_check: bool,
+        receive_fn_name: &str,
     ) -> anyhow::Result<ProgrammableTransaction> {
         let (Some(aa_ref), Some(aa_package_id)) = (self.aa_ref, self.aa_package_id) else {
             anyhow::bail!("Abstract account not created yet");
         };
         let mut b = ProgrammableTransactionBuilder::new();
-        let receive_function = if has_sender_check {
-            "receive_object"
-        } else {
-            "receive_object_without_sender_check"
-        };
+
         let args = vec![
             b.obj(ObjectArg::SharedObject {
                 id: aa_ref.0,
@@ -830,7 +795,7 @@ impl TestEnvironment {
         b.programmable_move_call(
             aa_package_id,
             ident_str!(AA_MODULE_NAME).to_owned(), // abstract_account
-            ident_str!(receive_function).to_owned(),
+            ident_str!(receive_fn_name).to_owned(),
             vec![],
             args,
         );
