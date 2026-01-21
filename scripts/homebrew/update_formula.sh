@@ -3,8 +3,9 @@
 ROOT=$(git rev-parse --show-toplevel || realpath "$(dirname "$0")/../..")
 
 tag=$1
-org=${2:-"iotaledger"}
-repository=${3:-"iota"}
+version=$2
+org=${3:-"iotaledger"}
+repository=${4:-"iota"}
 
 if [ -z "$GH_TOKEN" ]; then
     echo "Environment variable GH_TOKEN must be set!"
@@ -12,7 +13,6 @@ if [ -z "$GH_TOKEN" ]; then
 fi
 
 # Remove leading `v` from tag
-version=$(echo "${tag}" | sed -En "s|v?(.+)|\1|p")
 server_url="https://github.com/${org}"
 auth_url="https://${GH_TOKEN}@github.com/${org}"
 
