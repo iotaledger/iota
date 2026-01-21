@@ -59,16 +59,25 @@ async fn list_account_objects(
     let mut object_info = indexes
         .account_owned_objects_info_iter(address.into(), start)?
         .take(limit + 1)
-        .map(|info| {
-            AccountOwnedObjectInfo {
-                owner: info.owner.into(),
-                object_id: info.object_id.into(),
-                version: info.version.into(),
-                type_: struct_tag_core_to_sdk(info.type_.into())?,
-            }
-            .pipe(Ok)
+        .map(|result| {
+            result
+                .map_err(|err| {
+                    RestError::new(
+                        axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+                        err.to_string(),
+                    )
+                })
+                .and_then(|info| {
+                    AccountOwnedObjectInfo {
+                        owner: info.owner.into(),
+                        object_id: info.object_id.into(),
+                        version: info.version.into(),
+                        type_: struct_tag_core_to_sdk(info.type_.into())?,
+                    }
+                    .pipe(Ok)
+                })
         })
-        .collect::<Result<Vec<_>>>()?;
+        .collect::<Result<Vec<_>, _>>()?;
 
     let cursor = if object_info.len() > limit {
         // SAFETY: We've already verified that object_info is greater than limit, which

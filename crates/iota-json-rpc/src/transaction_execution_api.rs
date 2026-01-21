@@ -343,6 +343,7 @@ impl TransactionExecutionApi {
             balance_changes,
             input: resp.input,
             suggested_gas_price: resp.suggested_gas_price,
+            execution_error_source: resp.execution_error_source,
         })
     }
 }
