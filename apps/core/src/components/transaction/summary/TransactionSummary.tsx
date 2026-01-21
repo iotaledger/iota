@@ -4,7 +4,7 @@
 
 import { type TransactionSummaryType } from '../../..';
 import { BalanceChanges, ObjectChanges } from '../../cards';
-import { Badge, BadgeType, LoadingIndicator, Title, TitleSize } from '@iota/apps-ui-kit';
+import { LoadingIndicator, Title, TitleSize } from '@iota/apps-ui-kit';
 import { RenderExplorerLink } from '../../../types';
 
 interface TransactionSummaryProps {
@@ -33,24 +33,13 @@ export function TransactionSummary({
                 </div>
             ) : (
                 <div className="flex flex-col gap-3">
-                    {chain && (
-                        <div className="flex">
-                            <Badge
-                                type={
-                                    chain.split(':')[1] === 'mainnet'
-                                        ? BadgeType.PrimarySolid
-                                        : BadgeType.Neutral
-                                }
-                                label={chain.split(':')[1]}
-                            />
-                        </div>
-                    )}
                     {isDryRun && (
                         <Title title="Do you approve these actions?" size={TitleSize.Medium} />
                     )}
                     <BalanceChanges
                         changes={summary?.balanceChanges}
                         renderExplorerLink={renderExplorerLink}
+                        chain={chain}
                     />
                     <ObjectChanges
                         changes={summary?.objectSummary}
