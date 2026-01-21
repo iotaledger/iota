@@ -258,87 +258,67 @@ impl CommitObserver {
 
     fn recover_and_send_commits(&mut self, last_processed_commit_index: CommitIndex) {
         let now = Instant::now();
-        // TODO: remove this check, to allow consensus to regenerate commits?
         let last_commit = self
             .store
             .read_last_commit()
             .expect("Reading the last commit should not fail");
+        let last_commit_index = last_commit
+            .as_ref()
+            .map(|commit| commit.index())
+            .unwrap_or(0);
+        assert!(
+            last_commit_index >= last_processed_commit_index,
+            "The consensus DB is behind the node DB!"
+        );
+        if last_commit_index == 0 {
+            info!("No commits to recover in commit observer");
+            return;
+        }
 
-        // Value used to recover transactions_ack_tracker in the linearizer.
-        let mut recovery_lower_bound: CommitIndex = last_processed_commit_index + 1;
-        if let Some(last_commit) = &last_commit {
-            let last_commit_index = last_commit.index();
+        self.commit_solidifier
+            .set_last_committed_index(last_commit_index);
 
-            // The earliest commit that still might acknowledge not-yet-committed
-            // transactions that still have a chance of being committed is no higher than
-            // `last_pending_commit_index - protocol_config.gc_depth() * 2, once for
-            // max linearizer depth and once for max transaction ack depth.
+        // Phase 1: Recover linearizer state (only gc_depth*2 commits needed)
+        self.recover_linearizer_state(last_commit_index);
 
-            let commit_index_to_recover_acks =
-                last_commit_index.saturating_sub(self.context.protocol_config.gc_depth() * 2);
+        // Phase 2: Resend unprocessed commits
+        self.resend_unprocessed_commits(last_processed_commit_index, last_commit_index);
 
-            recovery_lower_bound = recovery_lower_bound
-                .min(commit_index_to_recover_acks)
-                .max(1);
-            assert!(last_commit_index >= last_processed_commit_index);
-        };
+        info!(
+            "Commit observer recovery completed, took {:?}",
+            now.elapsed()
+        );
+    }
 
-        // Retrieve all the commits from the recover lower bound until the end.
+    /// Recovers linearizer trackers from recent commits.
+    /// Only processes commits in the gc_depth*2 window.
+    fn recover_linearizer_state(&mut self, last_commit_index: CommitIndex) {
+        let linearizer_recovery_start = last_commit_index
+            .saturating_sub(self.context.protocol_config.gc_depth() * 2)
+            .max(1);
+
         let recovery_commits = self
             .store
-            .scan_commits((recovery_lower_bound..=CommitIndex::MAX).into())
+            .scan_commits((linearizer_recovery_start..=last_commit_index).into())
             .expect("Scanning commits should not fail");
 
         info!(
-            "Recovering commit observer state after last processed index {last_processed_commit_index} and \
-            recovery lower bound {recovery_lower_bound} with last commit {} and {} recovery commits",
-            last_commit.map(|c| c.index()).unwrap_or_default(),
-            recovery_commits.len()
+            "Recovering linearizer state from {} commits (indices {}..={})",
+            recovery_commits.len(),
+            linearizer_recovery_start,
+            last_commit_index
         );
 
-        // Recover transaction acknowledgment tracker in the linearizer using all the
-        // commits and resend all the committed sub-dags to the consensus output channel
-        // for all the commits above the last processed index.
-        let mut next_commit_index_to_recover = recovery_lower_bound;
-        let num_recovery_commits = recovery_commits.len();
-
-        for (index, commit) in recovery_commits.into_iter().enumerate() {
-            let commit_index = commit.index();
-            // Commit index must be continuous during recovery.
-            assert_eq!(commit_index, next_commit_index_to_recover);
-            // For the first recovery commit, set the solidifier's baseline to just
-            // before this commit. This ensures the solidifier correctly tracks commits
-            // from the recovery start point forward.
-            if index == 0 {
-                self.commit_solidifier
-                    .set_last_committed_index(commit_index.saturating_sub(1));
-            }
-            // On recovery leader schedule will be updated with the current scores
-            // and the scores will be passed along with the last commit sent to
-            // iota so that the current scores are available for submission.
-            let reputation_scores = if index == num_recovery_commits - 1 {
-                self.leader_schedule
-                    .leader_swap_table
-                    .read()
-                    .reputation_scores_desc
-                    .clone()
-            } else {
-                vec![]
-            };
-
-            info!("Processing commit {} during recovery", commit_index);
-
+        for commit in recovery_commits {
+            // Recovery only needs headers/acks, so reputation scores are irrelevant here.
             let pending_sub_dag =
-                load_pending_subdag_from_store(self.store.as_ref(), commit, reputation_scores);
+                load_pending_subdag_from_store(self.store.as_ref(), commit, vec![]);
 
-            // Rebuild traversed headers tracker so recovery can honor the
-            // traversed-headers gate when committing transactions.
+            // Rebuild traversed headers tracker
             self.linearizer
                 .record_traversed_headers(pending_sub_dag.headers.iter());
 
-            // Recover transaction acknowledgments tracker state by adding transaction
-            // acknowledgments from all pending sub-dags that still might
-            // correctly acknowledge transactions.
+            // Recover transaction acknowledgments tracker state
             for ((round, authority_idx), transaction_acknowledgments) in
                 pending_sub_dag.transaction_acknowledgments().into_iter()
             {
@@ -348,48 +328,88 @@ impl CommitObserver {
                     transaction_acknowledgments,
                 );
             }
-            // Put all the pending sub-dags into the commit solidifier to make sure that
-            // they are tracked there. The commit will be sent to IOTA here if all the
-            // transactions are available or will be kept in the buffer and sent later when
-            // the transactions become available.
-            let (solid_sub_dags, _missing) = self
-                .commit_solidifier
-                .try_get_solid_sub_dags(&[pending_sub_dag]);
-            // Only submit unprocessed commits to IOTA
-            for solid_sub_dag in solid_sub_dags {
-                if solid_sub_dag.commit_ref.index > last_processed_commit_index {
-                    // Commit index must be continuous during recovery.
-                    assert_eq!(
-                        solid_sub_dag.commit_ref.index,
-                        self.last_sent_commit_index + 1
-                    );
-                    info!(
-                        "Sending solid commit {} during recovery",
-                        solid_sub_dag.commit_ref.index
-                    );
-                    self.sender.send(solid_sub_dag).unwrap_or_else(|e| {
-                        panic!(
-                            "Failed to send commit during recovery, probably due to shutdown: {e:?}"
-                        )
-                    });
+        }
+    }
 
-                    self.last_sent_commit_index += 1;
-                } else {
-                    debug!(
-                        "Not sending solid commit as commit index {} <= \
-                    {last_processed_commit_index} last processed index",
-                        solid_sub_dag.commit_ref.index
-                    );
-                }
-            }
-
-            next_commit_index_to_recover += 1;
+    /// Resends commits that haven't been processed by the consumer.
+    /// Creates CommittedSubDag with empty headers (like fast sync).
+    fn resend_unprocessed_commits(
+        &mut self,
+        last_processed_commit_index: CommitIndex,
+        last_commit_index: CommitIndex,
+    ) {
+        if last_processed_commit_index >= last_commit_index {
+            info!("No unprocessed commits to resend");
+            return;
         }
 
+        let unprocessed_commits = self
+            .store
+            .scan_commits((last_processed_commit_index + 1..=last_commit_index).into())
+            .expect("Scanning commits should not fail");
+
         info!(
-            "Commit observer recovery completed, took {:?}",
-            now.elapsed()
+            "Resending {} unprocessed commits (indices {}..={})",
+            unprocessed_commits.len(),
+            last_processed_commit_index + 1,
+            last_commit_index
         );
+
+        let num_commits = unprocessed_commits.len();
+        for (index, commit) in unprocessed_commits.into_iter().enumerate() {
+            let commit_index = commit.index();
+            assert_eq!(commit_index, self.last_sent_commit_index + 1);
+
+            // Only the last commit carries scores for leader schedule consumers.
+            let reputation_scores = if index == num_commits - 1 {
+                self.leader_schedule
+                    .leader_swap_table
+                    .read()
+                    .reputation_scores_desc
+                    .clone()
+            } else {
+                vec![]
+            };
+
+            // Create CommittedSubDag with empty headers (like fast sync)
+            let committed_tx_refs = commit.committed_transactions();
+            let transaction_results = {
+                self.dag_state
+                    .read()
+                    .get_verified_transactions(&committed_tx_refs)
+            };
+            if let Some((missing_index, missing_ref)) = transaction_results
+                .iter()
+                .enumerate()
+                .find_map(|(idx, tx)| tx.is_none().then_some((idx, committed_tx_refs[idx])))
+            {
+                panic!(
+                    "Missing committed transaction during recovery for commit {commit_index}: {:?} (index {missing_index})",
+                    missing_ref
+                );
+            }
+            let transactions = transaction_results
+                .into_iter()
+                .map(|tx| tx.expect("Missing committed transaction during recovery"))
+                .collect();
+
+            let committed_subdag = CommittedSubDag::new(
+                commit.leader(),
+                vec![], // Empty headers like fast sync
+                commit.block_headers().to_vec(),
+                transactions,
+                commit.timestamp_ms(),
+                commit.reference(),
+                reputation_scores,
+            );
+
+            info!("Resending commit {} during recovery", commit_index);
+            self.sender.send(committed_subdag).unwrap_or_else(|e| {
+                panic!("Failed to send commit during recovery, probably due to shutdown: {e:?}")
+            });
+
+            self.last_sent_commit_index = commit_index;
+        }
     }
 
     /// Get all missing transactions from pending subdags along with authorities
@@ -772,7 +792,15 @@ mod tests {
         processed_subdag_index = expected_last_processed_index;
         while let Ok(subdag) = receiver.try_recv() {
             info!("Processed {subdag} on resubmission");
-            assert_eq!(subdag.base, created_commits[processed_subdag_index].base);
+            let expected_base = &created_commits[processed_subdag_index].base;
+            assert!(subdag.headers.is_empty());
+            assert_eq!(subdag.leader, expected_base.leader);
+            assert_eq!(subdag.commit_ref, expected_base.commit_ref);
+            assert_eq!(
+                subdag.committed_header_refs,
+                expected_base.committed_header_refs
+            );
+            assert_eq!(subdag.timestamp_ms, expected_base.timestamp_ms);
             assert_eq!(subdag.reputation_scores_desc, vec![]);
             processed_subdag_index = subdag.commit_ref.index as usize;
             if processed_subdag_index == expected_last_sent_index {
