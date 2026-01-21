@@ -5268,6 +5268,71 @@
             }
           },
           {
+            "description": "V2 Consensus Commit Prologue with additional state digest\n\n# BCS\n\nThe BCS serialized form for this type is defined by the following ABNF:\n\n```text consensus-commit-prologue-v2 = u64 u64 (option u64) u64 digest consensus-determined-version-assignments digest ```",
+            "type": "object",
+            "required": [
+              "additional_state_digest",
+              "commit_timestamp_ms",
+              "consensus_commit_digest",
+              "consensus_determined_version_assignments",
+              "epoch",
+              "kind",
+              "round"
+            ],
+            "properties": {
+              "additional_state_digest": {
+                "description": "Digest of any additional state computed by the consensus handler. Used to detect forking bugs as early as possible.",
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/Digest"
+                  }
+                ]
+              },
+              "commit_timestamp_ms": {
+                "description": "Unix timestamp from consensus commit.",
+                "type": "string",
+                "format": "u64"
+              },
+              "consensus_commit_digest": {
+                "description": "Digest of consensus output",
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/Digest"
+                  }
+                ]
+              },
+              "consensus_determined_version_assignments": {
+                "description": "Stores consensus handler determined shared object version assignments.",
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/ConsensusDeterminedVersionAssignments"
+                  }
+                ]
+              },
+              "epoch": {
+                "description": "Epoch of the commit prologue transaction",
+                "type": "string",
+                "format": "u64"
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "consensus_commit_prologue_v2"
+                ]
+              },
+              "round": {
+                "description": "Consensus round of the commit",
+                "type": "string",
+                "format": "u64"
+              },
+              "sub_dag_index": {
+                "description": "The sub DAG index of the consensus commit. This field will be populated if there are multiple consensus commits per round.",
+                "type": "string",
+                "format": "u64"
+              }
+            }
+          },
+          {
             "description": "Update the set of valid JWKs\n\n# BCS\n\nThe BCS serialized form for this type is defined by the following ABNF:\n\n```text authenticator-state-update = u64 ; epoch u64 ; round (vector active-jwk) u64 ; initial version of the authenticator object ```",
             "type": "object",
             "required": [
