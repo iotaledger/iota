@@ -30,7 +30,7 @@ use iota_types::{
     effects::{TransactionEffects, TransactionEffectsAPI},
     error::{IotaError, IotaResult},
     event::SystemEpochInfoEvent,
-    gas::GasCostSummary,
+    gas::{GasCostSummary, new_gas_cost_summary_from_txn_effects},
     iota_system_state::{
         IotaSystemState, IotaSystemStateTrait,
         epoch_start_iota_system_state::EpochStartSystemStateTrait,
@@ -1626,7 +1626,8 @@ impl CheckpointBuilder {
         let (previous_epoch, previous_gas_costs) = last_checkpoint
             .map(|c| (c.epoch, c.epoch_rolling_gas_cost_summary.clone()))
             .unwrap_or_default();
-        let current_gas_costs = GasCostSummary::new_from_txn_effects(cur_checkpoint_effects.iter());
+        let current_gas_costs =
+            new_gas_cost_summary_from_txn_effects(cur_checkpoint_effects.iter());
         if previous_epoch == self.epoch_store.epoch() {
             // sum only when we are within the same epoch
             GasCostSummary::new(

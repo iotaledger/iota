@@ -11,7 +11,7 @@ use crate::{
     committee::Committee,
     crypto::{AuthoritySignInfo, AuthoritySignature, IotaAuthoritySignature},
     effects::{TransactionEffects, TransactionEffectsAPI},
-    gas::GasCostSummary,
+    gas::{GasCostSummary, add_gas_cost_summary},
     messages_checkpoint::{
         CertifiedCheckpointSummary, CheckpointContents, CheckpointSummary,
         CheckpointVersionSpecificData, EndOfEpochData, FullCheckpointContents, VerifiedCheckpoint,
@@ -62,7 +62,10 @@ impl MockCheckpointBuilder {
         transaction: VerifiedTransaction,
         effects: TransactionEffects,
     ) {
-        self.epoch_rolling_gas_cost_summary += effects.gas_cost_summary();
+        add_gas_cost_summary(
+            &mut self.epoch_rolling_gas_cost_summary,
+            effects.gas_cost_summary(),
+        );
 
         self.transactions
             .push(VerifiedExecutionData::new(transaction, effects))
