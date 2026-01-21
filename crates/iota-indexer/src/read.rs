@@ -2374,13 +2374,16 @@ impl DataReader for IndexerReader {
 
         let mut res = Vec::new();
 
-        let next_cursor = if stored_objects.len() > limit {
+        let mut next_cursor = None;
+        if stored_objects.len() > limit {
             // Here the cursor is the last object id in the previous page
             stored_objects.pop().unwrap();
-            Some(stored_objects[limit - 1].get_object_ref()?.0)
-        } else {
-            None
-        };
+            next_cursor = Some(if let Some(last_object) = stored_objects.last() {
+                last_object.get_object_ref()?.0
+            } else {
+                ObjectID::ZERO
+            });
+        }
 
         for stored_object in stored_objects {
             let read = stored_object
