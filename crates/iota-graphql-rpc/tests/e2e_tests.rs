@@ -82,7 +82,7 @@ mod tests {
     async fn prep_executor_cluster() -> (ConnectionConfig, ExecutorCluster) {
         let rng = StdRng::from_seed([12; 32]);
         let data_ingestion_path = tempdir().unwrap().keep();
-        let mut sim = Simulacrum::new_with_rng(rng);
+        let sim = Simulacrum::new_with_rng(rng);
         sim.set_data_ingestion_path(data_ingestion_path.clone());
 
         sim.create_checkpoint();
@@ -152,7 +152,7 @@ mod tests {
     #[serial]
     async fn test_simple_client_simulator_cluster() {
         let rng = StdRng::from_seed([12; 32]);
-        let mut sim = Simulacrum::new_with_rng(rng);
+        let sim = Simulacrum::new_with_rng(rng);
         let data_ingestion_path = tempdir().unwrap().keep();
         sim.set_data_ingestion_path(data_ingestion_path.clone());
 
@@ -160,9 +160,7 @@ mod tests {
         sim.create_checkpoint();
 
         let genesis_checkpoint_digest1 = *sim
-            .store()
-            .get_checkpoint_by_sequence_number(0)
-            .unwrap()
+            .with_store(|store| store.get_checkpoint_by_sequence_number(0).cloned().unwrap())
             .digest();
 
         let chain_id_actual = format!("{}", ChainIdentifier::from(genesis_checkpoint_digest1));

@@ -68,7 +68,7 @@ pub async fn generate_ingestion(config: Config) -> Result<()> {
     } = config;
 
     // Simulacrum will generate `0.chk` as the genesis checkpoint.
-    let mut sim = Simulacrum::new();
+    let sim = Simulacrum::new();
     sim.set_data_ingestion_path(ingestion_dir.clone());
 
     let gas_price = sim.reference_gas_price();

@@ -16,7 +16,7 @@ use crate::{
     transaction::TransactionData,
 };
 
-/// Trait to define the interface for how the REST service interacts with a a
+/// Trait to define the interface for how the REST service interacts with a
 /// QuorumDriver or a simulated transaction executor.
 #[async_trait::async_trait]
 pub trait TransactionExecutor: Send + Sync {
