@@ -787,8 +787,7 @@ async fn test_lt_or_eq_caching() {
                 .unwrap()
                 .lock()
                 .version()
-                .unwrap()
-                .as_u64(),
+                .unwrap(),
             5
         );
 

@@ -1132,7 +1132,7 @@ async fn test_tto_valid_dependencies() {
                 // It's version should be bumped as well
                 assert!(obj_ref.1 > child.0 .1);
                 // The child should be the max version
-                assert_eq!(obj_ref.1.as_u64(), child.0 .1.as_u64() + 1);
+                assert_eq!(obj_ref.1, child.0 .1 + 1);
             }
             if obj_ref.0 == parent.0 .0 {
                 // owner of the parent stays the same
@@ -1140,7 +1140,7 @@ async fn test_tto_valid_dependencies() {
                 // parent version is also bumped
                 assert!(obj_ref.1 > parent.0 .1);
                 // The child should be the max version
-                assert_eq!(obj_ref.1.as_u64(), child.0 .1.as_u64() + 1);
+                assert_eq!(obj_ref.1, child.0 .1 + 1);
             }
         }
     }
@@ -1235,7 +1235,7 @@ async fn test_tto_valid_dependencies_delete_on_receive() {
                 assert_eq!(owner, &parent.1);
                 // parent version is also bumped
                 assert!(obj_ref.1 > parent.0 .1);
-                assert_eq!(obj_ref.1.as_u64(), child.0 .1.as_u64() + 1);
+                assert_eq!(obj_ref.1, child.0 .1 + 1);
             }
         }
     }
@@ -1296,7 +1296,7 @@ async fn test_tto_dependencies_dont_receive() {
 
         // ensure child version is greater than parent version, otherwise the check afterwards won't be
         // checking the correct thing.
-        assert!(parent.0 .1.as_u64() < child.0 .1.as_u64());
+        assert!(parent.0 .1 < child.0 .1);
 
         // Now dont receive the sent object but include it in the arguments for the PTB.
         let effects = runner
@@ -1332,7 +1332,7 @@ async fn test_tto_dependencies_dont_receive() {
                 // parent version is also bumped
                 assert!(obj_ref.1 > parent.0 .1);
                 // Parent version is the largest in this transaction
-                assert_eq!(obj_ref.1.as_u64(), child.0 .1.as_u64() + 1);
+                assert_eq!(obj_ref.1, child.0 .1 + 1);
             }
         }
     }
@@ -1391,7 +1391,7 @@ async fn test_tto_dependencies_dont_receive_but_abort() {
             .unwrap();
         let transfer_digest = effects.transaction_digest();
 
-        assert!(parent.0 .1.as_u64() < child.0 .1.as_u64());
+        assert!(parent.0 .1 < child.0 .1);
 
         let effects = runner
             .run_with_gas_object(
@@ -1427,7 +1427,7 @@ async fn test_tto_dependencies_dont_receive_but_abort() {
                 assert!(obj_ref.1 > parent.0 .1);
                 // child version is the largest in this transaction, and even though it's not received
                 // it still contributes to the lamport version of the transaction.
-                assert_eq!(obj_ref.1.as_u64(), child.0 .1.as_u64() + 1);
+                assert_eq!(obj_ref.1, child.0 .1 + 1);
             }
         }
     }
@@ -1486,7 +1486,7 @@ async fn test_tto_dependencies_receive_and_abort() {
             .unwrap();
         let transfer_digest = effects.transaction_digest();
 
-        assert!(parent.0 .1.as_u64() < child.0 .1.as_u64());
+        assert!(parent.0 .1 < child.0 .1);
 
         let effects = runner
             .run_with_gas_object(
@@ -1519,9 +1519,9 @@ async fn test_tto_dependencies_receive_and_abort() {
                 // owner of the parent stays the same
                 assert_eq!(owner, &parent.1);
                 // parent version is also bumped
-                assert!(obj_ref.1.as_u64() > parent.0 .1.as_u64());
+                assert!(obj_ref.1 > parent.0 .1);
                 // Child version is the largest in this transaction even though it's not received
-                assert_eq!(obj_ref.1.as_u64(), child.0 .1.as_u64() + 1);
+                assert_eq!(obj_ref.1, child.0 .1 + 1);
             }
         }
     }
@@ -1580,7 +1580,7 @@ async fn test_tto_dependencies_receive_and_type_mismatch() {
             .unwrap();
         let transfer_digest = effects.transaction_digest();
 
-        assert!(parent.0 .1.as_u64() < child.0 .1.as_u64());
+        assert!(parent.0 .1 < child.0 .1);
 
         let effects = runner
             .run_with_gas_object(
@@ -1622,7 +1622,7 @@ async fn test_tto_dependencies_receive_and_type_mismatch() {
                 // parent version is also bumped
                 assert!(obj_ref.1 > parent.0 .1);
                 // Child version is the largest in this transaction even though it's not received
-                assert_eq!(obj_ref.1.as_u64(), child.0 .1.as_u64() + 1);
+                assert_eq!(obj_ref.1, child.0 .1 + 1);
             }
         }
     }

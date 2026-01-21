@@ -6630,7 +6630,7 @@ async fn test_consensus_handler_congestion_control_transaction_cancellation() {
         .unwrap();
 
     // The lamport version should be the lamport version of the owned objects.
-    assert_eq!(input_objects.lamport_timestamp(&[]), 3.into());
+    assert_eq!(input_objects.lamport_timestamp(&[]), 3);
 
     // Check SharedInput data.
     let shared_inputs = input_objects.filter_shared_objects();

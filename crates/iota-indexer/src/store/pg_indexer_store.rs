@@ -2525,7 +2525,7 @@ fn retain_latest_indexed_objects(
 
             if let Some(existing) = deletions.remove(&id) {
                 assert!(
-                    existing.object_version < version.as_u64(),
+                    existing.object_version < version,
                     "mutation version ({version:?}) should be greater than existing deletion version ({:?}) for object {id:?}",
                     existing.object_version
                 );
@@ -2546,7 +2546,7 @@ fn retain_latest_indexed_objects(
 
             if let Some(existing) = mutations.remove(&id) {
                 assert!(
-                    existing.object.version().as_u64() < version,
+                    existing.object.version() < version,
                     "deletion version ({version:?}) should be greater than existing mutation version ({:?}) for object {id:?}",
                     existing.object.version(),
                 );

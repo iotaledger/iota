@@ -546,7 +546,7 @@ impl Display for Owner {
             Self::Shared {
                 initial_shared_version,
             } => {
-                write!(f, "Shared( {} )", initial_shared_version.as_u64())
+                write!(f, "Shared( {initial_shared_version} )")
             }
         }
     }

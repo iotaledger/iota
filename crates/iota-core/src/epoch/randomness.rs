@@ -577,8 +577,7 @@ impl RandomnessManager {
             && round
                 > epoch_store
                     .protocol_config()
-                    .random_beacon_dkg_timeout_round()
-                    .into()
+                    .random_beacon_dkg_timeout_round() as u64
         {
             error!(
                 "random beacon: DKG timed out. Randomness disabled for this epoch. All randomness-using transactions will fail."

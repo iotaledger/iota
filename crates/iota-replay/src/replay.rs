@@ -1293,7 +1293,7 @@ impl LocalExec {
                 .iter()
                 .filter_map(|(q, _)| {
                     let prev_ver = q.1 - 1;
-                    if prev_ver.as_u64() == 0 {
+                    if prev_ver == 0 {
                         None
                     } else {
                         Some((q.0, prev_ver))
