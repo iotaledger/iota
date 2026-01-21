@@ -188,6 +188,8 @@ prometheus-closure-metric:
   - "crates/prometheus-closure-metric/**"
 simulacrum:
   - "crates/simulacrum/**"
+simulacrum-server:
+  - "crates/simulacrum-server/**"
 telemetry-subscribers:
   - "crates/telemetry-subscribers/**"
 test-cluster:
