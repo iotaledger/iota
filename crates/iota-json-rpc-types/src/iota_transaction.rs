@@ -448,9 +448,6 @@ pub enum IotaTransactionBlockKind {
     /// A system transaction marking the start of a series of transactions
     /// scheduled as part of a checkpoint
     ConsensusCommitPrologueV1(IotaConsensusCommitPrologueV1),
-    /// A system transaction marking the start of a series of transactions
-    /// scheduled as part of a checkpoint (V2 with additional state digest)
-    ConsensusCommitPrologueV2(IotaConsensusCommitPrologueV2),
     /// A series of transactions where the results of one transaction can be
     /// used in future transactions
     ProgrammableTransaction(IotaProgrammableTransactionBlock),
@@ -460,6 +457,9 @@ pub enum IotaTransactionBlockKind {
     RandomnessStateUpdate(IotaRandomnessStateUpdate),
     /// The transaction which occurs only at the end of the epoch
     EndOfEpochTransaction(IotaEndOfEpochTransaction),
+    /// A system transaction marking the start of a series of transactions
+    /// scheduled as part of a checkpoint (V2 with additional state digest)
+    ConsensusCommitPrologueV2(IotaConsensusCommitPrologueV2),
     // .. more transaction types go here
 }
 

@@ -1772,7 +1772,7 @@ impl CheckpointBuilder {
             .iter()
             .filter_map(|tx| {
                 tx.as_ref()
-                    .filter(|tx| tx.transaction_data().kind().is_consensus_commit_prologue())
+                    .filter(|tx| tx.transaction_data().is_consensus_commit_prologue())
             })
             .collect::<Vec<_>>();
 
@@ -1796,7 +1796,7 @@ impl CheckpointBuilder {
             // should be no consensus commit prologue transaction in the
             // checkpoint.
             for tx in txs.iter().flatten() {
-                assert!(!tx.transaction_data().kind().is_consensus_commit_prologue());
+                assert!(!tx.transaction_data().is_consensus_commit_prologue());
             }
         } else {
             // If there is one consensus commit prologue, it must be the first one in the
@@ -1813,7 +1813,7 @@ impl CheckpointBuilder {
             assert_eq!(ccps[0].digest(), txs[0].as_ref().unwrap().digest());
 
             for tx in txs.iter().skip(1).flatten() {
-                assert!(!tx.transaction_data().kind().is_consensus_commit_prologue());
+                assert!(!tx.transaction_data().is_consensus_commit_prologue());
             }
         }
     }

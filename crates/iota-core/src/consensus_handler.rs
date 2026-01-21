@@ -16,13 +16,17 @@ use consensus_core::{CommitConsumerMonitor, CommitIndex};
 use fastcrypto::hash::HashFunction;
 use iota_macros::{fail_point, fail_point_if};
 use iota_metrics::{monitored_mpsc::UnboundedReceiver, monitored_scope, spawn_monitored_task};
+use iota_protocol_config::ProtocolConfig;
 use iota_types::{
     authenticator_state::ActiveJwk,
     base_types::{AuthorityName, EpochId, ObjectID, SequenceNumber, TransactionDigest},
     digests::{AdditionalConsensusStateDigest, ConsensusCommitDigest},
     executable_transaction::{TrustedExecutableTransaction, VerifiedExecutableTransaction},
     iota_system_state::epoch_start_iota_system_state::EpochStartSystemStateTrait,
-    messages_consensus::{ConsensusTransaction, ConsensusTransactionKey, ConsensusTransactionKind},
+    messages_consensus::{
+        ConsensusDeterminedVersionAssignments, ConsensusTransaction, ConsensusTransactionKey,
+        ConsensusTransactionKind,
+    },
     transaction::{SenderSignedData, VerifiedTransaction},
 };
 use lru::LruCache;
@@ -150,8 +154,6 @@ mod additional_consensus_state {
     }
 }
 pub(crate) use additional_consensus_state::AdditionalConsensusState;
-use iota_protocol_config::ProtocolConfig;
-use iota_types::messages_consensus::ConsensusDeterminedVersionAssignments;
 
 pub struct ConsensusHandler<C> {
     /// A store created for each epoch. ConsensusHandler is recreated each
