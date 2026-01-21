@@ -19,9 +19,10 @@ use tokio::sync::{oneshot, watch};
 use tracing::{info, warn};
 
 use crate::{
-    CommittedSubDag, VerifiedBlockHeader,
+    VerifiedBlockHeader,
     block_header::{BlockRef, Round, VerifiedBlock, VerifiedOwnShard, VerifiedTransactions},
-    commit::{CertifiedCommits, TrustedCommit},
+    commit::CertifiedCommits,
+    commit_syncer::fast::FastSyncOutput,
     context::Context,
     core::{Core, ReasonToCreateBlock},
     core_thread::CoreError::Shutdown,
@@ -82,12 +83,7 @@ enum CoreThreadCommand {
     GetMissingTransactionData(
         oneshot::Sender<BTreeMap<GenericTransactionRef, BTreeSet<AuthorityIndex>>>,
     ),
-    AddSubdagFromFastSync(
-        Vec<TrustedCommit>,
-        Vec<CommittedSubDag>,
-        Vec<VerifiedBlockHeader>, // voting block headers
-        oneshot::Sender<()>,
-    ),
+    AddSubdagFromFastSync(FastSyncOutput, oneshot::Sender<()>),
     /// Reinitialize consensus components after fast sync completes.
     /// Stores the block headers on disk (for the cached_rounds window)
     /// and reinitializes DagState, BlockManager, CommitObserver, etc.
@@ -157,12 +153,7 @@ pub trait CoreThreadDispatcher: Sync + Send + 'static {
         CoreError,
     >;
 
-    async fn add_subdags_from_fast_sync(
-        &self,
-        commits: Vec<TrustedCommit>,
-        subdags: Vec<CommittedSubDag>,
-        voting_block_headers: Vec<VerifiedBlockHeader>,
-    ) -> Result<(), CoreError>;
+    async fn add_subdags_from_fast_sync(&self, output: FastSyncOutput) -> Result<(), CoreError>;
 
     /// Reinitialize consensus components after fast sync completes.
     /// Stores block headers and reinitializes DagState, BlockManager,
@@ -254,11 +245,11 @@ impl CoreThread {
                     }
 
                     match command {
-                        CoreThreadCommand::AddSubdagFromFastSync(commits, subdags, voting_block_headers, sender) => {
-                            info!("Adding subdags from fast sync, entering fast sync mode; {} index_start and {} index_end", subdags.first().map(|sd| sd.base.leader.round).unwrap_or(0), subdags.last().map(|sd| sd.base.leader.round).unwrap_or(0));
+                        CoreThreadCommand::AddSubdagFromFastSync(output, sender) => {
+                            info!("Adding subdags from fast sync, entering fast sync mode; {} index_start and {} index_end", output.committed_subdags.first().map(|sd| sd.base.leader.round).unwrap_or(0), output.committed_subdags.last().map(|sd| sd.base.leader.round).unwrap_or(0));
                             fast_sync_ongoing = true;
                             let _scope = monitored_scope("CoreThread::loop::add_subdags_from_fast_sync");
-                            self.core.handle_committed_sub_dags_from_fast_sync(commits, subdags, voting_block_headers)?;
+                            self.core.handle_committed_sub_dags_from_fast_sync(output)?;
                             sender.send(()).ok();
                         }
                         CoreThreadCommand::AddBlocks(blocks, sender) => {
@@ -485,20 +476,10 @@ impl CoreThreadDispatcher for ChannelCoreThreadDispatcher {
         Ok(receiver.await.map_err(|e| Shutdown(e.to_string()))?)
     }
 
-    async fn add_subdags_from_fast_sync(
-        &self,
-        commits: Vec<TrustedCommit>,
-        subdags: Vec<CommittedSubDag>,
-        voting_block_headers: Vec<VerifiedBlockHeader>,
-    ) -> Result<(), CoreError> {
+    async fn add_subdags_from_fast_sync(&self, output: FastSyncOutput) -> Result<(), CoreError> {
         let (sender, receiver) = oneshot::channel();
-        self.send(CoreThreadCommand::AddSubdagFromFastSync(
-            commits,
-            subdags,
-            voting_block_headers,
-            sender,
-        ))
-        .await;
+        self.send(CoreThreadCommand::AddSubdagFromFastSync(output, sender))
+            .await;
         Ok(receiver.await.map_err(|e| Shutdown(e.to_string()))?)
     }
 
@@ -689,9 +670,7 @@ pub(crate) mod tests {
 
         async fn add_subdags_from_fast_sync(
             &self,
-            _commits: Vec<TrustedCommit>,
-            _subdags: Vec<CommittedSubDag>,
-            _voting_block_headers: Vec<VerifiedBlockHeader>,
+            _output: FastSyncOutput,
         ) -> Result<(), CoreError> {
             unimplemented!()
         }
