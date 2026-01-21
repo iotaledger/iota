@@ -219,10 +219,7 @@ impl<R: ReadApiServer> IndexerApiServer for IndexerApi<R> {
             // the next page
             let has_next_page = objects.len() > limit;
             objects.truncate(limit);
-            let next_cursor = objects
-                .last()
-                .cloned()
-                .map_or(cursor, |o_info| Some(o_info.object_id));
+            let next_cursor = (has_next_page).then_some(objects.last().unwrap().object_id);
 
             let data = match options.is_not_in_object_info() {
                 true => {

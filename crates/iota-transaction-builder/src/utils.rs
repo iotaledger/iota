@@ -74,7 +74,7 @@ impl TransactionBuilder {
                         return Ok(obj.object_ref());
                     }
                 }
-                if page.next_cursor.is_none() {
+                if !page.has_next_page {
                     break;
                 }
                 cursor = page.next_cursor;
