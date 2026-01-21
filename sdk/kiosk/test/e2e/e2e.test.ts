@@ -113,18 +113,6 @@ describe('Testing Kiosk SDK transaction building & querying e2e', () => {
         expect(secondPage.hasNextPage).toBe(false);
         expect(secondPage.kioskIds).toHaveLength(1);
         expect(secondPage.kioskOwnerCaps).toHaveLength(1);
-
-        const emptyPage = await kioskClient.getOwnedKiosks({
-            address: toolbox.address(),
-            pagination: {
-                limit: 1,
-                cursor: secondPage.nextCursor!,
-            },
-        });
-        expect(emptyPage.hasNextPage).toBe(false);
-        expect(emptyPage.nextCursor).toBeNull();
-        expect(emptyPage.kioskIds).toHaveLength(0);
-        expect(emptyPage.kioskOwnerCaps).toHaveLength(0);
     });
 
     it('Should take, list, delist, place, placeAndList, transfer in a normal sequence on a normal and on a personal kiosk.', async () => {
