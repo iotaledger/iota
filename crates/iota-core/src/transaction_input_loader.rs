@@ -118,7 +118,10 @@ impl TransactionInputLoader {
             .collect::<Vec<_>>()
             .into();
 
-        self.validate_receiving_objects_not_in_account_objects(&input_results, &receiving_results)?;
+        self.validate_receiving_objects_not_in_account_objects_for_signing(
+            &input_results,
+            &receiving_results,
+        )?;
 
         Ok((input_results, receiving_results))
     }
@@ -298,7 +301,7 @@ impl TransactionInputLoader {
 
     /// Tries to find receiving objects owned by input objects that have a valid
     /// AuthenticatorFunctionRefV1 dynamic field (i.e., are account objects).
-    fn validate_receiving_objects_not_in_account_objects(
+    fn validate_receiving_objects_not_in_account_objects_for_signing(
         &self,
         input_results: &InputObjects,
         receiving_results: &ReceivingObjects,
