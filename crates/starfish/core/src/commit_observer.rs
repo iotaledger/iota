@@ -275,72 +275,130 @@ impl CommitObserver {
             return;
         }
 
-        self.commit_solidifier
-            .set_last_committed_index(last_commit_index);
+        // Phase 1: Resend all possible committed sub-dags that haven't been processed
+        let sent_commits =
+            self.resend_unprocessed_commits(last_processed_commit_index, last_commit_index);
 
-        // Phase 1: Recover linearizer state (only gc_depth*2 commits needed)
-        self.recover_linearizer_state(last_commit_index);
-
-        // Phase 2: Resend unprocessed commits
-        self.resend_unprocessed_commits(last_processed_commit_index, last_commit_index);
+        // Phase 2: Recover linearizer and solidifier state
+        self.recover_linearizer_and_solidifier_state(last_commit_index);
 
         info!(
-            "Commit observer recovery completed, took {:?}",
+            "Commit observer recovery completed, resent {} commits, took {:?}",
+            sent_commits.len(),
             now.elapsed()
         );
     }
 
-    /// Recovers linearizer trackers from recent commits.
-    /// Only processes commits in the gc_depth*2 window.
-    fn recover_linearizer_state(&mut self, last_commit_index: CommitIndex) {
+    /// Recovers linearizer trackers from recent commits and seeds the
+    /// commit solidifier with any unprocessed commits.
+    fn recover_linearizer_and_solidifier_state(&mut self, last_commit_index: CommitIndex) {
         let linearizer_recovery_start = last_commit_index
             .saturating_sub(self.context.protocol_config.gc_depth() * 2)
             .max(1);
+        let solidifier_recovery_start = self.last_sent_commit_index.saturating_add(1).max(1);
+        let recovery_start = linearizer_recovery_start.min(solidifier_recovery_start);
 
         let recovery_commits = self
             .store
-            .scan_commits((linearizer_recovery_start..=last_commit_index).into())
+            .scan_commits((recovery_start..=last_commit_index).into())
             .expect("Scanning commits should not fail");
 
         info!(
-            "Recovering linearizer state from {} commits (indices {}..={})",
+            "Recovering linearizer/solidifier state from {} commits (indices {}..={})",
             recovery_commits.len(),
-            linearizer_recovery_start,
+            recovery_start,
             last_commit_index
         );
 
+        self.commit_solidifier
+            .set_last_committed_index(self.last_sent_commit_index);
+
+        let mut pending_for_solidifier = Vec::new();
         for commit in recovery_commits {
             // Recovery only needs headers/acks, so reputation scores are irrelevant here.
+            let commit_index = commit.index();
             let pending_sub_dag =
                 load_pending_subdag_from_store(self.store.as_ref(), commit, vec![]);
 
-            // Rebuild traversed headers tracker
-            self.linearizer
-                .record_traversed_headers(pending_sub_dag.headers.iter());
+            if commit_index >= linearizer_recovery_start {
+                // Rebuild traversed headers tracker
+                self.linearizer
+                    .record_traversed_headers(pending_sub_dag.headers.iter());
 
-            // Recover transaction acknowledgments tracker state
-            for ((round, authority_idx), transaction_acknowledgments) in
-                pending_sub_dag.transaction_acknowledgments().into_iter()
-            {
-                self.linearizer.add_committed_transaction_acks(
-                    round,
-                    authority_idx,
-                    transaction_acknowledgments,
-                );
+                // Recover transaction acknowledgments tracker state
+                for ((round, authority_idx), transaction_acknowledgments) in
+                    pending_sub_dag.transaction_acknowledgments().into_iter()
+                {
+                    self.linearizer.add_committed_transaction_acks(
+                        round,
+                        authority_idx,
+                        transaction_acknowledgments,
+                    );
+                }
+            }
+
+            if commit_index >= solidifier_recovery_start {
+                pending_for_solidifier.push(pending_sub_dag);
             }
         }
+
+        if !pending_for_solidifier.is_empty() {
+            let (solid_sub_dags, _missing) = self
+                .commit_solidifier
+                .try_get_solid_sub_dags(&pending_for_solidifier);
+            let _sent_commits = self.send_recovered_sub_dags(
+                solid_sub_dags,
+                CommittedSubDagSource::Recover,
+                "Sending solid commit during recovery after resend",
+            );
+        }
+    }
+
+    fn send_recovered_sub_dags(
+        &mut self,
+        committed_subdags: Vec<CommittedSubDag>,
+        source: CommittedSubDagSource,
+        log_prefix: &'static str,
+    ) -> Vec<CommitIndex> {
+        if committed_subdags.is_empty() {
+            return Vec::new();
+        }
+
+        let mut sent_commit_indices = Vec::with_capacity(committed_subdags.len());
+        for committed_subdag in committed_subdags.iter() {
+            assert_eq!(
+                committed_subdag.commit_ref.index,
+                self.last_sent_commit_index + 1
+            );
+            info!(
+                "{log_prefix} (index: {})",
+                committed_subdag.commit_ref.index
+            );
+            self.sender
+                .send(committed_subdag.clone())
+                .unwrap_or_else(|e| {
+                    panic!("Failed to send commit during recovery, probably due to shutdown: {e:?}")
+                });
+            self.last_sent_commit_index = committed_subdag.commit_ref.index;
+            sent_commit_indices.push(committed_subdag.commit_ref.index);
+        }
+
+        self.report_metrics(&[], &committed_subdags, source);
+
+        sent_commit_indices
     }
 
     /// Resends commits that haven't been processed by the consumer.
     /// Creates CommittedSubDag with empty headers (like fast sync).
+    /// Returns the commit indices that were resent.
     fn resend_unprocessed_commits(
         &mut self,
         last_processed_commit_index: CommitIndex,
         last_commit_index: CommitIndex,
-    ) {
+    ) -> Vec<CommitIndex> {
         if last_processed_commit_index >= last_commit_index {
             info!("No unprocessed commits to resend");
-            return;
+            return Vec::new();
         }
 
         let unprocessed_commits = self
@@ -356,9 +414,12 @@ impl CommitObserver {
         );
 
         let num_commits = unprocessed_commits.len();
+        let mut committed_subdags = Vec::new();
+        let mut expected_commit_index = self.last_sent_commit_index + 1;
         for (index, commit) in unprocessed_commits.into_iter().enumerate() {
             let commit_index = commit.index();
-            assert_eq!(commit_index, self.last_sent_commit_index + 1);
+            assert_eq!(commit_index, expected_commit_index);
+            expected_commit_index += 1;
 
             // Only the last commit carries scores for leader schedule consumers.
             let reputation_scores = if index == num_commits - 1 {
@@ -383,10 +444,11 @@ impl CommitObserver {
                 .enumerate()
                 .find_map(|(idx, tx)| tx.is_none().then_some((idx, committed_tx_refs[idx])))
             {
-                panic!(
-                    "Missing committed transaction during recovery for commit {commit_index}: {:?} (index {missing_index})",
-                    missing_ref
+                info!(
+                    "Stopping resend at commit {} due to missing transaction {:?} (index {})",
+                    commit_index, missing_ref, missing_index
                 );
+                break;
             }
             let transactions = transaction_results
                 .into_iter()
@@ -395,7 +457,7 @@ impl CommitObserver {
 
             let committed_subdag = CommittedSubDag::new(
                 commit.leader(),
-                vec![], // Empty headers like fast sync
+                vec![], // Empty headers is fine for resending during recovery
                 commit.block_headers().to_vec(),
                 transactions,
                 commit.timestamp_ms(),
@@ -403,13 +465,14 @@ impl CommitObserver {
                 reputation_scores,
             );
 
-            info!("Resending commit {} during recovery", commit_index);
-            self.sender.send(committed_subdag).unwrap_or_else(|e| {
-                panic!("Failed to send commit during recovery, probably due to shutdown: {e:?}")
-            });
-
-            self.last_sent_commit_index = commit_index;
+            committed_subdags.push(committed_subdag);
         }
+
+        self.send_recovered_sub_dags(
+            committed_subdags,
+            CommittedSubDagSource::Recover,
+            "Resending commit during recovery",
+        )
     }
 
     /// Get all missing transactions from pending subdags along with authorities
@@ -543,8 +606,11 @@ mod tests {
 
     use super::*;
     use crate::{
-        block_header::BlockRef, context::Context, dag_state::DagState,
-        storage::mem_store::MemStore, test_dag_builder::DagBuilder,
+        block_header::BlockRef,
+        context::Context,
+        dag_state::{DagState, TransactionSource},
+        storage::mem_store::MemStore,
+        test_dag_builder::DagBuilder,
     };
 
     #[tokio::test]
@@ -894,6 +960,109 @@ mod tests {
         // No commits should be resubmitted as consensus store's last commit index
         // is equal to last processed index by consumer
         verify_channel_empty(&mut receiver);
+    }
+
+    #[tokio::test]
+    async fn test_recovery_resends_available_commits_and_tracks_missing_transactions() {
+        telemetry_subscribers::init_for_testing();
+        let num_authorities = 4;
+        let context = Arc::new(Context::new_for_test(num_authorities).0);
+        let mem_store = Arc::new(MemStore::new(context.clone()));
+        let dag_state = Arc::new(RwLock::new(DagState::new(
+            context.clone(),
+            mem_store.clone(),
+        )));
+        let (sender, mut receiver) = unbounded_channel("consensus_output");
+
+        let leader_schedule = Arc::new(LeaderSchedule::from_store(
+            context.clone(),
+            dag_state.clone(),
+        ));
+
+        let num_rounds = 6;
+        let mut builder = DagBuilder::new(context.clone());
+        builder.layers(1..=num_rounds).build();
+
+        {
+            let mut dag_state_guard = dag_state.write();
+            dag_state_guard.accept_block_headers(builder.block_headers.values().cloned().collect());
+            for (block_ref, transactions) in builder.transactions.iter() {
+                if block_ref.round <= 3 {
+                    dag_state_guard.add_transactions(transactions.clone(), TransactionSource::Test);
+                }
+            }
+        }
+
+        let mut observer = CommitObserver::new(
+            context.clone(),
+            CommitConsumer::new(sender.clone(), 0),
+            dag_state.clone(),
+            mem_store.clone(),
+            leader_schedule.clone(),
+        );
+
+        let leaders = builder
+            .leader_blocks(1..=num_rounds)
+            .into_iter()
+            .map(Option::unwrap)
+            .collect::<Vec<_>>();
+
+        let _ = observer
+            .handle_committed_leaders(leaders, CommittedSubDagSource::Consensus)
+            .unwrap();
+
+        while let Ok(_subdag) = receiver.try_recv() {}
+
+        let last_commit = mem_store.read_last_commit().unwrap().unwrap();
+        let last_commit_index = last_commit.index();
+        let commits = mem_store
+            .scan_commits((1..=last_commit_index).into())
+            .unwrap();
+
+        let mut first_missing_index = None;
+        let mut expected_missing_refs = Vec::new();
+        {
+            let dag_state_guard = dag_state.read();
+            for commit in &commits {
+                let committed_refs = commit.committed_transactions();
+                let tx_results = dag_state_guard.get_verified_transactions(&committed_refs);
+                let missing_refs = committed_refs
+                    .into_iter()
+                    .zip(tx_results.iter())
+                    .filter_map(|(tx_ref, tx)| tx.is_none().then_some(tx_ref))
+                    .collect::<Vec<_>>();
+                if !missing_refs.is_empty() {
+                    first_missing_index = Some(commit.index());
+                    expected_missing_refs = missing_refs;
+                    break;
+                }
+            }
+        }
+
+        let first_missing_index =
+            first_missing_index.expect("Expected at least one commit with missing transactions");
+        assert!(first_missing_index > 1);
+
+        let observer = CommitObserver::new(
+            context.clone(),
+            CommitConsumer::new(sender, 0),
+            dag_state.clone(),
+            mem_store.clone(),
+            leader_schedule,
+        );
+
+        let mut expected_index = 1u32;
+        while let Ok(subdag) = receiver.try_recv() {
+            assert!(subdag.headers.is_empty());
+            assert_eq!(subdag.commit_ref.index, expected_index);
+            expected_index += 1;
+        }
+        assert_eq!(expected_index - 1, first_missing_index - 1);
+
+        let missing = observer.get_missing_transaction_data();
+        for missing_ref in expected_missing_refs {
+            assert!(missing.contains_key(&missing_ref));
+        }
     }
 
     /// After receiving all expected subdags, ensure channel is empty
