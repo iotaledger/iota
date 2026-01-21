@@ -784,7 +784,7 @@ fn build_upgraded_type_origin_table(
     if !existing_table.is_empty() {
         Err(ExecutionError::from_kind(
             ExecutionErrorKind::PackageUpgradeError {
-                upgrade_error: PackageUpgradeError::IncompatibleUpgrade,
+                kind: PackageUpgradeError::IncompatibleUpgrade,
             },
         ))
     } else {

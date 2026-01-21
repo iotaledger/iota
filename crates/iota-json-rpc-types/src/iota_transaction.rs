@@ -1471,6 +1471,7 @@ impl From<ExecutionStatus> for IotaExecutionStatus {
             } => Self::Failure {
                 error: format!("{error:?} in command {idx}"),
             },
+            _ => unimplemented!("a new enum variant was added and needs to be handled"),
         }
     }
 }

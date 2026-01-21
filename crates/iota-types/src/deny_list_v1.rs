@@ -205,7 +205,8 @@ fn check_new_regulated_coin_owners(
             if check_address_denied_by_config(&deny_list, owner, object_store, Some(cur_epoch)) {
                 return Err(ExecutionError::new(
                     ExecutionErrorKind::AddressDeniedForCoin {
-                        address: owner,
+                        // TODO
+                        address: owner.into(),
                         coin_type,
                     },
                     None,

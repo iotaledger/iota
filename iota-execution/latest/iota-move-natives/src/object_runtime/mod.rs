@@ -794,7 +794,8 @@ fn check_circular_ownership(
                 loop {
                     if cur == id {
                         return Err(ExecutionError::from_kind(
-                            ExecutionErrorKind::CircularObjectOwnership { object: cur },
+                            // TODO
+                            ExecutionErrorKind::CircularObjectOwnership { object: cur.into() },
                         ));
                     }
                     if let Some(parent) = object_owner_map.get(&cur) {
