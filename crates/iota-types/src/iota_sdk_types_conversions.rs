@@ -37,11 +37,12 @@ use iota_sdk_types::{
     transaction::{
         ActiveJwk, Argument, AuthenticatorStateExpire, AuthenticatorStateUpdateV1,
         CancelledTransaction, ChangeEpoch, ChangeEpochV2, ChangeEpochV3, Command,
-        ConsensusCommitPrologueV1, ConsensusDeterminedVersionAssignments,
-        EndOfEpochTransactionKind, GasPayment, GenesisTransaction, Input, MakeMoveVector,
-        MergeCoins, MoveCall, ProgrammableTransaction, Publish, RandomnessStateUpdate,
-        SignedTransaction, SplitCoins, SystemPackage, Transaction, TransactionExpiration,
-        TransactionKind, TransactionV1, TransferObjects, Upgrade, VersionAssignment,
+        ConsensusCommitPrologueV1, ConsensusCommitPrologueV2,
+        ConsensusDeterminedVersionAssignments, EndOfEpochTransactionKind, GasPayment,
+        GenesisTransaction, Input, MakeMoveVector, MergeCoins, MoveCall, ProgrammableTransaction,
+        Publish, RandomnessStateUpdate, SignedTransaction, SplitCoins, SystemPackage, Transaction,
+        TransactionExpiration, TransactionKind, TransactionV1, TransferObjects, Upgrade,
+        VersionAssignment,
     },
     type_tag::{Identifier, StructTag, TypeParseError, TypeTag},
     validator::{ValidatorAggregatedSignature, ValidatorCommittee, ValidatorCommitteeMember},
@@ -501,7 +502,7 @@ impl TryFrom<crate::transaction::TransactionKind> for TransactionKind {
                     convert_consensus_determined_version_assignments(
                         consensus_commit_prologue_v2.consensus_determined_version_assignments,
                     );
-                TransactionKind::ConsensusCommitPrologueV1(ConsensusCommitPrologueV1 {
+                TransactionKind::ConsensusCommitPrologueV2(ConsensusCommitPrologueV2 {
                     epoch: consensus_commit_prologue_v2.epoch,
                     round: consensus_commit_prologue_v2.round,
                     sub_dag_index: consensus_commit_prologue_v2.sub_dag_index,
@@ -510,6 +511,9 @@ impl TryFrom<crate::transaction::TransactionKind> for TransactionKind {
                         .consensus_commit_digest
                         .into(),
                     consensus_determined_version_assignments,
+                    additional_state_digest: consensus_commit_prologue_v2
+                        .additional_state_digest
+                        .into(),
                 })
             }
             InternalTxnKind::AuthenticatorStateUpdateV1(authenticator_state_update_v1) => {
@@ -1167,6 +1171,7 @@ impl_convert_digest!(TransactionEventsDigest);
 impl_convert_digest!(CheckpointContentsDigest);
 impl_convert_digest!(ConsensusCommitDigest);
 impl_convert_digest!(EffectsAuxDataDigest);
+impl_convert_digest!(AdditionalConsensusStateDigest);
 
 impl From<crate::execution_status::ExecutionStatus> for ExecutionStatus {
     fn from(value: crate::execution_status::ExecutionStatus) -> Self {

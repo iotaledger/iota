@@ -1053,6 +1053,14 @@ impl AdditionalConsensusStateDigest {
     pub const fn new(digest: [u8; 32]) -> Self {
         Self(Digest::new(digest))
     }
+
+    pub const fn inner(&self) -> &[u8; 32] {
+        self.0.inner()
+    }
+
+    pub const fn into_inner(self) -> [u8; 32] {
+        self.0.into_inner()
+    }
 }
 
 impl fmt::Display for AdditionalConsensusStateDigest {
@@ -1066,6 +1074,18 @@ impl fmt::Debug for AdditionalConsensusStateDigest {
         f.debug_tuple("AdditionalConsensusStateDigest")
             .field(&self.0)
             .finish()
+    }
+}
+
+impl From<AdditionalConsensusStateDigest> for [u8; 32] {
+    fn from(digest: AdditionalConsensusStateDigest) -> Self {
+        digest.into_inner()
+    }
+}
+
+impl From<[u8; 32]> for AdditionalConsensusStateDigest {
+    fn from(digest: [u8; 32]) -> Self {
+        Self::new(digest)
     }
 }
 
