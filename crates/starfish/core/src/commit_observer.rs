@@ -104,7 +104,8 @@ impl CommitObserver {
             last_sent_commit_index: last_processed_commit_index,
         };
 
-        observer.recover_and_send_commits(last_processed_commit_index);
+        observer
+            .recover_and_send_commits(last_processed_commit_index, CommittedSubDagSource::Recover);
         observer
     }
 
@@ -117,12 +118,12 @@ impl CommitObserver {
         let now = Instant::now();
 
         // Clear linearizer state
-        self.linearizer.reinitialize();
+        self.linearizer.clear_state();
         self.last_sent_commit_index = last_commit_index;
 
         // Reuse existing recovery logic - it won't resend commits since
         // they're all <= last_commit_index
-        self.recover_and_send_commits(last_commit_index);
+        self.recover_and_send_commits(last_commit_index, CommittedSubDagSource::FastCommitSyncer);
 
         info!(
             "CommitObserver reinitialized at commit index {}, took {:?}",
@@ -218,45 +219,20 @@ impl CommitObserver {
             dag_state_guard.flush();
         }
 
-        let mut sent_sub_dags = Vec::with_capacity(committed_subdags.len());
-        for solid_sub_dag in committed_subdags.iter() {
-            // Skip commits that have already been sent
-            if solid_sub_dag.commit_ref.index <= self.last_sent_commit_index {
-                debug!(
-                    "Skipping already sent commit (index: {} <= last sent: {})",
-                    solid_sub_dag.commit_ref.index, self.last_sent_commit_index
-                );
-                continue;
-            }
+        // Send committed sub-dags through the channel
+        let _sent_indices = self.send_sub_dags(&committed_subdags, source)?;
 
-            // Ensure commits are sent in order - if we're skipping indices, something is
-            // wrong
-            assert_eq!(
-                solid_sub_dag.commit_ref.index,
-                self.last_sent_commit_index + 1,
-            );
-
-            // Failures in sender.send() are assumed to be permanent
-            if let Err(err) = self.sender.send(solid_sub_dag.clone()) {
-                warn!("Failed to send committed sub-dag, probably due to shutdown: {err:?}");
-                return Err(ConsensusError::Shutdown);
-            }
-            info!(
-                "Sending commit to execution (index: {}, leader {})",
-                solid_sub_dag.commit_ref, solid_sub_dag.leader
-            );
-
-            self.last_sent_commit_index = solid_sub_dag.commit_ref.index;
-            sent_sub_dags.push(solid_sub_dag);
-        }
+        // Report metrics for both pending and committed sub-dags
         self.report_metrics(pending_sub_dags, &committed_subdags, source);
-
-        tracing::trace!("Committed & sent {sent_sub_dags:#?}");
 
         Ok(())
     }
 
-    fn recover_and_send_commits(&mut self, last_processed_commit_index: CommitIndex) {
+    fn recover_and_send_commits(
+        &mut self,
+        last_processed_commit_index: CommitIndex,
+        source: CommittedSubDagSource,
+    ) {
         let now = Instant::now();
         let last_commit = self
             .store
@@ -275,12 +251,12 @@ impl CommitObserver {
             return;
         }
 
-        // Phase 1: Resend all possible committed sub-dags that haven't been processed
+        // Phase 1: Resend all solid committed sub-dags that haven't been processed
         let sent_commits =
-            self.resend_unprocessed_commits(last_processed_commit_index, last_commit_index);
+            self.resend_unprocessed_commits(last_processed_commit_index, last_commit_index, source);
 
         // Phase 2: Recover linearizer and solidifier state
-        self.recover_linearizer_and_solidifier_state(last_commit_index);
+        self.recover_linearizer_and_solidifier_state(last_commit_index, source);
 
         info!(
             "Commit observer recovery completed, resent {} commits, took {:?}",
@@ -291,11 +267,15 @@ impl CommitObserver {
 
     /// Recovers linearizer trackers from recent commits and seeds the
     /// commit solidifier with any unprocessed commits.
-    fn recover_linearizer_and_solidifier_state(&mut self, last_commit_index: CommitIndex) {
+    fn recover_linearizer_and_solidifier_state(
+        &mut self,
+        last_commit_index: CommitIndex,
+        source: CommittedSubDagSource,
+    ) {
         let linearizer_recovery_start = last_commit_index
             .saturating_sub(self.context.protocol_config.gc_depth() * 2)
             .max(1);
-        let solidifier_recovery_start = self.last_sent_commit_index.saturating_add(1).max(1);
+        let solidifier_recovery_start = self.last_sent_commit_index.saturating_add(1);
         let recovery_start = linearizer_recovery_start.min(solidifier_recovery_start);
 
         let recovery_commits = self
@@ -346,46 +326,61 @@ impl CommitObserver {
             let (solid_sub_dags, _missing) = self
                 .commit_solidifier
                 .try_get_solid_sub_dags(&pending_for_solidifier);
-            let _sent_commits = self.send_recovered_sub_dags(
-                solid_sub_dags,
-                CommittedSubDagSource::Recover,
-                "Sending solid commit during recovery after resend",
-            );
+            self.send_sub_dags(&solid_sub_dags, source)
+                .expect("Failed to send solid commits during recovery");
+            self.report_metrics(&[], &solid_sub_dags, source);
         }
     }
 
-    fn send_recovered_sub_dags(
+    /// Sends committed sub-dags through the channel.
+    /// Skips commits that have already been sent (index <=
+    /// last_sent_commit_index). Returns the list of commit indices that
+    /// were actually sent. Note: Caller is responsible for reporting
+    /// metrics via `report_metrics`.
+    fn send_sub_dags(
         &mut self,
-        committed_subdags: Vec<CommittedSubDag>,
+        committed_subdags: &[CommittedSubDag],
         source: CommittedSubDagSource,
-        log_prefix: &'static str,
-    ) -> Vec<CommitIndex> {
+    ) -> ConsensusResult<Vec<CommitIndex>> {
         if committed_subdags.is_empty() {
-            return Vec::new();
+            return Ok(Vec::new());
         }
 
         let mut sent_commit_indices = Vec::with_capacity(committed_subdags.len());
+
         for committed_subdag in committed_subdags.iter() {
+            // Skip commits that have already been sent
+            if committed_subdag.commit_ref.index <= self.last_sent_commit_index {
+                debug!(
+                    "Skipping already sent commit (index: {} <= last sent: {})",
+                    committed_subdag.commit_ref.index, self.last_sent_commit_index
+                );
+                continue;
+            }
+
+            // Ensure commits are sent in order
             assert_eq!(
                 committed_subdag.commit_ref.index,
-                self.last_sent_commit_index + 1
+                self.last_sent_commit_index + 1,
             );
+
+            if let Err(err) = self.sender.send(committed_subdag.clone()) {
+                warn!("Failed to send committed sub-dag, probably due to shutdown: {err:?}");
+                return Err(ConsensusError::Shutdown);
+            }
+
             info!(
-                "{log_prefix} (index: {})",
-                committed_subdag.commit_ref.index
+                "Sending commit to execution (index: {}, leader {}, source: {})",
+                committed_subdag.commit_ref,
+                committed_subdag.leader,
+                source.as_str()
             );
-            self.sender
-                .send(committed_subdag.clone())
-                .unwrap_or_else(|e| {
-                    panic!("Failed to send commit during recovery, probably due to shutdown: {e:?}")
-                });
+
             self.last_sent_commit_index = committed_subdag.commit_ref.index;
             sent_commit_indices.push(committed_subdag.commit_ref.index);
         }
 
-        self.report_metrics(&[], &committed_subdags, source);
-
-        sent_commit_indices
+        Ok(sent_commit_indices)
     }
 
     /// Resends commits that haven't been processed by the consumer.
@@ -395,6 +390,7 @@ impl CommitObserver {
         &mut self,
         last_processed_commit_index: CommitIndex,
         last_commit_index: CommitIndex,
+        source: CommittedSubDagSource,
     ) -> Vec<CommitIndex> {
         if last_processed_commit_index >= last_commit_index {
             info!("No unprocessed commits to resend");
@@ -432,7 +428,6 @@ impl CommitObserver {
                 vec![]
             };
 
-            // Create CommittedSubDag with empty headers (like fast sync)
             let committed_tx_refs = commit.committed_transactions();
             let transaction_results = {
                 self.dag_state
@@ -457,7 +452,7 @@ impl CommitObserver {
 
             let committed_subdag = CommittedSubDag::new(
                 commit.leader(),
-                vec![], // Empty headers is fine for resending during recovery
+                vec![], // Empty headers is fine for resending during recovery or reinitialization
                 commit.block_headers().to_vec(),
                 transactions,
                 commit.timestamp_ms(),
@@ -468,11 +463,11 @@ impl CommitObserver {
             committed_subdags.push(committed_subdag);
         }
 
-        self.send_recovered_sub_dags(
-            committed_subdags,
-            CommittedSubDagSource::Recover,
-            "Resending commit during recovery",
-        )
+        let sent_indices = self
+            .send_sub_dags(&committed_subdags, source)
+            .expect("Failed to send commits during recovery");
+        self.report_metrics(&[], &committed_subdags, source);
+        sent_indices
     }
 
     /// Get all missing transactions from pending subdags along with authorities
@@ -979,6 +974,9 @@ mod tests {
             dag_state.clone(),
         ));
 
+        // Populate fully connected test blocks for round 1 ~ 6, authorities 0 ~ 3.
+        // Only add transactions for rounds 1-3 to simulate partial transaction
+        // availability. Transactions for rounds 4-6 will be "missing" during recovery.
         let num_rounds = 6;
         let mut builder = DagBuilder::new(context.clone());
         builder.layers(1..=num_rounds).build();
@@ -1007,10 +1005,15 @@ mod tests {
             .map(Option::unwrap)
             .collect::<Vec<_>>();
 
+        // All 6 rounds should produce commits (one per leader round)
+        assert_eq!(leaders.len(), num_rounds as usize);
+
         let _ = observer
             .handle_committed_leaders(leaders, CommittedSubDagSource::Consensus)
             .unwrap();
 
+        // Drain the receiver to simulate consumer processing commits before crash.
+        // We need to determine which commits have available transactions for resending.
         while let Ok(_subdag) = receiver.try_recv() {}
 
         let last_commit = mem_store.read_last_commit().unwrap().unwrap();
@@ -1019,6 +1022,13 @@ mod tests {
             .scan_commits((1..=last_commit_index).into())
             .unwrap();
 
+        // Verify we stored all commits
+        assert_eq!(commits.len(), num_rounds as usize);
+
+        // Determine which commit first has missing transactions.
+        // Each commit references transactions from blocks up to the leader's round.
+        // Since we only added transactions for rounds <= 3, commits including
+        // blocks from round > 3 will have missing transactions.
         let mut first_missing_index = None;
         let mut expected_missing_refs = Vec::new();
         {
@@ -1041,8 +1051,23 @@ mod tests {
 
         let first_missing_index =
             first_missing_index.expect("Expected at least one commit with missing transactions");
-        assert!(first_missing_index > 1);
+        // First commit with missing transactions should occur when commits start
+        // including blocks from rounds > 3. With the fully connected DAG structure,
+        // this happens at commit 4 or later depending on how blocks are ordered.
+        assert!(
+            first_missing_index > 1,
+            "Expected first missing at index > 1, got {}",
+            first_missing_index
+        );
+        assert!(
+            first_missing_index <= num_rounds as CommitIndex,
+            "Expected first missing within num_rounds, got {}",
+            first_missing_index
+        );
 
+        // Re-create commit observer starting from index 0 to simulate full recovery.
+        // Recovery should resend commits up to (but not including) the first commit
+        // with missing transactions.
         let observer = CommitObserver::new(
             context.clone(),
             CommitConsumer::new(sender, 0),
@@ -1051,18 +1076,65 @@ mod tests {
             leader_schedule,
         );
 
+        // Check commits sent over consensus output channel during recovery.
+        // Recovery resends subdags with empty headers (like fast sync).
         let mut expected_index = 1u32;
         while let Ok(subdag) = receiver.try_recv() {
+            // Recovery resends subdags with empty headers (like fast sync)
             assert!(subdag.headers.is_empty());
             assert_eq!(subdag.commit_ref.index, expected_index);
+
+            // Verify subdag matches the original commit structure
+            let original_commit = &commits[(expected_index - 1) as usize];
+            assert_eq!(subdag.leader, original_commit.leader());
+            assert_eq!(
+                subdag.committed_header_refs,
+                original_commit.block_headers()
+            );
+
             expected_index += 1;
         }
-        assert_eq!(expected_index - 1, first_missing_index - 1);
 
+        // Verify exactly (first_missing_index - 1) commits were resent
+        let resent_count = expected_index - 1;
+        assert_eq!(resent_count, first_missing_index - 1);
+        assert!(
+            resent_count > 0,
+            "Expected at least one commit to be resent"
+        );
+
+        // Verify missing transactions are properly tracked with acknowledgers.
+        // The linearizer recovers ack state from commits within gc_depth*2 window,
+        // so all commits in this small test should have acknowledgers available.
         let missing = observer.get_missing_transaction_data();
-        for missing_ref in expected_missing_refs {
-            assert!(missing.contains_key(&missing_ref));
+        assert!(
+            !missing.is_empty(),
+            "Expected missing transactions to be tracked"
+        );
+        assert_eq!(
+            missing.len(),
+            expected_missing_refs.len(),
+            "Mismatch in number of missing transactions"
+        );
+
+        for missing_ref in &expected_missing_refs {
+            assert!(
+                missing.contains_key(missing_ref),
+                "Missing ref {:?} not tracked",
+                missing_ref
+            );
+            // Each missing transaction should have acknowledgers recorded since
+            // all commits are within the recovery window (gc_depth * 2).
+            let acknowledgers = missing.get(missing_ref).unwrap();
+            assert!(
+                !acknowledgers.is_empty(),
+                "No acknowledgers tracked for {:?}",
+                missing_ref
+            );
         }
+
+        // Verify no additional subdags were sent
+        verify_channel_empty(&mut receiver);
     }
 
     /// After receiving all expected subdags, ensure channel is empty

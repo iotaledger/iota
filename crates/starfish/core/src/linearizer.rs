@@ -66,7 +66,7 @@ impl Linearizer {
 
     /// Reinitialize Linearizer after fast sync completes.
     /// Clears tracked state for a fresh start.
-    pub(crate) fn reinitialize(&mut self) {
+    pub(crate) fn clear_state(&mut self) {
         self.transactions_ack_tracker.clear();
         self.traversed_headers_tracker.clear();
     }
