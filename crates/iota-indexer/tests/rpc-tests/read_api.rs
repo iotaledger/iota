@@ -1120,7 +1120,7 @@ fn get_events_not_found() {
 
         assert!(rpc_call_error_msg_matches(
             result,
-            r#"{"code":-32603,"message":"Indexer failed to read PostgresDB with error: `Record not found`"}"#,
+            r#"{"code":-32603,"message":"Missing data due to pruning: `requested events not available`"}"#,
         ))
     });
 }

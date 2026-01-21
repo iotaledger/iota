@@ -60,40 +60,6 @@ task 10, lines 34-73:
 Response: {
   "data": {
     "epoch": {
-      "validatorSet": {
-        "totalStake": "3034010000000000",
-        "activeValidators": {
-          "nodes": [
-            {
-              "name": "validator-0"
-            }
-          ]
-        },
-        "validatorCandidatesSize": 0,
-        "inactivePoolsId": "0x7db5972302ce9c55af67d8f827a6033fe102e8c5e6930bc38b36bd765a63c06f"
-      },
-      "totalGasFees": "1000000",
-      "totalStakeRewards": "767000000000000",
-      "fundSize": "14630000",
-      "fundInflow": "1960800",
-      "fundOutflow": "980400",
-      "netInflow": "980400",
-      "transactionBlocks": {
-        "nodes": [
-          {
-            "kind": {
-              "__typename": "ProgrammableTransactionBlock"
-            },
-            "digest": "4Yfjbi1BBxEwKWJqwg3SUcpjTAtexkck38yRK77jZZy4"
-          },
-          {
-            "kind": {
-              "__typename": "EndOfEpochTransaction"
-            },
-            "digest": "ADNf6DDG3E6xK7uRjxb5S4Zysevb4XnTeXdQDwdjPNwL"
-          }
-        ]
-      },
       "first_checkpoint": {
         "nodes": [
           {
@@ -101,6 +67,9 @@ Response: {
           }
         ]
       },
+      "fundInflow": "1960800",
+      "fundOutflow": "980400",
+      "fundSize": "14630000",
       "last_checkpoint": {
         "nodes": [
           {
@@ -108,7 +77,38 @@ Response: {
           }
         ]
       },
-      "totalCheckpoints": 2
+      "netInflow": "980400",
+      "totalCheckpoints": 2,
+      "totalGasFees": "1000000",
+      "totalStakeRewards": "767000000000000",
+      "transactionBlocks": {
+        "nodes": [
+          {
+            "digest": "4Yfjbi1BBxEwKWJqwg3SUcpjTAtexkck38yRK77jZZy4",
+            "kind": {
+              "__typename": "ProgrammableTransactionBlock"
+            }
+          },
+          {
+            "digest": "ADNf6DDG3E6xK7uRjxb5S4Zysevb4XnTeXdQDwdjPNwL",
+            "kind": {
+              "__typename": "EndOfEpochTransaction"
+            }
+          }
+        ]
+      },
+      "validatorSet": {
+        "activeValidators": {
+          "nodes": [
+            {
+              "name": "validator-0"
+            }
+          ]
+        },
+        "inactivePoolsId": "0x7db5972302ce9c55af67d8f827a6033fe102e8c5e6930bc38b36bd765a63c06f",
+        "totalStake": "3034010000000000",
+        "validatorCandidatesSize": 0
+      }
     }
   }
 }

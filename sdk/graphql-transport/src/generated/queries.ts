@@ -1587,6 +1587,15 @@ export type Event = {
   sendingModule?: Maybe<MoveModule>;
   /** UTC timestamp in milliseconds since epoch (1/1/1970) */
   timestamp?: Maybe<Scalars['DateTime']['output']>;
+  /**
+   * The transaction block that emitted this event. This information is only
+   * available for events from transactions included in a checkpoint.
+   *
+   * For simulated transactions (e.g. dry run), or transactions that have
+   * been just executed but not yet included in a checkpoint this returns
+   * null.
+   */
+  transactionBlock?: Maybe<TransactionBlock>;
   /** The value's Move type. */
   type: MoveType;
 };
@@ -2864,6 +2873,8 @@ export type MovePackage = IObject & IOwner & {
    * package's original ID, but has the specified `version`).
    */
   packageAtVersion?: Maybe<MovePackage>;
+  /** BCS representation of the package itself, as a MovePackage. */
+  packageBcs?: Maybe<Scalars['Base64']['output']>;
   /**
    * Fetch all versions of this package (packages that share this package's
    * original ID), optionally bounding the versions exclusively from
@@ -4507,12 +4518,18 @@ export type Query = {
    * direction of pagination, and so on until all transactions in the
    * scanning range have been visited.
    *
-   * By default, the scanning range includes all transactions known to
-   * GraphQL, but it can be restricted by the `after` and `before`
+   * By default, the scanning range includes all checkpointed transactions
+   * known to GraphQL, but it can be restricted by the `after` and `before`
    * cursors, and the `beforeCheckpoint`, `afterCheckpoint` and
-   * `atCheckpoint` filters.
+   * `atCheckpoint` filters. Transactions that don't have a checkpoint yet
+   * are always omitted.
    */
   transactionBlocks: TransactionBlockConnection;
+  /**
+   * Fetch multiple transaction blocks by their digests.
+   * This includes all transactions, even if they are not checkpointed yet.
+   */
+  transactionBlocksByDigests: Array<Maybe<TransactionBlock>>;
   /**
    * Fetch a structured representation of a concrete type, including its
    * layout information. Fails if the type is malformed.
@@ -4676,6 +4693,11 @@ export type QueryTransactionBlocksArgs = {
   first?: InputMaybe<Scalars['Int']['input']>;
   last?: InputMaybe<Scalars['Int']['input']>;
   scanLimit?: InputMaybe<Scalars['Int']['input']>;
+};
+
+
+export type QueryTransactionBlocksByDigestsArgs = {
+  digests: Array<Scalars['String']['input']>;
 };
 
 
@@ -5421,11 +5443,14 @@ export type TransactionBlockEffects = {
   balanceChanges: BalanceChangeConnection;
   /** Base64 encoded bcs serialization of the on-chain transaction effects. */
   bcs: Scalars['Base64']['output'];
-  /** The checkpoint this transaction was finalized in. */
+  /**
+   * The checkpoint this transaction was finalized in, if it is within the
+   * available range.
+   */
   checkpoint?: Maybe<Checkpoint>;
   /** Transactions whose outputs this transaction depends upon. */
   dependencies: DependencyConnection;
-  /** The epoch this transaction was finalized in. */
+  /** The epoch this transaction was executed in. */
   epoch?: Maybe<Epoch>;
   /**
    * The reason for a transaction failure, if it did fail.
@@ -6314,6 +6339,13 @@ export type GetStakesByIdsQueryVariables = Exact<{
 export type GetStakesByIdsQuery = { __typename?: 'Query', objects: { __typename?: 'ObjectConnection', pageInfo: { __typename?: 'PageInfo', hasNextPage: boolean, endCursor?: string | null }, nodes: Array<{ __typename?: 'Object', asMoveObject?: { __typename?: 'MoveObject', asStakedIota?: { __typename?: 'StakedIota', principal?: any | null, stakeStatus: StakeStatus, address: any, estimatedReward?: any | null, activatedEpoch?: { __typename?: 'Epoch', epochId: any, referenceGasPrice?: any | null } | null, requestedEpoch?: { __typename?: 'Epoch', epochId: any } | null, contents?: { __typename?: 'MoveValue', json: any } | null } | null } | null }> } };
 
 export type Rpc_Stake_FieldsFragment = { __typename?: 'StakedIota', principal?: any | null, stakeStatus: StakeStatus, address: any, estimatedReward?: any | null, activatedEpoch?: { __typename?: 'Epoch', epochId: any, referenceGasPrice?: any | null } | null, requestedEpoch?: { __typename?: 'Epoch', epochId: any } | null, contents?: { __typename?: 'MoveValue', json: any } | null };
+
+export type TransactionBlocksByDigestsQueryVariables = Exact<{
+  digests: Array<Scalars['String']['input']> | Scalars['String']['input'];
+}>;
+
+
+export type TransactionBlocksByDigestsQuery = { __typename?: 'Query', transactionBlocksByDigests: Array<{ __typename?: 'TransactionBlock', digest?: string | null } | null> };
 
 export type QueryTransactionBlocksQueryVariables = Exact<{
   first?: InputMaybe<Scalars['Int']['input']>;
@@ -8828,6 +8860,13 @@ export const GetStakesByIdsDocument = new TypedDocumentString(`
   address
   estimatedReward
 }`) as unknown as TypedDocumentString<GetStakesByIdsQuery, GetStakesByIdsQueryVariables>;
+export const TransactionBlocksByDigestsDocument = new TypedDocumentString(`
+    query TransactionBlocksByDigests($digests: [String!]!) {
+  transactionBlocksByDigests(digests: $digests) {
+    digest
+  }
+}
+    `) as unknown as TypedDocumentString<TransactionBlocksByDigestsQuery, TransactionBlocksByDigestsQueryVariables>;
 export const QueryTransactionBlocksDocument = new TypedDocumentString(`
     query queryTransactionBlocks($first: Int, $last: Int, $before: String, $after: String, $showBalanceChanges: Boolean = false, $showEffects: Boolean = false, $showRawEffects: Boolean = false, $showEvents: Boolean = false, $showInput: Boolean = false, $showObjectChanges: Boolean = false, $showRawInput: Boolean = false, $filter: TransactionBlockFilter) {
   transactionBlocks(

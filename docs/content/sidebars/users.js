@@ -73,6 +73,7 @@ const users = [
       },
     ],
   },
+  'users/legacy-migration-tool',
 ];
 
 module.exports = users;

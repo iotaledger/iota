@@ -22,7 +22,7 @@ bincode.workspace = true
 bytes.workspace = true
 count-min-sketch = "0.1.7"
 dashmap.workspace = true
-diffy = { version = "0.3", default-features = false }
+diffy.workspace = true
 either.workspace = true
 enum_dispatch.workspace = true
 eyre.workspace = true
@@ -34,6 +34,7 @@ im.workspace = true
 itertools.workspace = true
 lru.workspace = true
 mockall.workspace = true
+moka.workspace = true
 nonempty.workspace = true
 num_cpus.workspace = true
 object_store.workspace = true
@@ -42,7 +43,7 @@ parking_lot.workspace = true
 prometheus.workspace = true
 quinn-proto.workspace = true
 rand.workspace = true
-rayon.workspace = true
+rayon = "1.5.3"
 reqwest.workspace = true
 roaring.workspace = true
 scopeguard.workspace = true
@@ -114,15 +115,8 @@ iota-test-transaction-builder.workspace = true
 pprof = { version = "0.14", features = ["cpp", "frame-pointer"] }
 test-fuzz.workspace = true
 
-# moka uses `quanta` by default for timing, which is not compatible with the simulator
-[target.'cfg(msim)'.dependencies]
-moka = { version = "0.12", default-features = false, features = ["sync", "atomic64"] }
-
 [target.'cfg(msim)'.dev-dependencies]
 test-cluster.workspace = true
-
-[target.'cfg(not(msim))'.dependencies]
-moka = { version = "0.12", features = ["sync"] }
 
 [[example]]
 name = "generate-format"

@@ -10,6 +10,11 @@ task 1, lines 7-32:
 //# run-graphql
 Response: {
   "data": {
+    "address": {
+      "stakedIotas": {
+        "edges": []
+      }
+    },
     "objects": {
       "edges": [
         {
@@ -23,11 +28,6 @@ Response: {
           }
         }
       ]
-    },
-    "address": {
-      "stakedIotas": {
-        "edges": []
-      }
     }
   }
 }
@@ -60,43 +60,6 @@ task 6, lines 44-70:
 //# run-graphql
 Response: {
   "data": {
-    "objects": {
-      "edges": [
-        {
-          "cursor": "IBHJBM8kZPT8qybYKMvt0PxPYwH1wTbiHnqBSvB2UO3FAgAAAAAAAAA=",
-          "node": {
-            "asMoveObject": {
-              "asStakedIota": {
-                "principal": "10000000000",
-                "poolId": "0xd38870b025f7fa1d88bb5c136715f7b757d76b4bdf81f432f1ec196848c87704"
-              }
-            }
-          }
-        },
-        {
-          "cursor": "ILzVVmYs0lhGb4pvK+xM5LKrk6HwRKnJJTdjjehbb0VZAgAAAAAAAAA=",
-          "node": {
-            "asMoveObject": {
-              "asStakedIota": {
-                "principal": "1500000000000000",
-                "poolId": "0xd38870b025f7fa1d88bb5c136715f7b757d76b4bdf81f432f1ec196848c87704"
-              }
-            }
-          }
-        },
-        {
-          "cursor": "IMU9f9gnuZx239pp/ScI5OWZ8fITK6HyPT8/lM94+yiyAgAAAAAAAAA=",
-          "node": {
-            "asMoveObject": {
-              "asStakedIota": {
-                "principal": "15340000000000",
-                "poolId": "0xd38870b025f7fa1d88bb5c136715f7b757d76b4bdf81f432f1ec196848c87704"
-              }
-            }
-          }
-        }
-      ]
-    },
     "address": {
       "stakedIotas": {
         "edges": [
@@ -108,6 +71,43 @@ Response: {
           }
         ]
       }
+    },
+    "objects": {
+      "edges": [
+        {
+          "cursor": "IBHJBM8kZPT8qybYKMvt0PxPYwH1wTbiHnqBSvB2UO3FAgAAAAAAAAA=",
+          "node": {
+            "asMoveObject": {
+              "asStakedIota": {
+                "poolId": "0xd38870b025f7fa1d88bb5c136715f7b757d76b4bdf81f432f1ec196848c87704",
+                "principal": "10000000000"
+              }
+            }
+          }
+        },
+        {
+          "cursor": "ILzVVmYs0lhGb4pvK+xM5LKrk6HwRKnJJTdjjehbb0VZAgAAAAAAAAA=",
+          "node": {
+            "asMoveObject": {
+              "asStakedIota": {
+                "poolId": "0xd38870b025f7fa1d88bb5c136715f7b757d76b4bdf81f432f1ec196848c87704",
+                "principal": "1500000000000000"
+              }
+            }
+          }
+        },
+        {
+          "cursor": "IMU9f9gnuZx239pp/ScI5OWZ8fITK6HyPT8/lM94+yiyAgAAAAAAAAA=",
+          "node": {
+            "asMoveObject": {
+              "asStakedIota": {
+                "poolId": "0xd38870b025f7fa1d88bb5c136715f7b757d76b4bdf81f432f1ec196848c87704",
+                "principal": "15340000000000"
+              }
+            }
+          }
+        }
+      ]
     }
   }
 }
