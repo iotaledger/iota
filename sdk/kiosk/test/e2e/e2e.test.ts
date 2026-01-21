@@ -87,7 +87,7 @@ describe('Testing Kiosk SDK transaction building & querying e2e', () => {
             },
         });
         expect(emptyPage.hasNextPage).toBe(false);
-        expect(emptyPage.nextCursor).toBe(page.nextCursor);
+        expect(emptyPage.nextCursor).toBeNull();
         expect(emptyPage.kioskIds).toHaveLength(0);
         expect(emptyPage.kioskOwnerCaps).toHaveLength(0);
     });
@@ -122,7 +122,7 @@ describe('Testing Kiosk SDK transaction building & querying e2e', () => {
             },
         });
         expect(emptyPage.hasNextPage).toBe(false);
-        expect(emptyPage.nextCursor).toBe(secondPage.nextCursor);
+        expect(emptyPage.nextCursor).toBeNull();
         expect(emptyPage.kioskIds).toHaveLength(0);
         expect(emptyPage.kioskOwnerCaps).toHaveLength(0);
     });
