@@ -452,6 +452,61 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
             .with_label_values(&[peer_hostname, "handle_subscribed_block_bundle"])
             .inc_by(digests_to_exclude.len() as u64);
     }
+
+    /// Finds the highest commit index in the commit range up to search_up_to
+    /// that can be certified with available votes. Returns the highest
+    /// certifiable commit index and the block refs (votes) that certify it,
+    /// or None if no certifiable commit is found.
+    fn find_highest_certifiable_commit_in_range(
+        &self,
+        commit_range: &CommitRange,
+        mut search_up_to: CommitIndex,
+        commit_sync_type: &CommitSyncType,
+    ) -> ConsensusResult<Option<(CommitIndex, Vec<BlockRef>)>> {
+        loop {
+            // Find the highest index with at least some votes, up to our search bound.
+            let Some(index_with_votes) = self
+                .store
+                .read_highest_commit_index_with_votes(search_up_to)?
+            else {
+                // No votes found for any index in the range.
+                return Ok(None);
+            };
+
+            // If the index with votes is below our commit range start, there are no
+            // certifiable commits.
+            if index_with_votes < commit_range.start() {
+                return Ok(None);
+            }
+
+            let votes = self.store.read_commit_votes(index_with_votes)?;
+            let mut stake_aggregator = StakeAggregator::<QuorumThreshold>::new();
+            for v in &votes {
+                stake_aggregator.add(v.author, &self.context.committee);
+            }
+            if stake_aggregator.reached_threshold(&self.context.committee) {
+                return Ok(Some((index_with_votes, votes)));
+            } else {
+                debug!(
+                    "Commit {} votes did not reach quorum to certify, {} < {}, skipping",
+                    index_with_votes,
+                    stake_aggregator.stake(),
+                    stake_aggregator.threshold(&self.context.committee)
+                );
+                self.context
+                    .metrics
+                    .node_metrics
+                    .commit_sync_fetch_commits_handler_uncertified_skipped
+                    .with_label_values(&[commit_sync_type.as_str()])
+                    .inc();
+                // Continue searching from index_with_votes - 1
+                search_up_to = index_with_votes.saturating_sub(1);
+                if search_up_to < commit_range.start() {
+                    return Ok(None);
+                }
+            }
+        }
+    }
 }
 
 #[async_trait]
@@ -888,77 +943,22 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         let inclusive_end = commit_range
             .end()
             .min(commit_range.start() + batch_size as CommitIndex - 1);
-        let mut commits = self
+        // First, find the highest certifiable commit index
+        let Some((highest_index, certifier_block_refs)) = self
+            .find_highest_certifiable_commit_in_range(
+                &commit_range,
+                inclusive_end,
+                &commit_sync_type,
+            )?
+        else {
+            // No certifiable commits found
+            return Ok((vec![], vec![]));
+        };
+
+        // Then scan commits up to the highest certifiable index
+        let commits = self
             .store
-            .scan_commits((commit_range.start()..=inclusive_end).into())?;
-        let mut certifier_block_refs = vec![];
-        // Find the highest commit index with votes, skipping any gaps in indexes
-        // without votes.
-        let mut search_up_to = inclusive_end;
-        'commit: loop {
-            // Find the highest index with at least some votes, up to our search bound.
-            let Some(index_with_votes) = self
-                .store
-                .read_highest_commit_index_with_votes(search_up_to)?
-            else {
-                // No votes found for any index in the range, return empty commits.
-                commits.clear();
-                break 'commit;
-            };
-
-            // If the index with votes is below our commit range start, there are no
-            // certifiable commits.
-            if index_with_votes < commit_range.start() {
-                commits.clear();
-                break 'commit;
-            }
-
-            // Truncate commits to only include those up to index_with_votes.
-            while commits.last().is_some_and(|c| c.index() > index_with_votes) {
-                commits.pop();
-            }
-
-            let Some(c) = commits.last() else {
-                break 'commit;
-            };
-
-            let index = c.index();
-            if index != index_with_votes {
-                warn!(
-                    "Commit index {} does not match index with votes {}, expected them to be equal",
-                    index, index_with_votes
-                );
-            }
-            let votes = self.store.read_commit_votes(index)?;
-            let mut stake_aggregator = StakeAggregator::<QuorumThreshold>::new();
-            for v in &votes {
-                stake_aggregator.add(v.author, &self.context.committee);
-            }
-            if stake_aggregator.reached_threshold(&self.context.committee) {
-                certifier_block_refs = votes;
-                break 'commit;
-            } else {
-                debug!(
-                    "Commit {} votes did not reach quorum to certify, {} < {}, skipping",
-                    index,
-                    stake_aggregator.stake(),
-                    stake_aggregator.threshold(&self.context.committee)
-                );
-                self.context
-                    .metrics
-                    .node_metrics
-                    .commit_sync_fetch_commits_handler_uncertified_skipped
-                    .with_label_values(&[commit_sync_type.as_str()])
-                    .inc();
-                commits.pop();
-                // Continue searching from index - 1
-                search_up_to = index.saturating_sub(1);
-                if search_up_to < commit_range.start() {
-                    commits.clear();
-                    break 'commit;
-                }
-            }
-        }
+            .scan_commits((commit_range.start()..=highest_index).into())?;
         // Try reading from voting block headers storage first, then fallback to regular
         // block headers for any that weren't found.
         let voting_headers = self
