@@ -5,6 +5,7 @@
 use async_graphql::{ErrorExtensionValues, ErrorExtensions, Pos, Response, ServerError};
 use async_graphql_axum::GraphQLResponse;
 use iota_indexer::errors::IndexerError;
+use iota_indexer_streaming::error::IndexerStreamingError;
 use iota_names::error::IotaNamesError;
 
 /// Error codes for the `extensions.code` field of a GraphQL error that
@@ -113,6 +114,12 @@ impl ErrorExtensions for Error {
 
 impl From<IndexerError> for Error {
     fn from(e: IndexerError) -> Self {
+        Error::Internal(e.to_string())
+    }
+}
+
+impl From<IndexerStreamingError> for Error {
+    fn from(e: IndexerStreamingError) -> Self {
         Error::Internal(e.to_string())
     }
 }
