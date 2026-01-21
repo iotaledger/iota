@@ -1762,7 +1762,7 @@ impl AuthorityState {
             .expect("Creating an executor should not fail here");
 
         let expensive_checks = false;
-        let (inner_temp_store, _, effects, _execution_error) = executor
+        let (inner_temp_store, _, effects, execution_error) = executor
             .execute_transaction_to_effects(
                 self.get_backing_store().as_ref(),
                 protocol_config,
@@ -1823,6 +1823,11 @@ impl AuthorityState {
             })
             .collect();
 
+        let execution_error_source = execution_error
+            .as_ref()
+            .err()
+            .and_then(|e| e.source().as_ref().map(|e| e.to_string()));
+
         Ok((
             DryRunTransactionBlockResponse {
                 // to avoid cloning `transaction`, fields are populated in this order
@@ -1844,6 +1849,7 @@ impl AuthorityState {
                 )?,
                 object_changes,
                 balance_changes,
+                execution_error_source,
             },
             written_with_kind,
             effects,
@@ -2837,6 +2843,7 @@ impl AuthorityState {
             store.perpetual_tables.clone(),
             checkpoint_store.clone(),
             rest_index.clone(),
+            indexes.clone(),
             config.authority_store_pruning_config.clone(),
             epoch_store.committee().authority_exists(&name),
             epoch_store.epoch_start_state().epoch_duration_ms(),
@@ -5070,7 +5077,7 @@ impl AuthorityState {
             self.get_object_store().clone(),
             expensive_safety_check_config,
             epoch_last_checkpoint,
-        );
+        )?;
         self.epoch_store.store(new_epoch_store.clone());
         Ok(new_epoch_store)
     }
