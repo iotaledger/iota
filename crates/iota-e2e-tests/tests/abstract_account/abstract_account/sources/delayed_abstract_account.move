@@ -1,7 +1,7 @@
 // Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-module abstract_account::abstract_account;
+module abstract_account::delayed_abstract_account;
 
 use iota::account;
 use iota::authenticator_function::AuthenticatorFunctionRefV1;
@@ -18,24 +18,13 @@ const ETransactionSenderIsNotTheAccount: vector<u8> = b"Transaction must be sign
 
 // === Structs ===
 
-/// Safely construct an AbstractAccount.
-///
-/// The builder is entirely temporary. It cannot be copied, stored or dropped.
-///
-/// Account implementations are expected to call the builder in a single function call,
-/// add the desired authenticator and dynamic fields.
-public struct AbstractAccountBuilder {
-    account: AbstractAccount,
-    authenticator: AuthenticatorFunctionRefV1<AbstractAccount>,
-}
-
-/// This struct represents an abstract account.
+/// This struct represents an abstract account that is firstly created as a shared object and then converted into account.
 ///
 /// It holds all the related data as dynamic fields to simplify updates, migrations and extensions.
 /// Arbitrary dynamic fields may be added and removed as necessary.
 ///
-/// An `AbstractAccount` cannot be constructed directly. To create an `AbstractAccount` use `AbstractAccountBuilder`.
-public struct AbstractAccount has key {
+/// An `DelayedAbstractAccount` cannot be constructed directly. To create an `DelayedAbstractAccount` use `DelayedAbstractAccountBuilder`.
+public struct DelayedAbstractAccount has key {
     id: UID,
 }
 
@@ -45,46 +34,37 @@ public struct AbstractAccount has key {
 
 // === Public Functions ===
 
-/// Construct an AbstractAccountBuilder and set the Authenticator.
-///
-/// The `AuthenticatorFunctionRef` will be attached to the account being built.
-public fun builder(
-    authenticator: AuthenticatorFunctionRefV1<AbstractAccount>,
-    ctx: &mut TxContext,
-): AbstractAccountBuilder {
-    AbstractAccountBuilder {
-        account: AbstractAccount { id: object::new(ctx) },
-        authenticator,
-    }
+/// Construct an empty DelayedAbstractAccount
+public fun create(ctx: &mut TxContext) {
+    transfer::share_object(DelayedAbstractAccount {
+        id: object::new(ctx),
+    });
 }
 
-/// Attach a `Value` as a dynamic field to the account being built.
-public fun add_dynamic_field<Name: copy + drop + store, Value: store>(
-    mut self: AbstractAccountBuilder,
-    name: Name,
-    value: Value,
-): AbstractAccountBuilder {
-    dynamic_field::add(&mut self.account.id, name, value);
-    self
+/// Finish building the `DelayedAbstractAccount` and share the object.
+public fun build(
+    self: DelayedAbstractAccount,
+    authenticator: AuthenticatorFunctionRefV1<DelayedAbstractAccount>,
+) {
+    account::create_account_v1(self, authenticator);
 }
 
-/// Finish building the `AbstractAccount` and share the object.
-public fun build(self: AbstractAccountBuilder) {
-    let AbstractAccountBuilder { account, authenticator } = self;
-    account::create_account_v1(account, authenticator);
+/// Returns `true` if and only if the account has been initialized with an authenticator.
+public fun is_initialized(self: &DelayedAbstractAccount): bool {
+    account::has_auth_function_ref_v1(&self.id)
 }
 
 /// Adds a new dynamic field to the account.
 ///
 /// Only the account itself can call this function.
 public fun add_field<Name: copy + drop + store, Value: store>(
-    self: &mut AbstractAccount,
+    self: &mut DelayedAbstractAccount,
     name: Name,
     value: Value,
     ctx: &TxContext,
 ) {
     // Check that the sender of this transaction is the account.
-    ensure_tx_sender_is_account(self, ctx);
+    ensure_tx_sender_is_account_only_if_initialized(self, ctx);
 
     // Add a new field.
     dynamic_field::add(&mut self.id, name, value);
@@ -94,12 +74,12 @@ public fun add_field<Name: copy + drop + store, Value: store>(
 ///
 /// Only the account itself can call this function.
 public fun remove_field<Name: copy + drop + store, Value: store>(
-    self: &mut AbstractAccount,
+    self: &mut DelayedAbstractAccount,
     name: Name,
     ctx: &TxContext,
 ): Value {
     // Check that the sender of this transaction is the account.
-    ensure_tx_sender_is_account(self, ctx);
+    ensure_tx_sender_is_account_only_if_initialized(self, ctx);
 
     // Remove a new field and return it.
     dynamic_field::remove(&mut self.id, name)
@@ -109,12 +89,12 @@ public fun remove_field<Name: copy + drop + store, Value: store>(
 ///
 /// Only the account itself can call this function.
 public fun borrow_field_mut<Name: copy + drop + store, Value: store>(
-    self: &mut AbstractAccount,
+    self: &mut DelayedAbstractAccount,
     name: Name,
     ctx: &TxContext,
 ): &mut Value {
     // Check that the sender of this transaction is the account.
-    ensure_tx_sender_is_account(self, ctx);
+    ensure_tx_sender_is_account_only_if_initialized(self, ctx);
 
     // Borrow the related dynamic field.
     dynamic_field::borrow_mut(&mut self.id, name)
@@ -125,12 +105,12 @@ public fun borrow_field_mut<Name: copy + drop + store, Value: store>(
 /// Only the account itself can call this function.
 /// This function cannot change the type of the stored `Value`.
 public fun replace_field<Name: copy + drop + store, Value: store>(
-    self: &mut AbstractAccount,
+    self: &mut DelayedAbstractAccount,
     name: Name,
     value: Value,
     ctx: &TxContext,
 ): Value {
-    ensure_tx_sender_is_account(self, ctx);
+    ensure_tx_sender_is_account_only_if_initialized(self, ctx);
 
     let account_id = &mut self.id;
     let previous_value = dynamic_field::remove<_, Value>(account_id, name);
@@ -142,11 +122,11 @@ public fun replace_field<Name: copy + drop + store, Value: store>(
 ///
 /// Only the account itself can call this function.
 public fun rotate_auth_function_ref_v1(
-    self: &mut AbstractAccount,
-    authenticator: AuthenticatorFunctionRefV1<AbstractAccount>,
+    self: &mut DelayedAbstractAccount,
+    authenticator: AuthenticatorFunctionRefV1<DelayedAbstractAccount>,
     ctx: &TxContext,
-): AuthenticatorFunctionRefV1<AbstractAccount> {
-    ensure_tx_sender_is_account(self, ctx);
+): AuthenticatorFunctionRefV1<DelayedAbstractAccount> {
+    ensure_tx_sender_is_account_only_if_initialized(self, ctx);
 
     account::rotate_auth_function_ref_v1(self, authenticator)
 }
@@ -154,7 +134,7 @@ public fun rotate_auth_function_ref_v1(
 // === Public-View Functions ===
 
 /// Return the account's address.
-public fun account_address(self: &AbstractAccount): address {
+public fun account_address(self: &DelayedAbstractAccount): address {
     self.id.to_address()
 }
 
@@ -163,14 +143,14 @@ public fun account_address(self: &AbstractAccount): address {
 /// This function is not gated to be called only by the account,
 /// anybody can call it to read the account dynamic fields.
 public fun borrow_field<Name: copy + drop + store, Value: store>(
-    self: &AbstractAccount,
+    self: &DelayedAbstractAccount,
     name: Name,
 ): &Value {
     dynamic_field::borrow(&self.id, name)
 }
 
 /// Returns `true` if and only if `self` has a dynamic field with the specified `name`.
-public fun has_field<Name: copy + drop + store>(self: &AbstractAccount, name: Name): bool {
+public fun has_field<Name: copy + drop + store>(self: &DelayedAbstractAccount, name: Name): bool {
     dynamic_field::exists_(&self.id, name)
 }
 
@@ -178,27 +158,27 @@ public fun has_field<Name: copy + drop + store>(self: &AbstractAccount, name: Na
 /// This function is not gated to be called only by the account,
 /// anybody can call it to read the attached authenticator.
 public fun borrow_auth_function_ref_v1(
-    self: &AbstractAccount,
-): &AuthenticatorFunctionRefV1<AbstractAccount> {
+    self: &DelayedAbstractAccount,
+): &AuthenticatorFunctionRefV1<DelayedAbstractAccount> {
     account::borrow_auth_function_ref_v1(&self.id)
 }
 
-/// Receive an object that was previously sent to this AbstractAccount.
+/// Receive an object that was previously sent to this DelayedAbstractAccount.
 /// Gated so only the account itself can do it.
 public fun receive_object(
-    self: &mut AbstractAccount,
+    self: &mut DelayedAbstractAccount,
     coin: transfer::Receiving<Coin<IOTA>>,
     ctx: &TxContext,
 ) {
-    ensure_tx_sender_is_account(self, ctx);
+    ensure_tx_sender_is_account_only_if_initialized(self, ctx);
     let received_coin = transfer::public_receive(&mut self.id, coin);
     transfer::public_transfer(received_coin, self.account_address());
 }
 
-/// Receive an object that was previously sent to this AbstractAccount.
+/// Receive an object that was previously sent to this DelayedAbstractAccount.
 /// This variant does not check the transaction sender.
 public fun receive_object_without_sender_check(
-    self: &mut AbstractAccount,
+    self: &mut DelayedAbstractAccount,
     coin: transfer::Receiving<Coin<IOTA>>,
     _ctx: &TxContext,
 ) {
@@ -208,9 +188,14 @@ public fun receive_object_without_sender_check(
 
 // === Admin Functions ===
 
-/// Check that the sender of this transaction is the account.
-public fun ensure_tx_sender_is_account(self: &AbstractAccount, ctx: &TxContext) {
-    assert!(self.id.uid_to_address() == ctx.sender(), ETransactionSenderIsNotTheAccount);
+/// Check that the sender of this transaction is the account itself, but only if the account has been initialized.
+fun ensure_tx_sender_is_account_only_if_initialized(
+    self: &DelayedAbstractAccount,
+    ctx: &TxContext,
+) {
+    if (is_initialized(self)) {
+        assert!(self.id.uid_to_address() == ctx.sender(), ETransactionSenderIsNotTheAccount);
+    }
 }
 
 // === Public-Package Functions ===

@@ -3,9 +3,7 @@
 
 module abstract_account::basic_keyed_aa;
 
-use abstract_account::abstract_account::{Self, AbstractAccount, ensure_tx_sender_is_account};
 use iota::auth_context::AuthContext;
-use iota::authenticator_function::AuthenticatorFunctionRefV1;
 use iota::ecdsa_k1;
 use iota::ecdsa_r1;
 use iota::ed25519;
@@ -33,115 +31,57 @@ public struct OwnerPublicKey has copy, drop, store {}
 
 // === Public Functions ===
 
-/// Creates a new `AbstractAccount`  as a shared object with the given authenticator.
-///
-/// `authenticator` is expected to have a signature like the following:
-///
-/// public fun authenticate(self: &AbstractAccount, signature: vector<u8>, _: &AuthContext, _: &TxContext) { ... }
-///
-/// to allow to verify the `signature` parameter against the public key stored in the account.
-///
-/// There are several ready-made authenticators available in this module:
-/// - `authenticate_ed25519`
-/// - `authenticate_secp256k1`
-/// - `authenticate_secp256r1`
-public fun create(
-    public_key: vector<u8>,
-    authenticator: AuthenticatorFunctionRefV1<AbstractAccount>,
-    ctx: &mut TxContext,
-) {
-    abstract_account::builder(authenticator, ctx)
-        .add_dynamic_field(OwnerPublicKey {}, public_key)
-        .build();
-}
-
-/// Rotates the account owner public key to a new one as well as the authenticator.
-/// Once this function is called, the previous public key and authenticator are no longer valid.
-/// Only the account itself can call this function.
-public fun rotate_public_key(
-    account: &mut AbstractAccount,
-    public_key: vector<u8>,
-    authenticator: AuthenticatorFunctionRefV1<AbstractAccount>,
-    ctx: &TxContext,
-) {
-    // Update the account owner public key dynamic field. It is expected that the field already exists.
-    account.replace_field(OwnerPublicKey {}, public_key, ctx);
-
-    // Update the account authenticator dynamic field. It is expected that the field already exists.
-    account.rotate_auth_function_ref_v1(authenticator, ctx);
-}
-
 /// Ed25519 signature authenticator.
-#[authenticator]
 public fun authenticate_ed25519(
-    account: &AbstractAccount,
-    signature: vector<u8>,
+    signature: &vector<u8>,
+    public_key: &vector<u8>,
     _: &AuthContext,
     ctx: &TxContext,
 ) {
-    // Check that the sender of this transaction is the account.
-    ensure_tx_sender_is_account(account, ctx);
-
     // Check the signature.
     assert!(
-        ed25519::ed25519_verify(&decode(signature), borrow_public_key(account), ctx.digest()),
+        ed25519::ed25519_verify(&decode(*signature), public_key, ctx.digest()),
         EEd25519VerificationFailed,
     );
 }
 
 /// Secp256k1 signature authenticator.
-#[authenticator]
 public fun authenticate_secp256k1(
-    account: &AbstractAccount,
-    signature: vector<u8>,
+    signature: &vector<u8>,
+    public_key: &vector<u8>,
     _: &AuthContext,
     ctx: &TxContext,
 ) {
-    // Check that the sender of this transaction is the account.
-    ensure_tx_sender_is_account(account, ctx);
-
     // Check the signature.
     assert!(
-        ecdsa_k1::secp256k1_verify(&decode(signature), borrow_public_key(account), ctx.digest(), 0),
+        ecdsa_k1::secp256k1_verify(&decode(*signature), public_key, ctx.digest(), 0),
         ESecp256k1VerificationFailed,
     );
 }
 
 /// Secp256r1 signature authenticator.
-#[authenticator]
 public fun authenticate_secp256r1(
-    account: &AbstractAccount,
-    signature: vector<u8>,
+    signature: &vector<u8>,
+    public_key: &vector<u8>,
     _: &AuthContext,
     ctx: &TxContext,
 ) {
-    // Check that the sender of this transaction is the account.
-    ensure_tx_sender_is_account(account, ctx);
-
     // Check the signature.
     assert!(
-        ecdsa_r1::secp256r1_verify(&decode(signature), borrow_public_key(account), ctx.digest(), 0),
+        ecdsa_r1::secp256r1_verify(&decode(*signature), public_key, ctx.digest(), 0),
         ESecp256r1VerificationFailed,
     );
 }
 
-/// Free access, do nothing.
-#[authenticator]
-public fun authenticate_free_access(self: &AbstractAccount, _: &AuthContext, ctx: &TxContext) {
-    // Check that the sender of this transaction is the account.
-    ensure_tx_sender_is_account(self, ctx);
-}
-
 // === View Functions ===
-
-/// An utility function to borrow the account-related public key.
-public fun borrow_public_key(account: &AbstractAccount): &vector<u8> {
-    account.borrow_field(OwnerPublicKey {})
-}
 
 // === Admin Functions ===
 
 // === Package Functions ===
+
+public(package) fun owner_public_key(): OwnerPublicKey {
+    OwnerPublicKey {}
+}
 
 // === Private Functions ===
 
