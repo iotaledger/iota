@@ -507,6 +507,50 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
             }
         }
     }
+
+    /// Finds the lowest commit index from search_from that can be certified
+    /// with available votes. Returns the lowest certifiable commit index and
+    /// the block refs (votes) that certify it, or None if no certifiable
+    /// commit is found.
+    fn find_lowest_certifiable_commit_from(
+        &self,
+        search_from: CommitIndex,
+        commit_sync_type: &CommitSyncType,
+    ) -> ConsensusResult<Option<(CommitIndex, Vec<BlockRef>)>> {
+        let mut current_search_from = search_from;
+        loop {
+            let Some(index_with_votes) = self
+                .store
+                .read_lowest_commit_index_with_votes(current_search_from)?
+            else {
+                return Ok(None);
+            };
+
+            let votes = self.store.read_commit_votes(index_with_votes)?;
+            let mut stake_aggregator = StakeAggregator::<QuorumThreshold>::new();
+            for v in &votes {
+                stake_aggregator.add(v.author, &self.context.committee);
+            }
+            if stake_aggregator.reached_threshold(&self.context.committee) {
+                return Ok(Some((index_with_votes, votes)));
+            } else {
+                debug!(
+                    "Commit {} votes did not reach quorum to certify, {} < {}, skipping",
+                    index_with_votes,
+                    stake_aggregator.stake(),
+                    stake_aggregator.threshold(&self.context.committee)
+                );
+                self.context
+                    .metrics
+                    .node_metrics
+                    .commit_sync_fetch_commits_handler_uncertified_skipped
+                    .with_label_values(&[commit_sync_type.as_str()])
+                    .inc();
+                // Continue searching from index_with_votes + 1
+                current_search_from = index_with_votes.saturating_add(1);
+            }
+        }
+    }
 }
 
 #[async_trait]
