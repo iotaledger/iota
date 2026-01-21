@@ -29,10 +29,10 @@ use iota_indexer::{
 };
 use iota_types::event::Event;
 use prometheus::IntGauge;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use tokio::sync::broadcast;
 use tokio_postgres::{
-    AsyncMessage, Client, Config as PostgresConfig, Connection, NoTls, Socket, tls::NoTlsStream,
+    AsyncMessage, Config as PostgresConfig, Connection, NoTls, Socket, tls::NoTlsStream,
 };
 use tokio_stream::wrappers::{BroadcastStream, errors::BroadcastStreamRecvError};
 use tracing::{debug, error};
@@ -44,6 +44,10 @@ use crate::{
 
 /// Postgres NOTIFY channel name.
 const CHANNEL_NAME: &str = "checkpoint_committed";
+
+/// Delay in seconds before retrying to connect to the Postgres database in case
+/// of failure.
+const RETRY_POSTGRES_CONNECTION_DELAY: Duration = Duration::from_secs(5);
 
 /// Notification received from PostgreSQL NOTIFY channel when a checkpoint is
 /// committed.
@@ -64,6 +68,7 @@ struct CheckpointCommitNotification {
 
 /// Represents the possible configuration of the [`InMemory`] streaming of
 /// transactions and events data.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Deserialize, Serialize)]
 pub struct Config {
     /// The buffer size of the [`tokio::sync::broadcast`] channel used for
     /// broadcasting transactions and events data to subscribers.
@@ -144,11 +149,9 @@ impl Default for Config {
 /// });
 /// ```
 pub struct InMemory {
-    event_tx: broadcast::Sender<StoredEvent>,
-    transaction_tx: broadcast::Sender<StoredTransaction>,
+    event_tx: broadcast::Sender<IndexerStreamingResult<StoredEvent>>,
+    transaction_tx: broadcast::Sender<IndexerStreamingResult<StoredTransaction>>,
     metrics: Arc<InMemoryStreamMetrics>,
-    // to receive notifications from the database we must keep the client alive.
-    _client: Client,
 }
 
 impl InMemory {
@@ -158,6 +161,8 @@ impl InMemory {
     /// - establishes a connection to PostgreSQL.
     /// - sets up the notification listener.
     /// - spawns the background task that processes checkpoint notifications.
+    /// - handles automatically reconnecting to PostgreSQL if the connection is
+    ///   lost.
     pub async fn new(
         db_url: &str,
         config: Config,
@@ -166,40 +171,69 @@ impl InMemory {
     ) -> IndexerStreamingResult<Self> {
         let metrics = metrics.into();
 
-        let (client, connection) = PostgresConfig::from_str(db_url)
-            .map_err(|e| {
-                IndexerStreamingError::Postgres(format!("failed to parse Postgresdb url: {e}"))
-            })?
-            .connect(NoTls)
-            .await?;
+        let pg_config = PostgresConfig::from_str(db_url).map_err(|e| {
+            IndexerStreamingError::Postgres(format!("failed to parse Postgresdb url: {e}"))
+        })?;
 
         let (event_tx, _) = broadcast::channel(config.channel_buffer_size.get());
         let (transaction_tx, _) = broadcast::channel(config.channel_buffer_size.get());
 
-        // the database connection must be spawned into a separate task in order to
-        // communicate with the database.
+        // task responsible for establishing a permanent postgres connection for
+        // listening to notifications and broadcasting events and transactions to
+        // subscribers.
         tokio::spawn({
-            Self::process_checkpoint_notifications(
-                metrics.clone(),
-                config,
-                connection,
-                indexer_reader,
-                event_tx.clone(),
-                transaction_tx.clone(),
-            )
-            .inspect_err(|e| error!("failed to process checkpoint notification: {e}"))
-        });
+            let event_tx = event_tx.clone();
+            let transaction_tx = transaction_tx.clone();
+            let metrics = metrics.clone();
+            let pg_config = pg_config.clone();
 
-        // listen for notifications on a specific channel.
-        client
-            .execute(&format!("LISTEN {CHANNEL_NAME};"), &[])
-            .await?;
+            async move {
+                loop {
+                    let (client, connection) = match pg_config.connect(NoTls).await {
+                        Ok(value) => value,
+                        Err(e) => {
+                            error!("unable to connect to postgres: {e}");
+                            Self::publish_error(e.into(), &event_tx, &transaction_tx);
+                            tokio::time::sleep(RETRY_POSTGRES_CONNECTION_DELAY).await;
+                            continue;
+                        }
+                    };
+
+                    // the client's queries require the connection to be actively polled to execute.
+                    // process_checkpoint_notifications is a long-running future that polls the
+                    // connection for notifications and should never resolve (unless a fatal error
+                    // occurs).
+                    let query_fut = async {
+                        client
+                            .query(&format!("LISTEN {CHANNEL_NAME};"), &[])
+                            .await
+                            .map_err(Into::into)
+                    };
+
+                    let process_notification_fut = Self::process_checkpoint_notifications(
+                        &metrics,
+                        &config,
+                        connection,
+                        &indexer_reader,
+                        &event_tx,
+                        &transaction_tx,
+                    );
+
+                    // by using try_join!, we poll both futures concurrently, which allows the
+                    // client query to execute while the connection is being actively polled
+                    // for incoming notifications.
+                    if let Err(e) = futures::try_join!(query_fut, process_notification_fut) {
+                        error!("processing checkpoint notifications failed: {e}");
+                        Self::publish_error(e, &event_tx, &transaction_tx);
+                    }
+                }
+            }
+        });
 
         Ok(Self {
             event_tx,
             transaction_tx,
             metrics,
-            _client: client,
         })
     }
 
@@ -227,11 +261,10 @@ impl InMemory {
     ///    }
     /// });
     /// ```
-    pub fn subscribe_events(
-        &self,
-    ) -> impl Stream<Item = Result<StoredEvent, BroadcastStreamRecvError>> {
+    pub fn subscribe_events(&self) -> impl Stream<Item = IndexerStreamingResult<StoredEvent>> {
         let stream = BroadcastStream::new(self.event_tx.subscribe());
         SubscriberStream::new(stream, METRICS_EVENT_LABEL, self.metrics.clone())
+            .map(Self::flatten_error)
     }
 
     /// Subscribe to a stream of [`StoredTransaction`].
@@ -259,9 +292,21 @@ impl InMemory {
     /// ```
     pub fn subscribe_transactions(
         &self,
-    ) -> impl Stream<Item = Result<StoredTransaction, BroadcastStreamRecvError>> {
+    ) -> impl Stream<Item = IndexerStreamingResult<StoredTransaction>> {
         let stream = BroadcastStream::new(self.transaction_tx.subscribe());
         SubscriberStream::new(stream, METRICS_TRANSACTION_LABEL, self.metrics.clone())
+            .map(Self::flatten_error)
+    }
+
+    /// Flattens nested `Result` types from the broadcast stream.
+    fn flatten_error<T>(
+        result: Result<IndexerStreamingResult<T>, BroadcastStreamRecvError>,
+    ) -> IndexerStreamingResult<T> {
+        match result {
+            Ok(Ok(ev)) => Ok(ev),
+            Ok(Err(e)) => Err(e),
+            Err(err) => Err(err.into()),
+        }
     }
 
     /// Listens for database notifications and processes them.
@@ -272,14 +317,22 @@ impl InMemory {
     ///   exceeded.
     /// - fetches the transactions within the batch bounds and sends them to
     ///   subscribers alongside extracted events.
+    /// - leverages exponential backoff retries for transient errors when
+    ///   processing notifications.
     async fn process_checkpoint_notifications(
-        metrics: Arc<InMemoryStreamMetrics>,
-        config: Config,
+        metrics: &InMemoryStreamMetrics,
+        config: &Config,
         mut connection: Connection<Socket, NoTlsStream>,
-        indexer_reader: IndexerReader,
-        event_tx: broadcast::Sender<StoredEvent>,
-        transaction_tx: broadcast::Sender<StoredTransaction>,
+        indexer_reader: &IndexerReader,
+        event_tx: &broadcast::Sender<IndexerStreamingResult<StoredEvent>>,
+        transaction_tx: &broadcast::Sender<IndexerStreamingResult<StoredTransaction>>,
     ) -> IndexerStreamingResult<()> {
+        let mut backoff = backoff::ExponentialBackoff::default();
+        backoff.max_elapsed_time = Some(Duration::from_secs(5));
+        backoff.initial_interval = Duration::from_millis(100);
+        backoff.current_interval = backoff.initial_interval;
+        backoff.multiplier = 1.0;
+
         // create a stream from the connection that forwards messages to the channel.
         let mut stream = stream::poll_fn(move |cx| connection.poll_message(cx))
             .ready_chunks(config.notification_chunk_size.get());
@@ -290,7 +343,7 @@ impl InMemory {
                 metrics.process_notification_batch_latency.start_timer();
 
             if let Some((min_tx_sequence_number, max_tx_sequence_number)) =
-                Self::resolve_tx_bounds(&metrics, messages)?
+                Self::resolve_tx_bounds(metrics, &messages)?
             {
                 metrics
                     .notified_tx_seq_num_start_range
@@ -305,28 +358,48 @@ impl InMemory {
                     let end = (start + config.transaction_batch_size.get().saturating_sub(1))
                         .min(max_tx_sequence_number);
 
-                    Self::process_transaction_batch(
-                        &metrics,
-                        start,
-                        end,
-                        &indexer_reader,
-                        &event_tx,
-                        &transaction_tx,
-                    )
-                    .await?;
+                    if let Err(e) = backoff::future::retry(backoff.clone(), || {
+                        Self::process_transaction_batch(
+                            metrics,
+                            start,
+                            end,
+                            indexer_reader,
+                            event_tx,
+                            transaction_tx,
+                        )
+                        .map_err(backoff::Error::transient)
+                        .inspect_err(|e| {
+                            error!("transient error processing transaction batch: {e}")
+                        })
+                    })
+                    .await
+                    {
+                        // once we exaust all backoff retries, we publish the error and move on to
+                        // the next batch. The client can decide how to handle the error
+                        // accordingly.
+                        error!(
+                            batch_start = start,
+                            batch_end = end,
+                            error = ?e,
+                            "batch processing failed after retries, publishing error to clients"
+                        );
+                        Self::publish_error(e, event_tx, transaction_tx);
+                    }
 
                     start = end + 1;
                 }
             }
         }
-        Ok(())
+        Err(IndexerStreamingError::Postgres(
+            "postgres notification stream closed, retrying establishing connection...".into(),
+        ))
     }
 
     /// Resolves the transaction sequence number bounds from the given messages
     /// batch.
     fn resolve_tx_bounds(
         metrics: &InMemoryStreamMetrics,
-        messages: Vec<Result<AsyncMessage, tokio_postgres::Error>>,
+        messages: &[Result<AsyncMessage, tokio_postgres::Error>],
     ) -> IndexerStreamingResult<Option<(i64, i64)>> {
         let mut filtered_messages = Self::filter_checkpoint_notifications(metrics, messages);
 
@@ -349,8 +422,8 @@ impl InMemory {
         start: i64,
         end: i64,
         indexer_reader: &IndexerReader,
-        event_tx: &broadcast::Sender<StoredEvent>,
-        transaction_tx: &broadcast::Sender<StoredTransaction>,
+        event_tx: &broadcast::Sender<IndexerStreamingResult<StoredEvent>>,
+        transaction_tx: &broadcast::Sender<IndexerStreamingResult<StoredTransaction>>,
     ) -> IndexerStreamingResult<()> {
         // auto-records duration on drop (function return).
         let _record_function_execution_latency =
@@ -395,16 +468,16 @@ impl InMemory {
     async fn publish_tx_and_events(
         metrics: &InMemoryStreamMetrics,
         transactions: Vec<StoredTransaction>,
-        event_tx: &broadcast::Sender<StoredEvent>,
-        transaction_tx: &broadcast::Sender<StoredTransaction>,
+        event_tx: &broadcast::Sender<IndexerStreamingResult<StoredEvent>>,
+        transaction_tx: &broadcast::Sender<IndexerStreamingResult<StoredTransaction>>,
     ) -> IndexerStreamingResult<()> {
         // we ignore errors here because we may receive an error if no subscribers are
         // registered which may happen.
         for tx in transactions {
             for event in Self::stored_events_from_transaction(&tx)? {
-                _ = event_tx.send(event);
+                _ = event_tx.send(Ok(event));
             }
-            _ = transaction_tx.send(tx);
+            _ = transaction_tx.send(Ok(tx));
         }
 
         // we sacrifice per-event/transaction granularity to avoid degrading
@@ -421,13 +494,26 @@ impl InMemory {
         Ok(())
     }
 
+    /// Relay an irrecoverable error to all subscribers.
+    ///
+    /// Providing transparency on what happen on the broker side, the client can
+    /// decide how to handle the error accordingly.
+    fn publish_error(
+        error: IndexerStreamingError,
+        event_tx: &broadcast::Sender<IndexerStreamingResult<StoredEvent>>,
+        transaction_tx: &broadcast::Sender<IndexerStreamingResult<StoredTransaction>>,
+    ) {
+        _ = event_tx.send(Err(error.clone()));
+        _ = transaction_tx.send(Err(error));
+    }
+
     /// Filters and parses database notifications into
     /// [`CheckpointCommitNotification`] from PostgreSQL messages.
     fn filter_checkpoint_notifications<'a>(
         metrics: &'a InMemoryStreamMetrics,
-        messages: Vec<Result<AsyncMessage, tokio_postgres::Error>>,
-    ) -> impl Iterator<Item = IndexerStreamingResult<CheckpointCommitNotification>> + use<'a> {
-        messages.into_iter().filter_map(|msg_result| {
+        messages: &'a [Result<AsyncMessage, tokio_postgres::Error>],
+    ) -> impl Iterator<Item = IndexerStreamingResult<CheckpointCommitNotification>> + 'a {
+        messages.iter().filter_map(|msg_result| {
             match msg_result {
                 Ok(AsyncMessage::Notification(n)) => {
                     match serde_json::from_str::<CheckpointCommitNotification>(n.payload()) {

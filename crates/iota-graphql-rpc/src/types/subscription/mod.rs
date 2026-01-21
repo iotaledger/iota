@@ -7,6 +7,7 @@ use async_graphql::{Context, OutputType, ResultExt, SimpleObject, Subscription, 
 use futures::{Stream, StreamExt, TryStreamExt, future};
 use iota_indexer::read::IndexerReader;
 use iota_indexer_streaming::{
+    error::IndexerStreamingError,
     memory::{Config, InMemory},
     metrics::InMemoryStreamMetrics,
 };
@@ -188,10 +189,11 @@ impl GraphQLStream {
                             })
                         })
                     }
-                    Err(BroadcastStreamRecvError::Lagged(count)) => {
+                    Err(IndexerStreamingError::Lagged(BroadcastStreamRecvError::Lagged(count))) => {
                         warn!("subscriber lagging by {count} messages");
                         Ok(SubscriptionItem::Lagged(Lagged { count }))
                     }
+                    Err(err) => Err(err.into()),
                 };
                 future::ready(subscription_item)
             })
@@ -219,10 +221,11 @@ impl GraphQLStream {
                     Ok(stored) => {
                         Event::try_from_stored_event(stored, 0).map(SubscriptionItem::Payload)
                     }
-                    Err(BroadcastStreamRecvError::Lagged(count)) => {
+                    Err(IndexerStreamingError::Lagged(BroadcastStreamRecvError::Lagged(count))) => {
                         warn!("subscriber lagging by {count} messages");
                         Ok(SubscriptionItem::Lagged(Lagged { count }))
                     }
+                    Err(err) => Err(err.into()),
                 };
                 future::ready(subscription_item)
             })
