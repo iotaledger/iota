@@ -6693,6 +6693,7 @@ name = "iota-indexer-streaming"
 version = "1.16.0-alpha"
 dependencies = [
  "async-trait",
+ "backoff",
  "futures",
  "iota-indexer",
  "iota-types",
