@@ -333,17 +333,13 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
     }
 
     async fn handle_fetch_result(&mut self, target_end: CommitIndex, output: FastSyncOutput) {
-        let FastSyncOutput {
-            commits,
-            committed_subdags,
-            voting_block_headers,
-        } = output;
-        assert!(!committed_subdags.is_empty());
+        assert!(!output.committed_subdags.is_empty());
 
         // Track that we have actually fetched data during this fast sync session.
         self.has_fetched_data = true;
 
-        let total_transactions_size_bytes = committed_subdags
+        let total_transactions_size_bytes = output
+            .committed_subdags
             .iter()
             .flat_map(|subdag| &subdag.transactions)
             .map(|txns| txns.serialized().len() as u64)
@@ -354,15 +350,15 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
         metrics
             .commit_sync_fetched_commits
             .with_label_values(&[sync_label])
-            .inc_by(committed_subdags.len() as u64);
+            .inc_by(output.committed_subdags.len() as u64);
         metrics
             .commit_sync_total_fetched_transactions_size
             .with_label_values(&[sync_label])
             .inc_by(total_transactions_size_bytes);
 
         let (commit_start, commit_end) = (
-            committed_subdags.first().unwrap().commit_ref.index,
-            committed_subdags.last().unwrap().commit_ref.index,
+            output.committed_subdags.first().unwrap().commit_ref.index,
+            output.committed_subdags.last().unwrap().commit_ref.index,
         );
         self.highest_fetched_commit_index = self.highest_fetched_commit_index.max(commit_end);
         metrics
@@ -370,22 +366,16 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
             .with_label_values(&[sync_label])
             .set(self.highest_fetched_commit_index as i64);
 
-        // Allow returning partial results, and try fetching the rest separately.
+        // Allow returning partial results and try fetching the rest separately.
         requeue_partial_range(&mut self.pending_fetches, commit_end, target_end);
-        // Make sure synced_commit_index is up to date.
+        // Make sure the synced_commit_index is up to date.
         self.synced_commit_index = self
             .synced_commit_index
             .max(self.inner.dag_state.read().last_commit_index());
         // Only add new blocks if at least some of them are not already synced.
         if self.synced_commit_index < commit_end {
-            self.fetched_ranges.insert(
-                (commit_start..=commit_end).into(),
-                FastSyncOutput {
-                    commits,
-                    committed_subdags,
-                    voting_block_headers,
-                },
-            );
+            self.fetched_ranges
+                .insert((commit_start..=commit_end).into(), output);
         }
         // Try to process as many fetched blocks as possible.
         while let Some((fetched_commit_range, _)) = self.fetched_ranges.first_key_value() {
@@ -395,7 +385,7 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
                 if fetched_commit_range.start() <= self.synced_commit_index + 1 {
                     self.fetched_ranges.pop_first().unwrap()
                 } else {
-                    // Found gap between earliest fetched block and latest synced block,
+                    // Found a gap between the earliest fetched block and the latest synced block,
                     // so not sending additional blocks to Core.
                     metrics
                         .commit_sync_gap_on_processing
@@ -403,11 +393,6 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
                         .inc();
                     break;
                 };
-            let FastSyncOutput {
-                commits,
-                committed_subdags: subdags,
-                voting_block_headers: voting_headers,
-            } = output;
             // Avoid sending to Core a whole batch of already synced blocks.
             if fetched_commit_range.end() <= self.synced_commit_index {
                 continue;
@@ -416,20 +401,15 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
             debug!(
                 "[{}] Fetched {} subdags with transactions for commit range {:?}",
                 sync_label,
-                subdags.len(),
+                output.committed_subdags.len(),
                 fetched_commit_range,
             );
 
-            // If core thread cannot handle the incoming blocks, it is ok to block here.
-
+            // If the core thread cannot handle the incoming blocks, it is ok to block here.
             if let Err(e) = self
                 .inner
                 .core_thread_dispatcher
-                .add_subdags_from_fast_sync(FastSyncOutput {
-                    commits,
-                    committed_subdags: subdags,
-                    voting_block_headers: voting_headers,
-                })
+                .add_subdags_from_fast_sync(output.clone())
                 .await
             {
                 info!(
