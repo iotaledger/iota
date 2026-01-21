@@ -423,7 +423,7 @@ mod tests {
                 .unwrap(),
             randomness_obj_version
         );
-        let next_randomness_obj_version = randomness_obj_version + 1;
+        let next_randomness_obj_version = randomness_obj_version.next().unwrap();
         assert_eq!(
             shared_input_next_versions,
             // Randomness object's version is only incremented by 1 regardless of lamport version.
