@@ -110,8 +110,10 @@ pub(crate) enum TransactionBlockKindInput {
     ProgrammableTx = 1,
     /// The genesis transaction block.
     Genesis = 2,
-    /// The consensus commit prologue transaction block.
+    /// The consensus commit prologue transaction block (V1).
     ConsensusCommitPrologueV1 = 3,
+    /// The consensus commit prologue transaction block (V2).
+    ConsensusCommitPrologueV2 = 7,
     /// The authenticator state update transaction block.
     AuthenticatorStateUpdateV1 = 4,
     /// The randomness state update transaction block.

@@ -385,6 +385,10 @@ struct FeatureFlags {
     // randomness.
     #[serde(skip_serializing_if = "is_false")]
     separate_gas_price_feedback_mechanism_for_randomness: bool,
+
+    // If true, record the additional state digest in the consensus commit prologue.
+    #[serde(skip_serializing_if = "is_false")]
+    record_additional_state_digest_in_prologue: bool,
 }
 
 fn is_true(b: &bool) -> bool {
@@ -1189,6 +1193,10 @@ pub struct ProtocolConfig {
     /// for any single commit. Any overshoot is tracked as a debt that must
     /// be accounted for in subsequent commits.
     max_congestion_limit_overshoot_per_commit: Option<u64>,
+
+    /// The number of commits to consider when computing a deterministic commit
+    /// rate.
+    consensus_commit_rate_estimation_window_size: Option<u32>,
 }
 
 // feature flags
@@ -1409,9 +1417,14 @@ impl ProtocolConfig {
     }
 
     pub fn consensus_num_requested_prior_commits_at_startup(&self) -> u32 {
-        // TODO: this will eventually be the max of some number of other
-        // parameters.
-        0
+        // Currently there is only one parameter driving this value. If there are
+        // multiple things computed from prior consensus commits, this function
+        // must return the max of all of them.
+        let window_size = self.get_consensus_commit_rate_estimation_window_size();
+        // Ensure we are not using past commits without recording a state digest in the
+        // prologue.
+        assert!(window_size == 0 || self.record_additional_state_digest_in_prologue());
+        window_size
     }
 
     pub fn normalize_ptb_arguments(&self) -> bool {
@@ -1472,6 +1485,16 @@ impl ProtocolConfig {
     pub fn separate_gas_price_feedback_mechanism_for_randomness(&self) -> bool {
         self.feature_flags
             .separate_gas_price_feedback_mechanism_for_randomness
+    }
+
+    pub fn record_additional_state_digest_in_prologue(&self) -> bool {
+        self.feature_flags
+            .record_additional_state_digest_in_prologue
+    }
+
+    pub fn get_consensus_commit_rate_estimation_window_size(&self) -> u32 {
+        self.consensus_commit_rate_estimation_window_size
+            .unwrap_or(0)
     }
 }
 
@@ -2033,6 +2056,8 @@ impl ProtocolConfig {
             consensus_max_acknowledgments_per_block: None,
 
             max_congestion_limit_overshoot_per_commit: None,
+
+            consensus_commit_rate_estimation_window_size: None,
             // When adding a new constant, set it to None in the earliest version, like this:
             // new_constant: None,
         };
@@ -2363,6 +2388,13 @@ impl ProtocolConfig {
                         // randomness on devnet.
                         cfg.feature_flags
                             .separate_gas_price_feedback_mechanism_for_randomness = true;
+                    }
+                }
+
+                20 => {
+                    if chain != Chain::Mainnet && chain != Chain::Testnet {
+                        cfg.feature_flags.record_additional_state_digest_in_prologue = true;
+                        cfg.consensus_commit_rate_estimation_window_size = Some(10);
                     }
                 }
                 // Use this template when making changes:

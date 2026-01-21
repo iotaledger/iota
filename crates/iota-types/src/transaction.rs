@@ -43,13 +43,16 @@ use crate::{
         IotaSignatureInner, RandomnessRound, Signature, Signer, ToFromBytes, default_hash,
     },
     digests::{
-        CertificateDigest, ConsensusCommitDigest, SenderSignedDataDigest, ZKLoginInputsDigest,
+        AdditionalConsensusStateDigest, CertificateDigest, ConsensusCommitDigest,
+        SenderSignedDataDigest, ZKLoginInputsDigest,
     },
     event::Event,
     execution::SharedInput,
     message_envelope::{Envelope, Message, TrustedEnvelope, VerifiedEnvelope},
     messages_checkpoint::CheckpointTimestamp,
-    messages_consensus::{ConsensusCommitPrologueV1, ConsensusDeterminedVersionAssignments},
+    messages_consensus::{
+        ConsensusCommitPrologueV1, ConsensusCommitPrologueV2, ConsensusDeterminedVersionAssignments,
+    },
     object::{MoveObject, Object, Owner},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     signature::{GenericSignature, VerifyParams},
@@ -368,11 +371,9 @@ pub enum TransactionKind {
     EndOfEpochTransaction(Vec<EndOfEpochTransactionKind>),
 
     RandomnessStateUpdate(RandomnessStateUpdate),
+
+    ConsensusCommitPrologueV2(ConsensusCommitPrologueV2),
     // .. more transaction types go here
-    // TODO: When introducing `ConsensusCommitPrologueV2`, please add
-    // and use a new variant for `ConsensusDeterminedVersionAssignments`.
-    // See https://github.com/iotaledger/iota/issues/7692 and
-    // https://github.com/iotaledger/iota/pull/7697 for detail.
 }
 
 /// EndOfEpochTransactionKind
@@ -1285,6 +1286,7 @@ impl TransactionKind {
         match self {
             TransactionKind::Genesis(_)
             | TransactionKind::ConsensusCommitPrologueV1(_)
+            | TransactionKind::ConsensusCommitPrologueV2(_)
             | TransactionKind::AuthenticatorStateUpdateV1(_)
             | TransactionKind::RandomnessStateUpdate(_)
             | TransactionKind::EndOfEpochTransaction(_) => true,
@@ -1327,7 +1329,7 @@ impl TransactionKind {
     /// transaction.
     pub fn shared_input_objects(&self) -> impl Iterator<Item = SharedInputObject> + '_ {
         match &self {
-            Self::ConsensusCommitPrologueV1(_) => {
+            Self::ConsensusCommitPrologueV1(_) | Self::ConsensusCommitPrologueV2(_) => {
                 Either::Left(Either::Left(iter::once(SharedInputObject {
                     id: IOTA_CLOCK_OBJECT_ID,
                     initial_shared_version: IOTA_CLOCK_OBJECT_SHARED_VERSION,
@@ -1354,7 +1356,7 @@ impl TransactionKind {
             Self::ProgrammableTransaction(pt) => {
                 Either::Right(Either::Left(pt.shared_input_objects()))
             }
-            _ => Either::Right(Either::Right(iter::empty())),
+            Self::Genesis(_) => Either::Right(Either::Right(iter::empty())),
         }
     }
 
@@ -1369,6 +1371,7 @@ impl TransactionKind {
         match &self {
             TransactionKind::Genesis(_)
             | TransactionKind::ConsensusCommitPrologueV1(_)
+            | TransactionKind::ConsensusCommitPrologueV2(_)
             | TransactionKind::AuthenticatorStateUpdateV1(_)
             | TransactionKind::RandomnessStateUpdate(_)
             | TransactionKind::EndOfEpochTransaction(_) => vec![],
@@ -1386,7 +1389,7 @@ impl TransactionKind {
             Self::Genesis(_) => {
                 vec![]
             }
-            Self::ConsensusCommitPrologueV1(_) => {
+            Self::ConsensusCommitPrologueV1(_) | Self::ConsensusCommitPrologueV2(_) => {
                 vec![InputObjectKind::SharedMoveObject {
                     id: IOTA_CLOCK_OBJECT_ID,
                     initial_shared_version: IOTA_CLOCK_OBJECT_SHARED_VERSION,
@@ -1443,6 +1446,13 @@ impl TransactionKind {
             // All transaction kinds below are assumed to be system,
             // and no validity or limit checks are performed.
             TransactionKind::Genesis(_) | TransactionKind::ConsensusCommitPrologueV1(_) => (),
+            TransactionKind::ConsensusCommitPrologueV2(_) => {
+                if !config.record_additional_state_digest_in_prologue() {
+                    return Err(UserInputError::Unsupported(
+                        "ConsensusCommitPrologueV2 is not supported".to_string(),
+                    ));
+                }
+            }
             TransactionKind::EndOfEpochTransaction(txns) => {
                 for tx in txns {
                     tx.validity_check(config)?;
@@ -1488,6 +1498,7 @@ impl TransactionKind {
         match self {
             Self::Genesis(_) => "Genesis",
             Self::ConsensusCommitPrologueV1(_) => "ConsensusCommitPrologueV1",
+            Self::ConsensusCommitPrologueV2(_) => "ConsensusCommitPrologueV2",
             Self::ProgrammableTransaction(_) => "ProgrammableTransaction",
             Self::AuthenticatorStateUpdateV1(_) => "AuthenticatorStateUpdateV1",
             Self::RandomnessStateUpdate(_) => "RandomnessStateUpdate",
@@ -1511,6 +1522,21 @@ impl Display for TransactionKind {
                     writer,
                     "Consensus determined version assignment: {:?}",
                     p.consensus_determined_version_assignments
+                )?;
+            }
+            Self::ConsensusCommitPrologueV2(p) => {
+                writeln!(writer, "Transaction Kind : Consensus Commit Prologue V2")?;
+                writeln!(writer, "Timestamp : {}", p.commit_timestamp_ms)?;
+                writeln!(writer, "Consensus Digest: {}", p.consensus_commit_digest)?;
+                writeln!(
+                    writer,
+                    "Consensus determined version assignment: {:?}",
+                    p.consensus_determined_version_assignments
+                )?;
+                writeln!(
+                    writer,
+                    "Additional State Digest: {}",
+                    p.additional_state_digest
                 )?;
             }
             Self::ProgrammableTransaction(p) => {
@@ -2025,6 +2051,8 @@ pub trait TransactionDataAPI {
     /// run at the very end of the epoch
     fn is_end_of_epoch_tx(&self) -> bool;
 
+    fn is_consensus_commit_prologue(&self) -> bool;
+
     /// Check if the transaction is sponsored (namely gas owner != sender)
     fn is_sponsored_tx(&self) -> bool;
 
@@ -2154,6 +2182,14 @@ impl TransactionDataAPI for TransactionDataV1 {
 
     fn is_end_of_epoch_tx(&self) -> bool {
         matches!(self.kind, TransactionKind::EndOfEpochTransaction(_))
+    }
+
+    fn is_consensus_commit_prologue(&self) -> bool {
+        matches!(
+            &self.kind,
+            TransactionKind::ConsensusCommitPrologueV1(_)
+                | TransactionKind::ConsensusCommitPrologueV2(_)
+        )
     }
 
     fn is_system_tx(&self) -> bool {
@@ -2568,6 +2604,28 @@ impl VerifiedTransaction {
                 ),
         }
         .pipe(TransactionKind::ConsensusCommitPrologueV1)
+        .pipe(Self::new_system_transaction)
+    }
+
+    pub fn new_consensus_commit_prologue_v2(
+        epoch: u64,
+        round: u64,
+        commit_timestamp_ms: CheckpointTimestamp,
+        consensus_commit_digest: ConsensusCommitDigest,
+        consensus_determined_version_assignments: ConsensusDeterminedVersionAssignments,
+        additional_state_digest: AdditionalConsensusStateDigest,
+    ) -> Self {
+        ConsensusCommitPrologueV2 {
+            epoch,
+            round,
+            // sub_dag_index is reserved for when we have multi commits per round.
+            sub_dag_index: None,
+            commit_timestamp_ms,
+            consensus_commit_digest,
+            consensus_determined_version_assignments,
+            additional_state_digest,
+        }
+        .pipe(TransactionKind::ConsensusCommitPrologueV2)
         .pipe(Self::new_system_transaction)
     }
 

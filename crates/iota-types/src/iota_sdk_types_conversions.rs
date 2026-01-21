@@ -391,6 +391,33 @@ impl TryFrom<TransactionV1> for crate::transaction::TransactionDataV1 {
     }
 }
 
+/// Helper function to convert ConsensusDeterminedVersionAssignments to SDK
+/// type.
+fn convert_consensus_determined_version_assignments(
+    assignments: crate::messages_consensus::ConsensusDeterminedVersionAssignments,
+) -> ConsensusDeterminedVersionAssignments {
+    match assignments {
+        crate::messages_consensus::ConsensusDeterminedVersionAssignments::CancelledTransactions(
+            vec,
+        ) => ConsensusDeterminedVersionAssignments::CancelledTransactions {
+            cancelled_transactions: vec
+                .into_iter()
+                .map(|value| CancelledTransaction {
+                    digest: value.0.into(),
+                    version_assignments: value
+                        .1
+                        .into_iter()
+                        .map(|value| VersionAssignment {
+                            object_id: value.0.into(),
+                            version: value.1.value(),
+                        })
+                        .collect(),
+                })
+                .collect(),
+        },
+    }
+}
+
 impl TryFrom<crate::transaction::TransactionKind> for TransactionKind {
     type Error = SdkTypeConversionError;
 
@@ -428,7 +455,7 @@ impl TryFrom<crate::transaction::TransactionKind> for TransactionKind {
                                 }
                             }
                         })
-                        .collect::<Result<_,_>>()?,
+                        .collect::<Result<_, _>>()?,
                     events: genesis_transaction
                         .events
                         .into_iter()
@@ -449,30 +476,37 @@ impl TryFrom<crate::transaction::TransactionKind> for TransactionKind {
                                 )),
                             }
                         })
-                        .collect::<Result<_,_>>()?,
+                        .collect::<Result<_, _>>()?,
                 })
             }
             InternalTxnKind::ConsensusCommitPrologueV1(consensus_commit_prologue_v1) => {
-                let consensus_determined_version_assignments = match consensus_commit_prologue_v1.consensus_determined_version_assignments {
-                    crate::messages_consensus::ConsensusDeterminedVersionAssignments::CancelledTransactions(vec) =>
-                        ConsensusDeterminedVersionAssignments::CancelledTransactions {
-                            cancelled_transactions: vec.into_iter().map(|value| CancelledTransaction {
-                                digest: value.0.into(),
-                                version_assignments:
-                                    value
-                                        .1
-                                        .into_iter()
-                                        .map(|value| VersionAssignment { object_id: value.0.into(), version: value.1.value() })
-                                        .collect(),
-                            }).collect()
-                        },
-                };
+                let consensus_determined_version_assignments =
+                    convert_consensus_determined_version_assignments(
+                        consensus_commit_prologue_v1.consensus_determined_version_assignments,
+                    );
                 TransactionKind::ConsensusCommitPrologueV1(ConsensusCommitPrologueV1 {
                     epoch: consensus_commit_prologue_v1.epoch,
                     round: consensus_commit_prologue_v1.round,
                     sub_dag_index: consensus_commit_prologue_v1.sub_dag_index,
                     commit_timestamp_ms: consensus_commit_prologue_v1.commit_timestamp_ms,
                     consensus_commit_digest: consensus_commit_prologue_v1
+                        .consensus_commit_digest
+                        .into(),
+                    consensus_determined_version_assignments,
+                })
+            }
+            // V2 is converted to V1 for SDK compatibility (additional_state_digest is dropped)
+            InternalTxnKind::ConsensusCommitPrologueV2(consensus_commit_prologue_v2) => {
+                let consensus_determined_version_assignments =
+                    convert_consensus_determined_version_assignments(
+                        consensus_commit_prologue_v2.consensus_determined_version_assignments,
+                    );
+                TransactionKind::ConsensusCommitPrologueV1(ConsensusCommitPrologueV1 {
+                    epoch: consensus_commit_prologue_v2.epoch,
+                    round: consensus_commit_prologue_v2.round,
+                    sub_dag_index: consensus_commit_prologue_v2.sub_dag_index,
+                    commit_timestamp_ms: consensus_commit_prologue_v2.commit_timestamp_ms,
+                    consensus_commit_digest: consensus_commit_prologue_v2
                         .consensus_commit_digest
                         .into(),
                     consensus_determined_version_assignments,
