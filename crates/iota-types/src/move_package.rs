@@ -92,6 +92,7 @@ pub struct FnInfo {
 /// Uniquely identifies a function in a module
 pub struct FnInfoKey {
     pub fn_name: String,
+    pub mod_name: String,
     pub mod_addr: AccountAddress,
 }
 
@@ -669,7 +670,12 @@ pub fn is_test_fun(name: &IdentStr, module: &CompiledModule, fn_info_map: &FnInf
     let fn_name = name.to_string();
     let mod_handle = module.self_handle();
     let mod_addr = *module.address_identifier_at(mod_handle.address);
-    let fn_info_key = FnInfoKey { fn_name, mod_addr };
+    let mod_name = module.name().to_string();
+    let fn_info_key = FnInfoKey {
+        fn_name,
+        mod_name,
+        mod_addr,
+    };
     match fn_info_map.get(&fn_info_key) {
         Some(fn_info) => fn_info.is_test,
         None => false,
@@ -684,7 +690,12 @@ pub fn get_authenticator_version_from_fun(
     let fn_name = name.to_string();
     let mod_handle = module.self_handle();
     let mod_addr = *module.address_identifier_at(mod_handle.address);
-    let fn_info_key = FnInfoKey { fn_name, mod_addr };
+    let mod_name = module.name().to_string();
+    let fn_info_key = FnInfoKey {
+        fn_name,
+        mod_name,
+        mod_addr,
+    };
     match fn_info_map.get(&fn_info_key) {
         Some(FnInfo {
             is_test: _,
