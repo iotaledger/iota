@@ -481,16 +481,7 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
         inner: Arc<Inner<C>>,
         commit_range: CommitRange,
     ) -> (CommitIndex, FastSyncOutput) {
-        let (end_index, (commits, committed_subdags, voting_block_headers)) =
-            shared_fetch_loop(inner, commit_range, 2, Self::fetch_once).await;
-        (
-            end_index,
-            FastSyncOutput {
-                commits,
-                committed_subdags,
-                voting_block_headers,
-            },
-        )
+        shared_fetch_loop(inner, commit_range, 2, Self::fetch_once).await
     }
 
     // Fetches commits and transactions from a single authority.
@@ -499,11 +490,7 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
         target_authority: AuthorityIndex,
         commit_range: CommitRange,
         timeout: Duration,
-    ) -> ConsensusResult<(
-        Vec<TrustedCommit>,
-        Vec<CommittedSubDag>,
-        Vec<VerifiedBlockHeader>,
-    )> {
+    ) -> ConsensusResult<FastSyncOutput> {
         let _timer = inner
             .context
             .metrics
@@ -635,7 +622,11 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
             ));
         }
 
-        Ok((commits, committed_subdags, voting_block_headers))
+        Ok(FastSyncOutput {
+            commits,
+            committed_subdags,
+            voting_block_headers,
+        })
     }
 
     /// Fetches block headers needed for component reinitialization from the
