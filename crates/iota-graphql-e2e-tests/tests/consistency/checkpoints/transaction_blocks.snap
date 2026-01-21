@@ -258,9 +258,7 @@ Response: {
     "checkpoints": {
       "nodes": [
         {
-          "sequenceNumber": 0,
           "epoch": {
-            "epochId": 0,
             "checkpoints": {
               "nodes": [
                 {
@@ -276,13 +274,13 @@ Response: {
                   "sequenceNumber": 3
                 }
               ]
-            }
-          }
+            },
+            "epochId": 0
+          },
+          "sequenceNumber": 0
         },
         {
-          "sequenceNumber": 1,
           "epoch": {
-            "epochId": 0,
             "checkpoints": {
               "nodes": [
                 {
@@ -298,13 +296,13 @@ Response: {
                   "sequenceNumber": 3
                 }
               ]
-            }
-          }
+            },
+            "epochId": 0
+          },
+          "sequenceNumber": 1
         },
         {
-          "sequenceNumber": 2,
           "epoch": {
-            "epochId": 0,
             "checkpoints": {
               "nodes": [
                 {
@@ -320,13 +318,13 @@ Response: {
                   "sequenceNumber": 3
                 }
               ]
-            }
-          }
+            },
+            "epochId": 0
+          },
+          "sequenceNumber": 2
         },
         {
-          "sequenceNumber": 3,
           "epoch": {
-            "epochId": 0,
             "checkpoints": {
               "nodes": [
                 {
@@ -342,8 +340,10 @@ Response: {
                   "sequenceNumber": 3
                 }
               ]
-            }
-          }
+            },
+            "epochId": 0
+          },
+          "sequenceNumber": 3
         }
       ]
     }

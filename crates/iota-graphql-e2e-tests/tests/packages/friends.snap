@@ -35,6 +35,26 @@ Response: {
                   "outputState": {
                     "asMovePackage": {
                       "module": {
+                        "after": {
+                          "edges": [
+                            {
+                              "cursor": "eyJpIjoxLCJjIjoxfQ",
+                              "node": {
+                                "name": "m1"
+                              }
+                            },
+                            {
+                              "cursor": "eyJpIjoyLCJjIjoxfQ",
+                              "node": {
+                                "name": "m2"
+                              }
+                            }
+                          ],
+                          "pageInfo": {
+                            "hasNextPage": false,
+                            "hasPreviousPage": true
+                          }
+                        },
                         "all": {
                           "edges": [
                             {
@@ -59,26 +79,6 @@ Response: {
                           "pageInfo": {
                             "hasNextPage": false,
                             "hasPreviousPage": false
-                          }
-                        },
-                        "after": {
-                          "edges": [
-                            {
-                              "cursor": "eyJpIjoxLCJjIjoxfQ",
-                              "node": {
-                                "name": "m1"
-                              }
-                            },
-                            {
-                              "cursor": "eyJpIjoyLCJjIjoxfQ",
-                              "node": {
-                                "name": "m2"
-                              }
-                            }
-                          ],
-                          "pageInfo": {
-                            "hasNextPage": false,
-                            "hasPreviousPage": true
                           }
                         },
                         "before": {

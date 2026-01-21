@@ -16,9 +16,9 @@ use clap::*;
 use colored::Colorize;
 use fastcrypto::traits::KeyPair;
 use iota_config::{
-    Config, FULL_NODE_DB_PATH, IOTA_BENCHMARK_GENESIS_GAS_KEYSTORE_FILENAME, IOTA_CLIENT_CONFIG,
-    IOTA_FULLNODE_CONFIG, IOTA_GENESIS_FILENAME, IOTA_KEYSTORE_FILENAME, IOTA_NETWORK_CONFIG,
-    NodeConfig, PersistedConfig, genesis_blob_exists, iota_config_dir,
+    Config, IOTA_BENCHMARK_GENESIS_GAS_KEYSTORE_FILENAME, IOTA_CLIENT_CONFIG, IOTA_FULLNODE_CONFIG,
+    IOTA_GENESIS_FILENAME, IOTA_KEYSTORE_FILENAME, IOTA_NETWORK_CONFIG, NodeConfig,
+    PersistedConfig, genesis_blob_exists, iota_config_dir,
     node::{Genesis, GrpcApiConfig},
     p2p::SeedPeer,
 };
@@ -1116,12 +1116,26 @@ async fn genesis(
                 // Make a keystore containing the key for the genesis gas object.
                 let path = iota_config_dir.join(IOTA_BENCHMARK_GENESIS_GAS_KEYSTORE_FILENAME);
                 let mut keystore = FileBasedKeystore::new(&path)?;
-                for gas_key in GenesisConfig::benchmark_gas_keys(
-                    ips.len() + num_additional_gas_accounts.unwrap_or(0),
-                ) {
+                let num_validators = ips.len();
+                let num_accounts = num_validators + num_additional_gas_accounts.unwrap_or(0);
+                for gas_key in GenesisConfig::benchmark_gas_keys(num_accounts) {
                     keystore.add_key(None, gas_key)?;
                 }
                 keystore.save()?;
+
+                // Calculate extra allocations (validator, faucet)
+                let validator_extra = num_validators as u64
+                    * (iota_swarm_config::genesis_config::DEFAULT_GAS_AMOUNT
+                        + iota_types::governance::VALIDATOR_LOW_STAKE_THRESHOLD_NANOS);
+                let mut faucet_extra = 0u64;
+                if with_faucet {
+                    faucet_extra = iota_swarm_config::genesis_config::DEFAULT_GAS_AMOUNT
+                        * iota_swarm_config::genesis_config::DEFAULT_NUMBER_OF_OBJECT_PER_ACCOUNT
+                            as u64;
+                }
+                let total_available_amount = u64::MAX
+                    .saturating_sub(validator_extra)
+                    .saturating_sub(faucet_extra);
 
                 // Make a new genesis config from the provided ip addresses with given epoch
                 // duration and timestamp.
@@ -1130,6 +1144,7 @@ async fn genesis(
                     epoch_duration_ms,
                     chain_start_timestamp_ms,
                     num_additional_gas_accounts,
+                    total_available_amount,
                 )
             } else if keystore_path.exists() {
                 let existing_keys = FileBasedKeystore::new(&keystore_path)?.addresses();
@@ -1223,7 +1238,7 @@ async fn genesis(
     info!("Client keystore is stored in {:?}.", keystore_path);
 
     let fullnode_config = FullnodeConfigBuilder::new()
-        .with_config_directory(FULL_NODE_DB_PATH.into())
+        .with_config_directory(iota_config_dir.to_path_buf())
         .with_rpc_addr(iota_config::node::default_json_rpc_address())
         .with_genesis(genesis.clone())
         .with_admin_interface_address(admin_interface_address_with_port)
@@ -1238,7 +1253,7 @@ async fn genesis(
             // join base fullnode config with each SsfnGenesisConfig entry
             let genesis = Genesis::new_from_file("/opt/iota/config/genesis.blob");
             let ssfn_config = FullnodeConfigBuilder::new()
-                .with_config_directory(FULL_NODE_DB_PATH.into())
+                .with_config_directory(iota_config_dir.to_path_buf())
                 .with_p2p_external_address(ssfn.p2p_address)
                 .with_network_key_pair(ssfn.network_key_pair)
                 .with_p2p_listen_address(([0, 0, 0, 0], 8084))

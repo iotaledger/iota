@@ -15,19 +15,19 @@ name = "iota-source-validation-service"
 
 [dependencies]
 # external dependencies
-anyhow = { version = "1.0.64", features = ["backtrace"] }
+anyhow = { workspace = true, features = ["backtrace"] }
 axum.workspace = true
 clap.workspace = true
 hyper.workspace = true
 prometheus.workspace = true
-serde = { version = "1.0.144", features = ["derive"] }
-tempfile = "3.3.0"
+serde.workspace = true
+tempfile.workspace = true
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
-toml = { version = "0.7.4", features = ["preserve_order"] }
+toml.workspace = true
 tower.workspace = true
 tower-http.workspace = true
-tracing = "0.1.36"
-url = "2.3.1"
+tracing.workspace = true
+url.workspace = true
 
 # internal dependencies
 bin-version.workspace = true
@@ -44,8 +44,8 @@ telemetry-subscribers.workspace = true
 
 [dev-dependencies]
 # external dependencies
-expect-test = "1.4.0"
-fs_extra = "1.3.0"
+expect-test.workspace = true
+fs_extra.workspace = true
 reqwest.workspace = true
 
 # internal dependencies

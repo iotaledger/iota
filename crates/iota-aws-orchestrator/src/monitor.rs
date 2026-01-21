@@ -5,7 +5,6 @@
 use std::{fs, net::SocketAddr, path::PathBuf};
 
 use crate::{
-    benchmark::{BenchmarkParameters, BenchmarkType},
     client::Instance,
     error::{MonitorError, MonitorResult},
     protocol::ProtocolMetrics,
@@ -44,17 +43,19 @@ impl Monitor {
     }
 
     /// Start a prometheus instance on each remote machine.
-    pub async fn start_prometheus<P: ProtocolMetrics, T: BenchmarkType>(
+    pub async fn start_prometheus<P: ProtocolMetrics>(
         &self,
         protocol_commands: &P,
-        parameters: &BenchmarkParameters<T>,
+        use_internal_ip_address: bool,
+        snapshot_dir: Option<&str>,
     ) -> MonitorResult<()> {
         let instance = std::iter::once(self.instance.clone());
         let commands = Prometheus::setup_commands(
             self.clients.clone(),
             self.nodes.clone(),
             protocol_commands,
-            parameters,
+            use_internal_ip_address,
+            snapshot_dir,
         );
         self.ssh_manager
             .execute(instance, commands, CommandContext::default())
@@ -87,6 +88,7 @@ pub struct Prometheus;
 impl Prometheus {
     /// The default prometheus configuration path.
     const DEFAULT_PROMETHEUS_CONFIG_PATH: &'static str = "/etc/prometheus/prometheus.yml";
+    const PROMETHEUS_DAEMON_DIR: &'static str = "/etc/systemd/system/prometheus.service.d";
     /// The default prometheus port.
     pub const DEFAULT_PORT: u16 = 9090;
 
@@ -101,33 +103,33 @@ impl Prometheus {
 
     /// Generate the commands to update the prometheus configuration and restart
     /// prometheus.
-    pub fn setup_commands<I, P, T>(
+    pub fn setup_commands<I, P>(
         clients: I,
         nodes: I,
         protocol: &P,
-        parameters: &BenchmarkParameters<T>,
+        use_internal_ip_address: bool,
+        snapshot_dir: Option<&str>,
     ) -> String
     where
         I: IntoIterator<Item = Instance>,
         P: ProtocolMetrics,
-        T: BenchmarkType,
     {
         // Generate the prometheus' global configuration.
         let mut config = vec![Self::global_configuration()];
 
         // Add configurations to scrape the clients.
         let mut client_ips = vec![];
-        let clients_metrics_path = protocol.clients_metrics_path(clients, parameters);
+        let clients_metrics_path = protocol.clients_metrics_path(clients, use_internal_ip_address);
         for (i, (_, clients_metrics_path)) in clients_metrics_path.into_iter().enumerate() {
             let id = format!("client-{i}");
-            let node_ip = clients_metrics_path.split(":").next().unwrap().to_string();
-            client_ips.push(node_ip);
+            let client_ip = clients_metrics_path.split(":").next().unwrap().to_string();
+            client_ips.push(client_ip);
             let scrape_config = Self::scrape_configuration(&id, &clients_metrics_path);
             config.push(scrape_config);
         }
         // Add configurations to scrape the nodes.
         let mut node_ips = vec![];
-        let nodes_metrics_path = protocol.nodes_metrics_path(nodes, parameters);
+        let nodes_metrics_path = protocol.nodes_metrics_path(nodes, use_internal_ip_address);
         for (i, (_, nodes_metrics_path)) in nodes_metrics_path.into_iter().enumerate() {
             let id = format!("node-{i}");
             let node_ip = nodes_metrics_path.split(":").next().unwrap().to_string();
@@ -149,15 +151,31 @@ impl Prometheus {
         config.push(prometheus_exporter_config);
 
         // Make the command to configure and restart prometheus.
-        [
-            &format!(
-                "sudo echo \"{}\" > {}",
-                config.join("\n"),
-                Self::DEFAULT_PROMETHEUS_CONFIG_PATH
-            ),
-            "sudo service prometheus restart",
-        ]
-        .join(" && ")
+        let mut commands = vec![];
+        if let Some(tsdb) = snapshot_dir {
+            commands.push(format!("sudo mkdir -p {}", Self::PROMETHEUS_DAEMON_DIR));
+            // We need to pass '--web.enable-admin-api' flag to enable snapshots.
+            // The safest way to do it is via override file.
+            commands.push(format!("(echo \"[Service]\nExecStart=\nExecStart=/usr/bin/prometheus --web.enable-admin-api --storage.tsdb.path=/var/lib/prometheus/{}\" | sudo tee {}/override.conf > /dev/null)",
+                tsdb,
+                Self::PROMETHEUS_DAEMON_DIR,
+            ));
+            commands.push("sudo systemctl daemon-reload".to_string());
+        }
+        commands.push(format!(
+            "sudo echo \"{}\" > {}",
+            config.join("\n"),
+            Self::DEFAULT_PROMETHEUS_CONFIG_PATH
+        ));
+        commands.push("sudo service prometheus restart".to_string());
+        commands.join(" && ")
+    }
+
+    pub fn take_snapshot_command() -> String {
+        format!(
+            "curl -XPOST http://localhost:{}/api/v1/admin/tsdb/snapshot",
+            Prometheus::DEFAULT_PORT
+        )
     }
 
     /// Generate the global prometheus configuration.

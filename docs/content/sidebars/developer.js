@@ -124,7 +124,6 @@ const developer = [
                             'developer/cryptography/transaction-auth/keys-addresses',
                             'developer/cryptography/transaction-auth/signatures',
                             'developer/cryptography/transaction-auth/multisig',
-                            'developer/cryptography/transaction-auth/offline-signing',
                             'developer/cryptography/transaction-auth/intent-signing',
                         ],
                     },
@@ -510,6 +509,11 @@ const developer = [
                 type: 'doc',
                 id: 'developer/workshops/identity-workshop',
                 label: 'IOTA Identity Workshop',
+            },
+                {
+                type: 'doc',
+                id: 'developer/workshops/gas-station-workshop',
+                label: 'IOTA Gas Station Workshop',
             },
             {
                 type: 'doc',
