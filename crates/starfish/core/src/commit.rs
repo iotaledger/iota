@@ -746,13 +746,15 @@ pub fn load_pending_subdag_from_store(
     let mut leader_block_idx = None;
     let commit_block_headers = store
         .read_verified_block_headers(commit.block_headers())
-        .expect("We should have the block referenced in the commit data");
+        .expect("Block headers referenced in commit data should exist");
     let block_headers = commit_block_headers
         .into_iter()
         .enumerate()
         .map(|(idx, commit_block_opt)| {
-            let commit_block =
-                commit_block_opt.expect("We should have the block referenced in the commit data");
+            let commit_block = commit_block_opt.expect(
+                "Block header referenced in commit data should exist. \
+                 This could be due to unfinished fast syncing.",
+            );
             if commit_block.reference() == commit.leader() {
                 leader_block_idx = Some(idx);
             }

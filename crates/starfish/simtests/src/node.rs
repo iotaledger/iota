@@ -1,9 +1,14 @@
 // Copyright (c) Mysten Labs, Inc.
 // Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
+
 use std::{
+    collections::{HashMap, HashSet},
     net::{IpAddr, SocketAddr},
-    sync::Arc,
+    sync::{
+        Arc,
+        atomic::{AtomicU32, AtomicU64, Ordering},
+    },
     time::Duration,
 };
 
@@ -15,56 +20,130 @@ use parking_lot::Mutex;
 use prometheus::Registry;
 use starfish_config::{AuthorityIndex, Committee, NetworkKeyPair, Parameters, ProtocolKeyPair};
 use starfish_core::{
-    BlockTimestampMs, Clock, CommitConsumer, CommitConsumerMonitor, CommittedSubDag,
-    ConsensusAuthority, TransactionClient, network::tonic_network::to_socket_addr,
+    BlockTimestampMs, Clock, CommitConsumer, CommitConsumerMonitor, CommitDigest, CommitIndex,
+    CommittedSubDag, ConsensusAuthority, TransactionClient, network::tonic_network::to_socket_addr,
     transaction::NoopTransactionVerifier,
 };
 use tempfile::TempDir;
+use tokio::sync::RwLock;
 use tracing::{info, trace};
 
 #[derive(Clone)]
-#[allow(unused)]
 pub(crate) struct Config {
     pub authority_index: AuthorityIndex,
     pub db_dir: Arc<TempDir>,
     pub committee: Committee,
     pub keypairs: Vec<(NetworkKeyPair, ProtocolKeyPair)>,
+    #[expect(dead_code)]
     pub network_type: ConsensusNetwork,
     pub boot_counter: u64,
     pub clock_drift: BlockTimestampMs,
     pub protocol_config: ProtocolConfig,
+    /// Last processed commit index for persistent DB restarts
+    pub last_processed_commit: CommitIndex,
 }
 
 pub(crate) struct AuthorityNode {
     inner: Mutex<Option<AuthorityNodeInner>>,
     config: Config,
+    db_dir: Mutex<Arc<TempDir>>,
+    boot_counter: AtomicU64,
+    /// Tracks the last processed commit index for persistent DB restarts
+    last_processed_commit: Arc<AtomicU32>,
+    /// Stores commit digests for consistency verification across authorities
+    commit_digests: Arc<RwLock<HashMap<CommitIndex, CommitDigest>>>,
+    /// Stores committed transactions for verification of sequencing
+    /// completeness
+    committed_transactions: Arc<RwLock<HashSet<Vec<u8>>>>,
 }
 
 impl AuthorityNode {
     pub fn new(config: Config) -> Self {
+        let initial_boot_counter = config.boot_counter;
+        let db_dir = config.db_dir.clone();
         Self {
             inner: Default::default(),
             config,
+            db_dir: Mutex::new(db_dir),
+            boot_counter: AtomicU64::new(initial_boot_counter),
+            last_processed_commit: Arc::new(AtomicU32::new(0)),
+            commit_digests: Arc::new(RwLock::new(HashMap::new())),
+            committed_transactions: Arc::new(RwLock::new(HashSet::new())),
         }
     }
 
     /// Start this Node
     pub async fn start(&self) -> Result<()> {
-        info!(index =% self.config.authority_index, "starting in-memory node");
-        let config = self.config.clone();
+        let current_boot_counter = self.boot_counter.fetch_add(1, Ordering::SeqCst);
+        let last_processed = self.last_processed_commit.load(Ordering::SeqCst);
+        info!(
+            index =% self.config.authority_index,
+            boot_counter =% current_boot_counter,
+            last_processed,
+            "starting in-memory node"
+        );
+        let mut config = self.config.clone();
+        config.boot_counter = current_boot_counter;
+        config.db_dir = self.db_dir.lock().clone();
+        config.last_processed_commit = last_processed;
         *self.inner.lock() = Some(AuthorityNodeInner::spawn(config).await);
         Ok(())
     }
 
+    /// Restart the node, optionally with a fresh database
+    pub async fn restart(&self, clean_db: bool) -> Result<()> {
+        self.stop();
+        if clean_db {
+            *self.db_dir.lock() = Arc::new(TempDir::new()?);
+            self.last_processed_commit.store(0, Ordering::SeqCst);
+            // Treat clean DB as a fresh node: reset boot counter to enable
+            // sync_last_known_own_block, and clear tracking state (commit
+            // digests and committed transactions).
+            self.boot_counter.store(0, Ordering::SeqCst);
+            self.commit_digests.write().await.clear();
+            self.committed_transactions.write().await.clear();
+        }
+        self.start().await
+    }
+
+    /// Spawns a background task to consume committed subdags from consensus.
+    ///
+    /// This task:
+    /// - Tracks commit digests for consistency verification across authorities
+    /// - Records all committed transactions for verification
+    /// - Updates the last processed commit index for persistent DB restarts
+    /// - Notifies the commit consumer monitor of progress
+    ///
+    /// The spawned task runs until the commit receiver is closed (when the node
+    /// stops), so the task handle is intentionally not stored.
+    ///
+    /// Must be called after `start()` to begin tracking commits.
     pub fn spawn_committed_subdag_consumer(&self) -> Result<()> {
-        let authority_index = self.config.authority_index;
         let inner = self.inner.lock();
         if let Some(inner) = inner.as_ref() {
             let mut commit_receiver = inner.take_commit_receiver();
             let commit_consumer_monitor = inner.commit_consumer_monitor();
+            let commit_digests = self.commit_digests.clone();
+            let last_processed = self.last_processed_commit.clone();
+            let committed_transactions = self.committed_transactions.clone();
             let _handle = tokio::spawn(async move {
                 while let Some(subdag) = commit_receiver.recv().await {
-                    info!(authority =% authority_index, commit_index =% subdag.commit_ref.index, "received committed subdag");
+                    // Store commit digest for consistency verification
+                    commit_digests
+                        .write()
+                        .await
+                        .insert(subdag.commit_ref.index, subdag.commit_ref.digest);
+                    // Track committed transactions
+                    for verified_txns in &subdag.transactions {
+                        for txn in verified_txns.transactions() {
+                            committed_transactions
+                                .write()
+                                .await
+                                .insert(txn.data().to_vec());
+                        }
+                    }
+                    // Track last processed for persistent DB restarts
+                    last_processed.store(subdag.commit_ref.index, Ordering::SeqCst);
                     commit_consumer_monitor.set_highest_handled_commit(subdag.commit_ref.index);
                 }
             });
@@ -91,7 +170,6 @@ impl AuthorityNode {
     }
 
     /// Stop this Node
-    #[expect(dead_code)]
     pub fn stop(&self) {
         info!(index =% self.config.authority_index, "stopping in-memory node");
         *self.inner.lock() = None;
@@ -99,9 +177,18 @@ impl AuthorityNode {
     }
 
     /// If this Node is currently running
-    #[expect(dead_code)]
     pub fn is_running(&self) -> bool {
         self.inner.lock().as_ref().map_or(false, |c| c.is_alive())
+    }
+
+    /// Get the commit digest for a specific commit index
+    pub async fn get_commit_digest(&self, index: CommitIndex) -> Option<CommitDigest> {
+        self.commit_digests.read().await.get(&index).copied()
+    }
+
+    /// Get all committed transactions
+    pub async fn get_committed_transactions(&self) -> HashSet<Vec<u8>> {
+        self.committed_transactions.read().await.clone()
     }
 }
 
@@ -247,10 +334,11 @@ pub(crate) async fn make_authority(
         db_dir,
         committee,
         keypairs,
-        network_type,
+        network_type: _,
         boot_counter,
         clock_drift,
         protocol_config,
+        last_processed_commit,
     } = config;
 
     let registry = Registry::new();
@@ -271,7 +359,7 @@ pub(crate) async fn make_authority(
 
     let (commit_sender, commit_receiver) = unbounded_channel("consensus_output");
 
-    let commit_consumer = CommitConsumer::new(commit_sender, 0);
+    let commit_consumer = CommitConsumer::new(commit_sender, last_processed_commit);
     let commit_consumer_monitor = commit_consumer.monitor();
 
     let authority = ConsensusAuthority::start(
