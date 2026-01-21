@@ -42,15 +42,17 @@ pub(crate) fn convert_vm_error<S: MoveResolver<Err = IotaError>>(
                 let fhandle = module.function_handle_at(fdef.function);
                 module.identifier_at(fhandle.name).to_string()
             });
-            ExecutionFailureStatus::MoveAbort(
-                MoveLocation {
-                    module: abort_location_id,
+            ExecutionFailureStatus::MoveAbort {
+                location: MoveLocation {
+                    // TODO
+                    package: abort_location_id.address().into(),
+                    module: abort_location_id.name().into(),
                     function,
                     instruction,
-                    function_name,
+                    function_name: function_name.into(),
                 },
                 code,
-            )
+            }
         }
         (StatusCode::OUT_OF_GAS, _, _) => ExecutionFailureStatus::InsufficientGas,
         (_, _, location) => match error.major_status().status_type() {
@@ -70,15 +72,17 @@ pub(crate) fn convert_vm_error<S: MoveResolver<Err = IotaError>>(
                             module.identifier_at(fhandle.name).to_string()
                         });
                         Some(MoveLocation {
-                            module: id.clone(),
+                            // TODO
+                            package: id.address().into(),
+                            module: id.name().into(),
                             function,
                             instruction,
-                            function_name,
+                            function_name: function_name.into(),
                         })
                     }
                     _ => None,
                 };
-                ExecutionFailureStatus::MovePrimitiveRuntimeError(MoveLocationOpt(location))
+                ExecutionFailureStatus::MovePrimitiveRuntimeError { location }
             }
             StatusType::Validation
             | StatusType::Verification

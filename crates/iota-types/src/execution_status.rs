@@ -2,25 +2,14 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::fmt::{Display, Formatter};
-
-use iota_macros::EnumVariantOrder;
-pub use iota_sdk_types::ExecutionStatus;
-use move_binary_format::file_format::{CodeOffset, TypeParameterIndex};
-use move_core_types::language_storage::ModuleId;
-use serde::{Deserialize, Serialize};
-use thiserror::Error;
-
-use crate::{ObjectID, base_types::IotaAddress};
+pub use iota_sdk_types::{
+    CommandArgumentError, CommandIndex, ExecutionError as ExecutionFailureStatus, ExecutionStatus,
+    MoveLocation, MoveLocationOpt, PackageUpgradeError, TypeArgumentError,
+};
 
 #[cfg(test)]
 #[path = "unit_tests/execution_status_tests.rs"]
 mod execution_status_tests;
-
-pub type CommandArgumentError = iota_sdk_types::CommandArgumentError;
-pub type CommandIndex = iota_sdk_types::CommandIndex;
-pub type ExecutionFailureStatus = iota_sdk_types::ExecutionError;
-pub type PackageUpgradeError = iota_sdk_types::PackageUpgradeError;
 
 // #[derive(Eq, PartialEq, Clone, Debug, Serialize, Deserialize)]
 // pub struct CongestedObjects(pub Vec<ObjectID>);
@@ -221,53 +210,3 @@ pub type PackageUpgradeError = iota_sdk_types::PackageUpgradeError;
 //     // NOTE: if you want to add a new enum,
 //     // please add it at the end for Rust SDK backward compatibility.
 // }
-
-#[derive(Eq, PartialEq, Clone, Debug, Serialize, Deserialize, Hash)]
-pub struct MoveLocation {
-    pub module: ModuleId,
-    pub function: u16,
-    pub instruction: CodeOffset,
-    pub function_name: Option<String>,
-}
-
-#[derive(Eq, PartialEq, Clone, Debug, Serialize, Deserialize, Hash)]
-pub struct MoveLocationOpt(pub Option<MoveLocation>);
-
-#[derive(Eq, PartialEq, Clone, Copy, Debug, Serialize, Deserialize, Hash, Error)]
-pub enum TypeArgumentError {
-    #[error("A type was not found in the module specified.")]
-    TypeNotFound,
-    #[error("A type provided did not match the specified constraints.")]
-    ConstraintNotSatisfied,
-}
-
-impl Display for MoveLocationOpt {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        match &self.0 {
-            None => write!(f, "UNKNOWN"),
-            Some(l) => write!(f, "{l}"),
-        }
-    }
-}
-
-impl Display for MoveLocation {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let Self {
-            module,
-            function,
-            instruction,
-            function_name,
-        } = self;
-        if let Some(fname) = function_name {
-            write!(
-                f,
-                "{module}::{fname} (function index {function}) at offset {instruction}"
-            )
-        } else {
-            write!(
-                f,
-                "{module} in function definition {function} at offset {instruction}"
-            )
-        }
-    }
-}

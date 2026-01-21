@@ -647,8 +647,9 @@ mod checked {
             return Err(ExecutionError::from_kind(
                 ExecutionErrorKind::PackageUpgradeError {
                     kind: PackageUpgradeError::PackageIDDoesNotMatch {
-                        package_id: current_package_id,
-                        ticket_id: upgrade_ticket.package.bytes,
+                        // TODO
+                        package_id: current_package_id.into(),
+                        ticket_id: upgrade_ticket.package.bytes.into(),
                     },
                 },
             ));
@@ -657,7 +658,8 @@ mod checked {
         // Check digest.
         let computed_digest =
             MovePackage::compute_digest_for_modules_and_deps(&module_bytes, &dep_ids).into();
-        if computed_digest != upgrade_ticket.digest {
+        // TODO
+        if computed_digest != upgrade_ticket.digest.into() {
             return Err(ExecutionError::from_kind(
                 ExecutionErrorKind::PackageUpgradeError {
                     kind: PackageUpgradeError::DigestDoesNotMatch {

@@ -24,7 +24,6 @@ use iota_sdk_types::{
         UnchangedSharedKind, UnchangedSharedObject,
     },
     events::{Event, TransactionEvents},
-    execution_status::MoveLocation,
     gas::GasCostSummary,
     object::{
         GenesisObject, MovePackage, MoveStruct, Object, ObjectData, ObjectReference, Owner,
@@ -43,7 +42,6 @@ use iota_sdk_types::{
     type_tag::{Identifier, StructTag, TypeParseError, TypeTag},
     validator::{ValidatorAggregatedSignature, ValidatorCommittee, ValidatorCommitteeMember},
 };
-use move_core_types::language_storage::ModuleId;
 use tap::Pipe;
 
 use crate::transaction::TransactionDataAPI as _;
@@ -1592,34 +1590,6 @@ impl_convert_digest!(EffectsAuxDataDigest);
 // handled"),         }
 //     }
 // }
-
-impl From<crate::execution_status::MoveLocation> for MoveLocation {
-    fn from(value: crate::execution_status::MoveLocation) -> Self {
-        Self {
-            package: ObjectId::new(value.module.address().into_bytes()),
-            module: Identifier::new(value.module.name().as_str()).expect("invalid module name"),
-            function: value.function,
-            instruction: value.instruction,
-            function_name: value
-                .function_name
-                .map(|name| Identifier::new(name).expect("invalid function name")),
-        }
-    }
-}
-
-impl From<MoveLocation> for crate::execution_status::MoveLocation {
-    fn from(value: MoveLocation) -> Self {
-        Self {
-            module: ModuleId::new(
-                move_core_types::account_address::AccountAddress::new(value.package.into_inner()),
-                crate::Identifier::new(value.module.as_str()).expect("invalid module name"),
-            ),
-            function: value.function,
-            instruction: value.instruction,
-            function_name: value.function_name.map(|name| name.to_string()),
-        }
-    }
-}
 
 impl TryFrom<crate::messages_checkpoint::CheckpointContents> for CheckpointContents {
     type Error = SdkTypeConversionError;

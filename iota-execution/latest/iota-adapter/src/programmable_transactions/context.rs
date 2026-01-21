@@ -953,12 +953,12 @@ mod checked {
                     ExecutionErrorKind::TypeArityMismatch.into()
                 }
                 StatusCode::TYPE_RESOLUTION_FAILURE => ExecutionErrorKind::TypeArgumentError {
-                    argument_idx: idx as TypeParameterIndex,
+                    type_argument: idx as TypeParameterIndex,
                     kind: TypeArgumentError::TypeNotFound,
                 }
                 .into(),
                 StatusCode::CONSTRAINT_NOT_SATISFIED => ExecutionErrorKind::TypeArgumentError {
-                    argument_idx: idx as TypeParameterIndex,
+                    type_argument: idx as TypeParameterIndex,
                     kind: TypeArgumentError::ConstraintNotSatisfied,
                 }
                 .into(),
