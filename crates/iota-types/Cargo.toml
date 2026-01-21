@@ -100,4 +100,9 @@ harness = false
 [features]
 default = []
 tracing = ["move-vm-profiler/tracing", "move-vm-test-utils/tracing"]
-fuzzing = ["move-core-types/fuzzing", "dep:proptest-derive", "dep:proptest"]
+fuzzing = [
+  "move-core-types/fuzzing",
+  "dep:proptest-derive",
+  "dep:proptest",
+  "iota-sdk-types/proptest",
+]
