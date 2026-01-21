@@ -1806,7 +1806,6 @@ impl CheckpointBuilder {
                     .as_ref()
                     .unwrap()
                     .transaction_data()
-                    .kind()
                     .is_consensus_commit_prologue()
             );
 
