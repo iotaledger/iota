@@ -28,6 +28,18 @@ use tempfile::TempDir;
 use tokio::sync::RwLock;
 use tracing::{info, trace};
 
+/// Restart mode for authority nodes during testing
+#[derive(Clone, Copy, Debug)]
+pub(crate) enum RestartMode {
+    /// Erase both consensus DB and node tracking state (fresh start)
+    CleanAll,
+    /// Keep both consensus DB and node tracking state (crash recovery)
+    PersistAll,
+    /// Keep consensus DB but reset last_processed_commit to 0.
+    /// Tests recovery when consensus state is intact but node tracking is lost.
+    ResetLastProcessed,
+}
+
 #[derive(Clone)]
 pub(crate) struct Config {
     pub authority_index: AuthorityIndex,
@@ -90,18 +102,31 @@ impl AuthorityNode {
         Ok(())
     }
 
-    /// Restart the node, optionally with a fresh database
-    pub async fn restart(&self, clean_db: bool) -> Result<()> {
+    /// Restart the node with the specified mode
+    pub async fn restart(&self, mode: RestartMode) -> Result<()> {
         self.stop();
-        if clean_db {
-            *self.db_dir.lock() = Arc::new(TempDir::new()?);
-            self.last_processed_commit.store(0, Ordering::SeqCst);
-            // Treat clean DB as a fresh node: reset boot counter to enable
-            // sync_last_known_own_block, and clear tracking state (commit
-            // digests and committed transactions).
-            self.boot_counter.store(0, Ordering::SeqCst);
-            self.commit_digests.write().await.clear();
-            self.committed_transactions.write().await.clear();
+        match mode {
+            RestartMode::CleanAll => {
+                // Erase consensus DB and all node tracking
+                *self.db_dir.lock() = Arc::new(TempDir::new()?);
+                self.last_processed_commit.store(0, Ordering::SeqCst);
+                // Treat clean DB as a fresh node: reset boot counter to enable
+                // sync_last_known_own_block, and clear tracking state (commit
+                // digests and committed transactions).
+                self.boot_counter.store(0, Ordering::SeqCst);
+                self.commit_digests.write().await.clear();
+                self.committed_transactions.write().await.clear();
+            }
+            RestartMode::ResetLastProcessed => {
+                // Keep consensus DB, reset node tracking state
+                self.last_processed_commit.store(0, Ordering::SeqCst);
+                self.commit_digests.write().await.clear();
+                self.committed_transactions.write().await.clear();
+                // Keep boot_counter incrementing (not a fresh node)
+            }
+            RestartMode::PersistAll => {
+                // Keep both consensus DB and node tracking (no changes)
+            }
         }
         self.start().await
     }
