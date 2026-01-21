@@ -614,6 +614,10 @@ export class BackgroundClient {
         );
     }
 
+    public refreshFeatures() {
+        return this.loadFeatures();
+    }
+
     private loadFeatures() {
         return lastValueFrom(
             this.sendMessage(

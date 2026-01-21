@@ -97,6 +97,11 @@ export function App() {
         [accounts],
     );
     const backgroundClient = useBackgroundClient();
+
+    useEffect(() => {
+        backgroundClient.refreshFeatures();
+    }, [backgroundClient]);
+
     const { connectToLedger, iotaLedgerClient } = useIotaLedgerClient();
     useEffect(() => {
         // update ledger accounts without the public key
@@ -155,7 +160,7 @@ export function App() {
     }, [backgroundClient, autoLockEnabled]);
     const network = useAppSelector(({ app }) => app.network);
     const isPasskeysEnabled = useFeatureEnabledByNetwork(Feature.WalletPasskeys, network);
-
+    console.log('isPasskeysEnabled:', isPasskeysEnabled);
     // Placeholder check for storage migration.
     // currently hook useStorageMigrationStatus always returns 'ready'
     const storageMigration = useStorageMigrationStatus();

@@ -114,7 +114,7 @@ export class UiConnection extends Connection {
                 await Permissions.delete(payload.origin, payload.specificAccounts);
                 this.send(createMessage({ type: 'done' }, id));
             } else if (isBasePayload(payload) && payload.type === 'get-features') {
-                await growthbook.loadFeatures();
+                await growthbook.refreshFeatures();
                 this.send(
                     createMessage<LoadedFeaturesPayload>(
                         {
