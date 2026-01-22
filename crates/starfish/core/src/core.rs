@@ -30,17 +30,18 @@ use crate::storage::Store;
 #[cfg(test)]
 use crate::storage::rocksdb_store::RocksDBStore;
 #[cfg(test)]
-use crate::{CommitConsumer, TransactionClient, storage::mem_store::MemStore};
+use crate::{CommitConsumer, CommittedSubDag, TransactionClient, storage::mem_store::MemStore};
 use crate::{
-    CommittedSubDag, Transaction,
+    Transaction,
     block_header::{
         BlockHeader, BlockHeaderAPI, BlockHeaderV1, BlockRef, BlockTimestampMs, GENESIS_ROUND,
         Round, SignedBlockHeader, Slot, TransactionsCommitment, VerifiedBlock, VerifiedBlockHeader,
         VerifiedOwnShard, VerifiedTransactions,
     },
     block_manager::BlockManager,
-    commit::{CertifiedCommits, CommitAPI, PendingSubDag, TrustedCommit},
+    commit::{CertifiedCommits, CommitAPI, PendingSubDag},
     commit_observer::{CommitObserver, CommittedSubDagSource},
+    commit_syncer::fast::FastSyncOutput,
     context::Context,
     dag_state::{DagState, TransactionSource},
     encoder::{ShardEncoder, create_encoder},
@@ -532,9 +533,13 @@ impl Core {
     /// cache.
     pub(crate) fn handle_committed_sub_dags_from_fast_sync(
         &mut self,
-        commits: Vec<TrustedCommit>,
-        committed_subdags: Vec<CommittedSubDag>,
+        output: FastSyncOutput,
     ) -> ConsensusResult<()> {
+        let FastSyncOutput {
+            commits,
+            committed_subdags,
+            voting_block_headers,
+        } = output;
         let _scope = monitored_scope("Core::handle_committed_sub_dags_from_fast_sync");
         let _s = self
             .context
@@ -577,6 +582,9 @@ impl Core {
                     );
                 }
             }
+
+            // Store voting block headers for later use when serving fetch_commits requests
+            dag_state.add_voting_block_headers(voting_block_headers);
         }
 
         // Flush commits to storage so they're available for

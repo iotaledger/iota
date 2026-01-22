@@ -573,6 +573,7 @@ async fn test_voting_block_headers_storage(
     #[values(new_rocksdb_teststore(true), new_mem_teststore(true))] test_store: TestStore,
 ) {
     let store = test_store.store();
+    let context = test_store.context();
 
     // Create blocks with commit votes
     let voting_blocks: Vec<VerifiedBlock> = vec![
@@ -598,9 +599,10 @@ async fn test_voting_block_headers_storage(
         .map(|b| b.verified_block_header.clone())
         .collect();
 
-    // Write to voting storage
+    // Write to voting storage using WriteBatch
+    let write_batch = WriteBatch::default().voting_block_headers(voting_headers.clone());
     store
-        .write_voting_block_headers(voting_headers.clone())
+        .write(write_batch, context.clone())
         .expect("Write voting block headers should not fail");
 
     // Read back

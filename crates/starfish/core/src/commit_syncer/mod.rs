@@ -162,7 +162,6 @@ pub(crate) struct Inner<C: NetworkClient> {
     pub(crate) network_client: Arc<C>,
     pub(crate) block_verifier: Arc<dyn BlockVerifier>,
     pub(crate) dag_state: Arc<RwLock<DagState>>,
-    pub(crate) store: Arc<dyn crate::storage::Store>,
     pub(crate) sync_type: CommitSyncType,
 }
 

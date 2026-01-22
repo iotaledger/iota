@@ -2372,8 +2372,7 @@ mod tests {
 
         async fn add_subdags_from_fast_sync(
             &self,
-            _commits: Vec<crate::commit::TrustedCommit>,
-            _subdags: Vec<crate::commit::CommittedSubDag>,
+            _output: crate::commit_syncer::fast::FastSyncOutput,
         ) -> Result<(), CoreError> {
             unimplemented!()
         }
