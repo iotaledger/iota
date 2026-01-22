@@ -252,15 +252,20 @@ impl CommitObserver {
         }
 
         // Phase 1: Resend all solid committed sub-dags that haven't been processed
-        let sent_commits =
-            self.resend_unprocessed_commits(last_processed_commit_index, last_commit_index, source);
+        let sent_commits = self.resend_unprocessed_solid_commits(
+            last_processed_commit_index,
+            last_commit_index,
+            source,
+        );
 
         // Phase 2: Recover linearizer and solidifier state
         self.recover_linearizer_and_solidifier_state(last_commit_index, source);
 
         info!(
-            "Commit observer recovery completed, resent {} commits, took {:?}",
+            "Commit observer recovery completed, resent {} commits with indices [{}..{}], took {:?}",
             sent_commits.len(),
+            sent_commits.first().unwrap_or(&0),
+            sent_commits.last().unwrap_or(&0),
             now.elapsed()
         );
     }
@@ -291,7 +296,7 @@ impl CommitObserver {
         );
 
         self.commit_solidifier
-            .set_last_committed_index(self.last_sent_commit_index);
+            .set_last_solid_committed_index(self.last_sent_commit_index);
 
         let mut pending_for_solidifier = Vec::new();
         for commit in recovery_commits {
@@ -383,10 +388,13 @@ impl CommitObserver {
         Ok(sent_commit_indices)
     }
 
-    /// Resends commits that haven't been processed by the consumer.
+    /// Resends solid commits that haven't been processed by the consumer.
     /// Creates CommittedSubDag with empty headers (like fast sync).
     /// Returns the commit indices that were resent.
-    fn resend_unprocessed_commits(
+    /// Note: it is possible that some commits in interval
+    /// last_processed_commit_index+1.. last_commit_index might be not yet
+    /// solid
+    fn resend_unprocessed_solid_commits(
         &mut self,
         last_processed_commit_index: CommitIndex,
         last_commit_index: CommitIndex,

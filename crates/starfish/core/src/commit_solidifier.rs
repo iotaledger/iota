@@ -51,7 +51,7 @@ impl CommitSolidifier {
         }
     }
 
-    pub(crate) fn set_last_committed_index(&mut self, index: CommitIndex) {
+    pub(crate) fn set_last_solid_committed_index(&mut self, index: CommitIndex) {
         self.last_solid_committed_index = index;
     }
 
@@ -99,12 +99,12 @@ impl CommitSolidifier {
                 .or_insert_with(|| subdag.clone());
         }
         let mut committed_subdags = Vec::new();
-        let mut last_committed = self.last_solid_committed_index;
+        let mut last_solid_committed = self.last_solid_committed_index;
         let mut missing = BTreeSet::new();
 
         // Try to commit in order
         loop {
-            let next_index = last_committed + 1;
+            let next_index = last_solid_committed + 1;
             // If the next expected subdag is not in the buffer, we cannot commit anything
             // further
             let Some(pending_subdag) = self.pending_subdags.get(&next_index) else {
@@ -114,7 +114,7 @@ impl CommitSolidifier {
                 Ok(committed_subdag) => {
                     committed_subdags.push(committed_subdag);
                     self.pending_subdags.remove(&next_index);
-                    last_committed = next_index;
+                    last_solid_committed = next_index;
                 }
                 Err(missing_refs) => {
                     // If we have missing refs, we cannot commit this subdag
@@ -140,7 +140,7 @@ impl CommitSolidifier {
         }
 
         // Update last_committed_index
-        self.last_solid_committed_index = last_committed;
+        self.last_solid_committed_index = last_solid_committed;
 
         // Only check for missing refs in the newly passed subdags that weren't
         // processed yet
@@ -1032,15 +1032,15 @@ mod tests {
         assert_eq!(commit_solidifier.last_solid_committed_index, 0);
 
         // Set to a new value
-        commit_solidifier.set_last_committed_index(5);
+        commit_solidifier.set_last_solid_committed_index(5);
         assert_eq!(commit_solidifier.last_solid_committed_index, 5);
 
         // Can set to a lower value
-        commit_solidifier.set_last_committed_index(3);
+        commit_solidifier.set_last_solid_committed_index(3);
         assert_eq!(commit_solidifier.last_solid_committed_index, 3);
 
         // Can set to 0
-        commit_solidifier.set_last_committed_index(0);
+        commit_solidifier.set_last_solid_committed_index(0);
         assert_eq!(commit_solidifier.last_solid_committed_index, 0);
     }
 
