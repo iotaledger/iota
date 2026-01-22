@@ -7,7 +7,7 @@ use std::{
 };
 
 use consensus_config::AuthorityIndex;
-use iota_common::scoring_metrics::{ScoringMetricsV1, VersionedScoringMetrics};
+use iota_common::scoring_metrics::VersionedScoringMetrics;
 use iota_protocol_config::ProtocolConfig;
 use itertools::izip;
 
@@ -30,16 +30,10 @@ impl MysticetiScoringMetricsStore {
         current_local_metrics_count: Arc<VersionedScoringMetrics>,
         protocol_config: &ProtocolConfig,
     ) -> Self {
-        match protocol_config.scorer_version_as_option() {
-            None | Some(1) => Self {
-                current_local_metrics_count,
-                cached_metrics: VersionedScoringMetrics::V1(ScoringMetricsV1::new(committee_size)),
-
-                uncached_metrics: VersionedScoringMetrics::V1(ScoringMetricsV1::new(
-                    committee_size,
-                )),
-            },
-            _ => panic!("Unsupported scorer version"),
+        Self {
+            current_local_metrics_count,
+            cached_metrics: VersionedScoringMetrics::new(committee_size, protocol_config),
+            uncached_metrics: VersionedScoringMetrics::new(committee_size, protocol_config),
         }
     }
 
@@ -504,6 +498,23 @@ pub(crate) enum ErrorSource {
     Subscriber,
     // Errors returned from process_fetched_blocks.
     Synchronizer,
+}
+
+#[cfg(test)]
+impl MysticetiScoringMetricsStore {
+    // Creates a dummy scoring metrics store for testing purposes (i.e., without any
+    // connection to a Scorer)
+    pub(crate) fn dummy_for_test(committee_size: usize, protocol_config: &ProtocolConfig) -> Self {
+        let current_local_metrics_count = Arc::new(VersionedScoringMetrics::new(
+            committee_size,
+            protocol_config,
+        ));
+        MysticetiScoringMetricsStore::new(
+            committee_size,
+            current_local_metrics_count,
+            protocol_config,
+        )
+    }
 }
 
 #[cfg(test)]
