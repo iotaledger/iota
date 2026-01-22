@@ -162,6 +162,7 @@ event_emit_output_cost_per_byte: 10
 object_borrow_uid_cost_base: 52
 object_delete_impl_cost_base: 52
 object_record_new_uid_cost_base: 52
+object_is_fresh_uid_cost_base: 52
 transfer_transfer_internal_cost_base: 52
 transfer_freeze_object_cost_base: 52
 transfer_share_object_cost_base: 52

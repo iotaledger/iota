@@ -1786,7 +1786,7 @@ impl ProtocolConfig {
             // Cost params for the Move native function `record_new_uid(id: address)`
             object_record_new_uid_cost_base: Some(52),
             // Cost params for the Move native function `is_fresh_uid(id: &UID): bool`
-            object_is_fresh_uid_cost_base: Some(52),
+            object_is_fresh_uid_cost_base: None,
 
             // `transfer` module
             // Cost params for the Move native function `transfer_impl<T: key>(obj: T, recipient:
@@ -2375,6 +2375,7 @@ impl ProtocolConfig {
                         cfg.feature_flags.enable_move_authentication = true;
                         // Max auth gas budget is in NANOS and an absolute value 0.25 IOTA
                         cfg.max_auth_gas = Some(250_000_000);
+                        cfg.object_is_fresh_uid_cost_base = Some(52);
                     }
                 }
                 // Use this template when making changes:

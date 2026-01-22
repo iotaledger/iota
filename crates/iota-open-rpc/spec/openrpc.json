@@ -2031,6 +2031,7 @@
                 "object_delete_impl_cost_base": {
                   "u64": "52"
                 },
+                "object_is_fresh_uid_cost_base": null,
                 "object_record_new_uid_cost_base": {
                   "u64": "52"
                 },
