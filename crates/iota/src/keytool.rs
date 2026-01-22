@@ -878,12 +878,12 @@ impl KeyToolCommand {
                     StoredKey::KeyPair(kp) => kp,
                     _ => bail!("Not a keypair"),
                 };
-                let sig = ikp.sign(&bytes);
-                let iota_signature = sig.encode_base64();
+                let signature = ikp.sign(&bytes);
+                let iota_signature = signature.encode_base64();
                 let public_key = ikp.public().encode_base64();
                 let public_key_hex = Hex::encode_with_format(ikp.public().as_ref());
-                let signature_hex = Hex::encode_with_format(sig.signature_bytes());
-
+                let signature_hex = Hex::encode_with_format(signature.signature_bytes());
+                
                 CommandOutput::SignRaw(SignRawData {
                     iota_address: address,
                     raw_data: data,
