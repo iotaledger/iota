@@ -181,6 +181,7 @@ export interface DryRunTransactionBlockResponse {
     balanceChanges: BalanceChange[];
     effects: TransactionEffects;
     events: IotaEvent[];
+    executionErrorSource?: string | null;
     input: TransactionBlockData;
     objectChanges: IotaObjectChange[];
     /** If an input object is congested, suggest a gas price to use. */
