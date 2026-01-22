@@ -117,7 +117,7 @@
                     },
                     "reference": {
                       "objectId": "0x2c43805d0d6f5402a7ad0da5bdec549c7cdea06bc4a1d339a22521eea933b889",
-                      "version": 2,
+                      "version": "2",
                       "digest": "BhbWpBeESxuRWvmvLMyb2JNUuFa6j4aG1T4WUiPgKAHm"
                     }
                   },
@@ -127,7 +127,7 @@
                     },
                     "reference": {
                       "objectId": "0x6a06153b9fc486e101f0e9e2703ac8666d06aecc4ddf7e7926a361970c65a5b1",
-                      "version": 2,
+                      "version": "2",
                       "digest": "GdfET1avZReDftpJNB8LSuHJ2cKUheSbEaLMzuPVXHsM"
                     }
                   }
@@ -138,7 +138,7 @@
                   },
                   "reference": {
                     "objectId": "0x2c43805d0d6f5402a7ad0da5bdec549c7cdea06bc4a1d339a22521eea933b889",
-                    "version": 2,
+                    "version": "2",
                     "digest": "BhbWpBeESxuRWvmvLMyb2JNUuFa6j4aG1T4WUiPgKAHm"
                   }
                 },
@@ -226,7 +226,7 @@
                     "payment": [
                       {
                         "objectId": "0xe8d8c7ce863f313da3dbd92a83ef26d128b88fe66bf26e0e0d09cdaf727d1d84",
-                        "version": 2,
+                        "version": "2",
                         "digest": "EnRQXe1hDGAJCFyF2ds2GmPHdvf9V6yxf24LisEsDkYt"
                       }
                     ],
@@ -261,7 +261,7 @@
                     },
                     "reference": {
                       "objectId": "0xe8d8c7ce863f313da3dbd92a83ef26d128b88fe66bf26e0e0d09cdaf727d1d84",
-                      "version": 2,
+                      "version": "2",
                       "digest": "EnRQXe1hDGAJCFyF2ds2GmPHdvf9V6yxf24LisEsDkYt"
                     }
                   },
@@ -271,7 +271,7 @@
                     },
                     "reference": {
                       "objectId": "0x4f82f1c8587b98d64c00bfb46c3843bd8bf6ccfa7c65a86138698cd1fdcac3dc",
-                      "version": 2,
+                      "version": "2",
                       "digest": "Cv7n2YaM7Am1ssZGu4khsFkcKHnpgVhwFCSs4kLjrtLW"
                     }
                   }
@@ -282,7 +282,7 @@
                   },
                   "reference": {
                     "objectId": "0xe8d8c7ce863f313da3dbd92a83ef26d128b88fe66bf26e0e0d09cdaf727d1d84",
-                    "version": 2,
+                    "version": "2",
                     "digest": "EnRQXe1hDGAJCFyF2ds2GmPHdvf9V6yxf24LisEsDkYt"
                   }
                 },
@@ -430,7 +430,7 @@
                     "payment": [
                       {
                         "objectId": "0x9f90f7f866cc29dfb1da6373ce94f9d95dca5a40f4e1769918eebf9fbae00bd3",
-                        "version": 2,
+                        "version": "2",
                         "digest": "AaeJbTYkUuyromsivxzkoxSkHt7pCESTyQG7xz6nbQ2G"
                       }
                     ],
@@ -465,7 +465,7 @@
                     },
                     "reference": {
                       "objectId": "0x9f90f7f866cc29dfb1da6373ce94f9d95dca5a40f4e1769918eebf9fbae00bd3",
-                      "version": 2,
+                      "version": "2",
                       "digest": "AaeJbTYkUuyromsivxzkoxSkHt7pCESTyQG7xz6nbQ2G"
                     }
                   },
@@ -475,7 +475,7 @@
                     },
                     "reference": {
                       "objectId": "0x8ef76f56c399633a2eb310bca9124e5f2f38ce739eaacbb6600688804e078448",
-                      "version": 2,
+                      "version": "2",
                       "digest": "9Tvs1pGrMbNv7kkr1PoKLsWamyQpaFz5UWbL2AQ1ezk2"
                     }
                   }
@@ -486,7 +486,7 @@
                   },
                   "reference": {
                     "objectId": "0x9f90f7f866cc29dfb1da6373ce94f9d95dca5a40f4e1769918eebf9fbae00bd3",
-                    "version": 2,
+                    "version": "2",
                     "digest": "AaeJbTYkUuyromsivxzkoxSkHt7pCESTyQG7xz6nbQ2G"
                   }
                 },
@@ -2300,7 +2300,7 @@
                     "payment": [
                       {
                         "objectId": "0x1a3e898029d024eec1d44c6af5e2facded84d03b5373514f16e3d66e00081051",
-                        "version": 2,
+                        "version": "2",
                         "digest": "7nDZ5J4VyvYGUbX2f6mQdhkr3RFrb3vZqui1ogoyApD9"
                       }
                     ],
@@ -2335,7 +2335,7 @@
                     },
                     "reference": {
                       "objectId": "0x1a3e898029d024eec1d44c6af5e2facded84d03b5373514f16e3d66e00081051",
-                      "version": 2,
+                      "version": "2",
                       "digest": "7nDZ5J4VyvYGUbX2f6mQdhkr3RFrb3vZqui1ogoyApD9"
                     }
                   },
@@ -2345,7 +2345,7 @@
                     },
                     "reference": {
                       "objectId": "0x5eeb1d449e2516166d57d71fdeb154d0dc9ecdb7b30057d0a932684cac352cdc",
-                      "version": 2,
+                      "version": "2",
                       "digest": "GK4NxEKSrK88XkPNeuBqtJYPmU9yMTWMD7K9TdU4ybKN"
                     }
                   }
@@ -2356,7 +2356,7 @@
                   },
                   "reference": {
                     "objectId": "0x1a3e898029d024eec1d44c6af5e2facded84d03b5373514f16e3d66e00081051",
-                    "version": 2,
+                    "version": "2",
                     "digest": "7nDZ5J4VyvYGUbX2f6mQdhkr3RFrb3vZqui1ogoyApD9"
                   }
                 },
@@ -2716,7 +2716,7 @@
                       "payment": [
                         {
                           "objectId": "0x9585d5591521bfd12dec3a372efd539108ba807a0dabed6e5da0f174efc3f58e",
-                          "version": 2,
+                          "version": "2",
                           "digest": "JAgYeYMPm5VLzBYcYxxQUEatfG9gHdFqSNwmBBS41Bri"
                         }
                       ],
@@ -2751,7 +2751,7 @@
                       },
                       "reference": {
                         "objectId": "0x9585d5591521bfd12dec3a372efd539108ba807a0dabed6e5da0f174efc3f58e",
-                        "version": 2,
+                        "version": "2",
                         "digest": "JAgYeYMPm5VLzBYcYxxQUEatfG9gHdFqSNwmBBS41Bri"
                       }
                     },
@@ -2761,7 +2761,7 @@
                       },
                       "reference": {
                         "objectId": "0x24962ee4193c8c0d2fb28bbe0eb4ba5fc87a2c6d1a7c12c9454872c5ea06d5e1",
-                        "version": 2,
+                        "version": "2",
                         "digest": "3gmeyj5oEdE8A4PvjWsDSHchC6tb6YQj18gnD7xnDqGz"
                       }
                     }
@@ -2772,7 +2772,7 @@
                     },
                     "reference": {
                       "objectId": "0x9585d5591521bfd12dec3a372efd539108ba807a0dabed6e5da0f174efc3f58e",
-                      "version": 2,
+                      "version": "2",
                       "digest": "JAgYeYMPm5VLzBYcYxxQUEatfG9gHdFqSNwmBBS41Bri"
                     }
                   },
@@ -2833,7 +2833,7 @@
                       "payment": [
                         {
                           "objectId": "0xbbdabf2828ee9ca7e4227a61cff851fef9fb6a08ae444c96f9810275d6af973c",
-                          "version": 2,
+                          "version": "2",
                           "digest": "snEA8RNnDvsYjKJx2NMUP49TMjoAuQXx3LJgwe4qo9B"
                         }
                       ],
@@ -2868,7 +2868,7 @@
                       },
                       "reference": {
                         "objectId": "0xbbdabf2828ee9ca7e4227a61cff851fef9fb6a08ae444c96f9810275d6af973c",
-                        "version": 2,
+                        "version": "2",
                         "digest": "snEA8RNnDvsYjKJx2NMUP49TMjoAuQXx3LJgwe4qo9B"
                       }
                     },
@@ -2878,7 +2878,7 @@
                       },
                       "reference": {
                         "objectId": "0x2fac1a70e20e146fb1303bd60eb4bea9bd453e50690b423241f0e2e9beabd601",
-                        "version": 2,
+                        "version": "2",
                         "digest": "HyJbrm9Th6ox4oU9vrrRzgZSaCu1n3omMJ1fAcHswvvo"
                       }
                     }
@@ -2889,7 +2889,7 @@
                     },
                     "reference": {
                       "objectId": "0xbbdabf2828ee9ca7e4227a61cff851fef9fb6a08ae444c96f9810275d6af973c",
-                      "version": 2,
+                      "version": "2",
                       "digest": "snEA8RNnDvsYjKJx2NMUP49TMjoAuQXx3LJgwe4qo9B"
                     }
                   },
@@ -2950,7 +2950,7 @@
                       "payment": [
                         {
                           "objectId": "0xd8024b4b39a7fed27134b073da8638454111396519379e888c83abaf0e600504",
-                          "version": 2,
+                          "version": "2",
                           "digest": "9CpH2aW4XPVxaZBGHRwHueXEQUvN3Pf7JQpASHiEsNCw"
                         }
                       ],
@@ -2985,7 +2985,7 @@
                       },
                       "reference": {
                         "objectId": "0xd8024b4b39a7fed27134b073da8638454111396519379e888c83abaf0e600504",
-                        "version": 2,
+                        "version": "2",
                         "digest": "9CpH2aW4XPVxaZBGHRwHueXEQUvN3Pf7JQpASHiEsNCw"
                       }
                     },
@@ -2995,7 +2995,7 @@
                       },
                       "reference": {
                         "objectId": "0xc820a75b574224b920aa9b005093b820df24ef8b43715499f4fff4e056c0cd5c",
-                        "version": 2,
+                        "version": "2",
                         "digest": "6jsxetsBSZJ5ozgZuDmHXJzn9ZBp8emivfYHe6tnHg7C"
                       }
                     }
@@ -3006,7 +3006,7 @@
                     },
                     "reference": {
                       "objectId": "0xd8024b4b39a7fed27134b073da8638454111396519379e888c83abaf0e600504",
-                      "version": 2,
+                      "version": "2",
                       "digest": "9CpH2aW4XPVxaZBGHRwHueXEQUvN3Pf7JQpASHiEsNCw"
                     }
                   },
@@ -3053,7 +3053,7 @@
           "description": "the version of the queried object. If None, default to the latest known version",
           "required": true,
           "schema": {
-            "$ref": "#/components/schemas/SequenceNumber"
+            "$ref": "#/components/schemas/Version"
           }
         },
         {
@@ -3981,7 +3981,7 @@
                   "type": "DynamicField",
                   "objectType": "test",
                   "objectId": "0x82b2fd67344691abd0efc771941b948ad35360b08e449fbbc28b0641175bf60b",
-                  "version": 1,
+                  "version": "1",
                   "digest": "P2fGrUFbsF576cFxXYXrp1PskZHo2XKvbEoxL14qtnr"
                 },
                 {
@@ -3994,7 +3994,7 @@
                   "type": "DynamicField",
                   "objectType": "test",
                   "objectId": "0x21564fc5a68ace997461b098c1d1f3ccbde241d8fdf562db36bc1423ee10cecb",
-                  "version": 1,
+                  "version": "1",
                   "digest": "8Nmpatir33R88Xow2td3dpezMm1gsQJD19VThwR1Y8T5"
                 },
                 {
@@ -4007,7 +4007,7 @@
                   "type": "DynamicField",
                   "objectType": "test",
                   "objectId": "0x7e00acf5386662fa062483ba507b1e9e3039750f0a270f2e12441ad7f611a5f7",
-                  "version": 1,
+                  "version": "1",
                   "digest": "J2n2gEG8R9P9nMep8mRVLjttxcDXQnWSH9KmrRsnGSg2"
                 }
               ],
@@ -6464,7 +6464,7 @@
                             "$ref": "#/components/schemas/ObjectID"
                           },
                           {
-                            "$ref": "#/components/schemas/SequenceNumber"
+                            "$ref": "#/components/schemas/Version"
                           }
                         ],
                         "maxItems": 2,
@@ -6608,7 +6608,7 @@
                   "$ref": "#/components/schemas/ObjectID"
                 },
                 {
-                  "$ref": "#/components/schemas/SequenceNumber"
+                  "$ref": "#/components/schemas/Version"
                 },
                 {
                   "$ref": "#/components/schemas/ObjectDigest"
@@ -6849,7 +6849,7 @@
             "$ref": "#/components/schemas/DynamicFieldType"
           },
           "version": {
-            "$ref": "#/components/schemas/SequenceNumber2"
+            "$ref": "#/components/schemas/Version"
           }
         }
       },
@@ -7692,7 +7692,7 @@
             "description": "the version of the queried object.",
             "allOf": [
               {
-                "$ref": "#/components/schemas/SequenceNumber2"
+                "$ref": "#/components/schemas/SequenceNumber"
               }
             ]
           }
@@ -7745,7 +7745,7 @@
                     "$ref": "#/components/schemas/ObjectID"
                   },
                   "initial_shared_version": {
-                    "$ref": "#/components/schemas/SequenceNumber2"
+                    "$ref": "#/components/schemas/SequenceNumber"
                   },
                   "mutable": {
                     "default": true,
@@ -7887,7 +7887,7 @@
                     ]
                   },
                   "version": {
-                    "$ref": "#/components/schemas/SequenceNumber2"
+                    "$ref": "#/components/schemas/SequenceNumber"
                   }
                 }
               },
@@ -7901,7 +7901,7 @@
                 ],
                 "properties": {
                   "initialSharedVersion": {
-                    "$ref": "#/components/schemas/SequenceNumber2"
+                    "$ref": "#/components/schemas/SequenceNumber"
                   },
                   "mutable": {
                     "type": "boolean"
@@ -7939,7 +7939,7 @@
                     ]
                   },
                   "version": {
-                    "$ref": "#/components/schemas/SequenceNumber2"
+                    "$ref": "#/components/schemas/SequenceNumber"
                   }
                 }
               }
@@ -10469,7 +10469,7 @@
                 ]
               },
               "version": {
-                "$ref": "#/components/schemas/SequenceNumber2"
+                "$ref": "#/components/schemas/SequenceNumber"
               }
             }
           },
@@ -10508,7 +10508,7 @@
                 ]
               },
               "version": {
-                "$ref": "#/components/schemas/SequenceNumber2"
+                "$ref": "#/components/schemas/SequenceNumber"
               }
             }
           },
@@ -10539,7 +10539,7 @@
                 "$ref": "#/components/schemas/Owner"
               },
               "previousVersion": {
-                "$ref": "#/components/schemas/SequenceNumber2"
+                "$ref": "#/components/schemas/SequenceNumber"
               },
               "sender": {
                 "$ref": "#/components/schemas/IotaAddress"
@@ -10551,7 +10551,7 @@
                 ]
               },
               "version": {
-                "$ref": "#/components/schemas/SequenceNumber2"
+                "$ref": "#/components/schemas/SequenceNumber"
               }
             }
           },
@@ -10582,7 +10582,7 @@
                 ]
               },
               "version": {
-                "$ref": "#/components/schemas/SequenceNumber2"
+                "$ref": "#/components/schemas/SequenceNumber"
               }
             }
           },
@@ -10613,7 +10613,7 @@
                 ]
               },
               "version": {
-                "$ref": "#/components/schemas/SequenceNumber2"
+                "$ref": "#/components/schemas/SequenceNumber"
               }
             }
           },
@@ -10652,7 +10652,7 @@
                 ]
               },
               "version": {
-                "$ref": "#/components/schemas/SequenceNumber2"
+                "$ref": "#/components/schemas/SequenceNumber"
               }
             }
           }
@@ -10880,7 +10880,7 @@
                     "$ref": "#/components/schemas/ObjectID"
                   },
                   {
-                    "$ref": "#/components/schemas/SequenceNumber"
+                    "$ref": "#/components/schemas/Version"
                   }
                 ],
                 "maxItems": 2,
@@ -10911,10 +10911,10 @@
                 ],
                 "properties": {
                   "asked_version": {
-                    "$ref": "#/components/schemas/SequenceNumber"
+                    "$ref": "#/components/schemas/Version"
                   },
                   "latest_version": {
-                    "$ref": "#/components/schemas/SequenceNumber"
+                    "$ref": "#/components/schemas/Version"
                   },
                   "object_id": {
                     "$ref": "#/components/schemas/ObjectID"
@@ -10959,7 +10959,7 @@
             "description": "Object version.",
             "allOf": [
               {
-                "$ref": "#/components/schemas/SequenceNumber"
+                "$ref": "#/components/schemas/Version"
               }
             ]
           }
@@ -11033,7 +11033,7 @@
                 "description": "Object version.",
                 "allOf": [
                   {
-                    "$ref": "#/components/schemas/SequenceNumber2"
+                    "$ref": "#/components/schemas/Version"
                   }
                 ]
               }
@@ -11170,7 +11170,7 @@
                     "description": "The version at which the object became shared",
                     "allOf": [
                       {
-                        "$ref": "#/components/schemas/SequenceNumber"
+                        "$ref": "#/components/schemas/Version"
                       }
                     ]
                   }
@@ -11694,7 +11694,7 @@
                 "type": "string"
               },
               "version": {
-                "$ref": "#/components/schemas/SequenceNumber2"
+                "$ref": "#/components/schemas/Version"
               }
             }
           },
@@ -11737,7 +11737,7 @@
                 }
               },
               "version": {
-                "$ref": "#/components/schemas/SequenceNumber2"
+                "$ref": "#/components/schemas/Version"
               }
             }
           }
@@ -11750,11 +11750,6 @@
         "$ref": "#/components/schemas/Base64"
       },
       "SequenceNumber": {
-        "type": "integer",
-        "format": "uint64",
-        "minimum": 0.0
-      },
-      "SequenceNumber2": {
         "$ref": "#/components/schemas/BigInt_for_uint64"
       },
       "Signature": {
@@ -12189,7 +12184,7 @@
             "$ref": "#/components/schemas/ObjectID"
           },
           "sequenceNumber": {
-            "$ref": "#/components/schemas/SequenceNumber2"
+            "$ref": "#/components/schemas/SequenceNumber"
           }
         }
       },
@@ -13000,7 +12995,7 @@
             "description": "Version of the upgraded package",
             "allOf": [
               {
-                "$ref": "#/components/schemas/SequenceNumber2"
+                "$ref": "#/components/schemas/Version"
               }
             ]
           }
@@ -13039,6 +13034,11 @@
             "$ref": "#/components/schemas/BigInt_for_uint64"
           }
         }
+      },
+      "Version": {
+        "description": "Radix-10 encoded 64-bit unsigned integer",
+        "type": "string",
+        "format": "u64"
       },
       "ZkLoginAuthenticator": {
         "description": "An zk login authenticator with all the necessary fields.",
