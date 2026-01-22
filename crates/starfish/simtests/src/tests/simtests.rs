@@ -336,14 +336,6 @@ mod test {
                     .spawn_committed_subdag_consumer()
                     .unwrap();
 
-                // Determine sync baseline based on restart mode:
-                // - CleanAll/ResetLastProcessed: node's internal state is reset to 0
-                // - PersistAll: node retains its state from commit_at_stop
-                let sync_baseline = match mode {
-                    RestartMode::CleanAll | RestartMode::ResetLastProcessed => 0,
-                    RestartMode::PersistAll => commit_at_stop,
-                };
-
                 // Wait for catch-up
                 sleep(restart_config.post_restart_wait).await;
 
@@ -351,7 +343,6 @@ mod test {
                     .iter()
                     .map(|a| a.commit_consumer_monitor().highest_handled_commit())
                     .collect();
-                let restarted = commits_after[authority_idx];
                 let network_max = commits_after
                     .iter()
                     .enumerate()
