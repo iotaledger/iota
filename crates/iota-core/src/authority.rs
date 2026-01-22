@@ -980,16 +980,7 @@ impl AuthorityState {
             }
         }
 
-        let owned_objects: Vec<ObjectRef> = tx_checked_input_objects
-            .inner()
-            .filter_owned_objects()
-            .into_iter()
-            .chain(
-                tx_receiving_objects
-                    .iter_objects()
-                    .map(|obj| obj.compute_object_reference()),
-            )
-            .collect();
+        let owned_objects = tx_checked_input_objects.inner().filter_owned_objects();
 
         let signed_transaction =
             VerifiedSignedTransaction::new(epoch, transaction, self.name, &*self.secret);
