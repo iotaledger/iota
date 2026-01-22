@@ -158,11 +158,6 @@ pub(crate) trait Store: Send + Sync {
     /// Reads the last commit info, written atomically with the last commit.
     fn read_last_commit_info(&self) -> ConsensusResult<Option<(CommitRef, CommitInfo)>>;
 
-    /// Writes voting block headers to a separate storage. These are block
-    /// headers that contain commit votes used to certify commits during
-    /// synchronization.
-    fn write_voting_block_headers(&self, headers: Vec<VerifiedBlockHeader>) -> ConsensusResult<()>;
-
     /// Reads voting block headers from the separate voting storage.
     /// Returns None for headers that are not found.
     fn read_voting_block_headers(
@@ -178,6 +173,7 @@ pub(crate) struct WriteBatch {
     pub(crate) block_headers: Vec<VerifiedBlockHeader>,
     pub(crate) commits: Vec<TrustedCommit>,
     pub(crate) commit_info: Vec<(CommitRef, CommitInfo)>,
+    pub(crate) voting_block_headers: Vec<VerifiedBlockHeader>,
 }
 
 impl WriteBatch {
@@ -186,12 +182,14 @@ impl WriteBatch {
         block_headers: Vec<VerifiedBlockHeader>,
         commits: Vec<TrustedCommit>,
         commit_info: Vec<(CommitRef, CommitInfo)>,
+        voting_block_headers: Vec<VerifiedBlockHeader>,
     ) -> Self {
         WriteBatch {
             transactions,
             block_headers,
             commits,
             commit_info,
+            voting_block_headers,
         }
     }
 
@@ -218,6 +216,15 @@ impl WriteBatch {
     #[cfg(test)]
     pub(crate) fn commit_info(mut self, commit_info: Vec<(CommitRef, CommitInfo)>) -> Self {
         self.commit_info = commit_info;
+        self
+    }
+
+    #[cfg(test)]
+    pub(crate) fn voting_block_headers(
+        mut self,
+        voting_block_headers: Vec<VerifiedBlockHeader>,
+    ) -> Self {
+        self.voting_block_headers = voting_block_headers;
         self
     }
 }
