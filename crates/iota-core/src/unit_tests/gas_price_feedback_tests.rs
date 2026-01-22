@@ -13,7 +13,9 @@ use iota_types::{
     effects::{TransactionEffects, TransactionEffectsAPI, UnchangedSharedKind},
     executable_transaction::VerifiedExecutableTransaction,
     execution_status::{CongestedObjects, ExecutionFailureStatus, ExecutionStatus},
-    messages_consensus::ConsensusDeterminedVersionAssignments,
+    messages_consensus::{
+        CancelledTransactionV2, ConsensusDeterminedVersionAssignments, VersionAssignment,
+    },
     object::Object,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     transaction::{
@@ -653,44 +655,44 @@ async fn transaction_duration_exceeds_max_execution_duration_per_commit() {
     {
         // Check if `ConsensusDeterminedVersionAssignments` are correct.
         let cancelled_txs = vec![
-            (
-                *scheduled_transactions[1].digest(),
-                vec![
-                    (
-                        tester.shared_counter_1.0,
-                        SequenceNumber::new_congested_with_suggested_gas_price(
+            CancelledTransactionV2 {
+                digest: *scheduled_transactions[1].digest(),
+                version_assignments: vec![
+                    VersionAssignment {
+                        object_id: tester.shared_counter_1.0,
+                        version: SequenceNumber::new_congested_with_suggested_gas_price(
                             REFERENCE_GAS_PRICE_FOR_TESTS,
                         ),
-                    ),
-                    (
-                        tester.shared_counter_2.0,
-                        SequenceNumber::new_congested_with_suggested_gas_price(
+                    },
+                    VersionAssignment {
+                        object_id: tester.shared_counter_2.0,
+                        version: SequenceNumber::new_congested_with_suggested_gas_price(
                             REFERENCE_GAS_PRICE_FOR_TESTS,
                         ),
-                    ),
+                    },
                 ],
-            ),
-            (
-                *scheduled_transactions[3].digest(),
-                vec![
-                    (
-                        tester.shared_counter_1.0,
-                        SequenceNumber::new_congested_with_suggested_gas_price(
+            },
+            CancelledTransactionV2 {
+                digest: *scheduled_transactions[3].digest(),
+                version_assignments: vec![
+                    VersionAssignment {
+                        object_id: tester.shared_counter_1.0,
+                        version: SequenceNumber::new_congested_with_suggested_gas_price(
                             expected_suggested_gas_price_2,
                         ),
-                    ),
-                    (
-                        tester.shared_counter_2.0,
-                        SequenceNumber::new_congested_with_suggested_gas_price(
+                    },
+                    VersionAssignment {
+                        object_id: tester.shared_counter_2.0,
+                        version: SequenceNumber::new_congested_with_suggested_gas_price(
                             expected_suggested_gas_price_2,
                         ),
-                    ),
+                    },
                 ],
-            ),
+            },
         ];
         assert_eq!(
             prologue_tx.consensus_determined_version_assignments,
-            ConsensusDeterminedVersionAssignments::CancelledTransactions(cancelled_txs)
+            ConsensusDeterminedVersionAssignments::CancelledTransactionsV2(cancelled_txs)
         );
     } else {
         panic!("First scheduled transaction must be a ConsensusCommitPrologueV2 transaction.");
@@ -863,22 +865,22 @@ async fn gas_price_feedback_mechanism_is_turned_off() {
         scheduled_transactions[0].data().transaction_data().kind()
     {
         // Check if `ConsensusDeterminedVersionAssignments` are correct.
-        let cancelled_txs = vec![(
-            *scheduled_transactions[2].digest(),
-            vec![
-                (
-                    tester.shared_counter_1.0,
-                    SequenceNumber::CONGESTED_PRIOR_TO_GAS_PRICE_FEEDBACK,
-                ),
-                (
-                    tester.shared_counter_2.0,
-                    SequenceNumber::CONGESTED_PRIOR_TO_GAS_PRICE_FEEDBACK,
-                ),
+        let cancelled_txs = vec![CancelledTransactionV2 {
+            digest: *scheduled_transactions[2].digest(),
+            version_assignments: vec![
+                VersionAssignment {
+                    object_id: tester.shared_counter_1.0,
+                    version: SequenceNumber::CONGESTED_PRIOR_TO_GAS_PRICE_FEEDBACK,
+                },
+                VersionAssignment {
+                    object_id: tester.shared_counter_2.0,
+                    version: SequenceNumber::CONGESTED_PRIOR_TO_GAS_PRICE_FEEDBACK,
+                },
             ],
-        )];
+        }];
         assert_eq!(
             prologue_tx.consensus_determined_version_assignments,
-            ConsensusDeterminedVersionAssignments::CancelledTransactions(cancelled_txs)
+            ConsensusDeterminedVersionAssignments::CancelledTransactionsV2(cancelled_txs)
         );
     } else {
         panic!("First scheduled transaction must be a ConsensusCommitPrologueV2 transaction.");
@@ -1016,26 +1018,26 @@ async fn gas_price_feedback_mechanism_with_max_gas_price() {
         scheduled_transactions[0].data().transaction_data().kind()
     {
         // Check if `ConsensusDeterminedVersionAssignments` are correct.
-        let cancelled_txs = vec![(
-            *scheduled_transactions[2].digest(),
-            vec![
-                (
-                    tester.shared_counter_1.0,
-                    SequenceNumber::new_congested_with_suggested_gas_price(
+        let cancelled_txs = vec![CancelledTransactionV2 {
+            digest: *scheduled_transactions[2].digest(),
+            version_assignments: vec![
+                VersionAssignment {
+                    object_id: tester.shared_counter_1.0,
+                    version: SequenceNumber::new_congested_with_suggested_gas_price(
                         expected_suggested_gas_price,
                     ),
-                ),
-                (
-                    tester.shared_counter_2.0,
-                    SequenceNumber::new_congested_with_suggested_gas_price(
+                },
+                VersionAssignment {
+                    object_id: tester.shared_counter_2.0,
+                    version: SequenceNumber::new_congested_with_suggested_gas_price(
                         expected_suggested_gas_price,
                     ),
-                ),
+                },
             ],
-        )];
+        }];
         assert_eq!(
             prologue_tx.consensus_determined_version_assignments,
-            ConsensusDeterminedVersionAssignments::CancelledTransactions(cancelled_txs)
+            ConsensusDeterminedVersionAssignments::CancelledTransactionsV2(cancelled_txs)
         );
     } else {
         panic!("First scheduled transaction must be a ConsensusCommitPrologueV2 transaction.");
@@ -1168,7 +1170,7 @@ async fn gas_price_feedback_mechanism_for_multiple_commits() {
         // Check if `ConsensusDeterminedVersionAssignments` are correct.
         assert_eq!(
             prologue_tx.consensus_determined_version_assignments,
-            ConsensusDeterminedVersionAssignments::CancelledTransactions(vec![])
+            ConsensusDeterminedVersionAssignments::CancelledTransactionsV2(vec![])
         );
     } else {
         panic!("First scheduled transaction must be a ConsensusCommitPrologueV2 transaction.");
@@ -1247,26 +1249,26 @@ async fn gas_price_feedback_mechanism_for_multiple_commits() {
         scheduled_transactions[0].data().transaction_data().kind()
     {
         // Check if `ConsensusDeterminedVersionAssignments` are correct.
-        let cancelled_txs = vec![(
-            *scheduled_transactions[2].digest(),
-            vec![
-                (
-                    tester.shared_counter_1.0,
-                    SequenceNumber::new_congested_with_suggested_gas_price(
+        let cancelled_txs = vec![CancelledTransactionV2 {
+            digest: *scheduled_transactions[2].digest(),
+            version_assignments: vec![
+                VersionAssignment {
+                    object_id: tester.shared_counter_1.0,
+                    version: SequenceNumber::new_congested_with_suggested_gas_price(
                         expected_suggested_gas_price,
                     ),
-                ),
-                (
-                    tester.shared_counter_2.0,
-                    SequenceNumber::new_congested_with_suggested_gas_price(
+                },
+                VersionAssignment {
+                    object_id: tester.shared_counter_2.0,
+                    version: SequenceNumber::new_congested_with_suggested_gas_price(
                         expected_suggested_gas_price,
                     ),
-                ),
+                },
             ],
-        )];
+        }];
         assert_eq!(
             prologue_tx.consensus_determined_version_assignments,
-            ConsensusDeterminedVersionAssignments::CancelledTransactions(cancelled_txs)
+            ConsensusDeterminedVersionAssignments::CancelledTransactionsV2(cancelled_txs)
         );
     } else {
         panic!("First scheduled transaction must be a ConsensusCommitPrologueV2 transaction.");
@@ -1427,113 +1429,113 @@ async fn gas_price_feedback_mechanism_non_trivial_case_total_tx_count_mode() {
     {
         // Check if `ConsensusDeterminedVersionAssignments` are correct.
         let cancelled_txs = vec![
-            (
-                *certificates[4].digest(),
-                vec![(
-                    tester.shared_counter_2.0,
-                    SequenceNumber::new_congested_with_suggested_gas_price(
+            CancelledTransactionV2 {
+                digest: *certificates[4].digest(),
+                version_assignments: vec![VersionAssignment {
+                    object_id: tester.shared_counter_2.0,
+                    version: SequenceNumber::new_congested_with_suggested_gas_price(
                         expected_suggested_gas_price_for_object_2,
                     ),
-                )],
-            ),
-            (
-                *certificates[5].digest(),
-                vec![(
-                    tester.shared_counter_2.0,
-                    SequenceNumber::new_congested_with_suggested_gas_price(
+                }],
+            },
+            CancelledTransactionV2 {
+                digest: *certificates[5].digest(),
+                version_assignments: vec![VersionAssignment {
+                    object_id: tester.shared_counter_2.0,
+                    version: SequenceNumber::new_congested_with_suggested_gas_price(
                         expected_suggested_gas_price_for_object_2,
                     ),
-                )],
-            ),
-            (
-                *certificates[6].digest(),
-                vec![
-                    (
-                        tester.shared_counter_1.0,
-                        SequenceNumber::new_congested_with_suggested_gas_price(
+                }],
+            },
+            CancelledTransactionV2 {
+                digest: *certificates[6].digest(),
+                version_assignments: vec![
+                    VersionAssignment {
+                        object_id: tester.shared_counter_1.0,
+                        version: SequenceNumber::new_congested_with_suggested_gas_price(
                             expected_suggested_gas_price_for_both_objects,
                         ),
-                    ),
-                    (
-                        tester.shared_counter_2.0,
-                        SequenceNumber::new_congested_with_suggested_gas_price(
+                    },
+                    VersionAssignment {
+                        object_id: tester.shared_counter_2.0,
+                        version: SequenceNumber::new_congested_with_suggested_gas_price(
                             expected_suggested_gas_price_for_both_objects,
                         ),
-                    ),
+                    },
                 ],
-            ),
-            (
-                *certificates[7].digest(),
-                vec![
-                    (
-                        tester.shared_counter_1.0,
-                        SequenceNumber::new_congested_with_suggested_gas_price(
+            },
+            CancelledTransactionV2 {
+                digest: *certificates[7].digest(),
+                version_assignments: vec![
+                    VersionAssignment {
+                        object_id: tester.shared_counter_1.0,
+                        version: SequenceNumber::new_congested_with_suggested_gas_price(
                             expected_suggested_gas_price_for_both_objects,
                         ),
-                    ),
-                    (
-                        tester.shared_counter_2.0,
-                        SequenceNumber::new_congested_with_suggested_gas_price(
+                    },
+                    VersionAssignment {
+                        object_id: tester.shared_counter_2.0,
+                        version: SequenceNumber::new_congested_with_suggested_gas_price(
                             expected_suggested_gas_price_for_both_objects,
                         ),
-                    ),
+                    },
                 ],
-            ),
-            (
-                *certificates[10].digest(),
-                vec![
-                    (
-                        tester.shared_counter_1.0,
-                        SequenceNumber::new_congested_with_suggested_gas_price(
+            },
+            CancelledTransactionV2 {
+                digest: *certificates[10].digest(),
+                version_assignments: vec![
+                    VersionAssignment {
+                        object_id: tester.shared_counter_1.0,
+                        version: SequenceNumber::new_congested_with_suggested_gas_price(
                             expected_suggested_gas_price_for_both_objects,
                         ),
-                    ),
-                    (
-                        tester.shared_counter_2.0,
-                        SequenceNumber::new_congested_with_suggested_gas_price(
+                    },
+                    VersionAssignment {
+                        object_id: tester.shared_counter_2.0,
+                        version: SequenceNumber::new_congested_with_suggested_gas_price(
                             expected_suggested_gas_price_for_both_objects,
                         ),
-                    ),
+                    },
                 ],
-            ),
-            (
-                *certificates[11].digest(),
-                vec![
-                    (
-                        tester.shared_counter_1.0,
-                        SequenceNumber::new_congested_with_suggested_gas_price(
+            },
+            CancelledTransactionV2 {
+                digest: *certificates[11].digest(),
+                version_assignments: vec![
+                    VersionAssignment {
+                        object_id: tester.shared_counter_1.0,
+                        version: SequenceNumber::new_congested_with_suggested_gas_price(
                             expected_suggested_gas_price_for_both_objects,
                         ),
-                    ),
-                    (
-                        tester.shared_counter_2.0,
-                        SequenceNumber::new_congested_with_suggested_gas_price(
+                    },
+                    VersionAssignment {
+                        object_id: tester.shared_counter_2.0,
+                        version: SequenceNumber::new_congested_with_suggested_gas_price(
                             expected_suggested_gas_price_for_both_objects,
                         ),
-                    ),
+                    },
                 ],
-            ),
-            (
-                *certificates[12].digest(),
-                vec![
-                    (
-                        tester.shared_counter_1.0,
-                        SequenceNumber::new_congested_with_suggested_gas_price(
+            },
+            CancelledTransactionV2 {
+                digest: *certificates[12].digest(),
+                version_assignments: vec![
+                    VersionAssignment {
+                        object_id: tester.shared_counter_1.0,
+                        version: SequenceNumber::new_congested_with_suggested_gas_price(
                             expected_suggested_gas_price_for_both_objects,
                         ),
-                    ),
-                    (
-                        tester.shared_counter_2.0,
-                        SequenceNumber::new_congested_with_suggested_gas_price(
+                    },
+                    VersionAssignment {
+                        object_id: tester.shared_counter_2.0,
+                        version: SequenceNumber::new_congested_with_suggested_gas_price(
                             expected_suggested_gas_price_for_both_objects,
                         ),
-                    ),
+                    },
                 ],
-            ),
+            },
         ];
         assert_eq!(
             prologue_tx.consensus_determined_version_assignments,
-            ConsensusDeterminedVersionAssignments::CancelledTransactions(cancelled_txs)
+            ConsensusDeterminedVersionAssignments::CancelledTransactionsV2(cancelled_txs)
         );
     } else {
         panic!("First scheduled transaction must be a ConsensusCommitPrologueV2 transaction.");
@@ -1738,113 +1740,113 @@ async fn gas_price_feedback_mechanism_non_trivial_case_total_gas_budget_mode() {
     {
         // Check if `ConsensusDeterminedVersionAssignments` are correct.
         let cancelled_txs = vec![
-            (
-                *certificates[4].digest(),
-                vec![(
-                    tester.shared_counter_2.0,
-                    SequenceNumber::new_congested_with_suggested_gas_price(
+            CancelledTransactionV2 {
+                digest: *certificates[4].digest(),
+                version_assignments: vec![VersionAssignment {
+                    object_id: tester.shared_counter_2.0,
+                    version: SequenceNumber::new_congested_with_suggested_gas_price(
                         certificates[2].gas_price() + 1,
                     ),
-                )],
-            ),
-            (
-                *certificates[5].digest(),
-                vec![(
-                    tester.shared_counter_2.0,
-                    SequenceNumber::new_congested_with_suggested_gas_price(
+                }],
+            },
+            CancelledTransactionV2 {
+                digest: *certificates[5].digest(),
+                version_assignments: vec![VersionAssignment {
+                    object_id: tester.shared_counter_2.0,
+                    version: SequenceNumber::new_congested_with_suggested_gas_price(
                         certificates[2].gas_price() + 1,
                     ),
-                )],
-            ),
-            (
-                *certificates[6].digest(),
-                vec![
-                    (
-                        tester.shared_counter_1.0,
-                        SequenceNumber::new_congested_with_suggested_gas_price(
+                }],
+            },
+            CancelledTransactionV2 {
+                digest: *certificates[6].digest(),
+                version_assignments: vec![
+                    VersionAssignment {
+                        object_id: tester.shared_counter_1.0,
+                        version: SequenceNumber::new_congested_with_suggested_gas_price(
                             certificates[1].gas_price() + 1,
                         ),
-                    ),
-                    (
-                        tester.shared_counter_2.0,
-                        SequenceNumber::new_congested_with_suggested_gas_price(
+                    },
+                    VersionAssignment {
+                        object_id: tester.shared_counter_2.0,
+                        version: SequenceNumber::new_congested_with_suggested_gas_price(
                             certificates[1].gas_price() + 1,
                         ),
-                    ),
+                    },
                 ],
-            ),
-            (
-                *certificates[7].digest(),
-                vec![
-                    (
-                        tester.shared_counter_1.0,
-                        SequenceNumber::new_congested_with_suggested_gas_price(
+            },
+            CancelledTransactionV2 {
+                digest: *certificates[7].digest(),
+                version_assignments: vec![
+                    VersionAssignment {
+                        object_id: tester.shared_counter_1.0,
+                        version: SequenceNumber::new_congested_with_suggested_gas_price(
                             certificates[0].gas_price(),
                         ),
-                    ),
-                    (
-                        tester.shared_counter_2.0,
-                        SequenceNumber::new_congested_with_suggested_gas_price(
+                    },
+                    VersionAssignment {
+                        object_id: tester.shared_counter_2.0,
+                        version: SequenceNumber::new_congested_with_suggested_gas_price(
                             certificates[0].gas_price(),
                         ),
-                    ),
+                    },
                 ],
-            ),
-            (
-                *certificates[10].digest(),
-                vec![
-                    (
-                        tester.shared_counter_1.0,
-                        SequenceNumber::new_congested_with_suggested_gas_price(
+            },
+            CancelledTransactionV2 {
+                digest: *certificates[10].digest(),
+                version_assignments: vec![
+                    VersionAssignment {
+                        object_id: tester.shared_counter_1.0,
+                        version: SequenceNumber::new_congested_with_suggested_gas_price(
                             certificates[2].gas_price() + 1,
                         ),
-                    ),
-                    (
-                        tester.shared_counter_2.0,
-                        SequenceNumber::new_congested_with_suggested_gas_price(
+                    },
+                    VersionAssignment {
+                        object_id: tester.shared_counter_2.0,
+                        version: SequenceNumber::new_congested_with_suggested_gas_price(
                             certificates[2].gas_price() + 1,
                         ),
-                    ),
+                    },
                 ],
-            ),
-            (
-                *certificates[11].digest(),
-                vec![
-                    (
-                        tester.shared_counter_1.0,
-                        SequenceNumber::new_congested_with_suggested_gas_price(
+            },
+            CancelledTransactionV2 {
+                digest: *certificates[11].digest(),
+                version_assignments: vec![
+                    VersionAssignment {
+                        object_id: tester.shared_counter_1.0,
+                        version: SequenceNumber::new_congested_with_suggested_gas_price(
                             certificates[1].gas_price() + 1,
                         ),
-                    ),
-                    (
-                        tester.shared_counter_2.0,
-                        SequenceNumber::new_congested_with_suggested_gas_price(
+                    },
+                    VersionAssignment {
+                        object_id: tester.shared_counter_2.0,
+                        version: SequenceNumber::new_congested_with_suggested_gas_price(
                             certificates[1].gas_price() + 1,
                         ),
-                    ),
+                    },
                 ],
-            ),
-            (
-                *certificates[12].digest(),
-                vec![
-                    (
-                        tester.shared_counter_1.0,
-                        SequenceNumber::new_congested_with_suggested_gas_price(
+            },
+            CancelledTransactionV2 {
+                digest: *certificates[12].digest(),
+                version_assignments: vec![
+                    VersionAssignment {
+                        object_id: tester.shared_counter_1.0,
+                        version: SequenceNumber::new_congested_with_suggested_gas_price(
                             certificates[0].gas_price(),
                         ),
-                    ),
-                    (
-                        tester.shared_counter_2.0,
-                        SequenceNumber::new_congested_with_suggested_gas_price(
+                    },
+                    VersionAssignment {
+                        object_id: tester.shared_counter_2.0,
+                        version: SequenceNumber::new_congested_with_suggested_gas_price(
                             certificates[0].gas_price(),
                         ),
-                    ),
+                    },
                 ],
-            ),
+            },
         ];
         assert_eq!(
             prologue_tx.consensus_determined_version_assignments,
-            ConsensusDeterminedVersionAssignments::CancelledTransactions(cancelled_txs)
+            ConsensusDeterminedVersionAssignments::CancelledTransactionsV2(cancelled_txs)
         );
     } else {
         panic!("First scheduled transaction must be a ConsensusCommitPrologueV2 transaction.");

@@ -33,7 +33,10 @@ use iota_types::{
     execution_status::{ExecutionFailureStatus, ExecutionStatus},
     gas_coin::GasCoin,
     iota_system_state::IotaSystemStateWrapper,
-    messages_consensus::{AuthorityCapabilitiesV1, ConsensusDeterminedVersionAssignments},
+    messages_consensus::{
+        AuthorityCapabilitiesV1, CancelledTransactionV2, ConsensusDeterminedVersionAssignments,
+        VersionAssignment,
+    },
     object::{Data, GAS_VALUE_FOR_TESTING, OBJECT_START_VERSION, Owner},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     randomness_state::get_randomness_state_obj_initial_shared_version,
@@ -6779,24 +6782,24 @@ async fn test_consensus_handler_congestion_control_transaction_cancellation() {
     {
         assert!(matches!(
             &prologue_txn.consensus_determined_version_assignments,
-            ConsensusDeterminedVersionAssignments::CancelledTransactions(assignment)
-            if assignment == &vec![(
-                *cancelled_txn.digest(),
-                vec![
-                    (
-                        shared_objects[0].id(),
-                        SequenceNumber::new_congested_with_suggested_gas_price(
+            ConsensusDeterminedVersionAssignments::CancelledTransactionsV2(assignment)
+            if assignment == &vec![CancelledTransactionV2 {
+                digest: *cancelled_txn.digest(),
+                version_assignments: vec![
+                    VersionAssignment {
+                        object_id: shared_objects[0].id(),
+                        version: SequenceNumber::new_congested_with_suggested_gas_price(
                             suggested_gas_price
                         ),
-                    ),
-                    (
-                        shared_objects[1].id(),
-                        SequenceNumber::new_congested_with_suggested_gas_price(
+                    },
+                    VersionAssignment {
+                        object_id: shared_objects[1].id(),
+                        version: SequenceNumber::new_congested_with_suggested_gas_price(
                             suggested_gas_price
                         ),
-                    )
+                    }
                 ]
-            )]
+            }]
         ));
     } else {
         panic!("First scheduled transaction must be a ConsensusCommitPrologueV2 transaction.");
