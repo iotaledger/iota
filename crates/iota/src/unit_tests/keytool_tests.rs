@@ -578,8 +578,8 @@ async fn test_keytool_bls12381() -> Result<(), anyhow::Error> {
 async fn test_sign_command() -> Result<(), anyhow::Error> {
     // Add a keypair
     let mut keystore = Keystore::from(InMemKeystore::new_insecure_for_tests(1));
-    let binding = keystore.addresses();
-    let sender = binding.first().unwrap();
+    let addresses = keystore.addresses();
+    let sender = addresses.first().unwrap();
     let alias = keystore.get_alias_by_address(sender).unwrap();
 
     // Create a dummy TransactionData
