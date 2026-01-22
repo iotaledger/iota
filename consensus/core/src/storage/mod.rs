@@ -10,6 +10,9 @@ pub(crate) mod rocksdb_store;
 mod store_tests;
 
 use consensus_config::AuthorityIndex;
+use iota_common::{misbehavior_counts::MisbehaviorsV1, scoring_metrics::VersionedScoringMetrics};
+use iota_protocol_config::ProtocolConfig;
+use serde::{Deserialize, Serialize};
 
 use crate::{
     CommitIndex,
@@ -42,8 +45,9 @@ pub(crate) trait Store: Send + Sync {
 
     // The method reads and returns all metrics stored. Used for restoring the
     // scoring metrics in case of DagState initialization from storage
-    fn scan_scoring_metrics(&self)
-    -> ConsensusResult<Vec<(AuthorityIndex, StorageScoringMetrics)>>;
+    fn scan_scoring_metrics(
+        &self,
+    ) -> ConsensusResult<Vec<(AuthorityIndex, VersionedStorageScoringMetrics)>>;
 
     // The method returns the last `num_of_rounds` rounds blocks by author in round
     // ascending order. When a `before_round` is defined then the blocks of
@@ -76,7 +80,7 @@ pub(crate) struct WriteBatch {
     pub(crate) blocks: Vec<VerifiedBlock>,
     pub(crate) commits: Vec<TrustedCommit>,
     pub(crate) commit_info: Vec<(CommitRef, CommitInfo)>,
-    pub(crate) scoring_metrics: Vec<(AuthorityIndex, StorageScoringMetrics)>,
+    pub(crate) scoring_metrics: Vec<(AuthorityIndex, VersionedStorageScoringMetrics)>,
 }
 
 impl WriteBatch {
@@ -84,7 +88,7 @@ impl WriteBatch {
         blocks: Vec<VerifiedBlock>,
         commits: Vec<TrustedCommit>,
         commit_info: Vec<(CommitRef, CommitInfo)>,
-        scoring_metrics: Vec<(AuthorityIndex, StorageScoringMetrics)>,
+        scoring_metrics: Vec<(AuthorityIndex, VersionedStorageScoringMetrics)>,
     ) -> Self {
         WriteBatch {
             blocks,
@@ -117,19 +121,59 @@ impl WriteBatch {
     #[cfg(test)]
     pub(crate) fn scoring_metrics(
         mut self,
-        scoring_metrics: Vec<(AuthorityIndex, StorageScoringMetrics)>,
+        scoring_metrics: Vec<(AuthorityIndex, VersionedStorageScoringMetrics)>,
     ) -> Self {
         self.scoring_metrics = scoring_metrics;
         self
     }
 }
 
-// This struct is used in storage. It holds the same data as
-// `UncachedScoringMetrics`, but uses `u64` instead of `AtomicU64`.
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, PartialEq)]
-pub(crate) struct StorageScoringMetrics {
-    pub(crate) faulty_blocks_provable: u64,
-    pub(crate) faulty_blocks_unprovable: u64,
-    pub(crate) equivocations: u64,
-    pub(crate) missing_proposals: u64,
+// Re-exportMisbehaviorsV1<u64> as StorageScoringMetrics for storage use.
+pub(crate) type StorageScoringMetricsV1 = MisbehaviorsV1<u64>;
+
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+pub enum VersionedStorageScoringMetrics {
+    V1(StorageScoringMetricsV1),
+}
+
+impl VersionedStorageScoringMetrics {
+    pub fn new_zeroed(protocol_config: &ProtocolConfig) -> Self {
+        match protocol_config.scorer_version_as_option() {
+            None | Some(1) => {
+                VersionedStorageScoringMetrics::V1(StorageScoringMetricsV1::new_zeroed())
+            }
+            _ => panic!("Unsupported scorer version"),
+        }
+    }
+
+    pub fn new_from(scoring_metrics: &VersionedScoringMetrics, authority_index: usize) -> Self {
+        match scoring_metrics {
+            VersionedScoringMetrics::V1(misbehavior_vectors) => {
+                let inner = misbehavior_vectors.misbehaviors_from_authority(authority_index);
+                VersionedStorageScoringMetrics::V1(inner)
+            }
+        }
+    }
+
+    /// Returns an iterator over references to the metric values.
+    pub fn iterate_over_metrics(&self) -> std::vec::IntoIter<&u64> {
+        match self {
+            VersionedStorageScoringMetrics::V1(inner) => inner.iter(),
+        }
+    }
+
+    #[cfg(test)]
+    pub(crate) fn new_v1_for_test(
+        faulty_blocks_provable: u64,
+        faulty_blocks_unprovable: u64,
+        missing_proposals: u64,
+        equivocations: u64,
+    ) -> Self {
+        VersionedStorageScoringMetrics::V1(StorageScoringMetricsV1::new(
+            faulty_blocks_provable,
+            faulty_blocks_unprovable,
+            missing_proposals,
+            equivocations,
+        ))
+    }
 }

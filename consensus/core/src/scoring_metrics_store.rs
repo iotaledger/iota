@@ -13,7 +13,7 @@ use itertools::izip;
 
 use crate::{
     BlockRef, context::Context, error::ConsensusError, metrics::NodeMetrics,
-    storage::StorageScoringMetrics,
+    storage::VersionedStorageScoringMetrics,
 };
 /// Struct that holds the scoring metrics for all authorities in the committee,
 /// both cached and uncached. It also holds a shared reference to the current
@@ -41,7 +41,7 @@ impl MysticetiScoringMetricsStore {
     // recovered_scoring_metrics and blocks_in_cache_by_authority.
     pub(crate) fn initialize_scoring_metrics(
         &self,
-        mut recovered_scoring_metrics: Vec<(AuthorityIndex, StorageScoringMetrics)>,
+        mut recovered_scoring_metrics: Vec<(AuthorityIndex, VersionedStorageScoringMetrics)>,
         blocks_in_cache_by_authority: &Vec<BTreeSet<BlockRef>>,
         threshold_clock_round: u32,
         eviction_rounds: &Vec<u32>,
@@ -58,10 +58,10 @@ impl MysticetiScoringMetricsStore {
         // example, will never have its metrics updated, so no metric will ever be
         // stored. For this reason, we manually "fill" this vector.
         if recovered_scoring_metrics.len() < context.committee.size() {
-            for i in 0..context.committee.size() {
+            for (i, _) in context.committee.authorities() {
                 if !recovered_scoring_metrics
                     .iter()
-                    .any(|(index, _)| index.value() == i)
+                    .any(|(index, _)| *index == i)
                 {
                     // We add a component with zeroed metrics for the authority with index i.
                     // This will ensure that every authority has its metrics initialized.
@@ -69,15 +69,10 @@ impl MysticetiScoringMetricsStore {
                     // recovered metrics, it means that it never misbehaved in a way that was
                     // detected by the node.
                     recovered_scoring_metrics.insert(
-                        i,
+                        i.value(),
                         (
-                            AuthorityIndex::new_for_test(i as u32),
-                            StorageScoringMetrics {
-                                faulty_blocks_provable: 0,
-                                faulty_blocks_unprovable: 0,
-                                equivocations: 0,
-                                missing_proposals: 0,
-                            },
+                            i,
+                            VersionedStorageScoringMetrics::new_zeroed(&context.protocol_config),
                         ),
                     );
                 }
@@ -91,22 +86,17 @@ impl MysticetiScoringMetricsStore {
         ) {
             // Initialize the uncached scoring metrics according to
             // recovered_scoring_metrics
-            let StorageScoringMetrics {
-                faulty_blocks_provable,
-                faulty_blocks_unprovable,
-                equivocations,
-                missing_proposals,
-            } = metrics;
+            let VersionedStorageScoringMetrics::V1(inner) = &metrics;
             self.initialize_faulty_blocks_metrics(
-                faulty_blocks_provable,
-                faulty_blocks_unprovable,
+                *inner.faulty_blocks_provable(),
+                *inner.faulty_blocks_unprovable(),
                 hostname,
                 authority_index,
                 &context.metrics.node_metrics,
             );
             self.update_missing_blocks_and_equivocations(
-                missing_proposals,
-                equivocations,
+                *inner.missing_proposals(),
+                *inner.equivocations(),
                 hostname,
                 authority_index,
                 StoreType::Uncached,
@@ -268,7 +258,7 @@ impl MysticetiScoringMetricsStore {
         last_eviction_round: u32,
         threshold_clock_round: u32,
         node_metrics: &NodeMetrics,
-    ) -> Option<StorageScoringMetrics> {
+    ) -> Option<VersionedStorageScoringMetrics> {
         // threshold_clock_round should be always at least 1.
         // Analogously, authority_index should be a valid index.
         if threshold_clock_round == 0
@@ -333,17 +323,10 @@ impl MysticetiScoringMetricsStore {
         // Update current local metrics count.
         self.update_current_local_metrics_count(authority_index);
 
-        Some(StorageScoringMetrics {
-            faulty_blocks_provable: self.uncached_metrics.faulty_blocks_provable()[authority_index]
-                .load(Ordering::Relaxed),
-            faulty_blocks_unprovable: self.uncached_metrics.faulty_blocks_unprovable()
-                [authority_index]
-                .load(Ordering::Relaxed),
-            equivocations: self.uncached_metrics.equivocations()[authority_index]
-                .load(Ordering::Relaxed),
-            missing_proposals: self.uncached_metrics.missing_proposals()[authority_index]
-                .load(Ordering::Relaxed),
-        })
+        Some(VersionedStorageScoringMetrics::new_from(
+            &self.uncached_metrics,
+            authority_index.value(),
+        ))
     }
 
     pub(crate) fn update_current_local_metrics_count(&self, authority_index: AuthorityIndex) {
@@ -538,7 +521,7 @@ mod tests {
         dag_state::DagState,
         error::ConsensusError,
         scoring_metrics_store::{ErrorSource, MysticetiScoringMetricsStore},
-        storage::{StorageScoringMetrics, mem_store::MemStore},
+        storage::{VersionedStorageScoringMetrics, mem_store::MemStore},
         synchronizer::Synchronizer,
         test_dag_builder::DagBuilder,
     };
@@ -804,15 +787,15 @@ mod tests {
             threshold_clock_round,
             node_metrics,
         );
-        assert!(matches!(
+        assert_eq!(
             stored_metrics,
-            Some(StorageScoringMetrics {
-                faulty_blocks_provable: 0,
-                faulty_blocks_unprovable: 0,
-                equivocations: 0,
-                missing_proposals: 3
-            })
-        ));
+            Some(VersionedStorageScoringMetrics::new_v1_for_test(
+                0, // faulty_blocks_provable
+                0, // faulty_blocks_unprovable
+                3, // missing_proposals
+                0, // equivocations
+            ))
+        );
 
         // Unexpected because: eviction_round < last_evicted_round means that blocks
         // below or in last_evicted_round were accepted.
@@ -830,15 +813,15 @@ mod tests {
             threshold_clock_round,
             node_metrics,
         );
-        assert!(matches!(
+        assert_eq!(
             stored_metrics,
-            Some(StorageScoringMetrics {
-                faulty_blocks_provable: 0,
-                faulty_blocks_unprovable: 0,
-                equivocations: 0,
-                missing_proposals: 3
-            })
-        ));
+            Some(VersionedStorageScoringMetrics::new_v1_for_test(
+                0, // faulty_blocks_provable
+                0, // faulty_blocks_unprovable
+                3, // missing_proposals
+                0, // equivocations
+            ))
+        );
 
         // Unexpected because: threshold_clock_round < eviction_round <
         // last_evicted_round and threshold_clock_round. Return: metrics won't
@@ -855,15 +838,15 @@ mod tests {
             threshold_clock_round,
             node_metrics,
         );
-        assert!(matches!(
+        assert_eq!(
             stored_metrics,
-            Some(StorageScoringMetrics {
-                faulty_blocks_provable: 0,
-                faulty_blocks_unprovable: 0,
-                equivocations: 0,
-                missing_proposals: 3
-            })
-        ));
+            Some(VersionedStorageScoringMetrics::new_v1_for_test(
+                0, // faulty_blocks_provable
+                0, // faulty_blocks_unprovable
+                3, // missing_proposals
+                0, // equivocations
+            ))
+        );
 
         // Unexpected because: threshold_clock_round < last_evicted_round means that a
         // round with blocks from less than 2f+1 stake was evicted.
