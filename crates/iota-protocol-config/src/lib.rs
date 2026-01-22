@@ -97,6 +97,9 @@ pub const MAX_PROTOCOL_VERSION: u64 = 20;
 //             mechanism on devnet.
 //             Enable a separate gas price feedback mechanism for transactions
 //             using randomness on devnet.
+// Version 20: Enable recording additional state digest in consensus commit
+//             prologue on devnet.
+//             Add consensus commit rate estimation window size configuration.
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
 

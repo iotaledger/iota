@@ -931,7 +931,7 @@ impl ConsensusCommitInfo {
     fn consensus_commit_prologue_v2_transaction(
         &self,
         epoch: u64,
-        consensus_determined_version_assignments: ConsensusDeterminedVersionAssignments,
+        cancelled_txn_version_assignment: Vec<(TransactionDigest, Vec<(ObjectID, SequenceNumber)>)>,
         additional_state_digest: AdditionalConsensusStateDigest,
     ) -> VerifiedExecutableTransaction {
         let transaction = VerifiedTransaction::new_consensus_commit_prologue_v2(
@@ -939,7 +939,7 @@ impl ConsensusCommitInfo {
             self.round,
             self.timestamp,
             self.consensus_commit_digest,
-            consensus_determined_version_assignments,
+            cancelled_txn_version_assignment,
             additional_state_digest,
         );
         VerifiedExecutableTransaction::new_system(transaction, epoch)
@@ -955,9 +955,7 @@ impl ConsensusCommitInfo {
         if protocol_config.record_additional_state_digest_in_prologue() {
             self.consensus_commit_prologue_v2_transaction(
                 epoch,
-                ConsensusDeterminedVersionAssignments::CancelledTransactions(
-                    cancelled_txn_version_assignment.clone(),
-                ),
+                cancelled_txn_version_assignment,
                 additional_state.digest(),
             )
         } else {
