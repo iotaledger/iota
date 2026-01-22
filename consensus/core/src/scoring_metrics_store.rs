@@ -115,7 +115,7 @@ impl MysticetiScoringMetricsStore {
                 equivocations,
                 hostname,
                 authority_index,
-                MetricType::Uncached,
+                StoreType::Uncached,
                 &context.metrics.node_metrics,
             );
 
@@ -135,7 +135,7 @@ impl MysticetiScoringMetricsStore {
                 cached_equivocations,
                 hostname,
                 authority_index,
-                MetricType::Cached,
+                StoreType::Cached,
                 &context.metrics.node_metrics,
             );
         }
@@ -148,7 +148,7 @@ impl MysticetiScoringMetricsStore {
         authority_index: AuthorityIndex,
         hostname: &str,
         error: ConsensusError,
-        source: &str,
+        source: ErrorSource,
         node_metrics: &NodeMetrics,
     ) {
         // authority_index will be always a valid index. However, this method will
@@ -158,22 +158,34 @@ impl MysticetiScoringMetricsStore {
             return;
         }
 
-        if should_update_provable_metrics(&error, source) {
-            self.uncached_metrics
-                .increment_faulty_blocks_provable(authority_index.value(), 1);
-            node_metrics
-                .faulty_blocks_provable_by_authority
-                .with_label_values(&[hostname, source, error.name()])
-                .inc();
-        } else if should_update_unprovable_metrics(&error, source) {
-            self.uncached_metrics
-                .increment_faulty_blocks_unprovable(authority_index.value(), 1);
-            node_metrics
-                .faulty_blocks_unprovable_by_authority
-                .with_label_values(&[hostname, source, error.name()])
-                .inc();
-        } else {
-            // No scoring metrics need to be updated.
+        let (metric_type, source_str) = match source {
+            ErrorSource::CommitSyncer => (classify_commit_syncer_error(&error), "fetch_once"),
+            ErrorSource::Subscriber => (classify_subscriber_error(&error), "handle_send_block"),
+            ErrorSource::Synchronizer => (
+                classify_synchronizer_error(&error),
+                "process_fetched_blocks",
+            ),
+        };
+        match metric_type {
+            MetricType::Provable => {
+                self.uncached_metrics
+                    .increment_faulty_blocks_provable(authority_index.value(), 1);
+                node_metrics
+                    .faulty_blocks_provable_by_authority
+                    .with_label_values(&[hostname, source_str, error.name()])
+                    .inc();
+            }
+            MetricType::Unprovable => {
+                self.uncached_metrics
+                    .increment_faulty_blocks_unprovable(authority_index.value(), 1);
+                node_metrics
+                    .faulty_blocks_unprovable_by_authority
+                    .with_label_values(&[hostname, source_str, error.name()])
+                    .inc();
+            }
+            MetricType::Untracked => {
+                // No scoring metrics need to be updated.
+            }
         }
     }
 
@@ -213,11 +225,11 @@ impl MysticetiScoringMetricsStore {
         equivocations: u64,
         hostname: &str,
         authority: AuthorityIndex,
-        metric_type: MetricType,
+        metric_type: StoreType,
         node_metrics: &NodeMetrics,
     ) {
         match metric_type {
-            MetricType::Cached => {
+            StoreType::Cached => {
                 self.cached_metrics
                     .store_equivocations(authority.value(), equivocations);
                 self.cached_metrics
@@ -232,7 +244,7 @@ impl MysticetiScoringMetricsStore {
                     .set(missing_blocks as i64);
             }
 
-            MetricType::Uncached => {
+            StoreType::Uncached => {
                 self.uncached_metrics
                     .increment_equivocations(authority.value(), equivocations);
                 self.uncached_metrics
@@ -291,7 +303,7 @@ impl MysticetiScoringMetricsStore {
             cached_equivocations,
             hostname,
             authority_index,
-            MetricType::Cached,
+            StoreType::Cached,
             node_metrics,
         );
 
@@ -320,7 +332,7 @@ impl MysticetiScoringMetricsStore {
             evicted_equivocations,
             hostname,
             authority_index,
-            MetricType::Uncached,
+            StoreType::Uncached,
             node_metrics,
         );
 
@@ -386,84 +398,112 @@ fn calculate_scoring_metrics_for_range(
     (number_of_equivocations, number_of_missing_blocks)
 }
 
-fn should_update_provable_metrics(error: &ConsensusError, source: &str) -> bool {
-    if source == "handle_send_block"
-        && (is_from_signed_block_verification(error)
-            || matches!(
-                error,
-                ConsensusError::BlockRejected { .. }
-                //| ConsensusError::MalformedAncestorBlock { .. }
-                ))
-    {
-        return true;
-    }
-    false
-}
-
-fn should_update_unprovable_metrics(error: &ConsensusError, source: &str) -> bool {
-    if source == "handle_send_block" {
-        return is_from_unsigned_block_verification(error)
-            || matches!(
-                error,
-                ConsensusError::MalformedBlock { .. } | ConsensusError::UnexpectedAuthority { .. }
-            );
-    } else if source == "fetch_once" {
-        return is_from_commit_syncer(error);
-    } else if source == "process_fetched_blocks" {
-        return is_from_unsigned_block_verification(error)
-            || is_from_signed_block_verification(error)
-            || matches!(error, ConsensusError::MalformedBlock { .. });
-    }
-    false
-}
-
-fn is_from_unsigned_block_verification(err: &ConsensusError) -> bool {
-    matches!(
-        err,
-        ConsensusError::WrongEpoch { .. }
-            | ConsensusError::UnexpectedGenesisBlock
-            | ConsensusError::InvalidAuthorityIndex { .. }
-            | ConsensusError::SerializationFailure { .. }
-            | ConsensusError::MalformedSignature { .. }
-            | ConsensusError::SignatureVerificationFailure { .. }
-    )
-}
-
-fn is_from_signed_block_verification(err: &ConsensusError) -> bool {
-    matches!(
-        err,
-        ConsensusError::TooManyAncestors { .. }
-            | ConsensusError::InsufficientParentStakes { .. }
-            | ConsensusError::InvalidAuthorityIndex { .. }
-            | ConsensusError::InvalidAncestorPosition { .. }
-            | ConsensusError::InvalidAncestorRound { .. }
-            | ConsensusError::InvalidGenesisAncestor { .. }
-            | ConsensusError::DuplicatedAncestorsAuthority { .. }
-            | ConsensusError::TransactionTooLarge { .. }
-            | ConsensusError::TooManyTransactions { .. }
-            | ConsensusError::TooManyTransactionBytes { .. }
-            | ConsensusError::InvalidTransaction { .. }
-    )
-}
-
-fn is_from_commit_syncer(err: &ConsensusError) -> bool {
-    matches!(
-        err,
-        ConsensusError::MalformedCommit { .. }
-            | ConsensusError::UnexpectedStartCommit { .. }
-            | ConsensusError::UnexpectedCommitSequence { .. }
-            | ConsensusError::NoCommitReceived { .. }
-            | ConsensusError::MalformedBlock { .. }
-            | ConsensusError::NotEnoughCommitVotes { .. }
-            | ConsensusError::UnexpectedNumberOfBlocksFetched { .. }
-            | ConsensusError::UnexpectedBlockForCommit { .. }
-    ) || is_from_unsigned_block_verification(err)
-        || is_from_signed_block_verification(err)
-}
-
-pub(crate) enum MetricType {
+pub(crate) enum StoreType {
     Cached,
     Uncached,
+}
+
+#[derive(PartialEq)]
+// Enum to classify errors into provable, unprovable, or untracked metrics.
+// Provable metrics are those that can be proven to a third party by providing
+// some cryptographic proof, such the signed block itself. Untracked metrics
+// are those that are not of interest for scoring.
+pub(crate) enum MetricType {
+    Provable,
+    Unprovable,
+    Untracked,
+}
+
+// Classifies errors returned by the commit syncer as unprovable, and errors not
+// returned by it as untracked. We do not classify any error as provable here
+// because we cannot prove to a third party that a block or commit was fetched
+// from a particular authority.
+fn classify_commit_syncer_error(error: &ConsensusError) -> MetricType {
+    match error {
+        ConsensusError::MalformedCommit(_) => MetricType::Unprovable,
+        ConsensusError::UnexpectedStartCommit { .. } => MetricType::Unprovable,
+        ConsensusError::UnexpectedCommitSequence { .. } => MetricType::Unprovable,
+        ConsensusError::NoCommitReceived { .. } => MetricType::Unprovable,
+        ConsensusError::MalformedBlock(_) => MetricType::Unprovable,
+        ConsensusError::NotEnoughCommitVotes { .. } => MetricType::Unprovable,
+        ConsensusError::UnexpectedNumberOfBlocksFetched { .. } => MetricType::Unprovable,
+        ConsensusError::UnexpectedBlockForCommit { .. } => MetricType::Unprovable,
+        // Overwrite block verifier classification to return unprovable.
+        error => match classify_block_verifier_error(error) {
+            MetricType::Provable => MetricType::Unprovable,
+            metric_type => metric_type,
+        },
+    }
+}
+
+// Classifies errors returned by the block verifier into provable or unprovable,
+// and errors not returned by it as untracked. Errors classified as provable are
+// those that can be proven to a third party by providing the signed faulty
+// block itself
+fn classify_block_verifier_error(error: &ConsensusError) -> MetricType {
+    match error {
+        ConsensusError::WrongEpoch { .. } => MetricType::Unprovable,
+        ConsensusError::UnexpectedGenesisBlock => MetricType::Unprovable,
+        ConsensusError::InvalidAuthorityIndex { .. } => MetricType::Unprovable,
+        ConsensusError::SerializationFailure(_) => MetricType::Unprovable,
+        ConsensusError::MalformedSignature(_) => MetricType::Unprovable,
+        ConsensusError::SignatureVerificationFailure { .. } => MetricType::Unprovable,
+        // Signed block verification
+        ConsensusError::TooManyAncestors { .. } => MetricType::Provable,
+        ConsensusError::InsufficientParentStakes { .. } => MetricType::Provable,
+        ConsensusError::InvalidAncestorAuthorityIndex { .. } => MetricType::Provable,
+        ConsensusError::InvalidAncestorPosition { .. } => MetricType::Provable,
+        ConsensusError::InvalidAncestorRound { .. } => MetricType::Provable,
+        ConsensusError::InvalidGenesisAncestor { .. } => MetricType::Provable,
+        ConsensusError::DuplicatedAncestorsAuthority { .. } => MetricType::Provable,
+        ConsensusError::TransactionTooLarge { .. } => MetricType::Provable,
+        ConsensusError::TooManyTransactions { .. } => MetricType::Provable,
+        ConsensusError::TooManyTransactionBytes { .. } => MetricType::Provable,
+        ConsensusError::InvalidTransaction { .. } => MetricType::Provable,
+        _ => MetricType::Untracked,
+    }
+}
+
+// Classifies errors returned by the subscriber into provable or unprovable, and
+// errors not returned by it as untracked. Errors classified as provable are
+// those that can be proven to a third party by providing the signed faulty
+// block itself. Obs: BlockRejected errors are untracked because even though
+// the rejected block signature can be verified, the reason for the rejection
+// is not objective nor clearly the block author's fault.
+fn classify_subscriber_error(error: &ConsensusError) -> MetricType {
+    match error {
+        ConsensusError::MalformedBlock { .. } => MetricType::Unprovable,
+        ConsensusError::UnexpectedAuthority(..) => MetricType::Unprovable,
+        ConsensusError::BlockRejected { .. } => MetricType::Untracked,
+        error => classify_block_verifier_error(error),
+    }
+}
+
+// Classifies errors returned by the synchronizer as unprovable, and errors not
+// returned by it as untracked. We do not classify any error as provable here
+// because we cannot prove to a third party that a block was fetched from a
+// particular authority.
+fn classify_synchronizer_error(error: &ConsensusError) -> MetricType {
+    match error {
+        ConsensusError::TooManyFetchedBlocksReturned { .. } => MetricType::Unprovable,
+        ConsensusError::MalformedBlock { .. } => MetricType::Unprovable,
+        ConsensusError::UnexpectedFetchedBlock { .. } => MetricType::Unprovable,
+        // Overwrite block verifier classification to return unprovable.
+        error => match classify_block_verifier_error(error) {
+            MetricType::Provable => MetricType::Unprovable,
+            metric_type => metric_type,
+        },
+    }
+}
+
+#[derive(Clone)]
+pub(crate) enum ErrorSource {
+    // Errors from the fetch loop, returned from fetch_once.
+    CommitSyncer,
+    // Errors from the subscription loop, returned from handle_send_block.
+    Subscriber,
+    // Errors returned from process_fetched_blocks.
+    Synchronizer,
 }
 
 #[cfg(test)]
@@ -486,7 +526,7 @@ mod tests {
         context::Context,
         dag_state::DagState,
         error::ConsensusError,
-        scoring_metrics_store::MysticetiScoringMetricsStore,
+        scoring_metrics_store::{ErrorSource, MysticetiScoringMetricsStore},
         storage::{StorageScoringMetrics, mem_store::MemStore},
         synchronizer::Synchronizer,
         test_dag_builder::DagBuilder,
@@ -639,7 +679,16 @@ mod tests {
         metrics
     }
 
-    fn get_faulty_blocks_provable(context: &Arc<Context>, source: &str, error: &str) -> Vec<u64> {
+    fn get_faulty_blocks_provable(
+        context: &Arc<Context>,
+        source: &ErrorSource,
+        error: &str,
+    ) -> Vec<u64> {
+        let source_str = match source {
+            ErrorSource::CommitSyncer => "fetch_once",
+            ErrorSource::Subscriber => "handle_send_block",
+            ErrorSource::Synchronizer => "process_fetched_blocks",
+        };
         let mut metrics = Vec::new();
         for authority in context.committee.authorities() {
             let hostname = authority.1.hostname.as_str();
@@ -648,7 +697,7 @@ mod tests {
                     .metrics
                     .node_metrics
                     .faulty_blocks_provable_by_authority
-                    .get_metric_with_label_values(&[hostname, source, error])
+                    .get_metric_with_label_values(&[hostname, source_str, error])
                     .unwrap()
                     .get(),
             )
@@ -656,7 +705,16 @@ mod tests {
         metrics
     }
 
-    fn get_faulty_blocks_unprovable(context: &Arc<Context>, source: &str, error: &str) -> Vec<u64> {
+    fn get_faulty_blocks_unprovable(
+        context: &Arc<Context>,
+        source: &ErrorSource,
+        error: &str,
+    ) -> Vec<u64> {
+        let source_str = match source {
+            ErrorSource::CommitSyncer => "fetch_once",
+            ErrorSource::Subscriber => "handle_send_block",
+            ErrorSource::Synchronizer => "process_fetched_blocks",
+        };
         let mut metrics = Vec::new();
         for authority in context.committee.authorities() {
             let hostname = authority.1.hostname.as_str();
@@ -665,7 +723,7 @@ mod tests {
                     .metrics
                     .node_metrics
                     .faulty_blocks_unprovable_by_authority
-                    .get_metric_with_label_values(&[hostname, source, error])
+                    .get_metric_with_label_values(&[hostname, source_str, error])
                     .unwrap()
                     .get(),
             )
@@ -1574,15 +1632,18 @@ mod tests {
         let committee_size = 4;
         let (_, context, _, _) = new_authority_service_for_metrics_tests(committee_size);
         let scoring_metrics = &context.scoring_metrics_store;
-        let source = "handle_send_block";
+        let source = ErrorSource::Subscriber;
         // Create a set of errors to test
         let ignored_error = ConsensusError::Shutdown;
         let parsing_error = ConsensusError::MalformedBlock(bcs::Error::Eof);
-        let block_verification_error = ConsensusError::BlockRejected {
+        let block_verification_error = ConsensusError::InvalidAuthorityIndex {
+            index: AuthorityIndex::new_for_test(5),
+            max: 4,
+        };
+        let block_rejected_error = ConsensusError::BlockRejected {
             block_ref: BlockRef::new(10, AuthorityIndex::new_for_test(10), BlockDigest::MIN),
             reason: "string".to_string(),
         };
-
         // Update metrics for each authority with an error that should be ignored.
         // Metrics should not be updated for this error.
         for authority in context.committee.authorities() {
@@ -1592,7 +1653,7 @@ mod tests {
                     authority.0,
                     authority.1.hostname.as_str(),
                     ignored_error.clone(),
-                    source,
+                    source.clone(),
                     &context.metrics.node_metrics,
                 );
         }
@@ -1600,12 +1661,13 @@ mod tests {
             [
                 scoring_metrics.faulty_blocks_provable_by_authority(),
                 scoring_metrics.faulty_blocks_unprovable_by_authority(),
-                get_faulty_blocks_provable(&context, source, ignored_error.name()),
-                get_faulty_blocks_provable(&context, source, parsing_error.name()),
-                get_faulty_blocks_provable(&context, source, block_verification_error.name()),
-                get_faulty_blocks_unprovable(&context, source, ignored_error.name()),
-                get_faulty_blocks_unprovable(&context, source, parsing_error.name()),
-                get_faulty_blocks_unprovable(&context, source, block_verification_error.name())
+                get_faulty_blocks_provable(&context, &source, ignored_error.name()),
+                get_faulty_blocks_provable(&context, &source, parsing_error.name()),
+                get_faulty_blocks_provable(&context, &source, block_verification_error.name()),
+                get_faulty_blocks_unprovable(&context, &source, ignored_error.name()),
+                get_faulty_blocks_unprovable(&context, &source, parsing_error.name()),
+                get_faulty_blocks_unprovable(&context, &source, block_verification_error.name()),
+                get_faulty_blocks_unprovable(&context, &source, block_rejected_error.name())
             ],
             [
                 vec![0, 0, 0, 0],
@@ -1615,7 +1677,8 @@ mod tests {
                 vec![0, 0, 0, 0],
                 vec![0, 0, 0, 0],
                 vec![0, 0, 0, 0],
-                vec![0, 0, 0, 0]
+                vec![0, 0, 0, 0],
+                vec![0, 0, 0, 0],
             ]
         );
 
@@ -1628,7 +1691,7 @@ mod tests {
                     authority.0,
                     authority.1.hostname.as_str(),
                     parsing_error.clone(),
-                    source,
+                    source.clone(),
                     &context.metrics.node_metrics,
                 );
         }
@@ -1636,12 +1699,13 @@ mod tests {
             [
                 scoring_metrics.faulty_blocks_provable_by_authority(),
                 scoring_metrics.faulty_blocks_unprovable_by_authority(),
-                get_faulty_blocks_provable(&context, source, ignored_error.name()),
-                get_faulty_blocks_provable(&context, source, parsing_error.name()),
-                get_faulty_blocks_provable(&context, source, block_verification_error.name()),
-                get_faulty_blocks_unprovable(&context, source, ignored_error.name()),
-                get_faulty_blocks_unprovable(&context, source, parsing_error.name()),
-                get_faulty_blocks_unprovable(&context, source, block_verification_error.name())
+                get_faulty_blocks_provable(&context, &source, ignored_error.name()),
+                get_faulty_blocks_provable(&context, &source, parsing_error.name()),
+                get_faulty_blocks_provable(&context, &source, block_verification_error.name()),
+                get_faulty_blocks_unprovable(&context, &source, ignored_error.name()),
+                get_faulty_blocks_unprovable(&context, &source, parsing_error.name()),
+                get_faulty_blocks_unprovable(&context, &source, block_verification_error.name()),
+                get_faulty_blocks_unprovable(&context, &source, block_rejected_error.name())
             ],
             [
                 vec![0, 0, 0, 0],
@@ -1651,12 +1715,13 @@ mod tests {
                 vec![0, 0, 0, 0],
                 vec![0, 0, 0, 0],
                 vec![1, 1, 1, 1],
+                vec![0, 0, 0, 0],
                 vec![0, 0, 0, 0]
             ]
         );
 
-        // Update metrics for each authority with a signed block verification error.
-        // Only provable metrics should be updated for this error.
+        // Update metrics for each authority with a unsigned block verification error.
+        // Only unprovable metrics should be updated for this error.
         for authority in context.committee.authorities() {
             context
                 .scoring_metrics_store
@@ -1664,7 +1729,7 @@ mod tests {
                     authority.0,
                     authority.1.hostname.as_str(),
                     block_verification_error.clone(),
-                    source,
+                    source.clone(),
                     &context.metrics.node_metrics,
                 );
         }
@@ -1672,22 +1737,62 @@ mod tests {
             [
                 scoring_metrics.faulty_blocks_provable_by_authority(),
                 scoring_metrics.faulty_blocks_unprovable_by_authority(),
-                get_faulty_blocks_provable(&context, source, ignored_error.name()),
-                get_faulty_blocks_provable(&context, source, parsing_error.name()),
-                get_faulty_blocks_provable(&context, source, block_verification_error.name()),
-                get_faulty_blocks_unprovable(&context, source, ignored_error.name()),
-                get_faulty_blocks_unprovable(&context, source, parsing_error.name()),
-                get_faulty_blocks_unprovable(&context, source, block_verification_error.name())
+                get_faulty_blocks_provable(&context, &source, ignored_error.name()),
+                get_faulty_blocks_provable(&context, &source, parsing_error.name()),
+                get_faulty_blocks_provable(&context, &source, block_verification_error.name()),
+                get_faulty_blocks_unprovable(&context, &source, ignored_error.name()),
+                get_faulty_blocks_unprovable(&context, &source, parsing_error.name()),
+                get_faulty_blocks_unprovable(&context, &source, block_verification_error.name()),
+                get_faulty_blocks_unprovable(&context, &source, block_rejected_error.name())
             ],
             [
-                vec![1, 1, 1, 1],
-                vec![1, 1, 1, 1],
+                vec![0, 0, 0, 0],
+                vec![2, 2, 2, 2],
+                vec![0, 0, 0, 0],
+                vec![0, 0, 0, 0],
                 vec![0, 0, 0, 0],
                 vec![0, 0, 0, 0],
                 vec![1, 1, 1, 1],
+                vec![1, 1, 1, 1],
+                vec![0, 0, 0, 0],
+            ]
+        );
+
+        // Update metrics for each authority with a block rejected verification error.
+        // No metrics should be updated for this error.
+        for authority in context.committee.authorities() {
+            context
+                .scoring_metrics_store
+                .update_scoring_metrics_on_block_receival(
+                    authority.0,
+                    authority.1.hostname.as_str(),
+                    block_rejected_error.clone(),
+                    source.clone(),
+                    &context.metrics.node_metrics,
+                );
+        }
+        assert_eq!(
+            [
+                scoring_metrics.faulty_blocks_provable_by_authority(),
+                scoring_metrics.faulty_blocks_unprovable_by_authority(),
+                get_faulty_blocks_provable(&context, &source, ignored_error.name()),
+                get_faulty_blocks_provable(&context, &source, parsing_error.name()),
+                get_faulty_blocks_provable(&context, &source, block_verification_error.name()),
+                get_faulty_blocks_unprovable(&context, &source, ignored_error.name()),
+                get_faulty_blocks_unprovable(&context, &source, parsing_error.name()),
+                get_faulty_blocks_unprovable(&context, &source, block_verification_error.name()),
+                get_faulty_blocks_unprovable(&context, &source, block_rejected_error.name())
+            ],
+            [
+                vec![0, 0, 0, 0],
+                vec![2, 2, 2, 2],
+                vec![0, 0, 0, 0],
+                vec![0, 0, 0, 0],
+                vec![0, 0, 0, 0],
                 vec![0, 0, 0, 0],
                 vec![1, 1, 1, 1],
-                vec![0, 0, 0, 0]
+                vec![1, 1, 1, 1],
+                vec![0, 0, 0, 0],
             ]
         );
     }
@@ -1698,7 +1803,7 @@ mod tests {
         let committee_size = 4;
         let (_, context, _, _) = new_authority_service_for_metrics_tests(committee_size);
         let scoring_metrics = &context.scoring_metrics_store;
-        let source = "fetch_once";
+        let source = ErrorSource::CommitSyncer;
         // Create a set of errors to test
         let ignored_error = ConsensusError::Shutdown;
         let parsing_error = ConsensusError::MalformedBlock(bcs::Error::Eof);
@@ -1713,7 +1818,7 @@ mod tests {
                     authority.0,
                     authority.1.hostname.as_str(),
                     ignored_error.clone(),
-                    source,
+                    source.clone(),
                     &context.metrics.node_metrics,
                 );
         }
@@ -1721,12 +1826,12 @@ mod tests {
             [
                 scoring_metrics.faulty_blocks_provable_by_authority(),
                 scoring_metrics.faulty_blocks_unprovable_by_authority(),
-                get_faulty_blocks_provable(&context, source, ignored_error.name()),
-                get_faulty_blocks_provable(&context, source, parsing_error.name()),
-                get_faulty_blocks_provable(&context, source, block_verification_error.name()),
-                get_faulty_blocks_unprovable(&context, source, ignored_error.name()),
-                get_faulty_blocks_unprovable(&context, source, parsing_error.name()),
-                get_faulty_blocks_unprovable(&context, source, block_verification_error.name())
+                get_faulty_blocks_provable(&context, &source, ignored_error.name()),
+                get_faulty_blocks_provable(&context, &source, parsing_error.name()),
+                get_faulty_blocks_provable(&context, &source, block_verification_error.name()),
+                get_faulty_blocks_unprovable(&context, &source, ignored_error.name()),
+                get_faulty_blocks_unprovable(&context, &source, parsing_error.name()),
+                get_faulty_blocks_unprovable(&context, &source, block_verification_error.name())
             ],
             [
                 vec![0, 0, 0, 0],
@@ -1749,7 +1854,7 @@ mod tests {
                     authority.0,
                     authority.1.hostname.as_str(),
                     parsing_error.clone(),
-                    source,
+                    source.clone(),
                     &context.metrics.node_metrics,
                 );
         }
@@ -1757,12 +1862,12 @@ mod tests {
             [
                 scoring_metrics.faulty_blocks_provable_by_authority(),
                 scoring_metrics.faulty_blocks_unprovable_by_authority(),
-                get_faulty_blocks_provable(&context, source, ignored_error.name()),
-                get_faulty_blocks_provable(&context, source, parsing_error.name()),
-                get_faulty_blocks_provable(&context, source, block_verification_error.name()),
-                get_faulty_blocks_unprovable(&context, source, ignored_error.name()),
-                get_faulty_blocks_unprovable(&context, source, parsing_error.name()),
-                get_faulty_blocks_unprovable(&context, source, block_verification_error.name())
+                get_faulty_blocks_provable(&context, &source, ignored_error.name()),
+                get_faulty_blocks_provable(&context, &source, parsing_error.name()),
+                get_faulty_blocks_provable(&context, &source, block_verification_error.name()),
+                get_faulty_blocks_unprovable(&context, &source, ignored_error.name()),
+                get_faulty_blocks_unprovable(&context, &source, parsing_error.name()),
+                get_faulty_blocks_unprovable(&context, &source, block_verification_error.name())
             ],
             [
                 vec![0, 0, 0, 0],
@@ -1787,7 +1892,7 @@ mod tests {
                     authority.0,
                     authority.1.hostname.as_str(),
                     block_verification_error.clone(),
-                    source,
+                    source.clone(),
                     &context.metrics.node_metrics,
                 );
         }
@@ -1795,12 +1900,12 @@ mod tests {
             [
                 scoring_metrics.faulty_blocks_provable_by_authority(),
                 scoring_metrics.faulty_blocks_unprovable_by_authority(),
-                get_faulty_blocks_provable(&context, source, ignored_error.name()),
-                get_faulty_blocks_provable(&context, source, parsing_error.name()),
-                get_faulty_blocks_provable(&context, source, block_verification_error.name()),
-                get_faulty_blocks_unprovable(&context, source, ignored_error.name()),
-                get_faulty_blocks_unprovable(&context, source, parsing_error.name()),
-                get_faulty_blocks_unprovable(&context, source, block_verification_error.name())
+                get_faulty_blocks_provable(&context, &source, ignored_error.name()),
+                get_faulty_blocks_provable(&context, &source, parsing_error.name()),
+                get_faulty_blocks_provable(&context, &source, block_verification_error.name()),
+                get_faulty_blocks_unprovable(&context, &source, ignored_error.name()),
+                get_faulty_blocks_unprovable(&context, &source, parsing_error.name()),
+                get_faulty_blocks_unprovable(&context, &source, block_verification_error.name())
             ],
             [
                 vec![0, 0, 0, 0],
@@ -1821,7 +1926,7 @@ mod tests {
         let committee_size = 4;
         let (_, context, _, _) = new_authority_service_for_metrics_tests(committee_size);
         let scoring_metrics = &context.scoring_metrics_store;
-        let source = "process_fetched_blocks";
+        let source = ErrorSource::Synchronizer;
         // Create a set of errors to test
         let ignored_error = ConsensusError::Shutdown;
         let parsing_error = ConsensusError::MalformedBlock(bcs::Error::Eof);
@@ -1836,7 +1941,7 @@ mod tests {
                     authority.0,
                     authority.1.hostname.as_str(),
                     ignored_error.clone(),
-                    source,
+                    source.clone(),
                     &context.metrics.node_metrics,
                 );
         }
@@ -1844,12 +1949,12 @@ mod tests {
             [
                 scoring_metrics.faulty_blocks_provable_by_authority(),
                 scoring_metrics.faulty_blocks_unprovable_by_authority(),
-                get_faulty_blocks_provable(&context, source, ignored_error.name()),
-                get_faulty_blocks_provable(&context, source, parsing_error.name()),
-                get_faulty_blocks_provable(&context, source, block_verification_error.name()),
-                get_faulty_blocks_unprovable(&context, source, ignored_error.name()),
-                get_faulty_blocks_unprovable(&context, source, parsing_error.name()),
-                get_faulty_blocks_unprovable(&context, source, block_verification_error.name())
+                get_faulty_blocks_provable(&context, &source, ignored_error.name()),
+                get_faulty_blocks_provable(&context, &source, parsing_error.name()),
+                get_faulty_blocks_provable(&context, &source, block_verification_error.name()),
+                get_faulty_blocks_unprovable(&context, &source, ignored_error.name()),
+                get_faulty_blocks_unprovable(&context, &source, parsing_error.name()),
+                get_faulty_blocks_unprovable(&context, &source, block_verification_error.name())
             ],
             [
                 vec![0, 0, 0, 0],
@@ -1872,7 +1977,7 @@ mod tests {
                     authority.0,
                     authority.1.hostname.as_str(),
                     parsing_error.clone(),
-                    source,
+                    source.clone(),
                     &context.metrics.node_metrics,
                 );
         }
@@ -1880,12 +1985,12 @@ mod tests {
             [
                 scoring_metrics.faulty_blocks_provable_by_authority(),
                 scoring_metrics.faulty_blocks_unprovable_by_authority(),
-                get_faulty_blocks_provable(&context, source, ignored_error.name()),
-                get_faulty_blocks_provable(&context, source, parsing_error.name()),
-                get_faulty_blocks_provable(&context, source, block_verification_error.name()),
-                get_faulty_blocks_unprovable(&context, source, ignored_error.name()),
-                get_faulty_blocks_unprovable(&context, source, parsing_error.name()),
-                get_faulty_blocks_unprovable(&context, source, block_verification_error.name())
+                get_faulty_blocks_provable(&context, &source, ignored_error.name()),
+                get_faulty_blocks_provable(&context, &source, parsing_error.name()),
+                get_faulty_blocks_provable(&context, &source, block_verification_error.name()),
+                get_faulty_blocks_unprovable(&context, &source, ignored_error.name()),
+                get_faulty_blocks_unprovable(&context, &source, parsing_error.name()),
+                get_faulty_blocks_unprovable(&context, &source, block_verification_error.name())
             ],
             [
                 vec![0, 0, 0, 0],
@@ -1910,7 +2015,7 @@ mod tests {
                     authority.0,
                     authority.1.hostname.as_str(),
                     block_verification_error.clone(),
-                    source,
+                    source.clone(),
                     &context.metrics.node_metrics,
                 );
         }
@@ -1918,12 +2023,12 @@ mod tests {
             [
                 scoring_metrics.faulty_blocks_provable_by_authority(),
                 scoring_metrics.faulty_blocks_unprovable_by_authority(),
-                get_faulty_blocks_provable(&context, source, ignored_error.name()),
-                get_faulty_blocks_provable(&context, source, parsing_error.name()),
-                get_faulty_blocks_provable(&context, source, block_verification_error.name()),
-                get_faulty_blocks_unprovable(&context, source, ignored_error.name()),
-                get_faulty_blocks_unprovable(&context, source, parsing_error.name()),
-                get_faulty_blocks_unprovable(&context, source, block_verification_error.name())
+                get_faulty_blocks_provable(&context, &source, ignored_error.name()),
+                get_faulty_blocks_provable(&context, &source, parsing_error.name()),
+                get_faulty_blocks_provable(&context, &source, block_verification_error.name()),
+                get_faulty_blocks_unprovable(&context, &source, ignored_error.name()),
+                get_faulty_blocks_unprovable(&context, &source, parsing_error.name()),
+                get_faulty_blocks_unprovable(&context, &source, block_verification_error.name())
             ],
             [
                 vec![0, 0, 0, 0],
