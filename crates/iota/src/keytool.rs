@@ -872,13 +872,13 @@ impl KeyToolCommand {
                 data,
             } => {
                 let address = get_identity_address_from_keystore(address, keystore)?;
-                let b = Hex::decode(&data).map_err(|e| anyhow!("Invalid hex data: {:?}", e))?;
+                let bytes = Hex::decode(&data).map_err(|e| anyhow!("Invalid hex data: {e:?}"))?;
                 let stored = keystore.get_key(&address)?;
                 let ikp = match stored {
                     StoredKey::KeyPair(kp) => kp,
                     _ => bail!("Not a keypair"),
                 };
-                let sig = ikp.sign(&b);
+                let sig = ikp.sign(&bytes);
                 let iota_signature = sig.encode_base64();
                 let public_key = ikp.public().encode_base64();
                 let public_key_hex = Hex::encode_with_format(ikp.public().as_ref());
