@@ -19,7 +19,7 @@ use fastcrypto::{
     encoding::{Encoding, Hex},
     traits::Authenticator,
 };
-use iota_json_rpc_types::IotaTransactionBlockResponse;
+use iota_json_rpc_types::{IotaTransactionBlockEffectsAPI, IotaTransactionBlockResponse};
 use iota_keys::keystore::AccountKeystore;
 use iota_macros::sim_test;
 use iota_sdk_types::crypto::Intent;
@@ -153,7 +153,7 @@ async fn test_abstract_account_issues_sponsored_tx() -> Result<(), anyhow::Error
         .await
 }
 
-/// SUCCESS: receive in the main PT using
+/// FAIL: receive in the main PT using
 /// abstract_account::receive_object<T>(...).
 #[sim_test]
 async fn test_receive_object_in_main_tx_succeeds() -> Result<(), anyhow::Error> {
@@ -192,22 +192,25 @@ async fn test_receive_object_in_main_tx_succeeds() -> Result<(), anyhow::Error> 
     let aa_sig = test_env.create_move_authenticator_for_free_access()?;
     let tx = Transaction::from_generic_sig_data(tx_data, vec![aa_sig]);
 
-    // Should succeed
+    // Should fail
     let tx_result = test_env
         .test_cluster
         .wallet
         .execute_transaction_may_fail(tx)
-        .await;
+        .await
+        .unwrap()
+        .effects
+        .unwrap();
 
-    // Assert received a ReceivingObjectForAccountObject error
+    // Assert received a MoveAbort error
     assert!(
-        tx_result.is_err(),
+        tx_result.status().is_err(),
         "Expected TX2 certificate creation to fail due to conflict on receiving object"
     );
-    let error_string = format!("{:#?}", tx_result.err().unwrap());
+    let error_string = format!("{:#?}", tx_result.status());
     assert!(
-        error_string.contains("Receiving object"),
-        "Expected ReceivingObjectForAccountObject error, got: {}",
+        error_string.contains("MoveAbort"),
+        "Expected MoveAbort error, got: {}",
         error_string
     );
 
@@ -346,7 +349,8 @@ async fn test_abstract_account_post_consensus_failure() -> Result<(), anyhow::Er
 ///    function for the Coin used as gas in TX1
 /// 3) Submit the original certificate TX1 which should NOT fail during
 ///    post-consensus, because validators originally run the authenticate and it
-///    passed. What fails is the signing of TX2.
+///    passed. What fails is the execution of TX2 because of the conflict on the
+///   receiving object
 #[sim_test]
 async fn test_receiving_gas_in_two_separate_txs() -> Result<(), anyhow::Error> {
     telemetry_subscribers::init_for_testing();
@@ -378,14 +382,9 @@ async fn test_receiving_gas_in_two_separate_txs() -> Result<(), anyhow::Error> {
         .test_cluster
         .fund_address_and_return_gas(rgp, Some(20_000_000_000), bob)
         .await;
-    let conflict_coin = test_env
-        .test_cluster
-        .fund_address_and_return_gas(rgp, Some(20_000_000_000), aa_sender)
-        .await;
-    let conflict_coin_id = conflict_coin.0;
     let conflict_coin_ref = test_env
         .test_cluster
-        .get_latest_object_ref(&conflict_coin_id)
+        .fund_address_and_return_gas(rgp, Some(20_000_000_000), aa_sender)
         .await;
 
     // Step 1: create TX1 where the sender is the AA using the owned "conflict" Coin
@@ -418,17 +417,20 @@ async fn test_receiving_gas_in_two_separate_txs() -> Result<(), anyhow::Error> {
     let tx2_cert = test_env
         .test_cluster
         .create_certificate(tx2, Some(client_ip))
-        .await;
-    // Assert received a ReceivingObjectForAccountObject error
+        .await
+        .expect("TX2 certificate creation should succeed");
+    let QuorumDriverResponse { effects_cert, .. } = test_env
+        .test_cluster
+        .authority_aggregator()
+        .process_certificate(
+            HandleCertificateRequestV1::new(tx2_cert).with_events(),
+            Some(client_ip),
+        )
+        .await
+        .unwrap();
     assert!(
-        tx2_cert.is_err(),
-        "Expected TX2 certificate creation to fail due to conflict on receiving object"
-    );
-    let error_string = format!("{:#?}", tx2_cert.err().unwrap());
-    assert!(
-        error_string.contains("ReceivingObjectForAccountObject"),
-        "Expected ReceivingObjectForAccountObject error, got: {}",
-        error_string
+        effects_cert.summary_for_debug().status.is_err(),
+        "Expected the TX execution to fail due to conflict on receiving object"
     );
 
     // Step 3: submit the original certificate TX1 which should NOT fail during the
@@ -452,18 +454,12 @@ async fn test_receiving_gas_in_two_separate_txs() -> Result<(), anyhow::Error> {
 
 /// Test in 5 steps:
 /// 1) Create TX1 where Bob calls the receiving function on a coin owned by the
-///    AA object (before the AA account is actually created). This succeeds
-///    because the AA object is NOT an account yet (just a shared object) so the
-///    object is not locked.
+///    AA object (before the AA account is actually created). The AA object is
+///    NOT an account yet (just a shared object).
 /// 2) Make the AA become the actual account (delayed AA creation).
 /// 3) Create TX2 where the AA sender tries to use the conflict coin as input.
-///    This fails with ObjectLockConflict because TX1 already locked that
-///    object.
-/// 4) Submit the original TX1 certificate. This succeeds because validators
-///    already signed it and the receiving object validation passed at signing
-///    time (AA account didn't exist yet).
-/// 5) Create TX3 equal to TX2 but with the conflict coin ref updated to its
-///    latest version after TX1 execution. This should now succeed.
+/// 4) Submit the original TX1 certificate. This fails with an execution abort.
+/// 5) Submit the original TX2 certificate. This should now succeed.
 #[sim_test]
 async fn test_receiving_gas_then_create_account() -> Result<(), anyhow::Error> {
     telemetry_subscribers::init_for_testing();
@@ -519,7 +515,6 @@ async fn test_receiving_gas_then_create_account() -> Result<(), anyhow::Error> {
         .test_cluster
         .create_certificate(tx1, Some(client_ip))
         .await;
-    // Assert received a ReceivingObjectForAccountObject error
     assert!(
         tx1_cert.is_ok(),
         "Expected TX1 certificate creation to success"
@@ -546,14 +541,8 @@ async fn test_receiving_gas_then_create_account() -> Result<(), anyhow::Error> {
         .create_certificate(tx2, Some(client_ip))
         .await;
     assert!(
-        tx2_cert.is_err(),
-        "Expected TX2 certificate creation to fail due to conflict on gas object"
-    );
-    let error_string = format!("{:#?}", tx2_cert.err().unwrap());
-    assert!(
-        error_string.contains("ObjectLockConflict"),
-        "Expected ObjectLockConflict error, got: {}",
-        error_string
+        tx2_cert.is_ok(),
+        "Expected TX2 certificate creation to succeed"
     );
 
     // Step 4: submit the original certificate TX1 which should fail
@@ -568,31 +557,25 @@ async fn test_receiving_gas_then_create_account() -> Result<(), anyhow::Error> {
         .unwrap();
     let summary = effects_cert.summary_for_debug();
     assert!(
-        summary.status.is_ok(),
-        "Expected the TX execution to succeed"
+        summary.status.is_err(),
+        "Expected the TX1 execution to fail execution"
     );
 
-    // Step 5: create a TX3 equal to TX2 but with conflict coin ref updated to
-    // latest version, the execution should now succeed
-    let changed_objects = effects_cert.all_changed_objects();
-    let temp_new_conflict_coin_ref = changed_objects
-        .iter()
-        .find(|obj| obj.0.0 == conflict_coin_ref.0);
+    // Step 5: Submit the original certificate TX2 which should now succeed
+    let QuorumDriverResponse { effects_cert, .. } = test_env
+        .test_cluster
+        .authority_aggregator()
+        .process_certificate(
+            HandleCertificateRequestV1::new(tx2_cert.unwrap()).with_events(),
+            Some(client_ip),
+        )
+        .await
+        .unwrap();
+    let summary = effects_cert.summary_for_debug();
     assert!(
-        temp_new_conflict_coin_ref.is_some(),
-        "Expected to find the updated conflict coin ref in the changed objects"
+        summary.status.is_ok(),
+        "Expected the TX2 execution to succeed"
     );
-    let conflict_coin_ref = temp_new_conflict_coin_ref.unwrap().0;
-
-    let pt3 = test_env.craft_object_transfer(conflict_coin_ref, IotaAddress::ZERO)?;
-    let tx3_data = test_env
-        .craft_tx_from_pt(pt3, second_gas_coin, aa_sender, None)
-        .await?;
-    // Create the MoveAuthenticator for the free access authenticator
-    let signatures = vec![test_env.create_move_authenticator_for_free_access()?];
-    // Create the TX envelope and send it for validators signing
-    let tx3 = Transaction::from_generic_sig_data(tx3_data, signatures);
-    test_env.execute_and_check_tx_correctness(tx3).await?;
 
     Ok(())
 }
