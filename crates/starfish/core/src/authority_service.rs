@@ -485,6 +485,12 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
                 stake_aggregator.add(v.author, &self.context.committee);
             }
             if stake_aggregator.reached_threshold(&self.context.committee) {
+                self.context
+                    .metrics
+                    .node_metrics
+                    .commit_sync_fetch_commits_handler_uncertified_skipped
+                    .with_label_values(&[commit_sync_type.as_str()])
+                    .inc_by((search_up_to - index_with_votes) as u64);
                 return Ok(Some((index_with_votes, votes)));
             } else {
                 debug!(
@@ -498,7 +504,7 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
                     .node_metrics
                     .commit_sync_fetch_commits_handler_uncertified_skipped
                     .with_label_values(&[commit_sync_type.as_str()])
-                    .inc();
+                    .inc_by((search_up_to - index_with_votes + 1) as u64);
                 // Continue searching from index_with_votes - 1
                 search_up_to = index_with_votes.saturating_sub(1);
                 if search_up_to < commit_range.start() {
@@ -532,6 +538,12 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
                 stake_aggregator.add(v.author, &self.context.committee);
             }
             if stake_aggregator.reached_threshold(&self.context.committee) {
+                self.context
+                    .metrics
+                    .node_metrics
+                    .commit_sync_fetch_commits_handler_uncertified_skipped
+                    .with_label_values(&[commit_sync_type.as_str()])
+                    .inc_by((index_with_votes - current_search_from) as u64);
                 return Ok(Some((index_with_votes, votes)));
             } else {
                 debug!(
@@ -545,7 +557,7 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
                     .node_metrics
                     .commit_sync_fetch_commits_handler_uncertified_skipped
                     .with_label_values(&[commit_sync_type.as_str()])
-                    .inc();
+                    .inc_by((index_with_votes - current_search_from + 1) as u64);
                 // Continue searching from index_with_votes + 1
                 current_search_from = index_with_votes.saturating_add(1);
             }
@@ -974,6 +986,8 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         Ok(serialized_headers)
     }
 
+    /// Handles fetch requests for commit data and their certifying block
+    /// headers.
     // The range for returned trusted commits starts at the same index, but the end
     // can be different, bigger for fast sync and smaller for regular.
     async fn handle_fetch_commits(
