@@ -327,7 +327,7 @@ impl CommitObserver {
                 .commit_solidifier
                 .try_get_solid_sub_dags(&pending_for_solidifier);
             self.send_sub_dags(&solid_sub_dags, source)
-                .expect("Failed to send solid commits during recovery");
+                .expect("We should successfully send solid commits during recovery");
             self.report_metrics(&[], &solid_sub_dags, source);
         }
     }
@@ -447,7 +447,11 @@ impl CommitObserver {
             }
             let transactions = transaction_results
                 .into_iter()
-                .map(|tx| tx.expect("Missing committed transaction during recovery"))
+                .map(|tx| {
+                    tx.expect(
+                        "We should expect all committed transactions be present after the check",
+                    )
+                })
                 .collect();
 
             let committed_subdag = CommittedSubDag::new(
@@ -465,7 +469,7 @@ impl CommitObserver {
 
         let sent_indices = self
             .send_sub_dags(&committed_subdags, source)
-            .expect("Failed to send commits during recovery");
+            .expect("We should expect successful sending committed subDags during recovery");
         self.report_metrics(&[], &committed_subdags, source);
         sent_indices
     }
