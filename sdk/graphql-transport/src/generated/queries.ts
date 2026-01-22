@@ -5586,8 +5586,10 @@ export type TransactionBlockKind = AuthenticatorStateUpdateTransaction | Consens
 export enum TransactionBlockKindInput {
   /** The authenticator state update transaction block. */
   AuthenticatorStateUpdateV1 = 'AUTHENTICATOR_STATE_UPDATE_V1',
-  /** The consensus commit prologue transaction block. */
+  /** The consensus commit prologue transaction block (V1). */
   ConsensusCommitPrologueV1 = 'CONSENSUS_COMMIT_PROLOGUE_V1',
+  /** The consensus commit prologue transaction block (V2). */
+  ConsensusCommitPrologueV2 = 'CONSENSUS_COMMIT_PROLOGUE_V2',
   /** The end of epoch transaction block. */
   EndOfEpochTx = 'END_OF_EPOCH_TX',
   /** The genesis transaction block. */

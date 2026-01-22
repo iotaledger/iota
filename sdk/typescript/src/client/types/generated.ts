@@ -1027,6 +1027,7 @@ export type IotaTransactionKind =
     | 'AuthenticatorStateUpdateV1'
     | 'RandomnessStateUpdate'
     | 'EndOfEpochTransaction'
+    | 'ConsensusCommitPrologueV2'
     | 'SystemTransaction';
 /**
  * This is the JSON-RPC type for the IOTA validator. It flattens all inner structures to top-level
@@ -1730,6 +1731,19 @@ export type IotaTransactionBlockKind =
     | {
           kind: 'EndOfEpochTransaction';
           transactions: IotaEndOfEpochTransactionKind[];
+      } /**
+     * A system transaction marking the start of a series of transactions scheduled as part of a checkpoint
+     * (V2 with additional state digest)
+     */
+    | {
+          additional_state_digest: string;
+          commit_timestamp_ms: string;
+          consensus_commit_digest: string;
+          consensus_determined_version_assignments: ConsensusDeterminedVersionAssignments;
+          epoch: string;
+          kind: 'ConsensusCommitPrologueV2';
+          round: string;
+          sub_dag_index?: string | null;
       };
 export interface IotaTransactionBlockResponse {
     balanceChanges?: BalanceChange[] | null;
