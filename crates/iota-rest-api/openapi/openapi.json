@@ -332,9 +332,7 @@
             "name": "version",
             "required": true,
             "schema": {
-              "type": "integer",
-              "format": "uint64",
-              "minimum": 0.0
+              "$ref": "#/components/schemas/Version"
             },
             "style": "simple"
           }
@@ -1135,9 +1133,7 @@
             "$ref": "#/components/schemas/StructTag"
           },
           "version": {
-            "description": "Radix-10 encoded 64-bit unsigned integer",
-            "type": "string",
-            "format": "u64"
+            "$ref": "#/components/schemas/Version"
           }
         }
       },
@@ -2632,8 +2628,11 @@
             "properties": {
               "authenticator_obj_initial_shared_version": {
                 "description": "The initial version of the authenticator object that it was shared at.",
-                "type": "string",
-                "format": "u64"
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/Version"
+                  }
+                ]
               },
               "kind": {
                 "type": "string",
@@ -3561,9 +3560,7 @@
             "type": "string"
           },
           "version": {
-            "description": "Radix-10 encoded 64-bit unsigned integer",
-            "type": "string",
-            "format": "u64"
+            "$ref": "#/components/schemas/Version"
           }
         }
       },
@@ -3643,8 +3640,11 @@
               },
               "version": {
                 "description": "The version of this object.",
-                "type": "string",
-                "format": "u64"
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/Version"
+                  }
+                ]
               }
             }
           },
@@ -3659,9 +3659,7 @@
             ],
             "properties": {
               "initial_shared_version": {
-                "description": "Radix-10 encoded 64-bit unsigned integer",
-                "type": "string",
-                "format": "u64"
+                "$ref": "#/components/schemas/Version"
               },
               "mutable": {
                 "description": "Controls whether the caller asks for a mutable reference to the shared object.",
@@ -3712,8 +3710,11 @@
               },
               "version": {
                 "description": "The version of this object.",
-                "type": "string",
-                "format": "u64"
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/Version"
+                  }
+                ]
               }
             }
           }
@@ -4136,9 +4137,7 @@
             "type": "string"
           },
           "version": {
-            "description": "Radix-10 encoded 64-bit unsigned integer",
-            "type": "string",
-            "format": "u64"
+            "$ref": "#/components/schemas/Version"
           }
         }
       },
@@ -4190,9 +4189,7 @@
                 ]
               },
               "version": {
-                "description": "Radix-10 encoded 64-bit unsigned integer",
-                "type": "string",
-                "format": "u64"
+                "$ref": "#/components/schemas/Version"
               }
             }
           }
@@ -4258,9 +4255,7 @@
                 ]
               },
               "version": {
-                "description": "Radix-10 encoded 64-bit unsigned integer",
-                "type": "string",
-                "format": "u64"
+                "$ref": "#/components/schemas/Version"
               }
             }
           }
@@ -4293,8 +4288,11 @@
           },
           "version": {
             "description": "The version of this object.",
-            "type": "string",
-            "format": "u64"
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Version"
+              }
+            ]
           }
         }
       },
@@ -4335,9 +4333,7 @@
             ],
             "properties": {
               "shared": {
-                "description": "Radix-10 encoded 64-bit unsigned integer",
-                "type": "string",
-                "format": "u64"
+                "$ref": "#/components/schemas/Version"
               }
             },
             "additionalProperties": false
@@ -4681,9 +4677,7 @@
             }
           },
           "version": {
-            "description": "Radix-10 encoded 64-bit unsigned integer",
-            "type": "string",
-            "format": "u64"
+            "$ref": "#/components/schemas/Version"
           }
         }
       },
@@ -5049,8 +5043,11 @@
               },
               "lamport_version": {
                 "description": "The version number of all the written Move objects by this transaction.",
-                "type": "string",
-                "format": "u64"
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/Version"
+                  }
+                ]
               },
               "status": {
                 "$ref": "#/components/schemas/FailureStatus"
@@ -5280,8 +5277,11 @@
             "properties": {
               "authenticator_obj_initial_shared_version": {
                 "description": "The initial version of the authenticator object that it was shared at.",
-                "type": "string",
-                "format": "u64"
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/Version"
+                  }
+                ]
               },
               "epoch": {
                 "description": "Epoch of the authenticator state update transaction",
@@ -5358,8 +5358,11 @@
               },
               "randomness_obj_initial_shared_version": {
                 "description": "The initial version of the randomness object that it was shared at.",
-                "type": "string",
-                "format": "u64"
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/Version"
+                  }
+                ]
               },
               "randomness_round": {
                 "description": "Randomness round of the update",
@@ -5536,9 +5539,7 @@
                 ]
               },
               "version": {
-                "description": "Radix-10 encoded 64-bit unsigned integer",
-                "type": "string",
-                "format": "u64"
+                "$ref": "#/components/schemas/Version"
               }
             }
           },
@@ -5557,9 +5558,7 @@
                 ]
               },
               "version": {
-                "description": "Radix-10 encoded 64-bit unsigned integer",
-                "type": "string",
-                "format": "u64"
+                "$ref": "#/components/schemas/Version"
               }
             }
           },
@@ -5578,9 +5577,7 @@
                 ]
               },
               "version": {
-                "description": "Radix-10 encoded 64-bit unsigned integer",
-                "type": "string",
-                "format": "u64"
+                "$ref": "#/components/schemas/Version"
               }
             }
           },
@@ -5599,9 +5596,7 @@
                 ]
               },
               "version": {
-                "description": "Radix-10 encoded 64-bit unsigned integer",
-                "type": "string",
-                "format": "u64"
+                "$ref": "#/components/schemas/Version"
               }
             }
           },
@@ -5656,8 +5651,11 @@
           },
           "upgraded_version": {
             "description": "Version of the upgraded package",
-            "type": "string",
-            "format": "u64"
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Version"
+              }
+            ]
           }
         }
       },
@@ -6125,6 +6123,11 @@
           }
         }
       },
+      "Version": {
+        "description": "Radix-10 encoded 64-bit unsigned integer",
+        "type": "string",
+        "format": "u64"
+      },
       "VersionAssignment": {
         "description": "Object version assignment from consensus\n\n# BCS\n\nThe BCS serialized form for this type is defined by the following ABNF:\n\n```text version-assignment = object-id u64 ```",
         "type": "object",
@@ -6137,9 +6140,7 @@
             "$ref": "#/components/schemas/ObjectId"
           },
           "version": {
-            "description": "Radix-10 encoded 64-bit unsigned integer",
-            "type": "string",
-            "format": "u64"
+            "$ref": "#/components/schemas/Version"
           }
         }
       },
