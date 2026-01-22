@@ -46,9 +46,40 @@ export function SyntaxHighlighter({
     const isDark = theme === Theme.Dark;
     const codeTheme = isDark ? themes.oneDark : themes.github;
 
+    function detectsUnclosedQuotes(line: string): boolean {
+        // matches non-escaped quotes in the line
+        const nonEscapedQuotes = line.match(/(^|[^\\])"/g);
+        return (nonEscapedQuotes?.length ?? 0) % 2 !== 0;
+    }
+
+    function addQuotesToIncompleteLines(code: string): string {
+        // regex to match closing syntax like ), ], } maybe followed by commas and spaces
+        const syntaxSuffixRegex = /\s*[)\]}]+(?:\s*,\s*)?\s*$/;
+
+        return code
+            .split('\n')
+            .map((line) => {
+                if (!detectsUnclosedQuotes(line)) return line;
+
+                const matchedSyntaxSuffix = line.match(syntaxSuffixRegex);
+
+                // if there's a syntax suffix, insert the quote before it
+                if (matchedSyntaxSuffix?.index !== undefined) {
+                    const matchedSyntaxIndex = matchedSyntaxSuffix.index;
+                    return `${line.slice(0, matchedSyntaxIndex)}"${line.slice(matchedSyntaxIndex)}`;
+                }
+
+                // add quote at the end if no syntax suffix is found
+                return `${line}"`;
+            })
+            .join('\n');
+    }
+
+    const sanitizedCode = addQuotesToIncompleteLines(code);
+
     return (
         <div className="overflow-auto whitespace-pre font-mono text-sm">
-            <Highlight code={code} language={language} theme={codeTheme}>
+            <Highlight code={sanitizedCode} language={language} theme={codeTheme}>
                 {({ style, tokens, getLineProps, getTokenProps }) => (
                     <pre className="overflow-auto bg-transparent p-xs font-medium" style={style}>
                         {tokens.slice(0, loadedLines).map((line, i) => (
