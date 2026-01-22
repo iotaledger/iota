@@ -101,7 +101,7 @@ pub(crate) async fn sign_transaction(
             .into()),
         StoredKey::Account(_) => {
             bail!(
-                "Cannot sign with account type. Please provide --auth-call-args (and --auth-type-args if needed)."
+                "Cannot sign for account address without --auth-call-args (and --auth-type-args if needed)."
             )
         }
         StoredKey::External {
@@ -149,7 +149,7 @@ where
         StoredKey::KeyPair(_) => Ok(keystore.sign_secure(address, &msg, intent)?),
         StoredKey::Account(_) => {
             bail!(
-                "Cannot sign with account type. Please provide --auth-call-args (and --auth-type-args if needed)."
+                "Cannot sign for account address without --auth-call-args (and --auth-type-args if needed)."
             )
         }
         StoredKey::External {
@@ -194,11 +194,8 @@ pub(crate) async fn get_shared_object_version(
             },
         )
         .await?;
-    if object_response.error.is_some() {
-        bail!(
-            "failed to fetch object data for signer_address {signer_address}: {:?}",
-            object_response.error
-        );
+    if let Some(error) = object_response.error {
+        bail!("failed to fetch object data for signer_address {signer_address}: {error:?}");
     }
     let object = object_response.data.expect("missing object data");
 
