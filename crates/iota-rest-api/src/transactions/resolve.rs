@@ -582,6 +582,7 @@ fn select_gas(
         .indexes()
         .ok_or_else(RestError::not_found)?
         .account_owned_objects_info_iter(owner, None)?
+        .filter_map(|result| result.ok())
         .filter(|info| info.type_.is_gas_coin())
         .filter(|info| !input_objects.contains(&info.object_id))
         .filter_map(|info| {
