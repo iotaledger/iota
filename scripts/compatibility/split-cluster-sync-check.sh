@@ -1,5 +1,5 @@
 #!/bin/bash
-# (c) 2025 IOTA Stiftung
+# (c) 2026 IOTA Stiftung
 # SPDX-License-Identifier: Apache-2.0
 
 # Enhanced split-cluster test that specifically triggers and tests Synchronizer and CommitSyncer
