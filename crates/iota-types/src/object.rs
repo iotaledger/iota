@@ -1229,7 +1229,7 @@ mod tests {
         let objref = format!("{:?}", o.compute_object_reference());
         assert_eq!(
             objref,
-            "(0x0000000000000000000000000000000000000000000000000000000000000000, SequenceNumber(1), o#Ba4YyVBcpc9jgX4PMLRoyt9dKLftYVSDvuKbtMr9f4NM)"
+            "(0x0000000000000000000000000000000000000000000000000000000000000000, Version(1), o#Ba4YyVBcpc9jgX4PMLRoyt9dKLftYVSDvuKbtMr9f4NM)"
         );
     }
 
