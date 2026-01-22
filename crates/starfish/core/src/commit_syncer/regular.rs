@@ -39,7 +39,6 @@ use crate::{
     dag_state::DagState,
     error::{ConsensusError, ConsensusResult},
     network::{NetworkClient, SerializedTransactionsV1, SerializedTransactionsV2},
-    storage::Store,
     transaction_ref::{GenericTransactionRef, GenericTransactionRefAPI as _},
 };
 
@@ -77,7 +76,6 @@ impl<C: NetworkClient> RegularCommitSyncer<C> {
         network_client: Arc<C>,
         block_verifier: Arc<dyn BlockVerifier>,
         dag_state: Arc<RwLock<DagState>>,
-        store: Arc<dyn Store>,
     ) -> Self {
         let inner = Arc::new(Inner {
             context,
@@ -87,7 +85,6 @@ impl<C: NetworkClient> RegularCommitSyncer<C> {
             network_client,
             block_verifier,
             dag_state,
-            store,
             sync_type: CommitSyncType::Regular,
         });
         let synced_commit_index = inner.dag_state.read().last_commit_index();
@@ -950,7 +947,6 @@ mod tests {
             network_client,
             block_verifier,
             dag_state,
-            store,
         );
 
         // Check initial state.

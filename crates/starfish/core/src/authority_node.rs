@@ -218,7 +218,6 @@ impl ConsensusAuthority {
             network_client.clone(),
             block_verifier.clone(),
             dag_state.clone(),
-            store.clone(),
         )
         .start();
 
@@ -230,7 +229,6 @@ impl ConsensusAuthority {
             network_client.clone(),
             block_verifier.clone(),
             dag_state.clone(),
-            store.clone(),
         )
         .start();
 
