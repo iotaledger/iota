@@ -242,7 +242,7 @@ impl StoredKey {
     pub fn public(&self) -> PublicKey {
         match self {
             StoredKey::KeyPair(keypair) => keypair.public(),
-            StoredKey::Account(_) => panic!("Account type does not have a public key."),
+            StoredKey::Account(_) => panic!("Account addresses are not backed by key pairs."),
             StoredKey::External { public_key, .. } => public_key.clone(),
         }
     }
@@ -268,7 +268,7 @@ impl StoredKey {
     pub fn as_keypair(&self) -> Result<&IotaKeyPair, anyhow::Error> {
         match self {
             StoredKey::KeyPair(keypair) => Ok(keypair),
-            StoredKey::Account(_) => bail!("Cannot get key pair for Account keys."),
+            StoredKey::Account(_) => bail!("Account addresses are not backed by key pairs."),
             StoredKey::External { .. } => bail!("Cannot get key pair for External keys."),
         }
     }
