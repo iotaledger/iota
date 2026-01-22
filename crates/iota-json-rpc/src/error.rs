@@ -381,7 +381,7 @@ mod tests {
                 - 8qbHbw2BbbTHBW1sbeqakYXVKRQM8Ne7pLK7m6CVfeR (stake 5.0)"#]];
             expected_message.assert_eq(error_object.message());
             let expected_data = expect![[
-                r#"{"4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi":[["0x0000000000000000000000000000000000000000000000000000000000000000",0,"11111111111111111111111111111111"]],"8qbHbw2BbbTHBW1sbeqakYXVKRQM8Ne7pLK7m6CVfeR":[["0x0000000000000000000000000000000000000000000000000000000000000000",0,"11111111111111111111111111111111"]]}"#
+                r#"{"4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi":[["0x0000000000000000000000000000000000000000000000000000000000000000","0","11111111111111111111111111111111"]],"8qbHbw2BbbTHBW1sbeqakYXVKRQM8Ne7pLK7m6CVfeR":[["0x0000000000000000000000000000000000000000000000000000000000000000","0","11111111111111111111111111111111"]]}"#
             ]];
             let actual_data = error_object.data().unwrap().to_string();
             expected_data.assert_eq(&actual_data);
@@ -422,7 +422,7 @@ mod tests {
                 - 4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi (stake 40.0)"#]];
             expected_message.assert_eq(error_object.message());
             let expected_data = expect![[
-                r#"{"4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi":[["0x0000000000000000000000000000000000000000000000000000000000000000",0,"11111111111111111111111111111111"]],"8qbHbw2BbbTHBW1sbeqakYXVKRQM8Ne7pLK7m6CVfeR":[["0x0000000000000000000000000000000000000000000000000000000000000000",0,"11111111111111111111111111111111"]]}"#
+                r#"{"4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi":[["0x0000000000000000000000000000000000000000000000000000000000000000","0","11111111111111111111111111111111"]],"8qbHbw2BbbTHBW1sbeqakYXVKRQM8Ne7pLK7m6CVfeR":[["0x0000000000000000000000000000000000000000000000000000000000000000","0","11111111111111111111111111111111"]]}"#
             ]];
             let actual_data = error_object.data().unwrap().to_string();
             expected_data.assert_eq(&actual_data);
@@ -461,7 +461,7 @@ mod tests {
             let expected_code = expect!["-32002"];
             expected_code.assert_eq(&error_object.code().to_string());
             let expected_message = expect![
-                "Transaction execution failed due to issues with transaction inputs, please review the errors and try again:\n- Balance of gas object 10 is lower than the needed amount: 100\n- Object ID 0x0000000000000000000000000000000000000000000000000000000000000000 Version 0x0 Digest 11111111111111111111111111111111 is not available for consumption, current version: 0xa"
+                "Transaction execution failed due to issues with transaction inputs, please review the errors and try again:\n- Balance of gas object 10 is lower than the needed amount: 100\n- Object ID 0x0000000000000000000000000000000000000000000000000000000000000000 Version 0 Digest 11111111111111111111111111111111 is not available for consumption, current version: 10"
             ];
             expected_message.assert_eq(error_object.message());
         }
