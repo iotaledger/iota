@@ -974,6 +974,8 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         Ok(serialized_headers)
     }
 
+    // The range for returned trusted commits starts at the same index, but the end
+    // can be different, bigger for fast sync and smaller for regular.
     async fn handle_fetch_commits(
         &self,
         _peer: AuthorityIndex,

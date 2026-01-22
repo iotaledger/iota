@@ -214,10 +214,6 @@ impl<C: NetworkClient> Inner<C> {
                     });
                 }
             }
-            // Do not process more commits past the end index.
-            if commit.index() > commit_range.end() {
-                break;
-            }
             commits.push((digest, commit));
         }
         let Some((end_commit_digest, end_commit)) = commits.last() else {
