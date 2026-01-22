@@ -416,6 +416,24 @@ fn consensus_determined_version_assignments_to_sdk(
                 })
                 .collect(),
         },
+        crate::messages_consensus::ConsensusDeterminedVersionAssignments::CancelledTransactionsV2(
+            vec,
+        ) => ConsensusDeterminedVersionAssignments::CancelledTransactions {
+            cancelled_transactions: vec
+                .into_iter()
+                .map(|value| CancelledTransaction {
+                    digest: value.digest.into(),
+                    version_assignments: value
+                        .version_assignments
+                        .into_iter()
+                        .map(|value| VersionAssignment {
+                            object_id: value.object_id.into(),
+                            version: value.version.value(),
+                        })
+                        .collect(),
+                })
+                .collect(),
+        },
     }
 }
 
@@ -428,18 +446,22 @@ fn consensus_determined_version_assignments_from_sdk(
         ConsensusDeterminedVersionAssignments::CancelledTransactions {
             cancelled_transactions,
         } => {
-            crate::messages_consensus::ConsensusDeterminedVersionAssignments::CancelledTransactions(
+            // Since the content of CancelledTransactions doesn't change but the way it's
+            // structured, it's OK to always convert to V2. It can always be repacked to V1
+            // if needed.
+            crate::messages_consensus::ConsensusDeterminedVersionAssignments::CancelledTransactionsV2(
                 cancelled_transactions
                     .into_iter()
-                    .map(|value| {
-                        (
-                            value.digest.into(),
-                            value
-                                .version_assignments
-                                .into_iter()
-                                .map(|value| (value.object_id.into(), value.version.into()))
-                                .collect(),
-                        )
+                    .map(|value| crate::messages_consensus::CancelledTransactionV2 {
+                        digest: value.digest.into(),
+                        version_assignments: value
+                            .version_assignments
+                            .into_iter()
+                            .map(|value| crate::messages_consensus::VersionAssignment {
+                                object_id: value.object_id.into(),
+                                version: value.version.into(),
+                            })
+                            .collect(),
                     })
                     .collect(),
             )
