@@ -44,7 +44,7 @@ export function LegacyBrowserBanner() {
     if (!message) return null;
 
     return (
-        <div className="fixed right-4 top-4 z-[9999] max-w-lg">
+        <div className="fixed right-0 left-0 top-0 z-[9999] w-full">
             <InfoBox
                 title="Compatibility Warning"
                 supportingText={message}
