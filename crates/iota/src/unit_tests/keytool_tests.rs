@@ -842,3 +842,61 @@ async fn test_tx_digest() -> Result<(), anyhow::Error> {
 
     Ok(())
 }
+
+#[test]
+async fn test_decode_sig() -> Result<(), anyhow::Error> {
+    use crate::keytool::DecodedSig;
+
+    let mut keystore = Keystore::from(InMemKeystore::new_insecure_for_tests(0));
+
+    // Test 1: Decode a direct Ed25519 signature
+    let ed25519_sig = "AG4IVInVEl5QyY97PaJfvwrPi4vI4EUP6ZSKLx2oVQeAx6D6Kgc/dwj/cuc1z6J38kfKNGmXUuBz21d1Gmc+gAMNHamrF2PHX08fsHkxUQxLY8tTL3sINA2AMLW9tCo9dA==";
+    let output = KeyToolCommand::DecodeSig {
+        sig: ed25519_sig.to_string(),
+    }
+    .execute(&mut keystore)
+    .await?;
+    let CommandOutput::DecodeSig(decoded) = output else {
+        panic!("unexpected output: {output:?}");
+    };
+    match decoded {
+        DecodedSig::Signature { scheme, .. } => {
+            assert_eq!(scheme, "ed25519");
+        }
+        _ => panic!("Expected Signature variant"),
+    }
+
+    // Test 2: Decode a MoveAuthenticator signature
+    let move_auth_sig = "BwEAggGAAWRjNTczYTU4YzdkYTAxNmFmYzYwMmQyYWU1NWFiZGFhNmRkYzNlNzljMmY0YzA4NTM5NGM2YzI0YjQ4MzllYzRlMDEyMGRiNjkwMmIwOTc3NzIxMThhNzhhYmE2MjA4OTg4MjAwNTEwOWYxZmEzYTVjMDc4ZDkxNjQ0NDU2NjBjAAEByLo1vvdMf/26NtUKB9kj0Pu354Q/ITlRsZ5jYimoCR4EAAAAAAAAAAA=";
+    let output = KeyToolCommand::DecodeSig {
+        sig: move_auth_sig.to_string(),
+    }
+    .execute(&mut keystore)
+    .await?;
+    let CommandOutput::DecodeSig(decoded) = output else {
+        panic!("unexpected output: {output:?}");
+    };
+    assert!(matches!(decoded, DecodedSig::MoveAuthenticator { .. }));
+
+    // Test 3: Decode signature from a full SenderSignedData (transaction with
+    // signature) The fallback decodes the transaction and extracts the first
+    // signature
+    let full_tx = "AQAAAAAAAgAIAMqaOwAAAAAAIBEREREVBOk1DmNdZc04zNLAKUNMajpIDYlHqbpqFbIVAgIAAQEAAAEBAwAAAAABAQARERERFQTpNQ5jXWXNOMzSwClDTGo6SA2JR6m6ahWyFQFODzG01xo0l0JIwq9SzbRyvRKR/9TvCUbh8lrerlLQWT9uOykAAAAAIBTjvmRbByY+0uGCBeTvSXQnUXonVSdJMuPOIwfGCZ/4ERERERUE6TUOY11lzTjM0sApQ0xqOkgNiUepumoVshXoAwAAAAAAAOBvPAAAAAAAAAFhAKFqV1NustAADKOOOfAZIA/9HrnmA9PqwAmOrqTs7OKjaEXylfywifj2XZyBmEJYodGE89xlkDOthe+bpBIrkwEoe8lptdiMUw3h3rcxQJf3bWp9zFLP4Eq3rpQOam52cw==";
+    let output = KeyToolCommand::DecodeSig {
+        sig: full_tx.to_string(),
+    }
+    .execute(&mut keystore)
+    .await?;
+    let CommandOutput::DecodeSig(decoded) = output else {
+        panic!("unexpected output: {output:?}");
+    };
+    // Verify we successfully decoded an ed25519 signature from the transaction
+    match decoded {
+        DecodedSig::Signature { scheme, .. } => {
+            assert_eq!(scheme, "ed25519");
+        }
+        _ => panic!("Expected Signature variant"),
+    }
+
+    Ok(())
+}

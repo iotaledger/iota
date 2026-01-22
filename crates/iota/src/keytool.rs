@@ -49,9 +49,11 @@ use iota_types::{
     },
     error::IotaResult,
     multisig::{MultiSig, MultiSigPublicKey, ThresholdUnit, WeightUnit},
+    passkey_authenticator::PasskeyAuthenticator,
     signature::{GenericSignature, VerifyParams},
     signature_verification::VerifiedDigestCache,
-    transaction::{TransactionData, TransactionDataAPI},
+    transaction::{CallArg, SenderSignedData, TransactionData, TransactionDataAPI},
+    zk_login_authenticator::ZkLoginAuthenticator,
 };
 use json_to_table::{Orientation, json_to_table};
 use serde::Serialize;
@@ -100,8 +102,10 @@ pub enum KeyToolCommand {
         #[arg(long, default_value = "0")]
         cur_epoch: u64,
     },
-    /// Compute the digest of a transaction from its Base64 encoded bytes.
-    TxDigest { tx_bytes: String },
+    /// Decode a Base64 encoded signature and print its deserialized content.
+    /// Also supports decoding a Base64 encoded SenderSignedTransaction and
+    /// extracts the signature from there.
+    DecodeSig { sig: String },
     /// Output the private key of the given key identity in IOTA CLI Keystore as
     /// Bech32 encoded string starting with `iotaprivkey`.
     Export {
@@ -236,6 +240,8 @@ pub enum KeyToolCommand {
         #[arg(long)]
         base64pk: String,
     },
+    /// Compute the digest of a transaction from its Base64 encoded bytes.
+    TxDigest { tx_bytes: String },
     /// Update an old alias to a new one.
     /// If a new alias is not provided, a random one will be generated.
     UpdateAlias {
@@ -347,6 +353,29 @@ pub struct DecodedMultiSigOutput {
     pub_keys: Vec<MultiSigOutput>,
     threshold: usize,
     sig_verify_result: String,
+}
+
+#[derive(Serialize)]
+#[serde(untagged)]
+pub enum DecodedSig {
+    Signature {
+        scheme: String,
+        public_key_base64: String,
+        address: String,
+        signature_hex: String,
+    },
+    MultiSig {
+        multisig_address: String,
+        threshold: usize,
+        participating_signatures: Vec<DecodedMultiSig>,
+    },
+    ZkLogin(ZkLoginAuthenticator),
+    Passkey(PasskeyAuthenticator),
+    MoveAuthenticator {
+        call_args: Vec<String>,
+        type_arguments: serde_json::Value,
+        object_to_authenticate: serde_json::Value,
+    },
 }
 
 #[derive(Serialize)]
@@ -480,6 +509,7 @@ pub enum CommandOutput {
     Convert(ConvertOutput),
     DecodeMultiSig(DecodedMultiSigOutput),
     DecodeOrVerifyTx(DecodeOrVerifyTxOutput),
+    DecodeSig(DecodedSig),
     Error(String),
     Export(ExportedKey),
     Generate(Key),
@@ -538,9 +568,9 @@ impl KeyToolCommand {
                 for (sig, i) in sigs.iter().zip(bitmap) {
                     let (pk, w) = pks
                         .get(i as usize)
-                        .ok_or(anyhow!("Invalid public keys index".to_string()))?;
+                        .ok_or_else(|| anyhow!("Invalid public keys index"))?;
                     output.participating_keys_signatures.push(DecodedMultiSig {
-                        public_base64_key: pk.encode_base64().clone(),
+                        public_base64_key: pk.encode_base64(),
                         sig_base64: Base64::encode(sig.as_ref()),
                         weight: w.to_string(),
                     })
@@ -567,21 +597,85 @@ impl KeyToolCommand {
 
                 CommandOutput::DecodeMultiSig(output)
             }
-            KeyToolCommand::TxDigest { tx_bytes } => {
-                let tx_bytes = Base64::decode(&tx_bytes)
-                    .map_err(|e| anyhow!("Invalid base64 tx bytes: {e:?}"))?;
-                let tx = match bcs::from_bytes::<Transaction>(&tx_bytes) {
-                    Ok(tx) => tx,
+            KeyToolCommand::DecodeSig { sig } => {
+                // Try to decode as GenericSignature first, then fallback to
+                // SenderSignedData (which contains a SenderSignedTransaction)
+                let signature = match GenericSignature::decode_base64(&sig) {
+                    Ok(sig) => sig,
                     Err(_) => {
-                        let deserialized_tx = bcs::from_bytes::<SenderSignedTransaction>(&tx_bytes)?;
-                       deserialized_tx.0.transaction
+                        // Try decoding as SenderSignedData
+                        let tx_bytes = Base64::decode(&sig)
+                            .map_err(|e| anyhow!("Invalid base64 encoding: {e}"))?;
+                        let tx = bcs::from_bytes::<SenderSignedData>(&tx_bytes)
+                            .map_err(|e| anyhow!("Failed to decode as signature or transaction: {e}"))?;
+                        tx.into_inner()
+                            .tx_signatures
+                            .into_iter()
+                            .next()
+                            .ok_or_else(|| anyhow!("Transaction has no signatures"))?
                     }
                 };
-                CommandOutput::TxDigest(TxDigestOutput {
-                    digest: tx.digest().to_string(),
-                    digest_hex: format!("0x{}", Hex::encode(tx.digest())),
-                    signing_digest_hex: format!("0x{}", Hex::encode(tx.signing_digest())),
-                })
+                let decoded = match signature {
+                    GenericSignature::Signature(s) => {
+                        let pk_bytes = s.public_key_bytes();
+                        let pk = PublicKey::try_from_bytes(s.scheme(), pk_bytes)
+                            .map_err(|e| anyhow!("Invalid public key bytes: {e}"))?;
+                        let address = IotaAddress::from(&pk);
+                        let public_key_base64 = pk.encode_base64();
+                        let signature_hex = format!("0x{}", Hex::encode(s.signature_bytes()));
+                        DecodedSig::Signature {
+                            scheme: s.scheme().to_string(),
+                            public_key_base64,
+                            address: address.to_string(),
+                            signature_hex,
+                        }
+                    }
+                    GenericSignature::MultiSig(multisig) => {
+                        let pks = multisig.get_pk().pubkeys();
+                        let sigs = multisig.get_sigs();
+                        let bitmap = multisig.get_indices()?;
+                        let address = IotaAddress::from(multisig.get_pk());
+
+                        let mut participating_signatures = vec![];
+
+                        for (sig, i) in sigs.iter().zip(bitmap) {
+                            let (pk, w) = pks
+                                .get(i as usize)
+                                .ok_or_else(|| anyhow!("Invalid public keys index"))?;
+                            participating_signatures.push(DecodedMultiSig {
+                                public_base64_key: pk.encode_base64(),
+                                sig_base64: Base64::encode(sig.as_ref()),
+                                weight: w.to_string(),
+                            })
+                        }
+
+                        DecodedSig::MultiSig {
+                            multisig_address: address.to_string(),
+                            threshold: *multisig.get_pk().threshold() as usize,
+                            participating_signatures,
+                        }
+                    }
+                    GenericSignature::ZkLoginAuthenticator(zk) => DecodedSig::ZkLogin(zk),
+                    GenericSignature::PasskeyAuthenticator(passkey) => DecodedSig::Passkey(passkey),
+                    GenericSignature::MoveAuthenticator(move_auth) => {
+                        let call_args: Vec<String> = move_auth.call_args().iter().map(|arg| {
+                            match arg {
+                                CallArg::Pure(bytes) => format!("0x{}", Hex::encode(bytes)),
+                                CallArg::Object(obj) => serde_json::to_string(obj).unwrap_or_else(|_| format!("{obj:?}")),
+                            }
+                        }).collect();
+                        let type_arguments = serde_json::to_value(move_auth.type_arguments())
+                            .map_err(|e| anyhow!("Failed to serialize type_arguments: {e}"))?;
+                        let object_to_authenticate = serde_json::to_value(move_auth.object_to_authenticate())
+                            .map_err(|e| anyhow!("Failed to serialize object_to_authenticate: {e}"))?;
+                        DecodedSig::MoveAuthenticator {
+                            call_args,
+                            type_arguments,
+                            object_to_authenticate,
+                        }
+                    }
+                };
+                CommandOutput::DecodeSig(decoded)
             }
             KeyToolCommand::DecodeOrVerifyTx {
                 tx_bytes,
@@ -938,6 +1032,22 @@ impl KeyToolCommand {
                 let serialized_sig = Base64::encode(&serialized_sig);
                 CommandOutput::SignKMS(SerializedSig {
                     serialized_sig_base64: serialized_sig,
+                })
+            }
+            KeyToolCommand::TxDigest { tx_bytes } => {
+                let tx_bytes = Base64::decode(&tx_bytes)
+                    .map_err(|e| anyhow!("Invalid base64 tx bytes: {e:?}"))?;
+                let tx = match bcs::from_bytes::<Transaction>(&tx_bytes) {
+                    Ok(tx) => tx,
+                    Err(_) => {
+                        let deserialized_tx = bcs::from_bytes::<SenderSignedTransaction>(&tx_bytes)?;
+                       deserialized_tx.0.transaction
+                    }
+                };
+                CommandOutput::TxDigest(TxDigestOutput {
+                    digest: tx.digest().to_string(),
+                    digest_hex: format!("0x{}", Hex::encode(tx.digest())),
+                    signing_digest_hex: format!("0x{}", Hex::encode(tx.signing_digest())),
                 })
             }
             KeyToolCommand::UpdateAlias {
@@ -1392,6 +1502,70 @@ impl Display for CommandOutput {
                     ]);
                 let mut table = builder.build();
                 table.with(Rotate::Left);
+                table.with(tabled::settings::Style::rounded().horizontals([]));
+                table.with(Modify::new(Rows::new(0..)).with(Width::wrap(126).keep_words()));
+                write!(formatter, "{table}")
+            }
+            CommandOutput::DecodeSig(decoded_sig) => {
+                let mut builder = Builder::default();
+                match decoded_sig {
+                    DecodedSig::Signature {
+                        scheme,
+                        public_key_base64,
+                        address,
+                        signature_hex,
+                    } => {
+                        builder
+                            .set_header(["field", "value"])
+                            .push_record(["scheme", scheme.as_str()])
+                            .push_record(["publicKey", public_key_base64.as_str()])
+                            .push_record(["address", address.as_str()])
+                            .push_record(["signature", signature_hex.as_str()]);
+                    }
+                    DecodedSig::MultiSig {
+                        multisig_address,
+                        threshold,
+                        participating_signatures,
+                    } => {
+                        let parsed = json!({
+                            "threshold": threshold,
+                            "participating_signatures": participating_signatures
+                        });
+                        let parsed_str = serde_json::to_string_pretty(&parsed).unwrap();
+                        builder
+                            .set_header(["field", "value"])
+                            .push_record(["multisig", multisig_address.as_str()])
+                            .push_record(["parsed", parsed_str.as_str()])
+                            .push_record(["address", multisig_address.as_str()]);
+                    }
+                    DecodedSig::ZkLogin(z) => {
+                        builder
+                            .set_header(["field", "value"])
+                            .push_record(["type", "ZkLogin"])
+                            .push_record(["iss", z.inputs.get_iss()]);
+                    }
+                    DecodedSig::Passkey(_p) => {
+                        builder
+                            .set_header(["field", "value"])
+                            .push_record(["type", "Passkey"]);
+                    }
+                    DecodedSig::MoveAuthenticator {
+                        call_args,
+                        type_arguments,
+                        object_to_authenticate,
+                    } => {
+                        let call_args_hex = call_args.join("");
+                        let type_args_str = serde_json::to_string(&type_arguments).unwrap();
+                        let obj_str =
+                            serde_json::to_string_pretty(&object_to_authenticate).unwrap();
+                        builder
+                            .set_header(["field", "value"])
+                            .push_record(["callArgs", call_args_hex.as_str()])
+                            .push_record(["typeArguments", type_args_str.as_str()])
+                            .push_record(["objectToAuthenticate", obj_str.as_str()]);
+                    }
+                }
+                let mut table = builder.build();
                 table.with(tabled::settings::Style::rounded().horizontals([]));
                 table.with(Modify::new(Rows::new(0..)).with(Width::wrap(126).keep_words()));
                 write!(formatter, "{table}")
