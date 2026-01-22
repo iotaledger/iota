@@ -1017,6 +1017,27 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         else {
             return Ok((vec![], vec![]));
         };
+        let commit_range_length = new_commit_end - commit_range.start() + 1;
+        match commit_sync_type {
+            CommitSyncType::Regular => {
+                if commit_range_length > batch_size as CommitIndex {
+                    return Err(ConsensusError::TooManyCommitsReceived {
+                        count: commit_range_length,
+                        limit: batch_size as CommitIndex,
+                        sync_type: "regular",
+                    });
+                }
+            }
+            CommitSyncType::Fast => {
+                if commit_range_length > 2 * batch_size as CommitIndex {
+                    return Err(ConsensusError::TooManyCommitsReceived {
+                        count: commit_range_length,
+                        limit: 2 * batch_size as CommitIndex,
+                        sync_type: "fast",
+                    });
+                }
+            }
+        }
 
         // Then scan commits up to the certifiable index
         let commits = self

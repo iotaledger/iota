@@ -142,6 +142,13 @@ pub(crate) enum ConsensusError {
     #[error("Too many ancestors in the block: {0} > {1}")]
     TooManyAncestors(usize, usize),
 
+    #[error("Too many commits received during {sync_type} sync: {count} > {limit}")]
+    TooManyCommitsReceived {
+        count: CommitIndex,
+        limit: CommitIndex,
+        sync_type: &'static str,
+    },
+
     #[error("Ancestors from the same authority {0}")]
     DuplicatedAncestorsAuthority(AuthorityIndex),
 
