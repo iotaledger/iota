@@ -58,8 +58,12 @@ function BalanceChangePanel({
 }: BalanceChangePanelProps) {
     const { data: name } = useGetDefaultIotaName(owner);
 
-    const chainName = chain ? chain.split(':')[1] : undefined;
-    const isMainnet = chainName === 'mainnet';
+    // chain format: [iota:network] -> split by ':' then capitalize first letter
+    const networkName = chain ? chain.split(':')[1] : undefined;
+    const chainName = networkName
+        ? networkName.charAt(0).toUpperCase() + networkName.slice(1)
+        : undefined;
+    const isMainnet = networkName === 'mainnet';
     const badgeType = isMainnet ? BadgeType.PrimarySolid : BadgeType.Neutral;
 
     if (!changes) return null;
