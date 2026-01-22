@@ -1264,10 +1264,16 @@ borrow_uid
 new_uid_from_hash
 	public(package) fun
 	0x2::object
+uid_is_fresh
+	public(package) fun
+	0x2::object
 delete_impl
 	fun
 	0x2::object
 record_new_uid
+	fun
+	0x2::object
+is_fresh_uid
 	fun
 	0x2::object
 emit

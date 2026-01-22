@@ -13,6 +13,8 @@ const EAuthenticatorFunctionRefV1AlreadyAttached: vector<u8> =
 #[error(code = 1)]
 const EAuthenticatorFunctionRefV1NotAttached: vector<u8> =
     b"'AuthenticatorFunctionRefV1' is not attached to the account.";
+#[error(code = 2)]
+const EAccountNotFreshlyCreated: vector<u8> = b"Account must be created in the same transaction.";
 
 #[allow(unused_field)]
 /// Event: emitted when a new immutable account has been created.
@@ -48,12 +50,15 @@ public fun create_account_v1<Account: key>(
     mut account: Account,
     authenticator: AuthenticatorFunctionRefV1<Account>,
 ) {
+    let account_id = borrow_account_uid_mut(&mut account);
+    assert!(account_id.is_fresh(), EAccountNotFreshlyCreated);
+
     let event = MutableAccountCreated {
-        account_id: *object::borrow_id(&account),
+        account_id: account_id.to_inner(),
         authenticator,
     };
 
-    attach_auth_function_ref_v1(&mut account, authenticator);
+    attach_auth_function_ref_v1(account_id, authenticator);
 
     create_account_v1_impl(account);
 
@@ -69,12 +74,15 @@ public fun create_immutable_account_v1<Account: key>(
     mut account: Account,
     authenticator: AuthenticatorFunctionRefV1<Account>,
 ) {
+    let account_id = borrow_account_uid_mut(&mut account);
+    assert!(account_id.is_fresh(), EAccountNotFreshlyCreated);
+
     let event = ImmutableAccountCreated {
-        account_id: *object::borrow_id(&account),
+        account_id: account_id.to_inner(),
         authenticator,
     };
 
-    attach_auth_function_ref_v1(&mut account, authenticator);
+    attach_auth_function_ref_v1(account_id, authenticator);
 
     create_immutable_account_v1_impl(account);
 
@@ -129,16 +137,14 @@ fun auth_function_ref_v1_key(): AuthenticatorFunctionRefV1Key {
     AuthenticatorFunctionRefV1Key {}
 }
 
-/// Add `authenticator` as a dynamic field to `account`.
+/// Add `authenticator` as a dynamic field to `account_id`.
 ///
 /// IMPORTANT: This function is allowed to be called only by the functions that the IOTA Move bytecode verifier
 /// prevents from being invoked outside the module where `Account` is declared.
 fun attach_auth_function_ref_v1<Account: key>(
-    account: &mut Account,
+    account_id: &mut UID,
     authenticator: AuthenticatorFunctionRefV1<Account>,
 ) {
-    let account_id = borrow_account_uid_mut(account);
-
     assert!(!has_auth_function_ref_v1(account_id), EAuthenticatorFunctionRefV1AlreadyAttached);
     dynamic_field::add(account_id, auth_function_ref_v1_key(), authenticator);
 }

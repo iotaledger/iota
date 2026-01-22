@@ -126,3 +126,45 @@ pub fn record_new_uid(
     obj_runtime.new_id(uid_bytes.into())?;
     Ok(NativeResult::ok(context.gas_used(), smallvec![]))
 }
+
+#[derive(Clone)]
+pub struct IsFreshUidCostParams {
+    pub object_is_fresh_uid_cost_base: InternalGas,
+}
+/// ****************************************************************************
+/// ********************* native fun is_fresh_uid
+/// Implementation of the Move native function `is_fresh_uid(id: &UID): bool`
+/// Returns true if the UID was created in the current transaction.
+///   gas cost: object_is_fresh_uid_cost_base                | simple set lookup
+/// ****************************************************************************
+/// *******************
+pub fn is_fresh_uid(
+    context: &mut NativeContext,
+    ty_args: Vec<Type>,
+    mut args: VecDeque<Value>,
+) -> PartialVMResult<NativeResult> {
+    debug_assert!(ty_args.is_empty());
+    debug_assert!(args.len() == 1);
+
+    let is_fresh_uid_cost_params = context
+        .extensions_mut()
+        .get::<NativesCostTable>()?
+        .is_fresh_uid_cost_params
+        .clone();
+
+    // Charge base fee
+    native_charge_gas_early_exit!(
+        context,
+        is_fresh_uid_cost_params.object_is_fresh_uid_cost_base
+    );
+
+    let uid_bytes = pop_arg!(args, AccountAddress);
+
+    let obj_runtime: &ObjectRuntime = context.extensions().get()?;
+    let is_fresh_uid = obj_runtime.state.is_object_new(&uid_bytes.into());
+
+    Ok(NativeResult::ok(
+        context.gas_used(),
+        smallvec![Value::bool(is_fresh_uid)],
+    ))
+}
