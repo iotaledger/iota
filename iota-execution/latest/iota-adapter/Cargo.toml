@@ -43,3 +43,4 @@ tracing = [
   "move-vm-profiler/tracing",
   "move-vm-runtime/tracing",
 ]
+move-testing = ["iota-move-natives/move-testing"]

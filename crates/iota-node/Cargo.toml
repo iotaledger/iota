@@ -11,6 +11,7 @@ workspace = true
 
 [features]
 flamegraph-alloc = ["telemetry-subscribers/flamegraph-alloc"]
+move-testing = ["iota-core/move-testing"]
 
 [dependencies]
 # external dependencies

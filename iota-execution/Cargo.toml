@@ -39,3 +39,4 @@ tracing = [
   # "iota-adapter-$CUT/tracing",
   # "move-vm-runtime-$CUT/tracing",
 ]
+move-testing = ["iota-move-natives-latest/move-testing"]

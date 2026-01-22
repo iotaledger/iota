@@ -139,3 +139,6 @@ harness = false
 
 [package.metadata.cargo-udeps.ignore]
 development = ["pprof", "test-fuzz"]
+
+[features]
+move-testing = ["iota-execution/move-testing"]
