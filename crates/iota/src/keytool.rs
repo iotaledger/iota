@@ -883,7 +883,7 @@ impl KeyToolCommand {
                 let public_key = ikp.public().encode_base64();
                 let public_key_hex = Hex::encode_with_format(ikp.public().as_ref());
                 let signature_hex = Hex::encode_with_format(signature.signature_bytes());
-                
+
                 CommandOutput::SignRaw(SignRawData {
                     iota_address: address,
                     raw_data: data,
