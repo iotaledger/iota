@@ -304,22 +304,22 @@ async fn read_and_scan_commits(
 async fn scan_scoring_metrics(
     #[values(new_rocksdb_teststore(), new_mem_teststore())] test_store: TestStore,
 ) {
-    use crate::storage::StorageScoringMetrics;
+    use crate::storage::VersionedStorageScoringMetrics;
 
     let store = test_store.store();
     let metrics_updates = [
-        StorageScoringMetrics {
-            faulty_blocks_provable: 1,
-            faulty_blocks_unprovable: 2,
-            equivocations: 3,
-            missing_proposals: 4,
-        },
-        StorageScoringMetrics {
-            faulty_blocks_provable: 0,
-            faulty_blocks_unprovable: 0,
-            equivocations: 0,
-            missing_proposals: 0,
-        },
+        VersionedStorageScoringMetrics::new_v1_for_test(
+            1, // faulty_blocks_provable
+            2, // faulty_blocks_unprovable
+            4, // missing_proposals
+            3, // equivocations
+        ),
+        VersionedStorageScoringMetrics::new_v1_for_test(
+            0, // faulty_blocks_provable
+            0, // faulty_blocks_unprovable
+            0, // missing_proposals
+            0, // equivocations
+        ),
     ];
     let authories = [
         AuthorityIndex::new_for_test(0),
