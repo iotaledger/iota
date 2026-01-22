@@ -23,7 +23,7 @@ export function mapGraphQLObjectToRpcObject(
             ? {
                   dataType: 'moveObject' as const,
                   bcsBytes: object.asMoveObject?.contents?.bcs,
-                  version: object.version as unknown as string,
+                  version: String(object.version),
                   type: toShortTypeString(object.asMoveObject?.contents?.type.repr!),
               }
             : undefined,
@@ -61,7 +61,7 @@ export function mapGraphQLMoveObjectToRpcObject(
             ? {
                   dataType: 'moveObject' as const,
                   bcsBytes: object?.contents?.bcs,
-                  version: object.version as unknown as string,
+                  version: String(object.version),
                   type: toShortTypeString(object?.contents?.type.repr!),
               }
             : undefined,
