@@ -392,9 +392,9 @@ impl TryFrom<TransactionV1> for crate::transaction::TransactionDataV1 {
     }
 }
 
-/// Helper function to convert ConsensusDeterminedVersionAssignments to SDK
-/// type.
-fn convert_consensus_determined_version_assignments(
+/// Helper function to convert internal ConsensusDeterminedVersionAssignments to
+/// SDK type.
+fn consensus_determined_version_assignments_to_sdk(
     assignments: crate::messages_consensus::ConsensusDeterminedVersionAssignments,
 ) -> ConsensusDeterminedVersionAssignments {
     match assignments {
@@ -416,6 +416,35 @@ fn convert_consensus_determined_version_assignments(
                 })
                 .collect(),
         },
+    }
+}
+
+/// Helper function to convert SDK ConsensusDeterminedVersionAssignments to
+/// internal type.
+fn consensus_determined_version_assignments_from_sdk(
+    assignments: ConsensusDeterminedVersionAssignments,
+) -> crate::messages_consensus::ConsensusDeterminedVersionAssignments {
+    match assignments {
+        ConsensusDeterminedVersionAssignments::CancelledTransactions {
+            cancelled_transactions,
+        } => {
+            crate::messages_consensus::ConsensusDeterminedVersionAssignments::CancelledTransactions(
+                cancelled_transactions
+                    .into_iter()
+                    .map(|value| {
+                        (
+                            value.digest.into(),
+                            value
+                                .version_assignments
+                                .into_iter()
+                                .map(|value| (value.object_id.into(), value.version.into()))
+                                .collect(),
+                        )
+                    })
+                    .collect(),
+            )
+        }
+        _ => unreachable!("a new enum variant was added and needs to be handled"),
     }
 }
 
@@ -482,7 +511,7 @@ impl TryFrom<crate::transaction::TransactionKind> for TransactionKind {
             }
             InternalTxnKind::ConsensusCommitPrologueV1(consensus_commit_prologue_v1) => {
                 let consensus_determined_version_assignments =
-                    convert_consensus_determined_version_assignments(
+                    consensus_determined_version_assignments_to_sdk(
                         consensus_commit_prologue_v1.consensus_determined_version_assignments,
                     );
                 TransactionKind::ConsensusCommitPrologueV1(ConsensusCommitPrologueV1 {
@@ -496,10 +525,9 @@ impl TryFrom<crate::transaction::TransactionKind> for TransactionKind {
                     consensus_determined_version_assignments,
                 })
             }
-            // V2 is converted to V1 for SDK compatibility (additional_state_digest is dropped)
             InternalTxnKind::ConsensusCommitPrologueV2(consensus_commit_prologue_v2) => {
                 let consensus_determined_version_assignments =
-                    convert_consensus_determined_version_assignments(
+                    consensus_determined_version_assignments_to_sdk(
                         consensus_commit_prologue_v2.consensus_determined_version_assignments,
                     );
                 TransactionKind::ConsensusCommitPrologueV2(ConsensusCommitPrologueV2 {
@@ -576,7 +604,7 @@ impl TryFrom<TransactionKind> for crate::transaction::TransactionKind {
                         .commands
                         .into_iter()
                         .map(TryInto::try_into)
-                        .collect::<Result<_,_>>()?,
+                        .collect::<Result<_, _>>()?,
                 })
             }
             TransactionKind::Genesis(genesis_transaction) => {
@@ -584,16 +612,14 @@ impl TryFrom<TransactionKind> for crate::transaction::TransactionKind {
                     objects: genesis_transaction
                         .objects
                         .into_iter()
-                        .map(|obj| {
-                            match obj.data.try_into() {
-                                Ok(data) => Ok(crate::transaction::GenesisObject::RawObject {
-                                    data,
-                                    owner: obj.owner.into(),
-                                }),
-                                Err(e) => Err(e),
-                            }
+                        .map(|obj| match obj.data.try_into() {
+                            Ok(data) => Ok(crate::transaction::GenesisObject::RawObject {
+                                data,
+                                owner: obj.owner.into(),
+                            }),
+                            Err(e) => Err(e),
                         })
-                        .collect::<Result<_,_>>()?,
+                        .collect::<Result<_, _>>()?,
                     events: genesis_transaction
                         .events
                         .into_iter()
@@ -614,26 +640,14 @@ impl TryFrom<TransactionKind> for crate::transaction::TransactionKind {
                                 )),
                             }
                         })
-                        .collect::<Result<_,_>>()?,
+                        .collect::<Result<_, _>>()?,
                 })
             }
             TransactionKind::ConsensusCommitPrologueV1(consensus_commit_prologue_v1) => {
-                let consensus_determined_version_assignments = match consensus_commit_prologue_v1.consensus_determined_version_assignments {
-                    ConsensusDeterminedVersionAssignments::CancelledTransactions{ cancelled_transactions } =>
-                    crate::messages_consensus::ConsensusDeterminedVersionAssignments::CancelledTransactions(
-                        cancelled_transactions.into_iter().map(|value|
-                            (
-                                value.digest.into(),
-                                value
-                                    .version_assignments
-                                    .into_iter()
-                                    .map(|value| (value.object_id.into(), value.version.into()))
-                                    .collect()
-                            )
-                        ).collect()
-                    ),
-                    _ => unreachable!("a new enum variant was added and needs to be handled")
-                };
+                let consensus_determined_version_assignments =
+                    consensus_determined_version_assignments_from_sdk(
+                        consensus_commit_prologue_v1.consensus_determined_version_assignments,
+                    );
                 Self::ConsensusCommitPrologueV1(
                     crate::messages_consensus::ConsensusCommitPrologueV1 {
                         epoch: consensus_commit_prologue_v1.epoch,
@@ -644,6 +658,27 @@ impl TryFrom<TransactionKind> for crate::transaction::TransactionKind {
                             .consensus_commit_digest
                             .into(),
                         consensus_determined_version_assignments,
+                    },
+                )
+            }
+            TransactionKind::ConsensusCommitPrologueV2(consensus_commit_prologue_v2) => {
+                let consensus_determined_version_assignments =
+                    consensus_determined_version_assignments_from_sdk(
+                        consensus_commit_prologue_v2.consensus_determined_version_assignments,
+                    );
+                Self::ConsensusCommitPrologueV2(
+                    crate::messages_consensus::ConsensusCommitPrologueV2 {
+                        epoch: consensus_commit_prologue_v2.epoch,
+                        round: consensus_commit_prologue_v2.round,
+                        sub_dag_index: consensus_commit_prologue_v2.sub_dag_index,
+                        commit_timestamp_ms: consensus_commit_prologue_v2.commit_timestamp_ms,
+                        consensus_commit_digest: consensus_commit_prologue_v2
+                            .consensus_commit_digest
+                            .into(),
+                        consensus_determined_version_assignments,
+                        additional_state_digest: consensus_commit_prologue_v2
+                            .additional_state_digest
+                            .into(),
                     },
                 )
             }
@@ -688,7 +723,7 @@ impl TryFrom<TransactionKind> for crate::transaction::TransactionKind {
                         .into(),
                 })
             }
-            _ => unreachable!("a new enum variant was added and needs to be handled")
+            _ => unreachable!("a new enum variant was added and needs to be handled"),
         }
         .pipe(Ok)
     }

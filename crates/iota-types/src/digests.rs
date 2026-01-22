@@ -1050,6 +1050,8 @@ impl fmt::Debug for ConsensusCommitDigest {
 pub struct AdditionalConsensusStateDigest(Digest);
 
 impl AdditionalConsensusStateDigest {
+    pub const ZERO: Self = Self(Digest::ZERO);
+
     pub const fn new(digest: [u8; 32]) -> Self {
         Self(Digest::new(digest))
     }
@@ -1060,6 +1062,12 @@ impl AdditionalConsensusStateDigest {
 
     pub const fn into_inner(self) -> [u8; 32] {
         self.0.into_inner()
+    }
+}
+
+impl Default for AdditionalConsensusStateDigest {
+    fn default() -> Self {
+        Self::ZERO
     }
 }
 
