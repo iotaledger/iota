@@ -167,9 +167,9 @@ proptest! {
 /// here.
 #[test]
 fn valid_bounds_no_members() {
-    let mut gen = CompiledModuleStrategyGen::new(20);
-    gen.zeros_all();
-    proptest!(|(_module in gen.generate())| {
-        // gen.generate() will panic if there are any bounds check issues.
+    let mut generator = CompiledModuleStrategyGen::new(20);
+    generator.zeros_all();
+    proptest!(|(_module in generator.generate())| {
+        // generator.generate() will panic if there are any bounds check issues.
     });
 }

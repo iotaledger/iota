@@ -39,7 +39,7 @@ pub trait EventSubscriber: Send + Sync {
     fn subscribe_events(
         &self,
         filter: EventFilter,
-    ) -> Box<dyn futures::Stream<Item = IotaEvent> + Send + Unpin>;
+    ) -> Box<dyn futures::Stream<Item = IotaEvent> + Send + Unpin + 'static>;
 }
 
 // Implement EventSubscriber trait for gRPC integration
@@ -47,7 +47,7 @@ impl EventSubscriber for iota_core::subscription_handler::SubscriptionHandler {
     fn subscribe_events(
         &self,
         filter: EventFilter,
-    ) -> Box<dyn futures::Stream<Item = IotaEvent> + Send + Unpin> {
+    ) -> Box<dyn futures::Stream<Item = IotaEvent> + Send + Unpin + 'static> {
         Box::new(Box::pin(self.subscribe_events(filter)))
     }
 }
@@ -303,18 +303,20 @@ impl GrpcReader {
 
     /// Generic checkpoint streaming implementation that works with checkpoint
     /// data and summaries.
-    fn create_checkpoint_stream<T>(
+    fn create_checkpoint_stream<T, F1, F2>(
         &self,
         mut rx: Receiver<Arc<T>>,
         start_sequence_number: Option<u64>,
         end_sequence_number: Option<u64>,
         is_full: bool,
         cancellation_token: CancellationToken,
-        fetch_historical: impl Fn(&Self, u64) -> Option<Arc<T>> + Send,
-        get_sequence_number: impl Fn(&Arc<T>) -> u64 + Send,
-    ) -> impl futures::Stream<Item = CheckpointStreamResult> + Send
+        fetch_historical: F1,
+        get_sequence_number: F2,
+    ) -> impl futures::Stream<Item = CheckpointStreamResult> + Send + use<T, F1, F2>
     where
         T: Serialize + Send + Sync + 'static,
+        F1: Fn(&Self, u64) -> Option<Arc<T>> + Send,
+        F2: Fn(&Arc<T>) -> u64 + Send,
     {
         // Clone self to avoid lifetime issues with the async stream
         let reader = self.clone();
@@ -413,7 +415,7 @@ impl GrpcReader {
         start_sequence_number: Option<u64>,
         end_sequence_number: Option<u64>,
         cancellation_token: CancellationToken,
-    ) -> impl futures::Stream<Item = CheckpointStreamResult> + Send {
+    ) -> impl futures::Stream<Item = CheckpointStreamResult> + Send + use<> {
         self.create_checkpoint_stream(
             rx,
             start_sequence_number,
@@ -437,7 +439,7 @@ impl GrpcReader {
         start_sequence_number: Option<u64>,
         end_sequence_number: Option<u64>,
         cancellation_token: CancellationToken,
-    ) -> impl futures::Stream<Item = CheckpointStreamResult> + Send {
+    ) -> impl futures::Stream<Item = CheckpointStreamResult> + Send + use<> {
         self.create_checkpoint_stream(
             rx,
             start_sequence_number,

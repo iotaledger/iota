@@ -203,7 +203,7 @@ async fn direct_commit_late_call() {
     assert_eq!(sequence.len(), 3 * (num_waves - 1_usize));
     for (i, leader_block) in sequence.iter().enumerate() {
         let leader_round = committer.committers[(i + 1) % 3].leader_round((i as u32 + 1) / 3);
-        if let DecidedLeader::Commit(ref block) = leader_block {
+        if let DecidedLeader::Commit(block) = leader_block {
             assert_eq!(block.round(), leader_round);
             assert_eq!(block.author(), committer.get_leaders(leader_round)[0]);
         } else {
@@ -407,7 +407,7 @@ async fn indirect_commit() {
         let leader_round =
             committer.committers[(idx + 1) % 3].leader_round(((idx + 1) / 3) as WaveNumber);
         let expected_leader = committer.get_leaders(leader_round)[0];
-        if let DecidedLeader::Commit(ref block) = decided_leader {
+        if let DecidedLeader::Commit(block) = decided_leader {
             assert_eq!(block.round(), leader_round);
             assert_eq!(block.author(), expected_leader);
         } else {
@@ -486,13 +486,13 @@ async fn indirect_skip() {
     assert_eq!(sequence.len(), 7);
 
     for (idx, decided_leader) in sequence.iter().enumerate() {
-        if let DecidedLeader::Commit(ref block) = decided_leader {
+        if let DecidedLeader::Commit(block) = decided_leader {
             assert_eq!(block.round(), (idx + 1) as Round);
             assert_eq!(
                 block.author(),
                 AuthorityIndex::new_for_test((idx + 1) as u8 % 4)
             );
-        } else if let DecidedLeader::Skip(ref slot) = decided_leader {
+        } else if let DecidedLeader::Skip(slot) = decided_leader {
             assert_eq!(slot.round, 4 as Round);
         } else {
             panic!("Expected a decided leader");

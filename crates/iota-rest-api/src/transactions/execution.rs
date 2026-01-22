@@ -34,7 +34,7 @@ impl ApiEndpoint<RestService> for ExecuteTransaction {
 
     fn operation(
         &self,
-        generator: &mut schemars::gen::SchemaGenerator,
+        generator: &mut schemars::r#gen::SchemaGenerator,
     ) -> openapiv3::v3_1::Operation {
         OperationBuilder::new()
             .tag("Transactions")
@@ -275,8 +275,8 @@ impl JsonSchema for EffectsFinality {
         ReadableEffectsFinality::schema_name()
     }
 
-    fn json_schema(gen: &mut schemars::gen::SchemaGenerator) -> schemars::schema::Schema {
-        ReadableEffectsFinality::json_schema(gen)
+    fn json_schema(generator: &mut schemars::r#gen::SchemaGenerator) -> schemars::schema::Schema {
+        ReadableEffectsFinality::json_schema(generator)
     }
 }
 
@@ -372,7 +372,7 @@ impl ApiEndpoint<RestService> for SimulateTransaction {
 
     fn operation(
         &self,
-        generator: &mut schemars::gen::SchemaGenerator,
+        generator: &mut schemars::r#gen::SchemaGenerator,
     ) -> openapiv3::v3_1::Operation {
         OperationBuilder::new()
             .tag("Transactions")

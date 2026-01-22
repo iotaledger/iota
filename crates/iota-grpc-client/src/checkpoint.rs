@@ -48,7 +48,8 @@ impl CheckpointClient {
         start_sequence_number: Option<u64>,
         end_sequence_number: Option<u64>,
         full: bool,
-    ) -> Result<impl Stream<Item = Result<CheckpointContent, tonic::Status>>, tonic::Status> {
+    ) -> Result<impl Stream<Item = Result<CheckpointContent, tonic::Status>> + use<>, tonic::Status>
+    {
         let request = grpc_checkpoints::CheckpointStreamRequest {
             start_sequence_number,
             end_sequence_number,

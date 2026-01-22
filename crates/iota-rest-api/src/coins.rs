@@ -30,7 +30,7 @@ impl ApiEndpoint<RestService> for GetCoinInfo {
 
     fn operation(
         &self,
-        generator: &mut schemars::gen::SchemaGenerator,
+        generator: &mut schemars::r#gen::SchemaGenerator,
     ) -> openapiv3::v3_1::Operation {
         OperationBuilder::new()
             .tag("Coins")

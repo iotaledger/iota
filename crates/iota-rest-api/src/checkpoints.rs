@@ -49,7 +49,7 @@ impl ApiEndpoint<RestService> for GetCheckpoint {
 
     fn operation(
         &self,
-        generator: &mut schemars::gen::SchemaGenerator,
+        generator: &mut schemars::r#gen::SchemaGenerator,
     ) -> openapiv3::v3_1::Operation {
         OperationBuilder::new()
             .tag("Checkpoint")
@@ -233,7 +233,7 @@ impl ApiEndpoint<RestService> for ListCheckpoints {
 
     fn operation(
         &self,
-        generator: &mut schemars::gen::SchemaGenerator,
+        generator: &mut schemars::r#gen::SchemaGenerator,
     ) -> openapiv3::v3_1::Operation {
         OperationBuilder::new()
             .tag("Checkpoint")
@@ -387,7 +387,7 @@ impl ApiEndpoint<RestService> for GetFullCheckpoint {
 
     fn operation(
         &self,
-        generator: &mut schemars::gen::SchemaGenerator,
+        generator: &mut schemars::r#gen::SchemaGenerator,
     ) -> openapiv3::v3_1::Operation {
         OperationBuilder::new()
             .tag("Checkpoint")
@@ -480,7 +480,7 @@ impl ApiEndpoint<RestService> for ListFullCheckpoints {
 
     fn operation(
         &self,
-        generator: &mut schemars::gen::SchemaGenerator,
+        generator: &mut schemars::r#gen::SchemaGenerator,
     ) -> openapiv3::v3_1::Operation {
         OperationBuilder::new()
             .tag("Checkpoint")

@@ -314,7 +314,7 @@ impl<C: CursorType + ScanLimited + Eq + Clone + Send + Sync + 'static> Page<C> {
         conn: &mut Conn<'_>,
         checkpoint_viewed_at: u64,
         query: Q,
-    ) -> QueryResult<(bool, bool, impl Iterator<Item = T>)>
+    ) -> QueryResult<(bool, bool, impl Iterator<Item = T> + use<T, Q, ST, GB, C>)>
     where
         Q: Fn() -> Query<ST, T::Source, GB>,
         Query<ST, T::Source, GB>: LoadQuery<'static, DieselConn, T>,
@@ -374,7 +374,7 @@ impl<C: CursorType + ScanLimited + Eq + Clone + Send + Sync + 'static> Page<C> {
         conn: &mut Conn<'_>,
         checkpoint_viewed_at: u64,
         query: RawQuery,
-    ) -> QueryResult<(bool, bool, impl Iterator<Item = T>)>
+    ) -> QueryResult<(bool, bool, impl Iterator<Item = T> + use<T, C>)>
     where
         T: Send + RawPaginated<C> + FromSqlRow<Untyped, DieselBackend> + 'static,
     {
@@ -416,7 +416,7 @@ impl<C: CursorType + ScanLimited + Eq + Clone + Send + Sync + 'static> Page<C> {
         f_cursor: Option<C>,
         l_cursor: Option<C>,
         results: Vec<T>,
-    ) -> (bool, bool, impl Iterator<Item = T>)
+    ) -> (bool, bool, impl Iterator<Item = T> + use<T, C>)
     where
         T: Target<C> + Send + 'static,
     {

@@ -1764,7 +1764,7 @@ pub enum SnapshotSource {
 
 impl SnapshotSource {
     /// Convert to a reader.
-    pub fn to_reader(&self) -> anyhow::Result<Box<dyn Read>> {
+    pub fn to_reader(&self) -> anyhow::Result<Box<dyn Read + '_>> {
         Ok(match self {
             SnapshotSource::Local(path) => Box::new(BufReader::new(File::open(path)?)),
             SnapshotSource::S3(snapshot_url) => Box::new(snapshot_url.to_reader()?),

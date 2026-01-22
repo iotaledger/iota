@@ -133,7 +133,7 @@ where
     }
 
     /// Subscribe to the data stream filtered by the filter object.
-    pub fn subscribe(&self, filter: F) -> impl Stream<Item = S> {
+    pub fn subscribe(&self, filter: F) -> impl Stream<Item = S> + use<T, S, F> {
         let (tx, rx) = mpsc::channel::<S>(EVENT_DISPATCH_BUFFER_SIZE);
         self.subscribers
             .write()

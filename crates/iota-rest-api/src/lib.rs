@@ -255,7 +255,7 @@ mod _schemars {
             "u64".to_owned()
         }
 
-        fn json_schema(_: &mut schemars::gen::SchemaGenerator) -> schemars::schema::Schema {
+        fn json_schema(_: &mut schemars::r#gen::SchemaGenerator) -> schemars::schema::Schema {
             SchemaObject {
                 metadata: Some(Box::new(Metadata {
                     description: Some("Radix-10 encoded 64-bit unsigned integer".to_owned()),

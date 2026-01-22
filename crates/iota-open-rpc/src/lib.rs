@@ -8,7 +8,7 @@ use std::collections::{BTreeMap, HashMap, btree_map::Entry::Occupied};
 
 use schemars::{
     JsonSchema,
-    gen::{SchemaGenerator, SchemaSettings},
+    r#gen::{SchemaGenerator, SchemaSettings},
     schema::SchemaObject,
 };
 use serde::{Deserialize, Serialize};

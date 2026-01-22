@@ -200,7 +200,7 @@ where
     fn next(&mut self) -> Option<Self::Item> {
         for mut output in self.outputs.by_ref() {
             if let Ok((header, inner)) = &mut output {
-                if let Output::Basic(ref basic_output) = inner {
+                if let Output::Basic(basic_output) = inner {
                     let uc = basic_output.unlock_conditions();
                     // Only for outputs with timelock and/or address unlock conditions (and not
                     // holding native tokens) the SwapSplit operation can be performed
@@ -366,9 +366,9 @@ where
         if let Ok((_, inner)) = &mut output {
             self.num_scaled_outputs += 1;
             match inner {
-                Output::Basic(ref basic_output) => {
+                Output::Basic(basic_output) => {
                     // Update amount
-                    let mut builder = BasicOutputBuilder::from(basic_output).with_amount(
+                    let mut builder = BasicOutputBuilder::from(&*basic_output).with_amount(
                         scale_amount_for_iota(basic_output.amount())
                             .expect("should scale the amount for iota"),
                     );
@@ -393,8 +393,8 @@ where
                         .expect("failed to create basic output")
                         .into()
                 }
-                Output::Alias(ref alias_output) => {
-                    *inner = AliasOutputBuilder::from(alias_output)
+                Output::Alias(alias_output) => {
+                    *inner = AliasOutputBuilder::from(&*alias_output)
                         .with_amount(
                             scale_amount_for_iota(alias_output.amount())
                                 .expect("should scale the amount for iota"),
@@ -403,8 +403,8 @@ where
                         .expect("should be able to create an alias output")
                         .into()
                 }
-                Output::Foundry(ref foundry_output) => {
-                    *inner = FoundryOutputBuilder::from(foundry_output)
+                Output::Foundry(foundry_output) => {
+                    *inner = FoundryOutputBuilder::from(&*foundry_output)
                         .with_amount(
                             scale_amount_for_iota(foundry_output.amount())
                                 .expect("should scale the amount for iota"),
@@ -413,9 +413,9 @@ where
                         .expect("should be able to create a foundry output")
                         .into()
                 }
-                Output::Nft(ref nft_output) => {
+                Output::Nft(nft_output) => {
                     // Update amount
-                    let mut builder = NftOutputBuilder::from(nft_output).with_amount(
+                    let mut builder = NftOutputBuilder::from(&*nft_output).with_amount(
                         scale_amount_for_iota(nft_output.amount())
                             .expect("should scale the amount for iota"),
                     );

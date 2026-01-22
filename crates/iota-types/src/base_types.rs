@@ -655,7 +655,7 @@ impl IotaAddress {
     }
 
     pub fn generate<R: rand::RngCore + rand::CryptoRng>(mut rng: R) -> Self {
-        let buf: [u8; IOTA_ADDRESS_LENGTH] = rng.gen();
+        let buf: [u8; IOTA_ADDRESS_LENGTH] = rng.r#gen();
         Self(buf)
     }
 
@@ -1338,7 +1338,7 @@ impl ObjectID {
     where
         R: AllowedRng,
     {
-        let buf: [u8; Self::LENGTH] = rng.gen();
+        let buf: [u8; Self::LENGTH] = rng.r#gen();
         ObjectID::new(buf)
     }
 

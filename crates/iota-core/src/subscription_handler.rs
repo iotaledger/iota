@@ -113,14 +113,14 @@ impl SubscriptionHandler {
         Ok(())
     }
 
-    pub fn subscribe_events(&self, filter: EventFilter) -> impl Stream<Item = IotaEvent> {
+    pub fn subscribe_events(&self, filter: EventFilter) -> impl Stream<Item = IotaEvent> + use<> {
         self.event_streamer.subscribe(filter)
     }
 
     pub fn subscribe_transactions(
         &self,
         filter: TransactionFilter,
-    ) -> impl Stream<Item = IotaTransactionBlockEffects> {
+    ) -> impl Stream<Item = IotaTransactionBlockEffects> + use<> {
         self.transaction_streamer.subscribe(filter)
     }
 }

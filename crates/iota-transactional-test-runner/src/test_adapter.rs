@@ -2204,7 +2204,7 @@ async fn init_val_fullnode_executor(
     let mut mk_account = || {
         let (address, key_pair) = get_key_pair_from_rng(&mut rng);
         let obj = Object::with_id_owner_gas_for_testing(
-            ObjectID::new(rng.gen()),
+            ObjectID::new(rng.r#gen()),
             address,
             GAS_FOR_TESTING,
         );

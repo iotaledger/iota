@@ -28,7 +28,7 @@ impl ApiEndpoint<RestService> for GetLatestCommittee {
 
     fn operation(
         &self,
-        generator: &mut schemars::gen::SchemaGenerator,
+        generator: &mut schemars::r#gen::SchemaGenerator,
     ) -> openapiv3::v3_1::Operation {
         OperationBuilder::new()
             .tag("System")
@@ -77,7 +77,7 @@ impl ApiEndpoint<RestService> for GetCommittee {
 
     fn operation(
         &self,
-        generator: &mut schemars::gen::SchemaGenerator,
+        generator: &mut schemars::r#gen::SchemaGenerator,
     ) -> openapiv3::v3_1::Operation {
         OperationBuilder::new()
             .tag("System")

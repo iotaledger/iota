@@ -33,7 +33,7 @@ impl ApiEndpoint<RestService> for GetSystemStateSummary {
 
     fn operation(
         &self,
-        generator: &mut schemars::gen::SchemaGenerator,
+        generator: &mut schemars::r#gen::SchemaGenerator,
     ) -> openapiv3::v3_1::Operation {
         OperationBuilder::new()
             .tag("System")
@@ -543,7 +543,7 @@ impl ApiEndpoint<RestService> for GetCurrentProtocolConfig {
 
     fn operation(
         &self,
-        generator: &mut schemars::gen::SchemaGenerator,
+        generator: &mut schemars::r#gen::SchemaGenerator,
     ) -> openapiv3::v3_1::Operation {
         OperationBuilder::new()
             .tag("System")
@@ -602,7 +602,7 @@ impl ApiEndpoint<RestService> for GetProtocolConfig {
 
     fn operation(
         &self,
-        generator: &mut schemars::gen::SchemaGenerator,
+        generator: &mut schemars::r#gen::SchemaGenerator,
     ) -> openapiv3::v3_1::Operation {
         OperationBuilder::new()
             .tag("System")
@@ -742,7 +742,7 @@ impl ApiEndpoint<RestService> for GetGasInfo {
 
     fn operation(
         &self,
-        generator: &mut schemars::gen::SchemaGenerator,
+        generator: &mut schemars::r#gen::SchemaGenerator,
     ) -> openapiv3::v3_1::Operation {
         OperationBuilder::new()
             .tag("System")

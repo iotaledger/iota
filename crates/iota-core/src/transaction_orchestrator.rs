@@ -463,10 +463,10 @@ where
         self.quorum_driver_handler.subscribe_to_effects()
     }
 
-    fn update_metrics(
-        &'_ self,
+    fn update_metrics<'a>(
+        &'a self,
         transaction: &VerifiedTransaction,
-    ) -> (impl Drop, &'_ GenericCounter<AtomicU64>) {
+    ) -> (impl Drop + use<A>, &'a GenericCounter<AtomicU64>) {
         let (in_flight, good_response) = if transaction.contains_shared_object() {
             self.metrics.total_req_received_shared_object.inc();
             (

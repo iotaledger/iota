@@ -1189,7 +1189,7 @@ mod tests {
             .into_iter()
             .map(|(round, author)| {
                 // Create a dummy transaction
-                let transactions = vec![Transaction::new((0..32).map(|_| rng.gen()).collect())];
+                let transactions = vec![Transaction::new((0..32).map(|_| rng.r#gen()).collect())];
                 let serialized = Bytes::from(bcs::to_bytes(&transactions).unwrap());
                 let commitment = TransactionsCommitment::compute_transactions_commitment(
                     &serialized,
@@ -1290,7 +1290,7 @@ mod tests {
         // Create verified transactions with high latency to ensure saturation
         for (round, author) in &block_round_authors {
             // Create a dummy transaction
-            let transactions = vec![Transaction::new((0..32).map(|_| rng.gen()).collect())];
+            let transactions = vec![Transaction::new((0..32).map(|_| rng.r#gen()).collect())];
             let serialized_vec = bcs::to_bytes(&transactions).unwrap();
             let serialized = Bytes::from(serialized_vec);
             let commitment = TransactionsCommitment::compute_transactions_commitment(
@@ -1406,7 +1406,7 @@ mod tests {
             .into_iter()
             .map(|(round, author)| {
                 // Create a dummy transaction
-                let transactions = vec![Transaction::new((0..32).map(|_| rng.gen()).collect())];
+                let transactions = vec![Transaction::new((0..32).map(|_| rng.r#gen()).collect())];
                 let serialized = Bytes::from(bcs::to_bytes(&transactions).unwrap());
                 let commitment = TransactionsCommitment::compute_transactions_commitment(
                     &serialized,
@@ -1525,7 +1525,7 @@ mod tests {
             .into_iter()
             .map(|(round, author)| {
                 // Create a dummy transaction
-                let transactions = vec![Transaction::new((0..32).map(|_| rng.gen()).collect())];
+                let transactions = vec![Transaction::new((0..32).map(|_| rng.r#gen()).collect())];
                 let serialized = Bytes::from(bcs::to_bytes(&transactions).unwrap());
                 let commitment = TransactionsCommitment::compute_transactions_commitment(
                     &serialized,
@@ -1633,7 +1633,7 @@ mod tests {
             .into_iter()
             .map(|(round, author)| {
                 // Create a dummy transaction
-                let transactions = vec![Transaction::new((0..32).map(|_| rng.gen()).collect())];
+                let transactions = vec![Transaction::new((0..32).map(|_| rng.r#gen()).collect())];
                 let serialized = Bytes::from(bcs::to_bytes(&transactions).unwrap());
                 let commitment = TransactionsCommitment::compute_transactions_commitment(
                     &serialized,
@@ -1743,7 +1743,7 @@ mod tests {
             .into_iter()
             .map(|(round, author)| {
                 // Create a dummy transaction
-                let transactions = vec![Transaction::new((0..32).map(|_| rng.gen()).collect())];
+                let transactions = vec![Transaction::new((0..32).map(|_| rng.r#gen()).collect())];
                 let serialized = Bytes::from(bcs::to_bytes(&transactions).unwrap());
                 let commitment = TransactionsCommitment::compute_transactions_commitment(
                     &serialized,
@@ -1851,7 +1851,7 @@ mod tests {
         // Create verified transactions
         for (round, author) in &block_round_author {
             // Create a dummy transaction
-            let transactions = vec![Transaction::new((0..32).map(|_| rng.gen()).collect())];
+            let transactions = vec![Transaction::new((0..32).map(|_| rng.r#gen()).collect())];
             let serialized = Bytes::from(bcs::to_bytes(&transactions).unwrap());
             let commitment = TransactionsCommitment::compute_transactions_commitment(
                 &serialized,

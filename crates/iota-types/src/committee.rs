@@ -169,11 +169,11 @@ impl Committee {
             .unwrap()
     }
 
-    fn choose_multiple_weighted<'a>(
+    fn choose_multiple_weighted<'a, T: Rng>(
         slice: &'a [(AuthorityName, StakeUnit)],
         count: usize,
-        rng: &mut impl Rng,
-    ) -> impl Iterator<Item = &'a AuthorityName> {
+        rng: &mut T,
+    ) -> impl Iterator<Item = &'a AuthorityName> + use<'a, T> {
         // unwrap is safe because we validate the committee composition in `new` above.
         // See https://docs.rs/rand/latest/rand/distributions/weighted/enum.WeightedError.html
         // for possible errors.

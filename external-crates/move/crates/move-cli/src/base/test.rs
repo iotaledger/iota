@@ -250,7 +250,9 @@ pub fn run_move_unit_tests<W: Write + Send>(
     // If we need to compute test coverage set the VM tracking environment variable
     // since we will need this trace to construct the coverage information.
     if compute_coverage {
-        std::env::set_var("MOVE_VM_TRACE", &trace_path);
+        unsafe {
+            std::env::set_var("MOVE_VM_TRACE", &trace_path);
+        }
     }
 
     // Run the tests. If any of the tests fail, then we don't produce a coverage

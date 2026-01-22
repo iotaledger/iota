@@ -233,9 +233,9 @@ fn new_basic_or_nft_outputs(
     };
 
     add_output_with_unlock_conditions(vec![]);
-    add_output_with_unlock_conditions(vec![TimelockUnlockCondition::new(rng.gen())?.into()]);
+    add_output_with_unlock_conditions(vec![TimelockUnlockCondition::new(rng.r#gen())?.into()]);
     add_output_with_unlock_conditions(vec![
-        ExpirationUnlockCondition::new(address, rng.gen())?.into(),
+        ExpirationUnlockCondition::new(address, rng.r#gen())?.into(),
     ]);
     add_output_with_unlock_conditions(vec![
         StorageDepositReturnUnlockCondition::new(address, STORAGE_DEPOSIT_AMOUNT, u64::MAX)?.into(),
@@ -254,12 +254,12 @@ fn new_basic_or_nft_outputs(
         StorageDepositReturnUnlockCondition::new(address, STORAGE_DEPOSIT_AMOUNT, u64::MAX)?.into(),
     ]);
     add_output_with_unlock_conditions(vec![
-        TimelockUnlockCondition::new(rng.gen())?.into(),
-        ExpirationUnlockCondition::new(address, rng.gen())?.into(),
+        TimelockUnlockCondition::new(rng.r#gen())?.into(),
+        ExpirationUnlockCondition::new(address, rng.r#gen())?.into(),
     ]);
     add_output_with_unlock_conditions(vec![
-        TimelockUnlockCondition::new(rng.gen())?.into(),
-        ExpirationUnlockCondition::new(address, rng.gen())?.into(),
+        TimelockUnlockCondition::new(rng.r#gen())?.into(),
+        ExpirationUnlockCondition::new(address, rng.r#gen())?.into(),
         StorageDepositReturnUnlockCondition::new(address, STORAGE_DEPOSIT_AMOUNT, u64::MAX)?.into(),
     ]);
 
@@ -289,7 +289,7 @@ fn random_alias_foundry_native_token(
     let mut native_tokens_for_basic_outputs = vec![];
     let mut outputs = vec![];
     for i in 0..rng.gen_range(0..3) {
-        let alias_id = AliasId::new(rng.gen());
+        let alias_id = AliasId::new(rng.r#gen());
         let token_scheme = TokenScheme::Simple(SimpleTokenScheme::new(1200, 0, 1200)?);
         let foundry_id = FoundryId::build(&AliasAddress::from(alias_id), 1, token_scheme.kind());
         let token_id = TokenId::from(foundry_id);
@@ -330,7 +330,7 @@ fn random_alias_foundry_native_token(
 fn finish_with_header(builder: impl Into<Output>, rng: &mut StdRng) -> (OutputHeader, Output) {
     (
         OutputHeader::new(
-            rng.gen::<[u8; 32]>(),
+            rng.r#gen::<[u8; 32]>(),
             random_output_index_with_rng(rng),
             [0; 32],
             MERGE_MILESTONE_INDEX,

@@ -83,15 +83,15 @@ impl RpcCommandProcessor {
         signer_info: &Option<SignerInfo>,
     ) -> Result<()> {
         match command {
-            CommandData::DryRun(ref v) => self.process(v, signer_info).await,
-            CommandData::GetCheckpoints(ref v) => self.process(v, signer_info).await,
-            CommandData::PayIota(ref v) => self.process(v, signer_info).await,
-            CommandData::QueryTransactionBlocks(ref v) => self.process(v, signer_info).await,
-            CommandData::MultiGetTransactionBlocks(ref v) => self.process(v, signer_info).await,
-            CommandData::MultiGetObjects(ref v) => self.process(v, signer_info).await,
-            CommandData::GetObject(ref v) => self.process(v, signer_info).await,
-            CommandData::GetAllBalances(ref v) => self.process(v, signer_info).await,
-            CommandData::GetReferenceGasPrice(ref v) => self.process(v, signer_info).await,
+            CommandData::DryRun(v) => self.process(v, signer_info).await,
+            CommandData::GetCheckpoints(v) => self.process(v, signer_info).await,
+            CommandData::PayIota(v) => self.process(v, signer_info).await,
+            CommandData::QueryTransactionBlocks(v) => self.process(v, signer_info).await,
+            CommandData::MultiGetTransactionBlocks(v) => self.process(v, signer_info).await,
+            CommandData::MultiGetObjects(v) => self.process(v, signer_info).await,
+            CommandData::GetObject(v) => self.process(v, signer_info).await,
+            CommandData::GetAllBalances(v) => self.process(v, signer_info).await,
+            CommandData::GetReferenceGasPrice(v) => self.process(v, signer_info).await,
         }
     }
 

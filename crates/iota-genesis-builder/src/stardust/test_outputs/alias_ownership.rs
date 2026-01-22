@@ -130,7 +130,7 @@ fn random_nft_output(
         .with_description("description");
 
     let amount = rng.gen_range(1_000_000..10_000_000);
-    let nft_output = NftOutputBuilder::new_with_amount(amount, NftId::new(rng.gen()))
+    let nft_output = NftOutputBuilder::new_with_amount(amount, NftId::new(rng.r#gen()))
         .add_unlock_condition(AddressUnlockCondition::new(owner))
         .with_immutable_features(vec![
             Feature::Metadata(MetadataFeature::new(serde_json::to_vec(&nft_metadata)?)?),
@@ -149,7 +149,7 @@ fn random_alias_output(
     let alias_output_header = random_output_header(rng);
 
     let amount = rng.gen_range(1_000_000..10_000_000);
-    let alias_output = AliasOutputBuilder::new_with_amount(amount, AliasId::new(rng.gen()))
+    let alias_output = AliasOutputBuilder::new_with_amount(amount, AliasId::new(rng.r#gen()))
         .add_unlock_condition(GovernorAddressUnlockCondition::new(owner))
         .add_unlock_condition(StateControllerAddressUnlockCondition::new(owner))
         .finish()?;
@@ -181,10 +181,10 @@ fn random_foundry_output(
 
 fn random_output_header(rng: &mut StdRng) -> OutputHeader {
     OutputHeader::new(
-        rng.gen(),
+        rng.r#gen(),
         OutputIndex::new(rng.gen_range(OUTPUT_INDEX_RANGE))
             .expect("range is guaranteed to be valid"),
-        rng.gen(),
+        rng.r#gen(),
         MERGE_MILESTONE_INDEX,
         MERGE_TIMESTAMP_SECS,
     )

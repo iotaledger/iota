@@ -888,7 +888,7 @@ impl ConnectionKnowledge {
             .last_useful_headers_to_peer_round
             .iter()
             .enumerate()
-            .filter(|(_authority_index, &opt_round)| {
+            .filter(|&(ref _authority_index, &opt_round)| {
                 if let Some(round) = opt_round {
                     round.saturating_add(MAX_ROUND_GAP_FOR_USEFUL_PARTS) >= block_round
                 } else {
@@ -916,7 +916,7 @@ impl ConnectionKnowledge {
             .last_useful_shards_to_peer_round
             .iter()
             .enumerate()
-            .filter(|(_authority_index, &opt_round)| {
+            .filter(|&(ref _authority_index, &opt_round)| {
                 if let Some(round) = opt_round {
                     round.saturating_add(MAX_ROUND_GAP_FOR_USEFUL_PARTS) >= block_round
                 } else {
@@ -945,7 +945,7 @@ impl ConnectionKnowledge {
             .last_useful_headers_from_peer_round
             .iter()
             .enumerate()
-            .filter(|(_authority_index, &opt_round)| {
+            .filter(|&(ref _authority_index, &opt_round)| {
                 if let Some(round) = opt_round {
                     round.saturating_add(MAX_ROUND_GAP_FOR_USEFUL_PARTS) >= block_round
                 } else {
@@ -960,7 +960,7 @@ impl ConnectionKnowledge {
             .last_useful_shards_from_peer_round
             .iter()
             .enumerate()
-            .filter(|(_authority_index, &opt_round)| {
+            .filter(|&(ref _authority_index, &opt_round)| {
                 if let Some(round) = opt_round {
                     round.saturating_add(MAX_ROUND_GAP_FOR_USEFUL_PARTS) >= block_round
                 } else {

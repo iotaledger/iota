@@ -59,7 +59,7 @@ fn test_impl(toml_path: &Path, flags: DocgenFlags, test_case: &str) -> datatest_
     };
     let options = options(root_doc_template, flags);
     let docgen = Docgen::new(&model, &options);
-    let file_contents = docgen.gen(&model)?;
+    let file_contents = docgen.generate(&model)?;
     let [(path, contents)] = file_contents
         .iter()
         .filter(|(path, _contents)| !path.contains("dependencies"))

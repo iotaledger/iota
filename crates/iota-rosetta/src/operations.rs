@@ -503,7 +503,7 @@ impl Operations {
         balance_changes: &[BalanceChange],
         status: Option<OperationStatus>,
         balances: HashMap<IotaAddress, i128>,
-    ) -> impl Iterator<Item = Operation> {
+    ) -> impl Iterator<Item = Operation> + use<> {
         let mut balances = balance_changes
             .iter()
             .fold(balances, |mut balances, balance_change| {

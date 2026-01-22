@@ -432,10 +432,10 @@ impl CompiledModuleStrategyGen {
 /// index. If the random index at the first choice collides with the avoidance,
 /// then try +/- 1 from the chosen value and pick the one that does not
 /// over/under-flow.
-pub(crate) fn prop_index_avoid(gen: PropIndex, avoid: usize, pool_size: usize) -> usize {
+pub(crate) fn prop_index_avoid(generator: PropIndex, avoid: usize, pool_size: usize) -> usize {
     assert!(pool_size > 1);
     assert!(pool_size > avoid);
-    let rand = gen.index(pool_size);
+    let rand = generator.index(pool_size);
     if rand != avoid {
         return rand;
     }

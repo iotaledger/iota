@@ -2,7 +2,7 @@
 name = "iota"
 version.workspace = true
 authors = ["IOTA Foundation <info@iota.org>"]
-edition = "2021"
+edition = "2024"
 license = "Apache-2.0"
 publish = false
 description = "Bringing the real world to Web3 with a scalable, decentralized and programmable DLT infrastructure"

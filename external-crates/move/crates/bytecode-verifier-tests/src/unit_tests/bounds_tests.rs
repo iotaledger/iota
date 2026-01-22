@@ -77,7 +77,7 @@ fn invalid_type_param_in_field() {
 
     let mut m = basic_test_module();
     match &mut m.struct_defs[0].field_information {
-        StructFieldInformation::Declared(ref mut fields) => {
+        StructFieldInformation::Declared(fields) => {
             fields[0].signature.0 = TypeParameter(0);
             assert_eq!(
                 BoundsChecker::verify_module(&m).unwrap_err().major_status(),
@@ -94,7 +94,7 @@ fn invalid_struct_in_field() {
 
     let mut m = basic_test_module();
     match &mut m.struct_defs[0].field_information {
-        StructFieldInformation::Declared(ref mut fields) => {
+        StructFieldInformation::Declared(fields) => {
             fields[0].signature.0 = Datatype(DatatypeHandleIndex::new(3));
             assert_eq!(
                 BoundsChecker::verify_module(&m).unwrap_err().major_status(),
@@ -111,7 +111,7 @@ fn invalid_struct_with_actuals_in_field() {
 
     let mut m = basic_test_module();
     match &mut m.struct_defs[0].field_information {
-        StructFieldInformation::Declared(ref mut fields) => {
+        StructFieldInformation::Declared(fields) => {
             fields[0].signature.0 = DatatypeInstantiation(Box::new((
                 DatatypeHandleIndex::new(0),
                 vec![TypeParameter(0)],

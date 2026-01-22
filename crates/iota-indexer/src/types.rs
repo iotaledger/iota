@@ -245,15 +245,15 @@ impl EventIndex {
 
         let mut rng = rand::thread_rng();
         EventIndex {
-            tx_sequence_number: rng.gen(),
-            event_sequence_number: rng.gen(),
+            tx_sequence_number: rng.r#gen(),
+            event_sequence_number: rng.r#gen(),
             sender: IotaAddress::random_for_testing_only(),
             emit_package: ObjectID::random(),
-            emit_module: rng.gen::<u64>().to_string(),
+            emit_module: rng.r#gen::<u64>().to_string(),
             type_package: ObjectID::random(),
-            type_module: rng.gen::<u64>().to_string(),
-            type_name: rng.gen::<u64>().to_string(),
-            type_instantiation: rng.gen::<u64>().to_string(),
+            type_module: rng.r#gen::<u64>().to_string(),
+            type_name: rng.r#gen::<u64>().to_string(),
+            type_instantiation: rng.r#gen::<u64>().to_string(),
         }
     }
 }
@@ -348,7 +348,7 @@ impl IndexedObject {
         let mut rng = rand::thread_rng();
         let random_address = IotaAddress::random_for_testing_only();
         IndexedObject {
-            checkpoint_sequence_number: rng.gen(),
+            checkpoint_sequence_number: rng.r#gen(),
             object: Object::with_owner_for_testing(random_address),
             df_kind: {
                 let random_value = rng.gen_range(0..3);
@@ -375,8 +375,8 @@ impl IndexedDeletedObject {
         let mut rng = rand::thread_rng();
         IndexedDeletedObject {
             object_id: ObjectID::random(),
-            object_version: rng.gen(),
-            checkpoint_sequence_number: rng.gen(),
+            object_version: rng.r#gen(),
+            checkpoint_sequence_number: rng.r#gen(),
         }
     }
 }
@@ -459,10 +459,10 @@ impl TxIndex {
         let wrapped_or_deleted_objects = repeat_with(ObjectID::random).take(MAX_OBJECTS).collect();
 
         TxIndex {
-            tx_sequence_number: rng.gen(),
+            tx_sequence_number: rng.r#gen(),
             tx_kind,
             transaction_digest: TransactionDigest::random(),
-            checkpoint_sequence_number: rng.gen(),
+            checkpoint_sequence_number: rng.r#gen(),
             input_objects,
             changed_objects,
             payers,

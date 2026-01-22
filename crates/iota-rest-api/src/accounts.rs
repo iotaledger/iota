@@ -26,7 +26,7 @@ impl ApiEndpoint<RestService> for ListAccountObjects {
         "/accounts/{account}/objects"
     }
 
-    fn operation(&self, generator: &mut schemars::gen::SchemaGenerator) -> Operation {
+    fn operation(&self, generator: &mut schemars::r#gen::SchemaGenerator) -> Operation {
         OperationBuilder::new()
             .tag("Account")
             .operation_id("ListAccountObjects")

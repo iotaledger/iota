@@ -646,7 +646,9 @@ async fn get_all_coins_limit_zero_with_env_var() {
     let http_client = cluster.rpc_client();
     let address = cluster.get_address_0();
 
-    std::env::set_var("RPC_QUERY_MAX_RESULT_LIMIT", "0");
+    unsafe {
+        std::env::set_var("RPC_QUERY_MAX_RESULT_LIMIT", "0");
+    }
 
     let rpc_all_coins = http_client
         .get_all_coins(address, None, Some(0))

@@ -2,7 +2,7 @@
 name = "typed-store-error"
 version.workspace = true
 authors = ["IOTA Foundation <info@iota.org>"]
-edition = "2021"
+edition = "2024"
 license = "Apache-2.0"
 publish = false
 description = "error types for typed-store crate"

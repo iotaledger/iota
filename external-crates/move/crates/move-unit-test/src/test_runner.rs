@@ -404,14 +404,14 @@ impl SharedTestingConfig {
     fn generate_value_for_typetag(rng: &mut StdRng, ty: &TypeTag) -> MoveValue {
         match ty {
             TypeTag::Address => {
-                MoveValue::Address(AccountAddress::from_bytes(rng.gen::<[u8; 32]>()).unwrap())
+                MoveValue::Address(AccountAddress::from_bytes(rng.r#gen::<[u8; 32]>()).unwrap())
             }
-            TypeTag::U8 => MoveValue::U8(rng.gen::<u8>()),
-            TypeTag::U16 => MoveValue::U16(rng.gen::<u16>()),
-            TypeTag::U32 => MoveValue::U32(rng.gen::<u32>()),
-            TypeTag::U64 => MoveValue::U64(rng.gen::<u64>()),
-            TypeTag::U128 => MoveValue::U128(rng.gen::<u128>()),
-            TypeTag::U256 => MoveValue::U256(rng.gen::<U256>()),
+            TypeTag::U8 => MoveValue::U8(rng.r#gen::<u8>()),
+            TypeTag::U16 => MoveValue::U16(rng.r#gen::<u16>()),
+            TypeTag::U32 => MoveValue::U32(rng.r#gen::<u32>()),
+            TypeTag::U64 => MoveValue::U64(rng.r#gen::<u64>()),
+            TypeTag::U128 => MoveValue::U128(rng.r#gen::<u128>()),
+            TypeTag::U256 => MoveValue::U256(rng.r#gen::<U256>()),
             TypeTag::Vector(ty) => {
                 let len = rng.gen_range(0..1024);
                 let values = (0..len)
@@ -419,7 +419,7 @@ impl SharedTestingConfig {
                     .collect();
                 MoveValue::Vector(values)
             }
-            TypeTag::Bool => MoveValue::Bool(rng.gen::<bool>()),
+            TypeTag::Bool => MoveValue::Bool(rng.r#gen::<bool>()),
             TypeTag::Struct(_) => {
                 unreachable!(
                     "Structs are not supported as generated values in unit tests and cannot get to this point"

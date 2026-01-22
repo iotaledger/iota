@@ -39,7 +39,7 @@ impl EventClient {
     pub async fn stream_events(
         &mut self,
         filter: grpc_events::EventFilter,
-    ) -> Result<impl Stream<Item = Result<IotaEvent, tonic::Status>>, tonic::Status> {
+    ) -> Result<impl Stream<Item = Result<IotaEvent, tonic::Status>> + use<>, tonic::Status> {
         let request = grpc_events::EventStreamRequest {
             filter: Some(filter),
         };

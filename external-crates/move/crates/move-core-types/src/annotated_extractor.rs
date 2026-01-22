@@ -103,7 +103,7 @@ impl<'b, 'l, V: AV::Visitor<'b, 'l>> AV::Visitor<'b, 'l> for Extractor<'_, '_, V
         value: u8,
     ) -> Result<Self::Value, Self::Error> {
         Ok(match self.path {
-            [] | [Element::Type(&TypeTag::U8)] => Some(self.inner.visit_u8(driver, value)?),
+            [] | [Element::Type(TypeTag::U8)] => Some(self.inner.visit_u8(driver, value)?),
             _ => None,
         })
     }
@@ -114,7 +114,7 @@ impl<'b, 'l, V: AV::Visitor<'b, 'l>> AV::Visitor<'b, 'l> for Extractor<'_, '_, V
         value: u16,
     ) -> Result<Self::Value, Self::Error> {
         Ok(match self.path {
-            [] | [Element::Type(&TypeTag::U16)] => Some(self.inner.visit_u16(driver, value)?),
+            [] | [Element::Type(TypeTag::U16)] => Some(self.inner.visit_u16(driver, value)?),
             _ => None,
         })
     }
@@ -125,7 +125,7 @@ impl<'b, 'l, V: AV::Visitor<'b, 'l>> AV::Visitor<'b, 'l> for Extractor<'_, '_, V
         value: u32,
     ) -> Result<Self::Value, Self::Error> {
         Ok(match self.path {
-            [] | [Element::Type(&TypeTag::U32)] => Some(self.inner.visit_u32(driver, value)?),
+            [] | [Element::Type(TypeTag::U32)] => Some(self.inner.visit_u32(driver, value)?),
             _ => None,
         })
     }
@@ -136,7 +136,7 @@ impl<'b, 'l, V: AV::Visitor<'b, 'l>> AV::Visitor<'b, 'l> for Extractor<'_, '_, V
         value: u64,
     ) -> Result<Self::Value, Self::Error> {
         Ok(match self.path {
-            [] | [Element::Type(&TypeTag::U64)] => Some(self.inner.visit_u64(driver, value)?),
+            [] | [Element::Type(TypeTag::U64)] => Some(self.inner.visit_u64(driver, value)?),
             _ => None,
         })
     }
@@ -147,7 +147,7 @@ impl<'b, 'l, V: AV::Visitor<'b, 'l>> AV::Visitor<'b, 'l> for Extractor<'_, '_, V
         value: u128,
     ) -> Result<Self::Value, Self::Error> {
         Ok(match self.path {
-            [] | [Element::Type(&TypeTag::U128)] => Some(self.inner.visit_u128(driver, value)?),
+            [] | [Element::Type(TypeTag::U128)] => Some(self.inner.visit_u128(driver, value)?),
             _ => None,
         })
     }
@@ -158,7 +158,7 @@ impl<'b, 'l, V: AV::Visitor<'b, 'l>> AV::Visitor<'b, 'l> for Extractor<'_, '_, V
         value: crate::u256::U256,
     ) -> Result<Self::Value, Self::Error> {
         Ok(match self.path {
-            [] | [Element::Type(&TypeTag::U256)] => Some(self.inner.visit_u256(driver, value)?),
+            [] | [Element::Type(TypeTag::U256)] => Some(self.inner.visit_u256(driver, value)?),
             _ => None,
         })
     }
@@ -169,7 +169,7 @@ impl<'b, 'l, V: AV::Visitor<'b, 'l>> AV::Visitor<'b, 'l> for Extractor<'_, '_, V
         value: bool,
     ) -> Result<Self::Value, Self::Error> {
         Ok(match self.path {
-            [] | [Element::Type(&TypeTag::Bool)] => Some(self.inner.visit_bool(driver, value)?),
+            [] | [Element::Type(TypeTag::Bool)] => Some(self.inner.visit_bool(driver, value)?),
             _ => None,
         })
     }
@@ -180,7 +180,7 @@ impl<'b, 'l, V: AV::Visitor<'b, 'l>> AV::Visitor<'b, 'l> for Extractor<'_, '_, V
         value: AccountAddress,
     ) -> Result<Self::Value, Self::Error> {
         Ok(match self.path {
-            [] | [Element::Type(&TypeTag::Address)] => {
+            [] | [Element::Type(TypeTag::Address)] => {
                 Some(self.inner.visit_address(driver, value)?)
             }
             _ => None,
@@ -193,7 +193,7 @@ impl<'b, 'l, V: AV::Visitor<'b, 'l>> AV::Visitor<'b, 'l> for Extractor<'_, '_, V
         value: AccountAddress,
     ) -> Result<Self::Value, Self::Error> {
         Ok(match self.path {
-            [] | [Element::Type(&TypeTag::Signer)] => Some(self.inner.visit_signer(driver, value)?),
+            [] | [Element::Type(TypeTag::Signer)] => Some(self.inner.visit_signer(driver, value)?),
             _ => None,
         })
     }

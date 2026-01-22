@@ -421,7 +421,7 @@ impl DiscoveryEventLoop {
         let eligible: Vec<_> = state
             .known_peers
             .iter()
-            .filter(|(&peer_id, info)| {
+            .filter(|&(&peer_id, ref info)| {
                 peer_id != self.network.peer_id()
                     && !info.addresses.is_empty() // Peer has addresses we can dial
                     && !state.connected_peers.contains_key(&peer_id) // We're not already connected

@@ -198,7 +198,7 @@ async fn direct_commit_late_call() {
     assert_eq!(sequence.len(), num_waves - 1_usize);
     for (i, leader_block) in sequence.iter().enumerate() {
         let leader_round = committer.committers[0].leader_round(i as u32 + 1);
-        if let DecidedLeader::Commit(ref block) = leader_block {
+        if let DecidedLeader::Commit(block) = leader_block {
             assert_eq!(block.round(), leader_round);
             assert_eq!(block.author(), committer.get_leaders(leader_round)[0]);
         } else {
@@ -391,7 +391,7 @@ async fn indirect_commit() {
     for (idx, decided_leader) in sequence.iter().enumerate() {
         let leader_round = committer.committers[0].leader_round(idx as u32 + 1);
         let expected_leader = committer.get_leaders(leader_round)[0];
-        if let DecidedLeader::Commit(ref block) = decided_leader {
+        if let DecidedLeader::Commit(block) = decided_leader {
             assert_eq!(block.round(), leader_round);
             assert_eq!(block.author(), expected_leader);
         } else {

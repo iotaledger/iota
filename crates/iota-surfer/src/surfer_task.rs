@@ -104,7 +104,7 @@ impl SurferTask {
             .into_iter()
             .enumerate()
             .map(|(id, (address, (gas_object, owned_objects)))| {
-                let seed = rng.gen::<u64>();
+                let seed = rng.r#gen::<u64>();
                 let state_rng = StdRng::seed_from_u64(seed);
                 let state = SurferState::new(
                     id,

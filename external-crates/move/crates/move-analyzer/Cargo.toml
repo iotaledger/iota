@@ -6,7 +6,7 @@ authors = ["IOTA Foundation <info@iota.org>"]
 # should not be used "as is", as it sits somewhere
 # in the middle between supporting IOTA and not supporting it (fully)
 autobins = false
-edition = "2021"
+edition = "2024"
 license = "Apache-2.0"
 publish = false
 description = "A language server for Move"

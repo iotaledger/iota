@@ -4107,7 +4107,9 @@ pub mod prop {
 
     use super::*;
 
-    pub fn value_strategy_with_layout(layout: &MoveTypeLayout) -> impl Strategy<Value = Value> {
+    pub fn value_strategy_with_layout(
+        layout: &MoveTypeLayout,
+    ) -> impl Strategy<Value = Value> + use<> {
         use MoveTypeLayout as L;
 
         match layout {

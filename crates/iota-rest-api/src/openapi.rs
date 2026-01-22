@@ -20,7 +20,7 @@ use openapiv3::v3_1::{
     Components, Header, Info, MediaType, OpenApi, Operation, Parameter, ParameterData, PathItem,
     Paths, ReferenceOr, RequestBody, Response, SchemaObject, Tag,
 };
-use schemars::{JsonSchema, gen::SchemaGenerator};
+use schemars::{JsonSchema, r#gen::SchemaGenerator};
 use tap::Pipe;
 
 pub trait ApiEndpoint<S> {
@@ -121,11 +121,11 @@ impl<'a, S> Api<'a, S> {
             ..Default::default()
         };
 
-        let settings = schemars::gen::SchemaSettings::draft07().with(|s| {
+        let settings = schemars::r#gen::SchemaSettings::draft07().with(|s| {
             s.definitions_path = "#/components/schemas/".into();
             s.option_add_null_type = false;
         });
-        let mut generator = schemars::gen::SchemaGenerator::new(settings);
+        let mut generator = schemars::r#gen::SchemaGenerator::new(settings);
         let mut tags = HashSet::new();
 
         let paths = openapi
@@ -186,7 +186,7 @@ impl<'a, S> Api<'a, S> {
 
     fn register_endpoint<S2>(
         endpoint: &dyn ApiEndpoint<S2>,
-        generator: &mut schemars::gen::SchemaGenerator,
+        generator: &mut schemars::r#gen::SchemaGenerator,
         paths: &mut Paths,
         tags: &mut HashSet<String>,
     ) {
@@ -196,7 +196,7 @@ impl<'a, S> Api<'a, S> {
             .or_insert(ReferenceOr::Item(PathItem::default()));
 
         let pathitem = match path {
-            openapiv3::v3_1::ReferenceOr::Item(ref mut item) => item,
+            openapiv3::v3_1::ReferenceOr::Item(item) => item,
             _ => panic!("reference not expected"),
         };
 
@@ -298,7 +298,7 @@ impl ApiEndpoint<Arc<OpenApiDocument>> for OpenApiJson {
 
     fn operation(
         &self,
-        _generator: &mut schemars::gen::SchemaGenerator,
+        _generator: &mut schemars::r#gen::SchemaGenerator,
     ) -> openapiv3::v3_1::Operation {
         OperationBuilder::new()
             .tag("OpenAPI")
@@ -335,7 +335,7 @@ impl ApiEndpoint<Arc<OpenApiDocument>> for OpenApiYaml {
 
     fn operation(
         &self,
-        _generator: &mut schemars::gen::SchemaGenerator,
+        _generator: &mut schemars::r#gen::SchemaGenerator,
     ) -> openapiv3::v3_1::Operation {
         OperationBuilder::new()
             .tag("OpenAPI")
@@ -373,7 +373,7 @@ impl ApiEndpoint<Arc<OpenApiDocument>> for OpenApiExplorer {
 
     fn operation(
         &self,
-        _generator: &mut schemars::gen::SchemaGenerator,
+        _generator: &mut schemars::r#gen::SchemaGenerator,
     ) -> openapiv3::v3_1::Operation {
         OperationBuilder::new()
             .tag("OpenAPI")

@@ -363,10 +363,10 @@ impl ModuleCache {
         {
             match Arc::get_mut(cached_type) {
                 Some(ref mut x) => match (&mut x.datatype_info, field_info) {
-                    (Datatype::Enum(ref mut enum_type), FieldTypeInfo::Enum(field_info)) => {
+                    (Datatype::Enum(enum_type), FieldTypeInfo::Enum(field_info)) => {
                         enum_type.variants = field_info;
                     }
-                    (Datatype::Struct(ref mut struct_type), FieldTypeInfo::Struct(field_info)) => {
+                    (Datatype::Struct(struct_type), FieldTypeInfo::Struct(field_info)) => {
                         struct_type.fields = field_info;
                     }
                     _ => {

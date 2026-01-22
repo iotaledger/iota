@@ -247,7 +247,9 @@ mod tests {
         // two tests, so it shouldn't be an issue (yet) even still, the other
         // tests complete very fast so those tests would also need to slow down by
         // orders and orders to be bothered by this env var
-        std::env::set_var("NODE_CLIENT_TIMEOUT", "5");
+        unsafe {
+            std::env::set_var("NODE_CLIENT_TIMEOUT", "5");
+        }
 
         let app = admin::app(
             Labels {
@@ -315,6 +317,8 @@ mod tests {
         let status = res.status();
         assert_eq!(status, StatusCode::REQUEST_TIMEOUT);
         // Clean up the environment variable
-        std::env::remove_var("NODE_CLIENT_TIMEOUT");
+        unsafe {
+            std::env::remove_var("NODE_CLIENT_TIMEOUT");
+        }
     }
 }

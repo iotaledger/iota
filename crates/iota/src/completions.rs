@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use clap::{Command, CommandFactory, Parser, ValueEnum};
-use clap_complete::{Generator, Shell, generate, generate_to};
+use clap_complete::{Generator, Shell, generate as clap_generate, generate_to as clap_generate_to};
 use strum::{EnumIter, IntoEnumIterator};
 
 use crate::iota_commands::IotaCommand;
@@ -61,23 +61,27 @@ impl GenerateCompletionsCommand {
             std::fs::create_dir(out_dir).ok();
         }
 
-        fn gen(shell: GenShell, out_dir: &Option<String>, cli: &mut Command) -> anyhow::Result<()> {
+        fn generate(
+            shell: GenShell,
+            out_dir: &Option<String>,
+            cli: &mut Command,
+        ) -> anyhow::Result<()> {
             match out_dir {
                 Some(out_dir) => {
-                    generate_to(shell, cli, env!("CARGO_PKG_NAME"), out_dir)?;
+                    clap_generate_to(shell, cli, env!("CARGO_PKG_NAME"), out_dir)?;
                 }
                 None => {
-                    generate(shell, cli, env!("CARGO_PKG_NAME"), &mut std::io::stdout());
+                    clap_generate(shell, cli, env!("CARGO_PKG_NAME"), &mut std::io::stdout());
                 }
             }
             Ok(())
         }
 
         if let Some(shell) = shell {
-            gen(shell, &out_dir, &mut cli)?;
+            generate(shell, &out_dir, &mut cli)?;
         } else {
             for shell in GenShell::iter() {
-                gen(shell, &out_dir, &mut cli)?;
+                generate(shell, &out_dir, &mut cli)?;
             }
         }
 

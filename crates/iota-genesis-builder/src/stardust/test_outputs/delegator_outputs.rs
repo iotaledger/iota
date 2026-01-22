@@ -31,7 +31,7 @@ pub(crate) fn new_simple_basic_output(
     rng: &mut StdRng,
 ) -> anyhow::Result<(OutputHeader, Output)> {
     let output_header = OutputHeader::new(
-        rng.gen::<[u8; 32]>(),
+        rng.r#gen::<[u8; 32]>(),
         random_output_index_with_rng(rng),
         [0; 32],
         MERGE_MILESTONE_INDEX,

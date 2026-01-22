@@ -102,7 +102,9 @@ async fn test_rpc_backward_compatibility() {
 
 #[tokio::test]
 async fn test_disable_routing() {
-    env::set_var("DISABLE_BACKWARD_COMPATIBILITY", "true");
+    unsafe {
+        env::set_var("DISABLE_BACKWARD_COMPATIBILITY", "true");
+    }
 
     let mut builder = JsonRpcServerBuilder::new("1.5", &Registry::new(), None, None);
     builder.register_module(TestApiModule).unwrap();

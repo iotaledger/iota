@@ -855,7 +855,7 @@ impl CompiledPackage {
             flags: docgen_flags,
         };
         let docgen = Docgen::new(model, &doc_options);
-        docgen.gen(model)
+        docgen.generate(model)
     }
 }
 

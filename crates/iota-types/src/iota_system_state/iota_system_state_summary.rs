@@ -392,15 +392,15 @@ macro_rules! state_summary_get {
     // Direct field access - returns a reference
     ($enum:expr, $field:ident) => {{
         match $enum {
-            IotaSystemStateSummary::V1(ref inner) => &inner.$field,
-            IotaSystemStateSummary::V2(ref inner) => &inner.$field,
+            IotaSystemStateSummary::V1(inner) => &inner.$field,
+            IotaSystemStateSummary::V2(inner) => &inner.$field,
         }
     }};
     // Field access with transformation - applies the expression
     ($enum:expr, $field:ident => $transform:expr) => {{
         match $enum {
-            IotaSystemStateSummary::V1(ref inner) => $transform(inner.$field),
-            IotaSystemStateSummary::V2(ref inner) => $transform(inner.$field),
+            IotaSystemStateSummary::V1(inner) => $transform(inner.$field),
+            IotaSystemStateSummary::V2(inner) => $transform(inner.$field),
         }
     }};
 }
