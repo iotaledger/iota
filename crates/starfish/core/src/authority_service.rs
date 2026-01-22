@@ -984,25 +984,28 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
 
         // Bound the range based on sync type.
         let batch_size = commit_sync_type.commit_sync_batch_size(&self.context);
-        let inclusive_end = commit_range
+        let inclusive_bound = commit_range
             .end()
             .min(commit_range.start() + batch_size as CommitIndex - 1);
-        // First, find the highest certifiable commit index
-        let Some((highest_index, certifier_block_refs)) = self
-            .find_highest_certifiable_commit_in_range(
-                &commit_range,
-                inclusive_end,
-                &commit_sync_type,
-            )?
+
+        // Find certifiable commit based on sync type
+        let find_certifiable_commit = |commit_sync_type: &CommitSyncType| -> ConsensusResult<Option<(CommitIndex, Vec<BlockRef>)>> {
+            match commit_sync_type {
+                CommitSyncType::Regular => self.find_highest_certifiable_commit_in_range(&commit_range, inclusive_bound, commit_sync_type),
+                CommitSyncType::Fast => self.find_lowest_certifiable_commit_from(inclusive_bound, commit_sync_type),
+            }
+        };
+
+        let Some((new_commit_end, certifier_block_refs)) =
+            find_certifiable_commit(&commit_sync_type)?
         else {
-            // No certifiable commits found
             return Ok((vec![], vec![]));
         };
 
-        // Then scan commits up to the highest certifiable index
+        // Then scan commits up to the certifiable index
         let commits = self
             .store
-            .scan_commits((commit_range.start()..=highest_index).into())?;
+            .scan_commits((commit_range.start()..=new_commit_end).into())?;
         // Try reading from voting block headers storage first, then fallback to regular
         // block headers for any that weren't found.
         let voting_headers = self
