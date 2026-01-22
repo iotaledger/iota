@@ -381,13 +381,6 @@ pub enum UserInputError {
         "Mutable shared object {object_id:?} is in the `MoveAuthenticator` input that is unsupported"
     )]
     MutableSharedIsInMoveAuthenticatorInput { object_id: ObjectID },
-    #[error(
-        "Receiving object {receiving_object_id:?} is not allowed for Account Object {account_object_id:?}"
-    )]
-    ReceivingObjectForAccountObject {
-        receiving_object_id: ObjectID,
-        account_object_id: ObjectID,
-    },
 }
 
 #[derive(
