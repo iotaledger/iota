@@ -737,7 +737,7 @@ pub(crate) fn sort_sub_dag_blocks(block_headers: &mut [VerifiedBlockHeader]) {
     })
 }
 
-// Recovers the full CommittedSubDag from block store, based on Commit.
+// Recovers PendingSubDAG from block store, based on Commit.
 pub fn load_pending_subdag_from_store(
     store: &dyn Store,
     commit: TrustedCommit,

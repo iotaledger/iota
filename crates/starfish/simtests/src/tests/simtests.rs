@@ -26,7 +26,7 @@ mod test {
     use tokio::{sync::RwLock, time::sleep};
     use typed_store::DBMetrics;
 
-    use crate::node::{AuthorityNode, Config};
+    use crate::node::{AuthorityNode, Config, RestartMode};
 
     fn test_config() -> SimConfig {
         env_config(
@@ -145,11 +145,14 @@ mod test {
     ///    (some may be lost during restarts when in RAM)
     ///
     /// Parameters:
-    /// - `clean_db`: If true, authorities restart with fresh empty DBs
-    ///   (simulates node replacement)
+    /// - `mode`: Restart mode controlling DB and state persistence
+    ///   - `CleanAll`: Fresh empty DB (simulates node replacement)
+    ///   - `PersistAll`: Keep DB and state (crash recovery)
+    ///   - `ResetLastProcessed`: Keep DB but reset tracking (tests two-phase
+    ///     recovery)
     /// - `long_run`: If true, use longer pre-stop and catch-up times
     /// - `long_restart`: If true, use longer stopped duration
-    async fn run_sequential_restarts_test(clean_db: bool, long_run: bool, long_restart: bool) {
+    async fn run_sequential_restarts_test(mode: RestartMode, long_run: bool, long_restart: bool) {
         // ═══════════════════════════════════════════════════════════════
         // Constants
         // ═══════════════════════════════════════════════════════════════
@@ -327,17 +330,11 @@ mod test {
                 )
                 .await;
 
-                // Restart the authority (with or without clean DB)
-                authorities[authority_idx].restart(clean_db).await.unwrap();
+                // Restart the authority with the specified mode
+                authorities[authority_idx].restart(mode).await.unwrap();
                 authorities[authority_idx]
                     .spawn_committed_subdag_consumer()
                     .unwrap();
-
-                // For clean DB restarts, the node's internal state is reset to 0, so use that
-                // as the baseline for sync metrics. For persistent DB restarts,
-                // the node retains its state, so use the captured
-                // commit_at_stop value.
-                let sync_baseline = if clean_db { 0 } else { commit_at_stop };
 
                 // Wait for catch-up
                 sleep(restart_config.post_restart_wait).await;
@@ -346,7 +343,6 @@ mod test {
                     .iter()
                     .map(|a| a.commit_consumer_monitor().highest_handled_commit())
                     .collect();
-                let restarted = commits_after[authority_idx];
                 let network_max = commits_after
                     .iter()
                     .enumerate()
@@ -440,46 +436,64 @@ mod test {
         );
     }
 
+    /// Fresh DB after each restart, long run before stop, long stop duration.
     #[sim_test(config = "test_config()")]
     async fn test_sequential_restarts_clean_db_long_run_long_stop() {
-        run_sequential_restarts_test(true, true, true).await;
+        run_sequential_restarts_test(RestartMode::CleanAll, true, true).await;
     }
 
+    /// Fresh DB after each restart, short run before stop, short stop duration.
     #[sim_test(config = "test_config()")]
     async fn test_sequential_restarts_clean_db_short_run_short_stop() {
-        run_sequential_restarts_test(true, false, false).await;
+        run_sequential_restarts_test(RestartMode::CleanAll, false, false).await;
     }
 
+    /// Fresh DB after each restart, long run before stop, short stop duration.
     #[sim_test(config = "test_config()")]
     async fn test_sequential_restarts_clean_db_long_run_short_stop() {
-        run_sequential_restarts_test(true, true, false).await;
+        run_sequential_restarts_test(RestartMode::CleanAll, true, false).await;
     }
 
+    /// Fresh DB after each restart, short run before stop, long stop duration.
     #[sim_test(config = "test_config()")]
     async fn test_sequential_restarts_clean_db_short_run_long_stop() {
-        run_sequential_restarts_test(true, false, true).await;
+        run_sequential_restarts_test(RestartMode::CleanAll, false, true).await;
     }
 
+    /// Persistent DB after each restart, long run before stop, long stop
+    /// duration.
     #[sim_test(config = "test_config()")]
     async fn test_sequential_restarts_persistent_db_long_run_long_stop() {
-        run_sequential_restarts_test(false, true, true).await;
+        run_sequential_restarts_test(RestartMode::PersistAll, true, true).await;
     }
 
+    /// Persistent DB after each restart, short run before stop, short stop
+    /// duration.
     #[sim_test(config = "test_config()")]
     async fn test_sequential_restarts_persistent_db_short_run_short_stop() {
-        run_sequential_restarts_test(false, false, false).await;
+        run_sequential_restarts_test(RestartMode::PersistAll, false, false).await;
     }
 
+    /// Persistent DB after each restart, long run before stop, short stop
+    /// duration.
     #[sim_test(config = "test_config()")]
     async fn test_sequential_restarts_persistent_db_long_run_short_stop() {
-        run_sequential_restarts_test(false, true, false).await;
+        run_sequential_restarts_test(RestartMode::PersistAll, true, false).await;
     }
 
     // TODO: This test is expected to panic due to fast sync failure when it is
     // aborted before full sync catch-up. It should be added once the fix for
     // fast syncing is applied.
-    // #[sim_test(config = "test_config()")]
+    // /// Persistent DB after each restart, short run before stop, long stop
+    // duration. #[sim_test(config = "test_config()")]
     // async fn test_sequential_restarts_persistent_db_short_run_long_stop() {
-    //     run_sequential_restarts_test(false, false, true).await;
+    //     run_sequential_restarts_test(RestartMode::PersistAll, false, true).await;
     // }
+
+    /// DB intact but last_processed_commit reset; long run before stop, long
+    /// stop duration.
+    #[sim_test(config = "test_config()")]
+    async fn test_sequential_restarts_reset_last_processed_long_run_long_stop() {
+        run_sequential_restarts_test(RestartMode::ResetLastProcessed, true, true).await;
+    }
 }
