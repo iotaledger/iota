@@ -520,6 +520,7 @@ impl<C: NetworkClient> CommitSyncer<C> {
                                 e.clone(),
                                 ErrorSource::CommitSyncer,
                                 &inner.context.metrics.node_metrics,
+                                &inner.context.protocol_config,
                             );
                         warn!("Failed to fetch {commit_range:?} from {hostname}: {}", e);
                         let error: &'static str = e.into();
