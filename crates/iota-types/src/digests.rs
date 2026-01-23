@@ -1046,6 +1046,7 @@ impl fmt::Debug for ConsensusCommitDigest {
     }
 }
 
+/// Digest of any additional state computed by the consensus handler.
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, JsonSchema)]
 pub struct AdditionalConsensusStateDigest(Digest);
 
