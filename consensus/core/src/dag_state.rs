@@ -257,7 +257,7 @@ impl DagState {
                 &state.recent_refs_by_authority,
                 state.threshold_clock_round(),
                 &state.evicted_rounds,
-                state.context.clone(),
+                &state.context,
             );
 
         if state.gc_enabled() {
@@ -1070,7 +1070,7 @@ impl DagState {
                     current_eviction_round,
                     last_eviction_round,
                     threshold_clock_round,
-                    &self.context.metrics.node_metrics,
+                    &self.context,
                 );
             if let Some(metrics_to_write_from_authority) = metrics_to_write_from_authority {
                 metrics_to_write.push((authority_index, metrics_to_write_from_authority));

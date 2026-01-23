@@ -573,6 +573,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
                                     err.clone(),
                                     ErrorSource::Synchronizer,
                                     &context.metrics.node_metrics,
+                                    &context.protocol_config,
                                 );
                                 warn!("Error while processing fetched blocks from peer {peer_index} {peer_hostname}: {err}");
                                 context.metrics.node_metrics.synchronizer_process_fetched_failures_by_peer.with_label_values(&[peer_hostname.as_str(), "live"]).inc();

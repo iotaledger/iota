@@ -239,6 +239,7 @@ impl<C: NetworkClient, S: NetworkService> Subscriber<C, S> {
                                     e.clone(),
                                     ErrorSource::Subscriber,
                                     &context.metrics.node_metrics,
+                                    &context.protocol_config,
                                 );
                             match e {
                                 ConsensusError::BlockRejected { block_ref, reason } => {
