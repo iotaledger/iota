@@ -85,25 +85,28 @@ pub fn receive_object_internal(
     };
 
     let object_runtime: &mut ObjectRuntime = context.extensions_mut().get_mut()?;
-
-    // Check that parent is not an account object i.e., that it does not already
-    // have an authenticator function ref as a child-object/dynamic-field.
-    let authenticator_fun_ref_id = derive_dynamic_field_id(
-        parent,
-        &AuthenticatorFunctionRefV1Key::tag().into(),
-        &AuthenticatorFunctionRefV1Key::default().to_bcs_bytes(),
-    )
-    .expect("should not fail this serialization");
-    if object_runtime.child_object_exists(parent, authenticator_fun_ref_id)? {
-        // parent is an account object
-        return Ok(NativeResult::err(
-            context.gas_used(),
-            E_ACCOUNT_CANNOT_RECEIVE_OBJECT,
-        ));
+    if object_runtime.protocol_config.enable_move_authentication() {
+        // If Move-based authentication is enabled, we need to check that the
+        // parent is not an account object, i.e., that it does not already
+        // have an authenticator function ref as a child-object/dynamic-field.
+        let authenticator_fun_ref_id = derive_dynamic_field_id(
+            parent,
+            &AuthenticatorFunctionRefV1Key::tag().into(),
+            &AuthenticatorFunctionRefV1Key::default().to_bcs_bytes(),
+        )
+        .expect("should not fail this serialization");
+        if object_runtime.child_object_exists(parent, authenticator_fun_ref_id)? {
+            // parent is an account object
+            return Ok(NativeResult::err(
+                context.gas_used(),
+                E_ACCOUNT_CANNOT_RECEIVE_OBJECT,
+            ));
+        }
+        // If the parent is not an account, proceed with receiving the object.
+        // It might still fail if the object does not exist or the type
+        // mismatches.
     }
 
-    // If the parent is not an account, proceed with receiving the object.
-    // It might still fail if the object does not exist or the type mismatches.
     let child = match object_runtime.receive_object(
         parent,
         child_id,
