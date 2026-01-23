@@ -51,7 +51,7 @@ public fun create_account_v1<Account: key>(
     authenticator: AuthenticatorFunctionRefV1<Account>,
 ) {
     let account_id = borrow_account_uid_mut(&mut account);
-    //assert!(account_id.is_fresh(), EAccountNotFreshlyCreated);
+    assert!(account_id.is_fresh(), EAccountNotFreshlyCreated);
 
     let event = MutableAccountCreated {
         account_id: account_id.to_inner(),
