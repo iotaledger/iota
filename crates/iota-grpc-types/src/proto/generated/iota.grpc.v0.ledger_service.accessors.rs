@@ -78,19 +78,19 @@ mod _accessor_impls {
             self
         }
         ///Returns the value of `transactions`, or the default value if `transactions` is unset.
-        pub fn transactions(&self) -> &super::super::transaction::ExecutedTransaction {
+        pub fn transactions(&self) -> &super::super::transaction::ExecutedTransactions {
             if let Some(super::checkpoint_data::Payload::Transactions(field)) = &self
                 .payload
             {
                 field as _
             } else {
-                super::super::transaction::ExecutedTransaction::default_instance() as _
+                super::super::transaction::ExecutedTransactions::default_instance() as _
             }
         }
         ///If `transactions` is set, returns [`Some`] with the value; otherwise returns [`None`].
         pub fn transactions_opt(
             &self,
-        ) -> Option<&super::super::transaction::ExecutedTransaction> {
+        ) -> Option<&super::super::transaction::ExecutedTransactions> {
             if let Some(super::checkpoint_data::Payload::Transactions(field)) = &self
                 .payload
             {
@@ -102,7 +102,7 @@ mod _accessor_impls {
         ///If `transactions` is set, returns [`Some`] with a mutable reference to the value; otherwise returns [`None`].
         pub fn transactions_opt_mut(
             &mut self,
-        ) -> Option<&mut super::super::transaction::ExecutedTransaction> {
+        ) -> Option<&mut super::super::transaction::ExecutedTransactions> {
             if let Some(super::checkpoint_data::Payload::Transactions(field)) = &mut self
                 .payload
             {
@@ -116,11 +116,11 @@ mod _accessor_impls {
         ///If any other oneof field in the same oneof is set, it will be cleared.
         pub fn transactions_mut(
             &mut self,
-        ) -> &mut super::super::transaction::ExecutedTransaction {
+        ) -> &mut super::super::transaction::ExecutedTransactions {
             if self.transactions_opt_mut().is_none() {
                 self.payload = Some(
                     super::checkpoint_data::Payload::Transactions(
-                        super::super::transaction::ExecutedTransaction::default(),
+                        super::super::transaction::ExecutedTransactions::default(),
                     ),
                 );
             }
@@ -128,10 +128,9 @@ mod _accessor_impls {
         }
         ///Sets `transactions` with the provided value.
         ///If any other oneof field in the same oneof is set, it will be cleared.
-        pub fn set_transactions<T: Into<super::super::transaction::ExecutedTransaction>>(
-            &mut self,
-            field: T,
-        ) {
+        pub fn set_transactions<
+            T: Into<super::super::transaction::ExecutedTransactions>,
+        >(&mut self, field: T) {
             self.payload = Some(
                 super::checkpoint_data::Payload::Transactions(field.into().into()),
             );
@@ -139,7 +138,7 @@ mod _accessor_impls {
         ///Sets `transactions` with the provided value.
         ///If any other oneof field in the same oneof is set, it will be cleared.
         pub fn with_transactions<
-            T: Into<super::super::transaction::ExecutedTransaction>,
+            T: Into<super::super::transaction::ExecutedTransactions>,
         >(mut self, field: T) -> Self {
             self.set_transactions(field.into());
             self

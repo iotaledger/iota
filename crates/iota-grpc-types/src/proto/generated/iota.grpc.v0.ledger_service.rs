@@ -213,7 +213,7 @@ pub mod checkpoint_data {
         #[prost(message, tag = "1")]
         Checkpoint(super::super::checkpoint::Checkpoint),
         #[prost(message, tag = "2")]
-        Transactions(super::super::transaction::ExecutedTransaction),
+        Transactions(super::super::transaction::ExecutedTransactions),
         #[prost(message, tag = "3")]
         Events(super::super::event::Events),
         #[prost(message, tag = "4")]

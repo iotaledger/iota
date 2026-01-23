@@ -195,7 +195,7 @@ message CheckpointData {
 
   oneof payload {
     iota.grpc.v0.checkpoint.Checkpoint checkpoint = 1;
-    iota.grpc.v0.transaction.ExecutedTransaction transactions = 2;
+    iota.grpc.v0.transaction.ExecutedTransactions transactions = 2;
     iota.grpc.v0.event.Events events = 3;
     EndMarker end_marker = 4;
   }

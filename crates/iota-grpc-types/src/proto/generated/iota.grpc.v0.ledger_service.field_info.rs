@@ -36,6 +36,10 @@ mod _field_impls {
     #[allow(unused_imports)]
     use crate::v0::transaction::ExecutedTransactionFieldPathBuilder;
     #[allow(unused_imports)]
+    use crate::v0::transaction::ExecutedTransactions;
+    #[allow(unused_imports)]
+    use crate::v0::transaction::ExecutedTransactionsFieldPathBuilder;
+    #[allow(unused_imports)]
     use crate::v0::types::Digest;
     #[allow(unused_imports)]
     use crate::v0::types::DigestFieldPathBuilder;
@@ -957,7 +961,7 @@ mod _field_impls {
             json_name: "transactions",
             number: 2i32,
             is_optional: false,
-            message_fields: Some(ExecutedTransaction::FIELDS),
+            message_fields: Some(ExecutedTransactions::FIELDS),
         };
         pub const EVENTS_FIELD: &'static MessageField = &MessageField {
             name: "events",
@@ -1006,9 +1010,9 @@ mod _field_impls {
             self.path.push(CheckpointData::CHECKPOINT_FIELD.name);
             CheckpointFieldPathBuilder::new_with_base(self.path)
         }
-        pub fn transactions(mut self) -> ExecutedTransactionFieldPathBuilder {
+        pub fn transactions(mut self) -> ExecutedTransactionsFieldPathBuilder {
             self.path.push(CheckpointData::TRANSACTIONS_FIELD.name);
-            ExecutedTransactionFieldPathBuilder::new_with_base(self.path)
+            ExecutedTransactionsFieldPathBuilder::new_with_base(self.path)
         }
         pub fn events(mut self) -> EventsFieldPathBuilder {
             self.path.push(CheckpointData::EVENTS_FIELD.name);
