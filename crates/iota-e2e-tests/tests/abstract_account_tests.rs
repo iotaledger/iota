@@ -182,47 +182,45 @@ async fn test_predict_abstract_account_id_dry_run() -> Result<(), anyhow::Error>
 /// 3. The AA account can then issue transactions normally
 #[sim_test]
 async fn test_abstract_account_delayed_creation() -> Result<(), anyhow::Error> {
-    // telemetry_subscribers::init_for_testing();
-    //
+    telemetry_subscribers::init_for_testing();
+
     // Build a test environment and create a delayed abstract account object
     // (this creates a shared object that is NOT yet an AA account)
-    // let mut test_env = TestEnvironment::new().await;
-    // test_env
-    // .setup_delayed_abstract_account_object(AA_AUTHENTICATE_FN_NAME_FREE_ACCESS)
-    // .await?;
-    // let _delayed_aa_ref = test_env.aa_ref.unwrap();
-    //
-    // Now convert the delayed object into an actual AA account
-    // let effects = test_env.make_delayed_abstract_account().await?;
-    // assert!(
-    // effects.status().is_err(),
-    // "Expected make_delayed_abstract_account to fail, got: {:?}",
-    // effects.status()
-    // );
-    // The AA account address is the same as the delayed object ID
-    // let aa_sender: IotaAddress = delayed_aa_ref.0.into();
-    //
-    // Fund the AA account with gas
-    // let rgp = test_env.test_cluster.get_reference_gas_price().await;
-    // let aa_gas = test_env
-    // .test_cluster
-    // .fund_address_and_return_gas(rgp, Some(20_000_000_000), aa_sender)
-    // .await;
-    //
-    // Create a simple transaction from the AA account
-    // let pt = test_env.craft_aa_simple_ptb(AA_DELAYED_MODULE_NAME)?;
-    // let tx_data = test_env
-    // .craft_tx_from_pt(pt, aa_gas, aa_sender, None)
-    // .await?;
-    //
-    // Create the MoveAuthenticator (free access - no signature needed)
-    // let aa_sig = test_env.create_move_authenticator_for_free_access()?;
-    // let tx = Transaction::from_generic_sig_data(tx_data, vec![aa_sig]);
-    //
-    // Execute and verify the transaction succeeds
-    // test_env.execute_and_check_tx_correctness(tx).await
+    let mut test_env = TestEnvironment::new().await;
+    test_env
+        .setup_delayed_abstract_account_object(AA_AUTHENTICATE_FN_NAME_FREE_ACCESS)
+        .await?;
+    let delayed_aa_ref = test_env.aa_ref.unwrap();
 
-    Ok(())
+    // Now convert the delayed object into an actual AA account
+    let effects = test_env.make_delayed_abstract_account().await?;
+    assert!(
+        effects.status().is_ok(),
+        "Expected make_delayed_abstract_account to succeed, got: {:?}",
+        effects.status()
+    );
+    // The AA account address is the same as the delayed object ID
+    let aa_sender: IotaAddress = delayed_aa_ref.0.into();
+
+    // Fund the AA account with gas
+    let rgp = test_env.test_cluster.get_reference_gas_price().await;
+    let aa_gas = test_env
+        .test_cluster
+        .fund_address_and_return_gas(rgp, Some(20_000_000_000), aa_sender)
+        .await;
+
+    // Create a simple transaction from the AA account
+    let pt = test_env.craft_aa_simple_ptb(AA_DELAYED_MODULE_NAME)?;
+    let tx_data = test_env
+        .craft_tx_from_pt(pt, aa_gas, aa_sender, None)
+        .await?;
+
+    // Create the MoveAuthenticator (free access - no signature needed)
+    let aa_sig = test_env.create_move_authenticator_for_free_access()?;
+    let tx = Transaction::from_generic_sig_data(tx_data, vec![aa_sig]);
+
+    // Execute and verify the transaction succeeds
+    test_env.execute_and_check_tx_correctness(tx).await
 }
 
 /// FAIL: receive in the main PT using
@@ -992,7 +990,7 @@ impl TestEnvironment {
                 .effects
                 .all_changed_objects()
                 .iter()
-                .map(|e| (e.0.reference.to_object_ref(), e.0.owner.into(), e.1))
+                .map(|e| (e.0.reference.to_object_ref(), e.0.owner, e.1))
                 .collect::<Vec<(ObjectRef, Owner, WriteKind)>>(),
         ));
         self.aa_create_transaction = Some(transaction);
@@ -1001,7 +999,7 @@ impl TestEnvironment {
     }
 
     async fn setup_abstract_account_after_dry_run(&mut self) -> Result<(), anyhow::Error> {
-        if !self.aa_create_transaction.is_some() {
+        if self.aa_create_transaction.is_none() {
             anyhow::bail!("No AA create transaction stored from dry run");
         };
 
