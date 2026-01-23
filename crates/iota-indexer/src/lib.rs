@@ -55,9 +55,16 @@ pub async fn build_json_rpc_server(
     reader: IndexerReader,
     config: &JsonRpcConfig,
     metrics: IndexerMetrics,
+    watermark_task: crate::pruning::watermark_task::WatermarkTask,
 ) -> Result<ServerHandle, IndexerError> {
     let mut builder =
         JsonRpcServerBuilder::new(env!("CARGO_PKG_VERSION"), prometheus_registry, None, None);
+
+    let cancel = CancellationToken::new();
+
+    // Start the watermark background task to track pruning state
+    watermark_task.start(cancel.clone());
+    tracing::info!("Watermark task started");
 
     let fullnode_client = get_http_client(&config.rpc_client_url)?;
     // Register common modules
@@ -76,7 +83,6 @@ pub async fn build_json_rpc_server(
         OptimisticTransactionExecutor::new(&config.rpc_client_url, reader.clone(), store, metrics),
     ))?;
 
-    let cancel = CancellationToken::new();
     let system_package_task =
         SystemPackageTask::new(reader, cancel.clone(), Duration::from_secs(10));
 

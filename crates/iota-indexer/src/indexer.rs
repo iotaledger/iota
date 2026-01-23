@@ -24,7 +24,7 @@ use crate::{
     },
     metrics::IndexerMetrics,
     processors::processor_orchestrator::ProcessorOrchestrator,
-    pruning::{optimistic_pruner::OptimisticPruner, pruner::Pruner},
+    pruning::{optimistic_pruner::OptimisticPruner, pruner::Pruner, watermark_task::WatermarkTask},
     read::IndexerReader,
     store::{IndexerAnalyticalStore, IndexerStore, PgIndexerStore},
 };
@@ -172,7 +172,11 @@ impl Indexer {
             env!("CARGO_PKG_VERSION")
         );
 
-        let mut read = IndexerReader::new(connection_pool.clone());
+        // Create and start the watermark task that will track pruning state
+        let watermark_task = WatermarkTask::new(store.clone());
+        let watermark_cache = watermark_task.cache();
+
+        let mut read = IndexerReader::new(connection_pool.clone(), watermark_cache);
 
         if let HistoricFallbackOptions {
             fallback_kv_url: Some(ref url),
@@ -195,7 +199,7 @@ impl Indexer {
             info!("No config for HistoricalFallbackReader provided, skipping...");
         }
 
-        let handle = build_json_rpc_server(store, registry, read, config, metrics)
+        let handle = build_json_rpc_server(store, registry, read, config, metrics, watermark_task)
             .await
             .expect("json rpc server should not run into errors upon start.");
         tokio::spawn(async move { handle.stopped().await })
@@ -204,6 +208,7 @@ impl Indexer {
 
         Ok(())
     }
+
     pub async fn start_analytical_worker<
         S: IndexerAnalyticalStore + Clone + Send + Sync + 'static,
     >(
