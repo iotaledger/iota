@@ -1354,7 +1354,7 @@ impl PgIndexerStore {
         )
     }
 
-    /// Prune a single transaction or event index table by transaction range
+    /// Prunes a single transaction or event index table by transaction range
     fn prune_single_tx_or_event_table(
         &self,
         table: &crate::pruning::pruner::PrunableTable,

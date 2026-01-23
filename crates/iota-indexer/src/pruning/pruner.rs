@@ -32,7 +32,13 @@ const PRUNING_DELAY_MS: u64 = 60000; // 60 seconds for production
 
 /// Maximum number of transactions to prune in a single batch for ByTransaction
 /// strategy
-const MAX_TRANSACTIONS_PER_PRUNE_BATCH: u64 = 100;
+const MAX_TRANSACTIONS_PER_PRUNE_BATCH: u64 = 1000;
+
+/// Interval for running the pruning task
+const PRUNING_TASK_INTERVAL: Duration = Duration::from_secs(5);
+
+/// Delay between pruning chunks to relieve I/O pressure on the database
+const DELAY_BETWEEN_PRUNING_CHUNKS: Duration = Duration::from_millis(100);
 
 pub struct Pruner {
     pub store: PgIndexerStore,
@@ -219,14 +225,14 @@ impl<'a> TablePruner<'a> {
         }
     }
 
-    /// Run the persistent pruning task for this executor's table
+    /// Runs the persistent pruning task for this executor's table
     pub async fn run_pruning_task(self) -> IndexerResult<()> {
         info!(
             "Starting persistent pruning task for table {}",
             self.table.as_ref()
         );
 
-        let mut interval = tokio::time::interval(Duration::from_secs(5));
+        let mut interval = tokio::time::interval(PRUNING_TASK_INTERVAL);
 
         loop {
             tokio::select! {
@@ -235,7 +241,7 @@ impl<'a> TablePruner<'a> {
                     return Ok(());
                 }
                 _ = interval.tick() => {
-                    if let Err(e) = self.prune_once_maybe().await {
+                    if let Err(e) = self.check_and_prune().await {
                         error!("error pruning table {}: {e}", self.table.as_ref());
                     }
                 }
@@ -243,8 +249,9 @@ impl<'a> TablePruner<'a> {
         }
     }
 
-    /// Perform one pruning iteration for this executor's table
-    async fn prune_once_maybe(&self) -> IndexerResult<()> {
+    /// Checks if pruning is needed and prunes data for this executor's table if
+    /// conditions are met
+    async fn check_and_prune(&self) -> IndexerResult<()> {
         // Fetch watermark for this specific table
         let watermark = match self
             .store
@@ -298,6 +305,9 @@ impl<'a> TablePruner<'a> {
                     next_chunk_start
                 );
             }
+
+            // Brief pause to relieve the I/O pressure on the DB
+            tokio::time::sleep(DELAY_BETWEEN_PRUNING_CHUNKS).await;
         }
 
         self.metrics.last_pruned_epoch.set(watermark.epoch_lo - 1);
@@ -305,7 +315,7 @@ impl<'a> TablePruner<'a> {
         Ok(())
     }
 
-    /// Create an iterator of pruning chunks based on the watermark and pruning
+    /// Creates an iterator of pruning chunks based on the watermark and pruning
     /// strategy
     fn create_pruning_chunks(
         &self,
@@ -350,7 +360,8 @@ impl<'a> TablePruner<'a> {
         }
     }
 
-    /// Wait for the pruning delay to ensure in-flight reads complete or timeout
+    /// Waits for the pruning delay to ensure in-flight reads complete or
+    /// timeout
     async fn wait_for_pruning_delay(&self, watermark_timestamp_ms: i64) -> IndexerResult<()> {
         // The watermark timestamp indicates when data was marked for pruning.
         // We delay pruning to allow any reads accessing this data to complete or
@@ -371,15 +382,16 @@ impl<'a> TablePruner<'a> {
                 PRUNING_DELAY_MS
             );
 
-            tokio::select! {
-                _ = tokio::time::sleep(wait_duration) => {
-                    // Delay complete, in-flight reads should have timed out, safe to prune
-                }
-                _ = self.cancel.cancelled() => {
-                    info!("pruning task for table {} cancelled during delay", self.table.as_ref());
-                    return Err(IndexerError::Generic("Pruning task cancelled".to_string()));
-                }
-            }
+            self.cancel
+                .run_until_cancelled(tokio::time::sleep(wait_duration))
+                .await
+                .ok_or_else(|| {
+                    info!(
+                        "pruning task for table {} cancelled during delay",
+                        self.table.as_ref()
+                    );
+                    IndexerError::Generic("Pruning task cancelled".to_string())
+                })?;
         }
 
         Ok(())
