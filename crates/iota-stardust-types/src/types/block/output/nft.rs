@@ -3,6 +3,8 @@
 
 use alloc::collections::BTreeSet;
 
+use packable::Packable;
+
 use crate::types::block::{
     Error,
     address::{Address, NftAddress},
@@ -218,7 +220,8 @@ impl From<&NftOutput> for NftOutputBuilder {
 }
 
 /// Describes an NFT output, a globally unique token with metadata attached.
-#[derive(Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
+#[derive(Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Packable)]
+#[packable(unpack_error = Error)]
 pub struct NftOutput {
     // Amount of IOTA tokens held by the output.
     amount: u64,

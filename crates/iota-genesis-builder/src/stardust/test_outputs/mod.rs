@@ -85,7 +85,11 @@ pub fn add_snapshot_test_outputs<const VERIFY: bool>(
     let mut new_outputs = [
         alias_ownership::outputs(&mut rng, address_derivation_coin_type)?,
         stardust_mix::outputs(&mut rng, &mut vested_index, address_derivation_coin_type)?,
-        vesting_schedule_entity::outputs(&mut rng, &mut vested_index, address_derivation_coin_type)?,
+        vesting_schedule_entity::outputs(
+            &mut rng,
+            &mut vested_index,
+            address_derivation_coin_type,
+        )?,
         vesting_schedule_iota_airdrop::outputs(
             &mut rng,
             &mut vested_index,

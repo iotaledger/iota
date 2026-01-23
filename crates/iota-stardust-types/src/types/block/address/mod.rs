@@ -2,12 +2,18 @@
 // SPDX-License-Identifier: Apache-2.0
 
 mod alias;
+mod bech32;
 mod ed25519;
 mod nft;
 
 use derive_more::{Display, From};
 
-pub use self::{alias::AliasAddress, ed25519::Ed25519Address, nft::NftAddress};
+pub use self::{
+    alias::AliasAddress,
+    bech32::{Bech32Address, Hrp, ToBech32Ext},
+    ed25519::Ed25519Address,
+    nft::NftAddress,
+};
 use crate::types::block::Error;
 
 /// A generic address supporting different address kinds.
@@ -98,6 +104,17 @@ impl Address {
         } else {
             panic!("as_nft called on a non-nft address");
         }
+    }
+
+    /// Tries to create an [`Address`] from a bech32 encoded string.
+    pub fn try_from_bech32(address: impl AsRef<str>) -> Result<Self, Error> {
+        Bech32Address::try_from_str(address).map(|res| res.into_inner())
+    }
+
+    /// Checks if a string is a valid bech32 encoded address.
+    #[must_use]
+    pub fn is_valid_bech32(address: &str) -> bool {
+        Self::try_from_bech32(address).is_ok()
     }
 }
 

@@ -15,11 +15,13 @@ use packable::{Packable, bounded::BoundedU8, prefix::BoxedSlicePrefix};
 
 #[cfg(feature = "irc_27")]
 pub use self::metadata::irc_27::{Attribute, Irc27Metadata};
+#[cfg(feature = "irc_30")]
+pub use self::metadata::irc_30::Irc30Metadata;
 pub use self::{
     issuer::IssuerFeature, metadata::MetadataFeature, sender::SenderFeature, tag::TagFeature,
 };
 pub(crate) use self::{metadata::MetadataFeatureLength, tag::TagFeatureLength};
-use crate::types::block::{Error, create_bitflags};
+use crate::types::block::Error;
 
 ///
 #[derive(Clone, Eq, PartialEq, Hash, From, Packable)]

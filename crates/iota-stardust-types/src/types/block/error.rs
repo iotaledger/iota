@@ -32,6 +32,7 @@ pub enum Error {
     },
     InvalidAddress,
     InvalidAddressKind(u8),
+    InvalidBech32Hrp(String),
     InvalidStorageDepositAmount(u64),
     // The above is used by `Packable` to denote out-of-range values. The following denotes the
     // actual amount.
@@ -62,6 +63,8 @@ pub enum Error {
     InvalidStateMetadataLength(<StateMetadataLength as TryFrom<usize>>::Error),
     InvalidMetadataFeatureLength(<MetadataFeatureLength as TryFrom<usize>>::Error),
     InvalidMilestoneOptionKind(u8),
+    InvalidBinaryParametersLength(packable::bounded::InvalidBoundedU16<0, 8192>),
+    InvalidBinaryParametersLengthValue(usize),
     InvalidMigratedFundsEntryAmount(u64),
     InvalidNativeTokenCount(<NativeTokenCount as TryFrom<usize>>::Error),
     InvalidNetworkName(FromUtf8Error),
@@ -176,6 +179,7 @@ impl fmt::Display for Error {
             }
             Self::InvalidAddress => write!(f, "invalid address provided"),
             Self::InvalidAddressKind(k) => write!(f, "invalid address kind: {k}"),
+            Self::InvalidBech32Hrp(hrp) => write!(f, "invalid bech32 hrp: {hrp}"),
             Self::InvalidStorageDepositAmount(amount) => {
                 write!(f, "invalid storage deposit amount: {amount}")
             }
@@ -220,6 +224,12 @@ impl fmt::Display for Error {
             }
 
             Self::InvalidMilestoneOptionKind(k) => write!(f, "invalid milestone option kind: {k}"),
+            Self::InvalidBinaryParametersLength(length) => {
+                write!(f, "invalid binary parameters length: {length}")
+            }
+            Self::InvalidBinaryParametersLengthValue(length) => {
+                write!(f, "invalid binary parameters length: {length}")
+            }
             Self::InvalidMigratedFundsEntryAmount(amount) => {
                 write!(f, "invalid migrated funds entry amount: {amount}")
             }

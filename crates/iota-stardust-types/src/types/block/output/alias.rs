@@ -3,7 +3,7 @@
 
 use alloc::{collections::BTreeSet, vec::Vec};
 
-use packable::{bounded::BoundedU16, prefix::BoxedSlicePrefix};
+use packable::{Packable, bounded::BoundedU16, prefix::BoxedSlicePrefix};
 
 use crate::types::block::{
     Error,
@@ -298,7 +298,8 @@ pub(crate) type StateMetadataLength = BoundedU16<0, { AliasOutput::STATE_METADAT
 
 /// Describes an alias account in the ledger that can be controlled by the state
 /// and governance controllers.
-#[derive(Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
+#[derive(Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Packable)]
+#[packable(unpack_error = Error)]
 pub struct AliasOutput {
     // Amount of IOTA tokens held by the output.
     amount: u64,
@@ -309,6 +310,7 @@ pub struct AliasOutput {
     // A counter that must increase by 1 every time the alias is state transitioned.
     state_index: u32,
     // Metadata that can only be changed by the state controller.
+    #[packable(unpack_error_with = |err| Error::InvalidStateMetadataLength(err.into_prefix_err().into()))]
     state_metadata: BoxedSlicePrefix<u8, StateMetadataLength>,
     // A counter that denotes the number of foundries created by this alias account.
     foundry_counter: u32,

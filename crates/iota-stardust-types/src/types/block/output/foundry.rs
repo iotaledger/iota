@@ -3,6 +3,8 @@
 
 use alloc::collections::BTreeSet;
 
+use packable::Packable;
+
 use crate::types::block::{
     Error,
     address::AliasAddress,
@@ -240,7 +242,8 @@ impl From<&FoundryOutput> for FoundryOutputBuilder {
 }
 
 /// Describes a foundry output that is controlled by an alias.
-#[derive(Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
+#[derive(Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Packable)]
+#[packable(unpack_error = Error)]
 pub struct FoundryOutput {
     // Amount of IOTA tokens held by the output.
     amount: u64,

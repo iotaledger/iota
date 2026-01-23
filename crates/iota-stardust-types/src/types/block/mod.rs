@@ -13,8 +13,16 @@ mod ids;
 pub mod address;
 /// A module that provides types and syntactic validations of outputs.
 pub mod output;
+/// Payload types.
+pub mod payload;
+/// Protocol parameters.
+pub mod protocol;
 
-pub use ids::{BlockId, TransactionId};
-pub(crate) use r#macro::create_bitflags;
+pub use ids::{BlockId, MilestoneId, MilestoneIndex, TransactionId};
 
-pub use self::{convert::ConvertTo, error::Error};
+pub use self::{
+    convert::ConvertTo,
+    error::Error,
+    payload::{MilestoneOption, ParametersMilestoneOption},
+    protocol::{PROTOCOL_VERSION, ProtocolParameters},
+};

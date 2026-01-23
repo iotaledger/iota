@@ -112,7 +112,6 @@ pub(crate) mod irc_27 {
 
     use getset::Getters;
     use serde::{Deserialize, Serialize};
-    use url::Url;
 
     use super::*;
 
@@ -135,7 +134,7 @@ pub(crate) mod irc_27 {
         #[serde(rename = "type")]
         media_type: String,
         /// URL pointing to the NFT file location.
-        uri: Url,
+        uri: String,
         /// The human-readable name of the native token.
         name: String,
         /// The human-readable collection name of the native token.
@@ -156,11 +155,15 @@ pub(crate) mod irc_27 {
     }
 
     impl Irc27Metadata {
-        pub fn new(media_type: impl Into<String>, uri: Url, name: impl Into<String>) -> Self {
+        pub fn new(
+            media_type: impl Into<String>,
+            uri: impl Into<String>,
+            name: impl Into<String>,
+        ) -> Self {
             Self {
                 version: "v1.0".to_owned(),
                 media_type: media_type.into(),
-                uri,
+                uri: uri.into(),
                 name: name.into(),
                 collection_name: Default::default(),
                 royalties: Default::default(),
@@ -261,6 +264,95 @@ pub(crate) mod irc_27 {
     impl core::hash::Hash for Attribute {
         fn hash<H: core::hash::Hasher>(&self, state: &mut H) {
             self.trait_type.hash(state);
+        }
+    }
+}
+
+#[cfg(feature = "irc_30")]
+pub(crate) mod irc_30 {
+    use alloc::string::String;
+
+    use getset::Getters;
+    use serde::{Deserialize, Serialize};
+
+    use super::*;
+
+    /// The IRC30 native token metadata standard schema.
+    #[derive(Clone, Debug, Serialize, Deserialize, Getters, PartialEq, Eq)]
+    #[serde(rename_all = "camelCase")]
+    #[serde(tag = "standard", rename = "IRC30")]
+    #[getset(get = "pub")]
+    pub struct Irc30Metadata {
+        /// The human-readable name of the native token.
+        name: String,
+        /// The symbol/ticker of the token.
+        symbol: String,
+        /// Number of decimals the token uses (divide the token amount by
+        /// `10^decimals` to get its user representation).
+        decimals: u32,
+        /// The human-readable description of the token.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        description: Option<String>,
+        /// URL pointing to more resources about the token.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        url: Option<String>,
+        /// URL pointing to an image resource of the token logo.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        logo_url: Option<String>,
+        /// The svg logo of the token encoded as a byte string.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        logo: Option<String>,
+    }
+
+    impl Irc30Metadata {
+        pub fn new(name: impl Into<String>, symbol: impl Into<String>, decimals: u32) -> Self {
+            Self {
+                name: name.into(),
+                symbol: symbol.into(),
+                decimals,
+                description: Default::default(),
+                url: Default::default(),
+                logo_url: Default::default(),
+                logo: Default::default(),
+            }
+        }
+
+        pub fn with_description(mut self, description: impl Into<String>) -> Self {
+            self.description.replace(description.into());
+            self
+        }
+
+        pub fn with_url(mut self, url: impl Into<String>) -> Self {
+            self.url.replace(url.into());
+            self
+        }
+
+        pub fn with_logo_url(mut self, logo_url: impl Into<String>) -> Self {
+            self.logo_url.replace(logo_url.into());
+            self
+        }
+
+        pub fn with_logo(mut self, logo: impl Into<String>) -> Self {
+            self.logo.replace(logo.into());
+            self
+        }
+
+        pub fn to_bytes(&self) -> Vec<u8> {
+            // Unwrap: Safe because this struct is known to be valid
+            serde_json::to_string(self).unwrap().into_bytes()
+        }
+    }
+
+    impl TryFrom<Irc30Metadata> for MetadataFeature {
+        type Error = Error;
+        fn try_from(value: Irc30Metadata) -> Result<Self, Error> {
+            Self::new(value.to_bytes())
+        }
+    }
+
+    impl From<Irc30Metadata> for Vec<u8> {
+        fn from(value: Irc30Metadata) -> Self {
+            value.to_bytes()
         }
     }
 }

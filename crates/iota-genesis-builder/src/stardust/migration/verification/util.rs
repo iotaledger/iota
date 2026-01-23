@@ -8,7 +8,6 @@ use iota_stardust_types::types::block::{
     address::Address,
     output::{self as sdk_output, NativeTokens, OutputId, TokenId},
 };
-use primitive_types::U256;
 use iota_types::{
     TypeTag,
     balance::Balance,
@@ -23,6 +22,7 @@ use iota_types::{
         stardust_to_iota_address,
     },
 };
+use primitive_types::U256;
 use tracing::warn;
 
 use crate::stardust::{

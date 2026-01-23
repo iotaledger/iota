@@ -55,9 +55,7 @@ move-compiler.workspace = true
 move-core-types.workspace = true
 move-package.workspace = true
 move-vm-runtime-latest = { path = "../../external-crates/move/crates/move-vm-runtime", package = "move-vm-runtime" }
-# TODO: verify if needed
 primitive-types = "0.12"
-# TODO: verify if needed
 url.workspace = true
 
 [target.'cfg(msim)'.dependencies]
@@ -74,7 +72,6 @@ iota-swarm-config.workspace = true
 [features]
 test-outputs = ["dep:iota-sdk-crypto"]
 
-# TODO: verify if needed
 [target.'cfg(not(msim))'.dependencies]
 # iota-sdk-crypto is only used when compiling test-outputs feature
 iota-sdk-crypto = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "fda182869d0b4d4016beb80808057b5a593abaf2", optional = true, features = ["ed25519", "mnemonic"] }
