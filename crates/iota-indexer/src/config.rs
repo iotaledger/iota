@@ -828,7 +828,7 @@ mod test {
         let toml_content = r#"
         epochs_to_keep = 5
         [overrides]
-        tx_affected_addresses = 10
+        tx_senders = 10
         transactions = 20
         "#;
         temp_file.write_all(toml_content.as_bytes()).unwrap();
@@ -845,7 +845,7 @@ mod test {
         assert_eq!(
             retention_config
                 .overrides
-                .get(&PrunableTable::TxAffectedAddresses)
+                .get(&PrunableTable::TxSenders)
                 .copied(),
             Some(10)
         );
@@ -869,7 +869,7 @@ mod test {
                 PrunableTable::ObjectsHistory => {
                     assert_eq!(retention, OBJECTS_HISTORY_EPOCHS_TO_KEEP)
                 }
-                PrunableTable::TxAffectedAddresses => assert_eq!(retention, 10),
+                PrunableTable::TxSenders => assert_eq!(retention, 10),
                 PrunableTable::Transactions => assert_eq!(retention, 20),
                 _ => assert_eq!(retention, 5),
             };
