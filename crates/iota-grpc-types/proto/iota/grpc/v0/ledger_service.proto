@@ -150,27 +150,19 @@ message GetCheckpointDataRequest {
     iota.grpc.v0.types.Digest digest = 3;
   }
 
-  // Mask specifying which checkpoint fields to read.
+  // Mask specifying which fields to read.
   // If no mask is specified, defaults to `summary`.
-  optional google.protobuf.FieldMask checkpoint_read_mask = 4;
+  optional google.protobuf.FieldMask read_mask = 4;
 
-  // if no filter is passed, all transactions are included (if mentioned in the checkpoint_read_mask)
+  // if no filter is passed, all transactions are included (if mentioned in the read_mask)
   optional iota.grpc.v0.filter.TransactionFilter transactions_filter = 5;
 
-  // Mask specifying which transaction fields to read.
-  // If no mask is specified, defaults to `tx_digest`.
-  optional google.protobuf.FieldMask transaction_read_mask = 6;
-
-  // if no filter is passed, all events are included (if mentioned in the checkpoint_read_mask)
-  optional iota.grpc.v0.filter.EventFilter events_filter = 7;
-
-  // Mask specifying which event fields to read.
-  // If no mask is specified, defaults to `tx_digest`.
-  optional google.protobuf.FieldMask event_read_mask = 8;
+  // if no filter is passed, all events are included (if mentioned in the read_mask)
+  optional iota.grpc.v0.filter.EventFilter events_filter = 6;
 
   // Optional maximum message size the client can receive (1MB - 128MB)
   // If not specified, server uses default chunking threshold (4MB)
-  optional uint32 max_message_size_bytes = 9;
+  optional uint32 max_message_size_bytes = 7;
 }
 
 message CheckpointDataStreamRequest {
@@ -180,27 +172,19 @@ message CheckpointDataStreamRequest {
   // if no end sequence number is provided, streaming continues forever
   optional uint64 end_sequence_number = 2;
 
-  // Mask specifying which checkpoint fields to read.
+  // Mask specifying which fields to read.
   // If no mask is specified, defaults to `summary`.
-  optional google.protobuf.FieldMask checkpoint_read_mask = 3;
+  optional google.protobuf.FieldMask read_mask = 3;
 
-  // if no filter is passed, all transactions are included (if mentioned in the checkpoint_read_mask)
+  // if no filter is passed, all transactions are included (if mentioned in the read_mask)
   optional iota.grpc.v0.filter.TransactionFilter transactions_filter = 4;
 
-  // Mask specifying which transaction fields to read.
-  // If no mask is specified, defaults to `tx_digest`.
-  optional google.protobuf.FieldMask transaction_read_mask = 5;
-
-  // if no filter is passed, all events are included (if mentioned in the checkpoint_read_mask)
-  optional iota.grpc.v0.filter.EventFilter events_filter = 6;
-
-  // Mask specifying which event fields to read.
-  // If no mask is specified, defaults to `tx_digest`.
-  optional google.protobuf.FieldMask event_read_mask = 7;
+  // if no filter is passed, all events are included (if mentioned in the read_mask)
+  optional iota.grpc.v0.filter.EventFilter events_filter = 5;
   
   // Optional maximum message size the client can receive (1MB - 128MB)
   // If not specified, server uses default chunking threshold (4MB)
-  optional uint32 max_message_size_bytes = 8;
+  optional uint32 max_message_size_bytes = 6;
 }
 
 message CheckpointData {

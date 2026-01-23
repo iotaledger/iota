@@ -754,9 +754,9 @@ mod _field_impls {
             is_optional: false,
             message_fields: Some(Digest::FIELDS),
         };
-        pub const CHECKPOINT_READ_MASK_FIELD: &'static MessageField = &MessageField {
-            name: "checkpoint_read_mask",
-            json_name: "checkpointReadMask",
+        pub const READ_MASK_FIELD: &'static MessageField = &MessageField {
+            name: "read_mask",
+            json_name: "readMask",
             number: 4i32,
             is_optional: true,
             message_fields: None,
@@ -768,31 +768,17 @@ mod _field_impls {
             is_optional: true,
             message_fields: Some(TransactionFilter::FIELDS),
         };
-        pub const TRANSACTION_READ_MASK_FIELD: &'static MessageField = &MessageField {
-            name: "transaction_read_mask",
-            json_name: "transactionReadMask",
-            number: 6i32,
-            is_optional: true,
-            message_fields: None,
-        };
         pub const EVENTS_FILTER_FIELD: &'static MessageField = &MessageField {
             name: "events_filter",
             json_name: "eventsFilter",
-            number: 7i32,
+            number: 6i32,
             is_optional: true,
             message_fields: Some(EventFilter::FIELDS),
-        };
-        pub const EVENT_READ_MASK_FIELD: &'static MessageField = &MessageField {
-            name: "event_read_mask",
-            json_name: "eventReadMask",
-            number: 8i32,
-            is_optional: true,
-            message_fields: None,
         };
         pub const MAX_MESSAGE_SIZE_BYTES_FIELD: &'static MessageField = &MessageField {
             name: "max_message_size_bytes",
             json_name: "maxMessageSizeBytes",
-            number: 9i32,
+            number: 7i32,
             is_optional: true,
             message_fields: None,
         };
@@ -802,11 +788,9 @@ mod _field_impls {
             Self::LATEST_FIELD,
             Self::SEQUENCE_NUMBER_FIELD,
             Self::DIGEST_FIELD,
-            Self::CHECKPOINT_READ_MASK_FIELD,
+            Self::READ_MASK_FIELD,
             Self::TRANSACTIONS_FILTER_FIELD,
-            Self::TRANSACTION_READ_MASK_FIELD,
             Self::EVENTS_FILTER_FIELD,
-            Self::EVENT_READ_MASK_FIELD,
             Self::MAX_MESSAGE_SIZE_BYTES_FIELD,
         ];
     }
@@ -842,25 +826,17 @@ mod _field_impls {
             self.path.push(GetCheckpointDataRequest::DIGEST_FIELD.name);
             DigestFieldPathBuilder::new_with_base(self.path)
         }
-        pub fn checkpoint_read_mask(mut self) -> String {
-            self.path.push(GetCheckpointDataRequest::CHECKPOINT_READ_MASK_FIELD.name);
+        pub fn read_mask(mut self) -> String {
+            self.path.push(GetCheckpointDataRequest::READ_MASK_FIELD.name);
             self.finish()
         }
         pub fn transactions_filter(mut self) -> TransactionFilterFieldPathBuilder {
             self.path.push(GetCheckpointDataRequest::TRANSACTIONS_FILTER_FIELD.name);
             TransactionFilterFieldPathBuilder::new_with_base(self.path)
         }
-        pub fn transaction_read_mask(mut self) -> String {
-            self.path.push(GetCheckpointDataRequest::TRANSACTION_READ_MASK_FIELD.name);
-            self.finish()
-        }
         pub fn events_filter(mut self) -> EventFilterFieldPathBuilder {
             self.path.push(GetCheckpointDataRequest::EVENTS_FILTER_FIELD.name);
             EventFilterFieldPathBuilder::new_with_base(self.path)
-        }
-        pub fn event_read_mask(mut self) -> String {
-            self.path.push(GetCheckpointDataRequest::EVENT_READ_MASK_FIELD.name);
-            self.finish()
         }
         pub fn max_message_size_bytes(mut self) -> String {
             self.path.push(GetCheckpointDataRequest::MAX_MESSAGE_SIZE_BYTES_FIELD.name);
@@ -882,9 +858,9 @@ mod _field_impls {
             is_optional: true,
             message_fields: None,
         };
-        pub const CHECKPOINT_READ_MASK_FIELD: &'static MessageField = &MessageField {
-            name: "checkpoint_read_mask",
-            json_name: "checkpointReadMask",
+        pub const READ_MASK_FIELD: &'static MessageField = &MessageField {
+            name: "read_mask",
+            json_name: "readMask",
             number: 3i32,
             is_optional: true,
             message_fields: None,
@@ -896,31 +872,17 @@ mod _field_impls {
             is_optional: true,
             message_fields: Some(TransactionFilter::FIELDS),
         };
-        pub const TRANSACTION_READ_MASK_FIELD: &'static MessageField = &MessageField {
-            name: "transaction_read_mask",
-            json_name: "transactionReadMask",
-            number: 5i32,
-            is_optional: true,
-            message_fields: None,
-        };
         pub const EVENTS_FILTER_FIELD: &'static MessageField = &MessageField {
             name: "events_filter",
             json_name: "eventsFilter",
-            number: 6i32,
+            number: 5i32,
             is_optional: true,
             message_fields: Some(EventFilter::FIELDS),
-        };
-        pub const EVENT_READ_MASK_FIELD: &'static MessageField = &MessageField {
-            name: "event_read_mask",
-            json_name: "eventReadMask",
-            number: 7i32,
-            is_optional: true,
-            message_fields: None,
         };
         pub const MAX_MESSAGE_SIZE_BYTES_FIELD: &'static MessageField = &MessageField {
             name: "max_message_size_bytes",
             json_name: "maxMessageSizeBytes",
-            number: 8i32,
+            number: 6i32,
             is_optional: true,
             message_fields: None,
         };
@@ -929,11 +891,9 @@ mod _field_impls {
         const FIELDS: &'static [&'static MessageField] = &[
             Self::START_SEQUENCE_NUMBER_FIELD,
             Self::END_SEQUENCE_NUMBER_FIELD,
-            Self::CHECKPOINT_READ_MASK_FIELD,
+            Self::READ_MASK_FIELD,
             Self::TRANSACTIONS_FILTER_FIELD,
-            Self::TRANSACTION_READ_MASK_FIELD,
             Self::EVENTS_FILTER_FIELD,
-            Self::EVENT_READ_MASK_FIELD,
             Self::MAX_MESSAGE_SIZE_BYTES_FIELD,
         ];
     }
@@ -966,26 +926,17 @@ mod _field_impls {
             self.path.push(CheckpointDataStreamRequest::END_SEQUENCE_NUMBER_FIELD.name);
             self.finish()
         }
-        pub fn checkpoint_read_mask(mut self) -> String {
-            self.path.push(CheckpointDataStreamRequest::CHECKPOINT_READ_MASK_FIELD.name);
+        pub fn read_mask(mut self) -> String {
+            self.path.push(CheckpointDataStreamRequest::READ_MASK_FIELD.name);
             self.finish()
         }
         pub fn transactions_filter(mut self) -> TransactionFilterFieldPathBuilder {
             self.path.push(CheckpointDataStreamRequest::TRANSACTIONS_FILTER_FIELD.name);
             TransactionFilterFieldPathBuilder::new_with_base(self.path)
         }
-        pub fn transaction_read_mask(mut self) -> String {
-            self.path
-                .push(CheckpointDataStreamRequest::TRANSACTION_READ_MASK_FIELD.name);
-            self.finish()
-        }
         pub fn events_filter(mut self) -> EventFilterFieldPathBuilder {
             self.path.push(CheckpointDataStreamRequest::EVENTS_FILTER_FIELD.name);
             EventFilterFieldPathBuilder::new_with_base(self.path)
-        }
-        pub fn event_read_mask(mut self) -> String {
-            self.path.push(CheckpointDataStreamRequest::EVENT_READ_MASK_FIELD.name);
-            self.finish()
         }
         pub fn max_message_size_bytes(mut self) -> String {
             self.path

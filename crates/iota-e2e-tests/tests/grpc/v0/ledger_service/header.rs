@@ -131,11 +131,9 @@ async fn test_response_headers() {
 
         let request = GetCheckpointDataRequest {
             checkpoint_id: Some(CheckpointId::Latest(true)),
-            checkpoint_read_mask: None,
+            read_mask: None,
             transactions_filter: None,
-            transaction_read_mask: None,
             events_filter: None,
-            event_read_mask: None,
             max_message_size_bytes: None,
         };
 
@@ -160,11 +158,9 @@ async fn test_response_headers() {
         let request = CheckpointDataStreamRequest {
             start_sequence_number: Some(1),
             end_sequence_number: Some(2),
-            checkpoint_read_mask: None,
+            read_mask: None,
             transactions_filter: None,
-            transaction_read_mask: None,
             events_filter: None,
-            event_read_mask: None,
             max_message_size_bytes: None,
         };
 

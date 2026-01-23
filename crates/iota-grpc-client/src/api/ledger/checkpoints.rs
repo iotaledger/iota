@@ -90,13 +90,11 @@ impl Client {
     ) -> Result<SignedCheckpointSummary> {
         let request = GetCheckpointDataRequest {
             checkpoint_id: Some(checkpoint_id),
-            checkpoint_read_mask: Some(FieldMask {
+            read_mask: Some(FieldMask {
                 paths: vec!["summary.bcs".to_string()],
             }),
             transactions_filter: None,
-            transaction_read_mask: None,
             events_filter: None,
-            event_read_mask: None,
             max_message_size_bytes: self.max_decoding_message_size().map(|s| s as u32),
         };
 

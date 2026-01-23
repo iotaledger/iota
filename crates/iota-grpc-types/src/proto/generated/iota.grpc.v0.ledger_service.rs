@@ -140,27 +140,19 @@ pub struct GetTransactionsResponse {
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct GetCheckpointDataRequest {
-    /// Mask specifying which checkpoint fields to read.
+    /// Mask specifying which fields to read.
     /// If no mask is specified, defaults to `summary`.
     #[prost(message, optional, tag = "4")]
-    pub checkpoint_read_mask: ::core::option::Option<::prost_types::FieldMask>,
-    /// if no filter is passed, all transactions are included (if mentioned in the checkpoint_read_mask)
+    pub read_mask: ::core::option::Option<::prost_types::FieldMask>,
+    /// if no filter is passed, all transactions are included (if mentioned in the read_mask)
     #[prost(message, optional, tag = "5")]
     pub transactions_filter: ::core::option::Option<super::filter::TransactionFilter>,
-    /// Mask specifying which transaction fields to read.
-    /// If no mask is specified, defaults to `tx_digest`.
+    /// if no filter is passed, all events are included (if mentioned in the read_mask)
     #[prost(message, optional, tag = "6")]
-    pub transaction_read_mask: ::core::option::Option<::prost_types::FieldMask>,
-    /// if no filter is passed, all events are included (if mentioned in the checkpoint_read_mask)
-    #[prost(message, optional, tag = "7")]
     pub events_filter: ::core::option::Option<super::filter::EventFilter>,
-    /// Mask specifying which event fields to read.
-    /// If no mask is specified, defaults to `tx_digest`.
-    #[prost(message, optional, tag = "8")]
-    pub event_read_mask: ::core::option::Option<::prost_types::FieldMask>,
     /// Optional maximum message size the client can receive (1MB - 128MB)
     /// If not specified, server uses default chunking threshold (4MB)
-    #[prost(uint32, optional, tag = "9")]
+    #[prost(uint32, optional, tag = "7")]
     pub max_message_size_bytes: ::core::option::Option<u32>,
     #[prost(oneof = "get_checkpoint_data_request::CheckpointId", tags = "1, 2, 3")]
     pub checkpoint_id: ::core::option::Option<get_checkpoint_data_request::CheckpointId>,
@@ -188,27 +180,19 @@ pub struct CheckpointDataStreamRequest {
     /// if no end sequence number is provided, streaming continues forever
     #[prost(uint64, optional, tag = "2")]
     pub end_sequence_number: ::core::option::Option<u64>,
-    /// Mask specifying which checkpoint fields to read.
+    /// Mask specifying which fields to read.
     /// If no mask is specified, defaults to `summary`.
     #[prost(message, optional, tag = "3")]
-    pub checkpoint_read_mask: ::core::option::Option<::prost_types::FieldMask>,
-    /// if no filter is passed, all transactions are included (if mentioned in the checkpoint_read_mask)
+    pub read_mask: ::core::option::Option<::prost_types::FieldMask>,
+    /// if no filter is passed, all transactions are included (if mentioned in the read_mask)
     #[prost(message, optional, tag = "4")]
     pub transactions_filter: ::core::option::Option<super::filter::TransactionFilter>,
-    /// Mask specifying which transaction fields to read.
-    /// If no mask is specified, defaults to `tx_digest`.
+    /// if no filter is passed, all events are included (if mentioned in the read_mask)
     #[prost(message, optional, tag = "5")]
-    pub transaction_read_mask: ::core::option::Option<::prost_types::FieldMask>,
-    /// if no filter is passed, all events are included (if mentioned in the checkpoint_read_mask)
-    #[prost(message, optional, tag = "6")]
     pub events_filter: ::core::option::Option<super::filter::EventFilter>,
-    /// Mask specifying which event fields to read.
-    /// If no mask is specified, defaults to `tx_digest`.
-    #[prost(message, optional, tag = "7")]
-    pub event_read_mask: ::core::option::Option<::prost_types::FieldMask>,
     /// Optional maximum message size the client can receive (1MB - 128MB)
     /// If not specified, server uses default chunking threshold (4MB)
-    #[prost(uint32, optional, tag = "8")]
+    #[prost(uint32, optional, tag = "6")]
     pub max_message_size_bytes: ::core::option::Option<u32>,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]

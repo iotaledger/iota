@@ -301,11 +301,9 @@ mod _accessor_impls {
             Self {
                 start_sequence_number: None,
                 end_sequence_number: None,
-                checkpoint_read_mask: None,
+                read_mask: None,
                 transactions_filter: None,
-                transaction_read_mask: None,
                 events_filter: None,
-                event_read_mask: None,
                 max_message_size_bytes: None,
             }
         }
@@ -358,34 +356,29 @@ mod _accessor_impls {
             self.set_end_sequence_number(field);
             self
         }
-        ///If `checkpoint_read_mask` is set, returns [`Some`] with a mutable reference to the value; otherwise returns [`None`].
-        pub fn checkpoint_read_mask_opt_mut(
-            &mut self,
-        ) -> Option<&mut ::prost_types::FieldMask> {
-            self.checkpoint_read_mask.as_mut().map(|field| field as _)
+        ///If `read_mask` is set, returns [`Some`] with a mutable reference to the value; otherwise returns [`None`].
+        pub fn read_mask_opt_mut(&mut self) -> Option<&mut ::prost_types::FieldMask> {
+            self.read_mask.as_mut().map(|field| field as _)
         }
-        ///Returns a mutable reference to `checkpoint_read_mask`.
+        ///Returns a mutable reference to `read_mask`.
         ///If the field is unset, it is first initialized with the default value.
-        pub fn checkpoint_read_mask_mut(&mut self) -> &mut ::prost_types::FieldMask {
-            self.checkpoint_read_mask.get_or_insert_default()
+        pub fn read_mask_mut(&mut self) -> &mut ::prost_types::FieldMask {
+            self.read_mask.get_or_insert_default()
         }
-        ///If `checkpoint_read_mask` is set, returns [`Some`] with the value; otherwise returns [`None`].
-        pub fn checkpoint_read_mask_opt(&self) -> Option<&::prost_types::FieldMask> {
-            self.checkpoint_read_mask.as_ref().map(|field| field as _)
+        ///If `read_mask` is set, returns [`Some`] with the value; otherwise returns [`None`].
+        pub fn read_mask_opt(&self) -> Option<&::prost_types::FieldMask> {
+            self.read_mask.as_ref().map(|field| field as _)
         }
-        ///Sets `checkpoint_read_mask` with the provided value.
-        pub fn set_checkpoint_read_mask<T: Into<::prost_types::FieldMask>>(
-            &mut self,
-            field: T,
-        ) {
-            self.checkpoint_read_mask = Some(field.into().into());
+        ///Sets `read_mask` with the provided value.
+        pub fn set_read_mask<T: Into<::prost_types::FieldMask>>(&mut self, field: T) {
+            self.read_mask = Some(field.into().into());
         }
-        ///Sets `checkpoint_read_mask` with the provided value.
-        pub fn with_checkpoint_read_mask<T: Into<::prost_types::FieldMask>>(
+        ///Sets `read_mask` with the provided value.
+        pub fn with_read_mask<T: Into<::prost_types::FieldMask>>(
             mut self,
             field: T,
         ) -> Self {
-            self.set_checkpoint_read_mask(field.into());
+            self.set_read_mask(field.into());
             self
         }
         ///Returns the value of `transactions_filter`, or the default value if `transactions_filter` is unset.
@@ -430,36 +423,6 @@ mod _accessor_impls {
             self.set_transactions_filter(field.into());
             self
         }
-        ///If `transaction_read_mask` is set, returns [`Some`] with a mutable reference to the value; otherwise returns [`None`].
-        pub fn transaction_read_mask_opt_mut(
-            &mut self,
-        ) -> Option<&mut ::prost_types::FieldMask> {
-            self.transaction_read_mask.as_mut().map(|field| field as _)
-        }
-        ///Returns a mutable reference to `transaction_read_mask`.
-        ///If the field is unset, it is first initialized with the default value.
-        pub fn transaction_read_mask_mut(&mut self) -> &mut ::prost_types::FieldMask {
-            self.transaction_read_mask.get_or_insert_default()
-        }
-        ///If `transaction_read_mask` is set, returns [`Some`] with the value; otherwise returns [`None`].
-        pub fn transaction_read_mask_opt(&self) -> Option<&::prost_types::FieldMask> {
-            self.transaction_read_mask.as_ref().map(|field| field as _)
-        }
-        ///Sets `transaction_read_mask` with the provided value.
-        pub fn set_transaction_read_mask<T: Into<::prost_types::FieldMask>>(
-            &mut self,
-            field: T,
-        ) {
-            self.transaction_read_mask = Some(field.into().into());
-        }
-        ///Sets `transaction_read_mask` with the provided value.
-        pub fn with_transaction_read_mask<T: Into<::prost_types::FieldMask>>(
-            mut self,
-            field: T,
-        ) -> Self {
-            self.set_transaction_read_mask(field.into());
-            self
-        }
         ///Returns the value of `events_filter`, or the default value if `events_filter` is unset.
         pub fn events_filter(&self) -> &super::super::filter::EventFilter {
             self.events_filter
@@ -497,36 +460,6 @@ mod _accessor_impls {
             field: T,
         ) -> Self {
             self.set_events_filter(field.into());
-            self
-        }
-        ///If `event_read_mask` is set, returns [`Some`] with a mutable reference to the value; otherwise returns [`None`].
-        pub fn event_read_mask_opt_mut(
-            &mut self,
-        ) -> Option<&mut ::prost_types::FieldMask> {
-            self.event_read_mask.as_mut().map(|field| field as _)
-        }
-        ///Returns a mutable reference to `event_read_mask`.
-        ///If the field is unset, it is first initialized with the default value.
-        pub fn event_read_mask_mut(&mut self) -> &mut ::prost_types::FieldMask {
-            self.event_read_mask.get_or_insert_default()
-        }
-        ///If `event_read_mask` is set, returns [`Some`] with the value; otherwise returns [`None`].
-        pub fn event_read_mask_opt(&self) -> Option<&::prost_types::FieldMask> {
-            self.event_read_mask.as_ref().map(|field| field as _)
-        }
-        ///Sets `event_read_mask` with the provided value.
-        pub fn set_event_read_mask<T: Into<::prost_types::FieldMask>>(
-            &mut self,
-            field: T,
-        ) {
-            self.event_read_mask = Some(field.into().into());
-        }
-        ///Sets `event_read_mask` with the provided value.
-        pub fn with_event_read_mask<T: Into<::prost_types::FieldMask>>(
-            mut self,
-            field: T,
-        ) -> Self {
-            self.set_event_read_mask(field.into());
             self
         }
         ///If `max_message_size_bytes` is set, returns [`Some`] with a mutable reference to the value; otherwise returns [`None`].
@@ -555,11 +488,9 @@ mod _accessor_impls {
     impl super::GetCheckpointDataRequest {
         pub const fn const_default() -> Self {
             Self {
-                checkpoint_read_mask: None,
+                read_mask: None,
                 transactions_filter: None,
-                transaction_read_mask: None,
                 events_filter: None,
-                event_read_mask: None,
                 max_message_size_bytes: None,
                 checkpoint_id: None,
             }
@@ -569,34 +500,29 @@ mod _accessor_impls {
             static DEFAULT: super::GetCheckpointDataRequest = super::GetCheckpointDataRequest::const_default();
             &DEFAULT
         }
-        ///If `checkpoint_read_mask` is set, returns [`Some`] with a mutable reference to the value; otherwise returns [`None`].
-        pub fn checkpoint_read_mask_opt_mut(
-            &mut self,
-        ) -> Option<&mut ::prost_types::FieldMask> {
-            self.checkpoint_read_mask.as_mut().map(|field| field as _)
+        ///If `read_mask` is set, returns [`Some`] with a mutable reference to the value; otherwise returns [`None`].
+        pub fn read_mask_opt_mut(&mut self) -> Option<&mut ::prost_types::FieldMask> {
+            self.read_mask.as_mut().map(|field| field as _)
         }
-        ///Returns a mutable reference to `checkpoint_read_mask`.
+        ///Returns a mutable reference to `read_mask`.
         ///If the field is unset, it is first initialized with the default value.
-        pub fn checkpoint_read_mask_mut(&mut self) -> &mut ::prost_types::FieldMask {
-            self.checkpoint_read_mask.get_or_insert_default()
+        pub fn read_mask_mut(&mut self) -> &mut ::prost_types::FieldMask {
+            self.read_mask.get_or_insert_default()
         }
-        ///If `checkpoint_read_mask` is set, returns [`Some`] with the value; otherwise returns [`None`].
-        pub fn checkpoint_read_mask_opt(&self) -> Option<&::prost_types::FieldMask> {
-            self.checkpoint_read_mask.as_ref().map(|field| field as _)
+        ///If `read_mask` is set, returns [`Some`] with the value; otherwise returns [`None`].
+        pub fn read_mask_opt(&self) -> Option<&::prost_types::FieldMask> {
+            self.read_mask.as_ref().map(|field| field as _)
         }
-        ///Sets `checkpoint_read_mask` with the provided value.
-        pub fn set_checkpoint_read_mask<T: Into<::prost_types::FieldMask>>(
-            &mut self,
-            field: T,
-        ) {
-            self.checkpoint_read_mask = Some(field.into().into());
+        ///Sets `read_mask` with the provided value.
+        pub fn set_read_mask<T: Into<::prost_types::FieldMask>>(&mut self, field: T) {
+            self.read_mask = Some(field.into().into());
         }
-        ///Sets `checkpoint_read_mask` with the provided value.
-        pub fn with_checkpoint_read_mask<T: Into<::prost_types::FieldMask>>(
+        ///Sets `read_mask` with the provided value.
+        pub fn with_read_mask<T: Into<::prost_types::FieldMask>>(
             mut self,
             field: T,
         ) -> Self {
-            self.set_checkpoint_read_mask(field.into());
+            self.set_read_mask(field.into());
             self
         }
         ///Returns the value of `transactions_filter`, or the default value if `transactions_filter` is unset.
@@ -641,36 +567,6 @@ mod _accessor_impls {
             self.set_transactions_filter(field.into());
             self
         }
-        ///If `transaction_read_mask` is set, returns [`Some`] with a mutable reference to the value; otherwise returns [`None`].
-        pub fn transaction_read_mask_opt_mut(
-            &mut self,
-        ) -> Option<&mut ::prost_types::FieldMask> {
-            self.transaction_read_mask.as_mut().map(|field| field as _)
-        }
-        ///Returns a mutable reference to `transaction_read_mask`.
-        ///If the field is unset, it is first initialized with the default value.
-        pub fn transaction_read_mask_mut(&mut self) -> &mut ::prost_types::FieldMask {
-            self.transaction_read_mask.get_or_insert_default()
-        }
-        ///If `transaction_read_mask` is set, returns [`Some`] with the value; otherwise returns [`None`].
-        pub fn transaction_read_mask_opt(&self) -> Option<&::prost_types::FieldMask> {
-            self.transaction_read_mask.as_ref().map(|field| field as _)
-        }
-        ///Sets `transaction_read_mask` with the provided value.
-        pub fn set_transaction_read_mask<T: Into<::prost_types::FieldMask>>(
-            &mut self,
-            field: T,
-        ) {
-            self.transaction_read_mask = Some(field.into().into());
-        }
-        ///Sets `transaction_read_mask` with the provided value.
-        pub fn with_transaction_read_mask<T: Into<::prost_types::FieldMask>>(
-            mut self,
-            field: T,
-        ) -> Self {
-            self.set_transaction_read_mask(field.into());
-            self
-        }
         ///Returns the value of `events_filter`, or the default value if `events_filter` is unset.
         pub fn events_filter(&self) -> &super::super::filter::EventFilter {
             self.events_filter
@@ -708,36 +604,6 @@ mod _accessor_impls {
             field: T,
         ) -> Self {
             self.set_events_filter(field.into());
-            self
-        }
-        ///If `event_read_mask` is set, returns [`Some`] with a mutable reference to the value; otherwise returns [`None`].
-        pub fn event_read_mask_opt_mut(
-            &mut self,
-        ) -> Option<&mut ::prost_types::FieldMask> {
-            self.event_read_mask.as_mut().map(|field| field as _)
-        }
-        ///Returns a mutable reference to `event_read_mask`.
-        ///If the field is unset, it is first initialized with the default value.
-        pub fn event_read_mask_mut(&mut self) -> &mut ::prost_types::FieldMask {
-            self.event_read_mask.get_or_insert_default()
-        }
-        ///If `event_read_mask` is set, returns [`Some`] with the value; otherwise returns [`None`].
-        pub fn event_read_mask_opt(&self) -> Option<&::prost_types::FieldMask> {
-            self.event_read_mask.as_ref().map(|field| field as _)
-        }
-        ///Sets `event_read_mask` with the provided value.
-        pub fn set_event_read_mask<T: Into<::prost_types::FieldMask>>(
-            &mut self,
-            field: T,
-        ) {
-            self.event_read_mask = Some(field.into().into());
-        }
-        ///Sets `event_read_mask` with the provided value.
-        pub fn with_event_read_mask<T: Into<::prost_types::FieldMask>>(
-            mut self,
-            field: T,
-        ) -> Self {
-            self.set_event_read_mask(field.into());
             self
         }
         ///If `max_message_size_bytes` is set, returns [`Some`] with a mutable reference to the value; otherwise returns [`None`].
