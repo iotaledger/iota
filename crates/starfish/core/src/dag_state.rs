@@ -92,27 +92,20 @@ impl std::fmt::Display for TransactionSource {
 /// the DAG state. This is used for metrics tracking and debugging.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub(crate) enum BlockHeaderSource {
-    /// Block headers from full blocks received via network streaming.
-    /// This is the primary method for receiving real-time blocks as they're
-    /// created by other validators in the network.
+    /// Block headers from full blocks received via bundle streaming.
     BlockStreaming,
 
-    /// Block headers received in block header bundle stream protocol.
-    /// Used by cordial knowledge dissemination to efficiently propagate headers
-    /// without full block data.
+    /// Block headers received in bundles via block bundle streaming.
     BlockHeaderBundleStream,
 
-    /// Block headers extracted from certified commits during synchronization.
-    /// These headers are part of already-finalized commits received from peers.
+    /// Block headers extracted from certified commits during commit syncing.
     CommitSyncer,
 
-    /// Block headers fetched by the periodic header synchronizer component.
-    /// This synchronizer actively requests missing headers to fill gaps in the
-    /// DAG.
+    /// Block headers fetched by the live/periodic header synchronizer
+    /// component.
     HeaderSynchronizer,
 
     /// Block headers loaded from persistent storage during node recovery.
-    /// Used when restarting a node to restore the in-memory DAG state.
     Recover,
 
     /// Only used in test code.
