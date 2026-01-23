@@ -21,7 +21,7 @@ use crate::{
     },
     commit::{CertifiedCommit, CommitDigest, TrustedCommit, WAVE_LENGTH},
     context::Context,
-    dag_state::{DagState, TransactionSource},
+    dag_state::{BlockHeaderSource, DagState, TransactionSource},
     encoder::{ShardEncoder, create_encoder},
     leader_schedule::{LeaderSchedule, LeaderSwapTable},
     linearizer::{BlockStoreAPI, Linearizer},
@@ -412,9 +412,10 @@ impl DagBuilder {
     }
 
     pub(crate) fn persist_all_blocks(&self, dag_state: Arc<RwLock<DagState>>) {
-        dag_state
-            .write()
-            .accept_block_headers(self.block_headers.values().cloned().collect());
+        dag_state.write().accept_block_headers(
+            self.block_headers.values().cloned().collect(),
+            BlockHeaderSource::Test,
+        );
         for block_transactions in self.transactions.values() {
             dag_state
                 .write()
@@ -892,7 +893,7 @@ impl<'a> LayerBuilder<'a> {
             "Called to persist layers although no blocks have been created. Make sure you have called build before."
         );
         let mut dag_state = dag_state.write();
-        dag_state.accept_block_headers(self.block_headers.clone());
+        dag_state.accept_block_headers(self.block_headers.clone(), BlockHeaderSource::Test);
         for transactions in self.transactions.clone() {
             dag_state.add_transactions(transactions, TransactionSource::Test);
         }
