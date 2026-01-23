@@ -22,20 +22,20 @@ macro_rules! impl_id {
         $vis struct $name([u8; $name::LENGTH]);
 
         impl $name {
-            #[doc = concat!("The length of a [`", stringify!($ty),"`].")]
+            #[doc = concat!("The length of a [`", stringify!($name),"`].")]
             $vis const LENGTH: usize = $length;
 
-            #[doc = concat!("Creates a new [`", stringify!($ty),"`].")]
+            #[doc = concat!("Creates a new [`", stringify!($name),"`].")]
             $vis fn new(bytes: [u8; $name::LENGTH]) -> Self {
                 Self::from(bytes)
             }
 
-            #[doc = concat!("Creates a null [`", stringify!($ty),"`].")]
+            #[doc = concat!("Creates a null [`", stringify!($name),"`].")]
             pub fn null() -> Self {
                 Self::from([0u8; $name::LENGTH])
             }
 
-            #[doc = concat!("Checks if the [`", stringify!($ty),"`] is null.")]
+            #[doc = concat!("Checks if the [`", stringify!($name),"`] is null.")]
             pub fn is_null(&self) -> bool {
                 self.0.iter().all(|&b| b == 0)
             }
