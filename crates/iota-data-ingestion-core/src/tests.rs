@@ -440,7 +440,7 @@ async fn basic_flow_with_custom_callback() {
             epoch: 0,
             randomness_round: RandomnessRound::new(0),
             random_bytes: vec![],
-            randomness_obj_initial_shared_version: SequenceNumber::new(),
+            randomness_obj_initial_shared_version: SequenceNumber::default(),
         }),
         IotaAddress::random_for_testing_only(),
         (ObjectID::ZERO, SequenceNumber::default(), ObjectDigest::MIN),

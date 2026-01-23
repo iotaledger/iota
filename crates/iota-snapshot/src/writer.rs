@@ -240,7 +240,7 @@ impl LiveObjectSetWriterV1 {
         buf[0..ObjectID::LENGTH].copy_from_slice(object_ref.0.as_ref());
         BigEndian::write_u64(
             &mut buf[ObjectID::LENGTH..OBJECT_REF_BYTES],
-            object_ref.1.value(),
+            object_ref.1.as_u64(),
         );
         buf[ObjectID::LENGTH + SEQUENCE_NUM_BYTES..OBJECT_REF_BYTES]
             .copy_from_slice(object_ref.2.as_ref());

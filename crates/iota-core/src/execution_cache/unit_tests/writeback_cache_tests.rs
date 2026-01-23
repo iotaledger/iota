@@ -212,7 +212,7 @@ impl Scenario {
             .data
             .try_as_move_mut()
             .unwrap()
-            .increment_version_to(SequenceNumber::from_u64(version.value() + delta));
+            .increment_version_to(version + delta);
         inner.into()
     }
 
@@ -294,7 +294,7 @@ impl Scenario {
             let mut object_ref = object.compute_object_reference();
             self.outputs.live_object_markers_to_delete.push(object_ref);
             // in the authority this would be set to the lamport version of the tx
-            object_ref.1.increment();
+            object_ref.1.increment().unwrap();
             self.outputs.deleted.push(object_ref.into());
         }
     }
@@ -308,7 +308,7 @@ impl Scenario {
             let mut object_ref = object.compute_object_reference();
             self.outputs.live_object_markers_to_delete.push(object_ref);
             // in the authority this would be set to the lamport version of the tx
-            object_ref.1.increment();
+            object_ref.1.increment().unwrap();
             self.outputs.wrapped.push(object_ref.into());
         }
     }
@@ -787,8 +787,7 @@ async fn test_lt_or_eq_caching() {
                 .unwrap()
                 .lock()
                 .version()
-                .unwrap()
-                .value(),
+                .unwrap(),
             5
         );
 
@@ -1221,7 +1220,7 @@ async fn latest_object_cache_race_test() {
 
                 cache.write_object_entry(&object_id, version, object.into());
 
-                version = version.next();
+                version.increment().unwrap();
             }
         })
     };
@@ -1403,7 +1402,7 @@ async fn concurrent_latest_object_cache_race_test() {
 
         cache.write_object_entry(&object_id, write_version, object.into());
 
-        write_version = write_version.next();
+        write_version.increment().unwrap();
     };
 
     // invalidate the cache on request
@@ -1525,7 +1524,7 @@ async fn concurrent_latest_object_cache_collision_test() {
 
         cache.write_object_entry(&object_id, *write_version, object.into());
 
-        *write_version = write_version.next();
+        write_version.increment().unwrap();
     };
 
     // invalidate the cache on request
@@ -1586,7 +1585,7 @@ async fn concurrent_latest_object_cache_collision_test() {
             .lock()
             .version()
             .unwrap(),
-        OBJECT_START_VERSION.next()
+        OBJECT_START_VERSION.next().unwrap()
     );
     // but now we get a cache miss on object2 instead of getting the latest version
     assert!(cache.cached.object_by_id_cache.get(&object2_id).is_none());

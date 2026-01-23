@@ -92,7 +92,7 @@ impl AuthenticatorStateUpdateTransaction {
     async fn authenticator_obj_initial_shared_version(&self) -> UInt53 {
         self.native
             .authenticator_obj_initial_shared_version
-            .value()
+            .as_u64()
             .into()
     }
 }

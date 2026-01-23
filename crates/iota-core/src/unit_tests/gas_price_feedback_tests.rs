@@ -659,13 +659,15 @@ async fn transaction_duration_exceeds_max_execution_duration_per_commit() {
                         tester.shared_counter_1.0,
                         SequenceNumber::new_congested_with_suggested_gas_price(
                             REFERENCE_GAS_PRICE_FOR_TESTS,
-                        ),
+                        )
+                        .unwrap(),
                     ),
                     (
                         tester.shared_counter_2.0,
                         SequenceNumber::new_congested_with_suggested_gas_price(
                             REFERENCE_GAS_PRICE_FOR_TESTS,
-                        ),
+                        )
+                        .unwrap(),
                     ),
                 ],
             ),
@@ -676,13 +678,15 @@ async fn transaction_duration_exceeds_max_execution_duration_per_commit() {
                         tester.shared_counter_1.0,
                         SequenceNumber::new_congested_with_suggested_gas_price(
                             expected_suggested_gas_price_2,
-                        ),
+                        )
+                        .unwrap(),
                     ),
                     (
                         tester.shared_counter_2.0,
                         SequenceNumber::new_congested_with_suggested_gas_price(
                             expected_suggested_gas_price_2,
-                        ),
+                        )
+                        .unwrap(),
                     ),
                 ],
             ),
@@ -742,6 +746,7 @@ async fn transaction_duration_exceeds_max_execution_duration_per_commit() {
                     SequenceNumber::new_congested_with_suggested_gas_price(
                         REFERENCE_GAS_PRICE_FOR_TESTS
                     )
+                    .unwrap()
                 )
             ),
             (
@@ -750,6 +755,7 @@ async fn transaction_duration_exceeds_max_execution_duration_per_commit() {
                     SequenceNumber::new_congested_with_suggested_gas_price(
                         REFERENCE_GAS_PRICE_FOR_TESTS
                     )
+                    .unwrap()
                 )
             ),
         ]
@@ -788,6 +794,7 @@ async fn transaction_duration_exceeds_max_execution_duration_per_commit() {
                     SequenceNumber::new_congested_with_suggested_gas_price(
                         expected_suggested_gas_price_2
                     )
+                    .unwrap()
                 )
             ),
             (
@@ -796,6 +803,7 @@ async fn transaction_duration_exceeds_max_execution_duration_per_commit() {
                     SequenceNumber::new_congested_with_suggested_gas_price(
                         expected_suggested_gas_price_2
                     )
+                    .unwrap()
                 )
             ),
         ]
@@ -1022,13 +1030,15 @@ async fn gas_price_feedback_mechanism_with_max_gas_price() {
                     tester.shared_counter_1.0,
                     SequenceNumber::new_congested_with_suggested_gas_price(
                         expected_suggested_gas_price,
-                    ),
+                    )
+                    .unwrap(),
                 ),
                 (
                     tester.shared_counter_2.0,
                     SequenceNumber::new_congested_with_suggested_gas_price(
                         expected_suggested_gas_price,
-                    ),
+                    )
+                    .unwrap(),
                 ),
             ],
         )];
@@ -1088,6 +1098,7 @@ async fn gas_price_feedback_mechanism_with_max_gas_price() {
                     SequenceNumber::new_congested_with_suggested_gas_price(
                         expected_suggested_gas_price
                     )
+                    .unwrap()
                 )
             ),
             (
@@ -1096,6 +1107,7 @@ async fn gas_price_feedback_mechanism_with_max_gas_price() {
                     SequenceNumber::new_congested_with_suggested_gas_price(
                         expected_suggested_gas_price
                     )
+                    .unwrap()
                 )
             ),
         ]
@@ -1253,13 +1265,15 @@ async fn gas_price_feedback_mechanism_for_multiple_commits() {
                     tester.shared_counter_1.0,
                     SequenceNumber::new_congested_with_suggested_gas_price(
                         expected_suggested_gas_price,
-                    ),
+                    )
+                    .unwrap(),
                 ),
                 (
                     tester.shared_counter_2.0,
                     SequenceNumber::new_congested_with_suggested_gas_price(
                         expected_suggested_gas_price,
-                    ),
+                    )
+                    .unwrap(),
                 ),
             ],
         )];
@@ -1329,6 +1343,7 @@ async fn gas_price_feedback_mechanism_for_multiple_commits() {
                     SequenceNumber::new_congested_with_suggested_gas_price(
                         expected_suggested_gas_price
                     )
+                    .unwrap()
                 )
             ),
             (
@@ -1337,6 +1352,7 @@ async fn gas_price_feedback_mechanism_for_multiple_commits() {
                     SequenceNumber::new_congested_with_suggested_gas_price(
                         expected_suggested_gas_price
                     )
+                    .unwrap()
                 )
             ),
         ]
@@ -1432,7 +1448,8 @@ async fn gas_price_feedback_mechanism_non_trivial_case_total_tx_count_mode() {
                     tester.shared_counter_2.0,
                     SequenceNumber::new_congested_with_suggested_gas_price(
                         expected_suggested_gas_price_for_object_2,
-                    ),
+                    )
+                    .unwrap(),
                 )],
             ),
             (
@@ -1441,7 +1458,8 @@ async fn gas_price_feedback_mechanism_non_trivial_case_total_tx_count_mode() {
                     tester.shared_counter_2.0,
                     SequenceNumber::new_congested_with_suggested_gas_price(
                         expected_suggested_gas_price_for_object_2,
-                    ),
+                    )
+                    .unwrap(),
                 )],
             ),
             (
@@ -1451,13 +1469,15 @@ async fn gas_price_feedback_mechanism_non_trivial_case_total_tx_count_mode() {
                         tester.shared_counter_1.0,
                         SequenceNumber::new_congested_with_suggested_gas_price(
                             expected_suggested_gas_price_for_both_objects,
-                        ),
+                        )
+                        .unwrap(),
                     ),
                     (
                         tester.shared_counter_2.0,
                         SequenceNumber::new_congested_with_suggested_gas_price(
                             expected_suggested_gas_price_for_both_objects,
-                        ),
+                        )
+                        .unwrap(),
                     ),
                 ],
             ),
@@ -1468,13 +1488,15 @@ async fn gas_price_feedback_mechanism_non_trivial_case_total_tx_count_mode() {
                         tester.shared_counter_1.0,
                         SequenceNumber::new_congested_with_suggested_gas_price(
                             expected_suggested_gas_price_for_both_objects,
-                        ),
+                        )
+                        .unwrap(),
                     ),
                     (
                         tester.shared_counter_2.0,
                         SequenceNumber::new_congested_with_suggested_gas_price(
                             expected_suggested_gas_price_for_both_objects,
-                        ),
+                        )
+                        .unwrap(),
                     ),
                 ],
             ),
@@ -1485,13 +1507,15 @@ async fn gas_price_feedback_mechanism_non_trivial_case_total_tx_count_mode() {
                         tester.shared_counter_1.0,
                         SequenceNumber::new_congested_with_suggested_gas_price(
                             expected_suggested_gas_price_for_both_objects,
-                        ),
+                        )
+                        .unwrap(),
                     ),
                     (
                         tester.shared_counter_2.0,
                         SequenceNumber::new_congested_with_suggested_gas_price(
                             expected_suggested_gas_price_for_both_objects,
-                        ),
+                        )
+                        .unwrap(),
                     ),
                 ],
             ),
@@ -1502,13 +1526,15 @@ async fn gas_price_feedback_mechanism_non_trivial_case_total_tx_count_mode() {
                         tester.shared_counter_1.0,
                         SequenceNumber::new_congested_with_suggested_gas_price(
                             expected_suggested_gas_price_for_both_objects,
-                        ),
+                        )
+                        .unwrap(),
                     ),
                     (
                         tester.shared_counter_2.0,
                         SequenceNumber::new_congested_with_suggested_gas_price(
                             expected_suggested_gas_price_for_both_objects,
-                        ),
+                        )
+                        .unwrap(),
                     ),
                 ],
             ),
@@ -1519,13 +1545,15 @@ async fn gas_price_feedback_mechanism_non_trivial_case_total_tx_count_mode() {
                         tester.shared_counter_1.0,
                         SequenceNumber::new_congested_with_suggested_gas_price(
                             expected_suggested_gas_price_for_both_objects,
-                        ),
+                        )
+                        .unwrap(),
                     ),
                     (
                         tester.shared_counter_2.0,
                         SequenceNumber::new_congested_with_suggested_gas_price(
                             expected_suggested_gas_price_for_both_objects,
-                        ),
+                        )
+                        .unwrap(),
                     ),
                 ],
             ),
@@ -1591,6 +1619,7 @@ async fn gas_price_feedback_mechanism_non_trivial_case_total_tx_count_mode() {
                     SequenceNumber::new_congested_with_suggested_gas_price(
                         expected_suggested_gas_price_for_object_2
                     )
+                    .unwrap()
                 )
             ),]
         );
@@ -1632,6 +1661,7 @@ async fn gas_price_feedback_mechanism_non_trivial_case_total_tx_count_mode() {
                         SequenceNumber::new_congested_with_suggested_gas_price(
                             expected_suggested_gas_price_for_both_objects
                         )
+                        .unwrap()
                     )
                 ),
                 (
@@ -1640,6 +1670,7 @@ async fn gas_price_feedback_mechanism_non_trivial_case_total_tx_count_mode() {
                         SequenceNumber::new_congested_with_suggested_gas_price(
                             expected_suggested_gas_price_for_both_objects
                         )
+                        .unwrap()
                     )
                 ),
             ]
@@ -1743,7 +1774,8 @@ async fn gas_price_feedback_mechanism_non_trivial_case_total_gas_budget_mode() {
                     tester.shared_counter_2.0,
                     SequenceNumber::new_congested_with_suggested_gas_price(
                         certificates[2].gas_price() + 1,
-                    ),
+                    )
+                    .unwrap(),
                 )],
             ),
             (
@@ -1752,7 +1784,8 @@ async fn gas_price_feedback_mechanism_non_trivial_case_total_gas_budget_mode() {
                     tester.shared_counter_2.0,
                     SequenceNumber::new_congested_with_suggested_gas_price(
                         certificates[2].gas_price() + 1,
-                    ),
+                    )
+                    .unwrap(),
                 )],
             ),
             (
@@ -1762,13 +1795,15 @@ async fn gas_price_feedback_mechanism_non_trivial_case_total_gas_budget_mode() {
                         tester.shared_counter_1.0,
                         SequenceNumber::new_congested_with_suggested_gas_price(
                             certificates[1].gas_price() + 1,
-                        ),
+                        )
+                        .unwrap(),
                     ),
                     (
                         tester.shared_counter_2.0,
                         SequenceNumber::new_congested_with_suggested_gas_price(
                             certificates[1].gas_price() + 1,
-                        ),
+                        )
+                        .unwrap(),
                     ),
                 ],
             ),
@@ -1779,13 +1814,15 @@ async fn gas_price_feedback_mechanism_non_trivial_case_total_gas_budget_mode() {
                         tester.shared_counter_1.0,
                         SequenceNumber::new_congested_with_suggested_gas_price(
                             certificates[0].gas_price(),
-                        ),
+                        )
+                        .unwrap(),
                     ),
                     (
                         tester.shared_counter_2.0,
                         SequenceNumber::new_congested_with_suggested_gas_price(
                             certificates[0].gas_price(),
-                        ),
+                        )
+                        .unwrap(),
                     ),
                 ],
             ),
@@ -1796,13 +1833,15 @@ async fn gas_price_feedback_mechanism_non_trivial_case_total_gas_budget_mode() {
                         tester.shared_counter_1.0,
                         SequenceNumber::new_congested_with_suggested_gas_price(
                             certificates[2].gas_price() + 1,
-                        ),
+                        )
+                        .unwrap(),
                     ),
                     (
                         tester.shared_counter_2.0,
                         SequenceNumber::new_congested_with_suggested_gas_price(
                             certificates[2].gas_price() + 1,
-                        ),
+                        )
+                        .unwrap(),
                     ),
                 ],
             ),
@@ -1813,13 +1852,15 @@ async fn gas_price_feedback_mechanism_non_trivial_case_total_gas_budget_mode() {
                         tester.shared_counter_1.0,
                         SequenceNumber::new_congested_with_suggested_gas_price(
                             certificates[1].gas_price() + 1,
-                        ),
+                        )
+                        .unwrap(),
                     ),
                     (
                         tester.shared_counter_2.0,
                         SequenceNumber::new_congested_with_suggested_gas_price(
                             certificates[1].gas_price() + 1,
-                        ),
+                        )
+                        .unwrap(),
                     ),
                 ],
             ),
@@ -1830,13 +1871,15 @@ async fn gas_price_feedback_mechanism_non_trivial_case_total_gas_budget_mode() {
                         tester.shared_counter_1.0,
                         SequenceNumber::new_congested_with_suggested_gas_price(
                             certificates[0].gas_price(),
-                        ),
+                        )
+                        .unwrap(),
                     ),
                     (
                         tester.shared_counter_2.0,
                         SequenceNumber::new_congested_with_suggested_gas_price(
                             certificates[0].gas_price(),
-                        ),
+                        )
+                        .unwrap(),
                     ),
                 ],
             ),
@@ -1900,6 +1943,7 @@ async fn gas_price_feedback_mechanism_non_trivial_case_total_gas_budget_mode() {
                     SequenceNumber::new_congested_with_suggested_gas_price(
                         expected_suggested_gas_price
                     )
+                    .unwrap()
                 )
             ),]
         );
@@ -1948,6 +1992,7 @@ async fn gas_price_feedback_mechanism_non_trivial_case_total_gas_budget_mode() {
                         SequenceNumber::new_congested_with_suggested_gas_price(
                             expected_suggested_gas_price
                         )
+                        .unwrap()
                     )
                 ),
                 (
@@ -1956,6 +2001,7 @@ async fn gas_price_feedback_mechanism_non_trivial_case_total_gas_budget_mode() {
                         SequenceNumber::new_congested_with_suggested_gas_price(
                             expected_suggested_gas_price
                         )
+                        .unwrap()
                     )
                 ),
             ]

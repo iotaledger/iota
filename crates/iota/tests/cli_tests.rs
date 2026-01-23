@@ -1323,10 +1323,7 @@ async fn test_package_management_on_publish_command() -> Result<(), anyhow::Erro
         localnet.original_published_id,
     );
     assert_eq!(expect_original_id.to_string(), localnet.latest_published_id);
-    assert_eq!(
-        expect_version.value(),
-        localnet.version.parse::<u64>().unwrap(),
-    );
+    assert_eq!(expect_version, localnet.version.parse::<u64>().unwrap(),);
     Ok(())
 }
 
@@ -2610,7 +2607,7 @@ async fn test_package_management_on_upgrade_command() -> Result<(), anyhow::Erro
     );
     // Version should correspond to upgraded package.
     assert_eq!(
-        expect_upgrade_version.value(),
+        expect_upgrade_version.as_u64(),
         localnet.version.parse::<u64>().unwrap(),
     );
     Ok(())

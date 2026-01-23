@@ -277,7 +277,7 @@ impl IndexerReader {
             if let Some(version) = version {
                 objects::dsl::objects
                     .filter(objects::dsl::object_id.eq(object_id))
-                    .filter(objects::dsl::object_version.eq(version.value() as i64))
+                    .filter(objects::dsl::object_version.eq(version.as_u64() as i64))
                     .first::<StoredObject>(conn)
                     .optional()
             } else {
@@ -354,7 +354,7 @@ impl IndexerReader {
         object_version: SequenceNumber,
         before_version: bool,
     ) -> IndexerResult<PastObjectRead> {
-        let object_version_num = object_version.value() as i64;
+        let object_version_num = object_version.as_u64() as i64;
 
         // Query objects_version to find the requested version and relevant
         // checkpoint sequence number considering the `before_version` flag.
@@ -1087,7 +1087,7 @@ impl IndexerReader {
                 format!(
                     "('\\x{}'::bytea, {}::bigint)",
                     Hex::encode(id.to_vec()),
-                    version.value()
+                    version.as_u64()
                 )
             })
             .join(", ");
@@ -2875,7 +2875,7 @@ impl<'a> DBReader<'a> {
         object_version: SequenceNumber,
         before_version: bool,
     ) -> IndexerResult<Option<StoredObjectVersion>> {
-        let object_version_num = object_version.value() as i64;
+        let object_version_num = object_version.as_u64() as i64;
         let pool = self.main_reader.get_pool();
 
         // query objects_version to find the requested version

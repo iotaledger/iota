@@ -1033,19 +1033,14 @@ impl<T: TransactionEffectsAPI> From<T> for IotaTransactionBlockEffectsV1 {
 fn owned_objref_string(obj: &OwnedObjectRef) -> String {
     format!(
         " ┌──\n │ ID: {} \n │ Owner: {} \n │ Version: {} \n │ Digest: {}\n └──",
-        obj.reference.object_id,
-        obj.owner,
-        u64::from(obj.reference.version),
-        obj.reference.digest
+        obj.reference.object_id, obj.owner, obj.reference.version, obj.reference.digest
     )
 }
 
 fn objref_string(obj: &IotaObjectRef) -> String {
     format!(
         " ┌──\n │ ID: {} \n │ Version: {} \n │ Digest: {}\n └──",
-        obj.object_id,
-        u64::from(obj.version),
-        obj.digest
+        obj.object_id, obj.version, obj.digest
     )
 }
 

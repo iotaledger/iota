@@ -248,7 +248,7 @@ pub fn share_object(
         // Dummy version, to be filled with the correct initial version when the effects of the
         // transaction are written to storage.
         Owner::Shared {
-            initial_shared_version: SequenceNumber::new(),
+            initial_shared_version: SequenceNumber::default(),
         },
         ty,
         obj,

@@ -282,7 +282,7 @@ impl std::fmt::Display for ConciseObjectOutput {
                 f,
                 "{:<20} {:<8}",
                 format!("{:?}", name.concise()),
-                version.map(|s| s.value()).opt_debug("-")
+                version.opt_debug("-")
             )?;
             match resp {
                 Err(_) => writeln!(
@@ -500,8 +500,8 @@ async fn get_object_impl(
         .map_err(anyhow::Error::from);
     let elapsed = start.elapsed().as_secs_f64();
 
-    let resp_version = resp.as_ref().ok().map(|r| r.object.version().value());
-    (resp_version.map(SequenceNumber::from), resp, elapsed)
+    let resp_version = resp.as_ref().ok().map(|r| r.object.version());
+    (resp_version, resp, elapsed)
 }
 
 pub(crate) fn make_anemo_config() -> anemo_cli::Config {
