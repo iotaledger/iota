@@ -1,0 +1,34 @@
+[package]
+name = "iota-stardust-types"
+version.workspace = true
+authors = ["IOTA Foundation <info@iota.org>"]
+edition = "2021"
+license = "Apache-2.0"
+publish = false
+
+[lints]
+workspace = true
+
+[dependencies]
+bitflags = { version = "2.4.2", default-features = false }
+derive_more = { version = "0.99.17", default-features = false, features = ["from", "as_ref", "deref", "deref_mut", "display"] }
+getset.workspace = true
+iota-crypto = { version = "0.23.2", default-features = false, features = ["blake2b", "ed25519"] }
+iterator-sorted = { version = "0.2.0", default-features = false }
+packable = { version = "0.8.3", default-features = false, features = ["primitive-types"] }
+prefix-hex = { version = "0.7.1", default-features = false, features = ["primitive-types"] }
+primitive-types = { version = "0.12.2", default-features = false }
+serde.workspace = true
+serde_json.workspace = true
+# optional dependencies
+url = { workspace = true, features = ["serde"], optional = true }
+zeroize = { version = "1.7.0", default-features = false, features = ["zeroize_derive"], optional = true }
+
+[dev-dependencies]
+pretty_assertions = { version = "1.4.0", default-features = false, features = ["alloc"] }
+
+[features]
+default = ["std", "serde"]
+irc_27 = ["url", "serde"]
+serde = ["packable/serde", "primitive-types/serde_no_std", "zeroize?/serde"]
+std = ["packable/std", "prefix-hex/std", "primitive-types/std", "bitflags/std"]
