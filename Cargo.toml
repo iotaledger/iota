@@ -267,7 +267,7 @@ crossterm = "0.25.0"
 csv = "1.2.1"
 dashmap = "5.5.3"
 datatest-stable = { git = "https://github.com/nextest-rs/datatest-stable.git", rev = "72db7f6d1bbe36a5407e96b9488a581f763e106f" }
-derive_more = "1.0"
+derive_more = { version = "1.0", default-features = false }
 diesel = "2.3.5"
 diffy = { version = "0.3" }
 dirs = "5.0"
@@ -317,14 +317,14 @@ num_enum = "0.7"
 object_store = { version = "0.10", features = ["aws", "gcp", "azure", "http"] }
 once_cell = "1.18.0"
 p256 = { version = "0.13.2", features = ["ecdsa"] }
-packable = { version = "0.8", features = ["io"], default-features = false }
+packable = { version = "0.8.3", features = ["io"], default-features = false }
 parking_lot = { version = "0.12.3", features = ["arc_lock"] }
 passkey-authenticator = "0.4.0"
 passkey-client = "0.4.0"
 passkey-types = "0.4.0"
 pin-project-lite = "0.2.15"
 prefix-hex = { version = "0.7.1", default-features = false }
-pretty_assertions = "1.3.0"
+pretty_assertions = { version = "1.4.0", default-features = true }
 primitive-types = { version = "0.12.2", default-features = false }
 proc-macro2 = "1.0.95"
 prometheus = "0.14.0"

@@ -35,9 +35,9 @@ pub enum Address {
 impl core::fmt::Debug for Address {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            Self::Ed25519(address) => address.fmt(f),
-            Self::Alias(address) => address.fmt(f),
-            Self::Nft(address) => address.fmt(f),
+            Self::Ed25519(address) => core::fmt::Display::fmt(address, f),
+            Self::Alias(address) => core::fmt::Display::fmt(address, f),
+            Self::Nft(address) => core::fmt::Display::fmt(address, f),
         }
     }
 }

@@ -12,11 +12,11 @@ workspace = true
 [dependencies]
 bech32 = { version = "0.9.1", default-features = false }
 bitflags = { version = "2.4.2", default-features = false }
-derive_more = { version = "0.99.17", default-features = false, features = ["from", "as_ref", "deref", "deref_mut", "display"] }
+derive_more = { workspace = true, features = ["from", "as_ref", "deref", "deref_mut", "display"] }
 getset.workspace = true
 iota-crypto = { version = "0.23.2", default-features = false, features = ["blake2b", "ed25519"] }
 iterator-sorted = { version = "0.2.0", default-features = false }
-packable = { version = "0.8.3", default-features = false, features = ["primitive-types"] }
+packable = { workspace = true, features = ["primitive-types"] }
 prefix-hex = { workspace = true, features = ["primitive-types"] }
 primitive-types.workspace = true
 serde.workspace = true
@@ -25,7 +25,7 @@ serde_json.workspace = true
 zeroize = { version = "1.7.0", default-features = false, features = ["zeroize_derive"], optional = true }
 
 [dev-dependencies]
-pretty_assertions = { version = "1.4.0", default-features = false, features = ["alloc"] }
+pretty_assertions = { workspace = true, features = ["alloc"] }
 
 [features]
 default = ["std", "serde"]

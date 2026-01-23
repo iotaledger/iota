@@ -19,7 +19,7 @@ bcs.workspace = true
 better_any.workspace = true
 bincode.workspace = true
 byteorder.workspace = true
-derive_more = { workspace = true, features = ["as_ref", "from", "debug", "display"] }
+derive_more = { workspace = true, default-features = true, features = ["as_ref", "from", "debug", "display"] }
 either.workspace = true
 enum_dispatch.workspace = true
 eyre.workspace = true
