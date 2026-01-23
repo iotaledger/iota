@@ -275,52 +275,6 @@ impl PgIndexerStore {
         .context("Failed reading min and max epoch numbers from PostgresDB")
     }
 
-    fn get_min_prunable_checkpoint(&self) -> Result<u64, IndexerError> {
-        read_only_blocking!(&self.blocking_cp, |conn| {
-            pruner_cp_watermark::dsl::pruner_cp_watermark
-                .select(min(pruner_cp_watermark::checkpoint_sequence_number))
-                .first::<Option<i64>>(conn)
-                .map(|v| v.unwrap_or_default() as u64)
-        })
-        .context("Failed reading min prunable checkpoint sequence number from PostgresDB")
-    }
-
-    fn get_checkpoint_range_for_epoch(
-        &self,
-        epoch: u64,
-    ) -> Result<(u64, Option<u64>), IndexerError> {
-        read_only_blocking!(&self.blocking_cp, |conn| {
-            epochs::dsl::epochs
-                .select((epochs::first_checkpoint_id, epochs::last_checkpoint_id))
-                .filter(epochs::epoch.eq(epoch as i64))
-                .first::<(i64, Option<i64>)>(conn)
-                .map(|(min, max)| (min as u64, max.map(|v| v as u64)))
-        })
-        .context(
-            format!("failed reading checkpoint range from PostgresDB for epoch {epoch}").as_str(),
-        )
-    }
-
-    fn get_transaction_range_for_checkpoint(
-        &self,
-        checkpoint: u64,
-    ) -> Result<(u64, u64), IndexerError> {
-        read_only_blocking!(&self.blocking_cp, |conn| {
-            pruner_cp_watermark::dsl::pruner_cp_watermark
-                .select((
-                    pruner_cp_watermark::min_tx_sequence_number,
-                    pruner_cp_watermark::max_tx_sequence_number,
-                ))
-                .filter(pruner_cp_watermark::checkpoint_sequence_number.eq(checkpoint as i64))
-                .first::<(i64, i64)>(conn)
-                .map(|(min, max)| (min as u64, max as u64))
-        })
-        .context(
-            format!("failed reading transaction range from PostgresDB for checkpoint {checkpoint}")
-                .as_str(),
-        )
-    }
-
     pub(crate) async fn get_global_order_for_tx_seq_in_blocking_worker(
         &self,
         tx_seq: i64,
@@ -1400,134 +1354,185 @@ impl PgIndexerStore {
         )
     }
 
-    fn prune_event_indices_table(&self, min_tx: u64, max_tx: u64) -> Result<(), IndexerError> {
-        let (min_tx, max_tx) = (min_tx as i64, max_tx as i64);
-        transactional_blocking_with_retry!(
-            &self.blocking_cp,
-            |conn| {
-                prune_tx_or_event_indice_table!(
-                    event_emit_module,
-                    conn,
-                    min_tx,
-                    max_tx,
-                    "Failed to prune event_emit_module table"
-                );
-                prune_tx_or_event_indice_table!(
-                    event_emit_package,
-                    conn,
-                    min_tx,
-                    max_tx,
-                    "Failed to prune event_emit_package table"
-                );
-                prune_tx_or_event_indice_table![
-                    event_senders,
-                    conn,
-                    min_tx,
-                    max_tx,
-                    "Failed to prune event_senders table"
-                ];
-                prune_tx_or_event_indice_table![
-                    event_struct_instantiation,
-                    conn,
-                    min_tx,
-                    max_tx,
-                    "Failed to prune event_struct_instantiation table"
-                ];
-                prune_tx_or_event_indice_table![
-                    event_struct_module,
-                    conn,
-                    min_tx,
-                    max_tx,
-                    "Failed to prune event_struct_module table"
-                ];
-                prune_tx_or_event_indice_table![
-                    event_struct_name,
-                    conn,
-                    min_tx,
-                    max_tx,
-                    "Failed to prune event_struct_name table"
-                ];
-                prune_tx_or_event_indice_table![
-                    event_struct_package,
-                    conn,
-                    min_tx,
-                    max_tx,
-                    "Failed to prune event_struct_package table"
-                ];
-                Ok::<(), IndexerError>(())
-            },
-            PG_DB_COMMIT_SLEEP_DURATION
-        )
-    }
+    /// Prunes a single transaction or event index table by transaction range
+    fn prune_single_tx_or_event_table(
+        &self,
+        table: &crate::pruning::pruner::PrunableTable,
+        min_tx: u64,
+        max_tx: u64,
+    ) -> Result<(), IndexerError> {
+        use crate::pruning::pruner::PrunableTable;
 
-    fn prune_tx_indices_table(&self, min_tx: u64, max_tx: u64) -> Result<(), IndexerError> {
         let (min_tx, max_tx) = (min_tx as i64, max_tx as i64);
+
         transactional_blocking_with_retry!(
             &self.blocking_cp,
             |conn| {
-                prune_tx_or_event_indice_table!(
-                    tx_senders,
-                    conn,
-                    min_tx,
-                    max_tx,
-                    "Failed to prune tx_senders table"
-                );
-                prune_tx_or_event_indice_table!(
-                    tx_recipients,
-                    conn,
-                    min_tx,
-                    max_tx,
-                    "Failed to prune tx_recipients table"
-                );
-                prune_tx_or_event_indice_table![
-                    tx_input_objects,
-                    conn,
-                    min_tx,
-                    max_tx,
-                    "Failed to prune tx_input_objects table"
-                ];
-                prune_tx_or_event_indice_table![
-                    tx_changed_objects,
-                    conn,
-                    min_tx,
-                    max_tx,
-                    "Failed to prune tx_changed_objects table"
-                ];
-                prune_tx_or_event_indice_table![
-                    tx_wrapped_or_deleted_objects,
-                    conn,
-                    min_tx,
-                    max_tx,
-                    "Failed to prune tx_wrapped_or_deleted_objects table"
-                ];
-                prune_tx_or_event_indice_table![
-                    tx_calls_pkg,
-                    conn,
-                    min_tx,
-                    max_tx,
-                    "Failed to prune tx_calls_pkg table"
-                ];
-                prune_tx_or_event_indice_table![
-                    tx_calls_mod,
-                    conn,
-                    min_tx,
-                    max_tx,
-                    "Failed to prune tx_calls_mod table"
-                ];
-                prune_tx_or_event_indice_table![
-                    tx_calls_fun,
-                    conn,
-                    min_tx,
-                    max_tx,
-                    "Failed to prune tx_calls_fun table"
-                ];
-                prune_tx_or_event_indice_table![
-                    tx_digests,
-                    conn,
-                    min_tx,
-                    max_tx,
-                    "Failed to prune tx_digests table"
-                ];
+                match table {
+                    // Event index tables
+                    PrunableTable::EventEmitModule => {
+                        prune_tx_or_event_indice_table!(
+                            event_emit_module,
+                            conn,
+                            min_tx,
+                            max_tx,
+                            "Failed to prune event_emit_module table"
+                        );
+                    }
+                    PrunableTable::EventEmitPackage => {
+                        prune_tx_or_event_indice_table!(
+                            event_emit_package,
+                            conn,
+                            min_tx,
+                            max_tx,
+                            "Failed to prune event_emit_package table"
+                        );
+                    }
+                    PrunableTable::EventSenders => {
+                        prune_tx_or_event_indice_table!(
+                            event_senders,
+                            conn,
+                            min_tx,
+                            max_tx,
+                            "Failed to prune event_senders table"
+                        );
+                    }
+                    PrunableTable::EventStructInstantiation => {
+                        prune_tx_or_event_indice_table!(
+                            event_struct_instantiation,
+                            conn,
+                            min_tx,
+                            max_tx,
+                            "Failed to prune event_struct_instantiation table"
+                        );
+                    }
+                    PrunableTable::EventStructModule => {
+                        prune_tx_or_event_indice_table!(
+                            event_struct_module,
+                            conn,
+                            min_tx,
+                            max_tx,
+                            "Failed to prune event_struct_module table"
+                        );
+                    }
+                    PrunableTable::EventStructName => {
+                        prune_tx_or_event_indice_table!(
+                            event_struct_name,
+                            conn,
+                            min_tx,
+                            max_tx,
+                            "Failed to prune event_struct_name table"
+                        );
+                    }
+                    PrunableTable::EventStructPackage => {
+                        prune_tx_or_event_indice_table!(
+                            event_struct_package,
+                            conn,
+                            min_tx,
+                            max_tx,
+                            "Failed to prune event_struct_package table"
+                        );
+                    }
+
+                    // Transaction index tables
+                    PrunableTable::TxSenders => {
+                        prune_tx_or_event_indice_table!(
+                            tx_senders,
+                            conn,
+                            min_tx,
+                            max_tx,
+                            "Failed to prune tx_senders table"
+                        );
+                    }
+                    PrunableTable::TxRecipients => {
+                        prune_tx_or_event_indice_table!(
+                            tx_recipients,
+                            conn,
+                            min_tx,
+                            max_tx,
+                            "Failed to prune tx_recipients table"
+                        );
+                    }
+                    PrunableTable::TxInputObjects => {
+                        prune_tx_or_event_indice_table!(
+                            tx_input_objects,
+                            conn,
+                            min_tx,
+                            max_tx,
+                            "Failed to prune tx_input_objects table"
+                        );
+                    }
+                    PrunableTable::TxChangedObjects => {
+                        prune_tx_or_event_indice_table!(
+                            tx_changed_objects,
+                            conn,
+                            min_tx,
+                            max_tx,
+                            "Failed to prune tx_changed_objects table"
+                        );
+                    }
+                    PrunableTable::TxWrappedOrDeletedObjects => {
+                        prune_tx_or_event_indice_table!(
+                            tx_wrapped_or_deleted_objects,
+                            conn,
+                            min_tx,
+                            max_tx,
+                            "Failed to prune tx_wrapped_or_deleted_objects table"
+                        );
+                    }
+                    PrunableTable::TxCallsPkg => {
+                        prune_tx_or_event_indice_table!(
+                            tx_calls_pkg,
+                            conn,
+                            min_tx,
+                            max_tx,
+                            "Failed to prune tx_calls_pkg table"
+                        );
+                    }
+                    PrunableTable::TxCallsMod => {
+                        prune_tx_or_event_indice_table!(
+                            tx_calls_mod,
+                            conn,
+                            min_tx,
+                            max_tx,
+                            "Failed to prune tx_calls_mod table"
+                        );
+                    }
+                    PrunableTable::TxCallsFun => {
+                        prune_tx_or_event_indice_table!(
+                            tx_calls_fun,
+                            conn,
+                            min_tx,
+                            max_tx,
+                            "Failed to prune tx_calls_fun table"
+                        );
+                    }
+                    PrunableTable::TxDigests => {
+                        prune_tx_or_event_indice_table!(
+                            tx_digests,
+                            conn,
+                            min_tx,
+                            max_tx,
+                            "Failed to prune tx_digests table"
+                        );
+                    }
+                    PrunableTable::TxKinds => {
+                        prune_tx_or_event_indice_table!(
+                            tx_kinds,
+                            conn,
+                            min_tx,
+                            max_tx,
+                            "Failed to prune tx_kinds table"
+                        );
+                    }
+
+                    _ => {
+                        return Err(IndexerError::InvalidArgument(format!(
+                            "table {} is not a transaction or event index table",
+                            table.as_ref()
+                        )));
+                    }
+                }
                 Ok::<(), IndexerError>(())
             },
             PG_DB_COMMIT_SLEEP_DURATION
@@ -1549,6 +1554,23 @@ impl PgIndexerStore {
             },
             PG_DB_COMMIT_SLEEP_DURATION
         )
+    }
+
+    fn prune_table_by_checkpoint(
+        &self,
+        table: &crate::pruning::pruner::PrunableTable,
+        checkpoint: u64,
+    ) -> Result<(), IndexerError> {
+        use crate::pruning::pruner::PrunableTable;
+
+        match table {
+            PrunableTable::Checkpoints => self.prune_checkpoints_table(checkpoint),
+            PrunableTable::PrunerCpWatermark => self.prune_cp_tx_table(checkpoint),
+            _ => Err(IndexerError::InvalidArgument(format!(
+                "table {} is not pruned by checkpoint",
+                table.as_ref()
+            ))),
+        }
     }
 
     fn get_network_total_transactions_by_end_of_epoch(
@@ -1732,6 +1754,43 @@ impl PgIndexerStore {
                 .map_err(Into::into)
                 .context("Failed reading current timestamp from PostgresDB")?;
                 Ok::<_, IndexerError>((stored, timestamp))
+            },
+            PG_DB_COMMIT_SLEEP_DURATION
+        )
+    }
+
+    fn update_watermark_pruner_hi(
+        &self,
+        table: &PrunableTable,
+        pruner_hi: u64,
+    ) -> Result<(), IndexerError> {
+        transactional_blocking_with_retry!(
+            &self.blocking_cp,
+            |conn| {
+                diesel::update(watermarks::table.filter(watermarks::entity.eq(table.as_ref())))
+                    .set(watermarks::pruner_hi.eq(pruner_hi as i64))
+                    .execute(conn)
+                    .map_err(IndexerError::from)
+                    .context("failed to update watermark pruner_hi")?;
+                Ok::<(), IndexerError>(())
+            },
+            PG_DB_COMMIT_SLEEP_DURATION
+        )
+    }
+
+    fn get_watermark_by_entity(
+        &self,
+        entity: &str,
+    ) -> Result<Option<StoredWatermark>, IndexerError> {
+        run_query_with_retry!(
+            &self.blocking_cp,
+            |conn| {
+                watermarks::table
+                    .filter(watermarks::entity.eq(entity))
+                    .first::<StoredWatermark>(conn)
+                    .optional()
+                    .map_err(Into::into)
+                    .context("failed reading watermark by entity from PostgresDB")
             },
             PG_DB_COMMIT_SLEEP_DURATION
         )
@@ -2146,78 +2205,6 @@ impl IndexerStore for PgIndexerStore {
             .await
     }
 
-    async fn prune_epoch(&self, epoch: u64) -> Result<(), IndexerError> {
-        let (mut min_cp, max_cp) = match self.get_checkpoint_range_for_epoch(epoch)? {
-            (min_cp, Some(max_cp)) => Ok((min_cp, max_cp)),
-            _ => Err(IndexerError::PostgresRead(format!(
-                "Failed to get checkpoint range for epoch {epoch}"
-            ))),
-        }?;
-
-        // NOTE: for disaster recovery, min_cp is the min cp of the current epoch, which
-        // is likely partially pruned already. min_prunable_cp is the min cp to
-        // be pruned. By std::cmp::max, we will resume the pruning process from
-        // the next checkpoint, instead of the first cp of the current epoch.
-        let min_prunable_cp = self.get_min_prunable_checkpoint()?;
-        min_cp = std::cmp::max(min_cp, min_prunable_cp);
-        for cp in min_cp..=max_cp {
-            // NOTE: the order of pruning tables is crucial:
-            // 1. prune checkpoints table, checkpoints table is the source table of
-            //    available range,
-            // we prune it first to make sure that we always have full data for checkpoints
-            // within the available range;
-            // 2. then prune tx_* tables;
-            // 3. then prune pruner_cp_watermark table, which is the checkpoint pruning
-            //    watermark table and also tx seq source
-            // of a checkpoint to prune tx_* tables;
-            // 4. lastly we prune epochs table when all checkpoints of the epoch have been
-            //    pruned.
-            info!(
-                "Pruning checkpoint {} of epoch {} (min_prunable_cp: {})",
-                cp, epoch, min_prunable_cp
-            );
-            self.execute_in_blocking_worker(move |this| this.prune_checkpoints_table(cp))
-                .await
-                .unwrap_or_else(|e| {
-                    tracing::error!("failed to prune checkpoint {cp}: {e}");
-                });
-
-            let (min_tx, max_tx) = self.get_transaction_range_for_checkpoint(cp)?;
-            self.execute_in_blocking_worker(move |this| {
-                this.prune_tx_indices_table(min_tx, max_tx)
-            })
-            .await
-            .unwrap_or_else(|e| {
-                tracing::error!("failed to prune transactions for cp {cp}: {e}");
-            });
-            info!(
-                "Pruned transactions for checkpoint {} from tx {} to tx {}",
-                cp, min_tx, max_tx
-            );
-            self.execute_in_blocking_worker(move |this| {
-                this.prune_event_indices_table(min_tx, max_tx)
-            })
-            .await
-            .unwrap_or_else(|e| {
-                tracing::error!("failed to prune events of transactions for cp {cp}: {e}");
-            });
-            info!(
-                "Pruned events of transactions for checkpoint {cp} from tx {min_tx} to tx {max_tx}"
-            );
-            self.metrics.last_pruned_transaction.set(max_tx as i64);
-
-            self.execute_in_blocking_worker(move |this| this.prune_cp_tx_table(cp))
-                .await
-                .unwrap_or_else(|e| {
-                    tracing::error!("failed to prune pruner_cp_watermark table for cp {cp}: {e}");
-                });
-            info!("Pruned checkpoint {} of epoch {}", cp, epoch);
-            self.metrics.last_pruned_checkpoint.set(cp as i64);
-        }
-
-        Ok(())
-    }
-
     async fn get_network_total_transactions_by_end_of_epoch(
         &self,
         epoch: u64,
@@ -2481,6 +2468,51 @@ impl IndexerStore for PgIndexerStore {
 
     async fn get_watermarks(&self) -> Result<(Vec<StoredWatermark>, i64), IndexerError> {
         self.execute_in_blocking_worker(move |this| this.get_watermarks())
+            .await
+    }
+
+    async fn prune_table_by_checkpoint(
+        &self,
+        table: &crate::pruning::pruner::PrunableTable,
+        checkpoint: u64,
+    ) -> Result<(), IndexerError> {
+        let table_clone = *table;
+        self.execute_in_blocking_worker(move |this| {
+            this.prune_table_by_checkpoint(&table_clone, checkpoint)
+        })
+        .await
+    }
+
+    async fn prune_table_by_tx_range(
+        &self,
+        table: &crate::pruning::pruner::PrunableTable,
+        min_tx: u64,
+        max_tx: u64,
+    ) -> Result<(), IndexerError> {
+        let table_clone = *table;
+        self.execute_in_blocking_worker(move |this| {
+            this.prune_single_tx_or_event_table(&table_clone, min_tx, max_tx)
+        })
+        .await
+    }
+
+    async fn update_watermark_pruner_hi(
+        &self,
+        table: &PrunableTable,
+        pruner_hi: u64,
+    ) -> Result<(), IndexerError> {
+        let table = *table;
+        self.execute_in_blocking_worker(move |this| {
+            this.update_watermark_pruner_hi(&table, pruner_hi)
+        })
+        .await
+    }
+
+    async fn get_watermark_by_entity(
+        &self,
+        entity: String,
+    ) -> Result<Option<StoredWatermark>, IndexerError> {
+        self.execute_in_blocking_worker(move |this| this.get_watermark_by_entity(&entity))
             .await
     }
 }
