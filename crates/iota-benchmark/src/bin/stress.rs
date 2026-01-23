@@ -166,13 +166,13 @@ async fn main() -> Result<()> {
             Ok(result) => match result {
                 Ok((benchmark_stats, stress_stats)) => {
                     let benchmark_table = benchmark_stats.to_table();
-                    eprintln!("Benchmark Report:");
-                    eprintln!("{benchmark_table}");
+                    println!("Benchmark Report:");
+                    println!("{benchmark_table}");
 
                     if stress_stat_collection {
-                        eprintln!("Stress Performance Report:");
+                        println!("Stress Performance Report:");
                         let stress_stats_table = stress_stats.to_table();
-                        eprintln!("{stress_stats_table}");
+                        println!("{stress_stats_table}");
                     }
 
                     if !prev_benchmark_stats_path.is_empty() {
@@ -183,8 +183,8 @@ async fn main() -> Result<()> {
                             old: &prev_stats,
                         };
                         let cmp_table = cmp.to_table();
-                        eprintln!("Benchmark Comparison Report[{prev_benchmark_stats_path}]:");
-                        eprintln!("{cmp_table}");
+                        println!("Benchmark Comparison Report[{prev_benchmark_stats_path}]:");
+                        println!("{cmp_table}");
                     }
                     if !curr_benchmark_stats_path.is_empty() {
                         let serialized = serde_json::to_string(&benchmark_stats)?;
