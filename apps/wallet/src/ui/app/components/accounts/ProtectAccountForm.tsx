@@ -2,14 +2,13 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { ToS_LINK, useZodForm } from '@iota/core';
+import { useZodForm } from '@iota/core';
 import { useEffect } from 'react';
 import { type SubmitHandler } from 'react-hook-form';
 import { useNavigate } from 'react-router-dom';
 import { z } from 'zod';
 import zxcvbn from 'zxcvbn';
 import { parseAutoLock, useAutoLockMinutes } from '_hooks';
-import { CheckboxField } from '../../shared/forms/CheckboxField';
 import { Form } from '../../shared/forms/Form';
 import { AutoLockSelector, zodSchema } from './AutoLockSelector';
 import { Button, ButtonHtmlType, ButtonType, Input, InputType } from '@iota/apps-ui-kit';
@@ -48,9 +47,6 @@ const formSchema = z
                 path: ['confirmation'],
                 message: "Passwords don't match",
             }),
-        acceptedTos: z.literal<boolean>(true, {
-            errorMap: () => ({ message: 'Please accept Terms of Service to continue' }),
-        }),
     })
     .merge(zodSchema);
 
@@ -60,14 +56,12 @@ interface ProtectAccountFormProps {
     submitButtonText: string;
     cancelButtonText?: string;
     onSubmit: SubmitHandler<ProtectAccountFormValues>;
-    hideToS?: boolean;
 }
 
 export function ProtectAccountForm({
     submitButtonText,
     cancelButtonText,
     onSubmit,
-    hideToS,
 }: ProtectAccountFormProps) {
     const autoLock = useAutoLockMinutes();
     const form = useZodForm({
@@ -75,7 +69,6 @@ export function ProtectAccountForm({
         schema: formSchema,
         values: {
             password: { input: '', confirmation: '' },
-            acceptedTos: !!hideToS,
             autoLock: parseAutoLock(autoLock.data || null),
         },
     });
@@ -126,27 +119,6 @@ export function ProtectAccountForm({
                 <AutoLockSelector />
             </div>
             <div className="flex flex-col gap-4 pt-xxxs">
-                {hideToS ? null : (
-                    <CheckboxField
-                        name="acceptedTos"
-                        label={
-                            <div className="flex items-center gap-x-0.5 whitespace-nowrap">
-                                <span className="text-label-lg text-iota-neutral-40 dark:text-iota-neutral-60">
-                                    I read and agreed to the
-                                </span>
-                                <a
-                                    href={ToS_LINK}
-                                    className="text-label-lg text-iota-primary-30 dark:text-iota-primary-80"
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                >
-                                    Terms of Services
-                                </a>
-                            </div>
-                        }
-                    />
-                )}
-
                 <div className="flex flex-row justify-stretch gap-2.5">
                     {cancelButtonText ? (
                         <Button

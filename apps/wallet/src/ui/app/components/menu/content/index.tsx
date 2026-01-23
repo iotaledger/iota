@@ -17,6 +17,7 @@ import { AutoLockAccounts } from './AutoLockAccounts';
 import { NetworkSettings } from './NetworkSettings';
 import { MenuList } from './WalletSettingsMenuList';
 import { ThemeSettings } from './ThemeSettings';
+import { MetricsSettings } from './MetricsSettings';
 
 const CLOSE_KEY_CODES: string[] = ['Escape'];
 
@@ -51,6 +52,7 @@ export function MenuContent() {
                         <Route path="/network" element={<NetworkSettings />} />
                         <Route path="/auto-lock" element={<AutoLockAccounts />} />
                         <Route path="/theme" element={<ThemeSettings />} />
+                        <Route path="/metrics" element={<MetricsSettings />} />
                         <Route path="*" element={<Navigate to={menuHomeUrl} replace={true} />} />
                     </Routes>
                 </MainLocationContext.Provider>

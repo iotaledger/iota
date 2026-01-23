@@ -46,7 +46,6 @@ export function ResetPasswordPage() {
                         cancelButtonText="Back"
                         submitButtonText="Reset Password"
                         onSubmit={handleOnSubmit}
-                        hideToS
                     />
                 </div>
             </div>

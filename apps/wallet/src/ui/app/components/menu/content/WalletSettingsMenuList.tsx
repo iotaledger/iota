@@ -27,6 +27,7 @@ import {
     Logout,
     Expand,
     Discord,
+    DataStack,
 } from '@iota/apps-ui-icons';
 import {
     ButtonType,
@@ -50,6 +51,7 @@ export function MenuList() {
     const networkUrl = useNextMenuUrl(true, '/network');
     const autoLockUrl = useNextMenuUrl(true, '/auto-lock');
     const themeUrl = useNextMenuUrl(true, '/theme');
+    const metricsUrl = useNextMenuUrl(true, '/metrics');
     const network = useAppSelector((state) => state.app.network);
     const networkConfig = network === Network.Custom ? getCustomNetwork() : getNetwork(network);
     const version = Browser.runtime.getManifest().version;
@@ -95,6 +97,10 @@ export function MenuList() {
         navigate(themeUrl);
     }
 
+    function onMetricsClick() {
+        navigate(metricsUrl);
+    }
+
     function onSupportClick() {
         ampli.openedLink({ url: DISCORD_SUPPORT_LINK });
         window.open(DISCORD_SUPPORT_LINK, '_blank', 'noopener noreferrer');
@@ -125,6 +131,12 @@ export function MenuList() {
             icon: <DarkMode />,
             subtitle: themeSubtitle,
             onClick: onThemeClick,
+        },
+        {
+            title: 'Metrics',
+            icon: <DataStack />,
+            subtitle: 'Metrics enabled',
+            onClick: onMetricsClick,
         },
         {
             title: 'Get Support',
