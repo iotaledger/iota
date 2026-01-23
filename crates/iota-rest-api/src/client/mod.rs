@@ -97,7 +97,7 @@ impl Client {
         version: SequenceNumber,
     ) -> Result<Object> {
         self.inner
-            .get_object_with_version(object_id.into(), version.into())
+            .get_object_with_version(object_id.into(), version)
             .await
             .map(Response::into_inner)
             .and_then(|object| object.try_into().map_err(Into::into))

@@ -28,7 +28,7 @@ fn test_move_value_to_iota_coin() {
     let value = 10000;
     let coin = GasCoin::new(id, value);
 
-    let move_object = MoveObject::new_gas_coin(SequenceNumber::new(), id, value);
+    let move_object = MoveObject::new_gas_coin(SequenceNumber::default(), id, value);
     let layout = GasCoin::layout();
 
     let move_struct = move_object.to_move_struct(&layout).unwrap();

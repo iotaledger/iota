@@ -85,7 +85,7 @@ impl Client {
                     let mut object_ref = ObjectReference::default().with_object_id(id.to_string());
 
                     if let Some(v) = version {
-                        object_ref = object_ref.with_version(*v);
+                        object_ref = object_ref.with_version(v.as_u64());
                     }
 
                     ObjectRequest::default().with_object_ref(object_ref)

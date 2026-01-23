@@ -336,7 +336,7 @@ fn resolve_object_reference(
     let (v, d) = if let Some(version) = version {
         let object = reader
             .inner()
-            .try_get_object_by_key(&id, version.into())?
+            .try_get_object_by_key(&id, version)?
             .ok_or_else(|| ObjectNotFoundError::new_with_version(object_id, version))?;
         (object.version(), object.digest())
     } else {
@@ -539,7 +539,7 @@ fn find_arg_uses(
                 .position(|elem| matches_input_arg(*elem, arg_idx))
                 .map(Some),
             Command::Upgrade(upgrade) => matches_input_arg(upgrade.ticket, arg_idx).then_some(None),
-            _ => unreachable!("a new enum variant was added and needs to be handled"),
+            _ => unimplemented!("a new enum variant was added and needs to be handled"),
         }
         .map(|x| (command, x))
     })

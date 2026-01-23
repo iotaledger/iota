@@ -115,7 +115,7 @@ impl TransactionBlockEffects {
     /// transaction.
     #[graphql(complexity = 0)]
     async fn lamport_version(&self) -> UInt53 {
-        self.native().lamport_version().value().into()
+        self.native().lamport_version().as_u64().into()
     }
 
     /// The reason for a transaction failure, if it did fail.
