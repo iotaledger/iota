@@ -523,7 +523,7 @@ impl TransactionEffectsV1 {
                     IDOperation::None,
                 ) => {
                     // wrapped.
-                    assert!(old_version.value() < self.lamport_version.value());
+                    assert!(*old_version < self.lamport_version);
                     assert!(
                         !old_owner.is_shared() && !old_owner.is_immutable(),
                         "Cannot wrap shared or immutable object"
@@ -535,7 +535,7 @@ impl TransactionEffectsV1 {
                     IDOperation::Deleted,
                 ) => {
                     // deleted.
-                    assert!(old_version.value() < self.lamport_version.value());
+                    assert!(*old_version < self.lamport_version);
                     assert!(!old_owner.is_immutable(), "Cannot delete immutable object");
                 }
                 (
@@ -544,7 +544,7 @@ impl TransactionEffectsV1 {
                     IDOperation::None,
                 ) => {
                     // mutated.
-                    assert!(old_version.value() < self.lamport_version.value());
+                    assert!(*old_version < self.lamport_version);
                     assert_ne!(old_digest, new_digest);
                     assert!(!old_owner.is_immutable(), "Cannot mutate immutable object");
                     if old_owner.is_shared() {
@@ -563,7 +563,7 @@ impl TransactionEffectsV1 {
                         old_owner.is_immutable() && is_system_package(*id),
                         "Must be a system package"
                     );
-                    assert_eq!(old_version.value() + 1, new_version.value());
+                    assert_eq!(*old_version + 1, *new_version);
                     assert_ne!(old_digest, new_digest);
                 }
                 _ => {

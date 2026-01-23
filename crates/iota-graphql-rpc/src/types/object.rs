@@ -667,7 +667,7 @@ impl ObjectImpl<'_> {
             O::Shared {
                 initial_shared_version,
             } => Some(ObjectOwner::Shared(Shared {
-                initial_shared_version: initial_shared_version.value().into(),
+                initial_shared_version: initial_shared_version.as_u64().into(),
             })),
         }
     }
@@ -812,7 +812,7 @@ impl Object {
         use ObjectKind as K;
 
         match &self.kind {
-            K::NotIndexed(native) | K::Indexed(native, _) => native.version().value(),
+            K::NotIndexed(native) | K::Indexed(native, _) => native.version().as_u64(),
             K::WrappedOrDeleted(object_version) => *object_version,
         }
     }
@@ -1106,7 +1106,7 @@ impl Object {
 /// See [`Object::root_version`] for more details on parent/child object version
 /// mechanics.
 fn version_for_dynamic_fields(native: &NativeObject) -> u64 {
-    native.as_inner().version().into()
+    native.as_inner().version().as_u64()
 }
 
 impl ObjectFilter {

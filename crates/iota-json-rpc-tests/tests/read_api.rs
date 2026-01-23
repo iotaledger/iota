@@ -1462,7 +1462,7 @@ async fn try_get_past_object_version_too_high() {
             .unwrap();
 
         assert!(
-            matches!(rpc_past_obj, IotaPastObjectResponse::VersionTooHigh{object_id: obj_id, asked_version, latest_version} if obj_id == object_id && asked_version == seq_num && latest_version == SequenceNumber::from_u64(1))
+            matches!(rpc_past_obj, IotaPastObjectResponse::VersionTooHigh{object_id: obj_id, asked_version, latest_version} if obj_id == object_id && asked_version == seq_num && latest_version == 1)
         );
     }
 }

@@ -230,7 +230,7 @@ async fn test_object_target_fail_wrong_object() {
     assert!(verify_proof(&committee, &object_proof).is_err());
 
     // Does not exist
-    sample_ref.1 = sample_ref.1.next(); // WRONG
+    sample_ref.1 = sample_ref.1.next().unwrap(); // WRONG
 
     let target = ProofTargets::new().add_object(sample_ref, sample_object);
     let object_proof = construct_proof(target, &full_checkpoint).unwrap();

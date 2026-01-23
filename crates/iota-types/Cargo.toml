@@ -72,6 +72,7 @@ starfish-config.workspace = true
 typed-store-error.workspace = true
 
 [dev-dependencies]
+# external dependencies
 async-trait.workspace = true
 bincode.workspace = true
 coset.workspace = true
@@ -85,6 +86,9 @@ serde_yaml.workspace = true
 tokio.workspace = true
 url.workspace = true
 
+# internal dependencies
+iota-sdk-types = { workspace = true, features = ["proptest"] }
+
 [[bench]]
 name = "global_state_hash_bench"
 harness = false
@@ -92,4 +96,9 @@ harness = false
 [features]
 default = []
 tracing = ["move-vm-profiler/tracing", "move-vm-test-utils/tracing"]
-fuzzing = ["move-core-types/fuzzing", "dep:proptest-derive", "dep:proptest"]
+fuzzing = [
+  "dep:proptest",
+  "dep:proptest-derive",
+  "iota-sdk-types/proptest",
+  "move-core-types/fuzzing",
+]

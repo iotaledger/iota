@@ -1086,7 +1086,7 @@ fn owned_objref_string(obj: &OwnedObjectRef) -> String {
         " ┌──\n │ ID: {} \n │ Owner: {} \n │ Version: {} \n │ Digest: {}\n └──",
         obj.reference.0,
         obj.owner,
-        u64::from(obj.reference.1),
+        obj.reference.1,
         obj.reference.2
     )
 }
@@ -1095,7 +1095,7 @@ fn objref_string(obj: &ObjectRef) -> String {
     format!(
         " ┌──\n │ ID: {} \n │ Version: {} \n │ Digest: {}\n └──",
         obj.0,
-        u64::from(obj.1),
+        obj.1,
         obj.2
     )
 }

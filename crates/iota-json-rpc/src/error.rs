@@ -461,7 +461,7 @@ mod tests {
             let expected_code = expect!["-32002"];
             expected_code.assert_eq(&error_object.code().to_string());
             let expected_message = expect![
-                "Transaction execution failed due to issues with transaction inputs, please review the errors and try again:\n- Balance of gas object 10 is lower than the needed amount: 100\n- Object ID 0x0000000000000000000000000000000000000000000000000000000000000000 Version 0x0 Digest 11111111111111111111111111111111 is not available for consumption, current version: 0xa"
+                "Transaction execution failed due to issues with transaction inputs, please review the errors and try again:\n- Balance of gas object 10 is lower than the needed amount: 100\n- Object ID 0x0000000000000000000000000000000000000000000000000000000000000000 Version 0 Digest 11111111111111111111111111111111 is not available for consumption, current version: 10"
             ];
             expected_message.assert_eq(error_object.message());
         }

@@ -1528,11 +1528,11 @@ impl LocalExec {
             let previous_ver_refs: Vec<_> = previous_txs
                 .iter()
                 .filter_map(|(q, _)| {
-                    let prev_ver = u64::from(q.1) - 1;
+                    let prev_ver = q.1 - 1;
                     if prev_ver == 0 {
                         None
                     } else {
-                        Some((q.0, SequenceNumber::from(prev_ver)))
+                        Some((q.0, prev_ver))
                     }
                 })
                 .collect();

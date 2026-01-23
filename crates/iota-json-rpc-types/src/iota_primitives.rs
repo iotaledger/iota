@@ -101,7 +101,7 @@ impl SerializeAs<iota_types::base_types::SequenceNumber> for SequenceNumberStrin
     where
         S: Serializer,
     {
-        SequenceNumberString(source.value()).serialize(serializer)
+        SequenceNumberString(source.as_u64()).serialize(serializer)
     }
 }
 
