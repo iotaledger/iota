@@ -598,7 +598,7 @@ async fn test_delete_shared_object() {
 
     // assert the version of the deleted shared object was incremented
     let deleted_obj_ver = effects.deleted()[0].1;
-    assert_eq!(deleted_obj_ver, 4.into());
+    assert_eq!(deleted_obj_ver, 4);
 
     // assert the rest of the effects are as expected
     assert!(effects.status().is_ok());
@@ -718,7 +718,7 @@ async fn test_delete_shared_object_immut_mut_mut_interleave() {
 
     // assert the version of the deleted shared object was incremented
     let deleted_obj_ver = effects.deleted()[0].1;
-    assert_eq!(deleted_obj_ver, 4.into());
+    assert_eq!(deleted_obj_ver, 4);
 
     // assert the rest of the effects are as expected
     assert!(effects.status().is_ok());
@@ -816,7 +816,7 @@ async fn test_delete_shared_object_immut_mut_immut_interleave() {
 
     // assert the version of the deleted shared object was incremented
     let deleted_obj_ver = effects.deleted()[0].1;
-    assert_eq!(deleted_obj_ver, 4.into());
+    assert_eq!(deleted_obj_ver, 4);
 
     // assert the rest of the effects are as expected
     assert!(effects.status().is_ok());
@@ -1434,7 +1434,7 @@ async fn test_delete_with_shared_after_mutate_enqueued() {
         .await;
 
     let second_obj_version = user_1.get_object_latest_version(second_shared_obj_id);
-    assert_eq!(second_obj_version, 15.into());
+    assert_eq!(second_obj_version, 15);
 
     let second_mutate_tx = user_1
         .mutate_shared_obj_with_shared_tx(
@@ -1524,7 +1524,7 @@ async fn test_wrap_not_allowed() {
     ));
 
     let new_version = user_1.get_object_latest_version(shared_obj_id);
-    assert_eq!(new_version, 4.into());
+    assert_eq!(new_version, 4);
     assert_eq!(effects.mutated().len(), 2);
 }
 
@@ -1584,7 +1584,7 @@ async fn test_convert_to_owned_not_allowed() {
     ));
 
     let new_version = user_1.get_object_latest_version(shared_obj_id);
-    assert_eq!(new_version, 4.into());
+    assert_eq!(new_version, 4);
     assert_eq!(effects.mutated().len(), 2);
 }
 
@@ -1616,7 +1616,7 @@ async fn test_freeze_not_allowed() {
     ));
 
     let new_version = user_1.get_object_latest_version(shared_obj_id);
-    assert_eq!(new_version, 4.into());
+    assert_eq!(new_version, 4);
     assert_eq!(effects.mutated().len(), 2);
 }
 
@@ -1662,7 +1662,7 @@ async fn test_deletion_twice() {
     assert!(matches!(error.unwrap().kind(), InputObjectDeleted));
 
     let new_version = user_1.get_object_latest_version(shared_obj_id);
-    assert_eq!(new_version, 4.into());
+    assert_eq!(new_version, 4);
     assert_eq!(effects.mutated().len(), 1);
 }
 
@@ -1866,7 +1866,7 @@ async fn test_owned_object_version_increments_on_cert_denied() {
         .unwrap();
 
     let version = user_1.get_object_latest_version(owned_obj_id);
-    assert_eq!(version, 4.into());
+    assert_eq!(version, 4);
 
     user_1
         .execute_sequenced_certificate_to_effects(mutate_cert)
@@ -1874,7 +1874,7 @@ async fn test_owned_object_version_increments_on_cert_denied() {
         .unwrap();
 
     let next_version = user_1.get_object_latest_version(owned_obj_id);
-    assert_eq!(next_version, 5.into());
+    assert_eq!(next_version, 5);
 }
 
 #[tokio::test]

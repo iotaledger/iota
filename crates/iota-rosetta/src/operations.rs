@@ -704,7 +704,7 @@ impl Operation {
                 coin_identifier: CoinIdentifier {
                     identifier: CoinID {
                         id: *coin.id(),
-                        version: SequenceNumber::new(),
+                        version: SequenceNumber::default(),
                     },
                 },
                 coin_action: CoinAction::CoinCreated,
