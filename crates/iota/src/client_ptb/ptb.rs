@@ -104,7 +104,7 @@ struct ExtractedAuthArgs {
 }
 
 /// Extracts `--auth-call-args` and `--auth-type-args` from the given args.
-fn extract_auth_args(args: &[String]) -> ExtractedAuthArgs {
+fn extract_auth_args(args: &[String]) -> Result<ExtractedAuthArgs, Error> {
     let mut auth_call_args = None;
     let mut auth_type_args = None;
     let mut remaining_args = Vec::new();
@@ -122,8 +122,14 @@ fn extract_auth_args(args: &[String]) -> ExtractedAuthArgs {
                 }
 
                 if arg == "--auth-call-args" {
+                    if auth_call_args.is_some() {
+                        bail!("Duplicate --auth-call-args found");
+                    }
                     auth_call_args = Some(values);
                 } else {
+                    if auth_type_args.is_some() {
+                        bail!("Duplicate --auth-type-args found");
+                    }
                     auth_type_args = Some(values);
                 }
             }
@@ -131,11 +137,11 @@ fn extract_auth_args(args: &[String]) -> ExtractedAuthArgs {
         }
     }
 
-    ExtractedAuthArgs {
+    Ok(ExtractedAuthArgs {
         auth_call_args,
         auth_type_args,
         remaining_args,
-    }
+    })
 }
 
 impl PTB {
@@ -146,7 +152,7 @@ impl PTB {
             return Ok(PTBCommandResult::Help { long: false });
         }
 
-        let extracted = extract_auth_args(&self.args);
+        let extracted = extract_auth_args(&self.args)?;
         let auth_call_args = extracted.auth_call_args;
         let auth_type_args = extracted.auth_type_args;
 
@@ -568,7 +574,7 @@ pub fn ptb_description() -> clap::Command {
         ))
         .arg(arg!(
             --"auth-call-args"
-            "Auth input objects or primitive values"
+            "Auth input objects or primitive values for the Move authenticate function"
         ))
         .arg(arg!(
             --"auth-type-args"
