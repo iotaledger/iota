@@ -18,7 +18,7 @@ use std::{
 
 use anyhow::anyhow;
 pub(crate) use delegator_outputs::{new_simple_basic_output, new_vested_output};
-use iota_stardust_types::types::block::{
+use iota_stardust_types::block::{
     address::Ed25519Address,
     output::{BasicOutputBuilder, Output, OutputId},
 };

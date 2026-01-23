@@ -5,7 +5,7 @@
 //! 4-years, initial unlock, bi-weekly unlock.
 //! One mnemonic/wallet, one account, multiple public and internal addresses.
 
-use iota_stardust_types::types::block::{
+use iota_stardust_types::block::{
     address::Ed25519Address,
     output::{
         BasicOutputBuilder, OUTPUT_INDEX_RANGE, Output, unlock_condition::AddressUnlockCondition,

@@ -10,7 +10,7 @@
 
 use std::time::SystemTime;
 
-use iota_stardust_types::types::block::output::Output;
+use iota_stardust_types::block::output::Output;
 use rand::{Rng, rngs::StdRng};
 
 use crate::stardust::{

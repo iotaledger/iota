@@ -5,7 +5,7 @@
 //! 4-years, initial unlock, bi-weekly unlock.
 //! One mnemonic, one account, one address.
 
-use iota_stardust_types::types::block::output::Output;
+use iota_stardust_types::block::output::Output;
 use rand::{Rng, rngs::StdRng};
 
 use crate::stardust::{

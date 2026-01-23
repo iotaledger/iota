@@ -3,7 +3,7 @@
 
 use std::collections::VecDeque;
 
-use iota_stardust_types::types::block::{
+use iota_stardust_types::block::{
     address::{Address, AliasAddress},
     output::{
         AliasId, AliasOutput, AliasOutputBuilder, BasicOutput, BasicOutputBuilder, Feature,

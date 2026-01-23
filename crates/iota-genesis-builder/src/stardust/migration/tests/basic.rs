@@ -3,7 +3,7 @@
 
 use std::str::FromStr;
 
-use iota_stardust_types::types::block::{
+use iota_stardust_types::block::{
     TransactionId,
     address::{AliasAddress, Ed25519Address},
     output::{

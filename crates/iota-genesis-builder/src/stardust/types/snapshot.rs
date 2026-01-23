@@ -1,7 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_stardust_types::types::block::{MilestoneId, MilestoneIndex, MilestoneOption};
+use iota_stardust_types::block::{MilestoneId, MilestoneIndex, MilestoneOption};
 use iota_types::stardust::error::StardustError;
 use packable::{
     Packable, PackableExt,

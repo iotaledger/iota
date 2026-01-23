@@ -3,7 +3,7 @@
 
 use anyhow::{Result, anyhow};
 use iota_protocol_config::ProtocolConfigValue::u64;
-use iota_stardust_types::types::block::output::{
+use iota_stardust_types::block::output::{
     AliasId, FoundryOutput, Output, SimpleTokenScheme, feature::Irc30Metadata,
 };
 use iota_types::{

@@ -8,7 +8,7 @@ use std::{
 
 use anyhow::{Result, anyhow};
 use fastcrypto::{encoding::Hex, hash::HashFunction};
-use iota_stardust_types::types::block::{
+use iota_stardust_types::block::{
     TransactionId,
     address::{Address, Ed25519Address},
     output::{

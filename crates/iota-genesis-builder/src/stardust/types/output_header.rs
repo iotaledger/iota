@@ -5,14 +5,14 @@
 use std::mem::size_of;
 
 use anyhow::Result;
-use iota_stardust_types::types::block::{BlockId, MilestoneIndex, TransactionId, output::OutputId};
+use iota_stardust_types::block::{BlockId, MilestoneIndex, TransactionId, output::OutputId};
 use iota_types::base_types::ObjectID;
 use packable::Packable;
 
 use crate::stardust::types::output_index::OutputIndex;
 
 /// The header of an
-/// [`Output`](iota_stardust_types::types::block::output::Output) in the
+/// [`Output`](iota_stardust_types::block::output::Output) in the
 /// snapshot
 #[derive(Debug, Clone, Packable, PartialEq, Eq)]
 pub struct OutputHeader {

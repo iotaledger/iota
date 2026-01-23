@@ -5,7 +5,7 @@
 use std::io::{BufReader, Read};
 
 use anyhow::Result;
-use iota_stardust_types::types::block::{MilestoneOption, ProtocolParameters, output::Output};
+use iota_stardust_types::block::{MilestoneOption, ProtocolParameters, output::Output};
 use packable::{
     Packable,
     unpacker::{IoUnpacker, Unpacker},

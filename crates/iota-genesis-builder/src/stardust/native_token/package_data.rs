@@ -6,7 +6,7 @@
 //! package.
 
 use anyhow::Result;
-use iota_stardust_types::types::block::{
+use iota_stardust_types::block::{
     address::AliasAddress,
     output::{FoundryId, FoundryOutput, feature::Irc30Metadata},
 };
@@ -205,7 +205,7 @@ fn derive_foundry_package_lowercase_identifier(input: &str, seed: &[u8]) -> Stri
 mod tests {
     use std::ops::{Add, Sub};
 
-    use iota_stardust_types::types::block::{
+    use iota_stardust_types::block::{
         address::AliasAddress,
         output::{
             AliasId, Feature, FoundryOutputBuilder, SimpleTokenScheme, TokenScheme,

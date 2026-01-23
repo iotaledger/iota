@@ -3,7 +3,7 @@
 
 //! Types representing token schemes in Stardust.
 use bigdecimal::{BigDecimal, ToPrimitive, num_bigint, num_bigint::BigInt};
-use iota_stardust_types::types::block::output::SimpleTokenScheme;
+use iota_stardust_types::block::output::SimpleTokenScheme;
 use iota_types::stardust::error::StardustError;
 use primitive_types::U256;
 
@@ -119,7 +119,7 @@ mod tests {
     use std::{convert::TryFrom, ops::Div, str::FromStr};
 
     use bigdecimal::ToPrimitive;
-    use iota_stardust_types::types::block::output::SimpleTokenScheme;
+    use iota_stardust_types::block::output::SimpleTokenScheme;
     use primitive_types::U256;
 
     use super::*;

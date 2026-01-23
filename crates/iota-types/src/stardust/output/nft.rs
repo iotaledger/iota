@@ -3,7 +3,7 @@
 
 use anyhow::anyhow;
 use iota_protocol_config::ProtocolConfig;
-use iota_stardust_types::types::block::output::{
+use iota_stardust_types::block::output::{
     NftOutput as StardustNft, feature::Irc27Metadata as StardustIrc27,
 };
 use move_core_types::{ident_str, identifier::IdentStr, language_storage::StructTag};
@@ -170,7 +170,7 @@ impl TryFrom<StardustIrc27> for Irc27Metadata {
                     .iter()
                     .map(|(addr, value)| {
                         // The address is a bech32-encoded string, parse it and convert
-                        use iota_stardust_types::types::block::address::Bech32Address;
+                        use iota_stardust_types::block::address::Bech32Address;
                         let bech32_addr: Bech32Address = addr.parse().map_err(|e| {
                             anyhow::anyhow!("failed to parse bech32 address: {:?}", e)
                         })?;

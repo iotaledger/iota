@@ -4,7 +4,7 @@
 use std::collections::HashMap;
 
 use anyhow::{Result, anyhow, bail, ensure};
-use iota_stardust_types::types::block::{
+use iota_stardust_types::block::{
     address::Address,
     output::{self as sdk_output, NativeTokens, OutputId, TokenId},
 };

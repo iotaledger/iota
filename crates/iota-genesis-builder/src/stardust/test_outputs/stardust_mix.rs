@@ -4,7 +4,7 @@
 //! Stardust alias, basic, nft, foundry outputs.
 //! Multi mnemonics, multi accounts, multi addresses.
 
-use iota_stardust_types::types::block::{
+use iota_stardust_types::block::{
     address::{AliasAddress, Ed25519Address},
     output::{
         AliasId, AliasOutputBuilder, BasicOutputBuilder, FoundryId, FoundryOutputBuilder,
