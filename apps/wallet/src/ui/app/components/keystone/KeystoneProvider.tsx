@@ -200,13 +200,13 @@ export function ScanBothWays({
                         <div className="flex flex-col items-center justify-center">
                             <Link
                                 to="https://docs.iota.org/users/iota-wallet/how-to/basics#using-keystone-wallet"
-                                className="dark:text-iota-primary-80 mb-1 text-body-md text-iota-primary-30 no-underline"
+                                className="mb-1 text-body-md text-iota-primary-30 no-underline dark:text-iota-primary-80"
                                 target="_blank"
                                 rel="noreferrer"
                             >
                                 {step === Step.ShowQr ? 'Step 1' : 'Step 2'}
                             </Link>
-                            <span className="dark:text-iota-neutral-60 text-center text-body-md text-iota-neutral-40">
+                            <span className="text-center text-body-md text-iota-neutral-40 dark:text-iota-neutral-60">
                                 {step === Step.ShowQr
                                     ? 'Scan this QR code with your Keystone device, then press continue'
                                     : 'Scan the QR code displayed on your keystone device'}
@@ -214,12 +214,12 @@ export function ScanBothWays({
                         </div>
                         <div className="flex w-full flex-col">
                             <div className="mb-2 flex items-center justify-center gap-x-1">
-                                <span className="dark:text-iota-neutral-60 text-body-md text-iota-neutral-40">
+                                <span className="text-body-md text-iota-neutral-40 dark:text-iota-neutral-60">
                                     Need more help?
                                 </span>
                                 <Link
                                     to="https://docs.iota.org/users/iota-wallet/how-to/basics#using-keystone-wallet"
-                                    className="dark:text-iota-primary-80 text-body-md text-iota-primary-30 no-underline"
+                                    className="text-body-md text-iota-primary-30 no-underline dark:text-iota-primary-80"
                                     target="_blank"
                                     rel="noreferrer"
                                 >

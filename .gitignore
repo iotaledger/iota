@@ -43,6 +43,7 @@ flamegraph-mem.svg
 # Python
 .pyc
 **/__pycache__/
+**/.venv*/
 
 # Node.js
 node_modules/
@@ -90,6 +91,10 @@ dev-tools/iota-private-network/data
 dev-tools/iota-private-network/configs/validators/validator*
 dev-tools/iota-private-network/configs/genesis/genesis.blob
 dev-tools/iota-private-network/configs/temp/
+dev-tools/iota-private-network/experiments/logs/
+dev-tools/iota-private-network/.env.tmp
+dev-tools/iota-private-network/configs/faucet/*.migrated
+**/*.egg-info/
 
 # iota-data-ingestion
 dev-tools/iota-data-ingestion/*/output/
