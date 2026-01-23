@@ -98,6 +98,7 @@ pub const MAX_PROTOCOL_VERSION: u64 = 19;
 //             Enable publishing package metadata v1 along with the package in
 //             devnet.
 //             Enable Move-based account authentication in devnet.
+//             Increase the base cost for transfer receive object in devnet.
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
 
@@ -2371,6 +2372,9 @@ impl ProtocolConfig {
                         cfg.feature_flags.enable_move_authentication = true;
                         // Max auth gas budget is in NANOS and an absolute value 0.25 IOTA
                         cfg.max_auth_gas = Some(250_000_000);
+                        // Increase the base cost for transfer receive object in devnet, since the
+                        // implementation now does check if parent is not an account.
+                        cfg.transfer_receive_object_cost_base = Some(100);
                     }
                 }
                 // Use this template when making changes:
