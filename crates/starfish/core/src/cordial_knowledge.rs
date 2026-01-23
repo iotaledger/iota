@@ -31,7 +31,15 @@ use crate::{
 /// relevant. 40 rounds correspond to at least 2 second due to the minimum block
 /// delay
 const MAX_ROUND_GAP_FOR_USEFUL_PARTS: Round = 40;
+/// Capacity of the cordial knowledge channel. For normal operation with
+/// 100 authorities, this allows buffering up to 5 seconds of headers at 200ms
+/// blocks/sec. When the channel is full, the sender will skip sending new
+/// messages.
 const CORDIAL_KNOWLEDGE_CHANNEL_CAPACITY: usize = 10_000;
+/// Eviction is performed every EVICTION_CHECK_INTERVAL processed messages.
+/// This allows batching eviction checks instead of checking on every
+/// message. For this operation, we don't need high precision, but we don't
+/// skip evictions for too long either.
 const EVICTION_CHECK_INTERVAL: usize = 10_000;
 
 /// Represents a subset of authorities using a bitmask.
