@@ -15,7 +15,6 @@ export async function createWallet(page: Page, extensionUrl: string) {
     await page.getByText('Mnemonic', { exact: true }).click();
     await page.getByTestId('password.input').fill('iotae2etests');
     await page.getByTestId('password.confirmation').fill('iotae2etests');
-    await page.getByText('I read and agree').click();
     await page.getByRole('button', { name: /Create Wallet/ }).click();
     await page.getByText('I saved my mnemonic').click();
     await page.getByRole('button', { name: /Open Wallet/ }).click();
@@ -43,7 +42,6 @@ export async function importWallet(page: Page, extensionUrl: string, mnemonic: s
     await page.getByText('Add profile').click();
     await page.getByTestId('password.input').fill('iotae2etests');
     await page.getByTestId('password.confirmation').fill('iotae2etests');
-    await page.getByText('I read and agree').click();
     await page.getByRole('button', { name: /Create Wallet/ }).click();
 
     await page.waitForURL(new RegExp(/^(?!.*protect-account).*$/));
@@ -107,8 +105,6 @@ export async function createPasskeyWallet(
     await page.getByTestId('password.input').fill('iotae2etests');
     await page.getByTestId('password.confirmation').fill('iotae2etests');
 
-    await page.getByText('I read and agree').click();
-
     await page.getByRole('button', { name: /Create Wallet/ }).click();
 
     await expect(page.getByText(username)).toBeVisible({ timeout: LONG_TIMEOUT });
@@ -131,6 +127,5 @@ export async function restorePasskeyAccount(page: Page, username: string) {
     await page.getByTestId('password.input').fill('iotae2etests');
     await page.getByTestId('password.confirmation').fill('iotae2etests');
 
-    await page.getByText('I read and agree').click();
     await page.getByRole('button', { name: /Create Wallet/ }).click();
 }
