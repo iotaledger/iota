@@ -6,7 +6,7 @@
 //! package.
 
 use anyhow::Result;
-use iota_sdk::types::block::{
+use iota_stardust_types::types::block::{
     address::AliasAddress,
     output::{FoundryId, FoundryOutput},
 };
@@ -249,17 +249,16 @@ fn derive_foundry_package_lowercase_identifier(input: &str, seed: &[u8]) -> Stri
 mod tests {
     use std::ops::{Add, Sub};
 
-    use iota_sdk::{
-        U256, Url,
-        types::block::{
-            address::AliasAddress,
-            output::{
-                AliasId, Feature, FoundryOutputBuilder, SimpleTokenScheme, TokenScheme,
-                feature::{Irc30Metadata, MetadataFeature},
-                unlock_condition::ImmutableAliasAddressUnlockCondition,
-            },
+    use iota_stardust_types::types::block::{
+        address::AliasAddress,
+        output::{
+            AliasId, Feature, FoundryOutputBuilder, SimpleTokenScheme, TokenScheme,
+            feature::{Irc30Metadata, MetadataFeature},
+            unlock_condition::ImmutableAliasAddressUnlockCondition,
         },
     };
+    use primitive_types::U256;
+    use url::Url;
 
     use super::*;
     use crate::stardust::{

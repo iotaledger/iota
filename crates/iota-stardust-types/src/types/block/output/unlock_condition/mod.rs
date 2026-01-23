@@ -23,7 +23,7 @@ pub use self::{
     state_controller_address::StateControllerAddressUnlockCondition,
     storage_deposit_return::StorageDepositReturnUnlockCondition, timelock::TimelockUnlockCondition,
 };
-use crate::types::block::{Error, address::Address, create_bitflags};
+use crate::types::block::{Error, address::Address};
 
 ///
 #[derive(Clone, Eq, PartialEq, Hash, From, Packable)]

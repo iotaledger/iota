@@ -4,13 +4,11 @@
 use std::collections::HashMap;
 
 use anyhow::{Result, anyhow, bail, ensure};
-use iota_sdk::{
-    U256,
-    types::block::{
-        address::Address,
-        output::{self as sdk_output, NativeTokens, OutputId, TokenId},
-    },
+use iota_stardust_types::types::block::{
+    address::Address,
+    output::{self as sdk_output, NativeTokens, OutputId, TokenId},
 };
+use primitive_types::U256;
 use iota_types::{
     TypeTag,
     balance::Balance,
