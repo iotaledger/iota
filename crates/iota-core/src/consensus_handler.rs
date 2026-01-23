@@ -23,10 +23,7 @@ use iota_types::{
     digests::{AdditionalConsensusStateDigest, ConsensusCommitDigest},
     executable_transaction::{TrustedExecutableTransaction, VerifiedExecutableTransaction},
     iota_system_state::epoch_start_iota_system_state::EpochStartSystemStateTrait,
-    messages_consensus::{
-        ConsensusDeterminedVersionAssignments, ConsensusTransaction, ConsensusTransactionKey,
-        ConsensusTransactionKind,
-    },
+    messages_consensus::{ConsensusTransaction, ConsensusTransactionKey, ConsensusTransactionKind},
     transaction::{SenderSignedData, VerifiedTransaction},
 };
 use lru::LruCache;
