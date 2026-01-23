@@ -71,7 +71,7 @@ pub async fn update_lock_file(
         install_dir,
         lock_file,
         original_id,
-        version.into(),
+        version.as_u64(),
     )
     .await
 }

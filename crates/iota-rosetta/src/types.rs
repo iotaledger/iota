@@ -248,7 +248,7 @@ impl Serialize for CoinID {
     where
         S: Serializer,
     {
-        format!("{}:{}", self.id, self.version.value()).serialize(serializer)
+        format!("{}:{}", self.id, self.version).serialize(serializer)
     }
 }
 

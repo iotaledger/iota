@@ -214,7 +214,7 @@ async fn reconfig_with_revert_end_to_end_test() {
                 .unwrap()
                 .unwrap();
             // verify that authority 0 advanced object version
-            assert_eq!(2, object.version().value());
+            assert_eq!(2, object.version());
         })
         .await;
 
@@ -246,7 +246,7 @@ async fn reconfig_with_revert_end_to_end_test() {
                     .next()
                     .unwrap()
                     .unwrap();
-                assert_eq!(2, object.version().value());
+                assert_eq!(2, object.version());
                 // Due to race conditions, it's possible that tx2 went in
                 // before 2f+1 validators sent EndOfPublish messages and close
                 // the curtain of epoch 0. So, we are asserting that
@@ -261,7 +261,7 @@ async fn reconfig_with_revert_end_to_end_test() {
                     .next()
                     .unwrap()
                     .unwrap();
-                let object_version = object.version().value();
+                let object_version = object.version();
                 if epoch.is_none() {
                     assert!(object_version == 1 || object_version == 2);
                     epoch.replace(object_version);

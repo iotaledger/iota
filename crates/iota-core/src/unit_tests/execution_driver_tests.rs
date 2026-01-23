@@ -360,7 +360,7 @@ async fn test_execution_with_dependencies() {
     {
         // Because the gas object used has version 2, the initial lamport timestamp of
         // the shared counter is 3.
-        assert_eq!(initial_shared_version.value(), 3);
+        assert_eq!(initial_shared_version, 3);
         initial_shared_version
     } else {
         panic!("Not a shared object! {shared_counter_ref:?} {owner:?}");

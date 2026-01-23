@@ -146,7 +146,7 @@ impl ExecutionResultsV1 {
                 if self.created_object_ids.contains(id) {
                     assert_eq!(
                         *initial_shared_version,
-                        SequenceNumber::new(),
+                        SequenceNumber::default(),
                         "Initial version should be blank before this point for {id:?}",
                     );
                     *initial_shared_version = lamport_version;
@@ -160,7 +160,7 @@ impl ExecutionResultsV1 {
                     debug_assert!(!self.created_object_ids.contains(id));
                     debug_assert!(!self.deleted_object_ids.contains(id));
                     debug_assert!(
-                        *initial_shared_version == SequenceNumber::new()
+                        *initial_shared_version == SequenceNumber::default()
                             || *initial_shared_version == *previous_initial_shared_version
                     );
 
