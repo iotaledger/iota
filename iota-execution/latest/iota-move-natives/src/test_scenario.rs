@@ -582,7 +582,7 @@ pub fn take_shared_by_id(
         &mut inventories.taken,
         &mut object_runtime.state.input_objects,
         id,
-        Owner::Shared { initial_shared_version: /* dummy */ SequenceNumber::new() },
+        Owner::Shared { initial_shared_version: /* dummy */ SequenceNumber::default() },
     );
     Ok(match res {
         Ok(value) => NativeResult::ok(legacy_test_cost(), smallvec![value]),
@@ -648,7 +648,7 @@ pub fn allocate_receiving_ticket_for_object(
         ));
     };
     let object_runtime: &mut ObjectRuntime = context.extensions_mut().get_mut()?;
-    let object_version = SequenceNumber::new();
+    let object_version = SequenceNumber::default();
     let inventories = &mut object_runtime.test_inventories;
     if inventories.allocated_tickets.contains_key(&id) {
         return Ok(NativeResult::err(
@@ -684,7 +684,7 @@ pub fn allocate_receiving_ticket_for_object(
         id,
         (
             DynamicallyLoadedObjectMetadata {
-                version: SequenceNumber::new(),
+                version: SequenceNumber::default(),
                 digest: ObjectDigest::MIN,
                 owner: Owner::AddressOwner(*owner),
                 storage_rebate: 0,
@@ -707,7 +707,7 @@ pub fn allocate_receiving_ticket_for_object(
 
     Ok(NativeResult::ok(
         legacy_test_cost(),
-        smallvec![Value::u64(object_version.value())],
+        smallvec![Value::u64(object_version.as_u64())],
     ))
 }
 

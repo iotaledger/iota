@@ -52,6 +52,6 @@ impl ObjectRead {
     }
 
     fn version_impl(&self) -> u64 {
-        self.native.1.value()
+        self.native.1.as_u64()
     }
 }

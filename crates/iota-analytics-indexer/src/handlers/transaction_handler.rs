@@ -176,7 +176,7 @@ impl TransactionHandler {
             packages,
             gas_owner: txn_data.gas_owner().to_string(),
             gas_object_id: gas_object.0.0.to_string(),
-            gas_object_sequence: gas_object.0.1.value(),
+            gas_object_sequence: gas_object.0.1.as_u64(),
             gas_object_digest: gas_object.0.2.to_string(),
             gas_budget: txn_data.gas_budget(),
             total_gas_cost: gas_summary.net_gas_usage(),

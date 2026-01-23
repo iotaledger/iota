@@ -71,7 +71,7 @@ async fn list_account_objects(
                     AccountOwnedObjectInfo {
                         owner: info.owner.into(),
                         object_id: info.object_id.into(),
-                        version: info.version.into(),
+                        version: info.version,
                         type_: struct_tag_core_to_sdk(info.type_.into())?,
                     }
                     .pipe(Ok)
@@ -116,7 +116,7 @@ impl ListAccountOwnedObjectsQueryParameters {
 pub struct AccountOwnedObjectInfo {
     pub owner: Address,
     pub object_id: ObjectId,
-    #[serde_as(as = "iota_types::iota_serde::BigInt<u64>")]
+    #[serde_as(as = "serde_with::DisplayFromStr")]
     #[schemars(with = "crate::_schemars::U64")]
     pub version: Version,
     #[serde(rename = "type")]

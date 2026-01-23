@@ -100,7 +100,7 @@ fn test_signatures_serde() {
 #[test]
 fn test_max_sequence_number() {
     let max = SequenceNumber::MAX_VALID_EXCL;
-    assert_eq!(max.0 * 2 + 1, u64::MAX);
+    assert_eq!(max * 2 + 1, u64::MAX);
 }
 
 #[test]
@@ -123,7 +123,7 @@ fn test_lamport_increment_version() {
         SequenceNumber::from(42),
     ];
 
-    let incremented = SequenceNumber::lamport_increment(versions);
+    let incremented = SequenceNumber::lamport_increment(versions).unwrap();
 
     for version in versions {
         assert!(version < incremented, "Expected: {version} < {incremented}");

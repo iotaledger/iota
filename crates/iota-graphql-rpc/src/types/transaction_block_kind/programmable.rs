@@ -348,7 +348,7 @@ impl TransactionInput {
                 mutable,
             }) => I::SharedInput(SharedInput {
                 address: id.into(),
-                initial_shared_version: initial_shared_version.value().into(),
+                initial_shared_version: initial_shared_version.as_u64().into(),
                 mutable,
             }),
 
