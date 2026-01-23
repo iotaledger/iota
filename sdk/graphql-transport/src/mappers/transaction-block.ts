@@ -109,7 +109,7 @@ function mapObjectChanges(
                 objectChange?.outputState?.asMoveObject?.contents?.type.repr!,
             ),
             sender: transactionBlock.sender?.address!,
-            version: mutated.reference.version,
+            version: mutated.reference.version?.toString(),
         });
     });
 
@@ -122,7 +122,7 @@ function mapObjectChanges(
             changes.push({
                 type: 'published',
                 digest: created.reference.digest,
-                version: created.reference.version,
+                version: created.reference.version?.toString(),
                 packageId: objectChange.address,
                 modules: objectChange.outputState.asMovePackage.modules?.nodes.map(
                     (module) => module.name,
@@ -140,7 +140,7 @@ function mapObjectChanges(
                     )?.outputState?.asMoveObject?.contents?.type.repr!,
                 ),
                 sender: transactionBlock.sender?.address!,
-                version: created.reference.version,
+                version: created.reference.version?.toString(),
             });
         }
     });
@@ -155,7 +155,7 @@ function mapObjectChanges(
                 )?.inputState?.asMoveObject?.contents?.type.repr!,
             ),
             sender: transactionBlock.sender?.address!,
-            version: deleted.version,
+            version: deleted.version?.toString(),
         });
     });
 
@@ -169,7 +169,7 @@ function mapObjectChanges(
                 )?.outputState?.asMoveObject?.contents?.type.repr!,
             ),
             sender: transactionBlock.sender?.address!,
-            version: unwrapped.reference.version,
+            version: unwrapped.reference.version?.toString(),
         });
     });
 
@@ -197,7 +197,7 @@ export function mapTransactionBlockToInput(
                 payment: txData.gasData.payment.map((payment) => ({
                     digest: payment.digest,
                     objectId: payment.objectId,
-                    version: payment.version,
+                    version: Number(payment.version) as never as string,
                 })),
                 price: txData.gasData.price,
             },
@@ -363,19 +363,19 @@ export function mapEffects(data: string): IotaTransactionBlockResponse['effects'
             case 'ReadOnlyRoot':
                 return {
                     objectId: id,
-                    version: sharedObject.ReadOnlyRoot[0],
+                    version: Number(sharedObject.ReadOnlyRoot[0]) as unknown as string,
                     digest: sharedObject.ReadOnlyRoot[1],
                 };
             case 'MutateDeleted':
                 return {
                     objectId: id,
-                    version: sharedObject.MutateDeleted,
+                    version: Number(sharedObject.MutateDeleted) as unknown as string,
                     digest: OBJECT_DIGEST_DELETED,
                 };
             case 'ReadDeleted':
                 return {
                     objectId: id,
-                    version: sharedObject.ReadDeleted,
+                    version: Number(sharedObject.ReadDeleted) as unknown as string,
                     digest: OBJECT_DIGEST_DELETED,
                 };
             default:
@@ -388,7 +388,7 @@ export function mapEffects(data: string): IotaTransactionBlockResponse['effects'
         .forEach(([id, change]) => {
             sharedObjects.push({
                 objectId: id,
-                version: change.inputState.Exist![0][0],
+                version: Number(change.inputState.Exist![0][0]) as unknown as string,
                 digest: change.inputState.Exist![0][1],
             });
         });
@@ -409,7 +409,7 @@ export function mapEffects(data: string): IotaTransactionBlockResponse['effects'
                 ? ([
                       {
                           objectId,
-                          version: change.outputState.PackageWrite[0],
+                          version: Number(change.outputState.PackageWrite[0]) as unknown as string,
                           digest: change.outputState.PackageWrite[1],
                       },
                       { $kind: 'Immutable', Immutable: true },
@@ -417,7 +417,7 @@ export function mapEffects(data: string): IotaTransactionBlockResponse['effects'
                 : ([
                       {
                           objectId,
-                          version: effects.V1.lamportVersion,
+                          version: Number(effects.V1.lamportVersion) as unknown as string,
                           digest: change.outputState.ObjectWrite![0],
                       },
                       change.outputState.ObjectWrite![1],
@@ -434,12 +434,12 @@ export function mapEffects(data: string): IotaTransactionBlockResponse['effects'
             change.outputState.PackageWrite
                 ? {
                       objectId,
-                      version: change.outputState.PackageWrite[0],
+                      version: Number(change.outputState.PackageWrite[0]) as unknown as string,
                       digest: change.outputState.PackageWrite[1],
                   }
                 : {
                       objectId,
-                      version: effects.V1.lamportVersion,
+                      version: Number(effects.V1.lamportVersion) as unknown as string,
                       digest: change.outputState.ObjectWrite![0],
                   },
             change.outputState.ObjectWrite
@@ -457,7 +457,7 @@ export function mapEffects(data: string): IotaTransactionBlockResponse['effects'
         .map(([objectId, change]) => [
             {
                 objectId,
-                version: effects.V1.lamportVersion,
+                version: Number(effects.V1.lamportVersion) as unknown as string,
                 digest: change.outputState.ObjectWrite![0],
             },
             change.outputState.ObjectWrite![1],
@@ -472,7 +472,7 @@ export function mapEffects(data: string): IotaTransactionBlockResponse['effects'
         )
         .map(([objectId, _change]) => ({
             objectId,
-            version: effects.V1.lamportVersion,
+            version: Number(effects.V1.lamportVersion) as unknown as string,
             digest: OBJECT_DIGEST_DELETED,
         }));
 
@@ -485,7 +485,7 @@ export function mapEffects(data: string): IotaTransactionBlockResponse['effects'
         )
         .map(([objectId, _change]) => ({
             objectId,
-            version: effects.V1.lamportVersion,
+            version: Number(effects.V1.lamportVersion) as unknown as string,
             digest: OBJECT_DIGEST_DELETED,
         }));
 
@@ -496,7 +496,7 @@ export function mapEffects(data: string): IotaTransactionBlockResponse['effects'
         )
         .map(([objectId, _change]) => ({
             objectId,
-            version: effects.V1.lamportVersion,
+            version: Number(effects.V1.lamportVersion) as unknown as string,
             digest: OBJECT_DIGEST_WRAPPED,
         }));
 
@@ -510,7 +510,7 @@ export function mapEffects(data: string): IotaTransactionBlockResponse['effects'
               {
                   objectId: gasObjectFromV1[0],
                   digest: gasObjectFromV1[1].outputState.ObjectWrite![0],
-                  version: effects.V1.lamportVersion,
+                  version: Number(effects.V1.lamportVersion) as unknown as string,
               },
               gasObjectFromV1[1].outputState.ObjectWrite![1],
           ]
