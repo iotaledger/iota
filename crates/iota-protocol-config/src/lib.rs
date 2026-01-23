@@ -910,8 +910,6 @@ pub struct ProtocolConfig {
     object_delete_impl_cost_base: Option<u64>,
     // Cost params for the Move native function `record_new_uid(id: address)`
     object_record_new_uid_cost_base: Option<u64>,
-    // Cost params for the Move native function `is_fresh_uid(id: &UID): bool`
-    object_is_fresh_uid_cost_base: Option<u64>,
 
     // Transfer
     // Cost params for the Move native function `transfer_impl<T: key>(obj: T, recipient: address)`
@@ -1785,8 +1783,6 @@ impl ProtocolConfig {
             object_delete_impl_cost_base: Some(52),
             // Cost params for the Move native function `record_new_uid(id: address)`
             object_record_new_uid_cost_base: Some(52),
-            // Cost params for the Move native function `is_fresh_uid(id: &UID): bool`
-            object_is_fresh_uid_cost_base: Some(52),
 
             // `transfer` module
             // Cost params for the Move native function `transfer_impl<T: key>(obj: T, recipient:

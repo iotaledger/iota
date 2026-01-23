@@ -26,9 +26,6 @@ public use fun uid_to_address as UID.to_address;
 /// Allows calling `.to_bytes` on a `UID` to get a `vector<u8>`.
 public use fun uid_to_bytes as UID.to_bytes;
 
-/// Allows calling `.is_fresh` on a `UID`.
-public use fun uid_is_fresh as UID.is_fresh;
-
 /// The hardcoded ID for the singleton IOTA System State Object.
 const IOTA_SYSTEM_STATE_OBJECT_ID: address = @0x5;
 
@@ -210,12 +207,6 @@ public(package) fun new_uid_from_hash(bytes: address): UID {
     UID { id: ID { bytes } }
 }
 
-/// Returns true if the UID was created in the current transaction.
-/// This can be used to ensure that an object is freshly created and not loaded from storage.
-public(package) fun uid_is_fresh(id: &UID): bool {
-    is_fresh_uid(id.to_address())
-}
-
 // === internal functions ===
 
 // helper for delete
@@ -223,9 +214,6 @@ native fun delete_impl(id: address);
 
 // marks newly created UIDs from hash
 native fun record_new_uid(id: address);
-
-/// Returns true if the UID was created in the current transaction.
-native fun is_fresh_uid(id: address): bool;
 
 #[test_only]
 /// Return the most recent created object ID.

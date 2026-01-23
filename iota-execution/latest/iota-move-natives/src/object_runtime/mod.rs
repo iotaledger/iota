@@ -624,10 +624,6 @@ impl ObjectRuntimeState {
         self.total_events_size += size;
     }
 
-    pub(crate) fn is_object_new(&self, id: &ObjectID) -> bool {
-        self.new_ids.contains(id)
-    }
-
     fn apply_child_object_effects(
         &mut self,
         loaded_child_objects: &mut BTreeMap<ObjectID, LoadedRuntimeObject>,
