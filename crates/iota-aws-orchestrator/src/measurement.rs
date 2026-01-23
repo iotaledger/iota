@@ -260,18 +260,12 @@ impl<T: BenchmarkType> MeasurementsCollection<T> {
         // Collect all last measurements
         let last_measurements: Vec<_> = self.last_measurements_iter().collect();
 
-        // Get the maximum timestamp
-        let duration = last_measurements
-            .iter()
-            .map(|x| x.timestamp)
-            .max()
-            .unwrap_or_default();
-
         last_measurements
             .into_iter()
             // Sum TPS for each workload across all scrapers
             .fold(HashMap::new(), |mut acc, measurement| {
-                *acc.entry(measurement.workload.clone()).or_insert(0) += measurement.tps(&duration);
+                *acc.entry(measurement.workload.clone()).or_insert(0) +=
+                    measurement.tps(&measurement.timestamp);
                 acc
             })
     }
@@ -283,15 +277,9 @@ impl<T: BenchmarkType> MeasurementsCollection<T> {
         // Collect all last measurements
         let last_measurements: Vec<_> = self.last_measurements_iter().collect();
 
-        // Get the maximum timestamp
-        let duration = last_measurements
-            .iter()
-            .map(|x| x.timestamp)
-            .max()
-            .unwrap_or_default();
 
         // Calculate and sum TPS for each measurement
-        last_measurements.iter().map(|x| x.tps(&duration)).sum()
+        last_measurements.iter().map(|x| x.tps(&x.timestamp)).sum()
     }
 
     pub fn workload_average_latency(&self) -> HashMap<String, Duration> {
