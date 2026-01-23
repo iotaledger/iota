@@ -22,6 +22,7 @@ flate2.workspace = true
 itertools.workspace = true
 packable.workspace = true
 prefix-hex = "0.7.1"
+primitive-types = "0.12"
 prometheus.workspace = true
 rand = { workspace = true, features = ["std_rng"] }
 rand_pcg = "0.3"
@@ -36,6 +37,7 @@ tempfile.workspace = true
 tokio.workspace = true
 tracing.workspace = true
 tracing-subscriber.workspace = true
+url.workspace = true
 
 # internal dependencies
 iota-adapter-latest = { path = "../../iota-execution/latest/iota-adapter/" }
@@ -55,8 +57,6 @@ move-compiler.workspace = true
 move-core-types.workspace = true
 move-package.workspace = true
 move-vm-runtime-latest = { path = "../../external-crates/move/crates/move-vm-runtime", package = "move-vm-runtime" }
-primitive-types = "0.12"
-url.workspace = true
 
 [target.'cfg(msim)'.dependencies]
 iota-simulator.workspace = true
