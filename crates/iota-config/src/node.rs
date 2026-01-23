@@ -277,52 +277,6 @@ pub struct NodeConfig {
     pub chain_override_for_testing: Option<Chain>,
 }
 
-/// Configuration for the gRPC API service
-#[derive(Clone, Debug, serde::Deserialize, serde::Serialize)]
-#[serde(rename_all = "kebab-case")]
-pub struct GrpcApiConfig {
-    /// The address to bind the gRPC server to
-    #[serde(default = "default_grpc_api_address")]
-    pub address: std::net::SocketAddr,
-
-    /// Buffer size for broadcast channels used for checkpoint streaming
-    #[serde(default = "default_checkpoint_broadcast_buffer_size")]
-    pub checkpoint_broadcast_buffer_size: usize,
-
-    /// Buffer size for broadcast channels used for event streaming
-    #[serde(default = "default_event_broadcast_buffer_size")]
-    pub event_broadcast_buffer_size: usize,
-
-    /// Maximum size for Move values when rendering to JSON
-    /// in bytes.
-    #[serde(default = "default_max_json_move_value_size")]
-    pub max_json_move_value_size: usize,
-
-    /// TLS configuration for the gRPC server.
-    ///
-    /// If not provided, the gRPC server will use plain TCP without TLS.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub tls: Option<TlsConfig>,
-}
-
-impl Default for GrpcApiConfig {
-    fn default() -> Self {
-        Self {
-            address: default_grpc_api_address(),
-            checkpoint_broadcast_buffer_size: default_checkpoint_broadcast_buffer_size(),
-            event_broadcast_buffer_size: default_event_broadcast_buffer_size(),
-            max_json_move_value_size: default_max_json_move_value_size(),
-            tls: None,
-        }
-    }
-}
-
-impl GrpcApiConfig {
-    pub fn tls_config(&self) -> Option<&TlsConfig> {
-        self.tls.as_ref()
-    }
-}
-
 #[derive(Clone, Debug, Default, serde::Deserialize, serde::Serialize)]
 #[serde(rename_all = "kebab-case")]
 pub struct TlsConfig {
@@ -342,21 +296,93 @@ impl TlsConfig {
     }
 }
 
-fn default_grpc_api_address() -> std::net::SocketAddr {
-    use std::net::{IpAddr, Ipv4Addr};
-    std::net::SocketAddr::new(IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)), 50051)
+/// Configuration for the gRPC API service
+#[derive(Clone, Debug, serde::Deserialize, serde::Serialize)]
+#[serde(rename_all = "kebab-case")]
+pub struct GrpcApiConfig {
+    /// The address to bind the gRPC server to
+    #[serde(default = "default_grpc_api_address")]
+    pub address: SocketAddr,
+
+    /// TLS configuration for the gRPC server.
+    ///
+    /// If not provided, the gRPC server will use plain TCP without TLS.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tls: Option<TlsConfig>,
+
+    /// Maximum message size for gRPC responses (in bytes)
+    #[serde(default = "default_grpc_api_max_message_size_bytes")]
+    pub max_message_size_bytes: u32,
+
+    /// Buffer size for broadcast channels used for streaming
+    #[serde(default = "default_grpc_api_broadcast_buffer_size")]
+    pub broadcast_buffer_size: u32,
+
+    /// Maximum size for Move values when rendering to JSON
+    /// in bytes.
+    #[serde(default = "default_grpc_api_max_json_move_value_size")]
+    pub max_json_move_value_size: usize,
 }
 
-fn default_checkpoint_broadcast_buffer_size() -> usize {
+fn default_grpc_api_address() -> SocketAddr {
+    SocketAddr::new(IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)), 50051)
+}
+
+fn default_grpc_api_broadcast_buffer_size() -> u32 {
     100
 }
 
-fn default_event_broadcast_buffer_size() -> usize {
-    1000
+fn default_grpc_api_max_message_size_bytes() -> u32 {
+    128 * 1024 * 1024 // 128MB
 }
 
-fn default_max_json_move_value_size() -> usize {
+fn default_grpc_api_max_json_move_value_size() -> usize {
     1024 * 1024 // 1 MB
+}
+
+impl Default for GrpcApiConfig {
+    fn default() -> Self {
+        Self {
+            address: default_grpc_api_address(),
+            tls: None,
+            max_message_size_bytes: default_grpc_api_max_message_size_bytes(),
+            broadcast_buffer_size: default_grpc_api_broadcast_buffer_size(),
+            max_json_move_value_size: default_grpc_api_max_json_move_value_size(),
+        }
+    }
+}
+
+impl GrpcApiConfig {
+    // The default maximum uncompressed size in bytes for a message, based on
+    // tonic's default.
+    const GRPC_TONIC_DEFAULT_MAX_RECV_MESSAGE_SIZE: u32 = 4 * 1024 * 1024; // 4MB
+    const GRPC_MIN_CLIENT_MAX_MESSAGE_SIZE_BYTES: u32 =
+        Self::GRPC_TONIC_DEFAULT_MAX_RECV_MESSAGE_SIZE;
+
+    pub fn tls_config(&self) -> Option<&TlsConfig> {
+        self.tls.as_ref()
+    }
+
+    pub fn max_message_size_bytes(&self) -> u32 {
+        // Ensure max message size is at least the minimum allowed
+        self.max_message_size_bytes
+            .max(Self::GRPC_MIN_CLIENT_MAX_MESSAGE_SIZE_BYTES)
+    }
+
+    /// Calculate the maximum size for a message that can be
+    /// sent to a client, taking into account the client's max message size
+    /// preference.
+    pub fn max_message_size_client_bytes(&self, client_max_message_size_bytes: Option<u32>) -> u32 {
+        client_max_message_size_bytes
+            // if the client did not specify a max message size, use the tonic default receive
+            // message size
+            .unwrap_or(Self::GRPC_TONIC_DEFAULT_MAX_RECV_MESSAGE_SIZE)
+            // clamp the value between the tonic default and the service max message size
+            .clamp(
+                Self::GRPC_MIN_CLIENT_MAX_MESSAGE_SIZE_BYTES,
+                self.max_message_size_bytes(),
+            )
+    }
 }
 
 #[derive(Clone, Copy, Debug, Default, Deserialize, Serialize)]
@@ -653,7 +679,6 @@ fn default_key_pair() -> KeyPairWithPath {
 }
 
 fn default_metrics_address() -> SocketAddr {
-    use std::net::{IpAddr, Ipv4Addr};
     SocketAddr::new(IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)), 9184)
 }
 
@@ -662,12 +687,11 @@ pub fn default_admin_interface_address() -> SocketAddr {
 }
 
 pub fn default_json_rpc_address() -> SocketAddr {
-    use std::net::{IpAddr, Ipv4Addr};
     SocketAddr::new(IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)), 9000)
 }
 
 pub fn default_grpc_api_config() -> Option<GrpcApiConfig> {
-    None
+    Some(GrpcApiConfig::default())
 }
 
 pub fn default_concurrency_limit() -> Option<usize> {

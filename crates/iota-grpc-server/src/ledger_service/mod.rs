@@ -9,6 +9,7 @@ mod get_transactions;
 
 use std::{pin::Pin, sync::Arc};
 
+use iota_config::node::GrpcApiConfig;
 use iota_grpc_types::v0::ledger_service::{self as grpc_ledger_service};
 use iota_protocol_config::Chain;
 use iota_types::digests::ChainIdentifier;
@@ -18,8 +19,8 @@ use tonic::{Request, Response, Status};
 use crate::types::*;
 
 pub struct LedgerGrpcService {
+    pub config: GrpcApiConfig,
     pub reader: Arc<GrpcReader>,
-    pub config: iota_config::node::GrpcApiConfig,
     pub checkpoint_summary_broadcaster: GrpcCheckpointSummaryBroadcaster,
     pub checkpoint_data_broadcaster: GrpcCheckpointDataBroadcaster,
     pub cancellation_token: CancellationToken,
@@ -29,16 +30,16 @@ pub struct LedgerGrpcService {
 
 impl LedgerGrpcService {
     pub fn new(
+        config: GrpcApiConfig,
         reader: Arc<GrpcReader>,
-        config: iota_config::node::GrpcApiConfig,
         checkpoint_summary_broadcaster: GrpcCheckpointSummaryBroadcaster,
         checkpoint_data_broadcaster: GrpcCheckpointDataBroadcaster,
         cancellation_token: CancellationToken,
         chain_id: ChainIdentifier,
     ) -> Self {
         Self {
-            reader,
             config,
+            reader,
             checkpoint_summary_broadcaster,
             checkpoint_data_broadcaster,
             cancellation_token,

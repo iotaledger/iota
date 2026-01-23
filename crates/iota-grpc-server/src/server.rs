@@ -86,8 +86,8 @@ pub async fn start_grpc_server(
     // Create the gRPC services - get the cancellation token directly from
     // server level
     let ledger_service = LedgerGrpcService::new(
-        grpc_reader.clone(),
         config.clone(),
+        grpc_reader.clone(),
         checkpoint_summary_broadcaster.clone(),
         checkpoint_data_broadcaster.clone(),
         shutdown_token.clone(),
@@ -96,7 +96,7 @@ pub async fn start_grpc_server(
 
     // Create TransactionExecutionService if executor is provided
     let tx_service = executor.map(|executor| {
-        TransactionExecutionGrpcService::new(grpc_reader.clone(), executor, config.clone())
+        TransactionExecutionGrpcService::new(config.clone(), grpc_reader.clone(), executor)
     });
 
     // Bind to the address to get the actual local address (especially important for
@@ -136,14 +136,17 @@ pub async fn start_grpc_server(
             .map_err(|e| anyhow::anyhow!("failed to configure TLS: {}", e))?;
     }
 
-    // Add services to the router
+    // Add services to the router and configure services with
+    // message size limits
     let mut router = router_builder.add_service(
-        grpc_ledger_service::ledger_service_server::LedgerServiceServer::new(ledger_service),
+        grpc_ledger_service::ledger_service_server::LedgerServiceServer::new(ledger_service)
+            .max_encoding_message_size(config.max_message_size_bytes() as usize),
     );
 
     if let Some(tx_service) = tx_service {
         router = router.add_service(
-            grpc_tx_service::transaction_execution_service_server::TransactionExecutionServiceServer::new(tx_service),
+            grpc_tx_service::transaction_execution_service_server::TransactionExecutionServiceServer::new(tx_service)
+            .max_encoding_message_size(config.max_message_size_bytes() as usize),
         );
     }
 

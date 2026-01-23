@@ -30,21 +30,21 @@ pub use transaction::{CommandResultsReadSource, TransactionReadSource};
 use crate::{error::RpcError, types::GrpcReader};
 
 pub struct TransactionExecutionGrpcService {
+    pub config: iota_config::node::GrpcApiConfig,
     pub reader: Arc<GrpcReader>,
     pub executor: Arc<dyn TransactionExecutor>,
-    pub config: iota_config::node::GrpcApiConfig,
 }
 
 impl TransactionExecutionGrpcService {
     pub fn new(
+        config: iota_config::node::GrpcApiConfig,
         reader: Arc<GrpcReader>,
         executor: Arc<dyn TransactionExecutor>,
-        config: iota_config::node::GrpcApiConfig,
     ) -> Self {
         Self {
+            config,
             reader,
             executor,
-            config,
         }
     }
 }
