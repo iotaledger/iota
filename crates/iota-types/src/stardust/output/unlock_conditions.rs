@@ -52,8 +52,10 @@ pub struct StorageDepositReturnUnlockCondition {
     pub return_amount: u64,
 }
 
-impl TryFrom<&iota_stardust_types::block::output::unlock_condition::StorageDepositReturnUnlockCondition>
-    for StorageDepositReturnUnlockCondition
+impl
+    TryFrom<
+        &iota_stardust_types::block::output::unlock_condition::StorageDepositReturnUnlockCondition,
+    > for StorageDepositReturnUnlockCondition
 {
     type Error = anyhow::Error;
 

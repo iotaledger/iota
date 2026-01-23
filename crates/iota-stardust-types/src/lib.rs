@@ -19,6 +19,4 @@ extern crate std;
 
 pub mod block;
 
-
-
 // pub mod types;

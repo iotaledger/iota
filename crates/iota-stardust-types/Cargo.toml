@@ -17,8 +17,8 @@ getset.workspace = true
 iota-crypto = { version = "0.23.2", default-features = false, features = ["blake2b", "ed25519"] }
 iterator-sorted = { version = "0.2.0", default-features = false }
 packable = { version = "0.8.3", default-features = false, features = ["primitive-types"] }
-prefix-hex = { version = "0.7.1", default-features = false, features = ["primitive-types"] }
-primitive-types = { version = "0.12.2", default-features = false }
+prefix-hex = { workspace = true, features = ["primitive-types"] }
+primitive-types.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 # optional dependencies

@@ -323,7 +323,9 @@ passkey-authenticator = "0.4.0"
 passkey-client = "0.4.0"
 passkey-types = "0.4.0"
 pin-project-lite = "0.2.15"
+prefix-hex = { version = "0.7.1", default-features = false }
 pretty_assertions = "1.3.0"
+primitive-types = { version = "0.12.2", default-features = false }
 proc-macro2 = "1.0.95"
 prometheus = "0.14.0"
 proptest = "1.6.0"

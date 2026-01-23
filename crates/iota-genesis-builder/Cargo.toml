@@ -21,8 +21,8 @@ fastcrypto.workspace = true
 flate2.workspace = true
 itertools.workspace = true
 packable.workspace = true
-prefix-hex = "0.7.1"
-primitive-types = "0.12"
+prefix-hex = { workspace = true, default-features = true }
+primitive-types = { workspace = true, default-features = true }
 prometheus.workspace = true
 rand = { workspace = true, features = ["std_rng"] }
 rand_pcg = "0.3"
