@@ -8134,6 +8134,7 @@ version = "1.16.0-alpha"
 dependencies = [
  "anemo",
  "anyhow",
+ "async-stream",
  "async-trait",
  "base64 0.21.7",
  "bcs",
