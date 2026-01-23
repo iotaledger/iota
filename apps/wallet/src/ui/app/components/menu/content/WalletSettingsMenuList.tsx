@@ -43,6 +43,7 @@ import { ampli } from '_src/shared/analytics/ampli';
 import { useTheme, getCustomNetwork, FAQ_LINK, ToS_LINK, DISCORD_SUPPORT_LINK } from '@iota/core';
 import { ExtensionViewType } from '_src/ui/app/redux/slices/app/appType';
 import { openInNewTab } from '_src/shared/utils';
+import { useMetricsEnabled } from '_src/ui/app/hooks/useMetricsEnabled';
 
 export function MenuList() {
     const { themePreference } = useTheme();
@@ -59,6 +60,7 @@ export function MenuList() {
     const isAppPopup = useAppSelector(
         (state) => state.app.extensionViewType === ExtensionViewType.Popup,
     );
+    const [hasAcceptedMetrics] = useMetricsEnabled();
 
     // Logout
     const [isLogoutDialogOpen, setIsLogoutDialogOpen] = useState(false);
@@ -113,6 +115,7 @@ export function MenuList() {
 
     const autoLockSubtitle = handleAutoLockSubtitle();
     const themeSubtitle = themePreference.charAt(0).toUpperCase() + themePreference.slice(1);
+    const metricsSubtitle = `Metrics ${hasAcceptedMetrics ? 'enabled' : 'disabled'}`;
     const MENU_ITEMS = [
         {
             title: 'Network',
@@ -135,7 +138,7 @@ export function MenuList() {
         {
             title: 'Metrics',
             icon: <DataStack />,
-            subtitle: 'Metrics enabled',
+            subtitle: metricsSubtitle,
             onClick: onMetricsClick,
         },
         {
