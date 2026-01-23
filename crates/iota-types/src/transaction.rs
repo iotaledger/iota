@@ -2590,8 +2590,26 @@ impl VerifiedTransaction {
         round: u64,
         commit_timestamp_ms: CheckpointTimestamp,
         consensus_commit_digest: ConsensusCommitDigest,
-        cancelled_txn_version_assignment: Vec<(TransactionDigest, Vec<(ObjectID, SequenceNumber)>)>,
+        cancelled_txn_version_assignment: Vec<CancelledTransactionV2>,
     ) -> Self {
+        // Transform CancelledTransactionV2 into the expected format for V1.
+        let cancelled_transactions = cancelled_txn_version_assignment
+            .into_iter()
+            .map(
+                |CancelledTransactionV2 {
+                     digest,
+                     version_assignments,
+                 }| {
+                    (
+                        digest,
+                        version_assignments
+                            .into_iter()
+                            .map(|VersionAssignment { object_id, version }| (object_id, version))
+                            .collect(),
+                    )
+                },
+            )
+            .collect();
         ConsensusCommitPrologueV1 {
             epoch,
             round,
@@ -2601,7 +2619,7 @@ impl VerifiedTransaction {
             consensus_commit_digest,
             consensus_determined_version_assignments:
                 ConsensusDeterminedVersionAssignments::CancelledTransactions(
-                    cancelled_txn_version_assignment,
+                    cancelled_transactions,
                 ),
         }
         .pipe(TransactionKind::ConsensusCommitPrologueV1)
@@ -2613,19 +2631,9 @@ impl VerifiedTransaction {
         round: u64,
         commit_timestamp_ms: CheckpointTimestamp,
         consensus_commit_digest: ConsensusCommitDigest,
-        cancelled_txn_version_assignment: Vec<(TransactionDigest, Vec<(ObjectID, SequenceNumber)>)>,
+        cancelled_txn_version_assignment: Vec<CancelledTransactionV2>,
         additional_state_digest: AdditionalConsensusStateDigest,
     ) -> Self {
-        let cancelled_transactions = cancelled_txn_version_assignment
-            .into_iter()
-            .map(|(digest, version_assignments)| CancelledTransactionV2 {
-                digest,
-                version_assignments: version_assignments
-                    .into_iter()
-                    .map(|(object_id, version)| VersionAssignment { object_id, version })
-                    .collect(),
-            })
-            .collect();
         ConsensusCommitPrologueV2 {
             epoch,
             round,
@@ -2635,7 +2643,7 @@ impl VerifiedTransaction {
             consensus_commit_digest,
             consensus_determined_version_assignments:
                 ConsensusDeterminedVersionAssignments::CancelledTransactionsV2(
-                    cancelled_transactions,
+                    cancelled_txn_version_assignment,
                 ),
             additional_state_digest,
         }

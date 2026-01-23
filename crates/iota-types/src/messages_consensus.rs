@@ -51,6 +51,12 @@ pub struct VersionAssignment {
     pub version: SequenceNumber,
 }
 
+impl VersionAssignment {
+    pub fn new(object_id: ObjectID, version: SequenceNumber) -> Self {
+        Self { object_id, version }
+    }
+}
+
 /// Holds digest of cancelled transaction and shared object version
 /// assignments.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema)]
@@ -60,6 +66,15 @@ pub struct CancelledTransactionV2 {
 
     /// Version assignments for input shared objects.
     pub version_assignments: Vec<VersionAssignment>,
+}
+
+impl CancelledTransactionV2 {
+    pub fn new(digest: TransactionDigest, version_assignments: Vec<VersionAssignment>) -> Self {
+        Self {
+            digest,
+            version_assignments,
+        }
+    }
 }
 
 /// Uses an enum to allow for future expansion of the

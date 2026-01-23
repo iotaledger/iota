@@ -146,7 +146,10 @@ pub(crate) mod consensus_quarantine;
 use consensus_quarantine::{
     ConsensusCommitOutput, ConsensusOutputCache, ConsensusOutputQuarantine,
 };
-use iota_types::crypto::AuthorityPublicKey;
+use iota_types::{
+    crypto::AuthorityPublicKey,
+    messages_consensus::{CancelledTransactionV2, VersionAssignment},
+};
 
 // CertLockGuard and CertTxGuard are functionally identical right now, but we
 // retain a distinction anyway. If we need to support distributed object
@@ -3332,8 +3335,7 @@ impl AuthorityPerEpochStore {
             }
         }
 
-        let mut version_assignment: Vec<(TransactionDigest, Vec<(ObjectID, SequenceNumber)>)> =
-            Vec::new();
+        let mut version_assignment: Vec<CancelledTransactionV2> = Vec::new();
 
         let mut shared_input_next_version = HashMap::new();
         for txn in transactions.iter() {
@@ -3347,7 +3349,13 @@ impl AuthorityPerEpochStore {
                         self.protocol_config
                             .congestion_control_gas_price_feedback_mechanism(),
                     );
-                    version_assignment.push((*txn.digest(), assigned_versions));
+                    version_assignment.push(CancelledTransactionV2::new(
+                        *txn.digest(),
+                        assigned_versions
+                            .into_iter()
+                            .map(|(object_id, version)| VersionAssignment::new(object_id, version))
+                            .collect(),
+                    ));
                 }
                 None => {}
             }

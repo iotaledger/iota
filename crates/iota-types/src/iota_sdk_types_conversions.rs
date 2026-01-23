@@ -418,7 +418,10 @@ fn consensus_determined_version_assignments_to_sdk(
         },
         crate::messages_consensus::ConsensusDeterminedVersionAssignments::CancelledTransactionsV2(
             vec,
-        ) => ConsensusDeterminedVersionAssignments::CancelledTransactions {
+        ) =>
+            // CancelledTransactionsV2 contains the same content as CancelledTransactions, just structured
+            // differently. No need to introduce a new SDK type for it.
+            ConsensusDeterminedVersionAssignments::CancelledTransactions {
             cancelled_transactions: vec
                 .into_iter()
                 .map(|value| CancelledTransaction {

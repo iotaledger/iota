@@ -19,7 +19,7 @@ use iota_metrics::{monitored_mpsc::UnboundedReceiver, monitored_scope, spawn_mon
 use iota_protocol_config::ProtocolConfig;
 use iota_types::{
     authenticator_state::ActiveJwk,
-    base_types::{AuthorityName, EpochId, ObjectID, SequenceNumber, TransactionDigest},
+    base_types::{AuthorityName, EpochId, TransactionDigest},
     digests::{AdditionalConsensusStateDigest, ConsensusCommitDigest},
     executable_transaction::{TrustedExecutableTransaction, VerifiedExecutableTransaction},
     iota_system_state::epoch_start_iota_system_state::EpochStartSystemStateTrait,
@@ -151,6 +151,7 @@ mod additional_consensus_state {
     }
 }
 pub(crate) use additional_consensus_state::AdditionalConsensusState;
+use iota_types::messages_consensus::CancelledTransactionV2;
 
 pub struct ConsensusHandler<C> {
     /// A store created for each epoch. ConsensusHandler is recreated each
@@ -913,7 +914,7 @@ impl ConsensusCommitInfo {
     fn consensus_commit_prologue_v1_transaction(
         &self,
         epoch: u64,
-        cancelled_txn_version_assignment: Vec<(TransactionDigest, Vec<(ObjectID, SequenceNumber)>)>,
+        cancelled_txn_version_assignment: Vec<CancelledTransactionV2>,
     ) -> VerifiedExecutableTransaction {
         let transaction = VerifiedTransaction::new_consensus_commit_prologue_v1(
             epoch,
@@ -928,7 +929,7 @@ impl ConsensusCommitInfo {
     fn consensus_commit_prologue_v2_transaction(
         &self,
         epoch: u64,
-        cancelled_txn_version_assignment: Vec<(TransactionDigest, Vec<(ObjectID, SequenceNumber)>)>,
+        cancelled_txn_version_assignment: Vec<CancelledTransactionV2>,
         additional_state_digest: AdditionalConsensusStateDigest,
     ) -> VerifiedExecutableTransaction {
         let transaction = VerifiedTransaction::new_consensus_commit_prologue_v2(
@@ -946,7 +947,7 @@ impl ConsensusCommitInfo {
         &self,
         epoch: u64,
         protocol_config: &ProtocolConfig,
-        cancelled_txn_version_assignment: Vec<(TransactionDigest, Vec<(ObjectID, SequenceNumber)>)>,
+        cancelled_txn_version_assignment: Vec<CancelledTransactionV2>,
         additional_state: &AdditionalConsensusState,
     ) -> VerifiedExecutableTransaction {
         if protocol_config.record_additional_state_digest_in_prologue() {
