@@ -108,7 +108,7 @@ pub struct AccountOwnedObjectInfo {
     pub owner: Address,
     pub object_id: ObjectId,
     #[serde_as(as = "serde_with::DisplayFromStr")]
-    #[schemars(with = "Version")]
+    #[schemars(with = "crate::_schemars::U64")]
     pub version: Version,
     #[serde(rename = "type")]
     pub type_: StructTag,
