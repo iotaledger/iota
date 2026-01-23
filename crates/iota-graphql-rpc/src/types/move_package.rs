@@ -553,7 +553,7 @@ impl MovePackage {
             .map(|(&runtime_id, upgrade_info)| Linkage {
                 original_id: runtime_id.into(),
                 upgraded_id: upgrade_info.upgraded_id.into(),
-                version: upgrade_info.upgraded_version.value().into(),
+                version: upgrade_info.upgraded_version.as_u64().into(),
             })
             .collect();
 

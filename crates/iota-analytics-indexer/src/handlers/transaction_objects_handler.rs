@@ -102,7 +102,7 @@ impl TransactionObjectsHandler {
             .input_objects()
             .expect("input objects must be valid")
             .iter()
-            .map(|object| (object.object_id(), object.version().map(|v| v.value())))
+            .map(|object| (object.object_id(), object.version().map(|v| v.as_u64())))
             .for_each(|(object_id, version)| {
                 self.process_transaction_object(
                     epoch,
@@ -120,7 +120,7 @@ impl TransactionObjectsHandler {
         checkpoint_transaction
             .output_objects
             .iter()
-            .map(|object| (object.id(), Some(object.version().value())))
+            .map(|object| (object.id(), Some(object.version().as_u64())))
             .for_each(|(object_id, version)| {
                 self.process_transaction_object(
                     epoch,

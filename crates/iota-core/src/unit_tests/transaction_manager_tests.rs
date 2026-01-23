@@ -454,7 +454,7 @@ async fn transaction_manager_receiving_notify_commit() {
             txn.digest(),
             vec![InputKey::VersionedObject {
                 id: object.id(),
-                version: object.version().next(),
+                version: object.version().next().unwrap(),
             }],
             &state.epoch_store_for_testing(),
         );
@@ -810,7 +810,7 @@ async fn transaction_manager_with_cancelled_transactions() {
                 (shared_object_1.id(), SequenceNumber::CANCELLED_READ),
                 (
                     shared_object_2.id(),
-                    SequenceNumber::new_congested_with_suggested_gas_price(101),
+                    SequenceNumber::new_congested_with_suggested_gas_price(101).unwrap(),
                 ),
             ],
         )

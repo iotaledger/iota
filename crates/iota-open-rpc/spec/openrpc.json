@@ -3055,7 +3055,9 @@
           "description": "the version of the queried object. If None, default to the latest known version",
           "required": true,
           "schema": {
-            "$ref": "#/components/schemas/SequenceNumber"
+            "type": "integer",
+            "format": "uint64",
+            "minimum": 0.0
           }
         },
         {
@@ -6466,7 +6468,9 @@
                             "$ref": "#/components/schemas/ObjectID"
                           },
                           {
-                            "$ref": "#/components/schemas/SequenceNumber"
+                            "type": "integer",
+                            "format": "uint64",
+                            "minimum": 0.0
                           }
                         ],
                         "maxItems": 2,
@@ -6610,7 +6614,9 @@
                   "$ref": "#/components/schemas/ObjectID"
                 },
                 {
-                  "$ref": "#/components/schemas/SequenceNumber"
+                  "type": "integer",
+                  "format": "uint64",
+                  "minimum": 0.0
                 },
                 {
                   "$ref": "#/components/schemas/ObjectDigest"
@@ -6857,7 +6863,9 @@
             "$ref": "#/components/schemas/DynamicFieldType"
           },
           "version": {
-            "$ref": "#/components/schemas/SequenceNumber2"
+            "type": "integer",
+            "format": "uint64",
+            "minimum": 0.0
           }
         }
       },
@@ -7700,7 +7708,7 @@
             "description": "the version of the queried object.",
             "allOf": [
               {
-                "$ref": "#/components/schemas/SequenceNumber2"
+                "$ref": "#/components/schemas/SequenceNumber"
               }
             ]
           }
@@ -7753,7 +7761,7 @@
                     "$ref": "#/components/schemas/ObjectID"
                   },
                   "initial_shared_version": {
-                    "$ref": "#/components/schemas/SequenceNumber2"
+                    "$ref": "#/components/schemas/SequenceNumber"
                   },
                   "mutable": {
                     "default": true,
@@ -7895,7 +7903,7 @@
                     ]
                   },
                   "version": {
-                    "$ref": "#/components/schemas/SequenceNumber2"
+                    "$ref": "#/components/schemas/SequenceNumber"
                   }
                 }
               },
@@ -7909,7 +7917,7 @@
                 ],
                 "properties": {
                   "initialSharedVersion": {
-                    "$ref": "#/components/schemas/SequenceNumber2"
+                    "$ref": "#/components/schemas/SequenceNumber"
                   },
                   "mutable": {
                     "type": "boolean"
@@ -7947,7 +7955,7 @@
                     ]
                   },
                   "version": {
-                    "$ref": "#/components/schemas/SequenceNumber2"
+                    "$ref": "#/components/schemas/SequenceNumber"
                   }
                 }
               }
@@ -10477,7 +10485,7 @@
                 ]
               },
               "version": {
-                "$ref": "#/components/schemas/SequenceNumber2"
+                "$ref": "#/components/schemas/SequenceNumber"
               }
             }
           },
@@ -10516,7 +10524,7 @@
                 ]
               },
               "version": {
-                "$ref": "#/components/schemas/SequenceNumber2"
+                "$ref": "#/components/schemas/SequenceNumber"
               }
             }
           },
@@ -10547,7 +10555,7 @@
                 "$ref": "#/components/schemas/Owner"
               },
               "previousVersion": {
-                "$ref": "#/components/schemas/SequenceNumber2"
+                "$ref": "#/components/schemas/SequenceNumber"
               },
               "sender": {
                 "$ref": "#/components/schemas/IotaAddress"
@@ -10559,7 +10567,7 @@
                 ]
               },
               "version": {
-                "$ref": "#/components/schemas/SequenceNumber2"
+                "$ref": "#/components/schemas/SequenceNumber"
               }
             }
           },
@@ -10590,7 +10598,7 @@
                 ]
               },
               "version": {
-                "$ref": "#/components/schemas/SequenceNumber2"
+                "$ref": "#/components/schemas/SequenceNumber"
               }
             }
           },
@@ -10621,7 +10629,7 @@
                 ]
               },
               "version": {
-                "$ref": "#/components/schemas/SequenceNumber2"
+                "$ref": "#/components/schemas/SequenceNumber"
               }
             }
           },
@@ -10660,7 +10668,7 @@
                 ]
               },
               "version": {
-                "$ref": "#/components/schemas/SequenceNumber2"
+                "$ref": "#/components/schemas/SequenceNumber"
               }
             }
           }
@@ -10888,7 +10896,9 @@
                     "$ref": "#/components/schemas/ObjectID"
                   },
                   {
-                    "$ref": "#/components/schemas/SequenceNumber"
+                    "type": "integer",
+                    "format": "uint64",
+                    "minimum": 0.0
                   }
                 ],
                 "maxItems": 2,
@@ -10919,10 +10929,14 @@
                 ],
                 "properties": {
                   "asked_version": {
-                    "$ref": "#/components/schemas/SequenceNumber"
+                    "type": "integer",
+                    "format": "uint64",
+                    "minimum": 0.0
                   },
                   "latest_version": {
-                    "$ref": "#/components/schemas/SequenceNumber"
+                    "type": "integer",
+                    "format": "uint64",
+                    "minimum": 0.0
                   },
                   "object_id": {
                     "$ref": "#/components/schemas/ObjectID"
@@ -10965,11 +10979,9 @@
           },
           "version": {
             "description": "Object version.",
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/SequenceNumber"
-              }
-            ]
+            "type": "integer",
+            "format": "uint64",
+            "minimum": 0.0
           }
         }
       },
@@ -11039,11 +11051,9 @@
               },
               "version": {
                 "description": "Object version.",
-                "allOf": [
-                  {
-                    "$ref": "#/components/schemas/SequenceNumber2"
-                  }
-                ]
+                "type": "integer",
+                "format": "uint64",
+                "minimum": 0.0
               }
             }
           },
@@ -11176,11 +11186,9 @@
                 "properties": {
                   "initial_shared_version": {
                     "description": "The version at which the object became shared",
-                    "allOf": [
-                      {
-                        "$ref": "#/components/schemas/SequenceNumber"
-                      }
-                    ]
+                    "type": "integer",
+                    "format": "uint64",
+                    "minimum": 0.0
                   }
                 }
               }
@@ -11702,7 +11710,9 @@
                 "type": "string"
               },
               "version": {
-                "$ref": "#/components/schemas/SequenceNumber2"
+                "type": "integer",
+                "format": "uint64",
+                "minimum": 0.0
               }
             }
           },
@@ -11745,7 +11755,9 @@
                 }
               },
               "version": {
-                "$ref": "#/components/schemas/SequenceNumber2"
+                "type": "integer",
+                "format": "uint64",
+                "minimum": 0.0
               }
             }
           }
@@ -11758,11 +11770,6 @@
         "$ref": "#/components/schemas/Base64"
       },
       "SequenceNumber": {
-        "type": "integer",
-        "format": "uint64",
-        "minimum": 0.0
-      },
-      "SequenceNumber2": {
         "$ref": "#/components/schemas/BigInt_for_uint64"
       },
       "Signature": {
@@ -12197,7 +12204,7 @@
             "$ref": "#/components/schemas/ObjectID"
           },
           "sequenceNumber": {
-            "$ref": "#/components/schemas/SequenceNumber2"
+            "$ref": "#/components/schemas/SequenceNumber"
           }
         }
       },
@@ -13006,11 +13013,9 @@
           },
           "upgraded_version": {
             "description": "Version of the upgraded package",
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/SequenceNumber2"
-              }
-            ]
+            "type": "integer",
+            "format": "uint64",
+            "minimum": 0.0
           }
         }
       },

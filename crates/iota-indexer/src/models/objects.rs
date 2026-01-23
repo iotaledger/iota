@@ -95,7 +95,7 @@ impl From<IndexedObject> for StoredObjectSnapshot {
 
         Self {
             object_id: object.id().to_vec(),
-            object_version: object.version().value() as i64,
+            object_version: object.version().as_u64() as i64,
             object_status: ObjectStatus::Active as i16,
             object_digest: Some(object.digest().into_inner().to_vec()),
             checkpoint_sequence_number: checkpoint_sequence_number as i64,
@@ -255,7 +255,7 @@ impl From<IndexedObject> for StoredHistoryObject {
 
         Self {
             object_id: object.id().to_vec(),
-            object_version: object.version().value() as i64,
+            object_version: object.version().as_u64() as i64,
             object_status: ObjectStatus::Active as i16,
             object_digest: Some(object.digest().into_inner().to_vec()),
             checkpoint_sequence_number: checkpoint_sequence_number as i64,
@@ -343,7 +343,7 @@ impl From<IndexedObject> for StoredObject {
         };
         Self {
             object_id: object.id().to_vec(),
-            object_version: object.version().value() as i64,
+            object_version: object.version().as_u64() as i64,
             object_digest: object.digest().into_inner().to_vec(),
             owner_type: owner_type as i16,
             owner_id: owner_id.map(|id| id.to_vec()),
