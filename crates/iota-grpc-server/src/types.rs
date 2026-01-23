@@ -29,11 +29,6 @@ use tokio_util::sync::CancellationToken;
 use tonic::Status;
 use tracing::debug;
 
-/// Trait for broadcasting checkpoint summaries
-pub trait CheckpointSummaryBroadcaster {
-    fn send(&self, summary: &CertifiedCheckpointSummary) -> anyhow::Result<()>;
-}
-
 /// Trait for broadcasting checkpoint data
 pub trait CheckpointDataBroadcaster {
     fn send(&self, data: &CheckpointData) -> anyhow::Result<()>;
@@ -55,56 +50,6 @@ impl EventSubscriber for iota_core::subscription_handler::SubscriptionHandler {
         filter: EventFilter,
     ) -> Box<dyn futures::Stream<Item = IotaEvent> + Send + Unpin> {
         Box::new(Box::pin(self.subscribe_events(filter)))
-    }
-}
-
-/// Wrapper that converts native CertifiedCheckpointSummary to gRPC type before
-/// broadcasting
-#[derive(Clone)]
-pub struct GrpcCheckpointSummaryBroadcaster {
-    sender: Sender<Arc<GrpcCertifiedCheckpointSummary>>,
-}
-
-impl GrpcCheckpointSummaryBroadcaster {
-    pub fn new(sender: Sender<Arc<GrpcCertifiedCheckpointSummary>>) -> Self {
-        Self { sender }
-    }
-
-    /// Subscribe to checkpoint summary broadcasts
-    pub fn subscribe(&self) -> Receiver<Arc<GrpcCertifiedCheckpointSummary>> {
-        self.sender.subscribe()
-    }
-
-    /// Get the number of active receivers
-    pub fn receiver_count(&self) -> usize {
-        self.sender.receiver_count()
-    }
-
-    /// Send with integrated tracing and error handling
-    pub fn send_traced(&self, summary: &CertifiedCheckpointSummary) {
-        match self.send(summary) {
-            Ok(()) => {
-                debug!(
-                    "Sent checkpoint summary #{} to {} gRPC subscriber(s)",
-                    *summary.data().sequence_number(),
-                    self.receiver_count()
-                );
-            }
-            Err(_) => {
-                debug!(
-                    "No gRPC clients subscribed for checkpoint summary #{}",
-                    *summary.data().sequence_number()
-                );
-            }
-        }
-    }
-}
-
-impl CheckpointSummaryBroadcaster for GrpcCheckpointSummaryBroadcaster {
-    fn send(&self, summary: &CertifiedCheckpointSummary) -> anyhow::Result<()> {
-        let grpc_summary = Arc::new(GrpcCertifiedCheckpointSummary::from(summary.clone()));
-        self.sender.send(grpc_summary)?;
-        Ok(())
     }
 }
 
@@ -160,25 +105,9 @@ impl CheckpointDataBroadcaster for GrpcCheckpointDataBroadcaster {
 // Standard implementations for common types
 
 /// Implementation for tokio broadcast sender
-impl CheckpointSummaryBroadcaster for Sender<Arc<CertifiedCheckpointSummary>> {
-    fn send(&self, summary: &CertifiedCheckpointSummary) -> anyhow::Result<()> {
-        self.send(Arc::new(summary.clone()))?;
-        Ok(())
-    }
-}
-
-/// Implementation for tokio broadcast sender
 impl CheckpointDataBroadcaster for Sender<Arc<CheckpointData>> {
     fn send(&self, data: &CheckpointData) -> anyhow::Result<()> {
         self.send(Arc::new(data.clone()))?;
-        Ok(())
-    }
-}
-
-/// No-op implementation for unit type (used in tests and when broadcasting is
-/// disabled)
-impl CheckpointSummaryBroadcaster for () {
-    fn send(&self, _summary: &CertifiedCheckpointSummary) -> anyhow::Result<()> {
         Ok(())
     }
 }

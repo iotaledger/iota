@@ -21,7 +21,6 @@ use crate::types::*;
 pub struct LedgerGrpcService {
     pub config: GrpcApiConfig,
     pub reader: Arc<GrpcReader>,
-    pub checkpoint_summary_broadcaster: GrpcCheckpointSummaryBroadcaster,
     pub checkpoint_data_broadcaster: GrpcCheckpointDataBroadcaster,
     pub cancellation_token: CancellationToken,
     pub chain_id: ChainIdentifier,
@@ -32,7 +31,6 @@ impl LedgerGrpcService {
     pub fn new(
         config: GrpcApiConfig,
         reader: Arc<GrpcReader>,
-        checkpoint_summary_broadcaster: GrpcCheckpointSummaryBroadcaster,
         checkpoint_data_broadcaster: GrpcCheckpointDataBroadcaster,
         cancellation_token: CancellationToken,
         chain_id: ChainIdentifier,
@@ -40,7 +38,6 @@ impl LedgerGrpcService {
         Self {
             config,
             reader,
-            checkpoint_summary_broadcaster,
             checkpoint_data_broadcaster,
             cancellation_token,
             chain_id,

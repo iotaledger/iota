@@ -16,8 +16,7 @@ use tokio_util::sync::CancellationToken;
 use tonic::transport::{Identity, Server, ServerTlsConfig};
 
 use crate::{
-    GrpcCheckpointDataBroadcaster, GrpcCheckpointSummaryBroadcaster, GrpcReader, LedgerGrpcService,
-    TransactionExecutionGrpcService,
+    GrpcCheckpointDataBroadcaster, GrpcReader, LedgerGrpcService, TransactionExecutionGrpcService,
 };
 
 /// Handle to control a running gRPC server
@@ -26,8 +25,6 @@ pub struct GrpcServerHandle {
     pub server_handle: tokio::task::JoinHandle<Result<(), tonic::transport::Error>>,
     /// Shutdown signal sender
     shutdown_token: CancellationToken,
-    /// Broadcaster for checkpoint summaries
-    pub checkpoint_summary_broadcaster: GrpcCheckpointSummaryBroadcaster,
     /// Broadcaster for checkpoint data
     pub checkpoint_data_broadcaster: GrpcCheckpointDataBroadcaster,
     /// Actual server address (with resolved port)
@@ -47,11 +44,6 @@ impl GrpcServerHandle {
     /// Get the server address (actual bound address)
     pub fn address(&self) -> SocketAddr {
         self.address
-    }
-
-    /// Get a reference to the checkpoint summary broadcaster
-    pub fn checkpoint_summary_broadcaster(&self) -> &GrpcCheckpointSummaryBroadcaster {
-        &self.checkpoint_summary_broadcaster
     }
 
     /// Get a reference to the checkpoint data broadcaster
@@ -75,12 +67,9 @@ pub async fn start_grpc_server(
     chain_id: iota_types::digests::ChainIdentifier,
 ) -> Result<GrpcServerHandle> {
     // Create broadcast channels
-    let (checkpoint_summary_tx, _) = broadcast::channel(config.checkpoint_broadcast_buffer_size);
-    let (checkpoint_data_tx, _) = broadcast::channel(config.checkpoint_broadcast_buffer_size);
+    let (checkpoint_data_tx, _) = broadcast::channel(config.broadcast_buffer_size as usize);
 
     // Create broadcasters
-    let checkpoint_summary_broadcaster =
-        GrpcCheckpointSummaryBroadcaster::new(checkpoint_summary_tx);
     let checkpoint_data_broadcaster = GrpcCheckpointDataBroadcaster::new(checkpoint_data_tx);
 
     // Create the gRPC services - get the cancellation token directly from
@@ -88,7 +77,6 @@ pub async fn start_grpc_server(
     let ledger_service = LedgerGrpcService::new(
         config.clone(),
         grpc_reader.clone(),
-        checkpoint_summary_broadcaster.clone(),
         checkpoint_data_broadcaster.clone(),
         shutdown_token.clone(),
         chain_id,
@@ -182,7 +170,6 @@ pub async fn start_grpc_server(
     Ok(GrpcServerHandle {
         server_handle,
         shutdown_token,
-        checkpoint_summary_broadcaster,
         checkpoint_data_broadcaster,
         address: actual_addr,
     })
