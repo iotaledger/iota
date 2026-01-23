@@ -268,7 +268,7 @@ impl SerializeAs<crate::base_types::SequenceNumber> for SequenceNumber {
     where
         S: Serializer,
     {
-        let s = value.value().to_string();
+        let s = value.to_string();
         s.serialize(serializer)
     }
 }

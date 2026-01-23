@@ -585,7 +585,7 @@ async fn test_sign_command() -> Result<(), anyhow::Error> {
     // Create a dummy TransactionData
     let gas = (
         ObjectID::random(),
-        SequenceNumber::new(),
+        SequenceNumber::default(),
         ObjectDigest::random(),
     );
     let gas_price = 1;

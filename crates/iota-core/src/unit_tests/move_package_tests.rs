@@ -131,7 +131,7 @@ fn test_upgraded() {
         .unwrap();
 
     let mut expected_version = OBJECT_START_VERSION;
-    expected_version.increment();
+    expected_version.increment().unwrap();
     assert_eq!(expected_version, c_new.version());
 
     assert_eq!(

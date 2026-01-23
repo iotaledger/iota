@@ -1347,7 +1347,7 @@ impl IotaObjectDataFilter {
             }
             IotaObjectDataFilter::ObjectId(id) => &object.object_id == id,
             IotaObjectDataFilter::ObjectIds(ids) => ids.contains(&object.object_id),
-            IotaObjectDataFilter::Version(v) => object.version.value() == *v,
+            IotaObjectDataFilter::Version(v) => object.version == *v,
         }
     }
 }

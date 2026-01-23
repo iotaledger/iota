@@ -165,7 +165,7 @@ impl GasEffects {
         Self {
             summary: GasCostSummary::from(effects.gas_cost_summary()),
             object_id: IotaAddress::from(id),
-            object_version: version.value(),
+            object_version: version.as_u64(),
             checkpoint_viewed_at,
         }
     }
@@ -186,7 +186,7 @@ impl GasInput {
                 .iter()
                 .map(|o| ObjectKey {
                     object_id: o.0.into(),
-                    version: o.1.value().into(),
+                    version: o.1.as_u64().into(),
                 })
                 .collect(),
             checkpoint_viewed_at,

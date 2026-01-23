@@ -3625,7 +3625,7 @@ impl InputObjects {
             })
             .chain(receiving_objects.iter().map(|object_ref| object_ref.1));
 
-        SequenceNumber::lamport_increment(input_versions)
+        SequenceNumber::lamport_increment(input_versions).unwrap()
     }
 
     pub fn object_kinds(&self) -> impl Iterator<Item = &InputObjectKind> {

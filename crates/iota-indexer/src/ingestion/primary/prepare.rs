@@ -559,7 +559,7 @@ impl PrimaryWorker {
             .into_iter()
             .map(|obj_ref| IndexedDeletedObject {
                 object_id: obj_ref.0,
-                object_version: obj_ref.1.into(),
+                object_version: obj_ref.1.as_u64(),
                 checkpoint_sequence_number: checkpoint_seq,
             })
             .collect();
@@ -592,7 +592,7 @@ impl PrimaryWorker {
             .into_iter()
             .map(|obj_ref| IndexedDeletedObject {
                 object_id: obj_ref.0,
-                object_version: obj_ref.1.into(),
+                object_version: obj_ref.1.as_u64(),
                 checkpoint_sequence_number: checkpoint_seq,
             })
             .collect();

@@ -1337,7 +1337,7 @@ fn try_create_package_version_info(
     Some((
         PackageVersionKey {
             original_package_id: package.original_package_id(),
-            version: object.version().value(),
+            version: object.version().as_u64(),
         },
         PackageVersionInfo {
             storage_id: object.id(),

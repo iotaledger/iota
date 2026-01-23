@@ -427,7 +427,7 @@ impl AuthorityPerpetualTables {
     ) -> IotaResult<Vec<ObjectKey>> {
         let mut objects = vec![];
         for result in self.objects.safe_iter_with_bounds(
-            Some(ObjectKey(object.0, object.1.next())),
+            Some(ObjectKey(object.0, object.1.next().unwrap())),
             Some(ObjectKey(object.0, VersionNumber::MAX_VALID_EXCL)),
         ) {
             let (key, _) = result?;

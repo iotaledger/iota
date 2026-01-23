@@ -248,11 +248,21 @@ impl MoveObject {
     /// Sets the version of this object to a new value which is assumed to be
     /// higher (and checked to be higher in debug).
     pub fn increment_version_to(&mut self, next: SequenceNumber) {
-        self.version.increment_to(next);
+        debug_assert!(
+            self.version < next,
+            "Not an increment: {} to {next}",
+            self.version
+        );
+        self.version = next;
     }
 
     pub fn decrement_version_to(&mut self, prev: SequenceNumber) {
-        self.version.decrement_to(prev);
+        debug_assert!(
+            prev < self.version,
+            "Not a decrement: {} to {prev}",
+            self.version
+        );
+        self.version = prev;
     }
 
     pub fn contents(&self) -> &[u8] {
@@ -533,7 +543,7 @@ impl Display for Owner {
             Self::Shared {
                 initial_shared_version,
             } => {
-                write!(f, "Shared( {} )", initial_shared_version.value())
+                write!(f, "Shared( {initial_shared_version} )")
             }
         }
     }
@@ -1216,7 +1226,7 @@ mod tests {
         let objref = format!("{:?}", o.compute_object_reference());
         assert_eq!(
             objref,
-            "(0x0000000000000000000000000000000000000000000000000000000000000000, SequenceNumber(1), o#Ba4YyVBcpc9jgX4PMLRoyt9dKLftYVSDvuKbtMr9f4NM)"
+            "(0x0000000000000000000000000000000000000000000000000000000000000000, Version(1), o#Ba4YyVBcpc9jgX4PMLRoyt9dKLftYVSDvuKbtMr9f4NM)"
         );
     }
 

@@ -1486,7 +1486,7 @@ fn try_get_past_object_object_not_exists() {
         indexer_wait_for_checkpoint(store, 1).await;
 
         let object_id = ObjectID::random();
-        let version = SequenceNumber::new();
+        let version = SequenceNumber::default();
 
         let result = client
             .try_get_past_object(object_id, version, None)
@@ -1567,7 +1567,7 @@ fn try_get_past_object_version_not_found() {
 
         wait_for_objects_history(tx_digest, store, client).await;
 
-        let missing_version = gas_ref.1.one_before().expect("version should be > 0");
+        let missing_version = gas_ref.1.previous().unwrap();
 
         let result = client
             .try_get_past_object(gas_ref.0, missing_version, None)
@@ -1607,7 +1607,7 @@ fn try_get_past_object_version_too_high() {
         wait_for_objects_history(tx_digest, store, client).await;
 
         let latest_version = gas_ref.1;
-        let asked_version = latest_version.next();
+        let asked_version = latest_version.next().unwrap();
 
         let result = client
             .try_get_past_object(gas_ref.0, asked_version, None)
@@ -1651,7 +1651,7 @@ fn try_get_past_object_object_deleted() {
         let delete_nft_tx = delete_nft(context, sender, package_id, nft_object_ref).await;
         wait_for_objects_history(delete_nft_tx.digest, store, client).await;
 
-        let deleted_version = nft_object_ref.1.next();
+        let deleted_version = nft_object_ref.1.next().unwrap();
 
         let result = client
             .try_get_object_before_version(nft_object_id, SequenceNumber::MAX_VALID_EXCL)
@@ -1686,7 +1686,7 @@ fn try_get_past_object_object_deleted() {
 
         // Try fetching the object before the deleted version.
         let result = client
-            .try_get_past_object(nft_object_id, deleted_version.one_before().unwrap(), None)
+            .try_get_past_object(nft_object_id, deleted_version.previous().unwrap(), None)
             .await
             .expect("rpc call should succeed");
 
@@ -1718,9 +1718,9 @@ fn try_multi_get_past_objects() {
         let object_1 = ObjectID::random();
         let object_2 = ObjectID::random();
         let object_3 = ObjectID::random();
-        let version_1 = SequenceNumber::new();
-        let version_2 = SequenceNumber::new();
-        let version_3 = SequenceNumber::new();
+        let version_1 = SequenceNumber::default();
+        let version_2 = SequenceNumber::default();
+        let version_3 = SequenceNumber::default();
 
         let requests = vec![
             IotaGetPastObjectRequest {

@@ -258,7 +258,7 @@ impl Inner<'_> {
         let had_parent_root_version = parents_root_version.is_some();
         // if not found, it must be new so it won't have any child objects, thus
         // we can return SequenceNumber(0) as no child object will be found
-        let parents_root_version = parents_root_version.unwrap_or(SequenceNumber::new());
+        let parents_root_version = parents_root_version.unwrap_or(SequenceNumber::default());
         if let btree_map::Entry::Vacant(e) = self.cached_objects.entry(child) {
             let obj_opt = fetch_child_object_unbounded!(
                 self,

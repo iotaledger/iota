@@ -1058,7 +1058,8 @@ mod checked {
                         ExecutionErrorKind::ExecutionCancelledDueToSharedObjectCongestionV2 {
                             congested_objects: CongestedObjects(cancelled_objects),
                             suggested_gas_price: version
-                                .get_congested_version_suggested_gas_price(),
+                                .get_congested_version_suggested_gas_price()
+                                .unwrap(),
                         }
                     } else {
                         // WARN: do not remove this `else` branch even after
