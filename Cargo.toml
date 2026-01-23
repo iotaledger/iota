@@ -283,7 +283,6 @@ fastcrypto-zkp = { git = "https://github.com/MystenLabs/fastcrypto", rev = "69d4
 flate2 = "1.0.28"
 fs_extra = "1.3.0"
 futures = "0.3.28"
-# TODO: remove?
 getset = "0.1"
 git-version = "0.3.5"
 hdrhistogram = "7.5.1"
