@@ -1142,15 +1142,20 @@ async fn genesis(
                 let validator_extra = num_validators as u64
                     * (iota_swarm_config::genesis_config::DEFAULT_GAS_AMOUNT
                         + iota_types::governance::VALIDATOR_LOW_STAKE_THRESHOLD_NANOS);
-                let mut faucet_extra = 0u64;
-                if with_faucet {
-                    faucet_extra = iota_swarm_config::genesis_config::DEFAULT_GAS_AMOUNT
+                let faucet_extra = if with_faucet {
+                    iota_swarm_config::genesis_config::DEFAULT_GAS_AMOUNT
                         * iota_swarm_config::genesis_config::DEFAULT_NUMBER_OF_OBJECT_PER_ACCOUNT
-                            as u64;
-                }
+                            as u64
+                } else {
+                    0
+                };
+                let num_epochs = 1000;
+                let validator_target_reward = 767_000 * 1_000_000_000;
+                let validator_rewards = num_epochs * validator_target_reward;
                 let total_available_amount = (u64::MAX - 1)
                     .saturating_sub(validator_extra)
-                    .saturating_sub(faucet_extra);
+                    .saturating_sub(faucet_extra)
+                    .saturating_sub(validator_rewards);
 
                 // Make a new genesis config from the provided ip addresses with given epoch
                 // duration and timestamp.
