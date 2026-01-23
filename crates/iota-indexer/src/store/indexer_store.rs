@@ -98,8 +98,6 @@ pub trait IndexerStore: Any + Clone + Sync + Send + 'static {
 
     async fn advance_epoch(&self, epoch: EpochToCommit) -> Result<(), IndexerError>;
 
-    async fn prune_epoch(&self, epoch: u64) -> Result<(), IndexerError>;
-
     async fn get_network_total_transactions_by_end_of_epoch(
         &self,
         epoch: u64,
@@ -156,4 +154,28 @@ pub trait IndexerStore: Any + Clone + Sync + Send + 'static {
     ) -> Result<(), IndexerError>;
 
     async fn persist_tx_indices(&self, indices: Vec<TxIndex>) -> Result<(), IndexerError>;
+
+    async fn prune_table_by_checkpoint(
+        &self,
+        table: &PrunableTable,
+        checkpoint: u64,
+    ) -> Result<(), IndexerError>;
+
+    async fn prune_table_by_tx_range(
+        &self,
+        table: &PrunableTable,
+        min_tx: u64,
+        max_tx: u64,
+    ) -> Result<(), IndexerError>;
+
+    async fn update_watermark_pruner_hi(
+        &self,
+        table: &PrunableTable,
+        pruner_hi: u64,
+    ) -> Result<(), IndexerError>;
+
+    async fn get_watermark_by_entity(
+        &self,
+        entity: String,
+    ) -> Result<Option<StoredWatermark>, IndexerError>;
 }
