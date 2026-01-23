@@ -132,12 +132,12 @@ pub enum IotaClientCommands {
     ActiveAddress,
     /// Default environment used for commands when none specified
     ActiveEnv,
-    /// Add a existing account address to the keystore
+    /// Add an existing account address to the keystore
     AddAccount {
         /// The object ID of the account
         address: IotaAddress,
         /// The alias must start with a letter and can contain only letters,
-        /// digits, hyphens (-), or underscores (_).
+        /// digits, hyphens (-), or underscores (_)
         #[arg(long)]
         alias: Option<String>,
     },
@@ -240,7 +240,8 @@ pub enum IotaClientCommands {
         data: String,
         #[arg(long)]
         intent: Option<Intent>,
-        /// Auth input objects or primitive values
+        /// Auth input objects or primitive values for the Move authenticate
+        /// function
         #[arg(long, num_args = 1..)]
         auth_call_args: Option<Vec<String>>,
         /// Auth type arguments for the Move authenticate function
@@ -752,7 +753,8 @@ pub struct TxProcessingArgs {
     /// balance_changes.
     #[arg(long, required = false, num_args = 0.., value_parser = parse_display_option, default_value = "input,effects,events,object_changes,balance_changes")]
     pub display: HashSet<DisplayOption>,
-    /// Auth input objects or primitive values
+    /// Auth input objects or primitive values for the Move authenticate
+    /// function
     #[arg(long, num_args = 1..)]
     pub auth_call_args: Option<Vec<String>>,
     /// Auth type arguments for the Move authenticate function
@@ -819,34 +821,7 @@ impl IotaClientCommands {
             IotaClientCommands::AddAccount { address, alias } => {
                 let client = context.get_client().await?;
 
-                let authenticator_function_ref_id = dynamic_field::derive_dynamic_field_id(
-                    address,
-                    &AuthenticatorFunctionRefV1Key::tag().into(),
-                    &AuthenticatorFunctionRefV1Key::default().to_bcs_bytes(),
-                )?;
-
-                let response = client
-                    .read_api()
-                    .get_object_with_options(
-                        authenticator_function_ref_id,
-                        IotaObjectDataOptions::new().with_bcs(),
-                    )
-                    .await?;
-
-                if let Some(error) = response.error {
-                    bail!("Failed to fetch AuthenticatorFunctionRefV1 object {error}");
-                }
-
-                response
-                    .into_object()?
-                    .bcs
-                    .ok_or_else(|| anyhow::anyhow!("missing bcs"))?
-                    .try_into_move()
-                    .ok_or_else(|| anyhow::anyhow!("invalid move type"))?
-                    .deserialize::<Field<
-                        AuthenticatorFunctionRefV1Key,
-                        AuthenticatorFunctionRefV1,
-                    >>()?;
+                let _auth_info = fetch_auth_info(&client, address).await?;
 
                 context
                     .config_mut()
