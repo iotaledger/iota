@@ -19,7 +19,9 @@ use fastcrypto::{
     encoding::{Encoding, Hex},
     traits::Authenticator,
 };
-use iota_json_rpc_types::{IotaTransactionBlockEffectsAPI, IotaTransactionBlockResponse};
+use iota_json_rpc_types::{
+    DryRunTransactionBlockResponse, IotaTransactionBlockEffectsAPI, IotaTransactionBlockResponse,
+};
 use iota_keys::keystore::AccountKeystore;
 use iota_macros::sim_test;
 use iota_sdk_types::crypto::Intent;
@@ -151,6 +153,76 @@ async fn test_abstract_account_issues_sponsored_tx() -> Result<(), anyhow::Error
     test_env
         .execute_and_check_tx_correctness(aa_sponsored_tx)
         .await
+}
+
+/// Test predicting the id of an account using a dry run transaction.
+#[sim_test]
+async fn test_predict_abstract_account_id_dry_run() -> Result<(), anyhow::Error> {
+    telemetry_subscribers::init_for_testing();
+
+    // Build a test environment and dry run the creation of an abstract account
+    let mut test_env = TestEnvironment::new().await;
+    test_env
+        .setup_abstract_account_dry_run(AA_AUTHENTICATE_FN_NAME_FREE_ACCESS)
+        .await?;
+
+    // Create the AA account (after the dry run); it also checks that aa_ref_actual
+    // is equal to aa_sender
+    test_env.setup_abstract_account_after_dry_run().await?;
+
+    Ok(())
+}
+
+/// Test the delayed creation of an Abstract Account and the issuance of a
+/// simple transaction from it.
+///
+/// This test verifies that:
+/// 1. A shared object can be created first (not yet an AA account)
+/// 2. The shared object can later be converted into an actual AA account
+/// 3. The AA account can then issue transactions normally
+#[sim_test]
+async fn test_abstract_account_delayed_creation() -> Result<(), anyhow::Error> {
+    // telemetry_subscribers::init_for_testing();
+    //
+    // Build a test environment and create a delayed abstract account object
+    // (this creates a shared object that is NOT yet an AA account)
+    // let mut test_env = TestEnvironment::new().await;
+    // test_env
+    // .setup_delayed_abstract_account_object(AA_AUTHENTICATE_FN_NAME_FREE_ACCESS)
+    // .await?;
+    // let _delayed_aa_ref = test_env.aa_ref.unwrap();
+    //
+    // Now convert the delayed object into an actual AA account
+    // let effects = test_env.make_delayed_abstract_account().await?;
+    // assert!(
+    // effects.status().is_err(),
+    // "Expected make_delayed_abstract_account to fail, got: {:?}",
+    // effects.status()
+    // );
+    // The AA account address is the same as the delayed object ID
+    // let aa_sender: IotaAddress = delayed_aa_ref.0.into();
+    //
+    // Fund the AA account with gas
+    // let rgp = test_env.test_cluster.get_reference_gas_price().await;
+    // let aa_gas = test_env
+    // .test_cluster
+    // .fund_address_and_return_gas(rgp, Some(20_000_000_000), aa_sender)
+    // .await;
+    //
+    // Create a simple transaction from the AA account
+    // let pt = test_env.craft_aa_simple_ptb(AA_DELAYED_MODULE_NAME)?;
+    // let tx_data = test_env
+    // .craft_tx_from_pt(pt, aa_gas, aa_sender, None)
+    // .await?;
+    //
+    // Create the MoveAuthenticator (free access - no signature needed)
+    // let aa_sig = test_env.create_move_authenticator_for_free_access()?;
+    // let tx = Transaction::from_generic_sig_data(tx_data, vec![aa_sig]);
+    //
+    // Execute and verify the transaction succeeds
+    // test_env.execute_and_check_tx_correctness(tx).await
+
+    Ok(())
 }
 
 /// FAIL: receive in the main PT using
@@ -352,7 +424,7 @@ async fn test_abstract_account_post_consensus_failure() -> Result<(), anyhow::Er
 ///    passed. What fails is the execution of TX2 because of the conflict on the
 ///   receiving object
 #[sim_test]
-async fn test_receiving_gas_in_two_separate_txs() -> Result<(), anyhow::Error> {
+async fn test_receiving_gas_executing_aa_tx_first() -> Result<(), anyhow::Error> {
     telemetry_subscribers::init_for_testing();
     let client_ip = SocketAddr::new([127, 0, 0, 1].into(), 0);
 
@@ -456,16 +528,268 @@ async fn test_receiving_gas_in_two_separate_txs() -> Result<(), anyhow::Error> {
 /// 1) Create TX1 where Bob calls the receiving function on a coin owned by the
 ///    AA object (before the AA account is actually created). The AA object is
 ///    NOT an account yet (just a shared object).
+/// 2) Create TX2 where the AA sender tries to use the conflict coin as input.
+/// 3) Submit the original TX1 certificate. This fails with an execution abort.
+/// 4) Submit the original TX2 certificate. This should now succeed.
+#[sim_test]
+async fn test_receiving_gas_executing_aa_tx_later() -> Result<(), anyhow::Error> {
+    telemetry_subscribers::init_for_testing();
+    let client_ip = SocketAddr::new([127, 0, 0, 1].into(), 0);
+
+    // Build a test environment and create an abstract account
+    let mut test_env = TestEnvironment::new().await;
+    test_env
+        .setup_abstract_account(AA_AUTHENTICATE_FN_NAME_FREE_ACCESS)
+        .await?;
+    let aa_ref = test_env.aa_ref.unwrap();
+    let rgp = test_env.test_cluster.get_reference_gas_price().await;
+
+    // AA account address
+    let aa_sender: IotaAddress = aa_ref.0.into();
+
+    // Retrieve the keystore and setup secondary random account (Bob)
+    let bob = {
+        let keystore = test_env.test_cluster.wallet.config_mut().keystore_mut();
+        keystore
+            .generate_and_add_new_key(SignatureScheme::ED25519, None, None, None)
+            .expect("ED25519 key generation should not fail")
+            .0
+    };
+    assert!(bob != aa_sender);
+
+    // Fund AA and Bob with gas; AA account's gas coin is the conflicting one
+    let bob_gas = test_env
+        .test_cluster
+        .fund_address_and_return_gas(rgp, Some(20_000_000_000), bob)
+        .await;
+    let conflict_coin_ref = test_env
+        .test_cluster
+        .fund_address_and_return_gas(rgp, Some(20_000_000_000), aa_sender)
+        .await;
+    let second_gas_coin = test_env
+        .test_cluster
+        .fund_address_and_return_gas(rgp, Some(20_000_000_000), aa_sender)
+        .await;
+
+    // Step 1: create TX1 where the sender is Bob, calling the receiving function on
+    // a coin owned by the AA object
+    let pt1 = test_env.craft_aa_receive_gas_ptb(
+        conflict_coin_ref,
+        AA_MODULE_NAME,
+        AA_RECEIVE_OBJECT_FN_NAME_NO_SENDER_CHECK,
+    )?;
+    let tx1_data = test_env.craft_tx_from_pt(pt1, bob_gas, bob, None).await?;
+    // Create the TX envelope and send it for validators signing
+    let tx1 = test_env.test_cluster.wallet.sign_transaction(&tx1_data);
+    // This must NOT fail during signing
+    let tx1_cert = test_env
+        .test_cluster
+        .create_certificate(tx1, Some(client_ip))
+        .await;
+    assert!(
+        tx1_cert.is_ok(),
+        "Expected TX1 certificate creation to success"
+    );
+
+    // Step 2: create a TX2 which uses the conflict Coin owned by the AA as gas
+    let pt2 = test_env.craft_object_transfer(conflict_coin_ref, IotaAddress::ZERO)?;
+    let tx2_data = test_env
+        .craft_tx_from_pt(pt2, second_gas_coin, aa_sender, None)
+        .await?;
+    // Create the MoveAuthenticator for the free access authenticator
+    let signatures = vec![test_env.create_move_authenticator_for_free_access()?];
+    // Create the TX envelope and send it for validators signing
+    let tx2 = Transaction::from_generic_sig_data(tx2_data, signatures);
+    let tx2_cert = test_env
+        .test_cluster
+        .create_certificate(tx2, Some(client_ip))
+        .await;
+    assert!(
+        tx2_cert.is_ok(),
+        "Expected TX2 certificate creation to succeed"
+    );
+
+    // Step 3: submit the original certificate TX1 which should fail
+    let QuorumDriverResponse { effects_cert, .. } = test_env
+        .test_cluster
+        .authority_aggregator()
+        .process_certificate(
+            HandleCertificateRequestV1::new(tx1_cert.unwrap()).with_events(),
+            Some(client_ip),
+        )
+        .await
+        .unwrap();
+    let summary = effects_cert.summary_for_debug();
+    assert!(
+        summary.status.is_err(),
+        "Expected the TX1 execution to fail execution"
+    );
+
+    // Step 4: Submit the original certificate TX2 which should now succeed
+    let QuorumDriverResponse { effects_cert, .. } = test_env
+        .test_cluster
+        .authority_aggregator()
+        .process_certificate(
+            HandleCertificateRequestV1::new(tx2_cert.unwrap()).with_events(),
+            Some(client_ip),
+        )
+        .await
+        .unwrap();
+    let summary = effects_cert.summary_for_debug();
+    assert!(
+        summary.status.is_ok(),
+        "Expected the TX2 execution to succeed"
+    );
+
+    Ok(())
+}
+
+/// Test in 5 steps:
+/// 1) Create TX1 where Bob calls the receiving function on a coin owned by the
+///    AA object (before the AA account is actually created). The AA object is
+///    NOT an account yet (just a shared object).
 /// 2) Make the AA become the actual account (delayed AA creation).
 /// 3) Create TX2 where the AA sender tries to use the conflict coin as input.
 /// 4) Submit the original TX1 certificate. This fails with an execution abort.
 /// 5) Submit the original TX2 certificate. This should now succeed.
 #[sim_test]
-async fn test_receiving_gas_then_create_account() -> Result<(), anyhow::Error> {
+async fn test_failing_receiving_gas_then_create_account() -> Result<(), anyhow::Error> {
     telemetry_subscribers::init_for_testing();
     let client_ip = SocketAddr::new([127, 0, 0, 1].into(), 0);
 
-    // Build a test environment and create an abstract account
+    // Build a test environment and create a delayed abstract account object (still
+    // not account)
+    let mut test_env = TestEnvironment::new().await;
+    test_env
+        .setup_delayed_abstract_account_object(AA_AUTHENTICATE_FN_NAME_FREE_ACCESS)
+        .await?;
+    let aa_ref = test_env.aa_ref.unwrap();
+    let rgp = test_env.test_cluster.get_reference_gas_price().await;
+
+    // AA account address
+    let aa_sender: IotaAddress = aa_ref.0.into();
+
+    // Retrieve the keystore and setup secondary random account (Bob)
+    let bob = {
+        let keystore = test_env.test_cluster.wallet.config_mut().keystore_mut();
+        keystore
+            .generate_and_add_new_key(SignatureScheme::ED25519, None, None, None)
+            .expect("ED25519 key generation should not fail")
+            .0
+    };
+    assert!(bob != aa_sender);
+
+    // Fund AA and Bob with gas; AA account's gas coin is the conflicting one
+    let bob_gas = test_env
+        .test_cluster
+        .fund_address_and_return_gas(rgp, Some(20_000_000_000), bob)
+        .await;
+    let conflict_coin_ref = test_env
+        .test_cluster
+        .fund_address_and_return_gas(rgp, Some(20_000_000_000), aa_sender)
+        .await;
+    let second_gas_coin = test_env
+        .test_cluster
+        .fund_address_and_return_gas(rgp, Some(20_000_000_000), aa_sender)
+        .await;
+
+    // Step 1: create TX1 where the sender is Bob, calling the receiving function on
+    // a coin owned by the AA object
+    let pt1 = test_env.craft_aa_receive_gas_ptb(
+        conflict_coin_ref,
+        AA_MODULE_NAME,
+        AA_RECEIVE_OBJECT_FN_NAME_NO_SENDER_CHECK,
+    )?;
+    let tx1_data = test_env.craft_tx_from_pt(pt1, bob_gas, bob, None).await?;
+    // Create the TX envelope and send it for validators signing
+    let tx1 = test_env.test_cluster.wallet.sign_transaction(&tx1_data);
+    // This must NOT fail during signing
+    let tx1_cert = test_env
+        .test_cluster
+        .create_certificate(tx1, Some(client_ip))
+        .await;
+    assert!(
+        tx1_cert.is_ok(),
+        "Expected TX1 certificate creation to success"
+    );
+
+    // Step 2: create the AA account (from the delayed abstract account object)
+    let effects = test_env.make_delayed_abstract_account().await?;
+    assert!(
+        effects.status().is_ok(),
+        "Expected make_delayed_abstract_account to succeed, got: {:?}",
+        effects.status()
+    );
+
+    // Step 3: create a TX2 which uses the conflict Coin owned by the AA as gas
+    let pt2 = test_env.craft_object_transfer(conflict_coin_ref, IotaAddress::ZERO)?;
+    let tx2_data = test_env
+        .craft_tx_from_pt(pt2, second_gas_coin, aa_sender, None)
+        .await?;
+    // Create the MoveAuthenticator for the free access authenticator
+    let signatures = vec![test_env.create_move_authenticator_for_free_access()?];
+    // Create the TX envelope and send it for validators signing
+    let tx2 = Transaction::from_generic_sig_data(tx2_data, signatures);
+    let tx2_cert = test_env
+        .test_cluster
+        .create_certificate(tx2, Some(client_ip))
+        .await;
+    assert!(
+        tx2_cert.is_ok(),
+        "Expected TX2 certificate creation to succeed"
+    );
+
+    // Step 4: submit the original certificate TX1 which should fail
+    let QuorumDriverResponse { effects_cert, .. } = test_env
+        .test_cluster
+        .authority_aggregator()
+        .process_certificate(
+            HandleCertificateRequestV1::new(tx1_cert.unwrap()).with_events(),
+            Some(client_ip),
+        )
+        .await
+        .unwrap();
+    let summary = effects_cert.summary_for_debug();
+    assert!(
+        summary.status.is_err(),
+        "Expected the TX1 execution to fail execution"
+    );
+
+    // Step 5: Submit the original certificate TX2 which should succeed
+    let QuorumDriverResponse { effects_cert, .. } = test_env
+        .test_cluster
+        .authority_aggregator()
+        .process_certificate(
+            HandleCertificateRequestV1::new(tx2_cert.unwrap()).with_events(),
+            Some(client_ip),
+        )
+        .await
+        .unwrap();
+    let summary = effects_cert.summary_for_debug();
+    assert!(
+        summary.status.is_ok(),
+        "Expected the TX2 execution to succeed"
+    );
+
+    Ok(())
+}
+
+/// Test in 4 steps:
+/// 1) Create TX1 where Bob calls the receiving function on a coin owned by the
+///    AA object (before the AA account is actually created). The AA object is
+///    NOT an account yet (just a shared object).
+/// 2) Submit the original TX1 certificate. This is successful because the AA is
+///    not yet an account.
+/// 3) Make the AA become the actual account (delayed AA creation).
+/// 4) Create and submit a TX2 where the AA sender tries to use the conflict
+///    coin using the latest reference, this should now succeed.
+#[sim_test]
+async fn test_successful_receiving_gas_then_create_account() -> Result<(), anyhow::Error> {
+    telemetry_subscribers::init_for_testing();
+    let client_ip = SocketAddr::new([127, 0, 0, 1].into(), 0);
+
+    // Build a test environment and create a delayed abstract account object (still
+    // not account)
     let mut test_env = TestEnvironment::new().await;
     test_env
         .setup_delayed_abstract_account_object(AA_AUTHENTICATE_FN_NAME_FREE_ACCESS)
@@ -520,32 +844,7 @@ async fn test_receiving_gas_then_create_account() -> Result<(), anyhow::Error> {
         "Expected TX1 certificate creation to success"
     );
 
-    // Step 2: make the AA create the actual account now
-    let effects = test_env.make_delayed_abstract_account().await?;
-    assert!(
-        effects.status().is_ok(),
-        "Expected delayed AA creation to succeed"
-    );
-
-    // Step 3: create a TX2 which uses the conflict Coin owned by the AA as gas
-    let pt2 = test_env.craft_object_transfer(conflict_coin_ref, IotaAddress::ZERO)?;
-    let tx2_data = test_env
-        .craft_tx_from_pt(pt2, second_gas_coin, aa_sender, None)
-        .await?;
-    // Create the MoveAuthenticator for the free access authenticator
-    let signatures = vec![test_env.create_move_authenticator_for_free_access()?];
-    // Create the TX envelope and send it for validators signing
-    let tx2 = Transaction::from_generic_sig_data(tx2_data, signatures);
-    let tx2_cert = test_env
-        .test_cluster
-        .create_certificate(tx2, Some(client_ip))
-        .await;
-    assert!(
-        tx2_cert.is_ok(),
-        "Expected TX2 certificate creation to succeed"
-    );
-
-    // Step 4: submit the original certificate TX1 which should fail
+    // Step 2: submit the original certificate TX1 which should succeed
     let QuorumDriverResponse { effects_cert, .. } = test_env
         .test_cluster
         .authority_aggregator()
@@ -557,27 +856,34 @@ async fn test_receiving_gas_then_create_account() -> Result<(), anyhow::Error> {
         .unwrap();
     let summary = effects_cert.summary_for_debug();
     assert!(
-        summary.status.is_err(),
-        "Expected the TX1 execution to fail execution"
-    );
-
-    // Step 5: Submit the original certificate TX2 which should now succeed
-    let QuorumDriverResponse { effects_cert, .. } = test_env
-        .test_cluster
-        .authority_aggregator()
-        .process_certificate(
-            HandleCertificateRequestV1::new(tx2_cert.unwrap()).with_events(),
-            Some(client_ip),
-        )
-        .await
-        .unwrap();
-    let summary = effects_cert.summary_for_debug();
-    assert!(
         summary.status.is_ok(),
-        "Expected the TX2 execution to succeed"
+        "Expected the TX1 execution to succeed"
+    );
+    let conflict_coin_ref = effects_cert
+        .all_changed_objects()
+        .iter()
+        .find(|obj| obj.0.0 == conflict_coin_ref.0)
+        .expect("Expected to find the updated conflict coin object")
+        .0;
+
+    // Step 3: create the AA account (from the delayed abstract account object)
+    let effects = test_env.make_delayed_abstract_account().await?;
+    assert!(
+        effects.status().is_ok(),
+        "Expected make_delayed_abstract_account to succeed, got: {:?}",
+        effects.status()
     );
 
-    Ok(())
+    // Step 4: create a TX2 which uses the conflict Coin owned by the AA as gas
+    let pt2 = test_env.craft_object_transfer(conflict_coin_ref, IotaAddress::ZERO)?;
+    let tx2_data = test_env
+        .craft_tx_from_pt(pt2, second_gas_coin, aa_sender, None)
+        .await?;
+    // Create the MoveAuthenticator for the free access authenticator
+    let signatures = vec![test_env.create_move_authenticator_for_free_access()?];
+    // Create the TX envelope and send it for validators signing
+    let tx2 = Transaction::from_generic_sig_data(tx2_data, signatures);
+    test_env.execute_and_check_tx_correctness(tx2).await
 }
 
 /// Test environment for Abstract Account tests
@@ -588,6 +894,7 @@ struct TestEnvironment {
     aa_package_id: Option<ObjectID>,
     aa_package_metadata_ref: Option<ObjectRef>,
     aa_ref: Option<ObjectRef>,
+    aa_create_transaction: Option<Transaction>,
 }
 
 impl TestEnvironment {
@@ -601,6 +908,7 @@ impl TestEnvironment {
             aa_package_id: None,
             aa_package_metadata_ref: None,
             aa_ref: None,
+            aa_create_transaction: None,
         }
     }
 
@@ -640,7 +948,9 @@ impl TestEnvironment {
 
         // Create an AbstractAccount (must succeed in this variant)
         let effects = self.create_abstract_account().await?;
-        self.aa_ref = Some(abstract_account_from_effects(&effects));
+        self.aa_ref = Some(abstract_account_from_all_changed_objects(
+            &effects.all_changed_objects(),
+        ));
 
         Ok(())
     }
@@ -657,13 +967,55 @@ impl TestEnvironment {
         match effects.status().clone() {
             ExecutionStatus::Success => {
                 // Create an AbstractAccount only on success
-                self.aa_ref = Some(abstract_account_from_effects(&effects));
+                self.aa_ref = Some(abstract_account_from_all_changed_objects(
+                    &effects.all_changed_objects(),
+                ));
                 Ok(ExecutionStatus::Success)
             }
             ExecutionStatus::Failure { error, command } => {
                 Ok(ExecutionStatus::Failure { error, command })
             }
         }
+    }
+
+    async fn setup_abstract_account_dry_run(
+        &mut self,
+        authenticate_fn_name: &str,
+    ) -> Result<(), anyhow::Error> {
+        // Common initialization
+        self.init_abstract_account_state(authenticate_fn_name).await;
+
+        // Create an AbstractAccount (must succeed in this variant)
+        let (dry_run_res, transaction) = self.create_abstract_account_dry_run().await?;
+        self.aa_ref = Some(abstract_account_from_all_changed_objects(
+            &dry_run_res
+                .effects
+                .all_changed_objects()
+                .iter()
+                .map(|e| (e.0.reference.to_object_ref(), e.0.owner.into(), e.1))
+                .collect::<Vec<(ObjectRef, Owner, WriteKind)>>(),
+        ));
+        self.aa_create_transaction = Some(transaction);
+
+        Ok(())
+    }
+
+    async fn setup_abstract_account_after_dry_run(&mut self) -> Result<(), anyhow::Error> {
+        if !self.aa_create_transaction.is_some() {
+            anyhow::bail!("No AA create transaction stored from dry run");
+        };
+
+        // Create an AbstractAccount (must succeed in this variant)
+        let effects = self.create_abstract_account().await?;
+        let actual_aa_ref =
+            abstract_account_from_all_changed_objects(&effects.all_changed_objects());
+
+        assert!(
+            actual_aa_ref == self.aa_ref.unwrap(),
+            "AA object ref from actual creation does not match the one from dry run"
+        );
+
+        Ok(())
     }
 
     async fn setup_delayed_abstract_account_object(
@@ -675,7 +1027,9 @@ impl TestEnvironment {
 
         // Create an AbstractAccount (must succeed in this variant)
         let effects = self.create_delayed_abstract_account_object().await?;
-        self.aa_ref = Some(abstract_account_from_effects(&effects));
+        self.aa_ref = Some(abstract_account_from_all_changed_objects(
+            &effects.all_changed_objects(),
+        ));
 
         Ok(())
     }
@@ -711,60 +1065,61 @@ impl TestEnvironment {
             anyhow::bail!("Owner or authenticate function name or package id not set");
         };
 
-        let aa_owner_pk = self
-            .test_cluster
-            .wallet
-            .config()
-            .keystore()
-            .get_key(&owner)?
-            .public();
-
-        let pt = {
-            let mut builder = ProgrammableTransactionBuilder::new();
-
-            // create auth function ref
-            let arguments = vec![
-                builder.obj(ObjectArg::ImmOrOwnedObject(aa_package_metadata_ref))?,
-                builder.pure(AA_AUTHENTICATE_MODULE_NAME)?,
-                builder.pure(authenticate_fn_name)?,
-            ];
-            if let Argument::Result(authenticator_function_ref_v1) = builder.programmable_move_call(
-                IOTA_FRAMEWORK_ADDRESS.into(),
-                ident_str!("authenticator_function").to_owned(),
-                ident_str!("create_auth_function_ref_v1").to_owned(),
-                vec![abstract_account_type_tag(&aa_package_id)],
-                arguments,
-            ) {
-                // Create the abstract account.
-                let arguments = vec![
-                    builder.pure(aa_owner_pk.as_ref())?,
-                    Argument::Result(authenticator_function_ref_v1),
-                ];
-                builder.programmable_move_call(
-                    aa_package_id,
-                    ident_str!(AA_CREATE_MODULE_NAME).to_owned(),
-                    ident_str!("create").to_owned(),
-                    vec![],
-                    arguments,
-                );
-            }
-            builder.finish()
+        let transaction = if let Some(transaction) = &self.aa_create_transaction {
+            transaction.clone()
+        } else {
+            self.craft_create_abstract_account(
+                owner,
+                authenticate_fn_name,
+                aa_package_id,
+                aa_package_metadata_ref,
+            )
+            .await?
         };
 
-        let tx_data = self
-            .test_cluster
-            .test_transaction_builder()
-            .await
-            .programmable(pt)
-            .build();
-
-        let transaction = self.test_cluster.wallet.sign_transaction(&tx_data);
         let (effects, _) = self
             .test_cluster
             .execute_transaction_return_raw_effects(transaction)
             .await?;
 
         Ok(effects)
+    }
+
+    async fn create_abstract_account_dry_run(
+        &self,
+    ) -> anyhow::Result<(DryRunTransactionBlockResponse, Transaction)> {
+        let (
+            Some(owner),
+            Some(authenticate_fn_name),
+            Some(aa_package_id),
+            Some(aa_package_metadata_ref),
+        ) = (
+            self.owner,
+            &self.authenticate_fn_name,
+            self.aa_package_id,
+            self.aa_package_metadata_ref,
+        )
+        else {
+            anyhow::bail!("Owner or authenticate function name or package id not set");
+        };
+
+        let transaction = self
+            .craft_create_abstract_account(
+                owner,
+                authenticate_fn_name,
+                aa_package_id,
+                aa_package_metadata_ref,
+            )
+            .await?;
+
+        let dry_run_res = self
+            .test_cluster
+            .iota_client()
+            .read_api()
+            .dry_run_transaction_block(transaction.transaction_data().clone())
+            .await?;
+
+        Ok((dry_run_res, transaction))
     }
 
     async fn create_delayed_abstract_account_object(&self) -> anyhow::Result<TransactionEffects> {
@@ -1061,6 +1416,65 @@ impl TestEnvironment {
         ))
     }
 
+    async fn craft_create_abstract_account(
+        &self,
+        owner: IotaAddress,
+        authenticate_fn_name: &str,
+        aa_package_id: ObjectID,
+        aa_package_metadata_ref: ObjectRef,
+    ) -> anyhow::Result<Transaction> {
+        let aa_owner_pk = self
+            .test_cluster
+            .wallet
+            .config()
+            .keystore()
+            .get_key(&owner)?
+            .public();
+
+        let pt = {
+            let mut builder = ProgrammableTransactionBuilder::new();
+
+            // create auth function ref
+            let arguments = vec![
+                builder.obj(ObjectArg::ImmOrOwnedObject(aa_package_metadata_ref))?,
+                builder.pure(AA_AUTHENTICATE_MODULE_NAME)?,
+                builder.pure(authenticate_fn_name)?,
+            ];
+            if let Argument::Result(authenticator_function_ref_v1) = builder.programmable_move_call(
+                IOTA_FRAMEWORK_ADDRESS.into(),
+                ident_str!("authenticator_function").to_owned(),
+                ident_str!("create_auth_function_ref_v1").to_owned(),
+                vec![abstract_account_type_tag(&aa_package_id)],
+                arguments,
+            ) {
+                // Create the abstract account.
+                let arguments = vec![
+                    builder.pure(aa_owner_pk.as_ref())?,
+                    Argument::Result(authenticator_function_ref_v1),
+                ];
+                builder.programmable_move_call(
+                    aa_package_id,
+                    ident_str!(AA_CREATE_MODULE_NAME).to_owned(),
+                    ident_str!("create").to_owned(),
+                    vec![],
+                    arguments,
+                );
+            }
+            builder.finish()
+        };
+
+        let tx_data = self
+            .test_cluster
+            .test_transaction_builder()
+            .await
+            .programmable(pt)
+            .build();
+
+        let transaction = self.test_cluster.wallet.sign_transaction(&tx_data);
+
+        Ok(transaction)
+    }
+
     async fn execute_and_check_tx_correctness(&self, tx: Transaction) -> anyhow::Result<()> {
         let transaction_response = self.test_cluster.execute_transaction(tx).await;
 
@@ -1124,10 +1538,11 @@ fn delayed_abstract_account_type_tag(aa_package_id: &ObjectID) -> TypeTag {
     .unwrap()
 }
 
-fn abstract_account_from_effects(effects: &TransactionEffects) -> ObjectRef {
+fn abstract_account_from_all_changed_objects(
+    all_changed_objects: &[(ObjectRef, Owner, WriteKind)],
+) -> ObjectRef {
     // Extract the only created shared object which is the abstract account
-    effects
-        .all_changed_objects()
+    all_changed_objects
         .iter()
         .find_map(|change| match change {
             (_, Owner::Shared { .. }, WriteKind::Create) => Some(change.0),
