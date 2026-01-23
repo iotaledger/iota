@@ -294,5 +294,6 @@ impl TestEffectsBuilder {
                 .chain(self.deleted_objects.iter().map(|(_, v)| *v))
                 .chain(self.wrapped_objects.iter().map(|(_, v)| *v)),
         )
+        .unwrap()
     }
 }

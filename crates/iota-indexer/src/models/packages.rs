@@ -21,7 +21,7 @@ impl From<IndexedPackage> for StoredPackage {
         Self {
             package_id: p.package_id.to_vec(),
             original_id: p.move_package.original_package_id().to_vec(),
-            package_version: p.move_package.version().value() as i64,
+            package_version: p.move_package.version().as_u64() as i64,
             move_package: bcs::to_bytes(&p.move_package).unwrap(),
             checkpoint_sequence_number: p.checkpoint_sequence_number as i64,
         }

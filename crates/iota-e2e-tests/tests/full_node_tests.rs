@@ -1016,7 +1016,7 @@ async fn test_get_objects_read() -> Result<(), anyhow::Error> {
     assert_eq!(read_obj_v1, object_v1);
     assert_eq!(read_obj_v1.owner, Owner::AddressOwner(sender));
 
-    let too_high_version = SequenceNumber::lamport_increment([object_ref_v3.1]);
+    let too_high_version = SequenceNumber::lamport_increment([object_ref_v3.1]).unwrap();
 
     match node
         .state()

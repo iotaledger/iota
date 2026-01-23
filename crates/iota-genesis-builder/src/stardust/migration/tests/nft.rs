@@ -103,11 +103,11 @@ fn migrate_nft(
     // timestamp. When the nft is attached to the nft output, the version should
     // be incremented.
     assert!(
-        nft_object.version().value() > 1,
+        nft_object.version() > 1,
         "nft object version should have been incremented"
     );
     assert!(
-        nft_output_object.version().value() > 1,
+        nft_output_object.version() > 1,
         "nft output object version should have been incremented"
     );
 

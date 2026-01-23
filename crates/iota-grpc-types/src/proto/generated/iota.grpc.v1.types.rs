@@ -53,7 +53,10 @@ pub struct TypeTagStruct {
 #[non_exhaustive]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct TypeTag {
-    #[prost(oneof = "type_tag::TypeTag", tags = "1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11")]
+    #[prost(
+        oneof = "type_tag::TypeTag",
+        tags = "1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11"
+    )]
     pub type_tag: ::core::option::Option<type_tag::TypeTag>,
 }
 /// Nested message and enum types in `TypeTag`.

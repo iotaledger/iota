@@ -334,7 +334,7 @@ impl GovernanceReadApi {
                 ObjectRead::Deleted((object_id, version, _)) => {
                     let Some(o) = self
                         .state
-                        .find_object_lt_or_eq_version(&object_id, &version.one_before().unwrap())
+                        .find_object_lt_or_eq_version(&object_id, &version.previous().unwrap())
                         .await?
                     else {
                         Err(IotaRpcInputError::UserInput(

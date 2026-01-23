@@ -607,7 +607,7 @@ mod checked {
                     &modules,
                     storage_id,
                     runtime_id,
-                    OBJECT_START_VERSION.into(),
+                    OBJECT_START_VERSION.as_u64(),
                 )?;
             }
 
@@ -722,7 +722,7 @@ mod checked {
             upgrade_ticket.policy,
         )?;
 
-        let package_version = package.version().value();
+        let package_version = package.version().as_u64();
 
         context.write_package(package);
 

@@ -137,7 +137,7 @@ impl WrappedObjectHandler {
             let entry = WrappedObjectEntry {
                 object_id: wrapped_struct.object_id.map(|id| id.to_string()),
                 root_object_id: object.id().to_string(),
-                root_object_version: object.version().value(),
+                root_object_version: object.version().as_u64(),
                 checkpoint,
                 epoch,
                 timestamp_ms,

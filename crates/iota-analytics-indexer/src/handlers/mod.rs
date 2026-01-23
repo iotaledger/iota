@@ -56,7 +56,7 @@ fn initial_shared_version(object: &Object) -> Option<u64> {
     match object.owner {
         Owner::Shared {
             initial_shared_version,
-        } => Some(initial_shared_version.value()),
+        } => Some(initial_shared_version.as_u64()),
         _ => None,
     }
 }
