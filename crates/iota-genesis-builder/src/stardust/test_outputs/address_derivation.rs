@@ -43,7 +43,7 @@ pub fn derive_address(
     let public_key_bytes: [u8; 32] = public_key.into_inner();
 
     // Stardust Ed25519Address is the Blake2b-256 hash of the public key
-    let address_bytes: [u8; 32] = Blake2b256::digest(&public_key_bytes).into();
+    let address_bytes: [u8; 32] = Blake2b256::digest(public_key_bytes).into();
 
     Ok(Ed25519Address::new(address_bytes))
 }
