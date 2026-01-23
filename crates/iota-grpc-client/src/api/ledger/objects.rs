@@ -70,7 +70,7 @@ impl Client {
                 .map(|(id, version)| ObjectRequest {
                     object_ref: Some(ObjectReference {
                         object_id: Some(id.to_string()),
-                        version: *version,
+                        version: version.map(|v| v.as_u64()),
                         digest: None,
                     }),
                 })

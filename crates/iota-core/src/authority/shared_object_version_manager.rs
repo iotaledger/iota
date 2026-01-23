@@ -69,7 +69,7 @@ impl SharedObjVerManager {
                 TransactionKey::RandomnessRound(epoch_store.epoch(), round),
                 vec![(IOTA_RANDOMNESS_STATE_OBJECT_ID, *version)],
             ));
-            version.increment();
+            version.increment().unwrap();
         }
         for cert in certificates {
             if !cert.contains_shared_object() {
@@ -184,6 +184,7 @@ impl SharedObjVerManager {
                                             feedback is enabled.",
                                     ),
                                 )
+                                .unwrap()
                             } else {
                                 // WARN: do not remove this `else` branch even after
                                 // `congestion_control_gas_price_feedback_mechanism` is enabled
@@ -219,7 +220,7 @@ impl SharedObjVerManager {
         }
 
         let next_version =
-            SequenceNumber::lamport_increment(input_object_keys.iter().map(|obj| obj.1));
+            SequenceNumber::lamport_increment(input_object_keys.iter().map(|obj| obj.1)).unwrap();
         assert!(
             next_version.is_valid(),
             "Assigned version must be valid. Got {next_version:?}"
@@ -421,7 +422,7 @@ mod tests {
                 .unwrap(),
             randomness_obj_version
         );
-        let next_randomness_obj_version = randomness_obj_version.next();
+        let next_randomness_obj_version = randomness_obj_version.next().unwrap();
         assert_eq!(
             shared_input_next_versions,
             // Randomness object's version is only incremented by 1 regardless of lamport version.
@@ -598,6 +599,7 @@ mod tests {
                             SequenceNumber::new_congested_with_suggested_gas_price(
                                 suggested_gas_price
                             )
+                            .unwrap()
                         ),
                         (id2, SequenceNumber::CANCELLED_READ),
                     ]
@@ -612,6 +614,7 @@ mod tests {
                             SequenceNumber::new_congested_with_suggested_gas_price(
                                 suggested_gas_price
                             )
+                            .unwrap()
                         )
                     ]
                 ),

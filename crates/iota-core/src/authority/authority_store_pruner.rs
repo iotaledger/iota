@@ -204,7 +204,7 @@ impl AuthorityStorePruner {
                 }
                 None => {
                     let start_range = ObjectKey(object_id, min_version);
-                    let end_range = ObjectKey(object_id, (max_version.value() + 1).into());
+                    let end_range = ObjectKey(object_id, max_version + 1);
                     wb.schedule_delete_range(&perpetual_db.objects, &start_range, &end_range)?;
                 }
             }
@@ -223,7 +223,7 @@ impl AuthorityStorePruner {
             for ObjectKey(object_id, seq_number) in object_tombstones_to_prune {
                 for result in perpetual_db.objects.safe_iter_with_bounds(
                     Some(ObjectKey(object_id, VersionNumber::MIN_VALID_INCL)),
-                    Some(ObjectKey(object_id, seq_number.next())),
+                    Some(ObjectKey(object_id, seq_number.next().unwrap())),
                 ) {
                     let (object_key, _) = result?;
                     assert_eq!(object_key.0, object_id);

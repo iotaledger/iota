@@ -58,7 +58,7 @@ impl TryFrom<&Object> for iota_sdk_types::ObjectReference {
 
         Ok(iota_sdk_types::ObjectReference {
             object_id,
-            version,
+            version: version.into(),
             digest,
         })
     }
