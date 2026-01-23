@@ -107,11 +107,13 @@ impl StressStats {
         table
             .set_content_arrangement(ContentArrangement::Dynamic)
             .set_width(200)
-            .set_header(vec!["metric", "p50", "p99"]);
+            .set_header(vec!["metric", "min", "p50", "p95", "p99"]);
 
         let mut row = Row::new();
-        row.add_cell(Cell::new("cpu usage"));
+        row.add_cell(Cell::new("cpu usage (%)"));
+        row.add_cell(Cell::new(self.cpu_usage.histogram.min()));
         row.add_cell(Cell::new(self.cpu_usage.histogram.value_at_quantile(0.5)));
+        row.add_cell(Cell::new(self.cpu_usage.histogram.value_at_quantile(0.95)));
         row.add_cell(Cell::new(self.cpu_usage.histogram.value_at_quantile(0.99)));
         table.add_row(row);
         table
@@ -159,9 +161,10 @@ impl BenchmarkStats {
                 "cps",
                 "error%",
                 "expected error%",
-                "latency (min)",
-                "latency (p50)",
-                "latency (p99)",
+                "latency ms (min)",
+                "latency ms (p50)",
+                "latency ms (p95)",
+                "latency ms (p99)",
                 "gas used (NANOS total)",
                 "gas used/hr (NANOS approx.)",
             ]);
@@ -179,6 +182,7 @@ impl BenchmarkStats {
         ));
         row.add_cell(Cell::new(self.latency_ms.histogram.min()));
         row.add_cell(Cell::new(self.latency_ms.histogram.value_at_quantile(0.5)));
+        row.add_cell(Cell::new(self.latency_ms.histogram.value_at_quantile(0.95)));
         row.add_cell(Cell::new(self.latency_ms.histogram.value_at_quantile(0.99)));
         row.add_cell(Cell::new(format_num_with_separators(
             self.total_gas_used,
