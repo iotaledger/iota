@@ -142,11 +142,20 @@ pub(crate) enum ConsensusError {
     #[error("Too many ancestors in the block: {0} > {1}")]
     TooManyAncestors(usize, usize),
 
-    #[error("Too many commits received during {sync_type} sync: {count} > {limit}")]
-    TooManyCommitsReceived {
+    #[error(
+        "Commit range exceeded limit after scanning during {sync_type} sync: {count} > {limit}"
+    )]
+    CommitRangeExceededAfterScanning {
         count: CommitIndex,
         limit: CommitIndex,
         sync_type: &'static str,
+    },
+
+    #[error("Peer {peer} sent too many commits: {count} > {limit}")]
+    TooManyCommitsFromPeer {
+        peer: AuthorityIndex,
+        count: CommitIndex,
+        limit: CommitIndex,
     },
 
     #[error("Ancestors from the same authority {0}")]

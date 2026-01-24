@@ -184,7 +184,17 @@ impl<C: NetworkClient> Inner<C> {
         commit_range: CommitRange,
         serialized_commits: Vec<Bytes>,
         serialized_vote_blocks_headers: Vec<Bytes>,
+        max_commits: usize,
     ) -> ConsensusResult<(Vec<TrustedCommit>, Vec<VerifiedBlockHeader>)> {
+        // Validate response size - peer should not return more than max_commits
+        if serialized_commits.len() > max_commits {
+            return Err(ConsensusError::TooManyCommitsFromPeer {
+                peer,
+                count: serialized_commits.len() as CommitIndex,
+                limit: max_commits as CommitIndex,
+            });
+        }
+
         // Parse and verify commits.
         let mut commits = Vec::new();
         for serialized in &serialized_commits {

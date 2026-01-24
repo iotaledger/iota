@@ -19,7 +19,7 @@ use parking_lot::RwLock;
 use starfish_config::AuthorityIndex;
 use tokio::sync::{Mutex, broadcast, mpsc::Sender};
 use tokio_util::sync::ReusableBoxFuture;
-use tracing::{debug, info, warn};
+use tracing::{debug, error, info, warn};
 
 use crate::{
     CommitIndex, Round, Transaction, VerifiedBlockHeader,
@@ -521,6 +521,7 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
     fn find_lowest_certifiable_commit_from(
         &self,
         search_from: CommitIndex,
+        search_up_to: CommitIndex,
         commit_sync_type: &CommitSyncType,
     ) -> ConsensusResult<Option<(CommitIndex, Vec<BlockRef>)>> {
         let mut current_search_from = search_from;
@@ -531,6 +532,10 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
             else {
                 return Ok(None);
             };
+
+            if index_with_votes > search_up_to {
+                return Ok(None);
+            }
 
             let votes = self.store.read_commit_votes(index_with_votes)?;
             let mut stake_aggregator = StakeAggregator::<QuorumThreshold>::new();
@@ -1008,20 +1013,27 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         let find_certifiable_commit = |commit_sync_type: &CommitSyncType| -> ConsensusResult<Option<(CommitIndex, Vec<BlockRef>)>> {
             match commit_sync_type {
                 CommitSyncType::Regular => self.find_highest_certifiable_commit_in_range(&commit_range, inclusive_bound, commit_sync_type),
-                CommitSyncType::Fast => self.find_lowest_certifiable_commit_from(inclusive_bound, commit_sync_type),
+                CommitSyncType::Fast => {
+                    let search_up_to = inclusive_bound + batch_size as CommitIndex;
+                    self.find_lowest_certifiable_commit_from(inclusive_bound, search_up_to, commit_sync_type)
+                }
             }
         };
 
-        let Some((new_commit_end, certifier_block_refs)) =
+        let Some((new_commit_inclusive_end, certifier_block_refs)) =
             find_certifiable_commit(&commit_sync_type)?
         else {
             return Ok((vec![], vec![]));
         };
-        let commit_range_length = new_commit_end - commit_range.start() + 1;
+        let commit_range_length = new_commit_inclusive_end - commit_range.start() + 1;
         match commit_sync_type {
             CommitSyncType::Regular => {
                 if commit_range_length > batch_size as CommitIndex {
-                    return Err(ConsensusError::TooManyCommitsReceived {
+                    error!(
+                        "Commit range exceeded limit after scanning during regular sync: {} > {}",
+                        commit_range_length, batch_size
+                    );
+                    return Err(ConsensusError::CommitRangeExceededAfterScanning {
                         count: commit_range_length,
                         limit: batch_size as CommitIndex,
                         sync_type: "regular",
@@ -1030,7 +1042,12 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             }
             CommitSyncType::Fast => {
                 if commit_range_length > 2 * batch_size as CommitIndex {
-                    return Err(ConsensusError::TooManyCommitsReceived {
+                    error!(
+                        "Commit range exceeded limit after scanning during fast sync: {} > {}",
+                        commit_range_length,
+                        2 * batch_size
+                    );
+                    return Err(ConsensusError::CommitRangeExceededAfterScanning {
                         count: commit_range_length,
                         limit: 2 * batch_size as CommitIndex,
                         sync_type: "fast",
@@ -1042,7 +1059,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         // Then scan commits up to the certifiable index
         let commits = self
             .store
-            .scan_commits((commit_range.start()..=new_commit_end).into())?;
+            .scan_commits((commit_range.start()..=new_commit_inclusive_end).into())?;
         // Try reading from voting block headers storage first, then fallback to regular
         // block headers for any that weren't found.
         let voting_headers = self
