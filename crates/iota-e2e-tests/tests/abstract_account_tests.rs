@@ -492,7 +492,7 @@ async fn test_receiving_gas_executing_aa_tx_first() -> Result<(), anyhow::Error>
         .create_certificate(tx2, Some(client_ip))
         .await
         .expect("TX2 certificate creation should succeed");
-    // Sumbit the TX2 certificate which should fail during execution because of
+    // Submit the TX2 certificate which should fail during execution because of
     // trying to receive an object owned by an AA account
     let QuorumDriverResponse { effects_cert, .. } = test_env
         .test_cluster
