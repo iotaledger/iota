@@ -20,6 +20,8 @@ import {
     TransactionSummary,
     GasFees,
     useRecognizedPackages,
+    DRY_RUN_UI_ERROR_TITLE,
+    getUserFriendlyDryRunExecutionError,
 } from '@iota/core';
 import { Transaction } from '@iota/iota-sdk/transactions';
 import { useMemo, useState } from 'react';
@@ -70,6 +72,14 @@ export function TransactionRequest({ txRequest }: TransactionRequestProps) {
     if (!signer) {
         return null;
     }
+
+    const isDryRunExecutionFailed = data?.effects.status.status === 'failure';
+    const dryRunExecutionError = data?.effects.status.error;
+    const dryRunExecutionSupportingText = dryRunExecutionError
+        ? getUserFriendlyDryRunExecutionError(dryRunExecutionError)
+        : undefined;
+    const txHasErrors = isError || isDryRunExecutionFailed;
+
     return (
         <>
             <UserApproveContainer
@@ -79,7 +89,7 @@ export function TransactionRequest({ txRequest }: TransactionRequestProps) {
                 rejectTitle="Reject"
                 onSubmit={async (approved: boolean) => {
                     if (isPending) return;
-                    if (approved && isError) {
+                    if (approved && txHasErrors) {
                         setConfirmationVisible(true);
                         return;
                     }
@@ -104,6 +114,27 @@ export function TransactionRequest({ txRequest }: TransactionRequestProps) {
             >
                 <PageMainLayoutTitle title="Approve Transaction" />
                 <div className="-mr-3 flex flex-col gap-md">
+                    {isDryRunExecutionFailed && dryRunExecutionSupportingText && (
+                        <InfoBox
+                            title={DRY_RUN_UI_ERROR_TITLE}
+                            supportingText={dryRunExecutionSupportingText}
+                            icon={<Warning />}
+                            type={InfoBoxType.Error}
+                            style={InfoBoxStyle.Elevated}
+                        />
+                    )}
+                    {!isDryRunLoading &&
+                        (!summary ||
+                            isDryRunError ||
+                            (isDryRunExecutionFailed && !dryRunExecutionError)) && (
+                            <InfoBox
+                                title="Review the transaction"
+                                supportingText="Unexpected issue during the dry run. The transaction may not execute properly."
+                                icon={<Warning />}
+                                type={InfoBoxType.Default}
+                                style={InfoBoxStyle.Elevated}
+                            />
+                        )}
                     <TransactionSummary
                         isDryRun
                         isLoading={isDryRunLoading}
@@ -111,15 +142,6 @@ export function TransactionRequest({ txRequest }: TransactionRequestProps) {
                         summary={summary}
                         renderExplorerLink={ExplorerLinkHelper}
                     />
-                    {(!summary || isDryRunError) && (
-                        <InfoBox
-                            title="Review the transaction"
-                            supportingText="Unexpected issue during the dry run. The transaction may not execute properly."
-                            icon={<Warning />}
-                            type={InfoBoxType.Default}
-                            style={InfoBoxStyle.Elevated}
-                        />
-                    )}
                     <GasFees
                         sender={addressForTransaction}
                         gasSummary={summary?.gas}

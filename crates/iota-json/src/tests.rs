@@ -18,6 +18,7 @@ use iota_types::{
     object::Object,
     parse_iota_type_tag,
 };
+use move_binary_format::{CompiledModule, file_format::SignatureToken};
 use move_core_types::{
     account_address::AccountAddress,
     annotated_value::{MoveFieldLayout, MoveStructLayout, MoveTypeLayout},
@@ -31,7 +32,7 @@ use serde_json::{Value, json};
 use test_fuzz::runtime::num_traits::ToPrimitive;
 
 use super::{HEX_PREFIX, IotaJsonValue, check_valid_homogeneous, resolve_move_function_args};
-use crate::ResolvedCallArg;
+use crate::{ResolvedCallArg, resolve_call_args};
 
 // Negative test cases
 #[test]
@@ -823,4 +824,21 @@ fn json_into_vec_u8(value: Value) -> Vec<u8> {
         .filter_map(|num| num.as_i64())
         .filter_map(|num| u8::try_from(num).ok())
         .collect()
+}
+
+#[test]
+fn test_resolve_call_args_reference() {
+    let signature_token = SignatureToken::Reference(Box::new(SignatureToken::Vector(Box::new(
+        SignatureToken::U8,
+    ))));
+    let compiled_module = CompiledModule::default();
+    let args = [
+        IotaJsonValue::new(Value::from([0, 1, 2])).unwrap(),
+        IotaJsonValue::new(Value::from("0x000102")).unwrap(),
+    ];
+    let arg_types = [signature_token.clone(), signature_token];
+    let type_args = [];
+    let resolved_args = resolve_call_args(&compiled_module, &type_args, &args, &arg_types).unwrap();
+    assert!(matches!(resolved_args[0], ResolvedCallArg::Pure(_)));
+    assert!(matches!(resolved_args[1], ResolvedCallArg::Pure(_)));
 }
