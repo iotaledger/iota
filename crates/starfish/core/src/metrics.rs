@@ -135,6 +135,7 @@ pub(crate) struct NodeMetrics {
     pub(crate) highest_accepted_round: IntGauge,
     pub(crate) accepted_block_header_time_drift_ms: IntCounterVec,
     pub(crate) accepted_block_headers: IntCounterVec,
+    pub(crate) accepted_block_headers_source: IntCounterVec,
     pub(crate) cordial_knowledge_useful_headers_authors: IntCounterVec,
     pub(crate) cordial_knowledge_useful_shards_authors: IntCounterVec,
     pub(crate) dag_state_recent_transactions: IntGauge,
@@ -438,6 +439,12 @@ impl NodeMetrics {
             accepted_block_headers: register_int_counter_vec_with_registry!(
                 "accepted_block_headers",
                 "Number of accepted block headers by source (own, others)",
+                &["source"],
+                registry,
+            ).unwrap(),
+            accepted_block_headers_source: register_int_counter_vec_with_registry!(
+                "accepted_block_headers_source",
+                "Number of accepted block headers by ingestion source",
                 &["source"],
                 registry,
             ).unwrap(),

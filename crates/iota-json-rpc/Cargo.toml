@@ -60,6 +60,7 @@ move-binary-format.workspace = true
 move-bytecode-utils.workspace = true
 move-core-types.workspace = true
 move-package.workspace = true
+typed-store.workspace = true
 
 [dev-dependencies]
 # external dependencies

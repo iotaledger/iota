@@ -6693,6 +6693,7 @@ name = "iota-indexer-streaming"
 version = "1.16.0-alpha"
 dependencies = [
  "async-trait",
+ "backoff",
  "futures",
  "iota-indexer",
  "iota-types",
@@ -6779,6 +6780,7 @@ dependencies = [
  "tower 0.4.13",
  "tower-http",
  "tracing",
+ "typed-store",
 ]
 
 [[package]]
@@ -7177,7 +7179,9 @@ dependencies = [
  "iota-macros",
  "iota-metrics",
  "iota-network-stack",
+ "iota-protocol-config",
  "iota-sdk-types",
+ "iota-simulator",
  "iota-storage",
  "iota-swarm-config",
  "iota-types",

@@ -29,6 +29,14 @@ const hierarchies = [
         items: [
             {
                 type: 'category',
+                label: 'Real-World',
+                items: [
+                    'developer/iota-hierarchies/how-tos/real-world/supply-chain-certifications',
+                    'developer/iota-hierarchies/how-tos/real-world/university-degrees',
+                ],
+            },
+            {
+                type: 'category',
                 label: 'Validation',
                 items: [
                     'developer/iota-hierarchies/how-tos/validation/get-accreditations',
