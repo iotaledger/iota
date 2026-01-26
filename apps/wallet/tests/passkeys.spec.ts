@@ -2,11 +2,15 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { LONG_TIMEOUT } from './constants/timeout.constants';
-import { expect, test } from './fixtures';
+import { expect, test } from './utils/fixtures';
 import { receiverAddressMnemonic } from './mocks';
-import { addVirtualAuthenticator, createPasskeyWallet, restorePasskeyAccount } from './utils/auth';
-import { generateKeypairFromMnemonic } from './utils/localnet';
+import { generateKeypairFromMnemonic } from './utils/utils';
 import { setPresence, setVerified } from './utils/passkeySigner';
+import {
+    addVirtualAuthenticator,
+    createPasskeyWallet,
+    restorePasskeyAccount,
+} from './utils/wallet';
 
 const username = 'IOTAPasskey';
 

@@ -46,7 +46,7 @@ use crate::{
     commit_vote_monitor::CommitVoteMonitor,
     context::Context,
     core_thread::CoreThreadDispatcher,
-    dag_state::DagState,
+    dag_state::{BlockHeaderSource, DagState},
     error::{ConsensusError, ConsensusResult},
     network::NetworkClient,
     transactions_synchronizer::TransactionsSynchronizerHandle,
@@ -715,7 +715,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
         // we don't want this mechanism to keep feedback looping on fetching
         // more blocks. The periodic synchronization will take care of that.
         let (missing_blocks, missing_committed_txns) = core_dispatcher
-            .add_block_headers(block_headers)
+            .add_block_headers(block_headers, BlockHeaderSource::HeaderSynchronizer)
             .await
             .map_err(|_| ConsensusError::Shutdown)?;
 
@@ -1531,7 +1531,7 @@ mod tests {
         context::Context,
         core::ReasonToCreateBlock,
         core_thread::{CoreError, CoreThreadDispatcher, tests::MockCoreThreadDispatcher},
-        dag_state::{DagState, TransactionSource},
+        dag_state::{BlockHeaderSource, DagState, TransactionSource},
         error::{ConsensusError, ConsensusResult},
         header_synchronizer::{
             FETCH_BLOCK_HEADERS_CONCURRENCY, FETCH_REQUEST_TIMEOUT, HeaderSynchronizer,
@@ -2723,6 +2723,7 @@ mod tests {
         async fn add_block_headers(
             &self,
             _blocks: Vec<VerifiedBlockHeader>,
+            _source: BlockHeaderSource,
         ) -> Result<
             (
                 BTreeSet<BlockRef>,

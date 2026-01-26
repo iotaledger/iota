@@ -29,7 +29,7 @@ use crate::{
     },
     block_manager::block_suspender::BlockSuspender,
     context::Context,
-    dag_state::{DagState, TransactionSource},
+    dag_state::{BlockHeaderSource, DagState, TransactionSource},
 };
 
 /// Block manager suspends incoming blocks until they are connected to the
@@ -84,6 +84,7 @@ impl BlockManager {
         self.write_block_headers_and_transactions_to_dag_state(
             block_headers_to_accept.clone(),
             accepted_transactions,
+            BlockHeaderSource::BlockStreaming,
         );
 
         (block_headers_to_accept, missing_block_headers)
@@ -99,6 +100,7 @@ impl BlockManager {
     pub(crate) fn try_accept_block_headers(
         &mut self,
         block_headers: Vec<VerifiedBlockHeader>,
+        source: BlockHeaderSource,
     ) -> (Vec<VerifiedBlockHeader>, BTreeSet<BlockRef>) {
         let _s = monitored_scope("BlockManager::try_accept_block_headers");
         // Headers are added through synchronizer, commit syncer and cordial
@@ -110,6 +112,7 @@ impl BlockManager {
         self.write_block_headers_and_transactions_to_dag_state(
             block_headers_to_accept.clone(),
             accepted_transactions,
+            source,
         );
         (block_headers_to_accept, ancestors_to_fetch)
     }
@@ -139,9 +142,10 @@ impl BlockManager {
         &self,
         block_headers: Vec<VerifiedBlockHeader>,
         transactions: Vec<VerifiedTransactions>,
+        source: BlockHeaderSource,
     ) {
         let mut write_guard = self.dag_state.write();
-        write_guard.accept_block_headers(block_headers);
+        write_guard.accept_block_headers(block_headers, source);
         for verified_transaction in transactions {
             write_guard.add_transactions(verified_transaction, TransactionSource::BlockStreaming);
         }
@@ -370,7 +374,7 @@ mod tests {
         block_header::{BlockHeaderAPI, BlockRef, VerifiedBlockHeader},
         block_manager::BlockManager,
         context::Context,
-        dag_state::DagState,
+        dag_state::{BlockHeaderSource, DagState},
         storage::mem_store::MemStore,
         test_dag_builder::DagBuilder,
     };
@@ -403,8 +407,8 @@ mod tests {
             .collect::<Vec<VerifiedBlockHeader>>();
 
         // WHEN
-        let (accepted_blocks, missing) =
-            block_manager.try_accept_block_headers(round_2_block_headers.clone());
+        let (accepted_blocks, missing) = block_manager
+            .try_accept_block_headers(round_2_block_headers.clone(), BlockHeaderSource::Test);
 
         // THEN
         assert!(accepted_blocks.is_empty());
@@ -476,8 +480,8 @@ mod tests {
             .take_while(|(_, block_header)| block_header.round() >= 2)
         {
             // WHEN
-            let (accepted_blocks, missing) =
-                block_manager.try_accept_block_headers(vec![block_header.clone()]);
+            let (accepted_blocks, missing) = block_manager
+                .try_accept_block_headers(vec![block_header.clone()], BlockHeaderSource::Test);
 
             // THEN
             assert!(accepted_blocks.is_empty());
@@ -512,8 +516,8 @@ mod tests {
             .collect::<Vec<_>>();
 
         // WHEN
-        let (accepted_block_headers, missing) =
-            block_manager.try_accept_block_headers(all_block_headers.clone());
+        let (accepted_block_headers, missing) = block_manager
+            .try_accept_block_headers(all_block_headers.clone(), BlockHeaderSource::Test);
 
         // THEN
         assert_eq!(accepted_block_headers.len(), 8);
@@ -530,7 +534,8 @@ mod tests {
 
         // WHEN trying to accept same block headers again, then none will be returned as
         // those have been already accepted
-        let (accepted_block_headers, _) = block_manager.try_accept_block_headers(all_block_headers);
+        let (accepted_block_headers, _) =
+            block_manager.try_accept_block_headers(all_block_headers, BlockHeaderSource::Test);
         assert!(accepted_block_headers.is_empty());
     }
 
@@ -567,8 +572,8 @@ mod tests {
             // WHEN
             let mut all_accepted_block_headers = vec![];
             for block_header in &all_block_headers {
-                let (accepted_block_headers, _) =
-                    block_manager.try_accept_block_headers(vec![block_header.clone()]);
+                let (accepted_block_headers, _) = block_manager
+                    .try_accept_block_headers(vec![block_header.clone()], BlockHeaderSource::Test);
 
                 all_accepted_block_headers.extend(accepted_block_headers);
             }
@@ -620,8 +625,8 @@ mod tests {
 
         let mut block_manager = BlockManager::new(context.clone(), dag_state);
 
-        let (_, missing_blocks) =
-            block_manager.try_accept_block_headers(vec![blocks_round_2[0].clone()]);
+        let (_, missing_blocks) = block_manager
+            .try_accept_block_headers(vec![blocks_round_2[0].clone()], BlockHeaderSource::Test);
         // Blocks from round 1 are all missing, since the DAG is fully connected
         assert_eq!(missing_blocks, blocks_round_1);
 
@@ -653,7 +658,8 @@ mod tests {
 
         // Add a new block from round 2 from authority 1, which updates the set of
         // authorities that are aware of the missing blocks
-        block_manager.try_accept_block_headers(vec![blocks_round_2[1].clone()]);
+        block_manager
+            .try_accept_block_headers(vec![blocks_round_2[1].clone()], BlockHeaderSource::Test);
         let missing_blocks_with_authorities = block_manager.blocks_to_fetch();
         assert_eq!(
             missing_blocks_with_authorities[&block_round_1_authority_0],
@@ -698,6 +704,7 @@ mod tests {
                 .filter(|block_header| block_header.round() > 1)
                 .cloned()
                 .collect(),
+            BlockHeaderSource::Test,
         );
         // Missing refs should all come from round 1.
         assert!(accepted_block_headers.is_empty());
@@ -713,6 +720,7 @@ mod tests {
                 .filter(|block_header| block_header.round() == 1)
                 .cloned()
                 .collect(),
+            BlockHeaderSource::Test,
         );
         // With median-based timestamp, all blocks should be accepted regardless of
         // timestamp violations.
@@ -767,8 +775,8 @@ mod tests {
 
         // Try to accept blocks which will cause blocks to be suspended and added to
         // missing in block manager.
-        let (accepted_blocks_headers, missing) =
-            block_manager.try_accept_block_headers(round_2_block_headers.clone());
+        let (accepted_blocks_headers, missing) = block_manager
+            .try_accept_block_headers(round_2_block_headers.clone(), BlockHeaderSource::Test);
         assert!(accepted_blocks_headers.is_empty());
 
         let missing_block_refs = round_2_block_headers.first().unwrap().ancestors();
