@@ -38,9 +38,9 @@ pub struct ProtocolParameters {
     /// The byte cost for rent calculation.
     rent_byte_cost: u32,
     /// The byte factor for data fields in rent calculation.
-    rent_byte_factor_data: u32,
+    rent_byte_factor_data: u8,
     /// The byte factor for key fields in rent calculation.
-    rent_byte_factor_key: u32,
+    rent_byte_factor_key: u8,
     /// TokenSupply defines the current token supply on the network.
     token_supply: u64,
 }
@@ -103,12 +103,12 @@ impl ProtocolParameters {
     }
 
     /// Returns the rent byte factor for data fields.
-    pub fn rent_byte_factor_data(&self) -> u32 {
+    pub fn rent_byte_factor_data(&self) -> u8 {
         self.rent_byte_factor_data
     }
 
     /// Returns the rent byte factor for key fields.
-    pub fn rent_byte_factor_key(&self) -> u32 {
+    pub fn rent_byte_factor_key(&self) -> u8 {
         self.rent_byte_factor_key
     }
 
