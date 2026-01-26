@@ -9,7 +9,8 @@ import { getNetwork, type Network } from '@iota/iota-sdk/client';
 
 import { ampli } from './ampli';
 
-const IS_ENABLED = process.env.BUILD_ENV === 'production';
+const IS_ENABLED =
+    process.env.BUILD_ENV === 'production' || process.env.AMPLITUDE_ENABLED === 'true';
 
 export async function initAmplitude() {
     ampli.load({
