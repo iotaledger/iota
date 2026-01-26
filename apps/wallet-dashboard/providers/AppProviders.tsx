@@ -3,8 +3,6 @@
 
 'use client';
 
-import { growthbook } from '@/lib/utils/growthbook';
-import { createIotaClient } from '@/lib/utils/defaultRpcClient';
 import { GrowthBookProvider } from '@growthbook/growthbook-react';
 import { IotaClientProvider, lightTheme, darkTheme, WalletProvider } from '@iota/dapp-kit';
 import { getAllNetworks, getDefaultNetwork, getNetwork } from '@iota/iota-sdk/client';
@@ -22,7 +20,9 @@ import {
     Disclaimer,
     setCookieAccepted,
 } from '@iota/core';
+import { growthbook } from '@/lib/utils';
 import { ThemeProvider } from '@iota/core';
+import { createIotaClient } from '@/lib/utils/defaultRpcClient';
 import { captureException } from '@/instrumentation';
 import { LEGAL_LINKS } from '@/lib/constants/routes.constants';
 import Link from 'next/link';

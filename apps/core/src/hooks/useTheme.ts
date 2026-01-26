@@ -1,7 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 import { useContext } from 'react';
-import { ThemeContext, ThemeContextType } from '../contexts/ThemeContext';
+import { ThemeContext, ThemeContextType } from '../contexts';
 
 export const useTheme = (): ThemeContextType => {
     const context = useContext(ThemeContext);
