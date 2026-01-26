@@ -2,7 +2,6 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { type SerializedUIAccount } from '_src/background/accounts/account';
 import { toast } from '@iota/core';
 import { useBackgroundClient } from '_hooks';
 import { PasswordModalDialog } from './PasswordInputDialog';
@@ -10,13 +9,11 @@ import { PasswordModalDialog } from './PasswordInputDialog';
 interface UnlockAccountModalProps {
     onClose: () => void;
     onSuccess: () => void;
-    account: SerializedUIAccount | null;
     open: boolean;
 }
 
-export function UnlockAccountModal({ onClose, onSuccess, account, open }: UnlockAccountModalProps) {
+export function UnlockAccountModal({ onClose, onSuccess, open }: UnlockAccountModalProps) {
     const backgroundService = useBackgroundClient();
-    if (!account) return null;
     return (
         <PasswordModalDialog
             {...{
@@ -27,11 +24,10 @@ export function UnlockAccountModal({ onClose, onSuccess, account, open }: Unlock
                 cancelText: 'Back',
                 showForgotPassword: true,
                 onSubmit: async (password: string) => {
-                    await backgroundService.unlockAccountSourceOrAccount({
+                    await backgroundService.unlockAllAccountsAndSources({
                         password,
-                        id: account.id,
                     });
-                    toast('Account unlocked');
+                    toast('Accounts unlocked');
                     onSuccess();
                 },
                 // this is not necessary for unlocking but will show the wrong password error as a form error

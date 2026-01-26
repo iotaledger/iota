@@ -42,7 +42,24 @@ export function useCreateAccountsMutation() {
         mutationFn: async ({ type, password }: { type: AccountsFormType; password?: string }) => {
             let createdAccounts;
             const accountsFormValues = accountsFormValuesRef.current;
+
             if (
+                type === AccountsFormType.MnemonicSource &&
+                validateAccountFormValues(type, accountsFormValues)
+            ) {
+                createdAccounts = await backgroundClient.createAccounts({
+                    type: AccountType.MnemonicDerived,
+                    sourceID: accountsFormValues.sourceID,
+                });
+            } else if (
+                type === AccountsFormType.SeedSource &&
+                validateAccountFormValues(type, accountsFormValues)
+            ) {
+                createdAccounts = await backgroundClient.createAccounts({
+                    type: AccountType.SeedDerived,
+                    sourceID: accountsFormValues.sourceID,
+                });
+            } else if (
                 (type === AccountsFormType.NewMnemonic ||
                     type === AccountsFormType.ImportMnemonic) &&
                 validateAccountFormValues(type, accountsFormValues, password)
@@ -53,27 +70,15 @@ export function useCreateAccountsMutation() {
                     entropy:
                         'entropy' in accountsFormValues ? accountsFormValues.entropy : undefined,
                 });
-                await backgroundClient.unlockAccountSourceOrAccount({
-                    password,
+
+                await backgroundClient.unlockAccountSource({
                     id: accountSource.id,
+                    password: password!,
                 });
+
                 createdAccounts = await backgroundClient.createAccounts({
                     type: AccountType.MnemonicDerived,
                     sourceID: accountSource.id,
-                });
-            } else if (
-                type === AccountsFormType.MnemonicSource &&
-                validateAccountFormValues(type, accountsFormValues, password)
-            ) {
-                if (password) {
-                    await backgroundClient.unlockAccountSourceOrAccount({
-                        password,
-                        id: accountsFormValues.sourceID,
-                    });
-                }
-                createdAccounts = await backgroundClient.createAccounts({
-                    type: AccountType.MnemonicDerived,
-                    sourceID: accountsFormValues.sourceID,
                 });
             } else if (
                 type === AccountsFormType.ImportSeed &&
@@ -84,27 +89,15 @@ export function useCreateAccountsMutation() {
                     password: password!,
                     seed: accountsFormValues.seed,
                 });
-                await backgroundClient.unlockAccountSourceOrAccount({
-                    password,
+
+                await backgroundClient.unlockAccountSource({
                     id: accountSource.id,
+                    password,
                 });
+
                 createdAccounts = await backgroundClient.createAccounts({
                     type: AccountType.SeedDerived,
                     sourceID: accountSource.id,
-                });
-            } else if (
-                type === AccountsFormType.SeedSource &&
-                validateAccountFormValues(type, accountsFormValues, password)
-            ) {
-                if (password) {
-                    await backgroundClient.unlockAccountSourceOrAccount({
-                        password,
-                        id: accountsFormValues.sourceID,
-                    });
-                }
-                createdAccounts = await backgroundClient.createAccounts({
-                    type: AccountType.SeedDerived,
-                    sourceID: accountsFormValues.sourceID,
                 });
             } else if (
                 type === AccountsFormType.ImportPrivateKey &&
@@ -175,7 +168,7 @@ export function useCreateAccountsMutation() {
                     // Its fine to ignore if the account source already exists
                 }
 
-                await backgroundClient.unlockAccountSourceOrAccount({
+                await backgroundClient.unlockAccountSource({
                     password,
                     id: sourceID,
                 });
@@ -187,12 +180,7 @@ export function useCreateAccountsMutation() {
             } else {
                 throw new Error(`Create accounts with type ${type} is not implemented yet`);
             }
-            for (const aCreatedAccount of createdAccounts) {
-                await backgroundClient.unlockAccountSourceOrAccount({
-                    id: aCreatedAccount.id,
-                    password,
-                });
-            }
+
             ampli.accountsAdded({
                 accountType: ACCOUNT_FORM_TYPE_TO_AMPLI_ACCOUNT_TYPE[type],
                 numberOfAccounts: createdAccounts.length,
