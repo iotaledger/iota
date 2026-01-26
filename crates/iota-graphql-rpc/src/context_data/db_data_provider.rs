@@ -46,10 +46,9 @@ impl PgManager {
         // Create store and watermark task for pruning support
         let store = PgIndexerStore::new(connection_pool.clone(), indexer_metrics);
         let watermark_task = WatermarkTask::new(store);
-        let watermark_cache = watermark_task.cache();
 
         // Start watermark task with cancellation token
-        watermark_task.start(cancellation_token);
+        let watermark_cache = watermark_task.start(cancellation_token);
 
         // Create reader with watermark cache
         Ok(IndexerReader::new(connection_pool, watermark_cache))

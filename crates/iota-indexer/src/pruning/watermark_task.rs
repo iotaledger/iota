@@ -1,4 +1,4 @@
-// Copyright (c) 2025 IOTA Stiftung
+// Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 //! Background task that periodically fetches pruning watermarks from the
@@ -24,8 +24,14 @@ use crate::{
 const WATERMARK_UPDATE_INTERVAL: Duration = Duration::from_secs(5);
 
 /// In-memory cache of pruning watermarks
-/// Uses ArcSwap for lock-free reads to avoid write starvation under high read
-/// load
+///
+/// Provides fast access to watermark data without querying the database on
+/// every read. A background task periodically refreshes the cache from the
+/// database.
+///
+/// Uses [`ArcSwap`] for lock-free reads to avoid write starvation under high
+/// read load. Cloned instances share the same underlying data and will reflect
+/// updates from the background task.
 #[derive(Clone)]
 pub struct WatermarkCache {
     inner: Arc<ArcSwap<WatermarkCacheInner>>,
@@ -52,14 +58,15 @@ impl WatermarkCache {
     }
 
     /// Gets the watermark for a specific entity
-    /// Returns None if the entity has no watermark
+    /// Returns `None` if the entity has no watermark
     pub fn get(&self, entity: CommitterTables) -> Option<StoredWatermark> {
         let cache = self.inner.load();
         cache.watermarks.get(entity.as_ref()).cloned()
     }
 
     /// Updates the cache with fresh watermarks from the database
-    /// Uses ArcSwap for lock-free reads - writes create new Arc instead of
+    ///
+    /// Uses [`ArcSwap`] for lock-free reads - writes create new Arc instead of
     /// blocking readers
     fn update(&self, watermarks: Vec<StoredWatermark>) {
         let mut new_watermarks = HashMap::new();
@@ -93,6 +100,10 @@ impl WatermarkTask {
     }
 
     /// Gets a handle to the watermark cache for reading
+    ///
+    /// The returned [`WatermarkCache`] shares the same underlying data as other
+    /// cloned instances and will automatically reflect updates from the
+    /// background task.
     pub fn cache(&self) -> WatermarkCache {
         self.cache.clone()
     }
