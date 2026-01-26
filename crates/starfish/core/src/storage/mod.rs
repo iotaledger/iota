@@ -12,8 +12,6 @@ mod store_tests;
 use std::sync::Arc;
 
 use bytes::Bytes;
-#[cfg(msim)]
-pub use rocksdb_store::RocksDBStore;
 use starfish_config::AuthorityIndex;
 
 use crate::{
@@ -237,4 +235,22 @@ impl WriteBatch {
         self.voting_block_headers = voting_block_headers;
         self
     }
+}
+
+/// Simulation-test-only helper that deletes all transactions from the consensus
+/// RocksDB store while preserving commits, block headers, and other data.
+#[cfg(msim)]
+pub fn delete_all_transactions_from_store(
+    db_path: &std::path::Path,
+    authority_index: starfish_config::AuthorityIndex,
+    committee: starfish_config::Committee,
+    protocol_config: iota_protocol_config::ProtocolConfig,
+) -> Result<(), String> {
+    rocksdb_store::RocksDBStore::delete_all_transactions_from_store(
+        db_path,
+        authority_index,
+        committee,
+        protocol_config,
+    )
+    .map_err(|e| format!("failed to delete transactions: {}", e))
 }

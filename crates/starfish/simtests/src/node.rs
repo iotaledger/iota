@@ -132,7 +132,7 @@ impl AuthorityNode {
                 // Keep both consensus DB and node tracking (no changes)
             }
             RestartMode::EraseAllTransactions => {
-                starfish_core::RocksDBStore::delete_all_transactions_from_store(
+                starfish_core::delete_all_transactions_from_store(
                     self.db_dir.lock().path(),
                     self.config.authority_index,
                     self.config.committee.clone(),
