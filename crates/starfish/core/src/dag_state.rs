@@ -406,13 +406,11 @@ impl DagState {
         source: DataSource,
     ) {
         let block_ref = transactions.block_ref();
-        if self.recent_transactions_by_authority[block_ref.author]
-            .insert(block_ref, transactions.clone())
-            .is_none()
-        {
-            self.transactions_to_write.push(transactions.clone());
-            self.update_transaction_metadata(&transactions, source);
+        if self.recent_transactions_by_authority[block_ref.author].contains_key(&block_ref) {
+            return;
         }
+        self.update_transaction_metadata(&transactions, source);
+        self.transactions_to_write.push(transactions);
     }
 
     pub(crate) fn add_shard(&mut self, shard: VerifiedOwnShard) {
@@ -513,6 +511,9 @@ impl DagState {
         source: DataSource,
     ) {
         let block_ref = transactions.block_ref();
+        
+        self.recent_transactions_by_authority[block_ref.author]
+            .insert(block_ref, transactions.clone());
 
         // Record metrics
         self.context
