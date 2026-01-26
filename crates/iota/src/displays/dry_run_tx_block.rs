@@ -14,6 +14,7 @@ use tabled::{
 };
 
 use crate::{client_commands::estimate_gas_budget_from_gas_cost, displays::Pretty};
+
 impl Display for Pretty<'_, DryRunTransactionBlockResponse> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let Pretty(response) = self;
@@ -105,7 +106,13 @@ impl Display for Pretty<'_, DryRunTransactionBlockResponse> {
                 response.effects.gas_cost_summary(),
                 response.input.gas_data().price
             )
-        )
+        )?;
+
+        if let Some(err) = &response.execution_error_source {
+            writeln!(f, "Execution error: {err}")?;
+        }
+
+        Ok(())
     }
 }
 

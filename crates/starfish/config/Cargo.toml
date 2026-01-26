@@ -14,7 +14,7 @@ workspace = true
 blake3 = "1.8.2"
 fastcrypto = { workspace = true, features = ["copy_key"] }
 rand.workspace = true
-rs_merkle = "1.5.0"
+rs_merkle.workspace = true
 serde.workspace = true
 
 # internal dependencies
