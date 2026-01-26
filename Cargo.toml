@@ -324,7 +324,7 @@ passkey-client = "0.4.0"
 passkey-types = "0.4.0"
 pin-project-lite = "0.2.15"
 prefix-hex = { version = "0.7.1", default-features = false }
-pretty_assertions = { version = "1.4.0", default-features = true }
+pretty_assertions = { version = "1.4.0" }
 primitive-types = { version = "0.12.2", default-features = false }
 proc-macro2 = "1.0.95"
 prometheus = "0.14.0"
