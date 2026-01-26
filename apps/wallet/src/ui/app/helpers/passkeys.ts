@@ -6,11 +6,12 @@ import {
     type BrowserPasswordProviderOptions,
 } from '@iota/iota-sdk/keypairs/passkey';
 
-export const DEFAULT_PASSKEY_SAVED_NAME = 'iota-passkey-wallet';
+const DEFAULT_PASSKEY_SAVED_NAME = 'iota-passkey-wallet';
+const DEFAULT_ORIGIN = 'iota.org';
 
 export const DEFAULT_PASSKEY_RP = {
     name: DEFAULT_PASSKEY_SAVED_NAME,
-    id: window.location.hostname,
+    id: DEFAULT_ORIGIN,
 };
 
 export const DEFAULT_AUTHENTICATOR_OPTIONS = {

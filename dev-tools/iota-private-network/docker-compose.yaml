@@ -333,10 +333,10 @@ services:
       - RPC_WORKER_THREAD=12
     command:
       - /usr/local/bin/iota-indexer
-      - --db-url=postgres://iota_indexer:iota_indexer@postgres_primary:5432/iota_indexer
-      - --rpc-client-url=http://fullnode-3:9000
-      - --fullnode-sync-worker
-      - --client-metric-port=9181
+      - --database-url=postgres://iota_indexer:iota_indexer@postgres_primary:5432/iota_indexer
+      - --metrics-address=0.0.0.0:9181
+      - indexer
+      - --remote-store-url=http://fullnode-3:9000/api/v1
       - --reset-db
     ports:
       - "127.0.0.1:9004:9000/tcp"
@@ -361,10 +361,11 @@ services:
       - RPC_WORKER_THREAD=12
     command:
       - /usr/local/bin/iota-indexer
-      - --db-url=postgres://iota_indexer:iota_indexer@postgres_replica:5432/iota_indexer
+      - --database-url=postgres://iota_indexer:iota_indexer@postgres_replica:5432/iota_indexer
+      - --metrics-address=0.0.0.0:9181
+      - json-rpc-service
       - --rpc-client-url=http://fullnode-4:9000
-      - --rpc-server-worker
-      - --client-metric-port=9181
+      - --rpc-address=0.0.0.0:9000
     ports:
       - "127.0.0.1:9005:9000/tcp"
       - "127.0.0.1:9182:9181/tcp"
