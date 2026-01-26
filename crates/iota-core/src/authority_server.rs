@@ -720,7 +720,9 @@ impl ValidatorService {
         &self,
         request: tonic::Request<Transaction>,
     ) -> WrappedServiceResponse<HandleTransactionResponse> {
-        self.handle_transaction(request).instrument(trace_span!("ValidatorService::handle_transaction")).await
+        self.handle_transaction(request)
+            .instrument(trace_span!("ValidatorService::handle_transaction"))
+            .await
     }
 
     async fn submit_certificate_impl(
