@@ -511,7 +511,7 @@ impl DagState {
         source: DataSource,
     ) {
         let block_ref = transactions.block_ref();
-        
+
         self.recent_transactions_by_authority[block_ref.author]
             .insert(block_ref, transactions.clone());
 
