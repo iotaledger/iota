@@ -8,7 +8,7 @@ use std::{
 
 use anyhow::anyhow;
 use iota_stardust_types::block::{
-    address::{AliasAddress, Ed25519Address, Hrp, NftAddress, ToBech32Ext},
+    address::{AliasAddress, Bech32Address, Ed25519Address, Hrp, NftAddress, ToBech32Ext},
     output::{
         AliasId, AliasOutputBuilder, Feature, FoundryOutputBuilder, NativeToken, NftId,
         NftOutput as StardustNft, NftOutputBuilder, SimpleTokenScheme, TokenScheme,
@@ -383,8 +383,6 @@ fn nft_migration_with_valid_irc27_metadata() {
         .royalties()
         .iter()
         .map(|entry| {
-            println!("Entry: {entry:?}");
-            use iota_stardust_types::block::address::Bech32Address;
             // The address is a bech32-encoded string, parse it and convert
             let bech32_addr: Bech32Address = entry.0.parse().unwrap();
             (
