@@ -227,7 +227,7 @@ mod tests {
         block_header::{BlockRef, genesis_block_headers, genesis_blocks},
         commit::{CommitRef, PendingSubDag},
         context::Context,
-        dag_state::{BlockHeaderSource, DagState, TransactionSource},
+        dag_state::{DagState, DataSource},
         test_dag_builder::DagBuilder,
     };
 
@@ -284,14 +284,12 @@ mod tests {
             if included_rounds.contains(&0) {
                 let genesis_blocks = genesis_blocks(&self.context);
                 for (i, block) in genesis_blocks.iter().enumerate() {
-                    state.accept_block_header(
-                        block.verified_block_header.clone(),
-                        BlockHeaderSource::Test,
-                    );
+                    state
+                        .accept_block_header(block.verified_block_header.clone(), DataSource::Test);
                     if !excluded_transactions.contains(&(0, i)) {
                         state.add_transactions(
                             block.verified_transactions.clone(),
-                            TransactionSource::Test,
+                            DataSource::Test,
                         );
                     }
                 }
@@ -305,14 +303,12 @@ mod tests {
 
                 let blocks = self.dag_builder.blocks(round..=round);
                 for (i, block) in blocks.iter().enumerate() {
-                    state.accept_block_header(
-                        block.verified_block_header.clone(),
-                        BlockHeaderSource::Test,
-                    );
+                    state
+                        .accept_block_header(block.verified_block_header.clone(), DataSource::Test);
                     if !excluded_transactions.contains(&(round, i)) {
                         state.add_transactions(
                             block.verified_transactions.clone(),
-                            TransactionSource::Test,
+                            DataSource::Test,
                         );
                     }
                 }
@@ -347,7 +343,7 @@ mod tests {
                     if let Some(block) = genesis_blocks.get(block_index) {
                         state.add_transactions(
                             block.verified_transactions.clone(),
-                            TransactionSource::Test,
+                            DataSource::Test,
                         );
                     }
                 } else {
@@ -355,7 +351,7 @@ mod tests {
                     if let Some(block) = blocks.get(block_index) {
                         state.add_transactions(
                             block.verified_transactions.clone(),
-                            TransactionSource::Test,
+                            DataSource::Test,
                         );
                     }
                 }

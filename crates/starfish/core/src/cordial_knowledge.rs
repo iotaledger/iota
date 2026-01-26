@@ -16,7 +16,7 @@ use tokio::{
     sync::{Mutex, mpsc::error::TrySendError},
     task::JoinError,
 };
-use tracing::debug;
+use tracing::{debug, warn};
 
 use crate::{
     BlockHeaderAPI, BlockRef, Round, VerifiedBlockHeader,
@@ -399,6 +399,11 @@ impl CordialKnowledge {
         }
         let evicted_rounds = self.eviction_rounds_receiver.borrow_and_update().clone();
         if evicted_rounds.len() != self.context.committee.size() {
+            warn!(
+                "Eviction rounds length {} does not match committee size {}; skipping eviction",
+                evicted_rounds.len(),
+                self.context.committee.size()
+            );
             return;
         }
         if let Some(vec_connection_knowledge_msgs) = self.handle_evict_below(evicted_rounds) {
@@ -1114,7 +1119,7 @@ mod tests {
         TestBlockHeader,
         block_header::{GENESIS_ROUND, VerifiedBlock, VerifiedOwnShard},
         context::Context,
-        dag_state::{BlockHeaderSource, DagState},
+        dag_state::{DagState, DataSource},
         storage::mem_store::MemStore,
         test_dag_builder::DagBuilder,
         test_dag_parser::parse_dag,
@@ -1227,7 +1232,7 @@ mod tests {
                     } = block.clone();
                     dag_state
                         .write()
-                        .accept_block_header(verified_block_header, BlockHeaderSource::Test);
+                        .accept_block_header(verified_block_header, DataSource::Test);
                     let shard_for_core = VerifiedOwnShard {
                         serialized_shard: Bytes::from([0u8; 32].to_vec()), /* put some dummy
                                                                             * shard data */
@@ -1248,7 +1253,7 @@ mod tests {
                 } = block.clone();
                 dag_state
                     .write()
-                    .accept_block_header(verified_block_header, BlockHeaderSource::Test);
+                    .accept_block_header(verified_block_header, DataSource::Test);
                 let shard_for_core = VerifiedOwnShard {
                     serialized_shard: Bytes::from([0u8; 32].to_vec()), // put some dummy shard data
                     block_ref: verified_transactions.block_ref(),
