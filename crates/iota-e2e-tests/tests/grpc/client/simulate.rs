@@ -8,7 +8,7 @@ use iota_types::base_types::IotaAddress;
 use tonic::Code;
 
 use super::common::{
-    create_transaction_for_simulation, is_grpc_error, is_success, setup_grpc_test,
+    assert_grpc_error, create_transaction_for_simulation, is_success, setup_grpc_test,
 };
 
 #[sim_test]
@@ -64,10 +64,7 @@ async fn simulate_transaction_scenarios() {
         .build();
     let transaction: Transaction = tx_data.try_into().expect("SDK type conversion failed");
     let result = client.simulate_transaction(transaction, false, None).await;
-    assert!(
-        matches!(&result, Err(err) if is_grpc_error(err, Code::Internal)),
-        "Insufficient gas budget should return gRPC Internal error, got: {result:?}"
-    );
+    assert_grpc_error(result, Code::Internal);
 
     // Test: transfer exceeding balance returns Ok with failed effects
     // Transfer amount validation happens during Move VM execution, not upfront,

@@ -1,12 +1,12 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_grpc_client::Error;
 use iota_macros::sim_test;
 use iota_sdk_types::Digest;
 
 use super::common::{
-    assert_grpc_not_found, execute_transaction_and_get_digest, is_success, setup_grpc_test,
+    assert_proto_conversion_error, assert_server_not_found, execute_transaction_and_get_digest,
+    is_success, setup_grpc_test,
 };
 
 #[sim_test]
@@ -61,7 +61,7 @@ async fn get_transactions_scenarios() {
     // Test: nonexistent transaction returns not-found error
     let fake_digest = Digest::new([0u8; 32]);
     let result = client.get_transactions(&[fake_digest], None).await;
-    assert_grpc_not_found(result);
+    assert_server_not_found(result);
 
     // Test: mixed valid/invalid returns error
     let fake_digest = Digest::new([0u8; 32]);
@@ -96,13 +96,5 @@ async fn get_transactions_scenarios() {
     let result = client
         .get_transactions(&[digest1], Some("transaction.digest"))
         .await;
-    assert!(
-        result.is_err(),
-        "Incomplete read mask should cause deserialization error"
-    );
-    match result {
-        Err(Error::ProtoConversion(_)) => {}
-        Err(e) => panic!("Expected ProtoConversion error, got: {e:?}"),
-        Ok(_) => panic!("Expected error for incomplete read mask"),
-    }
+    assert_proto_conversion_error(result);
 }
