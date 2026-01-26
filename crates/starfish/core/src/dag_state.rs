@@ -145,12 +145,13 @@ pub(crate) struct DagState {
     /// restarts.
     last_commit_round_advancement_time: Option<std::time::Instant>,
 
-    /// Round of the last committed leader which created a commit with available
-    /// transactions. Does not persist across restarts and after recovery.
+    /// The last solid SubDagBase - a commit where all transactions are locally
+    /// available. Does not persist across restarts and after recovery.
     /// All transactions below this round minus MAX_TRANSACTIONS_ACK_DEPTH
     /// (protocol_config.gc_depth) minus MAX_LINEARIZER_DEPTH
     /// (protocol_config.gc_depth) are evicted from memory.
-    last_solid_commit_leader_round: Option<Round>,
+    /// Used for GC calculations and as a starting point for fast sync.
+    last_solid_subdag_base: Option<SubDagBase>,
 
     /// Rounds for latest blocks traversed by linearizer per authority.
     last_committed_rounds: Vec<Round>,
@@ -271,8 +272,8 @@ impl DagState {
             last_commit: last_commit.clone(),
             last_commit_round_advancement_time: None,
             last_committed_rounds: last_committed_rounds.clone(),
-            last_solid_commit_leader_round: None, /* Later the commit observer might update
-                                                   * this value during recovery process. */
+            last_solid_subdag_base: None, /* Later the commit observer might update
+                                           * this value during recovery process. */
             pending_commit_votes: VecDeque::new(),
             transactions_to_write: vec![],
             block_headers_to_write: vec![],
@@ -543,15 +544,26 @@ impl DagState {
         self.voting_block_headers_to_write.extend(headers);
     }
 
+    /// Returns the leader round of the last solid commit (backward
+    /// compatibility).
     #[cfg_attr(not(test), expect(dead_code))]
     pub(crate) fn last_solid_commit_leader_round(&self) -> Option<Round> {
-        self.last_solid_commit_leader_round
+        self.last_solid_subdag_base.as_ref().map(|s| s.leader.round)
     }
 
-    pub(crate) fn update_last_solid_commit_leader_round(
-        &mut self,
-        last_solid_commit_leader_round: Round,
-    ) {
+    /// Returns the commit index of the last solid commit.
+    /// Used by fast sync to determine the starting point for fetching.
+    pub(crate) fn last_solid_commit_index(&self) -> CommitIndex {
+        self.last_solid_subdag_base
+            .as_ref()
+            .map(|s| s.commit_ref.index)
+            .unwrap_or(0)
+    }
+
+    /// Updates the last solid SubDagBase - the most recent commit where all
+    /// transactions are locally available.
+    pub(crate) fn update_last_solid_subdag_base(&mut self, subdag_base: SubDagBase) {
+        let last_solid_commit_leader_round = subdag_base.leader.round;
         let max_commit_round = self
             .last_committed_rounds
             .iter()
@@ -560,13 +572,13 @@ impl DagState {
         debug!(
             "Last solid commit has leader at round {last_solid_commit_leader_round}; last commit has leader at round {max_commit_round}",
         );
-        self.last_solid_commit_leader_round = Some(last_solid_commit_leader_round);
         let gap = (*max_commit_round).saturating_sub(last_solid_commit_leader_round);
         self.context
             .metrics
             .node_metrics
             .gap_to_available_commit
             .set(gap as i64);
+        self.last_solid_subdag_base = Some(subdag_base);
     }
     pub(crate) fn update_pending_commit_votes(&mut self, solid_commit_refs: Vec<CommitRef>) {
         self.pending_commit_votes.extend(solid_commit_refs);
@@ -1523,8 +1535,8 @@ impl DagState {
 
         self.last_commit = Some(commit.clone());
 
-        if let Some(last_solid_commit_leader_round) = self.last_solid_commit_leader_round {
-            let gap = (commit.leader().round).saturating_sub(last_solid_commit_leader_round);
+        if let Some(last_solid_subdag_base) = &self.last_solid_subdag_base {
+            let gap = (commit.leader().round).saturating_sub(last_solid_subdag_base.leader.round);
             self.context
                 .metrics
                 .node_metrics
@@ -1674,9 +1686,8 @@ impl DagState {
     /// commit's leader round. Transactions of blocks at or below this round
     /// can be evicted from memory
     pub(crate) fn gc_round_for_last_solid_commit(&self) -> Round {
-        let last_solid_leader_round = self.last_solid_commit_leader_round;
-        if let Some(round) = last_solid_leader_round {
-            self.gc_round(round)
+        if let Some(subdag_base) = &self.last_solid_subdag_base {
+            self.gc_round(subdag_base.leader.round)
         } else {
             GENESIS_ROUND
         }
@@ -2652,7 +2663,9 @@ mod test {
         let mut dag_builder = DagBuilder::new(context.clone());
         dag_builder.layers(1..=num_rounds).build();
         let mut commits = vec![];
-        for (_subdag, commit) in dag_builder.get_sub_dag_and_commits(1..=num_rounds) {
+        let mut subdag_bases = vec![];
+        for (subdag, commit) in dag_builder.get_sub_dag_and_commits(1..=num_rounds) {
+            subdag_bases.push(subdag.base);
             commits.push(commit);
         }
 
@@ -2660,6 +2673,7 @@ mod test {
         // 5 commits to the dag state; also add commit info after the second
         // commit.
         let later_commits = commits.split_off(5);
+        let _later_subdag_bases = subdag_bases.split_off(5);
         dag_state.accept_block_headers(dag_builder.block_headers(1..=5));
         for verified_transactions in dag_builder.transactions(1..=5).into_iter() {
             dag_state.add_transactions(verified_transactions, TransactionSource::Test);
@@ -2671,7 +2685,7 @@ mod test {
                 dag_state.add_commit_info(ReputationScores::default());
             }
         }
-        dag_state.update_last_solid_commit_leader_round(5);
+        dag_state.update_last_solid_subdag_base(subdag_bases.last().unwrap().clone());
 
         // Flush the dag state
         dag_state.flush();
@@ -3436,7 +3450,9 @@ mod test {
         let mut dag_builder = DagBuilder::new(context.clone());
         dag_builder.layers(1..=num_rounds).build();
         let mut commits = vec![];
-        for (_subdag, commit) in dag_builder.get_sub_dag_and_commits(1..=num_rounds) {
+        let mut subdag_bases = vec![];
+        for (subdag, commit) in dag_builder.get_sub_dag_and_commits(1..=num_rounds) {
+            subdag_bases.push(subdag.base);
             commits.push(commit);
         }
 
@@ -3448,7 +3464,7 @@ mod test {
         for commit in commits.clone() {
             dag_state.add_commit(commit.clone());
         }
-        dag_state.update_last_solid_commit_leader_round(num_rounds);
+        dag_state.update_last_solid_subdag_base(subdag_bases.last().unwrap().clone());
 
         // Flush the dag state (eviction is happening inside the flush)
         dag_state.flush();

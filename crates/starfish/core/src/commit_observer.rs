@@ -193,6 +193,21 @@ impl CommitObserver {
         self.handle_committed_sub_dags_internal(&[], committed_subdags, source)
     }
 
+    /// Evicts linearizer and updates dag_state with the last solid subdag.
+    fn update_and_evict_with_solid_subdags(&mut self, solid_subdags: &[CommittedSubDag]) {
+        if solid_subdags.is_empty() {
+            return;
+        }
+        let last_solid_subdag = solid_subdags
+            .last()
+            .expect("There should be at least one solid subdag");
+        self.linearizer
+            .evict_linearizer(last_solid_subdag.leader.round);
+        self.dag_state
+            .write()
+            .update_last_solid_subdag_base(last_solid_subdag.base.clone());
+    }
+
     fn handle_committed_sub_dags_internal(
         &mut self,
         pending_sub_dags: &[PendingSubDag],
@@ -202,21 +217,10 @@ impl CommitObserver {
         // Committed headers and sequenced transactions must be persisted to storage
         // before sending them outside consensus.
         if !pending_sub_dags.is_empty() || !committed_subdags.is_empty() {
-            let mut dag_state_guard = self.dag_state.write();
             // Evict the ack tracker and update GC round BEFORE flush so that eviction
             // uses the correct GC round.
-            if !committed_subdags.is_empty() {
-                let max_solid_commit_leader_round = committed_subdags
-                    .last()
-                    .expect("There should be at least one solid subdag")
-                    .leader
-                    .round;
-                self.linearizer
-                    .evict_linearizer(max_solid_commit_leader_round);
-                dag_state_guard
-                    .update_last_solid_commit_leader_round(max_solid_commit_leader_round);
-            }
-            dag_state_guard.flush();
+            self.update_and_evict_with_solid_subdags(&committed_subdags);
+            self.dag_state.write().flush();
         }
 
         // Send committed sub-dags through the channel
@@ -331,6 +335,7 @@ impl CommitObserver {
             let (solid_sub_dags, _missing) = self
                 .commit_solidifier
                 .try_get_solid_sub_dags(&pending_for_solidifier);
+            self.update_and_evict_with_solid_subdags(&solid_sub_dags);
             self.send_sub_dags(&solid_sub_dags, source)
                 .expect("We should successfully send solid commits during recovery");
             self.report_metrics(&[], &solid_sub_dags, source);

@@ -100,7 +100,7 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
             dag_state,
             sync_type: CommitSyncType::Fast,
         });
-        let synced_commit_index = inner.dag_state.read().last_commit_index();
+        let last_solid_commit_index = inner.dag_state.read().last_solid_commit_index();
         FastCommitSyncer {
             inner,
             inflight_fetches: JoinSet::new(),
@@ -108,7 +108,7 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
             fetched_ranges: BTreeMap::new(),
             highest_scheduled_index: None,
             highest_fetched_commit_index: 0,
-            synced_commit_index,
+            synced_commit_index: last_solid_commit_index,
             close_to_quorum_mode: false,
             has_fetched_data: false,
         }
@@ -217,7 +217,7 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
 
     fn try_schedule_once(&mut self) {
         let quorum_commit_index = self.inner.commit_vote_monitor.quorum_commit_index();
-        let dag_state_commit_index = self.inner.dag_state.read().last_commit_index();
+        let last_solid_commit_index = self.inner.dag_state.read().last_solid_commit_index();
         let highest_handled_index = self.inner.commit_consumer_monitor.highest_handled_commit();
         let highest_scheduled_index = self.highest_scheduled_index.unwrap_or(0);
         let unhandled_commits_threshold = self.inner.unhandled_commits_threshold();
@@ -227,7 +227,7 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
             .commit_sync_batch_size(&self.inner.context);
 
         // Skip scheduling depending on sync type and gap threshold.
-        let gap = quorum_commit_index.saturating_sub(dag_state_commit_index);
+        let gap = quorum_commit_index.saturating_sub(last_solid_commit_index);
         let should_schedule = self.has_fetched_data
             || self.inner.sync_type.should_schedule(
                 gap,
@@ -245,10 +245,10 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
                 .set(quorum_commit_index as i64);
             metrics
                 .commit_sync_local_index
-                .set(dag_state_commit_index as i64);
+                .set(last_solid_commit_index as i64);
             // Update synced_commit_index periodically to make sure it is not smaller than
-            // local commit index.
-            self.synced_commit_index = self.synced_commit_index.max(dag_state_commit_index);
+            // local solid commit index.
+            self.synced_commit_index = self.synced_commit_index.max(last_solid_commit_index);
 
             // TODO: cleanup inflight fetches that are no longer needed.
             let fetch_after_index = self
@@ -371,7 +371,7 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
         // Make sure the synced_commit_index is up to date.
         self.synced_commit_index = self
             .synced_commit_index
-            .max(self.inner.dag_state.read().last_commit_index());
+            .max(self.inner.dag_state.read().last_solid_commit_index());
         // Only add new blocks if at least some of them are not already synced.
         if self.synced_commit_index < commit_end {
             self.fetched_ranges
