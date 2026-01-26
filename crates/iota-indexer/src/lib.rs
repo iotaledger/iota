@@ -60,12 +60,6 @@ pub async fn build_json_rpc_server(
     let mut builder =
         JsonRpcServerBuilder::new(env!("CARGO_PKG_VERSION"), prometheus_registry, None, None);
 
-    let cancel = CancellationToken::new();
-
-    // Start the watermark background task to track pruning state
-    watermark_task.start(cancel.clone());
-    tracing::info!("Watermark task started");
-
     let fullnode_client = get_http_client(&config.rpc_client_url)?;
     // Register common modules
     builder.register_module(IndexerApi::new(
@@ -83,10 +77,13 @@ pub async fn build_json_rpc_server(
         OptimisticTransactionExecutor::new(&config.rpc_client_url, reader.clone(), store, metrics),
     ))?;
 
-    let system_package_task =
-        SystemPackageTask::new(reader, cancel.clone(), Duration::from_secs(10));
+    let cancel = CancellationToken::new();
+    tracing::info!("Starting watermark background task to track pruning state");
+    watermark_task.start(cancel.clone());
 
     tracing::info!("Starting system package task");
+    let system_package_task =
+        SystemPackageTask::new(reader, cancel.clone(), Duration::from_secs(10));
     spawn_monitored_task!(async move { system_package_task.run().await });
 
     Ok(builder
