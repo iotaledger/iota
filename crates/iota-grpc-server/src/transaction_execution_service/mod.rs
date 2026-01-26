@@ -162,7 +162,7 @@ pub async fn execute_transaction(
                     .with_reason(ErrorReason::FieldMissing)
             })?;
 
-            iota_sdk_types::UserSignature::from_bytes(&bcs_data.data).map_err(|e| {
+            bcs::from_bytes::<iota_sdk_types::UserSignature>(&bcs_data.data).map_err(|e| {
                 FieldViolation::new_at("signatures", i)
                     .with_description(format!("invalid signature: {e}"))
                     .with_reason(ErrorReason::FieldInvalid)

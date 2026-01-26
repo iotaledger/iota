@@ -1,6 +1,7 @@
 // Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+mod get_checkpoint_data;
 mod get_epoch;
 mod get_objects;
 mod get_service_info;
@@ -114,16 +115,16 @@ impl grpc_ledger_service::ledger_service_server::LedgerService for LedgerGrpcSer
     /// Checkpoint operations
     async fn get_checkpoint_data(
         &self,
-        _request: tonic::Request<grpc_ledger_service::GetCheckpointDataRequest>,
+        request: tonic::Request<grpc_ledger_service::GetCheckpointDataRequest>,
     ) -> std::result::Result<tonic::Response<Self::StreamCheckpointDataStream>, tonic::Status> {
+        let reader = self.reader.clone();
+        let req = request.into_inner();
+
         let stream = async_stream::try_stream! {
-            // not implemented
-            yield grpc_ledger_service::CheckpointData {
-                payload: None,
-            };
+            let checkpoint_data = get_checkpoint_data::get_checkpoint_data(&reader, req)?;
+            yield checkpoint_data;
         };
 
-        // not implemented
         let response = Response::new(Box::pin(stream) as Self::StreamCheckpointDataStream);
         Ok(append_info_headers!(response, self.reader.clone()))
     }

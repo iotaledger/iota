@@ -123,7 +123,7 @@ async fn execute_transaction_readmask_scenarios() {
                 .iter()
                 .map(|s| UserSignature {
                     bcs: Some(BcsData {
-                        data: s.as_ref().to_vec().into(),
+                        data: bcs::to_bytes(s).unwrap().into(),
                     }),
                 })
                 .collect(),
@@ -174,7 +174,7 @@ async fn execute_transaction_invalid_bcs() {
             .iter()
             .map(|s| UserSignature {
                 bcs: Some(BcsData {
-                    data: s.as_ref().to_vec().into(),
+                    data: bcs::to_bytes(s).unwrap().into(),
                 }),
             })
             .collect(),
@@ -268,7 +268,7 @@ async fn execute_transaction_empty_request() {
             .iter()
             .map(|s| UserSignature {
                 bcs: Some(BcsData {
-                    data: s.as_ref().to_vec().into(),
+                    data: bcs::to_bytes(s).unwrap().into(),
                 }),
             })
             .collect(),

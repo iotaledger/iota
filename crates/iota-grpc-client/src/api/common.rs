@@ -71,7 +71,7 @@ pub type Result<T> = std::result::Result<T, Error>;
 ///
 /// **Required fields for `TransactionResponse` deserialization:**
 /// - `transaction.bcs` - Transaction data (required)
-/// - `signatures.bcs` - User signatures (required)
+/// - `signatures` - User signatures (required)
 /// - `effects.bcs` - Transaction effects (required)
 ///
 /// **Optional fields:**
@@ -80,9 +80,9 @@ pub type Result<T> = std::result::Result<T, Error>;
 /// - `timestamp` - Execution timestamp
 ///
 /// If you provide a custom mask, you must include at least `transaction.bcs`,
-/// `signatures.bcs`, and `effects.bcs`, or deserialization will fail.
+/// `signatures`, and `effects.bcs`, or deserialization will fail.
 pub const TRANSACTIONS_READ_MASK: &str =
-    "transaction.bcs,signatures.bcs,effects.bcs,events,checkpoint,timestamp";
+    "transaction.bcs,signatures,effects.bcs,events,checkpoint,timestamp";
 
 /// Default field mask for [`crate::Client::get_objects`].
 ///

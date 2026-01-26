@@ -6089,6 +6089,7 @@ dependencies = [
  "iota-core",
  "iota-framework",
  "iota-genesis-builder",
+ "iota-grpc-client",
  "iota-grpc-types",
  "iota-json-rpc",
  "iota-json-rpc-api",
