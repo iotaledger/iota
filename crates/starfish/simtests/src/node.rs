@@ -38,6 +38,9 @@ pub(crate) enum RestartMode {
     /// Keep consensus DB but reset last_processed_commit to 0.
     /// Tests recovery when consensus state is intact but node tracking is lost.
     ResetLastProcessed,
+    /// Erase all transactions from the DB, preserving commits and block
+    /// headers. Tests transaction recovery via sync from peers.
+    EraseAllTransactions,
 }
 
 #[derive(Clone)]
@@ -104,7 +107,15 @@ impl AuthorityNode {
 
     /// Restart the node with the specified mode
     pub async fn restart(&self, mode: RestartMode) -> Result<()> {
+        // Save context before stopping (may be needed for some restart modes)
+        let saved_context = self
+            .inner
+            .lock()
+            .as_ref()
+            .map(|inner| inner.consensus_authority.context().clone());
+
         self.stop();
+
         match mode {
             RestartMode::CleanAll => {
                 // Erase consensus DB and all node tracking
@@ -126,6 +137,28 @@ impl AuthorityNode {
             }
             RestartMode::PersistAll => {
                 // Keep both consensus DB and node tracking (no changes)
+            }
+            RestartMode::EraseAllTransactions => {
+                // Use saved context to create store and delete transactions
+                let context = saved_context
+                    .clone()
+                    .expect("Context should be available for EraseAllTransactions");
+                let db_path = self
+                    .db_dir
+                    .lock()
+                    .path()
+                    .to_str()
+                    .expect("DB path should be valid UTF-8")
+                    .to_string();
+                let store = starfish_core::RocksDBStore::new(&db_path, context);
+                store
+                    .delete_all_transactions()
+                    .expect("Failed to delete transactions");
+
+                // Reset tracking state (transactions will be re-synced)
+                self.last_processed_commit.store(0, Ordering::SeqCst);
+                self.commit_digests.write().await.clear();
+                self.committed_transactions.write().await.clear();
             }
         }
         self.start().await

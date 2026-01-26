@@ -496,4 +496,12 @@ mod test {
     async fn test_sequential_restarts_reset_last_processed_long_run_long_stop() {
         run_sequential_restarts_test(RestartMode::ResetLastProcessed, true, true).await;
     }
+
+    /// Erase all transactions from DB, preserving commits and block headers.
+    /// Tests transaction recovery via sync from peers.
+    /// Long run before stop, long stop duration.
+    #[sim_test(config = "test_config()")]
+    async fn test_sequential_restarts_erase_transactions_long_run_long_stop() {
+        run_sequential_restarts_test(RestartMode::EraseAllTransactions, true, true).await;
+    }
 }

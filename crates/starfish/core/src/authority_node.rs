@@ -357,8 +357,8 @@ impl ConsensusAuthority {
         self.commit_consumer_monitor.replay_complete().await;
     }
 
-    #[cfg(test)]
-    fn context(&self) -> &Arc<Context> {
+    #[cfg(any(test, msim))]
+    pub(crate) fn context(&self) -> &Arc<Context> {
         &self.context
     }
 

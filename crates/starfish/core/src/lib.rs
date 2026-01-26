@@ -68,6 +68,8 @@ pub use commit_consumer::{CommitConsumer, CommitConsumerMonitor};
 pub use context::Clock;
 pub use network::tonic_network::to_socket_addr;
 #[cfg(msim)]
+pub use storage::RocksDBStore;
+#[cfg(msim)]
 pub use transaction::NoopTransactionVerifier;
 pub use transaction::{
     BlockStatus, ClientError, TransactionClient, TransactionVerifier, ValidationError,

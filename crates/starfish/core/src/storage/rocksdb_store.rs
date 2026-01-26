@@ -787,3 +787,26 @@ pub(crate) fn check_ref_consistency(refs: &[GenericTransactionRef]) -> bool {
     let first = std::mem::discriminant(&refs[0]);
     refs.iter().all(|r| std::mem::discriminant(r) == first)
 }
+
+#[cfg(msim)]
+impl RocksDBStore {
+    /// Deletes all transactions from the store.
+    /// Preserves commits, block headers, and other data.
+    /// Only available in simulation tests.
+    pub fn delete_all_transactions(&self) -> ConsensusResult<()> {
+        use typed_store::Map as _;
+
+        self.transactions
+            .unsafe_clear()
+            .map_err(ConsensusError::RocksDBFailure)?;
+        self.transactions_by_tx_refs
+            .unsafe_clear()
+            .map_err(ConsensusError::RocksDBFailure)?;
+        self.transaction_commitments_by_authorities
+            .unsafe_clear()
+            .map_err(ConsensusError::RocksDBFailure)?;
+
+        debug!("Deleted all transactions from store");
+        Ok(())
+    }
+}
