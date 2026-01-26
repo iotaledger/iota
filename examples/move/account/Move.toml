@@ -3,7 +3,7 @@ name = "account"
 edition = "2024"
 
 [dependencies]
-Iota = { git = "https://github.com/iotaledger/iota.git", subdir = "crates/iota-framework/packages/iota-framework", rev = "vm-lang/aa-auth/8805-beta-feature-branch" }
+Iota = { local = "../../../crates/iota-framework/packages/iota-framework" }
 
 [addresses]
 account = "0x0"
