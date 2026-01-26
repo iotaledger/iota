@@ -26,7 +26,7 @@ impl Merge<iota_types::object::Object> for Object {
         }
 
         // TODO: wrap Object into a type with a version
-        let sdk_object = source
+        let sdk_object: iota_sdk_types::object::Object = source
             .try_into()
             .map_err(|e: SdkTypeConversionError| format!("Failed to convert SDK object: {}", e))?;
 
@@ -75,6 +75,24 @@ impl Merge<&iota_sdk_types::object::Object> for Object {
     }
 }
 
+impl Merge<&Object> for Object {
+    fn merge(
+        &mut self,
+        source: &Object,
+        mask: &FieldMaskTree,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        if mask.contains(Self::REFERENCE_FIELD.name) {
+            self.reference = source.reference.clone();
+        }
+
+        if mask.contains(Self::BCS_FIELD.name) {
+            self.bcs = source.bcs.clone();
+        }
+
+        Ok(())
+    }
+}
+
 impl Merge<Option<Vec<iota_types::object::Object>>> for Objects {
     fn merge(
         &mut self,
@@ -95,6 +113,24 @@ impl Merge<Option<Vec<iota_types::object::Object>>> for Objects {
                     .map(|obj| Object::merge_from(obj, &objects_mask))
                     .collect::<Result<Vec<_>, _>>()?;
             }
+        }
+
+        Ok(())
+    }
+}
+
+impl Merge<&Objects> for Objects {
+    fn merge(
+        &mut self,
+        source: &Objects,
+        mask: &FieldMaskTree,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        if let Some(objects_mask) = mask.subtree(Self::OBJECTS_FIELD.name) {
+            self.objects = source
+                .objects
+                .iter()
+                .map(|obj| Object::merge_from(obj, &objects_mask))
+                .collect::<Result<Vec<_>, _>>()?;
         }
 
         Ok(())

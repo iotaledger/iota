@@ -15,12 +15,15 @@ use iota_types::{
     base_types::{ObjectID, VersionNumber},
     committee::Committee,
     digests::{ChainIdentifier, TransactionDigest, TransactionEventsDigest},
-    effects::{TransactionEffects, TransactionEvents},
-    full_checkpoint_content::CheckpointData,
+    effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
+    full_checkpoint_content::{CheckpointData, CheckpointTransaction},
     iota_system_state::{IotaSystemState, IotaSystemStateTrait},
-    messages_checkpoint::CertifiedCheckpointSummary,
+    messages_checkpoint::{CertifiedCheckpointSummary, CheckpointContents},
     object::Object,
-    storage::{EpochInfo, ReadStore, RestStateReader},
+    storage::{
+        EpochInfo, ReadStore, RestStateReader, get_transaction_input_objects,
+        get_transaction_output_objects,
+    },
     transaction::VerifiedTransaction,
 };
 use move_core_types::annotated_value::MoveTypeLayout;
@@ -195,5 +198,66 @@ impl GrpcStateReader for SimulacrumGrpcReader {
             }
             None
         })
+    }
+
+    fn get_checkpoint_summary_and_contents(
+        &self,
+        seq: u64,
+    ) -> Option<(CertifiedCheckpointSummary, CheckpointContents)> {
+        self.simulacrum.with_store(|store| {
+            let checkpoint = store.get_checkpoint_by_sequence_number(seq).cloned()?;
+            let contents = store
+                .get_checkpoint_contents(&checkpoint.content_digest)
+                .cloned()?;
+            Some((CertifiedCheckpointSummary::from(checkpoint), contents))
+        })
+    }
+
+    fn stream_checkpoint_transactions(
+        &self,
+        checkpoint_contents: CheckpointContents,
+    ) -> std::pin::Pin<
+        Box<dyn futures::Stream<Item = anyhow::Result<CheckpointTransaction>> + Send + '_>,
+    > {
+        let transactions: Vec<anyhow::Result<CheckpointTransaction>> = checkpoint_contents
+            .iter()
+            .map(|exec_digests| {
+                self.simulacrum.with_store(|store| {
+                    let verified_transaction = store
+                        .get_transaction(&exec_digests.transaction)
+                        .ok_or_else(|| {
+                            anyhow::anyhow!("Transaction not found: {}", exec_digests.transaction)
+                        })?;
+                    let transaction = verified_transaction.clone().into();
+                    let effects = store
+                        .get_transaction_effects(&exec_digests.transaction)
+                        .ok_or_else(|| {
+                            anyhow::anyhow!("Effects not found: {}", exec_digests.transaction)
+                        })?
+                        .clone();
+
+                    // Get events from effects if they exist
+                    let events = effects.events_digest().and_then(|events_digest| {
+                        store.get_transaction_events(events_digest).cloned()
+                    });
+
+                    // Extract input and output objects
+                    let input_objects =
+                        get_transaction_input_objects(store, &effects).unwrap_or_else(|_| vec![]);
+                    let output_objects =
+                        get_transaction_output_objects(store, &effects).unwrap_or_else(|_| vec![]);
+
+                    Ok(CheckpointTransaction {
+                        transaction,
+                        effects,
+                        events,
+                        input_objects,
+                        output_objects,
+                    })
+                })
+            })
+            .collect();
+
+        Box::pin(futures::stream::iter(transactions))
     }
 }

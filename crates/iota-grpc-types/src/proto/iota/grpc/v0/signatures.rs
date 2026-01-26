@@ -124,3 +124,21 @@ impl Merge<&iota_sdk_types::SignedTransaction> for UserSignatures {
         Ok(())
     }
 }
+
+impl Merge<&UserSignatures> for UserSignatures {
+    fn merge(
+        &mut self,
+        source: &UserSignatures,
+        mask: &FieldMaskTree,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        if let Some(signatures_mask) = mask.subtree(Self::SIGNATURES_FIELD.name) {
+            self.signatures = source
+                .signatures
+                .iter()
+                .map(|sig| UserSignature::merge_from(sig, &signatures_mask))
+                .collect::<Result<Vec<_>, _>>()?;
+        }
+
+        Ok(())
+    }
+}

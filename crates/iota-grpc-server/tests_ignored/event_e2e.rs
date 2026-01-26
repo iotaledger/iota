@@ -21,7 +21,7 @@ const CLOCK_ACCESS_FUNCTION: &str = "access";
 // Event type names
 const NFT_MINTED_EVENT: &str = "NFTMinted";
 
-async fn setup_test_cluster() -> (TestCluster, EventClient, ObjectID, ObjectID) {
+async fn setup_test_cluster(client_max_message_size_bytes: Option<u32>) -> (TestCluster, EventClient, ObjectID, ObjectID) {
     let localhost = local_ip_utils::localhost_for_testing();
     let grpc_port = local_ip_utils::get_available_port(&localhost);
     let grpc_addr = format!("{localhost}:{grpc_port}");
@@ -33,9 +33,12 @@ async fn setup_test_cluster() -> (TestCluster, EventClient, ObjectID, ObjectID) 
         .build()
         .await;
 
-    let client = NodeClient::connect(&format!("http://{grpc_addr}"))
-        .await
-        .expect("Failed to connect to gRPC");
+    let client = NodeClient::connect(
+        &format!("http://{grpc_addr}"),
+        client_max_message_size_bytes,
+    )
+    .await
+    .expect("Failed to connect to gRPC");
 
     let event_client = client
         .event_client()
@@ -90,7 +93,7 @@ async fn setup_test_cluster() -> (TestCluster, EventClient, ObjectID, ObjectID) 
 async fn test_event_filtering_and_bcs_serialization() {
     use grpc_event::event_filter::Filter;
 
-    let (cluster, event_client, nft_package_id, basics_package_id) = setup_test_cluster().await;
+    let (cluster, event_client, nft_package_id, basics_package_id) = setup_test_cluster(None).await;
     let sender_1 = cluster.get_address_0();
     let sender_2 = cluster.get_address_1();
 

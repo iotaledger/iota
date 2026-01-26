@@ -1,6 +1,5 @@
 // Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-
 use std::time::Duration;
 
 use futures::StreamExt;
@@ -8,7 +7,9 @@ use iota_config::local_ip_utils;
 use iota_grpc_client::{LedgerClient, NodeClient};
 use test_cluster::{TestCluster, TestClusterBuilder};
 
-async fn setup_test_cluster_and_client() -> (TestCluster, LedgerClient) {
+async fn setup_test_cluster_and_client(
+    client_max_message_size_bytes: Option<u32>,
+) -> (TestCluster, LedgerClient) {
     let localhost = local_ip_utils::localhost_for_testing();
     let grpc_port = local_ip_utils::get_available_port(&localhost);
     let grpc_addr = format!("{localhost}:{grpc_port}");
@@ -21,9 +22,12 @@ async fn setup_test_cluster_and_client() -> (TestCluster, LedgerClient) {
         .build()
         .await;
 
-    let client = NodeClient::connect(&format!("http://{grpc_addr}"))
-        .await
-        .expect("connect gRPC");
+    let client = NodeClient::connect(
+        &format!("http://{grpc_addr}"),
+        client_max_message_size_bytes,
+    )
+    .await
+    .expect("connect gRPC");
 
     let ledger_service_client = client
         .ledger_service_client()
@@ -33,12 +37,106 @@ async fn setup_test_cluster_and_client() -> (TestCluster, LedgerClient) {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-async fn e2e_stream_checkpoints() {
-    let (_cluster, mut client) = setup_test_cluster_and_client().await;
+async fn test_get_checkpoint_summary() {
+    let (cluster, mut client) = setup_test_cluster_and_client(None).await;
 
-    // Request all checkpoints using the higher-level GrpcNodeClient API
+    // Wait for 2 new checkpoint to be available
+    cluster.wait_for_checkpoint(2, None).await;
+
+    // Test getting checkpoint summary for sequence number 0
+    let summary = client.get_checkpoint_summary(0).await.expect("gRPC call");
+
+    // Verify the summary structure
+    let digest_0 = match &summary {
+        iota_grpc_types::checkpoints::CertifiedCheckpointSummary::V1(v1_summary) => {
+            assert_eq!(v1_summary.data().epoch, 0);
+            assert_eq!(v1_summary.data().sequence_number, 0);
+            // Verify digest is not all zeros
+            assert_ne!(v1_summary.data().content_digest.inner(), &[0u8; 32]);
+            v1_summary.data().content_digest
+        }
+    };
+
+    // Test getting another checkpoint summary
+    let summary_1 = client.get_checkpoint_summary(1).await.expect("gRPC call");
+
+    let digest_1 = match &summary_1 {
+        iota_grpc_types::checkpoints::CertifiedCheckpointSummary::V1(v1_summary_1) => {
+            assert_eq!(v1_summary_1.data().epoch, 0);
+            assert_eq!(v1_summary_1.data().sequence_number, 1);
+            v1_summary_1.data().content_digest
+        }
+    };
+
+    // Different checkpoints should have different digests
+    assert_ne!(digest_0, digest_1);
+
+    // Test getting checkpoint summary for a non-existent sequence number
+    match client.get_checkpoint_summary(999999).await {
+        Ok(_) => {
+            panic!("Unexpectedly found checkpoint summary for non-existent sequence number");
+        }
+        Err(status) => {
+            assert!(status.code() == tonic::Code::NotFound);
+        }
+    }
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn test_get_checkpoint_data() {
+    let (cluster, mut client) = setup_test_cluster_and_client(None).await;
+
+    // Wait for 2 new checkpoint to be available
+    cluster.wait_for_checkpoint(2, None).await;
+
+    // Test getting checkpoint data for sequence number 0
+    let checkpoint_data = client.get_checkpoint_data(0).await.expect("gRPC call");
+
+    // Verify the checkpoint data structure
+    let digest_0 = match &checkpoint_data {
+        iota_grpc_types::checkpoints::CheckpointData::V1(v1_data) => {
+            assert_eq!(v1_data.checkpoint_summary.sequence_number, 0);
+            assert_eq!(v1_data.checkpoint_summary.epoch, 0);
+            assert!(!v1_data.transactions.is_empty());
+            assert!(v1_data.checkpoint_contents.size() > 0);
+
+            v1_data.checkpoint_summary.content_digest
+        }
+    };
+
+    // Test getting another checkpoint
+    let checkpoint_data_1 = client.get_checkpoint_data(1).await.expect("gRPC call");
+
+    let digest_1 = match &checkpoint_data_1 {
+        iota_grpc_types::checkpoints::CheckpointData::V1(v1_data_1) => {
+            assert_eq!(v1_data_1.checkpoint_summary.sequence_number, 1);
+            assert_eq!(v1_data_1.checkpoint_summary.epoch, 0);
+
+            v1_data_1.checkpoint_summary.content_digest
+        }
+    };
+
+    // Verify they are different checkpoints
+    assert_ne!(digest_0, digest_1);
+
+    // Test getting checkpoint data for a non-existent sequence number
+    match client.get_checkpoint_data(999999).await {
+        Ok(_) => {
+            panic!("Unexpectedly found checkpoint data for non-existent sequence number");
+        }
+        Err(status) => {
+            assert!(status.code() == tonic::Code::NotFound);
+        }
+    }
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn e2e_stream_checkpoint_summaries() {
+    let (_cluster, mut client) = setup_test_cluster_and_client(None).await;
+
+    // Request checkpoint summaries using the higher-level GrpcNodeClient API
     let mut stream = client
-        .stream_checkpoints(None, None, false)
+        .stream_checkpoint_summaries(None, None)
         .await
         .expect("gRPC call");
 
@@ -49,20 +147,13 @@ async fn e2e_stream_checkpoints() {
     tokio::time::timeout(Duration::from_secs(120), async {
         while let Some(res) = stream.next().await {
             match res {
-                Ok(checkpoint_content) => match checkpoint_content {
-                    iota_grpc_client::CheckpointContent::Summary(summary) => match summary {
-                        iota_grpc_types::checkpoints::CertifiedCheckpointSummary::V1(
-                            v1_summary,
-                        ) => {
-                            indices.push(v1_summary.data().sequence_number);
-                            count += 1;
-                            if count >= 20 {
-                                break;
-                            }
+                Ok(summary) => match summary {
+                    iota_grpc_types::checkpoints::CertifiedCheckpointSummary::V1(v1_summary) => {
+                        indices.push(v1_summary.data().sequence_number);
+                        count += 1;
+                        if count >= 20 {
+                            break;
                         }
-                    },
-                    iota_grpc_client::CheckpointContent::Data(_) => {
-                        panic!("Expected summary, got data");
                     }
                 },
                 Err(e) => {
@@ -79,8 +170,34 @@ async fn e2e_stream_checkpoints() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn test_stream_checkpoint_data() {
+    let (_cluster, mut client) = setup_test_cluster_and_client(None).await;
+
+    let mut stream = Box::pin(client.stream_checkpoints(None, Some(2)).await.unwrap());
+
+    tokio::time::timeout(Duration::from_secs(120), async {
+        if let Some(res) = stream.next().await {
+            match res {
+                Ok(checkpoint_data) => match checkpoint_data {
+                    iota_grpc_types::checkpoints::CheckpointData::V1(v1_data) => {
+                        assert_eq!(v1_data.checkpoint_summary.sequence_number, 2);
+                    }
+                },
+                Err(e) => {
+                    panic!("Stream error: {e:?}");
+                }
+            }
+        } else {
+            panic!("No checkpoint data returned");
+        }
+    })
+    .await
+    .expect("waiting for checkpoint data timed out");
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_get_epoch_first_checkpoint_sequence_number() {
-    let (cluster, mut client) = setup_test_cluster_and_client().await;
+    let (cluster, mut client) = setup_test_cluster_and_client(None).await;
 
     let sender = cluster.get_address_0();
     let receiver = cluster.get_address_1();
@@ -99,7 +216,7 @@ async fn test_get_epoch_first_checkpoint_sequence_number() {
 
     // List all checkpoints and their epochs using the gRPC stream
     let mut stream = client
-        .stream_checkpoints(Some(0), None, false)
+        .stream_checkpoint_summaries(Some(0), None)
         .await
         .expect("gRPC stream");
     let mut all_indices = vec![];
@@ -108,21 +225,14 @@ async fn test_get_epoch_first_checkpoint_sequence_number() {
     tokio::time::timeout(Duration::from_secs(120), async {
         while let Some(res) = stream.next().await {
             match res {
-                Ok(checkpoint_content) => match checkpoint_content {
-                    iota_grpc_client::CheckpointContent::Summary(summary) => match summary {
-                        iota_grpc_types::checkpoints::CertifiedCheckpointSummary::V1(
-                            v1_summary,
-                        ) => {
-                            let epoch = v1_summary.data().epoch;
-                            all_indices.push(v1_summary.data().sequence_number);
-                            all_epochs.push(epoch);
-                            if v1_summary.data().sequence_number > 50 {
-                                break;
-                            }
+                Ok(summary) => match summary {
+                    iota_grpc_types::checkpoints::CertifiedCheckpointSummary::V1(v1_summary) => {
+                        let epoch = v1_summary.data().epoch;
+                        all_indices.push(v1_summary.data().sequence_number);
+                        all_epochs.push(epoch);
+                        if v1_summary.data().sequence_number > 50 {
+                            break;
                         }
-                    },
-                    iota_grpc_client::CheckpointContent::Data(_) => {
-                        panic!("Expected summary, got data");
                     }
                 },
                 Err(e) => {
@@ -150,40 +260,4 @@ async fn test_get_epoch_first_checkpoint_sequence_number() {
         first_1 >= 2,
         "First checkpoint of epoch 1 should be >= 2, got {first_1}"
     );
-}
-
-#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-async fn test_stream_full_checkpoint_data() {
-    let (_cluster, mut client) = setup_test_cluster_and_client().await;
-
-    let mut stream = client
-        .stream_checkpoints(None, Some(2), true)
-        .await
-        .unwrap();
-
-    tokio::time::timeout(Duration::from_secs(120), async {
-        if let Some(res) = stream.next().await {
-            match res {
-                Ok(checkpoint_content) => match checkpoint_content {
-                    iota_grpc_client::CheckpointContent::Data(checkpoint_data) => {
-                        match checkpoint_data {
-                            iota_grpc_types::checkpoints::CheckpointData::V1(v1_data) => {
-                                assert_eq!(v1_data.checkpoint_summary.sequence_number, 2);
-                            }
-                        }
-                    }
-                    iota_grpc_client::CheckpointContent::Summary(_) => {
-                        panic!("Expected data, got summary");
-                    }
-                },
-                Err(e) => {
-                    panic!("Stream error: {e:?}");
-                }
-            }
-        } else {
-            panic!("No checkpoint data returned");
-        }
-    })
-    .await
-    .expect("waiting for checkpoint data timed out");
 }

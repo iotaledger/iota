@@ -13,3 +13,11 @@ impl From<iota_sdk_types::Digest> for Digest {
         }
     }
 }
+
+impl From<iota_types::digests::TransactionDigest> for Digest {
+    fn from(value: iota_types::digests::TransactionDigest) -> Self {
+        Self {
+            digest: value.into_inner().to_vec().into(),
+        }
+    }
+}

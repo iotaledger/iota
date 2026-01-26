@@ -201,3 +201,9 @@ impl From<TransactionNotFoundError> for RpcError {
         Self::new(tonic::Code::NotFound, value.to_string())
     }
 }
+
+impl From<tonic::Status> for RpcError {
+    fn from(status: tonic::Status) -> Self {
+        Self::new(status.code(), status.message().to_string())
+    }
+}
