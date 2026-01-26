@@ -6,15 +6,14 @@
 pub(crate) mod mem_store;
 pub(crate) mod rocksdb_store;
 
-#[cfg(msim)]
-pub use rocksdb_store::RocksDBStore;
-
 #[cfg(test)]
 mod store_tests;
 
 use std::sync::Arc;
 
 use bytes::Bytes;
+#[cfg(msim)]
+pub use rocksdb_store::RocksDBStore;
 use starfish_config::AuthorityIndex;
 
 use crate::{

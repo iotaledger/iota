@@ -107,14 +107,7 @@ impl AuthorityNode {
 
     /// Restart the node with the specified mode
     pub async fn restart(&self, mode: RestartMode) -> Result<()> {
-        // Save context before stopping (may be needed for some restart modes)
-        let saved_context = self
-            .inner
-            .lock()
-            .as_ref()
-            .map(|inner| inner.consensus_authority.context().clone());
-
-        self.stop();
+        self.stop().await;
 
         match mode {
             RestartMode::CleanAll => {
@@ -139,21 +132,13 @@ impl AuthorityNode {
                 // Keep both consensus DB and node tracking (no changes)
             }
             RestartMode::EraseAllTransactions => {
-                // Use saved context to create store and delete transactions
-                let context = saved_context
-                    .clone()
-                    .expect("Context should be available for EraseAllTransactions");
-                let db_path = self
-                    .db_dir
-                    .lock()
-                    .path()
-                    .to_str()
-                    .expect("DB path should be valid UTF-8")
-                    .to_string();
-                let store = starfish_core::RocksDBStore::new(&db_path, context);
-                store
-                    .delete_all_transactions()
-                    .expect("Failed to delete transactions");
+                starfish_core::RocksDBStore::delete_all_transactions_from_store(
+                    self.db_dir.lock().path(),
+                    self.config.authority_index,
+                    self.config.committee.clone(),
+                    self.config.protocol_config.clone(),
+                )
+                .expect("Failed to delete transactions");
 
                 // Reset tracking state (transactions will be re-synced)
                 self.last_processed_commit.store(0, Ordering::SeqCst);
@@ -228,9 +213,20 @@ impl AuthorityNode {
     }
 
     /// Stop this Node
-    pub fn stop(&self) {
+    pub async fn stop(&self) {
         info!(index =% self.config.authority_index, "stopping in-memory node");
-        *self.inner.lock() = None;
+        let inner = self.inner.lock().take();
+        if let Some(mut inner) = inner {
+            if let Some(consensus_authority) = inner.consensus_authority.take() {
+                consensus_authority.stop().await;
+            }
+
+            if let Some(handle) = inner.handle.take() {
+                tracing::info!("shutting down {}", handle.node_id);
+                iota_simulator::runtime::Handle::try_current()
+                    .map(|h| h.delete_node(handle.node_id));
+            }
+        }
         info!(index =% self.config.authority_index, "node stopped");
     }
 
@@ -253,7 +249,7 @@ impl AuthorityNode {
 pub(crate) struct AuthorityNodeInner {
     handle: Option<NodeHandle>,
     cancel_sender: Option<tokio::sync::watch::Sender<bool>>,
-    consensus_authority: ConsensusAuthority,
+    consensus_authority: Option<ConsensusAuthority>,
     commit_receiver: ArcSwapOption<UnboundedReceiver<CommittedSubDag>>,
     commit_consumer_monitor: Arc<CommitConsumerMonitor>,
 }
@@ -339,7 +335,7 @@ impl AuthorityNodeInner {
         Self {
             handle: Some(NodeHandle { node_id: node.id() }),
             cancel_sender: Some(cancel_sender),
-            consensus_authority,
+            consensus_authority: Some(consensus_authority),
             commit_receiver: ArcSwapOption::new(Some(Arc::new(commit_receiver))),
             commit_consumer_monitor,
         }
@@ -376,7 +372,10 @@ impl AuthorityNodeInner {
     }
 
     pub fn transaction_client(&self) -> Arc<TransactionClient> {
-        self.consensus_authority.transaction_client()
+        self.consensus_authority
+            .as_ref()
+            .expect("consensus authority should be available")
+            .transaction_client()
     }
 }
 

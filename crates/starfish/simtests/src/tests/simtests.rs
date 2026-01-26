@@ -317,7 +317,7 @@ mod test {
                     .map(|a| a.commit_consumer_monitor().highest_handled_commit())
                     .max()
                     .unwrap_or(commit_at_stop);
-                authorities[authority_idx].stop();
+                authorities[authority_idx].stop().await;
                 assert!(!authorities[authority_idx].is_running());
 
                 // Wait while stopped (other authorities make progress)
