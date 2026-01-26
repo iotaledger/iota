@@ -23,7 +23,6 @@ pnpm install @iota/apps-ui-kit
 @tailwind utilities;
 ```
 
-
 2. Configure your Tailwind CSS setup to include the UI Kit styles. Update your `tailwind.config.js` file:
 
 ```js
@@ -39,7 +38,6 @@ export default {
   },
 } satisfies Partial<Config>;
 ```
-
 
 3. Use components from the UI kit in your application:
 
