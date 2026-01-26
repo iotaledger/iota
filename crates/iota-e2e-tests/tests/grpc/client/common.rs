@@ -84,31 +84,21 @@ pub async fn execute_transaction_and_get_digest(test_cluster: &TestCluster) -> D
     Digest::new(transaction_digest.into_inner())
 }
 
-/// Assert that a result is a "not found" style error.
-///
-/// The server may return different error types for not-found conditions:
-/// - `NotFound` or `InvalidArgument` gRPC status
-/// - `ProtoConversion` error when server returns empty data
-/// - `Server` error with a message
-pub fn assert_not_found_error<T: std::fmt::Debug>(result: Result<T, Error>) {
-    assert!(result.is_err(), "Expected not-found error, got success");
+/// Check if error is a gRPC error with the specified status code.
+pub fn is_grpc_error(err: &Error, code: tonic::Code) -> bool {
+    matches!(err, Error::Grpc(status) if status.code() == code)
+}
 
+/// Check if error is a gRPC NotFound error.
+pub fn is_grpc_not_found(err: &Error) -> bool {
+    is_grpc_error(err, tonic::Code::NotFound)
+}
+
+/// Assert that a result is a gRPC NotFound error.
+pub fn assert_grpc_not_found<T: std::fmt::Debug>(result: Result<T, Error>) {
     match result {
-        Err(Error::ProtoConversion(_)) => {
-            // Server returned empty/null data that failed to deserialize
-        }
-        Err(Error::Grpc(status)) => {
-            assert!(
-                status.code() == tonic::Code::NotFound
-                    || status.code() == tonic::Code::InvalidArgument,
-                "Expected NotFound or InvalidArgument, got: {:?}",
-                status.code()
-            );
-        }
-        Err(Error::Server(msg)) => {
-            assert!(!msg.is_empty(), "Error message should not be empty");
-        }
-        Err(e) => panic!("Unexpected error type: {e:?}"),
-        Ok(_) => unreachable!(),
+        Err(ref err) if is_grpc_not_found(err) => {}
+        Err(err) => panic!("Expected gRPC NotFound error, got: {err:?}"),
+        Ok(val) => panic!("Expected gRPC NotFound error, got success: {val:?}"),
     }
 }

@@ -3,7 +3,7 @@
 
 use iota_macros::sim_test;
 
-use super::common::{assert_not_found_error, setup_grpc_test};
+use super::common::{assert_grpc_not_found, setup_grpc_test};
 
 #[sim_test]
 async fn get_checkpoint_scenarios() {
@@ -41,10 +41,10 @@ async fn get_checkpoint_scenarios() {
 
     // Test: nonexistent checkpoint returns not-found error
     let result = client.get_checkpoint(999_999_999).await;
-    assert_not_found_error(result);
+    assert_grpc_not_found(result);
 
     // Test: future checkpoint returns not-found error
     let future_sequence = latest.checkpoint.sequence_number + 100;
     let result = client.get_checkpoint(future_sequence).await;
-    assert_not_found_error(result);
+    assert_grpc_not_found(result);
 }

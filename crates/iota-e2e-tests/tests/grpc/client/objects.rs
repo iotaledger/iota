@@ -4,7 +4,7 @@
 use iota_macros::sim_test;
 use iota_sdk_types::ObjectId;
 
-use super::common::{assert_not_found_error, setup_grpc_test};
+use super::common::{assert_grpc_not_found, setup_grpc_test};
 
 /// System package IDs that are always available.
 const SYSTEM_PACKAGE_IDS: [&str; 3] = ["0x1", "0x2", "0x3"];
@@ -80,7 +80,7 @@ async fn get_objects_scenarios() {
         .parse()
         .expect("Invalid object ID");
     let result = client.get_objects(&[(fake_id, None)], None).await;
-    assert_not_found_error(result);
+    assert_grpc_not_found(result);
 
     // Test: invalid version returns error
     let object_id: ObjectId = "0x2".parse().expect("Invalid object ID");
