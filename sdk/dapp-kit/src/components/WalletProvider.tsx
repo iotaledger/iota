@@ -4,7 +4,7 @@
 
 import type { WalletWithFeatures, WalletWithRequiredFeatures } from '@iota/wallet-standard';
 import type { ReactNode } from 'react';
-import { useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import type { StateStorage } from 'zustand/middleware';
 
 import {
@@ -75,6 +75,11 @@ export function WalletProvider({
             chain,
         }),
     );
+
+    // Update chain in the store when it changes
+    useEffect(() => {
+        storeRef.current.getState().setChain(chain);
+    }, [chain]);
 
     return (
         <WalletContext.Provider value={storeRef.current}>
