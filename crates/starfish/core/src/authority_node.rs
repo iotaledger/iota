@@ -371,7 +371,7 @@ impl ConsensusAuthority {
     }
 
     #[cfg(test)]
-    fn context(&self) -> &Arc<Context> {
+    pub(crate) fn context(&self) -> &Arc<Context> {
         &self.context
     }
 
@@ -382,7 +382,7 @@ impl ConsensusAuthority {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     #![allow(non_snake_case)]
 
     use std::{
@@ -974,7 +974,7 @@ mod tests {
     }
 
     // Helper with custom parameters for fast commit syncer testing
-    async fn make_authority_with_params(
+    pub(crate) async fn make_authority_with_params(
         index: AuthorityIndex,
         _db_dir: &TempDir,
         committee: Committee,

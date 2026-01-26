@@ -783,3 +783,392 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
         self.synced_commit_index
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use std::time::{Duration, Instant};
+
+    use iota_protocol_config::ProtocolConfig;
+    use prometheus::Registry;
+    use starfish_config::{Parameters, local_committee_and_keys};
+    use tempfile::TempDir;
+    use tokio::time::sleep;
+    use tracing::info;
+    use typed_store::DBMetrics;
+
+    use crate::authority_node::tests::make_authority_with_params;
+
+    /// Test that voting blocks stored during fast sync can be served to peers.
+    /// This test verifies:
+    /// 1. Validator A fast syncs and stores voting block headers
+    /// 2. Validator B fast syncs and can receive commits/voting blocks from A
+    /// 3. Both validators agree on commit history
+    ///
+    /// Test flow to ensure B requests commits A has in voting storage:
+    /// - Phase 1: All run → commits 1-N1 (all validators have these)
+    /// - Phase 2: Stop B first (B stops at N1)
+    /// - Phase 3: A + the other 5 validators continue → commits N1-N2 (B
+    ///   doesn't have these)
+    /// - Phase 4: Stop A (A stops at N2)
+    /// - Phase 5: The remaining 5 validators continue → commits N2-N3 (neither
+    ///   A nor B have these)
+    /// - Phase 6: Restart A, fast syncs N2-N3 → stores voting headers
+    /// - Phase 7: Restart B, needs N1-N3 → should get N2-N3 from A's voting
+    ///   storage
+    #[tokio::test(flavor = "current_thread")]
+    async fn test_fast_sync_voting_blocks_served_to_peer() {
+        telemetry_subscribers::init_for_testing();
+        let db_registry = Registry::new();
+        DBMetrics::init(&db_registry);
+
+        // Use 7 validators so that quorum (5) can still be reached with 2 validators
+        // stopped.
+        const NUM_AUTHORITIES: usize = 7;
+        const COMMIT_GAP_THRESHOLD: u32 = 30;
+
+        // Work phases need to be long enough to create a gap larger than
+        // COMMIT_GAP_THRESHOLD (30) for fast sync to trigger.
+        let stable_work_duration = Duration::from_secs(10);
+
+        let (committee, keypairs) = local_committee_and_keys(0, vec![1; NUM_AUTHORITIES]);
+        let mut protocol_config = ProtocolConfig::get_for_max_version_UNSAFE();
+        protocol_config.set_consensus_transaction_ref_for_testing(true);
+
+        let temp_dirs: Vec<TempDir> = (0..NUM_AUTHORITIES)
+            .map(|_| TempDir::new().unwrap())
+            .collect();
+
+        let mut authorities = Vec::with_capacity(NUM_AUTHORITIES);
+        let mut boot_counters = [0u64; NUM_AUTHORITIES];
+        let mut consumer_monitors = Vec::with_capacity(NUM_AUTHORITIES);
+        let mut output_receivers = Vec::with_capacity(NUM_AUTHORITIES);
+
+        let validator_a_index: usize = 0;
+        let validator_b_index: usize = 1;
+
+        // Start all authorities
+        for (index, _) in committee.authorities() {
+            let parameters = Parameters {
+                db_path: temp_dirs[index.value()].path().to_path_buf(),
+                dag_state_cached_rounds: 5,
+                commit_sync_parallel_fetches: 2,
+                commit_sync_batch_size: 10,
+                commit_sync_gap_threshold: COMMIT_GAP_THRESHOLD,
+                fast_commit_sync_batch_size: 20,
+                sync_last_known_own_block_timeout: Duration::from_millis(2_000),
+                ..Default::default()
+            };
+            let (authority, receiver, monitor) = make_authority_with_params(
+                index,
+                &temp_dirs[index.value()],
+                committee.clone(),
+                keypairs.clone(),
+                boot_counters[index],
+                protocol_config.clone(),
+                parameters,
+                0,
+            )
+            .await;
+            boot_counters[index] += 1;
+            authorities.push(authority);
+            output_receivers.push(receiver);
+            consumer_monitors.push(monitor);
+        }
+
+        // Phase 1: Let all authorities run and commit transactions
+        let start_time = Instant::now();
+        let mut committed_index = [0u32; NUM_AUTHORITIES];
+        while start_time.elapsed() < stable_work_duration {
+            for (index, receiver) in output_receivers.iter_mut().enumerate() {
+                while let Ok(committed_subdag) = receiver.try_recv() {
+                    let commit_index = committed_subdag.commit_ref.index;
+                    assert!(
+                        commit_index > committed_index[index],
+                        "Commit index {} should be greater than previous {}",
+                        commit_index,
+                        committed_index[index]
+                    );
+                    committed_index[index] = commit_index;
+                    consumer_monitors[index].set_highest_handled_commit(commit_index);
+                }
+            }
+            sleep(Duration::from_millis(50)).await;
+        }
+
+        // Phase 2: Stop validator B first (so B misses commits created while it's down)
+        let last_processed_b = consumer_monitors[validator_b_index].highest_handled_commit();
+        authorities.remove(validator_b_index).stop().await;
+
+        // Phase 3: Let A and others continue committing (B misses these)
+        let start_time = Instant::now();
+        while start_time.elapsed() < stable_work_duration {
+            for (index, receiver) in output_receivers.iter_mut().enumerate() {
+                if index == validator_b_index {
+                    continue;
+                }
+                while let Ok(committed_subdag) = receiver.try_recv() {
+                    let commit_index = committed_subdag.commit_ref.index;
+                    assert!(
+                        commit_index > committed_index[index],
+                        "Commit index {} should be greater than previous {}",
+                        commit_index,
+                        committed_index[index]
+                    );
+                    committed_index[index] = commit_index;
+                    consumer_monitors[index].set_highest_handled_commit(commit_index);
+                }
+            }
+            sleep(Duration::from_millis(50)).await;
+        }
+
+        // Phase 4: Stop validator A
+        let last_processed_a = consumer_monitors[validator_a_index].highest_handled_commit();
+        authorities.remove(validator_a_index).stop().await;
+
+        // Phase 5: Let the remaining validators (all except A and B) continue
+        // committing (both A and B miss these commits)
+        let start_time = Instant::now();
+        while start_time.elapsed() < stable_work_duration {
+            for (index, receiver) in output_receivers.iter_mut().enumerate() {
+                if index == validator_a_index || index == validator_b_index {
+                    continue;
+                }
+                while let Ok(committed_subdag) = receiver.try_recv() {
+                    let commit_index = committed_subdag.commit_ref.index;
+                    assert!(
+                        commit_index > committed_index[index],
+                        "Commit index {} should be greater than previous {}",
+                        commit_index,
+                        committed_index[index]
+                    );
+                    committed_index[index] = commit_index;
+                    consumer_monitors[index].set_highest_handled_commit(commit_index);
+                }
+            }
+            sleep(Duration::from_millis(50)).await;
+        }
+
+        // Phase 6: Restart validator A - it will fast sync and store voting blocks
+        let parameters = Parameters {
+            db_path: temp_dirs[validator_a_index].path().to_path_buf(),
+            dag_state_cached_rounds: 5,
+            commit_sync_parallel_fetches: 2,
+            commit_sync_batch_size: 10,
+            commit_sync_gap_threshold: COMMIT_GAP_THRESHOLD,
+            fast_commit_sync_batch_size: 20,
+            sync_last_known_own_block_timeout: Duration::from_millis(2_000),
+            ..Default::default()
+        };
+        let (authority, receiver, monitor) = make_authority_with_params(
+            committee.to_authority_index(validator_a_index).unwrap(),
+            &temp_dirs[validator_a_index],
+            committee.clone(),
+            keypairs.clone(),
+            boot_counters[validator_a_index],
+            protocol_config.clone(),
+            parameters,
+            last_processed_a,
+        )
+        .await;
+        boot_counters[validator_a_index] += 1;
+        output_receivers[validator_a_index] = receiver;
+        consumer_monitors[validator_a_index] = monitor;
+        authorities.insert(validator_a_index, authority);
+
+        // Wait for validator A to catch up via fast sync
+        let start_time = Instant::now();
+        let mut a_caught_up = false;
+        while start_time.elapsed() < Duration::from_secs(60) {
+            for (index, receiver) in output_receivers.iter_mut().enumerate() {
+                if index == validator_b_index {
+                    continue;
+                }
+                while let Ok(committed_subdag) = receiver.try_recv() {
+                    let commit_index = committed_subdag.commit_ref.index;
+                    assert!(
+                        commit_index > committed_index[index],
+                        "Commit index {} should be greater than previous {}",
+                        commit_index,
+                        committed_index[index]
+                    );
+                    committed_index[index] = commit_index;
+                    consumer_monitors[index].set_highest_handled_commit(commit_index);
+                }
+            }
+
+            let a_index = consumer_monitors[validator_a_index].highest_handled_commit();
+            let max_other = consumer_monitors
+                .iter()
+                .enumerate()
+                .filter(|(i, _)| *i != validator_a_index && *i != validator_b_index)
+                .map(|(_, m)| m.highest_handled_commit())
+                .max()
+                .unwrap_or(0);
+
+            if a_index > 0 && a_index + 20 >= max_other {
+                a_caught_up = true;
+                break;
+            }
+            sleep(Duration::from_millis(50)).await;
+        }
+
+        assert!(
+            a_caught_up,
+            "Validator A should have caught up via fast sync"
+        );
+
+        // Phase 7: Restart validator B - it needs commits that A fast-synced
+        // B should be able to get voting block headers from A's voting storage
+        let parameters = Parameters {
+            db_path: temp_dirs[validator_b_index].path().to_path_buf(),
+            dag_state_cached_rounds: 5,
+            commit_sync_parallel_fetches: 2,
+            commit_sync_batch_size: 10,
+            commit_sync_gap_threshold: COMMIT_GAP_THRESHOLD,
+            fast_commit_sync_batch_size: 20,
+            sync_last_known_own_block_timeout: Duration::from_millis(2_000),
+            ..Default::default()
+        };
+        let (authority, receiver, monitor) = make_authority_with_params(
+            committee.to_authority_index(validator_b_index).unwrap(),
+            &temp_dirs[validator_b_index],
+            committee.clone(),
+            keypairs.clone(),
+            boot_counters[validator_b_index],
+            protocol_config.clone(),
+            parameters,
+            last_processed_b,
+        )
+        .await;
+        output_receivers[validator_b_index] = receiver;
+        consumer_monitors[validator_b_index] = monitor;
+
+        authorities.insert(validator_b_index, authority);
+
+        // Wait for validator B to catch up
+        let start_time = Instant::now();
+        let mut b_caught_up = false;
+        while start_time.elapsed() < Duration::from_secs(60) {
+            for (index, receiver) in output_receivers.iter_mut().enumerate() {
+                while let Ok(committed_subdag) = receiver.try_recv() {
+                    let commit_index = committed_subdag.commit_ref.index;
+                    assert!(
+                        commit_index > committed_index[index],
+                        "Commit index {} should be greater than previous {}",
+                        commit_index,
+                        committed_index[index]
+                    );
+                    committed_index[index] = commit_index;
+                    consumer_monitors[index].set_highest_handled_commit(commit_index);
+                }
+            }
+
+            let b_index = consumer_monitors[validator_b_index].highest_handled_commit();
+            let max_other = consumer_monitors
+                .iter()
+                .enumerate()
+                .filter(|(i, _)| *i != validator_b_index)
+                .map(|(_, m)| m.highest_handled_commit())
+                .max()
+                .unwrap_or(0);
+
+            if b_index > 0 && b_index + 20 >= max_other {
+                b_caught_up = true;
+                break;
+            }
+            sleep(Duration::from_millis(50)).await;
+        }
+
+        assert!(
+            b_caught_up,
+            "Validator B should have caught up via fast sync"
+        );
+
+        // Verify both validators A and B have similar commit indices
+        let a_final = consumer_monitors[validator_a_index].highest_handled_commit();
+        let b_final = consumer_monitors[validator_b_index].highest_handled_commit();
+
+        assert!(
+            a_final > last_processed_a,
+            "Validator A should have progressed: before_restart={}, final={}",
+            last_processed_a,
+            a_final
+        );
+        assert!(
+            b_final > last_processed_b,
+            "Validator B should have progressed: before_restart={}, final={}",
+            last_processed_b,
+            b_final
+        );
+
+        // Both should be within reasonable range of each other
+        let diff = (a_final as i64 - b_final as i64).unsigned_abs() as u32;
+        assert!(
+            diff < 30,
+            "Validators A and B should have similar commit indices: A={}, B={}, diff={}",
+            a_final,
+            b_final,
+            diff
+        );
+
+        // Collect voting block headers metrics to verify voting storage was used.
+        let total_hits: u64 = authorities
+            .iter()
+            .map(|a| {
+                a.context()
+                    .metrics
+                    .node_metrics
+                    .commit_sync_voting_block_headers_hits
+                    .get()
+            })
+            .sum();
+
+        let total_fallbacks: u64 = authorities
+            .iter()
+            .map(|a| {
+                a.context()
+                    .metrics
+                    .node_metrics
+                    .commit_sync_voting_block_headers_fallbacks
+                    .get()
+            })
+            .sum();
+
+        info!(
+            "Voting block headers metrics: hits={}, fallbacks={}",
+            total_hits, total_fallbacks
+        );
+
+        // In tests, peer selection is deterministic (not shuffled), so B will
+        // request from A first. A has voting storage for commits it fast-synced,
+        // so we should get voting hits.
+        assert!(
+            total_hits > 0,
+            "Expected voting block headers hits > 0, got {}",
+            total_hits
+        );
+
+        let commit_sync_fetch_commits_handler_uncertified_skipped: u64 = authorities
+            .iter()
+            .map(|a| {
+                a.context()
+                    .metrics
+                    .node_metrics
+                    .commit_sync_fetch_commits_handler_uncertified_skipped
+                    .with_label_values(&["fast_commit_sync"])
+                    .get()
+            })
+            .sum();
+
+        assert!(
+            commit_sync_fetch_commits_handler_uncertified_skipped > 0,
+            "Expected uncertified commits skipped > 0 for fast sync, got {}",
+            commit_sync_fetch_commits_handler_uncertified_skipped
+        );
+
+        // Stop all authorities
+        for authority in authorities {
+            authority.stop().await;
+        }
+    }
+}
