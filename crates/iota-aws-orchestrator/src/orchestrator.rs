@@ -1198,7 +1198,7 @@ done"#
                         .expect("Failed to create benchmark directory");
 
                     // Swap the loop logger to write to this benchmark's log file
-                    let log_file_path = parameters.benchmark_dir.join("logs.txt");
+                    let log_file_path = parameters.benchmark_dir.join("logs.log");
                     let new_file = OpenOptions::new()
                         .create(true)
                         .append(true)
