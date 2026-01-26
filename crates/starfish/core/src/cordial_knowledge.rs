@@ -32,7 +32,7 @@ use crate::{
 /// delay
 const MAX_ROUND_GAP_FOR_USEFUL_PARTS: Round = 40;
 /// Capacity of the cordial knowledge channel. For normal operation with
-/// 100 authorities, this allows buffering up to 5 seconds of headers at 200ms
+/// 100 authorities, this allows buffering up to 5 seconds of headers at 20
 /// blocks/sec. When the channel is full, the sender will skip sending new
 /// messages.
 const CORDIAL_KNOWLEDGE_CHANNEL_CAPACITY: usize = 10_000;
