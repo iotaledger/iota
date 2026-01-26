@@ -8,8 +8,9 @@
 //! types.
 
 use iota_sdk_types::{
-    CheckpointSequenceNumber, Digest, Object, Transaction, TransactionEffects, TransactionEvents,
-    UserSignature,
+    CheckpointContents, CheckpointSequenceNumber, CheckpointSummary, Digest, Event, Object,
+    Transaction, TransactionEffects, TransactionEvents, UserSignature,
+    ValidatorAggregatedSignature,
 };
 
 mod common;
@@ -17,8 +18,8 @@ pub mod execution;
 pub mod ledger;
 
 pub use common::{
-    EXECUTION_READ_MASK, Error, OBJECTS_READ_MASK, Result, TRANSACTIONS_READ_MASK,
-    TransactionExecutionResponse,
+    CHECKPOINT_DATA_READ_MASK, EXECUTION_READ_MASK, Error, OBJECTS_READ_MASK, Result,
+    TRANSACTIONS_READ_MASK, TransactionExecutionResponse,
 };
 pub(crate) use common::{
     ProtoResult, TryFromProtoError, build_proto_transaction, convert_object,
@@ -45,6 +46,10 @@ pub struct TransactionResponse {
     /// Timestamp in milliseconds when the transaction was executed (if
     /// available).
     pub timestamp_ms: Option<u64>,
+    /// Input objects used by the transaction (if requested).
+    pub input_objects: Option<Vec<Object>>,
+    /// Output objects created/modified by the transaction (if requested).
+    pub output_objects: Option<Vec<Object>>,
 }
 
 /// Response for transaction simulation.
@@ -76,4 +81,24 @@ impl From<TransactionExecutionResponse> for TransactionSimulationResponse {
             output_objects: data.output_objects.unwrap_or_default(),
         }
     }
+}
+
+/// Response for a full checkpoint data query.
+///
+/// Contains checkpoint summary, optional contents, transactions, and events.
+/// Fields are optional based on the `read_mask` parameter used in the request.
+#[derive(Debug, Clone)]
+pub struct CheckpointResponse {
+    /// The checkpoint sequence number.
+    pub sequence_number: CheckpointSequenceNumber,
+    /// Checkpoint summary (if requested).
+    pub summary: Option<CheckpointSummary>,
+    /// Aggregated signature for the checkpoint summary (if requested).
+    pub summary_signature: Option<ValidatorAggregatedSignature>,
+    /// Checkpoint contents (if requested).
+    pub contents: Option<CheckpointContents>,
+    /// Executed transactions in this checkpoint (if requested).
+    pub transactions: Vec<TransactionResponse>,
+    /// All events from all transactions in this checkpoint (if requested).
+    pub events: Vec<Event>,
 }

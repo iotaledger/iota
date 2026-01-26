@@ -13,7 +13,7 @@ use crate::{
     Client,
     api::{
         Error, ProtoResult, Result, TRANSACTIONS_READ_MASK, TransactionResponse, TryFromProtoError,
-        extract_effects_and_events, field_mask_with_default,
+        convert_object, extract_effects_and_events, field_mask_with_default,
     },
 };
 
@@ -95,7 +95,7 @@ impl Client {
         while let Some(response) = stream.message().await? {
             for result in response.transactions {
                 let proto_tx = result.into_result()?;
-                results.push(convert_to_response(*proto_tx)?);
+                results.push(convert_to_transaction_response(*proto_tx)?);
             }
         }
 
@@ -104,7 +104,7 @@ impl Client {
 }
 
 /// Convert a proto ExecutedTransaction to TransactionResponse.
-fn convert_to_response(
+pub(crate) fn convert_to_transaction_response(
     proto: iota_grpc_types::v0::transaction::ExecutedTransaction,
 ) -> Result<TransactionResponse> {
     // Extract and deserialize transaction BCS (required)
@@ -130,6 +130,29 @@ fn convert_to_response(
 
     let (effects, events) = extract_effects_and_events(&proto)?;
 
+    // Extract input/output objects if present
+    let input_objects = proto
+        .input_objects
+        .as_ref()
+        .map(|objs| {
+            objs.objects
+                .iter()
+                .map(|o| convert_object(o, "input_object"))
+                .collect::<Result<Vec<_>>>()
+        })
+        .transpose()?;
+
+    let output_objects = proto
+        .output_objects
+        .as_ref()
+        .map(|objs| {
+            objs.objects
+                .iter()
+                .map(|o| convert_object(o, "output_object"))
+                .collect::<Result<Vec<_>>>()
+        })
+        .transpose()?;
+
     Ok(TransactionResponse {
         digest: transaction.digest(),
         transaction,
@@ -138,6 +161,8 @@ fn convert_to_response(
         events,
         checkpoint,
         timestamp_ms,
+        input_objects,
+        output_objects,
     })
 }
 

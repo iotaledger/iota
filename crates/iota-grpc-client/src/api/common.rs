@@ -38,6 +38,13 @@ pub enum Error {
     Grpc(#[from] tonic::Status),
 }
 
+impl Error {
+    /// Create a new server error.
+    pub fn server<T: AsRef<str>>(msg: T) -> Self {
+        Error::Server(msg.as_ref().to_string())
+    }
+}
+
 impl From<Error> for tonic::Status {
     fn from(err: Error) -> Self {
         match err {
@@ -92,6 +99,21 @@ pub const TRANSACTIONS_READ_MASK: &str =
 /// If you provide a custom mask, you must include `bcs`, or deserialization
 /// will fail.
 pub const OBJECTS_READ_MASK: &str = "bcs";
+
+/// Default field mask for checkpoint data queries.
+///
+/// **Required fields for `CheckpointResponse` deserialization:**
+/// - `summary` - Checkpoint summary (required)
+///
+/// **Optional fields:**
+/// - `contents` - Checkpoint contents
+/// - `signature` - Checkpoint signature
+/// - `transactions` - Executed transactions
+/// - `events` - Transaction events
+///
+/// If you provide a custom mask, you must include at least `summary`,
+/// or deserialization will fail.
+pub const CHECKPOINT_DATA_READ_MASK: &str = "summary,contents,signature,transactions,events";
 
 /// Default field mask for [`crate::Client::execute_transaction`] and
 /// [`crate::Client::simulate_transaction`].
