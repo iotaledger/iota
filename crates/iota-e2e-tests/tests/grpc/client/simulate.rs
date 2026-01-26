@@ -5,8 +5,11 @@ use iota_macros::sim_test;
 use iota_sdk_types::Transaction;
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::base_types::IotaAddress;
+use tonic::Code;
 
-use super::common::{create_transaction_for_simulation, is_success, setup_grpc_test};
+use super::common::{
+    create_transaction_for_simulation, is_grpc_error, is_success, setup_grpc_test,
+};
 
 #[sim_test]
 async fn simulate_transaction_scenarios() {
@@ -44,7 +47,10 @@ async fn simulate_transaction_scenarios() {
         "Effects should be present with minimal mask"
     );
 
-    // Test: insufficient gas budget
+    // Test: insufficient gas budget returns gRPC error
+    // Gas budget validation (min/max bounds) happens upfront in
+    // check_gas_balance(), so a budget of 1 (below minimum) is rejected before
+    // execution begins.
     let (sender, gas) = test_cluster
         .wallet
         .get_one_gas_object()
@@ -58,22 +64,14 @@ async fn simulate_transaction_scenarios() {
         .build();
     let transaction: Transaction = tx_data.try_into().expect("SDK type conversion failed");
     let result = client.simulate_transaction(transaction, false, None).await;
-    // With insufficient gas budget, simulation may either:
-    // - Return an error from the server
-    // - Succeed but show failure in effects (InsufficientGas)
-    match result {
-        Ok(response) => {
-            assert!(
-                !is_success(response.effects.status()),
-                "Simulation with insufficient gas should fail in effects"
-            );
-        }
-        Err(_) => {
-            // Server rejected the transaction due to invalid gas budget
-        }
-    }
+    assert!(
+        matches!(&result, Err(err) if is_grpc_error(err, Code::Internal)),
+        "Insufficient gas budget should return gRPC Internal error, got: {result:?}"
+    );
 
-    // Test: transfer exceeding balance
+    // Test: transfer exceeding balance returns Ok with failed effects
+    // Transfer amount validation happens during Move VM execution, not upfront,
+    // so the RPC succeeds but effects show failure (e.g., InsufficientCoinBalance).
     let (sender, gas) = test_cluster
         .wallet
         .get_one_gas_object()
@@ -86,19 +84,12 @@ async fn simulate_transaction_scenarios() {
         .transfer_iota(Some(1_000_000_000_000_000_000), fake_recipient)
         .build();
     let transaction: Transaction = tx_data.try_into().expect("SDK type conversion failed");
-    let result = client.simulate_transaction(transaction, false, None).await;
-    // Transferring more than available balance should either:
-    // - Return an error from the server
-    // - Succeed but show failure in effects (InsufficientCoinBalance)
-    match result {
-        Ok(response) => {
-            assert!(
-                !is_success(response.effects.status()),
-                "Simulation with insufficient balance should fail in effects"
-            );
-        }
-        Err(_) => {
-            // Server rejected the transaction due to insufficient balance
-        }
-    }
+    let response = client
+        .simulate_transaction(transaction, false, None)
+        .await
+        .expect("Simulation should succeed at RPC level");
+    assert!(
+        !is_success(response.effects.status()),
+        "Effects should show failure due to insufficient balance"
+    );
 }
