@@ -227,7 +227,7 @@ mod tests {
         block_header::{BlockRef, genesis_block_headers, genesis_blocks},
         commit::{CommitRef, PendingSubDag},
         context::Context,
-        dag_state::{DagState, TransactionSource},
+        dag_state::{BlockHeaderSource, DagState, TransactionSource},
         test_dag_builder::DagBuilder,
     };
 
@@ -284,7 +284,10 @@ mod tests {
             if included_rounds.contains(&0) {
                 let genesis_blocks = genesis_blocks(&self.context);
                 for (i, block) in genesis_blocks.iter().enumerate() {
-                    state.accept_block_header(block.verified_block_header.clone());
+                    state.accept_block_header(
+                        block.verified_block_header.clone(),
+                        BlockHeaderSource::Test,
+                    );
                     if !excluded_transactions.contains(&(0, i)) {
                         state.add_transactions(
                             block.verified_transactions.clone(),
@@ -302,7 +305,10 @@ mod tests {
 
                 let blocks = self.dag_builder.blocks(round..=round);
                 for (i, block) in blocks.iter().enumerate() {
-                    state.accept_block_header(block.verified_block_header.clone());
+                    state.accept_block_header(
+                        block.verified_block_header.clone(),
+                        BlockHeaderSource::Test,
+                    );
                     if !excluded_transactions.contains(&(round, i)) {
                         state.add_transactions(
                             block.verified_transactions.clone(),

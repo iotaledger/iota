@@ -1153,7 +1153,7 @@ mod tests {
         context::Context,
         core::ReasonToCreateBlock,
         core_thread::CoreError,
-        dag_state::DagState,
+        dag_state::{BlockHeaderSource, DagState},
         network::{BlockBundleStream, NetworkClient, SerializedTransactions},
         storage::mem_store::MemStore,
     };
@@ -1227,7 +1227,9 @@ mod tests {
                 .await;
         }
 
-        dag_state.write().accept_block_headers(block_headers);
+        dag_state
+            .write()
+            .accept_block_headers(block_headers, BlockHeaderSource::Test);
 
         // WHEN
         // Request the transactions
@@ -1330,7 +1332,9 @@ mod tests {
         // Delay fetch transactions response to simulate saturation deterministically.
 
         // Add block headers to the dag state
-        dag_state.write().accept_block_headers(block_headers);
+        dag_state
+            .write()
+            .accept_block_headers(block_headers, BlockHeaderSource::Test);
 
         // WHEN
         // Send many requests to saturate the tasks
@@ -1455,7 +1459,9 @@ mod tests {
             .await;
 
         // Add block headers to the dag state
-        dag_state.write().accept_block_headers(block_headers);
+        dag_state
+            .write()
+            .accept_block_headers(block_headers, BlockHeaderSource::Test);
 
         // WHEN
         // Request the transactions
@@ -1572,7 +1578,9 @@ mod tests {
         }
 
         // Add block headers to the dag state
-        dag_state.write().accept_block_headers(block_headers);
+        dag_state
+            .write()
+            .accept_block_headers(block_headers, BlockHeaderSource::Test);
 
         // WHEN
         // Request the transactions
@@ -1682,7 +1690,9 @@ mod tests {
             .await;
 
         // Add block headers to the dag state
-        dag_state.write().accept_block_headers(block_headers);
+        dag_state
+            .write()
+            .accept_block_headers(block_headers, BlockHeaderSource::Test);
 
         // WHEN
         // Request the transactions
@@ -1792,7 +1802,9 @@ mod tests {
             .await;
 
         // Add block headers to the dag state
-        dag_state.write().accept_block_headers(block_headers);
+        dag_state
+            .write()
+            .accept_block_headers(block_headers, BlockHeaderSource::Test);
 
         // WHEN
         // Request the transactions
@@ -1898,7 +1910,9 @@ mod tests {
             .await;
 
         // Add block headers to the dag state
-        dag_state.write().accept_block_headers(block_headers);
+        dag_state
+            .write()
+            .accept_block_headers(block_headers, BlockHeaderSource::Test);
 
         // WHEN
         // Request the transactions
@@ -2177,6 +2191,7 @@ mod tests {
         async fn add_block_headers(
             &self,
             _block_headers: Vec<VerifiedBlockHeader>,
+            _source: BlockHeaderSource,
         ) -> Result<
             (
                 BTreeSet<BlockRef>,
