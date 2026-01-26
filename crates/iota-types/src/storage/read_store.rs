@@ -4,8 +4,12 @@
 
 use std::sync::Arc;
 
-use move_core_types::language_storage::{StructTag, TypeTag};
+use move_core_types::{
+    annotated_value::MoveTypeLayout,
+    language_storage::{StructTag, TypeTag},
+};
 use serde::{Deserialize, Serialize};
+use typed_store_error::TypedStoreError;
 
 use super::{ObjectStore, error::Result};
 use crate::{
@@ -814,8 +818,30 @@ pub trait RestStateReader: ObjectStore + ReadStore + Send + Sync {
 
     // Get a handle to an instance of the RpcIndexes
     fn indexes(&self) -> Option<&dyn RestIndexes>;
+
+    fn get_type_layout(&self, type_tag: &TypeTag) -> Result<Option<MoveTypeLayout>> {
+        match type_tag {
+            TypeTag::Bool => Ok(Some(MoveTypeLayout::Bool)),
+            TypeTag::U8 => Ok(Some(MoveTypeLayout::U8)),
+            TypeTag::U64 => Ok(Some(MoveTypeLayout::U64)),
+            TypeTag::U128 => Ok(Some(MoveTypeLayout::U128)),
+            TypeTag::Address => Ok(Some(MoveTypeLayout::Address)),
+            TypeTag::Signer => Ok(Some(MoveTypeLayout::Signer)),
+            TypeTag::Vector(type_tag) => Ok(self
+                .get_type_layout(type_tag)?
+                .map(|layout| MoveTypeLayout::Vector(Box::new(layout)))),
+            TypeTag::Struct(struct_tag) => self.get_struct_layout(struct_tag),
+            TypeTag::U16 => Ok(Some(MoveTypeLayout::U16)),
+            TypeTag::U32 => Ok(Some(MoveTypeLayout::U32)),
+            TypeTag::U256 => Ok(Some(MoveTypeLayout::U256)),
+        }
+    }
+
+    fn get_struct_layout(&self, type_tag: &StructTag) -> Result<Option<MoveTypeLayout>>;
 }
 
+pub type DynamicFieldIteratorItem =
+    Result<(DynamicFieldKey, DynamicFieldIndexInfo), TypedStoreError>;
 pub trait RestIndexes: Send + Sync {
     fn get_transaction_checkpoint(
         &self,
@@ -826,13 +852,13 @@ pub trait RestIndexes: Send + Sync {
         &self,
         owner: IotaAddress,
         cursor: Option<ObjectID>,
-    ) -> Result<Box<dyn Iterator<Item = AccountOwnedObjectInfo> + '_>>;
+    ) -> Result<Box<dyn Iterator<Item = Result<AccountOwnedObjectInfo, TypedStoreError>> + '_>>;
 
     fn dynamic_field_iter(
         &self,
         parent: ObjectID,
         cursor: Option<ObjectID>,
-    ) -> Result<Box<dyn Iterator<Item = (DynamicFieldKey, DynamicFieldIndexInfo)> + '_>>;
+    ) -> Result<Box<dyn Iterator<Item = DynamicFieldIteratorItem> + '_>>;
 
     fn get_coin_info(&self, coin_type: &StructTag) -> Result<Option<CoinInfo>>;
 }

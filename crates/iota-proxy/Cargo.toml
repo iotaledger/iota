@@ -21,11 +21,11 @@ git-version.workspace = true
 hex.workspace = true
 hyper.workspace = true
 itertools.workspace = true
-multiaddr = "0.17.0"
+multiaddr.workspace = true
 once_cell.workspace = true
 prometheus.workspace = true
 prost.workspace = true
-protobuf.workspace = true
+protobuf = { version = "3.7.2", features = ["with-bytes"] }
 rand.workspace = true
 reqwest.workspace = true
 rustls.workspace = true
@@ -48,7 +48,7 @@ telemetry-subscribers.workspace = true
 
 [dev-dependencies]
 axum-server.workspace = true
-mime = "0.3"
+mime.workspace = true
 tower.workspace = true
 
 [build-dependencies]

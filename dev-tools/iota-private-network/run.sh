@@ -6,7 +6,7 @@
 
 # Default validator count and consensus
 NUM_VALIDATORS=4
-PROTOCOL="mysticeti"
+PROTOCOL="starfish"
 while getopts "n:p:" opt; do
   case "$opt" in
     n) NUM_VALIDATORS="$OPTARG" ;;

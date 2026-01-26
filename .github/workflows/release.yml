@@ -250,7 +250,13 @@ jobs:
           echo "iota_tag = $iota_tag"
           trl=$(echo "$iota_tag" | sed -n 's/^[^-]*\(-.*\)/\1/p')
           echo "trl = $trl"
-          previous_tag=$(git tag --sort=-version:refname | grep -E "^v[0-9]+\.[0-9]+\.[0-9]+$trl$" | grep -Fv $iota_tag | head -n 1)
+
+          current_minor=$(echo "$iota_tag" | sed -E 's/^v[0-9]+\.([0-9]+)\..*/\1/')
+          current_major=$(echo "$iota_tag" | sed -E 's/^v([0-9]+)\..*/\1/')
+          previous_minor=$((current_minor - 1))
+          echo "Current major: $current_major, current minor: $current_minor, previous minor: $previous_minor"
+
+          previous_tag=$(git tag --sort=-version:refname | grep -E "^v${current_major}\.${previous_minor}\.[0-9]+${trl}$" | head -n 1)
           echo "Previous tag: $previous_tag"
           previous_commit_hash=$(git rev-list -n 1 "${previous_tag}")
           echo "Previous commit hash: $previous_commit_hash"
@@ -275,8 +281,8 @@ jobs:
     name: Update the homebrew-tap formula
     needs: release-build
     runs-on: ubuntu-latest
-    # releasing iota cli on testnet releases because it lags `develop` less than mainnet, but is more likely to be stable than devnet
-    if: ${{ github.event_name == 'release' && contains(github.ref, '-rc') }}
+    # Releasing iota cli on Testnet and Mainnet releases which are equally stable
+    if: ${{ github.event_name == 'release' && !contains(github.ref, '-alpha') && !contains(github.ref, '-beta')}}
     steps:
       - name: Install Homebrew
         run: |

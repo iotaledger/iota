@@ -19,11 +19,13 @@ PERCENT_BLOCK=0           # Percent chance to block a connection
 PERCENT_LOSS=0           # Percent chance to apply packet loss
 PERCENT_RESTART=0         # Percent of validators to stop and start after RESTART_DURATION seconds
 RESTART_DURATION=120    # Seconds to stop validators during restart
+RESTART_TIMEOUT=60      # Seconds to wait before restarting (timeout duration)
+RESTART_MODE="preserve-consensus"  # restart mode: preserve-consensus | full-reset | simple-restart
 GEODISTRIBUTED=false  # Large geodistributed latencies or small ones
 LOG_FILE="logs/fuzz_script.log" # Output file for script
 
 # --- Command-line arguments ---
-while getopts "g:n:s:b:l:r:o:" opt; do
+while getopts "g:n:s:b:l:r:d:w:M:o:" opt; do
   case "$opt" in
     g) GEODISTRIBUTED="$OPTARG" ;;
     n) NUMBER_VALIDATORS="$OPTARG" ;;
@@ -31,8 +33,11 @@ while getopts "g:n:s:b:l:r:o:" opt; do
     b) PERCENT_BLOCK="$OPTARG" ;;
     l) PERCENT_LOSS="$OPTARG" ;;
     r) PERCENT_RESTART="$OPTARG" ;;
+    d) RESTART_DURATION="$OPTARG" ;;
+    w) RESTART_TIMEOUT="$OPTARG" ;;
+    M) RESTART_MODE="$OPTARG" ;;
     o) LOG_FILE="$OPTARG" ;;
-    *) echo "Usage: $0 [-n num_validators] [-s seed] [-b percent_block] [-l percent_packet_loss] [-r percent_restart] [-g geodistributed_bool]"; exit 1 ;;
+    *) echo "Usage: $0 [-n num_validators] [-s seed] [-b percent_block] [-l percent_packet_loss] [-r percent_restart] [-d restart_duration] [-w restart_timeout] [-M restart_mode(preserve-consensus|full-reset|simple-restart)] [-g geodistributed_bool]"; exit 1 ;;
   esac
 done
 shift $((OPTIND-1))
@@ -113,7 +118,18 @@ apply_and_mark() {
 
   # Get container PID and target IP
   pid=$(container_pid "$A")
+  # Skip if container doesn't have a valid PID (not fully started yet)
+  if [ -z "$pid" ] || [ "$pid" = "0" ]; then
+    flock -u 200
+    return 0
+  fi
+
   IPB=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' "$B")
+  # Skip if unable to get IP address
+  if [ -z "$IPB" ]; then
+    flock -u 200
+    return 0
+  fi
 
   # Derive a per-destination mark from the validator index of B
   local idxB mark classid
@@ -169,12 +185,62 @@ block_connection() {
   log "Blocked traffic $A → $B"
 }
 
-# restart a container with validator
+# Restart a validator container with configurable database handling.
+# Supports three modes:
+#   - preserve-consensus: Remove only authorities_db, keep consensus_db
+#   - full-reset: Remove both authorities_db and consensus_db
+#   - simple-restart: Don't remove any databases, clean docker restart only
 restart_validator() {
- local v=$1 d=$2
- log "Stopping $v for ${d}s..."
+ local v=$1 d=$2 timeout=${3:-60} mode=${4:-preserve-consensus}
+ log "Stopping $v..."
  docker stop "$v" >/dev/null 2>&1
- sleep "$d"
+
+ local validator_num=${v#validator-}
+ local base_path="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/data/validator-${validator_num}"
+
+ case "$mode" in
+   preserve-consensus)
+     # Remove only authorities_db, keep consensus_db
+     log "Restart mode: preserve-consensus (removing authorities_db only)"
+     local db_path="$base_path/authorities_db"
+     if [ -d "$db_path" ]; then
+       log "Node database found at: $db_path (size: $(du -sh "$db_path" 2>/dev/null | cut -f1))"
+       rm -rf "$db_path" || log "Error: Failed to remove node database"
+       [ ! -d "$db_path" ] && log "Successfully deleted node database for $v"
+     else
+       log "Warning: Node database not found at $db_path"
+     fi
+     ;;
+
+   full-reset)
+     # Remove both databases
+     log "Restart mode: full-reset (removing both authorities_db and consensus_db)"
+     for db in authorities_db consensus_db; do
+       local db_path="$base_path/$db"
+       if [ -d "$db_path" ]; then
+         log "Removing $db at: $db_path (size: $(du -sh "$db_path" 2>/dev/null | cut -f1))"
+         rm -rf "$db_path" || log "Error: Failed to remove $db"
+         [ ! -d "$db_path" ] && log "Successfully deleted $db for $v"
+       else
+         log "Warning: $db not found at $db_path"
+       fi
+     done
+     ;;
+
+   simple-restart)
+     # Don't remove any databases
+     log "Restart mode: simple-restart (no database deletion)"
+     ;;
+
+   *)
+     log "Error: Unknown restart mode: $mode"
+     ;;
+ esac
+
+ log "Waiting $timeout seconds before restarting $v..."
+ sleep "$timeout"
+
+ # Restart the validator
  docker start "$v" >/dev/null 2>&1
  log "Restarted $v"
 }
@@ -240,7 +306,7 @@ restart_loop() {
     # Restart chosen validators
     for ((k=0; k<num_to_restart; k++)); do
       v=${validators[indices[k]]}  # <-- fixed
-      restart_validator "$v" "$RESTART_DURATION" &
+      restart_validator "$v" "$RESTART_DURATION" "$RESTART_TIMEOUT" "$RESTART_MODE" &
     done
     log "Don't change restarts for duration=$(( 2 * RESTART_DURATION ))"
     sleep $(( 2 * RESTART_DURATION ))
@@ -306,6 +372,11 @@ reapply_latencies_and_fuzz_loop() {
             fi
 
             pid=$(container_pid "$v")
+            # Skip if container doesn't have a valid PID yet (still starting up)
+            if [ -z "$pid" ] || [ "$pid" = "0" ]; then
+                continue
+            fi
+
             if ! nsenter -t "$pid" -n tc qdisc show dev eth0 | grep -q "netem"; then
                 log "Reapplying latency + fuzz for $v (container restarted or tc removed)"
 

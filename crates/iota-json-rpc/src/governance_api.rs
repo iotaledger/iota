@@ -275,6 +275,10 @@ impl GovernanceReadApi {
         let rates = exchange_rates(&self.state, system_state_summary.epoch)
             .await?
             .into_iter()
+            // Try to find for any candidate validator exchange rate
+            .chain(candidate_validators_exchange_rate(&self.state)?)
+            // Try to find for any pending validator exchange rate
+            .chain(pending_validators_exchange_rate(&self.state)?)
             .map(|rates| (rates.pool_id, rates))
             .collect::<BTreeMap<_, _>>();
 

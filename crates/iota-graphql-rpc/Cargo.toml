@@ -9,9 +9,9 @@ publish = false
 [dependencies]
 # external dependencies
 anyhow.workspace = true
-async-graphql = { workspace = true, features = ["dataloader", "apollo_tracing", "tracing", "opentelemetry"] }
-async-graphql-axum = "7.0.17"
-async-graphql-value = "7.0.17"
+async-graphql = { workspace = true, features = ["dataloader", "apollo_tracing", "tracing", "opentelemetry", "graphiql"] }
+async-graphql-axum = "7.1.0"
+async-graphql-value = "7.1.0"
 async-trait.workspace = true
 axum.workspace = true
 axum-extra.workspace = true
@@ -22,16 +22,15 @@ chrono.workspace = true
 clap.workspace = true
 const-str.workspace = true
 diesel = { workspace = true, features = ["i-implement-a-third-party-backend-and-opt-into-breaking-changes"] }
-downcast = "0.11.0"
+downcast.workspace = true
 fastcrypto = { workspace = true, features = ["copy_key"] }
 fastcrypto-zkp.workspace = true
 futures.workspace = true
 hex.workspace = true
 http.workspace = true
-http-body-util = "0.1.2"
+http-body-util.workspace = true
 hyper.workspace = true
 im.workspace = true
-iota-sdk-types.workspace = true
 jsonrpsee.workspace = true
 once_cell.workspace = true
 prometheus.workspace = true
@@ -66,6 +65,7 @@ iota-names.workspace = true
 iota-network-stack.workspace = true
 iota-package-resolver.workspace = true
 iota-rest-api.workspace = true
+iota-sdk-types.workspace = true
 iota-swarm-config.workspace = true
 iota-types.workspace = true
 move-binary-format.workspace = true
@@ -82,7 +82,7 @@ hyper.workspace = true
 insta.workspace = true
 rand.workspace = true
 serde_json.workspace = true
-serial_test = "2.0.0"
+serial_test.workspace = true
 tower.workspace = true
 
 # internal dependencies

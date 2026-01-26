@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { ButtonUnstyled, Input, InputType } from '@iota/apps-ui-kit';
-import { CheckmarkFilled, Close, CloseFilled, Loader2 } from '@iota/apps-ui-icons';
+import { CheckmarkFilled, Close, Loader2 } from '@iota/apps-ui-icons';
 import { useField, useFormikContext } from 'formik';
 import clsx from 'clsx';
 import { formatAddress } from '@iota/iota-sdk/utils';
@@ -102,9 +102,7 @@ export function AddressInput({
                                     />
                                 ) : nameRecord?.targetAddress ? (
                                     <CheckmarkFilled className={clsx(ICON_COMMON_CLASSES)} />
-                                ) : (
-                                    <CloseFilled className={clsx(ICON_COMMON_CLASSES)} />
-                                )
+                                ) : null
                             ) : null}
                         </>
                     ) : undefined

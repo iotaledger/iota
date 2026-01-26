@@ -1,0 +1,290 @@
+---
+title: University Degree Verification System
+sidebar_label: University Degrees
+description: Real-world example demonstrating a comprehensive university degree verification system using IOTA Hierarchies.
+teams:
+  - iotaledger/identity
+tags:
+  - hierarchies
+  - how-to
+---
+
+# University Degree Verification System
+
+This real-world example demonstrates how to use IOTA Hierarchies to create a comprehensive university degree verification system that enables universities to issue verifiable digital degrees and allows employers and institutions to verify credentials instantly.
+
+## Business Context
+
+Universities need to issue verifiable digital degrees that employers and other institutions can trust. The hierarchical structure allows:
+- University consortiums to establish trust networks
+- Individual universities to delegate authority to faculties
+- Faculties to delegate to registrars and professors
+- External parties to verify credentials without contacting the university directly
+
+## Trust Hierarchy
+
+```
+University Consortium (Root Authority)
+├── Harvard University (Root Authority)
+│   ├── Computer Science Faculty (Accreditor)
+│   │   └── CS Registrar (Attester)
+│   └── Engineering Faculty (Accreditor)
+│       └── Engineering Registrar (Attester)
+└── MIT (Root Authority)
+    ├── Computer Science Faculty (Accreditor)
+    └── Engineering Faculty (Accreditor)
+```
+
+## Properties Defined
+
+The system defines comprehensive academic properties with advanced validation:
+
+- **Degree Types**: `degree.bachelor`, `degree.master`, `degree.phd` (with completion status)
+- **Fields of Study**: `field.computer_science`, `field.engineering`, `field.mathematics`
+- **Academic Performance**: `grade.gpa` (validated: > 2.0, specific ranges allowed)
+- **Graduation Year**: `graduation.year` (validated: > 1950)
+- **Student Identity**: `student.id` (validated: format contains dash), `student.verified`
+- **Honors**: `honors.level` (specific Latin honor levels)
+
+## Prerequisites
+
+- A funded IOTA account
+- Access to an IOTA network (testnet, devnet, or local)
+- Hierarchies client SDK installed
+
+## Implementation Overview
+
+### 1. Create University Consortium Federation
+
+Initialize the root federation that will govern all participating universities:
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/hierarchies/tree/v0.1/hierarchies-rs/examples/real-world/01_university_degrees.rs#L69-L74
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/hierarchies/tree/v0.1/bindings/wasm/hierarchies_wasm/examples/src/real-world/02_university_degrees.ts#L248-L249
+```
+
+</TabItem>
+</Tabs>
+</div>
+
+### 2. Define Academic Properties
+
+Create comprehensive academic properties with advanced validation rules:
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/hierarchies/tree/v0.1/hierarchies-rs/examples/real-world/01_university_degrees.rs#L86-L257
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/hierarchies/tree/v0.1/bindings/wasm/hierarchies_wasm/examples/src/real-world/02_university_degrees.ts#L261-L408
+```
+
+</TabItem>
+</Tabs>
+</div>
+
+### 3. Add Universities as Root Authorities
+
+Register participating universities as root authorities in the consortium:
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/hierarchies/tree/v0.1/hierarchies-rs/examples/real-world/01_university_degrees.rs#L274-L288
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/hierarchies/tree/v0.1/bindings/wasm/hierarchies_wasm/examples/src/real-world/02_university_degrees.ts#L426-L437
+```
+
+</TabItem>
+</Tabs>
+</div>
+
+### 4. Create Hierarchical Delegation
+
+Set up the delegation chain: University → Faculty → Registrar:
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/hierarchies/tree/v0.1/hierarchies-rs/examples/real-world/01_university_degrees.rs#L300-L344
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/hierarchies/tree/v0.1/bindings/wasm/hierarchies_wasm/examples/src/real-world/02_university_degrees.ts#L449-L490
+```
+
+</TabItem>
+</Tabs>
+</div>
+
+### 5. Issue Student Degrees
+
+Create student degree attestations with comprehensive academic data:
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/hierarchies/tree/v0.1/hierarchies-rs/examples/real-world/01_university_degrees.rs#L356-L452
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/hierarchies/tree/v0.1/bindings/wasm/hierarchies_wasm/examples/src/real-world/02_university_degrees.ts#L502-L596
+```
+
+</TabItem>
+</Tabs>
+</div>
+
+### 6. Validate Credentials
+
+Demonstrate how employers and institutions can verify student credentials:
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/hierarchies/tree/v0.1/hierarchies-rs/examples/real-world/01_university_degrees.rs#L462-L474
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/hierarchies/tree/v0.1/bindings/wasm/hierarchies_wasm/examples/src/real-world/02_university_degrees.ts#L606-L638
+```
+
+</TabItem>
+</Tabs>
+</div>
+
+### 7. Handle Revocation
+
+Demonstrate secure degree revocation for academic misconduct:
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/hierarchies/tree/v0.1/hierarchies-rs/examples/real-world/01_university_degrees.rs#L520-L582
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/hierarchies/tree/v0.1/bindings/wasm/hierarchies_wasm/examples/src/real-world/02_university_degrees.ts#L660-L679
+```
+
+</TabItem>
+</Tabs>
+</div>
+
+## Real-World Applications
+
+### Employer Verification
+- **Scenario**: Tech company verifying software engineer candidate's Computer Science degree
+- **Process**: Instant cryptographic verification without contacting the university
+- **Benefits**: Fraud prevention, reduced hiring time, global credential recognition
+
+### Graduate School Admission
+- **Scenario**: PhD program verifying Master's degree for admission
+- **Process**: Automated verification of degree completion and GPA requirements
+- **Benefits**: Streamlined admissions, reduced administrative overhead
+
+### Professional Licensing
+- **Scenario**: Engineering board verifying degree requirements for licensing
+- **Process**: Cross-institutional verification with maintained privacy
+- **Benefits**: Regulatory compliance, professional standards enforcement
+
+### International Recognition
+- **Scenario**: Foreign university recognizing degrees for transfer students
+- **Process**: Global verification without complex bureaucratic processes
+- **Benefits**: Student mobility, educational opportunity expansion
+
+## Key Features
+
+### Advanced Property Validation
+- **GPA Validation**: Numeric ranges (2.0-4.0) with precision handling
+- **Graduation Year**: Range validation (1950+) preventing fraudulent dates
+- **Student ID Format**: University-specific format validation (contains dash)
+- **Honor Levels**: Predefined Latin honor designations
+
+### Security & Privacy
+- **Cryptographic Proof**: Tamper-resistant credential verification
+- **Privacy-Preserving**: Selective disclosure of credential attributes
+- **Fraud Prevention**: Impossible to forge or duplicate credentials
+- **Audit Trail**: Complete history of credential lifecycle
+
+### Scalability & Interoperability
+- **Global Network**: Cross-institutional credential recognition
+- **Instant Verification**: Real-time validation without network delays
+- **Automatic Revocation**: Immediate effect across all validators
+- **Standards Compliance**: Compatible with existing educational frameworks
+
+## Benefits Achieved
+
+- **Instant Credential Verification**: Sub-second validation anywhere in the world
+- **Fraud Prevention**: Cryptographic security eliminates fake degrees
+- **Reduced Administrative Overhead**: Automated verification processes
+-**Global Interoperability**: Cross-border credential recognition
+- **Privacy-Preserving Verification**: Share only necessary information
+- **Automatic Revocation Handling**: Immediate network-wide updates
+- **Cost Reduction**: Eliminate manual verification processes
+- **Trust Chain Security**: Hierarchical authority validation
+
+## Full Example Code
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/hierarchies/tree/v0.1/hierarchies-rs/examples/real-world/01_university_degrees.rs
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/hierarchies/tree/v0.1/bindings/wasm/hierarchies_wasm/examples/src/real-world/02_university_degrees.ts
+```
+
+</TabItem>
+</Tabs>
+</div>
