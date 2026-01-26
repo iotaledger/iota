@@ -40,6 +40,8 @@ feature_flags:
   consensus_commit_transactions_only_for_traversed_headers: true
   congestion_limit_overshoot_in_gas_price_feedback_mechanism: true
   separate_gas_price_feedback_mechanism_for_randomness: true
+  calculate_validator_scores: true
+  adjust_rewards_by_score: true
 max_tx_size_bytes: 131072
 max_input_objects: 2048
 max_size_written_objects: 5000000
@@ -314,3 +316,4 @@ max_accumulated_txn_cost_per_object_in_mysticeti_commit: 10
 max_committee_members_count: 100
 consensus_gc_depth: 60
 max_congestion_limit_overshoot_per_commit: 100
+scorer_version: 1
