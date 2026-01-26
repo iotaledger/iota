@@ -408,7 +408,7 @@ fn init_benchmark_logger(
     let commit = settings.repository.commit.replace("/", "_");
 
     let mut timestamp = chrono::Local::now().format("%y%m%d_%H%M%S").to_string();
-    timestamp.push_str("_");
+    timestamp.push('_');
     timestamp.push_str(operation);
 
     let benchmark_dir = settings.results_dir.join(&commit).join(&timestamp);
