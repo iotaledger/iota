@@ -5,17 +5,11 @@
 
 import { ConnectButton } from '@iota/dapp-kit';
 import { IotaLogoWeb } from '@iota/apps-ui-icons';
-import {
-    Feature,
-    Theme,
-    ThemeSwitcher,
-    ToS_LINK,
-    useFeatureEnabledByNetwork,
-    useTheme,
-} from '@iota/core';
+import { Feature, Theme, ThemeSwitcher, useFeatureEnabledByNetwork, useTheme } from '@iota/core';
 import Link from 'next/link';
 import { Network } from '@iota/iota-sdk/client';
 import { usePersistedNetwork } from '@/hooks';
+import { LEGAL_LINKS } from '@/lib/constants/routes.constants';
 
 function HomeDashboardPage(): JSX.Element {
     const { theme } = useTheme();
@@ -66,14 +60,19 @@ function HomeDashboardPage(): JSX.Element {
                 <div className="flex flex-col items-center gap-y-1 text-center text-body-lg text-iota-neutral-60">
                     <span>&copy; IOTA Foundation {CURRENT_YEAR}</span>
                     <span>{process.env.NEXT_PUBLIC_DASHBOARD_REV}</span>
-                    <Link
-                        href={ToS_LINK}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-label-sm text-iota-primary-30 dark:text-iota-primary-80"
-                    >
-                        Terms of Service
-                    </Link>
+                    <div className="flex gap-md">
+                        {LEGAL_LINKS.map(({ title, href }) => (
+                            <Link
+                                key={href}
+                                href={href}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-label-sm text-iota-primary-30 dark:text-iota-primary-80"
+                            >
+                                {title}
+                            </Link>
+                        ))}
+                    </div>
                 </div>
             </div>
         </main>

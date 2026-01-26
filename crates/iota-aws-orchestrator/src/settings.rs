@@ -3,9 +3,11 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
+    collections::HashMap,
     env,
     fmt::Display,
     fs::{self},
+    hash::Hash,
     path::{Path, PathBuf},
 };
 
@@ -13,6 +15,79 @@ use reqwest::Url;
 use serde::{Deserialize, Deserializer, de::Error};
 
 use crate::error::{SettingsError, SettingsResult};
+
+/// Helper function to filter out empty strings and join them with a separator.
+pub(crate) fn join_non_empty_strings<S: AsRef<str>>(items: &[S], separator: &str) -> String {
+    items
+        .iter()
+        .map(|s| s.as_ref())
+        .filter(|f| !f.is_empty())
+        .collect::<Vec<_>>()
+        .join(separator)
+}
+
+pub fn build_cargo_command<S1: AsRef<str>, S2: AsRef<str>, S3: AsRef<str>>(
+    subcommand: &str,
+    toolchain: Option<String>,
+    features: Vec<String>,
+    binaries: &[S1],
+    setup_commands: &[S2],
+    additional_args: &[S3],
+) -> String {
+    let toolchain_arg = toolchain
+        .as_ref()
+        .filter(|t| t.as_str() != "stable")
+        .map(|t| format!("+{t}"))
+        .unwrap_or_default();
+
+    let target_dir_arg = toolchain
+        .filter(|t| t != "stable")
+        .map(|t| format!("--target-dir target_{t}"))
+        .unwrap_or_default();
+
+    let features_arg = if features.is_empty() {
+        "".to_string()
+    } else {
+        format!("--features \"{}\"", features.join(" "))
+    };
+
+    let binaries_args: Vec<String> = binaries
+        .iter()
+        .map(|name| format!("--bin {}", name.as_ref()))
+        .collect();
+    let binaries_args = join_non_empty_strings(&binaries_args, " ");
+
+    let additional_args_str = join_non_empty_strings(additional_args, " ");
+
+    let mut cargo_args = vec![
+        "cargo",
+        &toolchain_arg,
+        subcommand,
+        &target_dir_arg,
+        "--release",
+        &binaries_args,
+        &features_arg,
+    ];
+
+    if !additional_args_str.is_empty() {
+        cargo_args.extend(&["--", &additional_args_str]);
+    }
+
+    let cargo_command = join_non_empty_strings(&cargo_args, " ");
+
+    let default_setup = [
+        "source \"$HOME/.cargo/env\"",
+        "export RUSTFLAGS='-C target-cpu=native'",
+    ];
+
+    let all_commands: Vec<String> = default_setup
+        .iter()
+        .map(|s| s.to_string())
+        .chain(setup_commands.iter().map(|s| s.as_ref().to_string()))
+        .chain(std::iter::once(cargo_command))
+        .collect();
+    join_non_empty_strings(&all_commands, " && ")
+}
 
 /// The git repository holding the codebase.
 #[derive(Deserialize, Clone)]
@@ -42,6 +117,41 @@ where
 pub enum CloudProvider {
     #[serde(alias = "aws")]
     Aws,
+}
+
+/// Configuration for a build cache server that supports multiple CPU targets.
+#[derive(Deserialize, Clone)]
+pub struct BuildCacheServer {
+    /// List of CPU targets this server supports (e.g., ["x86-64", "x86-64-v2",
+    /// "x86-64-v3"]).
+    pub targets: Vec<String>,
+    /// The base URL of the build cache server (e.g., "http://192.168.1.100:8080").
+    pub url: String,
+    /// Optional username for basic authentication.
+    #[serde(default)]
+    pub username: Option<String>,
+    /// Optional password for basic authentication.
+    #[serde(default)]
+    pub password: Option<String>,
+}
+
+/// Configuration for the optional build cache.
+#[derive(Deserialize, Clone)]
+pub struct BuildCache {
+    /// Whether to enable the build cache.
+    pub enabled: bool,
+    /// Named build cache server configurations.
+    pub servers: HashMap<String, BuildCacheServer>,
+}
+
+#[derive(Deserialize, Clone)]
+pub struct BinaryBuildConfig {
+    /// Select rust toolchain to build and run the binary.
+    #[serde(default)]
+    pub toolchain: Option<String>,
+    /// Additional features to enable when building the binary.
+    #[serde(default)]
+    pub features: Vec<String>,
 }
 
 /// The testbed settings. Those are topically specified in a file.
@@ -74,20 +184,31 @@ pub struct Settings {
     pub client_specs: String,
     /// Region to deploy the metrics instance.
     pub metrics_specs: String,
-    /// The details of the git reposit to deploy.
+    /// Optional build cache configuration.
+    pub build_cache: Option<BuildCache>,
+    /// The details of the git repository to deploy.
     pub repository: Repository,
     /// The working directory on the remote instance (containing all
     /// configuration files).
     #[serde(default = "default_working_dir")]
     pub working_dir: PathBuf,
+    /// Pass '--use-fullnode-for-execution' and '--fullnode-rpc-addresses' to
+    /// stress binary.
+    #[serde(default)]
+    pub use_fullnode_for_execution: bool,
     /// The directory (on the local machine) where to save benchmarks
-    /// measurements.
+    /// results.
     #[serde(default = "default_results_dir")]
     pub results_dir: PathBuf,
-    /// The directory (on the local machine) where to download logs files from
-    /// the instances.
-    #[serde(default = "default_logs_dir")]
-    pub logs_dir: PathBuf,
+    /// Binary build configuration.
+    #[serde(default)]
+    pub build_configs: HashMap<String, BinaryBuildConfig>,
+    /// Enable flamegraphs when running nodes.
+    #[serde(default)]
+    pub enable_flamegraph: bool,
+    /// Enable prometheus snapshots.
+    #[serde(default)]
+    pub enable_prometheus_snapshots: bool,
 }
 
 fn default_working_dir() -> PathBuf {
@@ -96,10 +217,6 @@ fn default_working_dir() -> PathBuf {
 
 fn default_results_dir() -> PathBuf {
     ["./", "results"].iter().collect()
-}
-
-fn default_logs_dir() -> PathBuf {
-    ["./", "logs"].iter().collect()
 }
 
 impl Settings {
@@ -114,7 +231,6 @@ impl Settings {
             let settings: Settings = serde_json::from_slice(data.as_bytes())?;
 
             fs::create_dir_all(&settings.results_dir)?;
-            fs::create_dir_all(&settings.logs_dir)?;
 
             Ok(settings)
         };
@@ -165,6 +281,51 @@ impl Settings {
         }
     }
 
+    /// Check if the build cache is enabled.
+    pub fn build_cache_enabled(&self) -> bool {
+        self.build_cache
+            .as_ref()
+            .map(|b| b.enabled)
+            .unwrap_or(false)
+    }
+
+    /// Get build groups for the default binaries (iota, iota-node, stress).
+    /// Groups binaries by toolchain and features to minimize build steps.
+    pub fn build_groups(&self) -> BuildGroups {
+        let mut groups: BuildGroups = HashMap::new();
+
+        for name in ["iota", "iota-node", "stress"] {
+            let config = self.build_configs.get(name);
+
+            let mut features = config.map(|c| c.features.clone()).unwrap_or_default();
+            features.sort(); // Sort for consistent grouping
+
+            let group = BuildGroup {
+                toolchain: config.and_then(|c| c.toolchain.clone()),
+                features,
+            };
+
+            groups.entry(group).or_default().push(name.to_string());
+        }
+
+        groups
+    }
+
+    /// Get the build cache server configuration for a specific CPU target.
+    pub fn build_cache_server_for_target(&self, cpu_target: &str) -> Option<&BuildCacheServer> {
+        self.build_cache.as_ref().and_then(|build_cache| {
+            if build_cache.enabled {
+                // Find a server that supports this CPU target
+                build_cache
+                    .servers
+                    .values()
+                    .find(|server| server.targets.contains(&cpu_target.to_string()))
+            } else {
+                None
+            }
+        })
+    }
+
     /// The number of regions specified in the settings.
     #[cfg(test)]
     pub fn number_of_regions(&self) -> usize {
@@ -191,16 +352,46 @@ impl Settings {
             node_specs: "small".into(),
             client_specs: "small".into(),
             metrics_specs: "small".into(),
+            build_cache: Some(BuildCache {
+                enabled: false,
+                servers: HashMap::from([(
+                    "x86_server".to_string(),
+                    BuildCacheServer {
+                        url: "http://127.0.0.1:8080".into(),
+                        username: None,
+                        password: None,
+                        targets: vec![
+                            "x86-64".to_string(),
+                            "x86-64-v2".to_string(),
+                            "x86-64-v3".to_string(),
+                        ],
+                    },
+                )]),
+            }),
             repository: Repository {
                 url: Url::parse("https://example.net/author/repo").unwrap(),
                 commit: "main".into(),
             },
             working_dir: "/path/to/working_dir".into(),
+            use_fullnode_for_execution: false,
             results_dir: "results".into(),
-            logs_dir: "logs".into(),
+            build_configs: HashMap::new(),
+            enable_flamegraph: false,
+            enable_prometheus_snapshots: false,
         }
     }
 }
+
+/// Represents a group of binaries that can be built together with the same
+/// toolchain and features.
+#[derive(Hash, Eq, PartialEq, Clone)]
+pub struct BuildGroup {
+    pub toolchain: Option<String>,
+    pub features: Vec<String>,
+}
+
+/// Maps build groups to the list of binary names in each group.
+pub type BuildGroups = HashMap<BuildGroup, Vec<String>>;
 
 // Resolves ${ENV} into it's value for each env variable.
 fn resolve_env(s: &str) -> String {

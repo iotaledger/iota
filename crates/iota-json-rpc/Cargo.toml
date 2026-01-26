@@ -22,7 +22,7 @@ chrono.workspace = true
 eyre.workspace = true
 fastcrypto.workspace = true
 futures.workspace = true
-http-body = "1.0"
+http-body.workspace = true
 hyper.workspace = true
 indexmap.workspace = true
 itertools.workspace = true
@@ -52,6 +52,7 @@ iota-names.workspace = true
 iota-open-rpc.workspace = true
 iota-package-resolver.workspace = true
 iota-protocol-config.workspace = true
+iota-sdk-types.workspace = true
 iota-storage.workspace = true
 iota-transaction-builder.workspace = true
 iota-types.workspace = true
@@ -59,7 +60,7 @@ move-binary-format.workspace = true
 move-bytecode-utils.workspace = true
 move-core-types.workspace = true
 move-package.workspace = true
-shared-crypto.workspace = true
+typed-store.workspace = true
 
 [dev-dependencies]
 # external dependencies

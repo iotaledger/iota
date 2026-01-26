@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
+    collections::HashMap,
     fmt::{Debug, Display},
     path::PathBuf,
     str::FromStr,
@@ -14,10 +15,11 @@ use serde::{Deserialize, Serialize};
 
 use super::{ProtocolCommands, ProtocolMetrics};
 use crate::{
+    ConsensusProtocol,
     benchmark::{BenchmarkParameters, BenchmarkType},
     client::Instance,
     display,
-    settings::Settings,
+    settings::{BinaryBuildConfig, Settings, build_cargo_command, join_non_empty_strings},
 };
 
 #[derive(Serialize, Deserialize, Clone, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -54,26 +56,83 @@ impl BenchmarkType for IotaBenchmarkType {}
 /// All configurations information to run an IOTA client or validator.
 pub struct IotaProtocol {
     working_dir: PathBuf,
+    use_fullnode_for_execution: bool,
+    use_precompiled_binaries: bool,
+    build_configs: HashMap<String, BinaryBuildConfig>,
+    enable_flamegraph: bool,
+}
+
+impl IotaProtocol {
+    /// Make a new instance of the IOTA protocol commands generator.
+    pub fn new(settings: &Settings) -> Self {
+        Self {
+            working_dir: [&settings.working_dir, &iota_config::IOTA_CONFIG_DIR.into()]
+                .iter()
+                .collect(),
+            use_fullnode_for_execution: settings.use_fullnode_for_execution,
+            use_precompiled_binaries: settings.build_cache_enabled(),
+            build_configs: settings.build_configs.clone(),
+            enable_flamegraph: settings.enable_flamegraph,
+        }
+    }
+
+    /// Build the command to run a binary, either using precompiled binary or
+    /// cargo run. Returns the command string with proper toolchain and
+    /// features configured.
+    fn run_binary_command<S1: AsRef<str>, S2: AsRef<str>>(
+        &self,
+        binary_name: &str,
+        setup_commands: &[S1],
+        additional_args: &[S2],
+    ) -> String {
+        if self.use_precompiled_binaries {
+            // The precompiled binary is located in the working directory
+            let binary_path = format!("./target/release/{binary_name}");
+            let binary_command = join_non_empty_strings(
+                &std::iter::once(binary_path.as_str())
+                    .chain(additional_args.iter().map(|s| s.as_ref()))
+                    .collect::<Vec<_>>(),
+                " ",
+            );
+
+            let all_commands: Vec<String> = setup_commands
+                .iter()
+                .map(|s| s.as_ref().to_string())
+                .chain(std::iter::once(binary_command))
+                .collect();
+
+            join_non_empty_strings(&all_commands, " && ")
+        } else {
+            let build_config = self
+                .build_configs
+                .get(binary_name)
+                .expect("No build config found for binary");
+            build_cargo_command(
+                "run",
+                build_config.toolchain.clone(),
+                build_config.features.clone(),
+                &[binary_name],
+                setup_commands,
+                additional_args,
+            )
+        }
+    }
 }
 
 impl ProtocolCommands<IotaBenchmarkType> for IotaProtocol {
     fn protocol_dependencies(&self) -> Vec<&'static str> {
-        vec![
-            // Install typical iota dependencies.
-            "sudo apt-get -y install curl git-all clang cmake gcc libssl-dev pkg-config libclang-dev",
-            // This dependency is missing from the IOTA docs.
-            "sudo apt-get -y install libpq-dev",
-        ]
+        if !self.use_precompiled_binaries {
+            return vec!["sudo apt-get -y install libudev-dev libpq5 libpq-dev"];
+        }
+
+        vec![]
     }
 
     fn db_directories(&self) -> Vec<PathBuf> {
-        let authorities_db = [&self.working_dir, &iota_config::AUTHORITIES_DB_NAME.into()]
-            .iter()
-            .collect();
-        let consensus_db = [&self.working_dir, &iota_config::CONSENSUS_DB_NAME.into()]
-            .iter()
-            .collect();
-        vec![authorities_db, consensus_db]
+        let authorities_db = self.working_dir.join(iota_config::AUTHORITIES_DB_NAME);
+        let consensus_db = self.working_dir.join(iota_config::CONSENSUS_DB_NAME);
+        let full_node_db: PathBuf = self.working_dir.join(iota_config::FULL_NODE_DB_PATH);
+        vec![authorities_db, consensus_db, full_node_db]
     }
 
     fn genesis_command<'a, I>(
@@ -95,19 +154,33 @@ impl ProtocolCommands<IotaBenchmarkType> for IotaProtocol {
             })
             .collect::<Vec<_>>()
             .join(" ");
-        let genesis = [
-            "cargo run --release --bin iota --",
-            "genesis",
-            &format!("-f --working-dir {working_dir} --benchmark-ips {ips}"),
-        ]
-        .join(" ");
 
-        [
-            &format!("mkdir -p {working_dir}"),
-            "source $HOME/.cargo/env",
-            &genesis,
-        ]
-        .join(" && ")
+        let epoch_duration_flag = parameters
+            .epoch_duration_ms
+            .map(|epoch_duration_ms| format!("--epoch-duration-ms {epoch_duration_ms}"))
+            .unwrap_or_default();
+        let chain_start_timestamp_flag = parameters
+            .chain_start_timestamp_ms
+            .map(|timestamp_ms| format!("--chain-start-timestamp-ms {timestamp_ms}"))
+            .unwrap_or_default();
+        let additional_gas_accounts_flag = format!(
+            "--num-additional-gas-accounts {}",
+            parameters.additional_gas_accounts
+        );
+
+        let iota_command = self.run_binary_command(
+            "iota",
+            &[&format!("mkdir -p {working_dir}")],
+            &[
+                "genesis",
+                &format!("-f --working-dir {working_dir} --benchmark-ips {ips} --admin-interface-address=localhost:1337"),
+                &epoch_duration_flag,
+                &chain_start_timestamp_flag,
+                &additional_gas_accounts_flag,
+            ],
+        );
+
+        iota_command
     }
 
     fn monitor_command<I>(&self, _instances: I) -> Vec<(Instance, String)>
@@ -144,21 +217,82 @@ impl ProtocolCommands<IotaBenchmarkType> for IotaProtocol {
                 let validator_config =
                     iota_config::validator_config_file(network_address.clone(), i);
                 let config_path: PathBuf = working_dir.join(validator_config);
-
-                let run = [
-                    "cargo run --release --bin iota-node --",
-                    &format!(
+                let max_pipeline_delay = parameters.max_pipeline_delay;
+                let iota_node_command = self.run_binary_command(
+                    "iota-node",
+                    &[
+                        match parameters.consensus_protocol {
+                            ConsensusProtocol::Starfish => "export CONSENSUS_PROTOCOL=starfish",
+                            ConsensusProtocol::Mysticeti => "export CONSENSUS_PROTOCOL=mysticeti",
+                            ConsensusProtocol::SwapEachEpoch => {
+                                "export CONSENSUS_PROTOCOL=swap_each_epoch"
+                            }
+                        },
+                        format!("export MAX_PIPELINE_DELAY={max_pipeline_delay}").as_str(),
+                        if self.enable_flamegraph {
+                            "export TRACE_FLAMEGRAPH=1"
+                        } else {
+                            ""
+                        },
+                    ],
+                    &[&format!(
                         "--config-path {} --listen-address {}",
                         config_path.display(),
                         network_address.with_zero_ip()
-                    ),
-                ]
-                .join(" ");
-                let command = ["source $HOME/.cargo/env", &run].join(" && ");
+                    )],
+                );
 
-                display::action(format!("\n Command ({i}): {command}"));
+                display::action(format!(
+                    "\n Validator-node Command ({i}): {iota_node_command}"
+                ));
 
-                (instance, command)
+                (instance, iota_node_command)
+            })
+            .collect()
+    }
+
+    fn fullnode_command<I>(
+        &self,
+        instances: I,
+        parameters: &BenchmarkParameters<IotaBenchmarkType>,
+    ) -> Vec<(Instance, String)>
+    where
+        I: IntoIterator<Item = Instance>,
+    {
+        let working_dir = self.working_dir.clone();
+
+        instances
+            .into_iter()
+            .enumerate()
+            .map(|(i, instance)| {
+                let config_path: PathBuf = working_dir.join(iota_config::IOTA_FULLNODE_CONFIG);
+                let fullnode_ip = match parameters.use_internal_ip_address {
+                    true => &instance.private_ip,
+                    false => &instance.main_ip,
+                };
+
+                let iota_node_command = self.run_binary_command(
+                    "iota-node",
+                    &[
+                        // Overwrite listen address and external address with 0.0.0.0 and actual fullnode IP.
+                        // Escape quotes for proper handling inside tmux wrapper
+                        format!(
+                            "sed -i 's|listen-address: \\\"127.0.0.1:|listen-address: \\\"0.0.0.0:|' {0} && sed -i 's|external-address: /ip4/127.0.0.1/|external-address: /ip4/{1}/|' {0}",
+                            config_path.display(),
+                            fullnode_ip
+                        ),
+                        if self.enable_flamegraph {
+                            "export TRACE_FLAMEGRAPH=1".to_string()
+                        } else {
+                            "".to_string()
+                        },
+                    ],
+                    &[&format!("--config-path {}", config_path.display())],
+                );
+
+                display::action(format!("\n Full-node Command ({i}): {iota_node_command}"));
+
+                (instance, iota_node_command)
             })
             .collect()
     }
@@ -190,35 +324,63 @@ impl ProtocolCommands<IotaBenchmarkType> for IotaProtocol {
         let shared_counter = parameters.benchmark_type.shared_objects_ratio;
         let transfer_objects = 100 - shared_counter;
         let metrics_port = Self::CLIENT_METRICS_PORT;
-        let gas_keys = GenesisConfig::benchmark_gas_keys(committee_size);
+        // Get gas keys for all validators and clients
+        let gas_keys =
+            GenesisConfig::benchmark_gas_keys(committee_size + parameters.additional_gas_accounts);
+        // Validators use the first `nodes` keys, so clients should start after that
+        let client_key_offset = committee_size;
 
         clients
             .into_iter()
             .enumerate()
             .map(|(i, instance)| {
-                let genesis = genesis_path.display();
-                let keystore = keystore_path.display();
-                let gas_key = &gas_keys[i % committee_size];
+                let genesis = genesis_path.display().to_string();
+                let keystore = keystore_path.display().to_string();
+                // Offset client key index to avoid colliding with validator keys
+                let gas_key = &gas_keys[client_key_offset + i];
                 let gas_address = IotaAddress::from(&gas_key.public());
 
-                let run = [
-                    "cargo run --release --bin stress --",
-                    "--num-client-threads 24 --num-server-threads 1",
-                    "--local false --num-transfer-accounts 2",
-                    &format!("--genesis-blob-path {genesis} --keystore-path {keystore}",),
-                    &format!("--primary-gas-owner-id {gas_address}"),
-                    "bench",
-                    &format!("--in-flight-ratio 30 --num-workers 24 --target-qps {load_share}"),
-                    &format!(
+                let mut stress_args: Vec<String> = vec![
+                    "--num-client-threads 24 --num-server-threads 1".to_string(),
+                    "--local false --num-transfer-accounts 2".to_string(),
+                    format!("--genesis-blob-path {genesis} --keystore-path {keystore}"),
+                    format!("--primary-gas-owner-id {gas_address}"),
+                    "bench".to_string(),
+                    format!("--in-flight-ratio 30 --num-workers 24 --target-qps {load_share}"),
+                    format!(
                         "--shared-counter {shared_counter} --transfer-object {transfer_objects}"
                     ),
-                    "--shared-counter-hotness-factor 50",
-                    &format!("--client-metric-host 0.0.0.0 --client-metric-port {metrics_port}"),
-                ]
-                .join(" ");
-                let command = ["source $HOME/.cargo/env", &run].join(" && ");
+                    format!("--client-metric-host 0.0.0.0 --client-metric-port {metrics_port}"),
+                ];
 
-                (instance, command)
+                // Add optional shared counter hotness factor if specified
+                let hotness_factor = parameters.shared_counter_hotness_factor.unwrap_or(50);
+                stress_args.push(format!("--shared-counter-hotness-factor {hotness_factor}"));
+
+                // Add optional num shared counters if specified
+                if let Some(num_counters) = parameters.num_shared_counters {
+                    stress_args.push(format!("--num-shared-counters {num_counters}"));
+                }
+
+                if self.use_fullnode_for_execution {
+                    stress_args.push("--use-fullnode-for-execution true".to_string());
+                    stress_args.push("--fullnode-rpc-addresses http://127.0.0.1:9000".to_string());
+                }
+
+                let stress_command = self.run_binary_command(
+                    "stress",
+                    // required for stress binary, otherwise it will use the CARGO_MANIFEST_DIR,
+                    // which is set during compilation time
+                    &[
+                        "export MOVE_EXAMPLES_DIR=$(pwd)/examples/move",
+                        "export RUST_LOG=iota_benchmark=debug",
+                    ],
+                    &stress_args,
+                );
+
+                display::action(format!("\n Stress Command ({i}): {stress_command}"));
+
+                (instance, stress_command)
             })
             .collect()
     }
@@ -226,15 +388,6 @@ impl ProtocolCommands<IotaBenchmarkType> for IotaProtocol {
 
 impl IotaProtocol {
     const CLIENT_METRICS_PORT: u16 = GenesisConfig::BENCHMARKS_PORT_OFFSET + 2000;
-
-    /// Make a new instance of the IOTA protocol commands generator.
-    pub fn new(settings: &Settings) -> Self {
-        Self {
-            working_dir: [&settings.working_dir, &iota_config::IOTA_CONFIG_DIR.into()]
-                .iter()
-                .collect(),
-        }
-    }
 
     /// Creates the network addresses in multi address format for the instances.
     /// It returns the Instance and the corresponding address.
@@ -250,7 +403,13 @@ impl IotaProtocol {
                 false => x.main_ip.to_string(),
             })
             .collect();
-        let genesis_config = GenesisConfig::new_for_benchmarks(&ips);
+        let genesis_config = GenesisConfig::new_for_benchmarks(
+            &ips,
+            parameters.epoch_duration_ms,
+            parameters.chain_start_timestamp_ms,
+            Some(parameters.additional_gas_accounts),
+            u64::MAX,
+        );
         let mut addresses = Vec::new();
         if let Some(validator_configs) = genesis_config.validator_config_info.as_ref() {
             for (i, validator_info) in validator_configs.iter().enumerate() {
@@ -269,30 +428,22 @@ impl ProtocolMetrics for IotaProtocol {
     const LATENCY_SUM: &'static str = "latency_s_sum";
     const LATENCY_SQUARED_SUM: &'static str = "latency_squared_s";
 
-    fn nodes_metrics_path<I, T>(
+    fn nodes_metrics_path<I>(
         &self,
         instances: I,
-        parameters: &BenchmarkParameters<T>,
+        use_internal_ip_address: bool,
     ) -> Vec<(Instance, String)>
     where
         I: IntoIterator<Item = Instance>,
-        T: BenchmarkType,
     {
-        let (ips, instances): (Vec<_>, Vec<_>) = instances
-            .into_iter()
-            .map(|x| {
-                (
-                    match parameters.use_internal_ip_address {
-                        true => x.private_ip,
-                        false => x.main_ip,
-                    }
-                    .to_string(),
-                    x,
-                )
-            })
-            .unzip();
-
-        GenesisConfig::new_for_benchmarks(&ips)
+        let instances = instances.into_iter().collect::<Vec<_>>();
+        let ips = (0..instances.len())
+            .map(|_| "0.0.0.0".to_string())
+            .collect::<Vec<_>>();
+        // From GenesisConfig we only need validators' `metrics_address` port which is
+        // computed from validator's offset in `ips`. The values of (the rest
+        // of) the arguments are irrelevant.
+        GenesisConfig::new_for_benchmarks(&ips, None, None, None, u64::MAX)
             .validator_config_info
             .expect("No validator in genesis")
             .iter()
@@ -300,7 +451,7 @@ impl ProtocolMetrics for IotaProtocol {
             .map(|(config, instance)| {
                 let path = format!(
                     "{}:{}{}",
-                    match parameters.use_internal_ip_address {
+                    match use_internal_ip_address {
                         true => instance.private_ip,
                         false => instance.main_ip,
                     },
@@ -312,21 +463,20 @@ impl ProtocolMetrics for IotaProtocol {
             .collect()
     }
 
-    fn clients_metrics_path<I, T>(
+    fn clients_metrics_path<I>(
         &self,
         instances: I,
-        parameters: &BenchmarkParameters<T>,
+        use_internal_ip_address: bool,
     ) -> Vec<(Instance, String)>
     where
         I: IntoIterator<Item = Instance>,
-        T: BenchmarkType,
     {
         instances
             .into_iter()
             .map(|instance| {
                 let path = format!(
                     "{}:{}{}",
-                    match parameters.use_internal_ip_address {
+                    match use_internal_ip_address {
                         true => instance.private_ip,
                         false => instance.main_ip,
                     },

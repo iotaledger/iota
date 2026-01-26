@@ -5,13 +5,19 @@
 use std::{
     fmt::{Debug, Display},
     hash::Hash,
+    path::PathBuf,
     str::FromStr,
     time::Duration,
 };
 
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 
-use crate::{faults::FaultsType, measurement::MeasurementsCollection};
+use crate::{
+    ConsensusProtocol,
+    faults::FaultsType,
+    measurement::MeasurementsCollection,
+    net_latency::{PerturbationSpec, TopologyLayout},
+};
 
 pub trait BenchmarkType:
     Serialize
@@ -37,6 +43,8 @@ pub struct BenchmarkParameters<T> {
     pub benchmark_type: T,
     /// The committee size.
     pub nodes: usize,
+    /// The number of additional gas accounts to create.
+    pub additional_gas_accounts: usize,
     /// The number of (crash-)faults.
     pub faults: FaultsType,
     /// The total load (tx/s) to submit to the system.
@@ -50,6 +58,28 @@ pub struct BenchmarkParameters<T> {
     /// they should use their internal IPs to avoid paying for data sent between
     /// the nodes.
     pub use_internal_ip_address: bool,
+    /// The topology of private network latencies, RandomGeographical,
+    /// RandomClustered, HardCodedClustered, or Mainnet
+    pub latency_topology: Option<TopologyLayout>,
+    /// Maximum latency between two nodes in the private network.
+    pub maximum_latency: u16,
+    /// Specification of Perturbation imposed on the private network latencies.
+    pub perturbation_spec: PerturbationSpec,
+    /// Consensus Protocol used.
+    pub consensus_protocol: ConsensusProtocol,
+    /// Optional: Epoch duration in milliseconds, default is 1h
+    pub epoch_duration_ms: Option<u64>,
+    /// Max pipeline delay used only by starfish
+    pub max_pipeline_delay: u32,
+    /// Computed chain start timestamp (computed once in next() if
+    /// use_current_timestamp_for_genesis is true)
+    pub chain_start_timestamp_ms: Option<u64>,
+    /// Shared counter hotness factor (0-100)
+    pub shared_counter_hotness_factor: Option<u8>,
+    /// Number of shared counters to use
+    pub num_shared_counters: Option<usize>,
+    /// Directory to store benchmark results
+    pub benchmark_dir: PathBuf,
 }
 
 impl<T: BenchmarkType> Default for BenchmarkParameters<T> {
@@ -57,10 +87,21 @@ impl<T: BenchmarkType> Default for BenchmarkParameters<T> {
         Self {
             benchmark_type: T::default(),
             nodes: 4,
+            additional_gas_accounts: 0,
             faults: FaultsType::default(),
             load: 500,
             duration: Duration::from_secs(60),
             use_internal_ip_address: true,
+            latency_topology: Some(TopologyLayout::Mainnet),
+            perturbation_spec: PerturbationSpec::None,
+            consensus_protocol: ConsensusProtocol::Starfish,
+            maximum_latency: 400,
+            epoch_duration_ms: None,
+            max_pipeline_delay: 400,
+            chain_start_timestamp_ms: None,
+            shared_counter_hotness_factor: None,
+            num_shared_counters: None,
+            benchmark_dir: PathBuf::default(),
         }
     }
 }
@@ -69,8 +110,13 @@ impl<T: BenchmarkType> Debug for BenchmarkParameters<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "{:?}-{:?}-{}-{}-{}",
-            self.benchmark_type, self.faults, self.nodes, self.load, self.use_internal_ip_address,
+            "{:?}-{:?}-{}-{}-{}-{:?}",
+            self.benchmark_type,
+            self.faults,
+            self.nodes,
+            self.load,
+            self.use_internal_ip_address,
+            self.chain_start_timestamp_ms,
         )
     }
 }
@@ -79,8 +125,12 @@ impl<T> Display for BenchmarkParameters<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "{} nodes ({}) - {} tx/s (use internal IPs: {})",
-            self.nodes, self.faults, self.load, self.use_internal_ip_address
+            "{} nodes ({}) - {} tx/s (use internal IPs: {}; use current timestamp: {:?})",
+            self.nodes,
+            self.faults,
+            self.load,
+            self.use_internal_ip_address,
+            self.chain_start_timestamp_ms,
         )
     }
 }
@@ -90,18 +140,40 @@ impl<T> BenchmarkParameters<T> {
     pub fn new(
         benchmark_type: T,
         nodes: usize,
+        additional_gas_accounts: usize,
         faults: FaultsType,
         load: usize,
         duration: Duration,
         use_internal_ip_address: bool,
+        latency_topology: Option<TopologyLayout>,
+        perturbation_spec: PerturbationSpec,
+        maximum_latency: u16,
+        epoch_duration_ms: Option<u64>,
+        consensus_protocol: ConsensusProtocol,
+        max_pipeline_delay: u32,
+        chain_start_timestamp_ms: Option<u64>,
+        shared_counter_hotness_factor: Option<u8>,
+        num_shared_counters: Option<usize>,
+        benchmark_dir: PathBuf,
     ) -> Self {
         Self {
             benchmark_type,
             nodes,
+            additional_gas_accounts,
             faults,
             load,
             duration,
             use_internal_ip_address,
+            latency_topology,
+            perturbation_spec,
+            consensus_protocol,
+            maximum_latency,
+            epoch_duration_ms,
+            max_pipeline_delay,
+            chain_start_timestamp_ms,
+            shared_counter_hotness_factor,
+            num_shared_counters,
+            benchmark_dir,
         }
     }
 }
@@ -129,6 +201,8 @@ pub struct BenchmarkParametersGenerator<T> {
     benchmark_type: T,
     /// The committee size.
     pub nodes: usize,
+    /// The number of additional clients.
+    pub additional_gas_accounts: usize,
     /// The load type.
     load_type: LoadType,
     /// The number of faulty nodes.
@@ -145,7 +219,26 @@ pub struct BenchmarkParametersGenerator<T> {
     iterations: usize,
     /// Flag indicating whether nodes should advertise their internal or public
     /// IP address for inter-node communication.
-    use_internal_ip_address: bool,
+    pub use_internal_ip_address: bool,
+    /// The topology of private network latencies, RandomGeographical,
+    /// RandomClustered, HardCodedClustered, or Mainnet
+    pub latency_topology: Option<TopologyLayout>,
+    /// Maximum latency between two nodes in the private network.
+    pub maximum_latency: u16,
+    /// Specification of Perturbation imposed on the private network latencies.
+    pub perturbation_spec: PerturbationSpec,
+    /// Consensus Protocol used.
+    pub consensus_protocol: ConsensusProtocol,
+    /// Optional: Epoch duration in milliseconds, default is 1h
+    epoch_duration_ms: Option<u64>,
+    /// Maximum pipeline delay.
+    pub max_pipeline_delay: u32,
+    /// Use current system time as genesis chain start timestamp instead of 0
+    use_current_timestamp_for_genesis: bool,
+    /// Shared counter hotness factor (0-100)
+    shared_counter_hotness_factor: Option<u8>,
+    /// Number of shared counters to use
+    num_shared_counters: Option<usize>,
 }
 
 impl<T: BenchmarkType> Iterator for BenchmarkParametersGenerator<T> {
@@ -153,14 +246,37 @@ impl<T: BenchmarkType> Iterator for BenchmarkParametersGenerator<T> {
 
     /// Return the next set of benchmark parameters to run.
     fn next(&mut self) -> Option<Self::Item> {
+        // Compute timestamp once if needed
+        let chain_start_timestamp_ms = if self.use_current_timestamp_for_genesis {
+            Some(
+                std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap()
+                    .as_millis() as u64,
+            )
+        } else {
+            None
+        };
+
         self.next_load.map(|load| {
             BenchmarkParameters::new(
                 self.benchmark_type.clone(),
                 self.nodes,
+                self.additional_gas_accounts,
                 self.faults.clone(),
                 load,
                 self.duration,
                 self.use_internal_ip_address,
+                self.latency_topology.clone(),
+                self.perturbation_spec.clone(),
+                self.maximum_latency,
+                self.epoch_duration_ms,
+                self.consensus_protocol.clone(),
+                self.max_pipeline_delay,
+                chain_start_timestamp_ms,
+                self.shared_counter_hotness_factor,
+                self.num_shared_counters,
+                PathBuf::default(),
             )
         })
     }
@@ -171,7 +287,12 @@ impl<T: BenchmarkType> BenchmarkParametersGenerator<T> {
     const DEFAULT_DURATION: Duration = Duration::from_secs(180);
 
     /// make a new generator.
-    pub fn new(nodes: usize, mut load_type: LoadType, use_internal_ip_address: bool) -> Self {
+    pub fn new(
+        nodes: usize,
+        additional_gas_accounts: usize,
+        mut load_type: LoadType,
+        use_internal_ip_address: bool,
+    ) -> Self {
         let next_load = match &mut load_type {
             LoadType::Fixed(loads) => {
                 if loads.is_empty() {
@@ -185,6 +306,7 @@ impl<T: BenchmarkType> BenchmarkParametersGenerator<T> {
         Self {
             benchmark_type: T::default(),
             nodes,
+            additional_gas_accounts,
             load_type,
             faults: FaultsType::default(),
             duration: Self::DEFAULT_DURATION,
@@ -193,6 +315,15 @@ impl<T: BenchmarkType> BenchmarkParametersGenerator<T> {
             upper_bound_result: None,
             iterations: 0,
             use_internal_ip_address,
+            perturbation_spec: PerturbationSpec::None,
+            latency_topology: Some(TopologyLayout::Mainnet),
+            consensus_protocol: ConsensusProtocol::Starfish,
+            maximum_latency: 400,
+            epoch_duration_ms: None,
+            use_current_timestamp_for_genesis: false,
+            max_pipeline_delay: 400,
+            shared_counter_hotness_factor: None,
+            num_shared_counters: None,
         }
     }
 
@@ -211,6 +342,51 @@ impl<T: BenchmarkType> BenchmarkParametersGenerator<T> {
     /// Set a custom benchmark duration.
     pub fn with_custom_duration(mut self, duration: Duration) -> Self {
         self.duration = duration;
+        self
+    }
+
+    pub fn with_perturbation_spec(mut self, perturbation_spec: PerturbationSpec) -> Self {
+        self.perturbation_spec = perturbation_spec;
+        self
+    }
+
+    pub fn with_latency_topology(mut self, latency_topology: Option<TopologyLayout>) -> Self {
+        self.latency_topology = latency_topology;
+        self
+    }
+
+    pub fn with_consensus_protocol(mut self, consensus_protocol: ConsensusProtocol) -> Self {
+        self.consensus_protocol = consensus_protocol;
+        self
+    }
+
+    pub fn with_max_latency(mut self, max_latency: u16) -> Self {
+        self.maximum_latency = max_latency;
+        self
+    }
+
+    pub fn with_epoch_duration(mut self, epoch_duration_ms: Option<u64>) -> Self {
+        self.epoch_duration_ms = epoch_duration_ms;
+        self
+    }
+
+    pub fn with_max_pipeline_delay(mut self, max_pipeline_delay: u32) -> Self {
+        self.max_pipeline_delay = max_pipeline_delay;
+        self
+    }
+
+    pub fn with_current_timestamp_for_genesis(mut self, use_current_timestamp: bool) -> Self {
+        self.use_current_timestamp_for_genesis = use_current_timestamp;
+        self
+    }
+
+    pub fn with_shared_counter_hotness_factor(mut self, factor: u8) -> Self {
+        self.shared_counter_hotness_factor = Some(factor);
+        self
+    }
+
+    pub fn with_num_shared_counters(mut self, counters: usize) -> Self {
+        self.num_shared_counters = Some(counters);
         self
     }
 
@@ -287,7 +463,7 @@ impl<T: BenchmarkType> BenchmarkParametersGenerator<T> {
 
 #[cfg(test)]
 pub mod test {
-    use std::{fmt::Display, str::FromStr};
+    use std::{collections::HashMap, fmt::Display, str::FromStr};
 
     use serde::{Deserialize, Serialize};
 
@@ -323,12 +499,17 @@ pub mod test {
     fn set_lower_bound() {
         let settings = Settings::new_for_test();
         let nodes = 4;
+        let additional_gas_accounts = 0;
         let load = LoadType::Search {
             starting_load: 100,
             max_iterations: 10,
         };
-        let mut generator =
-            BenchmarkParametersGenerator::<TestBenchmarkType>::new(nodes, load, true);
+        let mut generator = BenchmarkParametersGenerator::<TestBenchmarkType>::new(
+            nodes,
+            additional_gas_accounts,
+            load,
+            true,
+        );
         let parameters = generator.next().unwrap();
 
         let collection = MeasurementsCollection::new(&settings, parameters);
@@ -350,12 +531,17 @@ pub mod test {
     fn set_upper_bound() {
         let settings = Settings::new_for_test();
         let nodes = 4;
+        let additional_gas_accounts = 0;
         let load = LoadType::Search {
             starting_load: 100,
             max_iterations: 10,
         };
-        let mut generator =
-            BenchmarkParametersGenerator::<TestBenchmarkType>::new(nodes, load, true);
+        let mut generator = BenchmarkParametersGenerator::<TestBenchmarkType>::new(
+            nodes,
+            additional_gas_accounts,
+            load,
+            true,
+        );
         let first_parameters = generator.next().unwrap();
 
         // Register a first result (zero latency). This sets the lower bound.
@@ -365,8 +551,9 @@ pub mod test {
 
         // Register a second result (with positive latency). This sets the upper bound.
         let mut collection = MeasurementsCollection::new(&settings, second_parameters);
-        let measurement = Measurement::new_for_test();
-        collection.scrapers.insert(1, vec![measurement]);
+        let measurement = Measurement::new_for_test("transfer_object".to_string());
+        let workload_map = HashMap::from([("transfer_object".to_string(), vec![measurement])]);
+        collection.scrapers.insert(1, workload_map);
         generator.register_result(collection);
 
         // Ensure the next load is between the upper and the lower bound.
@@ -390,12 +577,17 @@ pub mod test {
     fn max_iterations() {
         let settings = Settings::new_for_test();
         let nodes = 4;
+        let additional_gas_accounts = 0;
         let load = LoadType::Search {
             starting_load: 100,
             max_iterations: 0,
         };
-        let mut generator =
-            BenchmarkParametersGenerator::<TestBenchmarkType>::new(nodes, load, true);
+        let mut generator = BenchmarkParametersGenerator::<TestBenchmarkType>::new(
+            nodes,
+            additional_gas_accounts,
+            load,
+            true,
+        );
         let parameters = generator.next().unwrap();
 
         let collection = MeasurementsCollection::new(&settings, parameters);

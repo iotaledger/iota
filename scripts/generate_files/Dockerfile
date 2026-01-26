@@ -1,4 +1,4 @@
-FROM node:20-bookworm
+FROM node:20-trixie
 
 # Accept a build argument for the Rust version
 ARG RUST_VERSION=1.88

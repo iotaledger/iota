@@ -10,17 +10,20 @@ use std::{
 };
 
 use async_graphql::{
-    Context, EmptySubscription, Schema, SchemaBuilder,
+    Context, Data, Schema, SchemaBuilder,
     extensions::{ApolloTracing, ExtensionFactory, Tracing},
+    http::ALL_WEBSOCKET_PROTOCOLS,
 };
-use async_graphql_axum::{GraphQLRequest, GraphQLResponse};
+use async_graphql_axum::{GraphQLProtocol, GraphQLRequest, GraphQLResponse, GraphQLWebSocket};
 use axum::{
     Extension, Router,
     body::Body,
-    extract::{ConnectInfo, FromRef, Query as AxumQuery, State},
+    extract::{
+        ConnectInfo, FromRef, FromRequestParts, Query as AxumQuery, State, ws::WebSocketUpgrade,
+    },
     http::{HeaderMap, StatusCode},
     middleware::{self},
-    response::IntoResponse,
+    response::{IntoResponse, Response as AxumResponse},
     routing::{MethodRouter, Route, get, post},
 };
 use axum_extra::{TypedHeader, headers::ContentLength};
@@ -80,12 +83,15 @@ use crate::{
         object::IObject,
         owner::IOwner,
         query::{IotaGraphQLSchema, Query},
+        subscription::{GraphQLStream, Subscription},
     },
 };
 
 /// The default allowed maximum lag between the current timestamp and the
 /// checkpoint timestamp.
 const DEFAULT_MAX_CHECKPOINT_LAG: Duration = Duration::from_secs(300);
+/// The maximum complexity allowed for native [`async_graphql`] checks.
+const MAX_COMPLEXITY: usize = 6000;
 
 pub(crate) struct Server {
     router: Router,
@@ -94,7 +100,6 @@ pub(crate) struct Server {
     system_package_task: SystemPackageTask,
     trigger_exchange_rates_task: TriggerExchangeRatesTask,
     state: AppState,
-    db_reader: Db,
 }
 
 impl Server {
@@ -103,14 +108,6 @@ impl Server {
     /// tasks to complete before returning.
     pub async fn run(mut self) -> Result<(), Error> {
         get_or_init_server_start_time().await;
-
-        {
-            // Compatibility check
-            info!("Starting compatibility check");
-            let mut connection = get_pool_connection(&self.db_reader.inner.get_pool())?;
-            check_db_migration_consistency(&mut connection)?;
-            info!("Compatibility check passed");
-        }
 
         // A handle that spawns a background task to periodically update the
         // `Watermark`, which consists of the checkpoint upper bound and current
@@ -175,7 +172,7 @@ impl Server {
 
 pub(crate) struct ServerBuilder {
     state: AppState,
-    schema: SchemaBuilder<Query, Mutation, EmptySubscription>,
+    schema: SchemaBuilder<Query, Mutation, Subscription>,
     router: Option<Router>,
     db_reader: Option<Db>,
     resolver: Option<PackageResolver>,
@@ -248,7 +245,7 @@ impl ServerBuilder {
         self
     }
 
-    fn build_schema(self) -> Schema<Query, Mutation, EmptySubscription> {
+    fn build_schema(self) -> Schema<Query, Mutation, Subscription> {
         self.schema.finish()
     }
 
@@ -258,7 +255,7 @@ impl ServerBuilder {
         self,
     ) -> (
         String,
-        Schema<Query, Mutation, EmptySubscription>,
+        Schema<Query, Mutation, Subscription>,
         Db,
         PackageResolver,
         Router,
@@ -284,9 +281,16 @@ impl ServerBuilder {
         if self.router.is_none() {
             let router: Router = Router::new()
                 .route("/", post(graphql_handler))
+                .route("/subscriptions", get(subscription_handler))
                 .route("/{version}", post(graphql_handler))
+                .route("/{version}/subscriptions", get(subscription_handler))
                 .route("/graphql", post(graphql_handler))
+                .route("/graphql/subscriptions", get(subscription_handler))
                 .route("/graphql/{version}", post(graphql_handler))
+                .route(
+                    "/graphql/{version}/subscriptions",
+                    get(subscription_handler),
+                )
                 .route("/health", get(health_check))
                 .route("/graphql/health", get(health_check))
                 .route("/graphql/{version}/health", get(health_check))
@@ -336,8 +340,8 @@ impl ServerBuilder {
         info!("Access control allow origin set to: {acl:?}");
 
         let cors = CorsLayer::new()
-            // Allow `POST` when accessing the resource
-            .allow_methods([Method::POST])
+            // Allow `POST` & `GET` when accessing the resource
+            .allow_methods([Method::POST, Method::GET])
             // Allow requests from any origin
             .allow_origin(acl)
             .allow_headers([hyper::header::CONTENT_TYPE, LIMITS_HEADER.clone()]);
@@ -364,7 +368,7 @@ impl ServerBuilder {
         );
 
         let trigger_exchange_rates_task = TriggerExchangeRatesTask::new(
-            db_reader.clone(),
+            db_reader,
             watermark_task.epoch_receiver(),
             state.cancellation_token.clone(),
         );
@@ -391,7 +395,6 @@ impl ServerBuilder {
             system_package_task,
             trigger_exchange_rates_task,
             state,
-            db_reader,
         })
     }
 
@@ -405,13 +408,13 @@ impl ServerBuilder {
         // PROMETHEUS
         let prom_addr: SocketAddr = format!(
             "{}:{}",
-            config.connection.prom_url, config.connection.prom_port
+            config.connection.prom_host, config.connection.prom_port
         )
         .parse()
         .map_err(|_| {
             Error::Internal(format!(
                 "Failed to parse url {}, port {} into socket address",
-                config.connection.prom_url, config.connection.prom_port
+                config.connection.prom_host, config.connection.prom_port
             ))
         })?;
 
@@ -450,6 +453,14 @@ impl ServerBuilder {
         )
         .map_err(|e| Error::ServerInit(format!("Failed to create pg connection pool: {e}")))?;
 
+        if !config.connection.skip_migration_consistency_check {
+            // Compatibility check
+            info!("Starting compatibility check");
+            let mut connection = get_pool_connection(&reader.get_pool())?;
+            check_db_migration_consistency(&mut connection)?;
+            info!("Compatibility check passed");
+        }
+
         // DB
         let db = Db::new(
             reader.clone(),
@@ -472,6 +483,9 @@ impl ServerBuilder {
                 "No fullnode url found in config".to_string(),
             ));
         };
+
+        let graphql_streams =
+            GraphQLStream::new(&config.connection.db_url, reader.clone(), &registry).await?;
         let write_api = build_write_api(fullnode_url, reader, indexer_metrics)?;
 
         builder = builder
@@ -485,6 +499,7 @@ impl ServerBuilder {
             .context_data(zklogin_config)
             .context_data(metrics.clone())
             .context_data(config.clone())
+            .context_data(graphql_streams)
             .context_data(ChainIdentifierCache::default());
 
         if config.internal_features.feature_gate {
@@ -522,8 +537,9 @@ impl ServerBuilder {
     }
 }
 
-fn schema_builder() -> SchemaBuilder<Query, Mutation, EmptySubscription> {
-    async_graphql::Schema::build(Query, Mutation, EmptySubscription)
+fn schema_builder() -> SchemaBuilder<Query, Mutation, Subscription> {
+    async_graphql::Schema::build(Query, Mutation, Subscription)
+        .limit_complexity(MAX_COMPLEXITY)
         .register_output_type::<IMoveObject>()
         .register_output_type::<IObject>()
         .register_output_type::<IOwner>()
@@ -535,9 +551,10 @@ pub fn export_schema() -> String {
     schema_builder().finish().sdl()
 }
 
-/// Entry point for graphql requests. Each request is stamped with a unique ID,
-/// a `ShowUsage` flag if set in the request headers, and the watermark as set
-/// by the background task.
+/// Entry point for graphql requests.
+///
+/// Each request is stamped with a unique ID, a `ShowUsage` flag if set in the
+/// request headers, and the watermark as set by the background task.
 async fn graphql_handler(
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
     TypedHeader(ContentLength(content_length)): TypedHeader<ContentLength>,
@@ -608,6 +625,50 @@ fn build_json_rpc_client(rpc_client_url: &str) -> Result<HttpClient, Error> {
             "Failed to initialize fullnode RPC client with error: {e:?}"
         ))
     })
+}
+/// Entry point for graphql streaming requests.
+///
+/// Each request is stamped with a unique ID, a `ShowUsage` flag if set in the
+/// request headers and tracks the connection information produced by the
+/// client.
+async fn subscription_handler(
+    ConnectInfo(addr): ConnectInfo<SocketAddr>,
+    Extension(schema): Extension<IotaGraphQLSchema>,
+    req: http::Request<Body>,
+) -> AxumResponse {
+    let headers_contains_show_usage = req.headers().contains_key(ShowUsage::name());
+    let (mut parts, _body) = req.into_parts();
+
+    // extract GraphQL protocol
+    let protocol = match GraphQLProtocol::from_request_parts(&mut parts, &()).await {
+        Ok(protocol) => protocol,
+        Err(err) => return err.into_response(),
+    };
+
+    // extract WebSocket upgrade from request
+    let upgrade = match WebSocketUpgrade::from_request_parts(&mut parts, &()).await {
+        Ok(upgrade) => upgrade,
+        Err(err) => return err.into_response(),
+    };
+
+    let resp = upgrade
+        .protocols(ALL_WEBSOCKET_PROTOCOLS)
+        .on_upgrade(move |stream| async move {
+            // create connection data with per-connection values
+            let mut connection_data = Data::default();
+            // axum discards body on GET requests, being always 0
+            connection_data.insert(PayloadSize(0));
+            connection_data.insert(Uuid::new_v4());
+            if headers_contains_show_usage {
+                connection_data.insert(ShowUsage)
+            }
+            connection_data.insert(addr);
+
+            let connection =
+                GraphQLWebSocket::new(stream, schema, protocol).with_data(connection_data);
+            connection.serve().await;
+        });
+    resp
 }
 
 #[derive(Clone)]

@@ -17,7 +17,7 @@ use iota_types::{
 use crate::{
     errors::IndexerError,
     schema::{epochs, feature_flags, protocol_configs},
-    types::{IndexedEpochInfoEvent, IotaSystemStateSummaryView},
+    types::IndexedEpochInfoEvent,
 };
 
 #[derive(Queryable, Insertable, Debug, Clone, Default)]
@@ -159,7 +159,7 @@ impl StartOfEpochUpdate {
             first_tx_sequence_number: first_tx_sequence_number as i64,
             epoch_start_timestamp: new_system_state_summary.epoch_start_timestamp_ms() as i64,
             reference_gas_price: new_system_state_summary.reference_gas_price() as i64,
-            protocol_version: new_system_state_summary.protocol_version() as i64,
+            protocol_version: new_system_state_summary.protocol_version().as_u64() as i64,
             total_stake: total_stake as i64,
             storage_fund_balance: storage_fund_balance as i64,
             system_state: bcs::to_bytes(new_system_state_summary).unwrap(),
@@ -263,7 +263,7 @@ impl TryFrom<StoredEpochInfo> for EpochInfo {
             epoch_start_timestamp: value.epoch_start_timestamp as u64,
             end_of_epoch_info,
             reference_gas_price: Some(value.reference_gas_price as u64),
-            committee_members: system_state.to_committee_members(),
+            committee_members: system_state.committee_members(),
         })
     }
 }

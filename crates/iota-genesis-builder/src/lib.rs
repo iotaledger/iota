@@ -29,6 +29,7 @@ use iota_framework::{BuiltInFramework, SystemPackage};
 use iota_genesis_common::{execute_genesis_transaction, get_genesis_protocol_config};
 use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
 use iota_sdk::Url;
+use iota_sdk_types::crypto::{Intent, IntentMessage, IntentScope};
 use iota_types::{
     IOTA_FRAMEWORK_PACKAGE_ID, IOTA_SYSTEM_ADDRESS,
     balance::{BALANCE_MODULE_NAME, Balance},
@@ -74,7 +75,6 @@ use iota_types::{
 use move_binary_format::CompiledModule;
 use move_core_types::ident_str;
 use serde::{Deserialize, Serialize};
-use shared_crypto::intent::{Intent, IntentMessage, IntentScope};
 use stake::GenesisStake;
 use stardust::migration::MigrationObjects;
 use tracing::trace;

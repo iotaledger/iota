@@ -33,7 +33,7 @@ export function useGetDefaultIotaName(
         queryFn: async () => {
             if (!address) return null;
 
-            const name = await iotaNamesClient?.getDefaultName(address);
+            const name = await iotaNamesClient?.getPublicName(address);
 
             return name ? normalizeIotaName(name) : name;
         },

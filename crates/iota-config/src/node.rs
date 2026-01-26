@@ -268,6 +268,13 @@ pub struct NodeConfig {
         skip_serializing_if = "Option::is_none"
     )]
     pub grpc_api_config: Option<GrpcApiConfig>,
+
+    /// Allow overriding the chain for testing purposes. For instance, it allows
+    /// you to create a test network that believes it is mainnet or testnet.
+    /// Attempting to override this value on production networks will result
+    /// in an error.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub chain_override_for_testing: Option<Chain>,
 }
 
 /// Configuration for the gRPC API service
@@ -987,6 +994,8 @@ pub struct AuthorityStorePruningConfig {
     /// may result in some old versions that will never be pruned.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub enable_compaction_filter: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub num_epochs_to_retain_for_indexes: Option<u64>,
 }
 
 fn default_num_latest_epoch_dbs_to_retain() -> usize {
@@ -1026,6 +1035,7 @@ impl Default for AuthorityStorePruningConfig {
             num_epochs_to_retain_for_checkpoints: if cfg!(msim) { Some(2) } else { None },
             smooth: true,
             enable_compaction_filter: cfg!(test) || cfg!(msim),
+            num_epochs_to_retain_for_indexes: None,
         }
     }
 }

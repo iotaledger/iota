@@ -51,7 +51,7 @@ export function safeEnum<T extends Record<string, GenericSchema<any>>>(options: 
             ...value,
             $kind: Object.keys(value)[0] as keyof typeof value,
         })),
-    ) as EnumSchema<T>;
+    ) as unknown as EnumSchema<T>;
 }
 
 export const IotaAddress = pipe(

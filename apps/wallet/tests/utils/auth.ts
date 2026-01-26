@@ -10,8 +10,9 @@ export const PASSWORD = 'iota';
 
 export async function createWallet(page: Page, extensionUrl: string) {
     await page.goto(extensionUrl, { waitUntil: 'commit' });
-    await page.getByRole('button', { name: /Add Profile/ }).click({ timeout: SHORT_TIMEOUT });
-    await page.getByText('New Mnemonic Profile').click();
+    await page.getByRole('button', { name: /Get Started/ }).click({ timeout: SHORT_TIMEOUT });
+    await page.getByText('Create a new wallet').click();
+    await page.getByText('Mnemonic', { exact: true }).click();
     await page.getByTestId('password.input').fill('iotae2etests');
     await page.getByTestId('password.confirmation').fill('iotae2etests');
     await page.getByText('I read and agree').click();
@@ -22,7 +23,8 @@ export async function createWallet(page: Page, extensionUrl: string) {
 
 export async function importWallet(page: Page, extensionUrl: string, mnemonic: string | string[]) {
     await page.goto(extensionUrl, { waitUntil: 'commit' });
-    await page.getByRole('button', { name: /Add Profile/ }).click({ timeout: SHORT_TIMEOUT });
+    await page.getByRole('button', { name: /Get Started/ }).click({ timeout: SHORT_TIMEOUT });
+    await page.getByText('Add existing wallet').click();
     await page.getByText('Mnemonic', { exact: true }).click();
 
     const mnemonicArray = typeof mnemonic === 'string' ? mnemonic.split(' ') : mnemonic;
@@ -31,7 +33,7 @@ export async function importWallet(page: Page, extensionUrl: string, mnemonic: s
         await page.locator('button:has(div:has-text("24 words"))').click();
         await page.getByText('12 words').click();
     }
-    const wordInputs = await page.locator('input[placeholder="Word"]');
+    const wordInputs = page.locator('input[placeholder="Word"]');
     const inputCount = await wordInputs.count();
 
     for (let i = 0; i < inputCount; i++) {
@@ -90,8 +92,9 @@ export async function createPasskeyWallet(
     });
 
     await page.goto(extensionUrl, { waitUntil: 'commit' });
-    await page.getByRole('button', { name: /Add Profile/ }).click({ timeout: SHORT_TIMEOUT });
-    await page.getByText('New Passkey Profile', { exact: true }).click();
+    await page.getByRole('button', { name: /Get Started/ }).click({ timeout: SHORT_TIMEOUT });
+    await page.getByText('Create a new wallet').click();
+    await page.getByText('Passkey', { exact: true }).click();
 
     await page.getByTestId('username-input').fill(username);
 
@@ -117,7 +120,8 @@ export async function createPasskeyWallet(
 }
 
 export async function restorePasskeyAccount(page: Page, username: string) {
-    await page.getByText('Add Profile').click();
+    await page.getByRole('button', { name: /Get Started/ }).click({ timeout: SHORT_TIMEOUT });
+    await page.getByText('Add existing wallet').click();
     await page.getByText('Passkey', { exact: true }).click();
 
     await page.getByTestId('username-input').fill(username);

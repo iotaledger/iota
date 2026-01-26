@@ -44,6 +44,7 @@ use iota_macros::{fail_point, fail_point_async, fail_point_if};
 use iota_metrics::{
     TX_TYPE_SHARED_OBJ_TX, TX_TYPE_SINGLE_WRITER_TX, monitored_scope, spawn_monitored_task,
 };
+use iota_sdk_types::crypto::{Intent, IntentAppId, IntentMessage, IntentScope, IntentVersion};
 use iota_storage::{
     key_value_store::{
         KVStoreTransactionData, TransactionKeyValueStore, TransactionKeyValueStoreTrait,
@@ -110,7 +111,7 @@ use iota_types::{
         ProtocolConfig, SupportedProtocolVersions, SupportedProtocolVersionsWithHashes,
     },
     transaction::*,
-    transaction_executor::SimulateTransactionResult,
+    transaction_executor::{SimulateTransactionResult, VmChecks},
 };
 use itertools::Itertools;
 use move_binary_format::{CompiledModule, binary_config::BinaryConfig};
@@ -123,7 +124,6 @@ use prometheus::{
     register_int_gauge_vec_with_registry, register_int_gauge_with_registry,
 };
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
-use shared_crypto::intent::{AppId, Intent, IntentMessage, IntentScope, IntentVersion};
 use tap::TapFallible;
 use tokio::{
     sync::{RwLock, mpsc, mpsc::unbounded_channel, oneshot},
@@ -295,6 +295,7 @@ pub struct AuthorityMetrics {
     pub consensus_committed_subdags: IntCounterVec,
     pub consensus_committed_messages: IntGaugeVec,
     pub consensus_committed_user_transactions: IntGaugeVec,
+    pub consensus_handler_leader_round: IntGauge,
     pub consensus_calculated_throughput: IntGauge,
     pub consensus_calculated_throughput_profile: IntGauge,
 
@@ -696,7 +697,7 @@ impl AuthorityMetrics {
             ).unwrap(),
             consensus_committed_subdags: register_int_counter_vec_with_registry!(
                 "consensus_committed_subdags",
-                "Number of committed subdags, sliced by author",
+                "Number of committed subdags, sliced by leader",
                 &["authority"],
                 registry,
             ).unwrap(),
@@ -710,6 +711,11 @@ impl AuthorityMetrics {
                 "consensus_committed_user_transactions",
                 "Number of committed user transactions, sliced by submitter",
                 &["authority"],
+                registry,
+            ).unwrap(),
+            consensus_handler_leader_round: register_int_gauge_with_registry!(
+                "consensus_handler_leader_round",
+                "The leader round of the current consensus output being processed in the consensus handler",
                 registry,
             ).unwrap(),
             limits_metrics: Arc::new(LimitsMetrics::new(registry)),
@@ -1619,6 +1625,8 @@ impl AuthorityState {
         self.prepare_certificate(&execution_guard, certificate, input_objects, epoch_store)
     }
 
+    /// TO BE DEPRECATED SOON: Use `simulate_transaction` with
+    /// `VmChecks::Enabled` instead.
     #[instrument("dry_exec_tx", level = "trace", skip_all)]
     #[allow(clippy::type_complexity)]
     pub fn dry_exec_transaction(
@@ -1754,7 +1762,7 @@ impl AuthorityState {
             .expect("Creating an executor should not fail here");
 
         let expensive_checks = false;
-        let (inner_temp_store, _, effects, _execution_error) = executor
+        let (inner_temp_store, _, effects, execution_error) = executor
             .execute_transaction_to_effects(
                 self.get_backing_store().as_ref(),
                 protocol_config,
@@ -1815,6 +1823,11 @@ impl AuthorityState {
             })
             .collect();
 
+        let execution_error_source = execution_error
+            .as_ref()
+            .err()
+            .and_then(|e| e.source().as_ref().map(|e| e.to_string()));
+
         Ok((
             DryRunTransactionBlockResponse {
                 // to avoid cloning `transaction`, fields are populated in this order
@@ -1836,6 +1849,7 @@ impl AuthorityState {
                 )?,
                 object_changes,
                 balance_changes,
+                execution_error_source,
             },
             written_with_kind,
             effects,
@@ -1845,7 +1859,8 @@ impl AuthorityState {
 
     pub fn simulate_transaction(
         &self,
-        transaction: TransactionData,
+        mut transaction: TransactionData,
+        checks: VmChecks,
     ) -> IotaResult<SimulateTransactionResult> {
         if transaction.kind().is_system_tx() {
             return Err(IotaError::UnsupportedFeature {
@@ -1860,20 +1875,16 @@ impl AuthorityState {
             });
         }
 
-        self.simulate_transaction_impl(&epoch_store, transaction)
-    }
-
-    fn simulate_transaction_impl(
-        &self,
-        epoch_store: &AuthorityPerEpochStore,
-        transaction: TransactionData,
-    ) -> IotaResult<SimulateTransactionResult> {
         // Cheap validity checks for a transaction, including input size limits.
+        // This does not check if gas objects are missing since we may create a
+        // mock gas object. It checks for other transaction input validity.
         transaction.validity_check_no_gas_check(epoch_store.protocol_config())?;
 
         let input_object_kinds = transaction.input_objects()?;
         let receiving_object_refs = transaction.receiving_objects();
 
+        // Since we need to simulate a validator signing the transaction, the first step
+        // is to check if some transaction elements are denied.
         iota_transaction_checks::deny::check_transaction_for_signing(
             &transaction,
             &[],
@@ -1883,100 +1894,111 @@ impl AuthorityState {
             self.get_backing_package_store().as_ref(),
         )?;
 
-        let (input_objects, receiving_objects) = self.input_loader.read_objects_for_signing(
-            // We don't want to cache this transaction since it's a dry run.
+        // Load input and receiving objects
+        let (mut input_objects, receiving_objects) = self.input_loader.read_objects_for_signing(
+            // We don't want to cache this transaction since it's a simulation.
             None,
             &input_object_kinds,
             &receiving_object_refs,
             epoch_store.epoch(),
         )?;
-        // make a gas object if one was not provided
-        let mut transaction = transaction;
-        let mut gas_object_refs = transaction.gas().to_vec();
-        let ((gas_status, checked_input_objects), mock_gas) = if transaction.gas().is_empty() {
-            let sender = transaction.gas_owner();
-            let gas_object_id = ObjectID::MAX;
-            let gas_object = Object::new_move(
+
+        // Create a mock gas object if one was not provided
+        let mock_gas_id = if transaction.gas().is_empty() {
+            let mock_gas_object = Object::new_move(
                 MoveObject::new_gas_coin(
                     OBJECT_START_VERSION,
-                    gas_object_id,
+                    ObjectID::MAX,
                     SIMULATION_GAS_COIN_VALUE,
                 ),
-                Owner::AddressOwner(sender),
+                Owner::AddressOwner(transaction.gas_data().owner),
                 TransactionDigest::genesis_marker(),
             );
-            let gas_object_ref = gas_object.compute_object_reference();
-            gas_object_refs = vec![gas_object_ref];
-
-            // Add the gas object to the transaction payment.
-            transaction.gas_data_mut().payment = gas_object_refs.clone();
-            (
-                iota_transaction_checks::check_transaction_input_with_given_gas(
-                    epoch_store.protocol_config(),
-                    epoch_store.reference_gas_price(),
-                    &transaction,
-                    input_objects,
-                    receiving_objects,
-                    gas_object,
-                    &self.metrics.bytecode_verifier_metrics,
-                    &self.config.verifier_signing_config,
-                )?,
-                Some(gas_object_id),
-            )
+            let mock_gas_object_ref = mock_gas_object.compute_object_reference();
+            transaction.gas_data_mut().payment = vec![mock_gas_object_ref];
+            input_objects.push(ObjectReadResult::new_from_gas_object(&mock_gas_object));
+            Some(mock_gas_object.id())
         } else {
-            (
-                iota_transaction_checks::check_transaction_input(
-                    epoch_store.protocol_config(),
-                    epoch_store.reference_gas_price(),
-                    &transaction,
-                    input_objects,
-                    &receiving_objects,
-                    &self.metrics.bytecode_verifier_metrics,
-                    &self.config.verifier_signing_config,
-                )?,
-                None,
-            )
+            None
         };
 
         let protocol_config = epoch_store.protocol_config();
-        let (kind, signer, _) = transaction.execution_parts();
 
-        let silent = true;
-        let executor = iota_execution::executor(protocol_config, silent, None)
-            .expect("Creating an executor should not fail here");
-
-        let expensive_checks = false;
-        let (inner_temp_store, _, effects, _execution_error) = executor
-            .execute_transaction_to_effects(
-                self.get_backing_store().as_ref(),
+        // Checks enabled -> DRY-RUN, it means we are simulating a real TX
+        // Checks disabled -> DEV-INSPECT, more relaxed Move VM checks
+        let (gas_status, checked_input_objects) = if checks.enabled() {
+            iota_transaction_checks::check_transaction_input(
                 protocol_config,
-                self.metrics.limits_metrics.clone(),
-                expensive_checks,
-                self.config.certificate_deny_config.certificate_deny_set(),
-                &epoch_store.epoch_start_config().epoch_data().epoch_id(),
-                epoch_store
-                    .epoch_start_config()
-                    .epoch_data()
-                    .epoch_start_timestamp(),
-                checked_input_objects,
-                gas_object_refs,
-                gas_status,
-                kind,
-                signer,
-                transaction.digest(),
-                &mut None,
-            );
+                epoch_store.reference_gas_price(),
+                &transaction,
+                input_objects,
+                &receiving_objects,
+                &self.metrics.bytecode_verifier_metrics,
+                &self.config.verifier_signing_config,
+            )?
+        } else {
+            let checked_input_objects = iota_transaction_checks::check_dev_inspect_input(
+                protocol_config,
+                transaction.kind(),
+                input_objects,
+                receiving_objects,
+            )?;
+            let gas_status = IotaGasStatus::new(
+                transaction.gas_budget(),
+                transaction.gas_price(),
+                epoch_store.reference_gas_price(),
+                protocol_config,
+            )?;
 
+            (gas_status, checked_input_objects)
+        };
+
+        // Create a new executor for the simulation
+        let executor = iota_execution::executor(
+            protocol_config,
+            true, // silent
+            None,
+        )
+        .expect("Creating an executor should not fail here");
+
+        // Execute the simulation
+        let (kind, signer, gas_coins) = transaction.execution_parts();
+        let (inner_temp_store, _, effects, execution_result) = executor.dev_inspect_transaction(
+            self.get_backing_store().as_ref(),
+            protocol_config,
+            self.metrics.limits_metrics.clone(),
+            false, // expensive_checks
+            self.config.certificate_deny_config.certificate_deny_set(),
+            &epoch_store.epoch_start_config().epoch_data().epoch_id(),
+            epoch_store
+                .epoch_start_config()
+                .epoch_data()
+                .epoch_start_timestamp(),
+            checked_input_objects,
+            gas_coins,
+            gas_status,
+            kind,
+            signer,
+            transaction.digest(),
+            checks.disabled(),
+        );
+
+        // In the case of a dev inspect, the execution_result could be filled with some
+        // values. Else, execution_result is empty in the case of a dry run.
         Ok(SimulateTransactionResult {
             input_objects: inner_temp_store.input_objects,
             output_objects: inner_temp_store.written,
             events: effects.events_digest().map(|_| inner_temp_store.events),
             effects,
-            mock_gas_id: mock_gas,
+            execution_result,
+            mock_gas_id,
         })
     }
 
-    /// The object ID for gas can be any object ID, even for an uncreated object
+    /// TO BE DEPRECATED SOON: Use `simulate_transaction` with
+    /// `VmChecks::DISABLED` instead.
+    /// The object ID for gas can be any
+    /// object ID, even for an uncreated object
     #[instrument("dev_inspect_tx", level = "trace", skip_all)]
     pub async fn dev_inspect_transaction_block(
         &self,
@@ -2129,7 +2151,7 @@ impl AuthorityState {
             Intent {
                 version: IntentVersion::V0,
                 scope: IntentScope::TransactionData,
-                app_id: AppId::Iota,
+                app_id: IntentAppId::Iota,
             },
             transaction,
         );
@@ -2821,6 +2843,7 @@ impl AuthorityState {
             store.perpetual_tables.clone(),
             checkpoint_store.clone(),
             rest_index.clone(),
+            indexes.clone(),
             config.authority_store_pruning_config.clone(),
             epoch_store.committee().authority_exists(&name),
             epoch_store.epoch_start_state().epoch_duration_ms(),
@@ -5053,9 +5076,8 @@ impl AuthorityState {
             self.get_backing_package_store().clone(),
             self.get_object_store().clone(),
             expensive_safety_check_config,
-            cur_epoch_store.get_chain_identifier(),
             epoch_last_checkpoint,
-        );
+        )?;
         self.epoch_store.store(new_epoch_store.clone());
         Ok(new_epoch_store)
     }

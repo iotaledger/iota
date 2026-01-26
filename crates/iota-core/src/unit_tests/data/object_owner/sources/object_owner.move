@@ -3,12 +3,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 module object_owner::object_owner {
-    use std::option::{Self, Option};
     use iota::dynamic_object_field;
     use iota::dynamic_field;
-    use iota::object::{Self, ID, UID};
-    use iota::transfer;
-    use iota::tx_context::{Self, TxContext};
 
     public struct Parent has key {
         id: UID,

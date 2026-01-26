@@ -21,6 +21,7 @@ use iota_metrics::spawn_monitored_task;
 use iota_open_rpc::Module;
 use iota_package_resolver::{Package, PackageStore, error::Error as PackageResolverError};
 use iota_protocol_config::Chain;
+use iota_sdk_types::crypto::{Intent, IntentAppId, IntentMessage, IntentScope, IntentVersion};
 use iota_transaction_builder::TransactionBuilder;
 use iota_types::{
     base_types::IotaAddress,
@@ -39,7 +40,6 @@ use iota_types::{
 };
 use jsonrpsee::{RpcModule, core::RpcResult};
 use move_core_types::account_address::AccountAddress;
-use shared_crypto::intent::{AppId, Intent, IntentMessage, IntentScope, IntentVersion};
 use tracing::{Instrument, instrument};
 
 use crate::{
@@ -293,7 +293,7 @@ impl TransactionExecutionApi {
             Intent {
                 version: IntentVersion::V0,
                 scope: IntentScope::TransactionData,
-                app_id: AppId::Iota,
+                app_id: IntentAppId::Iota,
             },
             tx_data,
         );
@@ -343,6 +343,7 @@ impl TransactionExecutionApi {
             balance_changes,
             input: resp.input,
             suggested_gas_price: resp.suggested_gas_price,
+            execution_error_source: resp.execution_error_source,
         })
     }
 }
@@ -368,7 +369,7 @@ impl WriteApiServer for TransactionExecutionApi {
         &self,
         function_name: String,
         type_args: Option<Vec<IotaTypeTag>>,
-        call_args: Vec<IotaJsonValue>,
+        arguments: Vec<IotaJsonValue>,
     ) -> RpcResult<IotaMoveViewCallResults> {
         let chain = self
             .state
@@ -395,7 +396,7 @@ impl WriteApiServer for TransactionExecutionApi {
                 &module,
                 &function,
                 type_args.unwrap_or_default(),
-                call_args,
+                arguments,
             )
             .await
             .map_err(Error::from)?;

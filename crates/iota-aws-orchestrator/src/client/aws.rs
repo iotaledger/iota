@@ -23,6 +23,7 @@ use serde::Serialize;
 
 use super::{Instance, InstanceLifecycle, InstanceRole, ServerProviderClient};
 use crate::{
+    display,
     error::{CloudProviderError, CloudProviderResult},
     settings::Settings,
 };
@@ -237,11 +238,12 @@ impl AwsClient {
 
     /// Return the command to mount the first (standard) NVMe drive.
     fn nvme_mount_command(&self) -> Vec<String> {
-        const DRIVE: &str = "nvme1n1";
         let directory = self.settings.working_dir.display();
         vec![
-            format!("(sudo mkfs.ext4 -E nodiscard /dev/{DRIVE} || true)"),
-            format!("(sudo mount /dev/{DRIVE} {directory} || true)"),
+            "export NVME_DRIVE=$(nvme list | awk '/NVMe Instance Storage/ {print $1; exit}')"
+                .to_string(),
+            "(sudo mkfs.ext4 -E nodiscard $NVME_DRIVE || true)".to_string(),
+            format!("(sudo mount $NVME_DRIVE {directory} || true)"),
             format!("sudo chmod 777 -R {directory}"),
         ]
     }
@@ -337,6 +339,7 @@ impl ServerProviderClient for AwsClient {
                 }
             }
         }
+        instances.sort_by_key(|i| i.main_ip);
 
         Ok(instances)
     }
@@ -420,6 +423,7 @@ impl ServerProviderClient for AwsClient {
         role: InstanceRole,
         quantity: usize,
         use_spot_instances: bool,
+        id: String,
     ) -> CloudProviderResult<Vec<Instance>>
     where
         S: Into<String> + Serialize + Send,
@@ -443,6 +447,7 @@ impl ServerProviderClient for AwsClient {
             .resource_type(ResourceType::Instance)
             .tags(Tag::builder().key("Name").value(testbed_id).build())
             .tags(Tag::builder().key("Role").value(role.to_string()).build())
+            .tags(Tag::builder().key("Id").value(id).build())
             .build();
 
         let storage = BlockDeviceMapping::builder()
@@ -461,38 +466,52 @@ impl ServerProviderClient for AwsClient {
             InstanceRole::Client => &self.settings.client_specs,
         };
 
-        let base_request = client
+        let mut base_request = client
             .run_instances()
             .image_id(image_id)
             .instance_type(instance_type.as_str().into())
             .key_name(testbed_id)
             .security_groups(&self.settings.testbed_id)
-            .block_device_mappings(storage)
             .tag_specifications(tags);
+
+        // Only the monitoring device should be EBS backed.
+        if role == InstanceRole::Metrics {
+            base_request = base_request.block_device_mappings(storage);
+        }
         let mut collected_instances = Vec::new();
         if use_spot_instances && role == InstanceRole::Node {
-            // first attempt to deploy sport instances
-            let request = base_request
-                .clone()
-                .min_count(1)
-                .max_count(quantity as i32)
-                .instance_market_options(Self::spot_options());
-            let result = request.send().await;
-            let instances = match result {
-                Ok(response) => response
-                    .instances()
-                    .iter()
-                    .map(|i| self.make_instance(region.clone(), i))
-                    .collect(),
-                Err(_) => Vec::new(),
-            };
-            collected_instances.extend(instances);
+            let start = tokio::time::Instant::now();
+            // 5min try for spot instances
+            let total_runtime = tokio::time::Duration::from_secs(300);
+            while start.elapsed() < total_runtime && collected_instances.len() < quantity {
+                display::status(format!(
+                    "{}s/{}s: {}",
+                    start.elapsed().as_secs(),
+                    total_runtime.as_secs(),
+                    collected_instances.len()
+                ));
+                let needed = (quantity - collected_instances.len()) as i32;
+                let request = base_request
+                    .clone()
+                    .min_count(1)
+                    .max_count(needed)
+                    .instance_market_options(Self::spot_options());
+                let result = request.send().await;
+                let instances = match result {
+                    Ok(response) => response
+                        .instances()
+                        .iter()
+                        .map(|i| self.make_instance(region.clone(), i))
+                        .collect(),
+                    Err(_) => Vec::new(),
+                };
+                collected_instances.extend(instances);
+            }
         }
-        if collected_instances.len() < quantity {
+        while collected_instances.len() < quantity {
             // some instances need to be OnDemand
-            let request = base_request
-                .min_count((quantity - collected_instances.len()) as i32)
-                .max_count((quantity - collected_instances.len()) as i32);
+            let needed = (quantity - collected_instances.len()) as i32;
+            let request = base_request.clone().min_count(1).max_count(needed);
             let response = request.send().await?;
             let on_demand_instances = response
                 .instances()
@@ -500,6 +519,10 @@ impl ServerProviderClient for AwsClient {
                 .map(|instance| self.make_instance(region.clone(), instance))
                 .collect::<Vec<_>>();
             collected_instances.extend(on_demand_instances);
+            display::status(format!(
+                "collected instances: {}",
+                collected_instances.len()
+            ));
         }
         Ok(collected_instances)
     }

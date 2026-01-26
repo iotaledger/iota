@@ -8,6 +8,7 @@ use axum::{
     Router,
     extract::{Query, State},
     http::StatusCode,
+    response::{IntoResponse as _, Response},
     routing::{get, post},
 };
 use base64::Engine;
@@ -81,6 +82,7 @@ const NODE_CONFIG: &str = "/node-config";
 const RANDOMNESS_PARTIAL_SIGS_ROUTE: &str = "/randomness-partial-sigs";
 const RANDOMNESS_INJECT_PARTIAL_SIGS_ROUTE: &str = "/randomness-inject-partial-sigs";
 const RANDOMNESS_INJECT_FULL_SIG_ROUTE: &str = "/randomness-inject-full-sig";
+const FLAMEGRAPH_ROUTE: &str = "/flamegraph";
 
 struct AppState {
     node: Arc<IotaNode>,
@@ -124,6 +126,7 @@ pub async fn run_admin_server(
             RANDOMNESS_INJECT_FULL_SIG_ROUTE,
             post(randomness_inject_full_sig),
         )
+        .route(FLAMEGRAPH_ROUTE, get(flamegraph))
         .with_state(Arc::new(app_state));
 
     info!(
@@ -449,5 +452,100 @@ async fn randomness_inject_full_sig(
         Ok(Ok(())) => (StatusCode::OK, "full signature injected\n".to_string()),
         Ok(Err(e)) => (StatusCode::BAD_REQUEST, e.to_string()),
         Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()),
+    }
+}
+
+#[derive(Deserialize)]
+struct Flamegraph {
+    /// Toggle SVG response, otherwise return nested set model for Grafana.
+    #[serde(default)]
+    svg: bool,
+    /// SVG width in pixels (when missing or set to 0 will default to 1920).
+    #[serde(default)]
+    width: usize,
+    /// Select still running call graphs.
+    #[serde(default)]
+    running: bool,
+    /// Select already completed call graphs.
+    #[serde(default)]
+    completed: bool,
+    /// Select call graph with the given ID.
+    #[serde(default)]
+    graph_id: String,
+    /// Use memory allocations as span measure rather than duration.
+    #[serde(default)]
+    mem: bool,
+}
+
+async fn flamegraph(State(state): State<Arc<AppState>>, query: Query<Flamegraph>) -> Response {
+    if let Some(sub) = state.tracing_handle.get_flamegraph() {
+        let Query(Flamegraph {
+            svg,
+            width,
+            mut running,
+            mut completed,
+            graph_id,
+            mem,
+        }) = query;
+        if !running && !completed {
+            running = true;
+            completed = true;
+        }
+        if svg {
+            #[cfg(not(all(feature = "flamegraph-alloc", nightly)))]
+            {
+                if mem {
+                    return (
+                        StatusCode::BAD_REQUEST,
+                        "memory flamegraphs are not supported (re-run iota-node with 'flamegraph-alloc' feature enabled and on nightly Rust toolchain)",
+                    )
+                        .into_response();
+                }
+            }
+
+            // draw an svg
+            let width = if width == 0 { Some(1920) } else { Some(width) };
+            let config = telemetry_subscribers::flamegraph::SvgConfig {
+                width,
+                #[cfg(all(feature = "flamegraph-alloc", nightly))]
+                measure_mem: mem,
+                ..Default::default()
+            };
+            let svg = if !graph_id.is_empty() {
+                sub.get_svg(&graph_id, running, completed, &config)
+            } else {
+                sub.get_combined_svg("iota-node", running, completed, &config)
+            };
+            if let Some(svg) = svg {
+                (
+                    [(
+                        axum::http::header::CONTENT_TYPE,
+                        axum::http::header::HeaderValue::from_static("image/svg+xml"),
+                    )],
+                    svg.into_string(),
+                )
+                    .into_response()
+            } else {
+                (StatusCode::NOT_FOUND, "Flamegraphs not found\n").into_response()
+            }
+        } else {
+            // default nested set model for grafana
+            let nested_frames = if !graph_id.is_empty() {
+                sub.get_nested_set(&graph_id, running, completed)
+            } else {
+                sub.get_nested_sets("iota-node", running, completed)
+            };
+            if !nested_frames.is_empty() {
+                axum::Json(nested_frames).into_response()
+            } else {
+                (StatusCode::NOT_FOUND, "Flamegraphs not found\n").into_response()
+            }
+        }
+    } else {
+        (
+            StatusCode::NOT_FOUND,
+            "Flamegraphs are not enabled (re-run iota-node with TRACE_FLAMEGRAPH=1)\n",
+        )
+            .into_response()
     }
 }
