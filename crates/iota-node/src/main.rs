@@ -66,13 +66,15 @@ fn main() {
             .ok()
             .map(|s| s.parse().unwrap())
             .unwrap_or(1_u64);
-        iota_core::signature_verifier::BATCH_TIMEOUT_MS.store(val, std::sync::atomic::Ordering::Relaxed);
+        iota_core::signature_verifier::BATCH_TIMEOUT_MS
+            .store(val, std::sync::atomic::Ordering::Relaxed);
 
         let val = std::env::var("MAX_BATCH_SIZE")
             .ok()
             .map(|s| s.parse().unwrap())
             .unwrap_or(100_usize);
-        iota_core::signature_verifier::MAX_BATCH_SIZE.store(val, std::sync::atomic::Ordering::Relaxed);
+        iota_core::signature_verifier::MAX_BATCH_SIZE
+            .store(val, std::sync::atomic::Ordering::Relaxed);
 
         // AuthoritySignature batch verification
         let val = std::env::var("MOCK_VERIFY_ALL")
