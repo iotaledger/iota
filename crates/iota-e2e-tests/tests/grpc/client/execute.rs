@@ -29,23 +29,8 @@ async fn execute_transaction_transfer() {
         gas_summary.computation_cost > 0 || gas_summary.storage_cost > 0,
         "Some gas should have been charged"
     );
-}
 
-#[sim_test]
-async fn execute_transaction_response_fields() {
-    let (test_cluster, client) = setup_grpc_test(1).await;
-
-    let signed_tx = create_signed_transaction(&test_cluster).await;
-
-    let result = client
-        .execute_transaction(signed_tx, None)
-        .await
-        .expect("Failed to execute transaction");
-
-    assert!(
-        is_success(result.effects.status()),
-        "Effects should show successful execution"
-    );
+    // Verify response fields are present with default mask
     assert!(
         result.input_objects.is_some(),
         "Input objects should be present with default mask"
