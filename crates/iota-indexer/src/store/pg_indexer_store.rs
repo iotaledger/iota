@@ -359,9 +359,9 @@ impl PgIndexerStore {
         read_only_blocking!(&self.blocking_cp, |conn| {
             watermarks::table
                 .select((
-                    watermarks::epoch_hi_inclusive,
-                    watermarks::checkpoint_hi_inclusive,
-                    watermarks::tx_hi,
+                    watermarks::current_epoch,
+                    watermarks::max_committed_cp,
+                    watermarks::max_committed_tx,
                 ))
                 .filter(
                     watermarks::entity
@@ -372,9 +372,9 @@ impl PgIndexerStore {
                 .optional()
                 .map(|v| {
                     v.map(|(epoch, cp, tx)| CommitterWatermark {
-                        epoch_hi_inclusive: epoch as u64,
-                        checkpoint_hi_inclusive: cp as u64,
-                        tx_hi: tx as u64,
+                        current_epoch: epoch as u64,
+                        max_committed_cp: cp as u64,
+                        max_committed_tx: tx as u64,
                     })
                 })
         })
@@ -1629,10 +1629,9 @@ impl PgIndexerStore {
                     .on_conflict(watermarks::entity)
                     .do_update()
                     .set((
-                        watermarks::epoch_hi_inclusive.eq(excluded(watermarks::epoch_hi_inclusive)),
-                        watermarks::checkpoint_hi_inclusive
-                            .eq(excluded(watermarks::checkpoint_hi_inclusive)),
-                        watermarks::tx_hi.eq(excluded(watermarks::tx_hi)),
+                        watermarks::current_epoch.eq(excluded(watermarks::current_epoch)),
+                        watermarks::max_committed_cp.eq(excluded(watermarks::max_committed_cp)),
+                        watermarks::max_committed_tx.eq(excluded(watermarks::max_committed_tx)),
                     ))
                     .execute(conn)
                     .map_err(IndexerError::from)
@@ -1692,7 +1691,8 @@ impl PgIndexerStore {
                 Ok(StoredWatermark::from_lower_bound_update(
                     table.as_ref(),
                     epoch,
-                    table.select_reader_lo(*checkpoint, *tx),
+                    *checkpoint,
+                    *tx,
                 ))
             })
             .collect();
@@ -1709,19 +1709,27 @@ impl PgIndexerStore {
                     .on_conflict(watermarks::entity)
                     .do_update()
                     .set((
-                        watermarks::reader_lo.eq(excluded(watermarks::reader_lo)),
-                        watermarks::epoch_lo.eq(excluded(watermarks::epoch_lo)),
-                        watermarks::timestamp_ms.eq(sql::<diesel::sql_types::BigInt>(
+                        watermarks::min_available_cp.eq(excluded(watermarks::min_available_cp)),
+                        watermarks::min_available_tx.eq(excluded(watermarks::min_available_tx)),
+                        watermarks::min_available_epoch
+                            .eq(excluded(watermarks::min_available_epoch)),
+                        watermarks::min_bounds_updated_at_timestamp_ms.eq(sql::<
+                            diesel::sql_types::BigInt,
+                        >(
                             "(EXTRACT(EPOCH FROM CURRENT_TIMESTAMP) * 1000)::bigint",
                         )),
                     ))
-                    .filter(excluded(watermarks::reader_lo).gt(watermarks::reader_lo))
-                    .filter(excluded(watermarks::epoch_lo).gt(watermarks::epoch_lo))
+                    .filter(excluded(watermarks::min_available_cp).gt(watermarks::min_available_cp))
+                    .filter(excluded(watermarks::min_available_tx).gt(watermarks::min_available_tx))
+                    .filter(
+                        excluded(watermarks::min_available_epoch)
+                            .gt(watermarks::min_available_epoch),
+                    )
                     .filter(
                         diesel::dsl::sql::<diesel::sql_types::BigInt>(
                             "(EXTRACT(EPOCH FROM CURRENT_TIMESTAMP) * 1000)::bigint",
                         )
-                        .gt(watermarks::timestamp_ms),
+                        .gt(watermarks::min_bounds_updated_at_timestamp_ms),
                     )
                     .execute(conn)
             },
@@ -1759,19 +1767,19 @@ impl PgIndexerStore {
         )
     }
 
-    fn update_watermark_pruner_hi(
+    fn update_watermark_lowest_unpruned_key(
         &self,
         table: &PrunableTable,
-        pruner_hi: u64,
+        lowest_unpruned_key: u64,
     ) -> Result<(), IndexerError> {
         transactional_blocking_with_retry!(
             &self.blocking_cp,
             |conn| {
                 diesel::update(watermarks::table.filter(watermarks::entity.eq(table.as_ref())))
-                    .set(watermarks::pruner_hi.eq(pruner_hi as i64))
+                    .set(watermarks::lowest_unpruned_key.eq(lowest_unpruned_key as i64))
                     .execute(conn)
                     .map_err(IndexerError::from)
-                    .context("failed to update watermark pruner_hi")?;
+                    .context("failed to update watermark lowest_unpruned_key")?;
                 Ok::<(), IndexerError>(())
             },
             PG_DB_COMMIT_SLEEP_DURATION
@@ -2496,14 +2504,14 @@ impl IndexerStore for PgIndexerStore {
         .await
     }
 
-    async fn update_watermark_pruner_hi(
+    async fn update_watermark_lowest_unpruned_key(
         &self,
         table: &PrunableTable,
-        pruner_hi: u64,
+        lowest_unpruned_key: u64,
     ) -> Result<(), IndexerError> {
         let table = *table;
         self.execute_in_blocking_worker(move |this| {
-            this.update_watermark_pruner_hi(&table, pruner_hi)
+            this.update_watermark_lowest_unpruned_key(&table, lowest_unpruned_key)
         })
         .await
     }
