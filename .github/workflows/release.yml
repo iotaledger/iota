@@ -296,7 +296,7 @@ jobs:
 
   publish-chocolatey:
     name: Publish Chocolatey package
-    needs: release-build
+    needs: [release-build, generate-tag]
     runs-on: windows-latest
     if: ${{ github.event_name == 'release' && !contains(github.ref, '-alpha') && !contains(github.ref, '-beta')}}
     steps:
