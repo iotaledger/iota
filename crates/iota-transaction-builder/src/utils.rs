@@ -117,6 +117,54 @@ impl TransactionBuilder {
         })
     }
 
+    /// Resolve a [`ResolvedCallArg`] to a [`CallArg`] or a list of
+    /// [`ObjectArg`] for object vectors.
+    async fn resolved_call_arg_to_call_arg(
+        &self,
+        resolved_arg: ResolvedCallArg,
+        param: &SignatureToken,
+        module: &CompiledModule,
+    ) -> Result<ResolvedCallArgResult, anyhow::Error> {
+        match resolved_arg {
+            ResolvedCallArg::Pure(bytes) => {
+                Ok(ResolvedCallArgResult::CallArg(CallArg::Pure(bytes)))
+            }
+            ResolvedCallArg::Object(id) => {
+                let is_mutable =
+                    matches!(param, SignatureToken::MutableReference(_)) || !param.is_reference();
+                let object_arg = self.get_object_arg(id, is_mutable, module, param).await?;
+                Ok(ResolvedCallArgResult::CallArg(CallArg::Object(object_arg)))
+            }
+            ResolvedCallArg::ObjVec(vec_ids) => {
+                let mut object_args = Vec::with_capacity(vec_ids.len());
+                for id in vec_ids {
+                    object_args.push(self.get_object_arg(id, false, module, param).await?);
+                }
+                Ok(ResolvedCallArgResult::ObjVec(object_args))
+            }
+        }
+    }
+
+    /// Resolve a single JSON value to a [`ResolvedCallArgResult`].
+    async fn resolve_json_value_to_call_arg(
+        &self,
+        module: &CompiledModule,
+        type_args: &[TypeTag],
+        value: IotaJsonValue,
+        param: &SignatureToken,
+        idx: usize,
+    ) -> Result<ResolvedCallArgResult, anyhow::Error> {
+        let json_slice = [value];
+        let param_slice = [param.clone()];
+        let resolved = resolve_call_args(module, type_args, &json_slice, &param_slice)?;
+        let resolved_arg = resolved
+            .into_iter()
+            .next()
+            .ok_or_else(|| anyhow!("Unable to resolve argument at index {idx}"))?;
+        self.resolved_call_arg_to_call_arg(resolved_arg, param, module)
+            .await
+    }
+
     /// Convert provided JSON arguments for a move function to their
     /// [`Argument`] representation and check their validity.
     pub async fn resolve_and_checks_json_args(
@@ -144,36 +192,13 @@ impl TransactionBuilder {
         // Finally construct the input arguments for the builder.
         let mut args = Vec::new();
         for (arg, expected_type) in json_args_and_tokens {
-            args.push(match arg {
-                ResolvedCallArg::Pure(p) => builder.input(CallArg::Pure(p)),
-                ResolvedCallArg::Object(id) => builder.input(CallArg::Object(
-                    self.get_object_arg(
-                        id,
-                        // Is mutable if passed by mutable reference or by value
-                        matches!(expected_type, SignatureToken::MutableReference(_))
-                            || !expected_type.is_reference(),
-                        &module,
-                        &expected_type,
-                    )
-                    .await?,
-                )),
-                ResolvedCallArg::ObjVec(v) => {
-                    let mut object_ids = vec![];
-                    for id in v {
-                        object_ids.push(
-                            self.get_object_arg(
-                                id,
-                                // is_mutable_ref
-                                false,
-                                &module,
-                                &expected_type,
-                            )
-                            .await?,
-                        )
-                    }
-                    builder.make_obj_vec(object_ids)
-                }
-            }?);
+            let result = self
+                .resolved_call_arg_to_call_arg(arg, &expected_type, &module)
+                .await?;
+            args.push(match result {
+                ResolvedCallArgResult::CallArg(call_arg) => builder.input(call_arg)?,
+                ResolvedCallArgResult::ObjVec(object_args) => builder.make_obj_vec(object_args)?,
+            });
         }
 
         Ok(args)
@@ -191,31 +216,9 @@ impl TransactionBuilder {
         call_args: Vec<PtbInput>,
     ) -> Result<Vec<Argument>, anyhow::Error> {
         let package = self.fetch_move_package(package_id).await?;
-
         let module_compiled = package.deserialize_module(module, &BinaryConfig::standard())?;
-        let function_str = function.as_ident_str();
-        let function_def = module_compiled
-            .function_defs
-            .iter()
-            .find(|function_def| {
-                module_compiled.identifier_at(
-                    module_compiled
-                        .function_handle_at(function_def.function)
-                        .name,
-                ) == function_str
-            })
-            .ok_or_else(|| anyhow!("Could not resolve function {function} in module {module}"))?;
-        let function_signature = module_compiled.function_handle_at(function_def.function);
-        let parameters = &module_compiled
-            .signature_at(function_signature.parameters)
-            .0;
-
-        let expected_len = match parameters.last() {
-            Some(param) if TxContext::kind(&module_compiled, param) != TxContextKind::None => {
-                parameters.len() - 1
-            }
-            _ => parameters.len(),
-        };
+        let parameters = get_function_parameters(&module_compiled, function)?;
+        let expected_len = expected_arg_count(&module_compiled, parameters);
 
         if call_args.len() != expected_len {
             bail!("Expected {expected_len} args, found {}", call_args.len());
@@ -230,35 +233,18 @@ impl TransactionBuilder {
         {
             let argument = match arg {
                 PtbInput::CallArg(value) => {
-                    let json_slice = [value];
-                    let param_slice = [param.clone()];
-                    let resolved =
-                        resolve_call_args(&module_compiled, type_args, &json_slice, &param_slice)?;
-                    let resolved_arg = resolved
-                        .into_iter()
-                        .next()
-                        .ok_or_else(|| anyhow!("Unable to resolve pure argument at index {idx}"))?;
-
+                    let resolved_arg = self
+                        .resolve_json_value_to_call_arg(
+                            &module_compiled,
+                            type_args,
+                            value,
+                            param,
+                            idx,
+                        )
+                        .await?;
                     match resolved_arg {
-                        ResolvedCallArg::Pure(bytes) => builder.input(CallArg::Pure(bytes))?,
-                        ResolvedCallArg::Object(id) => {
-                            let is_mutable = match param {
-                                SignatureToken::MutableReference(_) => true,
-                                _ => !param.is_reference(),
-                            };
-                            let object_arg = self
-                                .get_object_arg(id, is_mutable, &module_compiled, param)
-                                .await?;
-                            builder.input(CallArg::Object(object_arg))?
-                        }
-                        ResolvedCallArg::ObjVec(vec_ids) => {
-                            let mut object_args = Vec::with_capacity(vec_ids.len());
-                            for id in vec_ids {
-                                object_args.push(
-                                    self.get_object_arg(id, false, &module_compiled, param)
-                                        .await?,
-                                );
-                            }
+                        ResolvedCallArgResult::CallArg(call_arg) => builder.input(call_arg)?,
+                        ResolvedCallArgResult::ObjVec(object_args) => {
                             builder.make_obj_vec(object_args)?
                         }
                     }
@@ -347,6 +333,49 @@ impl TransactionBuilder {
         Ok(args)
     }
 
+    /// Convert provided JSON arguments for a move function to their
+    /// [`CallArg`] representation and check their validity.
+    ///
+    /// Note: For object vectors, each object is added as a separate
+    /// `CallArg::Object` entry.
+    pub async fn resolve_and_check_json_args_to_call_args(
+        &self,
+        package_id: ObjectID,
+        module: &Identifier,
+        function: &Identifier,
+        type_args: &[TypeTag],
+        call_args: Vec<IotaJsonValue>,
+    ) -> Result<Vec<CallArg>, anyhow::Error> {
+        let package = self.fetch_move_package(package_id).await?;
+        let module_compiled = package.deserialize_module(module, &BinaryConfig::standard())?;
+        let parameters = get_function_parameters(&module_compiled, function)?;
+        let expected_len = expected_arg_count(&module_compiled, parameters);
+
+        let mut arguments = Vec::with_capacity(expected_len);
+
+        for (idx, (value, param)) in call_args
+            .into_iter()
+            .zip(parameters.iter().take(expected_len))
+            .enumerate()
+        {
+            let resolved_arg = self
+                .resolve_json_value_to_call_arg(&module_compiled, type_args, value, param, idx)
+                .await?;
+
+            match resolved_arg {
+                ResolvedCallArgResult::CallArg(call_arg) => arguments.push(call_arg),
+                ResolvedCallArgResult::ObjVec(object_args) => {
+                    // For object vectors, add each object as a separate CallArg::Object entry
+                    for obj_arg in object_args {
+                        arguments.push(CallArg::Object(obj_arg));
+                    }
+                }
+            }
+        }
+
+        Ok(arguments)
+    }
+
     /// Get the latest object ref for an object.
     pub async fn get_object_ref(&self, object_id: ObjectID) -> anyhow::Result<ObjectRef> {
         // TODO: we should add retrial to reduce the transaction building error rate
@@ -415,4 +444,44 @@ fn check_function_has_a_return(
         .into()
     );
     Ok(())
+}
+
+/// Result of resolving a call argument, distinguishing between single
+/// [`CallArg`] and object vectors.
+enum ResolvedCallArgResult {
+    CallArg(CallArg),
+    ObjVec(Vec<ObjectArg>),
+}
+
+/// Get function parameters from a compiled module, excluding TxContext.
+fn get_function_parameters<'a>(
+    module: &'a CompiledModule,
+    function: &Identifier,
+) -> Result<&'a [SignatureToken], anyhow::Error> {
+    let function_str = function.as_ident_str();
+    let function_def = module
+        .function_defs
+        .iter()
+        .find(|function_def| {
+            module.identifier_at(module.function_handle_at(function_def.function).name)
+                == function_str
+        })
+        .ok_or_else(|| {
+            anyhow!(
+                "Could not resolve function {function} in module {}",
+                module.self_id()
+            )
+        })?;
+    let function_signature = module.function_handle_at(function_def.function);
+    Ok(&module.signature_at(function_signature.parameters).0)
+}
+
+/// Calculate expected argument count, excluding TxContext if present.
+fn expected_arg_count(module: &CompiledModule, parameters: &[SignatureToken]) -> usize {
+    match parameters.last() {
+        Some(param) if TxContext::kind(module, param) != TxContextKind::None => {
+            parameters.len() - 1
+        }
+        _ => parameters.len(),
+    }
 }

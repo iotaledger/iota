@@ -18,7 +18,8 @@ use clap::*;
 use colored::Colorize;
 use fastcrypto::{
     encoding::{Base64, Encoding},
-    traits::ToFromBytes,
+    hash::HashFunction,
+    traits::{EncodeDecodeBase64, ToFromBytes},
 };
 use futures::{StreamExt, TryStreamExt};
 use iota_config::verifier_signing_config::VerifierSigningConfig;
@@ -51,31 +52,40 @@ use iota_sdk::{
     iota_client_config::{IotaClientConfig, IotaEnv},
     wallet_context::WalletContext,
 };
+use iota_sdk_types::crypto::{Intent, IntentMessage};
 use iota_source_validation::{BytecodeSourceVerifier, ValidationMode};
 use iota_types::{
+    account_abstraction::{
+        account::AuthenticatorFunctionRefV1Key, authenticator_function::AuthenticatorFunctionRefV1,
+    },
     base_types::{IotaAddress, ObjectID, ObjectRef, SequenceNumber},
-    crypto::{EmptySignInfo, SignatureScheme},
+    crypto::{DefaultHash, EmptySignInfo, SignatureScheme},
     digests::{ChainIdentifier, TransactionDigest},
+    dynamic_field::{self, Field},
     error::IotaError,
     gas::{GasCostSummary, get_gas_balance},
     gas_coin::GasCoin,
     iota_serde,
     message_envelope::Envelope,
     metrics::BytecodeVerifierMetrics,
+    move_authenticator::MoveAuthenticator,
     move_package::{MovePackage, UpgradeCap},
     object::Owner,
     parse_iota_type_tag,
     quorum_driver_types::ExecuteTransactionRequestType,
     signature::GenericSignature,
     transaction::{
-        InputObjectKind, SenderSignedData, Transaction, TransactionData, TransactionDataAPI,
-        TransactionKind,
+        CallArg, InputObjectKind, SenderSignedData, Transaction, TransactionData,
+        TransactionDataAPI, TransactionKind,
     },
+    type_input::TypeInput,
 };
 use json_to_table::json_to_table;
 use move_binary_format::CompiledModule;
 use move_bytecode_verifier_meter::Scope;
-use move_core_types::{account_address::AccountAddress, language_storage::TypeTag};
+use move_core_types::{
+    account_address::AccountAddress, identifier::Identifier, language_storage::TypeTag,
+};
 use move_package::{BuildConfig as MoveBuildConfig, source_package::parsed_manifest::Dependencies};
 use move_symbol_pool::Symbol;
 use prometheus::Registry;
@@ -100,9 +110,9 @@ use crate::{
     clever_error_rendering::render_clever_error_opt,
     client_ptb::ptb::{PTB, PTBCommandResult},
     displays::Pretty,
-    key_identity::{KeyIdentity, get_identity_address},
+    key_identity::{KeyIdentity, get_identity_address, get_identity_address_from_keystore},
     keytool::Key,
-    signing::sign_transaction,
+    signing::{SignData, get_shared_object_version, sign_secure, sign_transaction},
     upgrade_compatibility::check_compatibility,
     verifier_meter::{AccumulatingMeter, Accumulator},
 };
@@ -122,6 +132,15 @@ pub enum IotaClientCommands {
     ActiveAddress,
     /// Default environment used for commands when none specified
     ActiveEnv,
+    /// Add an existing account address to the keystore
+    AddAccount {
+        /// The object ID of the account
+        address: IotaAddress,
+        /// The alias must start with a letter and can contain only letters,
+        /// digits, hyphens (-), or underscores (_)
+        #[arg(long)]
+        alias: Option<String>,
+    },
     /// Obtain the Addresses managed by the client.
     Addresses {
         /// Sort by alias instead of address
@@ -208,6 +227,26 @@ pub enum IotaClientCommands {
         /// --serialize-signed-transaction.
         #[arg(long)]
         signed_tx_bytes: String,
+    },
+    /// Create signature using the private key for the given address (or its
+    /// alias) in iota keystore or the auth args for a MoveAuthenticator. Any
+    /// signature commits to a [struct IntentMessage] consisting of the
+    /// Base64 encoded of the BCS serialized transaction bytes itself and
+    /// its intent. If intent is absent, default will be used.
+    Sign {
+        #[arg(long)]
+        address: KeyIdentity,
+        #[arg(long)]
+        data: String,
+        #[arg(long)]
+        intent: Option<Intent>,
+        /// Auth input objects or primitive values for the Move authenticate
+        /// function
+        #[arg(long, num_args = 1..)]
+        auth_call_args: Option<Vec<String>>,
+        /// Auth type arguments for the Move authenticate function
+        #[arg(long, num_args = 1..)]
+        auth_type_args: Option<Vec<String>>,
     },
     /// Request gas coin from faucet. By default, it will use the active address
     /// and the active network.
@@ -714,6 +753,13 @@ pub struct TxProcessingArgs {
     /// balance_changes.
     #[arg(long, required = false, num_args = 0.., value_parser = parse_display_option, default_value = "input,effects,events,object_changes,balance_changes")]
     pub display: HashSet<DisplayOption>,
+    /// Auth input objects or primitive values for the Move authenticate
+    /// function
+    #[arg(long, num_args = 1..)]
+    pub auth_call_args: Option<Vec<String>>,
+    /// Auth type arguments for the Move authenticate function
+    #[arg(long, num_args = 1..)]
+    pub auth_type_args: Option<Vec<String>>,
 }
 
 impl TxProcessingArgs {
@@ -772,6 +818,20 @@ impl IotaClientCommands {
         context: &mut WalletContext,
     ) -> Result<IotaClientCommandResult, anyhow::Error> {
         let ret = match self {
+            IotaClientCommands::AddAccount { address, alias } => {
+                let client = context.get_client().await?;
+
+                let _auth_info = fetch_auth_info(&client, address).await?;
+
+                context
+                    .config_mut()
+                    .keystore_mut()
+                    .add_key(alias, StoredKey::Account(address))?;
+
+                let alias = context.config().keystore().get_alias_by_address(&address)?;
+
+                IotaClientCommandResult::AddAccount(AddAccountOutput { address, alias })
+            }
             IotaClientCommands::ProfileTransaction {
                 tx_digest,
                 profile_output,
@@ -881,10 +941,14 @@ impl IotaClientCommands {
                     .addresses_with_alias()
                     .into_iter()
                     .map(|(address, alias)| {
-                        let source = match context.config().keystore().get_key(address).unwrap() {
-                            StoredKey::KeyPair(_) => "keypair".to_string(),
-                            StoredKey::External { source, .. } => source.to_string(),
-                        };
+                        // Unwrap is safe here because the address comes from iterating the keystore
+                        let source = context
+                            .config()
+                            .keystore()
+                            .get_key(address)
+                            .unwrap()
+                            .source()
+                            .to_string();
                         (alias.alias.to_string(), *address, source)
                     })
                     .collect::<Vec<_>>();
@@ -1671,8 +1735,8 @@ impl IotaClientCommands {
                 IotaClientCommandResult::NewAddress(NewAddressOutput {
                     alias,
                     address,
-                    public_base64_key: key.public_base64_key,
-                    public_base64_key_with_flag: key.public_base64_key_with_flag,
+                    public_base64_key: key.public_base64_key.unwrap(),
+                    public_base64_key_with_flag: key.public_base64_key_with_flag.unwrap(),
                     key_scheme: scheme,
                     recovery_phrase: phrase,
                 })
@@ -1948,6 +2012,55 @@ impl IotaClientCommands {
                 let transaction = Envelope::<SenderSignedData, EmptySignInfo>::new(data);
                 let response = context.execute_transaction_may_fail(transaction).await?;
                 IotaClientCommandResult::TransactionBlock(response)
+            }
+            IotaClientCommands::Sign {
+                address,
+                data,
+                intent,
+                auth_call_args,
+                auth_type_args,
+            } => {
+                let address = get_identity_address_from_keystore(
+                    address,
+                    context.config_mut().keystore_mut(),
+                )?;
+                let intent = intent.unwrap_or_else(Intent::iota_transaction);
+                let msg: TransactionData =
+                    bcs::from_bytes(&Base64::decode(&data).map_err(|e| {
+                        anyhow!("Cannot deserialize data as TransactionData {:?}", e)
+                    })?)?;
+                let intent_msg = IntentMessage::new(intent, msg.clone());
+                let raw_intent_msg: String = Base64::encode(bcs::to_bytes(&intent_msg)?);
+                let mut hasher = DefaultHash::default();
+                hasher.update(bcs::to_bytes(&intent_msg)?);
+                let digest = hasher.finalize().digest;
+
+                let iota_signature = if auth_call_args.is_some() || auth_type_args.is_some() {
+                    let client = context.get_client().await?;
+                    create_move_authenticator_signature(
+                        &client,
+                        address,
+                        auth_call_args.as_ref(),
+                        auth_type_args.as_ref(),
+                    )
+                    .await?
+                } else {
+                    GenericSignature::Signature(sign_secure(
+                        context.config_mut().keystore_mut(),
+                        &address,
+                        &intent_msg.value,
+                        intent_msg.intent,
+                    )?)
+                };
+
+                IotaClientCommandResult::Sign(SignData {
+                    iota_address: address,
+                    raw_tx_data: data,
+                    intent,
+                    raw_intent_msg,
+                    digest: Base64::encode(digest),
+                    iota_signature: iota_signature.encode_base64(),
+                })
             }
             IotaClientCommands::NewEnv {
                 alias,
@@ -2355,6 +2468,26 @@ impl Display for IotaClientCommandResult {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let mut writer = String::new();
         match self {
+            IotaClientCommandResult::AddAccount(new_account) => {
+                let mut builder = TableBuilder::default();
+                builder.push_record(vec!["address", new_account.address.to_string().as_str()]);
+                builder.push_record(vec!["alias", new_account.alias.as_str()]);
+
+                let mut table = builder.build();
+                table.with(TableStyle::rounded());
+                table.with(TablePanel::header("Added account to the keystore."));
+
+                table.with(
+                    TableModify::new(TableCell::new(0, 0))
+                        .with(TableBorder::default().corner_bottom_right('┬')),
+                );
+                table.with(
+                    TableModify::new(TableCell::new(0, 0))
+                        .with(TableBorder::default().corner_top_right('─')),
+                );
+
+                write!(f, "{table}")?
+            }
             IotaClientCommandResult::Addresses(addresses) => {
                 let mut builder = TableBuilder::default();
                 builder.set_header(vec!["alias", "address", "source", "active"]);
@@ -2687,6 +2820,29 @@ impl Display for IotaClientCommandResult {
 
                 writeln!(f, "{table}")?;
             }
+            IotaClientCommandResult::Sign(sign_data) => {
+                let mut builder = TableBuilder::default();
+                builder.push_record(vec![
+                    "iota_address",
+                    sign_data.iota_address.to_string().as_str(),
+                ]);
+                builder.push_record(vec!["raw_tx_data", sign_data.raw_tx_data.as_str()]);
+                builder.push_record(vec!["intent", &format!("{:?}", sign_data.intent)]);
+                builder.push_record(vec!["raw_intent_msg", sign_data.raw_intent_msg.as_str()]);
+                builder.push_record(vec!["digest", sign_data.digest.as_str()]);
+                builder.push_record(vec!["iota_signature", sign_data.iota_signature.as_str()]);
+
+                let mut table = builder.build();
+                table.with(TableStyle::rounded());
+                table.with(TablePanel::header("Signed transaction data."));
+
+                table.with(
+                    TableModify::new(TableCell::new(0, 0))
+                        .with(TableBorder::default().corner_bottom_right('┬')),
+                );
+
+                writeln!(f, "{table}")?;
+            }
             IotaClientCommandResult::NoOutput => {}
             IotaClientCommandResult::DryRun(response) => {
                 writeln!(f, "{}", Pretty(response))?;
@@ -2770,6 +2926,7 @@ impl IotaClientCommandResult {
             }) => (),
             IotaClientCommandResult::ActiveAddress(_)
             | IotaClientCommandResult::ActiveEnv(_)
+            | IotaClientCommandResult::AddAccount(_)
             | IotaClientCommandResult::Addresses(_)
             | IotaClientCommandResult::Balance(_, _)
             | IotaClientCommandResult::ComputeTransactionDigest(_)
@@ -2787,6 +2944,7 @@ impl IotaClientCommandResult {
             | IotaClientCommandResult::RemoveAddress(_)
             | IotaClientCommandResult::SerializedSignedTransaction(_)
             | IotaClientCommandResult::SerializedUnsignedTransaction(_)
+            | IotaClientCommandResult::Sign(_)
             | IotaClientCommandResult::Switch(_)
             | IotaClientCommandResult::SyncClientState
             | IotaClientCommandResult::VerifyBytecodeMeter { .. }
@@ -2811,6 +2969,13 @@ pub struct DynamicFieldOutput {
     pub has_next_page: bool,
     pub next_cursor: Option<ObjectID>,
     pub data: Vec<DynamicFieldInfo>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AddAccountOutput {
+    pub address: IotaAddress,
+    pub alias: String,
 }
 
 #[derive(Serialize)]
@@ -2925,6 +3090,7 @@ impl ObjectsOutput {
 pub enum IotaClientCommandResult {
     ActiveAddress(Option<IotaAddress>),
     ActiveEnv(Option<String>),
+    AddAccount(AddAccountOutput),
     Addresses(AddressesOutput),
     Balance(Vec<(Option<IotaCoinMetadata>, Vec<Coin>)>, bool),
     ChainIdentifier(String),
@@ -2943,6 +3109,7 @@ pub enum IotaClientCommandResult {
     RemoveAddress(IotaAddress),
     SerializedSignedTransaction(SenderSignedData),
     SerializedUnsignedTransaction(TransactionData),
+    Sign(SignData),
     Switch(SwitchResponse),
     SyncClientState,
     TransactionBlock(IotaTransactionBlockResponse),
@@ -3214,12 +3381,8 @@ pub async fn execute_dry_run(
         sponsor.unwrap_or(signer),
     );
     debug!("Executing dry run");
-    let response = client
-        .read_api()
-        .dry_run_transaction_block(tx_data)
-        .await
-        .context("Dry run failed")?;
-    debug!("Finished executing dry run");
+    let response = client.read_api().dry_run_transaction_block(tx_data).await?;
+    debug!("Finished executing dry run {response:?}");
     let resp = IotaClientCommandResult::DryRun(response)
         .prerender_clever_errors(context)
         .await;
@@ -3247,6 +3410,7 @@ pub async fn estimate_gas_budget(
     let client = context.get_client().await?;
     let dry_run =
         execute_dry_run(context, signer, kind, None, gas_price, gas_payment, sponsor).await;
+
     if let Ok(IotaClientCommandResult::DryRun(dry_run)) = dry_run {
         let rgp = client.read_api().get_reference_gas_price().await?;
         Ok(estimate_gas_budget_from_gas_cost(
@@ -3311,6 +3475,8 @@ pub(crate) async fn dry_run_or_execute_or_serialize(
         serialize_signed_transaction,
         sender,
         display,
+        auth_call_args,
+        auth_type_args,
     } = processing;
     ensure!(
         !serialize_unsigned_transaction || !serialize_signed_transaction,
@@ -3414,15 +3580,38 @@ pub(crate) async fn dry_run_or_execute_or_serialize(
     } else if tx_digest {
         Ok(IotaClientCommandResult::ComputeTransactionDigest(tx_data))
     } else {
-        let signature = sign_transaction(context, &tx_data, &tx_data.sender()).await?;
+        let auth_args = if auth_call_args.is_some() || auth_type_args.is_some() {
+            let auth_info = fetch_auth_info(&client, signer).await?;
+            let (type_args, json_args) =
+                process_auth_args(auth_call_args.as_ref(), auth_type_args.as_ref(), signer)?;
+            let call_args = resolve_auth_call_args(
+                &client,
+                auth_info.value.package,
+                &auth_info.value.module,
+                &auth_info.value.function,
+                &type_args,
+                json_args,
+            )
+            .await?;
+            Some((
+                call_args,
+                type_args.into_iter().map(TypeInput::from).collect(),
+            ))
+        } else {
+            None
+        };
 
-        let mut signatures = vec![signature.into()];
+        let signature =
+            sign_transaction(context, &tx_data, &tx_data.sender(), auth_args.clone()).await?;
+
+        let mut signatures = vec![signature];
 
         if let Some(gas_sponsor) = gas_sponsor {
             if gas_sponsor != signer {
-                let signature = sign_transaction(context, &tx_data, &gas_sponsor).await?;
+                let signature =
+                    sign_transaction(context, &tx_data, &gas_sponsor, auth_args).await?;
 
-                signatures.push(signature.into());
+                signatures.push(signature);
             }
         }
 
@@ -3697,4 +3886,129 @@ async fn select_coins_for_amount(
     }
 
     Ok(coins)
+}
+
+/// Resolves authentication call arguments, removing the signer arg added by the
+/// VM.
+pub(crate) async fn resolve_auth_call_args(
+    client: &IotaClient,
+    package: ObjectID,
+    module: &str,
+    function: &str,
+    type_args: &[TypeTag],
+    json_args: Vec<IotaJsonValue>,
+) -> Result<Vec<CallArg>, anyhow::Error> {
+    let mut call_args = client
+        .transaction_builder()
+        .resolve_and_check_json_args_to_call_args(
+            package,
+            &Identifier::from_str(module)?,
+            &Identifier::from_str(function)?,
+            type_args,
+            json_args,
+        )
+        .await?;
+    call_args.remove(0); // remove signer arg as it's added by the VM
+    Ok(call_args)
+}
+
+/// Fetches AuthenticatorFunctionRefV1 for a signer.
+pub(crate) async fn fetch_auth_info(
+    client: &IotaClient,
+    signer: IotaAddress,
+) -> Result<Field<AuthenticatorFunctionRefV1Key, AuthenticatorFunctionRefV1>, anyhow::Error> {
+    let authenticator_function_ref_id = dynamic_field::derive_dynamic_field_id(
+        signer,
+        &AuthenticatorFunctionRefV1Key::tag().into(),
+        &AuthenticatorFunctionRefV1Key::default().to_bcs_bytes(),
+    )?;
+
+    let response = client
+        .read_api()
+        .get_object_with_options(
+            authenticator_function_ref_id,
+            IotaObjectDataOptions::new().with_bcs(),
+        )
+        .await?;
+
+    if let Some(error) = response.error {
+        bail!("Failed to fetch AuthenticatorFunctionRefV1 object {error}");
+    }
+
+    let auth_info = response
+        .into_object()?
+        .bcs
+        .ok_or_else(|| anyhow::anyhow!("missing bcs"))?
+        .try_into_move()
+        .ok_or_else(|| anyhow::anyhow!("invalid move type"))?
+        .deserialize::<Field<AuthenticatorFunctionRefV1Key, AuthenticatorFunctionRefV1>>()?;
+
+    Ok(auth_info)
+}
+
+/// Processes authentication arguments.
+pub(crate) fn process_auth_args(
+    auth_call_args: Option<&Vec<String>>,
+    auth_type_args: Option<&Vec<String>>,
+    signer: IotaAddress,
+) -> Result<(Vec<TypeTag>, Vec<IotaJsonValue>), anyhow::Error> {
+    let type_args = auth_type_args
+        .as_ref()
+        .map(|args| {
+            args.iter()
+                .map(|arg| TypeTag::from_str(arg))
+                .collect::<Result<Vec<_>, _>>()
+        })
+        .transpose()?
+        .unwrap_or_default();
+
+    let mut json_args: Vec<_> = auth_call_args
+        .as_ref()
+        .map(|args| {
+            args.iter()
+                .map(|arg| IotaJsonValue::new(serde_json::to_value(arg).unwrap()).unwrap())
+                .collect()
+        })
+        .unwrap_or_default();
+
+    json_args.insert(
+        0,
+        IotaJsonValue::new(serde_json::to_value(signer).unwrap()).unwrap(),
+    );
+
+    Ok((type_args, json_args))
+}
+
+/// Creates a MoveAuthenticator signature for account addresses.
+async fn create_move_authenticator_signature(
+    client: &IotaClient,
+    address: IotaAddress,
+    auth_call_args: Option<&Vec<String>>,
+    auth_type_args: Option<&Vec<String>>,
+) -> Result<GenericSignature, anyhow::Error> {
+    let auth_info = fetch_auth_info(client, address).await?;
+
+    let (type_args, json_args) = process_auth_args(auth_call_args, auth_type_args, address)?;
+
+    let call_args = resolve_auth_call_args(
+        client,
+        auth_info.value.package,
+        &auth_info.value.module,
+        &auth_info.value.function,
+        &type_args,
+        json_args,
+    )
+    .await?;
+
+    let initial_shared_version = get_shared_object_version(client, &address).await?;
+
+    Ok(GenericSignature::MoveAuthenticator(MoveAuthenticator::new(
+        call_args,
+        type_args.into_iter().map(TypeInput::from).collect(),
+        CallArg::Object(iota_types::transaction::ObjectArg::SharedObject {
+            id: ObjectID::from(address),
+            initial_shared_version,
+            mutable: false,
+        }),
+    )))
 }
