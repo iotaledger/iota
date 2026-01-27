@@ -13,6 +13,8 @@
     "host_permissions": [
         "http://localhost:9000/",
         "http://localhost:9124/",
+        "https://iota.org/*",
+        "https://*.iota.org/*",
         "http://*/*",
         "https://*/*"
     ],

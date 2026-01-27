@@ -32,17 +32,17 @@ indexmap.workspace = true
 itertools.workspace = true
 lru.workspace = true
 nonempty.workspace = true
-num-bigint = { version = "0.4", default-features = false, features = ["rand"] }
+num-bigint.workspace = true
 num-rational = "0.4"
 num-traits = "0.2.18"
 once_cell.workspace = true
-packable = { version = "0.8", default-features = false, features = ["io"] }
+packable.workspace = true
 parking_lot.workspace = true
 passkey-types.workspace = true
 prometheus.workspace = true
 proptest = { workspace = true, optional = true }
 proptest-derive = { workspace = true, optional = true }
-prost-types.workspace = true
+prost-types = "0.14"
 rand.workspace = true
 roaring.workspace = true
 schemars.workspace = true
@@ -65,7 +65,7 @@ iota-enum-compat-util.workspace = true
 iota-macros.workspace = true
 iota-network-stack.workspace = true
 iota-protocol-config.workspace = true
-iota-sdk-types = { workspace = true, features = ["serde"] }
+iota-sdk-types.workspace = true
 iota-stardust-sdk = { version = "1.1", default-features = false, features = ["irc_27", "irc_30", "std"], package = "iota-sdk" }
 move-binary-format.workspace = true
 move-bytecode-utils.workspace = true

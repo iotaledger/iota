@@ -62,16 +62,16 @@ Response: {
           {
             "value": {
               "address": "0xc8fb82be0c01e305d8aa14702ecc136d16cded95dfe8cebac07e54835a34f9c0",
-              "version": 5,
               "contents": {
                 "json": {
-                  "id": "0xc8fb82be0c01e305d8aa14702ecc136d16cded95dfe8cebac07e54835a34f9c0",
-                  "count": "0"
+                  "count": "0",
+                  "id": "0xc8fb82be0c01e305d8aa14702ecc136d16cded95dfe8cebac07e54835a34f9c0"
                 }
               },
               "dynamicFields": {
                 "nodes": []
-              }
+              },
+              "version": 5
             }
           }
         ]
@@ -90,11 +90,10 @@ Response: {
           {
             "value": {
               "address": "0xc8fb82be0c01e305d8aa14702ecc136d16cded95dfe8cebac07e54835a34f9c0",
-              "version": 5,
               "contents": {
                 "json": {
-                  "id": "0xc8fb82be0c01e305d8aa14702ecc136d16cded95dfe8cebac07e54835a34f9c0",
-                  "count": "0"
+                  "count": "0",
+                  "id": "0xc8fb82be0c01e305d8aa14702ecc136d16cded95dfe8cebac07e54835a34f9c0"
                 }
               },
               "dynamicFields": {
@@ -102,17 +101,18 @@ Response: {
                   {
                     "value": {
                       "address": "0xcb3fe503ccc6588f9adf899f8c1a5c4655a186ef8053b49fcaf41f4e3d1b174b",
-                      "version": 6,
                       "contents": {
                         "json": {
-                          "id": "0xcb3fe503ccc6588f9adf899f8c1a5c4655a186ef8053b49fcaf41f4e3d1b174b",
-                          "count": "0"
+                          "count": "0",
+                          "id": "0xcb3fe503ccc6588f9adf899f8c1a5c4655a186ef8053b49fcaf41f4e3d1b174b"
                         }
-                      }
+                      },
+                      "version": 6
                     }
                   }
                 ]
-              }
+              },
+              "version": 5
             }
           }
         ]
@@ -146,13 +146,13 @@ task 13, lines 213-240:
 Response: {
   "data": {
     "object": {
+      "dynamicFields": {
+        "nodes": []
+      },
       "owner": {
         "parent": {
           "address": "0xae4a44d68e868342127a1d6b4cd907d24f582ce898baa8f2ff1aa1cac2e8929a"
         }
-      },
-      "dynamicFields": {
-        "nodes": []
       }
     }
   }
@@ -171,24 +171,24 @@ task 15, lines 261-288:
 Response: {
   "data": {
     "object": {
-      "owner": {
-        "_": null
-      },
       "dynamicFields": {
         "nodes": [
           {
             "value": {
               "address": "0xcb3fe503ccc6588f9adf899f8c1a5c4655a186ef8053b49fcaf41f4e3d1b174b",
-              "version": 6,
               "contents": {
                 "json": {
-                  "id": "0xcb3fe503ccc6588f9adf899f8c1a5c4655a186ef8053b49fcaf41f4e3d1b174b",
-                  "count": "0"
+                  "count": "0",
+                  "id": "0xcb3fe503ccc6588f9adf899f8c1a5c4655a186ef8053b49fcaf41f4e3d1b174b"
                 }
-              }
+              },
+              "version": 6
             }
           }
         ]
+      },
+      "owner": {
+        "_": null
       }
     }
   }
@@ -199,24 +199,24 @@ task 16, lines 290-317:
 Response: {
   "data": {
     "object": {
-      "owner": {
-        "_": null
-      },
       "dynamicFields": {
         "nodes": [
           {
             "value": {
               "address": "0xcb3fe503ccc6588f9adf899f8c1a5c4655a186ef8053b49fcaf41f4e3d1b174b",
-              "version": 6,
               "contents": {
                 "json": {
-                  "id": "0xcb3fe503ccc6588f9adf899f8c1a5c4655a186ef8053b49fcaf41f4e3d1b174b",
-                  "count": "0"
+                  "count": "0",
+                  "id": "0xcb3fe503ccc6588f9adf899f8c1a5c4655a186ef8053b49fcaf41f4e3d1b174b"
                 }
-              }
+              },
+              "version": 6
             }
           }
         ]
+      },
+      "owner": {
+        "_": null
       }
     }
   }

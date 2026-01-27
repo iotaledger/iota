@@ -20,7 +20,8 @@ use serde::{Deserialize, Serialize};
 /// BigTable Key Value store implementation.
 mod bigtable;
 
-pub use bigtable::{BigTableClient, worker::KvWorker};
+pub use bigtable::{client, worker::KvWorker};
+pub use iota_bigtable::{BigTableClient, Cell, Row, proto};
 
 /// Read key-value data from a persistent store, such as objects, transactions,
 /// and checkpoints.

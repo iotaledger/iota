@@ -66,7 +66,7 @@ export function StakeDialog({
         senderAddress,
     );
     const minAmountTxGasBudget = BigInt(minAmountTransactionData?.gasSummary?.budget ?? 0n);
-    const availableBalance = coinBalance - minAmountTxGasBudget;
+    const availableBalance = minAmountTxGasBudget ? coinBalance - minAmountTxGasBudget : 0n;
 
     const validationSchema = useMemo(
         () =>

@@ -57,7 +57,7 @@ async fn get_coin_info(
 ) -> Result<Json<CoinInfo>> {
     let indexes = state.inner().indexes().ok_or_else(RestError::not_found)?;
 
-    let core_coin_type = struct_tag_sdk_to_core(coin_type.clone())?;
+    let core_coin_type = struct_tag_sdk_to_core(&coin_type)?;
 
     let iota_types::storage::CoinInfo {
         coin_metadata_object_id,

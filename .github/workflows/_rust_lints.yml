@@ -49,15 +49,15 @@ jobs:
     runs-on: [self-hosted-x64]
     steps:
       - uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
-      - name: Check Cargo.toml format and sorting
+      - name: Check Cargo.toml format and sorting and consolidate dependencies
         run: |
           pushd "scripts/cargo_sort"
-          ./run.sh --skip-dprint
+          ./run_consolidate.sh --skip-dprint
           popd
       - name: Check Cargo.toml diffs after formatting
         run: |
           if git status --porcelain | grep -q "Cargo.toml"; then
-            echo "Cargo.toml files not formatted and/or sorted properly! Please run the 'scripts/cargo_sort/run.sh' script."
+            echo "Cargo.toml files not formatted and/or sorted properly, or dependencies not consolidated! Please run the 'scripts/cargo_sort/run_consolidate.sh' script."
             git diff  # Show the actual diffs
             exit 1    # Fail the workflow
           fi

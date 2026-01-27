@@ -138,12 +138,12 @@ Response: {
         "edges": []
       }
     },
-    "no_coins_before_obj_3_0_chkpt_1": {
+    "no_coins_after_obj_7_0_chkpt_1": {
       "stakedIotas": {
         "edges": []
       }
     },
-    "no_coins_after_obj_7_0_chkpt_1": {
+    "no_coins_before_obj_3_0_chkpt_1": {
       "stakedIotas": {
         "edges": []
       }
@@ -165,11 +165,11 @@ Response: {
         "edges": []
       }
     },
-    "coins_before_obj_3_1_chkpt_3": {
+    "coins_after_obj_7_0_chkpt_3": {
       "stakedIotas": {
         "edges": [
           {
-            "cursor": "IBHJBM8kZPT8qybYKMvt0PxPYwH1wTbiHnqBSvB2UO3FAwAAAAAAAAA=",
+            "cursor": "IN5VIiEFPvVw12ITluU5QzdVnNTf341NVGgloWAYJX7VAwAAAAAAAAA=",
             "node": {
               "principal": "10000000000"
             }
@@ -177,11 +177,11 @@ Response: {
         ]
       }
     },
-    "coins_after_obj_7_0_chkpt_3": {
+    "coins_before_obj_3_1_chkpt_3": {
       "stakedIotas": {
         "edges": [
           {
-            "cursor": "IN5VIiEFPvVw12ITluU5QzdVnNTf341NVGgloWAYJX7VAwAAAAAAAAA=",
+            "cursor": "IBHJBM8kZPT8qybYKMvt0PxPYwH1wTbiHnqBSvB2UO3FAwAAAAAAAAA=",
             "node": {
               "principal": "10000000000"
             }
