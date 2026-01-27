@@ -258,8 +258,8 @@ impl TransactionCacheRead for PassthroughCache {
 
 impl ExecutionCacheWrite for PassthroughCache {
     #[instrument(level = "debug", skip_all)]
-    fn try_write_transaction_outputs<'a>(
-        &'a self,
+    fn try_write_transaction_outputs(
+        &self,
         epoch_id: EpochId,
         tx_outputs: Arc<TransactionOutputs>,
     ) -> IotaResult {

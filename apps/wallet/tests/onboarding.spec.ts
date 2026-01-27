@@ -2,9 +2,9 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { expect, test } from './fixtures';
-import { createWallet, importWallet } from './utils/auth';
-import { generateKeypair } from './utils/localnet';
+import { expect, test } from './utils/fixtures';
+import { createWallet, importWallet } from './utils/wallet';
+import { generateKeypair } from './utils/utils';
 import * as bip39 from '@scure/bip39';
 import { wordlist } from '@scure/bip39/wordlists/english';
 

@@ -25,6 +25,7 @@ use move_core_types::ident_str;
 use crate::{
     authority::{
         AuthorityState,
+        authority_per_epoch_store::CongestionControlParameters,
         authority_tests::{
             build_programmable_transaction, certify_shared_obj_transaction_no_execution,
             execute_programmable_transaction, send_and_confirm_transaction_,
@@ -334,32 +335,43 @@ async fn test_congestion_control_execution_cancellation() {
     // touching shared_object_1 will be cancelled.
     let initial_debt = TEST_ONLY_GAS_PRICE * TEST_ONLY_GAS_UNIT + 1;
 
+    let congestion_control_parameters = CongestionControlParameters::new_for_test(
+        PerObjectCongestionControlMode::TotalGasBudget,
+        test_setup
+            .protocol_config
+            .congestion_control_min_free_execution_slot(),
+        test_setup
+            .protocol_config
+            .max_accumulated_txn_cost_per_object_in_mysticeti_commit_as_option(),
+        test_setup
+            .protocol_config
+            .max_congestion_limit_overshoot_per_commit_as_option(),
+        test_setup.protocol_config.max_gas_price(),
+        test_setup
+            .protocol_config
+            .congestion_limit_overshoot_in_gas_price_feedback_mechanism(),
+        test_setup
+            .protocol_config
+            .separate_gas_price_feedback_mechanism_for_randomness(),
+    );
+
     // Initialize shared object queue in the tracker and gas price calculator so
     // that any transaction touches shared_object_1 should result in congestion
     // and cancellation.
-    let congestion_control_min_free_execution_slot = test_setup
-        .protocol_config
-        .congestion_control_min_free_execution_slot();
+    let congestion_control_parameters_1 = congestion_control_parameters.clone();
     register_fail_point_arg("initial_congestion_tracker", move || {
         Some(new_congestion_tracker_with_initial_value_for_test(
             &[(shared_object_1.0, initial_debt)],
-            PerObjectCongestionControlMode::TotalGasBudget,
-            congestion_control_min_free_execution_slot,
+            congestion_control_parameters_1.clone(),
         ))
     });
+    let congestion_control_parameters_2 = congestion_control_parameters.clone();
     register_fail_point_arg("initial_suggested_gas_price_calculator", move || {
         Some(
             new_suggested_gas_price_calculator_with_initial_values_for_test(
                 &[(shared_object_1.0, initial_debt, TEST_ONLY_GAS_PRICE)],
-                PerObjectCongestionControlMode::TotalGasBudget,
-                test_setup
-                    .protocol_config
-                    .max_accumulated_txn_cost_per_object_in_mysticeti_commit_as_option(),
-                test_setup
-                    .protocol_config
-                    .congestion_control_min_free_execution_slot(),
+                congestion_control_parameters_2.clone(),
                 TEST_ONLY_GAS_PRICE,
-                test_setup.protocol_config.max_gas_price(),
             ),
         )
     });
