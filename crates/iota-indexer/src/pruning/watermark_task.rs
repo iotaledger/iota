@@ -144,19 +144,21 @@ mod tests {
 
         let watermark = StoredWatermark {
             entity: CommitterTables::Transactions.as_ref().to_string(),
-            epoch_hi_inclusive: 100,
-            checkpoint_hi_inclusive: 1000,
-            tx_hi: 10000,
-            epoch_lo: 50,
-            reader_lo: 500,
-            timestamp_ms: 123456789,
-            pruner_hi: 400,
+            current_epoch: 100,
+            max_committed_cp: 1000,
+            max_committed_tx: 10000,
+            min_available_epoch: 50,
+            min_bounds_updated_at_timestamp_ms: 123456789,
+            lowest_unpruned_key: 400,
+            min_available_tx: 5000,
+            min_available_cp: 500,
         };
 
         cache.update(vec![watermark.clone()]);
 
         let retrieved = cache.get(CommitterTables::Transactions).unwrap();
-        assert_eq!(retrieved.reader_lo, 500);
-        assert_eq!(retrieved.epoch_lo, 50);
+        assert_eq!(retrieved.min_available_cp, 500);
+        assert_eq!(retrieved.min_available_tx, 5000);
+        assert_eq!(retrieved.min_available_epoch, 50);
     }
 }
