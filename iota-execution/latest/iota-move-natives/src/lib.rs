@@ -71,11 +71,9 @@ use self::{
     validator::ValidatorValidateMetadataBcsCostParams,
 };
 use crate::crypto::{
-    group_ops,
-    group_ops::GroupOpsCostParams,
+    group_ops::{self, GroupOpsCostParams},
     poseidon::PoseidonBN254CostParams,
-    zklogin,
-    zklogin::{CheckZkloginIdCostParams, CheckZkloginIssuerCostParams},
+    zklogin::{self, CheckZkloginIdCostParams, CheckZkloginIssuerCostParams},
 };
 
 mod address;
@@ -189,6 +187,7 @@ pub struct NativesCostTable {
 impl NativesCostTable {
     pub fn from_protocol_config(protocol_config: &ProtocolConfig) -> NativesCostTable {
         Self {
+            // address
             address_from_bytes_cost_params: AddressFromBytesCostParams {
                 address_from_bytes_cost_base: protocol_config.address_from_bytes_cost_base().into(),
             },
@@ -778,6 +777,21 @@ pub fn all_natives(silent: bool, protocol_config: &ProtocolConfig) -> NativeFunc
         ("address", "from_bytes", make_native!(address::from_bytes)),
         ("address", "to_u256", make_native!(address::to_u256)),
         ("address", "from_u256", make_native!(address::from_u256)),
+        (
+            "account",
+            "borrow_account_uid_mut",
+            make_native!(object::borrow_uid),
+        ),
+        (
+            "account",
+            "create_account_v1_impl",
+            make_native!(transfer::share_object),
+        ),
+        (
+            "account",
+            "create_immutable_account_v1_impl",
+            make_native!(transfer::freeze_object),
+        ),
         ("hash", "blake2b256", make_native!(hash::blake2b256)),
         (
             "bls12381",

@@ -624,8 +624,8 @@ async fn call_0x5(
         construct_unsigned_0x5_txn(context, sender, function, call_args, gas_budget).await?;
     let iota_client = context.get_client().await?;
 
-    let signature = sign_transaction(context, &tx_data, &tx_data.sender()).await?;
-    let transaction = Transaction::from_data(tx_data, vec![signature]);
+    let signature = sign_transaction(context, &tx_data, &tx_data.sender(), None).await?;
+    let transaction = Transaction::from_generic_sig_data(tx_data, vec![signature]);
 
     iota_client
         .quorum_driver_api()

@@ -146,6 +146,8 @@ pub enum UserInputError {
     NotSharedObject,
     #[error("The transaction inputs contain duplicated ObjectRef's")]
     DuplicateObjectRefInput,
+    #[error("A transaction input {object_id} is inconsistent")]
+    InconsistentInput { object_id: ObjectID },
 
     // Gas related errors
     #[error("Transaction gas payment missing")]
@@ -212,6 +214,9 @@ pub enum UserInputError {
 
     #[error("Wrong initial version given for shared object")]
     SharedObjectStartingVersionMismatch,
+
+    #[error("Wrong id given for shared object")]
+    SharedObjectIdMismatch,
 
     #[error(
         "Attempt to transfer object {object_id} that does not have public transfer. Object transfer must be done instead using a distinct Move function call"
@@ -311,6 +316,71 @@ pub enum UserInputError {
 
     #[error("Invalid identifier found in the transaction: {error}")]
     InvalidIdentifier { error: String },
+
+    // `MoveAuthenticator` related errors
+    #[error(
+        "Account object {account_id:?} with version {account_version:?} was deleted in transaction {transaction_digest:?}"
+    )]
+    AccountObjectDeleted {
+        account_id: ObjectID,
+        account_version: SequenceNumber,
+        transaction_digest: TransactionDigest,
+    },
+    #[error(
+        "Account object {account_id:?} with version {account_version:?} is used in a canceled transaction"
+    )]
+    AccountObjectInCanceledTransaction {
+        account_id: ObjectID,
+        account_version: SequenceNumber,
+    },
+    #[error("Account object {object_id:?} is not a shared or immutable object that is unsupported")]
+    AccountObjectNotSupported { object_id: ObjectID },
+    #[error(
+        "The fetched account object version {actual_version:?} does not match the expected version {expected_version:?}, object id: {object_id:?}"
+    )]
+    AccountObjectVersionMismatch {
+        object_id: ObjectID,
+        expected_version: SequenceNumber,
+        actual_version: SequenceNumber,
+    },
+    #[error(
+        "The fetched account object digest {actual_digest:?} does not match the expected digest {expected_digest:?}, object id: {object_id:?}"
+    )]
+    InvalidAccountObjectDigest {
+        object_id: ObjectID,
+        expected_digest: ObjectDigest,
+        actual_digest: ObjectDigest,
+    },
+
+    #[error(
+        "AuthenticatorFunctionRef {authenticator_function_ref_id:?} not found for account {account_object_id:?} with version {account_object_version:?}"
+    )]
+    MoveAuthenticatorNotFound {
+        authenticator_function_ref_id: ObjectID,
+        account_object_id: ObjectID,
+        account_object_version: SequenceNumber,
+    },
+    #[error("Unable to get a Move authenticator object ID for account {account_object_id:?}")]
+    UnableToGetMoveAuthenticatorId { account_object_id: ObjectID },
+    #[error(
+        "Invalid authenticator function ref field value found for the account {account_object_id:?}"
+    )]
+    InvalidAuthenticatorFunctionRefField { account_object_id: ObjectID },
+
+    #[error("Package {package_id:?} is in the `MoveAuthenticator` input that is unsupported")]
+    PackageIsInMoveAuthenticatorInput { package_id: ObjectID },
+    #[error(
+        "Address-owned object {object_id:?} is in the `MoveAuthenticator` input that is unsupported"
+    )]
+    AddressOwnedIsInMoveAuthenticatorInput { object_id: ObjectID },
+    #[error(
+        "Object-owned object {object_id:?} is in the `MoveAuthenticator` input that is unsupported"
+    )]
+    ObjectOwnedIsInMoveAuthenticatorInput { object_id: ObjectID },
+    #[error(
+        "Mutable shared object {object_id:?} is in the `MoveAuthenticator` input that is unsupported"
+    )]
+    MutableSharedIsInMoveAuthenticatorInput { object_id: ObjectID },
 }
 
 #[derive(
@@ -468,6 +538,8 @@ pub enum IotaError {
     InvalidAddress,
     #[error("Invalid transaction digest.")]
     InvalidTransactionDigest,
+    #[error("Invalid move authentication digest.")]
+    InvalidMoveAuthenticatorDigest,
 
     #[error("Invalid digest length. Expected {expected}, got {actual}")]
     InvalidDigestLength { expected: usize, actual: usize },
@@ -476,6 +548,9 @@ pub enum IotaError {
 
     #[error("Unexpected message.")]
     UnexpectedMessage,
+
+    #[error("Failed to execute the Move authenticator, reason: {error:?}.")]
+    MoveAuthenticatorExecutionFailure { error: String },
 
     // Move module publishing related errors
     #[error("Failed to verify the Move module, reason: {error:?}.")]
@@ -571,6 +646,11 @@ pub enum IotaError {
     ObjectSerialization { error: String },
     #[error("Failure deserializing object in the requested format: {:?}", error)]
     ObjectDeserialization { error: String },
+    #[error(
+        "Failure deserializing runtime module metadata in the requested format: {:?}",
+        error
+    )]
+    RuntimeModuleMetadataDeserialization { error: String },
     #[error("Event store component is not active on this node")]
     NoEventStore,
 

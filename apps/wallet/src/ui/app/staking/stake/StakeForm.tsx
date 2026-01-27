@@ -13,6 +13,8 @@ import {
     Validator,
     toast,
     useIsValidatorCommitteeMember,
+    NO_BALANCE_GENERIC_MESSAGE,
+    getGasBudgetErrorMessage,
 } from '@iota/core';
 import * as Sentry from '@sentry/react';
 import { ampli } from '_src/shared/analytics/ampli';
@@ -170,6 +172,7 @@ export function StakeFormComponent({ validatorAddress, epoch, onSuccess }: Stake
         data: newStakeData,
         isLoading: isStakeTokenTransactionLoading,
         isError,
+        error: stakeTransactionError,
     } = useNewStakeTransaction(validatorAddress, amountWithoutDecimals, activeAddress);
     const transaction = newStakeData?.transaction;
     const gasSummary = newStakeData?.gasSummary;
@@ -190,6 +193,14 @@ export function StakeFormComponent({ validatorAddress, epoch, onSuccess }: Stake
         amountWithoutDecimals &&
         amountWithoutDecimals > maxSafeAmount &&
         amountWithoutDecimals <= availableBalance;
+
+    const errorMessage = useMemo(() => {
+        if (isError) {
+            return getGasBudgetErrorMessage(stakeTransactionError) ?? NO_BALANCE_GENERIC_MESSAGE;
+        } else {
+            return undefined;
+        }
+    }, [stakeTransactionError, isError]);
 
     function setMaxAmount() {
         setFieldValue('amount', availableBalanceFormatted, true);
@@ -278,6 +289,16 @@ export function StakeFormComponent({ validatorAddress, epoch, onSuccess }: Stake
                     renderExplorerLink={ExplorerLinkHelper}
                 />
             </Form>
+            {errorMessage ? (
+                <div className="my-sm" data-testid="error-info-box">
+                    <InfoBox
+                        type={InfoBoxType.Error}
+                        supportingText={errorMessage}
+                        style={InfoBoxStyle.Elevated}
+                        icon={<Exclamation />}
+                    />
+                </div>
+            ) : null}
             <Button
                 type={ButtonType.Primary}
                 fullWidth

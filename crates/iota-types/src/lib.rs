@@ -31,7 +31,9 @@ use crate::{
 #[macro_use]
 pub mod error;
 
+pub mod account_abstraction;
 pub mod accumulator;
+pub mod auth_context;
 pub mod authenticator_state;
 pub mod balance;
 pub mod base_types;
@@ -43,6 +45,7 @@ pub mod committee;
 pub mod config;
 pub mod crypto;
 pub mod deny_list_v1;
+pub mod derived_object;
 pub mod digests;
 pub mod display;
 pub mod dynamic_field;
@@ -72,6 +75,7 @@ pub mod messages_grpc;
 pub mod messages_safe_client;
 pub mod metrics;
 pub mod mock_checkpoint_builder;
+pub mod move_authenticator;
 pub mod move_package;
 pub mod multisig;
 pub mod object;
@@ -252,17 +256,54 @@ impl<T: MoveTypeTagTrait> MoveTypeTagTrait for Vec<T> {
     }
 }
 
+/// Check if a type is a primitive type in optimistic mode. It invokes the inner
+/// function with is_strict = false.
 pub fn is_primitive(
     view: &CompiledModule,
     function_type_args: &[AbilitySet],
     s: &SignatureToken,
 ) -> bool {
+    is_primitive_inner(view, function_type_args, s, false)
+}
+
+/// Check if a type is a primitive type in strict mode. It invokes the inner
+/// function with is_strict = true.
+pub fn is_primitive_strict(
+    view: &CompiledModule,
+    function_type_args: &[AbilitySet],
+    s: &SignatureToken,
+) -> bool {
+    is_primitive_inner(view, function_type_args, s, true)
+}
+
+/// Check if a type is a primitive type.
+/// In optimistic mode (is_strict = false), a type parameter is considered
+/// primitive if it has no key ability. In strict mode (is_strict = true), a
+/// type parameter is considered primitive if it has at least copy or drop
+/// ability.
+pub fn is_primitive_inner(
+    view: &CompiledModule,
+    function_type_args: &[AbilitySet],
+    s: &SignatureToken,
+    is_strict: bool,
+) -> bool {
     use SignatureToken as S;
     match s {
         S::Bool | S::U8 | S::U16 | S::U32 | S::U64 | S::U128 | S::U256 | S::Address => true,
         S::Signer => false,
-        // optimistic, but no primitive has key
-        S::TypeParameter(idx) => !function_type_args[*idx as usize].has_key(),
+        // optimistic -> no primitive has key
+        // strict -> all primitives have at least copy or drop
+        S::TypeParameter(idx) => {
+            if !is_strict {
+                // optimistic: has no key
+                !function_type_args[*idx as usize].has_key()
+            } else {
+                // strict: has at least one of: copy or drop (or store and one of the others).
+                // copy or drop abilities always imply having no key, but here we double check
+                let abilities = function_type_args[*idx as usize];
+                !abilities.has_key() && (abilities.has_copy() || abilities.has_drop())
+            }
+        }
 
         S::Datatype(idx) => [RESOLVED_IOTA_ID, RESOLVED_ASCII_STR, RESOLVED_UTF8_STR]
             .contains(&resolve_struct(view, *idx)),
@@ -273,10 +314,10 @@ pub fn is_primitive(
             // option is a primitive
             resolved_struct == RESOLVED_STD_OPTION
                 && targs.len() == 1
-                && is_primitive(view, function_type_args, &targs[0])
+                && is_primitive_inner(view, function_type_args, &targs[0], is_strict)
         }
 
-        S::Vector(inner) => is_primitive(view, function_type_args, inner),
+        S::Vector(inner) => is_primitive_inner(view, function_type_args, inner, is_strict),
         S::Reference(_) | S::MutableReference(_) => false,
     }
 }
@@ -307,7 +348,7 @@ pub fn is_object_vector(
     }
 }
 
-fn is_object_struct(
+pub fn is_object_struct(
     view: &CompiledModule,
     function_type_args: &[AbilitySet],
     s: &SignatureToken,

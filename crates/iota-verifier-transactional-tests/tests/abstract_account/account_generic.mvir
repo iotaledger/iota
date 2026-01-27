@@ -1,0 +1,39 @@
+// Copyright (c) 2025 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
+//# publish
+module 0x0.m {
+    import 0x2.account;
+    import 0x2.authenticator_function;
+
+    t1<T0: key>(account: T0, authenticator: authenticator_function.AuthenticatorFunctionRefV1<T0>) {
+        label l0:
+        account.create_account_v1<T0>(move(account), move(authenticator));
+        return;
+    }
+}
+
+//# publish
+module 0x0.m {
+    import 0x2.account;
+    import 0x2.authenticator_function;
+
+    t2<T0: key>(account: T0, authenticator: authenticator_function.AuthenticatorFunctionRefV1<T0>) {
+        label l0:
+        account.create_immutable_account_v1<T0>(move(account), move(authenticator));
+        return;
+    }
+}
+
+//# publish
+module 0x0.m {
+    import 0x2.account;
+    import 0x2.authenticator_function;
+
+    t3<T0: key>(account: &mut T0, authenticator: authenticator_function.AuthenticatorFunctionRefV1<T0>): authenticator_function.AuthenticatorFunctionRefV1<T0> {
+        let a: authenticator_function.AuthenticatorFunctionRefV1<T0>;
+        label l0:
+        a = account.rotate_auth_function_ref_v1<T0>(move(account), move(authenticator));
+        return move(a);
+    }
+}
