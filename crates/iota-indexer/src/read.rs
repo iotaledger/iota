@@ -59,6 +59,7 @@ use crate::{
     db::{ConnectionConfig, ConnectionPool, ConnectionPoolConfig},
     errors::{Context, IndexerError},
     historical_fallback::reader::HistoricalFallbackReader,
+    ingestion::common::persist::CommitterTables,
     models::{
         address_metrics::StoredAddressMetrics,
         checkpoints::{StoredChainIdentifier, StoredCheckpoint},
@@ -184,6 +185,48 @@ impl IndexerReader {
     /// Accesses the watermark cache.
     pub fn watermark_cache(&self) -> &WatermarkCache {
         &self.watermark_cache
+    }
+
+    /// Ensures that the specified tables have data available for the given
+    /// checkpoint. Returns an error if any of the tables have been pruned
+    /// for this checkpoint.
+    pub fn ensure_data_not_pruned_for_checkpoint(
+        &self,
+        checkpoint_seq: u64,
+        tables: &[CommitterTables],
+    ) -> IndexerResult<()> {
+        if let Some(min_available_cp) = self
+            .watermark_cache
+            .get_lowest_available_cp_for_tables(tables)
+        {
+            if (checkpoint_seq as i64) < min_available_cp {
+                return Err(IndexerError::DataPruned(format!(
+                    "checkpoint {checkpoint_seq} has been pruned (min available: {min_available_cp})"
+                )));
+            }
+        }
+        Ok(())
+    }
+
+    /// Ensures that the specified tables have data available for the given
+    /// transaction. Returns an error if any of the tables have been pruned
+    /// for this transaction.
+    pub fn ensure_data_not_pruned_for_tx(
+        &self,
+        tx_seq: i64,
+        tables: &[CommitterTables],
+    ) -> IndexerResult<()> {
+        if let Some(min_available_tx) = self
+            .watermark_cache
+            .get_lowest_available_tx_for_tables(tables)
+        {
+            if tx_seq < min_available_tx {
+                return Err(IndexerError::DataPruned(format!(
+                    "transaction {tx_seq} has been pruned (min available: {min_available_tx})"
+                )));
+            }
+        }
+        Ok(())
     }
 
     pub async fn spawn_blocking<F, R, E>(&self, f: F) -> Result<R, E>
@@ -1153,11 +1196,30 @@ impl IndexerReader {
         };
 
         let cursor_tx_seq = if let Some(cursor) = cursor {
-            Some(
-                self.db()
-                    .resolve_cursor_tx_digest_to_seq_num(cursor)
-                    .await?,
-            )
+            let tx_seq = self
+                .db()
+                .resolve_cursor_tx_digest_to_seq_num(cursor)
+                .await?;
+
+            // Check if the cursor transaction is in the pruned range
+            // Check all transaction-related tables that could be used by any filter
+            self.ensure_data_not_pruned_for_tx(
+                tx_seq,
+                &[
+                    CommitterTables::Transactions,
+                    CommitterTables::TxCallsFun,
+                    CommitterTables::TxCallsMod,
+                    CommitterTables::TxCallsPkg,
+                    CommitterTables::TxInputObjects,
+                    CommitterTables::TxChangedObjects,
+                    CommitterTables::TxWrappedOrDeletedObjects,
+                    CommitterTables::TxSenders,
+                    CommitterTables::TxRecipients,
+                    CommitterTables::TxKinds,
+                ],
+            )?;
+
+            Some(tx_seq)
         } else {
             None
         };
@@ -1611,6 +1673,24 @@ impl IndexerReader {
                 .db()
                 .resolve_cursor_tx_digest_to_seq_num(tx_digest)
                 .await?;
+
+            // Check if the cursor transaction is in the pruned range
+            // Check all event-related tables that could be used by any filter
+            self.ensure_data_not_pruned_for_tx(
+                tx_seq,
+                &[
+                    CommitterTables::Events,
+                    CommitterTables::EventEmitPackage,
+                    CommitterTables::EventEmitModule,
+                    CommitterTables::EventSenders,
+                    CommitterTables::EventStructPackage,
+                    CommitterTables::EventStructModule,
+                    CommitterTables::EventStructName,
+                    CommitterTables::EventStructInstantiation,
+                    CommitterTables::TxSenders,
+                ],
+            )?;
+
             (tx_seq, event_seq as i64)
         } else if descending_order {
             let max_tx_seq = i64::MAX;
@@ -2451,8 +2531,17 @@ impl<'a> DBReader<'a> {
         limit: usize,
         is_descending: bool,
     ) -> IndexerResult<Vec<StoredTransaction>> {
+        self.main_reader.ensure_data_not_pruned_for_checkpoint(
+            checkpoint_seq,
+            &[
+                CommitterTables::Transactions,
+                CommitterTables::PrunerCpWatermark,
+            ],
+        )?;
+
+        // After watermark checks, we can safely assume data is present in all tables
         let pool = self.main_reader.get_pool();
-        let Some(tx_range) = run_query_async!(&pool, move |conn| {
+        let tx_range = run_query_async!(&pool, move |conn| {
             pruner_cp_watermark::dsl::pruner_cp_watermark
                 .select((
                     pruner_cp_watermark::min_tx_sequence_number,
@@ -2462,15 +2551,8 @@ impl<'a> DBReader<'a> {
                 // checkpoint_sequence_number, transactions is not
                 .filter(pruner_cp_watermark::checkpoint_sequence_number.eq(checkpoint_seq as i64))
                 .first::<(i64, i64)>(conn)
-                .optional()
-        })?
-        else {
-            // This check should be replaced with reading the "watermarks" table once it is
-            // used by the pruner
-            return Err(IndexerError::DataPruned(format!(
-                "requesting data from checkpoint {checkpoint_seq}, which is not available",
-            )));
-        };
+        })
+        .context("failed to get transaction range from pruner_cp_watermark table")?;
 
         let cursor_tx_seq = if let Some(cursor) = cursor {
             Some(self.resolve_cursor_tx_digest_to_seq_num(cursor).await?)

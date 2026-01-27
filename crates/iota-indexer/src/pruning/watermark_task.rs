@@ -61,6 +61,26 @@ impl WatermarkCache {
         cache.get(entity.as_ref()).cloned()
     }
 
+    /// Gets the lowest checkpoint that is available for all specified tables.
+    /// Returns `None` if no watermarks are available for any of the tables.
+    pub fn get_lowest_available_cp_for_tables(&self, tables: &[CommitterTables]) -> Option<i64> {
+        let cache = self.inner.load();
+        tables
+            .iter()
+            .filter_map(|table| cache.get(table.as_ref()).map(|wm| wm.min_available_cp))
+            .max()
+    }
+
+    /// Gets the lowest transaction that is available for all specified tables.
+    /// Returns `None` if no watermarks are available for any of the tables.
+    pub fn get_lowest_available_tx_for_tables(&self, tables: &[CommitterTables]) -> Option<i64> {
+        let cache = self.inner.load();
+        tables
+            .iter()
+            .filter_map(|table| cache.get(table.as_ref()).map(|wm| wm.min_available_tx))
+            .max()
+    }
+
     /// Updates the cache with fresh watermarks from the database
     ///
     /// Uses [`ArcSwap`] for lock-free reads - writes create new Arc instead of
