@@ -25,10 +25,13 @@ use crate::{
     metrics::IndexerMetrics,
     processors::processor_orchestrator::ProcessorOrchestrator,
     pruning::{
-        optimistic_pruner::OptimisticPruner, pruner::Pruner, watermark_task::WatermarkCache,
+        optimistic_pruner::OptimisticPruner,
+        pruner::Pruner,
+        watermark_task::{WatermarkCache, WatermarkTask},
     },
     read::IndexerReader,
     store::{IndexerAnalyticalStore, IndexerStore, PgIndexerStore},
+    system_package_task::SystemPackageTask,
 };
 
 pub struct Indexer;
@@ -199,9 +202,19 @@ impl Indexer {
             info!("No config for HistoricalFallbackReader provided, skipping...");
         }
 
-        let handle = build_json_rpc_server(store, registry, read, config, metrics, watermark_cache)
-            .await
-            .expect("json rpc server should not run into errors upon start.");
+        let (handle, cancel) =
+            build_json_rpc_server(store.clone(), registry, read.clone(), config, metrics)
+                .await
+                .expect("json rpc server should not run into errors upon start.");
+
+        tracing::info!("Starting watermark background task to track pruning state");
+        let watermark_task = WatermarkTask::new(store, watermark_cache);
+        watermark_task.start(cancel.clone());
+
+        tracing::info!("Starting system package task");
+        let system_package_task =
+            SystemPackageTask::new(read, cancel, std::time::Duration::from_secs(10));
+        spawn_monitored_task!(async move { system_package_task.run().await });
 
         tokio::spawn(async move { handle.stopped().await })
             .await
