@@ -73,16 +73,6 @@ jobs:
         id: version
         run: echo "::set-output name=version::${GITHUB_REF#refs/tags/wallet-v}"
 
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@01570a1f39cb168c169c802c3bceb9e93fb10974 # v2.1.0
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          tag_name: ${{ env.CURRENT_TAG }}
-          name: IOTA Wallet v${{ steps.version.outputs.version }}
-          draft: true
-          prerelease: false
-          body_path: CHANGELOG.md
       - name: Build Chrome Wallet
         run: pnpm wallet build
       - name: Upload Chrome artifacts
@@ -99,3 +89,13 @@ jobs:
           name: firefox-${{ env.artifact_name }}
           path: |
             ./apps/wallet/dist
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@01570a1f39cb168c169c802c3bceb9e93fb10974 # v2.1.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ env.CURRENT_TAG }}
+          name: IOTA Wallet v${{ steps.version.outputs.version }}
+          draft: true
+          prerelease: false
+          body_path: CHANGELOG.md
