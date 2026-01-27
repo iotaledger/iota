@@ -29,7 +29,7 @@ export function ApprovalRequestPage() {
 
     // Wallet fetches pending transaction requests on boot, but because sidepanel
     // stays open we need to manually notify the wallet, to do this we check for a fetch query param
-    // If pressent and equal to true then dispatch a message to fetch the latest transaction requests.
+    // If present and equal to true then dispatch a message to fetch the latest transaction requests.
     // We need to dispatch this synchronously rather than async.
     if (!transactionRequestsLoading.current && fetch) {
         dispatch(clearTransactionRequests());
