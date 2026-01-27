@@ -14,10 +14,12 @@ use iota_genesis_builder::{
         migration::{Migration, MigrationTargetNetwork},
         parse::HornetSnapshotParser,
         process_outputs::scale_amount_for_iota,
-        types::{address_swap_map::AddressSwapMap, address_swap_split_map::AddressSwapSplitMap},
+        types::{
+            address_swap_map::AddressSwapMap, address_swap_split_map::AddressSwapSplitMap,
+            coin_type::CoinType,
+        },
     },
 };
-use iota_types::stardust::coin_type::CoinType;
 use tracing::Level;
 use tracing_subscriber::FmtSubscriber;
 

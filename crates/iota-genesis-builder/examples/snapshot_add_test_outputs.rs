@@ -9,8 +9,9 @@ use clap::{Parser, Subcommand};
 use iota_genesis_builder::stardust::{
     parse::HornetSnapshotParser,
     test_outputs::{add_snapshot_test_outputs, to_nanos},
+    types::coin_type::CoinType,
 };
-use iota_types::{gas_coin::STARDUST_TOTAL_SUPPLY_IOTA, stardust::coin_type::CoinType};
+use iota_types::gas_coin::STARDUST_TOTAL_SUPPLY_IOTA;
 
 #[derive(Parser, Debug)]
 #[command(about = "Tool for adding test data to IOTA Hornet full-snapshot")]

@@ -4,7 +4,9 @@
 use std::{fmt::Display, str::FromStr};
 
 use fastcrypto::hash::HashFunction;
-use iota_types::{crypto::DefaultHash, digests::TransactionDigest, stardust::coin_type::CoinType};
+use iota_types::{crypto::DefaultHash, digests::TransactionDigest};
+
+use crate::stardust::types::coin_type::CoinType;
 
 const MAINNET: &str = "mainnet";
 const TESTNET: &str = "testnet";

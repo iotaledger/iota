@@ -24,7 +24,6 @@ use iota_stardust_types::block::{
 };
 use iota_types::{
     gas_coin::STARDUST_TOTAL_SUPPLY_IOTA,
-    stardust::coin_type::CoinType,
     timelock::timelock::{self},
 };
 use packable::{
@@ -33,7 +32,10 @@ use packable::{
 };
 use rand::{Rng, SeedableRng, rngs::StdRng};
 
-use crate::stardust::{parse::HornetSnapshotParser, types::output_header::OutputHeader};
+use crate::stardust::{
+    parse::HornetSnapshotParser,
+    types::{coin_type::CoinType, output_header::OutputHeader},
+};
 
 pub const IOTA_COIN_TYPE: u32 = 4218;
 const IOTA_OUTPUT_TO_DECREASE_AMOUNT_FROM: &str =

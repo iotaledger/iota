@@ -19,9 +19,7 @@ use iota_stardust_types::block::{
     },
 };
 use iota_types::{
-    base_types::IotaAddress,
-    crypto::DefaultHash,
-    timelock::timelock::{VESTED_REWARD_ID_PREFIX, is_vested_reward},
+    base_types::IotaAddress, crypto::DefaultHash, timelock::timelock::VESTED_REWARD_ID_PREFIX,
 };
 use tracing::debug;
 
@@ -29,6 +27,7 @@ use super::types::{
     address_swap_split_map::AddressSwapSplitMap, output_header::OutputHeader,
     output_index::OutputIndex,
 };
+use crate::stardust::types::vested_reward::is_vested_reward;
 
 /// Participation tag bytes used in the IOTA community participation plugin.
 /// https://github.com/iota-community/treasury/blob/main/specifications/hornet-participation-plugin.md

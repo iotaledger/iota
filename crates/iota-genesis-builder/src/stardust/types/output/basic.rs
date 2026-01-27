@@ -1,4 +1,4 @@
-// Copyright (c) 2024 IOTA Stiftung
+// Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 //! Rust types and logic for the Move counterparts in the `stardust` system
@@ -6,14 +6,7 @@
 
 use anyhow::Result;
 use iota_protocol_config::ProtocolConfig;
-use move_core_types::{ident_str, identifier::IdentStr, language_storage::StructTag};
-use serde::{Deserialize, Serialize};
-use serde_with::serde_as;
-
-use super::unlock_conditions::{
-    ExpirationUnlockCondition, StorageDepositReturnUnlockCondition, TimelockUnlockCondition,
-};
-use crate::{
+use iota_types::{
     STARDUST_ADDRESS, TypeTag,
     balance::Balance,
     base_types::{IotaAddress, MoveObjectType, ObjectID, SequenceNumber, TxContext},
@@ -22,7 +15,16 @@ use crate::{
     error::IotaError,
     id::UID,
     object::{Data, MoveObject, Object, Owner},
-    stardust::coin_type::CoinType,
+};
+use move_core_types::{ident_str, identifier::IdentStr, language_storage::StructTag};
+use serde::{Deserialize, Serialize};
+use serde_with::serde_as;
+
+use super::{
+    super::{address::stardust_to_iota_address, coin_type::CoinType},
+    unlock_conditions::{
+        ExpirationUnlockCondition, StorageDepositReturnUnlockCondition, TimelockUnlockCondition,
+    },
 };
 
 pub const BASIC_OUTPUT_MODULE_NAME: &IdentStr = ident_str!("basic_output");
@@ -61,6 +63,51 @@ pub struct BasicOutput {
 }
 
 impl BasicOutput {
+    /// Construct the basic output with an empty [`Bag`] using the
+    /// Output Header ID and Stardust
+    /// [`BasicOutput`][iota_stardust_types::block::output::BasicOutput].
+    pub fn new(
+        header_object_id: ObjectID,
+        output: &iota_stardust_types::block::output::BasicOutput,
+    ) -> Result<Self> {
+        let id = UID::new(header_object_id);
+        let balance = Balance::new(output.amount());
+        let native_tokens = Default::default();
+        let unlock_conditions = output.unlock_conditions();
+        let storage_deposit_return = unlock_conditions
+            .storage_deposit_return()
+            .map(|unlock| unlock.try_into())
+            .transpose()?;
+        let timelock = unlock_conditions.timelock().map(|unlock| unlock.into());
+        let expiration = output
+            .unlock_conditions()
+            .expiration()
+            .map(|expiration| ExpirationUnlockCondition::new(output.address(), expiration))
+            .transpose()?;
+        let metadata = output
+            .features()
+            .metadata()
+            .map(|metadata| metadata.data().to_vec());
+        let tag = output.features().tag().map(|tag| tag.tag().to_vec());
+        let sender = output
+            .features()
+            .sender()
+            .map(|sender| stardust_to_iota_address(sender.address()))
+            .transpose()?;
+
+        Ok(BasicOutput {
+            id,
+            balance,
+            native_tokens,
+            storage_deposit_return,
+            timelock,
+            expiration,
+            metadata,
+            tag,
+            sender,
+        })
+    }
+
     /// Returns the struct tag of the BasicOutput struct
     pub fn tag(type_param: TypeTag) -> StructTag {
         StructTag {

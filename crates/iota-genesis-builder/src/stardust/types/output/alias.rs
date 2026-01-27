@@ -1,21 +1,22 @@
-// Copyright (c) 2024 IOTA Stiftung
+// Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use iota_protocol_config::ProtocolConfig;
-use move_core_types::{ident_str, identifier::IdentStr, language_storage::StructTag};
-use serde::{Deserialize, Serialize};
-use serde_with::serde_as;
-
-use crate::{
+use iota_stardust_types::block::output::AliasOutput as StardustAlias;
+use iota_types::{
     STARDUST_ADDRESS, TypeTag,
     balance::Balance,
-    base_types::{IotaAddress, SequenceNumber, TxContext},
+    base_types::{IotaAddress, ObjectID, SequenceNumber, TxContext},
     collection_types::Bag,
     error::IotaError,
     id::UID,
     object::{Data, MoveObject, Object, Owner},
-    stardust::coin_type::CoinType,
 };
+use move_core_types::{ident_str, identifier::IdentStr, language_storage::StructTag};
+use serde::{Deserialize, Serialize};
+use serde_with::serde_as;
+
+use super::super::{address::stardust_to_iota_address, coin_type::CoinType};
 
 pub const ALIAS_MODULE_NAME: &IdentStr = ident_str!("alias");
 pub const ALIAS_OUTPUT_MODULE_NAME: &IdentStr = ident_str!("alias_output");
@@ -59,6 +60,51 @@ impl Alias {
             name: ALIAS_STRUCT_NAME.to_owned(),
             type_params: Vec::new(),
         }
+    }
+
+    /// Creates the Move-based Alias model from a Stardust-based Alias Output.
+    pub fn try_from_stardust(
+        alias_id: ObjectID,
+        alias: &StardustAlias,
+    ) -> Result<Self, anyhow::Error> {
+        if alias_id.as_ref() == [0; 32] {
+            anyhow::bail!("alias_id must be non-zeroed");
+        }
+
+        let state_metadata: Option<Vec<u8>> = if alias.state_metadata().is_empty() {
+            None
+        } else {
+            Some(alias.state_metadata().to_vec())
+        };
+        let sender: Option<IotaAddress> = alias
+            .features()
+            .sender()
+            .map(|sender_feat| stardust_to_iota_address(sender_feat.address()))
+            .transpose()?;
+        let metadata: Option<Vec<u8>> = alias
+            .features()
+            .metadata()
+            .map(|metadata_feat| metadata_feat.data().to_vec());
+        let immutable_issuer: Option<IotaAddress> = alias
+            .immutable_features()
+            .issuer()
+            .map(|issuer_feat| stardust_to_iota_address(issuer_feat.address()))
+            .transpose()?;
+        let immutable_metadata: Option<Vec<u8>> = alias
+            .immutable_features()
+            .metadata()
+            .map(|metadata_feat| metadata_feat.data().to_vec());
+
+        Ok(Alias {
+            id: UID::new(alias_id),
+            legacy_state_controller: stardust_to_iota_address(alias.state_controller_address())?,
+            state_index: alias.state_index(),
+            state_metadata,
+            sender,
+            metadata,
+            immutable_issuer,
+            immutable_metadata,
+        })
     }
 
     pub fn to_genesis_object(
@@ -114,6 +160,20 @@ impl AliasOutput {
             name: ALIAS_OUTPUT_STRUCT_NAME.to_owned(),
             type_params: vec![type_param],
         }
+    }
+
+    /// Creates the Move-based Alias Output model from a Stardust-based Alias
+    /// Output.
+    pub fn try_from_stardust(
+        object_id: ObjectID,
+        alias: &StardustAlias,
+        native_tokens: Bag,
+    ) -> Result<Self, anyhow::Error> {
+        Ok(AliasOutput {
+            id: UID::new(object_id),
+            balance: Balance::new(alias.amount()),
+            native_tokens,
+        })
     }
 
     pub fn to_genesis_object(

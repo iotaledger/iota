@@ -10,11 +10,10 @@ use clap::{Parser, Subcommand};
 use iota_genesis_builder::stardust::{
     parse::HornetSnapshotParser,
     test_outputs::{add_snapshot_test_outputs, to_nanos},
+    types::coin_type::CoinType,
 };
 use iota_stardust_types::block::address::Ed25519Address;
-use iota_types::{
-    base_types::IotaAddress, gas_coin::STARDUST_TOTAL_SUPPLY_IOTA, stardust::coin_type::CoinType,
-};
+use iota_types::{base_types::IotaAddress, gas_coin::STARDUST_TOTAL_SUPPLY_IOTA};
 
 const WITH_SAMPLING: bool = false;
 
