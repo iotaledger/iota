@@ -21,7 +21,8 @@ fastcrypto.workspace = true
 flate2.workspace = true
 itertools.workspace = true
 packable.workspace = true
-prefix-hex = "0.7"
+prefix-hex.workspace = true
+primitive-types.workspace = true
 prometheus.workspace = true
 rand = { workspace = true, features = ["std_rng"] }
 rand_pcg = "0.3"
@@ -36,6 +37,7 @@ tempfile.workspace = true
 tokio.workspace = true
 tracing.workspace = true
 tracing-subscriber.workspace = true
+url.workspace = true
 
 # internal dependencies
 iota-adapter-latest = { path = "../../iota-execution/latest/iota-adapter/" }
@@ -47,8 +49,8 @@ iota-genesis-common.workspace = true
 iota-move-build.workspace = true
 iota-move-natives-latest = { path = "../../iota-execution/latest/iota-move-natives" }
 iota-protocol-config.workspace = true
-iota-sdk = { version = "1.1", default-features = false, features = ["irc_27", "irc_30", "std"] }
 iota-sdk-types.workspace = true
+iota-stardust-types = { path = "../iota-stardust-types", features = ["irc_27", "irc_30", "std"] }
 iota-types.workspace = true
 move-binary-format.workspace = true
 move-compiler.workspace = true
@@ -68,7 +70,11 @@ tokio = { workspace = true, features = ["macros"] }
 iota-swarm-config.workspace = true
 
 [features]
-test-outputs = ["iota-sdk/client"]
+test-outputs = ["dep:iota-sdk-crypto"]
+
+[target.'cfg(not(msim))'.dependencies]
+# iota-sdk-crypto is only used when compiling test-outputs feature
+iota-sdk-crypto = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "fda182869d0b4d4016beb80808057b5a593abaf2", optional = true, features = ["ed25519", "mnemonic"] }
 
 [[example]]
 name = "snapshot_add_test_outputs"
