@@ -4,3 +4,4 @@
 
 pub mod optimistic_pruner;
 pub mod pruner;
+pub mod watermark_task;
