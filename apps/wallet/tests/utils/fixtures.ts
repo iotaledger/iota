@@ -5,7 +5,7 @@
 import path from 'path';
 import { test as base, chromium, type BrowserContext } from '@playwright/test';
 
-const EXTENSION_PATH = path.join(__dirname, '../dist');
+const EXTENSION_PATH = path.join(__dirname, '../../dist');
 const LAUNCH_ARGS = [
     `--disable-extensions-except=${EXTENSION_PATH}`,
     `--load-extension=${EXTENSION_PATH}`,

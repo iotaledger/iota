@@ -4,9 +4,9 @@
 
 import type { CDPSession, Page } from '@playwright/test';
 import { LONG_TIMEOUT, SHORT_TIMEOUT } from '../constants/timeout.constants';
-import { expect } from '../fixtures';
+import { expect } from './fixtures';
 
-export const PASSWORD = 'iota';
+const PASSWORD = 'iotae2etests';
 
 export async function createWallet(page: Page, extensionUrl: string) {
     await page.goto(extensionUrl, { waitUntil: 'commit' });
@@ -41,8 +41,8 @@ export async function importWallet(page: Page, extensionUrl: string, mnemonic: s
     }
 
     await page.getByText('Add profile').click();
-    await page.getByTestId('password.input').fill('iotae2etests');
-    await page.getByTestId('password.confirmation').fill('iotae2etests');
+    await page.getByTestId('password.input').fill(PASSWORD);
+    await page.getByTestId('password.confirmation').fill(PASSWORD);
     await page.getByText('I read and agree').click();
     await page.getByRole('button', { name: /Create Wallet/ }).click();
 

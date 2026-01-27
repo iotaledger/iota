@@ -657,7 +657,7 @@ mod tests {
         context::Context,
         core::ReasonToCreateBlock,
         core_thread::{CoreError, CoreThreadDispatcher},
-        dag_state::{DagState, TransactionSource},
+        dag_state::{BlockHeaderSource, DagState, TransactionSource},
         encoder::create_encoder,
         shard_reconstructor::{
             FullTransactionMessage, ShardMessage, ShardReconstructor, TransactionMessage,
@@ -708,6 +708,7 @@ mod tests {
         async fn add_block_headers(
             &self,
             _blocks: Vec<VerifiedBlockHeader>,
+            _source: BlockHeaderSource,
         ) -> Result<
             (
                 BTreeSet<BlockRef>,

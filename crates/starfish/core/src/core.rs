@@ -42,7 +42,7 @@ use crate::{
     commit::{CertifiedCommits, PendingSubDag},
     commit_observer::CommitObserver,
     context::Context,
-    dag_state::{DagState, TransactionSource},
+    dag_state::{BlockHeaderSource, DagState, TransactionSource},
     encoder::{ShardEncoder, create_encoder},
     error::{ConsensusError, ConsensusResult},
     leader_schedule::LeaderSchedule,
@@ -354,6 +354,7 @@ impl Core {
     pub(crate) fn add_block_headers(
         &mut self,
         block_headers: Vec<VerifiedBlockHeader>,
+        source: BlockHeaderSource,
     ) -> ConsensusResult<(
         BTreeSet<BlockRef>,
         BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>,
@@ -371,8 +372,9 @@ impl Core {
             .node_metrics
             .core_add_block_headers_batch_size
             .observe(block_headers.len() as f64);
-        let (accepted_block_headers, missing_block_refs) =
-            self.block_manager.try_accept_block_headers(block_headers);
+        let (accepted_block_headers, missing_block_refs) = self
+            .block_manager
+            .try_accept_block_headers(block_headers, source);
 
         let missing_committed_txns = if !accepted_block_headers.is_empty() {
             debug!(
@@ -503,7 +505,7 @@ impl Core {
             .collect::<Vec<_>>();
 
         // Add block headers in certified commits to the block manager.
-        self.add_block_headers(block_headers)
+        self.add_block_headers(block_headers, BlockHeaderSource::CommitSyncer)
     }
 
     /// If needed, signals a new clock round and sets up leader timeout.
@@ -1991,7 +1993,7 @@ mod test {
 
                 core_fixture
                     .core
-                    .add_block_headers(last_round_blocks.clone())
+                    .add_block_headers(last_round_blocks.clone(), BlockHeaderSource::Test)
                     .unwrap();
 
                 // Only when round > 1 and using non-genesis parents.
@@ -2026,7 +2028,7 @@ mod test {
 
             core_fixture
                 .core
-                .add_block_headers(last_round_blocks.clone())
+                .add_block_headers(last_round_blocks.clone(), BlockHeaderSource::Test)
                 .unwrap();
             let (new_block_opt, missing_committed_txns) = core_fixture
                 .core
@@ -2157,7 +2159,7 @@ mod test {
                 // emitted
                 core_fixture
                     .core
-                    .add_block_headers(last_round_block_headers.clone())
+                    .add_block_headers(last_round_block_headers.clone(), BlockHeaderSource::Test)
                     .unwrap();
 
                 // A "new round" signal should be received given that all the blocks of previous
@@ -2482,7 +2484,9 @@ mod test {
         let block_headers = dag_builder.block_headers(1..=6);
 
         for block_header in block_headers {
-            core.dag_state.write().accept_block_header(block_header);
+            core.dag_state
+                .write()
+                .accept_block_header(block_header, BlockHeaderSource::Test);
         }
 
         // Get all the committed sub dags up to round 10
@@ -2526,7 +2530,9 @@ mod test {
         // accepted via the certified commits processing.
         let block_headers = dag_builder.block_headers(8..=12);
         for block_header in block_headers {
-            core.dag_state.write().accept_block_header(block_header);
+            core.dag_state
+                .write()
+                .accept_block_header(block_header, BlockHeaderSource::Test);
         }
 
         // The corresponding blocks of the certified commits should be accepted and
@@ -2568,7 +2574,7 @@ mod test {
                 // emitted
                 core_fixture
                     .core
-                    .add_block_headers(last_round_block_headers.clone())
+                    .add_block_headers(last_round_block_headers.clone(), BlockHeaderSource::Test)
                     .unwrap();
                 // A "new round" signal should be received given that all the blocks of previous
                 // round have been processed
@@ -2700,7 +2706,7 @@ mod test {
                 // emitted
                 core_fixture
                     .core
-                    .add_block_headers(last_round_block_headers.clone())
+                    .add_block_headers(last_round_block_headers.clone(), BlockHeaderSource::Test)
                     .unwrap();
 
                 // A "new round" signal should be received given that all the blocks of previous
@@ -2796,7 +2802,7 @@ mod test {
                 // leader authority 3
                 core_fixture
                     .core
-                    .add_block_headers(last_round_block_headers.clone())
+                    .add_block_headers(last_round_block_headers.clone(), BlockHeaderSource::Test)
                     .unwrap();
                 core_fixture
                     .core
@@ -2825,7 +2831,7 @@ mod test {
         // add blocks to trigger proposal.
         core_fixture
             .core
-            .add_block_headers(all_block_headers)
+            .add_block_headers(all_block_headers, BlockHeaderSource::Test)
             .unwrap();
 
         // Assert that a block has been created for round 11 and it references to blocks
