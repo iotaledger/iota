@@ -22,14 +22,11 @@ export async function initAmplitude() {
                 // Explicitly use cookie storage to persist data across popup sessions
                 identityStorage: 'cookie',
                 autocapture: {
-                    attribution: IS_ENABLED,
+                    attribution: false,
+                    fileDownloads: IS_ENABLED,
+                    formInteractions: IS_ENABLED,
                     pageViews: IS_ENABLED,
                     sessions: IS_ENABLED,
-                    formInteractions: IS_ENABLED,
-                    fileDownloads: IS_ENABLED,
-                    elementInteractions: false,
-                    pageUrlEnrichment: false,
-                    webVitals: false,
                 },
                 // set LogLevel to Debug for more verbose logging during development
                 logLevel: LogLevel.None,
