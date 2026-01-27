@@ -107,10 +107,9 @@ impl AuthorityNode {
 
     /// Restart the node with the specified mode
     pub async fn restart(&self, mode: RestartMode) -> Result<()> {
-        self.stop().await;
-
         match mode {
             RestartMode::CleanAll => {
+                self.stop().await;
                 // Erase consensus DB and all node tracking
                 *self.db_dir.lock() = Arc::new(TempDir::new()?);
                 self.last_processed_commit.store(0, Ordering::SeqCst);
@@ -122,6 +121,7 @@ impl AuthorityNode {
                 self.committed_transactions.write().await.clear();
             }
             RestartMode::ResetLastProcessed => {
+                self.stop().await;
                 // Keep consensus DB, reset node tracking state
                 self.last_processed_commit.store(0, Ordering::SeqCst);
                 self.commit_digests.write().await.clear();
@@ -129,16 +129,11 @@ impl AuthorityNode {
                 // Keep boot_counter incrementing (not a fresh node)
             }
             RestartMode::PersistAll => {
+                self.stop().await;
                 // Keep both consensus DB and node tracking (no changes)
             }
             RestartMode::EraseAllTransactions => {
-                starfish_core::delete_all_transactions_from_store(
-                    self.db_dir.lock().path(),
-                    self.config.authority_index,
-                    self.config.committee.clone(),
-                    self.config.protocol_config.clone(),
-                )
-                .expect("Failed to delete transactions");
+                self.stop_and_clear_transactions().await;
 
                 // Reset tracking state (transactions will be re-synced)
                 self.last_processed_commit.store(0, Ordering::SeqCst);
@@ -219,6 +214,28 @@ impl AuthorityNode {
         if let Some(mut inner) = inner {
             if let Some(consensus_authority) = inner.consensus_authority.take() {
                 consensus_authority.stop().await;
+            }
+
+            if let Some(handle) = inner.handle.take() {
+                tracing::info!("shutting down {}", handle.node_id);
+                iota_simulator::runtime::Handle::try_current()
+                    .map(|h| h.delete_node(handle.node_id));
+            }
+        }
+        info!(index =% self.config.authority_index, "node stopped");
+    }
+
+    /// Stop this Node and clear all transactions from the consensus store.
+    /// Only used by simtests.
+    pub async fn stop_and_clear_transactions(&self) {
+        info!(index =% self.config.authority_index, "stopping in-memory node");
+        let inner = self.inner.lock().take();
+        if let Some(mut inner) = inner {
+            if let Some(consensus_authority) = inner.consensus_authority.take() {
+                consensus_authority
+                    .stop_and_clear_transactions()
+                    .await
+                    .expect("Failed to delete transactions");
             }
 
             if let Some(handle) = inner.handle.take() {

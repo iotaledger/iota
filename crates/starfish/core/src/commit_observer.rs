@@ -222,7 +222,6 @@ impl CommitObserver {
             self.update_and_evict_with_solid_subdags(&committed_subdags);
             self.dag_state.write().flush();
         }
-
         // Send committed sub-dags through the channel
         let _sent_indices = self.send_sub_dags(&committed_subdags, source)?;
 
@@ -479,6 +478,9 @@ impl CommitObserver {
 
             committed_subdags.push(committed_subdag);
         }
+
+        // Evict linearizer and update dag_state with solid subdags
+        self.update_and_evict_with_solid_subdags(&committed_subdags);
 
         let sent_indices = self
             .send_sub_dags(&committed_subdags, source)
