@@ -168,10 +168,10 @@ pub trait IndexerStore: Any + Clone + Sync + Send + 'static {
         max_tx: u64,
     ) -> Result<(), IndexerError>;
 
-    async fn update_watermark_pruner_hi(
+    async fn update_watermark_lowest_unpruned_key(
         &self,
         table: &PrunableTable,
-        pruner_hi: u64,
+        lowest_unpruned_key: u64,
     ) -> Result<(), IndexerError>;
 
     async fn get_watermark_by_entity(

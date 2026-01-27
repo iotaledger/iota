@@ -264,12 +264,12 @@ impl PrimaryWriter {
             elapsed,
             "Checkpoint {}-{} committed with {} transactions.",
             first_checkpoint_seq,
-            committer_watermark.checkpoint_hi_inclusive,
+            committer_watermark.max_committed_cp,
             tx_count,
         );
         self.metrics
             .latest_tx_checkpoint_sequence_number
-            .set(committer_watermark.checkpoint_hi_inclusive as i64);
+            .set(committer_watermark.max_committed_cp as i64);
         self.metrics
             .total_tx_checkpoint_committed
             .inc_by(checkpoint_num as u64);
@@ -278,7 +278,7 @@ impl PrimaryWriter {
             .inc_by(tx_count as u64);
         self.metrics.transaction_per_checkpoint.observe(
             tx_count as f64
-                / (committer_watermark.checkpoint_hi_inclusive - first_checkpoint_seq + 1) as f64,
+                / (committer_watermark.max_committed_cp - first_checkpoint_seq + 1) as f64,
         );
         // 1000.0 is not necessarily the batch size, it's to roughly map average tx
         // commit latency to [0.1, 1] seconds, which is well covered by
