@@ -3,8 +3,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { type Page } from '@playwright/test';
-import { expect, test } from './fixtures';
-import { createWallet } from './utils/auth';
+import { expect, test } from './utils/fixtures';
+import { createWallet } from './utils/wallet';
 import { demoDappConnect } from './utils/dappConnect';
 import dotenv from 'dotenv';
 

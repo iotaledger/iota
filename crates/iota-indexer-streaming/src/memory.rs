@@ -374,7 +374,7 @@ impl InMemory {
                     })
                     .await
                     {
-                        // once we exaust all backoff retries, we publish the error and move on to
+                        // once we exhaust all backoff retries, we publish the error and move on to
                         // the next batch. The client can decide how to handle the error
                         // accordingly.
                         error!(

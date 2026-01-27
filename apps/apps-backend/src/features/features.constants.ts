@@ -21,6 +21,7 @@ export const ADDRESSES_ALIASES = {
     '0xb': 'Bridge Package',
     '0x403': 'IOTA Denylist Object',
     '0x7b4a34f6a011794f0ecbe5e5beb96102d3eef6122eb929b9f50a8d757bfbdd67': 'IOTA EVM',
+    '0xbeb1ba753fd0bbc0f5470b3948345da6dc870c0421d809cfc3abe95b70f625a7': 'Legacy Migrator',
 };
 
 export const KNOWN_ADDRESSES_ALIASES = Object.fromEntries(
