@@ -9,6 +9,7 @@ import type { Language } from 'prism-react-renderer';
 import type { IotaMoveNormalizedType } from '@iota/iota-sdk/client';
 import { LinkWithQuery } from '../ui';
 import { normalizeIotaAddress } from '@iota/iota-sdk/utils';
+import { addQuotesToIncompleteLines } from './utils';
 
 interface TypeReference {
     address: string;
@@ -45,35 +46,6 @@ export function SyntaxHighlighter({
 
     const isDark = theme === Theme.Dark;
     const codeTheme = isDark ? themes.oneDark : themes.github;
-
-    function detectsUnclosedQuotes(line: string): boolean {
-        // matches non-escaped quotes in the line
-        const nonEscapedQuotes = line.match(/(^|[^\\])"/g);
-        return (nonEscapedQuotes?.length ?? 0) % 2 !== 0;
-    }
-
-    function addQuotesToIncompleteLines(code: string): string {
-        // regex to match closing syntax like ), ], } maybe followed by commas and spaces
-        const syntaxSuffixRegex = /\s*[)\]}]+(?:\s*,\s*)?\s*$/;
-
-        return code
-            .split('\n')
-            .map((line) => {
-                if (!detectsUnclosedQuotes(line)) return line;
-
-                const matchedSyntaxSuffix = line.match(syntaxSuffixRegex);
-
-                // if there's a syntax suffix, insert the quote before it
-                if (matchedSyntaxSuffix?.index !== undefined) {
-                    const matchedSyntaxIndex = matchedSyntaxSuffix.index;
-                    return `${line.slice(0, matchedSyntaxIndex)}"${line.slice(matchedSyntaxIndex)}`;
-                }
-
-                // add quote at the end if no syntax suffix is found
-                return `${line}"`;
-            })
-            .join('\n');
-    }
 
     const sanitizedCode = addQuotesToIncompleteLines(code);
 
