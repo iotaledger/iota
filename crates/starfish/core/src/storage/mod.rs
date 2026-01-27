@@ -155,6 +155,14 @@ pub(crate) trait Store: Send + Sync {
         up_to_index: CommitIndex,
     ) -> ConsensusResult<Option<CommitIndex>>;
 
+    /// Finds the lowest commit index that has at least one vote, from (and
+    /// including) the given index. Returns None if no votes exist for any
+    /// index >= from_index.
+    fn read_lowest_commit_index_with_votes(
+        &self,
+        from_index: CommitIndex,
+    ) -> ConsensusResult<Option<CommitIndex>>;
+
     /// Reads the last commit info, written atomically with the last commit.
     fn read_last_commit_info(&self) -> ConsensusResult<Option<(CommitRef, CommitInfo)>>;
 
