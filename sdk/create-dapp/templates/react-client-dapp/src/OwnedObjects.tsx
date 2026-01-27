@@ -1,3 +1,7 @@
+// Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { useCurrentAccount, useIotaClientQuery } from "@iota/dapp-kit";
 import { Flex, Heading, Text } from "@radix-ui/themes";
 

@@ -1,3 +1,7 @@
+// Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { Transaction } from "@iota/iota-sdk/transactions";
 import { Button, Container } from "@radix-ui/themes";
 import { useSignAndExecuteTransaction, useIotaClient } from "@iota/dapp-kit";

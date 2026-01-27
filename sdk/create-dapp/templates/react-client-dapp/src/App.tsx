@@ -1,3 +1,7 @@
+// Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { ConnectButton } from "@iota/dapp-kit";
 import { Box, Container, Flex, Heading } from "@radix-ui/themes";
 import { WalletStatus } from "./WalletStatus";

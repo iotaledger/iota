@@ -1,3 +1,6 @@
+// Copyright (c) 2025 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { useQuery } from '@tanstack/react-query';
 import { buildDepositL2Parameters } from '../lib/utils';
 import { L2Chain } from '../config';
