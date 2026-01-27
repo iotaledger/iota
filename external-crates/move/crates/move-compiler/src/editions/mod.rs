@@ -19,7 +19,7 @@ use serde::{Deserialize, Serialize};
 use crate::{
     diag,
     diagnostics::{Diagnostic, DiagnosticReporter},
-    shared::string_utils::format_oxford_list,
+    shared::{known_attributes::KnownAttribute, string_utils::format_oxford_list},
 };
 
 //**************************************************************************************************
@@ -288,6 +288,14 @@ impl Flavor {
     pub const CORE: &'static str = "core";
     pub const IOTA: &'static str = "iota";
     pub const ALL: &'static [Self] = &[Self::Core, Self::Iota];
+
+    pub fn resolve_known_attribute(self, attribute_str: impl AsRef<str>) -> Option<KnownAttribute> {
+        use crate::iota_mode::known_attributes::KnownAttribute as IotaKnownAttribute;
+        match self {
+            Flavor::Core => None,
+            Flavor::Iota => IotaKnownAttribute::resolve(attribute_str),
+        }
+    }
 }
 
 impl FeatureGate {

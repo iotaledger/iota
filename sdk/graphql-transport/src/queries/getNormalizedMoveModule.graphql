@@ -83,6 +83,15 @@ fragment RPC_MOVE_MODULE_FIELDS on MoveModule {
             ...RPC_MOVE_STRUCT_FIELDS
         }
     }
+    enums {
+        pageInfo {
+            hasNextPage
+            endCursor
+        }
+        nodes {
+            ...RPC_MOVE_ENUM_FIELDS
+        }
+    }
     fileFormatVersion
     functions {
         pageInfo {
@@ -91,6 +100,25 @@ fragment RPC_MOVE_MODULE_FIELDS on MoveModule {
         }
         nodes {
             ...RPC_MOVE_FUNCTION_FIELDS
+        }
+    }
+}
+
+fragment RPC_MOVE_ENUM_FIELDS on MoveEnum {
+    name
+    abilities
+    typeParameters {
+        constraints
+        isPhantom
+    }
+    variants {
+        name
+        fields {
+            name
+            type {
+                repr
+                signature
+            }
         }
     }
 }

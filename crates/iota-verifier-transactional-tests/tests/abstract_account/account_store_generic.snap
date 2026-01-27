@@ -1,0 +1,19 @@
+---
+source: external-crates/move/crates/move-transactional-test-runner/src/framework.rs
+---
+processed 3 tasks
+
+task 0, lines 4-14:
+//# publish
+Error: Transaction Effects Status: IOTA Move Bytecode Verification Error. Please run the IOTA Move Verifier for more information.
+Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: IotaMoveVerificationError, source: Some("_::m::t1. Invalid call to 'iota::account::create_account_v1' on an object of type 'T0'. The account object's type must be defined in the current module."), command: Some(0) } }
+
+task 1, lines 16-26:
+//# publish
+Error: Transaction Effects Status: IOTA Move Bytecode Verification Error. Please run the IOTA Move Verifier for more information.
+Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: IotaMoveVerificationError, source: Some("_::m::t2. Invalid call to 'iota::account::create_immutable_account_v1' on an object of type 'T0'. The account object's type must be defined in the current module."), command: Some(0) } }
+
+task 2, lines 28-39:
+//# publish
+Error: Transaction Effects Status: IOTA Move Bytecode Verification Error. Please run the IOTA Move Verifier for more information.
+Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: IotaMoveVerificationError, source: Some("_::m::t3. Invalid call to 'iota::account::rotate_auth_function_ref_v1' on an object of type 'T0'. The account object's type must be defined in the current module."), command: Some(0) } }

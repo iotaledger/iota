@@ -36,7 +36,7 @@ use crate::{
     block_header::{BlockRef, TransactionsCommitment, VerifiedTransactions},
     context::Context,
     core_thread::CoreThreadDispatcher,
-    dag_state::{DagState, TransactionSource},
+    dag_state::{DagState, DataSource},
     encoder::create_encoder,
     error::{ConsensusError, ConsensusResult},
     network::{NetworkClient, SerializedTransactions},
@@ -1045,7 +1045,7 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
 
         // Add the transactions to the core
         core_dispatcher
-            .add_transactions(transactions, TransactionSource::TransactionSynchronizer)
+            .add_transactions(transactions, DataSource::TransactionSynchronizer)
             .await
             .map_err(|_| ConsensusError::Shutdown)?;
 
@@ -1153,7 +1153,7 @@ mod tests {
         context::Context,
         core::ReasonToCreateBlock,
         core_thread::CoreError,
-        dag_state::{BlockHeaderSource, DagState},
+        dag_state::{DagState, DataSource},
         network::{BlockBundleStream, NetworkClient, SerializedTransactions},
         storage::mem_store::MemStore,
     };
@@ -1229,7 +1229,7 @@ mod tests {
 
         dag_state
             .write()
-            .accept_block_headers(block_headers, BlockHeaderSource::Test);
+            .accept_block_headers(block_headers, DataSource::Test);
 
         // WHEN
         // Request the transactions
@@ -1334,7 +1334,7 @@ mod tests {
         // Add block headers to the dag state
         dag_state
             .write()
-            .accept_block_headers(block_headers, BlockHeaderSource::Test);
+            .accept_block_headers(block_headers, DataSource::Test);
 
         // WHEN
         // Send many requests to saturate the tasks
@@ -1461,7 +1461,7 @@ mod tests {
         // Add block headers to the dag state
         dag_state
             .write()
-            .accept_block_headers(block_headers, BlockHeaderSource::Test);
+            .accept_block_headers(block_headers, DataSource::Test);
 
         // WHEN
         // Request the transactions
@@ -1580,7 +1580,7 @@ mod tests {
         // Add block headers to the dag state
         dag_state
             .write()
-            .accept_block_headers(block_headers, BlockHeaderSource::Test);
+            .accept_block_headers(block_headers, DataSource::Test);
 
         // WHEN
         // Request the transactions
@@ -1692,7 +1692,7 @@ mod tests {
         // Add block headers to the dag state
         dag_state
             .write()
-            .accept_block_headers(block_headers, BlockHeaderSource::Test);
+            .accept_block_headers(block_headers, DataSource::Test);
 
         // WHEN
         // Request the transactions
@@ -1804,7 +1804,7 @@ mod tests {
         // Add block headers to the dag state
         dag_state
             .write()
-            .accept_block_headers(block_headers, BlockHeaderSource::Test);
+            .accept_block_headers(block_headers, DataSource::Test);
 
         // WHEN
         // Request the transactions
@@ -1912,7 +1912,7 @@ mod tests {
         // Add block headers to the dag state
         dag_state
             .write()
-            .accept_block_headers(block_headers, BlockHeaderSource::Test);
+            .accept_block_headers(block_headers, DataSource::Test);
 
         // WHEN
         // Request the transactions
@@ -2178,6 +2178,7 @@ mod tests {
         async fn add_blocks(
             &self,
             _blocks: Vec<VerifiedBlock>,
+            _source: DataSource,
         ) -> Result<
             (
                 BTreeSet<BlockRef>,
@@ -2191,7 +2192,7 @@ mod tests {
         async fn add_block_headers(
             &self,
             _block_headers: Vec<VerifiedBlockHeader>,
-            _source: BlockHeaderSource,
+            _source: DataSource,
         ) -> Result<
             (
                 BTreeSet<BlockRef>,
@@ -2205,7 +2206,7 @@ mod tests {
         async fn add_transactions(
             &self,
             transactions: Vec<VerifiedTransactions>,
-            _source: TransactionSource,
+            _source: DataSource,
         ) -> Result<(), CoreError> {
             let mut txns = self.transactions.lock().await;
 

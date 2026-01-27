@@ -5,7 +5,9 @@
 use std::collections::VecDeque;
 
 use iota_types::{
+    account_abstraction::account::AuthenticatorFunctionRefV1Key,
     base_types::{MoveObjectType, ObjectID, SequenceNumber},
+    dynamic_field::derive_dynamic_field_id,
     object::Owner,
 };
 use move_binary_format::errors::{PartialVMError, PartialVMResult};
@@ -31,6 +33,9 @@ const E_RECEIVING_OBJECT_TYPE_MISMATCH: u64 = 2;
 // Represents both the case where the object does not exist and the case where
 // the object is not able to be accessed through the parent that is passed-in.
 const E_UNABLE_TO_RECEIVE_OBJECT: u64 = 3;
+// Represents the case where it is trying to receive an object owned by an
+// account.
+const E_ACCOUNT_CANNOT_RECEIVE_OBJECT: u64 = 5;
 
 #[derive(Clone, Debug)]
 pub struct TransferReceiveObjectInternalCostParams {
@@ -80,6 +85,28 @@ pub fn receive_object_internal(
     };
 
     let object_runtime: &mut ObjectRuntime = context.extensions_mut().get_mut()?;
+    if object_runtime.protocol_config.enable_move_authentication() {
+        // If Move-based authentication is enabled, we need to check that the
+        // parent is not an account object, i.e., that it does not already
+        // have an authenticator function ref as a child-object/dynamic-field.
+        let authenticator_fun_ref_id = derive_dynamic_field_id(
+            parent,
+            &AuthenticatorFunctionRefV1Key::tag().into(),
+            &AuthenticatorFunctionRefV1Key::default().to_bcs_bytes(),
+        )
+        .expect("should not fail this serialization");
+        if object_runtime.child_object_exists(parent, authenticator_fun_ref_id)? {
+            // parent is an account object
+            return Ok(NativeResult::err(
+                context.gas_used(),
+                E_ACCOUNT_CANNOT_RECEIVE_OBJECT,
+            ));
+        }
+        // If the parent is not an account, proceed with receiving the object.
+        // It might still fail if the object does not exist or the type
+        // mismatches.
+    }
+
     let child = match object_runtime.receive_object(
         parent,
         child_id,
