@@ -95,19 +95,45 @@ const getResultsForCheckpoint = async (
     client: IotaClient,
     query: string,
 ): Promise<Results | null> => {
+    // Check if query is a sequence number (numeric string)
+    const isSequenceNumber = /^\d+$/.test(query);
+
     // Checkpoint digests have the same format as transaction digests:
-    if (!isValidTransactionDigest(query)) return null;
+    if (!isSequenceNumber && !isValidTransactionDigest(query)) return null;
 
-    const { digest } = await client.getCheckpoint({ id: query });
-    if (!digest) return null;
+    try {
+        const checkpoint = await client.getCheckpoint({ id: query });
+        if (!checkpoint?.digest) return null;
 
-    return [
-        {
-            id: digest,
-            label: digest,
-            type: 'checkpoint',
-        },
-    ];
+        return [
+            {
+                id: checkpoint.sequenceNumber,
+                label: `Checkpoint ${checkpoint.sequenceNumber}`,
+                type: 'checkpoint',
+            },
+        ];
+    } catch (error) {
+        return null;
+    }
+};
+
+const getResultsForEpoch = async (client: IotaClient, query: string): Promise<Results | null> => {
+    if (!/^\d+$/.test(query)) return null;
+
+    try {
+        const committeeInfo = await client.getCommitteeInfo({ epoch: query });
+        if (!committeeInfo?.epoch || committeeInfo.epoch !== query) return null;
+
+        return [
+            {
+                id: committeeInfo.epoch,
+                label: `Epoch ${committeeInfo.epoch}`,
+                type: 'epoch',
+            },
+        ];
+    } catch (error) {
+        return null;
+    }
 };
 
 const getResultsForAddress = async (
@@ -228,6 +254,7 @@ export function useSearch(query: string): UseQueryResult<Results, Error> {
                 await Promise.allSettled([
                     getResultsForTransaction(client, query),
                     getResultsForCheckpoint(client, query),
+                    getResultsForEpoch(client, query),
                     getResultsForAddress(client, query, isNamesEnabled, iotaNamesClient),
                     getResultsForDid(identityClient, isTFIdentityEnabled, query),
                     getResultsForObject(client, query),

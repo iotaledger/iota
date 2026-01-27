@@ -10,10 +10,13 @@ import type {
     IotaMoveNormalizedModule,
     IotaMoveNormalizedStruct,
     IotaMoveNormalizedType,
+    IotaMoveNormalizedEnum,
+    IotaMoveNormalizedField,
 } from '@iota/iota-sdk/client';
 import { normalizeIotaAddress, parseStructTag } from '@iota/iota-sdk/utils';
 
 import type {
+    Rpc_Move_Enum_FieldsFragment,
     Rpc_Move_Function_FieldsFragment,
     Rpc_Move_Module_FieldsFragment,
     Rpc_Move_Struct_FieldsFragment,
@@ -152,12 +155,47 @@ export function mapNormalizedMoveStruct(
     };
 }
 
+export function mapNormalizedMoveEnum(
+    struct: Rpc_Move_Enum_FieldsFragment,
+): IotaMoveNormalizedEnum {
+    return {
+        abilities: {
+            abilities:
+                struct.abilities?.map(
+                    (ability) =>
+                        `${ability[0]}${ability.slice(1).toLowerCase()}` as IotaMoveAbility,
+                ) ?? [],
+        },
+        variants:
+            struct.variants?.reduce<Record<string, IotaMoveNormalizedField[]>>((acc, variant) => {
+                acc[variant.name] =
+                    variant.fields?.map((field) => ({
+                        name: field.name,
+                        type: mapOpenMoveType(field.type?.signature),
+                    })) ?? [];
+
+                return acc;
+            }, {}) ?? {},
+        typeParameters:
+            struct.typeParameters?.map((param) => ({
+                isPhantom: param.isPhantom!,
+                constraints: {
+                    abilities: param.constraints?.map(
+                        (constraint) =>
+                            `${constraint[0]}${constraint.slice(1).toLowerCase()}` as IotaMoveAbility,
+                    ),
+                },
+            })) ?? [],
+    };
+}
+
 export function mapNormalizedMoveModule(
     module: Rpc_Move_Module_FieldsFragment,
     address: string,
 ): IotaMoveNormalizedModule {
     const exposedFunctions: Record<string, IotaMoveNormalizedFunction> = {};
     const structs: Record<string, IotaMoveNormalizedStruct> = {};
+    const enums: Record<string, IotaMoveNormalizedEnum> = {};
 
     module.functions?.nodes
         .filter(
@@ -171,6 +209,10 @@ export function mapNormalizedMoveModule(
         structs[struct.name] = mapNormalizedMoveStruct(struct);
     });
 
+    module.enums?.nodes.forEach((_enum) => {
+        enums[_enum.name] = mapNormalizedMoveEnum(_enum);
+    });
+
     return {
         address: toShortTypeString(address),
         name: module.name,
@@ -181,6 +223,7 @@ export function mapNormalizedMoveModule(
                 name: friend.name,
             })) ?? [],
         structs,
+        ...(Object.keys(enums).length > 0 ? { enums } : {}),
         exposedFunctions,
     };
 }

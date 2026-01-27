@@ -338,6 +338,72 @@ fn no_metadata() {
 }
 
 #[test]
+fn iota_metadata() {
+    let test_success = |bytes| {
+        CompiledModule::deserialize_with_config(
+            bytes,
+            &BinaryConfig::with_extraneous_bytes_check(true),
+        )
+        .unwrap();
+    };
+    let test_fail = |bytes| {
+        // error with flag true
+        let status_code = CompiledModule::deserialize_with_config(
+            bytes,
+            &BinaryConfig::with_extraneous_bytes_check(true),
+        )
+        .unwrap_err()
+        .major_status();
+        assert_eq!(status_code, StatusCode::MALFORMED);
+    };
+
+    // empty metadata
+    let mut module = basic_test_module();
+    module.metadata.push(Metadata {
+        key: vec![],
+        value: vec![],
+    });
+    let test2 = {
+        let mut v = vec![];
+        module.serialize(&mut v).unwrap();
+        v
+    };
+    test_fail(&test2);
+
+    // malformed key metadata
+    let mut module = basic_test_module();
+    module.metadata.push(Metadata {
+        key: IOTA_METADATA_KEY.to_ascii_uppercase().to_vec(),
+        value: vec![],
+    });
+    let test2 = {
+        let mut v = vec![];
+        module.serialize(&mut v).unwrap();
+        v
+    };
+    test_fail(&test2);
+
+    // iota metadata
+    let metadata_bytes = {
+        let module = basic_test_module();
+        let mut v = vec![];
+        module.serialize(&mut v).unwrap();
+        v
+    };
+    let mut module = basic_test_module();
+    module.metadata.push(Metadata {
+        key: IOTA_METADATA_KEY.to_vec(),
+        value: metadata_bytes.clone(),
+    });
+    let test2 = {
+        let mut v = vec![];
+        module.serialize(&mut v).unwrap();
+        v
+    };
+    test_success(&test2);
+}
+
+#[test]
 fn deserialize_below_min_version() {
     let mut module = basic_test_module();
     module.version = VERSION_MIN;
