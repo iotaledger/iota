@@ -323,7 +323,7 @@ impl StoredTransaction {
     pub async fn try_into_iota_transaction_block_response(
         self,
         options: IotaTransactionBlockResponseOptions,
-        package_resolver: Arc<Resolver<impl PackageStore>>,
+        package_resolver: &Arc<Resolver<impl PackageStore>>,
     ) -> IndexerResult<IotaTransactionBlockResponse> {
         let options = options.clone();
         let tx_digest =
@@ -345,7 +345,7 @@ impl StoredTransaction {
             let sender_signed_data = self.try_into_sender_signed_data()?;
             let tx_block = IotaTransactionBlock::try_from_with_package_resolver(
                 sender_signed_data,
-                package_resolver.clone(),
+                package_resolver,
                 tx_digest,
             )
             .await?;
@@ -508,7 +508,7 @@ pub fn stored_events_to_events(
 
 pub async fn tx_events_to_iota_tx_events(
     tx_events: TransactionEvents,
-    package_resolver: Arc<Resolver<impl PackageStore>>,
+    package_resolver: &Arc<Resolver<impl PackageStore>>,
     tx_digest: TransactionDigest,
     timestamp: Option<u64>,
 ) -> Result<IotaTransactionBlockEvents, IndexerError> {

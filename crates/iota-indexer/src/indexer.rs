@@ -184,7 +184,7 @@ impl Indexer {
             let historic_fallback_reader = HistoricalFallbackReader::new(
                 url.as_str(),
                 fallback_kv_cache_size,
-                read.package_resolver(),
+                read.package_resolver().clone(),
                 fallback_kv_multi_fetch_batch_size,
                 fallback_kv_concurrent_fetches,
                 registry,
