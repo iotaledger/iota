@@ -4,7 +4,7 @@
 use std::collections::HashMap;
 
 use anyhow::{anyhow, ensure};
-use iota_sdk::types::block::output::{NftOutput, OutputId, TokenId};
+use iota_stardust_types::block::output::{NftOutput, OutputId, TokenId};
 use iota_types::{
     TypeTag,
     balance::Balance,

@@ -2,10 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{
-    fmt::{self, Display, Formatter, Write},
-    sync::Arc,
-};
+use std::fmt::{self, Display, Formatter, Write};
 
 use enum_dispatch::enum_dispatch;
 use fastcrypto::encoding::Base64;
@@ -575,7 +572,7 @@ impl IotaTransactionBlockKind {
 
     async fn try_from_with_package_resolver(
         tx: TransactionKind,
-        package_resolver: Arc<Resolver<impl PackageStore>>,
+        package_resolver: &Resolver<impl PackageStore>,
         tx_digest: TransactionDigest,
     ) -> Result<Self, anyhow::Error> {
         Ok(match tx {
@@ -1620,7 +1617,7 @@ impl IotaTransactionBlockData {
 
     pub async fn try_from_with_package_resolver(
         data: TransactionData,
-        package_resolver: Arc<Resolver<impl PackageStore>>,
+        package_resolver: &Resolver<impl PackageStore>,
         tx_digest: TransactionDigest,
     ) -> Result<Self, anyhow::Error> {
         let message_version = data.message_version();
@@ -1682,7 +1679,7 @@ impl IotaTransactionBlock {
     // IotaTransactionBlockData etc.
     pub async fn try_from_with_package_resolver(
         data: SenderSignedData,
-        package_resolver: Arc<Resolver<impl PackageStore>>,
+        package_resolver: &Resolver<impl PackageStore>,
         tx_digest: TransactionDigest,
     ) -> Result<Self, anyhow::Error> {
         Ok(Self {
@@ -1908,7 +1905,7 @@ impl IotaProgrammableTransactionBlock {
 
     async fn try_from_with_package_resolver(
         value: ProgrammableTransaction,
-        package_resolver: Arc<Resolver<impl PackageStore>>,
+        package_resolver: &Resolver<impl PackageStore>,
     ) -> Result<Self, anyhow::Error> {
         // If the pure input layouts cannot be built, we will use `None` for the input
         // types.

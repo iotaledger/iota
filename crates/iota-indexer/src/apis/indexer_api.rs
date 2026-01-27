@@ -64,9 +64,10 @@ impl IndexerApi {
 
         let mut object_futures = vec![];
         for object in objects {
-            object_futures.push(tokio::task::spawn(
-                object.try_into_object_read(self.inner.package_resolver()),
-            ));
+            let package_resolver = self.inner.package_resolver().clone();
+            object_futures.push(tokio::task::spawn(async move {
+                object.try_into_object_read(&package_resolver).await
+            }));
         }
         let mut objects = futures::future::try_join_all(object_futures)
             .await
@@ -125,7 +126,7 @@ impl IndexerApi {
             ObjectRead::NotExists(_) | ObjectRead::Deleted(_) => {}
             ObjectRead::Exists(object_ref, o, layout) => {
                 return Ok(IotaObjectResponse::new_with_data(
-                    IotaObjectData::new(object_ref, o, layout, options, None)
+                    IotaObjectData::new(object_ref, o, layout, &options, None)
                         .map_err(internal_error)?,
                 ));
             }
@@ -150,7 +151,7 @@ impl IndexerApi {
             ObjectRead::NotExists(_) | ObjectRead::Deleted(_) => {}
             ObjectRead::Exists(object_ref, o, layout) => {
                 return Ok(IotaObjectResponse::new_with_data(
-                    IotaObjectData::new(object_ref, o, layout, options, None)
+                    IotaObjectData::new(object_ref, o, layout, &options, None)
                         .map_err(internal_error)?,
                 ));
             }
@@ -175,10 +176,10 @@ async fn construct_object_response(
             if options.show_display {
                 match reader.get_display_fields(&o, &layout).await {
                     Ok(rendered_fields) => Ok(IotaObjectResponse::new_with_data(
-                        IotaObjectData::new(object_ref, o, layout, options, rendered_fields)?,
+                        IotaObjectData::new(object_ref, o, layout, &options, rendered_fields)?,
                     )),
                     Err(e) => Ok(IotaObjectResponse::new(
-                        Some(IotaObjectData::new(object_ref, o, layout, options, None)?),
+                        Some(IotaObjectData::new(object_ref, o, layout, &options, None)?),
                         Some(IotaObjectResponseError::Display {
                             error: e.to_string(),
                         }),
@@ -186,7 +187,7 @@ async fn construct_object_response(
                 }
             } else {
                 Ok(IotaObjectResponse::new_with_data(IotaObjectData::new(
-                    object_ref, o, layout, options, None,
+                    object_ref, o, layout, &options, None,
                 )?))
             }
         }

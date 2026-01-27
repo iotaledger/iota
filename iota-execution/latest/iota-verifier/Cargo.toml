@@ -8,6 +8,10 @@ publish = false
 description = "Move framework for IOTA platform"
 
 [dependencies]
+# external dependencies
+bcs.workspace = true
+
+# internal dependencies
 iota-types.workspace = true
 move-abstract-interpreter = { path = "../../../external-crates/move/crates/move-abstract-interpreter" }
 move-abstract-stack.workspace = true

@@ -1,3 +1,6 @@
+// Copyright (c) 2025 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import toast, { Toaster as ToasterLib, type ToastType, resolveValue } from 'react-hot-toast';
 import { Snackbar, SnackbarType } from '@iota/apps-ui-kit';
 

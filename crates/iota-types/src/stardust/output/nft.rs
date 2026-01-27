@@ -3,7 +3,7 @@
 
 use anyhow::anyhow;
 use iota_protocol_config::ProtocolConfig;
-use iota_stardust_sdk::types::block::output::{
+use iota_stardust_types::block::output::{
     NftOutput as StardustNft, feature::Irc27Metadata as StardustIrc27,
 };
 use move_core_types::{ident_str, identifier::IdentStr, language_storage::StructTag};
@@ -161,12 +161,7 @@ impl TryFrom<StardustIrc27> for Irc27Metadata {
         Ok(Self {
             version: irc27.version().to_string(),
             media_type: irc27.media_type().to_string(),
-            // We are converting a `Url` to an ASCII string here (as the URL type in move is based
-            // on ASCII strings). The `ToString` implementation of the `Url` ensures
-            // only ascii characters are returned and this conversion is therefore safe
-            // to do.
-            uri: Url::try_from(irc27.uri().to_string())
-                .expect("url should only contain ascii characters"),
+            uri: Url::try_from(irc27.uri().clone())?,
             name: irc27.name().to_string(),
             collection_name: irc27.collection_name().clone(),
             royalties: VecMap {
@@ -174,8 +169,13 @@ impl TryFrom<StardustIrc27> for Irc27Metadata {
                     .royalties()
                     .iter()
                     .map(|(addr, value)| {
+                        // The address is a bech32-encoded string, parse it and convert
+                        use iota_stardust_types::block::address::Bech32Address;
+                        let bech32_addr: Bech32Address = addr.parse().map_err(|e| {
+                            anyhow::anyhow!("failed to parse bech32 address: {:?}", e)
+                        })?;
                         Ok(Entry {
-                            key: stardust_to_iota_address(addr.inner())?,
+                            key: stardust_to_iota_address(bech32_addr.inner())?,
                             value: FixedPoint32::try_from(*value)?,
                         })
                     })
@@ -207,12 +207,8 @@ impl Default for Irc27Metadata {
         // Matches the media type of the URI below.
         let media_type = "image/png".to_owned();
         // A placeholder for NFTs without metadata from which we can extract a URI.
-        let uri = Url::try_from(
-            iota_stardust_sdk::Url::parse("https://opensea.io/static/images/placeholder.png")
-                .expect("should be a valid url")
-                .to_string(),
-        )
-        .expect("url should only contain ascii characters");
+        let uri = Url::try_from("https://opensea.io/static/images/placeholder.png".to_string())
+            .expect("url should only contain ascii characters");
         let name = "NFT".to_owned();
 
         Self {

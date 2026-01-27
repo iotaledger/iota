@@ -8,7 +8,9 @@ import { getAmplitudeConsentStatus } from '@iota/core';
 import { ampli } from './ampli';
 import { LogLevel } from '@amplitude/analytics-types';
 
-const IS_ENABLED = import.meta.env.VITE_BUILD_ENV === 'production';
+const IS_ENABLED =
+    import.meta.env.VITE_BUILD_ENV === 'production' &&
+    import.meta.env.VITE_AMPLITUDE_ENABLED === 'true';
 
 export async function initAmplitude() {
     // Check consent status to determine initial opt-out state

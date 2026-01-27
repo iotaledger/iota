@@ -4,30 +4,29 @@
 //! Stardust alias, basic, nft, foundry outputs.
 //! Multi mnemonics, multi accounts, multi addresses.
 
-use iota_sdk::{
-    client::secret::{GenerateAddressOptions, SecretManage, mnemonic::MnemonicSecretManager},
-    types::block::{
-        address::{AliasAddress, Ed25519Address},
-        output::{
-            AliasId, AliasOutputBuilder, BasicOutputBuilder, FoundryId, FoundryOutputBuilder,
-            NativeToken, NftId, NftOutputBuilder, Output, SimpleTokenScheme, TokenId, TokenScheme,
-            UnlockCondition,
-            feature::{
-                Feature, Irc27Metadata, Irc30Metadata, IssuerFeature, MetadataFeature,
-                SenderFeature, TagFeature,
-            },
-            unlock_condition::{
-                AddressUnlockCondition, ExpirationUnlockCondition, GovernorAddressUnlockCondition,
-                ImmutableAliasAddressUnlockCondition, StateControllerAddressUnlockCondition,
-                StorageDepositReturnUnlockCondition, TimelockUnlockCondition,
-            },
+use iota_stardust_types::block::{
+    address::{AliasAddress, Ed25519Address},
+    output::{
+        AliasId, AliasOutputBuilder, BasicOutputBuilder, FoundryId, FoundryOutputBuilder,
+        NativeToken, NftId, NftOutputBuilder, Output, SimpleTokenScheme, TokenId, TokenScheme,
+        UnlockCondition,
+        feature::{
+            Feature, Irc27Metadata, Irc30Metadata, IssuerFeature, MetadataFeature, SenderFeature,
+            TagFeature,
+        },
+        unlock_condition::{
+            AddressUnlockCondition, ExpirationUnlockCondition, GovernorAddressUnlockCondition,
+            ImmutableAliasAddressUnlockCondition, StateControllerAddressUnlockCondition,
+            StorageDepositReturnUnlockCondition, TimelockUnlockCondition,
         },
     },
 };
 use rand::{Rng, rngs::StdRng};
 
 use crate::stardust::{
-    test_outputs::{MERGE_MILESTONE_INDEX, MERGE_TIMESTAMP_SECS, new_vested_output},
+    test_outputs::{
+        MERGE_MILESTONE_INDEX, MERGE_TIMESTAMP_SECS, address_derivation, new_vested_output,
+    },
     types::{output_header::OutputHeader, output_index::random_output_index_with_rng},
 };
 
@@ -155,7 +154,7 @@ const STARDUST_MIX: &[StardustWallet] = &[
     },
 ];
 
-pub(crate) async fn outputs(
+pub(crate) fn outputs(
     rng: &mut StdRng,
     vested_index: &mut u32,
     coin_type: u32,
@@ -163,20 +162,14 @@ pub(crate) async fn outputs(
     let mut outputs = Vec::new();
 
     for wallet in STARDUST_MIX {
-        let secret_manager = MnemonicSecretManager::try_from_mnemonic(wallet.mnemonic)?;
         for [account_index, internal, address_index] in wallet.addresses {
-            let address = secret_manager
-                .generate_ed25519_addresses(
-                    coin_type,
-                    *account_index,
-                    *address_index..address_index + 1,
-                    if *internal == 1 {
-                        Some(GenerateAddressOptions::internal())
-                    } else {
-                        None
-                    },
-                )
-                .await?[0];
+            let address = address_derivation::derive_address(
+                wallet.mnemonic,
+                coin_type,
+                *account_index,
+                *address_index,
+                *internal == 1,
+            )?;
 
             // Random add up to 2 aliases with foundry and native tokens
             let (alias_foundry_outputs, native_tokens_for_basic_outputs) =
@@ -343,7 +336,7 @@ fn finish_with_header(builder: impl Into<Output>, rng: &mut StdRng) -> (OutputHe
 fn get_nft_immutable_metadata() -> Irc27Metadata {
     Irc27Metadata::new(
         "image/svg",
-        "https://www.iota.org/logo-icon-dark.svg".parse().unwrap(),
+        "https://www.iota.org/logo-icon-dark.svg",
         "OG NFT".to_string(),
     )
     .with_description("The OG NFT.")

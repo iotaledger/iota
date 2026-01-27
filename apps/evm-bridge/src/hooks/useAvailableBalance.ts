@@ -1,3 +1,6 @@
+// Copyright (c) 2025 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { CoinFormat, IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { useFormatCoin } from '@iota/core';
 import { useSortedCoins } from './useSortedCoins';

@@ -34,7 +34,7 @@ use iota_transaction_builder::DataReader;
 use iota_types::{
     TypeTag,
     balance::Supply,
-    base_types::{IotaAddress, ObjectID, ObjectInfo, SequenceNumber, VersionNumber},
+    base_types::{IotaAddress, ObjectID, SequenceNumber, VersionNumber},
     coin::{CoinMetadata, TreasuryCap},
     coin_manager::CoinManager,
     committee::EpochId,
@@ -249,9 +249,7 @@ impl IndexerReader {
             .await?;
 
         if let Some(object) = stored_object {
-            object
-                .try_into_object_read(self.package_resolver.clone())
-                .await
+            object.try_into_object_read(&self.package_resolver).await
         } else {
             Ok(ObjectRead::NotExists(object_id))
         }
@@ -321,10 +319,7 @@ impl IndexerReader {
             .await?;
 
         match history_object {
-            Some(obj) => {
-                obj.try_into_past_object_read(self.package_resolver.clone())
-                    .await
-            }
+            Some(obj) => obj.try_into_past_object_read(&self.package_resolver).await,
             None => Err(IndexerError::DataPruned(format!(
                 "Object version {} not found in objects_history for object {object_id}",
                 object_version_info.object_version
@@ -379,10 +374,7 @@ impl IndexerReader {
         // The key difference is that `try_into_past_object_read` also handles
         // the `WrappedOrDeleted` status, which for this iteration, we handle explicitly
         // as a `VersionNotFound`.
-        match obj
-            .try_into_object_read(self.package_resolver.clone())
-            .await?
-        {
+        match obj.try_into_object_read(&self.package_resolver).await? {
             ObjectRead::NotExists(_) | ObjectRead::Deleted(_) => {
                 Ok(PastObjectRead::VersionNotFound(object_id, object_version))
             }
@@ -876,14 +868,13 @@ impl IndexerReader {
     ) -> IndexerResult<Vec<IotaTransactionBlockResponse>> {
         let mut tx_block_responses_futures = vec![];
         for stored_tx in stored_txes {
-            let package_resolver_clone = self.package_resolver();
             let options_clone = options.clone();
-            tx_block_responses_futures.push(tokio::task::spawn(
-                stored_tx.try_into_iota_transaction_block_response(
-                    options_clone,
-                    package_resolver_clone,
-                ),
-            ));
+            let package_resolver = self.package_resolver.clone();
+            tx_block_responses_futures.push(tokio::task::spawn(async move {
+                stored_tx
+                    .try_into_iota_transaction_block_response(options_clone, &package_resolver)
+                    .await
+            }));
         }
 
         let tx_blocks = futures::future::join_all(tx_block_responses_futures)
@@ -2315,8 +2306,8 @@ impl IndexerReader {
         ))
     }
 
-    pub fn package_resolver(&self) -> PackageResolver {
-        self.package_resolver.clone()
+    pub fn package_resolver(&self) -> &PackageResolver {
+        &self.package_resolver
     }
 
     pub async fn pending_active_validators(
@@ -2367,25 +2358,47 @@ impl DataReader for IndexerReader {
         &self,
         address: IotaAddress,
         object_type: StructTag,
-    ) -> Result<Vec<ObjectInfo>, anyhow::Error> {
-        let stored_objects = self
+        cursor: Option<ObjectID>,
+        limit: Option<usize>,
+        options: IotaObjectDataOptions,
+    ) -> Result<iota_json_rpc_types::ObjectsPage, anyhow::Error> {
+        let limit = limit.unwrap_or(50);
+        let mut stored_objects = self
             .get_owned_objects_in_blocking_task(
                 address,
                 Some(IotaObjectDataFilter::StructType(object_type)),
-                None,
-                50, // Limit the number of objects returned to 50
+                cursor,
+                limit + 1,
             )
             .await?;
 
-        stored_objects
-            .into_iter()
-            .map(|object| {
-                let object = Object::try_from(object)?;
-                let object_ref = object.compute_object_reference();
-                let info = ObjectInfo::new(&object_ref, &object);
-                Ok(info)
-            })
-            .collect::<Result<Vec<_>, _>>()
+        let mut res = Vec::new();
+
+        let mut next_cursor = None;
+        if stored_objects.len() > limit && limit > 0 {
+            // Here the cursor is the last object id in the previous page
+            stored_objects.pop().unwrap();
+            next_cursor = Some(if let Some(last_object) = stored_objects.last() {
+                last_object.get_object_ref()?.0
+            } else {
+                ObjectID::ZERO
+            });
+        }
+
+        for stored_object in stored_objects {
+            let read = stored_object
+                .try_into_object_read(&self.package_resolver)
+                .await?;
+            res.push(IotaObjectResponse::try_from_object_read_and_options(
+                read, &options,
+            )?);
+        }
+
+        Ok(iota_json_rpc_types::ObjectsPage {
+            data: res,
+            next_cursor,
+            has_next_page: next_cursor.is_some(),
+        })
     }
 
     async fn get_object_with_options(
@@ -2394,7 +2407,9 @@ impl DataReader for IndexerReader {
         options: IotaObjectDataOptions,
     ) -> Result<IotaObjectResponse, anyhow::Error> {
         let result = self.get_object_read_in_blocking_task(object_id).await?;
-        Ok((result, options).try_into()?)
+        Ok(IotaObjectResponse::try_from_object_read_and_options(
+            result, &options,
+        )?)
     }
 
     async fn get_reference_gas_price(&self) -> Result<u64, anyhow::Error> {

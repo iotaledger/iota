@@ -227,6 +227,7 @@ impl SuggestedGasPriceCalculator {
 
         certificate
             .shared_input_objects()
+            .into_iter()
             .filter_map(|object| {
                 self.congestion_info
                     .get(&object.id)
@@ -301,7 +302,7 @@ pub mod suggested_gas_price_calculator_test_utils {
 
                     let execution_start_time = initialize_tracker_and_compute_tx_start_time(
                         &mut shared_object_congestion_tracker,
-                        &certificate.shared_input_objects().collect::<Vec<_>>(),
+                        &certificate.shared_input_objects(),
                         *duration,
                     )
                     .expect(
@@ -322,7 +323,7 @@ pub mod suggested_gas_price_calculator_test_utils {
 
                         let execution_start_time = initialize_tracker_and_compute_tx_start_time(
                             &mut shared_object_congestion_tracker,
-                            &certificate.shared_input_objects().collect::<Vec<_>>(),
+                            &certificate.shared_input_objects(),
                             tx_duration,
                         )
                         .expect(
@@ -421,7 +422,7 @@ mod tests {
             tx_data.gas_budget,
             tx_data.gas_price,
         );
-        let shared_input_objects: Vec<_> = certificate.shared_input_objects().collect();
+        let shared_input_objects = certificate.shared_input_objects();
         shared_object_congestion_tracker.initialize_object_execution_slots(&shared_input_objects);
 
         let sequencing_result = shared_object_congestion_tracker.try_schedule(

@@ -11,7 +11,10 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer, de::Error as _};
 
 use crate::gas_algebra::AbstractMemorySize;
 
-/// A struct that represents an account address.
+/// Represents an address.
+///
+/// Contrary to its name an [AccountAddress] may be used to identify an object
+/// or an account, depending on the usage.
 #[derive(Ord, PartialOrd, Eq, PartialEq, Hash, Clone, Copy)]
 #[cfg_attr(any(test, feature = "fuzzing"), derive(proptest_derive::Arbitrary))]
 #[cfg_attr(any(test, feature = "fuzzing"), derive(arbitrary::Arbitrary))]
