@@ -300,6 +300,7 @@ module.exports = {
             rules: {
                 'header/header': 'off',
                 'require-extensions/require-extensions': 'off',
+                'license-check/license-check': 'off',
             },
         },
         {
