@@ -76,6 +76,7 @@ use crate::{
         },
         tx_indices::TxSequenceNumber,
     },
+    pruning::watermark_task::WatermarkCache,
     schema::{
         address_metrics, addresses, chain_identifier, checkpoints, display, epochs, events,
         objects, objects_history, objects_snapshot, objects_version, optimistic_transactions,
@@ -104,6 +105,7 @@ pub struct IndexerReader {
     package_resolver: PackageResolver,
     obj_type_cache: Arc<Mutex<SizedCache<String, Option<ObjectID>>>>,
     fallback: Option<HistoricalFallbackReader>,
+    watermark_cache: WatermarkCache,
 }
 
 /// Encapsulates the logic for reading data from the database.
@@ -118,7 +120,7 @@ pub type PackageResolver = Arc<Resolver<PackageStoreWithLruCache<IndexerStorePac
 
 // Impl for common initialization and utilities
 impl IndexerReader {
-    pub fn new(pool: ConnectionPool) -> Self {
+    pub fn new(pool: ConnectionPool, watermark_cache: WatermarkCache) -> Self {
         let indexer_store_pkg_resolver = IndexerStorePackageResolver::new(pool.clone());
         let package_cache = PackageStoreWithLruCache::new(indexer_store_pkg_resolver);
         let package_resolver = Arc::new(Resolver::new(package_cache));
@@ -128,7 +130,14 @@ impl IndexerReader {
             package_resolver,
             obj_type_cache,
             fallback: None,
+            watermark_cache,
         }
+    }
+
+    /// Creates a new IndexerReader without a watermark cache (for tests or
+    /// non-pruning scenarios)
+    pub fn new_without_watermark_cache(pool: ConnectionPool) -> Self {
+        Self::new(pool, WatermarkCache::default())
     }
 
     /// Returns a [`DBReader`] bound to this `IndexerReader` instance which
@@ -140,6 +149,7 @@ impl IndexerReader {
     pub fn new_with_config<T: Into<String>>(
         db_url: T,
         config: ConnectionPoolConfig,
+        watermark_cache: WatermarkCache,
     ) -> Result<Self> {
         let manager = ConnectionManager::<PgConnection>::new(db_url);
 
@@ -155,7 +165,7 @@ impl IndexerReader {
             .build(manager)
             .map_err(|e| anyhow!("failed to initialize connection pool. Error: {:?}. If Error is None, please check whether the configured pool size (currently {}) exceeds the maximum number of connections allowed by the database.", e, config.pool_size))?;
 
-        Ok(Self::new(pool))
+        Ok(Self::new(pool, watermark_cache))
     }
 
     /// Add a historical fallback reader to the indexer.
@@ -169,6 +179,11 @@ impl IndexerReader {
     /// Access the internal fallback reader.
     pub(crate) fn fallback_reader(&self) -> Option<&HistoricalFallbackReader> {
         self.fallback.as_ref()
+    }
+
+    /// Accesses the watermark cache.
+    pub fn watermark_cache(&self) -> &WatermarkCache {
+        &self.watermark_cache
     }
 
     pub async fn spawn_blocking<F, R, E>(&self, f: F) -> Result<R, E>
