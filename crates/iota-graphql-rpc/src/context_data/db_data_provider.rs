@@ -5,8 +5,12 @@
 use std::time::Duration;
 
 use iota_indexer::{
-    apis::GovernanceReadApi, db::ConnectionPoolConfig, metrics::IndexerMetrics,
-    pruning::watermark_task::WatermarkTask, read::IndexerReader, store::PgIndexerStore,
+    apis::GovernanceReadApi,
+    db::ConnectionPoolConfig,
+    metrics::IndexerMetrics,
+    pruning::watermark_task::{WatermarkCache, WatermarkTask},
+    read::IndexerReader,
+    store::PgIndexerStore,
 };
 use iota_json_rpc_types::Stake as RpcStakedIota;
 use iota_types::{
@@ -43,12 +47,13 @@ impl PgManager {
         let connection_pool = iota_indexer::db::new_connection_pool(&db_url.into(), &config)
             .map_err(|e| Error::Internal(format!("Failed to create connection pool: {e}")))?;
 
-        // Create store and watermark task for pruning support
+        // Create store and watermark cache for pruning support
         let store = PgIndexerStore::new(connection_pool.clone(), indexer_metrics);
-        let watermark_task = WatermarkTask::new(store);
+        let watermark_cache = WatermarkCache::new();
 
         // Start watermark task with cancellation token
-        let watermark_cache = watermark_task.start(cancellation_token);
+        let watermark_task = WatermarkTask::new(store, watermark_cache.clone());
+        watermark_task.start(cancellation_token);
 
         // Create reader with watermark cache
         Ok(IndexerReader::new(connection_pool, watermark_cache))

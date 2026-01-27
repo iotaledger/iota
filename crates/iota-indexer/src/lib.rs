@@ -25,6 +25,7 @@ use crate::{
     },
     config::JsonRpcConfig,
     optimistic_indexing::OptimisticTransactionExecutor,
+    pruning::watermark_task::{WatermarkCache, WatermarkTask},
     read::IndexerReader,
     store::PgIndexerStore,
 };
@@ -55,7 +56,7 @@ pub async fn build_json_rpc_server(
     reader: IndexerReader,
     config: &JsonRpcConfig,
     metrics: IndexerMetrics,
-    watermark_task: crate::pruning::watermark_task::WatermarkTask,
+    watermark_cache: WatermarkCache,
 ) -> Result<ServerHandle, IndexerError> {
     let mut builder =
         JsonRpcServerBuilder::new(env!("CARGO_PKG_VERSION"), prometheus_registry, None, None);
@@ -74,11 +75,18 @@ pub async fn build_json_rpc_server(
     builder.register_module(ExtendedApi::new(reader.clone()))?;
     builder.register_module(OptimisticWriteApi::new(
         WriteApi::new(fullnode_client, reader.clone()),
-        OptimisticTransactionExecutor::new(&config.rpc_client_url, reader.clone(), store, metrics),
+        OptimisticTransactionExecutor::new(
+            &config.rpc_client_url,
+            reader.clone(),
+            store.clone(),
+            metrics,
+        ),
     ))?;
 
     let cancel = CancellationToken::new();
+
     tracing::info!("Starting watermark background task to track pruning state");
+    let watermark_task = WatermarkTask::new(store, watermark_cache);
     watermark_task.start(cancel.clone());
 
     tracing::info!("Starting system package task");

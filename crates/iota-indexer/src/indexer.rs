@@ -24,7 +24,9 @@ use crate::{
     },
     metrics::IndexerMetrics,
     processors::processor_orchestrator::ProcessorOrchestrator,
-    pruning::{optimistic_pruner::OptimisticPruner, pruner::Pruner, watermark_task::WatermarkTask},
+    pruning::{
+        optimistic_pruner::OptimisticPruner, pruner::Pruner, watermark_task::WatermarkCache,
+    },
     read::IndexerReader,
     store::{IndexerAnalyticalStore, IndexerStore, PgIndexerStore},
 };
@@ -172,11 +174,9 @@ impl Indexer {
             env!("CARGO_PKG_VERSION")
         );
 
-        // Create and start the watermark task that will track pruning state
-        let watermark_task = WatermarkTask::new(store.clone());
-        let watermark_cache = watermark_task.cache();
-
-        let mut read = IndexerReader::new(connection_pool.clone(), watermark_cache);
+        // Create the watermark cache that will track pruning state
+        let watermark_cache = WatermarkCache::new();
+        let mut read = IndexerReader::new(connection_pool.clone(), watermark_cache.clone());
 
         if let HistoricFallbackOptions {
             fallback_kv_url: Some(ref url),
@@ -199,9 +199,10 @@ impl Indexer {
             info!("No config for HistoricalFallbackReader provided, skipping...");
         }
 
-        let handle = build_json_rpc_server(store, registry, read, config, metrics, watermark_task)
+        let handle = build_json_rpc_server(store, registry, read, config, metrics, watermark_cache)
             .await
             .expect("json rpc server should not run into errors upon start.");
+
         tokio::spawn(async move { handle.stopped().await })
             .await
             .expect("rpc server task failed");

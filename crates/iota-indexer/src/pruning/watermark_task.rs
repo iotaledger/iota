@@ -37,16 +37,13 @@ pub struct WatermarkCache {
     inner: Arc<ArcSwap<WatermarkCacheInner>>,
 }
 
-#[derive(Default)]
-struct WatermarkCacheInner {
-    /// Map from entity name to its watermark data
-    watermarks: HashMap<String, StoredWatermark>,
-}
+/// Map from entity name to its watermark data
+type WatermarkCacheInner = HashMap<String, StoredWatermark>;
 
 impl Default for WatermarkCache {
     fn default() -> Self {
         Self {
-            inner: Arc::new(ArcSwap::from_pointee(WatermarkCacheInner::default())),
+            inner: Arc::new(ArcSwap::from_pointee(HashMap::new())),
         }
     }
 }
@@ -61,7 +58,7 @@ impl WatermarkCache {
     /// Returns `None` if the entity has no watermark
     pub fn get(&self, entity: CommitterTables) -> Option<StoredWatermark> {
         let cache = self.inner.load();
-        cache.watermarks.get(entity.as_ref()).cloned()
+        cache.get(entity.as_ref()).cloned()
     }
 
     /// Updates the cache with fresh watermarks from the database
@@ -74,11 +71,7 @@ impl WatermarkCache {
             new_watermarks.insert(watermark.entity.clone(), watermark);
         }
 
-        let new_inner = WatermarkCacheInner {
-            watermarks: new_watermarks,
-        };
-
-        self.inner.store(Arc::new(new_inner));
+        self.inner.store(Arc::new(new_watermarks));
     }
 }
 
@@ -90,32 +83,20 @@ pub struct WatermarkTask {
 }
 
 impl WatermarkTask {
-    /// Creates a new watermark task
-    pub fn new(store: PgIndexerStore) -> Self {
+    /// Creates a new watermark task with the given cache
+    pub fn new(store: PgIndexerStore, cache: WatermarkCache) -> Self {
         Self {
             store,
-            cache: WatermarkCache::new(),
+            cache,
             update_interval: WATERMARK_UPDATE_INTERVAL,
         }
     }
 
-    /// Gets a handle to the watermark cache for reading
-    ///
-    /// The returned [`WatermarkCache`] shares the same underlying data as other
-    /// cloned instances and will automatically reflect updates from the
-    /// background task.
-    pub fn cache(&self) -> WatermarkCache {
-        self.cache.clone()
-    }
-
     /// Starts the background task that updates watermarks
-    /// Returns a handle to the watermark cache
-    pub fn start(self, cancel: CancellationToken) -> WatermarkCache {
-        let cache = self.cache();
+    pub fn start(self, cancel: CancellationToken) {
         spawn_monitored_task!(async move {
             self.run(cancel).await;
         });
-        cache
     }
 
     /// Runs the watermark update loop
