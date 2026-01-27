@@ -35,9 +35,12 @@ User-agent: Baiduspider
 User-agent: YandexBot
 # Allow home page and static content
 Allow: /$
-Allow: /cookie-policy
+Allow: /cookie-policy$
+Allow: /cookie-policy/$
 Allow: /validators$
+Allow: /validators/$
 Allow: /recent$
+Allow: /recent/$
 # Disallow dynamic pages with IDs (transactions, addresses, objects, etc.)
 Disallow: /txblock/
 Disallow: /object/
