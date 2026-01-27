@@ -164,7 +164,7 @@ class Transactions {
         if (await SidePanel.isEnabled()) {
             SidePanel.enableAndGoTo(
                 Browser.runtime.getURL('ui.html') +
-                    `#/dapp/approve/${encodeURIComponent(txRequest.id)}`,
+                    `#/dapp/approve/${encodeURIComponent(txRequest.id)}?fetch=true`,
             );
             const txResponseMessage = this._txResponseMessages.pipe(
                 filter((msg) => msg.txID === txRequest.id),
