@@ -53,12 +53,6 @@ Disallow: /objects/
 Disallow: /addresses/
 Crawl-delay: 1
 
-# Default for all other bots
+# Default for all other bots - block everything
 User-agent: *
-# Allow home page and static content
-Allow: /$
-Allow: /cookie-policy
-Allow: /validators$
-Allow: /recent$
-# Disallow everything else
 Disallow: /
