@@ -357,10 +357,10 @@ pub enum IotaObjectResponseError {
     Eq, PartialEq, Clone, Debug, Serialize, Deserialize, Error, Hash, AsRefStr, IntoStaticStr,
 )]
 pub enum IotaError {
-    #[error("Error checking transaction input objects: {}", error)]
+    #[error("Error checking transaction input objects: {error}")]
     UserInput { error: UserInputError },
 
-    #[error("Error checking transaction object: {}", error)]
+    #[error("Error checking transaction object: {error}")]
     IotaObjectResponse { error: IotaObjectResponseError },
 
     #[error("Expecting a single owner, shared ownership found")]
