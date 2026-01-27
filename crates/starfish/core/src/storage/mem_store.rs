@@ -468,6 +468,22 @@ impl Store for MemStore {
         Ok(result)
     }
 
+    fn read_lowest_commit_index_with_votes(
+        &self,
+        from_index: CommitIndex,
+    ) -> ConsensusResult<Option<CommitIndex>> {
+        let inner = self.inner.read();
+        let result = inner
+            .commit_votes
+            .range((
+                Included((from_index, CommitDigest::MIN, BlockRef::MIN)),
+                std::ops::Bound::Unbounded,
+            ))
+            .next()
+            .map(|(index, _, _)| *index);
+        Ok(result)
+    }
+
     fn read_last_commit_info(&self) -> ConsensusResult<Option<(CommitRef, CommitInfo)>> {
         let inner = self.inner.read();
         Ok(inner

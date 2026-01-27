@@ -19,7 +19,7 @@ use parking_lot::RwLock;
 use starfish_config::AuthorityIndex;
 use tokio::sync::{Mutex, broadcast, mpsc::Sender};
 use tokio_util::sync::ReusableBoxFuture;
-use tracing::{debug, info, warn};
+use tracing::{debug, error, info, warn};
 
 use crate::{
     CommitIndex, Round, Transaction, VerifiedBlockHeader,
@@ -452,6 +452,122 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
             .with_label_values(&[peer_hostname, "handle_subscribed_block_bundle"])
             .inc_by(digests_to_exclude.len() as u64);
     }
+
+    /// Finds the highest commit index in the commit range up to search_up_to
+    /// that can be certified with available votes. Returns the highest
+    /// certifiable commit index and the block refs (votes) that certify it,
+    /// or None if no certifiable commit is found.
+    fn find_highest_certifiable_commit_in_range(
+        &self,
+        commit_range: &CommitRange,
+        mut search_up_to: CommitIndex,
+        commit_sync_type: &CommitSyncType,
+    ) -> ConsensusResult<Option<(CommitIndex, Vec<BlockRef>)>> {
+        loop {
+            // Find the highest index with at least some votes, up to our search bound.
+            let Some(index_with_votes) = self
+                .store
+                .read_highest_commit_index_with_votes(search_up_to)?
+            else {
+                // No votes found for any index in the range.
+                return Ok(None);
+            };
+
+            // If the index with votes is below our commit range start, there are no
+            // certifiable commits.
+            if index_with_votes < commit_range.start() {
+                return Ok(None);
+            }
+
+            let votes = self.store.read_commit_votes(index_with_votes)?;
+            let mut stake_aggregator = StakeAggregator::<QuorumThreshold>::new();
+            for v in &votes {
+                stake_aggregator.add(v.author, &self.context.committee);
+            }
+            if stake_aggregator.reached_threshold(&self.context.committee) {
+                self.context
+                    .metrics
+                    .node_metrics
+                    .commit_sync_fetch_commits_handler_uncertified_skipped
+                    .with_label_values(&[commit_sync_type.as_str()])
+                    .inc_by((search_up_to - index_with_votes) as u64);
+                return Ok(Some((index_with_votes, votes)));
+            } else {
+                debug!(
+                    "Commit {} votes did not reach quorum to certify, {} < {}, skipping",
+                    index_with_votes,
+                    stake_aggregator.stake(),
+                    stake_aggregator.threshold(&self.context.committee)
+                );
+                self.context
+                    .metrics
+                    .node_metrics
+                    .commit_sync_fetch_commits_handler_uncertified_skipped
+                    .with_label_values(&[commit_sync_type.as_str()])
+                    .inc_by((search_up_to - index_with_votes + 1) as u64);
+                // Continue searching from index_with_votes - 1
+                search_up_to = index_with_votes.saturating_sub(1);
+                if search_up_to < commit_range.start() {
+                    return Ok(None);
+                }
+            }
+        }
+    }
+
+    /// Finds the lowest commit index from search_from that can be certified
+    /// with available votes. Returns the lowest certifiable commit index and
+    /// the block refs (votes) that certify it, or None if no certifiable
+    /// commit is found.
+    fn find_lowest_certifiable_commit_from(
+        &self,
+        search_from: CommitIndex,
+        search_up_to: CommitIndex,
+        commit_sync_type: &CommitSyncType,
+    ) -> ConsensusResult<Option<(CommitIndex, Vec<BlockRef>)>> {
+        let mut current_search_from = search_from;
+        loop {
+            let Some(index_with_votes) = self
+                .store
+                .read_lowest_commit_index_with_votes(current_search_from)?
+            else {
+                return Ok(None);
+            };
+
+            if index_with_votes > search_up_to {
+                return Ok(None);
+            }
+
+            let votes = self.store.read_commit_votes(index_with_votes)?;
+            let mut stake_aggregator = StakeAggregator::<QuorumThreshold>::new();
+            for v in &votes {
+                stake_aggregator.add(v.author, &self.context.committee);
+            }
+            if stake_aggregator.reached_threshold(&self.context.committee) {
+                self.context
+                    .metrics
+                    .node_metrics
+                    .commit_sync_fetch_commits_handler_uncertified_skipped
+                    .with_label_values(&[commit_sync_type.as_str()])
+                    .inc_by((index_with_votes - current_search_from) as u64);
+                return Ok(Some((index_with_votes, votes)));
+            } else {
+                debug!(
+                    "Commit {} votes did not reach quorum to certify, {} < {}, skipping",
+                    index_with_votes,
+                    stake_aggregator.stake(),
+                    stake_aggregator.threshold(&self.context.committee)
+                );
+                self.context
+                    .metrics
+                    .node_metrics
+                    .commit_sync_fetch_commits_handler_uncertified_skipped
+                    .with_label_values(&[commit_sync_type.as_str()])
+                    .inc_by((index_with_votes - current_search_from + 1) as u64);
+                // Continue searching from index_with_votes + 1
+                current_search_from = index_with_votes.saturating_add(1);
+            }
+        }
+    }
 }
 
 #[async_trait]
@@ -875,6 +991,10 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         Ok(serialized_headers)
     }
 
+    /// Handles fetch requests for commit data and their certifying block
+    /// headers.
+    // The range for returned trusted commits starts at the same index, but the end
+    // can be different, bigger for fast sync and smaller for regular.
     async fn handle_fetch_commits(
         &self,
         _peer: AuthorityIndex,
@@ -885,80 +1005,61 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
 
         // Bound the range based on sync type.
         let batch_size = commit_sync_type.commit_sync_batch_size(&self.context);
-        let inclusive_end = commit_range
+        let inclusive_bound = commit_range
             .end()
             .min(commit_range.start() + batch_size as CommitIndex - 1);
-        let mut commits = self
-            .store
-            .scan_commits((commit_range.start()..=inclusive_end).into())?;
-        let mut certifier_block_refs = vec![];
-        // Find the highest commit index with votes, skipping any gaps in indexes
-        // without votes.
-        let mut search_up_to = inclusive_end;
-        'commit: loop {
-            // Find the highest index with at least some votes, up to our search bound.
-            let Some(index_with_votes) = self
-                .store
-                .read_highest_commit_index_with_votes(search_up_to)?
-            else {
-                // No votes found for any index in the range, return empty commits.
-                commits.clear();
-                break 'commit;
-            };
 
-            // If the index with votes is below our commit range start, there are no
-            // certifiable commits.
-            if index_with_votes < commit_range.start() {
-                commits.clear();
-                break 'commit;
+        // Find certifiable commit based on sync type
+        let find_certifiable_commit = |commit_sync_type: &CommitSyncType| -> ConsensusResult<Option<(CommitIndex, Vec<BlockRef>)>> {
+            match commit_sync_type {
+                CommitSyncType::Regular => self.find_highest_certifiable_commit_in_range(&commit_range, inclusive_bound, commit_sync_type),
+                CommitSyncType::Fast => {
+                    let search_up_to = inclusive_bound + batch_size as CommitIndex;
+                    self.find_lowest_certifiable_commit_from(inclusive_bound, search_up_to, commit_sync_type)
+                }
             }
+        };
 
-            // Truncate commits to only include those up to index_with_votes.
-            while commits.last().is_some_and(|c| c.index() > index_with_votes) {
-                commits.pop();
+        let Some((new_commit_inclusive_end, certifier_block_refs)) =
+            find_certifiable_commit(&commit_sync_type)?
+        else {
+            return Ok((vec![], vec![]));
+        };
+        let commit_range_length = new_commit_inclusive_end - commit_range.start() + 1;
+        match commit_sync_type {
+            CommitSyncType::Regular => {
+                if commit_range_length > batch_size as CommitIndex {
+                    error!(
+                        "Commit range exceeded limit after scanning during regular sync: {} > {}",
+                        commit_range_length, batch_size
+                    );
+                    return Err(ConsensusError::CommitRangeExceededAfterScanning {
+                        count: commit_range_length,
+                        limit: batch_size as CommitIndex,
+                        sync_type: "regular",
+                    });
+                }
             }
-
-            let Some(c) = commits.last() else {
-                break 'commit;
-            };
-
-            let index = c.index();
-            if index != index_with_votes {
-                warn!(
-                    "Commit index {} does not match index with votes {}, expected them to be equal",
-                    index, index_with_votes
-                );
-            }
-            let votes = self.store.read_commit_votes(index)?;
-            let mut stake_aggregator = StakeAggregator::<QuorumThreshold>::new();
-            for v in &votes {
-                stake_aggregator.add(v.author, &self.context.committee);
-            }
-            if stake_aggregator.reached_threshold(&self.context.committee) {
-                certifier_block_refs = votes;
-                break 'commit;
-            } else {
-                debug!(
-                    "Commit {} votes did not reach quorum to certify, {} < {}, skipping",
-                    index,
-                    stake_aggregator.stake(),
-                    stake_aggregator.threshold(&self.context.committee)
-                );
-                self.context
-                    .metrics
-                    .node_metrics
-                    .commit_sync_fetch_commits_handler_uncertified_skipped
-                    .with_label_values(&[commit_sync_type.as_str()])
-                    .inc();
-                commits.pop();
-                // Continue searching from index - 1
-                search_up_to = index.saturating_sub(1);
-                if search_up_to < commit_range.start() {
-                    commits.clear();
-                    break 'commit;
+            CommitSyncType::Fast => {
+                if commit_range_length > 2 * batch_size as CommitIndex {
+                    error!(
+                        "Commit range exceeded limit after scanning during fast sync: {} > {}",
+                        commit_range_length,
+                        2 * batch_size
+                    );
+                    return Err(ConsensusError::CommitRangeExceededAfterScanning {
+                        count: commit_range_length,
+                        limit: 2 * batch_size as CommitIndex,
+                        sync_type: "fast",
+                    });
                 }
             }
         }
+
+        // Then scan commits up to the certifiable index
+        let commits = self
+            .store
+            .scan_commits((commit_range.start()..=new_commit_inclusive_end).into())?;
         // Try reading from voting block headers storage first, then fallback to regular
         // block headers for any that weren't found.
         let voting_headers = self
