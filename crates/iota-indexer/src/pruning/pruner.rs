@@ -132,34 +132,6 @@ impl PruningChunk {
 }
 
 impl PrunableTable {
-    pub fn select_reader_lo(&self, cp: u64, tx: u64) -> u64 {
-        match self {
-            PrunableTable::ObjectsHistory
-            | PrunableTable::Checkpoints
-            | PrunableTable::PrunerCpWatermark => cp,
-
-            PrunableTable::Transactions
-            | PrunableTable::Events
-            | PrunableTable::EventEmitPackage
-            | PrunableTable::EventEmitModule
-            | PrunableTable::EventSenders
-            | PrunableTable::EventStructInstantiation
-            | PrunableTable::EventStructModule
-            | PrunableTable::EventStructName
-            | PrunableTable::EventStructPackage
-            | PrunableTable::TxCallsPkg
-            | PrunableTable::TxCallsMod
-            | PrunableTable::TxCallsFun
-            | PrunableTable::TxChangedObjects
-            | PrunableTable::TxDigests
-            | PrunableTable::TxInputObjects
-            | PrunableTable::TxKinds
-            | PrunableTable::TxRecipients
-            | PrunableTable::TxSenders
-            | PrunableTable::TxWrappedOrDeletedObjects => tx,
-        }
-    }
-
     /// Returns the pruning strategy for this table
     pub fn pruning_strategy(&self) -> PruningStrategy {
         match self {
@@ -273,7 +245,8 @@ impl<'a> TablePruner<'a> {
             }
         };
         // Wait for in-flight reads to timeout before pruning
-        self.wait_for_pruning_delay(watermark.timestamp_ms).await?;
+        self.wait_for_pruning_delay(watermark.min_bounds_updated_at_timestamp_ms)
+            .await?;
 
         let pruning_chunks = self.create_pruning_chunks(&watermark);
 
@@ -292,15 +265,15 @@ impl<'a> TablePruner<'a> {
                 break;
             }
 
-            // Update pruner_hi to the next chunk to prune
+            // Update lowest_unpruned_key to the next chunk to prune
             let next_chunk_start = pruning_chunk.next_chunk_start();
             if let Err(err) = self
                 .store
-                .update_watermark_pruner_hi(&self.table, next_chunk_start)
+                .update_watermark_lowest_unpruned_key(&self.table, next_chunk_start)
                 .await
             {
                 error!(
-                    "failed to update pruner_hi for table {} to next chunk {}: {err}",
+                    "failed to update lowest_unpruned_key for table {} to next chunk {}: {err}",
                     self.table.as_ref(),
                     next_chunk_start
                 );
@@ -310,7 +283,9 @@ impl<'a> TablePruner<'a> {
             tokio::time::sleep(DELAY_BETWEEN_PRUNING_CHUNKS).await;
         }
 
-        self.metrics.last_pruned_epoch.set(watermark.epoch_lo - 1);
+        self.metrics
+            .last_pruned_epoch
+            .set(watermark.min_available_epoch - 1);
 
         Ok(())
     }
@@ -321,35 +296,36 @@ impl<'a> TablePruner<'a> {
         &self,
         watermark: &crate::models::watermarks::StoredWatermark,
     ) -> Box<dyn Iterator<Item = PruningChunk> + Send> {
-        let epoch_lo = watermark.epoch_lo as u64;
-        let pruner_hi = watermark.pruner_hi as u64;
-        let reader_lo = watermark.reader_lo as u64;
+        let min_available_epoch = watermark.min_available_epoch as u64;
+        let lowest_unpruned_key = watermark.lowest_unpruned_key as u64;
+        let min_available_cp = watermark.min_available_cp as u64;
+        let min_available_tx = watermark.min_available_tx as u64;
 
         match self.table.pruning_strategy() {
             PruningStrategy::ByEpochPartition => {
-                let range_end = epoch_lo;
+                let range_end = min_available_epoch;
                 info!(
-                    "pruning table {} in epoch range: [{pruner_hi}..{range_end})",
+                    "pruning table {} in epoch range: [{lowest_unpruned_key}..{range_end})",
                     self.table.as_ref()
                 );
-                Box::new((pruner_hi..range_end).map(PruningChunk::Epoch))
+                Box::new((lowest_unpruned_key..range_end).map(PruningChunk::Epoch))
             }
             PruningStrategy::ByCheckpoint => {
-                let range_end = reader_lo;
+                let range_end = min_available_cp;
                 info!(
-                    "pruning table {} in checkpoint range: [{pruner_hi}..{range_end})",
+                    "pruning table {} in checkpoint range: [{lowest_unpruned_key}..{range_end})",
                     self.table.as_ref()
                 );
-                Box::new((pruner_hi..range_end).map(PruningChunk::Checkpoint))
+                Box::new((lowest_unpruned_key..range_end).map(PruningChunk::Checkpoint))
             }
             PruningStrategy::ByTransaction => {
-                let range_end = reader_lo;
+                let range_end = min_available_tx;
                 info!(
-                    "pruning table {} in transaction range: [{pruner_hi}..{range_end})",
+                    "pruning table {} in transaction range: [{lowest_unpruned_key}..{range_end})",
                     self.table.as_ref()
                 );
                 Box::new(
-                    (pruner_hi..range_end)
+                    (lowest_unpruned_key..range_end)
                         .step_by(MAX_TRANSACTIONS_PER_PRUNE_BATCH as usize)
                         .map(move |start| {
                             let end = (start + MAX_TRANSACTIONS_PER_PRUNE_BATCH).min(range_end);
@@ -528,8 +504,9 @@ async fn update_watermarks_lower_bounds_task(
     }
 }
 
-/// Fetches all entries from the `watermarks` table, and updates the `reader_lo`
-/// for each entry if its epoch range exceeds the respective retention policy.
+/// Fetches all entries from the `watermarks` table, and updates the
+/// `min_available_*` columns for each entry if its epoch range exceeds the
+/// respective retention policy.
 async fn update_watermarks_lower_bounds(
     store: &PgIndexerStore,
     retention_policies: &HashMap<PrunableTable, u64>,
@@ -551,8 +528,8 @@ async fn update_watermarks_lower_bounds(
             error!("no retention policy found for prunable table {prunable_table}");
             continue;
         };
-        if let Some(new_epoch_lo) = watermark.new_epoch_lo(*epochs_to_keep) {
-            lower_bound_updates.push((prunable_table, new_epoch_lo));
+        if let Some(new_min_available_epoch) = watermark.new_min_available_epoch(*epochs_to_keep) {
+            lower_bound_updates.push((prunable_table, new_min_available_epoch));
         };
     }
     if !lower_bound_updates.is_empty() {
