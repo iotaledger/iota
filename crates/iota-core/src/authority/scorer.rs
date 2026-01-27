@@ -105,6 +105,23 @@ impl Scorer {
                             .iter_major_misbehaviors()
                             .all(|&w| w == 1)
                 );
+                // Assert that allowances are compatible with the maximums for all metrics.
+                assert!(
+                    parameters
+                        .allowances
+                        .iter()
+                        .zip(parameters.maximums.iter())
+                        .all(|(&a, &m)| a < m)
+                );
+
+                // Assert that maximums are compatible with MAX_SCORE for all metrics, to
+                // prevent overflows.
+                assert!(
+                    parameters
+                        .maximums
+                        .iter()
+                        .all(|&a| a <= u64::MAX / MAX_SCORE)
+                );
 
                 Self {
                     current_local_metrics_count,
@@ -126,6 +143,8 @@ impl Scorer {
         }
     }
 
+    // Boundary checks for this functions are done at a higher level. `authority``
+    // should always be derived from a valid AuthorityIndex
     pub(crate) fn update_invalid_reports_count(&self, authority: u32) {
         self.invalid_reports_count[authority as usize].fetch_add(1, Ordering::Relaxed);
     }
@@ -414,8 +433,9 @@ fn metric_to_score(value: u64, allowance: u64, max: u64, max_score: u64) -> u64 
     } else if value >= max {
         0
     } else {
-        // TODO: add overflow checks
-        (max - value) * max_score / (max - allowance)
+        // max - allowance > 0 and the multiplication not overflowing are guaranteed by
+        // assertions done during scorer initialization
+        max.saturating_sub(value).saturating_mul(max_score) / max.saturating_sub(allowance)
     }
 }
 
