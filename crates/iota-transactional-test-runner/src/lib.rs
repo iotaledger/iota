@@ -35,9 +35,7 @@ use iota_types::{
     messages_checkpoint::{CheckpointContentsDigest, VerifiedCheckpoint},
     object::Object,
     storage::{ObjectStore, ReadStore},
-    transaction::{
-        InputObjects, Transaction, TransactionData, TransactionDataAPI, TransactionKind,
-    },
+    transaction::{InputObjects, Transaction, TransactionData, TransactionKind},
 };
 pub use move_transactional_test_runner::framework::{
     create_adapter, run_tasks_with_adapter, run_test_impl,
@@ -122,11 +120,7 @@ impl TransactionalAdapter for ValidatorWithFullnode {
         &mut self,
         transaction: Transaction,
     ) -> anyhow::Result<(TransactionEffects, Option<ExecutionError>)> {
-        let with_shared = transaction
-            .data()
-            .intent_message()
-            .value
-            .contains_shared_object();
+        let with_shared = transaction.contains_shared_object();
         let (_, effects, execution_error) = send_and_confirm_transaction_with_execution_error(
             &self.validator,
             Some(&self.fullnode),
@@ -147,11 +141,9 @@ impl TransactionalAdapter for ValidatorWithFullnode {
         );
 
         let epoch_store = self.validator.load_epoch_store_one_call_per_task().clone();
-        self.validator.read_objects_for_execution(
-            &CertLockGuard::guard_for_tests(),
-            &tx,
-            &epoch_store,
-        )
+        self.validator
+            .read_objects_for_execution(&CertLockGuard::guard_for_tests(), &tx, &epoch_store)
+            .map(|(tx_input_objects, _, _)| tx_input_objects)
     }
 
     fn prepare_txn(

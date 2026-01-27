@@ -122,6 +122,10 @@ impl EpochState {
             &receiving_object_refs,
         )?;
 
+        // `MoveAuthenticator`s are not supported in Simulacrum, so we set the
+        // `authenticator_gas_budget` to 0.
+        let authenticator_gas_budget = 0;
+
         // Run the transaction input checks that would run when submitting the txn to a
         // validator for signing
         let (gas_status, checked_input_objects) = iota_transaction_checks::check_transaction_input(
@@ -132,6 +136,7 @@ impl EpochState {
             &receiving_objects,
             &self.bytecode_verifier_metrics,
             verifier_signing_config,
+            authenticator_gas_budget,
         )?;
 
         let transaction_data = transaction.data().transaction_data();

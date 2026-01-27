@@ -69,7 +69,7 @@ fn enum_serialize_version_invalid() {
 
     CompiledModule::deserialize_with_config(
         &v,
-        &BinaryConfig::new(VERSION_6, VERSION_6, true, TableConfig::legacy()),
+        &BinaryConfig::new(VERSION_6, VERSION_6, true, true, TableConfig::legacy()),
     )
     .unwrap();
 }
@@ -126,14 +126,14 @@ fn versions_serialization_round_trip() {
         // Can deserialize at version 6
         let module6 = CompiledModule::deserialize_with_config(
             &v,
-            &BinaryConfig::new(VERSION_6, VERSION_6, true, TableConfig::legacy()),
+            &BinaryConfig::new(VERSION_6, VERSION_6, true, true, TableConfig::legacy()),
         )
         .unwrap();
 
         // Can deserialize at version max
         let module7 = CompiledModule::deserialize_with_config(
             &v,
-            &BinaryConfig::new(VERSION_MAX, VERSION_6, true, TableConfig::legacy()),
+            &BinaryConfig::new(VERSION_MAX, VERSION_6, true, true, TableConfig::legacy()),
         )
         .unwrap();
 

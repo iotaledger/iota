@@ -97,6 +97,12 @@ pub const MAX_PROTOCOL_VERSION: u64 = 19;
 //             mechanism on devnet.
 //             Enable a separate gas price feedback mechanism for transactions
 //             using randomness on devnet.
+//             Allow metadata bytes indexed with a dedicated key in compiled
+//             Move modules in devnet.
+//             Enable publishing package metadata v1 along with the package in
+//             devnet.
+//             Enable Move-based account authentication in devnet.
+//             Increase the base cost for transfer receive object in devnet.
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
 
@@ -385,6 +391,19 @@ struct FeatureFlags {
     // randomness.
     #[serde(skip_serializing_if = "is_false")]
     separate_gas_price_feedback_mechanism_for_randomness: bool,
+
+    // If true, it allows metadata bytes indexed with a dedicated key in a compiled module.
+    // This flag is used to provide the correct MoveVM configuration for clients.
+    #[serde(skip_serializing_if = "is_false")]
+    metadata_in_module_bytes: bool,
+
+    // If true, enables publishing package metadata v1 along with the package.
+    #[serde(skip_serializing_if = "is_false")]
+    publish_package_metadata: bool,
+
+    // If true, enables the authentication of account using Move code.
+    #[serde(skip_serializing_if = "is_false")]
+    enable_move_authentication: bool,
 }
 
 fn is_true(b: &bool) -> bool {
@@ -592,6 +611,9 @@ pub struct ProtocolConfig {
 
     /// Maximum gas budget in NANOS that a transaction can use.
     max_tx_gas: Option<u64>,
+
+    /// Maximum gas budget in NANOS that a authentication transaction can use.
+    max_auth_gas: Option<u64>,
 
     /// Maximum amount of the proposed gas price in NANOS (defined in the
     /// transaction).
@@ -1473,6 +1495,18 @@ impl ProtocolConfig {
         self.feature_flags
             .separate_gas_price_feedback_mechanism_for_randomness
     }
+
+    pub fn metadata_in_module_bytes(&self) -> bool {
+        self.feature_flags.metadata_in_module_bytes
+    }
+
+    pub fn publish_package_metadata(&self) -> bool {
+        self.feature_flags.publish_package_metadata
+    }
+
+    pub fn enable_move_authentication(&self) -> bool {
+        self.feature_flags.enable_move_authentication
+    }
 }
 
 #[cfg(not(msim))]
@@ -1650,6 +1684,8 @@ impl ProtocolConfig {
             max_move_object_size: Some(250 * 1024),
             max_move_package_size: Some(100 * 1024),
             max_publish_or_upgrade_per_ptb: Some(5),
+            // max gas budget for an authentication is in NANOS
+            max_auth_gas: None,
             // max gas budget is in NANOS and an absolute value 50IOTA
             max_tx_gas: Some(50_000_000_000),
             max_gas_price: Some(100_000),
@@ -2363,6 +2399,17 @@ impl ProtocolConfig {
                         // randomness on devnet.
                         cfg.feature_flags
                             .separate_gas_price_feedback_mechanism_for_randomness = true;
+                        // Enable storing metadata in module bytes and then
+                        // publishing package metadata in devnet
+                        cfg.feature_flags.metadata_in_module_bytes = true;
+                        cfg.feature_flags.publish_package_metadata = true;
+                        // Enable Move authentication in devnet
+                        cfg.feature_flags.enable_move_authentication = true;
+                        // Max auth gas budget is in NANOS and an absolute value 0.25 IOTA
+                        cfg.max_auth_gas = Some(250_000_000);
+                        // Increase the base cost for transfer receive object in devnet, since the
+                        // implementation now does check if parent is not an account.
+                        cfg.transfer_receive_object_cost_base = Some(100);
                     }
                 }
                 // Use this template when making changes:
@@ -2569,6 +2616,18 @@ impl ProtocolConfig {
     ) {
         self.feature_flags
             .separate_gas_price_feedback_mechanism_for_randomness = val;
+    }
+
+    pub fn set_metadata_in_module_bytes_for_testing(&mut self, val: bool) {
+        self.feature_flags.metadata_in_module_bytes = val;
+    }
+
+    pub fn set_publish_package_metadata_for_testing(&mut self, val: bool) {
+        self.feature_flags.publish_package_metadata = val;
+    }
+
+    pub fn set_enable_move_authentication_for_testing(&mut self, val: bool) {
+        self.feature_flags.enable_move_authentication = val;
     }
 }
 

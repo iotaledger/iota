@@ -59,8 +59,6 @@ ignore = [
   "RUSTSEC-2025-0056",
   # bincode is unmaintained
   "RUSTSEC-2025-0141",
-  # `IterMut` violates Stacked Borrows by invalidating internal pointer (FIX ASAP)
-  "RUSTSEC-2026-0002",
   # rustls-pemfile is unmaintained
   "RUSTSEC-2025-0134",
 ]
@@ -93,10 +91,10 @@ allow = [
   "Unlicense",
   "BSL-1.0",
   "Unicode-DFS-2016",
-  "OpenSSL",
   "Unicode-3.0",
   "CDLA-Permissive-2.0",
   "CDDL-1.0",
+  "Zlib",
   # "Apache-2.0 WITH LLVM-exception",
 ]
 # The confidence threshold for detecting a license from license text.

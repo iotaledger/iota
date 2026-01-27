@@ -16,6 +16,7 @@ pub fn to_binary_config(protocol_config: &ProtocolConfig) -> BinaryConfig {
             .min_move_binary_format_version_as_option()
             .unwrap_or(VERSION_1),
         protocol_config.no_extraneous_module_bytes(),
+        protocol_config.metadata_in_module_bytes(),
         TableConfig {
             module_handles: protocol_config
                 .binary_module_handles_as_option()

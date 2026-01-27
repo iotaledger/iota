@@ -1,0 +1,37 @@
+---
+source: external-crates/move/crates/move-transactional-test-runner/src/framework.rs
+---
+processed 8 tasks
+
+task 1, lines 6-21:
+//# publish
+created: object(1,0)
+mutated: object(0,0)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 4575200,  storage_rebate: 0, non_refundable_storage_fee: 0
+
+task 3, lines 25-40:
+//# publish --dependencies test
+created: object(3,0)
+mutated: object(0,0)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 5988800,  storage_rebate: 980400, non_refundable_storage_fee: 0
+
+task 4, lines 42-56:
+//# publish --dependencies test
+created: object(4,0)
+mutated: object(0,0)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 5320000,  storage_rebate: 980400, non_refundable_storage_fee: 0
+
+task 5, lines 58-69:
+//# publish --dependencies test
+Error: Transaction Effects Status: IOTA Move Bytecode Verification Error. Please run the IOTA Move Verifier for more information.
+Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: IotaMoveVerificationError, source: Some("_::m::t3. Invalid call to 'iota::account::create_account_v1' on an object of type 'test::external::Account'. The account object's type must be defined in the current module."), command: Some(0) } }
+
+task 6, lines 71-82:
+//# publish --dependencies test
+Error: Transaction Effects Status: IOTA Move Bytecode Verification Error. Please run the IOTA Move Verifier for more information.
+Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: IotaMoveVerificationError, source: Some("_::m::t4. Invalid call to 'iota::account::create_immutable_account_v1' on an object of type 'test::external::Account'. The account object's type must be defined in the current module."), command: Some(0) } }
+
+task 7, lines 84-96:
+//# publish --dependencies test
+Error: Transaction Effects Status: IOTA Move Bytecode Verification Error. Please run the IOTA Move Verifier for more information.
+Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: IotaMoveVerificationError, source: Some("_::m::t5. Invalid call to 'iota::account::rotate_auth_function_ref_v1' on an object of type 'test::external::Account'. The account object's type must be defined in the current module."), command: Some(0) } }
