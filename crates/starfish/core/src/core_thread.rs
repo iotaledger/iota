@@ -776,3 +776,9 @@ pub(crate) mod tests {
         assert!(dispatcher_2.add_block_headers(vec![]).await.is_err());
     }
 }
+
+#[cfg(test)]
+use parking_lot::RwLock;
+#[cfg(test)]
+use crate::dag_state::DagState;
+

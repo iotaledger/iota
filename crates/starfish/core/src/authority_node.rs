@@ -54,6 +54,8 @@ pub struct ConsensusAuthority {
     #[cfg(msim)]
     store: Arc<RocksDBStore>,
     #[cfg(test)]
+    dag_state: Arc<RwLock<DagState>>,
+    #[cfg(test)]
     sync_last_known_own_block: bool,
 }
 
@@ -252,7 +254,7 @@ impl ConsensusAuthority {
             context.clone(),
             network_client,
             network_service.clone(),
-            dag_state,
+            dag_state.clone(),
         );
         for (peer, _) in context.committee.authorities() {
             if peer != context.own_index {
@@ -284,6 +286,8 @@ impl ConsensusAuthority {
             network_manager,
             #[cfg(msim)]
             store,
+            #[cfg(test)]
+            dag_state: dag_state.clone(),
             #[cfg(test)]
             sync_last_known_own_block,
         }
@@ -378,6 +382,39 @@ impl ConsensusAuthority {
     #[cfg(test)]
     fn sync_last_known_own_block_enabled(&self) -> bool {
         self.sync_last_known_own_block
+    }
+
+    /// Stop transaction synchronizer for testing pending subdags.
+    #[cfg(test)]
+    pub(crate) async fn stop_transactions_synchronizer_for_test(
+        &self,
+    ) -> Result<(), tokio::task::JoinError> {
+        self.transactions_synchronizer.stop().await
+    }
+
+    /// Stop shard reconstructor for testing pending subdags.
+    #[cfg(test)]
+    pub(crate) async fn stop_shard_reconstructor_for_test(
+        &self,
+    ) -> Result<(), tokio::task::JoinError> {
+        self.shard_reconstructor.stop().await
+    }
+
+    #[cfg(test)]
+    pub(crate) fn core_thread_handle_for_test(&self) -> &CoreThreadHandle {
+        &self.core_thread_handle
+    }
+
+    /// Unsubscribe from a specific peer for testing network partition scenarios.
+    #[cfg(test)]
+    pub(crate) fn unsubscribe_from_peer_for_test(&self, peer: AuthorityIndex) {
+        self.subscriber.unsubscribe(peer);
+    }
+
+    /// Access dag_state for testing pending subdags scenarios.
+    #[cfg(test)]
+    pub(crate) fn dag_state_for_test(&self) -> &Arc<RwLock<DagState>> {
+        &self.dag_state
     }
 }
 
@@ -651,7 +688,7 @@ pub(crate) mod tests {
         // Expect that all transactions were submitted and processed.
         assert!(
             expected_transactions.is_empty(),
-            "Not all transactions were submitted or processed: {expected_transactions:?}",
+            "Not all transactions were submitted and processed: {expected_transactions:?}",
         );
 
         // Expect that all authorities have committed blocks in rounds that are close
@@ -983,39 +1020,253 @@ pub(crate) mod tests {
         protocol_config: ProtocolConfig,
         parameters: Parameters,
         last_processed_commit_index: CommitIndex,
+        blocked_peers: Vec<AuthorityIndex>,
     ) -> (
         ConsensusAuthority,
         UnboundedReceiver<CommittedSubDag>,
         Arc<CommitConsumerMonitor>,
     ) {
+        // If no blocked peers, use the standard start method
+        if blocked_peers.is_empty() {
+            let registry = Registry::new();
+            let txn_verifier = NoopTransactionVerifier {};
+
+            let protocol_keypair = keypairs[index].1.clone();
+            let network_keypair = keypairs[index].0.clone();
+
+            let (sender, receiver) = unbounded_channel("consensus_output");
+            let commit_consumer = CommitConsumer::new(sender, last_processed_commit_index);
+
+            let consensus_consumer_monitor = commit_consumer.monitor();
+
+            let authority = ConsensusAuthority::start(
+                0,
+                index,
+                committee,
+                parameters,
+                protocol_config,
+                protocol_keypair,
+                network_keypair,
+                Arc::new(Clock::default()),
+                Arc::new(txn_verifier),
+                commit_consumer,
+                registry,
+                boot_counter,
+            )
+            .await;
+
+            return (authority, receiver, consensus_consumer_monitor);
+        }
+
+        // Custom construction with blocked peers - this is a simplified version of
+        // ConsensusAuthority::start with modified subscriber setup
+        use crate::{
+            authority_service::AuthorityService,
+            block_manager::BlockManager,
+            block_verifier::SignedBlockVerifier,
+            commit_observer::CommitObserver,
+            commit_syncer::{fast::FastCommitSyncer, regular::RegularCommitSyncer},
+            commit_vote_monitor::CommitVoteMonitor,
+            context::Clock,
+            cordial_knowledge::CordialKnowledge,
+            core::{Core, CoreSignals},
+            core_thread::ChannelCoreThreadDispatcher,
+            header_synchronizer::HeaderSynchronizer,
+            leader_schedule::LeaderSchedule,
+            leader_timeout::LeaderTimeoutTask,
+            metrics::initialise_metrics,
+            network::tonic_network::TonicManager,
+            shard_reconstructor::ShardReconstructor,
+            storage::rocksdb_store::RocksDBStore,
+            transaction::{TransactionClient, TransactionConsumer},
+            transactions_synchronizer::TransactionsSynchronizer,
+        };
+
         let registry = Registry::new();
         let txn_verifier = NoopTransactionVerifier {};
 
-        let protocol_keypair = keypairs[index].1.clone();
-        let network_keypair = keypairs[index].0.clone();
+        let context = Arc::new(Context::new(
+            0,
+            index,
+            committee.clone(),
+            parameters.clone(),
+            protocol_config.clone(),
+            initialise_metrics(registry),
+            Arc::new(Clock::default()),
+        ));
+        let start_time = Instant::now();
+
+        let (tx_client, tx_receiver) = TransactionClient::new(context.clone());
+        let tx_consumer = TransactionConsumer::new(tx_receiver, context.clone());
+
+        let (core_signals, signals_receivers) = CoreSignals::new(context.clone());
+
+        let mut network_manager =
+            TonicManager::<AuthorityService<ChannelCoreThreadDispatcher>>::new(
+                context.clone(),
+                keypairs[index].0.clone(),
+            );
+        let network_client = network_manager.client();
+
+        let store_path = context.parameters.db_path.as_path().to_str().unwrap();
+        let store = Arc::new(RocksDBStore::new(store_path, context.clone()));
+        let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
+
+        let cordial_knowledge = CordialKnowledge::start(context.clone(), dag_state.clone());
+
+        let highest_known_commit_at_startup = dag_state.read().last_commit_index();
+
+        let sync_last_known_own_block = boot_counter == 0
+            && !context
+                .parameters
+                .sync_last_known_own_block_timeout
+                .is_zero();
+
+        let block_verifier = Arc::new(SignedBlockVerifier::new(
+            context.clone(),
+            Arc::new(txn_verifier),
+        ));
+
+        let block_manager = BlockManager::new(context.clone(), dag_state.clone());
+
+        let leader_schedule = Arc::new(LeaderSchedule::from_store(
+            context.clone(),
+            dag_state.clone(),
+        ));
 
         let (sender, receiver) = unbounded_channel("consensus_output");
         let commit_consumer = CommitConsumer::new(sender, last_processed_commit_index);
+        let commit_consumer_monitor = commit_consumer.monitor();
+        commit_consumer_monitor
+            .set_highest_observed_commit_at_startup(highest_known_commit_at_startup);
 
-        let consensus_consumer_monitor = commit_consumer.monitor();
-
-        let authority = ConsensusAuthority::start(
-            0,
-            index,
-            committee,
-            parameters,
-            protocol_config,
-            protocol_keypair,
-            network_keypair,
-            Arc::new(Clock::default()),
-            Arc::new(txn_verifier),
+        let commit_observer = CommitObserver::new(
+            context.clone(),
             commit_consumer,
-            registry,
-            boot_counter,
-        )
-        .await;
+            dag_state.clone(),
+            store.clone(),
+            leader_schedule.clone(),
+        );
 
-        (authority, receiver, consensus_consumer_monitor)
+        let core = Core::new(
+            context.clone(),
+            leader_schedule,
+            tx_consumer,
+            block_manager,
+            context.committee.size() == 1,
+            commit_observer,
+            core_signals,
+            keypairs[index].1.clone(),
+            dag_state.clone(),
+            sync_last_known_own_block,
+        );
+
+        let (core_dispatcher, core_thread_handle) =
+            ChannelCoreThreadDispatcher::start(context.clone(), core);
+        let core_dispatcher = Arc::new(core_dispatcher);
+
+        let transactions_synchronizer = TransactionsSynchronizer::start(
+            network_client.clone(),
+            context.clone(),
+            core_dispatcher.clone(),
+            dag_state.clone(),
+        );
+
+        let leader_timeout_handle = LeaderTimeoutTask::start(
+            core_dispatcher.clone(),
+            transactions_synchronizer.clone(),
+            &signals_receivers,
+            context.clone(),
+        );
+
+        let shard_reconstructor =
+            ShardReconstructor::start(context.clone(), dag_state.clone(), core_dispatcher.clone());
+
+        let commit_vote_monitor = Arc::new(CommitVoteMonitor::new(context.clone()));
+
+        let header_synchronizer = HeaderSynchronizer::start(
+            network_client.clone(),
+            context.clone(),
+            core_dispatcher.clone(),
+            commit_vote_monitor.clone(),
+            transactions_synchronizer.clone(),
+            block_verifier.clone(),
+            dag_state.clone(),
+            sync_last_known_own_block,
+        );
+
+        let regular_commit_syncer_handle = RegularCommitSyncer::new(
+            context.clone(),
+            core_dispatcher.clone(),
+            commit_vote_monitor.clone(),
+            commit_consumer_monitor.clone(),
+            network_client.clone(),
+            block_verifier.clone(),
+            dag_state.clone(),
+        )
+        .start();
+
+        let fast_commit_syncer_handle = FastCommitSyncer::new(
+            context.clone(),
+            core_dispatcher.clone(),
+            commit_vote_monitor.clone(),
+            commit_consumer_monitor.clone(),
+            network_client.clone(),
+            block_verifier.clone(),
+            dag_state.clone(),
+        )
+        .start();
+
+        let network_service = Arc::new(AuthorityService::new(
+            context.clone(),
+            block_verifier,
+            commit_vote_monitor,
+            header_synchronizer.clone(),
+            transactions_synchronizer.clone(),
+            core_dispatcher,
+            signals_receivers.block_broadcast_receiver(),
+            dag_state.clone(),
+            store,
+            shard_reconstructor.transaction_message_sender(),
+            cordial_knowledge.clone(),
+        ));
+
+        let subscriber = Subscriber::new(
+            context.clone(),
+            network_client,
+            network_service.clone(),
+            dag_state.clone(),
+        );
+
+        // Subscribe to peers, but skip blocked_peers
+        for (peer, _) in context.committee.authorities() {
+            if peer != context.own_index && !blocked_peers.contains(&peer) {
+                subscriber.subscribe(peer);
+            }
+        }
+
+        network_manager.install_service(network_service).await;
+
+        let authority = ConsensusAuthority {
+            context,
+            start_time,
+            transaction_client: Arc::new(tx_client),
+            header_synchronizer,
+            shard_reconstructor,
+            cordial_knowledge,
+            transactions_synchronizer,
+            commit_consumer_monitor: commit_consumer_monitor.clone(),
+            regular_commit_syncer_handle,
+            fast_commit_syncer_handle,
+            leader_timeout_handle,
+            core_thread_handle,
+            subscriber,
+            network_manager,
+            dag_state: dag_state.clone(),
+            sync_last_known_own_block,
+        };
+
+        (authority, receiver, commit_consumer_monitor)
     }
 
     /// Test that FastCommitSyncer does not cause consensus divergence after
@@ -1078,6 +1329,7 @@ pub(crate) mod tests {
                 protocol_config.clone(),
                 parameters,
                 0,
+                vec![],
             )
             .await;
             boot_counters[index] += 1;
@@ -1147,6 +1399,7 @@ pub(crate) mod tests {
             protocol_config.clone(),
             parameters,
             last_processed_before_restart,
+            vec![],
         )
         .await;
         boot_counters[stopped_index] += 1;
@@ -1273,6 +1526,7 @@ pub(crate) mod tests {
             protocol_config.clone(),
             parameters,
             last_processed_before_second_restart,
+            vec![],
         )
         .await;
         output_receivers[stopped_index] = receiver;

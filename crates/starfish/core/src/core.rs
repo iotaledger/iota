@@ -1294,6 +1294,11 @@ impl Core {
     fn last_proposed_block_header(&self) -> VerifiedBlockHeader {
         self.dag_state.read().get_last_proposed_block_header()
     }
+
+    #[cfg(test)]
+    pub(crate) fn dag_state(&self) -> Arc<RwLock<DagState>> {
+        self.dag_state.clone()
+    }
 }
 
 /// Senders of signals from Core, for outputs and events (ex new block
