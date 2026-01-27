@@ -7,10 +7,12 @@ mod macros;
 // Modules
 pub mod constants;
 mod error;
+pub mod event_filter;
 pub mod ledger_service;
 pub mod response;
 pub mod server;
 pub mod transaction_execution_service;
+pub mod transaction_filter;
 pub mod types;
 pub mod utils;
 
