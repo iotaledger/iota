@@ -14,7 +14,7 @@ use crate::{
         genesis_block_headers,
     },
     context::Context,
-    dag_state::DagState,
+    dag_state::{BlockHeaderSource, DagState},
     test_dag_builder::DagBuilder,
 };
 
@@ -67,7 +67,9 @@ pub(crate) fn build_dag(
                 (block.reference(), block)
             })
             .unzip();
-        dag_state.write().accept_block_headers(blocks);
+        dag_state
+            .write()
+            .accept_block_headers(blocks, BlockHeaderSource::Test);
         ancestors = references;
     }
 
@@ -91,7 +93,9 @@ pub(crate) fn build_dag_layer(
                 .build(),
         );
         references.push(block.reference());
-        dag_state.write().accept_block_header(block);
+        dag_state
+            .write()
+            .accept_block_header(block, BlockHeaderSource::Test);
     }
     references
 }

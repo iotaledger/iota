@@ -9,10 +9,13 @@ use std::{
 
 use ahash::{AHashMap, AHashSet};
 use bytes::Bytes;
-use iota_metrics::monitored_mpsc::{self, UnboundedReceiver, UnboundedSender};
+use iota_metrics::monitored_mpsc::{self, Receiver, Sender};
 use parking_lot::RwLock;
 use starfish_config::AuthorityIndex;
-use tokio::{sync::Mutex, task::JoinError};
+use tokio::{
+    sync::{Mutex, mpsc::error::TrySendError},
+    task::JoinError,
+};
 use tracing::debug;
 
 use crate::{
@@ -28,6 +31,16 @@ use crate::{
 /// relevant. 40 rounds correspond to at least 2 second due to the minimum block
 /// delay
 const MAX_ROUND_GAP_FOR_USEFUL_PARTS: Round = 40;
+/// Capacity of the cordial knowledge channel. For normal operation with
+/// 100 authorities, this allows buffering up to 5 seconds of headers at 20
+/// blocks/sec. When the channel is full, the sender will skip sending new
+/// messages.
+const CORDIAL_KNOWLEDGE_CHANNEL_CAPACITY: usize = 10_000;
+/// Eviction is performed every EVICTION_CHECK_INTERVAL processed messages.
+/// This allows batching eviction checks instead of checking on every
+/// message. For this operation, we don't need high precision, but we don't
+/// skip evictions for too long either.
+const EVICTION_CHECK_INTERVAL: usize = 10_000;
 
 /// Represents a subset of authorities using a bitmask.
 /// Each bit in the `low` and `high` fields corresponds to an authority index.
@@ -72,9 +85,11 @@ impl SubsetAuthorities {
 /// notifies per-connection tasks.
 pub(crate) struct CordialKnowledge {
     context: Arc<Context>,
-    /// Receives high-level updates from DAG state (new headers, new own shards,
-    /// evictions) and AuthorityService
-    cordial_knowledge_receiver: UnboundedReceiver<CordialKnowledgeMessage>,
+    /// Receives high-level updates from DAG state (new headers, new own shards)
+    /// and AuthorityService
+    cordial_knowledge_receiver: Receiver<CordialKnowledgeMessage>,
+    /// Receives eviction rounds from DagState (latest-only).
+    eviction_rounds_receiver: tokio::sync::watch::Receiver<Vec<Round>>,
     /// Keeps track of the last round for which each peer's shards were
     /// considered useful to us. This is a global knowledge and is shared with
     /// all connection tasks. Initialized to None for all authorities and
@@ -98,7 +113,7 @@ pub(crate) struct CordialKnowledge {
 }
 
 /// High-level messages sent to the CordialKnowledge task.
-/// NewHeader, NewShard, EvictBelow are received from DAG state.
+/// NewHeader, NewShard are received from DAG state.
 /// UsefulShardsFromPeers is received from AuthorityService.
 #[derive(Debug)]
 pub enum CordialKnowledgeMessage {
@@ -106,8 +121,6 @@ pub enum CordialKnowledgeMessage {
     NewHeader(VerifiedBlockHeader),
     /// A new verified own shard to integrate into cordial knowledge.
     NewShard(BlockRef),
-    /// Evict old rounds globally.
-    EvictBelow(Vec<Round>),
     /// Update internal state about shards from which authorities are useful for
     /// the local node
     UsefulShardsFromPeers(BTreeMap<AuthorityIndex, Round>),
@@ -119,7 +132,6 @@ impl CordialKnowledgeMessage {
         match self {
             CordialKnowledgeMessage::NewHeader(_) => "New header",
             CordialKnowledgeMessage::NewShard(_) => "New shard",
-            CordialKnowledgeMessage::EvictBelow(_) => "Eviction",
             CordialKnowledgeMessage::UsefulShardsFromPeers(_) => "Useful authors for shards",
         }
     }
@@ -128,7 +140,7 @@ impl CordialKnowledgeMessage {
 /// Handle to the CordialKnowledge task, allowing interaction and graceful
 /// shutdown.
 pub struct CordialKnowledgeHandle {
-    cordial_knowledge_sender: UnboundedSender<CordialKnowledgeMessage>,
+    cordial_knowledge_sender: Sender<CordialKnowledgeMessage>,
     connection_knowledges: Vec<Arc<RwLock<ConnectionKnowledge>>>,
     cordial_knowledge_handle: Mutex<Option<tokio::task::JoinHandle<()>>>,
 }
@@ -225,9 +237,11 @@ impl CordialKnowledgeHandle {
         if !useful_shard_authors.is_empty() {
             let cordial_knowledge_message =
                 CordialKnowledgeMessage::UsefulShardsFromPeers(useful_shard_authors);
-            cordial_knowledge_sender
-                .send(cordial_knowledge_message)
-                .map_err(|_err| ConsensusError::Shutdown)?;
+            if let Err(TrySendError::Closed(_)) =
+                cordial_knowledge_sender.try_send(cordial_knowledge_message)
+            {
+                return Err(ConsensusError::Shutdown);
+            }
         }
 
         Ok(())
@@ -243,15 +257,18 @@ impl CordialKnowledge {
     ) -> (
         Self,
         Vec<Arc<RwLock<ConnectionKnowledge>>>,
-        UnboundedSender<CordialKnowledgeMessage>,
+        Sender<CordialKnowledgeMessage>,
+        tokio::sync::watch::Sender<Vec<Round>>,
     ) {
         let num_authorities = context.committee.size();
 
-        // Main unbounded channel for high-level DAG updates (monitored for metrics)
+        // Main bounded channel for high-level DAG updates (monitored for metrics)
         let (cordial_knowledge_sender, cordial_knowledge_receiver): (
-            UnboundedSender<CordialKnowledgeMessage>,
-            UnboundedReceiver<CordialKnowledgeMessage>,
-        ) = monitored_mpsc::unbounded_channel("cordial_knowledge");
+            Sender<CordialKnowledgeMessage>,
+            Receiver<CordialKnowledgeMessage>,
+        ) = monitored_mpsc::channel("cordial_knowledge", CORDIAL_KNOWLEDGE_CHANNEL_CAPACITY);
+        let (eviction_rounds_sender, eviction_rounds_receiver) =
+            tokio::sync::watch::channel(Vec::new());
 
         let mut connection_knowledges = Vec::with_capacity(num_authorities);
 
@@ -269,12 +286,14 @@ impl CordialKnowledge {
             Self {
                 context,
                 cordial_knowledge_receiver,
+                eviction_rounds_receiver,
                 cordial_knowledge: vec![BTreeMap::new(); num_authorities],
                 last_useful_shards_from_peer_round: vec![None; num_authorities],
                 connection_knowledges: connection_knowledges.clone(),
             },
             connection_knowledges,
             cordial_knowledge_sender,
+            eviction_rounds_sender,
         )
     }
 
@@ -286,16 +305,21 @@ impl CordialKnowledge {
         dag_state: Arc<RwLock<DagState>>,
     ) -> Arc<CordialKnowledgeHandle> {
         // Build main CordialKnowledge and associated channels
-        let (cordial_knowledge, connection_knowledges, cordial_knowledge_sender) =
-            CordialKnowledge::new(context.clone(), dag_state.clone());
+        let (
+            cordial_knowledge,
+            connection_knowledges,
+            cordial_knowledge_sender,
+            eviction_rounds_sender,
+        ) = CordialKnowledge::new(context.clone(), dag_state.clone());
         // Spawn the main CordialKnowledge loop
         let cordial_knowledge_handle = tokio::spawn(async move {
             cordial_knowledge.run().await;
         });
 
-        dag_state
-            .write()
-            .set_cordial_knowledge_sender(cordial_knowledge_sender.clone());
+        dag_state.write().set_cordial_knowledge_senders(
+            cordial_knowledge_sender.clone(),
+            eviction_rounds_sender.clone(),
+        );
 
         // Return handle with all pieces assembled
         Arc::new(CordialKnowledgeHandle {
@@ -305,11 +329,12 @@ impl CordialKnowledge {
         })
     }
 
-    /// Main async loop: receives high-level updates (headers, shards,
-    /// evictions) from DAG state and updates global knowledge + notifies
-    /// per-connection tasks.
+    /// Main async loop: receives high-level updates (headers, shards)
+    /// from DAG state and updates global knowledge + notifies per-connection
+    /// tasks. Evictions are checked periodically via a watch channel.
     async fn run(mut self) {
         debug!("Cordial Knowledge main loop started");
+        let mut processed_since_eviction = 0usize;
 
         loop {
             match self.cordial_knowledge_receiver.recv().await {
@@ -318,6 +343,7 @@ impl CordialKnowledge {
                     while let Ok(msg) = self.cordial_knowledge_receiver.try_recv() {
                         batch.push(msg);
                     }
+                    processed_since_eviction = processed_since_eviction.saturating_add(batch.len());
                     // Report the buffer size
                     self.context
                         .metrics
@@ -339,6 +365,13 @@ impl CordialKnowledge {
                         }
                     }
 
+                    if processed_since_eviction >= EVICTION_CHECK_INTERVAL {
+                        self.append_eviction_msgs_if_changed(
+                            &mut vec_connection_knowledge_msgs_batch,
+                        );
+                        processed_since_eviction = 0;
+                    }
+
                     for (index, msgs) in vec_connection_knowledge_msgs_batch.into_iter().enumerate()
                     {
                         if !msgs.is_empty() {
@@ -355,6 +388,24 @@ impl CordialKnowledge {
         }
 
         debug!("Cordial Knowledge main loop finished");
+    }
+
+    fn append_eviction_msgs_if_changed(
+        &mut self,
+        vec_connection_knowledge_msgs_batch: &mut [Vec<ConnectionKnowledgeMessage>],
+    ) {
+        if !self.eviction_rounds_receiver.has_changed().unwrap_or(false) {
+            return;
+        }
+        let evicted_rounds = self.eviction_rounds_receiver.borrow_and_update().clone();
+        if evicted_rounds.len() != self.context.committee.size() {
+            return;
+        }
+        if let Some(vec_connection_knowledge_msgs) = self.handle_evict_below(evicted_rounds) {
+            for (index, msgs) in vec_connection_knowledge_msgs.into_iter().enumerate() {
+                vec_connection_knowledge_msgs_batch[index].extend(msgs);
+            }
+        }
     }
 
     /// Processes a single high-level cordial knowledge message.
@@ -375,7 +426,6 @@ impl CordialKnowledge {
         match cordial_knowledge_message {
             CordialKnowledgeMessage::NewHeader(header) => self.update_cordial_knowledge(&header),
             CordialKnowledgeMessage::NewShard(block_ref) => self.prepare_new_shard_msgs(block_ref),
-            CordialKnowledgeMessage::EvictBelow(round) => self.handle_evict_below(round),
             CordialKnowledgeMessage::UsefulShardsFromPeers(useful_shards_from_peer) => {
                 self.handle_useful_shards_from(useful_shards_from_peer)
             }
@@ -1064,7 +1114,7 @@ mod tests {
         TestBlockHeader,
         block_header::{GENESIS_ROUND, VerifiedBlock, VerifiedOwnShard},
         context::Context,
-        dag_state::DagState,
+        dag_state::{BlockHeaderSource, DagState},
         storage::mem_store::MemStore,
         test_dag_builder::DagBuilder,
         test_dag_parser::parse_dag,
@@ -1175,7 +1225,9 @@ mod tests {
                         verified_block_header,
                         verified_transactions,
                     } = block.clone();
-                    dag_state.write().accept_block_header(verified_block_header);
+                    dag_state
+                        .write()
+                        .accept_block_header(verified_block_header, BlockHeaderSource::Test);
                     let shard_for_core = VerifiedOwnShard {
                         serialized_shard: Bytes::from([0u8; 32].to_vec()), /* put some dummy
                                                                             * shard data */
@@ -1194,7 +1246,9 @@ mod tests {
                     verified_block_header,
                     verified_transactions,
                 } = block.clone();
-                dag_state.write().accept_block_header(verified_block_header);
+                dag_state
+                    .write()
+                    .accept_block_header(verified_block_header, BlockHeaderSource::Test);
                 let shard_for_core = VerifiedOwnShard {
                     serialized_shard: Bytes::from([0u8; 32].to_vec()), // put some dummy shard data
                     block_ref: verified_transactions.block_ref(),

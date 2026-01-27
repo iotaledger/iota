@@ -149,7 +149,7 @@ export function EnterAmountDialogLayout({
             </DialogLayoutBody>
             <DialogLayoutFooter>
                 {errorMessage ? (
-                    <div className="mb-sm">
+                    <div data-testid="error-info-box" className="mb-sm">
                         <InfoBox
                             type={InfoBoxType.Error}
                             supportingText={errorMessage}
