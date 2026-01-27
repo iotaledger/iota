@@ -8,10 +8,13 @@ import { getCustomNetwork } from '@iota/core';
 import { getNetwork, type Network } from '@iota/iota-sdk/client';
 
 import { ampli } from './ampli';
+import store from '_src/ui/app/redux/store';
 
 const IS_ENABLED = process.env.BUILD_ENV === 'production';
 
 export async function initAmplitude() {
+    const { network, customRpc } = store.getState().app;
+
     ampli.load({
         environment: 'iotawallet',
         // Flip this if you'd like to test Amplitude locally
@@ -32,6 +35,8 @@ export async function initAmplitude() {
             },
         },
     });
+
+    setNetworkGroup(network, customRpc);
 
     // Flush events when popup is about to close
     window.addEventListener('pagehide', () => {
@@ -77,4 +82,9 @@ export function setNetworkGroup(network: Network, customRpc?: string | null): vo
     }
     const networkName = getNetworkName(network, customRpc);
     ampli.client.setGroup('network', networkName);
+
+    const identifyEvent = new amplitude.Identify();
+    identifyEvent.set('network', networkName);
+
+    ampli.client.identify(identifyEvent);
 }
