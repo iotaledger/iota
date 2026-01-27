@@ -1,9 +1,9 @@
-AGENTS
-======
+# AGENTS
 
 ## Tooling
 
 ### Project structure
+
 ```
 apps/
 ├── wallet: Browser extension web wallet
@@ -27,15 +27,18 @@ sdk/
 ```
 
 ### Tools
+
 - package manager: pnpm (workspace; requires pnpm >= 9)
 - monorepo tooling: Turborepo (turbo)
 - Husky for git hooks; Changesets for releases
 
 ### Quick start
+
 - Install workspace deps: `pnpm install`
 - Start a dev app: `pnpm run <app>-dev` (e.g. `pnpm run wallet-dev`)
 
 ### Common scripts (run with `pnpm run <script>`)
+
 Note: For test, lint, and prettier scripts, you can run them for specific apps like `pnpm wallet prettier:fix`
 
 - `test`: Run tests
@@ -53,4 +56,3 @@ Note: For test, lint, and prettier scripts, you can run them for specific apps l
 - `prettier:fix`: Fix code style
 - `lint:fix`: Fix lint and format
 - `prepare`: Setup git hooks
-
