@@ -10,7 +10,7 @@ use std::{
 use iota_config::{local_ip_utils, node::GrpcApiConfig};
 use iota_grpc_client::{LedgerClient, NodeClient};
 use iota_grpc_server::{
-    CheckpointDataBroadcaster, CheckpointSummaryBroadcaster, EventSubscriber, GrpcReader,
+    CheckpointDataBroadcaster, CheckpointSummaryBroadcaster, GrpcReader,
     GrpcServerHandle, start_grpc_server,
 };
 use iota_test_transaction_builder::TestTransactionBuilder;
@@ -495,12 +495,8 @@ async fn test_server_and_client_setup<I: Iterator<Item = u64>>(
     };
     config_customizer(&mut config);
 
-    // Use the no-op EventSubscriber implementation for unit type
-    let dummy_event_subscriber = Arc::new(()) as Arc<dyn EventSubscriber>;
-
     let server_handle = start_grpc_server(
         grpc_reader,
-        dummy_event_subscriber,
         None, // No transaction executor for this test
         config,
         cancellation_token,

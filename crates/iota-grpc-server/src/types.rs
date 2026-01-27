@@ -13,7 +13,6 @@ use iota_grpc_types::{
         transaction as grpc_transaction,
     },
 };
-use iota_json_rpc_types::{EventFilter, IotaEvent};
 use iota_types::{
     base_types::{ObjectID, VersionNumber},
     digests::{TransactionDigest, TransactionEventsDigest},
@@ -44,25 +43,6 @@ pub type GetCheckpointDataStream =
 /// Server streaming response type for the StreamCheckpointData method.
 pub type StreamCheckpointDataStream =
     Pin<Box<dyn futures::Stream<Item = CheckpointStreamResult> + Send>>;
-
-/// Trait for subscribing to event streams (used by gRPC service)
-pub trait EventSubscriber: Send + Sync {
-    /// Subscribe to events with the given filter
-    fn subscribe_events(
-        &self,
-        filter: EventFilter,
-    ) -> Box<dyn futures::Stream<Item = IotaEvent> + Send + Unpin>;
-}
-
-// Implement EventSubscriber trait for gRPC integration
-impl EventSubscriber for iota_core::subscription_handler::SubscriptionHandler {
-    fn subscribe_events(
-        &self,
-        filter: EventFilter,
-    ) -> Box<dyn futures::Stream<Item = IotaEvent> + Send + Unpin> {
-        Box::new(Box::pin(self.subscribe_events(filter)))
-    }
-}
 
 /// Wrapper that converts native CheckpointData to gRPC type before broadcasting
 #[derive(Clone)]
@@ -107,17 +87,6 @@ impl GrpcCheckpointDataBroadcaster {
                 );
             }
         }
-    }
-}
-
-/// No-op implementation for unit type (used in tests and when event
-/// subscription is not needed)
-impl EventSubscriber for () {
-    fn subscribe_events(
-        &self,
-        _filter: EventFilter,
-    ) -> Box<dyn futures::Stream<Item = IotaEvent> + Send + Unpin> {
-        Box::new(Box::pin(futures::stream::empty()))
     }
 }
 

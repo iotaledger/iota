@@ -2447,15 +2447,10 @@ async fn build_grpc_server(
         Some(env!("CARGO_PKG_VERSION").to_string()),
     ));
 
-    // Get the subscription handler from the state for event streaming
-    let event_subscriber =
-        state.subscription_handler.clone() as Arc<dyn iota_grpc_server::EventSubscriber>;
-
     // Pass the same token to both GrpcReader (already done above) and
     // start_grpc_server
     let handle = start_grpc_server(
         grpc_reader,
-        event_subscriber,
         executor,
         grpc_config.clone(),
         shutdown_token,

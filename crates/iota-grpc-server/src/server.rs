@@ -60,7 +60,6 @@ impl GrpcServerHandle {
 /// services in the future.
 pub async fn start_grpc_server(
     grpc_reader: Arc<GrpcReader>,
-    _event_subscriber: Arc<dyn crate::EventSubscriber>, // TODO: still needed?
     executor: Option<Arc<dyn TransactionExecutor>>,
     config: iota_config::node::GrpcApiConfig,
     shutdown_token: CancellationToken,

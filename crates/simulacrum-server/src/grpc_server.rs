@@ -14,20 +14,6 @@ use simulacrum::{
     Simulacrum, state_reader::SimulacrumGrpcReader, transaction_executor::TransactionExecutor,
 };
 
-// Dummy event subscriber for simulacrum (events not supported)
-// TODO: add support for events in simulacrum?
-struct DummyEventSubscriber;
-
-impl iota_grpc_server::types::EventSubscriber for DummyEventSubscriber {
-    fn subscribe_events(
-        &self,
-        _filter: iota_json_rpc_types::EventFilter,
-    ) -> Box<dyn futures::Stream<Item = iota_json_rpc_types::IotaEvent> + Send + Unpin> {
-        // Return an empty stream
-        Box::new(Box::pin(futures::stream::empty()))
-    }
-}
-
 /// Start a gRPC server for the given simulacrum instance
 pub async fn start_simulacrum_grpc_server(
     simulacrum: Arc<Simulacrum>,
@@ -47,19 +33,7 @@ pub async fn start_simulacrum_grpc_server(
     let simulacrum_reader = Arc::new(SimulacrumGrpcReader::new(simulacrum.clone(), chain_id));
     let grpc_reader = Arc::new(GrpcReader::new(simulacrum_reader, None));
 
-    // TODO: add if needed
-    let event_subscriber: Option<Arc<dyn iota_grpc_server::types::EventSubscriber>> = None;
-
-    start_grpc_server(
-        grpc_reader,
-        #[allow(clippy::unnecessary_literal_unwrap)]
-        event_subscriber.unwrap_or_else(|| Arc::new(DummyEventSubscriber)),
-        executor,
-        config,
-        shutdown_token,
-        chain_id,
-    )
-    .await
+    start_grpc_server(grpc_reader, executor, config, shutdown_token, chain_id).await
 }
 
 #[cfg(test)]

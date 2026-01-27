@@ -22,6 +22,5 @@ pub use response::append_info_headers;
 pub use server::{GrpcServerHandle, start_grpc_server};
 pub use transaction_execution_service::TransactionExecutionGrpcService;
 pub use types::{
-    EventSubscriber, GrpcCheckpointDataBroadcaster, GrpcReader, GrpcStateReader,
-    RestStateReaderAdapter,
+    GrpcCheckpointDataBroadcaster, GrpcReader, GrpcStateReader, RestStateReaderAdapter,
 };
