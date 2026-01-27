@@ -8,7 +8,7 @@ pub use checked::*;
 mod checked {
 
     use std::{
-        collections::{BTreeSet, HashSet},
+        collections::{BTreeMap, BTreeSet, HashSet},
         sync::Arc,
     };
 
@@ -19,7 +19,10 @@ mod checked {
     use iota_types::{
         IOTA_AUTHENTICATOR_STATE_OBJECT_ID, IOTA_FRAMEWORK_ADDRESS, IOTA_FRAMEWORK_PACKAGE_ID,
         IOTA_RANDOMNESS_STATE_OBJECT_ID, IOTA_SYSTEM_PACKAGE_ID, Identifier,
-        account_abstraction::authenticator_function::AuthenticatorFunctionRefV1,
+        account_abstraction::authenticator_function::{
+            AuthenticatorFunctionRef, AuthenticatorFunctionRefForExecution,
+            AuthenticatorFunctionRefV1,
+        },
         auth_context::AuthContext,
         authenticator_state::{
             AUTHENTICATOR_STATE_CREATE_FUNCTION_NAME,
@@ -299,7 +302,7 @@ mod checked {
         gas_coins: Vec<ObjectRef>,
         // Authenticator
         authenticator: MoveAuthenticator,
-        authenticator_function_ref: AuthenticatorFunctionRefV1,
+        authenticator_function_ref_for_execution: AuthenticatorFunctionRefForExecution,
         authenticator_input_objects: CheckedInputObjects,
         authenticator_and_transaction_input_objects: CheckedInputObjects,
         // Transaction
@@ -365,21 +368,38 @@ mod checked {
         // It does not alter the state, if not for command execution gas charging, and
         // produces no effects other than possible errors.
 
-        // Run the authentication execution.
-        let authentication_execution_result = authenticate_transaction_inner(
-            &mut temporary_store,
-            protocol_config,
-            metrics.clone(),
-            &mut gas_charger,
-            authenticator,
+        let AuthenticatorFunctionRefForExecution {
             authenticator_function_ref,
-            &authenticator_input_objects.into_inner(),
-            transaction_kind.clone(),
-            transaction_digest,
-            &mut tx_ctx,
-            trace_builder_opt,
-            move_vm,
-        );
+            loaded_object_id,
+            loaded_object_metadata,
+        } = authenticator_function_ref_for_execution;
+
+        let authentication_execution_result = match authenticator_function_ref {
+            AuthenticatorFunctionRef::V1(authenticator_function_ref_v1) => {
+                // Save the loaded object metadata, i.e., the field object containing the
+                // AuthenticatorFunctionRef, in the temporary store.
+                temporary_store.save_loaded_runtime_objects(BTreeMap::from([(
+                    loaded_object_id,
+                    loaded_object_metadata,
+                )]));
+
+                // Run the authentication execution.
+                authenticate_transaction_inner(
+                    &mut temporary_store,
+                    protocol_config,
+                    metrics.clone(),
+                    &mut gas_charger,
+                    authenticator,
+                    authenticator_function_ref_v1,
+                    &authenticator_input_objects.into_inner(),
+                    transaction_kind.clone(),
+                    transaction_digest,
+                    &mut tx_ctx,
+                    trace_builder_opt,
+                    move_vm,
+                )
+            }
+        };
 
         // Transaction execution.
         // At this stage we arrive with gas charged for the execution of the
@@ -428,7 +448,7 @@ mod checked {
         gas_status: IotaGasStatus,
         // Authenticator
         authenticator: MoveAuthenticator,
-        authenticator_function_ref: AuthenticatorFunctionRefV1,
+        authenticator_function_ref: AuthenticatorFunctionRef,
         authenticator_input_objects: CheckedInputObjects,
         // Transaction
         transaction_kind: TransactionKind,
@@ -466,20 +486,24 @@ mod checked {
         );
 
         // Run the authentication.
-        authenticate_transaction_inner(
-            &mut temporary_store,
-            protocol_config,
-            metrics.clone(),
-            &mut gas_charger,
-            authenticator,
-            authenticator_function_ref,
-            &input_objects,
-            transaction_kind.clone(),
-            transaction_digest,
-            &mut tx_ctx,
-            trace_builder_opt,
-            move_vm,
-        )
+        match authenticator_function_ref {
+            AuthenticatorFunctionRef::V1(authenticator_function_ref_v1) => {
+                authenticate_transaction_inner(
+                    &mut temporary_store,
+                    protocol_config,
+                    metrics.clone(),
+                    &mut gas_charger,
+                    authenticator,
+                    authenticator_function_ref_v1,
+                    &input_objects,
+                    transaction_kind.clone(),
+                    transaction_digest,
+                    &mut tx_ctx,
+                    trace_builder_opt,
+                    move_vm,
+                )
+            }
+        }
     }
 
     // This function implements the authentication execution. It checks that the

@@ -56,7 +56,11 @@ use iota_types::committee::CommitteeTrait;
 use iota_types::{
     IOTA_SYSTEM_ADDRESS, TypeTag,
     account_abstraction::{
-        account::AuthenticatorFunctionRefV1Key, authenticator_function::AuthenticatorFunctionRefV1,
+        account::AuthenticatorFunctionRefV1Key,
+        authenticator_function::{
+            AuthenticatorFunctionRef, AuthenticatorFunctionRefForExecution,
+            AuthenticatorFunctionRefV1,
+        },
     },
     authenticator_state::get_authenticator_state,
     base_types::*,
@@ -75,6 +79,7 @@ use iota_types::{
     error::{ExecutionError, IotaError, IotaResult, UserInputError},
     event::{Event, EventID, SystemEpochInfoEvent},
     executable_transaction::VerifiedExecutableTransaction,
+    execution::DynamicallyLoadedObjectMetadata,
     execution_config_utils::to_binary_config,
     execution_status::ExecutionStatus,
     fp_ensure,
@@ -1659,7 +1664,7 @@ impl AuthorityState {
             // that the account object is loaded.
             let account_object = account_object.expect("Account object must be provided");
 
-            let authenticator_function_ref = self.check_move_account(
+            let authenticator_function_ref_for_execution = self.check_move_account(
                 auth_account_object_id,
                 auth_account_object_seq_number,
                 auth_account_object_digest,
@@ -1709,7 +1714,7 @@ impl AuthorityState {
                     gas_status,
                     gas,
                     move_authenticator.to_owned(),
-                    authenticator_function_ref,
+                    authenticator_function_ref_for_execution,
                     authenticator_checked_input_objects,
                     authenticator_and_tx_checked_input_objects,
                     kind,
@@ -5279,7 +5284,7 @@ impl AuthorityState {
         auth_account_object_digest: Option<ObjectDigest>,
         account_object: ObjectReadResult,
         signer: &IotaAddress,
-    ) -> IotaResult<AuthenticatorFunctionRefV1> {
+    ) -> IotaResult<AuthenticatorFunctionRefForExecution> {
         let account_object = match account_object.object {
             ObjectReadResultKind::Object(object) => Ok(object),
             ObjectReadResultKind::DeletedSharedObject(version, digest) => {
@@ -5378,7 +5383,20 @@ impl AuthorityState {
                     },
                 )?;
 
-            Ok(field.value)
+            let authenticator_function_ref_field_obj_ref =
+                authenticator_function_ref_field_obj.compute_object_reference();
+
+            Ok(AuthenticatorFunctionRefForExecution::new_v1(
+                field.value,
+                authenticator_function_ref_field_obj_ref.0,
+                DynamicallyLoadedObjectMetadata {
+                    version: authenticator_function_ref_field_obj_ref.1,
+                    digest: authenticator_function_ref_field_obj_ref.2,
+                    owner: authenticator_function_ref_field_obj.owner,
+                    storage_rebate: authenticator_function_ref_field_obj.storage_rebate,
+                    previous_transaction: authenticator_function_ref_field_obj.previous_transaction,
+                },
+            ))
         } else {
             Err(UserInputError::MoveAuthenticatorNotFound {
                 authenticator_function_ref_id: authenticator_function_ref_field_id,
@@ -5432,7 +5450,7 @@ impl AuthorityState {
         IotaGasStatus,
         CheckedInputObjects,
         Option<CheckedInputObjects>,
-        Option<AuthenticatorFunctionRefV1>,
+        Option<AuthenticatorFunctionRef>,
     )> {
         let (
             auth_checked_input_objects_union,
@@ -5451,7 +5469,10 @@ impl AuthorityState {
             ) = move_authenticator.object_to_authenticate_components()?;
 
             // Make sure the sender is a Move account.
-            let authenticator_function_ref = self.check_move_account(
+            let AuthenticatorFunctionRefForExecution {
+                authenticator_function_ref,
+                ..
+            } = self.check_move_account(
                 auth_account_object_id,
                 auth_account_object_seq_number,
                 auth_account_object_digest,
