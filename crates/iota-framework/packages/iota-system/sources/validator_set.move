@@ -163,6 +163,7 @@ const ENotACommitteeValidator: u64 = 14;
 const EInvalidStakeAmount: u64 = 15;
 const EInvalidEligibleValidatorIndex: u64 = 16;
 const EInvalidRewardAdjustmentData: u64 = 19;
+const EInvalidScoresData: u64 = 20;
 
 const EInvalidCap: u64 = 101;
 
@@ -1340,8 +1341,8 @@ fun compute_adjusted_reward_distribution(
 
     // Loop through each validator and adjust rewards as necessary
     let length = committee_members.length();
-    assert!(unadjusted_staking_reward_amounts.length() == scores.length(), EInvalidRewardAdjustmentData);
     assert!(length == unadjusted_staking_reward_amounts.length(), EInvalidRewardAdjustmentData);
+    assert!(unadjusted_staking_reward_amounts.length() == scores.length(), EInvalidScoresData);
 
     let mut i = 0;
     while (i < length) {
