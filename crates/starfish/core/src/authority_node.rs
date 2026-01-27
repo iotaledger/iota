@@ -1825,6 +1825,24 @@ mod tests {
             total_hits
         );
 
+        let commit_sync_fetch_commits_handler_uncertified_skipped: u64 = authorities
+            .iter()
+            .map(|a| {
+                a.context()
+                    .metrics
+                    .node_metrics
+                    .commit_sync_fetch_commits_handler_uncertified_skipped
+                    .with_label_values(&["fast_commit_sync"])
+                    .get()
+            })
+            .sum();
+
+        assert!(
+            commit_sync_fetch_commits_handler_uncertified_skipped > 0,
+            "Expected uncertified commits skipped > 0 for fast sync, got {}",
+            commit_sync_fetch_commits_handler_uncertified_skipped
+        );
+
         // Stop all authorities
         for authority in authorities {
             authority.stop().await;

@@ -731,6 +731,25 @@ impl Store for RocksDBStore {
         }
     }
 
+    fn read_lowest_commit_index_with_votes(
+        &self,
+        from_index: CommitIndex,
+    ) -> ConsensusResult<Option<CommitIndex>> {
+        let result = self
+            .commit_votes
+            .safe_range_iter((
+                Included((from_index, CommitDigest::MIN, BlockRef::MIN)),
+                std::ops::Bound::Unbounded,
+            ))
+            .next();
+
+        match result {
+            Some(Ok(((index, _, _), _))) => Ok(Some(index)),
+            Some(Err(e)) => Err(ConsensusError::RocksDBFailure(e)),
+            None => Ok(None),
+        }
+    }
+
     fn read_last_commit_info(&self) -> ConsensusResult<Option<(CommitRef, CommitInfo)>> {
         let Some(result) = self
             .commit_info
