@@ -33,7 +33,7 @@ use crate::{
     context::Context,
     cordial_knowledge::CordialKnowledgeHandle,
     core_thread::CoreThreadDispatcher,
-    dag_state::DagState,
+    dag_state::{BlockHeaderSource, DagState},
     encoder::ShardEncoder,
     error::{ConsensusError, ConsensusResult},
     header_synchronizer::HeaderSynchronizerHandle,
@@ -560,7 +560,10 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         // sent in order of increasing rounds.
         let (mut missing_ancestors, mut missing_committed_txns) = self
             .core_dispatcher
-            .add_block_headers(additional_block_headers.clone())
+            .add_block_headers(
+                additional_block_headers.clone(),
+                BlockHeaderSource::BlockHeaderBundleStream,
+            )
             .await
             .map_err(|_| ConsensusError::Shutdown)?;
         self.context
@@ -1324,7 +1327,7 @@ mod tests {
         cordial_knowledge::{ConnectionKnowledgeMessage, CordialKnowledge},
         core::{Core, CoreSignals, ReasonToCreateBlock},
         core_thread::{CoreError, CoreThreadDispatcher, tests::MockCoreThreadDispatcher},
-        dag_state::{DagState, TransactionSource},
+        dag_state::{BlockHeaderSource, DagState, TransactionSource},
         encoder::create_encoder,
         error::{ConsensusError, ConsensusResult},
         header_synchronizer::HeaderSynchronizer,
@@ -1961,7 +1964,10 @@ mod tests {
 
         for round in 1..=rounds / 2 {
             core_dispatcher
-                .add_block_headers(all_block_headers[round as usize].clone())
+                .add_block_headers(
+                    all_block_headers[round as usize].clone(),
+                    BlockHeaderSource::Test,
+                )
                 .await
                 .expect("block headers are expected to be added successfully");
         }
@@ -1984,7 +1990,7 @@ mod tests {
         for round in rounds / 2 + 1..=rounds {
             let headers = &all_block_headers[round as usize];
             core_dispatcher
-                .add_block_headers(headers[..2].to_vec())
+                .add_block_headers(headers[..2].to_vec(), BlockHeaderSource::Test)
                 .await
                 .expect("block headers are expected to be added successfully");
         }
@@ -2004,7 +2010,7 @@ mod tests {
         for round in rounds / 2 + 1..=rounds {
             let headers = &all_block_headers[round as usize];
             core_dispatcher
-                .add_block_headers(headers[2..].to_vec())
+                .add_block_headers(headers[2..].to_vec(), BlockHeaderSource::Test)
                 .await
                 .expect("block headers are expected to be added successfully");
         }
@@ -2047,6 +2053,7 @@ mod tests {
         async fn add_block_headers(
             &self,
             block_headers: Vec<VerifiedBlockHeader>,
+            source: BlockHeaderSource,
         ) -> Result<
             (
                 BTreeSet<BlockRef>,
@@ -2060,7 +2067,7 @@ mod tests {
                 let entry = &mut vec[block_header.author()];
                 *entry = max(*entry, block_header.round());
             }
-            let _ = guard.add_block_headers(block_headers);
+            let _ = guard.add_block_headers(block_headers, source);
             Ok((BTreeSet::new(), BTreeMap::new()))
         }
 
@@ -2225,7 +2232,10 @@ mod tests {
         }
         for round in 1..=rounds {
             core_dispatcher
-                .add_block_headers(vec![all_headers[round as usize][0].clone()])
+                .add_block_headers(
+                    vec![all_headers[round as usize][0].clone()],
+                    BlockHeaderSource::Test,
+                )
                 .await
                 .expect("blocks header is expected to be added successfully");
             for peer in 1..validators {
@@ -2380,7 +2390,10 @@ mod tests {
         }
         for round in 1..=rounds {
             core_dispatcher
-                .add_block_headers(vec![all_headers[round as usize][0].clone()])
+                .add_block_headers(
+                    vec![all_headers[round as usize][0].clone()],
+                    BlockHeaderSource::Test,
+                )
                 .await
                 .expect("blocks header is expected to be added successfully");
             for peer in 1..validators {
@@ -3171,7 +3184,10 @@ mod tests {
 
         for round in 1..=rounds {
             core_dispatcher
-                .add_block_headers(all_block_headers[round as usize].clone())
+                .add_block_headers(
+                    all_block_headers[round as usize].clone(),
+                    BlockHeaderSource::Test,
+                )
                 .await
                 .expect("block headers are expected to be added successfully");
         }
@@ -3202,7 +3218,7 @@ mod tests {
         }
         all_block_headers.push(new_block_headers.clone());
         core_dispatcher
-            .add_block_headers(new_block_headers.clone())
+            .add_block_headers(new_block_headers.clone(), BlockHeaderSource::Test)
             .await
             .expect("block headers are expected to be added successfully");
 
@@ -3224,7 +3240,7 @@ mod tests {
             }
             all_block_headers.push(new_block_headers.clone());
             core_dispatcher
-                .add_block_headers(new_block_headers.clone())
+                .add_block_headers(new_block_headers.clone(), BlockHeaderSource::Test)
                 .await
                 .expect("block headers are expected to be added successfully");
         }
