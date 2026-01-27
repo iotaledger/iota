@@ -88,6 +88,14 @@ export RUST_LOG=iota=debug,info
 # Track PIDs for process management
 NODE_PIDS=()
 
+# Cleanup function to kill child processes on exit
+cleanup() {
+  echo "Cleaning up..."
+  pkill -P $$
+  wait 2>/dev/null
+}
+trap cleanup EXIT
+
 # Helper function to get metrics port from config
 get_metrics_port() {
   local config_file=$1
