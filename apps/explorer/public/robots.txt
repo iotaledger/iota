@@ -1,2 +1,64 @@
+# Block AI scrapers and training bots
+User-agent: GPTBot
+User-agent: ChatGPT-User
+User-agent: CCBot
+User-agent: Google-Extended
+User-agent: anthropic-ai
+User-agent: Claude-Web
+User-agent: cohere-ai
+User-agent: Omgilibot
+User-agent: FacebookBot
+User-agent: Bytespider
+User-agent: Diffbot
+User-agent: ImagesiftBot
+User-agent: Omgili
+User-agent: PerplexityBot
+User-agent: YouBot
+Disallow: /
+
+# Block aggressive/irrelevant crawlers
+User-agent: AhrefsBot
+User-agent: SemrushBot
+User-agent: DotBot
+User-agent: MJ12bot
+User-agent: BLEXBot
+User-agent: DataForSeoBot
+Disallow: /
+
+# Allow legitimate search engines with restrictions
+User-agent: Googlebot
+User-agent: Googlebot-Image
+User-agent: Bingbot
+User-agent: Slurp
+User-agent: DuckDuckBot
+User-agent: Baiduspider
+User-agent: YandexBot
+# Allow home page and static content
+Allow: /$
+Allow: /cookie-policy
+Allow: /validators$
+Allow: /recent$
+# Disallow dynamic pages with IDs (transactions, addresses, objects, etc.)
+Disallow: /txblock/
+Disallow: /object/
+Disallow: /address/
+Disallow: /checkpoint/
+Disallow: /epoch/
+Disallow: /validator/
+Disallow: /did/
+# Disallow legacy routes
+Disallow: /transaction/
+Disallow: /transactions/
+Disallow: /objects/
+Disallow: /addresses/
+Crawl-delay: 1
+
+# Default for all other bots
 User-agent: *
-Disallow:
+# Allow home page and static content
+Allow: /$
+Allow: /cookie-policy
+Allow: /validators$
+Allow: /recent$
+# Disallow everything else
+Disallow: /
