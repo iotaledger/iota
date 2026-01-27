@@ -53,16 +53,37 @@ mod tests {
 
     use crate::{
         balance::Balance,
-        base_types::{IotaAddress, ObjectID, TxContext},
+        base_types::{IotaAddress, MoveObjectType, ObjectID, SequenceNumber, TxContext},
         id::UID,
-        object::{Object, Owner},
+        object::{Data, MoveObject, Object, Owner},
         stardust::{
             coin_kind::{get_gas_balance_maybe, is_gas_coin_kind},
             coin_type::CoinType,
             output::{AliasOutput, BasicOutput, NftOutput},
         },
-        timelock::timelock::{TimeLock, to_genesis_object},
+        timelock::timelock::TimeLock,
     };
+
+    /// Creates a genesis object from a time-locked balance.
+    fn to_genesis_object(
+        timelock: TimeLock<Balance>,
+        owner: IotaAddress,
+        protocol_config: &ProtocolConfig,
+        tx_context: &TxContext,
+        version: SequenceNumber,
+    ) -> Result<Object, anyhow::Error> {
+        let move_object = MoveObject::new_from_execution(
+            MoveObjectType::timelocked_iota_balance(),
+            version,
+            timelock.to_bcs_bytes(),
+            protocol_config,
+        )?;
+        Ok(Object::new_from_genesis(
+            Data::Move(move_object),
+            Owner::AddressOwner(owner),
+            tx_context.digest(),
+        ))
+    }
 
     fn nft_output(balance: u64, coin_type: CoinType) -> anyhow::Result<Object> {
         let id = UID::new(ObjectID::random());
