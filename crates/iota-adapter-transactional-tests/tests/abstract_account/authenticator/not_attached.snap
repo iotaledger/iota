@@ -32,4 +32,4 @@ Contents: test::authenticate::AbstractAccount {
 
 task 4, lines 38-40:
 //# abstract --account immshared(2,1) --ptb-inputs 100 @A
-Error: Error checking transaction input objects: MoveAuthenticatorNotFound { authenticator_function_ref_id: 0x71f86ca5a45282a1ef19f91abe9c880ad9a9b34fffba716fa32a9eb37a77a508, account_object_id: object(2,1), account_object_version: SequenceNumber(3) }
+Error: Error checking transaction input objects: AuthenticatorFunctionRef 0x71f86ca5a45282a1ef19f91abe9c880ad9a9b34fffba716fa32a9eb37a77a508 not found for account object(2,1) with version SequenceNumber(3)
