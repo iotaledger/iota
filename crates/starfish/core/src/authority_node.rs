@@ -862,7 +862,6 @@ mod tests {
         // authority
         let received_from_authority_1 = timeout(Duration::from_secs(10), async {
             'outer: while let Some(result) = output_receivers[index_1].recv().await {
-                info!("{:?}", result);
                 for header in &result.headers {
                     if header.round() > GENESIS_ROUND && header.author() == index_1 {
                         break 'outer;
