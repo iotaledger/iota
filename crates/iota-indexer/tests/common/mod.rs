@@ -507,7 +507,7 @@ pub async fn wait_for_objects_snapshot(
                 .get_latest_object_snapshot_watermark()
                 .await
                 .unwrap()
-                .map(|watermark| watermark.checkpoint_hi_inclusive);
+                .map(|watermark| watermark.max_committed_cp);
             cp_opt.is_none() || (cp_opt.unwrap() < checkpoint_sequence_number)
         } {
             tokio::time::sleep(Duration::from_millis(100)).await;

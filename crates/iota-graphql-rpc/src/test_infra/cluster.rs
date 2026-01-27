@@ -406,7 +406,7 @@ impl ExecutorCluster {
                     .get_latest_object_snapshot_watermark()
                     .await
                     .unwrap()
-                    .map(|watermark| watermark.checkpoint_hi_inclusive)
+                    .map(|watermark| watermark.max_committed_cp)
                     .unwrap_or_default();
             }
         })
