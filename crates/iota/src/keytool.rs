@@ -26,7 +26,7 @@ use fastcrypto::{
     encoding::{Base64, Encoding, Hex},
     hash::HashFunction,
     secp256k1::recoverable::Secp256k1Sig,
-    traits::{KeyPair, ToFromBytes},
+    traits::{KeyPair, Signer, ToFromBytes},
 };
 use iota_keys::{
     key_derive::generate_new_key,
@@ -44,7 +44,7 @@ use iota_sdk_types::{
 use iota_types::{
     base_types::IotaAddress,
     crypto::{
-        DefaultHash, EncodeDecodeBase64, IotaKeyPair, PublicKey, SignatureScheme,
+        DefaultHash, EncodeDecodeBase64, IotaKeyPair, IotaSignature, PublicKey, SignatureScheme,
         get_authority_key_pair,
     },
     error::IotaResult,
@@ -210,6 +210,15 @@ pub enum KeyToolCommand {
         data: String,
         #[arg(long)]
         intent: Option<Intent>,
+    },
+    /// Create signature using the private key for the given address (or its
+    /// alias) in iota keystore for arbitrary data. The data is treated as hex
+    /// bytes to sign directly and not wrapped in an intent.
+    SignRaw {
+        #[arg(long)]
+        address: KeyIdentity,
+        #[arg(long)]
+        data: String,
     },
     /// Creates a signature by leveraging AWS KMS. Pass in a key-id to leverage
     /// Amazon KMS to sign a message and the base64 pubkey.
@@ -431,6 +440,23 @@ pub struct SignData {
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct SignRawData {
+    iota_address: IotaAddress,
+    // Hex encoded raw data that was signed.
+    raw_data: String,
+    // Base64 encoded public key.
+    public_key: String,
+    // Hex encoded public key.
+    public_key_hex: String,
+    // Hex encoded raw signature (without flag and pubkey).
+    signature_hex: String,
+    // Base64 encoded `flag || signature || pubkey` for a complete
+    // serialized IOTA signature.
+    iota_signature: String,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct TxDigestOutput {
     // Base58
     digest: String,
@@ -477,6 +503,7 @@ pub enum CommandOutput {
     MultiSigCombinePartialSig(MultiSigCombinePartialSig),
     Show(Key),
     Sign(SignData),
+    SignRaw(SignRawData),
     SignKMS(SerializedSig),
     TxDigest(TxDigestOutput),
     UpdateAlias(AliasUpdate),
@@ -838,6 +865,32 @@ impl KeyToolCommand {
                     raw_intent_msg,
                     digest: Base64::encode(digest),
                     iota_signature: iota_signature.encode_base64(),
+                })
+            }
+            KeyToolCommand::SignRaw {
+                address,
+                data,
+            } => {
+                let address = get_identity_address_from_keystore(address, keystore)?;
+                let bytes = Hex::decode(&data).map_err(|e| anyhow!("Invalid hex data: {e:?}"))?;
+                let stored = keystore.get_key(&address)?;
+                let ikp = match stored {
+                    StoredKey::KeyPair(kp) => kp,
+                    _ => bail!("Not a keypair"),
+                };
+                let signature = ikp.sign(&bytes);
+                let iota_signature = signature.encode_base64();
+                let public_key = ikp.public().encode_base64();
+                let public_key_hex = Hex::encode_with_format(ikp.public().as_ref());
+                let signature_hex = Hex::encode_with_format(signature.signature_bytes());
+
+                CommandOutput::SignRaw(SignRawData {
+                    iota_address: address,
+                    raw_data: data,
+                    public_key,
+                    public_key_hex,
+                    signature_hex,
+                    iota_signature,
                 })
             }
             KeyToolCommand::SignKMS {

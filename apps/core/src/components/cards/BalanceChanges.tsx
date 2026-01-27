@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useMemo } from 'react';
-import { Divider, Header, KeyValueInfo, Panel } from '@iota/apps-ui-kit';
+import { Badge, BadgeType, Divider, Header, KeyValueInfo, Panel } from '@iota/apps-ui-kit';
 import type { BalanceChangeSummary, RenderExplorerLink } from '../../types';
 import { ExplorerLinkType } from '../../enums';
 import { formatAddress, CoinFormat } from '@iota/iota-sdk/utils';
@@ -17,9 +17,14 @@ import { NamedAddressTooltip } from '../NamedAddressTooltip';
 interface BalanceChangesProps {
     renderExplorerLink: RenderExplorerLink;
     changes?: BalanceChangeSummary;
+    chain?: string;
 }
 
-export function BalanceChanges({ changes, renderExplorerLink: ExplorerLink }: BalanceChangesProps) {
+export function BalanceChanges({
+    changes,
+    renderExplorerLink: ExplorerLink,
+    chain,
+}: BalanceChangesProps) {
     if (!changes) return null;
 
     return (
@@ -31,6 +36,7 @@ export function BalanceChanges({ changes, renderExplorerLink: ExplorerLink }: Ba
                         owner={owner}
                         changes={changes}
                         renderExplorerLink={ExplorerLink}
+                        chain={chain}
                     />
                 );
             })}
@@ -42,20 +48,32 @@ interface BalanceChangePanelProps {
     renderExplorerLink: RenderExplorerLink;
     owner: string;
     changes: BalanceChange[];
+    chain?: string;
 }
 function BalanceChangePanel({
     owner,
     changes,
     renderExplorerLink: ExplorerLink,
+    chain,
 }: BalanceChangePanelProps) {
     const { data: name } = useGetDefaultIotaName(owner);
 
-    if (!changes) return null;
+    // chain format: [iota:network] -> split by ':' then capitalize first letter
+    const networkName = chain ? chain.split(':')[1] : undefined;
+    const chainName = networkName
+        ? networkName.charAt(0).toUpperCase() + networkName.slice(1)
+        : undefined;
+    const isMainnet = networkName === 'mainnet';
+    const badgeType = isMainnet ? BadgeType.PrimarySolid : BadgeType.Neutral;
 
+    if (!changes) return null;
     return (
         <Panel hasBorder>
             <div className="flex flex-col gap-y-sm overflow-hidden rounded-xl">
-                <Header title="Balance Changes" />
+                <div className="flex items-center justify-between px-md">
+                    <Header title="Balance Changes" />
+                    {chainName && <Badge type={badgeType} label={chainName} />}
+                </div>
                 <BalanceChangeEntries changes={changes} />
                 <div className="flex flex-col gap-y-sm px-md pb-md">
                     <Divider />

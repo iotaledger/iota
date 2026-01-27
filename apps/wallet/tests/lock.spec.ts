@@ -2,8 +2,8 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { expect, test } from './fixtures';
-import { createWallet } from './utils/auth';
+import { expect, test } from './utils/fixtures';
+import { createWallet } from './utils/wallet';
 import { SHORT_TIMEOUT } from './constants/timeout.constants';
 
 test('account lock-unlock', async ({ page, extensionUrl }) => {
