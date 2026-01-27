@@ -12,14 +12,16 @@ use move_core_types::{identifier::Identifier, language_storage::StructTag};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
+const MAX_FILTER_DEPTH: usize = 10;
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub enum GrpcEventFilter {
+pub enum EventFilter {
     // Logical AND of several filters.
-    All(Vec<GrpcEventFilter>),
+    All(Vec<EventFilter>),
     // Logical OR of several filters.
-    Any(Vec<GrpcEventFilter>),
+    Any(Vec<EventFilter>),
     // Logical NOT of a filter.
-    Not(Box<GrpcEventFilter>),
+    Not(Box<EventFilter>),
 
     /// Filter by sender address.
     Sender(IotaAddress),
@@ -60,26 +62,26 @@ pub enum GrpcEventFilter {
     },
 }
 
-impl GrpcEventFilter {
+impl EventFilter {
     fn try_matches(&self, item: &IotaEvent) -> IotaResult<bool> {
         Ok(match self {
-            GrpcEventFilter::All(filters) => filters.iter().all(|f| f.matches(item)),
-            GrpcEventFilter::Any(filters) => filters.iter().any(|f| f.matches(item)),
-            GrpcEventFilter::Not(filter) => !filter.matches(item),
+            EventFilter::All(filters) => filters.iter().all(|f| f.matches(item)),
+            EventFilter::Any(filters) => filters.iter().any(|f| f.matches(item)),
+            EventFilter::Not(filter) => !filter.matches(item),
 
-            GrpcEventFilter::Sender(sender) => &item.sender == sender,
+            EventFilter::Sender(sender) => &item.sender == sender,
 
-            GrpcEventFilter::MovePackageAndModule { package, module } => {
+            EventFilter::MovePackageAndModule { package, module } => {
                 &item.package_id == package
                     && (module.is_none()
                         || matches!(module,  Some(m2) if m2 == &item.transaction_module))
             }
-            GrpcEventFilter::MoveEventPackageAndModule { package, module } => {
+            EventFilter::MoveEventPackageAndModule { package, module } => {
                 &ObjectID::from(item.type_.address) == package
                     && (module.is_none() || matches!(module,  Some(m2) if m2 == &item.type_.module))
             }
-            GrpcEventFilter::MoveEventType(event_type) => &item.type_ == event_type,
-            GrpcEventFilter::MoveEventField { path, value } => {
+            EventFilter::MoveEventType(event_type) => &item.type_ == event_type,
+            EventFilter::MoveEventField { path, value } => {
                 let json_ptr_value = item.parsed_json.pointer(path);
                 if value.is_none() {
                     // If no value is specified, just check for the existence of the field.
@@ -91,17 +93,158 @@ impl GrpcEventFilter {
         })
     }
 
-    pub fn and(self, other_filter: GrpcEventFilter) -> Self {
+    pub fn and(self, other_filter: EventFilter) -> Self {
         Self::All(vec![self, other_filter])
     }
-    pub fn or(self, other_filter: GrpcEventFilter) -> Self {
+    pub fn or(self, other_filter: EventFilter) -> Self {
         Self::Any(vec![self, other_filter])
+    }
+
+    /// Validates that the filter depth doesn't exceed the maximum allowed depth
+    /// to prevent DoS attacks through deeply nested structures.
+    pub fn validate_depth(&self) -> Result<(), String> {
+        self.validate_depth_recursive(0)
+    }
+
+    pub(crate) fn validate_depth_recursive(&self, current_depth: usize) -> Result<(), String> {
+        if current_depth > MAX_FILTER_DEPTH {
+            return Err(format!(
+                "Event filter depth exceeds maximum allowed depth of {}",
+                MAX_FILTER_DEPTH
+            ));
+        }
+
+        match self {
+            EventFilter::All(filters) => {
+                for filter in filters {
+                    filter.validate_depth_recursive(current_depth + 1)?;
+                }
+            }
+            EventFilter::Any(filters) => {
+                for filter in filters {
+                    filter.validate_depth_recursive(current_depth + 1)?;
+                }
+            }
+            EventFilter::Not(filter) => {
+                filter.validate_depth_recursive(current_depth + 1)?;
+            }
+            // Atomic filters don't add to depth
+            _ => {}
+        }
+
+        Ok(())
+    }
+
+    /// Returns the maximum depth of this filter tree
+    pub fn max_depth(&self) -> usize {
+        self.max_depth_recursive(0)
+    }
+
+    pub(crate) fn max_depth_recursive(&self, current_depth: usize) -> usize {
+        match self {
+            EventFilter::All(filters) | EventFilter::Any(filters) => filters
+                .iter()
+                .map(|f| f.max_depth_recursive(current_depth + 1))
+                .max()
+                .unwrap_or(current_depth),
+            EventFilter::Not(filter) => filter.max_depth_recursive(current_depth + 1),
+            // Atomic filters
+            _ => current_depth,
+        }
+    }
+
+    /// Create a new filter with validation. This should be used when creating
+    /// filters from external input (e.g., gRPC requests) to ensure safety.
+    pub fn new_validated(filter: EventFilter) -> Result<Self, String> {
+        filter.validate_depth()?;
+        Ok(filter)
+    }
+
+    /// Validates the total complexity of the filter including counting the
+    /// number of total filter nodes to prevent resource exhaustion.
+    pub fn validate_complexity(&self) -> Result<(), String> {
+        const MAX_FILTER_NODES: usize = 1000; // Maximum number of filter nodes
+
+        let node_count = self.count_nodes();
+        if node_count > MAX_FILTER_NODES {
+            return Err(format!(
+                "Event filter complexity exceeds maximum allowed nodes: {} > {}",
+                node_count, MAX_FILTER_NODES
+            ));
+        }
+
+        self.validate_depth()
+    }
+
+    pub(crate) fn count_nodes(&self) -> usize {
+        match self {
+            EventFilter::All(filters) | EventFilter::Any(filters) => {
+                1 + filters.iter().map(|f| f.count_nodes()).sum::<usize>()
+            }
+            EventFilter::Not(filter) => 1 + filter.count_nodes(),
+            // Atomic filters count as 1 node
+            _ => 1,
+        }
     }
 }
 
-impl Filter<IotaEvent> for GrpcEventFilter {
+impl Filter<IotaEvent> for EventFilter {
     fn matches(&self, item: &IotaEvent) -> bool {
-        let _scope = monitored_scope("GrpcEventFilter::matches");
+        let _scope = monitored_scope("EventFilter::matches");
         self.try_matches(item).unwrap_or_default()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_event_filter_depth_validation() {
+        // Simple atomic filter should pass
+        let simple_filter = EventFilter::Sender(IotaAddress::random_for_testing_only());
+        assert!(simple_filter.validate_depth().is_ok());
+        assert_eq!(simple_filter.max_depth(), 0);
+
+        // Nested filter within limits should pass
+        let nested_filter = EventFilter::All(vec![
+            EventFilter::Sender(IotaAddress::random_for_testing_only()),
+            EventFilter::Any(vec![
+                EventFilter::MovePackageAndModule {
+                    package: ObjectID::random(),
+                    module: Some(Identifier::new("MyModule").unwrap()),
+                },
+                EventFilter::Not(Box::new(EventFilter::MoveEventType(StructTag {
+                    address: ObjectID::random().into(),
+                    module: Identifier::new("MyModule").unwrap(),
+                    name: Identifier::new("MyEvent").unwrap(),
+                    type_params: vec![],
+                }))),
+            ]),
+        ]);
+        assert!(nested_filter.validate_depth().is_ok());
+        assert_eq!(nested_filter.max_depth(), 2);
+
+        // Deeply nested filter should fail
+        let mut deep_filter = EventFilter::Sender(IotaAddress::random_for_testing_only());
+        for _ in 0..=10 {
+            // MAX_FILTER_DEPTH
+            deep_filter = EventFilter::Not(Box::new(deep_filter));
+        }
+        assert!(deep_filter.validate_depth().is_err());
+        assert!(deep_filter.max_depth() > 10);
+    }
+
+    #[test]
+    fn test_event_filter_empty_logical_filters() {
+        // Empty All filter should pass validation
+        let empty_all = EventFilter::All(vec![]);
+        assert!(empty_all.validate_depth().is_ok());
+        assert_eq!(empty_all.max_depth(), 0);
+
+        // Empty Any filter should pass validation
+        let empty_any = EventFilter::Any(vec![]);
+        assert!(empty_any.validate_depth().is_ok());
+        assert_eq!(empty_any.max_depth(), 0);
     }
 }
