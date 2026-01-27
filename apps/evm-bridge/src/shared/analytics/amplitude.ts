@@ -8,7 +8,9 @@ import { getAmplitudeConsentStatus, PersistableStorage } from '@iota/core';
 import { ampli } from './ampli';
 import { getDefaultNetwork } from '../../config';
 
-const IS_ENABLED = import.meta.env.VITE_BUILD_ENV === 'production';
+const IS_ENABLED =
+    import.meta.env.VITE_BUILD_ENV === 'production' &&
+    import.meta.env.VITE_AMPLITUDE_ENABLED === 'true';
 
 export const persistableStorage = new PersistableStorage<UserSession>();
 
