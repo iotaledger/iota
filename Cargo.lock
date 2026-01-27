@@ -6795,6 +6795,7 @@ name = "iota-indexer"
 version = "1.20.0-alpha"
 dependencies = [
  "anyhow",
+ "arc-swap",
  "async-trait",
  "axum 0.8.4",
  "backoff",
