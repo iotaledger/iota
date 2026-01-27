@@ -267,7 +267,7 @@ pub enum UserInputError {
     #[error("Immutable parameter provided, mutable parameter expected")]
     MutableParameterExpected { object_id: ObjectID },
 
-    #[error("Address {address:?} is denied for coin {coin_type}")]
+    #[error("Address {address} is denied for coin {coin_type}")]
     AddressDeniedForCoin {
         address: IotaAddress,
         coin_type: String,
@@ -357,10 +357,10 @@ pub enum IotaObjectResponseError {
     Eq, PartialEq, Clone, Debug, Serialize, Deserialize, Error, Hash, AsRefStr, IntoStaticStr,
 )]
 pub enum IotaError {
-    #[error("Error checking transaction input objects: {:?}", error)]
+    #[error("Error checking transaction input objects: {}", error)]
     UserInput { error: UserInputError },
 
-    #[error("Error checking transaction object: {:?}", error)]
+    #[error("Error checking transaction object: {}", error)]
     IotaObjectResponse { error: IotaObjectResponseError },
 
     #[error("Expecting a single owner, shared ownership found")]
